@@ -61,8 +61,10 @@ BINARIES: dict[str, dict] = {
         "entrypoint": "cmd/sbomgen",
         "platforms": ["linux/x64", "linux/arm64"],
     },
-    "serverless": {"entrypoint": "cmd/serverless", "platforms": ["linux/x64", "linux/arm64"]},
-    "system-probe": {"entrypoint": "cmd/system-probe", "platforms": ["linux/x64", "linux/arm64", "win32/x64"]},
+    "system-probe": {
+        "entrypoint": "cmd/system-probe",
+        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
+    },
     "cws-instrumentation": {
         "entrypoint": "cmd/cws-instrumentation",
         "platforms": ["linux/x64", "linux/arm64"],
@@ -81,6 +83,10 @@ BINARIES: dict[str, dict] = {
         "entrypoint": "cmd/otel-agent",
         "platforms": ["linux/x64", "linux/arm64"],
     },
+    "full-host-profiler": {
+        "entrypoint": "cmd/host-profiler",
+        "platforms": ["linux/x64", "linux/arm64"],
+    },
     "loader": {
         "entrypoint": "cmd/loader",
         "platforms": ["linux/x64", "linux/arm64", "darwin/x64", "darwin/arm64"],
@@ -88,6 +94,14 @@ BINARIES: dict[str, dict] = {
     "installer": {
         "entrypoint": "cmd/installer",
         "platforms": ["linux/x64", "linux/arm64", "win32/x64"],
+    },
+    "privateactionrunner": {
+        "entrypoint": "cmd/privateactionrunner",
+        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
+    },
+    "secret-generic-connector": {
+        "entrypoint": "cmd/secret-generic-connector",
+        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
     },
 }
 
@@ -131,7 +145,7 @@ def diff(
         baseline_ref = get_common_ancestor(ctx, commit_sha, base_branch)
 
     diffs = {}
-    dep_cmd = "go list -f '{{ range .Deps }}{{ printf \"%s\\n\" . }}{{end}}'"
+    dep_cmd = "go list -buildvcs=false -f '{{ range .Deps }}{{ printf \"%s\\n\" . }}{{end}}'"
 
     with tempfile.TemporaryDirectory() as tmpdir:
         try:
@@ -141,6 +155,8 @@ def diff(
                 if branch_ref:
                     ctx.run(f"git checkout -q {branch_ref}")
 
+                # Run all go list commands in parallel for this branch
+                promises = []
                 for binary, details in BINARIES.items():
                     with ctx.cd(details.get("entrypoint")):
                         for combo in details["platforms"]:
@@ -159,7 +175,16 @@ def diff(
                                 "CGO_ENABLED": "1",
                                 "GOTOOLCHAIN": f"go{dot_go_version(ctx)}",
                             }
-                            ctx.run(f"{dep_cmd} -tags \"{' '.join(build_tags)}\" > {depsfile}", env=env)
+                            promise = ctx.run(
+                                f"{dep_cmd} -tags \"{' '.join(build_tags)}\" > {depsfile}",
+                                env=env,
+                                asynchronous=True,
+                            )
+                            promises.append(promise)
+
+                # Wait for all commands to complete
+                for promise in promises:
+                    promise.join()
         finally:
             ctx.run(f"git checkout -q {current_branch}")
 
@@ -286,7 +311,7 @@ def compute_count_metric(
 
     # need to explicitly enable CGO to also include CGO-only deps when checking different platforms
     env = {"GOOS": goos, "GOARCH": goarch, "CGO_ENABLED": "1"}
-    cmd = "go list -f '{{ join .Deps \"\\n\"}}'"
+    cmd = "go list -buildvcs=false -f '{{ join .Deps \"\\n\"}}'"
     with ctx.cd(entrypoint):
         res = ctx.run(
             f"{cmd} -tags \"{','.join(build_tags)}\"",
@@ -351,7 +376,7 @@ def compute_binary_dependencies_list(
     build_tags = get_default_build_tags(build=build, flavor=flavor, platform=platform)
 
     env = {"GOOS": goos, "GOARCH": goarch, "CGO_ENABLED": "1"}
-    cmd = "go list -f '{{ join .Deps \"\\n\"}}'"
+    cmd = "go list -buildvcs=false -f '{{ join .Deps \"\\n\"}}'"
 
     res = ctx.run(
         f"{cmd} -tags \"{','.join(build_tags)}\"",

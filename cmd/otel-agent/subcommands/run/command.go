@@ -22,6 +22,7 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
@@ -32,7 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
+	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-optional-remote"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -97,6 +98,12 @@ func (o *orchestratorinterfaceimpl) Reset() {
 	o.f = nil
 }
 
+// A negative CMD_PORT is used to tell the otel-agent not to contact the core agent.
+// e.g. in gateway mode
+func isCmdPortNegative(cfg coreconfig.Component) bool {
+	return cfg.GetInt("cmd_port") <= 0
+}
+
 func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Option) error {
 	acfg, err := agentConfig.NewConfigComponent(context.Background(), params.CoreConfPath, params.ConfPaths)
 	if err != nil && err != agentConfig.ErrNoDDExporter {
@@ -127,7 +134,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			fx.Provide(func(cp converter.Component, _ configsync.Component) confmap.Converter {
 				return cp
 			}),
-			remoteTaggerFx.Module(tagger.NewRemoteParams()),
+			remoteTaggerFx.Module(tagger.OptionalRemoteParams{Disable: isCmdPortNegative}, tagger.NewRemoteParams()),
 			fx.Provide(func(h hostnameinterface.Component) (serializerexporter.SourceProviderFunc, error) {
 				return h.Get, nil
 			}),
@@ -138,6 +145,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			fx.Options(opts...),
 			fx.Invoke(func(_ collectordef.Component, _ pid.Component) {
 			}),
+			fxinstrumentation.Module(),
 		)
 	}
 
@@ -167,7 +175,14 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			InitHelper: workloadmetainit.GetWorkloadmetaInit(),
 		}),
 		fx.Supply(uris),
-		fx.Provide(func(h hostnameinterface.Component) (serializerexporter.SourceProviderFunc, error) {
+		fx.Provide(func(h hostnameinterface.Component, cfg coreconfig.Component) (serializerexporter.SourceProviderFunc, error) {
+			if cfg.GetBool("otelcollector.gateway.mode") {
+				// In gateway mode the agent does not represent a specific host, so return an empty
+				// hostname without error instead of failing when hostname resolution is not available.
+				return func(_ context.Context) (string, error) {
+					return "", nil
+				}, nil
+			}
 			return h.Get, nil
 		}),
 		remotehostnameimpl.Module(),
@@ -212,7 +227,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 		}),
 
 		configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
-		remoteTaggerFx.Module(tagger.NewRemoteParams()),
+		remoteTaggerFx.Module(tagger.OptionalRemoteParams{Disable: isCmdPortNegative}, tagger.NewRemoteParams()),
 		telemetryimpl.Module(),
 		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
@@ -241,6 +256,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 		payloadmodifierfx.NilModule(),
 		traceagentfx.Module(),
 		agenttelemetryfx.Module(),
+		fxinstrumentation.Module(),
 	)
 }
 

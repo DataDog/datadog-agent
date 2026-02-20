@@ -8,6 +8,7 @@
 package winevtapi
 
 import (
+	"errors"
 	"fmt"
 	"unsafe"
 
@@ -111,7 +112,7 @@ func (v *evtVariantValues) SID(index uint) (*windows.SID, error) {
 // Get a EVT_VARIANT* to an element in the array of structs
 func (v *evtVariantValues) item(index uint) (*C.EVT_VARIANT, error) {
 	if index >= v.count {
-		return nil, fmt.Errorf("index out of bounds")
+		return nil, errors.New("index out of bounds")
 	}
 	// Get a pointer to the structure at index, e.g. &((*EVT_VARIANT)buf)[index]
 	x := (*C.EVT_VARIANT)(unsafe.Add(v.buf, (uintptr)(index)*unsafe.Sizeof(C.EVT_VARIANT{})))
@@ -179,7 +180,7 @@ func evtRenderEventValues(Context evtapi.EventRenderContextHandle, Fragment evta
 	}
 
 	if BufferUsed == 0 {
-		return nil, fmt.Errorf("evtRender returned buffer size 0")
+		return nil, errors.New("evtRender returned buffer size 0")
 	}
 
 	// Allocate buffer space (BufferUsed is size in bytes)

@@ -141,7 +141,12 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 		"*": {
 			// Exec probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "sched_process_fork"}},
+				&manager.OneOf{
+					Selectors: []manager.ProbesSelector{
+						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "sched_process_fork"}},
+						hookFunc("rethook_get_task_pid"),
+					},
+				},
 				hookFunc("hook_do_exit"),
 				&manager.BestEffort{Selectors: []manager.ProbesSelector{
 					hookFunc("hook_prepare_binprm"),
@@ -227,9 +232,6 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 				hookFunc("hook_io_openat2"),
 				hookFunc("rethook_io_openat2"),
 			}},
-			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				hookFunc("hook_filp_close"),
-			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_terminate_walk"),
 			}},
@@ -252,6 +254,7 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 				hookFunc("hook_clone_mnt"),
 				hookFunc("rethook_clone_mnt"),
 				hookFunc("hook_mnt_change_mountpoint"),
+				hookFunc("hook_cleanup_mnt"),
 			}},
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
 				hookFunc("rethook_alloc_vfsmnt"),
@@ -265,6 +268,7 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_attach_mnt"),
 				hookFunc("hook___attach_mnt"),
+				hookFunc("hook_make_visible"),
 				hookFunc("hook_mnt_set_mountpoint"),
 			}},
 

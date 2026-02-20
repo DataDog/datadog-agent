@@ -7,7 +7,11 @@
 
 package ir
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/dyninst/exprlang"
+)
 
 // ProgramID is a ID corresponding to an instance of a Program.  It is used to
 // identify messages from this program as they are communicated over the ring
@@ -140,6 +144,52 @@ type Variable struct {
 // PCRange is the range of PC values that will be probed.
 type PCRange = [2]uint64
 
+// Template represents the concrete template structure for a probe.
+type Template struct {
+	// TemplateString is the complete template string.
+	TemplateString string
+	// Segments are the ordered parts of the template.
+	Segments []TemplateSegment
+}
+
+// TemplateSegment represents a concrete part of the template.
+type TemplateSegment interface {
+	templateSegment() // marker method
+}
+
+// StringSegment is a string literal in the template.
+type StringSegment string
+
+func (s StringSegment) templateSegment() {}
+
+// JSONSegment is an expression segment in the template.
+type JSONSegment struct {
+	// JSON is the AST of the DSL segment.
+	JSON exprlang.Expr
+	// DSL is the raw expression language segment.
+	DSL string
+	// EventKind is the kind of the event within the probe that corresponds to this segment (i.e. entry, return, line).
+	EventKind EventKind
+	// EventExpressionIndex is the index of the expression within the event.
+	EventExpressionIndex int
+}
+
+func (s *JSONSegment) templateSegment() {}
+
+// InvalidSegment is a segment that represents an issue with the template.
+type InvalidSegment struct {
+	// Error is the error that occurred while parsing the segment.
+	Error string
+	DSL   string
+}
+
+func (s InvalidSegment) templateSegment() {}
+
+// DurationSegment is a segment that is a simple reference to @duration.
+type DurationSegment struct{}
+
+func (s *DurationSegment) templateSegment() {}
+
 // Probe represents a probe from the config as it applies to the program.
 type Probe struct {
 	ProbeDefinition
@@ -147,8 +197,8 @@ type Probe struct {
 	Subprogram *Subprogram
 	// The events that trigger the probe.
 	Events []*Event
-	// TODO: Add template support:
-	//	TemplateSegments []TemplateSegment
+	// Template contains the concrete template structure for this probe.
+	Template *Template
 }
 
 // Event corresponds to an action that will occur when a PC is hit.
@@ -174,6 +224,22 @@ type InjectionPoint struct {
 	// HasAssociatedReturn is true if there is going to be a return associated
 	// with this call.
 	HasAssociatedReturn bool `json:"-"`
+	// NoReturnReason is the reason why there is no return associated with this
+	// call. Only set if HasAssociatedReturn is false.
+	NoReturnReason NoReturnReason `json:"-"`
 	// TopPCOffset is the offset of the top PC from the entry PC.
 	TopPCOffset int8 `json:"-"`
 }
+
+// This must be kept in sync with the no_return_reason enum in the ebpf/types.h
+// file.
+type NoReturnReason uint8
+
+const (
+	NoReturnReasonNone            NoReturnReason = 0
+	NoReturnReasonReturnsDisabled NoReturnReason = 1
+	NoReturnReasonLineProbe       NoReturnReason = 2
+	NoReturnReasonInlined         NoReturnReason = 3
+	NoReturnReasonNoBody          NoReturnReason = 4
+	NoReturnReasonIsReturn        NoReturnReason = 5
+)

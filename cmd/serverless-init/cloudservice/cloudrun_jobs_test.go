@@ -6,8 +6,9 @@
 package cloudservice
 
 import (
-	"fmt"
+	"errors"
 	"os/exec"
+	"runtime"
 	"testing"
 	"time"
 
@@ -23,10 +24,38 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+// mockTraceProcessor is a mock implementation of the TraceAgent interface for testing
+type mockTraceProcessor struct {
+	processCalled bool
+	lastPayload   *api.Payload
+}
+
+func (m *mockTraceProcessor) Process(p *api.Payload) {
+	m.processCalled = true
+	m.lastPayload = p
+}
+
+func (m *mockTraceProcessor) Flush() {
+	// no-op for tests
+}
+
+func (m *mockTraceProcessor) Stop() {
+	// no-op for tests
+}
+
+func skipOnWindows(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("Cloud Run Jobs are not supported on Windows")
+	}
+}
+
 func TestGetCloudRunJobsTagsWithEnvironmentVariables(t *testing.T) {
+	skipOnWindows(t)
 	service := &CloudRunJobs{}
 
 	metadataHelperFunc = func(*GCPConfig, bool) map[string]string {
@@ -62,32 +91,37 @@ func TestGetCloudRunJobsTagsWithEnvironmentVariables(t *testing.T) {
 }
 
 func TestCloudRunJobsGetOrigin(t *testing.T) {
+	skipOnWindows(t)
 	service := &CloudRunJobs{}
 	assert.Equal(t, "cloudrunjobs", service.GetOrigin())
 }
 
 func TestCloudRunJobsInit(t *testing.T) {
+	skipOnWindows(t)
 	service := &CloudRunJobs{}
-	assert.NoError(t, service.Init())
+	assert.NoError(t, service.Init(nil))
 }
 
 func TestIsCloudRunJob(t *testing.T) {
+	skipOnWindows(t)
 	// Test when environment variable is set
 	t.Setenv("CLOUD_RUN_JOB", "test-job")
 	assert.True(t, isCloudRunJob())
 }
 
 func TestIsCloudRunJobWhenNotSet(t *testing.T) {
+	skipOnWindows(t)
 	// This test runs in a clean environment where CLOUD_RUN_JOB is not set
 	assert.False(t, isCloudRunJob())
 }
 
 func TestCloudRunJobsShutdownAddsExitCodeTag(t *testing.T) {
+	skipOnWindows(t)
 	demux := createDemultiplexer(t)
 	agent := serverlessMetrics.ServerlessMetricAgent{Demux: demux}
 
 	jobs := &CloudRunJobs{startTime: time.Now().Add(-time.Second)}
-	shutdownMetricName := fmt.Sprintf("%s.enhanced.task.ended", cloudRunJobsPrefix)
+	shutdownMetricName := cloudRunJobsPrefix + ".enhanced.task.ended"
 
 	cmd := exec.Command("bash", "-c", "exit 1")
 	err := cmd.Run()
@@ -101,7 +135,7 @@ func TestCloudRunJobsShutdownAddsExitCodeTag(t *testing.T) {
 	foundShutdown := false
 	for _, sample := range generatedMetrics {
 		if sample.Name == shutdownMetricName {
-			require.Contains(t, sample.Tags, "exit_code:1")
+			require.Contains(t, sample.Tags, "succeeded:false")
 			foundShutdown = true
 		}
 	}
@@ -109,11 +143,12 @@ func TestCloudRunJobsShutdownAddsExitCodeTag(t *testing.T) {
 }
 
 func TestCloudRunJobsShutdownExitCodeZeroOnSuccess(t *testing.T) {
+	skipOnWindows(t)
 	demux := createDemultiplexer(t)
 	agent := serverlessMetrics.ServerlessMetricAgent{Demux: demux}
 
 	jobs := &CloudRunJobs{startTime: time.Now().Add(-time.Second)}
-	shutdownMetricName := fmt.Sprintf("%s.enhanced.task.ended", cloudRunJobsPrefix)
+	shutdownMetricName := cloudRunJobsPrefix + ".enhanced.task.ended"
 
 	jobs.Shutdown(agent, nil)
 
@@ -122,11 +157,176 @@ func TestCloudRunJobsShutdownExitCodeZeroOnSuccess(t *testing.T) {
 	foundShutdown := false
 	for _, sample := range generatedMetrics {
 		if sample.Name == shutdownMetricName {
-			require.Contains(t, sample.Tags, "exit_code:0")
+			require.Contains(t, sample.Tags, "succeeded:true")
 			foundShutdown = true
 		}
 	}
 	assert.True(t, foundShutdown, "shutdown metric not emitted")
+}
+
+func TestCloudRunJobsSpanCreation(t *testing.T) {
+	skipOnWindows(t)
+	t.Setenv("CLOUD_RUN_JOB", "my-test-job")
+
+	// spanTags simulates the combined tags passed from main.go
+	spanTags := map[string]string{
+		"project_id": "test-project",
+		"location":   "us-central1",
+		"job_name":   "my-test-job",
+		"origin":     "cloudrunjobs",
+		"_dd.origin": "cloudrunjobs",
+	}
+
+	jobs := &CloudRunJobs{}
+	jobs.Init(&TracingContext{SpanTags: spanTags})
+
+	// Verify span was created
+	assert.NotNil(t, jobs.jobSpan)
+	if jobs.jobSpan != nil {
+		// Service should fallback to job name since DD_SERVICE is not in tags
+		assert.Equal(t, "my-test-job", jobs.jobSpan.Service)
+		assert.Equal(t, "gcp.run.job.task", jobs.jobSpan.Name)
+		assert.Equal(t, "my-test-job", jobs.jobSpan.Resource)
+		assert.NotZero(t, jobs.jobSpan.TraceID)
+		assert.NotZero(t, jobs.jobSpan.SpanID)
+		assert.Equal(t, uint64(0), jobs.jobSpan.ParentID)
+		assert.NotNil(t, jobs.jobSpan.Meta)
+		assert.Equal(t, "cloudrunjobs", jobs.jobSpan.Meta["origin"])
+	}
+}
+
+func TestCloudRunJobsSpanServiceNameFallbackToJobName(t *testing.T) {
+	skipOnWindows(t)
+	t.Setenv("CLOUD_RUN_JOB", "my-job-name")
+
+	// spanTags without "service" tag - should fallback to job name
+	spanTags := map[string]string{
+		"project_id": "test-project",
+		"location":   "us-central1",
+		"job_name":   "my-job-name",
+		"origin":     "cloudrunjobs",
+	}
+
+	jobs := &CloudRunJobs{}
+	jobs.Init(&TracingContext{SpanTags: spanTags})
+
+	// Verify span falls back to job name for service name
+	require.NotNil(t, jobs.jobSpan)
+	assert.Equal(t, "my-job-name", jobs.jobSpan.Service)
+	assert.Equal(t, "my-job-name", jobs.jobSpan.Resource)
+}
+
+func TestCloudRunJobsSpanServiceNameFromDDService(t *testing.T) {
+	skipOnWindows(t)
+	// spanTags with "service" tag set (from DD_SERVICE env var)
+	spanTags := map[string]string{
+		"project_id": "test-project",
+		"location":   "us-central1",
+		"job_name":   "my-job-name",
+		"service":    "my-custom-service", // Set via DD_SERVICE in main.go
+		"origin":     "cloudrunjobs",
+	}
+
+	jobs := &CloudRunJobs{}
+	jobs.Init(&TracingContext{SpanTags: spanTags})
+
+	// Verify span uses the DD_SERVICE value
+	require.NotNil(t, jobs.jobSpan)
+	assert.Equal(t, "my-custom-service", jobs.jobSpan.Service)
+	// Resource should still use the job name
+	assert.Equal(t, "my-job-name", jobs.jobSpan.Resource)
+}
+
+func TestCloudRunJobsSpanServiceNameFallbackToDefault(t *testing.T) {
+	skipOnWindows(t)
+	// spanTags without "service" tag and without "job_name" - should fallback to default
+	spanTags := map[string]string{
+		"project_id": "test-project",
+		"location":   "us-central1",
+		"origin":     "cloudrunjobs",
+		// No "service" tag, no "job_name" tag
+	}
+
+	jobs := &CloudRunJobs{}
+	jobs.Init(&TracingContext{SpanTags: spanTags})
+
+	// Verify span falls back to default "gcp.run.job"
+	require.NotNil(t, jobs.jobSpan)
+	assert.Equal(t, "gcp.run.job", jobs.jobSpan.Service)
+	assert.Equal(t, "gcp.run.job", jobs.jobSpan.Resource)
+}
+
+func TestCloudRunJobsCompleteAndSubmitJobSpanWithError(t *testing.T) {
+	skipOnWindows(t)
+	t.Setenv("CLOUD_RUN_JOB", "test-job")
+
+	spanTags := map[string]string{
+		"project_id": "test-project",
+		"location":   "us-central1",
+		"job_name":   "test-job",
+		"origin":     "cloudrunjobs",
+	}
+
+	mockAgent := &mockTraceProcessor{}
+	jobs := &CloudRunJobs{}
+	jobs.Init(&TracingContext{TraceAgent: mockAgent, SpanTags: spanTags})
+
+	// Simulate an error
+	testErr := errors.New("task failed")
+	jobs.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, testErr)
+
+	// Verify the span was submitted
+	assert.True(t, mockAgent.processCalled)
+	assert.NotNil(t, mockAgent.lastPayload)
+
+	// Verify span has error information
+	require.NotNil(t, jobs.jobSpan)
+	assert.Equal(t, int32(1), jobs.jobSpan.Error)
+	assert.Equal(t, "task failed", jobs.jobSpan.Meta["error.msg"])
+	assert.Equal(t, "1", jobs.jobSpan.Meta["exit_code"])
+	assert.NotZero(t, jobs.jobSpan.Duration)
+}
+
+func TestCloudRunJobsCompleteAndSubmitJobSpanSuccess(t *testing.T) {
+	skipOnWindows(t)
+	t.Setenv("CLOUD_RUN_JOB", "success-job")
+
+	spanTags := map[string]string{
+		"project_id": "test-project",
+		"location":   "us-central1",
+		"job_name":   "success-job",
+		"origin":     "cloudrunjobs",
+	}
+
+	mockAgent := &mockTraceProcessor{}
+	jobs := &CloudRunJobs{}
+	jobs.Init(&TracingContext{TraceAgent: mockAgent, SpanTags: spanTags})
+
+	// Simulate success (no error)
+	jobs.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, nil)
+
+	// Verify the span was submitted
+	assert.True(t, mockAgent.processCalled)
+	assert.NotNil(t, mockAgent.lastPayload)
+
+	// Verify span has no error
+	require.NotNil(t, jobs.jobSpan)
+	assert.Equal(t, int32(0), jobs.jobSpan.Error)
+	assert.NotContains(t, jobs.jobSpan.Meta, "error.msg")
+	assert.NotZero(t, jobs.jobSpan.Duration)
+}
+
+func TestCloudRunJobsCompleteAndSubmitJobSpanWithNilSpan(t *testing.T) {
+	skipOnWindows(t)
+	mockAgent := &mockTraceProcessor{}
+	jobs := &CloudRunJobs{}
+	// Don't call Init, so jobSpan remains nil
+
+	// Should not panic
+	jobs.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, nil)
+
+	// Should not submit anything
+	assert.False(t, mockAgent.processCalled)
 }
 
 func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {

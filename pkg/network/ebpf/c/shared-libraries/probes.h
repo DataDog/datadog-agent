@@ -78,26 +78,46 @@ static __always_inline void push_event_if_relevant(void *ctx, lib_path_t *path, 
     if (i + LIB_SO_SUFFIX_SIZE > path->len) {
         return;
     }
+    u64 ringbuffers_enabled = 0;
+    LOAD_CONSTANT("ringbuffers_enabled", ringbuffers_enabled);
+
     u64 crypto_libset_enabled = 0;
     LOAD_CONSTANT("crypto_libset_enabled", crypto_libset_enabled);
 
-    if (crypto_libset_enabled && (match6chars(0, 'l', 'i', 'b', 's', 's', 'l') || match6chars(0, 'c', 'r', 'y', 'p', 't', 'o') || match6chars(0, 'g', 'n', 'u', 't', 'l', 's'))) {
-        bpf_perf_event_output(ctx, &crypto_shared_libraries, BPF_F_CURRENT_CPU, path, sizeof(lib_path_t));
+    if (crypto_libset_enabled && (match6chars(0, 'l', 'i', 'b', 's', 's', 'l') || match6chars(0, 'c', 'r', 'y', 'p', 't', 'o') || match6chars(0, 'g', 'n', 'u', 't', 'l', 's') || match6chars(0, 'i', 'b', 'n', 'o', 'd', 'e'))) {
+        if (ringbuffers_enabled) {
+            bpf_ringbuf_output_with_telemetry(&crypto_shared_libraries, path, sizeof(lib_path_t), 0);
+        } else {
+            bpf_perf_event_output_with_telemetry(ctx, &crypto_shared_libraries, BPF_F_CURRENT_CPU, path, sizeof(lib_path_t));
+        }
+
         return;
     }
 
     u64 gpu_libset_enabled = 0;
     LOAD_CONSTANT("gpu_libset_enabled", gpu_libset_enabled);
 
-    if (gpu_libset_enabled && (match6chars(0, 'c', 'u', 'd', 'a', 'r', 't') || match6chars(0, '4', 'j', 'c', 'u', 'd', 'a'))) {
-        bpf_perf_event_output(ctx, &gpu_shared_libraries, BPF_F_CURRENT_CPU, path, sizeof(lib_path_t));
+    if (gpu_libset_enabled && (match6chars(0, 'c', 'u', 'd', 'a', 'r', 't') || match6chars(0, '4', 'j', 'c', 'u', 'd', 'a') || match6chars(0, 'i', 'b', 'c', 'u', 'd', 'a'))) {
+        if (ringbuffers_enabled) {
+            bpf_ringbuf_output_with_telemetry(&gpu_shared_libraries, path, sizeof(lib_path_t), 0);
+        } else {
+            bpf_perf_event_output(ctx, &gpu_shared_libraries, BPF_F_CURRENT_CPU, path, sizeof(lib_path_t));
+        }
+
+        return;
     }
 
     u64 libc_libset_enabled = 0;
     LOAD_CONSTANT("libc_libset_enabled", libc_libset_enabled);
 
     if (libc_libset_enabled && (match4chars(2, 'l', 'i', 'b', 'c'))) {
-        bpf_perf_event_output(ctx, &libc_shared_libraries, BPF_F_CURRENT_CPU, path, sizeof(lib_path_t));
+        if (ringbuffers_enabled) {
+            bpf_ringbuf_output_with_telemetry(&libc_shared_libraries, path, sizeof(lib_path_t), 0);
+        } else {
+            bpf_perf_event_output_with_telemetry(ctx, &libc_shared_libraries, BPF_F_CURRENT_CPU, path, sizeof(lib_path_t));
+        }
+
+        return;
     }
 }
 

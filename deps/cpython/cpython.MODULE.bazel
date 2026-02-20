@@ -1,0 +1,67 @@
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+PYTHON_VERSION = "3.13.12"
+
+http_archive(
+    name = "cpython",
+    build_file = "//deps:cpython.BUILD.bazel",
+    files = {
+        "build_python.bat": "//deps/cpython:build_python.bat",
+    },
+    patch_strip = 1,
+    patches = [
+        "//deps/cpython:0001-customize-windows-build-script.patch",
+    ],
+    sha256 = "12e7cb170ad2d1a69aee96a1cc7fc8de5b1e97a2bdac51683a3db016ec9a2996",
+    strip_prefix = "Python-{}".format(PYTHON_VERSION),
+    url = "https://python.org/ftp/python/{0}/Python-{0}.tgz".format(PYTHON_VERSION),
+)
+
+# Python dependencies for Windows
+
+python_src_deps = {
+    "bzip2": ("1.0.8", "12c17d15f99e27235529574a722fb484a4e8fdf2427cef53b1b68bdf07e404a9"),
+    "mpdecimal": ("4.0.0", "270f5fbee4cc02f6ebe28d5be9c4e1268696bff9ead14d1e7f674e2eef759a07"),
+    "sqlite": ("3.50.4.0", "dc5e26c19a73160244fdba918df385ced399b309941da3d9365ba34afb421c2f"),
+    "xz": ("5.2.5", "6a4389cc05143beb2679b1299cecee71b02baa55e70f68a88b44dc01ad495424"),
+    "zlib": ("1.3.1", "a8f166f0f819ff084042554f39d763c41de5f19f8e9cdc68bc3e7f373cfba036"),
+}
+
+[
+    http_archive(
+        name = "{}_win".format(name),
+        build_file_content = "filegroup(name = '{name}_win', srcs = glob(['**']), visibility = ['//visibility:public'])".format(name = name),
+        sha256 = sha256,
+        strip_prefix = "cpython-source-deps-{name}-{version}".format(
+            name = name,
+            version = version,
+        ),
+        url = "https://github.com/python/cpython-source-deps/archive/{name}-{version}.zip".format(
+            name = name,
+            version = version,
+        ),
+    )
+    for name, (version, sha256) in python_src_deps.items()
+]
+
+python_bin_deps = {
+    "libffi": ("3.4.4", "681c0e6306b4bcb54ecce8305f67ca88ab03be922b6c4dcfd18240ad46e357d8"),
+    "tcltk": ("8.6.15.0", "60adc5fc31c02347666198ffc74e5b6d0948f6765bb9034ae423a5a16c22a4e5"),
+}
+
+[
+    http_archive(
+        name = "{}_win".format(name),
+        build_file_content = "filegroup(name = '{name}_win', srcs = glob(['**']), visibility = ['//visibility:public'])".format(name = name),
+        sha256 = sha256,
+        strip_prefix = "cpython-bin-deps-{name}-{version}".format(
+            name = name,
+            version = version,
+        ),
+        url = "https://github.com/python/cpython-bin-deps/archive/{name}-{version}.zip".format(
+            name = name,
+            version = version,
+        ),
+    )
+    for name, (version, sha256) in python_bin_deps.items()
+]

@@ -21,14 +21,14 @@ func TestExpectResponses(t *testing.T) {
 		codes      []int
 		bodySuffix string
 	}{
-		{nil, "|200"},
-		{[]int{}, "|200"},
-		{[]int{200}, "|200"},
-		{[]int{200, 300}, "|200,300"},
-		{[]int{403, 403, 200, 100}, "|403,403,200,100"},
+		{nil, "|special_payload|200"},
+		{[]int{}, "|special_payload|200"},
+		{[]int{200}, "|special_payload|200"},
+		{[]int{200, 300}, "|special_payload|200,300"},
+		{[]int{403, 403, 200, 100}, "|special_payload|403,403,200,100"},
 	} {
 		body := expectResponses(tt.codes...).body.String()
-		parts := strings.Split(body, "|")
+		parts := strings.Split(body, payloadSplitter)
 		if len(parts) != 2 {
 			t.Fatalf("malformed body: %s", body)
 		}
@@ -133,7 +133,7 @@ func TestTestServer(t *testing.T) {
 			http.StatusLoopDetected,
 			http.StatusTooManyRequests,
 		} {
-			resp, err := http.Post(ts.URL, "text/plain", strings.NewReader("1|200,508,429"))
+			resp, err := http.Post(ts.URL, "text/plain", strings.NewReader("1|special_payload|200,508,429"))
 			assert.NoError(err)
 			assert.Equal(code, resp.StatusCode)
 			resp.Body.Close()

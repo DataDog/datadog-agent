@@ -22,10 +22,10 @@ import (
 	"github.com/xeipuuv/gojsonschema"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/api"
 )
 
@@ -70,7 +70,7 @@ func (a *agentSuite) Test00RulesetLoadedDefaultFile() {
 
 func (a *agentSuite) Test01RulesetLoadedDefaultRC() {
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		testRulesetLoaded(c, a, "remote-config", "default.policy")
+		testRulesetLoaded(c, a, "remote-config", "threat-detection.policy")
 	}, 4*time.Minute, 10*time.Second)
 }
 
@@ -98,16 +98,16 @@ func (a *agentSuite) Test03OpenSignal() {
 			assert.NoErrorf(a.T(), err, "failed to delete agent rule %s", agentRuleID)
 		}
 		if dirname != "" {
-			a.Env().RemoteHost.MustExecute(fmt.Sprintf("rm -r %s", dirname))
+			a.Env().RemoteHost.MustExecute("rm -r " + dirname)
 		}
 	}()
 
 	// Create temporary directory
 	tempDir := a.Env().RemoteHost.MustExecute("mktemp -d")
 	dirname = strings.TrimSuffix(tempDir, "\n")
-	filepath := fmt.Sprintf("%s/secret", dirname)
-	desc := fmt.Sprintf("e2e test rule %s", a.testID)
-	agentRuleName := fmt.Sprintf("new_e2e_agent_rule_%s", a.testID)
+	filepath := dirname + "/secret"
+	desc := "e2e test rule " + a.testID
+	agentRuleName := "new_e2e_agent_rule_" + a.testID
 
 	// Create CWS Agent rule
 	rule := fmt.Sprintf("open.file.path == \"%s\"", filepath)
@@ -142,7 +142,7 @@ func (a *agentSuite) Test03OpenSignal() {
 
 	// Push policies
 	a.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo cp temp.txt %s && rm temp.txt", policiesPath))
-	policiesFile := a.Env().RemoteHost.MustExecute(fmt.Sprintf("cat %s", policiesPath))
+	policiesFile := a.Env().RemoteHost.MustExecute("cat " + policiesPath)
 	require.Contains(a.T(), policiesFile, desc, "The policies file should contain the created rule")
 
 	// Reload policies
@@ -162,7 +162,7 @@ func (a *agentSuite) Test03OpenSignal() {
 	// Check app event
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
 		// Trigger agent event
-		a.Env().RemoteHost.MustExecute(fmt.Sprintf("touch %s", filepath))
+		a.Env().RemoteHost.MustExecute("touch " + filepath)
 		testRuleEvent(c, a, agentRuleName, func(e *api.RuleEvent) {
 			assert.Equal(c, "open", e.Evt.Name, "event name should be open")
 			assert.Equal(c, filepath, e.File.Path, "file path does not match")
@@ -180,7 +180,7 @@ func (a *agentSuite) Test03OpenSignal() {
 		if !assert.NotNil(c, signal) {
 			return
 		}
-		assert.Contains(c, signal.Tags, fmt.Sprintf("rule_id:%s", strings.ToLower(agentRuleName)), "unable to find rule_id tag")
+		assert.Contains(c, signal.Tags, "rule_id:"+strings.ToLower(agentRuleName), "unable to find rule_id tag")
 		if !assert.Contains(c, signal.AdditionalProperties, "attributes", "unable to find 'attributes' field in signal") {
 			return
 		}
@@ -323,7 +323,7 @@ func testCwsEnabled(t assert.TestingT, ts testSuite) {
 }
 
 func testSelftestsEvent(t assert.TestingT, ts testSuite, extraValidations ...eventValidationCb[*api.SelftestsEvent]) {
-	query := fmt.Sprintf("rule_id:self_test host:%s", ts.Hostname())
+	query := "rule_id:self_test host:" + ts.Hostname()
 	selftestsEvent, err := api.GetAppEvent[api.SelftestsEvent](ts.Client(), query)
 	if !assert.NoErrorf(t, err, "could not get selftests event for host %s", ts.Hostname()) {
 		return

@@ -28,7 +28,8 @@ func TestProcessContainerEvent(t *testing.T) {
 
 	configYaml := `
 cel_workload_exclude:
-  - products: global
+  - products:
+      - global
     rules:
       containers:
        - container.name == 'excluded_cel_name'

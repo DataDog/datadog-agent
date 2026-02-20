@@ -28,7 +28,7 @@ type ChownSelfTest struct {
 
 // GetRuleDefinition returns the rule
 func (o *ChownSelfTest) GetRuleDefinition() *rules.RuleDefinition {
-	o.ruleID = fmt.Sprintf("%s_chown", ruleIDPrefix)
+	o.ruleID = ruleIDPrefix + "_chown"
 
 	return &rules.RuleDefinition{
 		ID:         o.ruleID,

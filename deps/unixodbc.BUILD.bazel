@@ -1,0 +1,288 @@
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+
+package(
+    default_package_metadata = [":license"],
+    default_visibility = ["//packages:__subpackages__"],
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:GPL-2.0"],
+    license_text = "COPYING",
+    visibility = ["//visibility:public"],
+)
+
+COMMON_COPTS = ["-O3"]
+COMMON_INCLUDES = [".", "include"]
+
+# Version info from unixODBC 2.3.9
+# The actual SONAME version would be determined by LIB_VERSION in the autotools build
+# For unixODBC 2.3.9, the libraries typically have SONAME like libodbc.so.2
+VERSION = "2.3.9"
+
+# For some reason version of .so in the final package is 2.0.0, not 2.3.9.
+# To ensure the same behavior as the autotools build, we use 2.0.0 here.
+SOVERSION = "2.0.0"
+
+# Public headers installed by unixODBC
+_UNIXODBC_PUBLIC_HEADERS = [
+    "include/odbcinst.h",
+    "include/odbcinstext.h",
+    "include/sql.h",
+    "include/sqlext.h",
+    "include/sqltypes.h",
+    "include/sqlucode.h",
+    "include/sqlspi.h",
+    "include/autotest.h",
+    "include/uodbc_stats.h",
+    "include/uodbc_extras.h",
+    "include/unixodbc_conf.h",
+]
+
+_LIBLTDL_PUBLIC_HEADERS = [
+    "libltdl/ltdl.h",
+]
+
+copy_file(
+    name = "unixodbc_conf_h",
+    src = select({
+        "@platforms//cpu:x86_64": "x86_64/unixodbc_conf.h",
+        "@platforms//cpu:aarch64": "aarch64/unixodbc_conf.h",
+        "//conditions:default": "@platforms//:incompatible",
+    }),
+    out = "include/unixodbc_conf.h",
+)
+
+copy_file(
+    name = "config_h",
+    src = select({
+        "@platforms//cpu:x86_64": "x86_64/config.h",
+        "@platforms//cpu:aarch64": "aarch64/config.h",
+        "//conditions:default": "@platforms//:incompatible",
+    }),
+    out = "config.h",
+)
+
+cc_library(
+    name = "ltdl_hdr",
+    hdrs = _LIBLTDL_PUBLIC_HEADERS,
+    includes = ["libltdl"],
+    visibility = ["//visibility:private"],
+)
+
+# Extra utility functions (snprintf, strcasecmp)
+cc_library(
+    name = "extras",
+    # :config_h cannot be inside of the glob() because
+    # actions are executed during execution phase, not during analysis phase
+    # and glob is evaluated during analysis phase.
+    srcs = glob(["extras/**/*.c", "include/*.h"], exclude = ["extras/vms.c"]) + [":config_h"],
+    copts = COMMON_COPTS,
+    includes = COMMON_INCLUDES,
+)
+
+# Logging library
+cc_library(
+    name = "log",
+    srcs = glob(["log/**/*.c", "include/*.h"]) + [":config_h"],
+    copts = COMMON_COPTS,
+    includes = COMMON_INCLUDES,
+)
+
+# List management library
+cc_library(
+    name = "lst",
+    srcs = glob(["lst/**/*.c", "include/*.h"]) + [":config_h"],
+    copts = COMMON_COPTS,
+    includes = COMMON_INCLUDES,
+)
+
+# INI file parsing library
+cc_library(
+    name = "ini",
+    srcs = glob(["ini/**/*.c", "include/*.h"]) + [":config_h"],
+    copts = COMMON_COPTS,
+    includes = COMMON_INCLUDES,
+    deps = [":extras"],
+)
+
+# ODBC installer library (internal version)
+cc_library(
+    name = "odbcinstlc",
+    srcs = glob(["odbcinst/**/*.c", "include/*.h"]) + [":config_h"],
+    copts = COMMON_COPTS,
+    includes = COMMON_INCLUDES,
+    deps = [
+        ":ini",
+        ":log",
+        ":lst",
+        ":ltdl_hdr",
+    ],
+)
+
+# ODBC installer library (public version with exports)
+cc_library(
+    name = "odbcinst",
+    srcs = glob(["odbcinst/**/*.c", "include/*.h"]) + [":config_h"],
+    hdrs = [
+        "include/odbcinst.h",
+        "include/odbcinstext.h",
+    ],
+    visibility = ["//visibility:public"],
+    copts = COMMON_COPTS,
+    includes = COMMON_INCLUDES,
+    deps = [
+        ":ini",
+        ":log",
+        ":lst",
+        ":ltdl_hdr",
+    ],
+)
+
+# Main ODBC Driver Manager library
+cc_library(
+    name = "odbc",
+    srcs = glob(["DriverManager/**/*.c", "DriverManager/**/*.h", "include/*.h"]) + [":config_h"],
+    hdrs = [
+        "include/sql.h",
+        "include/sqlext.h",
+        "include/sqltypes.h",
+        "include/sqlucode.h",
+        "include/sqlspi.h",
+        "include/unixodbc_conf.h",
+    ],
+    visibility = ["//visibility:public"],
+    copts = COMMON_COPTS,
+    includes = COMMON_INCLUDES + ["DriverManager"],
+    deps = [
+        ":lst",
+        ":log",
+        ":ini",
+        ":odbcinstlc",
+        ":ltdl_hdr",
+    ],
+)
+
+# Cursor library
+cc_library(
+    name = "odbccr",
+    # :config_h cannot be inside of the glob() because
+    # actions are executed during execution phase, not during analysis phase
+    # and glob is evaluated during analysis phase.
+    srcs = glob(["cur/**/*.c", "cur/**/*.h", "include/*.h"]) + [":config_h"],
+    visibility = ["//visibility:public"],
+    copts = COMMON_COPTS,
+    includes = COMMON_INCLUDES + ["DriverManager", "cur"],
+    deps = [":odbc"],
+)
+
+# ============================================================================
+# Shared Libraries (*.so files)
+# ============================================================================
+
+# libodbcinst.so - ODBC Installer/Configuration library
+cc_shared_library(
+    name = "libodbcinst_so",
+    shared_lib_name = "libodbcinst.so.%s" % SOVERSION,
+    deps = [":odbcinst"],
+    visibility = ["//visibility:public"],
+)
+
+# libodbc.so - Main ODBC Driver Manager library
+cc_shared_library(
+    name = "libodbc_so",
+    shared_lib_name = "libodbc.so.%s" % SOVERSION,
+    deps = [":odbc"],
+    visibility = ["//visibility:public"],
+)
+
+# libodbccr.so - Cursor library
+cc_shared_library(
+    name = "libodbccr_so",
+    shared_lib_name = "libodbccr.so.%s" % SOVERSION,
+    deps = [":odbccr"],
+    visibility = ["//visibility:public"],
+)
+
+# ============================================================================
+# Packaging - Library files
+# ============================================================================
+
+# Symlinks for libodbcinst
+so_symlink(
+    name = "libodbcinst_so_link",
+    src = ":libodbcinst_so",
+    libname = "libodbcinst",
+    # Symlinks version is the major version of the library.
+    version = SOVERSION.split(".")[0],
+)
+
+# Symlinks for libodbc
+so_symlink(
+    name = "libodbc_so_link",
+    src = ":libodbc_so",
+    libname = "libodbc",
+    # Symlinks version is the major version of the library.
+    version = SOVERSION.split(".")[0],
+)
+
+# Symlinks for libodbccr
+so_symlink(
+    name = "libodbccr_so_link",
+    src = ":libodbccr_so",
+    libname = "libodbccr",
+    # Symlinks version is the major version of the library.
+    version = SOVERSION.split(".")[0],
+)
+
+pkg_files(
+    name = "lib_files",
+    srcs = [
+        ":libodbcinst_so",
+        ":libodbc_so",
+        ":libodbccr_so",
+    ],
+    prefix = "lib",
+)
+
+# ============================================================================
+# Packaging - Header files
+# ============================================================================
+
+pkg_files(
+    name = "unixodbc_hdr_files",
+    srcs = _UNIXODBC_PUBLIC_HEADERS,
+    prefix = "include",
+)
+
+# We do need this "fake" ltdl.h to use dlopen
+# and other kernel functions directly without
+# requiring libltdl.
+pkg_files(
+    name = "libltdl_hdr_files",
+    srcs = _LIBLTDL_PUBLIC_HEADERS,
+    prefix = "include",
+)
+
+# ============================================================================
+# Installation target
+# ============================================================================
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":lib_files",
+        ":libodbcinst_so_link",
+        ":libodbc_so_link",
+        ":libodbccr_so_link",
+        #":bin_files",
+        ":unixodbc_hdr_files",
+        ":libltdl_hdr_files",
+    ],
+)

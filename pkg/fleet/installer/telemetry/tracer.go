@@ -27,6 +27,7 @@ var (
 		"agent.startup":             0.0,
 		"get_states":                0.01,
 		"installer.get_states":      0.01,
+		"installer.get-states":      0.01,
 	}
 )
 

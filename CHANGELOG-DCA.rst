@@ -2,6 +2,364 @@
 Release Notes
 =============
 
+.. _Release Notes_7.75.4:
+
+7.75.4
+======
+
+.. _Release Notes_7.75.4_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-02-17
+Pinned to datadog-agent v7.75.4: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7754>`_.
+
+.. _Release Notes_7.75.3:
+
+7.75.3
+======
+
+.. _Release Notes_7.75.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-02-11
+Pinned to datadog-agent v7.75.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7753>`_.
+
+
+.. _Release Notes_7.75.2:
+
+7.75.2
+======
+
+.. _Release Notes_7.75.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-02-04
+Pinned to datadog-agent v7.75.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7752>`_.
+
+
+.. _Release Notes_7.75.1:
+
+7.75.1
+======
+
+.. _Release Notes_7.75.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-01-28
+Pinned to datadog-agent v7.75.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7751>`_.
+
+.. _Release Notes_7.75.0:
+
+7.75.0
+======
+
+.. _Release Notes_7.75.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-01-21
+Pinned to datadog-agent v7.75.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7750>`_.
+
+.. _Release Notes_7.75.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- The Datadog Cluster Agent's mutating webhooks (part of the `Admission Controller <https://docs.datadoghq.com/containers/cluster_agent/admission_controller/?tab=datadogoperator>`_) previously included Single Step Instrumentation (SSI) settings in their default webhook label selectors. These SSI-specific settings, ``apm_config.instrumentation.enabled`` and ``apm_config.instrumentation.enabled_namespaces``, have been removed.
+
+  For those using Single Step Instrumentation, no action is required and no behavior changes. For those using the ``config`` or ``tagsfromlabels`` webhooks for manually instrumented applications, behavior remains consistent with the `documented configuration <https://docs.datadoghq.com/containers/cluster_agent/admission_controller/?tab=datadogoperator#apm-and-dogstatsd>`_. Users that were unintentionally relying on the SSI settings without using SSI should add the appropriate pod label or enable ``mutate_unlabelled`` to preserve the previous behavior.
+
+
+.. _Release Notes_7.75.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Single Step Instrumentation now uses the Python tracer major version 4 by default. Customers instrumenting Python
+  applications through SSI should review the `4.0.0 <https://github.com/DataDog/dd-trace-py/releases/tag/v4.0.0>`_
+  release notes and the [compatibility guide](https://docs.datadoghq.com/tracing/trace_collection/compatibility/python/)
+  to ensure their Python applications are compatible.
+
+
+.. _Release Notes_7.75.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- We collect namespaces in Kubernetes for Single Step Instrumentation. We need this information to utilize namespace
+  labels for workload selection. However, we also use this information to generate pod security polices for restricted
+  namespaces. This change fixes an issue where we would only collect namespace information when target based workload
+  selection was utilized instead of collecting namespaces for all Single Step Instrumentation configurations.
+
+- For Single Step Instrumentation, pods that include a label disabling instrumentation no longer receive mutations from the instrumentation webhook, even if they are in an enabled namespace.
+
+- When using Single Step Instrumentation with configuration-based targeting (enabled namespaces or targets) together with Local Lib Injection, the webhook no longer mutates pods in namespaces where instrumentation is disabled.
+
+
+.. _Release Notes_7.74.1:
+
+7.74.1
+======
+
+.. _Release Notes_7.74.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-01-12
+Pinned to datadog-agent v7.74.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7741>`_.
+
+.. _Release Notes_7.74.0:
+
+7.74.0
+======
+
+.. _Release Notes_7.74.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-01-07
+Pinned to datadog-agent v7.74.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7740>`_.
+
+.. _Release Notes_7.74.0_New Features:
+
+New Features
+------------
+
+- Add KSM Resource Type Sharding for improved performance in large Kubernetes clusters.
+  This feature automatically splits the ``kubernetes_state_core`` check into multiple
+  shards based on resource type groups (pods, nodes, others), enabling parallel execution
+  across multiple Cluster Check Runners.
+
+
+.. _Release Notes_7.74.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- In the Helm check, the "helm_status" tag is now always set to "uninstalled"
+  in delete events.
+
+
+.. _Release Notes_7.74.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed a deadlock in the Cluster Agent language detection handler that could cause
+  event drops with the error "collector language-detection-follower dropped event(s)
+  after 10s timeout". The fix releases the mutex before pushing events to workloadmeta
+  to prevent blocking while holding the lock.
+
+
+.. _Release Notes_7.73.3:
+
+7.73.3
+======
+
+.. _Release Notes_7.73.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-12-31
+Pinned to datadog-agent v7.73.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7733>`_.
+
+.. _Release Notes_7.73.2:
+
+7.73.2
+======
+
+.. _Release Notes_7.73.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-12-23
+Pinned to datadog-agent v7.73.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7732>`_.
+
+.. _Release Notes_7.73.1:
+
+7.73.1
+======
+
+.. _Release Notes_7.73.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-12-17
+Pinned to datadog-agent v7.73.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7731>`_.
+
+.. _Release Notes_7.73.0:
+
+7.73.0
+======
+
+.. _Release Notes_7.73.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-12-10
+Pinned to datadog-agent v7.73.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7730>`_.
+
+.. _Release Notes_7.73.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- This change removes support for v1 of the auto-instrumentation webhook used for Single Step Instrumentation. The v2
+  implementation, which has been the default since Agent v7.57.0, is a drop-in replacement. This setting was never exposed
+  in Helm or the Datadog Operator. If you previously set the DD_APM_INSTRUMENTATION_VERSION environment variable on
+  the Cluster Agent, it is now ignored.
+
+  If you use a private registry, add the ``apm-inject`` container to your registry before upgrading. No action is
+  required for other users. For details on using private registries, see [Use a private container registry](https://docs.datadoghq.com/tracing/trace_collection/automatic_instrumentation/single-step-apm/kubernetes/?tab=agentv764recommended#use-a-private-container-registry).
+
+
+.. _Release Notes_7.73.0_New Features:
+
+New Features
+------------
+
+- Customers using Single Step Instrumentation with target-based workload selection can now use language detection.
+  Language detection greatly reduces startup time when all default libraries are configured for a target.
+
+  A target is eligible for language detection if a target has no defined ``ddTraceVersions`` or if ``ddTraceVersions``
+  matches the default set of SDKs. Once a language has been determined for a deployment, subsequent deploys
+  only use the SDKs necessary for the detected language.
+
+
+.. _Release Notes_7.73.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Added namespace selectors excluding system namespace (``kube-system`` and the Datadog Agent's namespace)
+  resources from Admission Controller mutation webhooks. This prevents mutation webhooks from unnecessarily
+  intercepting system namespace resources, reducing misleading warnings or logs, and improving clarity
+  about which resources are actually mutated.
+
+
+.. _Release Notes_7.73.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The Cluster Agent Admission Controller now logs a warning instead of failing the webhook when the Admission Controller lacks permissions to access a pod’s owner.
+
+- Fix default value of automountServiceAccountToken on ServiceAccounts when not set.
+
+- There were several bugs for customers using Single Step Instrumentation with target-based workload selection, and
+  also using local SDK injection. This change resolves an issue where if targets were defined, the Cluster Agent
+  didn't respect the ``admission.datadoghq.com/enabled`` annotation or the ``admission_controller.mutate_unlabelled``
+  configuration option, and only respected the language annotations.
+
+
+.. _Release Notes_7.72.4:
+
+7.72.4
+======
+
+.. _Release Notes_7.72.4_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-12-01
+Pinned to datadog-agent v7.72.4: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7724>`_.
+
+
+.. _Release Notes_7.72.4_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Update Cluster Agent to use latest schema for DatadogPodAutoscaler CRD.
+
+
+.. _Release Notes_7.72.3:
+
+7.72.3
+======
+
+.. _Release Notes_7.72.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-11-26
+Pinned to datadog-agent v7.72.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7723>`_.
+
+
+.. _Release Notes_7.72.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a memory leak in the orchestrator check when the Cluster Agent is deployed with multiple replicas and leader-election enabled.
+
+
+.. _Release Notes_7.72.2:
+
+7.72.2
+======
+
+.. _Release Notes_7.72.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-11-12
+Pinned to datadog-agent v7.72.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7722>`_.
+
+.. _Release Notes_7.72.1:
+
+7.72.1
+======
+
+.. _Release Notes_7.72.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-11-06
+Pinned to datadog-agent v7.72.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7721>`_.
+
+.. _Release Notes_7.72.0:
+
+7.72.0
+======
+
+.. _Release Notes_7.72.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-11-03
+Pinned to datadog-agent v7.72.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7720>`_.
+
+.. _Release Notes_7.72.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes an Admission Controller issue where the UDS socket host path was hardcoded, causing mutated pods to miss APM or DogStatsD sockets when custom hostSocketPath values were set via Helm or the Operator.
+
+- Cluster Agent now scrubs secrets when generating flares and cluster check reports.
+
+
 .. _Release Notes_7.71.2:
 
 7.71.2

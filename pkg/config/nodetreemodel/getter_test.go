@@ -18,7 +18,7 @@ func TestGetKnownKeysLowercased(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "", nil)
 	cfg.SetDefault("a", 1234)
 	cfg.SetDefault("b.C", "test")
-	cfg.SetKnown("d.E.f") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.SetKnown("d.E.f") //nolint:forbidigo // testing behavior
 	cfg.BuildSchema()
 
 	assert.Equal(t,
@@ -52,8 +52,8 @@ func TestGet(t *testing.T) {
 
 func TestGetDefaultType(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "", nil)
-	cfg.SetKnown("a") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	cfg.SetKnown("b") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.SetKnown("a") //nolint:forbidigo // testing behavior
+	cfg.SetKnown("b") //nolint:forbidigo // testing behavior
 	cfg.BuildSchema()
 
 	cfg.ReadConfig(strings.NewReader(`---
@@ -306,33 +306,48 @@ func TestGetFloat64SliceStringFromEnv(t *testing.T) {
 }
 
 func TestGetAllSources(t *testing.T) {
-	t.Setenv("TEST_A", "3")
+	t.Setenv("TEST_A", "4")
 
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.BindEnvAndSetDefault("a", 0)
 	cfg.BuildSchema()
 
 	cfg.Set("a", 1, model.SourceUnknown)
-	cfg.Set("a", 2, model.SourceFile)
-	cfg.Set("a", 4, model.SourceFleetPolicies)
-	cfg.Set("a", 5, model.SourceAgentRuntime)
-	cfg.Set("a", 6, model.SourceLocalConfigProcess)
-	cfg.Set("a", 7, model.SourceRC)
-	cfg.Set("a", 8, model.SourceCLI)
+	cfg.Set("a", 2, model.SourceInfraMode)
+	cfg.Set("a", 3, model.SourceFile)
+	cfg.Set("a", 5, model.SourceFleetPolicies)
+	cfg.Set("a", 6, model.SourceAgentRuntime)
+	cfg.Set("a", 7, model.SourceLocalConfigProcess)
+	cfg.Set("a", 8, model.SourceRC)
+	cfg.Set("a", 9, model.SourceCLI)
 
 	res := cfg.GetAllSources("a")
 	assert.Equal(t,
 		[]model.ValueWithSource{
 			{Source: model.SourceDefault, Value: 0},
 			{Source: model.SourceUnknown, Value: 1},
-			{Source: model.SourceFile, Value: 2},
-			{Source: model.SourceEnvVar, Value: "3"},
-			{Source: model.SourceFleetPolicies, Value: 4},
-			{Source: model.SourceAgentRuntime, Value: 5},
-			{Source: model.SourceLocalConfigProcess, Value: 6},
-			{Source: model.SourceRC, Value: 7},
-			{Source: model.SourceCLI, Value: 8},
+			{Source: model.SourceInfraMode, Value: 2},
+			{Source: model.SourceFile, Value: 3},
+			{Source: model.SourceEnvVar, Value: "4"},
+			{Source: model.SourceFleetPolicies, Value: 5},
+			{Source: model.SourceAgentRuntime, Value: 6},
+			{Source: model.SourceLocalConfigProcess, Value: 7},
+			{Source: model.SourceRC, Value: 8},
+			{Source: model.SourceCLI, Value: 9},
 		},
 		res,
 	)
+}
+
+func TestGetEnvVars(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+
+	cfg.BindEnvAndSetDefault("d", 0, "D")
+	cfg.BindEnvAndSetDefault("a", 0, "ABC")
+	cfg.BindEnvAndSetDefault("b", 0, "ABC", "DEF")
+	cfg.BindEnvAndSetDefault("c", 0, "DEF")
+	cfg.BindEnvAndSetDefault("x", 0)
+
+	// testing that duplicate are removed and result is sorted
+	assert.Equal(t, []string{"ABC", "D", "DEF", "TEST_X"}, cfg.GetEnvVars())
 }

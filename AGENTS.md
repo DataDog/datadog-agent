@@ -14,6 +14,7 @@ The Datadog Agent is a comprehensive monitoring and observability agent written 
   - `system-probe/` - System-level monitoring (eBPF)
   - `security-agent/` - Security monitoring
   - `process-agent/` - Process monitoring
+  - `privateactionrunner/` - Executing actions
 
 - `/pkg/` - Core Go packages and libraries
   - `aggregator/` - Metrics aggregation
@@ -96,6 +97,16 @@ The development configuration file should be placed at `dev/dist/datadog.yaml`. 
 - Main config: `datadog.yaml`
 - Check configs: `conf.d/<check_name>.d/conf.yaml`
 - Supports environment variable overrides with `DD_` prefix
+
+### eBPF-based System Checks
+- Checks using eBPF probes require system-probe module running
+- Examples: tcp_queue_length, oom_kill, seccomp_tracer
+- Module code (system-probe): `pkg/collector/corechecks/ebpf/probe/<check>/`
+- Check code (agent): `pkg/collector/corechecks/ebpf/<check>/`
+- System-probe modules: `cmd/system-probe/modules/`
+- Configuration: Set `<check_name>.enabled: true` in system-probe config
+- See `pkg/collector/corechecks/ebpf/AGENTS.md` for detailed structure
+- Quick reference: `.cursor/rules/system_probe_modules.mdc` for common patterns and pitfalls
 
 ## Testing Strategy
 
@@ -193,4 +204,3 @@ tasks.
 ### Testing Issues
 - **Flaky tests**: Check `flakes.yaml` for known issues
 - **Coverage issues**: Use `--coverage` flag
-

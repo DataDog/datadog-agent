@@ -13,8 +13,6 @@ exporters:
       key: "0000"
 processors:
   infraattributes/dd-autoconfigured:
-  batch:
-    timeout: 10s
 connectors:
   datadog/connector:
     traces:
@@ -27,6 +25,7 @@ extensions:
   zpages/user-defined:
     endpoint: "localhost:55679"
   ddflare/user-defined:
+  datadog/user-defined:
 
 service:
   telemetry:
@@ -38,21 +37,22 @@ service:
       zpages/user-defined,
       health_check/user-defined,
       ddflare/user-defined,
+      datadog/user-defined,
     ]
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch, infraattributes/dd-autoconfigured]
+      processors: [infraattributes/dd-autoconfigured]
       exporters: [datadog]
     traces/2:
       receivers: [otlp]
-      processors: [batch, infraattributes/dd-autoconfigured]
+      processors: [infraattributes/dd-autoconfigured]
       exporters: [datadog/connector]
     metrics:
       receivers: [otlp, datadog/connector]
-      processors: [batch, infraattributes/dd-autoconfigured]
+      processors: [infraattributes/dd-autoconfigured]
       exporters: [datadog]
     logs:
       receivers: [otlp]
-      processors: [batch, infraattributes/dd-autoconfigured]
+      processors: [infraattributes/dd-autoconfigured]
       exporters: [datadog]

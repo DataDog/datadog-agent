@@ -8,6 +8,7 @@ package alibaba
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -38,7 +39,7 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 	Name: "Alibaba InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
-			return nil, fmt.Errorf("cloud provider is disabled by configuration")
+			return nil, errors.New("cloud provider is disabled by configuration")
 		}
 
 		endpoint := metadataURL + "/latest/meta-data/instance-id"

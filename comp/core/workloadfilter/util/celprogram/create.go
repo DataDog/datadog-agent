@@ -18,7 +18,7 @@ func CreateCELProgram(rules string, objectType workloadfilter.ResourceType) (cel
 		return nil, nil
 	}
 	env, err := cel.NewEnv(
-		cel.Types(&workloadfilter.Container{}, &workloadfilter.Pod{}, &workloadfilter.Service{}, &workloadfilter.Endpoint{}),
+		cel.Types(&workloadfilter.Container{}, &workloadfilter.Pod{}, &workloadfilter.KubeService{}, &workloadfilter.KubeEndpoint{}, &workloadfilter.Process{}),
 		cel.Variable(string(objectType), cel.ObjectType(convertTypeToProtoType(objectType))),
 	)
 	if err != nil {
@@ -39,15 +39,15 @@ func CreateCELProgram(rules string, objectType workloadfilter.ResourceType) (cel
 func convertTypeToProtoType(key workloadfilter.ResourceType) string {
 	switch key {
 	case workloadfilter.ContainerType:
-		return "datadog.filter.FilterContainer"
+		return "datadog.workloadfilter.FilterContainer"
 	case workloadfilter.PodType:
-		return "datadog.filter.FilterPod"
-	case workloadfilter.ServiceType:
-		return "datadog.filter.FilterKubeService"
-	case workloadfilter.EndpointType:
-		return "datadog.filter.FilterKubeEndpoint"
+		return "datadog.workloadfilter.FilterPod"
+	case workloadfilter.KubeServiceType:
+		return "datadog.workloadfilter.FilterKubeService"
+	case workloadfilter.KubeEndpointType:
+		return "datadog.workloadfilter.FilterKubeEndpoint"
 	case workloadfilter.ProcessType:
-		return "datadog.filter.FilterProcess"
+		return "datadog.workloadfilter.FilterProcess"
 	default:
 		return ""
 	}

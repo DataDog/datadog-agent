@@ -5,7 +5,7 @@ param (
 )
 
 $retryCount = 0
-$maxRetries = 10
+$maxRetries = 4
 
 # To catch the error message from aws cli
 $ErrorActionPreference = "Continue"
@@ -20,13 +20,14 @@ while ($retryCount -lt $maxRetries) {
     if ($result) {
         "$result" | Out-File -NoNewline -FilePath "$tempFile" -Encoding ASCII
         exit 0
+    } else {
+        Write-Error "$error"
     }
     if ($error -match "Unable to locate credentials") {
-        # See 5th row in https://docs.google.com/spreadsheets/d/1JvdN0N-RdNEeOJKmW_ByjBsr726E3ZocCKU8QoYchAc
+        # This error needs a restart of the job
         Write-Error "Permanent error: unable to locate credentials, not retrying"
         exit 42
-    }
-
+    } 
     $retryCount++
     Start-Sleep -Seconds ([math]::Pow(2, $retryCount))
 }

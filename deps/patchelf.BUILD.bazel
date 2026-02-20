@@ -1,3 +1,17 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_license//rules:license.bzl", "license")
+
+package(
+    default_package_metadata = [":license"],
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:GPL-3.0"],
+    license_text = "COPYING",
+    visibility = ["//visibility:public"],
+)
+
 cc_binary(
     name = "patchelf",
     srcs = glob([

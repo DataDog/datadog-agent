@@ -24,7 +24,7 @@ import (
 	"go.opentelemetry.io/collector/service"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
+	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -65,13 +65,49 @@ var logLevelReverseMap = func(src map[string]logLevel) map[logLevel]string {
 }(logLevelMap)
 
 // ErrNoDDExporter indicates there is no Datadog exporter in the configs
-var ErrNoDDExporter = fmt.Errorf("no datadog exporter found")
+var ErrNoDDExporter = errors.New("no datadog exporter found")
 
 // NewConfigComponent creates a new config component from the given URIs
 func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (config.Component, error) {
 	if len(uris) == 0 {
 		return nil, errors.New("no URIs provided for configs")
 	}
+
+	//
+	// Config setup
+	//
+	// TODO: should be migrated to a dedicated comp or flavor of the config comp
+	//
+	pkgconfigsetup.InitConfigObjects(ddCfg, "")
+
+	pkgconfig := pkgconfigsetup.Datadog().RevertFinishedBackToBuilder() //nolint:forbidigo // legitimate use for OTel configuration
+	pkgconfig.SetConfigName("OTel")
+	pkgconfig.SetEnvPrefix("DD")
+	pkgconfig.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	pkgconfig.BindEnvAndSetDefault("log_level", "info")
+
+	pkgconfigsetup.InitConfig(pkgconfig)
+	pkgconfig.BuildSchema()
+
+	if len(ddCfg) != 0 {
+		// if the configuration file path was supplied via CLI flags or env vars,
+		// add that first so it's first in line
+		pkgconfig.AddConfigPath(ddCfg)
+		// If they set a config file directly, let's try to honor that
+		if strings.HasSuffix(ddCfg, ".yaml") || strings.HasSuffix(ddCfg, ".yml") {
+			pkgconfig.SetConfigFile(ddCfg)
+		}
+
+		err := pkgconfigsetup.LoadDatadog(pkgconfig, &secretnooptypes.SecretNoop{}, nil)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	//
+	// config setup done
+	//
+
 	// Load the configuration from the fileName
 	rs := confmap.ResolverSettings{
 		URIs: uris,
@@ -98,36 +134,15 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		return nil, err
 	}
 
-	// Get the global agent config, build on top of it some more
-	// NOTE: This pattern should not be used by other callsites, it is needed here
-	// specifically because of the unique requirements of OTel's configuration.
-	pkgconfig := pkgconfigsetup.Datadog().RevertFinishedBackToBuilder() //nolint:forbidigo // legitimate use for OTel configuration
-	pkgconfig.SetConfigName("OTel")
-	pkgconfig.SetEnvPrefix("DD")
-	pkgconfig.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	pkgconfig.BindEnvAndSetDefault("log_level", "info")
-
 	activeLogLevel := critical
-	if len(ddCfg) != 0 {
-		// if the configuration file path was supplied via CLI flags or env vars,
-		// add that first so it's first in line
-		pkgconfig.AddConfigPath(ddCfg)
-		// If they set a config file directly, let's try to honor that
-		if strings.HasSuffix(ddCfg, ".yaml") || strings.HasSuffix(ddCfg, ".yml") {
-			pkgconfig.SetConfigFile(ddCfg)
-		}
-
-		err = pkgconfigsetup.LoadDatadog(pkgconfig, secretsnoop.NewComponent().Comp, nil)
-		if err != nil {
-			return nil, err
-		}
+	if pkgconfig.IsConfigured("log_level") {
 		var ok bool
-		activeLogLevel, ok = logLevelMap[strings.ToLower(pkgconfig.GetString("log_level"))]
+		logLevel := strings.ToLower(pkgconfig.GetString("log_level"))
+		activeLogLevel, ok = logLevelMap[logLevel]
 		if !ok {
 			return nil, fmt.Errorf("invalid log level (%v) set in the Datadog Agent configuration", pkgconfig.GetString("log_level"))
 		}
 	}
-
 	// Set the right log level. The most verbose setting takes precedence.
 	telemetryLogLevel := "info"
 	if stCfgMap, ok := sc.Telemetry.(map[string]any); ok {
@@ -148,14 +163,6 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	}
 	fmt.Printf("setting log level to: %v\n", logLevelReverseMap[activeLogLevel])
 	pkgconfig.Set("log_level", logLevelReverseMap[activeLogLevel], pkgconfigmodel.SourceFile)
-
-	// Override config read (if any) with Default values
-	pkgconfigsetup.InitConfig(pkgconfig)
-	pkgconfigmodel.ApplyOverrideFuncs(pkgconfig)
-
-	// Finish building the config, required because the finished config was
-	// reverted earlier by the method "RevertFinishedBackToBuilder"
-	pkgconfig.BuildSchema()
 
 	ddc, err := getDDExporterConfig(cfg)
 	if err == ErrNoDDExporter {
@@ -187,6 +194,13 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	pkgconfig.Set("apm_config.debug.port", 0, pkgconfigmodel.SourceDefault)      // Disabled in the otel-agent
 	pkgconfig.Set(pkgconfigsetup.OTLPTracePort, 0, pkgconfigmodel.SourceDefault) // Disabled in the otel-agent
 
+	if pkgconfig.GetBool("otelcollector.gateway.mode") {
+		// Use SourceAgentRuntime to override DD_HOSTNAME env var (SourceEnvVar), which the
+		// Helm chart sets to spec.nodeName for the gateway deployment. In gateway mode the
+		// trace agent forwards traffic and should not claim any host identity.
+		pkgconfig.Set("hostname", "", pkgconfigmodel.SourceAgentRuntime)
+	}
+
 	pkgconfig.Set("otlp_config.traces.span_name_as_resource_name", ddc.Traces.SpanNameAsResourceName, pkgconfigmodel.SourceFile)
 	pkgconfig.Set("otlp_config.traces.span_name_remappings", ddc.Traces.SpanNameRemappings, pkgconfigmodel.SourceFile)
 
@@ -199,8 +213,11 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	if addr := ddc.Traces.Endpoint; addr != "" {
 		pkgconfig.Set("apm_config.apm_dd_url", addr, pkgconfigmodel.SourceFile)
 	}
+	if pkgconfig.GetInt("cmd_port") <= 0 {
+		pkgconfig.Set("remote_configuration.enabled", false, pkgconfigmodel.SourceFile)
+	}
 
-	if pkgconfig.Get("apm_config.features") == nil {
+	if !pkgconfig.IsConfigured("apm_config.features") {
 		apmConfigFeatures := []string{}
 		if !ddfg.OperationAndResourceNameV2FeatureGate.IsEnabled() {
 			apmConfigFeatures = append(apmConfigFeatures, "disable_operation_and_resource_name_logic_v2")
@@ -224,11 +241,11 @@ func getServiceConfig(cfg *confmap.Conf) (*service.Config, error) {
 	var pipelineConfig *service.Config
 	s := cfg.Get("service")
 	if s == nil {
-		return nil, fmt.Errorf("service config not found")
+		return nil, errors.New("service config not found")
 	}
 	smap, ok := s.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid service config")
+		return nil, errors.New("invalid service config")
 	}
 	err := confmap.NewFromStringMap(smap).Unmarshal(&pipelineConfig)
 	if err != nil {
@@ -282,7 +299,7 @@ func getDDExporterConfig(cfg *confmap.Conf) (*datadogconfig.Config, error) {
 	// We only support one exporter for now
 	// TODO: support multiple exporters
 	if len(configs) > 1 {
-		return nil, fmt.Errorf("multiple datadog exporters found")
+		return nil, errors.New("multiple datadog exporters found")
 	}
 
 	datadogConfig := configs[0]

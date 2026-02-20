@@ -31,29 +31,52 @@ func easyjsonB97b45a3DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 	for !in.IsDelim('}') {
 		key := in.UnsafeFieldName(false)
 		in.WantColon()
-		if in.IsNull() {
-			in.Skip()
-			in.WantComma()
-			continue
-		}
 		switch key {
 		case "type":
-			out.Type = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Type = string(in.String())
+			}
 		case "signal":
-			out.Signal = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Signal = string(in.String())
+			}
 		case "scope":
-			out.Scope = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Scope = string(in.String())
+			}
 		case "status":
-			out.Status = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Status = string(in.String())
+			}
 		case "disarmer_type":
-			out.DisarmerType = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.DisarmerType = string(in.String())
+			}
 		case "created_at":
-			if data := in.Raw(); in.Ok() {
-				in.AddError((out.CreatedAt).UnmarshalJSON(data))
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				if data := in.Raw(); in.Ok() {
+					in.AddError((out.CreatedAt).UnmarshalJSON(data))
+				}
 			}
 		case "detected_at":
-			if data := in.Raw(); in.Ok() {
-				in.AddError((out.DetectedAt).UnmarshalJSON(data))
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				if data := in.Raw(); in.Ok() {
+					in.AddError((out.DetectedAt).UnmarshalJSON(data))
+				}
 			}
 		case "killed_at":
 			if in.IsNull() {
@@ -63,8 +86,12 @@ func easyjsonB97b45a3DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 				if out.KilledAt == nil {
 					out.KilledAt = new(utils.EasyjsonTime)
 				}
-				if data := in.Raw(); in.Ok() {
-					in.AddError((*out.KilledAt).UnmarshalJSON(data))
+				if in.IsNull() {
+					in.Skip()
+				} else {
+					if data := in.Raw(); in.Ok() {
+						in.AddError((*out.KilledAt).UnmarshalJSON(data))
+					}
 				}
 			}
 		case "exited_at":
@@ -75,12 +102,20 @@ func easyjsonB97b45a3DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 				if out.ExitedAt == nil {
 					out.ExitedAt = new(utils.EasyjsonTime)
 				}
-				if data := in.Raw(); in.Ok() {
-					in.AddError((*out.ExitedAt).UnmarshalJSON(data))
+				if in.IsNull() {
+					in.Skip()
+				} else {
+					if data := in.Raw(); in.Ok() {
+						in.AddError((*out.ExitedAt).UnmarshalJSON(data))
+					}
 				}
 			}
 		case "ttr":
-			out.TTR = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.TTR = string(in.String())
+			}
 		default:
 			in.SkipRecursive()
 		}

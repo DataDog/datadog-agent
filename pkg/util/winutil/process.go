@@ -18,12 +18,13 @@ import (
 )
 
 var (
-	modntdll                       = windows.NewLazyDLL("ntdll.dll")
 	modkernel                      = windows.NewLazyDLL("kernel32.dll")
-	procNtQueryInformationProcess  = modntdll.NewProc("NtQueryInformationProcess")
+	modversion                     = windows.NewLazyDLL("version.dll")
 	procReadProcessMemory          = modkernel.NewProc("ReadProcessMemory")
-	procIsWow64Process             = modkernel.NewProc("IsWow64Process")
 	procQueryFullProcessImageNameW = modkernel.NewProc("QueryFullProcessImageNameW")
+	procGetFileVersionInfoSizeW    = modversion.NewProc("GetFileVersionInfoSizeW")
+	procGetFileVersionInfoW        = modversion.NewProc("GetFileVersionInfoW")
+	procVerQueryValueW             = modversion.NewProc("VerQueryValueW")
 )
 
 // C definition from winternl.h
@@ -58,34 +59,12 @@ const (
 // IsWow64Process determines if the specified process is running under WOW64
 // that is, if it's a 32 bit process running on 64 bit winodws
 func IsWow64Process(h windows.Handle) (is32bit bool, err error) {
-	var wow64Process uint32
-
-	r, _, _ := procIsWow64Process.Call(uintptr(h),
-		uintptr(unsafe.Pointer(&wow64Process)))
-
-	if r == 0 {
-		return false, windows.GetLastError()
+	var wow64Process bool
+	err = windows.IsWow64Process(h, &wow64Process)
+	if err != nil {
+		return false, err
 	}
-	if wow64Process == 0 {
-		is32bit = false
-	} else {
-		is32bit = true
-	}
-	return
-}
-
-// NtQueryInformationProcess wraps the Windows NT kernel call of the same name
-func NtQueryInformationProcess(h windows.Handle, class PROCESSINFOCLASS, target, size uintptr) (err error) {
-	r, _, _ := procNtQueryInformationProcess.Call(uintptr(h),
-		uintptr(class),
-		target,
-		size,
-		uintptr(0))
-	if r != 0 {
-		err = windows.GetLastError()
-		return err
-	}
-	return nil
+	return wow64Process, nil
 }
 
 // IsProcessProtected checks if the process has any level of protection and returns true if any protection is present
@@ -95,7 +74,7 @@ func NtQueryInformationProcess(h windows.Handle, class PROCESSINFOCLASS, target,
 func IsProcessProtected(h windows.Handle) (bool, error) {
 	var processProtection uint8
 	// returns 1 byte of protection information when passed in with param 61
-	err := NtQueryInformationProcess(h, ProcessProtectionInformation, uintptr(unsafe.Pointer(&processProtection)), unsafe.Sizeof(processProtection))
+	err := windows.NtQueryInformationProcess(h, int32(ProcessProtectionInformation), unsafe.Pointer(&processProtection), uint32(unsafe.Sizeof(processProtection)), nil)
 	if err != nil {
 		return false, err
 	}
@@ -177,7 +156,7 @@ func getCommandParamsForProcess32(h windows.Handle, includeImagePath bool) (*Pro
 	// get the pointer to the PEB
 	var procmem uintptr
 	size := unsafe.Sizeof(procmem)
-	err := NtQueryInformationProcess(h, ProcessWow64Information, uintptr(unsafe.Pointer(&procmem)), size)
+	err := windows.NtQueryInformationProcess(h, int32(ProcessWow64Information), unsafe.Pointer(&procmem), uint32(size), nil)
 	if err != nil {
 		// this shouldn't happen because we already know we're asking about
 		// a 32 bit process.
@@ -284,7 +263,7 @@ type processBasicInformationStruct struct {
 func getCommandParamsForProcess64(h windows.Handle, includeImagePath bool) (*ProcessCommandParams, error) {
 	var pbi processBasicInformationStruct
 	pbisize := unsafe.Sizeof(pbi)
-	err := NtQueryInformationProcess(h, ProcessBasicInformation, uintptr(unsafe.Pointer(&pbi)), pbisize)
+	err := windows.NtQueryInformationProcess(h, int32(ProcessBasicInformation), unsafe.Pointer(&pbi), uint32(pbisize), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -479,4 +458,93 @@ func IsCurrentProcessLocalSystem() (bool, error) {
 	defer windows.FreeSid(localSystem)
 
 	return currentUser.Equals(localSystem), nil
+}
+
+// GetFileDescription returns the file description for given executable path
+func GetFileDescription(executablePath string) (string, error) {
+	// Convert path to UTF16
+	pathPtr, err := syscall.UTF16PtrFromString(executablePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to convert path to UTF16: %w", err)
+	}
+
+	// Get the size of the version information
+	var handle uint32
+	size, _, err := procGetFileVersionInfoSizeW.Call(
+		uintptr(unsafe.Pointer(pathPtr)),
+		uintptr(unsafe.Pointer(&handle)),
+	)
+	if size == 0 {
+		if err != nil && err != syscall.Errno(0) {
+			return "", fmt.Errorf("GetFileVersionInfoSizeW failed: %w", err)
+		}
+		return "", fmt.Errorf("no version information available for %s", executablePath)
+	}
+
+	// Allocate buffer for version info
+	data := make([]byte, size)
+
+	// Get the version information
+	ret, _, err := procGetFileVersionInfoW.Call(
+		uintptr(unsafe.Pointer(pathPtr)),
+		uintptr(handle),
+		uintptr(size),
+		uintptr(unsafe.Pointer(&data[0])),
+	)
+	// returns non-zero if successful, and zero if not
+	if ret == 0 {
+		return "", fmt.Errorf("GetFileVersionInfoW failed: %w", err)
+	}
+
+	// Query the language and code page
+	// First get the translation table
+	subBlockPtr, err := syscall.UTF16PtrFromString("\\VarFileInfo\\Translation")
+	if err != nil {
+		return "", fmt.Errorf("failed to create subblock string: %w", err)
+	}
+
+	var langCodePagePtr *uint16
+	var langCodePageLen uint32
+	ret, _, err = procVerQueryValueW.Call(
+		uintptr(unsafe.Pointer(&data[0])),
+		uintptr(unsafe.Pointer(subBlockPtr)),
+		uintptr(unsafe.Pointer(&langCodePagePtr)),
+		uintptr(unsafe.Pointer(&langCodePageLen)),
+	)
+
+	var langCodePage string
+	if ret == 0 || langCodePageLen < 4 {
+		return "", fmt.Errorf("no language code page found: %w", err)
+	}
+
+	pair := (*[2]uint16)(unsafe.Pointer(langCodePagePtr))
+
+	// Extract the first language/codepage pair
+	langCode := pair[0]
+	codePage := pair[1]
+	langCodePage = fmt.Sprintf("%04x%04x", langCode, codePage)
+
+	// Query for FileDescription
+	fileDescQuery := fmt.Sprintf("\\StringFileInfo\\%s\\FileDescription", langCodePage)
+	fileDescQueryPtr, err := syscall.UTF16PtrFromString(fileDescQuery)
+	if err != nil {
+		return "", fmt.Errorf("failed to create file description query: %w", err)
+	}
+
+	var fileDescPtr *uint16
+	var fileDescLen uint32
+	ret, _, err = procVerQueryValueW.Call(
+		uintptr(unsafe.Pointer(&data[0])),
+		uintptr(unsafe.Pointer(fileDescQueryPtr)),
+		uintptr(unsafe.Pointer(&fileDescPtr)),
+		uintptr(unsafe.Pointer(&fileDescLen)),
+	)
+
+	if ret == 0 || fileDescLen == 0 {
+		return "", fmt.Errorf("FileDescription not found in version info: %w", err)
+	}
+
+	// Convert the UTF16 string to Go string
+	fileDesc := windows.UTF16PtrToString((*uint16)(unsafe.Pointer(fileDescPtr)))
+	return fileDesc, nil
 }

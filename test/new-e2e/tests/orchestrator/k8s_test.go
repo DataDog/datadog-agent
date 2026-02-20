@@ -8,7 +8,6 @@ package orchestrator
 import (
 	"context"
 	_ "embed"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -19,12 +18,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	scenariokindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awskindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 )
 
 const defaultTimeout = 10 * time.Minute
@@ -39,11 +40,13 @@ type k8sSuite struct {
 func TestKindSuite(t *testing.T) {
 	t.Parallel()
 	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(awskubernetes.KindProvisioner(
-			awskubernetes.WithDeployTestWorkload(),
-			awskubernetes.WithAgentOptions(
-				kubernetesagentparams.WithDualShipping(),
-				kubernetesagentparams.WithHelmValues(agentCustomValuesFmt),
+		e2e.WithProvisioner(awskindvm.Provisioner(
+			awskindvm.WithRunOptions(
+				scenariokindvm.WithDeployTestWorkload(),
+				scenariokindvm.WithAgentOptions(
+					kubernetesagentparams.WithDualShipping(),
+					kubernetesagentparams.WithHelmValues(agentCustomValuesFmt),
+				),
 			),
 		)),
 	}
@@ -66,7 +69,7 @@ func (suite *k8sSuite) TestNode() {
 	expectAtLeastOneResource{
 		filter: &fakeintake.PayloadFilter{ResourceType: agentmodel.TypeCollectorNode},
 		test: func(payload *aggregator.OrchestratorPayload) bool {
-			return payload.Node.Metadata.Name == fmt.Sprintf("%s-control-plane", suite.Env().KubernetesCluster.ClusterName)
+			return payload.Node.Metadata.Name == suite.Env().KubernetesCluster.ClusterName+"-control-plane"
 		},
 		message: "find a control plane node",
 		timeout: defaultTimeout,
@@ -83,6 +86,27 @@ func (suite *k8sSuite) TestDeploymentManif() {
 		message: "find a Deployment manifest",
 		timeout: defaultTimeout,
 	}.Assert(suite)
+}
+
+func (suite *k8sSuite) TestAutoTeamTagCollection() {
+	expectAtLeastOneResource{
+		filter: &fakeintake.PayloadFilter{ResourceType: agentmodel.TypeCollectorDeployment},
+		test: func(payload *aggregator.OrchestratorPayload) bool {
+			if payload.Deployment.Metadata.Name != "redis" ||
+				payload.Deployment.Metadata.Namespace != "workload-redis" {
+				return false
+			}
+			// Check that the team tag was auto-collected from the Redis deployment label
+			for _, tag := range payload.Deployment.Tags {
+				if tag == "team:container-integrations" {
+					return true
+				}
+			}
+			return false
+		},
+		message: "find redis deployment with auto-collected team tag",
+		timeout: defaultTimeout,
+	}.Assert(suite.T(), suite.Env().FakeIntake.Client())
 }
 
 func (suite *k8sSuite) TestCRDManif() {

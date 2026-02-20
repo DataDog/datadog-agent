@@ -12,6 +12,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfilter"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
@@ -39,13 +40,14 @@ type collectorConfigs struct {
 	filterConfig                 []connfilter.Config
 	monitorIPWithoutDomain       bool
 	ddSite                       string
+	sourceProduct                payload.SourceProduct
 }
 
 func newConfig(agentConfig config.Component, logger log.Component) *collectorConfigs {
 	var filterConfigs []connfilter.Config
-	err := agentConfig.UnmarshalKey("network_path.collector.filters", &filterConfigs)
+	err := structure.UnmarshalKey(agentConfig, "network_path.collector.filters", &filterConfigs)
 	if err != nil {
-		logger.Errorf("Error unmarshalling network_path.collector.filters")
+		logger.Errorf("Error unmarshalling network_path.collector.filters: %v", err)
 		filterConfigs = nil
 	}
 	return &collectorConfigs{
@@ -78,6 +80,7 @@ func newConfig(agentConfig config.Component, logger log.Component) *collectorCon
 		filterConfig:              filterConfigs,
 		monitorIPWithoutDomain:    agentConfig.GetBool("network_path.collector.monitor_ip_without_domain"),
 		ddSite:                    agentConfig.GetString("site"),
+		sourceProduct:             payload.GetSourceProduct(agentConfig.GetString("infrastructure_mode")),
 	}
 }
 

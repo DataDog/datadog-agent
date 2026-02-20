@@ -13,6 +13,8 @@ import (
 	"runtime"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -39,12 +41,16 @@ const (
 	ExpireInodeDiscarderOp
 	// ExpirePidDiscarderOp is used to expire a pid discarder
 	ExpirePidDiscarderOp
-	// BumpDiscardersRevision is used to bump the discarders revision (DEPRECATED)
-	BumpDiscardersRevision
-	// GetRingbufUsage is used to retrieve the ring buffer usage
-	GetRingbufUsage
+	// BumpDiscardersRevisionOp is used to bump the discarders revision (DEPRECATED)
+	BumpDiscardersRevisionOp
+	// GetRingbufUsageOp is used to retrieve the ring buffer usage
+	GetRingbufUsageOp
 	// UserSessionContextOp is used to inject the Kubernetes User context
 	UserSessionContextOp
+	// DiscardPrctlOp is used to discard prctl PR_SET_NAME
+	DiscardPrctlOp
+	// NopEventOp is used to nop an event
+	NopEventOp
 )
 
 // ERPC defines a krpc object
@@ -92,7 +98,7 @@ func (k *ERPC) Close() error {
 
 // NewERPC returns a new ERPC object
 func NewERPC() (*ERPC, error) {
-	fd, err := syscall.Dup(syscall.Stdout)
+	fd, err := unix.FcntlInt(uintptr(syscall.Stdout), unix.F_DUPFD_CLOEXEC, 0)
 	if err != nil {
 		return nil, err
 	}

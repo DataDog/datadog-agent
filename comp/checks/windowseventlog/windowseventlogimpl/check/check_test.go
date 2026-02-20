@@ -142,7 +142,7 @@ func TestGetEventsTestSuite(t *testing.T) {
 	testerNames := eventlog_test.GetEnabledAPITesters()
 
 	for _, tiName := range testerNames {
-		t.Run(fmt.Sprintf("%sAPI", tiName), func(t *testing.T) {
+		t.Run(tiName+"API", func(t *testing.T) {
 			if tiName == "Fake" {
 				t.Skip("Fake API does not implement EvtRenderValues")
 			}
@@ -249,6 +249,9 @@ start: now
 	check, err := s.newCheck(instanceConfig)
 	require.NoError(s.T(), err)
 
+	// Starting from latest, should collect 0 events
+	s.assertNoEvents(check)
+
 	// Get the persistent cache key
 	cacheKey := check.bookmarkPersistentCacheKey()
 
@@ -287,6 +290,9 @@ start: now
 	require.NoError(s.T(), err)
 	defer check.Cancel()
 
+	// No events in log yet
+	s.assertNoEvents(check)
+
 	// Get the persistent cache key
 	cacheKey := check.bookmarkPersistentCacheKey()
 
@@ -295,9 +301,16 @@ start: now
 	require.NoError(s.T(), err)
 	require.NotEmpty(s.T(), bookmarkXML, "Initial bookmark should be persisted even for empty log")
 
+	check.Cancel()
+
 	// Generate events after bookmark creation
 	err = s.ti.GenerateEvents(s.eventSource, s.numEvents)
 	require.NoError(s.T(), err)
+
+	// create new check, should resume from bookmark
+	check2, err := s.newCheck(instanceConfig)
+	require.NoError(s.T(), err)
+	defer check2.Cancel()
 
 	// Should collect all events since bookmark was at the beginning
 	s.assertCountEvents(check, s.numEvents)
@@ -319,16 +332,27 @@ start: oldest
 	require.NoError(s.T(), err)
 	defer check.Cancel()
 
+	// Should collect all pre-existing events
+	s.assertCountEvents(check, s.numEvents)
+
+	// Cancel check to ensure bookmark is created
+	check.Cancel()
+
 	// Get the persistent cache key
 	cacheKey := check.bookmarkPersistentCacheKey()
 
 	// Verify bookmark was created and persisted
 	bookmarkXML, err := persistentcache.Read(cacheKey)
 	require.NoError(s.T(), err)
-	require.NotEmpty(s.T(), bookmarkXML, "Empty bookmark should be persisted for oldest mode")
+	require.NotEmpty(s.T(), bookmarkXML)
 
-	// Should collect all pre-existing events
-	s.assertCountEvents(check, s.numEvents)
+	// create new check
+	check2, err := s.newCheck(instanceConfig)
+	require.NoError(s.T(), err)
+	defer check2.Cancel()
+
+	// Should resume from bookmark and read 0 events
+	s.assertNoEvents(check2)
 }
 
 // Test initial bookmark with multi-channel queries
@@ -353,6 +377,9 @@ start: now
 
 	check, err := s.newCheck(instanceConfig)
 	require.NoError(s.T(), err)
+
+	// Starting from latest, should collect 0 events
+	s.assertNoEvents(check)
 
 	// Get the persistent cache key
 	cacheKey := check.bookmarkPersistentCacheKey()
@@ -380,7 +407,6 @@ start: now
 
 // Test that check's fallback interpret_messages option works
 func (s *GetEventsTestSuite) TestGetEventsWithMissingProvider() {
-
 	source := "source-does-not-exist"
 	// Per MSDN: If source is not found then Application log is used
 	// https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-registereventsourcew
@@ -626,7 +652,7 @@ start: now
 				s.channelPath))
 
 			if len(tc.confPriority) > 0 {
-				instanceConfig = append(instanceConfig, []byte(fmt.Sprintf("event_priority: %s", tc.confPriority))...)
+				instanceConfig = append(instanceConfig, []byte("event_priority: "+tc.confPriority)...)
 			}
 
 			check, err := s.newCheck(instanceConfig)

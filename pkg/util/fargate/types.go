@@ -14,6 +14,8 @@ const (
 	ECS OrchestratorName = "ECS"
 	// EKS represents AWS EKS
 	EKS OrchestratorName = "EKS"
+	// ECSManagedInstances represents AWS ECS Managed Instances
+	ECSManagedInstances OrchestratorName = "ECSManagedInstances"
 	// Unknown is used when we cannot retrieve the orchestrator
 	Unknown OrchestratorName = "Unknown"
 )

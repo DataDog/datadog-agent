@@ -16,3 +16,8 @@ import (
 func OpenLogFile(path string) (*os.File, error) {
 	return privilegedlogsclient.Open(path)
 }
+
+// StatLogFile stats a log file with the privileged logs client
+func StatLogFile(path string) (os.FileInfo, error) {
+	return privilegedlogsclient.Stat(path)
+}

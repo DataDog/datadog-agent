@@ -15,6 +15,8 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/prometheus/client_golang/prometheus"
+
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 var (
@@ -22,6 +24,7 @@ var (
 )
 
 type perfUsageCollector struct {
+	emitPerCPU bool
 	mtx        sync.Mutex
 	usage      *prometheus.GaugeVec
 	usagePct   *prometheus.GaugeVec
@@ -38,40 +41,48 @@ type perfUsageCollector struct {
 
 // NewPerfUsageCollector creates a prometheus.Collector for perf buffer and ring buffer metrics
 func NewPerfUsageCollector() prometheus.Collector {
+	emitPerCPU := pkgconfigsetup.SystemProbe().GetBool("system_probe_config.telemetry_perf_buffer_emit_per_cpu")
+
+	labels := []string{"map_name", "map_type"}
+	if emitPerCPU {
+		labels = append(labels, "cpu_num")
+	}
+
 	perfCollector = &perfUsageCollector{
+		emitPerCPU:          emitPerCPU,
 		perfChannelLenFuncs: make(map[*manager.PerfMap]func() int),
 		ringChannelLenFuncs: make(map[*manager.RingBuffer]func() int),
 		usage: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Subsystem: "ebpf__perf",
 				Name:      "_usage",
-				Help:      "gauge tracking bytes usage of a perf buffer (per-cpu) or ring buffer",
+				Help:      "gauge tracking bytes usage of a perf buffer (per-cpu, if enabled) or ring buffer",
 			},
-			[]string{"map_name", "map_type", "cpu_num"},
+			labels,
 		),
 		usagePct: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Subsystem: "ebpf__perf",
 				Name:      "_usage_pct",
-				Help:      "gauge tracking percentage usage of a perf buffer (per-cpu) or ring buffer",
+				Help:      "gauge tracking percentage usage of a perf buffer (per-cpu, if enabled) or ring buffer",
 			},
-			[]string{"map_name", "map_type", "cpu_num"},
+			labels,
 		),
 		size: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Subsystem: "ebpf__perf",
 				Name:      "_size",
-				Help:      "gauge tracking total size of a perf buffer (per-cpu) or ring buffer",
+				Help:      "gauge tracking total size of a perf buffer (per-cpu, if enabled) or ring buffer",
 			},
-			[]string{"map_name", "map_type", "cpu_num"},
+			labels,
 		),
 		lost: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Subsystem: "ebpf__perf",
 				Name:      "_lost",
-				Help:      "counter tracking lost samples of a perf buffer (per-cpu)",
+				Help:      "counter tracking lost samples of a perf buffer (per-cpu, if enabled)",
 			},
-			[]string{"map_name", "map_type", "cpu_num"},
+			labels,
 		),
 		channelLen: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -106,14 +117,27 @@ func (p *perfUsageCollector) Collect(metrics chan<- prometheus.Metric) {
 			continue
 		}
 
-		for cpu := range usage {
-			cpuString := strconv.Itoa(cpu)
+		if p.emitPerCPU {
+			for cpu := range usage {
+				cpuString := strconv.Itoa(cpu)
 
-			count := float64(usage[cpu])
-			p.usage.WithLabelValues(mapName, mapType, cpuString).Set(count)
-			p.usagePct.WithLabelValues(mapName, mapType, cpuString).Set(100 * (count / size))
-			p.size.WithLabelValues(mapName, mapType, cpuString).Set(size)
-			p.lost.WithLabelValues(mapName, mapType, cpuString).Add(float64(lost[cpu]))
+				count := float64(usage[cpu])
+				p.usage.WithLabelValues(mapName, mapType, cpuString).Set(count)
+				p.usagePct.WithLabelValues(mapName, mapType, cpuString).Set(100 * (count / size))
+				p.size.WithLabelValues(mapName, mapType, cpuString).Set(size)
+				p.lost.WithLabelValues(mapName, mapType, cpuString).Add(float64(lost[cpu]))
+			}
+		} else {
+			totalCount, totalLost := uint64(0), uint64(0)
+			for cpu := range usage {
+				totalCount += usage[cpu]
+				totalLost += lost[cpu]
+			}
+
+			p.usage.WithLabelValues(mapName, mapType).Set(float64(totalCount))
+			p.usagePct.WithLabelValues(mapName, mapType).Set(100 * (float64(totalCount) / size))
+			p.size.WithLabelValues(mapName, mapType).Set(size)
+			p.lost.WithLabelValues(mapName, mapType).Add(float64(totalLost))
 		}
 	}
 
@@ -130,11 +154,15 @@ func (p *perfUsageCollector) Collect(metrics chan<- prometheus.Metric) {
 			continue
 		}
 
-		cpuString := "0"
+		labels := []string{mapName, mapType}
+		if p.emitPerCPU {
+			labels = append(labels, "0")
+		}
+
 		count := float64(usage)
-		p.usage.WithLabelValues(mapName, mapType, cpuString).Set(count)
-		p.usagePct.WithLabelValues(mapName, mapType, cpuString).Set(100 * (count / size))
-		p.size.WithLabelValues(mapName, mapType, cpuString).Set(size)
+		p.usage.WithLabelValues(labels...).Set(count)
+		p.usagePct.WithLabelValues(labels...).Set(100 * (count / size))
+		p.size.WithLabelValues(labels...).Set(size)
 	}
 
 	for rb, chFunc := range p.ringChannelLenFuncs {

@@ -6,10 +6,11 @@
 package common
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 // GetProductCodeByName returns the product code GUID for the given product name
@@ -45,7 +46,7 @@ func GetProductVersionByName(host *components.RemoteHost, name string) (string, 
 	}
 	val = strings.TrimSpace(val)
 	if val == "" {
-		return "", fmt.Errorf("display version not found")
+		return "", errors.New("display version not found")
 	}
 	return val, nil
 }

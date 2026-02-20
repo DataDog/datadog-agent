@@ -3,12 +3,12 @@
 Description=Datadog Agent
 After=network.target
 Conflicts=datadog-agent-exp.service
-Wants=datadog-agent-installer.service datadog-agent-trace.service datadog-agent-process.service datadog-agent-sysprobe.service datadog-agent-security.service datadog-agent-ddot.service
+Wants=datadog-agent-installer.service datadog-agent-trace.service datadog-agent-process.service datadog-agent-sysprobe.service datadog-agent-security.service datadog-agent-data-plane.service datadog-agent-ddot.service datadog-agent-action.service datadog-agent-procmgrd.service
 {{- else}}
 Description=Datadog Agent Experiment
 After=network.target
 Conflicts=datadog-agent.service
-Wants=datadog-agent-installer-exp.service datadog-agent-trace-exp.service datadog-agent-process-exp.service datadog-agent-sysprobe-exp.service datadog-agent-security-exp.service datadog-agent-ddot-exp.service
+Wants=datadog-agent-installer-exp.service datadog-agent-trace-exp.service datadog-agent-process-exp.service datadog-agent-sysprobe-exp.service datadog-agent-security-exp.service datadog-agent-data-plane-exp.service datadog-agent-ddot-exp.service datadog-agent-action-exp.service datadog-agent-procmgrd-exp.service
 OnFailure=datadog-agent.service
 Before=datadog-agent.service
 {{- end}}
@@ -21,6 +21,7 @@ EnvironmentFile=-{{.EtcDir}}/environment
 Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
 {{- if not .Stable}}
 Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
+Environment="EXPERIMENT_TIMEOUT=3000s"
 {{- end}}
 RuntimeDirectory=datadog
 StartLimitInterval=10
@@ -33,7 +34,7 @@ Restart=on-failure
 ExecStart={{.InstallDir}}/bin/agent/agent run -p {{.InstallDir}}/run/agent.pid
 {{- else}}
 Restart=no
-ExecStart=/usr/bin/timeout --kill-after=15s 3000s {{.InstallDir}}/bin/agent/agent run -c {{.EtcDir}} -p {{.InstallDir}}/run/agent.pid
+ExecStart=/usr/bin/timeout --kill-after=15s $EXPERIMENT_TIMEOUT {{.InstallDir}}/bin/agent/agent run -c {{.EtcDir}} {{ if not .Stable}}--sysprobecfgpath={{.EtcDir}}/system-probe.yaml{{ end }} -p {{.InstallDir}}/run/agent.pid
 ExecStopPost=/bin/false
 {{- end}}
 

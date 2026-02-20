@@ -20,9 +20,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/shirou/gopsutil/v4/process"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/shirou/gopsutil/v4/process"
 )
 
 type dockerDaemonConfig map[string]interface{}
@@ -154,7 +155,7 @@ func (a *InjectorInstaller) verifyDockerRuntime(ctx context.Context) (err error)
 		if i > 0 {
 			time.Sleep(2 * time.Second)
 		}
-		cmd := exec.CommandContext(ctx, "docker", "system", "info", "--format", "{{ .DefaultRuntime }}")
+		cmd := telemetry.CommandContext(ctx, "docker", "system", "info", "--format", "{{ .DefaultRuntime }}")
 		var outb bytes.Buffer
 		cmd.Stdout = &outb
 		err = cmd.Run()

@@ -7,7 +7,7 @@
 package selftests
 
 import (
-	"fmt"
+	"errors"
 	"path/filepath"
 	"time"
 
@@ -23,7 +23,7 @@ import (
 func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*SelfTester, error) {
 
 	if !cfg.FIMEnabled {
-		return nil, fmt.Errorf("FIM is disabled")
+		return nil, errors.New("FIM is disabled")
 	}
 	var (
 		selfTests []SelfTest

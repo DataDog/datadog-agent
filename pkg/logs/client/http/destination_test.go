@@ -121,6 +121,47 @@ func testNoRetry(t *testing.T, statusCode int) {
 	server.Stop()
 }
 
+func TestLogsDroppedMetric(t *testing.T) {
+	testLogsDropped(t, 400)
+	testLogsDropped(t, 401)
+	testLogsDropped(t, 403)
+	testLogsDropped(t, 413)
+}
+
+func testLogsDropped(t *testing.T, statusCode int) {
+	cfg := configmock.New(t)
+	telemetryMock := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	metrics.TlmLogsDropped = telemetryMock.NewCounter("logs", "dropped", []string{"destination"}, "")
+
+	server := NewTestServer(statusCode, cfg)
+	input := make(chan *message.Payload)
+	output := make(chan *message.Payload)
+	server.Destination.Start(input, output, nil)
+
+	payload := &message.Payload{
+		MessageMetas: []*message.MessageMetadata{
+			{},
+			{},
+			{},
+		},
+		Encoded: []byte("test payload"),
+	}
+
+	// Send Payload that should fail & be non-retryable
+	input <- payload
+	<-output
+
+	// Verify the logs.dropped metric was incremented & has correct destination tag
+	metric, err := telemetryMock.(telemetry.Mock).GetCountMetric("logs", "dropped")
+	assert.NoError(t, err)
+	assert.Len(t, metric, 1, "Should have one metric entry")
+
+	assert.Equal(t, float64(3), metric[0].Value())
+	assert.Equal(t, server.Destination.host, metric[0].Tags()["destination"])
+
+	server.Stop()
+}
+
 func retryTest(t *testing.T, statusCode int) {
 	cfg := configmock.New(t)
 	respondChan := make(chan int)
@@ -648,7 +689,7 @@ func TestDestinationSourceTagBasedOnTelemetryName(t *testing.T) {
 
 	// Create telemetry mock
 	telemetryMock := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
-	metrics.TlmBytesSent = telemetryMock.NewCounter("logs", "bytes_sent", []string{"source"}, "")
+	metrics.TlmBytesSent = telemetryMock.NewCounter("logs", "bytes_sent", []string{"remote_agent", "source"}, "")
 	metrics.TlmEncodedBytesSent = telemetryMock.NewCounter("logs", "encoded_bytes_sent", []string{"source", "compression_kind"}, "")
 
 	// Create a new server
@@ -671,6 +712,7 @@ func TestDestinationSourceTagBasedOnTelemetryName(t *testing.T) {
 	metric, err := telemetryMock.(telemetry.Mock).GetCountMetric("logs", "bytes_sent")
 	assert.NoError(t, err)
 	assert.Len(t, metric, 1)
+	assert.Equal(t, "agent", metric[0].Tags()["remote_agent"]) // "agent" for core agent (via GetAgentIdentityTag)
 	assert.Equal(t, "logs", metric[0].Tags()["source"])
 
 	metric, err = telemetryMock.(telemetry.Mock).GetCountMetric("logs", "encoded_bytes_sent")
@@ -685,7 +727,7 @@ func TestDestinationSourceTagEPForwarder(t *testing.T) {
 
 	// Create telemetry mock
 	telemetryMock := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
-	metrics.TlmBytesSent = telemetryMock.NewCounter("logs", "bytes_sent", []string{"source"}, "")
+	metrics.TlmBytesSent = telemetryMock.NewCounter("logs", "bytes_sent", []string{"remote_agent", "source"}, "")
 	metrics.TlmEncodedBytesSent = telemetryMock.NewCounter("logs", "encoded_bytes_sent", []string{"source", "compression_kind"}, "")
 
 	// Create a new server
@@ -707,6 +749,7 @@ func TestDestinationSourceTagEPForwarder(t *testing.T) {
 	metric, err := telemetryMock.(telemetry.Mock).GetCountMetric("logs", "bytes_sent")
 	assert.NoError(t, err)
 	assert.Len(t, metric, 1)
+	assert.Equal(t, "agent", metric[0].Tags()["remote_agent"]) // "agent" for core agent (via GetAgentIdentityTag)
 	assert.Equal(t, "epforwarder", metric[0].Tags()["source"])
 
 	metric, err = telemetryMock.(telemetry.Mock).GetCountMetric("logs", "encoded_bytes_sent")

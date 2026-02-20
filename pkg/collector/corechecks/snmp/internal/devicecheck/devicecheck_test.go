@@ -8,7 +8,6 @@ package devicecheck
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -58,7 +57,8 @@ profiles:
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, agentconfig.NewMock(t))
+	connMgr := NewConnectionManager(config, sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -127,6 +127,11 @@ profiles:
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.submitted_metrics", telemetryTags)
 
+	// Assert SNMP request counter metrics
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:get"))
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getbulk"))
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getnext"))
+
 	// Should see f5-specific 'sysStatMemoryTotal' but not fake metrics
 	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", snmpTags)
 	sender.AssertNotCalled(t, "Gauge", "snmp.anotherMetric", mock.Anything, mock.Anything, mock.Anything)
@@ -158,6 +163,11 @@ profiles:
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.submitted_metrics", telemetryTags)
+
+	// Assert SNMP request counter metrics
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:get"))
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getbulk"))
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getnext"))
 	// Should see fake metrics but not f5-specific 'sysStatMemoryTotal'
 	sender.AssertMetric(t, "Gauge", "snmp.anotherMetric", float64(100), "", snmpTags)
 	sender.AssertNotCalled(t, "Gauge", "snmp.sysStatMemoryTotal", mock.Anything, mock.Anything, mock.Anything)
@@ -198,7 +208,8 @@ global_metrics:
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, agentconfig.NewMock(t))
+	connMgr := NewConnectionManager(config, sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -247,7 +258,8 @@ community_string: public
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", session.NewMockSession, agentconfig.NewMock(t))
+	connMgr := NewConnectionManager(config, session.NewMockSession)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -278,7 +290,8 @@ community_string: public
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", session.NewMockSession, agentconfig.NewMock(t))
+	connMgr := NewConnectionManager(config, session.NewMockSession)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
 	hostname, err := deviceCk.GetDeviceHostname()
@@ -344,7 +357,8 @@ profiles:
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, agentconfig.NewMock(t))
+	connMgr := NewConnectionManager(config, sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
 	snmpTags := []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name",
@@ -612,19 +626,29 @@ profiles:
 	sender.AssertMetric(t, "Gauge", deviceUnreachableMetric, 0., "", snmpTags)
 
 	sender.ResetCalls()
-	sess.ConnectErr = fmt.Errorf("some error")
+	sess.ConnectErr = errors.New("some error")
 	err = deviceCk.Run(time.Now())
 
 	assert.Error(t, err, "some error")
 	sender.Mock.AssertCalled(t, "ServiceCheck", "snmp.can_check", servicecheck.ServiceCheckCritical, "", mocksender.MatchTagsContains(snmpTags), "snmp connection error: some error")
 	sender.AssertMetric(t, "Gauge", deviceUnreachableMetric, 1., "", snmpTags)
 	sender.AssertMetric(t, "Gauge", deviceReachableMetric, 0., "", snmpTags)
+
+	// Verify that basic telemetry metrics are still sent even when session is nil
+	telemetryTagsForError := append(utils.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
+	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", telemetryTagsForError)
+	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", telemetryTagsForError)
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTagsForError)
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.submitted_metrics", telemetryTagsForError)
+
+	// Verify that session-dependent SNMP request counter metrics are NOT sent when session is nil
+	sender.AssertNotCalled(t, "Gauge", "datadog.snmp.requests", mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestRun_sessionCloseError(t *testing.T) {
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
-	sess.CloseErr = fmt.Errorf("close error")
+	sess.CloseErr = errors.New("close error")
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
@@ -649,7 +673,8 @@ profiles:
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, agentconfig.NewMock(t))
+	connMgr := NewConnectionManager(config, sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -696,7 +721,8 @@ profiles:
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, agentconfig.NewMock(t))
+	connMgr := NewConnectionManager(config, sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
 	// override pinger with mock pinger
@@ -773,6 +799,11 @@ profiles:
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.submitted_metrics", telemetryTags)
 
+	// Assert SNMP request counter metrics
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:get"))
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getbulk"))
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getnext"))
+
 	// Should see f5-specific 'sysStatMemoryTotal' but not fake metrics
 	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", snmpTags)
 	sender.AssertNotCalled(t, "Gauge", "snmp.anotherMetric", mock.Anything, mock.Anything, mock.Anything)
@@ -804,6 +835,11 @@ profiles:
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.submitted_metrics", telemetryTags)
+
+	// Assert SNMP request counter metrics
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:get"))
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getbulk"))
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getnext"))
 	// Should see fake metrics but not f5-specific 'sysStatMemoryTotal'
 	sender.AssertMetric(t, "Gauge", "snmp.anotherMetric", float64(100), "", snmpTags)
 	sender.AssertNotCalled(t, "Gauge", "snmp.sysStatMemoryTotal", mock.Anything, mock.Anything, mock.Anything)
@@ -847,7 +883,8 @@ profiles:
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, agentconfig.NewMock(t))
+	connMgr := NewConnectionManager(config, sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
 	// override pinger with mock pinger
@@ -920,6 +957,11 @@ profiles:
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.submitted_metrics", telemetryTags)
 
+	// Assert SNMP request counter metrics
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:get"))
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getbulk"))
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getnext"))
+
 	// Should see f5-specific 'sysStatMemoryTotal' but not fake metrics
 	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", snmpTags)
 	sender.AssertNotCalled(t, "Gauge", "snmp.anotherMetric", mock.Anything, mock.Anything, mock.Anything)
@@ -951,6 +993,11 @@ profiles:
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.submitted_metrics", telemetryTags)
+
+	// Assert SNMP request counter metrics
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:get"))
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getbulk"))
+	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getnext"))
 	// Should see fake metrics but not f5-specific 'sysStatMemoryTotal'
 	sender.AssertMetric(t, "Gauge", "snmp.anotherMetric", float64(100), "", snmpTags)
 	sender.AssertNotCalled(t, "Gauge", "snmp.sysStatMemoryTotal", mock.Anything, mock.Anything, mock.Anything)
@@ -992,7 +1039,8 @@ collect_topology: false
 	cfg := agentconfig.NewMock(t)
 	cfg.SetWithoutSource("tags", []string{"tag1:value1"})
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, cfg)
+	connMgr := NewConnectionManager(config, sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, connMgr, cfg)
 	assert.Nil(t, err)
 
 	// WHEN
@@ -1021,7 +1069,8 @@ collect_topology: false
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, agentconfig.NewMock(t))
+	connMgr := NewConnectionManager(config, sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -1042,6 +1091,7 @@ collect_topology: false
 	}, deviceCk.profileCache.scalarOIDs)
 	assert.Equal(t, []string{
 		"1.3.6.1.2.1.2.2.1.2",
+		"1.3.6.1.2.1.2.2.1.3",
 		"1.3.6.1.2.1.2.2.1.6",
 		"1.3.6.1.2.1.2.2.1.7",
 		"1.3.6.1.2.1.2.2.1.8",
@@ -1112,6 +1162,7 @@ collect_topology: false
 	}, deviceCk.profileCache.scalarOIDs)
 	assert.Equal(t, []string{
 		"1.3.6.1.2.1.2.2.1.2",
+		"1.3.6.1.2.1.2.2.1.3",
 		"1.3.6.1.2.1.2.2.1.6",
 		"1.3.6.1.2.1.2.2.1.7",
 		"1.3.6.1.2.1.2.2.1.8",
@@ -1137,4 +1188,40 @@ collect_topology: false
 		"1.3.6.1.2.1.31.1.1.1.18",
 		"1.3.6.1.2.1.4.20.1.2",
 	}, deviceCk.profileCache.columnOIDs)
+}
+
+// TestDeviceCheck_ConnectionManager_Initialized tests that ConnectionManager is initialized
+func TestDeviceCheck_ConnectionManager_Initialized(t *testing.T) {
+	profile.SetConfdPathAndCleanProfiles()
+	sess := session.CreateFakeSession()
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: public
+collect_topology: false
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+profiles:
+  f5-big-ip:
+    definition_file: f5-big-ip.yaml
+`)
+
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+	assert.Nil(t, err)
+
+	connMgr := NewConnectionManager(config, sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
+	assert.Nil(t, err)
+
+	// Verify ConnectionManager is initialized
+	assert.NotNil(t, deviceCk.connMgr, "ConnectionManager should be initialized in NewDeviceCheck")
+
+	// Verify it's the correct type (implementation detail, but good to check)
+	_, ok := deviceCk.connMgr.(*snmpConnectionManager)
+	assert.True(t, ok, "connMgr should be a *snmpConnectionManager")
 }

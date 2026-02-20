@@ -12,6 +12,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -30,7 +31,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/errors"
+	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
@@ -173,7 +174,7 @@ func pemBlockForKey(privateKey interface{}) (*pem.Block, error) {
 		return &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(k)}, nil
 
 	default:
-		return nil, fmt.Errorf("unrecognized format for privateKey")
+		return nil, errors.New("unrecognized format for privateKey")
 	}
 }
 
@@ -326,7 +327,7 @@ func (suite *KubeletTestSuite) TestGetLocalPodListWithBrokenKubelet() {
 	pods, err := kubeutil.GetLocalPodList(ctx)
 	require.NotNil(suite.T(), err)
 	require.Len(suite.T(), pods, 0)
-	require.True(suite.T(), errors.IsRetriable(err))
+	require.True(suite.T(), pkgerrors.IsRetriable(err))
 }
 
 func (suite *KubeletTestSuite) TestGetNodenameStatsSummary() {
@@ -414,6 +415,7 @@ func (suite *KubeletTestSuite) TestPodlistCache() {
 	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "localhost")
 	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
 	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", -1)
+	mockConfig.SetWithoutSource("kubelet_cache_pods_duration", 5) // Default is 0. Need to set to > 0 to test cache
 
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
@@ -760,7 +762,7 @@ func (suite *KubeletTestSuite) TestPodListExpire() {
 
 func TestKubeletTestSuite(t *testing.T) {
 	// NOTE: This test suite fails using configmock.New(t), TODO: investigate and fix this
-	cfg := create.NewConfig("test")
+	cfg := create.NewConfig("test", "")
 	pkglogsetup.SetupLogger(
 		pkglogsetup.LoggerName("test"),
 		"trace",

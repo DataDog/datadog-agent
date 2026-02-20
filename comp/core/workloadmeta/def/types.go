@@ -16,6 +16,7 @@ import (
 	"github.com/mohae/deepcopy"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/version"
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 
@@ -46,12 +47,14 @@ const (
 	KindKubernetesPod          Kind = "kubernetes_pod"
 	KindKubernetesMetadata     Kind = "kubernetes_metadata"
 	KindKubeletMetrics         Kind = "kubelet_metrics"
+	KindKubeCapabilities       Kind = "kubernetes_capabilities"
 	KindKubernetesDeployment   Kind = "kubernetes_deployment"
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
 	KindProcess                Kind = "process"
 	KindGPU                    Kind = "gpu"
 	KindKubelet                Kind = "kubelet"
+	KindCRD                    Kind = "crd"
 )
 
 // Source is the source name of an entity.
@@ -76,6 +79,9 @@ const (
 	// SourceNodeOrchestrator represents entities detected by the node
 	// agent from an orchestrator. `kubelet` and `ecs` use this.
 	SourceNodeOrchestrator Source = "node_orchestrator"
+
+	// SourceNVML represents entities detected by the NVML GPU collector.
+	SourceNVML Source = "nvml"
 
 	// SourceClusterOrchestrator represents entities detected by calling
 	// the central component of an orchestrator, or the Datadog Cluster
@@ -122,7 +128,8 @@ const (
 	ContainerRuntimeGarden     ContainerRuntime = "garden"
 	// ECS Fargate can be considered as a runtime in the sense that we don't
 	// know the actual runtime but we need to identify it's Fargate
-	ContainerRuntimeECSFargate ContainerRuntime = "ecsfargate"
+	ContainerRuntimeECSFargate          ContainerRuntime = "ecsfargate"
+	ContainerRuntimeECSManagedInstances ContainerRuntime = "ecsmanagedinstances"
 )
 
 // ContainerRuntimeFlavor is the container runtime with respect to the OCI spect
@@ -162,8 +169,9 @@ type ECSLaunchType string
 
 // Defined ECSLaunchTypes
 const (
-	ECSLaunchTypeEC2     ECSLaunchType = "ec2"
-	ECSLaunchTypeFargate ECSLaunchType = "fargate"
+	ECSLaunchTypeEC2              ECSLaunchType = "ec2"
+	ECSLaunchTypeFargate          ECSLaunchType = "fargate"
+	ECSLaunchTypeManagedInstances ECSLaunchType = "managed_instances"
 )
 
 // AgentType defines the workloadmeta agent type
@@ -216,6 +224,14 @@ const (
 	// KubeletMetricsID is the ID of the workloadmeta KindKubeletMetrics entity.
 	// There can only be one per node.
 	KubeletMetricsID = "kubelet-metrics"
+)
+
+const (
+	// KubeCapabilitiesID is a constant ID used to build workloadmeta kubelet capabilities entities
+	// This does not need to be unique because there can only be one per cluster.
+	KubeCapabilitiesID = "kube-capability-id"
+	// KubeCapabilitiesName is used to name the workloadmeta kubelet capabilities entity
+	KubeCapabilitiesName = "kube-capability"
 )
 
 // Entity represents a single unit of work being done that is of interest to
@@ -447,10 +463,13 @@ func (c ContainerHealthStatus) String(verbose bool) string {
 	return sb.String()
 }
 
+// RequestAllGPUs is a constant for requesting all GPUs in a host, used in Docker runtimes
+const RequestAllGPUs = -1
+
 // ContainerResources is resources requests or limitations for a container
 type ContainerResources struct {
-	GPURequest    *uint64 // Number of GPUs
-	GPULimit      *uint64
+	GPURequest    *int64   // Number of GPUs requested (-1 for all GPUs, used in Docker runtimes)
+	GPULimit      *int64   // Number of GPUs limit (-1 for no limit, used in Docker runtimes)
 	GPUVendorList []string // The type of GPU requested (eg. nvidia, amd, intel)
 	CPURequest    *float64 // Percentage 0-100*numCPU (aligned with CPU Limit from metrics provider)
 	CPULimit      *float64
@@ -628,6 +647,11 @@ type Container struct {
 	// ResolvedAllocatedResources is the list of resources allocated to this pod. Requires the
 	// PodResources API to query that data.
 	ResolvedAllocatedResources []ContainerAllocatedResource
+	// GPUDeviceIDs contains the GPU device UUIDs assigned to this container.
+	// Format: ["GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"]
+	// Note: Currently only reliably populated in ECS environments, where it is extracted
+	// from the NVIDIA_VISIBLE_DEVICES environment variable set by the ECS agent.
+	GPUDeviceIDs []string
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
@@ -721,6 +745,11 @@ func (c Container) String(verbose bool) string {
 				_, _ = fmt.Fprintln(&sb, "Localhost Profile:", c.SecurityContext.SeccompProfile.LocalhostProfile)
 			}
 		}
+	}
+
+	if len(c.GPUDeviceIDs) > 0 {
+		_, _ = fmt.Fprintln(&sb, "----------- GPU Info -----------")
+		_, _ = fmt.Fprintln(&sb, "GPU Device IDs:", c.GPUDeviceIDs)
 	}
 
 	if c.ECSContainer != nil {
@@ -1245,6 +1274,8 @@ type Kubelet struct {
 	EntityID
 	EntityMeta
 	ConfigDocument KubeletConfigDocument
+	RawConfig      []byte
+	NodeName       string
 }
 
 // GetID implements Entity#GetID
@@ -1509,6 +1540,7 @@ type SBOM struct {
 	CycloneDXBOM       *cyclonedx_v1_4.Bom
 	GenerationTime     time.Time
 	GenerationDuration time.Duration
+	GenerationMethod   string // method used to generate the SBOM. Can be one of tarball, filesystem or overlayfs. This is reported by the collector for the used container runtime (docker, containerd ir cri-o) and converted to the `scan_method` tag.
 	Status             SBOMStatus
 	Error              string // needs to be stored as a string otherwise the merge() will favor the nil value
 }
@@ -1518,6 +1550,7 @@ type CompressedSBOM struct {
 	Bom                []byte
 	GenerationTime     time.Time
 	GenerationDuration time.Duration
+	GenerationMethod   string
 	Status             SBOMStatus
 	Error              string
 }
@@ -1574,6 +1607,7 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 				_, _ = fmt.Fprintf(&sb, "Error: %s\n", i.SBOM.Error)
 			default:
 			}
+			_, _ = fmt.Fprintln(&sb, "Method:", i.SBOM.GenerationMethod)
 		} else {
 			fmt.Fprintln(&sb, "SBOM is nil")
 		}
@@ -1712,6 +1746,9 @@ type Process struct {
 
 	// Owner will temporarily duplicate the ContainerID field until the new collector is enabled so we can then remove the ContainerID field
 	Owner *EntityID // Owner is a reference to a container in WLM
+
+	// GPUs is a reference to a list of GPU entities in WLM that this process is using
+	GPUs []EntityID
 
 	// Service contains service discovery information for this process
 	Service *Service
@@ -1872,6 +1909,11 @@ type Event struct {
 	// == EventTypeUnset, only the Entity ID is available and such a cast will
 	// fail.
 	Entity Entity
+
+	// IsComplete indicates whether all expected collectors have reported data
+	// for this entity. For example, in Kubernetes, a pod is complete when both
+	// the kubelet and kubemetadata collectors have reported.
+	IsComplete bool
 }
 
 // SubscriberPriority is a priority for subscribers to the store.  Subscribers
@@ -1960,6 +2002,12 @@ type GPU struct {
 	// specific.
 	Device string
 
+	// GPUType is the normalized model type of the GPU (e.g., "a100", "t4", "h100").
+	// This is extracted from the Device name and normalized to lowercase.
+	// For RTX cards, includes the rtx prefix (e.g., "rtx_a6000").
+	// Empty string if the type cannot be determined.
+	GPUType string
+
 	// DriverVersion is the version of the driver used for the gpu device
 	DriverVersion string
 
@@ -1996,6 +2044,15 @@ type GPU struct {
 
 	// VirtualizationMode contains the virtualization mode of the device
 	VirtualizationMode string
+
+	// Healthy indicates whether or not the GPU device is healthy
+	Healthy bool
+
+	// ParentGPUUUID is the UUID of the parent GPU device. Empty string if the device does not have a parent.
+	ParentGPUUUID string
+
+	// ChildrenGPUUUIDs is the UUIDs of the child GPU devices. Empty slice if the device does not have children.
+	ChildrenGPUUUIDs []string
 }
 
 var _ Entity = &GPU{}
@@ -2015,6 +2072,11 @@ func (g *GPU) Merge(e Entity) error {
 	// If the source has active PIDs, remove the ones from the destination so merge() takes latest active PIDs from the source
 	if gg.ActivePIDs != nil {
 		g.ActivePIDs = nil
+	}
+
+	// If the source has children GPU UUIDs, remove the ones from the destination so merge() takes latest children GPU UUIDs from the source
+	if gg.ChildrenGPUUUIDs != nil {
+		g.ChildrenGPUUUIDs = nil
 	}
 
 	return merge(g, gg)
@@ -2039,6 +2101,7 @@ func (g GPU) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Vendor:", g.Vendor)
 	_, _ = fmt.Fprintln(&sb, "Driver Version:", g.DriverVersion)
 	_, _ = fmt.Fprintln(&sb, "Device:", g.Device)
+	_, _ = fmt.Fprintln(&sb, "GPU Type:", g.GPUType)
 	_, _ = fmt.Fprintln(&sb, "Active PIDs:", g.ActivePIDs)
 	_, _ = fmt.Fprintln(&sb, "Index:", g.Index)
 	_, _ = fmt.Fprintln(&sb, "Architecture:", g.Architecture)
@@ -2055,6 +2118,15 @@ func (g GPU) String(verbose bool) string {
 	}
 
 	return sb.String()
+}
+
+func (g GPU) SlicingMode() string {
+	if g.DeviceType == GPUDeviceTypeMIG {
+		return "mig"
+	} else if len(g.ChildrenGPUUUIDs) > 0 {
+		return "mig-parent"
+	}
+	return "none"
 }
 
 // GPUComputeCapability represents the compute capability version of a GPU.
@@ -2082,3 +2154,126 @@ const (
 	// CollectorsInitialized means workloadmeta collectors have been at least pulled once
 	CollectorsInitialized
 )
+
+// CRD struct exposes known CRD group/kind/versions
+type CRD struct {
+	EntityID
+	EntityMeta
+	Group   string
+	Kind    string
+	Version string
+}
+
+var _ Entity = &CRD{}
+
+// GetID returns the CRD entity ID
+func (crd CRD) GetID() EntityID {
+	return crd.EntityID
+}
+
+// Merge allows the merge of 2 CRD entities
+func (crd *CRD) Merge(e Entity) error {
+	otherCrd, ok := e.(*CRD)
+	if !ok {
+		return fmt.Errorf("cannot merge CRD type with other type: %T", e)
+	}
+
+	return merge(crd, otherCrd)
+}
+
+// DeepCopy returns a deep copy of the given CRD entity
+func (crd CRD) DeepCopy() Entity {
+	copyCrd := deepcopy.Copy(crd).(*CRD)
+	return copyCrd
+}
+
+// String return the string representation of the given CRD entity.
+// set verbose to true to increase verbosity.
+func (crd CRD) String(verbose bool) string {
+	var sb strings.Builder
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, crd.EntityID.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprintln(&sb, crd.EntityMeta.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "Group:", crd.Group)
+	_, _ = fmt.Fprintln(&sb, "Kind:", crd.Kind)
+	_, _ = fmt.Fprintln(&sb, "Version:", crd.Version)
+
+	return sb.String()
+}
+
+func (crd CRD) BuildGVK() string {
+	return crd.Group + "/" + crd.Version + "/" + crd.Kind
+}
+
+// FeatureGateStage represents the maturity level of a Kubernetes feature gate
+type FeatureGateStage string
+
+// FeatureGateStage constants represent the maturity level of a Kubernetes feature gate
+const (
+	StageAlpha      FeatureGateStage = "ALPHA"
+	StageBeta       FeatureGateStage = "BETA"
+	StageGA         FeatureGateStage = "" // StageGA is represented as an empty string
+	StageDeprecated FeatureGateStage = "DEPRECATED"
+)
+
+// FeatureGate represents a single Kubernetes feature gate
+type FeatureGate struct {
+	Name    string
+	Stage   FeatureGateStage
+	Enabled bool
+}
+
+// KubeCapabilities represents the capabilities of a Kubernetes cluster.
+type KubeCapabilities struct {
+	EntityID
+	EntityMeta
+	FeatureGates map[string]FeatureGate
+	Version      *version.Info
+}
+
+var _ Entity = &KubeCapabilities{}
+
+// GetID returns the CRD entity ID
+func (kc KubeCapabilities) GetID() EntityID {
+	return kc.EntityID
+}
+
+// Merge allows the merge of 2 CRD entities
+func (kc *KubeCapabilities) Merge(e Entity) error {
+	otherCrd, ok := e.(*KubeCapabilities)
+	if !ok {
+		return fmt.Errorf("cannot merge CRD type with other type: %T", e)
+	}
+
+	return merge(kc, otherCrd)
+}
+
+// DeepCopy returns a deep copy of the given CRD entity
+func (kc KubeCapabilities) DeepCopy() Entity {
+	copyCrd := deepcopy.Copy(kc).(*KubeCapabilities)
+	return copyCrd
+}
+
+func (kc KubeCapabilities) String(verbose bool) string {
+	var sb strings.Builder
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, kc.EntityID.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprintln(&sb, kc.EntityMeta.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "Version:", kc.Version)
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "Feature Gates:")
+		for _, featureGate := range kc.FeatureGates {
+			_, _ = fmt.Fprintln(&sb, "\t", featureGate.Name, ":", featureGate.Enabled)
+		}
+	}
+
+	return sb.String()
+}

@@ -8,9 +8,12 @@
 package external
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	clock "k8s.io/utils/clock/testing"
 
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
@@ -61,7 +64,7 @@ func TestBuildWorkloadRecommendationRequest_Table(t *testing.T) {
 							},
 						},
 					},
-					Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{MinReplicas: pointer.Ptr[int32](2), MaxReplicas: 4},
+					Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{MinReplicas: pointer.Ptr[int32](2), MaxReplicas: pointer.Ptr[int32](4)},
 				},
 				CurrentReplicas: pointer.Ptr[int32](3),
 				ScalingValues:   model.ScalingValues{Horizontal: &model.HorizontalScalingValues{Replicas: 3}},
@@ -153,7 +156,9 @@ func TestBuildWorkloadRecommendationRequest_Table(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			client := newRecommenderClient(workload.NewPodWatcher(nil, nil))
+			fakeClock := clock.NewFakeClock(time.Now())
+			client, err := newRecommenderClient(context.Background(), fakeClock, workload.NewPodWatcher(nil, nil), nil)
+			assert.NoError(t, err)
 			req, err := client.buildWorkloadRecommendationRequest(tc.cluster, tc.dpa.Build(), tc.dpa.CustomRecommenderConfiguration)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectReq, req)

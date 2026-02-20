@@ -7,27 +7,6 @@ default_stages:
   - pre-commit
 
 repos:
-- repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.12.2
-  hooks:
-    - id: ruff
-      args: [ --fix ]
-    - id: ruff-format
-- repo: https://github.com/jendrikseipp/vulture
-  rev: e454d2ef39fc23e72549ff23a1a14e31c3a75605 # v2.14
-  hooks:
-    - id: vulture
-      args: ["--ignore-decorators", "@task", "--ignore-names", "test_*,Test*", "tasks"]
-- repo: https://github.com/pre-commit/mirrors-mypy
-  rev: e5ea6670624c24f8321f6328ef3176dbba76db46  # 1.10.0
-  hooks:
-    - id: mypy
-      # Keep in sync with the build image, there's no good way to centralize this.
-      additional_dependencies:
-        - types-pyyaml==6.0.12.20240311
-        - types-requests==2.30.0
-        - types-tabulate==0.9.0.20240106
-        - types-toml==0.10.8.20240310
 - repo: https://github.com/jumanjihouse/pre-commit-hooks
   rev: 7cc5848088fd8412905ab79feea6c8edc3ac76c6 # 2.1.5
   hooks:
@@ -40,7 +19,7 @@ repos:
       args: [ "-w", "-s" ]
       exclude: ^.*.(pb.go|_gen.go)$
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: end-of-file-fixer
         files: release.json
@@ -65,6 +44,14 @@ repos:
       language: system
       require_serial: true
       files: \.go$
+      pass_filenames: false
+    - id: python-linter
+      name: python-linter
+      description: run python linter (ruff)
+      entry: dda inv linter.python
+      language: system
+      require_serial: true
+      files: \.py$
       pass_filenames: false
     - id: win-clang-format
       name: win-clang-format
@@ -161,3 +148,10 @@ repos:
       language: system
       pass_filenames: false
       files: ^pkg/fleet/installer/packages/embedded/.*\.service$
+    - id: rst-releasenotes
+      name: rst-releasenotes
+      description: Check release notes for RST formatting issues (Markdown syntax detected)
+      entry: bash -c 'dda inv linter.rst-releasenotes --files="$(echo "$@" | tr " " ",")"' --
+      language: system
+      files: ^releasenotes(-dca)?/notes/.*\.yaml$
+      pass_filenames: true

@@ -4,6 +4,7 @@
 # Copyright 2016-present Datadog, Inc.
 
 require './lib/ostools.rb'
+require './lib/fips.rb'
 require './lib/project_helpers.rb'
 require 'pathname'
 
@@ -19,16 +20,12 @@ unless do_repackage?
 
   dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # Security-agent dependency, not needed for Heroku
 
-  # Alternative memory allocator which has better support for memory allocated by cgo calls,
-  # especially at higher thread counts.
-  dependency "libjemalloc" if linux_target?
-
   dependency 'datadog-agent-dependencies'
 end
 
 source path: '..',
        options: {
-         exclude: ["**/testdata/**/*"],
+         exclude: ["**/.cache/**/*", "**/testdata/**/*"],
        }
 relative_path 'src/github.com/DataDog/datadog-agent'
 
@@ -63,24 +60,8 @@ build do
   end
 
   env = with_standard_compiler_flags(env)
-
-  # Use msgo toolchain when fips mode is enabled
   if fips_mode?
-    if windows_target?
-      msgoroot = ENV['MSGO_ROOT']
-      if msgoroot.nil? || msgoroot.empty?
-        raise "MSGO_ROOT not set"
-      end
-      if !File.exist?("#{msgoroot}\\bin\\go.exe")
-        raise "msgo go.exe not found at #{msgoroot}\\bin\\go.exe"
-      end
-      env["GOROOT"] = msgoroot
-      env["PATH"] = "#{msgoroot}\\bin;#{env['PATH']}"
-    else
-      msgoroot = "/usr/local/msgo"
-      env["GOROOT"] = msgoroot
-      env["PATH"] = "#{msgoroot}/bin:#{env['PATH']}"
-    end
+    add_msgo_to_env(env)
   end
 
   # we assume the go deps are already installed before running omnibus
@@ -100,11 +81,7 @@ build do
     command "dda inv -- -e rtloader.make --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER -DPython3_EXECUTABLE=#{install_dir}/embedded/bin/python3'", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     command "dda inv -- -e rtloader.install", :live_stream => Omnibus.logger.live_stream(:info)
 
-    include_sds = ""
-    if linux_target?
-        include_sds = "--include-sds" # we only support SDS on Linux targets for now
-    end
-    command "dda inv -- -e agent.build --exclude-rtloader #{include_sds} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
   if osx_target?
@@ -132,6 +109,7 @@ build do
     copy 'bin/agent/dist', "#{install_dir}/bin/agent"
     mkdir "#{install_dir}/bin/scripts/"
     copy "#{project_dir}/omnibus/windows-scripts/iis-instrumentation.bat", "#{install_dir}/bin/scripts/"
+    copy "#{project_dir}/omnibus/windows-scripts/host-instrumentation.bat", "#{install_dir}/bin/scripts/"
     mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
   end
 
@@ -141,16 +119,23 @@ build do
   # Build the installer
   # We do this in the same software definition to avoid redundant copying, as it's based on the same source
   if linux_target? and !heroku_target?
-    command "invoke installer.build --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "invoke installer.build #{fips_args} --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     move 'bin/installer/installer', "#{install_dir}/embedded/bin"
   elsif windows_target?
-    command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e installer.build #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     move 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
   end
 
-  unless windows_target?
-    command "dda inv -- -e loader.build --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
-    copy "bin/trace-loader/trace-loader", "#{install_dir}/embedded/bin"
+  if linux_target?
+    if heroku_target?
+      # shouldn't be needed in practice, but it is used by the systemd service,
+      # which is used when installing the deb manually
+      copy "cmd/loader/main_noop.sh", "#{install_dir}/embedded/bin/trace-loader"
+      command "chmod 0755 #{install_dir}/embedded/bin/trace-loader"
+    else
+      command "dda inv -- -e loader.build --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+      copy "bin/trace-loader/trace-loader", "#{install_dir}/embedded/bin"
+    end
   end
 
   if windows_target?
@@ -168,6 +153,17 @@ build do
     copy 'bin/process-agent/process-agent.exe', "#{install_dir}/bin/agent"
   elsif not heroku_target?
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
+  end
+
+  # Private action runner
+  if not heroku_target? and not fips_mode?
+    command "dda inv -- -e privateactionrunner.build --install-path=#{install_dir} --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+
+    if windows_target?
+      copy 'bin/privateactionrunner/privateactionrunner.exe', "#{install_dir}/bin/agent"
+    elsif not heroku_target?
+      copy 'bin/privateactionrunner/privateactionrunner', "#{install_dir}/embedded/bin"
+    end
   end
 
   # System-probe
@@ -217,9 +213,18 @@ build do
 
   end
 
+  # sd-agent (service discovery agent)
+  if ENV['SD_AGENT_BIN'] && linux_target?
+    copy ENV['SD_AGENT_BIN'], "#{install_dir}/embedded/bin/sd-agent"
+  end
+
+  # dd-procmgrd (process manager daemon)
+  if ENV['DD_PROCMGRD_BIN'] && linux_target?
+    copy ENV['DD_PROCMGRD_BIN'], "#{install_dir}/embedded/bin/dd-procmgrd"
+  end
+
   # Security agent
-  secagent_support = (not heroku_target?) and (not windows_target? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?))
-  if secagent_support
+  unless heroku_target?
     command "dda inv -- -e security-agent.build #{fips_args} --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     if windows_target?
       copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"
@@ -236,12 +241,16 @@ build do
     copy 'bin/cws-instrumentation/cws-instrumentation', "#{install_dir}/embedded/bin"
   end
 
-  # APM Injection agent
-  if windows_target?
-    if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
-      command "dda inv -- -e agent.generate-config --build-type apm-injection --output-file ./bin/agent/dist/apm-inject.yaml", :env => env
-      move 'bin/agent/dist/apm-inject.yaml', "#{conf_dir}/apm-inject.yaml.example"
+# Secret Generic Connector
+  if !heroku_target?
+    command "dda inv -- -e secret-generic-connector.build #{fips_args}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    if windows_target?
+      copy 'bin/secret-generic-connector/secret-generic-connector.exe', "#{install_dir}/bin/agent"
+    else
+      copy 'bin/secret-generic-connector/secret-generic-connector', "#{install_dir}/embedded/bin"
     end
+    mkdir "#{install_dir}/LICENSES"
+    copy 'cmd/secret-generic-connector/LICENSE', "#{install_dir}/LICENSES/secret-generic-connector-LICENSE"
   end
 
   if osx_target?
@@ -263,7 +272,12 @@ build do
 
     erb source: "gui.launchd.plist.erb",
         dest: "#{conf_dir}/com.datadoghq.gui.plist.example",
-        mode: 0644
+        mode: 0644,
+        vars: {
+          # Due to how install_dir actually matches where the Agent is built rather than
+          # its actual final destination, we hardcode here the currently sole supported install location
+          install_dir: "/opt/datadog-agent",
+        }
 
     # Systray GUI
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"
@@ -278,8 +292,7 @@ build do
 
   # APM Hands Off config file
   if linux_target?
-    command "dda inv -- agent.generate-config --build-type application-monitoring --output-file ./bin/agent/dist/application_monitoring.yaml", :env => env
-    move 'bin/agent/dist/application_monitoring.yaml', "#{conf_dir}/application_monitoring.yaml.example"
+    copy 'pkg/config/example/application_monitoring.yaml.example', "#{conf_dir}/application_monitoring.yaml.example"
   end
 
   # Allows the agent to be installed in a custom location
@@ -287,33 +300,23 @@ build do
     command "touch #{install_dir}/.install_root"
   end
 
-  # TODO: move this to omnibus-ruby::health-check.rb
-  # check that linux binaries contains OpenSSL symbols when building to support FIPS
   if fips_mode? && linux_target?
-    # Put the ruby code in a block to prevent omnibus from running it directly but rather at build step with the rest of the code above.
+    # Put the ruby code in a block to prevent omnibus from running it directly
+    # but rather at build step with the rest of the code above.
     # If not in a block, it will search for binaries that have not been built yet.
     block do
       LINUX_BINARIES = [
-        "#{install_dir}/bin/agent/agent",
-        "#{install_dir}/embedded/bin/trace-agent",
-        "#{install_dir}/embedded/bin/process-agent",
-        "#{install_dir}/embedded/bin/security-agent",
-        "#{install_dir}/embedded/bin/system-probe",
+        "bin/agent/agent",
+        "embedded/bin/trace-agent",
+        "embedded/bin/process-agent",
+        "embedded/bin/security-agent",
+        "embedded/bin/system-probe",
+        "embedded/bin/installer",
+        "embedded/bin/secret-generic-connector",
       ]
 
-      symbol = "_Cfunc_go_openssl"
-      check_block = Proc.new { |binary, symbols|
-        count = symbols.scan(symbol).count
-        if count > 0
-          log.info(log_key) { "Symbol '#{symbol}' found #{count} times in binary '#{binary}'." }
-        else
-          raise FIPSSymbolsNotFound.new("Expected to find '#{symbol}' symbol in #{binary} but did not")
-        end
-      }.curry
-
       LINUX_BINARIES.each do |bin|
-        partially_applied_check = check_block.call(bin)
-        GoSymbolsInspector.new(bin,  &partially_applied_check).inspect()
+        fips_check_binary_for_expected_symbol(File.join(install_dir, bin))
       end
     end
   end

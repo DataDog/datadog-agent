@@ -137,50 +137,48 @@ error2
 }
 
 func TestStatusAutodiscoveryMultipleSubnets(t *testing.T) {
-	mockSnmpConfig1 := snmp.Config{
-		Network:   "127.0.0.1/24",
-		Community: "public",
+	mockSnmpConfig1 := map[string]interface{}{
+		"network":   "127.0.0.1/24",
+		"community": "public",
 	}
-	mockSnmpConfig2 := snmp.Config{
-		Network: "127.0.10.1/30",
-		Authentications: []snmp.Authentication{
+	mockSnmpConfig2 := map[string]interface{}{
+		"network": "127.0.10.1/30",
+		"authentications": []map[string]interface{}{
 			{
-				Community: "public",
+				"community": "public",
 			},
 		},
 	}
-	mockSnmpConfig3 := snmp.Config{
-		Network: "127.0.10.1/30",
-		Authentications: []snmp.Authentication{
+	mockSnmpConfig3 := map[string]interface{}{
+		"network": "127.0.10.1/30",
+		"authentications": []map[string]interface{}{
 			{
-				Community: "cisco",
+				"community": "cisco",
 			},
 		},
 	}
 
 	mockConfig := configmock.New(t)
-	mockListenerConfig := map[string]interface{}{
-		"configs": []interface{}{
-			map[string]interface{}{
-				"network":   mockSnmpConfig1.Network,
-				"community": mockSnmpConfig1.Community,
-				"port":      mockSnmpConfig1.Port,
-			},
-			map[string]interface{}{
-				"network":         mockSnmpConfig2.Network,
-				"authentications": mockSnmpConfig2.Authentications,
-				"port":            mockSnmpConfig2.Port,
-			},
-			map[string]interface{}{
-				"network":         mockSnmpConfig3.Network,
-				"authentications": mockSnmpConfig3.Authentications,
-				"port":            mockSnmpConfig3.Port,
-			},
+	mockListenerConfigs := []interface{}{
+		map[string]interface{}{
+			"network":   mockSnmpConfig1["network"],
+			"community": mockSnmpConfig1["community"],
+			"port":      mockSnmpConfig1["port"],
 		},
-		"workers": 1,
+		map[string]interface{}{
+			"network":         mockSnmpConfig2["network"],
+			"authentications": mockSnmpConfig2["authentications"],
+			"port":            mockSnmpConfig2["port"],
+		},
+		map[string]interface{}{
+			"network":         mockSnmpConfig3["network"],
+			"authentications": mockSnmpConfig3["authentications"],
+			"port":            mockSnmpConfig3["port"],
+		},
 	}
 
-	mockConfig.SetWithoutSource("network_devices.autodiscovery", mockListenerConfig)
+	mockConfig.SetWithoutSource("network_devices.autodiscovery.configs", mockListenerConfigs)
+	mockConfig.SetWithoutSource("network_devices.autodiscovery.workers", 1)
 
 	listenerConfig, _ := snmp.NewListenerConfig()
 

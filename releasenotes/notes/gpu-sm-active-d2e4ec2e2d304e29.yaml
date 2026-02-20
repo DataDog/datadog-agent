@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    gpu: fix a bug where the gpu.sm_active and
+    gpu.process.{sm_active,dram_active,encoder_utilization,decoder_utilization}
+    metrics were emitting values lower than expected.

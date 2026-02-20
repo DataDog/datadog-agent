@@ -8,6 +8,7 @@
 package modules
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
@@ -60,8 +62,10 @@ var GPUMonitoring = &module.Factory{
 
 		c := gpuconfig.New()
 
+		ctx, cancel := context.WithCancel(context.Background())
+
 		if c.ConfigureCgroupPerms {
-			configureCgroupPermissions()
+			configureCgroupPermissions(ctx, c.CgroupReapplyInterval, c.CgroupReapplyInfinitely)
 		}
 
 		probeDeps := gpu.ProbeDependencies{
@@ -71,11 +75,14 @@ var GPUMonitoring = &module.Factory{
 		}
 		p, err := gpu.NewProbe(c, probeDeps)
 		if err != nil {
+			cancel()
 			return nil, fmt.Errorf("unable to start %s: %w", config.GPUMonitoringModule, err)
 		}
 
 		return &GPUMonitoringModule{
-			Probe: p,
+			Probe:         p,
+			contextCancel: cancel,
+			context:       ctx,
 		}, nil
 	},
 	NeedsEBPF: func() bool {
@@ -86,11 +93,14 @@ var GPUMonitoring = &module.Factory{
 // GPUMonitoringModule is a module for GPU monitoring
 type GPUMonitoringModule struct {
 	*gpu.Probe
+	context       context.Context    // Context associated with the module
+	contextCancel context.CancelFunc // Cancel function associated with the context
 }
 
 // Register registers the GPU monitoring module
 func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
-	httpMux.HandleFunc("/check", func(w http.ResponseWriter, _ *http.Request) {
+	// Ensure only one concurrent check is allowed, as the GetAndFlush method is not thread safe.
+	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, _ *http.Request) {
 		stats, err := t.Probe.GetAndFlush()
 		if err != nil {
 			log.Errorf("Error getting GPU stats: %v", err)
@@ -99,7 +109,7 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 		}
 
 		utils.WriteAsJSON(w, stats, utils.CompactOutput)
-	})
+	}))
 
 	httpMux.HandleFunc("/debug/traced-programs", usm.GetTracedProgramsEndpoint(gpuconfigconsts.GpuModuleName))
 	httpMux.HandleFunc("/debug/blocked-processes", usm.GetBlockedPathIDEndpoint(gpuconfigconsts.GpuModuleName))
@@ -158,6 +168,7 @@ func (t *GPUMonitoringModule) collectEventsHandler(w http.ResponseWriter, r *htt
 
 // Close closes the GPU monitoring module
 func (t *GPUMonitoringModule) Close() {
+	t.contextCancel()
 	t.Probe.Close()
 }
 
@@ -212,11 +223,55 @@ func getAgentPID(procRoot string) (uint32, error) {
 // configureCgroupPermissions configures the cgroup permissions to access NVIDIA
 // devices for the system-probe and agent processes, as the NVIDIA device plugin
 // sets them in a way that can be overwritten by SystemD cgroups.
-func configureCgroupPermissions() {
+func configureCgroupPermissions(ctx context.Context, reapplyInterval time.Duration, reapplyInfinitely bool) {
 	root := hostRoot()
 
+	log.Infof("Configuring cgroup permissions for system-probe and agent processes")
+
+	// Always run once immediately
+	doConfigureCgroupPermissions(root)
+
+	// Now, if reapplyInterval is greater than 0, schedule a background task to
+	// run after that delay. If reapplyInfinitely is true, the task will run
+	// indefinitely, otherwise it will run only once. There are two reasons to
+	// enable this:
+	//
+	// 1. To fix race conditions between SystemD and the
+	// system-probe permission patching. SystemD might read an old version of
+	// the device permissions, then system-probe changes that configuration,
+	// patches the cgroup permissions and then SystemD changes the cgroups based
+	// on the old config.
+	//
+	// 2. If the agent container restarts, it will lose the permissions patch. For simplicity,
+	// reapply the permissions instead of having the agent request a permission patch.
+	if reapplyInterval > 0 {
+		go func() {
+			log.Infof("Scheduling background re-application of cgroup permissions for system-probe and agent processes in %v, infinite repeats: %t", reapplyInterval, reapplyInfinitely)
+			ticker := time.NewTicker(reapplyInterval)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					// do not spam the logs with informational messages, switch to debug level
+					doConfigureCgroupPermissions(root)
+					if !reapplyInfinitely {
+						return
+					}
+				}
+			}
+		}()
+	}
+}
+
+// doConfigureCgroupPermissions configures the cgroup permissions to access NVIDIA
+// devices for the system-probe and agent processes.
+func doConfigureCgroupPermissions(root string) {
 	sysprobePID := uint32(os.Getpid())
-	log.Infof("Configuring cgroup permissions for system-probe process with PID %d", sysprobePID)
+
+	log.Debugf("Configuring cgroup permissions for system-probe process with PID %d", sysprobePID)
 	if err := gpu.ConfigureDeviceCgroups(sysprobePID, root); err != nil {
 		log.Warnf("Failed to configure cgroup permissions for system-probe process: %v. gpu-monitoring module might not work properly", err)
 	}
@@ -228,7 +283,7 @@ func configureCgroupPermissions() {
 		return
 	}
 
-	log.Infof("Configuring cgroup permissions for agent process with PID %d", agentPID)
+	log.Debugf("Configuring cgroup permissions for agent process with PID %d", agentPID)
 	if err := gpu.ConfigureDeviceCgroups(agentPID, root); err != nil {
 		log.Warnf("Failed to configure cgroup permissions for agent process: %v. gpu-monitoring module might not work properly", err)
 	}

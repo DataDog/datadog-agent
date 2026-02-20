@@ -231,6 +231,57 @@ def get_main_parent_commit(ctx) -> str:
     return get_common_ancestor(ctx, "HEAD", f'origin/{get_default_branch()}')
 
 
+def get_ancestor_base_branch(branch_name: str | None = None) -> str:
+    """
+    Get the base branch to use for ancestor calculation.
+
+    This function tries to determine the correct base branch by:
+    1. Using COMPARE_TO_BRANCH environment variable if set (preferred in CI)
+    2. Falling back to GitHub API to look up the PR's target branch
+    3. Falling back to get_default_branch() if neither works
+
+    This is particularly important for PRs targeting release branches
+    (e.g., 7.54.x) where we need to find the ancestor from the release
+    branch, not main.
+
+    Args:
+        branch_name: The branch name to look up via GitHub API. If None, uses
+                     CI_COMMIT_REF_NAME or falls back to the current branch.
+
+    Returns:
+        The base branch name to use for ancestor calculation.
+    """
+    # First, check if COMPARE_TO_BRANCH is set (used in GitLab CI)
+    compare_to_branch = os.environ.get("COMPARE_TO_BRANCH")
+    if compare_to_branch:
+        print(f"Using COMPARE_TO_BRANCH environment variable: {compare_to_branch}")
+        return compare_to_branch
+
+    # Fall back to GitHub API to find the PR's target branch
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    if branch_name is None:
+        branch_name = os.environ.get("CI_COMMIT_REF_NAME") or get_current_branch(Context())
+
+    try:
+        github = GithubAPI()
+        prs = list(github.get_pr_for_branch(branch_name))
+
+        if len(prs) == 0:
+            print(f"No PR found for branch {branch_name}, using default branch")
+            return get_default_branch()
+
+        if len(prs) > 1:
+            print(f"Warning: Multiple PRs found for branch {branch_name}, using first PR's base")
+
+        base_branch = prs[0].base.ref
+        print(f"Found PR #{prs[0].number} for branch {branch_name}, target branch: {base_branch}")
+        return base_branch
+    except Exception as e:
+        print(f"Warning: Failed to get PR base branch for {branch_name}: {e}")
+        return get_default_branch()
+
+
 def check_base_branch(branch, release_version):
     """
     Checks if the given branch is either the default branch or the release branch associated

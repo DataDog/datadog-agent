@@ -9,6 +9,7 @@ package providers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"net/url"
@@ -271,7 +272,7 @@ func (p *ConsulConfigProvider) getCheckNames(ctx context.Context, key string) ([
 
 	names := string(raw)
 	if names == "" {
-		err = fmt.Errorf("check_names is empty")
+		err = errors.New("check_names is empty")
 		return nil, err
 	}
 

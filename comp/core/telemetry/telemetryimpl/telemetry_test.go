@@ -131,4 +131,71 @@ func TestGoMetrics(t *testing.T) {
 	assert.Contains(t, metricNames, "go_sched_goroutines_goroutines")
 	assert.Contains(t, metricNames, "go_threads")
 	assert.Contains(t, metricNames, "go_gc_duration_seconds")
+	assert.Contains(t, metricNames, "go_cgo_go_to_c_calls_calls_total")
+	assert.Contains(t, metricNames, "go_cpu_classes_gc_mark_assist_cpu_seconds_total")
+	assert.Contains(t, metricNames, "go_sync_mutex_wait_total_seconds_total")
+	assert.NotContains(t, metricNames, "go_godebug_non_default_behavior_execerrdot_events_total")
+}
+
+func TestGatherText(t *testing.T) {
+	tel := fxutil.Test[telemetry.Mock](t, MockModule())
+
+	// Create test metrics
+	counter := tel.NewSimpleCounter("test_subsystem", "test_counter", "test counter help")
+	counter.Inc()
+
+	gauge := tel.NewSimpleGauge("test_subsystem", "test_gauge", "test gauge help")
+	gauge.Set(42.0)
+
+	tests := []struct {
+		name           string
+		filter         telemetry.MetricFilter
+		expectInOutput []string
+		expectNotIn    []string
+		expectEmpty    bool
+	}{
+		{
+			name:           "NoFilter includes all metrics",
+			filter:         telemetry.NoFilter,
+			expectInOutput: []string{"test_subsystem__test_counter", "test_subsystem__test_gauge"},
+		},
+		{
+			name:           "StaticMetricFilter includes only specified metrics",
+			filter:         telemetry.StaticMetricFilter("test_subsystem__test_counter"),
+			expectInOutput: []string{"test_subsystem__test_counter"},
+			expectNotIn:    []string{"test_subsystem__test_gauge"},
+		},
+		{
+			name:           "StaticMetricFilter with multiple metrics",
+			filter:         telemetry.StaticMetricFilter("test_subsystem__test_counter", "test_subsystem__test_gauge"),
+			expectInOutput: []string{"test_subsystem__test_counter", "test_subsystem__test_gauge"},
+		},
+		{
+			name:        "Filter returns empty when no metrics match",
+			filter:      telemetry.StaticMetricFilter("nonexistent_metric"),
+			expectEmpty: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := tel.GatherText(false, tt.filter)
+			require.NoError(t, err)
+
+			if tt.expectEmpty {
+				assert.Empty(t, output)
+				return
+			}
+
+			require.NotEmpty(t, output)
+
+			for _, expected := range tt.expectInOutput {
+				assert.Contains(t, output, expected)
+			}
+
+			for _, notExpected := range tt.expectNotIn {
+				assert.NotContains(t, output, notExpected)
+			}
+		})
+	}
 }

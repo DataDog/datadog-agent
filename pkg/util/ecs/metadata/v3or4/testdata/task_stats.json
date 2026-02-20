@@ -1,0 +1,268 @@
+{
+    "2207f63945be40abb2d7bca5a2661cfd-0911415269": {
+        "read": "2025-10-24T21:33:07.765945058Z",
+        "preread": "2025-10-24T21:32:57.765940458Z",
+        "pids_stats": {},
+        "blkio_stats": {
+            "io_service_bytes_recursive": [
+                {
+                    "major": 259,
+                    "minor": 0,
+                    "op": "read",
+                    "value": 1875968
+                },
+                {
+                    "major": 259,
+                    "minor": 0,
+                    "op": "write",
+                    "value": 0
+                },
+                {
+                    "major": 252,
+                    "minor": 0,
+                    "op": "read",
+                    "value": 1875968
+                },
+                {
+                    "major": 252,
+                    "minor": 0,
+                    "op": "write",
+                    "value": 0
+                },
+                {
+                    "major": 259,
+                    "minor": 1,
+                    "op": "read",
+                    "value": 7593984
+                },
+                {
+                    "major": 259,
+                    "minor": 1,
+                    "op": "write",
+                    "value": 28672
+                }
+            ],
+            "io_serviced_recursive": null,
+            "io_queue_recursive": null,
+            "io_service_time_recursive": null,
+            "io_wait_time_recursive": null,
+            "io_merged_recursive": null,
+            "io_time_recursive": null,
+            "sectors_recursive": null
+        },
+        "num_procs": 0,
+        "storage_stats": {},
+        "cpu_stats": {
+            "cpu_usage": {
+                "total_usage": 181104000,
+                "usage_in_kernelmode": 67914000,
+                "usage_in_usermode": 113190000
+            },
+            "system_cpu_usage": 276134970000000,
+            "online_cpus": 1,
+            "throttling_data": {
+                "periods": 0,
+                "throttled_periods": 0,
+                "throttled_time": 0
+            }
+        },
+        "precpu_stats": {
+            "cpu_usage": {
+                "total_usage": 180323000,
+                "usage_in_kernelmode": 67621000,
+                "usage_in_usermode": 112702000
+            },
+            "system_cpu_usage": 276124980000000,
+            "online_cpus": 1,
+            "throttling_data": {
+                "periods": 0,
+                "throttled_periods": 0,
+                "throttled_time": 0
+            }
+        },
+        "memory_stats": {
+            "usage": 42827776,
+            "stats": {
+                "active_anon": 20480,
+                "active_file": 8056832,
+                "anon": 22978560,
+                "anon_thp": 0,
+                "file": 14487552,
+                "file_dirty": 0,
+                "file_mapped": 5017600,
+                "file_writeback": 0,
+                "inactive_anon": 23306240,
+                "inactive_file": 6082560,
+                "kernel_stack": 1638400,
+                "pgactivate": 817,
+                "pgdeactivate": 1109,
+                "pgfault": 9884,
+                "pglazyfree": 0,
+                "pglazyfreed": 0,
+                "pgmajfault": 62,
+                "pgrefill": 1144,
+                "pgscan": 1307,
+                "pgsteal": 666,
+                "shmem": 348160,
+                "slab": 2550344,
+                "slab_reclaimable": 925936,
+                "slab_unreclaimable": 1624408,
+                "sock": 0,
+                "thp_collapse_alloc": 0,
+                "thp_fault_alloc": 0,
+                "unevictable": 0,
+                "workingset_activate": 0,
+                "workingset_nodereclaim": 0,
+                "workingset_refault": 0
+            },
+            "limit": 18446744073709551615
+        },
+        "name": "managed-instances-app",
+        "networks": {
+            "eth0": {
+                "rx_bytes": 163710528,
+                "rx_packets": 113457,
+                "rx_errors": 0,
+                "rx_dropped": 0,
+                "tx_bytes": 1103607,
+                "tx_packets": 16969,
+                "tx_errors": 0,
+                "tx_dropped": 0
+            }
+        },
+        "id": "2207f63945be40abb2d7bca5a2661cfd-0911415269"
+    },
+    "2207f63945be40abb2d7bca5a2661cfd-2537586469": {
+        "read": "2025-10-24T21:33:13.733498695Z",
+        "preread": "2025-10-24T21:33:03.732909621Z",
+        "pids_stats": {},
+        "blkio_stats": {
+            "io_service_bytes_recursive": [
+                {
+                    "major": 259,
+                    "minor": 1,
+                    "op": "read",
+                    "value": 201654272
+                },
+                {
+                    "major": 259,
+                    "minor": 1,
+                    "op": "write",
+                    "value": 7258112
+                },
+                {
+                    "major": 259,
+                    "minor": 0,
+                    "op": "read",
+                    "value": 11943936
+                },
+                {
+                    "major": 259,
+                    "minor": 0,
+                    "op": "write",
+                    "value": 0
+                },
+                {
+                    "major": 252,
+                    "minor": 0,
+                    "op": "read",
+                    "value": 11943936
+                },
+                {
+                    "major": 252,
+                    "minor": 0,
+                    "op": "write",
+                    "value": 0
+                }
+            ],
+            "io_serviced_recursive": null,
+            "io_queue_recursive": null,
+            "io_service_time_recursive": null,
+            "io_wait_time_recursive": null,
+            "io_merged_recursive": null,
+            "io_time_recursive": null,
+            "sectors_recursive": null
+        },
+        "num_procs": 0,
+        "storage_stats": {},
+        "cpu_stats": {
+            "cpu_usage": {
+                "total_usage": 4000614000,
+                "usage_in_kernelmode": 945394000,
+                "usage_in_usermode": 3055220000
+            },
+            "system_cpu_usage": 276140910000000,
+            "online_cpus": 1,
+            "throttling_data": {
+                "periods": 0,
+                "throttled_periods": 0,
+                "throttled_time": 0
+            }
+        },
+        "precpu_stats": {
+            "cpu_usage": {
+                "total_usage": 3946429000,
+                "usage_in_kernelmode": 937996000,
+                "usage_in_usermode": 3008432000
+            },
+            "system_cpu_usage": 276130920000000,
+            "online_cpus": 1,
+            "throttling_data": {
+                "periods": 0,
+                "throttled_periods": 0,
+                "throttled_time": 0
+            }
+        },
+        "memory_stats": {
+            "usage": 398942208,
+            "stats": {
+                "active_anon": 57344,
+                "active_file": 91971584,
+                "anon": 149770240,
+                "anon_thp": 0,
+                "file": 241483776,
+                "file_dirty": 20480,
+                "file_mapped": 104923136,
+                "file_writeback": 0,
+                "inactive_anon": 149700608,
+                "inactive_file": 149512192,
+                "kernel_stack": 819200,
+                "pgactivate": 6202,
+                "pgdeactivate": 6284,
+                "pgfault": 110840,
+                "pglazyfree": 0,
+                "pglazyfreed": 0,
+                "pgmajfault": 1769,
+                "pgrefill": 6452,
+                "pgscan": 8915,
+                "pgsteal": 2146,
+                "shmem": 0,
+                "slab": 5081200,
+                "slab_reclaimable": 4040408,
+                "slab_unreclaimable": 1040792,
+                "sock": 0,
+                "thp_collapse_alloc": 0,
+                "thp_fault_alloc": 0,
+                "unevictable": 0,
+                "workingset_activate": 0,
+                "workingset_nodereclaim": 0,
+                "workingset_refault": 0
+            },
+            "limit": 18446744073709551615
+        },
+        "name": "datadog-agent",
+        "networks": {
+            "eth0": {
+                "rx_bytes": 163710528,
+                "rx_packets": 113457,
+                "rx_errors": 0,
+                "rx_dropped": 0,
+                "tx_bytes": 1103607,
+                "tx_packets": 16969,
+                "tx_errors": 0,
+                "tx_dropped": 0
+            }
+        },
+        "id": "2207f63945be40abb2d7bca5a2661cfd-2537586469"
+    }
+}

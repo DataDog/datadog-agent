@@ -40,7 +40,7 @@ type Provides struct {
 
 // NewComponent returns either a remote tagger or a noop tagger based on the configuration
 func NewComponent(req Requires) (Provides, error) {
-	if req.OptionalRemoteParams.Disable() {
+	if req.OptionalRemoteParams.Disable(req.Config) {
 		return Provides{
 			remote.Provides{
 				Comp: noop.NewComponent(),

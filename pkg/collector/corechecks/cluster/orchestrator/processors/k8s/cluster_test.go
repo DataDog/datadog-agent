@@ -137,6 +137,7 @@ func TestClusterProcessor_Process_Success(t *testing.T) {
 	assert.Equal(t, int32(1), manifestMsg.GroupId)
 	assert.Equal(t, "test-host", manifestMsg.HostName)
 	assert.Len(t, manifestMsg.Manifests, 1)
+	assert.Equal(t, manifestMsg.OriginCollector, model.OriginCollector_datadogAgent)
 
 	manifest := manifestMsg.Manifests[0]
 	assert.Equal(t, "test-cluster-id", manifest.Uid)

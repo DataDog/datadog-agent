@@ -9,11 +9,14 @@ package containerd
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
 	containerdevents "github.com/containerd/containerd/events"
 	"google.golang.org/protobuf/proto"
@@ -42,11 +45,9 @@ func (c *ContainerdCheck) computeEvents(events []containerdEvent, sender sender.
 			continue
 		}
 
-		var tags []string
-		if len(e.Extra) > 0 {
-			for k, v := range e.Extra {
-				tags = append(tags, fmt.Sprintf("%s:%s", k, v))
-			}
+		tags := make([]string, 0, len(e.Extra))
+		for k, v := range e.Extra {
+			tags = append(tags, k+":"+v)
 		}
 
 		alertType := event.AlertTypeInfo
@@ -61,7 +62,7 @@ func (c *ContainerdCheck) computeEvents(events []containerdEvent, sender sender.
 
 			eventType := getEventType(e.Topic)
 			if eventType != "" {
-				tags = append(tags, fmt.Sprintf("event_type:%s", eventType))
+				tags = append(tags, "event_type:"+eventType)
 			}
 
 			if split[2] == "oom" {
@@ -75,7 +76,7 @@ func (c *ContainerdCheck) computeEvents(events []containerdEvent, sender sender.
 			SourceTypeName: CheckName,
 			EventType:      CheckName,
 			AlertType:      alertType,
-			AggregationKey: fmt.Sprintf("containerd:%s", e.Topic),
+			AggregationKey: "containerd:" + e.Topic,
 			Text:           e.Message,
 			Ts:             e.Timestamp.Unix(),
 			Tags:           tags,
@@ -112,19 +113,21 @@ type subscriber struct {
 	CollectionTimestamp int64
 	running             bool
 	client              ctrUtil.ContainerdItf
+	pauseFilter         workloadfilter.FilterBundle
 
 	isCacheConfigValid bool
 	imageSizeCache     map[string]map[string]int64 // namespace -> image -> size
 	imageSizeCacheLock sync.RWMutex
 }
 
-func createEventSubscriber(name string, client ctrUtil.ContainerdItf, f []string) *subscriber {
+func createEventSubscriber(name string, client ctrUtil.ContainerdItf, f []string, pauseFilter workloadfilter.FilterBundle) *subscriber {
 	return &subscriber{
 		Name:                name,
 		CollectionTimestamp: time.Now().Unix(),
 		Filters:             f,
 		client:              client,
 		imageSizeCache:      make(map[string]map[string]int64),
+		pauseFilter:         pauseFilter,
 	}
 }
 
@@ -176,7 +179,7 @@ func (s *subscriber) run(ctx context.Context) error {
 	s.Lock()
 	if s.running {
 		s.Unlock()
-		return fmt.Errorf("subscriber is already running the event listener routine")
+		return errors.New("subscriber is already running the event listener routine")
 	}
 
 	excludePauseContainers := pkgconfigsetup.Datadog().GetBool("exclude_pause_container")
@@ -192,7 +195,7 @@ func (s *subscriber) run(ctx context.Context) error {
 		// "pause" one, and in that case, we store its ID in this set so when a
 		// delete event arrives we know if it corresponds to a "pause" container.
 		var err error
-		pauseContainers, err = pauseContainersIDs(s.client)
+		pauseContainers, err = s.pauseContainersIDs()
 		if err != nil {
 			return fmt.Errorf("can't get pause containers: %v", err)
 		}
@@ -219,18 +222,10 @@ func (s *subscriber) run(ctx context.Context) error {
 					// sandbox, we'll assume it's not. It's better to send an event
 					// that we should have ignored rather than not sending an event
 					// that shouldn't have been ignored.
-					isSandbox := false
 					container, err := s.client.Container(message.Namespace, create.ID)
 					if err != nil {
 						log.Warnf("error getting container: %v", err)
-					} else {
-						isSandbox, err = s.client.IsSandbox(message.Namespace, container)
-						if err != nil {
-							log.Warnf("error checking if container is sandbox: %v", err)
-						}
-					}
-
-					if isSandbox {
+					} else if s.shouldMarkAsPause(message.Namespace, container) {
 						pauseContainers.add(message.Namespace, create.ID)
 						continue
 					}
@@ -410,7 +405,7 @@ func (s *subscriber) run(ctx context.Context) error {
 				return nil
 			}
 			log.Errorf("Error while streaming logs from containerd: %s", e.Error())
-			return fmt.Errorf("stopping Containerd event listener routine")
+			return errors.New("stopping Containerd event listener routine")
 		}
 	}
 }
@@ -470,8 +465,9 @@ func getEventType(topic string) string {
 }
 
 // Returns a set indexed by namespace and containerID
-func pauseContainersIDs(client ctrUtil.ContainerdItf) (setPauseContainers, error) {
+func (s *subscriber) pauseContainersIDs() (setPauseContainers, error) {
 	pauseContainers := newSetPauseContainers()
+	client := s.client
 
 	namespaces, err := ctrUtil.NamespacesToWatch(context.TODO(), client)
 	if err != nil {
@@ -485,17 +481,27 @@ func pauseContainersIDs(client ctrUtil.ContainerdItf) (setPauseContainers, error
 		}
 
 		for _, container := range containersInNamespace {
-			isSandbox, err := client.IsSandbox(namespace, container)
-
-			// If there's an error, the container could have been deleted. When
-			// there's an error assume that the container is not sandbox.
-			if err == nil && isSandbox {
+			if s.shouldMarkAsPause(namespace, container) {
 				pauseContainers.add(namespace, container.ID())
 			}
 		}
 	}
 
 	return pauseContainers, nil
+}
+
+func (s *subscriber) shouldMarkAsPause(namespace string, container containerd.Container) bool {
+	client := s.client
+	pauseFilter := s.pauseFilter
+
+	info, err := client.Info(namespace, container)
+	if err != nil {
+		return false
+	}
+
+	isSandbox, err := client.IsSandbox(namespace, container)
+	filterableContainer := workloadfilter.CreateContainerImage(info.Image)
+	return (err == nil && isSandbox) || pauseFilter.IsExcluded(filterableContainer)
 }
 
 func (s *subscriber) GetImageSizes() map[string]map[string]int64 {
@@ -506,9 +512,7 @@ func (s *subscriber) GetImageSizes() map[string]map[string]int64 {
 	snapshot := make(map[string]map[string]int64)
 	for namespace, images := range s.imageSizeCache {
 		snapshot[namespace] = make(map[string]int64)
-		for imageName, size := range images {
-			snapshot[namespace][imageName] = size
-		}
+		maps.Copy(snapshot[namespace], images)
 	}
 
 	return snapshot

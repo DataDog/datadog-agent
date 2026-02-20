@@ -8,6 +8,7 @@ package doc
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"go/ast"
 	"os"
@@ -24,8 +25,8 @@ import (
 
 const (
 	generateConstantsAnnotationPrefix = "// generate_constants:"
-	SECLDocForLength                  = "SECLDoc[length] Definition:`Length of the corresponding element`" // SECLDocForLength defines SECL doc for length
-
+	SECLDocForLength                  = "SECLDoc[length] Definition:`Length of the corresponding element`"           // SECLDocForLength defines SECL doc for length
+	SECLDocForRootDomain              = "SECLDoc[root_domain] Definition:`Root domain of the corresponding element`" // SECLDocForRootDomain defines SECL doc for root_domain
 )
 
 type documentation struct {
@@ -111,8 +112,8 @@ func GenerateDocJSON(module *common.Module, seclModelPath, outputPath string) er
 		var propertyKey string
 		var propertySuffix string
 		var propertyDefinition string
-		if strings.HasPrefix(field.Alias, field.AliasPrefix) {
-			propertySuffix = strings.TrimPrefix(field.Alias, field.AliasPrefix)
+		if after, ok := strings.CutPrefix(field.Alias, field.AliasPrefix); ok {
+			propertySuffix = after
 			propertyKey = field.Struct + propertySuffix
 			propertySuffix = strings.TrimPrefix(propertySuffix, ".")
 		} else {
@@ -325,7 +326,7 @@ func parseConstantsFile(filepath string, tags []string) ([]constants, error) {
 	}
 
 	if len(pkgs) == 0 || len(pkgs[0].Syntax) == 0 {
-		return nil, fmt.Errorf("couldn't parse constant file")
+		return nil, errors.New("couldn't parse constant file")
 	}
 
 	pkg := pkgs[0]
@@ -454,9 +455,15 @@ func extractVersionAndDefinition(evtType *common.EventTypeMetadata) eventTypeInf
 }
 
 var (
-	seclDocRE  = regexp.MustCompile(`SECLDoc\[((?:[a-z0-9_]+\.?)*[a-z0-9_]+)\]\s*Definition:\s*\x60([^\x60]+)\x60\s*(?:Constants:\x60([^\x60]+)\x60\s*)?(?:Example:\s*\x60([^\x60]+)\x60\s*(?:Description:\s*\x60([^\x60]+)\x60\s*)?)*`)
-	examplesRE = regexp.MustCompile(`Example:\s*\x60([^\x60]+)\x60\s*(?:Description:\s*\x60([^\x60]+)\x60\s*)?`)
+	// Pattern explanation: (?:[^\x60\\]|\\.)+ means "one or more of: (non-backtick, non-backslash) OR (backslash followed by any char)"
+	seclDocRE  = regexp.MustCompile(`SECLDoc\[((?:[a-z0-9_]+\.?)*[a-z0-9_]+)\]\s*Definition:\s*\x60((?:[^\x60\\]|\\.)+)\x60\s*(?:Constants:\x60((?:[^\x60\\]|\\.)+)\x60\s*)?(?:Example:\s*\x60((?:[^\x60\\]|\\.)+)\x60\s*(?:Description:\s*\x60((?:[^\x60\\]|\\.)+)\x60\s*)?)*`)
+	examplesRE = regexp.MustCompile(`Example:\s*\x60((?:[^\x60\\]|\\.)+)\x60\s*(?:Description:\s*\x60((?:[^\x60\\]|\\.)+)\x60\s*)?`)
 )
+
+// unescapeBackticks replaces escaped backticks (\`) with actual backticks
+func unescapeBackticks(s string) string {
+	return strings.ReplaceAll(s, "\\`", "`")
+}
 
 func parseSECLDocWithSuffix(comment string, wantedSuffix string) (string, string, []example) {
 	trimmed := strings.TrimSpace(comment)
@@ -468,18 +475,18 @@ func parseSECLDocWithSuffix(comment string, wantedSuffix string) (string, string
 			continue
 		}
 
-		definition := trimmed[match[4]:match[5]]
+		definition := unescapeBackticks(trimmed[match[4]:match[5]])
 		var constants string
 		if match[6] != -1 && match[7] != -1 {
-			constants = trimmed[match[6]:match[7]]
+			constants = unescapeBackticks(trimmed[match[6]:match[7]])
 		}
 
 		var examples []example
 		for _, exampleMatch := range examplesRE.FindAllStringSubmatchIndex(matchedSubString, -1) {
-			expr := matchedSubString[exampleMatch[2]:exampleMatch[3]]
+			expr := unescapeBackticks(matchedSubString[exampleMatch[2]:exampleMatch[3]])
 			var desc string
 			if exampleMatch[4] != -1 && exampleMatch[5] != -1 {
-				desc = matchedSubString[exampleMatch[4]:exampleMatch[5]]
+				desc = unescapeBackticks(matchedSubString[exampleMatch[4]:exampleMatch[5]])
 			}
 			examples = append(examples, example{Expression: expr, Description: desc})
 		}

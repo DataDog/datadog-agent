@@ -1,29 +1,29 @@
-{"Time":"2025-02-11T09:50:42.816371+01:00","Action":"start","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc"}
-{"Time":"2025-02-11T09:50:43.163194+01:00","Action":"run","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Test":"TestParent"}
-{"Time":"2025-02-11T09:50:43.163238+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Test":"TestParent","Output":"=== RUN   TestParent\n"}
-{"Time":"2025-02-11T09:50:43.163277+01:00","Action":"run","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Test":"TestParent/Child"}
-{"Time":"2025-02-11T09:50:43.163282+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Test":"TestParent/Child","Output":"=== RUN   TestParent/Child\n"}
-{"Time":"2025-02-11T09:50:43.163299+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Test":"TestParent/Child","Output":"Im a child\n"}
-{"Time":"2025-02-11T09:50:43.163319+01:00","Action":"run","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Test":"TestParent/Child2"}
-{"Time":"2025-02-11T09:50:43.163321+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Test":"TestParent/Child2","Output":"=== RUN   TestParent/Child2\n"}
-{"Time":"2025-02-11T09:50:43.163329+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Test":"TestParent/Child2","Output":"    cc_test.go:15: flakytest: this is a known flaky test\n"}
-{"Time":"2025-02-11T09:50:43.16334+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Test":"TestParent/Child2","Output":"Im a child 2 but flaky\n"}
-{"Time":"2025-02-11T09:50:43.163346+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Test":"TestParent","Output":"--- PASS: TestParent (0.00s)\n"}
-{"Time":"2025-02-11T09:50:43.163353+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Test":"TestParent/Child","Output":"    --- PASS: TestParent/Child (0.00s)\n"}
-{"Time":"2025-02-11T09:50:43.163354+01:00","Action":"pass","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Test":"TestParent/Child","Elapsed":0}
-{"Time":"2025-02-11T09:50:43.163358+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Test":"TestParent/Child2","Output":"    --- PASS: TestParent/Child2 (0.00s)\n"}
-{"Time":"2025-02-11T09:50:43.163365+01:00","Action":"pass","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Test":"TestParent/Child2","Elapsed":0}
-{"Time":"2025-02-11T09:50:43.163366+01:00","Action":"pass","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Test":"TestParent","Elapsed":0}
-{"Time":"2025-02-11T09:50:43.163368+01:00","Action":"run","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Test":"TestParentFlaky"}
-{"Time":"2025-02-11T09:50:43.163369+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Test":"TestParentFlaky","Output":"=== RUN   TestParentFlaky\n"}
-{"Time":"2025-02-11T09:50:43.16337+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Test":"TestParentFlaky","Output":"    cc_test.go:21: flakytest: this is a known flaky test\n"}
-{"Time":"2025-02-11T09:50:43.163374+01:00","Action":"run","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Test":"TestParentFlaky/Child"}
-{"Time":"2025-02-11T09:50:43.163405+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Test":"TestParentFlaky/Child","Output":"=== RUN   TestParentFlaky/Child\n"}
-{"Time":"2025-02-11T09:50:43.163429+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Test":"TestParentFlaky/Child","Output":"Im a child\n"}
-{"Time":"2025-02-11T09:50:43.163439+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Test":"TestParentFlaky","Output":"--- PASS: TestParentFlaky (0.00s)\n"}
-{"Time":"2025-02-11T09:50:43.163445+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Test":"TestParentFlaky/Child","Output":"    --- PASS: TestParentFlaky/Child (0.00s)\n"}
-{"Time":"2025-02-11T09:50:43.16345+01:00","Action":"pass","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Test":"TestParentFlaky/Child","Elapsed":0}
-{"Time":"2025-02-11T09:50:43.163456+01:00","Action":"pass","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Test":"TestParentFlaky","Elapsed":0}
-{"Time":"2025-02-11T09:50:43.16346+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Output":"PASS\n"}
-{"Time":"2025-02-11T09:50:43.163564+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Output":"ok  \tgithub.com/DataDog/datadog-agent/test/new-e2e/pkg/cc\t0.347s\n"}
-{"Time":"2025-02-11T09:50:43.163574+01:00","Action":"pass","Package":"github.com/DataDog/datadog-agent/test/new-e2e/pkg/cc","Elapsed":0.347}
+{"Time":"2025-02-11T09:50:42.816371+01:00","Action":"start","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc"}
+{"Time":"2025-02-11T09:50:43.163194+01:00","Action":"run","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Test":"TestParent"}
+{"Time":"2025-02-11T09:50:43.163238+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Test":"TestParent","Output":"=== RUN   TestParent\n"}
+{"Time":"2025-02-11T09:50:43.163277+01:00","Action":"run","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Test":"TestParent/Child"}
+{"Time":"2025-02-11T09:50:43.163282+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Test":"TestParent/Child","Output":"=== RUN   TestParent/Child\n"}
+{"Time":"2025-02-11T09:50:43.163299+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Test":"TestParent/Child","Output":"Im a child\n"}
+{"Time":"2025-02-11T09:50:43.163319+01:00","Action":"run","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Test":"TestParent/Child2"}
+{"Time":"2025-02-11T09:50:43.163321+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Test":"TestParent/Child2","Output":"=== RUN   TestParent/Child2\n"}
+{"Time":"2025-02-11T09:50:43.163329+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Test":"TestParent/Child2","Output":"    cc_test.go:15: flakytest: this is a known flaky test\n"}
+{"Time":"2025-02-11T09:50:43.16334+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Test":"TestParent/Child2","Output":"Im a child 2 but flaky\n"}
+{"Time":"2025-02-11T09:50:43.163346+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Test":"TestParent","Output":"--- PASS: TestParent (0.00s)\n"}
+{"Time":"2025-02-11T09:50:43.163353+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Test":"TestParent/Child","Output":"    --- PASS: TestParent/Child (0.00s)\n"}
+{"Time":"2025-02-11T09:50:43.163354+01:00","Action":"pass","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Test":"TestParent/Child","Elapsed":0}
+{"Time":"2025-02-11T09:50:43.163358+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Test":"TestParent/Child2","Output":"    --- PASS: TestParent/Child2 (0.00s)\n"}
+{"Time":"2025-02-11T09:50:43.163365+01:00","Action":"pass","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Test":"TestParent/Child2","Elapsed":0}
+{"Time":"2025-02-11T09:50:43.163366+01:00","Action":"pass","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Test":"TestParent","Elapsed":0}
+{"Time":"2025-02-11T09:50:43.163368+01:00","Action":"run","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Test":"TestParentFlaky"}
+{"Time":"2025-02-11T09:50:43.163369+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Test":"TestParentFlaky","Output":"=== RUN   TestParentFlaky\n"}
+{"Time":"2025-02-11T09:50:43.16337+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Test":"TestParentFlaky","Output":"    cc_test.go:21: flakytest: this is a known flaky test\n"}
+{"Time":"2025-02-11T09:50:43.163374+01:00","Action":"run","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Test":"TestParentFlaky/Child"}
+{"Time":"2025-02-11T09:50:43.163405+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Test":"TestParentFlaky/Child","Output":"=== RUN   TestParentFlaky/Child\n"}
+{"Time":"2025-02-11T09:50:43.163429+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Test":"TestParentFlaky/Child","Output":"Im a child\n"}
+{"Time":"2025-02-11T09:50:43.163439+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Test":"TestParentFlaky","Output":"--- PASS: TestParentFlaky (0.00s)\n"}
+{"Time":"2025-02-11T09:50:43.163445+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Test":"TestParentFlaky/Child","Output":"    --- PASS: TestParentFlaky/Child (0.00s)\n"}
+{"Time":"2025-02-11T09:50:43.16345+01:00","Action":"pass","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Test":"TestParentFlaky/Child","Elapsed":0}
+{"Time":"2025-02-11T09:50:43.163456+01:00","Action":"pass","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Test":"TestParentFlaky","Elapsed":0}
+{"Time":"2025-02-11T09:50:43.16346+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Output":"PASS\n"}
+{"Time":"2025-02-11T09:50:43.163564+01:00","Action":"output","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Output":"ok  \tgithub.com/DataDog/datadog-agent/test/e2e-framework/testing/cc\t0.347s\n"}
+{"Time":"2025-02-11T09:50:43.163574+01:00","Action":"pass","Package":"github.com/DataDog/datadog-agent/test/e2e-framework/testing/cc","Elapsed":0.347}

@@ -322,15 +322,21 @@ func (e *EventHandler) Flush() {
 	e.f.Flush()
 }
 
-// ResizeRingBuffer resizes the ring buffer by creating/updating a map spec editor
-func ResizeRingBuffer(mgrOpts *manager.Options, mapName string, bufferSize int) {
+func updateMapSpecEditor(mgrOpts *manager.Options, mapName string, editorFunc func(specEditor *manager.MapSpecEditor)) {
 	if mgrOpts.MapSpecEditors == nil {
 		mgrOpts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
 	}
 	specEditor := mgrOpts.MapSpecEditors[mapName]
-	specEditor.MaxEntries = uint32(bufferSize)
-	specEditor.EditorFlag |= manager.EditMaxEntries
+	editorFunc(&specEditor)
 	mgrOpts.MapSpecEditors[mapName] = specEditor
+}
+
+// ResizeRingBuffer resizes the ring buffer by creating/updating a map spec editor
+func ResizeRingBuffer(mgrOpts *manager.Options, mapName string, bufferSize int) {
+	updateMapSpecEditor(mgrOpts, mapName, func(specEditor *manager.MapSpecEditor) {
+		specEditor.MaxEntries = uint32(bufferSize)
+		specEditor.EditorFlag |= manager.EditMaxEntries
+	})
 }
 
 func (e *EventHandler) perfLoop() {

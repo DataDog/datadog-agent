@@ -70,20 +70,44 @@ func StopUnit(ctx context.Context, unit string, args ...string) error {
 
 // StartUnit starts a systemd unit
 func StartUnit(ctx context.Context, unit string, args ...string) error {
+	running, err := IsRunning()
+	if err != nil {
+		return err
+	}
+	if !running {
+		log.Infof("Installer: systemd not running, skipping start of %s", unit)
+		return nil
+	}
 	args = append([]string{"start", unit}, args...)
-	err := telemetry.CommandContext(ctx, "systemctl", args...).Run()
+	err = telemetry.CommandContext(ctx, "systemctl", args...).Run()
 	return handleSystemdSelfStops(err)
 }
 
 // RestartUnit restarts a systemd unit
 func RestartUnit(ctx context.Context, unit string, args ...string) error {
+	running, err := IsRunning()
+	if err != nil {
+		return err
+	}
+	if !running {
+		log.Infof("Installer: systemd not running, skipping restart of %s", unit)
+		return nil
+	}
 	args = append([]string{"restart", unit}, args...)
-	err := telemetry.CommandContext(ctx, "systemctl", args...).Run()
+	err = telemetry.CommandContext(ctx, "systemctl", args...).Run()
 	return handleSystemdSelfStops(err)
 }
 
 // EnableUnit enables a systemd unit
 func EnableUnit(ctx context.Context, unit string) error {
+	running, err := IsRunning()
+	if err != nil {
+		return err
+	}
+	if !running {
+		log.Infof("Installer: systemd not running, skipping enable of %s", unit)
+		return nil
+	}
 	return telemetry.CommandContext(ctx, "systemctl", "enable", unit).Run()
 }
 
@@ -127,12 +151,20 @@ func WriteUnitOverride(ctx context.Context, unit string, name string, content st
 	if err != nil {
 		return fmt.Errorf("error creating systemd directory: %w", err)
 	}
-	overridePath := filepath.Join(userUnitsPath, unit+".d", fmt.Sprintf("%s.conf", name))
+	overridePath := filepath.Join(userUnitsPath, unit+".d", name+".conf")
 	return os.WriteFile(overridePath, []byte(content), 0644)
 }
 
 // Reload reloads the systemd daemon
 func Reload(ctx context.Context) (err error) {
+	running, runningErr := IsRunning()
+	if runningErr != nil {
+		return runningErr
+	}
+	if !running {
+		log.Infof("Installer: systemd not running, skipping daemon-reload")
+		return nil
+	}
 	return telemetry.CommandContext(ctx, "systemctl", "daemon-reload").Run()
 }
 
@@ -151,7 +183,7 @@ func IsRunning() (running bool, err error) {
 
 // JournaldLogs returns the logs for a given unit since a given time
 func JournaldLogs(ctx context.Context, unit string, since time.Time) (string, error) {
-	journalctlCmd := exec.CommandContext(ctx, "journalctl", "_COMM=systemd", "--unit", unit, "-e", "--no-pager", "--since", since.Format(time.RFC3339))
+	journalctlCmd := telemetry.CommandContext(ctx, "journalctl", "_COMM=systemd", "--unit", unit, "-e", "--no-pager", "--since", since.Format(time.RFC3339))
 	stdout, err := journalctlCmd.Output()
 	if err != nil {
 		return "", err

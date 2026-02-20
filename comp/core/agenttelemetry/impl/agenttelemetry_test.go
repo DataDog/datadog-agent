@@ -8,10 +8,12 @@ package agenttelemetryimpl
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
 	"net/http"
+	"strings"
 	"testing"
 
 	dto "github.com/prometheus/client_model/go"
@@ -102,17 +104,17 @@ func makeStableMetricMap(metrics []*dto.Metric) map[string]*dto.Metric {
 
 	metricMap := make(map[string]*dto.Metric)
 	for _, m := range metrics {
-		tagsKey := ""
+		var tagsKeyBuilder strings.Builder
 
 		// sort by names and values before insertion
 		origTags := m.GetLabel()
 		if len(origTags) > 0 {
 			for _, t := range cloneLabelsSorted(origTags) {
-				tagsKey += makeLabelPairKey(t)
+				tagsKeyBuilder.WriteString(makeLabelPairKey(t))
 			}
 		}
 
-		metricMap[tagsKey] = m
+		metricMap[tagsKeyBuilder.String()] = m
 	}
 
 	return metricMap
@@ -172,7 +174,7 @@ func getTestAtel(t *testing.T,
 
 	atel := createAtel(cfg, log, tel, sndr, runner)
 	if atel == nil {
-		err = fmt.Errorf("failed to create atel")
+		err = errors.New("failed to create atel")
 	}
 	assert.NoError(t, err)
 
@@ -195,12 +197,12 @@ func (p *Payload) UnmarshalAgentMetrics(itfPayload map[string]interface{}) error
 	var metricsItfPayload map[string]interface{}
 	metricsItfPayload, ok = itfPayload["payload"].(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("payload not found")
+		return errors.New("payload not found")
 	}
 	var metricsItf map[string]interface{}
 	metricsItf, ok = metricsItfPayload["metrics"].(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("metrics not found")
+		return errors.New("metrics not found")
 	}
 
 	var err error
@@ -238,7 +240,7 @@ func (p *Payload) UnmarshalAgentMetrics(itfPayload map[string]interface{}) error
 func (p *Payload) UnmarshalMessageBatch(itfPayload map[string]interface{}) error {
 	payloadsRaw, ok := itfPayload["payload"].([]interface{})
 	if !ok {
-		return fmt.Errorf("payload not found")
+		return errors.New("payload not found")
 	}
 
 	// ensure all payloads which should be agent-metrics
@@ -246,20 +248,20 @@ func (p *Payload) UnmarshalMessageBatch(itfPayload map[string]interface{}) error
 	for _, payloadRaw := range payloadsRaw {
 		itfChildPayload, ok := payloadRaw.(map[string]interface{})
 		if !ok {
-			return fmt.Errorf("invalid payload item type")
+			return errors.New("invalid payload item type")
 		}
 
 		requestTypeRaw, ok := itfChildPayload["request_type"]
 		if !ok {
-			return fmt.Errorf("request_type not found")
+			return errors.New("request_type not found")
 		}
 		requestType, ok := requestTypeRaw.(string)
 		if !ok {
-			return fmt.Errorf("request_type type is invalid")
+			return errors.New("request_type type is invalid")
 		}
 
 		if requestType != "agent-metrics" {
-			return fmt.Errorf("request_type should be agent-metrics")
+			return errors.New("request_type should be agent-metrics")
 		}
 
 		var payload Payload
@@ -284,11 +286,11 @@ func (p *Payload) UnmarshalJSON(b []byte) (err error) {
 
 	requestTypeRaw, ok := itfPayload["request_type"]
 	if !ok {
-		return fmt.Errorf("request_type not found")
+		return errors.New("request_type not found")
 	}
 	requestType, ok := requestTypeRaw.(string)
 	if !ok {
-		return fmt.Errorf("request_type type is invalid")
+		return errors.New("request_type type is invalid")
 	}
 
 	if requestType == "agent-metrics" {
@@ -299,7 +301,7 @@ func (p *Payload) UnmarshalJSON(b []byte) (err error) {
 		return p.UnmarshalMessageBatch(itfPayload)
 	}
 
-	return fmt.Errorf("request_type should be either agent-metrics or message-batch")
+	return errors.New("request_type should be either agent-metrics or message-batch")
 }
 
 func getPayload(a *atel) (*Payload, error) {
@@ -440,6 +442,16 @@ agent_telemetry:
 	assert.False(t, a.enabled)
 }
 
+func TestDisableIfLongGovCloud(t *testing.T) {
+	c := `
+site: "xxxx99.ddog-gov.com"
+agent_telemetry:
+  enabled: true
+`
+	a := getTestAtel(t, nil, c, nil, nil, nil)
+	assert.False(t, a.enabled)
+}
+
 func TestEnableIfNotGovCloud(t *testing.T) {
 	c := `
 site: "datadoghq.eu"
@@ -458,6 +470,7 @@ func TestRun(t *testing.T) {
 	a.start()
 
 	// Default configuration has 5 jobs with different schedules:
+	fmt.Println(r.(*runnerMock).jobs)
 	assert.Equal(t, 5, len(r.(*runnerMock).jobs))
 
 	// Verify we have the expected number of profiles across all jobs
@@ -465,8 +478,9 @@ func TestRun(t *testing.T) {
 	for _, job := range r.(*runnerMock).jobs {
 		totalProfiles += len(job.profiles)
 	}
-	// Default config has 12 profiles total (checks, logs-and-metrics, database, api, ondemand, service-discovery, runtime-started, runtime-running, hostname, otlp, trace-agent, gpu)
-	assert.Equal(t, 12, totalProfiles)
+	fmt.Println(totalProfiles)
+	// Default config has 15 profiles total (checks, logs-and-metrics, database, synthetics, connectivity, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, trace-agent, gpu, cluster-agent, injector)
+	assert.Equal(t, 15, totalProfiles)
 }
 
 func TestReportMetricBasic(t *testing.T) {

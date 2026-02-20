@@ -6,8 +6,6 @@
 package trace
 
 import (
-	binary "encoding/binary"
-	"encoding/hex"
 	"strconv"
 )
 
@@ -61,25 +59,25 @@ func (s *Span) ShallowCopy() *Span {
 }
 
 // Get128BitTraceID returns the 128-bit trace ID for the span.
-func (s *Span) Get128BitTraceID() ([]byte, error) {
+// Returns the upper and lower 64 bits separately, the lowerBits will always be set even on error.
+func (s *Span) Get128BitTraceID() (upperBits uint64, lowerBits uint64, err error) {
+	lowerBits = s.TraceID
 	// If it's an otel span the whole trace ID is in otel.trace
 	if tid, ok := s.Meta["otel.trace_id"]; ok {
-		bs, err := hex.DecodeString(tid)
+		upperBits, err = strconv.ParseUint(tid, 16, 64)
 		if err != nil {
-			return nil, err
+			return 0, lowerBits, err
 		}
-		return bs, nil
+		return upperBits, lowerBits, nil
 	}
-	tid := make([]byte, 16)
-	binary.BigEndian.PutUint64(tid[8:], s.TraceID)
 	// Get hex encoded upper bits for datadog spans
 	// If no value is found we can use the default `0` value as that's what will have been propagated
 	if upper, ok := s.Meta["_dd.p.tid"]; ok {
 		u, err := strconv.ParseUint(upper, 16, 64)
 		if err != nil {
-			return nil, err
+			return 0, lowerBits, err
 		}
-		binary.BigEndian.PutUint64(tid[:8], u)
+		return u, lowerBits, nil
 	}
-	return tid, nil
+	return 0, lowerBits, nil
 }

@@ -8,13 +8,13 @@
 package integrations
 
 import (
-	"fmt"
+	"errors"
 	"os"
 )
 
 func validateUser(allowRoot bool) error {
 	if os.Geteuid() == 0 && !allowRoot {
-		return fmt.Errorf("operation is disabled for root user. Please run this tool with the agent-running user or add '--allow-root/-r' to force")
+		return errors.New("operation is disabled for root user. Please run this tool with the agent-running user or add '--allow-root/-r' to force")
 	}
 	return nil
 }

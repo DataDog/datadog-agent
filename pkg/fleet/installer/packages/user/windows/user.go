@@ -111,7 +111,7 @@ func ValidateAgentUserRemoteUpdatePrerequisites(userName string) error {
 	// Remote updates fully uninstall the previous version, so we need the password.
 	return installerErrors.Wrap(
 		installerErrors.ErrPasswordNotProvided,
-		fmt.Errorf("the Agent user password is not available. The password is required for domain accounts. Please reinstall the Agent with the password provided"),
+		errors.New("the Agent user password is not available. The password is required for domain accounts. Please reinstall the Agent with the password provided"),
 	)
 }
 
@@ -136,6 +136,11 @@ func agentPasswordPrivateDataKey() string {
 func getAgentUserPasswordFromLSA() (string, error) {
 	key := agentPasswordPrivateDataKey()
 	return retrievePrivateData(key)
+}
+
+// GetAgentUserPasswordFromLSA returns the Agent user password stored by the MSI in LSA.
+func GetAgentUserPasswordFromLSA() (string, error) {
+	return getAgentUserPasswordFromLSA()
 }
 
 func retrievePrivateData(key string) (string, error) {
@@ -380,7 +385,7 @@ var validateProcessContext = func() error {
 	}
 
 	if !user.User.Sid.IsWellKnown(windows.WinLocalSystemSid) {
-		return fmt.Errorf("process is not running as LocalSystem")
+		return errors.New("process is not running as LocalSystem")
 	}
 
 	return nil

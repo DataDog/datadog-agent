@@ -16,7 +16,6 @@ deploy:
     releases:
       - name: datadog-agent
         remoteChart: datadog/datadog
-        version: 3.88.1
         setValueTemplates:
           datadog:
             apiKey: "{{cmd \"bash\" \"-c\" \"echo $DD_API_KEY\"}}"
@@ -57,9 +56,9 @@ profiles:
       artifacts:
       - image: agent
         custom:
-          buildCommand: "docker exec datadog_agent_devcontainer bash -c \"
+          buildCommand: "docker exec datadog-agent-devcontainer bash -c \"
             dda inv agent.hacky-dev-image-build --target-image=$IMAGE\""
       - image: clusteragent
         custom:
-          buildCommand: "docker exec datadog_agent_devcontainer bash -c \"
+          buildCommand: "docker exec datadog-agent-devcontainer bash -c \"
             dda inv cluster-agent.hacky-dev-image-build --target-image=$IMAGE\""

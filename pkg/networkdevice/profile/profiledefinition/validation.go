@@ -33,6 +33,7 @@ var validMetadataResources = map[string]map[string]bool{
 		"mac_address":  true,
 		"admin_status": true,
 		"oper_status":  true,
+		"type":         true,
 	},
 }
 
@@ -139,7 +140,7 @@ func ValidateEnrichMetadata(metadata MetadataConfig) []string {
 	for resName := range metadata {
 		_, isValidRes := validMetadataResources[resName]
 		if !isValidRes {
-			errors = append(errors, fmt.Sprintf("invalid resource: %s", resName))
+			errors = append(errors, "invalid resource: "+resName)
 		} else {
 			res := metadata[resName]
 			for fieldName := range res.Fields {

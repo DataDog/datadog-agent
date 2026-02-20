@@ -9,7 +9,6 @@ package expvarserverimpl
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 
 	"go.uber.org/fx"
@@ -40,7 +39,7 @@ func newExpvarServer(deps dependencies) expvarserver.Component {
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
 			expvarServer = &http.Server{
-				Addr:    fmt.Sprintf("127.0.0.1:%s", expvarPort),
+				Addr:    "127.0.0.1:" + expvarPort,
 				Handler: http.DefaultServeMux,
 			}
 			go func() {

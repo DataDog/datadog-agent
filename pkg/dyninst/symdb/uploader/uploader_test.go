@@ -21,6 +21,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,6 +34,9 @@ type SymDBRoot struct {
 	Version  string  `json:"version,omitempty"`
 	Language string  `json:"language"`
 	Scopes   []Scope `json:"scopes"`
+	UploadID string  `json:"upload_id"`
+	BatchNum int     `json:"batch_num"`
+	Final    bool    `json:"final"`
 }
 
 type EventMetadata struct {
@@ -87,7 +91,10 @@ func newTestServer() *testServer {
 	return ts
 }
 func validateSymDBRequest(
-	t *testing.T, expectedService, expectedRuntimeID string, req *http.Request,
+	t *testing.T,
+	expectedService, expectedRuntimeID string,
+	expectedUploadID uuid.UUID,
+	req *http.Request,
 ) {
 	contentType, params, err := mime.ParseMediaType(req.Header.Get("Content-Type"))
 	require.NoError(t, err)
@@ -156,6 +163,9 @@ func validateSymDBRequest(
 	// Validate service matches
 	require.Equal(t, expectedService, symdbRoot.Service)
 	require.Equal(t, "go", symdbRoot.Language)
+	require.Equal(t, expectedUploadID.String(), symdbRoot.UploadID)
+	require.Equal(t, 1, symdbRoot.BatchNum)
+	require.Equal(t, true, symdbRoot.Final)
 
 	// Validate basic structure exists
 	require.NotEmpty(t, symdbRoot.Scopes)
@@ -256,10 +266,17 @@ func TestSymDBUploader(t *testing.T) {
 			// intercept the request.
 			var wg sync.WaitGroup
 			wg.Add(1)
+			uploadID := uuid.New()
 			go func() {
 				defer wg.Done()
 				scopes := createPackageScopes()
-				err := uploader.Upload(context.Background(), scopes)
+				err := uploader.UploadBatch(context.Background(),
+					UploadInfo{
+						UploadID: uploadID,
+						BatchNum: 1,
+						Final:    true,
+					},
+					scopes)
 				if injectError {
 					assert.Error(t, err)
 				} else {
@@ -268,7 +285,7 @@ func TestSymDBUploader(t *testing.T) {
 			}()
 
 			req := <-ts.requests
-			validateSymDBRequest(t, "service1", "dummy-runtime-id", req.r)
+			validateSymDBRequest(t, "service1", "dummy-runtime-id", uploadID, req.r)
 			if injectError {
 				req.w.WriteHeader(http.StatusInternalServerError)
 			} else {

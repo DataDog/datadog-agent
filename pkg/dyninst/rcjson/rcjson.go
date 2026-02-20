@@ -21,9 +21,10 @@ import (
 // UnmarshalProbe unmarshals a Probe from a JSON byte slice.
 func UnmarshalProbe(data []byte) (Probe, error) {
 	type config struct {
-		ID              string `json:"id"`
-		Type            Type   `json:"type"`
-		CaptureSnapshot bool   `json:"captureSnapshot"`
+		ID                 string          `json:"id"`
+		Type               Type            `json:"type"`
+		CaptureSnapshot    bool            `json:"captureSnapshot"`
+		CaptureExpressions json.RawMessage `json:"captureExpressions"`
 	}
 	var c config
 	if err := json.Unmarshal(data, &c); err != nil {
@@ -41,6 +42,8 @@ func UnmarshalProbe(data []byte) (Probe, error) {
 	case TypeLogProbe:
 		if c.CaptureSnapshot {
 			v = new(SnapshotProbe)
+		} else if len(c.CaptureExpressions) > 0 {
+			v = new(CaptureExpressionProbe)
 		} else {
 			v = new(LogProbe)
 		}
@@ -115,6 +118,10 @@ func (pc *ProbeCommon) GetWhere() ir.Where { return getWhere(pc.Where) }
 
 // GetEvaluateAt returns the evaluateAt clause of the probe.
 func (pc *ProbeCommon) GetEvaluateAt() string { return pc.EvaluateAt }
+
+// GetCaptureExpressions returns nil for probe types that do not support capture
+// expressions.
+func (pc *ProbeCommon) GetCaptureExpressions() []ir.CaptureExpressionDefinition { return nil }
 
 // Where specifies where in the target application a probe should be applied.
 type Where struct {
@@ -361,6 +368,85 @@ func (l *SnapshotProbe) GetThrottleConfig() ir.ThrottleConfig {
 // GetTemplate returns the template of the probe.
 func (l *SnapshotProbe) GetTemplate() ir.TemplateDefinition {
 	return &logProbeTemplate{template: l.Template, segments: l.Segments}
+}
+
+// CaptureExprJSON is the JSON representation of a capture expression.
+type CaptureExprJSON struct {
+	DSL  string          `json:"dsl"`
+	JSON json.RawMessage `json:"json"`
+}
+
+// CaptureExpressionEntry represents a single capture expression entry in a
+// probe definition.
+type CaptureExpressionEntry struct {
+	Name    string          `json:"name"`
+	Expr    CaptureExprJSON `json:"expr"`
+	Capture *Capture        `json:"capture,omitempty"`
+}
+
+var _ ir.CaptureExpressionDefinition = (*CaptureExpressionEntry)(nil)
+
+// GetName returns the name of the capture expression.
+func (e *CaptureExpressionEntry) GetName() string { return e.Name }
+
+// GetDSL returns the DSL string of the capture expression.
+func (e *CaptureExpressionEntry) GetDSL() string { return e.Expr.DSL }
+
+// GetJSON returns the JSON AST of the capture expression.
+func (e *CaptureExpressionEntry) GetJSON() json.RawMessage { return e.Expr.JSON }
+
+// GetCaptureConfig returns per-expression capture limits, or nil for probe
+// defaults.
+func (e *CaptureExpressionEntry) GetCaptureConfig() ir.CaptureConfig {
+	if e.Capture == nil {
+		return nil
+	}
+	return (*irCaptureConfig)(e.Capture)
+}
+
+// CaptureExpressionProbe is a probe that captures specific expressions.
+type CaptureExpressionProbe struct {
+	LogProbeCommon
+	CaptureSnapshot       False                     `json:"captureSnapshot"`
+	RawCaptureExpressions []*CaptureExpressionEntry `json:"captureExpressions"`
+}
+
+func (l *CaptureExpressionProbe) validate() error {
+	if err := validateWhere(l.Where); err != nil {
+		return err
+	}
+	if len(l.RawCaptureExpressions) == 0 {
+		return errors.New("captureExpressions must be non-empty")
+	}
+	return nil
+}
+
+// GetKind returns the kind of the probe.
+func (l *CaptureExpressionProbe) GetKind() ir.ProbeKind {
+	return ir.ProbeKindCaptureExpression
+}
+
+// GetThrottleConfig returns the throttle configuration of the probe.
+func (l *CaptureExpressionProbe) GetThrottleConfig() ir.ThrottleConfig {
+	return (*snapshotThrottleConfig)(l.Sampling)
+}
+
+// GetTemplate returns the template of the probe. Returns nil if no template
+// string is present (capture expression probes do not require a template).
+func (l *CaptureExpressionProbe) GetTemplate() ir.TemplateDefinition {
+	if l.Template == "" {
+		return nil
+	}
+	return &logProbeTemplate{template: l.Template, segments: l.Segments}
+}
+
+// GetCaptureExpressions returns the capture expressions of the probe.
+func (l *CaptureExpressionProbe) GetCaptureExpressions() []ir.CaptureExpressionDefinition {
+	result := make([]ir.CaptureExpressionDefinition, len(l.RawCaptureExpressions))
+	for i, ce := range l.RawCaptureExpressions {
+		result[i] = ce
+	}
+	return result
 }
 
 // SpanProbe is a probe that decorates a span.

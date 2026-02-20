@@ -8,7 +8,6 @@ package checks
 import (
 	"crypto/tls"
 	"errors"
-	"fmt"
 	"math"
 	"net/http"
 	"regexp"
@@ -94,10 +93,6 @@ type ProcessCheck struct {
 
 	// determine if zombies process will be collected
 	ignoreZombieProcesses bool
-
-	// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
-	// that determines if linux process collection will use WLM
-	useWLMProcessCollection bool
 
 	hostInfo                   *HostInfo
 	clock                      clock.Clock
@@ -192,7 +187,7 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 
 	p.extractors = append(p.extractors, p.serviceExtractor)
 
-	if !oneShot && workloadmeta.Enabled(p.config) && !p.useWLMCollection() {
+	if !oneShot && workloadmeta.Enabled(p.config) && !p.WLMProcessCollectionEnabled() {
 		p.workloadMetaExtractor = workloadmeta.GetSharedWorkloadMetaExtractor(pkgconfigsetup.SystemProbe())
 
 		// The server is only needed on the process agent
@@ -207,9 +202,6 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 		p.extractors = append(p.extractors, p.workloadMetaExtractor)
 	}
 
-	// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
-	p.useWLMProcessCollection = p.useWLMCollection()
-
 	return nil
 }
 
@@ -219,10 +211,7 @@ func (p *ProcessCheck) IsEnabled() bool {
 	if p.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
 		return false
 	}
-
-	// we want the check to be run for process collection or when the new service discovery collection is enabled
-	return p.config.GetBool("process_config.process_collection.enabled") ||
-		(p.sysConfig.GetBool("discovery.enabled") && p.config.GetBool("process_config.process_collection.use_wlm"))
+	return isProcessCheckEnabled(p.config, p.sysConfig)
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions
@@ -259,6 +248,10 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	procs, err := p.processesByPID()
 	if err != nil {
 		return nil, err
+	}
+	if len(procs) == 0 {
+		log.Tracef("No processes found")
+		return CombinedRunResult{}, nil
 	}
 
 	// stores lastPIDs to be used by RTProcess
@@ -361,7 +354,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		p.realtimeLastRun = p.lastRun
 	}
 
-	agentNameTag := fmt.Sprintf("agent:%s", flavor.GetFlavor())
+	agentNameTag := "agent:" + flavor.GetFlavor()
 	_ = p.statsd.Gauge("datadog.process.containers.host_count", float64(totalContainers), []string{agentNameTag}, 1)
 	_ = p.statsd.Gauge("datadog.process.processes.host_count", float64(totalProcs), []string{agentNameTag}, 1)
 	log.Debugf("collected processes in %s", time.Since(start))

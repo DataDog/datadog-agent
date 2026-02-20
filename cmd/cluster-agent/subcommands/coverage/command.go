@@ -62,7 +62,7 @@ func requestCoverage(_ log.Component, config config.Component, ipc ipc.Component
 	url := url.URL{
 		Scheme: "https",
 		Host:   fmt.Sprintf("localhost:%v", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port")),
-		Path:   "/status",
+		Path:   "/coverage",
 	}
 	resp, err := ipc.GetClient().Get(url.String())
 	if err != nil {

@@ -40,6 +40,6 @@ ULONG DDEnableTrace(
     USHORT*     disableFilterIDs,
     ULONG       disableFilterIDCount
 );
-TRACEHANDLE DDStartTracing(LPWSTR name, uintptr_t context);
+DWORD DDStartTracing(LPWSTR name, uintptr_t context, TRACEHANDLE* traceHandle);
 
 #endif

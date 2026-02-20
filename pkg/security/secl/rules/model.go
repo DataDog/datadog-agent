@@ -51,18 +51,18 @@ const (
 
 // OverrideOptions defines combine options
 type OverrideOptions struct {
-	Fields []OverrideField `yaml:"fields" json:"fields" jsonschema:"enum=all,enum=expression,enum=actions,enum=every,enum=tags"`
+	Fields []OverrideField `yaml:"fields,omitempty" json:"fields,omitempty" jsonschema:"enum=all,enum=expression,enum=actions,enum=every,enum=tags"`
 }
 
 // MacroDefinition holds the definition of a macro
 type MacroDefinition struct {
 	ID                     MacroID       `yaml:"id" json:"id"`
-	Expression             string        `yaml:"expression" json:"expression,omitempty" jsonschema:"oneof_required=MacroWithExpression"`
-	Description            string        `yaml:"description" json:"description,omitempty"`
-	AgentVersionConstraint string        `yaml:"agent_version" json:"agent_version,omitempty"`
-	Filters                []string      `yaml:"filters" json:"filters,omitempty"`
-	Values                 []string      `yaml:"values" json:"values,omitempty" jsonschema:"oneof_required=MacroWithValues"`
-	Combine                CombinePolicy `yaml:"combine" json:"combine,omitempty" jsonschema:"enum=merge,enum=override"`
+	Expression             string        `yaml:"expression,omitempty" json:"expression,omitempty" jsonschema:"oneof_required=MacroWithExpression"`
+	Description            string        `yaml:"description,omitempty" json:"description,omitempty"`
+	AgentVersionConstraint string        `yaml:"agent_version,omitempty" json:"agent_version,omitempty"`
+	Filters                []string      `yaml:"filters,omitempty" json:"filters,omitempty"`
+	Values                 []string      `yaml:"values,omitempty" json:"values,omitempty" jsonschema:"oneof_required=MacroWithValues"`
+	Combine                CombinePolicy `yaml:"combine,omitempty" json:"combine,omitempty" jsonschema:"enum=merge,enum=override"`
 }
 
 // RuleID represents the ID of a rule
@@ -72,7 +72,7 @@ type RuleID = string
 type RuleDefinition struct {
 	ID                     RuleID                 `yaml:"id,omitempty" json:"id"`
 	Version                string                 `yaml:"version,omitempty" json:"version,omitempty"`
-	Expression             string                 `yaml:"expression" json:"expression,omitempty"`
+	Expression             string                 `yaml:"expression,omitempty" json:"expression,omitempty"`
 	Description            string                 `yaml:"description,omitempty" json:"description,omitempty"`
 	Tags                   map[string]string      `yaml:"tags,omitempty" json:"tags,omitempty"`
 	ProductTags            []string               `yaml:"product_tags,omitempty" json:"product_tags,omitempty"`
@@ -80,12 +80,13 @@ type RuleDefinition struct {
 	Filters                []string               `yaml:"filters,omitempty" json:"filters,omitempty"`
 	Disabled               bool                   `yaml:"disabled,omitempty" json:"disabled,omitempty"`
 	Combine                CombinePolicy          `yaml:"combine,omitempty" json:"combine,omitempty" jsonschema:"enum=override"`
-	OverrideOptions        OverrideOptions        `yaml:"override_options,omitempty" json:"override_options,omitempty"`
+	OverrideOptions        OverrideOptions        `yaml:"override_options,omitempty" json:"override_options,omitzero,omitempty"`
 	Actions                []*ActionDefinition    `yaml:"actions,omitempty" json:"actions,omitempty"`
 	Every                  *HumanReadableDuration `yaml:"every,omitempty" json:"every,omitempty"`
 	RateLimiterToken       []string               `yaml:"limiter_token,omitempty" json:"limiter_token,omitempty"`
 	Silent                 bool                   `yaml:"silent,omitempty" json:"silent,omitempty"`
 	GroupID                string                 `yaml:"group_id,omitempty" json:"group_id,omitempty"`
+	Priority               int                    `yaml:"priority,omitempty" json:"priority,omitempty"`
 }
 
 // GetTag returns the tag value associated with a tag key
@@ -123,13 +124,13 @@ type ActionDefinitionInterface interface {
 
 // ActionDefinition describes a rule action section
 type ActionDefinition struct {
-	Filter        *string                  `yaml:"filter" json:"filter,omitempty"`
-	Set           *SetDefinition           `yaml:"set" json:"set,omitempty" jsonschema:"oneof_required=SetAction"`
-	Kill          *KillDefinition          `yaml:"kill" json:"kill,omitempty" jsonschema:"oneof_required=KillAction"`
-	CoreDump      *CoreDumpDefinition      `yaml:"coredump" json:"coredump,omitempty" jsonschema:"oneof_required=CoreDumpAction"`
-	Hash          *HashDefinition          `yaml:"hash" json:"hash,omitempty" jsonschema:"oneof_required=HashAction"`
-	Log           *LogDefinition           `yaml:"log" json:"log,omitempty" jsonschema:"oneof_required=LogAction"`
-	NetworkFilter *NetworkFilterDefinition `yaml:"network_filter" json:"network_filter,omitempty"`
+	Filter        *string                  `yaml:"filter,omitempty" json:"filter,omitempty"`
+	Set           *SetDefinition           `yaml:"set,omitempty" json:"set,omitempty" jsonschema:"oneof_required=SetAction"`
+	Kill          *KillDefinition          `yaml:"kill,omitempty" json:"kill,omitempty" jsonschema:"oneof_required=KillAction"`
+	CoreDump      *CoreDumpDefinition      `yaml:"coredump,omitempty" json:"coredump,omitempty" jsonschema:"oneof_required=CoreDumpAction"`
+	Hash          *HashDefinition          `yaml:"hash,omitempty" json:"hash,omitempty" jsonschema:"oneof_required=HashAction"`
+	Log           *LogDefinition           `yaml:"log,omitempty" json:"log,omitempty" jsonschema:"oneof_required=LogAction"`
+	NetworkFilter *NetworkFilterDefinition `yaml:"network_filter,omitempty" json:"network_filter,omitempty" jsonschema:"oneof_required=NetworkFilterAction"`
 }
 
 // Name returns the name of the action
@@ -220,19 +221,19 @@ func (a *DefaultActionDefinition) IsActionSupported(_ map[eval.EventType]bool) e
 
 // SetDefinition describes the 'set' section of a rule action
 type SetDefinition struct {
-	DefaultActionDefinition
-	Name         string                 `yaml:"name" json:"name"`
-	Value        interface{}            `yaml:"value" json:"value,omitempty" jsonschema:"oneof_required=SetWithValue,oneof_type=string;integer;boolean;array"`
-	DefaultValue interface{}            `yaml:"default_value" json:"default_value,omitempty" jsonschema:"oneof_type=string;integer;boolean;array"`
-	Field        string                 `yaml:"field" json:"field,omitempty" jsonschema:"oneof_required=SetWithField"`
-	Expression   string                 `yaml:"expression" json:"expression,omitempty" jsonschema:"oneof_required=SetWithExpression"`
-	Append       bool                   `yaml:"append" json:"append,omitempty"`
-	Scope        Scope                  `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container,enum=cgroup"`
-	ScopeField   string                 `yaml:"scope_field" json:"scope_field,omitempty"`
-	Size         int                    `yaml:"size" json:"size,omitempty"`
-	TTL          *HumanReadableDuration `yaml:"ttl" json:"ttl,omitempty"`
-	Private      bool                   `yaml:"private" json:"private,omitempty"`
-	Inherited    bool                   `yaml:"inherited" json:"inherited,omitempty"`
+	DefaultActionDefinition `yaml:"-" json:"-"`
+	Name                    string                 `yaml:"name,omitempty" json:"name"`
+	Value                   interface{}            `yaml:"value,omitempty" json:"value,omitempty" jsonschema:"oneof_required=SetWithValue,oneof_type=string;integer;boolean;array"`
+	DefaultValue            interface{}            `yaml:"default_value,omitempty" json:"default_value,omitempty" jsonschema:"oneof_type=string;integer;boolean;array"`
+	Field                   string                 `yaml:"field,omitempty" json:"field,omitempty" jsonschema:"oneof_required=SetWithField"`
+	Expression              string                 `yaml:"expression,omitempty" json:"expression,omitempty" jsonschema:"oneof_required=SetWithExpression"`
+	Append                  bool                   `yaml:"append,omitempty" json:"append,omitempty"`
+	Scope                   Scope                  `yaml:"scope,omitempty" json:"scope,omitempty" jsonschema:"enum=process,enum=container,enum=cgroup"`
+	ScopeField              string                 `yaml:"scope_field,omitempty" json:"scope_field,omitempty"`
+	Size                    int                    `yaml:"size,omitempty" json:"size,omitempty"`
+	TTL                     *HumanReadableDuration `yaml:"ttl,omitempty" json:"ttl,omitempty"`
+	Private                 bool                   `yaml:"private,omitempty" json:"private,omitempty"`
+	Inherited               bool                   `yaml:"inherited,omitempty" json:"inherited,omitempty"`
 }
 
 // PreCheck returns an error if the set action is invalid
@@ -258,12 +259,12 @@ func (s *SetDefinition) PreCheck(_ PolicyLoaderOpts) error {
 		return fmt.Errorf("failed to infer type for variable '%s', please set 'default_value'", s.Name)
 	}
 
-	if s.Inherited && s.Scope != "process" {
-		return fmt.Errorf("only variables scoped to process can be marked as inherited")
+	if s.Inherited && s.Scope != ScopeProcess {
+		return errors.New("only variables scoped to process can be marked as inherited")
 	}
 
-	if len(s.ScopeField) > 0 && s.Scope != "process" {
-		return fmt.Errorf("only variables scoped to process can have a custom scope_field")
+	if len(s.ScopeField) > 0 && s.Scope != ScopeProcess {
+		return errors.New("only variables scoped to process can have a custom scope_field")
 	}
 
 	return nil
@@ -271,11 +272,11 @@ func (s *SetDefinition) PreCheck(_ PolicyLoaderOpts) error {
 
 // KillDefinition describes the 'kill' section of a rule action
 type KillDefinition struct {
-	DefaultActionDefinition
+	DefaultActionDefinition   `yaml:"-" json:"-"`
 	Signal                    string `yaml:"signal" json:"signal" jsonschema:"description=A valid signal name,example=SIGKILL,example=SIGTERM"`
-	Scope                     string `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container"`
-	DisableContainerDisarmer  bool   `yaml:"disable_container_disarmer" json:"disable_container_disarmer,omitempty" jsonschema:"description=Set to true to disable the rule kill action automatic container disarmer safeguard"`
-	DisableExecutableDisarmer bool   `yaml:"disable_executable_disarmer" json:"disable_executable_disarmer,omitempty" jsonschema:"description=Set to true to disable the rule kill action automatic executable disarmer safeguard"`
+	Scope                     string `yaml:"scope,omitempty" json:"scope,omitempty" jsonschema:"enum=process,enum=container,enum=cgroup"`
+	DisableContainerDisarmer  bool   `yaml:"disable_container_disarmer,omitempty" json:"disable_container_disarmer,omitempty" jsonschema:"description=Set to true to disable the rule kill action automatic container disarmer safeguard"`
+	DisableExecutableDisarmer bool   `yaml:"disable_executable_disarmer,omitempty" json:"disable_executable_disarmer,omitempty" jsonschema:"description=Set to true to disable the rule kill action automatic executable disarmer safeguard"`
 }
 
 // PreCheck returns an error if the kill action is invalid
@@ -297,17 +298,18 @@ func (k *KillDefinition) PreCheck(opts PolicyLoaderOpts) error {
 
 // CoreDumpDefinition describes the 'coredump' action
 type CoreDumpDefinition struct {
-	DefaultActionDefinition
-	Process       bool `yaml:"process" json:"process,omitempty" jsonschema:"anyof_required=CoreDumpWithProcess"`
-	Mount         bool `yaml:"mount" json:"mount,omitempty" jsonschema:"anyof_required=CoreDumpWithMount"`
-	Dentry        bool `yaml:"dentry" json:"dentry,omitempty" jsonschema:"anyof_required=CoreDumpWithDentry"`
-	NoCompression bool `yaml:"no_compression" json:"no_compression,omitempty"`
+	DefaultActionDefinition `yaml:"-" json:"-"`
+	Process                 bool `yaml:"process,omitempty" json:"process,omitempty" jsonschema:"anyof_required=CoreDumpWithProcess"`
+	Mount                   bool `yaml:"mount,omitempty" json:"mount,omitempty" jsonschema:"anyof_required=CoreDumpWithMount"`
+	Dentry                  bool `yaml:"dentry,omitempty" json:"dentry,omitempty" jsonschema:"anyof_required=CoreDumpWithDentry"`
+	NoCompression           bool `yaml:"no_compression,omitempty" json:"no_compression,omitempty"`
 }
 
 // HashDefinition describes the 'hash' section of a rule action
 type HashDefinition struct {
-	DefaultActionDefinition
-	Field string `yaml:"field" json:"field,omitempty"`
+	DefaultActionDefinition `yaml:"-" json:"-"`
+	Field                   string `yaml:"field,omitempty" json:"field,omitempty"`
+	MaxFileSize             int64  `yaml:"max_file_size,omitempty" json:"max_file_size,omitempty"`
 }
 
 // PostCheck returns an error if the hash action is invalid after parsing
@@ -342,7 +344,7 @@ func (h *HashDefinition) PostCheck(rule *eval.Rule) error {
 
 	// check that the field is compatible with the rule event type
 	fieldPathForMetadata := h.Field + ".path"
-	fieldEventType, _, _, err := ev.GetFieldMetadata(fieldPathForMetadata)
+	fieldEventType, _, _, _, err := ev.GetFieldMetadata(fieldPathForMetadata)
 	if err != nil {
 		return fmt.Errorf("failed to get event type for field '%s': %w", fieldPathForMetadata, err)
 	}
@@ -357,15 +359,15 @@ func (h *HashDefinition) PostCheck(rule *eval.Rule) error {
 
 // LogDefinition describes the 'log' section of a rule action
 type LogDefinition struct {
-	DefaultActionDefinition
-	Level   string
-	Message string
+	DefaultActionDefinition `yaml:"-" json:"-"`
+	Level                   string `yaml:"level,omitempty" json:"level,omitempty"`
+	Message                 string `yaml:"message,omitempty" json:"message,omitempty"`
 }
 
 // PreCheck returns an error if the log action is invalid
 func (l *LogDefinition) PreCheck(_ PolicyLoaderOpts) error {
 	if l.Level == "" {
-		return errors.New("a valid log level must be specified to the the 'log' action")
+		return errors.New("a valid log level must be specified to the 'log' action")
 	}
 
 	return nil
@@ -373,10 +375,10 @@ func (l *LogDefinition) PreCheck(_ PolicyLoaderOpts) error {
 
 // NetworkFilterDefinition describes the 'network_filter' section of a rule action
 type NetworkFilterDefinition struct {
-	DefaultActionDefinition
-	BPFFilter string `yaml:"filter" json:"filter,omitempty"`
-	Policy    string `yaml:"policy" json:"policy,omitempty"`
-	Scope     string `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=cgroup"`
+	DefaultActionDefinition `yaml:"-" json:"-"`
+	BPFFilter               string `yaml:"filter,omitempty" json:"filter,omitempty"`
+	Policy                  string `yaml:"policy,omitempty" json:"policy,omitempty"`
+	Scope                   string `yaml:"scope,omitempty" json:"scope,omitempty" jsonschema:"enum=process,enum=cgroup"`
 }
 
 // PreCheck returns an error if the network filter action is invalid
@@ -416,7 +418,9 @@ type HookPointArg struct {
 
 // PolicyDef represents a policy file definition
 type PolicyDef struct {
-	Version         string             `yaml:"version,omitempty" json:"version"`
+	Version string `yaml:"version,omitempty" json:"version"`
+	// Type is the type of content served by the policy (e.g. "policy" for a default policy, "content_pack" or empty for others)
+	Type            string             `yaml:"type,omitempty" json:"type,omitempty"`
 	ReplacePolicyID string             `yaml:"replace_policy_id,omitempty" json:"replace_policy_id,omitempty"`
 	Macros          []*MacroDefinition `yaml:"macros,omitempty" json:"macros,omitempty"`
 	Rules           []*RuleDefinition  `yaml:"rules" json:"rules"`
@@ -438,6 +442,9 @@ func (d *HumanReadableDuration) GetDuration() time.Duration {
 
 // MarshalYAML marshals a duration to a human readable format
 func (d *HumanReadableDuration) MarshalYAML() (interface{}, error) {
+	if d == nil || d.Duration == 0 {
+		return nil, nil
+	}
 	return d.String(), nil
 }
 
@@ -465,7 +472,10 @@ func (d *HumanReadableDuration) UnmarshalYAML(n *yaml.Node) error {
 
 // MarshalJSON marshals a duration to a human readable format
 func (d *HumanReadableDuration) MarshalJSON() ([]byte, error) {
-	return json.Marshal(d.String())
+	if d == nil {
+		return nil, nil
+	}
+	return json.Marshal(d.GetDuration())
 }
 
 // UnmarshalJSON unmarshals a duration from a human readable format or from an integer

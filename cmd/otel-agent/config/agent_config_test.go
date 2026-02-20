@@ -475,6 +475,90 @@ func (suite *ConfigTestSuite) TestProxyConfigURLOverridesDDConfig() {
 	assert.Equal(t, []string(nil), pkgconfig.GetStringSlice("proxy.no_proxy"))
 }
 
+// TestLogsEnabledViaEnvironmentVariable is a regression test for the issue where
+// LoadDatadog was called before BuildSchema, causing "attempt to ReadInConfig before config
+// is constructed" errors.
+func TestLogsEnabledViaEnvironmentVariable(t *testing.T) {
+	configmock.New(t)
+	t.Setenv("DD_LOGS_ENABLED", "true")
+	fileName := "testdata/config_default.yaml"
+
+	// This should not panic or error with "attempt to ReadInConfig before config is constructed"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err, "NewConfigComponent should succeed with DD_LOGS_ENABLED set")
+	assert.True(t, c.GetBool("logs_enabled"), "logs_enabled should be true when DD_LOGS_ENABLED=true")
+
+	libType := c.GetLibType()
+	assert.NotEmpty(t, libType, "config lib type should be set")
+}
+
+// TestLogsEnabledViaDatadogConfig tests that logs_enabled can be set via a separate
+// datadog.yaml config file and is correctly merged with the OTel config. This ensures
+// the config initialization order works correctly when both configs are present.
+func TestLogsEnabledViaDatadogConfig(t *testing.T) {
+	configmock.New(t)
+	ddFileName := "testdata/datadog_with_logs_enabled.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{ddFileName})
+	require.NoError(t, err, "NewConfigComponent should succeed with datadog config")
+	assert.True(t, c.GetBool("logs_enabled"), "logs_enabled should be true from datadog config")
+}
+
+func (suite *ConfigTestSuite) TestGatewayModeHostnameEmpty() {
+	t := suite.T()
+	fileName := "testdata/config_default.yaml"
+	ddFileName := "testdata/datadog_gateway_mode.yaml"
+	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	require.NoError(t, err, "NewConfigComponent should succeed with gateway mode enabled")
+
+	// When gateway mode is enabled, hostname should be set to empty string
+	assert.True(t, c.GetBool("otelcollector.gateway.mode"), "gateway mode should be enabled")
+	assert.Equal(t, "", c.GetString("hostname"), "hostname should be empty when gateway mode is enabled")
+}
+
+func (suite *ConfigTestSuite) TestGatewayModeDisabledHostnameNotEmpty() {
+	t := suite.T()
+	fileName := "testdata/config_default.yaml"
+	// Using datadog.yaml which doesn't have gateway mode set
+	ddFileName := "testdata/datadog.yaml"
+	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	require.NoError(t, err, "NewConfigComponent should succeed without gateway mode")
+
+	// When gateway mode is not enabled, hostname should not be forced to empty
+	assert.False(t, c.GetBool("otelcollector.gateway.mode"), "gateway mode should be disabled")
+	// The hostname might be empty by default, but the key difference is that
+	// it wasn't explicitly set to empty via the gateway mode logic
+	// We verify the config was loaded without the gateway mode setting
+	assert.False(t, c.IsConfigured("otelcollector.gateway.mode") && c.GetBool("otelcollector.gateway.mode"),
+		"gateway mode should not be enabled")
+}
+
+func (suite *ConfigTestSuite) TestGatewayModeViaEnvVarHostnameEmpty() {
+	t := suite.T()
+	fileName := "testdata/config_default.yaml"
+	// Set gateway mode via environment variable
+	t.Setenv("DD_OTELCOLLECTOR_GATEWAY_MODE", "true")
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err, "NewConfigComponent should succeed with gateway mode env var set")
+
+	// When gateway mode is enabled via env var, hostname should be set to empty string
+	assert.True(t, c.GetBool("otelcollector.gateway.mode"), "gateway mode should be enabled from env var")
+	assert.Equal(t, "", c.GetString("hostname"), "hostname should be empty when gateway mode is enabled via env var")
+}
+
+func (suite *ConfigTestSuite) TestGatewayModeOverridesDDHostnameEnvVar() {
+	t := suite.T()
+	fileName := "testdata/config_default.yaml"
+	ddFileName := "testdata/datadog_gateway_mode.yaml"
+	// Simulate the Helm chart setting DD_HOSTNAME to the Kubernetes node name
+	t.Setenv("DD_HOSTNAME", "k8s-node-name")
+	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	require.NoError(t, err, "NewConfigComponent should succeed with gateway mode enabled")
+
+	// Gateway mode should override DD_HOSTNAME and set hostname to empty
+	assert.True(t, c.GetBool("otelcollector.gateway.mode"), "gateway mode should be enabled")
+	assert.Equal(t, "", c.GetString("hostname"), "hostname should be empty in gateway mode even when DD_HOSTNAME is set")
+}
+
 // TestSuite runs the CalculatorTestSuite
 func TestSuite(t *testing.T) {
 	suite.Run(t, new(ConfigTestSuite))

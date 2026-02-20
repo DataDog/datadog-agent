@@ -45,9 +45,10 @@ func getBlobWriter(t *testing.T, assert *assert.Assertions, in *network.Connecti
 	marshaler := marshal.GetMarshaler(marshalerType)
 	assert.Equal(marshalerType, marshaler.ContentType())
 	blobWriter := bytes.NewBuffer(nil)
-	connectionsModeler := marshal.NewConnectionsModeler(in)
+	connectionsModeler, err := marshal.NewConnectionsModeler(in)
+	require.NoError(t, err)
 	defer connectionsModeler.Close()
-	err := marshaler.Marshal(in, blobWriter, connectionsModeler)
+	err = marshaler.Marshal(in, blobWriter, connectionsModeler)
 	require.NoError(t, err)
 
 	return blobWriter
@@ -105,6 +106,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				Direction: model.ConnectionDirection_local,
 
 				RouteIdx:         0,
+				ResolvConfIdx:    -1,
 				HttpAggregations: httpOutBlob,
 				Protocol: &model.ProtocolStack{
 					Stack: []model.ProtocolType{model.ProtocolType_protocolHTTP},
@@ -124,6 +126,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				DnsSuccessfulResponses:      1, // TODO: verify why this was needed
 				TcpFailuresByErrCode:        map[uint32]uint32{110: 1},
 				RouteIdx:                    -1,
+				ResolvConfIdx:               -1,
 				Protocol: &model.ProtocolStack{
 					Stack: []model.ProtocolType{model.ProtocolType_protocolTLS, model.ProtocolType_protocolHTTP2},
 				},
@@ -339,6 +342,7 @@ func TestSerialization(t *testing.T) {
 			result.Tags = nil
 		}
 		result.PrebuiltEBPFAssets = nil
+		result.ResolvConfs = nil
 		assertConnsEqual(t, out, result)
 	})
 
@@ -363,6 +367,7 @@ func TestSerialization(t *testing.T) {
 			result.Tags = nil
 		}
 		result.PrebuiltEBPFAssets = nil
+		result.ResolvConfs = nil
 		assertConnsEqual(t, out, result)
 	})
 
@@ -377,9 +382,10 @@ func TestSerialization(t *testing.T) {
 		assert.Equal("application/json", marshaler.ContentType())
 
 		blobWriter := bytes.NewBuffer(nil)
-		connectionsModeler := marshal.NewConnectionsModeler(in)
+		connectionsModeler, err := marshal.NewConnectionsModeler(in)
+		require.NoError(t, err)
 		defer connectionsModeler.Close()
-		err := marshaler.Marshal(in, blobWriter, connectionsModeler)
+		err = marshaler.Marshal(in, blobWriter, connectionsModeler)
 		require.NoError(t, err)
 
 		unmarshaler := unmarshal.GetUnmarshaler("")
@@ -394,6 +400,7 @@ func TestSerialization(t *testing.T) {
 			result.Tags = nil
 		}
 		result.PrebuiltEBPFAssets = nil
+		result.ResolvConfs = nil
 		assertConnsEqual(t, out, result)
 	})
 
@@ -409,9 +416,10 @@ func TestSerialization(t *testing.T) {
 		assert.Equal("application/json", marshaler.ContentType())
 
 		blobWriter := bytes.NewBuffer(nil)
-		connectionsModeler := marshal.NewConnectionsModeler(in)
+		connectionsModeler, err := marshal.NewConnectionsModeler(in)
+		require.NoError(t, err)
 		defer connectionsModeler.Close()
-		err := marshaler.Marshal(in, blobWriter, connectionsModeler)
+		err = marshaler.Marshal(in, blobWriter, connectionsModeler)
 		require.NoError(t, err)
 
 		unmarshaler := unmarshal.GetUnmarshaler("application/json")
@@ -426,6 +434,7 @@ func TestSerialization(t *testing.T) {
 			result.Tags = nil
 		}
 		result.PrebuiltEBPFAssets = nil
+		result.ResolvConfs = nil
 		assertConnsEqual(t, out, result)
 	})
 
@@ -567,6 +576,7 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
+				ResolvConfIdx:    -1,
 				Protocol:         marshal.FormatProtocolStack(protocols.Stack{}, 0),
 			},
 			{
@@ -574,6 +584,7 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
+				ResolvConfIdx:    -1,
 				Protocol:         marshal.FormatProtocolStack(protocols.Stack{}, 0),
 			},
 		},

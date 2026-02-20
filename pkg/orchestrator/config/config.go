@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build orchestrator
+
 //nolint:revive // TODO(CAPP) Fix revive linter
 package config
 
@@ -16,8 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
+	"github.com/DataDog/datadog-agent/pkg/redact"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -42,11 +44,11 @@ type OrchestratorConfig struct {
 	OrchestratorEndpoints          []apicfg.Endpoint
 	MaxPerMessage                  int
 	MaxWeightPerMessageBytes       int
-	PodQueueBytes                  int // The total number of bytes that can be enqueued for delivery to the orchestrator endpoint
 	ExtraTags                      []string
 	IsManifestCollectionEnabled    bool
 	BufferedManifestEnabled        bool
 	ManifestBufferFlushInterval    time.Duration
+	KubeletConfigCheckEnabled      bool
 }
 
 // NewDefaultOrchestratorConfig returns an NewDefaultOrchestratorConfig using a configuration file. It can be nil
@@ -63,7 +65,6 @@ func NewDefaultOrchestratorConfig(extraTags []string) *OrchestratorConfig {
 		MaxPerMessage:            100,
 		MaxWeightPerMessageBytes: 10000000,
 		OrchestratorEndpoints:    []apicfg.Endpoint{{Endpoint: orchestratorEndpoint}},
-		PodQueueBytes:            15 * 1000 * 1000,
 	}
 	return &oc
 }
@@ -110,12 +111,6 @@ func (oc *OrchestratorConfig) Load() error {
 	setBoundedConfigIntValue(OrchestratorNSKey("max_per_message"), maxMessageBatch, func(v int) { oc.MaxPerMessage = v })
 	setBoundedConfigIntValue(OrchestratorNSKey("max_message_bytes"), maxMessageSize, func(v int) { oc.MaxWeightPerMessageBytes = v })
 
-	if k := key(processNS, "pod_queue_bytes"); pkgconfigsetup.Datadog().IsSet(k) {
-		if queueBytes := pkgconfigsetup.Datadog().GetInt(k); queueBytes > 0 {
-			oc.PodQueueBytes = queueBytes
-		}
-	}
-
 	// Orchestrator Explorer
 	oc.OrchestrationCollectionEnabled, oc.KubeClusterName = IsOrchestratorEnabled()
 
@@ -124,15 +119,16 @@ func (oc *OrchestratorConfig) Load() error {
 	oc.IsManifestCollectionEnabled = pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("manifest_collection.enabled"))
 	oc.BufferedManifestEnabled = pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("manifest_collection.buffer_manifest"))
 	oc.ManifestBufferFlushInterval = pkgconfigsetup.Datadog().GetDuration(OrchestratorNSKey("manifest_collection.buffer_flush_interval"))
+	oc.KubeletConfigCheckEnabled = pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("kubelet_config_check.enabled"))
 	return nil
 }
 
 func extractOrchestratorAdditionalEndpoints(URL *url.URL, orchestratorEndpoints *[]apicfg.Endpoint) error {
-	if k := OrchestratorNSKey("orchestrator_additional_endpoints"); pkgconfigsetup.Datadog().IsSet(k) {
+	if k := OrchestratorNSKey("orchestrator_additional_endpoints"); pkgconfigsetup.Datadog().IsConfigured(k) {
 		if err := extractEndpoints(URL, k, orchestratorEndpoints); err != nil {
 			return err
 		}
-	} else if k := key(processNS, "orchestrator_additional_endpoints"); pkgconfigsetup.Datadog().IsSet(k) {
+	} else if k := key(processNS, "orchestrator_additional_endpoints"); pkgconfigsetup.Datadog().IsConfigured(k) {
 		if err := extractEndpoints(URL, k, orchestratorEndpoints); err != nil {
 			return err
 		}
@@ -209,7 +205,7 @@ func IsOrchestratorECSExplorerEnabled() bool {
 		return false
 	}
 
-	if env.IsECS() || env.IsECSFargate() {
+	if env.IsECS() || env.IsECSFargate() || env.IsECSManagedInstances() {
 		return true
 	}
 

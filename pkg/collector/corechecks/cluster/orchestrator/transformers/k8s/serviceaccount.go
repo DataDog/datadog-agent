@@ -24,6 +24,9 @@ func ExtractServiceAccount(ctx processors.ProcessorContext, sa *corev1.ServiceAc
 	}
 	if sa.AutomountServiceAccountToken != nil {
 		serviceAccount.AutomountServiceAccountToken = *sa.AutomountServiceAccountToken
+	} else {
+		// Default to true if not set see https://github.com/kubernetes/kubernetes/blob/71fa43e37f198ae8035a96ff9f1c112b03b9e0fa/plugin/pkg/admission/serviceaccount/admission.go#L264.
+		serviceAccount.AutomountServiceAccountToken = true
 	}
 	// Extract secret references.
 	for _, secret := range sa.Secrets {

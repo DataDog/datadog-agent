@@ -77,7 +77,7 @@ env: "old_env"
 	config := Config{}
 	config.DatadogYAML.APIKey = "1234567890" // Required field
 	config.DatadogYAML.Hostname = "new_hostname"
-	config.DatadogYAML.LogsEnabled = true
+	config.DatadogYAML.LogsEnabled = BoolToPtr(true)
 
 	err := WriteConfigs(config, tempDir)
 	assert.NoError(t, err)
@@ -89,6 +89,47 @@ env: "old_env"
 		"hostname":     "new_hostname",
 		"env":          "old_env",
 		"logs_enabled": true,
+	}, datadog)
+}
+
+// Tests that existing API key is not overwritten if not provided again to setup command
+func TestKeepExistingAPIKey(t *testing.T) {
+	tempDir := t.TempDir()
+	existing := `---
+api_key: "0987654321"
+hostname: "old_hostname"
+env: "old_env"
+`
+	writeInitialDatadogConfig(t, tempDir, existing)
+	config := Config{}
+
+	err := WriteConfigs(config, tempDir)
+	assert.NoError(t, err)
+
+	datadog := readDatadogYAML(t, tempDir)
+	assert.Equal(t, map[string]interface{}{
+		"api_key":  "0987654321",
+		"hostname": "old_hostname",
+		"env":      "old_env",
+	}, datadog)
+}
+
+// Test that config can handle values in the secret management format
+func TestAPIKeyHasSecretsFormat(t *testing.T) {
+	tempDir := t.TempDir()
+	existing := `---
+api_key: ENC[My-Secrets;prodApiKey]
+`
+	writeInitialDatadogConfig(t, tempDir, existing)
+	config := Config{}
+	config.DatadogYAML.APIKey = "ENC[My-Secrets;prodApiKey2]"
+
+	err := WriteConfigs(config, tempDir)
+	assert.NoError(t, err)
+
+	datadog := readDatadogYAML(t, tempDir)
+	assert.Equal(t, map[string]interface{}{
+		"api_key": "ENC[My-Secrets;prodApiKey2]",
 	}, datadog)
 }
 
@@ -153,7 +194,7 @@ func TestDoubleWriteConfig(t *testing.T) {
 	config := Config{}
 	config.DatadogYAML.APIKey = "1234567890" // Required field
 	config.DatadogYAML.Hostname = "new_hostname"
-	config.DatadogYAML.LogsEnabled = true
+	config.DatadogYAML.LogsEnabled = BoolToPtr(true)
 
 	err := WriteConfigs(config, tempDir)
 	assert.NoError(t, err)
@@ -205,7 +246,7 @@ remote_updates: false
 
 	cfg := Config{}
 	cfg.DatadogYAML.APIKey = "key"
-	cfg.DatadogYAML.RemoteUpdates = true
+	cfg.DatadogYAML.RemoteUpdates = BoolToPtr(true)
 
 	err := WriteConfigs(cfg, tempDir)
 	assert.NoError(t, err)
@@ -218,10 +259,6 @@ remote_updates: false
 }
 
 func TestRemoteUpdatesFalse(t *testing.T) {
-	// TODO: fix this test
-	// With omitempty on bool fields, setting false omits the key in the override,
-	// so merge keeps existing true value.
-	t.Skip("Test fails")
 	tempDir := t.TempDir()
 	existing := `---
 api_key: "key"
@@ -231,7 +268,7 @@ remote_updates: true
 
 	cfg := Config{}
 	cfg.DatadogYAML.APIKey = "key"
-	cfg.DatadogYAML.RemoteUpdates = false
+	cfg.DatadogYAML.RemoteUpdates = BoolToPtr(false)
 
 	err := WriteConfigs(cfg, tempDir)
 	assert.NoError(t, err)
@@ -241,6 +278,28 @@ remote_updates: true
 	assert.Equal(t, map[string]interface{}{
 		"api_key":        "key",
 		"remote_updates": false,
+	}, datadog)
+}
+
+func TestLogsEnabledFalse(t *testing.T) {
+	tempDir := t.TempDir()
+	existing := `---
+api_key: "key"
+logs_enabled: true
+`
+	writeInitialDatadogConfig(t, tempDir, existing)
+
+	cfg := Config{}
+	cfg.DatadogYAML.APIKey = "key"
+	cfg.DatadogYAML.LogsEnabled = BoolToPtr(false)
+
+	err := WriteConfigs(cfg, tempDir)
+	assert.NoError(t, err)
+
+	datadog := readDatadogYAML(t, tempDir)
+	assert.Equal(t, map[string]interface{}{
+		"api_key":      "key",
+		"logs_enabled": false,
 	}, datadog)
 }
 
@@ -255,7 +314,7 @@ api_key: "old_key"
 	cfg.DatadogYAML.APIKey = "full_test_key"
 	cfg.DatadogYAML.Site = "datadoghq.com"
 	cfg.DatadogYAML.DDURL = "https://app.datadoghq.com"
-	cfg.DatadogYAML.RemoteUpdates = true
+	cfg.DatadogYAML.RemoteUpdates = BoolToPtr(true)
 
 	err := WriteConfigs(cfg, tempDir)
 	assert.NoError(t, err)
@@ -457,7 +516,7 @@ func TestWriteConfigWithEOLAtEnd(t *testing.T) {
 
 	cfg := Config{}
 	cfg.DatadogYAML.APIKey = "key"
-	cfg.DatadogYAML.LogsEnabled = true
+	cfg.DatadogYAML.LogsEnabled = BoolToPtr(true)
 
 	err := WriteConfigs(cfg, tempDir)
 	assert.NoError(t, err)
@@ -502,5 +561,44 @@ func TestWriteConfigWithoutEOLAtEnd(t *testing.T) {
 		"api_key":          "key",
 		"existing_setting": "value_no_eol",
 		"dd_url":           "https://custom.datadoghq.com",
+	}, datadog)
+}
+
+func TestInfrastructureModeConfig(t *testing.T) {
+	tempDir := t.TempDir()
+
+	cfg := Config{}
+	cfg.DatadogYAML.APIKey = "test_key"
+	cfg.DatadogYAML.InfrastructureMode = "basic"
+
+	err := WriteConfigs(cfg, tempDir)
+	assert.NoError(t, err)
+
+	datadog := readDatadogYAML(t, tempDir)
+	assert.Equal(t, map[string]interface{}{
+		"api_key":             "test_key",
+		"infrastructure_mode": "basic",
+	}, datadog)
+}
+
+func TestInfrastructureModeMerge(t *testing.T) {
+	tempDir := t.TempDir()
+	existing := `---
+api_key: "key"
+infrastructure_mode: "full"
+`
+	writeInitialDatadogConfig(t, tempDir, existing)
+
+	cfg := Config{}
+	cfg.DatadogYAML.APIKey = "key"
+	cfg.DatadogYAML.InfrastructureMode = "end_user_device"
+
+	err := WriteConfigs(cfg, tempDir)
+	assert.NoError(t, err)
+
+	datadog := readDatadogYAML(t, tempDir)
+	assert.Equal(t, map[string]interface{}{
+		"api_key":             "key",
+		"infrastructure_mode": "end_user_device",
 	}, datadog)
 }

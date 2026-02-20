@@ -1,0 +1,4 @@
+ad_identifiers:
+  - _kubelet_config_orchestrator
+instances:
+  - {}

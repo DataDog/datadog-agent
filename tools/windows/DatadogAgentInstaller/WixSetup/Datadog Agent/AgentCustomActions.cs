@@ -64,6 +64,8 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction RollbackOciPackages { get; }
 
+        public ManagedAction PurgeOciPackages { get; }
+
         public ManagedAction WriteInstallInfo { get; }
 
         public ManagedAction ReportInstallFailure { get; }
@@ -493,7 +495,12 @@ namespace WixSetup.Datadog_Agent
                            "SITE=[SITE]," +
                            "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL]," +
                            "DD_APM_INSTRUMENTATION_ENABLED=[DD_APM_INSTRUMENTATION_ENABLED]," +
-                           "DD_APM_INSTRUMENTATION_LIBRARIES=[DD_APM_INSTRUMENTATION_LIBRARIES]");
+                           "DD_APM_INSTRUMENTATION_LIBRARIES=[DD_APM_INSTRUMENTATION_LIBRARIES]," +
+                           "DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT=[DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT]," +
+                           "DD_REMOTE_UPDATES=[DD_REMOTE_UPDATES]," +
+                           "DD_INFRASTRUCTURE_MODE=[DD_INFRASTRUCTURE_MODE]," +
+                           "FLEET_INSTALL=[FLEET_INSTALL]," +
+                           "DD_OTELCOLLECTOR_ENABLED=[DD_OTELCOLLECTOR_ENABLED]");
 
             RollbackOciPackages = new CustomAction<CustomActions>(
                     new Id(nameof(RollbackOciPackages)),
@@ -501,13 +508,35 @@ namespace WixSetup.Datadog_Agent
                     Return.ignore,
                     When.Before,
                     new Step(InstallOciPackages.Id),
-                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+                    // Only rollback on first install.
+                    // On rollback we run `purge` to cleanup the OCI packages, this is
+                    // not suitable for upgrade rollback. Upgrade rollback will require
+                    // tracking which version of each package to rollback to. As well as
+                    // their registry url/auth/etc., which is currently not available.
+                    Conditions.FirstInstall
                 )
             {
                 Execute = Execute.rollback,
                 Impersonate = false
             }
                 .SetProperties("PROJECTLOCATION=[PROJECTLOCATION],SITE=[SITE],APIKEY=[APIKEY]");
+
+            PurgeOciPackages = new CustomAction<CustomActions>(
+                    new Id(nameof(PurgeOciPackages)),
+                    CustomActions.PurgeOciPackages,
+                    // Check the return value to prevent removing datadog-installer.exe if purge fails.
+                    // We will need to use the datadog-installer.exe to cleanup packages if purge fails.
+                    // To skip purging entirely, set the KEEP_INSTALLED_PACKAGES property to 1.
+                    Return.check,
+                    When.Before,
+                    new Step(CleanupOnUninstall.Id),
+                    Conditions.Uninstalling
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION],SITE=[SITE],APIKEY=[APIKEY],KEEP_INSTALLED_PACKAGES=[KEEP_INSTALLED_PACKAGES],FLEET_INSTALL=[FLEET_INSTALL]");
 
             WriteInstallInfo = new CustomAction<CustomActions>(
                     new Id(nameof(WriteInstallInfo)),
@@ -557,7 +586,7 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }
                 .SetProperties("DDAGENTUSER_PROCESSED_PASSWORD=[DDAGENTUSER_PROCESSED_PASSWORD], " +
-                               "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME], ")
+                               "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME]")
                 .HideTarget(true);
 
             ConfigureServicesRollback = new CustomAction<CustomActions>(
@@ -572,7 +601,7 @@ namespace WixSetup.Datadog_Agent
                 Execute = Execute.rollback,
                 Impersonate = false
             }
-                .SetProperties("DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME], ")
+                .SetProperties("DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME]")
                 .HideTarget(true);
 
             // WiX built-in StopServices only stops services if the component is changing.
@@ -604,7 +633,8 @@ namespace WixSetup.Datadog_Agent
             {
                 Execute = Execute.deferred,
                 Impersonate = false
-            };
+            }
+                .SetProperties("DD_INSTALL_ONLY=[DD_INSTALL_ONLY]");
 
             // Rollback StartDDServices stops the the services so that any file locks are released.
             StartDDServicesRollback = new CustomAction<CustomActions>(

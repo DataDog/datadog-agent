@@ -10,8 +10,10 @@ package marshal
 import (
 	"bytes"
 	"io"
+	"slices"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
@@ -35,24 +37,29 @@ func newPostgresEncoder(postgresPayloads map[postgres.Key]*postgres.RequestStat)
 	}
 }
 
-func (e *postgresEncoder) EncodeConnection(c network.ConnectionStats, builder *model.ConnectionBuilder) (uint64, map[string]struct{}) {
+func (e *postgresEncoder) EncodeConnectionDirect(c network.ConnectionStats, conn *model.Connection, buf *bytes.Buffer) (staticTags uint64, dynamicTags map[string]struct{}) {
+	staticTags = e.encodeData(c, buf)
+	conn.DatabaseAggregations = slices.Clone(buf.Bytes())
+	return
+}
+
+func (e *postgresEncoder) EncodeConnection(c network.ConnectionStats, builder *model.ConnectionBuilder) (staticTags uint64, dynamicTags map[string]struct{}) {
+	builder.SetDatabaseAggregations(func(b *bytes.Buffer) {
+		staticTags = e.encodeData(c, b)
+	})
+	return
+}
+
+func (e *postgresEncoder) encodeData(c network.ConnectionStats, w io.Writer) uint64 {
 	if e == nil {
-		return 0, nil
+		return 0
 	}
 
 	connectionData := e.byConnection.Find(c)
 	if connectionData == nil || len(connectionData.Data) == 0 || connectionData.IsPIDCollision(c) {
-		return 0, nil
+		return 0
 	}
 
-	staticTags := uint64(0)
-	builder.SetDatabaseAggregations(func(b *bytes.Buffer) {
-		staticTags |= e.encodeData(connectionData, b)
-	})
-	return staticTags, nil
-}
-
-func (e *postgresEncoder) encodeData(connectionData *USMConnectionData[postgres.Key, *postgres.RequestStat], w io.Writer) uint64 {
 	var staticTags uint64
 	e.postgresAggregationsBuilder.Reset(w)
 

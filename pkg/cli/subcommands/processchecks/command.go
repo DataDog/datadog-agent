@@ -26,6 +26,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
@@ -81,6 +82,7 @@ type dependencies struct {
 	// lifecycle.
 	Tagger       tagger.Component
 	WorkloadMeta workloadmeta.Component
+	FilterStore  workloadfilter.Component
 	NpCollector  npcollector.Component
 	Checks       []types.CheckComponent `group:"check"`
 }

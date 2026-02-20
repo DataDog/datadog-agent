@@ -80,6 +80,9 @@ type Meta struct {
 
 	// HostAliases are other available host names
 	HostAliases []string `json:"host_aliases,omitempty"`
+
+	// CCRID
+	CanonicalCloudResourceID string `json:"ccrid,omitempty"`
 }
 
 // NewEmpty creates a new HostMetadata with empty fields.
@@ -103,3 +106,15 @@ func (p *HostMetadata) MarshalJSON() ([]byte, error) {
 }
 
 var _ marshaler.JSONMarshaler = (*HostMetadata)(nil)
+
+// Clone performs a deep clone of a HostMetadata struct.
+func (p *HostMetadata) Clone() (p2 HostMetadata, err error) {
+	var marshaled []byte
+	marshaled, err = json.Marshal(p)
+	if err != nil {
+		return
+	}
+	p2 = NewEmpty()
+	err = json.Unmarshal(marshaled, &p2)
+	return
+}

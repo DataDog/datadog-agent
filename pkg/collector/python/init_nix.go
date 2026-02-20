@@ -20,25 +20,32 @@ import (
 
 #include <datadog_agent_rtloader.h>
 #include <rtloader_mem.h>
+
+static inline void call_free(void* ptr) {
+    _free(ptr);
+}
 */
 import "C"
 
 // Any platform-specific initialization belongs here.
 func initializePlatform() error {
 	// Setup crash handling specifics - *NIX-only
+
+	var cCoreDump int
+	if pkgconfigsetup.Datadog().GetBool("c_core_dump") {
+		cCoreDump = 1
+	}
+
+	var cStacktraceCollection int
 	if pkgconfigsetup.Datadog().GetBool("c_stacktrace_collection") {
-		var cCoreDump int
+		cStacktraceCollection = 1
+	}
 
-		if pkgconfigsetup.Datadog().GetBool("c_core_dump") {
-			cCoreDump = 1
-		}
-
-		var handlerErr *C.char
-		if C.handle_crashes(C.int(cCoreDump), &handlerErr) == 0 {
-			log.Errorf("Unable to install crash handler, C-land stacktraces and dumps will be unavailable: %s", C.GoString(handlerErr))
-			if handlerErr != nil {
-				C._free(unsafe.Pointer(handlerErr))
-			}
+	var handlerErr *C.char
+	if C.handle_crashes(C.int(cCoreDump), C.int(cStacktraceCollection), &handlerErr) == 0 {
+		log.Errorf("Unable to install crash handler, C-land stacktraces and dumps will be unavailable: %s", C.GoString(handlerErr))
+		if handlerErr != nil {
+			C.call_free(unsafe.Pointer(handlerErr))
 		}
 	}
 

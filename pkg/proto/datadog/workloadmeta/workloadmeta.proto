@@ -9,6 +9,7 @@ enum WorkloadmetaKind {
   KUBERNETES_POD = 1;
   ECS_TASK = 2;
   PROCESS = 3;
+  CRD = 4;
 }
 
 enum WorkloadmetaSource {
@@ -229,12 +230,21 @@ message Process {
   InjectionState injectionState = 17;
 }
 
+message Crd {
+  WorkloadmetaEntityId enity_id = 1;
+  EntityMeta entity_meta = 2;
+  string group = 3;
+  string kind = 4;
+  string version = 5;
+}
+
 message WorkloadmetaEvent {
   WorkloadmetaEventType type = 1;
   Container container = 2;
   KubernetesPod kubernetesPod = 3;
   ECSTask ecsTask = 4;
   Process process = 5;
+  Crd crd = 6;
 }
 
 message WorkloadmetaStreamResponse {

@@ -26,7 +26,6 @@ import (
 // SampledChunksV1 is a wrapper around an InternalTracerPayload that contains the size of the payload, the number of spans, and the number of events
 type SampledChunksV1 struct {
 	TracerPayload *idx.InternalTracerPayload
-	Size          int
 	SpanCount     int64
 	EventCount    int64
 }
@@ -49,8 +48,10 @@ type TraceWriterV1 struct {
 	tick            time.Duration         // flush frequency
 	agentVersion    string
 
-	tracerPayloadsV1 []*idx.InternalTracerPayload // V1 tracer payloads buffered
-	bufferedSizeV1   int                          // estimated buffer size for V1
+	// preparedPayloadsV1 holds prepared tracer payloads with pre-computed string compaction.
+	// This allows accurate size calculations and avoids recomputing compaction during serialization.
+	preparedPayloadsV1 []*pb.PreparedTracerPayload
+	bufferedSizeV1     int // accurate buffer size (using compacted sizes)
 
 	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
 	syncMode  bool
@@ -63,6 +64,8 @@ type TraceWriterV1 struct {
 	timing     timing.Reporter
 	mu         sync.Mutex
 	compressor compression.Component
+	// apmMode exists here to propagate the value to the AgentPayload
+	apmMode string
 }
 
 // NewTraceWriterV1 returns a new TraceWriterV1. It is created for the given agent configuration and
@@ -94,6 +97,8 @@ func NewTraceWriterV1(
 		statsd:             statsd,
 		timing:             timing,
 		compressor:         compressor,
+		// apmMode exists here to propagate the value to the AgentPayload
+		apmMode: cfg.APMMode,
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
@@ -185,42 +190,72 @@ func (w *TraceWriterV1) FlushSync() error {
 	return nil
 }
 
-// appendChunks adds sampled chunks to the current payload, and in the case the payload
-// is full, returns a finished payload which needs to be written out.
-func (w *TraceWriterV1) appendChunksV1(pkg *SampledChunksV1) []*idx.InternalTracerPayload {
-	var toflush []*idx.InternalTracerPayload
+// appendChunksV1 adds sampled chunks to the current payload, splitting the payload if it is too large.
+// Returns batches of prepared payloads to flush immediately.
+// Uses PreparedTracerPayload for accurate size calculations with pre-computed string compaction.
+func (w *TraceWriterV1) appendChunksV1(pkg *SampledChunksV1) [][]*pb.PreparedTracerPayload {
+	var toFlush [][]*pb.PreparedTracerPayload
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	size := pkg.Size
+	pbTracerPayload := pkg.TracerPayload.ToProto()
+
+	// Prepare the payload - this computes string compaction and accurate size
+	prepared := pb.PrepareTracerPayload(pbTracerPayload)
+	size := prepared.Size
+
 	if size+w.bufferedSizeV1 > MaxPayloadSize {
-		// reached maximum allowed buffered size
-		// reset the buffer so we can add our payload and defer a flush.
-		toflush = w.tracerPayloadsV1
-		w.resetBufferV1()
+		// Buffer is full, split the incoming Tracer payload
+		log.Debugf("Writer: reached maximum allowed buffered size, splitting payload with %d chunks and size %d", len(pbTracerPayload.Chunks), size)
+		numChunks := len(pbTracerPayload.Chunks)
+		if numChunks < 4 {
+			// If fewer than 4 chunks, send each chunk separately
+			for i := 0; i < numChunks; i++ {
+				splitPrepared := pb.PrepareTracerPayloadWithChunks(pbTracerPayload, pbTracerPayload.Chunks[i:i+1])
+				log.Tracef("Writer: new split payload (single chunk) has size %d", splitPrepared.Size+w.bufferedSizeV1)
+				batchToFlush := append(w.preparedPayloadsV1, splitPrepared)
+				toFlush = append(toFlush, batchToFlush)
+				w.resetBufferV1()
+			}
+		} else {
+			// Split into 4 groups of chunks
+			// This ensures we stay well under the intake limit as the worstcase here is 3.2 MB + 25 MB / 4 = 7.3 MB
+			chunksPerPayload := numChunks / 4
+			for i := range 4 {
+				// For the last group, include any remaining chunks due to integer division
+				endIdx := (i + 1) * chunksPerPayload
+				if i == 3 {
+					endIdx = numChunks
+				}
+				splitPrepared := pb.PrepareTracerPayloadWithChunks(pbTracerPayload, pbTracerPayload.Chunks[i*chunksPerPayload:endIdx])
+				log.Tracef("Writer: new split payload has size %d", splitPrepared.Size+w.bufferedSizeV1)
+				batchToFlush := append(w.preparedPayloadsV1, splitPrepared)
+				toFlush = append(toFlush, batchToFlush)
+				w.resetBufferV1()
+			}
+		}
+		return toFlush
 	}
-	if len(pkg.TracerPayload.Chunks) > 0 {
-		log.Tracef("Writer: handling new tracer payload with %d spans: %v", pkg.SpanCount, pkg.TracerPayload)
-		w.tracerPayloadsV1 = append(w.tracerPayloadsV1, pkg.TracerPayload)
-	}
+	w.preparedPayloadsV1 = append(w.preparedPayloadsV1, prepared)
 	w.bufferedSizeV1 += size
-	return toflush
+	return nil
 }
 
 // WriteChunksV1 serializes the provided chunks, enqueueing them to be sent
+// Chunks must not be used after this point as the trace writer may modify the payload in-place.
 func (w *TraceWriterV1) WriteChunksV1(pkg *SampledChunksV1) {
 	w.stats.Spans.Add(pkg.SpanCount)
 	w.stats.Traces.Add(int64(len(pkg.TracerPayload.Chunks)))
 	w.stats.Events.Add(pkg.EventCount)
 
-	toflush := w.appendChunksV1(pkg)
-	if toflush != nil {
-		w.flushPayloadsV1(toflush)
+	toFlush := w.appendChunksV1(pkg)
+	for _, preparedPayloads := range toFlush {
+		w.flushPreparedPayloadsV1(preparedPayloads)
 	}
 }
 
 func (w *TraceWriterV1) resetBufferV1() {
 	w.bufferedSizeV1 = 0
-	w.tracerPayloadsV1 = make([]*idx.InternalTracerPayload, 0, len(w.tracerPayloadsV1))
+	w.preparedPayloadsV1 = make([]*pb.PreparedTracerPayload, 0, len(w.preparedPayloadsV1))
 }
 
 // w must be locked for a flush.
@@ -228,26 +263,22 @@ func (w *TraceWriterV1) flush() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	defer w.resetBufferV1()
-	w.flushPayloadsV1(w.tracerPayloadsV1)
+	w.flushPreparedPayloadsV1(w.preparedPayloadsV1)
 }
 
-// w does not need to be locked during flushPayloads.
-func (w *TraceWriterV1) flushPayloadsV1(payloads []*idx.InternalTracerPayload) {
+// flushPreparedPayloadsV1 serializes and sends prepared payloads.
+// The prepared payloads have pre-computed string compaction, so serialization
+// reuses this work for efficiency.
+func (w *TraceWriterV1) flushPreparedPayloadsV1(prepared []*pb.PreparedTracerPayload) {
 	w.flushTicker.Reset(w.tick) // reset the flush timer whenever we flush
-	if len(payloads) == 0 {
+	if len(prepared) == 0 {
 		// nothing to do
 		return
 	}
 
 	defer w.timing.Since("datadog.trace_agent.trace_writer.encode_ms", time.Now())
 
-	protoPayloads := make([]*idx.TracerPayload, len(payloads))
-	for i, payload := range payloads {
-		payload.RemoveUnusedStrings()
-		protoPayloads[i] = payload.ToProto()
-	}
-
-	log.Debugf("Serializing %d tracer payloads.", len(payloads))
+	log.Debugf("Serializing %d tracer payloads.", len(prepared))
 	p := pb.AgentPayload{
 		AgentVersion:       w.agentVersion,
 		HostName:           w.hostname,
@@ -255,18 +286,21 @@ func (w *TraceWriterV1) flushPayloadsV1(payloads []*idx.InternalTracerPayload) {
 		TargetTPS:          w.prioritySampler.GetTargetTPS(),
 		ErrorTPS:           w.errorsSampler.GetTargetTPS(),
 		RareSamplerEnabled: w.rareSampler.IsEnabled(),
-		IdxTracerPayloads:  protoPayloads,
+		// IdxTracerPayloads is not set - we use prepared payloads directly
+	}
+	if w.apmMode != "" {
+		p.Tags = map[string]string{tagAPMMode: w.apmMode}
 	}
 	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
 
-	w.serialize(&p)
+	w.serializePrepared(&p, prepared)
 }
 
-func (w *TraceWriterV1) serialize(pl *pb.AgentPayload) {
-	b := getBS(pl.SizeVT())
-	defer outPool.Put(b)
-	n, err := pl.MarshalToSizedBufferVT(b)
-	b = b[:n]
+// serializePrepared serializes an AgentPayload with pre-prepared TracerPayloads.
+// This reuses the pre-computed string compaction from PrepareTracerPayload.
+func (w *TraceWriterV1) serializePrepared(pl *pb.AgentPayload, prepared []*pb.PreparedTracerPayload) {
+	// Use the prepared marshal function that reuses pre-computed compaction
+	b, err := pb.MarshalAgentPayloadPrepared(pl, prepared)
 	if err != nil {
 		log.Errorf("Failed to serialize payload, data dropped: %v", err)
 		return

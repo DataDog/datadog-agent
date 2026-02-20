@@ -13,9 +13,9 @@ This guide will help you to develop and contribute code to the project.
 * [Caveats][caveats]
 * [Contributing][contributing]
 * [Legal][legal]
-* [Tools](tools.md) to troubleshoot a running Agent
+* [Tools][tools] to troubleshoot a running Agent
 * Advice / Style Guide
-*   * [Logger best practices](logger.md)
+*   * [Logger best practices][logging]
 
 ## How to contribute
 
@@ -24,9 +24,10 @@ This guide will help you to develop and contribute code to the project.
 
 
 [legal]: legal.md
-[testing]: agent_tests.md
-[memory]: agent_memory.md
+[testing]: ../public/guidelines/testing/test-categories.md
+[memory]: ../public/how-to/memory-profiling/overview.md
 [caveats]: caveats.md
 [contributing]: ../public/guidelines/contributing.md
 [agent-omnibus]: ../public/how-to/build/distributions.md
-[tools]: tools.md
+[tools]: ../public/how-to/debug-agents/index.md
+[logging]: ../public/guidelines/conventions/logging.md

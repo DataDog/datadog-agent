@@ -38,7 +38,7 @@ func ReadTracepointFieldOffset(tracepoint string, field string) (uint64, error) 
 	}
 	defer format.Close()
 
-	spaceField := fmt.Sprintf(" %s", field)
+	spaceField := " " + field
 
 	scanner := bufio.NewScanner(format)
 	for scanner.Scan() {

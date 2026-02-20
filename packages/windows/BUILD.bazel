@@ -1,0 +1,69 @@
+"""Windows packages."""
+
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+# TODO: pkg_msi() target will go here.
+
+# This is the collection of everything in the package which must be built.
+# During migration from omnibus, dependencies that we replace should be
+# added here.
+# Eventually:
+#   - the target to build an MSI will depend on this.
+#   - the SBOM generator will depend on this.
+pkg_filegroup(
+    name = "all_deps",
+    srcs = [
+        ":drivers",
+    ],
+)
+
+pkg_filegroup(
+    name = "all_packaging",
+    srcs = [
+        # placeholder.  License and init scripts go here.
+    ],
+)
+
+# For now, this is the target to use to push them into the build image.
+# During the build, call this from agent-dependencies.
+# Usage:
+#   bazel run -- //packages/windows:install_deps --destdir={install_dir}
+#
+pkg_install(
+    name = "install_deps",
+    srcs = [
+        ":all_deps",
+    ],
+)
+
+# Install only the drivers. This is probably more flexibility than we need. Keep
+# it until questions raised in https://github.com/DataDog/datadog-agent/pull/44491
+# are fully resolved.
+pkg_install(
+    name = "install_drivers",
+    srcs = [
+        ":drivers",
+    ],
+)
+
+# This target collects other packaging bits, such as license, configuration
+# files, and installer scripts.
+# During the build, call this from agend-finalize.
+pkg_install(
+    name = "install_finalize",
+    srcs = [
+        ":all_packaging",
+    ],
+)
+
+pkg_files(
+    name = "drivers",
+    srcs = [
+        "@windows_npm_driver//:DDNPM.msm",
+        "@windows_procmon_driver//:DDPROCMON.msm",
+    ],
+    prefix = "bin/agent",
+)

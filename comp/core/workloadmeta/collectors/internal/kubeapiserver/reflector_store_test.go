@@ -70,9 +70,44 @@ func Test_AddDelete_Pod(t *testing.T) {
 	t.Parallel()
 	workloadmetaComponent := mockedWorkloadmeta(t)
 
-	podStore := newPodReflectorStore(workloadmetaComponent, workloadmetaComponent.GetConfig())
+	podStore := newPodReflectorStoreWithFullPodParser(workloadmetaComponent, workloadmetaComponent.GetConfig())
 
 	pod := corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod",
+			Namespace: "test-namespace",
+			UID:       "pod-uid",
+			Labels: map[string]string{
+				"test-label": "test-value",
+			},
+			Annotations: map[string]string{
+				"test-annotation": "test-value",
+			},
+		},
+	}
+
+	err := podStore.Add(&pod)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		_, err = workloadmetaComponent.GetKubernetesPod(string(pod.UID))
+		return err == nil
+	}, timeout, interval)
+
+	err = podStore.Delete(&pod)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		_, err = workloadmetaComponent.GetKubernetesDeployment(string(pod.UID))
+		return err != nil
+	}, timeout, interval)
+}
+
+func Test_AddDelete_MinimalPod(t *testing.T) {
+	t.Parallel()
+	workloadmetaComponent := mockedWorkloadmeta(t)
+
+	podStore := newPodReflectorStoreWithMinimalPodParser(workloadmetaComponent, workloadmetaComponent.GetConfig())
+
+	pod := MinimalPod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-pod",
 			Namespace: "test-namespace",
@@ -220,12 +255,14 @@ func TestReplace(t *testing.T) {
 
 		expectedEvents := []workloadmeta.Event{
 			{
-				Type:   workloadmeta.EventTypeSet,
-				Entity: &testNodeMetadata,
+				Type:       workloadmeta.EventTypeSet,
+				Entity:     &testNodeMetadata,
+				IsComplete: true,
 			},
 			{
-				Type:   workloadmeta.EventTypeUnset,
-				Entity: &testNodeMetadata,
+				Type:       workloadmeta.EventTypeUnset,
+				Entity:     &testNodeMetadata,
+				IsComplete: true,
 			},
 		}
 

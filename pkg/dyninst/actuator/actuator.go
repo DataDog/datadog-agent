@@ -10,6 +10,7 @@ package actuator
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -18,17 +19,55 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// DefaultDiscoveredTypesLimit is the default value for the discovered types
+// limit.
+const defaultDiscoveredTypesLimit = 512
+
+// DefaultRecompilationRateLimit is the default rate limit for type
+// recompilations, in recompilations per second.
+const defaultRecompilationRateLimit = 1.0 / 60.0 // 1 per minute
+
+// DefaultRecompilationRateBurst is the default maximum burst of type
+// recompilations allowed.
+const defaultRecompilationRateBurst = 5
+
+// Config configures the actuator.
+type Config struct {
+	// CircuitBreakerConfig configures the circuit breaker for enforcing probe
+	// CPU limits.
+	CircuitBreakerConfig CircuitBreakerConfig
+	// DiscoveredTypesLimit is the maximum number of discovered type names
+	// tracked across all services before orphaned entries are evicted. If
+	// zero, the default value is used. If negative, all discovered types are
+	// evicted when the processes for that service are removed.
+	DiscoveredTypesLimit int
+	// RecompilationRateLimit is the rate limit for type recompilations in
+	// recompilations per second. Negative disables recompilation entirely.
+	// Zero means "use default".
+	RecompilationRateLimit float64
+	// RecompilationRateBurst is the maximum burst of recompilations allowed.
+	// Zero means "use default".
+	RecompilationRateBurst int
+}
+
+// CircuitBreakerConfig configures the circuit breaker for enforcing probe CPU limits.
+type CircuitBreakerConfig struct {
+	// Interval is the interval at which probe CPU usage is checked.
+	Interval time.Duration
+	// PerProbeCPULimit is the limit on mean CPUs/s usage per core per probe within the interval.
+	PerProbeCPULimit float64
+	// AllProbesCPULimit is the limit on mean CPUs/s usage per core for all probes within the interval.
+	AllProbesCPULimit float64
+	// InterruptOverhead is the estimate of the cost of an interrupt incurred on every probe hit.
+	InterruptOverhead time.Duration
+}
+
 // Actuator manages dynamic instrumentation for processes. It coordinates IR
 // generation, eBPF compilation, program loading, and attachment.
-//
-// The Actuator is multi-tenant: regardless of the number of tenants, we want
-// to have a single instance of the Actuator to coordinate resource usage.
 type Actuator struct {
-	mu struct {
-		sync.Mutex
-		maxTenantID tenantID
-		tenants     map[tenantID]*Tenant
-	}
+	// Runtime handles program loading and attachment.
+	// Set via SetRuntime() method.
+	runtime atomic.Pointer[Runtime]
 
 	// Channel for sending events to the state machine processing goroutine
 	// This is send-only from the perspective of external API.
@@ -60,66 +99,78 @@ func (a *Actuator) Stats() map[string]any {
 	}
 }
 
-// Tenant is a tenant of the Actuator.
-type Tenant struct {
-	name    string
-	id      tenantID
-	a       *Actuator
-	runtime Runtime
-}
-
-// NewTenant creates a new tenant of the Actuator.
-func (a *Actuator) NewTenant(
-	name string, runtime Runtime,
-) *Tenant {
-	t := &Tenant{
-		a:       a,
-		name:    name,
-		runtime: runtime,
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.mu.maxTenantID++
-	t.id = a.mu.maxTenantID
-	a.mu.tenants[t.id] = t
-	return t
-}
-
 // NewActuator creates a new Actuator instance.
-func NewActuator() *Actuator {
+func NewActuator(cfg Config) *Actuator {
+	if cfg.DiscoveredTypesLimit == 0 {
+		cfg.DiscoveredTypesLimit = defaultDiscoveredTypesLimit
+	}
+	if cfg.RecompilationRateLimit == 0 {
+		cfg.RecompilationRateLimit = defaultRecompilationRateLimit
+	}
+	if cfg.RecompilationRateBurst == 0 {
+		cfg.RecompilationRateBurst = defaultRecompilationRateBurst
+	}
 	shuttingDownCh := make(chan struct{})
 	eventCh := make(chan event)
 	a := &Actuator{
 		events:       eventCh,
 		shuttingDown: shuttingDownCh,
 	}
-	a.mu.tenants = make(map[tenantID]*Tenant)
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
-		a.runEventProcessor(eventCh, shuttingDownCh)
+		a.runEventProcessor(cfg, eventCh, shuttingDownCh)
 	}()
-
+	a.wg.Add(1)
+	go func() {
+		defer a.wg.Done()
+		a.heartbeatLoop(cfg.CircuitBreakerConfig.Interval)
+	}()
 	return a
+}
+
+// SetRuntime initializes the actuator with a runtime and makes it ready to use.
+func (a *Actuator) SetRuntime(runtime Runtime) {
+	a.runtime.Store(&runtime)
+}
+
+// ReportMissingTypes reports type names that were encountered at runtime in
+// interface values but were not present in the IR program's type registry.
+// The actuator accumulates these per service and triggers recompilation when
+// new types are discovered and the loading pipeline is idle.
+func (a *Actuator) ReportMissingTypes(processID ProcessID, typeNames []string) {
+	if len(typeNames) == 0 {
+		return
+	}
+	select {
+	case <-a.shuttingDown:
+	default:
+		select {
+		case <-a.shuttingDown:
+		case a.events <- eventMissingTypesReported{
+			processID: processID,
+			typeNames: typeNames,
+		}:
+		}
+	}
 }
 
 // HandleUpdate processes an update to process instrumentation configuration.
 // This is the single public API for updating the actuator state.
-func (t *Tenant) HandleUpdate(update ProcessesUpdate) {
+func (a *Actuator) HandleUpdate(update ProcessesUpdate) {
 	if log.ShouldLog(log.TraceLvl) {
 		logUpdate := update
 		log.Tracef("sending update: %v", &logUpdate)
 	}
 
 	select {
-	case <-t.a.shuttingDown: // prioritize shutdown
+	case <-a.shuttingDown: // prioritize shutdown
 	default:
 		select {
-		case <-t.a.shuttingDown:
-		case t.a.events <- eventProcessesUpdated{
-			tenantID: t.id,
-			updated:  update.Processes,
-			removed:  update.Removals,
+		case <-a.shuttingDown:
+		case a.events <- eventProcessesUpdated{
+			updated: update.Processes,
+			removed: update.Removals,
 		}:
 		}
 	}
@@ -128,9 +179,11 @@ func (t *Tenant) HandleUpdate(update ProcessesUpdate) {
 // runEventProcessor runs in a separate goroutine and processes events sequentially
 // to maintain state machine consistency. Only this goroutine accesses state.
 func (a *Actuator) runEventProcessor(
-	eventCh <-chan event, shuttingDownCh chan<- struct{},
+	cfg Config,
+	eventCh <-chan event,
+	shuttingDownCh chan<- struct{},
 ) {
-	state := newState()
+	state := newState(cfg)
 	for !state.isShutdown() {
 		event := <-eventCh
 		if _, isShutdown := event.(eventShutdown); isShutdown {
@@ -150,6 +203,23 @@ func (a *Actuator) runEventProcessor(
 	}
 }
 
+func (a *Actuator) heartbeatLoop(interval time.Duration) {
+	heartbeat := time.NewTicker(interval)
+	defer heartbeat.Stop()
+	for {
+		select {
+		case <-a.shuttingDown:
+			return
+		case <-heartbeat.C:
+			select {
+			case <-a.shuttingDown:
+				return
+			case a.events <- eventHeartbeatCheck{}:
+			}
+		}
+	}
+}
+
 // sendEvent sends an event to the state machine processor
 func (a *effects) sendEvent(event event) {
 	a.events <- event
@@ -163,23 +233,33 @@ var _ effectHandler = (*effects)(nil)
 
 // loadProgram starts BPF program loading in a background goroutine.
 func (a *effects) loadProgram(
-	tenantID tenantID,
 	programID ir.ProgramID,
 	executable Executable,
 	processID ProcessID,
 	probes []ir.ProbeDefinition,
+	opts LoadOptions,
 ) {
-	tenant := a.getTenant(tenantID)
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
-		loaded, err := tenant.runtime.Load(
-			programID, executable, processID, probes,
-		)
-		if err != nil {
+		runtimePtr := a.runtime.Load()
+		if runtimePtr == nil {
 			a.sendEvent(eventProgramLoadingFailed{
 				programID: programID,
-				err:       err,
+			})
+			return
+		}
+		runtime := *runtimePtr
+		loaded, err := runtime.Load(
+			programID, executable, processID, probes, opts,
+		)
+		if err != nil {
+			log.Infof(
+				"failed to load program %v for process %v: %v",
+				programID, processID, err,
+			)
+			a.sendEvent(eventProgramLoadingFailed{
+				programID: programID,
 			})
 			return
 		}
@@ -188,16 +268,9 @@ func (a *effects) loadProgram(
 			loaded: &loadedProgram{
 				programID: programID,
 				loaded:    loaded,
-				tenantID:  tenantID,
 			},
 		})
 	}()
-}
-
-func (a *effects) getTenant(tenantID tenantID) *Tenant {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.mu.tenants[tenantID]
 }
 
 // unloadProgram performs the cleanup of a loaded program asynchronously and
@@ -223,7 +296,6 @@ func (a *effects) attachToProcess(
 		if err != nil {
 			a.sendEvent(eventProgramAttachingFailed{
 				programID: loaded.programID,
-				err:       fmt.Errorf("failed to attach to process: %w", err),
 			})
 			return
 		}
@@ -241,11 +313,11 @@ func (a *effects) attachToProcess(
 var detachLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 10)
 
 // detachFromProcess detaches a program from a process.
-func (a *effects) detachFromProcess(ap *attachedProgram) {
+func (a *effects) detachFromProcess(ap *attachedProgram, failure error) {
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
-		if err := ap.attachedProgram.Detach(); err != nil {
+		if err := ap.attachedProgram.Detach(failure); err != nil {
 			if detachLogLimiter.Allow() {
 				log.Errorf(
 					"failed to detach program %v from process %v: %v",

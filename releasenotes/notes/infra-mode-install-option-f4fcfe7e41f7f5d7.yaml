@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Adds ``DD_INFRASTRUCTURE_MODE`` install option to the ``datadog-installer-x86_64.exe`` installer and the Windows MSI installer.
+    Set ``DD_INFRASTRUCTURE_MODE`` to configure the ``infrastructure_mode`` configuration option at installation.

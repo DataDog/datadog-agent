@@ -1,0 +1,23 @@
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
+load("//bazel/tools:generate_module_bazel.bzl", "generate_module_bazel")
+
+VERSION = "2.3.1"
+
+generate_module_bazel(
+    name = "module_bazel",
+    out = "acl.MODULE.bazel.new",
+    module = "acl",
+    sha256 = "c0234042e17f11306c23c038b08e5e070edb7be44bef6697fb8734dcff1c66b1",
+    strip_prefix = "acl-%s" % VERSION,
+    tags = ["manual"],
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/acl-%s.tar.xz" % VERSION,
+        "https://download.savannah.nongnu.org/releases/acl/acl-%s.tar.xz" % VERSION,
+    ],
+)
+
+write_source_file(
+    name = "module_consistency",
+    in_file = ":acl.MODULE.bazel.new",
+    out_file = "acl.MODULE.bazel",
+)

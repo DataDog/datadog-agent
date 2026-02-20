@@ -113,9 +113,9 @@ func (lc LibConfig) ToEnvs() []corev1.EnvVar {
 		})
 	}
 	if lc.TracingServiceMapping != nil {
-		pairs := make([]string, 0, len(lc.TracingServiceMapping))
-		for _, m := range lc.TracingServiceMapping {
-			pairs = append(pairs, fmt.Sprintf("%s:%s", m.FromKey, m.ToName))
+		pairs := make([]string, len(lc.TracingServiceMapping))
+		for i, m := range lc.TracingServiceMapping {
+			pairs[i] = m.FromKey + ":" + m.ToName
 		}
 		envs = append(envs, corev1.EnvVar{
 			Name:  "DD_TRACE_SERVICE_MAPPING",
@@ -129,9 +129,9 @@ func (lc LibConfig) ToEnvs() []corev1.EnvVar {
 		})
 	}
 	if lc.TracingHeaderTags != nil {
-		pairs := make([]string, 0, len(lc.TracingHeaderTags))
-		for _, m := range lc.TracingHeaderTags {
-			pairs = append(pairs, fmt.Sprintf("%s:%s", m.Header, m.TagName))
+		pairs := make([]string, len(lc.TracingHeaderTags))
+		for i, m := range lc.TracingHeaderTags {
+			pairs[i] = m.Header + ":" + m.TagName
 		}
 		envs = append(envs, corev1.EnvVar{
 			Name:  "DD_TRACE_HEADER_TAGS",

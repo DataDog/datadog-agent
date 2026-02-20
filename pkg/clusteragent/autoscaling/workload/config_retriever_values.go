@@ -9,7 +9,9 @@ package workload
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -23,14 +25,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type valuesItem struct {
+	namespace         string
+	name              string
+	receivedTimestamp time.Time
+	receivedVersion   uint64
+	scalingValues     model.ScalingValues
+}
+
 type autoscalingValuesProcessor struct {
 	store *store
+	// State is kept nil until the first full config is processed
+	state map[string]valuesItem
+	// We are guaranteed to be called in a single thread for pre/process/post
+	// However, reconcile could be called in parallel
+	updateLock sync.Mutex
 
-	processed           map[string]struct{}
+	newState            map[string]valuesItem
 	lastProcessingError bool
 }
 
@@ -41,11 +55,12 @@ func newAutoscalingValuesProcessor(store *store) autoscalingValuesProcessor {
 }
 
 func (p *autoscalingValuesProcessor) preProcess() {
-	p.processed = make(map[string]struct{}, len(p.processed))
 	p.lastProcessingError = false
+	p.newState = make(map[string]valuesItem, len(p.state))
+	p.updateLock.Lock()
 }
 
-func (p *autoscalingValuesProcessor) process(receivedTimestamp time.Time, configKey string, rawConfig state.RawConfig) error {
+func (p *autoscalingValuesProcessor) processItem(receivedTimestamp time.Time, configKey string, rawConfig state.RawConfig) error {
 	valuesList := &kubeAutoscaling.WorkloadValuesList{}
 	err := json.Unmarshal(rawConfig.Config, &valuesList)
 	if err != nil {
@@ -54,9 +69,9 @@ func (p *autoscalingValuesProcessor) process(receivedTimestamp time.Time, config
 	}
 
 	for _, values := range valuesList.Values {
-		processErr := p.processValues(values, receivedTimestamp)
+		processErr := p.processValues(values, rawConfig.Metadata.Version, receivedTimestamp)
 		if processErr != nil {
-			err = multierror.Append(err, processErr)
+			err = multierror.Append(err, fmt.Errorf("received invalid Autoscaling Values from config id:%s, version: %d, config key: %s, discarding", rawConfig.Metadata.ID, rawConfig.Metadata.Version, configKey))
 		}
 	}
 
@@ -64,110 +79,91 @@ func (p *autoscalingValuesProcessor) process(receivedTimestamp time.Time, config
 	return err
 }
 
-func (p *autoscalingValuesProcessor) processValues(values *kubeAutoscaling.WorkloadValues, timestamp time.Time) error {
+func (p *autoscalingValuesProcessor) processValues(values *kubeAutoscaling.WorkloadValues, receivedVersion uint64, timestamp time.Time) error {
 	if values == nil || values.Namespace == "" || values.Name == "" {
 		// Should never happen, but protecting the code from invalid inputs
 		return nil
 	}
 
 	id := autoscaling.BuildObjectID(values.Namespace, values.Name)
-	podAutoscaler, podAutoscalerFound := p.store.LockRead(id, false)
-	// If the PodAutoscaler is not found, it must be created through the controller
-	// discarding the values received here.
-	// The store is not locked as we call LockRead with lockOnMissing = false
-	if !podAutoscalerFound {
-		return nil
-	}
-
-	// Update PodAutoscaler values with received values
-	// Even on error, the PodAutoscaler can be partially updated, always setting it
-	defer func() {
-		p.processed[id] = struct{}{}
-		p.store.UnlockSet(id, podAutoscaler, configRetrieverStoreID)
-	}()
-
-	// Ignore values if the PodAutoscaler has a custom recommender configuration
-	if podAutoscaler.CustomRecommenderConfiguration() != nil {
-		return nil
-	}
 
 	scalingValues, err := parseAutoscalingValues(timestamp, values)
 	if err != nil {
 		return fmt.Errorf("failed to parse scaling values for PodAutoscaler %s: %w", id, err)
 	}
 
-	podAutoscaler.UpdateFromMainValues(scalingValues)
-
-	// Emit telemetry for received values
-	// Target name cannot normally be empty, but we handle it just in case
-	var targetName string
-	if podAutoscaler.Spec() != nil {
-		targetName = podAutoscaler.Spec().TargetRef.Name
-	}
-
-	// Horizontal value
-	if scalingValues.Horizontal != nil {
-		telemetryHorizontalScaleReceivedRecommendations.Set(
-			float64(scalingValues.Horizontal.Replicas),
-			podAutoscaler.Namespace(),
-			targetName,
-			podAutoscaler.Name(),
-			string(scalingValues.Horizontal.Source),
-			le.JoinLeaderValue,
-		)
-	}
-
-	// Vertical values
-	if scalingValues.Vertical != nil {
-		for _, containerResources := range scalingValues.Vertical.ContainerResources {
-			for resource, value := range containerResources.Requests {
-				telemetryVerticalScaleReceivedRecommendationsRequests.Set(
-					value.AsApproximateFloat64(),
-					podAutoscaler.Namespace(),
-					targetName,
-					podAutoscaler.Name(),
-					string(scalingValues.Vertical.Source),
-					containerResources.Name,
-					string(resource),
-					le.JoinLeaderValue,
-				)
-			}
-
-			for resource, value := range containerResources.Limits {
-				telemetryVerticalScaleReceivedRecommendationsLimits.Set(
-					value.AsApproximateFloat64(),
-					podAutoscaler.Namespace(),
-					targetName,
-					podAutoscaler.Name(),
-					string(scalingValues.Vertical.Source),
-					containerResources.Name,
-					string(resource),
-					le.JoinLeaderValue,
-				)
-			}
-		}
+	// Buffer the values in newState instead of updating store directly
+	// Existence checks and custom recommender config checks will be done during reconcile
+	p.newState[id] = valuesItem{
+		namespace:         values.Namespace,
+		name:              values.Name,
+		receivedTimestamp: timestamp,
+		receivedVersion:   receivedVersion,
+		scalingValues:     scalingValues,
 	}
 
 	return nil
 }
 
+// postProcess is used after all configs have been processed to update internal state
 func (p *autoscalingValuesProcessor) postProcess() {
-	// We don't want to delete configs if we received incorrect data
-	if p.lastProcessingError {
-		log.Debugf("Skipping autoscaling values clean up due to errors while processing new data")
+	// TODO: How to handle the case where the remote version is lower than the local version?
+	// It can happen in case of file split
+	p.state = p.newState
+	p.newState = nil
+	p.updateLock.Unlock()
+}
+
+func (p *autoscalingValuesProcessor) reconcile(isLeader bool) {
+	// We only reconcile if we are the leader and we have a state
+	if !isLeader || p.state == nil {
 		return
 	}
 
-	// Clear values for all configs that were removed
-	p.store.Update(func(podAutoscaler model.PodAutoscalerInternal) (model.PodAutoscalerInternal, bool) {
-		if _, found := p.processed[podAutoscaler.ID()]; !found {
-			log.Infof("Autoscaling not present from remote values, removing values for PodAutoscaler %s", podAutoscaler.ID())
-			podAutoscaler.RemoveMainValues()
-			return podAutoscaler, true
+	// If we cannot TryLock, it means an update is already running.
+	// It would be useless to reconcile right after as no new data would have been received
+	if !p.updateLock.TryLock() {
+		return
+	}
+	defer p.updateLock.Unlock()
+
+	// Update PodAutoscalers with buffered values
+	for paID, item := range p.state {
+		podAutoscaler, podAutoscalerFound := p.store.LockRead(paID, false)
+		// If the PodAutoscaler is not found, it must be created through the controller
+		// discarding the values received here.
+		// The store is not locked as we call LockRead with lockOnMissing = false
+		if !podAutoscalerFound {
+			continue
 		}
 
-		return podAutoscaler, false
-	}, configRetrieverStoreID)
+		// Ignore values if the PodAutoscaler has a custom recommender configuration
+		if podAutoscaler.CustomRecommenderConfiguration() != nil {
+			p.store.UnlockSet(paID, podAutoscaler, configRetrieverStoreID)
+			continue
+		}
+
+		// Update PodAutoscaler values with received values
+		podAutoscaler.UpdateFromMainValues(item.scalingValues)
+		trackPodAutoscalerReceivedValues(podAutoscaler, item.receivedVersion)
+
+		p.store.UnlockSet(paID, podAutoscaler, configRetrieverStoreID)
+	}
+
+	// Clear values for all configs that were removed (only if no error occurred while processing new data)
+	if !p.lastProcessingError {
+		p.store.Update(func(podAutoscaler model.PodAutoscalerInternal) (model.PodAutoscalerInternal, bool) {
+			if _, found := p.state[podAutoscaler.ID()]; !found {
+				log.Infof("Autoscaling not present from remote values, removing values for PodAutoscaler %s", podAutoscaler.ID())
+				podAutoscaler.RemoveMainValues()
+				return podAutoscaler, true
+			}
+
+			return podAutoscaler, false
+		}, configRetrieverStoreID)
+	} else {
+		log.Debugf("Skipping autoscaling values clean up due to errors while processing new data")
+	}
 }
 
 func parseAutoscalingValues(timestamp time.Time, values *kubeAutoscaling.WorkloadValues) (model.ScalingValues, error) {
@@ -231,7 +227,7 @@ func parseHorizontalScalingData(timestamp time.Time, data *kubeAutoscaling.Workl
 	if data.Replicas != nil {
 		horizontalValues.Replicas = *data.Replicas
 	} else {
-		return nil, fmt.Errorf("horizontal replicas value are missing")
+		return nil, errors.New("horizontal replicas value are missing")
 	}
 
 	return horizontalValues, nil

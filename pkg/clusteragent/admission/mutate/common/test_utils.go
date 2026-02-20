@@ -9,6 +9,8 @@ package common
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -17,6 +19,9 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/dynamic"
+
+	"github.com/stretchr/testify/require"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -24,6 +29,8 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -123,14 +130,15 @@ func FakePodWithAnnotation(k, v string) *corev1.Pod {
 
 // FakePodSpec describes a pod we are going to create.
 type FakePodSpec struct {
-	NS          string
-	Name        string
-	Labels      map[string]string
-	Annotations map[string]string
-	Envs        []corev1.EnvVar
-	ParentKind  string
-	ParentName  string
-	Containers  []corev1.Container
+	NS             string
+	Name           string
+	Labels         map[string]string
+	Annotations    map[string]string
+	Envs           []corev1.EnvVar
+	ParentKind     string
+	ParentName     string
+	Containers     []corev1.Container
+	InitContainers []corev1.Container
 }
 
 // Create makes a Pod from a FakePodSpec setting up sane defaults.
@@ -145,6 +153,10 @@ func (f FakePodSpec) Create() *corev1.Pod {
 
 	if len(f.Containers) > 0 {
 		pod.Spec.Containers = append(pod.Spec.Containers, f.Containers...)
+	}
+
+	if len(f.InitContainers) > 0 {
+		pod.Spec.InitContainers = append(pod.Spec.InitContainers, f.InitContainers...)
 	}
 
 	return pod
@@ -273,6 +285,16 @@ type MockDeployment struct {
 	Languages       languagemodels.LanguageSet
 }
 
+// FakeStore sets up an empty, fake workload metadata store.
+func FakeStore(t *testing.T) workloadmeta.Component {
+	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+}
+
 // FakeStoreWithDeployment sets up a fake workloadmeta with the given
 // deployments
 func FakeStoreWithDeployment(t *testing.T, deployments []MockDeployment) workloadmeta.Component {
@@ -305,4 +327,58 @@ func FakeStoreWithDeployment(t *testing.T, deployments []MockDeployment) workloa
 	}
 
 	return mockStore
+}
+
+// MockMutator provides a mock that can be used in place of other mutators.
+type MockMutator struct {
+	// ShouldErr determines if the mutator should error when called.
+	ShoudErr bool
+	// ShouldMutate determines if the mutator should mutate when called.
+	ShouldMutate bool
+	// Called can be used to determine if the mutator was called after it was expected to be called.
+	Called bool
+}
+
+// MutatePod satisfies the mutator interface.
+func (m *MockMutator) MutatePod(_ *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+	m.Called = true
+	if m.ShoudErr {
+		return false, errors.New("error")
+	}
+
+	return m.ShouldMutate, nil
+}
+
+// FakeMutator provides a new mock of the mutator.
+func FakeMutator(_ *testing.T, shouldErr bool) *MockMutator {
+	return &MockMutator{
+		ShouldMutate: true,
+		ShoudErr:     shouldErr,
+	}
+}
+
+// FakeConfig provides a mock Datadog configuration. It's a helper so that all mocks can exist in test utils.
+func FakeConfig(t *testing.T) model.BuildableConfig {
+	return configmock.New(t)
+}
+
+// FakeConfigWithValues provides a moke Datadog config populated with a map of values.
+func FakeConfigWithValues(t *testing.T, values map[string]interface{}) model.BuildableConfig {
+	mockConfig := configmock.New(t)
+	for k, v := range values {
+		// Setting config directly on the mock requires basic types which are not easy to use with targets.
+		if k == "apm_config.instrumentation.targets" {
+			setInstrumentationTargets(t, v)
+			continue
+		}
+		mockConfig.SetWithoutSource(k, v)
+	}
+	return mockConfig
+}
+
+// setInstrumentationTargets sets the target list in the test environment.
+func setInstrumentationTargets(t *testing.T, targets any) {
+	data, err := json.Marshal(targets)
+	require.NoError(t, err)
+	t.Setenv("DD_APM_INSTRUMENTATION_TARGETS", string(data))
 }

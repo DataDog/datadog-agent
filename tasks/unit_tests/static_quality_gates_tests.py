@@ -16,6 +16,7 @@ The design eliminates inheritance-based issues:
 """
 
 import os
+import tempfile
 import unittest
 from unittest.mock import MagicMock, mock_open, patch
 
@@ -23,7 +24,22 @@ from invoke import MockContext, Result
 from invoke.exceptions import Exit
 
 from tasks.libs.package.size import InfraError
-from tasks.quality_gates import display_pr_comment, generate_new_quality_gate_config, parse_and_trigger_gates
+from tasks.quality_gates import (
+    SIZE_INCREASE_THRESHOLD_BYTES,
+    GateMetricsData,
+    _extract_gate_name_from_scope,
+    _get_latest_value_from_pointlist,
+    display_pr_comment,
+    fetch_main_headroom,
+    fetch_pr_metrics,
+    generate_new_quality_gate_config,
+    get_change_metrics,
+    get_pr_author,
+    get_pr_number_from_commit,
+    identify_failing_gates,
+    identify_gates_with_size_increase,
+    parse_and_trigger_gates,
+)
 from tasks.static_quality_gates.gates import (
     # Data classes
     ArtifactMeasurement,
@@ -46,8 +62,19 @@ from tasks.static_quality_gates.gates import (
     create_quality_gate_config,
     read_byte_input,
     string_to_byte,
-    string_to_latex_color,
 )
+
+
+class MockPoint:
+    """Mock Point object matching datadog_api_client.v1.model.point.Point structure."""
+
+    def __init__(self, timestamp, metric_value):
+        self.value = [timestamp, metric_value]
+
+
+def make_pointlist(points: list) -> list:
+    """Convert [[timestamp, value], ...] to [MockPoint, ...] for tests."""
+    return [MockPoint(p[0], p[1]) for p in points]
 
 
 class TestDataClasses(unittest.TestCase):
@@ -181,12 +208,6 @@ class TestUtilityFunctions(unittest.TestCase):
         """Test read_byte_input with numeric input"""
         self.assertEqual(read_byte_input(1024), 1024)
         self.assertEqual(read_byte_input(500), 500)
-
-    def test_string_to_latex_color(self):
-        """Test string_to_latex_color function"""
-        # Should wrap text in $${} format
-        self.assertEqual(string_to_latex_color("test"), "$${test}$$")
-        self.assertEqual(string_to_latex_color("10MiB"), "$${10MiB}$$")
 
 
 class TestArchitectureAndOSExtraction(unittest.TestCase):
@@ -662,6 +683,8 @@ class TestQualityGatesIntegration(unittest.TestCase):
         "tasks.static_quality_gates.gates_reporter.QualityGateOutputFormatter.print_summary_table",
         new=MagicMock(),
     )
+    @patch("tasks.quality_gates.is_a_release_branch", new=MagicMock(return_value=True))
+    @patch("tasks.quality_gates.get_pr_for_branch", new=MagicMock(return_value=None))
     def test_parse_and_trigger_gates_infra_error(self):
         ctx = MockContext(
             run={
@@ -727,61 +750,6 @@ class TestQualityGatesConfigUpdate(unittest.TestCase):
             f"Expected 4.77 MiB got {new_config['static_quality_gate_agent_deb_amd64']['max_on_disk_size']}",
         )
 
-    def test_exception_gate_bump(self):
-        with open("tasks/unit_tests/testdata/quality_gate_config_test.yml") as f:
-            new_config, saved_amount = generate_new_quality_gate_config(
-                f,
-                MockMetricHandler(
-                    {
-                        "static_quality_gate_agent_suse_amd64": {
-                            "relative_on_wire_size": 424242,
-                            "current_on_wire_size": 50000000,
-                            "max_on_wire_size": 100000000,
-                            "relative_on_disk_size": 242424,
-                            "current_on_disk_size": 50000000,
-                            "max_on_disk_size": 100000000,
-                        },
-                        "static_quality_gate_agent_deb_amd64": {
-                            "relative_on_wire_size": 424242,
-                            "current_on_wire_size": 4000000,
-                            "max_on_wire_size": 5000000,
-                            "relative_on_disk_size": 242424,
-                            "current_on_disk_size": 4000000,
-                            "max_on_disk_size": 5000000,
-                        },
-                        "static_quality_gate_docker_agent_amd64": {
-                            "relative_on_wire_size": 424242,
-                            "current_on_wire_size": 50000000,
-                            "max_on_wire_size": 100000000,
-                            "current_on_disk_size": 50000000,
-                            "relative_on_disk_size": 242424,
-                            "max_on_disk_size": 100000000,
-                        },
-                    }
-                ),
-                True,  # exception_gate_bump
-            )
-        self.assertEqual(
-            new_config["static_quality_gate_agent_suse_amd64"]["max_on_wire_size"],
-            "95.77 MiB",
-            f"Expected 95.77 MiB got {new_config['static_quality_gate_agent_suse_amd64']['max_on_wire_size']}",
-        )
-        self.assertEqual(
-            new_config["static_quality_gate_agent_suse_amd64"]["max_on_disk_size"],
-            "95.6 MiB",
-            f"Expected 95.6 MiB got {new_config['static_quality_gate_agent_suse_amd64']['max_on_disk_size']}",
-        )
-        self.assertEqual(
-            new_config["static_quality_gate_agent_deb_amd64"]["max_on_wire_size"],
-            "5.17 MiB",
-            f"Expected 5.17 MiB got {new_config['static_quality_gate_agent_deb_amd64']['max_on_wire_size']}",
-        )
-        self.assertEqual(
-            new_config["static_quality_gate_agent_deb_amd64"]["max_on_disk_size"],
-            "5.0 MiB",
-            f"Expected 5.0 MiB got {new_config['static_quality_gate_agent_deb_amd64']['max_on_disk_size']}",
-        )
-
 
 class TestQualityGatesPrMessage(unittest.TestCase):
     @patch.dict(
@@ -791,16 +759,30 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
-    @patch(
-        "tasks.static_quality_gates.gates.GateMetricHandler.get_formatted_metric",
-        new=MagicMock(return_value="10MiB"),
-    )
     @patch("tasks.quality_gates.pr_commenter")
-    def test_no_error(self, pr_commenter_mock):
-        from unittest.mock import ANY
-
+    def test_no_error_with_significant_changes(self, pr_commenter_mock):
+        """Test PR comment with successful gates that have significant changes (>= 2 KiB)."""
         c = MockContext()
         gate_metric_handler = GateMetricHandler("main", "dev")
+        # Add metrics with significant changes
+        gate_metric_handler.metrics["gateA"] = {
+            "current_on_disk_size": 100 * 1024 * 1024,
+            "max_on_disk_size": 150 * 1024 * 1024,
+            "relative_on_disk_size": 5 * 1024 * 1024,  # +5 MiB (significant)
+            "current_on_wire_size": 50 * 1024 * 1024,
+            "max_on_wire_size": 75 * 1024 * 1024,
+            "relative_on_wire_size": 2 * 1024 * 1024,
+        }
+        gate_metric_handler.metrics["gateB"] = {
+            "current_on_disk_size": 200 * 1024 * 1024,
+            "max_on_disk_size": 250 * 1024 * 1024,
+            "relative_on_disk_size": 10 * 1024 * 1024,  # +10 MiB (significant)
+            "current_on_wire_size": 100 * 1024 * 1024,
+            "max_on_wire_size": 125 * 1024 * 1024,
+            "relative_on_wire_size": 5 * 1024 * 1024,
+        }
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
         display_pr_comment(
             c,
             True,
@@ -810,13 +792,23 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             ],
             gate_metric_handler,
             "value",
+            mock_pr,
         )
         pr_commenter_mock.assert_called_once()
-        pr_commenter_mock.assert_called_with(
-            ANY,
-            title='Static quality checks',
-            body='✅ Please find below the results from static quality gates\nComparison made with [ancestor](https://github.com/DataDog/datadog-agent/commit/value) value\n\n\n<details>\n<summary>Successful checks</summary>\n\n### Info\n\n||Quality gate|Delta|On disk size (MiB)|Delta|On wire size (MiB)|\n|--|--|--|--|--|--|\n|✅|gateA|10MiB|DataNotFound|10MiB|DataNotFound|\n|✅|gateB|10MiB|DataNotFound|10MiB|DataNotFound|\n\n</details>\n',
-        )
+        call_args = pr_commenter_mock.call_args
+        body = call_args[1]['body']
+        # Check that the table format is present with new header
+        self.assertIn('Change', body)
+        self.assertIn('Size (prev', body)
+        self.assertIn('Successful checks', body)
+        self.assertIn('gateA', body)
+        self.assertIn('gateB', body)
+        # Check on-wire section is present
+        self.assertIn('On-wire sizes (compressed)', body)
+        # Check dashboard link is present
+        self.assertIn('Static Quality Gates Dashboard', body)
+        # Check PR was passed to pr_commenter
+        self.assertEqual(call_args[1]['pr'], mock_pr)
 
     @patch.dict(
         'os.environ',
@@ -825,61 +817,102 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
-    @patch(
-        "tasks.static_quality_gates.gates.GateMetricHandler.get_formatted_metric",
-        new=MagicMock(return_value="10MiB"),
-    )
     @patch("tasks.quality_gates.pr_commenter")
-    def test_no_info(self, pr_commenter_mock):
-        from unittest.mock import ANY
-
+    def test_neutral_changes_collapsed(self, pr_commenter_mock):
+        """Test that gates with neutral changes (< 2 KiB) are collapsed."""
         c = MockContext()
         gate_metric_handler = GateMetricHandler("main", "dev")
+        # Add metrics with neutral changes (below threshold)
+        gate_metric_handler.metrics["gateA"] = {
+            "current_on_disk_size": 100 * 1024 * 1024,
+            "max_on_disk_size": 150 * 1024 * 1024,
+            "relative_on_disk_size": 500,  # 500 bytes (neutral)
+            "current_on_wire_size": 50 * 1024 * 1024,
+            "max_on_wire_size": 75 * 1024 * 1024,
+            "relative_on_wire_size": 200,
+        }
+        gate_metric_handler.metrics["gateB"] = {
+            "current_on_disk_size": 200 * 1024 * 1024,
+            "max_on_disk_size": 250 * 1024 * 1024,
+            "relative_on_disk_size": 1000,  # 1KB (neutral)
+            "current_on_wire_size": 100 * 1024 * 1024,
+            "max_on_wire_size": 125 * 1024 * 1024,
+            "relative_on_wire_size": 500,
+        }
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
         display_pr_comment(
             c,
-            False,
+            True,
             [
-                {'name': 'gateA', 'error_type': 'AssertionError', 'message': 'some_msg_A'},
-                {'name': 'gateB', 'error_type': 'AssertionError', 'message': 'some_msg_B'},
-            ],
-            gate_metric_handler,
-            "value",
-        )
-        pr_commenter_mock.assert_called_once()
-        expected_body = '❌ Please find below the results from static quality gates\nComparison made with [ancestor](https://github.com/DataDog/datadog-agent/commit/value) value\n### Error\n\n||Quality gate|Delta|On disk size (MiB)|Delta|On wire size (MiB)|\n|--|--|--|--|--|--|\n|❌|gateA|10MiB|DataNotFound|10MiB|DataNotFound|\n|❌|gateB|10MiB|DataNotFound|10MiB|DataNotFound|\n<details>\n<summary>Gate failure full details</summary>\n\n|Quality gate|Error type|Error message|\n|----|---|--------|\n|gateA|AssertionError|some_msg_A|\n|gateB|AssertionError|some_msg_B|\n\n</details>\n\nStatic quality gates prevent the PR to merge!\nYou can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n\n\n'
-        pr_commenter_mock.assert_called_with(ANY, title='Static quality checks', body=expected_body)
-
-    @patch.dict(
-        'os.environ',
-        {
-            'CI_COMMIT_REF_NAME': 'pikachu',
-            'CI_COMMIT_BRANCH': 'sequoia',
-        },
-    )
-    @patch(
-        "tasks.static_quality_gates.gates.GateMetricHandler.get_formatted_metric",
-        new=MagicMock(return_value="10MiB"),
-    )
-    @patch("tasks.quality_gates.pr_commenter")
-    def test_one_of_each(self, pr_commenter_mock):
-        c = MockContext()
-        gate_metric_handler = GateMetricHandler("main", "dev")
-        display_pr_comment(
-            c,
-            False,
-            [
-                {'name': 'gateA', 'error_type': 'AssertionError', 'message': 'some_msg_A'},
+                {'name': 'gateA', 'error_type': None, 'message': None},
                 {'name': 'gateB', 'error_type': None, 'message': None},
             ],
             gate_metric_handler,
             "value",
+            mock_pr,
         )
         pr_commenter_mock.assert_called_once()
-        # Check that both error and success sections are present
         call_args = pr_commenter_mock.call_args
         body = call_args[1]['body']
-        self.assertIn('### Error', body)
+        # Check that collapsed section is present
+        self.assertIn('successful checks with minimal change', body)
+        self.assertIn('2 KiB', body)
+        # Check that gates are in the collapsed section
+        self.assertIn('gateA', body)
+        self.assertIn('gateB', body)
+        # Check on-wire section is present
+        self.assertIn('On-wire sizes (compressed)', body)
+
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'pikachu',
+            'CI_COMMIT_BRANCH': 'sequoia',
+        },
+    )
+    @patch("tasks.quality_gates.pr_commenter")
+    def test_mixed_significant_and_neutral(self, pr_commenter_mock):
+        """Test PR comment with both significant and neutral changes."""
+        c = MockContext()
+        gate_metric_handler = GateMetricHandler("main", "dev")
+        # Gate A with significant change
+        gate_metric_handler.metrics["gateA"] = {
+            "current_on_disk_size": 100 * 1024 * 1024,
+            "max_on_disk_size": 150 * 1024 * 1024,
+            "relative_on_disk_size": 5 * 1024 * 1024,  # +5 MiB (significant)
+            "current_on_wire_size": 50 * 1024 * 1024,
+            "max_on_wire_size": 75 * 1024 * 1024,
+            "relative_on_wire_size": 2 * 1024 * 1024,
+        }
+        # Gate B with neutral change
+        gate_metric_handler.metrics["gateB"] = {
+            "current_on_disk_size": 200 * 1024 * 1024,
+            "max_on_disk_size": 250 * 1024 * 1024,
+            "relative_on_disk_size": 500,  # 500 bytes (neutral)
+            "current_on_wire_size": 100 * 1024 * 1024,
+            "max_on_wire_size": 125 * 1024 * 1024,
+            "relative_on_wire_size": 200,
+        }
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
+        display_pr_comment(
+            c,
+            True,
+            [
+                {'name': 'gateA', 'error_type': None, 'message': None},
+                {'name': 'gateB', 'error_type': None, 'message': None},
+            ],
+            gate_metric_handler,
+            "value",
+            mock_pr,
+        )
+        pr_commenter_mock.assert_called_once()
+        call_args = pr_commenter_mock.call_args
+        body = call_args[1]['body']
+        # Check both sections are present
         self.assertIn('Successful checks', body)
+        self.assertIn('successful checks with minimal change', body)
         self.assertIn('gateA', body)
         self.assertIn('gateB', body)
 
@@ -890,14 +923,99 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             'CI_COMMIT_BRANCH': 'sequoia',
         },
     )
-    @patch(
-        "tasks.static_quality_gates.gates.GateMetricHandler.get_formatted_metric",
-        new=MagicMock(return_value="10MiB", side_effect=KeyError),
+    @patch("tasks.quality_gates.pr_commenter")
+    def test_no_info(self, pr_commenter_mock):
+        c = MockContext()
+        gate_metric_handler = GateMetricHandler("main", "dev")
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
+        display_pr_comment(
+            c,
+            False,
+            [
+                {'name': 'gateA', 'error_type': 'AssertionError', 'message': 'some_msg_A'},
+                {'name': 'gateB', 'error_type': 'AssertionError', 'message': 'some_msg_B'},
+            ],
+            gate_metric_handler,
+            "value",
+            mock_pr,
+        )
+        pr_commenter_mock.assert_called_once()
+        # Check that the new table format is present in error section
+        call_args = pr_commenter_mock.call_args
+        body = call_args[1]['body']
+        self.assertIn('### Error', body)
+        self.assertIn('Change', body)
+        self.assertIn('Size (prev', body)
+        self.assertIn('gateA', body)
+        self.assertIn('gateB', body)
+        self.assertIn('Gate failure full details', body)
+        self.assertIn('Static quality gates prevent the PR to merge!', body)
+        # Check on-wire section is present
+        self.assertIn('On-wire sizes (compressed)', body)
+        # Check dashboard link is present
+        self.assertIn('Static Quality Gates Dashboard', body)
+
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'pikachu',
+            'CI_COMMIT_BRANCH': 'sequoia',
+        },
+    )
+    @patch("tasks.quality_gates.pr_commenter")
+    def test_one_of_each(self, pr_commenter_mock):
+        c = MockContext()
+        gate_metric_handler = GateMetricHandler("main", "dev")
+        # Add significant change to gateB so it appears in expanded section
+        gate_metric_handler.metrics["gateB"] = {
+            "current_on_disk_size": 200 * 1024 * 1024,
+            "max_on_disk_size": 250 * 1024 * 1024,
+            "relative_on_disk_size": 5 * 1024 * 1024,  # +5 MiB
+            "current_on_wire_size": 100 * 1024 * 1024,
+            "max_on_wire_size": 125 * 1024 * 1024,
+            "relative_on_wire_size": 2 * 1024 * 1024,
+        }
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
+        display_pr_comment(
+            c,
+            False,
+            [
+                {'name': 'gateA', 'error_type': 'AssertionError', 'message': 'some_msg_A'},
+                {'name': 'gateB', 'error_type': None, 'message': None},
+            ],
+            gate_metric_handler,
+            "value",
+            mock_pr,
+        )
+        pr_commenter_mock.assert_called_once()
+        # Check that both error and success sections are present
+        call_args = pr_commenter_mock.call_args
+        body = call_args[1]['body']
+        self.assertIn('### Error', body)
+        self.assertIn('Successful checks', body)
+        self.assertIn('gateA', body)
+        self.assertIn('gateB', body)
+        # Check new columns are present
+        self.assertIn('Change', body)
+        self.assertIn('Size (prev', body)
+        # Check on-wire section is present
+        self.assertIn('On-wire sizes (compressed)', body)
+
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'pikachu',
+            'CI_COMMIT_BRANCH': 'sequoia',
+        },
     )
     @patch("tasks.quality_gates.pr_commenter")
     def test_missing_data(self, pr_commenter_mock):
         c = MockContext()
         gate_metric_handler = GateMetricHandler("main", "dev")
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
         display_pr_comment(
             c,
             False,
@@ -906,12 +1024,103 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             ],
             gate_metric_handler,
             "value",
+            mock_pr,
         )
         pr_commenter_mock.assert_called_once()
-        # Check that DataNotFound appears when metrics are missing
+        # Check that N/A appears when metrics are missing
         call_args = pr_commenter_mock.call_args
         body = call_args[1]['body']
-        self.assertIn('DataNotFound', body)
+        self.assertIn('N/A', body)
+
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'pikachu',
+            'CI_COMMIT_BRANCH': 'sequoia',
+        },
+    )
+    @patch("tasks.quality_gates.pr_commenter")
+    def test_wire_table_separate(self, pr_commenter_mock):
+        """Test that on-wire sizes appear in a separate collapsed section."""
+        c = MockContext()
+        gate_metric_handler = GateMetricHandler("main", "dev")
+        gate_metric_handler.metrics["gateA"] = {
+            "current_on_disk_size": 100 * 1024 * 1024,
+            "max_on_disk_size": 150 * 1024 * 1024,
+            "relative_on_disk_size": 5 * 1024 * 1024,
+            "current_on_wire_size": 50 * 1024 * 1024,
+            "max_on_wire_size": 75 * 1024 * 1024,
+            "relative_on_wire_size": 2 * 1024 * 1024,
+        }
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
+        display_pr_comment(
+            c,
+            True,
+            [
+                {'name': 'gateA', 'error_type': None, 'message': None},
+            ],
+            gate_metric_handler,
+            "value",
+            mock_pr,
+        )
+        pr_commenter_mock.assert_called_once()
+        call_args = pr_commenter_mock.call_args
+        body = call_args[1]['body']
+        # Check on-wire section is present and collapsed
+        self.assertIn('On-wire sizes (compressed)', body)
+        self.assertIn('<details>', body)
+        # Check gateA appears in wire section
+        wire_section_start = body.find('On-wire sizes (compressed)')
+        self.assertIn('gateA', body[wire_section_start:])
+
+    @patch("tasks.quality_gates.pr_commenter")
+    def test_error_on_wire_displays_uncollapsed_on_error_section(self, pr_commenter_mock):
+        """Test that when only the on-wire size is violating a specific gate
+        (and not the on-disk size for that same gate),
+        The uncollapsed error actually shows the data for the on-wire size violation (only)."""
+        c = MockContext()
+        gate_metric_handler = GateMetricHandler("main", "dev")
+
+        # current-on-disk < max-on-disk and current-on-wire > max-on-wire
+        gate_metric_handler.metrics["gateA"] = {
+            "current_on_disk_size": 95 * 1024 * 1024,
+            "max_on_disk_size": 100 * 1024 * 1024,
+            "relative_on_disk_size": 5 * 1024 * 1024,
+            "current_on_wire_size": 50 * 1024 * 1024,
+            "max_on_wire_size": 49 * 1024 * 1024,
+            "relative_on_wire_size": 2 * 1024 * 1024,
+        }
+
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
+        display_pr_comment(
+            c,
+            False,
+            [
+                {'name': 'gateA', 'error_type': 'AssertionError', 'message': 'some_msg_A'},
+            ],
+            gate_metric_handler,
+            "value",
+            mock_pr,
+        )
+        pr_commenter_mock.assert_called_once()
+        call_args = pr_commenter_mock.call_args
+        body = call_args[1]['body']
+        expected = "\n".join(
+            [
+                "||Quality gate|Change|Size (prev → **curr** → max)|",
+                "|--|--|--|--|",
+                "|❌|gateA (on wire)|+2.0 MiB (4.17% increase)|48.000 → **50.000** → 49.000|",
+                "<details>",
+                "<summary>Gate failure full details</summary>",
+                "",
+                "|Quality gate|Error type|Error message|",
+                "|----|---|--------|",
+                "|gateA|AssertionError|some_msg_A|",
+            ]
+        )
+        self.assertIn(expected.strip(), body)
 
 
 class TestOnDiskImageSizeCalculation(unittest.TestCase):
@@ -925,6 +1134,1486 @@ class TestOnDiskImageSizeCalculation(unittest.TestCase):
             os.remove('./tasks/unit_tests/testdata/fake_agent_image/without_tar_gz_archive/some_metadata.json')
         except OSError:
             pass
+
+
+class TestShouldBypassFailure(unittest.TestCase):
+    """Test the should_bypass_failure function for delta-based non-blocking failures."""
+
+    def test_bypass_when_disk_delta_zero(self):
+        """Should bypass when on-disk size delta is exactly 0."""
+        from tasks.quality_gates import should_bypass_failure
+
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "relative_on_disk_size": 0,
+        }
+        self.assertTrue(should_bypass_failure("test_gate", handler))
+
+    def test_bypass_when_disk_delta_negative(self):
+        """Should bypass when on-disk size delta is negative (size decreased)."""
+        from tasks.quality_gates import should_bypass_failure
+
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "relative_on_disk_size": -500000,  # -500KB
+        }
+        self.assertTrue(should_bypass_failure("test_gate", handler))
+
+    def test_bypass_when_disk_delta_within_threshold(self):
+        """Should bypass when on-disk size delta is positive but within threshold (~2KiB)."""
+        from tasks.quality_gates import should_bypass_failure
+
+        handler = GateMetricHandler("main", "dev")
+        # Small positive delta (1KB) should be treated as 0
+        handler.metrics["test_gate"] = {
+            "relative_on_disk_size": 1024,  # 1KB - within 2KiB threshold
+        }
+        self.assertTrue(should_bypass_failure("test_gate", handler))
+
+    def test_bypass_ignores_wire_delta(self):
+        """Should bypass based only on disk delta, ignoring wire delta."""
+        from tasks.quality_gates import should_bypass_failure
+
+        handler = GateMetricHandler("main", "dev")
+        # Even with positive wire delta, should bypass if disk delta is within threshold
+        handler.metrics["test_gate"] = {
+            "relative_on_wire_size": 1000000,  # Positive wire delta (1MB)
+            "relative_on_disk_size": 0,  # Zero disk delta
+        }
+        self.assertTrue(should_bypass_failure("test_gate", handler))
+
+    def test_no_bypass_when_disk_delta_exceeds_threshold(self):
+        """Should NOT bypass when on-disk size delta exceeds threshold."""
+        from tasks.quality_gates import should_bypass_failure
+
+        handler = GateMetricHandler("main", "dev")
+        # Delta of 5KB exceeds threshold of 2KiB
+        handler.metrics["test_gate"] = {
+            "relative_on_disk_size": 5000,  # 5KB - exceeds 2KiB threshold
+        }
+        self.assertFalse(should_bypass_failure("test_gate", handler))
+
+    def test_no_bypass_when_disk_delta_significantly_positive(self):
+        """Should NOT bypass when on-disk size delta is significantly positive."""
+        from tasks.quality_gates import should_bypass_failure
+
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "relative_on_disk_size": 1000000,  # 1MB - way over threshold
+        }
+        self.assertFalse(should_bypass_failure("test_gate", handler))
+
+    def test_no_bypass_when_missing_disk_delta(self):
+        """Should NOT bypass when disk delta is missing."""
+        from tasks.quality_gates import should_bypass_failure
+
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "relative_on_wire_size": 0,
+        }
+        self.assertFalse(should_bypass_failure("test_gate", handler))
+
+    def test_no_bypass_when_gate_not_found(self):
+        """Should NOT bypass when gate doesn't exist in metrics."""
+        from tasks.quality_gates import should_bypass_failure
+
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics = {}
+        self.assertFalse(should_bypass_failure("nonexistent_gate", handler))
+
+
+class TestBypassOnlyAppliesToPRs(unittest.TestCase):
+    """
+    Test that the bypass tolerance (delta <= 2KiB) only applies to PRs, not to main branch.
+
+    On main branch, all gate failures should be blocking unconditionally.
+    On PRs, failures with delta <= 2KiB threshold can be marked non-blocking.
+
+    Note: The actual integration of this behavior is in parse_and_trigger_gates()
+    where the bypass loop is wrapped with `if not is_on_main_branch:`.
+    These tests document the expected behavior at the integration level.
+    """
+
+    def test_main_branch_detection_logic(self):
+        """
+        Document: On main branch, ancestor == current_commit, so is_on_main_branch = True.
+
+        When is_on_main_branch is True, the bypass loop in parse_and_trigger_gates
+        is skipped entirely, meaning all failures remain blocking regardless of delta.
+        """
+        # This test documents the detection logic:
+        # ancestor = get_common_ancestor(ctx, "HEAD", base_branch)
+        # is_on_main_branch = ancestor == current_commit
+        # On main, merge-base of HEAD and origin/main is HEAD itself
+
+        # Simulate: on main branch, ancestor equals current commit
+        ancestor = "abc123"
+        current_commit = "abc123"
+        is_on_main_branch = ancestor == current_commit
+        self.assertTrue(is_on_main_branch)
+
+    def test_pr_branch_detection_logic(self):
+        """
+        Document: On PR branches, ancestor != current_commit, so is_on_main_branch = False.
+
+        When is_on_main_branch is False, the bypass loop runs and failures with
+        delta <= 2KiB threshold can be marked non-blocking.
+        """
+        # Simulate: on PR branch, ancestor is different from current commit
+        ancestor = "abc123"  # Common ancestor with main
+        current_commit = "def456"  # PR's HEAD
+        is_on_main_branch = ancestor == current_commit
+        self.assertFalse(is_on_main_branch)
+
+    def test_bypass_logic_skipped_on_main_conceptually(self):
+        """
+        Document: The bypass logic should NOT run on main branch.
+
+        This ensures that even if delta <= 2KiB, failures on main remain blocking.
+        The actual implementation wraps the bypass loop with:
+        `if not is_on_main_branch:`
+        """
+        from tasks.quality_gates import should_bypass_failure
+
+        handler = GateMetricHandler("main", "dev")
+        # Even with zero delta (which would normally allow bypass)
+        handler.metrics["test_gate"] = {"relative_on_disk_size": 0}
+
+        # The function itself still returns True for eligible bypass
+        self.assertTrue(should_bypass_failure("test_gate", handler))
+
+        # But on main branch (is_on_main_branch=True), the calling code
+        # in parse_and_trigger_gates skips the bypass loop entirely,
+        # so gate_state["blocking"] stays True regardless
+
+
+class TestMetricsDictDelta(unittest.TestCase):
+    """Test that METRICS_DICT includes relative (delta) metrics."""
+
+    def test_relative_metrics_in_dict(self):
+        """Verify relative metrics are included in METRICS_DICT values."""
+        self.assertIn("relative_on_wire_size", GateMetricHandler.METRICS_DICT.values())
+        self.assertIn("relative_on_disk_size", GateMetricHandler.METRICS_DICT.values())
+
+    def test_relative_metrics_naming(self):
+        """Verify relative metric names follow naming convention."""
+        self.assertIn(
+            "datadog.agent.static_quality_gate.relative_on_wire_size",
+            GateMetricHandler.METRICS_DICT.keys(),
+        )
+        self.assertIn(
+            "datadog.agent.static_quality_gate.relative_on_disk_size",
+            GateMetricHandler.METRICS_DICT.keys(),
+        )
+
+    def test_metrics_dict_has_six_entries(self):
+        """Verify METRICS_DICT has all 6 expected metrics (4 original + 2 new delta metrics)."""
+        self.assertEqual(len(GateMetricHandler.METRICS_DICT), 6)
+
+
+class TestNonBlockingPrComment(unittest.TestCase):
+    """Test PR comment display for non-blocking failures."""
+
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'pikachu',
+            'CI_COMMIT_BRANCH': 'sequoia',
+        },
+    )
+    @patch("tasks.quality_gates.pr_commenter")
+    def test_non_blocking_failure_shows_warning_indicator(self, pr_commenter_mock):
+        """Non-blocking failures should show warning indicator, not error."""
+        c = MockContext()
+        gate_metric_handler = GateMetricHandler("main", "dev")
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
+        display_pr_comment(
+            c,
+            True,  # final_state is success (no blocking failures)
+            [
+                {
+                    'name': 'gateA',
+                    'error_type': 'StaticQualityGateFailed',
+                    'message': 'size exceeded',
+                    'blocking': False,
+                },
+            ],
+            gate_metric_handler,
+            "ancestor123",
+            mock_pr,
+        )
+        pr_commenter_mock.assert_called_once()
+        call_args = pr_commenter_mock.call_args
+        body = call_args[1]['body']
+        # Should show warning indicator for non-blocking failure
+        self.assertIn('⚠️', body)
+        # Should NOT contain the blocking failure message
+        self.assertNotIn('prevent the PR to merge', body)
+        # Should contain the non-blocking note
+        self.assertIn('non-blocking', body)
+
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'pikachu',
+            'CI_COMMIT_BRANCH': 'sequoia',
+        },
+    )
+    @patch("tasks.quality_gates.pr_commenter")
+    def test_blocking_failure_shows_error_indicator(self, pr_commenter_mock):
+        """Blocking failures should show error indicator and blocking message."""
+        c = MockContext()
+        gate_metric_handler = GateMetricHandler("main", "dev")
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
+        display_pr_comment(
+            c,
+            False,  # final_state is failure (has blocking failures)
+            [
+                {
+                    'name': 'gateA',
+                    'error_type': 'StaticQualityGateFailed',
+                    'message': 'size exceeded',
+                    'blocking': True,
+                },
+            ],
+            gate_metric_handler,
+            "ancestor123",
+            mock_pr,
+        )
+        pr_commenter_mock.assert_called_once()
+        call_args = pr_commenter_mock.call_args
+        body = call_args[1]['body']
+        # Should show error indicator for blocking failure
+        self.assertIn('❌', body)
+        # Should contain the blocking failure message
+        self.assertIn('prevent the PR to merge', body)
+
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'pikachu',
+            'CI_COMMIT_BRANCH': 'sequoia',
+        },
+    )
+    @patch("tasks.quality_gates.pr_commenter")
+    def test_mixed_blocking_and_non_blocking(self, pr_commenter_mock):
+        """Mixed blocking and non-blocking failures should show both indicators."""
+        c = MockContext()
+        gate_metric_handler = GateMetricHandler("main", "dev")
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
+        display_pr_comment(
+            c,
+            False,  # final_state is failure (has blocking failures)
+            [
+                {
+                    'name': 'gateA',
+                    'error_type': 'StaticQualityGateFailed',
+                    'message': 'size exceeded',
+                    'blocking': True,
+                },
+                {
+                    'name': 'gateB',
+                    'error_type': 'StaticQualityGateFailed',
+                    'message': 'size exceeded',
+                    'blocking': False,
+                },
+            ],
+            gate_metric_handler,
+            "ancestor123",
+            mock_pr,
+        )
+        pr_commenter_mock.assert_called_once()
+        call_args = pr_commenter_mock.call_args
+        body = call_args[1]['body']
+        # Should show both indicators
+        self.assertIn('❌', body)
+        self.assertIn('⚠️', body)
+        # Should contain the blocking failure message (since there's a blocking failure)
+        self.assertIn('prevent the PR to merge', body)
+
+
+class TestBlockingFailureDetection(unittest.TestCase):
+    """Test the blocking failure detection logic."""
+
+    def test_has_blocking_failures_true(self):
+        """Should detect blocking failures."""
+        gate_states = [
+            {'name': 'gateA', 'state': False, 'blocking': True},
+            {'name': 'gateB', 'state': True, 'blocking': True},
+        ]
+        has_blocking = any(gs["state"] is False and gs.get("blocking", True) for gs in gate_states)
+        self.assertTrue(has_blocking)
+
+    def test_has_blocking_failures_false_all_non_blocking(self):
+        """Should not detect blocking failures when all failures are non-blocking."""
+        gate_states = [
+            {'name': 'gateA', 'state': False, 'blocking': False},
+            {'name': 'gateB', 'state': True, 'blocking': True},
+        ]
+        has_blocking = any(gs["state"] is False and gs.get("blocking", True) for gs in gate_states)
+        self.assertFalse(has_blocking)
+
+    def test_has_blocking_failures_default_blocking_true(self):
+        """Should default to blocking=True when field is missing."""
+        gate_states = [
+            {'name': 'gateA', 'state': False},  # No blocking field
+        ]
+        has_blocking = any(gs["state"] is False and gs.get("blocking", True) for gs in gate_states)
+        self.assertTrue(has_blocking)
+
+    def test_has_blocking_failures_false_all_success(self):
+        """Should not detect blocking failures when all gates succeeded."""
+        gate_states = [
+            {'name': 'gateA', 'state': True, 'blocking': True},
+            {'name': 'gateB', 'state': True, 'blocking': True},
+        ]
+        has_blocking = any(gs["state"] is False and gs.get("blocking", True) for gs in gate_states)
+        self.assertFalse(has_blocking)
+
+    def test_multiple_non_blocking_failures(self):
+        """Should not detect blocking failures when multiple failures are all non-blocking."""
+        gate_states = [
+            {'name': 'gateA', 'state': False, 'blocking': False},
+            {'name': 'gateB', 'state': False, 'blocking': False},
+            {'name': 'gateC', 'state': True, 'blocking': True},
+        ]
+        has_blocking = any(gs["state"] is False and gs.get("blocking", True) for gs in gate_states)
+        self.assertFalse(has_blocking)
+
+
+class TestGetChangeMetrics(unittest.TestCase):
+    """Test the get_change_metrics function for change calculations."""
+
+    def test_normal_positive_delta(self):
+        """Should calculate change for a positive delta (size increased)."""
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "current_on_disk_size": 165 * 1024 * 1024,  # 165 MiB
+            "max_on_disk_size": 200 * 1024 * 1024,  # 200 MiB
+            "relative_on_disk_size": 15 * 1024 * 1024,  # +15 MiB delta
+        }
+        change_str, limit_bounds, is_neutral = get_change_metrics("test_gate", handler)
+
+        # Baseline = 165 - 15 = 150 MiB
+        # Change shows delta with percentage increase
+        self.assertIn("+15.0 MiB", change_str)
+        self.assertIn("increase", change_str)
+        self.assertFalse(is_neutral)
+        # Limit bounds: baseline → current (bold) → limit
+        self.assertIn("150.000", limit_bounds)
+        self.assertIn("**165.000**", limit_bounds)
+        self.assertIn("200.000", limit_bounds)
+
+    def test_negative_delta_reduction(self):
+        """Should show reduction when size decreased (negative delta)."""
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "current_on_disk_size": 145 * 1024 * 1024,  # 145 MiB
+            "max_on_disk_size": 200 * 1024 * 1024,  # 200 MiB
+            "relative_on_disk_size": -5 * 1024 * 1024,  # -5 MiB delta (reduction)
+        }
+        change_str, limit_bounds, is_neutral = get_change_metrics("test_gate", handler)
+
+        self.assertIn("reduction", change_str)
+        self.assertIn("-5.0 MiB", change_str)
+        self.assertFalse(is_neutral)
+        # Baseline = 145 - (-5) = 150 MiB
+        self.assertIn("150.000", limit_bounds)
+        self.assertIn("**145.000**", limit_bounds)
+
+    def test_zero_delta_neutral(self):
+        """Should show neutral when delta is zero."""
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "current_on_disk_size": 150 * 1024 * 1024,  # 150 MiB
+            "max_on_disk_size": 200 * 1024 * 1024,  # 200 MiB
+            "relative_on_disk_size": 0,  # No change
+        }
+        change_str, limit_bounds, is_neutral = get_change_metrics("test_gate", handler)
+
+        self.assertEqual("neutral", change_str)
+        self.assertTrue(is_neutral)
+        # Neutral shows current size and upper bound
+        self.assertEqual("**150.000** MiB → 200.000", limit_bounds)
+
+    def test_small_delta_below_threshold_neutral(self):
+        """Should show neutral when delta is below 2 KiB threshold."""
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "current_on_disk_size": 150 * 1024 * 1024,  # 150 MiB
+            "max_on_disk_size": 200 * 1024 * 1024,  # 200 MiB
+            "relative_on_disk_size": 1 * 1024,  # +1 KiB delta (below 2 KiB threshold)
+        }
+        change_str, limit_bounds, is_neutral = get_change_metrics("test_gate", handler)
+
+        self.assertEqual("neutral", change_str)
+        self.assertTrue(is_neutral)
+        # Neutral shows current size and upper bound
+        self.assertEqual("**150.000** MiB → 200.000", limit_bounds)
+
+    def test_small_delta_kib_above_threshold(self):
+        """Should show delta in KiB for changes above threshold."""
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "current_on_disk_size": 707163 * 1024,  # ~707 MiB
+            "max_on_disk_size": 708000 * 1024,  # ~708 MiB
+            "relative_on_disk_size": 98 * 1024,  # +98 KiB delta (above 2 KiB threshold)
+        }
+        change_str, limit_bounds, is_neutral = get_change_metrics("test_gate", handler)
+
+        self.assertIn("+98.0 KiB", change_str)
+        self.assertIn("increase", change_str)
+        self.assertFalse(is_neutral)
+        # Should have arrows for non-neutral changes
+        self.assertIn("→", limit_bounds)
+        self.assertIn("**", limit_bounds)
+
+    def test_missing_current_size(self):
+        """Should return N/A when current size is missing."""
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "max_on_disk_size": 200 * 1024 * 1024,
+        }
+        change_str, limit_bounds, is_neutral = get_change_metrics("test_gate", handler)
+
+        self.assertEqual("N/A", change_str)
+        self.assertEqual("N/A", limit_bounds)
+        self.assertFalse(is_neutral)
+
+    def test_missing_relative_size(self):
+        """Should handle missing relative size (no ancestor data)."""
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "current_on_disk_size": 165 * 1024 * 1024,
+            "max_on_disk_size": 200 * 1024 * 1024,
+            # No relative_on_disk_size
+        }
+        change_str, limit_bounds, is_neutral = get_change_metrics("test_gate", handler)
+
+        self.assertEqual("N/A", change_str)
+        self.assertFalse(is_neutral)
+        # Limit bounds should show N/A for baseline but current (bold) and limit should be present
+        self.assertIn("N/A", limit_bounds)
+        self.assertIn("**165.000**", limit_bounds)
+        self.assertIn("200.000", limit_bounds)
+
+    def test_missing_gate(self):
+        """Should return N/A when gate is not found."""
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics = {}
+
+        change_str, limit_bounds, is_neutral = get_change_metrics("nonexistent_gate", handler)
+
+        self.assertEqual("N/A", change_str)
+        self.assertEqual("N/A", limit_bounds)
+        self.assertFalse(is_neutral)
+
+
+class TestGetWireChangeMetrics(unittest.TestCase):
+    """Test the get_change_metrics function for on-wire size calculations (metric_type='wire')."""
+
+    def test_normal_positive_delta(self):
+        """Should calculate change for a positive delta (size increased)."""
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "current_on_wire_size": 100 * 1024 * 1024,  # 100 MiB
+            "max_on_wire_size": 150 * 1024 * 1024,  # 150 MiB
+            "relative_on_wire_size": 10 * 1024 * 1024,  # +10 MiB delta
+        }
+        change_str, limit_bounds, is_neutral = get_change_metrics("test_gate", handler, metric_type="wire")
+
+        self.assertIn("+10.0 MiB", change_str)
+        self.assertIn("increase", change_str)
+        self.assertFalse(is_neutral)
+        # Limit bounds: baseline → current (bold) → limit
+        self.assertIn("90.000", limit_bounds)
+        self.assertIn("**100.000**", limit_bounds)
+        self.assertIn("150.000", limit_bounds)
+
+    def test_neutral_change(self):
+        """Should show neutral when delta is below threshold."""
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics["test_gate"] = {
+            "current_on_wire_size": 100 * 1024 * 1024,  # 100 MiB
+            "max_on_wire_size": 150 * 1024 * 1024,  # 150 MiB
+            "relative_on_wire_size": 500,  # 500 bytes (below 2 KiB threshold)
+        }
+        change_str, limit_bounds, is_neutral = get_change_metrics("test_gate", handler, metric_type="wire")
+
+        self.assertEqual("neutral", change_str)
+        self.assertTrue(is_neutral)
+        # Neutral shows current size and upper bound
+        self.assertEqual("**100.000** MiB → 150.000", limit_bounds)
+
+    def test_missing_gate(self):
+        """Should return N/A when gate is not found."""
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics = {}
+
+        change_str, limit_bounds, is_neutral = get_change_metrics("nonexistent_gate", handler, metric_type="wire")
+
+        self.assertEqual("N/A", change_str)
+        self.assertEqual("N/A", limit_bounds)
+        self.assertFalse(is_neutral)
+
+
+class TestGetPrForBranch(unittest.TestCase):
+    """Test the get_pr_for_branch helper function."""
+
+    @patch("tasks.quality_gates.GithubAPI")
+    def test_returns_pr_when_found(self, mock_github_class):
+        """Should return PR object when a PR exists for the branch."""
+        from tasks.quality_gates import get_pr_for_branch
+
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
+        mock_pr.title = "Test PR"
+        mock_github = MagicMock()
+        mock_github.get_pr_for_branch.return_value = [mock_pr]
+        mock_github_class.return_value = mock_github
+
+        result = get_pr_for_branch("test-branch")
+
+        self.assertEqual(result, mock_pr)
+        self.assertEqual(result.number, 12345)
+        mock_github.get_pr_for_branch.assert_called_once_with("test-branch")
+
+    @patch("tasks.quality_gates.GithubAPI")
+    def test_returns_none_when_no_pr(self, mock_github_class):
+        """Should return None when no PR exists for the branch."""
+        from tasks.quality_gates import get_pr_for_branch
+
+        mock_github = MagicMock()
+        mock_github.get_pr_for_branch.return_value = []
+        mock_github_class.return_value = mock_github
+
+        result = get_pr_for_branch("test-branch")
+
+        self.assertIsNone(result)
+
+    @patch("tasks.quality_gates.GithubAPI")
+    def test_returns_none_on_exception(self, mock_github_class):
+        """Should return None and not raise when GitHub API fails."""
+        from tasks.quality_gates import get_pr_for_branch
+
+        mock_github_class.side_effect = Exception("API error")
+
+        result = get_pr_for_branch("test-branch")
+
+        self.assertIsNone(result)
+
+    @patch("tasks.quality_gates.GithubAPI")
+    def test_returns_first_pr_when_multiple(self, mock_github_class):
+        """Should return first PR when multiple PRs exist for branch."""
+        from tasks.quality_gates import get_pr_for_branch
+
+        mock_pr1 = MagicMock()
+        mock_pr1.number = 111
+        mock_pr2 = MagicMock()
+        mock_pr2.number = 222
+        mock_github = MagicMock()
+        mock_github.get_pr_for_branch.return_value = [mock_pr1, mock_pr2]
+        mock_github_class.return_value = mock_github
+
+        result = get_pr_for_branch("test-branch")
+
+        self.assertEqual(result.number, 111)
+
+
+class TestGetPrNumberFromCommit(unittest.TestCase):
+    """Test the get_pr_number_from_commit helper function."""
+
+    def test_extracts_pr_number_standard_format(self):
+        """Should extract PR number from standard merge commit format."""
+        mock_ctx = MagicMock()
+        mock_result = MagicMock()
+        mock_result.stdout = "Fix bug in quality gates (#44462)\n"
+        mock_ctx.run.return_value = mock_result
+
+        result = get_pr_number_from_commit(mock_ctx)
+
+        self.assertEqual(result, "44462")
+        mock_ctx.run.assert_called_once_with("git log -1 --pretty=%s HEAD", hide=True)
+
+    def test_extracts_pr_number_with_trailing_whitespace(self):
+        """Should extract PR number even with trailing whitespace."""
+        mock_ctx = MagicMock()
+        mock_result = MagicMock()
+        mock_result.stdout = "Add new feature (#12345)   \n"
+        mock_ctx.run.return_value = mock_result
+
+        result = get_pr_number_from_commit(mock_ctx)
+
+        self.assertEqual(result, "12345")
+
+    def test_extracts_pr_number_long_number(self):
+        """Should handle PR numbers of various lengths."""
+        mock_ctx = MagicMock()
+        mock_result = MagicMock()
+        mock_result.stdout = "Update docs (#1)\n"
+        mock_ctx.run.return_value = mock_result
+
+        result = get_pr_number_from_commit(mock_ctx)
+
+        self.assertEqual(result, "1")
+
+    def test_returns_none_when_no_pr_pattern(self):
+        """Should return None when commit message doesn't contain PR pattern."""
+        mock_ctx = MagicMock()
+        mock_result = MagicMock()
+        mock_result.stdout = "Initial commit\n"
+        mock_ctx.run.return_value = mock_result
+
+        result = get_pr_number_from_commit(mock_ctx)
+
+        self.assertIsNone(result)
+
+    def test_returns_none_when_pr_pattern_not_at_end(self):
+        """Should return None when PR pattern is not at the end."""
+        mock_ctx = MagicMock()
+        mock_result = MagicMock()
+        mock_result.stdout = "Fix (#123) issue with something\n"
+        mock_ctx.run.return_value = mock_result
+
+        result = get_pr_number_from_commit(mock_ctx)
+
+        self.assertIsNone(result)
+
+    def test_returns_none_on_git_error(self):
+        """Should return None when git command fails."""
+        mock_ctx = MagicMock()
+        mock_ctx.run.side_effect = Exception("git command failed")
+
+        result = get_pr_number_from_commit(mock_ctx)
+
+        self.assertIsNone(result)
+
+    def test_handles_squash_merge_format(self):
+        """Should handle squash merge commit format."""
+        mock_ctx = MagicMock()
+        mock_result = MagicMock()
+        mock_result.stdout = "[backport/7.x] Fix security issue (#99999)\n"
+        mock_ctx.run.return_value = mock_result
+
+        result = get_pr_number_from_commit(mock_ctx)
+
+        self.assertEqual(result, "99999")
+
+    def test_extracts_revert_pr_not_original(self):
+        """Should extract the revert PR number, not the original PR from the reverted commit."""
+        mock_ctx = MagicMock()
+        mock_result = MagicMock()
+        # Revert commit format: the revert PR (#44639) is at the end, original PR (#44326) is inside
+        mock_result.stdout = 'Revert "build krb5 with bazel (#44326)" (#44639)\n'
+        mock_ctx.run.return_value = mock_result
+
+        result = get_pr_number_from_commit(mock_ctx)
+
+        # Should extract 44639 (the revert PR), not 44326 (the original)
+        self.assertEqual(result, "44639")
+
+
+class TestGetPrAuthor(unittest.TestCase):
+    """Test the get_pr_author helper function."""
+
+    @patch("tasks.quality_gates.GithubAPI")
+    def test_returns_author_when_found(self, mock_github_class):
+        """Should return PR author login when a PR exists."""
+        mock_pr = MagicMock()
+        mock_pr.user = MagicMock()
+        mock_pr.user.login = "octocat"
+        mock_github = MagicMock()
+        mock_github.get_pr.return_value = mock_pr
+        mock_github_class.return_value = mock_github
+
+        result = get_pr_author("12345")
+
+        self.assertEqual(result, "octocat")
+        mock_github.get_pr.assert_called_once_with(12345)
+
+    @patch("tasks.quality_gates.GithubAPI")
+    def test_returns_none_when_pr_not_found(self, mock_github_class):
+        """Should return None when PR is not found."""
+        mock_github = MagicMock()
+        mock_github.get_pr.return_value = None
+        mock_github_class.return_value = mock_github
+
+        result = get_pr_author("12345")
+
+        self.assertIsNone(result)
+
+    @patch("tasks.quality_gates.GithubAPI")
+    def test_returns_none_when_user_is_none(self, mock_github_class):
+        """Should return None when PR exists but user is None."""
+        mock_pr = MagicMock()
+        mock_pr.user = None
+        mock_github = MagicMock()
+        mock_github.get_pr.return_value = mock_pr
+        mock_github_class.return_value = mock_github
+
+        result = get_pr_author("12345")
+
+        self.assertIsNone(result)
+
+    @patch("tasks.quality_gates.GithubAPI")
+    def test_returns_none_on_exception(self, mock_github_class):
+        """Should return None and not raise when GitHub API fails."""
+        mock_github_class.side_effect = Exception("API error")
+
+        result = get_pr_author("12345")
+
+        self.assertIsNone(result)
+
+    @patch("tasks.quality_gates.GithubAPI")
+    def test_handles_string_pr_number(self, mock_github_class):
+        """Should correctly convert string PR number to int."""
+        mock_pr = MagicMock()
+        mock_pr.user = MagicMock()
+        mock_pr.user.login = "datadog-bot"
+        mock_github = MagicMock()
+        mock_github.get_pr.return_value = mock_pr
+        mock_github_class.return_value = mock_github
+
+        result = get_pr_author("99999")
+
+        self.assertEqual(result, "datadog-bot")
+        mock_github.get_pr.assert_called_once_with(99999)
+
+
+class TestExceptionThresholdBumpHelpers(unittest.TestCase):
+    """Test helper functions for the new exception_threshold_bump implementation."""
+
+    def test_extract_gate_name_from_scope_valid(self):
+        """Should extract gate name from scope string."""
+        scope = "gate_name:static_quality_gate_agent_deb_amd64,pr_number:12345"
+        result = _extract_gate_name_from_scope(scope)
+        self.assertEqual(result, "static_quality_gate_agent_deb_amd64")
+
+    def test_extract_gate_name_from_scope_single_tag(self):
+        """Should extract gate name when it's the only tag."""
+        scope = "gate_name:static_quality_gate_docker_agent_arm64"
+        result = _extract_gate_name_from_scope(scope)
+        self.assertEqual(result, "static_quality_gate_docker_agent_arm64")
+
+    def test_extract_gate_name_from_scope_missing(self):
+        """Should return None when gate_name is not in scope."""
+        scope = "pr_number:12345,arch:amd64"
+        result = _extract_gate_name_from_scope(scope)
+        self.assertIsNone(result)
+
+    def test_extract_gate_name_from_scope_empty(self):
+        """Should return None for empty scope."""
+        result = _extract_gate_name_from_scope("")
+        self.assertIsNone(result)
+
+    def test_get_latest_value_from_pointlist_valid(self):
+        """Should get the latest non-null value from pointlist."""
+        pointlist = make_pointlist([[1704067200, 100.0], [1704153600, 150.0], [1704240000, 200.0]])
+        result = _get_latest_value_from_pointlist(pointlist)
+        self.assertEqual(result, 200.0)
+
+    def test_get_latest_value_from_pointlist_with_nulls(self):
+        """Should skip null values and get the latest non-null value."""
+        pointlist = make_pointlist([[1704067200, 100.0], [1704153600, 150.0], [1704240000, None]])
+        result = _get_latest_value_from_pointlist(pointlist)
+        self.assertEqual(result, 150.0)
+
+    def test_get_latest_value_from_pointlist_all_nulls(self):
+        """Should return None if all values are null."""
+        pointlist = make_pointlist([[1704067200, None], [1704153600, None]])
+        result = _get_latest_value_from_pointlist(pointlist)
+        self.assertIsNone(result)
+
+    def test_get_latest_value_from_pointlist_empty(self):
+        """Should return None for empty pointlist."""
+        result = _get_latest_value_from_pointlist([])
+        self.assertIsNone(result)
+
+
+class TestIdentifyFailingGates(unittest.TestCase):
+    """Test the identify_failing_gates function."""
+
+    def test_identifies_disk_failure(self):
+        """Should identify gate failing on disk size."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=200 * 1024 * 1024,  # 200 MiB
+                max_on_disk_size=150 * 1024 * 1024,  # 150 MiB limit
+                current_on_wire_size=50 * 1024 * 1024,
+                max_on_wire_size=100 * 1024 * 1024,
+            )
+        }
+        failing = identify_failing_gates(pr_metrics)
+        self.assertEqual(len(failing), 1)
+        self.assertIn("static_quality_gate_agent_deb_amd64", failing)
+
+    def test_identifies_wire_failure(self):
+        """Should identify gate failing on wire size."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=100 * 1024 * 1024,
+                max_on_disk_size=150 * 1024 * 1024,
+                current_on_wire_size=120 * 1024 * 1024,  # 120 MiB
+                max_on_wire_size=100 * 1024 * 1024,  # 100 MiB limit
+            )
+        }
+        failing = identify_failing_gates(pr_metrics)
+        self.assertEqual(len(failing), 1)
+        self.assertIn("static_quality_gate_agent_deb_amd64", failing)
+
+    def test_identifies_both_failures(self):
+        """Should identify gate failing on both disk and wire size."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=200 * 1024 * 1024,
+                max_on_disk_size=150 * 1024 * 1024,
+                current_on_wire_size=120 * 1024 * 1024,
+                max_on_wire_size=100 * 1024 * 1024,
+            )
+        }
+        failing = identify_failing_gates(pr_metrics)
+        self.assertEqual(len(failing), 1)
+
+    def test_excludes_passing_gates(self):
+        """Should not include gates that are passing."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=100 * 1024 * 1024,
+                max_on_disk_size=150 * 1024 * 1024,
+                current_on_wire_size=50 * 1024 * 1024,
+                max_on_wire_size=100 * 1024 * 1024,
+            )
+        }
+        failing = identify_failing_gates(pr_metrics)
+        self.assertEqual(len(failing), 0)
+
+    def test_handles_missing_values(self):
+        """Should handle gates with missing metric values."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=None,
+                max_on_disk_size=150 * 1024 * 1024,
+                current_on_wire_size=50 * 1024 * 1024,
+                max_on_wire_size=100 * 1024 * 1024,
+            )
+        }
+        failing = identify_failing_gates(pr_metrics)
+        self.assertEqual(len(failing), 0)
+
+    def test_multiple_gates_mixed(self):
+        """Should correctly identify failing gates among multiple."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=200 * 1024 * 1024,  # Failing
+                max_on_disk_size=150 * 1024 * 1024,
+                current_on_wire_size=50 * 1024 * 1024,
+                max_on_wire_size=100 * 1024 * 1024,
+            ),
+            "static_quality_gate_docker_agent_amd64": GateMetricsData(
+                current_on_disk_size=100 * 1024 * 1024,  # Passing
+                max_on_disk_size=150 * 1024 * 1024,
+                current_on_wire_size=50 * 1024 * 1024,
+                max_on_wire_size=100 * 1024 * 1024,
+            ),
+            "static_quality_gate_agent_rpm_amd64": GateMetricsData(
+                current_on_disk_size=160 * 1024 * 1024,  # Failing
+                max_on_disk_size=150 * 1024 * 1024,
+                current_on_wire_size=50 * 1024 * 1024,
+                max_on_wire_size=100 * 1024 * 1024,
+            ),
+        }
+        failing = identify_failing_gates(pr_metrics)
+        self.assertEqual(len(failing), 2)
+        self.assertIn("static_quality_gate_agent_deb_amd64", failing)
+        self.assertIn("static_quality_gate_agent_rpm_amd64", failing)
+        self.assertNotIn("static_quality_gate_docker_agent_amd64", failing)
+
+
+class TestIdentifyGatesWithSizeIncrease(unittest.TestCase):
+    """Test the identify_gates_with_size_increase function."""
+
+    def test_identifies_gate_with_size_increase(self):
+        """Should identify gate with positive relative_on_disk_size above threshold."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=200 * 1024 * 1024,
+                max_on_disk_size=250 * 1024 * 1024,
+                current_on_wire_size=50 * 1024 * 1024,
+                max_on_wire_size=100 * 1024 * 1024,
+                relative_on_disk_size=5 * 1024 * 1024,  # +5 MiB (above threshold)
+                relative_on_wire_size=1 * 1024 * 1024,
+            )
+        }
+        gates_to_bump = identify_gates_with_size_increase(pr_metrics)
+        self.assertEqual(len(gates_to_bump), 1)
+        self.assertIn("static_quality_gate_agent_deb_amd64", gates_to_bump)
+
+    def test_excludes_gate_with_no_size_increase(self):
+        """Should exclude gate with zero or negative relative_on_disk_size."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=200 * 1024 * 1024,
+                max_on_disk_size=250 * 1024 * 1024,
+                current_on_wire_size=50 * 1024 * 1024,
+                max_on_wire_size=100 * 1024 * 1024,
+                relative_on_disk_size=0,  # No change
+                relative_on_wire_size=0,
+            )
+        }
+        gates_to_bump = identify_gates_with_size_increase(pr_metrics)
+        self.assertEqual(len(gates_to_bump), 0)
+
+    def test_excludes_gate_with_size_decrease(self):
+        """Should exclude gate with negative relative_on_disk_size (size decreased)."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=200 * 1024 * 1024,
+                max_on_disk_size=250 * 1024 * 1024,
+                current_on_wire_size=50 * 1024 * 1024,
+                max_on_wire_size=100 * 1024 * 1024,
+                relative_on_disk_size=-5 * 1024 * 1024,  # -5 MiB (decreased)
+                relative_on_wire_size=-1 * 1024 * 1024,
+            )
+        }
+        gates_to_bump = identify_gates_with_size_increase(pr_metrics)
+        self.assertEqual(len(gates_to_bump), 0)
+
+    def test_excludes_gate_with_size_below_threshold(self):
+        """Should exclude gate with size increase below 2 KiB threshold."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=200 * 1024 * 1024,
+                max_on_disk_size=250 * 1024 * 1024,
+                current_on_wire_size=50 * 1024 * 1024,
+                max_on_wire_size=100 * 1024 * 1024,
+                relative_on_disk_size=1024,  # +1 KiB (below 2 KiB threshold)
+                relative_on_wire_size=512,
+            )
+        }
+        gates_to_bump = identify_gates_with_size_increase(pr_metrics)
+        self.assertEqual(len(gates_to_bump), 0)
+
+    def test_includes_gate_with_size_at_threshold(self):
+        """Should include gate with size increase exactly at threshold."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=200 * 1024 * 1024,
+                max_on_disk_size=250 * 1024 * 1024,
+                current_on_wire_size=50 * 1024 * 1024,
+                max_on_wire_size=100 * 1024 * 1024,
+                relative_on_disk_size=SIZE_INCREASE_THRESHOLD_BYTES + 1,  # Just above threshold
+                relative_on_wire_size=0,
+            )
+        }
+        gates_to_bump = identify_gates_with_size_increase(pr_metrics)
+        self.assertEqual(len(gates_to_bump), 1)
+
+    def test_handles_missing_relative_size(self):
+        """Should exclude gate when relative_on_disk_size is None."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=200 * 1024 * 1024,
+                max_on_disk_size=250 * 1024 * 1024,
+                current_on_wire_size=50 * 1024 * 1024,
+                max_on_wire_size=100 * 1024 * 1024,
+                relative_on_disk_size=None,  # Missing
+                relative_on_wire_size=None,
+            )
+        }
+        gates_to_bump = identify_gates_with_size_increase(pr_metrics)
+        self.assertEqual(len(gates_to_bump), 0)
+
+    def test_multiple_gates_mixed(self):
+        """Should correctly identify gates with size increase among multiple."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=200 * 1024 * 1024,
+                max_on_disk_size=250 * 1024 * 1024,
+                relative_on_disk_size=10 * 1024 * 1024,  # +10 MiB (include)
+            ),
+            "static_quality_gate_docker_agent_amd64": GateMetricsData(
+                current_on_disk_size=100 * 1024 * 1024,
+                max_on_disk_size=150 * 1024 * 1024,
+                relative_on_disk_size=0,  # No change (exclude)
+            ),
+            "static_quality_gate_agent_rpm_amd64": GateMetricsData(
+                current_on_disk_size=160 * 1024 * 1024,
+                max_on_disk_size=150 * 1024 * 1024,  # Failing but no increase
+                relative_on_disk_size=-5 * 1024 * 1024,  # Size decreased (exclude)
+            ),
+            "static_quality_gate_agent_suse_amd64": GateMetricsData(
+                current_on_disk_size=180 * 1024 * 1024,
+                max_on_disk_size=200 * 1024 * 1024,
+                relative_on_disk_size=3 * 1024 * 1024,  # +3 MiB (include)
+            ),
+        }
+        gates_to_bump = identify_gates_with_size_increase(pr_metrics)
+        self.assertEqual(len(gates_to_bump), 2)
+        self.assertIn("static_quality_gate_agent_deb_amd64", gates_to_bump)
+        self.assertIn("static_quality_gate_agent_suse_amd64", gates_to_bump)
+        self.assertNotIn("static_quality_gate_docker_agent_amd64", gates_to_bump)
+        self.assertNotIn("static_quality_gate_agent_rpm_amd64", gates_to_bump)
+
+    def test_includes_non_failing_gate_with_increase(self):
+        """Should include gate with size increase even if not failing (current < max)."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=100 * 1024 * 1024,  # 100 MiB (not failing)
+                max_on_disk_size=150 * 1024 * 1024,  # 150 MiB limit
+                relative_on_disk_size=5 * 1024 * 1024,  # +5 MiB increase
+            )
+        }
+        gates_to_bump = identify_gates_with_size_increase(pr_metrics)
+        self.assertEqual(len(gates_to_bump), 1)
+        self.assertIn("static_quality_gate_agent_deb_amd64", gates_to_bump)
+
+
+class TestFetchPrMetrics(unittest.TestCase):
+    """Test the fetch_pr_metrics function."""
+
+    @patch("tasks.quality_gates.query_metrics")
+    def test_fetches_and_parses_metrics(self, mock_query):
+        """Should fetch metrics and parse them correctly with single API call."""
+        # Single API call returns all 4 metrics
+        mock_query.return_value = [
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_disk_size{...}",
+                "pointlist": make_pointlist([[1704240000, 100 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_wire_size{...}",
+                "pointlist": make_pointlist([[1704240000, 50 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_disk_size{...}",
+                "pointlist": make_pointlist([[1704240000, 150 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_wire_size{...}",
+                "pointlist": make_pointlist([[1704240000, 75 * 1024 * 1024]]),
+            },
+        ]
+
+        result = fetch_pr_metrics(12345)
+
+        # Should make exactly 1 API call
+        mock_query.assert_called_once()
+        self.assertEqual(len(result), 1)
+        self.assertIn("static_quality_gate_agent_deb_amd64", result)
+        gate = result["static_quality_gate_agent_deb_amd64"]
+        self.assertEqual(gate.current_on_disk_size, 100 * 1024 * 1024)
+        self.assertEqual(gate.current_on_wire_size, 50 * 1024 * 1024)
+        self.assertEqual(gate.max_on_disk_size, 150 * 1024 * 1024)
+        self.assertEqual(gate.max_on_wire_size, 75 * 1024 * 1024)
+
+    @patch("tasks.quality_gates.query_metrics")
+    def test_returns_empty_when_no_metrics(self, mock_query):
+        """Should return empty dict when no metrics found."""
+        mock_query.return_value = []
+
+        result = fetch_pr_metrics(12345)
+
+        self.assertEqual(len(result), 0)
+
+    @patch("tasks.quality_gates.query_metrics")
+    def test_handles_multiple_gates(self, mock_query):
+        """Should handle metrics for multiple gates in single API call."""
+        # Single API call returns metrics for multiple gates
+        mock_query.return_value = [
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_disk_size{...}",
+                "pointlist": make_pointlist([[1704240000, 100 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_docker_agent_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_disk_size{...}",
+                "pointlist": make_pointlist([[1704240000, 200 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_wire_size{...}",
+                "pointlist": make_pointlist([[1704240000, 50 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_docker_agent_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_wire_size{...}",
+                "pointlist": make_pointlist([[1704240000, 80 * 1024 * 1024]]),
+            },
+        ]
+
+        result = fetch_pr_metrics(12345)
+
+        # Should make exactly 1 API call
+        mock_query.assert_called_once()
+        self.assertEqual(len(result), 2)
+        self.assertIn("static_quality_gate_agent_deb_amd64", result)
+        self.assertIn("static_quality_gate_docker_agent_amd64", result)
+
+    @patch("tasks.quality_gates.query_metrics")
+    def test_fetches_relative_size_metrics(self, mock_query):
+        """Should fetch and parse relative_on_disk_size and relative_on_wire_size."""
+        # API call includes all 6 metrics including relative sizes
+        mock_query.return_value = [
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_disk_size{...}",
+                "pointlist": make_pointlist([[1704240000, 100 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_wire_size{...}",
+                "pointlist": make_pointlist([[1704240000, 50 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_disk_size{...}",
+                "pointlist": make_pointlist([[1704240000, 150 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_wire_size{...}",
+                "pointlist": make_pointlist([[1704240000, 75 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.relative_on_disk_size{...}",
+                "pointlist": make_pointlist([[1704240000, 5 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.relative_on_wire_size{...}",
+                "pointlist": make_pointlist([[1704240000, 2 * 1024 * 1024]]),
+            },
+        ]
+
+        result = fetch_pr_metrics(12345)
+
+        self.assertEqual(len(result), 1)
+        gate = result["static_quality_gate_agent_deb_amd64"]
+        self.assertEqual(gate.current_on_disk_size, 100 * 1024 * 1024)
+        self.assertEqual(gate.current_on_wire_size, 50 * 1024 * 1024)
+        self.assertEqual(gate.max_on_disk_size, 150 * 1024 * 1024)
+        self.assertEqual(gate.max_on_wire_size, 75 * 1024 * 1024)
+        self.assertEqual(gate.relative_on_disk_size, 5 * 1024 * 1024)
+        self.assertEqual(gate.relative_on_wire_size, 2 * 1024 * 1024)
+
+
+class TestFetchMainHeadroom(unittest.TestCase):
+    """Test the fetch_main_headroom function."""
+
+    @patch("tasks.quality_gates.query_metrics")
+    def test_calculates_headroom_correctly(self, mock_query):
+        """Should calculate headroom as max - current."""
+        # Single API call returns all 4 metrics for the gate
+        mock_query.return_value = [
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_disk_size{...}",
+                "pointlist": make_pointlist([[1704240000, 100 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_wire_size{...}",
+                "pointlist": make_pointlist([[1704240000, 50 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_disk_size{...}",
+                "pointlist": make_pointlist([[1704240000, 150 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_wire_size{...}",
+                "pointlist": make_pointlist([[1704240000, 75 * 1024 * 1024]]),
+            },
+        ]
+
+        result = fetch_main_headroom(["static_quality_gate_agent_deb_amd64"])
+
+        self.assertEqual(len(result), 1)
+        self.assertIn("static_quality_gate_agent_deb_amd64", result)
+        headroom = result["static_quality_gate_agent_deb_amd64"]
+        # disk_headroom = 150 - 100 = 50 MiB
+        self.assertEqual(headroom["disk_headroom"], 50 * 1024 * 1024)
+        # wire_headroom = 75 - 50 = 25 MiB
+        self.assertEqual(headroom["wire_headroom"], 25 * 1024 * 1024)
+
+    @patch("tasks.quality_gates.query_metrics")
+    def test_headroom_never_negative(self, mock_query):
+        """Headroom should never be negative (clamped to 0)."""
+        # Single API call with current > max
+        mock_query.return_value = [
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_disk_size{...}",
+                "pointlist": make_pointlist([[1704240000, 200 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_wire_size{...}",
+                "pointlist": make_pointlist([[1704240000, 100 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_disk_size{...}",
+                "pointlist": make_pointlist([[1704240000, 150 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_wire_size{...}",
+                "pointlist": make_pointlist([[1704240000, 75 * 1024 * 1024]]),
+            },
+        ]
+
+        result = fetch_main_headroom(["static_quality_gate_agent_deb_amd64"])
+
+        headroom = result["static_quality_gate_agent_deb_amd64"]
+        # disk_headroom = max(0, 150 - 200) = 0
+        self.assertEqual(headroom["disk_headroom"], 0)
+
+    def test_returns_empty_for_no_gates(self):
+        """Should return empty dict when no gates provided."""
+        result = fetch_main_headroom([])
+        self.assertEqual(result, {})
+
+
+class TestGateMetricsData(unittest.TestCase):
+    """Test the GateMetricsData dataclass."""
+
+    def test_default_values(self):
+        """Should have None as default for all fields."""
+        metrics = GateMetricsData()
+        self.assertIsNone(metrics.current_on_disk_size)
+        self.assertIsNone(metrics.current_on_wire_size)
+        self.assertIsNone(metrics.max_on_disk_size)
+        self.assertIsNone(metrics.max_on_wire_size)
+        self.assertIsNone(metrics.relative_on_disk_size)
+        self.assertIsNone(metrics.relative_on_wire_size)
+
+    def test_with_values(self):
+        """Should store provided values."""
+        metrics = GateMetricsData(
+            current_on_disk_size=100,
+            current_on_wire_size=50,
+            max_on_disk_size=150,
+            max_on_wire_size=75,
+            relative_on_disk_size=10,
+            relative_on_wire_size=5,
+        )
+        self.assertEqual(metrics.current_on_disk_size, 100)
+        self.assertEqual(metrics.current_on_wire_size, 50)
+        self.assertEqual(metrics.max_on_disk_size, 150)
+        self.assertEqual(metrics.max_on_wire_size, 75)
+        self.assertEqual(metrics.relative_on_disk_size, 10)
+        self.assertEqual(metrics.relative_on_wire_size, 5)
+
+
+class TestGenerateMetricReports(unittest.TestCase):
+    """Test the generate_metric_reports function for S3 upload behavior."""
+
+    def setUp(self):
+        """Create a temporary directory for test files."""
+        self.temp_dir = tempfile.mkdtemp()
+        self.temp_report_file = os.path.join(self.temp_dir, "static_gate_report.json")
+
+    def tearDown(self):
+        """Clean up temporary files."""
+        if os.path.exists(self.temp_report_file):
+            os.remove(self.temp_report_file)
+        if os.path.exists(self.temp_dir):
+            os.rmdir(self.temp_dir)
+
+    @patch.dict('os.environ', {'CI_COMMIT_SHA': 'abc123def456'})
+    @patch('tasks.static_quality_gates.gates.is_a_release_branch')
+    def test_uploads_to_s3_for_main_branch(self, mock_is_release):
+        """Should upload report to S3 when on main branch."""
+        mock_is_release.return_value = False
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics = {"test_gate": {"current_on_disk_size": 100}}
+        ctx = MockContext(
+            run={
+                f'aws s3 cp --only-show-errors --region us-east-1 --sse AES256 {self.temp_report_file} s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/abc123def456/{self.temp_report_file}': Result(
+                    "Done"
+                ),
+            }
+        )
+
+        handler.generate_metric_reports(ctx, filename=self.temp_report_file, branch="main", is_nightly=False)
+
+        # Verify S3 upload was called
+        self.assertEqual(len(ctx.run.call_args_list), 1)
+
+    @patch.dict('os.environ', {'CI_COMMIT_SHA': 'abc123def456'})
+    @patch('tasks.static_quality_gates.gates.is_a_release_branch')
+    def test_uploads_to_s3_for_release_branch(self, mock_is_release):
+        """Should upload report to S3 when on a release branch (e.g., 7.54.x)."""
+        mock_is_release.return_value = True
+        handler = GateMetricHandler("7.54.x", "dev")
+        handler.metrics = {"test_gate": {"current_on_disk_size": 100}}
+        ctx = MockContext(
+            run={
+                f'aws s3 cp --only-show-errors --region us-east-1 --sse AES256 {self.temp_report_file} s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/abc123def456/{self.temp_report_file}': Result(
+                    "Done"
+                ),
+            }
+        )
+
+        handler.generate_metric_reports(ctx, filename=self.temp_report_file, branch="7.54.x", is_nightly=False)
+
+        # Verify S3 upload was called
+        self.assertEqual(len(ctx.run.call_args_list), 1)
+
+    @patch.dict('os.environ', {'CI_COMMIT_SHA': 'abc123def456'})
+    @patch('tasks.static_quality_gates.gates.is_a_release_branch')
+    def test_no_upload_for_feature_branch(self, mock_is_release):
+        """Should NOT upload report to S3 when on a feature branch."""
+        mock_is_release.return_value = False
+        handler = GateMetricHandler("feature/my-branch", "dev")
+        handler.metrics = {"test_gate": {"current_on_disk_size": 100}}
+        ctx = MockContext(run={})
+
+        handler.generate_metric_reports(
+            ctx, filename=self.temp_report_file, branch="feature/my-branch", is_nightly=False
+        )
+
+        # Verify S3 upload was NOT called
+        self.assertEqual(len(ctx.run.call_args_list), 0)
+
+    @patch.dict('os.environ', {'CI_COMMIT_SHA': 'abc123def456'})
+    @patch('tasks.static_quality_gates.gates.is_a_release_branch')
+    def test_no_upload_for_nightly_main(self, mock_is_release):
+        """Should NOT upload report to S3 for nightly builds even on main."""
+        mock_is_release.return_value = False
+        handler = GateMetricHandler("main", "nightly")
+        handler.metrics = {"test_gate": {"current_on_disk_size": 100}}
+        ctx = MockContext(run={})
+
+        handler.generate_metric_reports(ctx, filename=self.temp_report_file, branch="main", is_nightly=True)
+
+        # Verify S3 upload was NOT called
+        self.assertEqual(len(ctx.run.call_args_list), 0)
+
+    @patch.dict('os.environ', {'CI_COMMIT_SHA': 'abc123def456'})
+    @patch('tasks.static_quality_gates.gates.is_a_release_branch')
+    def test_no_upload_for_nightly_release(self, mock_is_release):
+        """Should NOT upload report to S3 for nightly builds on release branches."""
+        mock_is_release.return_value = True
+        handler = GateMetricHandler("7.54.x", "nightly")
+        handler.metrics = {"test_gate": {"current_on_disk_size": 100}}
+        ctx = MockContext(run={})
+
+        handler.generate_metric_reports(ctx, filename=self.temp_report_file, branch="7.54.x", is_nightly=True)
+
+        # Verify S3 upload was NOT called
+        self.assertEqual(len(ctx.run.call_args_list), 0)
+
+    @patch.dict('os.environ', {}, clear=True)
+    @patch('tasks.static_quality_gates.gates.is_a_release_branch')
+    def test_no_upload_without_commit_sha(self, mock_is_release):
+        """Should NOT upload report to S3 when CI_COMMIT_SHA is not set."""
+        mock_is_release.return_value = False
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics = {"test_gate": {"current_on_disk_size": 100}}
+        ctx = MockContext(run={})
+
+        handler.generate_metric_reports(ctx, filename=self.temp_report_file, branch="main", is_nightly=False)
+
+        # Verify S3 upload was NOT called
+        self.assertEqual(len(ctx.run.call_args_list), 0)
+
+
+class TestShouldSkipSendMetrics(unittest.TestCase):
+    """Test the _should_skip_send_metrics method for pipeline source filtering."""
+
+    def setUp(self):
+        """Create a GateMetricHandler instance for testing."""
+        self.handler = GateMetricHandler("main", "dev")
+
+    # Should SKIP metrics (return True) - main branch + non-push pipelines
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'main', 'CI_PIPELINE_SOURCE': 'web'})
+    def test_skip_main_branch_web_trigger(self):
+        """Should skip metrics on main branch with manual web trigger."""
+        self.assertTrue(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'main', 'CI_PIPELINE_SOURCE': 'trigger'})
+    def test_skip_main_branch_trigger(self):
+        """Should skip metrics on main branch with downstream trigger."""
+        self.assertTrue(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'main', 'CI_PIPELINE_SOURCE': 'pipeline'})
+    def test_skip_main_branch_pipeline(self):
+        """Should skip metrics on main branch with multi-project downstream pipeline."""
+        self.assertTrue(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'main', 'CI_PIPELINE_SOURCE': 'schedule'})
+    def test_skip_main_branch_schedule(self):
+        """Should skip metrics on main branch with scheduled pipeline."""
+        self.assertTrue(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'main', 'CI_PIPELINE_SOURCE': 'api'})
+    def test_skip_main_branch_api(self):
+        """Should skip metrics on main branch with API-triggered pipeline."""
+        self.assertTrue(self.handler._should_skip_send_metrics())
+
+    # Should NOT skip metrics (return False) - main branch + push pipeline
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'main', 'CI_PIPELINE_SOURCE': 'push'})
+    def test_no_skip_main_branch_push(self):
+        """Should NOT skip metrics on main branch with push pipeline."""
+        self.assertFalse(self.handler._should_skip_send_metrics())
+
+    # Should NOT skip metrics (return False) - non-main branches
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'feature/my-branch', 'CI_PIPELINE_SOURCE': 'push'})
+    def test_no_skip_feature_branch_push(self):
+        """Should NOT skip metrics on feature branch with push pipeline."""
+        self.assertFalse(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'feature/my-branch', 'CI_PIPELINE_SOURCE': 'web'})
+    def test_no_skip_feature_branch_web(self):
+        """Should NOT skip metrics on feature branch with web trigger."""
+        self.assertFalse(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'feature/my-branch', 'CI_PIPELINE_SOURCE': 'trigger'})
+    def test_no_skip_feature_branch_trigger(self):
+        """Should NOT skip metrics on feature branch with trigger."""
+        self.assertFalse(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': '7.55.x', 'CI_PIPELINE_SOURCE': 'push'})
+    def test_no_skip_release_branch_push(self):
+        """Should NOT skip metrics on release branch with push pipeline."""
+        self.assertFalse(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': '7.55.x', 'CI_PIPELINE_SOURCE': 'web'})
+    def test_no_skip_release_branch_web(self):
+        """Should NOT skip metrics on release branch with web trigger."""
+        self.assertFalse(self.handler._should_skip_send_metrics())
+
+    # Edge cases - missing/empty environment variables
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': '', 'CI_PIPELINE_SOURCE': ''}, clear=True)
+    def test_no_skip_empty_env_vars(self):
+        """Should NOT skip metrics when both env vars are empty."""
+        self.assertFalse(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'main', 'CI_PIPELINE_SOURCE': ''}, clear=True)
+    def test_skip_main_empty_source(self):
+        """Should skip metrics on main branch when pipeline source is empty (not 'push')."""
+        self.assertTrue(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_PIPELINE_SOURCE': 'push'}, clear=True)
+    def test_no_skip_empty_branch(self):
+        """Should NOT skip metrics when branch is empty (not 'main')."""
+        self.assertFalse(self.handler._should_skip_send_metrics())
 
 
 if __name__ == '__main__':

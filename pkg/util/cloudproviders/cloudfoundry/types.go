@@ -210,7 +210,7 @@ func ActualLRPFromBBSModel(bbsLRP *models.ActualLRP) ActualLRP {
 }
 
 // DesiredLRPFromBBSModel creates a new DesiredLRP from BBS's DesiredLRP model
-func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList []*regexp.Regexp) DesiredLRP {
+func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList []*regexp.Regexp, ccCache CCCacheI) DesiredLRP {
 	envAD := ADConfig{}
 	envVS := map[string][]byte{}
 	envVA := map[string]string{}
@@ -295,8 +295,9 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList 
 	spaceGUID := extractVA[SpaceIDKey]
 	spaceName := extractVA[SpaceNameKey]
 	// try to get updated app name from CC API in case of app renames, as well as tags extracted from app metadata
-	ccCache, err := GetGlobalCCCache()
-	if err == nil {
+	if ccCache == nil {
+		log.Debugf("CCCache is nil, skipping app metadata enrichment for LRP %s", bbsLRP.ProcessGuid)
+	} else {
 		if ccApp, err := ccCache.GetApp(appGUID); err != nil {
 			log.Debugf("Could not find app %s in cc cache", appGUID)
 		} else {
@@ -318,7 +319,7 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList 
 			} else {
 				log.Debugf("Could not find org %s in cc cache", orgGUID)
 			}
-			if ccCache.sidecarsTags {
+			if ccCache.SidecarsTagsEnabled() {
 				if sidecars, err := ccCache.GetSidecars(appGUID); err == nil && len(sidecars) > 0 {
 					customTags = append(customTags, fmt.Sprintf("%s:%s", SidecarPresentTagKey, "true"))
 					customTags = append(customTags, fmt.Sprintf("%s:%d", SidecarCountTagKey, len(sidecars)))
@@ -326,7 +327,7 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList 
 					customTags = append(customTags, fmt.Sprintf("%s:%s", SidecarPresentTagKey, "false"))
 				}
 			}
-			if ccCache.segmentsTags {
+			if ccCache.SegmentsTagsEnabled() {
 				if segment, err := ccCache.GetIsolationSegmentForOrg(orgGUID); err == nil {
 					customTags = append(customTags, fmt.Sprintf("%s:%s", SegmentIDTagKey, segment.GUID))
 					customTags = append(customTags, fmt.Sprintf("%s:%s", SegmentNameTagKey, segment.Name))
@@ -336,8 +337,6 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList 
 				}
 			}
 		}
-	} else {
-		log.Debugf("Could not get Cloud Foundry CCAPI cache: %v", err)
 	}
 
 	d := DesiredLRP{
@@ -476,8 +475,8 @@ func getVcapApplicationMap(vcap string) (map[string]string, error) {
 
 func extractTagsFromAppMeta(meta map[string]string) (tags []string) {
 	for k, v := range meta {
-		if strings.HasPrefix(k, AutodiscoveryTagsMetaPrefix) {
-			tags = append(tags, fmt.Sprintf("%s:%s", strings.TrimPrefix(k, AutodiscoveryTagsMetaPrefix), v))
+		if after, ok := strings.CutPrefix(k, AutodiscoveryTagsMetaPrefix); ok {
+			tags = append(tags, fmt.Sprintf("%s:%s", after, v))
 		}
 	}
 	return

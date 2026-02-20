@@ -1,0 +1,39 @@
+{
+    "node": {
+        "nodeName": "test-node",
+        "fs": {
+            "usedBytes": 1000000,
+            "capacityBytes": 10000000
+        },
+        "systemContainers": []
+    },
+    "pods": [
+        {
+            "podRef": {
+                "name": "kube-apiserver-test-node",
+                "namespace": "kube-system",
+                "uid": "9b3c1a2d4e5f67890123456789abcdef"
+            },
+            "startTime": "2023-09-06T04:58:47Z",
+            "containers": [
+                {
+                    "name": "kube-apiserver",
+                    "startTime": "2023-09-06T04:59:07Z",
+                    "cpu": {
+                        "time": "2023-09-06T05:07:16Z",
+                        "usageNanoCores": 1000000,
+                        "usageCoreNanoSeconds": 5000000000
+                    },
+                    "memory": {
+                        "time": "2023-09-06T05:07:16Z",
+                        "usageBytes": 100000000,
+                        "workingSetBytes": 90000000
+                    }
+                }
+            ],
+            "ephemeral-storage": {
+                "usedBytes": 12345
+            }
+        }
+    ]
+}

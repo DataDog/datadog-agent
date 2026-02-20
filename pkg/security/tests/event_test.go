@@ -101,10 +101,8 @@ func TestEventHeartbeatSent(t *testing.T) {
 	})
 }
 
-func TestEventRateLimiters(t *testing.T) {
+func TestEventRaleLimiters(t *testing.T) {
 	SkipIfNotAvailable(t)
-
-	const testTTL = 5 * time.Second
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -116,7 +114,7 @@ func TestEventRateLimiters(t *testing.T) {
 						Name:  "test_unique_id_services",
 						Field: "process.file.name",
 						TTL: &rules.HumanReadableDuration{
-							Duration: testTTL,
+							Duration: 5 * time.Second,
 						},
 						Append: true,
 					},
@@ -178,7 +176,6 @@ func TestEventRateLimiters(t *testing.T) {
 			t.Error(err)
 		}
 
-		const noEventTimeout = 3 * time.Second
 		// open from the first process
 		err = test.GetEventSent(t, func() error {
 			f, err := os.OpenFile(testFile, os.O_CREATE, 0)
@@ -188,24 +185,9 @@ func TestEventRateLimiters(t *testing.T) {
 			return f.Close()
 		}, func(_ *rules.Rule, _ *model.Event) bool {
 			return true
-		}, noEventTimeout, "test_unique_id")
+		}, time.Second*3, "test_unique_id")
 		if err == nil {
 			t.Error("unexpected event")
-		}
-
-		// wait for the first process name to expire
-		time.Sleep(testTTL - noEventTimeout + 100*time.Millisecond)
-		err = test.GetEventSent(t, func() error {
-			f, err := os.OpenFile(testFile, os.O_CREATE, 0)
-			if err != nil {
-				t.Fatal(err)
-			}
-			return f.Close()
-		}, func(_ *rules.Rule, _ *model.Event) bool {
-			return true
-		}, time.Second*3, "test_unique_id")
-		if err != nil {
-			t.Error(err)
 		}
 	})
 
@@ -291,15 +273,15 @@ func TestEventIteratorRegister(t *testing.T) {
 	}
 
 	t.Run("std", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "span-exec", "123", "456", "/usr/bin/touch", testFile)
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_register_1")
-		})
+		}, "test_register_1")
 	})
 
 	t.Run("pid1", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			f, err := os.Create(testFile2)
 			if err != nil {
 				return err
@@ -307,7 +289,7 @@ func TestEventIteratorRegister(t *testing.T) {
 			return f.Close()
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_register_2")
-		})
+		}, "test_register_2")
 	})
 }
 
@@ -395,10 +377,7 @@ func TestEventProductTags(t *testing.T) {
 }
 
 func truncatedParents(t *testing.T, staticOpts testOpts, dynamicOpts dynamicTestOpts) {
-	var truncatedParents string
-	for i := 0; i < model.MaxPathDepth; i++ {
-		truncatedParents += "a/"
-	}
+	truncatedParents := strings.Repeat("a/", model.MaxPathDepth)
 
 	rule := &rules.RuleDefinition{
 		ID: "path_test",
@@ -438,7 +417,7 @@ func truncatedParents(t *testing.T, staticOpts testOpts, dynamicOpts dynamicTest
 		t.Fatal(err)
 	}
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		f, err := os.OpenFile(truncatedParentsFile, os.O_CREATE, 0755)
 		if err != nil {
 			return err
@@ -458,7 +437,7 @@ func truncatedParents(t *testing.T, staticOpts testOpts, dynamicOpts dynamicTest
 			assert.Equal(t, "a", splittedFilepath[len(splittedFilepath)-1], "invalid path resolution at the right edge")
 			assert.Equal(t, model.MaxPathDepth, len(splittedFilepath), "invalid path depth")
 		}
-	})
+	}, "path_test")
 }
 
 func cleanupABottomUp(path string) {

@@ -7,74 +7,38 @@ package collector
 
 import (
 	"slices"
+	"strings"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-var infraBasicAllowedChecks = map[string]struct{}{
-	"cpu":               {},
-	"agent_telemetry":   {},
-	"agentcrashdetect":  {},
-	"disk":              {},
-	"file_handle":       {},
-	"filehandles":       {},
-	"io":                {},
-	"load":              {},
-	"memory":            {},
-	"network":           {},
-	"ntp":               {},
-	"process":           {},
-	"service_discovery": {},
-	"system":            {},
-	"system_core":       {},
-	"system_swap":       {},
-	"telemetry":         {},
-	"telemetryCheck":    {},
-	"uptime":            {},
-	"win32_event_log":   {},
-	"wincrashdetect":    {},
-	"winkmem":           {},
-	"winproc":           {},
-}
-
-// GetAllowedChecks returns the map of allowed checks for infra basic mode,
-// including any additional checks specified in the configuration via 'infra_basic_additional_checks'
-// when running in full mode, all checks are allowed (returns an empty map)
-func GetAllowedChecks(cfg pkgconfigmodel.Reader) map[string]struct{} {
-	if cfg.GetString("infrastructure_mode") != "basic" {
-		return make(map[string]struct{})
-	}
-
-	// Copy the default allowed checks
-	allowedMap := make(map[string]struct{}, len(infraBasicAllowedChecks))
-	for check := range infraBasicAllowedChecks {
-		allowedMap[check] = struct{}{}
-	}
-
-	// Add any additional checks from config
-	additionalChecks := cfg.GetStringSlice("infra_basic_additional_checks")
-	for _, check := range additionalChecks {
-		allowedMap[check] = struct{}{}
-	}
-
-	return allowedMap
-}
-
 // IsCheckAllowed returns true if the check is allowed.
 // When not in basic mode, all checks are allowed (returns true).
-// When in basic mode, only checks in the allowed list are permitted.
+// When in basic mode, only checks in the allowed list or starting with "custom_" are permitted.
+// Note: Legacy key (allowed_additional_checks) is aliased to mode-specific
+// keys in config.go via applyInfrastructureModeOverrides.
 func IsCheckAllowed(checkName string, cfg pkgconfigmodel.Reader) bool {
-	// When not in basic mode, all checks are allowed
-	if cfg.GetString("infrastructure_mode") != "basic" {
+	if !cfg.GetBool("integration.enabled") {
+		return false
+	}
+
+	infraMode := cfg.GetString("infrastructure_mode")
+
+	// Check excluded list
+	if slices.Contains(cfg.GetStringSlice("integration.excluded"), checkName) {
+		return false
+	}
+
+	// Allow all custom checks
+	if strings.HasPrefix(checkName, "custom_") {
 		return true
 	}
 
-	// Check if it's in the default allowed checks
-	if _, exists := infraBasicAllowedChecks[checkName]; exists {
+	// If allowed checks is empty, all checks are allowed
+	if allowedChecks := cfg.GetStringSlice("integration." + infraMode + ".allowed"); len(allowedChecks) == 0 || slices.Contains(allowedChecks, checkName) {
 		return true
 	}
 
-	// Check if it's in the additional checks from config
-	additionalChecks := cfg.GetStringSlice("infra_basic_additional_checks")
-	return slices.Contains(additionalChecks, checkName)
+	// Check additional list
+	return slices.Contains(cfg.GetStringSlice("integration.additional"), checkName)
 }

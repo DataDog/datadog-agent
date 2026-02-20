@@ -7,6 +7,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -59,6 +60,8 @@ type LogsConfig struct {
 	IncludeMatches     StringSliceField `mapstructure:"include_matches" json:"include_matches" yaml:"include_matches"`          // Journald
 	ExcludeMatches     StringSliceField `mapstructure:"exclude_matches" json:"exclude_matches" yaml:"exclude_matches"`          // Journald
 	ContainerMode      bool             `mapstructure:"container_mode" json:"container_mode" yaml:"container_mode"`             // Journald
+	// Intentionally nillable string, as journald will decide on non-standard defaults if the field is not set.
+	DefaultApplicationName *string `mapstructure:"default_application_name" json:"default_application_name" yaml:"default_application_name"` // Journald
 
 	Image string // Docker
 	Label string // Docker
@@ -176,7 +179,7 @@ func (t *StringSliceField) UnmarshalYAML(unmarshal func(interface{}) error) erro
 		}
 		return nil
 	}
-	return fmt.Errorf("could not parse YAML config, please double check the yaml files")
+	return errors.New("could not parse YAML config, please double check the yaml files")
 }
 
 // Dump dumps the contents of this struct to a string, for debugging purposes.
@@ -270,6 +273,7 @@ func (c *LogsConfig) PublicJSON() ([]byte, error) {
 		ChannelPath       string                   `json:"channel_path,omitempty"`   // Windows Event
 		Service           string                   `json:"service,omitempty"`
 		Source            string                   `json:"source,omitempty"`
+		SourceCategory    string                   `json:"source_category,omitempty"`
 		Tags              []string                 `json:"tags,omitempty"`
 		ProcessingRules   []*ProcessingRule        `json:"log_processing_rules,omitempty"`
 		AutoMultiLine     *bool                    `json:"auto_multi_line_detection,omitempty"`
@@ -284,6 +288,7 @@ func (c *LogsConfig) PublicJSON() ([]byte, error) {
 		ChannelPath:       c.ChannelPath,
 		Service:           c.Service,
 		Source:            c.Source,
+		SourceCategory:    c.SourceCategory,
 		Tags:              c.Tags,
 		ProcessingRules:   c.ProcessingRules,
 		AutoMultiLine:     c.AutoMultiLine,
@@ -339,19 +344,19 @@ func (c *LogsConfig) Validate() error {
 		// user don't have to specify a logs-config type when defining
 		// an autodiscovery label because so we must override it at some point,
 		// this check is mostly used for sanity purposed to detect an override miss.
-		return fmt.Errorf("a config must have a type")
+		return errors.New("a config must have a type")
 	case c.Type == FileType:
 		if c.Path == "" {
-			return fmt.Errorf("file source must have a path")
+			return errors.New("file source must have a path")
 		}
 		err := c.validateTailingMode()
 		if err != nil {
 			return err
 		}
 	case c.Type == TCPType && c.Port == 0:
-		return fmt.Errorf("tcp source must have a port")
+		return errors.New("tcp source must have a port")
 	case c.Type == UDPType && c.Port == 0:
-		return fmt.Errorf("udp source must have a port")
+		return errors.New("udp source must have a port")
 	}
 
 	// Validate fingerprint configuration
@@ -372,8 +377,12 @@ func (c *LogsConfig) validateTailingMode() error {
 	if !found && c.TailingMode != "" {
 		return fmt.Errorf("invalid tailing mode '%v' for %v", c.TailingMode, c.Path)
 	}
-	if ContainsWildcard(c.Path) && (mode == Beginning || mode == ForceBeginning) {
-		return fmt.Errorf("tailing from the beginning is not supported for wildcard path %v", c.Path)
+
+	isWildcardWithBeginning := ContainsWildcard(c.Path) && (mode == Beginning || mode == ForceBeginning)
+	noFingerprinting := c.FingerprintConfig == nil || c.FingerprintConfig.FingerprintStrategy == "disabled"
+
+	if isWildcardWithBeginning && noFingerprinting {
+		log.Warnf("Using wildcard path %v with start_position: %v without fingerprinting may cause duplicate log reads during rotation.", c.Path, c.TailingMode)
 	}
 	return nil
 }

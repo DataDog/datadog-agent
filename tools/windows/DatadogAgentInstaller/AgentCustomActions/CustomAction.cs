@@ -1,5 +1,5 @@
 using Datadog.CustomActions;
-using Microsoft.Deployment.WindowsInstaller;
+using WixToolset.Dtf.WindowsInstaller;
 
 namespace Datadog.AgentCustomActions
 {
@@ -219,6 +219,12 @@ namespace Datadog.AgentCustomActions
         public static ActionResult RollbackOciPackages(Session session)
         {
             return Datadog.CustomActions.InstallOciPackages.RollbackActions(session);
+        }
+
+        [CustomAction]
+        public static ActionResult PurgeOciPackages(Session session)
+        {
+            return Datadog.CustomActions.InstallOciPackages.PurgePackages(session);
         }
     }
 }

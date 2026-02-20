@@ -49,7 +49,7 @@ func (w *workloadmeta) sbomFlareProvider(fb flaretypes.FlareBuilder) error {
 		}
 		names[name]++
 
-		_ = fb.AddFileWithoutScrubbing(filepath.Join("sbom", fmt.Sprintf("%s.json", name)), content)
+		_ = fb.AddFileWithoutScrubbing(filepath.Join("sbom", name+".json"), content)
 	}
 
 	return nil

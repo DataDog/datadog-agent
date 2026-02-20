@@ -10,23 +10,23 @@ import (
 	_ "embed"
 	"fmt"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
-
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
 type baseConfigSuite struct {
 	e2e.BaseSuite[environments.Host]
-	osOption awshost.ProvisionerOption
+	osOption scenec2.Option
 }
 
-func (v *baseConfigSuite) GetOs() awshost.ProvisionerOption {
+func (v *baseConfigSuite) GetOs() scenec2.Option {
 	return v.osOption
 }
 
@@ -62,7 +62,7 @@ func (v *baseConfigSuite) TestDefaultConfig() {
 
 	assertConfigValueContains(v.T(), config, "api_key", "*******")
 	assertConfigValueEqual(v.T(), config, "fips.enabled", false)
-	assertConfigValueEqual(v.T(), config, "expvar_port", "5000")
+	assertConfigValueEqual(v.T(), config, "expvar_port", 5000)
 	assertConfigValueEqual(v.T(), config, "network_devices.snmp_traps.forwarder.logs_no_ssl", false)
 	assertConfigValueContains(v.T(), config, "cloud_provider_metadata", "aws")
 }
@@ -71,7 +71,12 @@ func (v *baseConfigSuite) TestDefaultConfig() {
 var agentConfiguration []byte
 
 func (v *baseConfigSuite) TestNonDefaultConfig() {
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(v.GetOs(), awshost.WithAgentOptions(agentparams.WithAgentConfig(string(agentConfiguration)))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(
+		awshost.WithRunOptions(
+			v.GetOs(),
+			scenec2.WithAgentOptions(agentparams.WithAgentConfig(string(agentConfiguration))),
+		),
+	))
 
 	config := getFullConfig(v)
 
@@ -79,7 +84,7 @@ func (v *baseConfigSuite) TestNonDefaultConfig() {
 	assertConfigValueEqual(v.T(), config, "inventories_enabled", false)
 	assertConfigValueEqual(v.T(), config, "inventories_min_interval", 1234)
 	assertConfigValueEqual(v.T(), config, "inventories_max_interval", 3456)
-	assertConfigValueEqual(v.T(), config, "expvar_port", "5678")
+	assertConfigValueEqual(v.T(), config, "expvar_port", 5678)
 	assertConfigValueContains(v.T(), config, "tags", "e2e")
 	assertConfigValueContains(v.T(), config, "tags", "test")
 }

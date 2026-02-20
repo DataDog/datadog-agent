@@ -52,7 +52,7 @@ func NewFakeTaggerDifferentImageNames() tags.Tagger {
 	return &FakeTagger{}
 }
 
-// This fake tagger will allways give the same image_name, no matter the container ID
+// This fake tagger will always give the same image_name, no matter the container ID
 
 // FakeMonoTagger represents a fake mono tagger
 type FakeMonoTagger struct{}

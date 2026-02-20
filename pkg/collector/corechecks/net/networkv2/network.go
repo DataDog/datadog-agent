@@ -137,7 +137,7 @@ func (n defaultNetworkStats) GetNetProcBasePath() string {
 	netProcfsPath := n.procPath
 	// in a containerized environment
 	if os.Getenv("DOCKER_DD_AGENT") != "" && netProcfsPath != "/proc" {
-		netProcfsPath = fmt.Sprintf("%s/1", netProcfsPath)
+		netProcfsPath = netProcfsPath + "/1"
 	}
 	return netProcfsPath
 }
@@ -227,7 +227,7 @@ func submitInterfaceSysMetrics(sender sender.Sender) {
 		return
 	}
 	for _, iface := range ifaces {
-		ifaceTag := []string{fmt.Sprintf("iface:%s", iface.Name())}
+		ifaceTag := []string{"iface:" + iface.Name()}
 		for _, metricName := range sysNetMetrics {
 			metricFileName := metricName
 			if metricName == "up" {
@@ -238,7 +238,7 @@ func submitInterfaceSysMetrics(sender sender.Sender) {
 			if err != nil {
 				log.Debugf("Unable to read %s, skipping: %s.", metricFilepath, err)
 			}
-			sender.Gauge(fmt.Sprintf("system.net.iface.%s", metricName), float64(val), "", ifaceTag)
+			sender.Gauge("system.net.iface."+metricName, float64(val), "", ifaceTag)
 		}
 		queuesFilepath := filepath.Join(sysNetLocation, iface.Name(), "queues")
 		queues, err := afero.ReadDir(filesystem, queuesFilepath)
@@ -260,14 +260,14 @@ func submitInterfaceSysMetrics(sender sender.Sender) {
 }
 
 func submitInterfaceMetrics(sender sender.Sender, interfaceIO net.IOCountersStat) {
-	tags := []string{fmt.Sprintf("device:%s", interfaceIO.Name), fmt.Sprintf("device_name:%s", interfaceIO.Name)}
+	tags := []string{"device:" + interfaceIO.Name, "device_name:" + interfaceIO.Name}
 	speedVal, err := readIntFile(fmt.Sprintf("/sys/class/net/%s/speed", interfaceIO.Name), filesystem)
 	if err == nil {
-		tags = append(tags, fmt.Sprintf("speed:%s", strconv.Itoa(speedVal)))
+		tags = append(tags, "speed:"+strconv.Itoa(speedVal))
 	}
 	mtuVal, err := readIntFile(fmt.Sprintf("/sys/class/net/%s/mtu", interfaceIO.Name), filesystem)
 	if err == nil {
-		tags = append(tags, fmt.Sprintf("mtu:%s", strconv.Itoa(mtuVal)))
+		tags = append(tags, "mtu:"+strconv.Itoa(mtuVal))
 	}
 	sender.Rate("system.net.bytes_rcvd", float64(interfaceIO.BytesRecv), "", tags)
 	sender.Rate("system.net.bytes_sent", float64(interfaceIO.BytesSent), "", tags)
@@ -326,7 +326,7 @@ func handleEthtoolStats(sender sender.Sender, ethtoolObject ethtoolInterface, in
 
 		count := 0
 		for metricName, metricValue := range enaMetrics {
-			metricName := fmt.Sprintf("system.net.%s", metricName)
+			metricName := "system.net." + metricName
 			sender.Gauge(metricName, float64(metricValue), "", tags)
 			count++
 		}
@@ -344,7 +344,7 @@ func handleEthtoolStats(sender sender.Sender, ethtoolObject ethtoolInterface, in
 			}
 
 			for metricName, metricValue := range keyValuePairing {
-				metricName := fmt.Sprintf("system.net.%s", metricName)
+				metricName := "system.net." + metricName
 				sender.MonotonicCount(metricName, float64(metricValue), "", tags)
 			}
 		}
@@ -506,7 +506,7 @@ func (c *NetworkCheck) submitProtocolMetrics(sender sender.Sender, protocolStats
 					sender.Rate(metricName, float64(metricValue), "", nil)
 				}
 				if c.config.instance.CollectCountMetrics {
-					sender.MonotonicCount(fmt.Sprintf("%s.count", metricName), float64(metricValue), "", nil)
+					sender.MonotonicCount(metricName+".count", float64(metricValue), "", nil)
 				}
 			}
 		}
@@ -529,8 +529,8 @@ func getSocketStateMetrics(protocol string, procfsPath string) (map[string]*conn
 	// Also calls `ss` for each protocol, because on some systems (e.g. Ubuntu 14.04), there is a bug that print `tcp` even if it's `udp`
 	// The `-H` flag isn't available on old versions of `ss`.
 
-	ipFlag := fmt.Sprintf("--ipv%s", protocol[len(protocol)-1:])
-	protocolFlag := fmt.Sprintf("--%s", protocol[:len(protocol)-1])
+	ipFlag := "--ipv" + protocol[len(protocol)-1:]
+	protocolFlag := "--" + protocol[:len(protocol)-1]
 	// Go's exec.Command environment is the same as the running process unlike python so we do not need to adjust the PATH
 	cmd := fmt.Sprintf("ss --numeric %s --all %s", protocolFlag, ipFlag)
 	output, err := runCommandFunction([]string{"sh", "-c", cmd}, env)
@@ -596,8 +596,8 @@ func parseSocketStatsMetrics(protocol, output string) (map[string]*connectionSta
 	// SYN-SENT    0        1           192.168.64.6:56650      169.254.169.254:80
 	// SYN-SENT    0        1           192.168.64.6:53594      100.100.100.200:80
 
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(output, "\n")
+	for line := range lines {
 		fields := strings.Fields(line)
 		// skip malformed ss entry result
 		if len(fields) < 3 {
@@ -667,8 +667,8 @@ func parseNetstatMetrics(protocol, output string) (map[string]*connectionStateEn
 	// udp        0      0 0.0.0.0:123             0.0.0.0:*
 	// udp        0      0 192.168.64.6:68         192.168.64.1:67         ESTABLISHED
 	// udp6       0      0 :::41458                :::*
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(output, "\n")
+	for line := range lines {
 		fields := strings.Fields(line)
 
 		if len(fields) < 5 {
@@ -842,8 +842,8 @@ func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSud
 	//       drop=1 early_drop=0 error=0 search_restart=39936711
 	// cpu=1 found=21960 invalid=17288 ignore=475938848 insert=0 insert_failed=1 \
 	//       drop=1 early_drop=0 error=0 search_restart=36983181
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(output, "\n")
+	for line := range lines {
 		if line == "" {
 			continue
 		}

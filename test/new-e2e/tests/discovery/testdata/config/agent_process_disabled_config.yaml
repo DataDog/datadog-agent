@@ -2,7 +2,6 @@ log_level: DEBUG
 process_config:
   process_collection:
     enabled: false
-    use_wlm: true
   run_in_core_agent:
     enabled: true
 

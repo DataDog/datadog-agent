@@ -16,7 +16,6 @@ import (
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
 func benchmarkSplitPayloadsSketchesNew(b *testing.B, numPoints int) {
@@ -32,8 +31,10 @@ func benchmarkSplitPayloadsSketchesNew(b *testing.B, numPoints int) {
 	logger := logmock.New(b)
 
 	for n := 0; n < b.N; n++ {
-		payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor, logger)
+		pipelines := testPipelines()
+		err := serializer.MarshalSplitCompressPipelines(mockConfig, compressor, pipelines, logger)
 		require.NoError(b, err)
+		payloads := pipelines.GetPayloads()
 		var pb int
 		for _, p := range payloads {
 			pb += p.Len()

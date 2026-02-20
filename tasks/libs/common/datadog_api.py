@@ -1,5 +1,5 @@
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from invoke.exceptions import Exit
 
@@ -56,8 +56,7 @@ def send_metrics(series):
     from datadog_api_client.v2.api.metrics_api import MetricsApi
     from datadog_api_client.v2.model.metric_payload import MetricPayload
 
-    configuration = Configuration()
-    with ApiClient(configuration) as api_client:
+    with ApiClient(Configuration(enable_retry=True)) as api_client:
         api_instance = MetricsApi(api_client)
         response = api_instance.submit_metrics(body=MetricPayload(series=series))
 
@@ -85,8 +84,7 @@ def send_event(title: str, text: str, tags: list[str] = None):
         tags=tags or [],
     )
 
-    configuration = Configuration()
-    with ApiClient(configuration) as api_client:
+    with ApiClient(Configuration(enable_retry=True)) as api_client:
         api_instance = EventsApi(api_client)
         try:
             response = api_instance.create_event(body=body)
@@ -110,8 +108,7 @@ def get_ci_pipeline_events(query, days):
     from datadog_api_client import ApiClient, Configuration
     from datadog_api_client.v2.api.ci_visibility_pipelines_api import CIVisibilityPipelinesApi
 
-    configuration = Configuration()
-    with ApiClient(configuration) as api_client:
+    with ApiClient(Configuration(enable_retry=True)) as api_client:
         api_instance = CIVisibilityPipelinesApi(api_client)
         response = api_instance.list_ci_app_pipeline_events(
             filter_query=query,
@@ -130,11 +127,10 @@ def get_ci_test_events(query, days):
     from datadog_api_client import ApiClient, Configuration
     from datadog_api_client.v2.api.ci_visibility_tests_api import CIVisibilityTestsApi
 
-    configuration = Configuration()
     all_events = []
     page_cursor = None
 
-    with ApiClient(configuration) as api_client:
+    with ApiClient(Configuration(enable_retry=True)) as api_client:
         api = CIVisibilityTestsApi(api_client)
 
         while True:
@@ -163,3 +159,122 @@ def get_ci_test_events(query, days):
                 break  # No pagination metadata, assume single page
 
     return all_events
+
+
+def query_metrics(query, from_time, to_time):
+    """
+    Query Datadog metrics timeseries.
+
+    Args:
+        query: Metrics query string (e.g., "avg:metric.name{tag:value} by {group}")
+        from_time: Start time as Unix timestamp (seconds) or relative string like "now-1d"
+        to_time: End time as Unix timestamp (seconds) or relative string like "now"
+
+    Returns:
+        List of series data with scope, values, etc.
+    """
+    from datadog_api_client import ApiClient, Configuration
+    from datadog_api_client.v1.api.metrics_api import MetricsApi
+
+    # Parse relative time strings to Unix timestamps
+    def parse_time(time_str):
+        if isinstance(time_str, int):
+            return time_str
+        if time_str == "now":
+            return int(datetime.now(timezone.utc).timestamp())
+        if time_str.startswith("now-"):
+            duration = time_str[4:]
+            if duration.endswith("d"):
+                delta = timedelta(days=int(duration[:-1]))
+            elif duration.endswith("h"):
+                delta = timedelta(hours=int(duration[:-1]))
+            elif duration.endswith("m"):
+                delta = timedelta(minutes=int(duration[:-1]))
+            else:
+                raise ValueError(f"Unknown time format: {time_str}")
+            return int((datetime.now(timezone.utc) - delta).timestamp())
+        raise ValueError(f"Unknown time format: {time_str}")
+
+    start = parse_time(from_time)
+    end = parse_time(to_time)
+
+    with ApiClient(Configuration(enable_retry=True)) as api_client:
+        api_instance = MetricsApi(api_client)
+        response = api_instance.query_metrics(
+            _from=start,
+            to=end,
+            query=query,
+        )
+
+        # Extract series data from response
+        series_list = []
+        if not response.series:
+            return series_list
+
+        for series in response.series:
+            series_data = {
+                "scope": series.scope or "",
+                "pointlist": series.pointlist or [],
+                "expression": series.expression or "",
+            }
+            series_list.append(series_data)
+
+        return series_list
+
+
+def query_gate_metrics_for_commit(commit_sha: str, lookback: str = "now-7d") -> dict:
+    """
+    Query Datadog for static quality gate metrics for a specific commit.
+
+    Uses query_metrics to fetch on_disk_size and on_wire_size metrics
+    for an ancestor commit. This provides a consistent source of truth
+    for calculating relative size changes.
+
+    Args:
+        commit_sha: The git commit SHA to query metrics for
+        lookback: How far back to look (default 7 days)
+
+    Returns:
+        Dict mapping gate_name -> {'current_on_disk_size': ..., 'current_on_wire_size': ...}
+        Empty dict if no metrics found.
+    """
+    results = {}
+
+    metrics_to_query = {
+        'current_on_disk_size': 'datadog.agent.static_quality_gate.on_disk_size',
+        'current_on_wire_size': 'datadog.agent.static_quality_gate.on_wire_size',
+    }
+
+    for metric_key, metric_name in metrics_to_query.items():
+        # Query all gates at once using "by {gate_name}" aggregation
+        query = f"avg:{metric_name}{{ci_commit_sha:{commit_sha}}} by {{gate_name}}"
+
+        try:
+            series_list = query_metrics(query, lookback, "now")
+
+            for series in series_list:
+                # Extract gate_name from scope (e.g., "gate_name:static_quality_gate_agent_deb_amd64")
+                scope = series["scope"]
+                gate_name = None
+                for tag in scope.split(","):
+                    if tag.startswith("gate_name:"):
+                        gate_name = tag.split(":", 1)[1]
+                        break
+
+                if not gate_name:
+                    continue
+
+                # Get the most recent non-null value from pointlist
+                # Point objects have .value property that returns [timestamp, metric_value]
+                pointlist = series["pointlist"]
+                for point in reversed(pointlist):
+                    if point and point.value and point.value[1] is not None:
+                        if gate_name not in results:
+                            results[gate_name] = {}
+                        results[gate_name][metric_key] = int(point.value[1])
+                        break
+
+        except Exception as e:
+            print(f"[WARN] Failed to query {metric_name} for commit {commit_sha}: {e}", file=sys.stderr)
+
+    return results

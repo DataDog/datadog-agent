@@ -52,13 +52,13 @@ func kernelHeaderPaths(headerDirs []string) []string {
 	var paths []string
 	for _, d := range headerDirs {
 		paths = append(paths,
-			fmt.Sprintf("%s/arch/%s/include", d, arch),
-			fmt.Sprintf("%s/arch/%s/include/generated", d, arch),
-			fmt.Sprintf("%s/include", d),
-			fmt.Sprintf("%s/arch/%s/include/uapi", d, arch),
-			fmt.Sprintf("%s/arch/%s/include/generated/uapi", d, arch),
-			fmt.Sprintf("%s/include/uapi", d),
-			fmt.Sprintf("%s/include/generated/uapi", d),
+			d+"/arch/"+arch+"/include",
+			d+"/arch/"+arch+"/include/generated",
+			d+"/include",
+			d+"/arch/"+arch+"/include/uapi",
+			d+"/arch/"+arch+"/include/generated/uapi",
+			d+"/include/uapi",
+			d+"/include/generated/uapi",
 		)
 	}
 	return paths
@@ -71,11 +71,11 @@ func CompileToObjectFile(inFile, outputFile string, cflags []string, headerDirs 
 		return err
 	}
 	defer os.RemoveAll(tmpIncludeDir)
-	cflags = append(cflags, fmt.Sprintf("-isystem%s", tmpIncludeDir))
+	cflags = append(cflags, "-isystem"+tmpIncludeDir)
 
 	kps := kernelHeaderPaths(headerDirs)
 	for _, p := range kps {
-		cflags = append(cflags, fmt.Sprintf("-isystem%s", p))
+		cflags = append(cflags, "-isystem"+p)
 	}
 
 	cflags = append(cflags, "-c", "-x", "c", "-o", "-", inFile)
@@ -174,11 +174,11 @@ func Preprocess(in io.Reader, out io.Writer, cflags []string, headerDirs []strin
 		return err
 	}
 	defer os.RemoveAll(tmpIncludeDir)
-	cflags = append(cflags, fmt.Sprintf("-isystem%s", tmpIncludeDir))
+	cflags = append(cflags, "-isystem"+tmpIncludeDir)
 
 	kps := kernelHeaderPaths(headerDirs)
 	for _, p := range kps {
-		cflags = append(cflags, fmt.Sprintf("-isystem%s", p))
+		cflags = append(cflags, "-isystem"+p)
 	}
 
 	cflags = append(cflags, "-E", "-x", "c", "-o", "-", "-")

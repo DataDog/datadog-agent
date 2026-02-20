@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import base64
-import json
 import os
 import re
 from collections.abc import Iterable
 from datetime import datetime, timedelta
-from functools import lru_cache
 
 import requests
 from invoke import Context
@@ -489,10 +487,6 @@ class GithubAPI:
         """
         return self._github.search_issues(query)
 
-    def is_organization_member(self, user):
-        organization = self._repository.organization
-        return (user.company and 'datadog' in user.company.casefold()) or organization.has_in_members(user)
-
     def commit_and_push_signed(self, branch_name: str, commit_message: str, tree: dict[str, dict[str, str]]):
         # Create a commit from the given tree, see details in https://github.com/orgs/community/discussions/50055
         base_tree = self._repository.get_git_tree(tree['base_tree'])
@@ -559,6 +553,8 @@ class GithubAPI:
     def get_token_from_app(app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64'):
         app_id = os.environ.get(app_id_env)
         app_key_b64 = os.environ.get(pkey_env)
+        if app_id is None or app_key_b64 is None:
+            raise RuntimeError(f"Missing {app_id_env} or {pkey_env}")
         app_key = base64.b64decode(app_key_b64).decode("ascii")
 
         auth = Auth.AppAuth(app_id, app_key)
@@ -675,34 +671,12 @@ class GithubAPI:
         data = self.graphql(query)
         return [member["login"] for member in data["data"]["organization"]["team"]["members"]["nodes"]]
 
-
-def get_github_teams(users):
-    for user in users:
-        yield from query_teams(user.login)
-
-
-@lru_cache
-def query_teams(login):
-    query = get_user_query(login)
-    headers = {"Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}", "Content-Type": "application/json"}
-    response = requests.post("https://api.github.com/graphql", headers=headers, data=query, timeout=10)
-    data = response.json()
-    teams = []
-    try:
-        if data["data"]["user"]["organization"] and data["data"]["user"]["organization"]["teams"]:
-            for team in data["data"]["user"]["organization"]["teams"]["nodes"]:
-                teams.append(team["slug"])
-    except KeyError:
-        print(f"Error for user {login}: {data}")
-        raise
-    return teams
-
-
-def get_user_query(login):
-    variables = {"login": login, "org": "datadog"}
-    query = '{"query": "query GetUserTeam($login: String!, $org: String!) { user(login: $login) {organization(login: $org) { teams(first:10, userLogins: [$login]){ nodes { slug } } } } }", '
-    string_var = f'"variables": {json.dumps(variables)}'
-    return query + string_var
+    def get_fork_name(self, owner):
+        forks = self._repository.get_forks()
+        for fork in forks:
+            if fork.owner.login == owner:
+                return fork.name
+        return None
 
 
 def create_datadog_agent_pr(title, base_branch, target_branch, milestone_name, other_labels=None, body=""):
@@ -763,7 +737,7 @@ Make sure that milestone is open before trying again.""",
     return updated_pr.html_url
 
 
-def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False, milestone=None, labels=()):
+def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False, milestone=None):
     if milestone:
         milestone_name = milestone
     else:
@@ -773,18 +747,11 @@ def create_release_pr(title, base_branch, target_branch, version, changelog_pr=F
 
     labels = [
         "team/agent-delivery",
-        *labels,
     ]
     if changelog_pr:
         labels.append(f"backport/{get_default_branch()}")
 
     return create_datadog_agent_pr(title, base_branch, target_branch, milestone_name, labels)
-
-
-def ask_review_actor(pr):
-    for event in pr.get_issue_events():
-        if event.event == "labeled" and event.label.name == "ask-review":
-            return event.actor.name or event.actor.login
 
 
 def generate_local_github_token(ctx):

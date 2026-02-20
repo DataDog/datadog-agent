@@ -37,7 +37,7 @@ var ErrNotFound = errors.New("entity not found")
 type TagStore struct {
 	sync.RWMutex
 
-	store     types.ObjectStore[EntityTags]
+	store     *genericstore.ObjectStore[EntityTags]
 	telemetry map[string]map[string]float64
 
 	subscriptionManager subscriber.SubscriptionManager
@@ -128,10 +128,11 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*types.TagInfo) {
 		}
 
 		eventType := types.EventTypeModified
+		tagsChanged := true
 		if exist {
 			tags := storedTags.tagsForSource(info.Source)
 			if tags != nil && reflect.DeepEqual(tags, newSt) {
-				continue
+				tagsChanged = false
 			}
 		} else {
 			eventType = types.EventTypeAdded
@@ -139,10 +140,21 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*types.TagInfo) {
 			s.store.Set(info.EntityID, storedTags)
 		}
 
+		completenessChanged := storedTags.getIsComplete() != info.IsComplete
+
+		// Skip if nothing changed
+		if !tagsChanged && !completenessChanged {
+			continue
+		}
+
 		if s.telemetryStore != nil {
 			s.telemetryStore.UpdatedEntities.Inc()
 		}
-		storedTags.setTagsForSource(info.Source, newSt)
+
+		if tagsChanged {
+			storedTags.setTagsForSource(info.Source, newSt)
+		}
+		storedTags.setIsComplete(info.IsComplete)
 
 		events = append(events, types.EntityEvent{
 			EventType: eventType,
@@ -248,36 +260,31 @@ func (s *TagStore) Prune() {
 }
 
 // LookupHashed gets tags from the store and returns them as a HashedTags instance.
-func (s *TagStore) LookupHashed(entityID types.EntityID, cardinality types.TagCardinality) tagset.HashedTags {
-	s.RLock()
-	defer s.RUnlock()
-	storedTags, present := s.store.Get(entityID)
-
-	if !present {
-		return tagset.HashedTags{}
-	}
-	return storedTags.getHashedTags(cardinality)
-}
-
-// LookupHashedWithEntityStr is the same as LookupHashed but takes a string as input.
-// This function is needed only for performance reasons. It functions like
-// LookupHashed, but accepts a string instead of an EntityID. This reduces the
-// allocations that occur when an EntityID is passed as a parameter.
-func (s *TagStore) LookupHashedWithEntityStr(entityID types.EntityID, cardinality types.TagCardinality) tagset.HashedTags {
+// Returns ErrNotFound if the entity is not present in the store.
+func (s *TagStore) LookupHashed(entityID types.EntityID, cardinality types.TagCardinality) (tagset.HashedTags, error) {
 	s.RLock()
 	defer s.RUnlock()
 
 	storedTags, present := s.store.Get(entityID)
 	if !present {
-		return tagset.HashedTags{}
+		return tagset.HashedTags{}, ErrNotFound
 	}
 
-	return storedTags.getHashedTags(cardinality)
+	return storedTags.getHashedTags(cardinality), nil
 }
 
-// Lookup gets tags from the store and returns them concatenated in a string slice.
-func (s *TagStore) Lookup(entityID types.EntityID, cardinality types.TagCardinality) []string {
-	return s.LookupHashed(entityID, cardinality).Get()
+// LookupHashedWithCompleteness similar to LookupHashed but returns the
+// completeness of the entity
+func (s *TagStore) LookupHashedWithCompleteness(entityID types.EntityID, cardinality types.TagCardinality) (tagset.HashedTags, bool, error) {
+	s.RLock()
+	defer s.RUnlock()
+
+	storedTags, present := s.store.Get(entityID)
+	if !present {
+		return tagset.HashedTags{}, false, ErrNotFound
+	}
+
+	return storedTags.getHashedTags(cardinality), storedTags.getIsComplete(), nil
 }
 
 // LookupStandard returns the standard tags recorded for a given entity

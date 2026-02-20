@@ -9,7 +9,6 @@
 package postgres
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -50,7 +49,7 @@ func RunServer(t testing.TB, serverAddr, serverPort string, enableTLS bool) erro
 		"TESTDIR=" + testDataDir,
 	}
 
-	scanner, err := globalutils.NewScanner(regexp.MustCompile(fmt.Sprintf(".*listening on IPv4 address \"0.0.0.0\", port %s", serverPort)), globalutils.NoPattern)
+	scanner, err := globalutils.NewScanner(regexp.MustCompile(".*listening on IPv4 address \"0.0.0.0\", port "+serverPort), globalutils.NoPattern)
 	require.NoError(t, err, "failed to create pattern scanner")
 
 	dockerCfg := dockerutils.NewComposeConfig(

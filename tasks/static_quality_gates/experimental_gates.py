@@ -68,6 +68,9 @@ class FileInfo(SizeMixin):
     is_symlink: bool | None = None
     symlink_target: str | None = None
     is_broken: bool | None = None
+    chmod: int | None = None
+    owner: int | None = None
+    group: int | None = None
 
     def __post_init__(self):
         """Validate file info data"""
@@ -289,6 +292,9 @@ class FileUtilities:
 
             try:
                 relative_path = str(file_path.relative_to(directory_path))
+                # Regular file - use lstat to not follow symlinks
+                file_stat = file_path.lstat()
+                chmod = stat.S_IMODE(file_stat.st_mode)
 
                 if file_path.is_symlink():
                     try:
@@ -314,6 +320,9 @@ class FileUtilities:
                                 is_symlink=True,
                                 symlink_target=symlink_target_rel,
                                 is_broken=is_broken if is_broken else None,
+                                chmod=chmod,
+                                owner=file_stat.st_uid,
+                                group=file_stat.st_gid,
                             )
                         )
 
@@ -329,11 +338,8 @@ class FileUtilities:
                         continue
 
                 elif file_path.is_file():
-                    # Regular file - use lstat to not follow symlinks
-                    file_stat = file_path.lstat()
-                    size_bytes = file_stat.st_size
-
                     # Always generate checksums for regular files
+                    size_bytes = file_stat.st_size
                     checksum = FileUtilities.generate_checksum(file_path)
 
                     file_inventory.append(
@@ -341,6 +347,9 @@ class FileUtilities:
                             relative_path=relative_path,
                             size_bytes=size_bytes,
                             checksum=checksum,
+                            chmod=chmod,
+                            owner=file_stat.st_uid,
+                            group=file_stat.st_gid,
                         )
                     )
 
@@ -527,6 +536,12 @@ class ReportBuilder:
 
         if file_info.checksum is not None:
             result["checksum"] = file_info.checksum
+        if file_info.chmod is not None:
+            result["chmod"] = file_info.chmod
+        if file_info.owner is not None:
+            result["owner"] = file_info.owner
+        if file_info.group is not None:
+            result["group"] = file_info.group
 
         if file_info.is_symlink:
             result["is_symlink"] = True
@@ -843,6 +858,9 @@ class DockerProcessor:
                                     relative_path=relative_path,
                                     size_bytes=size_bytes,
                                     checksum=checksum,
+                                    chmod=stat.S_IMODE(file_stat.st_mode),
+                                    owner=file_stat.st_uid,
+                                    group=file_stat.st_gid,
                                 )
 
                                 layer_files_processed += 1

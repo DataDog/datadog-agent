@@ -66,7 +66,7 @@ func TestValidateTokenMiddleware(t *testing.T) {
 			req, err := http.NewRequest("GET", tt.path, nil)
 			require.NoError(t, err)
 
-			req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", tt.authToken))
+			req.Header.Add("Authorization", "Bearer "+tt.authToken)
 
 			rr := httptest.NewRecorder()
 

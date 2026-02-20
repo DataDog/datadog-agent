@@ -8,11 +8,14 @@ package probe
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"syscall"
 
 	psutil "github.com/shirou/gopsutil/v4/process"
 
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
+	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -26,6 +29,7 @@ var (
 		"/opt/datadog-agent/embedded/bin/process-agent",
 		"/opt/datadog-agent/embedded/bin/system-probe",
 		"/opt/datadog-agent/embedded/bin/cws-instrumentation",
+		"/opt/datadog-agent/embedded/bin/privateactionrunner",
 		"/opt/datadog-agent/bin/datadog-cluster-agent",
 		// installer
 		"/opt/datadog-packages/datadog-agent/*/bin/agent/agent",
@@ -34,6 +38,7 @@ var (
 		"/opt/datadog-packages/datadog-agent/*/embedded/bin/process-agent",
 		"/opt/datadog-packages/datadog-agent/*/embedded/bin/system-probe",
 		"/opt/datadog-packages/datadog-agent/*/embedded/bin/cws-instrumentation",
+		"/opt/datadog-packages/datadog-agent/*/embedded/bin/privateactionrunner",
 		"/opt/datadog-packages/datadog-agent/*/bin/datadog-cluster-agent",
 		"/opt/datadog-packages/datadog-installer/*/bin/installer/installer",
 	}
@@ -52,13 +57,15 @@ const (
 
 // ProcessKillerLinux defines the process kill linux implementation
 type ProcessKillerLinux struct {
-	killFunc func(pid, sig uint32) error
+	killFunc       func(pid, sig uint32) error
+	cgroupResolver *cgroup.Resolver
 }
 
 // NewProcessKillerOS returns a ProcessKillerOS
-func NewProcessKillerOS(f func(pid, sig uint32) error) ProcessKillerOS {
+func NewProcessKillerOS(killFunc func(pid, sig uint32) error, cgroupResolver *cgroup.Resolver) ProcessKillerOS {
 	return &ProcessKillerLinux{
-		killFunc: f,
+		killFunc:       killFunc,
+		cgroupResolver: cgroupResolver,
 	}
 }
 
@@ -76,34 +83,58 @@ func (p *ProcessKillerLinux) Kill(sig uint32, pc *killContext) error {
 		return errors.New("create at timestamps don't match")
 	}
 
-	return syscall.Kill(pc.pid, syscall.Signal(sig))
+	err = syscall.Kill(pc.pid, syscall.Signal(sig))
+	if err != nil && p.killFunc != nil {
+		err = p.killFunc(uint32(pc.pid), sig)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to kill process %d: %w", pc.pid, err)
+	}
+	return nil
 }
 
-// TODO: do a better job than returning only the direct lineage
 func (p *ProcessKillerLinux) getProcesses(scope string, ev *model.Event, entry *model.ProcessCacheEntry) ([]killContext, error) {
-	if entry.ContainerID != "" && scope == "container" {
+	if scope == "container" || scope == "cgroup" {
 		pcs := []killContext{}
-		pids, paths := entry.GetContainerPIDs()
-		l := min(len(pids), len(paths))
-		for i := 0; i < l; i++ {
-			pid := pids[i]
-			path := paths[i]
-			if pid < 1 || path == "" {
-				continue
+
+		// Use the CGroupResolver to get all PIDs of the container
+		if p.cgroupResolver != nil {
+			var cacheEntry *cgroupModel.CacheEntry
+			if !entry.ContainerContext.IsNull() {
+				cacheEntry = p.cgroupResolver.GetCacheEntryContainerID(entry.ContainerContext.ContainerID)
+				if cacheEntry == nil {
+					return pcs, errors.New("container not found")
+				}
+			} else {
+				cacheEntry = p.cgroupResolver.GetCacheEntryByCgroupID(entry.CGroup.CGroupID)
+				if cacheEntry == nil {
+					return pcs, errors.New("cgroup not found")
+				}
 			}
-			proc, err := psutil.NewProcess(int32(pid))
-			if err != nil {
-				continue
+
+			for _, pid := range cacheEntry.GetPIDs() {
+				if pid < 1 {
+					continue
+				}
+				proc, err := psutil.NewProcess(int32(pid))
+				if err != nil {
+					continue
+				}
+				createdAt, err := proc.CreateTime()
+				if err != nil || createdAt == 0 {
+					continue
+				}
+				// Get the executable path from procfs
+				exe, err := proc.Exe()
+				if err != nil {
+					continue
+				}
+				pcs = append(pcs, killContext{
+					pid:       int(pid),
+					path:      exe,
+					createdAt: uint64(createdAt),
+				})
 			}
-			createdAt, err := proc.CreateTime()
-			if err != nil || createdAt == 0 {
-				continue
-			}
-			pcs = append(pcs, killContext{
-				pid:       int(pid),
-				path:      path,
-				createdAt: uint64(createdAt),
-			})
 		}
 		return pcs, nil
 	}

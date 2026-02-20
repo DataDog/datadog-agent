@@ -145,6 +145,7 @@ func TestCallAgentsForService(t *testing.T) {
 			expectedCodes: map[string][]codes.Code{
 				"fast-agent": {codes.OK},
 			},
+			shouldSucceedInLessThan: 200 * time.Millisecond,
 		},
 	}
 

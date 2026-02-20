@@ -1,4 +1,3 @@
-import re
 import sys
 from datetime import date
 
@@ -135,22 +134,6 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
                 code=1,
             )
 
-        res = ctx.run("git ls-remote --heads origin")
-        backport_labels = []
-        for line in res.splitlines():
-            sections = line.strip().split()
-            if len(sections) != 2:
-                continue
-
-            # Enforce branch release naming convention (i.e. 7.67.x)
-            branch = sections[1].removeprefix("refs/heads/")
-            if not re.match(r'^7\.[0-9]+\.x$', branch):
-                continue
-
-            minor_version = int(branch.split(".")[1])
-            if minor_version > new_version_int[1]:
-                backport_labels.append(f"backport/{branch}")
-
         create_release_pr(
             f"Changelog update for {new_version} release",
             base_branch,
@@ -158,7 +141,6 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
             new_version,
             changelog_pr=True,
             milestone=str(new_version),
-            labels=backport_labels,
         )
 
 

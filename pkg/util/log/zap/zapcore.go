@@ -16,6 +16,7 @@ var _ zapcore.Core = (*core)(nil)
 
 type core struct {
 	baseEncoder *encoder
+	stackDepth  int
 }
 
 func (c *core) Enabled(level zapcore.Level) bool {
@@ -43,6 +44,7 @@ func (c *core) With(fields []zapcore.Field) zapcore.Core {
 
 	return &core{
 		baseEncoder: enc,
+		stackDepth:  c.stackDepth,
 	}
 }
 
@@ -66,7 +68,7 @@ func (c *core) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 		context = enc.ctx
 	}
 
-	const depth = 3
+	depth := c.stackDepth
 	switch entry.Level {
 	case zapcore.DebugLevel:
 		log.DebugcStackDepth(entry.Message, depth, context...)
@@ -92,5 +94,12 @@ func (c *core) Sync() error {
 
 // NewZapCore creates a new zap core that wraps the default agent log instance.
 func NewZapCore() zapcore.Core {
-	return &core{baseEncoder: &encoder{}}
+	return &core{baseEncoder: &encoder{}, stackDepth: 3}
+}
+
+// NewZapCoreWithDepth creates a new zap core with a custom stack depth.
+// This is useful when the zap logger is wrapped by additional layers (like slog)
+// that add extra stack frames.
+func NewZapCoreWithDepth(depth int) zapcore.Core {
+	return &core{baseEncoder: &encoder{}, stackDepth: depth}
 }

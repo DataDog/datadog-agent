@@ -49,21 +49,21 @@ func RemovePackage(ctx context.Context, pkg string) (err error) {
 		return err
 	}
 	var packageInstalled bool
-	var removeCmd *exec.Cmd
+	var removeCmd *telemetry.TracedCmd
 	if dpkgInstalled {
-		removeCmd = exec.Command("dpkg", "-r", pkg)
-		packageInstalled = exec.Command("dpkg", "-s", pkg).Run() == nil
+		removeCmd = telemetry.CommandContext(ctx, "dpkg", "-r", pkg)
+		packageInstalled = telemetry.CommandContext(ctx, "dpkg", "-s", pkg).Run() == nil
 	}
 	if rpmInstalled {
-		removeCmd = exec.Command("rpm", "-e", pkg)
-		packageInstalled = exec.Command("rpm", "-q", pkg).Run() == nil
+		removeCmd = telemetry.CommandContext(ctx, "rpm", "-e", pkg)
+		packageInstalled = telemetry.CommandContext(ctx, "rpm", "-q", pkg).Run() == nil
 	}
 	if !packageInstalled {
 		return nil
 	}
-	out, err := removeCmd.CombinedOutput()
+	err = removeCmd.Run()
 	if err != nil {
-		return fmt.Errorf("failed to uninstall deb/rpm package %s (%w): %s", pkg, err, out)
+		return fmt.Errorf("failed to uninstall deb/rpm package %s: %w", pkg, err)
 	}
 	return nil
 }

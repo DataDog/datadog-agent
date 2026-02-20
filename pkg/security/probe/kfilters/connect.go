@@ -17,24 +17,29 @@ import (
 
 var connectCapabilities = rules.FieldCapabilities{
 	{
-		Field:       "connect.addr.family",
-		TypeBitmask: eval.ScalarValueType,
+		Field:        "connect.addr.family",
+		TypeBitmask:  eval.ScalarValueType,
+		FilterWeight: 50,
 	},
 	{
-		Field:       "connect.addr.port",
-		TypeBitmask: eval.ScalarValueType,
+		Field:        "connect.addr.port",
+		TypeBitmask:  eval.ScalarValueType,
+		FilterWeight: 80,
 	},
 	{
-		Field:       "connect.addr.ip",
-		TypeBitmask: eval.IPNetValueType,
+		Field:        "connect.addr.ip",
+		TypeBitmask:  eval.IPNetValueType,
+		FilterWeight: 90,
 	},
 	{
-		Field:       "connect.addr.is_public",
-		TypeBitmask: eval.ScalarValueType,
+		Field:        "connect.addr.is_public",
+		TypeBitmask:  eval.ScalarValueType,
+		FilterWeight: 70,
 	},
 	{
-		Field:       "connect.addr.hostname",
-		TypeBitmask: eval.ScalarValueType,
+		Field:        "connect.addr.hostname",
+		TypeBitmask:  eval.ScalarValueType,
+		FilterWeight: 100,
 	},
 }
 
@@ -56,7 +61,7 @@ func connectKFiltersGetter(approvers rules.Approvers) (KFilters, []eval.Field, e
 		}
 	}
 
-	kfilter, err := getEnumsKFilters("connect_addr_family_approvers", uintValues[uint64](connectAddrFamilyValues)...)
+	kfilter, err := getEnumsKFiltersWithIndex("connect_addr_family_approvers", 0, uintValues[uint64](connectAddrFamilyValues)...)
 	if err != nil {
 		return nil, nil, err
 	}

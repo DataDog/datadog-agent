@@ -15,6 +15,7 @@
 #include "rtloader_types.h"
 
 #include <stdlib.h>
+#include <sys/types.h>
 
 #define MEM_DEPRECATION_MSG                                                                                            \
     "raw primitives should not be used in the context"                                                                 \
@@ -27,42 +28,48 @@ extern "C" {
 extern void *malloc(size_t size) __attribute__((deprecated(MEM_DEPRECATION_MSG)));
 extern void free(void *ptr) __attribute__((deprecated(MEM_DEPRECATION_MSG)));
 
-/*! \fn void _set_memory_tracker_cb(cb_memory_tracker_t cb)
-    \brief Sets a callback to be used by rtloader to add memory tracking stats.
-    \param object A function pointer to the callback function.
-
-    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
-    This function is thread unsafe, be sure to call it early on before multiple threads
-    may start using the allocator.
+/*! \fn void _enable_memory_tracker(void)
+    \brief Enables memory tracking stats for the rtloader.
 */
-void _set_memory_tracker_cb(cb_memory_tracker_t);
+void _enable_memory_tracker(void);
 
-/*! \fn cb_memory_tracker_t _set_memory_tracker_cb(void)
-    \brief Returns the callback used by rtloader for memory tracking stats.
-    \return object A function pointer to the callback function.
-
-    This function is thread unsafe, be sure to call it early on before multiple threads
-    may start using the allocator.
+/*! \fn rtloader_malloc_t _get_tracked_malloc(void)
+    \brief Gets the current tracked malloc function.
 */
-cb_memory_tracker_t _get_memory_tracker_cb(void);
+rtloader_malloc_t _get_tracked_malloc(void);
+
+/*! \fn rtloader_free_t _get_tracked_free(void)
+    \brief Gets the current tracked free function.
+*/
+rtloader_free_t _get_tracked_free(void);
 
 /*! \fn void *_malloc(size_t sz)
     \brief Basic malloc wrapper that will also keep memory stats if enabled.
     \param sz the number of bytes to allocate.
 
-    This function is thread unsafe in its access to the memory tracker. Onle, use this
+    This function is thread unsafe in its access to the memory tracker. Only, use this
     logic once the memory tracker has be set (or tracking remains disabled).
 */
-void *_malloc(size_t sz);
+extern void *(*_malloc)(size_t sz);
 
 /*! \fn void _free(void *ptr)
     \brief Basic free wrapper that will also keep memory stats if enabled.
     \param ptr the pointer to the heap region you wish to free.
 
-    This function is thread unsafe in its access to the memory tracker. Onle, use this
+    This function is thread unsafe in its access to the memory tracker. Only, use this
     logic once the memory tracker has be set (or tracking remains disabled).
 */
-void _free(void *ptr);
+extern void (*_free)(void *ptr);
+
+struct memory_stats {
+    size_t allocations;
+    size_t allocated_bytes;
+    size_t frees;
+    size_t freed_bytes;
+    ssize_t inuse_bytes;
+};
+
+struct memory_stats get_and_reset_memory_stats(void);
 
 #ifdef __cplusplus
 #    ifndef __GLIBC__

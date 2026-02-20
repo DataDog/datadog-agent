@@ -10,6 +10,9 @@ import (
 	"fmt"
 
 	model "github.com/DataDog/agent-payload/v5/contlcycle"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 
 	types "github.com/DataDog/datadog-agent/pkg/containerlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -94,9 +97,24 @@ func (e *eventTransformer) toPayloadModel() (*model.EventsPayload, error) {
 		log.Warnf("Error getting hostname: %v", err)
 	}
 
+	var clusterID string
+	if env.IsFeaturePresent(env.Kubernetes) {
+		clusterID, err = clustername.GetClusterID()
+	} else if env.IsFeaturePresent(env.ECSEC2) || env.IsFeaturePresent(env.ECSFargate) || env.IsFeaturePresent(env.ECSManagedInstances) {
+		var meta *ecsutil.MetaECS
+		meta, err = ecsutil.GetClusterMeta()
+		if meta != nil {
+			clusterID = meta.ECSClusterID
+		}
+	}
+	if err != nil {
+		log.Warnf("Error getting cluster id: %v", err)
+	}
+
 	payload := &model.EventsPayload{
-		Version: types.PayloadV1,
-		Host:    hname,
+		Version:   types.PayloadV1,
+		Host:      hname,
+		ClusterId: clusterID,
 	}
 	kind, err := e.kind(e.objectKind)
 	if err != nil {

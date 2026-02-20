@@ -9,10 +9,10 @@ package tags
 
 import (
 	"context"
-	"fmt"
+	"errors"
 )
 
 // getContainerInstanceARN is a stub used when the `docker` build tag is not enabled.
 func getContainerInstanceARN(_ context.Context) (string, error) {
-	return "", fmt.Errorf("ECS metadata is not available without docker build tag")
+	return "", errors.New("ECS metadata is not available without docker build tag")
 }

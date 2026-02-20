@@ -10,6 +10,7 @@ package connectivity
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptrace"
@@ -34,29 +35,20 @@ func getLogsEndpoints(useTCP bool) (*logsConfig.Endpoints, error) {
 	datadogConfig := pkgconfigsetup.Datadog()
 	logsConfigKey := logsConfig.NewLogsConfigKeys("logs_config.", datadogConfig)
 
-	var endpoints *logsConfig.Endpoints
-	var err error
-
+	protocol := logsConfig.DiagnosticHTTP
 	if useTCP {
-		endpoints, err = logsConfig.BuildEndpointsWithConfig(
-			datadogConfig,
-			logsConfigKey,
-			"agent-http-intake.logs.",
-			false,
-			"logs",
-			logsConfig.AgentJSONIntakeProtocol,
-			logsConfig.DefaultIntakeOrigin)
-	} else {
-		endpoints, err = logsConfig.BuildHTTPEndpointsWithConfig(
-			datadogConfig,
-			logsConfigKey,
-			"agent-http-intake.logs.",
-			"logs",
-			logsConfig.AgentJSONIntakeProtocol,
-			logsConfig.DefaultIntakeOrigin)
+		protocol = logsConfig.DiagnosticTCP
 	}
 
-	return endpoints, err
+	return logsConfig.BuildEndpointsForDiagnostic(
+		datadogConfig,
+		logsConfigKey,
+		logsConfig.DefaultDiagnosticPrefix,
+		protocol,
+		"logs",
+		logsConfig.AgentJSONIntakeProtocol,
+		logsConfig.DefaultIntakeOrigin,
+	)
 }
 
 // getLogsUseTCP returns true if the agent should use TCP to transport logs
@@ -67,110 +59,190 @@ func getLogsUseTCP() bool {
 	return useTCP
 }
 
-// Diagnose performs connectivity diagnosis
-func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
+type connDiagnostician struct {
+	diagCfg         diagnose.Config
+	log             log.Component
+	domainResolvers map[string]resolver.DomainResolver
+	client          *http.Client
+}
 
-	// Create domain resolvers
-	keysPerDomain, err := utils.GetMultipleEndpoints(pkgconfigsetup.Datadog())
+func newConnectivityDiagnostician(diagCfg diagnose.Config, log log.Component) *connDiagnostician {
+	return &connDiagnostician{
+		diagCfg: diagCfg,
+		log:     log,
+	}
+}
+
+func (cd *connDiagnostician) initDomainResolvers() diagnose.Diagnosis {
+	config := pkgconfigsetup.Datadog()
+	cd.client = getClient(config, 1, cd.log)
+
+	// Create standard domain resolvers
+	endpointDescriptors, err := utils.GetMultipleEndpoints(config)
 	if err != nil {
-		return []diagnose.Diagnosis{
-			{
-				Status:      diagnose.DiagnosisSuccess,
-				Name:        "Endpoints configuration",
-				Diagnosis:   "Misconfiguration of agent endpoints",
-				Remediation: "Please validate Agent configuration",
-				RawError:    err.Error(),
-			},
+		return diagnose.Diagnosis{
+			Status:      diagnose.DiagnosisSuccess,
+			Name:        "Endpoints configuration",
+			Diagnosis:   "Misconfiguration of agent endpoints",
+			Remediation: "Please validate Agent configuration",
+			RawError:    err.Error(),
+		}
+	}
+	cd.domainResolvers, err = resolver.NewSingleDomainResolvers2(endpointDescriptors)
+	if err != nil {
+		return diagnose.Diagnosis{
+			Status:      diagnose.DiagnosisSuccess,
+			Name:        "Resolver error",
+			Diagnosis:   "Unable to create domain resolver",
+			Remediation: "This is likely due to a bug",
+			RawError:    err.Error(),
 		}
 	}
 
+	return diagnose.Diagnosis{
+		Status: diagnose.DiagnosisSuccess,
+	}
+}
+
+func (cd *connDiagnostician) diagnose() []diagnose.Diagnosis {
 	var diagnoses []diagnose.Diagnosis
-	domainResolvers, err := resolver.NewSingleDomainResolvers(keysPerDomain)
-	if err != nil {
-		return []diagnose.Diagnosis{
-			{
-				Status:      diagnose.DiagnosisSuccess,
-				Name:        "Resolver error",
-				Diagnosis:   "Unable to create domain resolver",
-				Remediation: "This is likely due to a bug",
-				RawError:    err.Error(),
-			},
-		}
-	}
-	numberOfWorkers := 1
-	client := getClient(pkgconfigsetup.Datadog(), numberOfWorkers, log)
 
 	// Create diagnosis for logs
 	if pkgconfigsetup.Datadog().GetBool("logs_enabled") {
-		useTCP := getLogsUseTCP()
-		endpoints, err := getLogsEndpoints(useTCP)
-
-		if err != nil {
-			diagnoses = append(diagnoses, diagnose.Diagnosis{
-				Status:      diagnose.DiagnosisFail,
-				Name:        "Endpoints configuration",
-				Diagnosis:   "Misconfiguration of agent endpoints",
-				Remediation: "Please validate agent configuration",
-				RawError:    err.Error(),
-			})
-		} else {
-			var url string
-			connType := "HTTPS"
-			if useTCP {
-				connType = "TCP"
-				url, err = logstcp.CheckConnectivityDiagnose(endpoints.Main, 5)
-			} else {
-				url, err = logshttp.CheckConnectivityDiagnose(endpoints.Main, pkgconfigsetup.Datadog())
-			}
-
-			name := fmt.Sprintf("%s connectivity to %s", connType, url)
-			diag := createDiagnosis(name, url, "", err)
-
-			diagnoses = append(diagnoses, diag)
-		}
-
+		diag := cd.checkLogsEndpoint()
+		diagnoses = append(diagnoses, diag)
 	}
 
 	endpointsInfo := getEndpointsInfo(pkgconfigsetup.Datadog())
 
 	// Send requests to all endpoints for all domains
-	for _, domainResolver := range domainResolvers {
+	for _, domainResolver := range cd.domainResolvers {
 		// Go through all API Keys of a domain and send an HTTP request on each endpoint
 		for _, apiKey := range domainResolver.GetAPIKeys() {
 			for _, endpointInfo := range endpointsInfo {
-				// Initialize variables
-				var logURL string
-				var responseBody []byte
-				var err error
-				var statusCode int
-				var httpTraces []string
-
-				if endpointInfo.Method == "HEAD" {
-					logURL = endpointInfo.Endpoint.Route
-					statusCode, err = sendHTTPHEADRequestToEndpoint(logURL, getClient(pkgconfigsetup.Datadog(), numberOfWorkers, log, withOneRedirect()))
-				} else {
-					domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
-					httpTraces = []string{}
-					ctx := httptrace.WithClientTrace(context.Background(), createDiagnoseTraces(&httpTraces, false))
-
-					statusCode, responseBody, logURL, err = sendHTTPRequestToEndpoint(ctx, client, domain, endpointInfo, apiKey)
-				}
-
-				// Check if there is a response and if it's valid
-				report, reportErr := verifyEndpointResponse(diagCfg, statusCode, responseBody, err)
-
-				diagnosisName := "Connectivity to " + logURL
-				d := createDiagnosis(diagnosisName, logURL, report, reportErr)
-
-				// Prepend http trace on error or if in verbose mode
-				if len(httpTraces) > 0 && (diagCfg.Verbose || reportErr != nil) {
-					d.Diagnosis = fmt.Sprintf("\n%s\n%s", strings.Join(httpTraces, "\n"), d.Diagnosis)
-				}
-				diagnoses = append(diagnoses, d)
+				diag := cd.checkEndpoint(domainResolver, endpointInfo, apiKey)
+				diagnoses = append(diagnoses, diag)
 			}
 		}
 	}
 	return diagnoses
+}
+
+func (cd *connDiagnostician) checkLogsEndpoint() diagnose.Diagnosis {
+	useTCP := getLogsUseTCP()
+	endpoints, err := getLogsEndpoints(useTCP)
+
+	if err != nil {
+		return diagnose.Diagnosis{
+			Status:      diagnose.DiagnosisFail,
+			Name:        "Endpoints configuration",
+			Diagnosis:   "Misconfiguration of agent endpoints",
+			Remediation: "Please validate agent configuration",
+			RawError:    err.Error(),
+		}
+	}
+
+	var url string
+	connType := "HTTPS"
+	if useTCP {
+		connType = "TCP"
+		url, err = logstcp.CheckConnectivityDiagnose(endpoints.Main, 5)
+	} else {
+		url, err = logshttp.CheckConnectivityDiagnose(endpoints.Main, pkgconfigsetup.Datadog())
+	}
+
+	name := fmt.Sprintf("%s connectivity to %s", connType, url)
+	return createDiagnosis(name, url, "", err)
+}
+
+func (cd *connDiagnostician) checkEndpointURL(url string, endpointInfo endpointInfo, apiKey string) diagnose.Diagnosis {
+	var responseBody []byte
+	var err error
+	var statusCode int
+	var httpTraces []string
+
+	if endpointInfo.Method == "HEAD" {
+		statusCode, err = sendHTTPHEADRequestToEndpoint(url, getClient(pkgconfigsetup.Datadog(), 1, cd.log, withOneRedirect()))
+	} else {
+		httpTraces = []string{}
+		ctx := httptrace.WithClientTrace(context.Background(), createDiagnoseTraces(&httpTraces, false))
+
+		statusCode, responseBody, _, err = sendHTTPRequestToEndpoint(ctx, cd.client, url, endpointInfo, apiKey)
+	}
+
+	// Check if there is a response and if it's valid
+	report, reportErr := verifyEndpointResponse(cd.diagCfg, statusCode, responseBody, err)
+
+	diagnosisName := "Connectivity to " + url
+	diag := createDiagnosis(diagnosisName, url, report, reportErr)
+
+	// Prepend http trace on error or if in verbose mode
+	if len(httpTraces) > 0 && (cd.diagCfg.Verbose || reportErr != nil) {
+		diag.Diagnosis = fmt.Sprintf("\n%s\n%s", strings.Join(httpTraces, "\n"), diag.Diagnosis)
+	}
+	return diag
+}
+
+func (cd *connDiagnostician) checkEndpoint(domainResolver resolver.DomainResolver, endpointInfo endpointInfo, apiKey string) diagnose.Diagnosis {
+	var url string
+
+	if endpointInfo.Endpoint.Name == "flare" {
+		url = endpointInfo.Endpoint.Route
+	} else {
+		domain := domainResolver.Resolve(endpointInfo.Endpoint)
+		url = createEndpointURL(domain, endpointInfo)
+	}
+	diag := cd.checkEndpointURL(url, endpointInfo, apiKey)
+
+	// Detect if the connection may have failed because a FQDN was used, by checking if one with a PQDN succeeds
+	if diag.Status != diagnose.DiagnosisSuccess && pkgconfigsetup.Datadog().GetBool("convert_dd_site_fqdn.enabled") && URLhasFQDN(url) {
+		pqdnURL, err := URLwithPQDN(url)
+		if err != nil {
+			cd.log.Errorf("can't convert URL to PQDN: %s", err)
+			return diag
+		}
+		cd.log.Infof("The connection to %q with a FQDN failed; attempting to connect to %q", url, pqdnURL)
+
+		d := cd.checkEndpointURL(pqdnURL, endpointInfo, apiKey)
+		if d.Status == diagnose.DiagnosisSuccess {
+			diag.Remediation = fmt.Sprintf(
+				"The connection to the fully qualified domain name (FQDN) %q failed, but the connection to %q (without trailing dot) succeeded. Update your firewall and/or proxy configuration to accept FQDN connections, or disable FQDN usage by setting `convert_dd_site_fqdn.enabled` to false in the agent configuration.",
+				url, pqdnURL)
+		}
+	}
+	return diag
+}
+
+func URLhasFQDN(u string) bool {
+	url, err := url.Parse(u)
+	return err == nil && strings.HasSuffix(url.Hostname(), ".")
+}
+
+func URLwithPQDN(u string) (string, error) {
+	url, err := url.Parse(u)
+	if err != nil {
+		return "", errors.New("Route is not a valid URL")
+	}
+
+	host := strings.TrimSuffix(url.Host, ".")
+	if port := url.Port(); port != "" {
+		url.Host = fmt.Sprintf("%s:%s", host, port)
+	} else {
+		url.Host = host
+	}
+	return url.String(), nil
+}
+
+// Diagnose performs connectivity diagnosis
+func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
+
+	connDiagnostician := newConnectivityDiagnostician(diagCfg, log)
+	diag := connDiagnostician.initDomainResolvers()
+	if diag.Status != diagnose.DiagnosisSuccess {
+		return []diagnose.Diagnosis{diag}
+	}
+
+	return connDiagnostician.diagnose()
 }
 
 func createDiagnosis(name string, logURL string, report string, err error) diagnose.Diagnosis {
@@ -203,14 +275,12 @@ func createDiagnosisString(diagnosis string, report string) string {
 
 // sendHTTPRequestToEndpoint creates an URL based on the domain and the endpoint information
 // then sends an HTTP Request with the method and payload inside the endpoint information
-func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain string, endpointInfo endpointInfo, apiKey string) (int, []byte, string, error) {
-	url := createEndpointURL(domain, endpointInfo)
-
+func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, url string, endpointInfo endpointInfo, apiKey string) (int, []byte, string, error) {
 	headers := map[string]string{
 		"Content-Type":     endpointInfo.ContentType,
 		"DD-API-KEY":       apiKey,
 		"DD-Agent-Version": version.AgentVersion,
-		"User-Agent":       fmt.Sprintf("datadog-agent/%s", version.AgentVersion),
+		"User-Agent":       "datadog-agent/" + version.AgentVersion,
 		"X-Requested-With": requestWithHeader,
 	}
 
@@ -243,7 +313,7 @@ func verifyEndpointResponse(diagCfg diagnose.Config, statusCode int, responseBod
 	}
 
 	if statusCode >= 400 {
-		newErr = fmt.Errorf("bad request")
+		newErr = errors.New("bad request")
 		verifyReport = fmt.Sprintf("Received response : '%v'\n", scrubbedResponseBody)
 	}
 

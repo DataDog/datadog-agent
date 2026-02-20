@@ -1,0 +1,11 @@
+---
+clusterAgent:
+  admissionController:
+    configMode: "hostip"
+datadog:
+  apm:
+    instrumentation:
+      enabled: false
+      enabledNamespaces: []
+      injector:
+        imageTag: "0.52.0"

@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"golang.org/x/sys/windows"
@@ -93,7 +94,7 @@ func (w *WinServiceManager) terminateServiceProcess(ctx context.Context, service
 		return nil // Service is not running
 	}
 
-	span.SetTag("pid", fmt.Sprintf("%d", processID))
+	span.SetTag("pid", strconv.FormatUint(uint64(processID), 10))
 
 	// Open the process with termination rights
 	handle, err := w.api.OpenProcess(windows.SYNCHRONIZE|windows.PROCESS_TERMINATE|windows.PROCESS_QUERY_LIMITED_INFORMATION, false, processID)
@@ -143,10 +144,12 @@ func (w *WinServiceManager) terminateServiceProcess(ctx context.Context, service
 // Returns nil if the Agent service does not exist.
 func (w *WinServiceManager) StopAllAgentServices(ctx context.Context) (err error) {
 	allAgentServices := []string{
+		"datadog-otel-agent",
 		"datadog-trace-agent",
 		"datadog-process-agent",
 		"datadog-security-agent",
 		"datadog-system-probe",
+		"datadog-agent-action",
 		"Datadog Installer",
 		"datadogagent",
 	}

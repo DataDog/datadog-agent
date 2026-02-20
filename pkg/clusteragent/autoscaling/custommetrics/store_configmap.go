@@ -10,7 +10,7 @@ package custommetrics
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"sync"
 	"time"
 
@@ -19,14 +19,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
 var (
-	errNotInitialized = fmt.Errorf("configmap not initialized")
+	errNotInitialized = errors.New("configmap not initialized")
 )
 
 // configMapStore provides persistent storage of custom and external metrics using a configmap.
@@ -57,7 +57,7 @@ func NewConfigMapStore(client kubernetes.Interface, ns, name string) (Store, err
 		return store, nil
 	}
 
-	if !errors.IsNotFound(err) {
+	if !k8serrors.IsNotFound(err) {
 		log.Infof("Error while attempting to fetch the configmap %s: %v", name, err)
 		return nil, err
 	}

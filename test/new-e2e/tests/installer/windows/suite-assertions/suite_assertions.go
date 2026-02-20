@@ -7,9 +7,9 @@
 package suiteasserts
 
 import (
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/remote-host-assertions"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
+	assertions "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/remote-host-assertions"
 	"github.com/stretchr/testify/require"
 )
 

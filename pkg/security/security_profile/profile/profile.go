@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -85,6 +86,24 @@ type Profile struct {
 	// Instances is the list of workload instances to witch the profile should apply
 	InstancesLock sync.Mutex
 	Instances     []*tags.Workload
+
+	// V2
+	// First has been sent
+	hasAlreadyBeenSent bool
+}
+
+// HasAlreadyBeenSent returns true if the profile has already been sent
+func (p *Profile) HasAlreadyBeenSent() bool {
+	p.Lock()
+	defer p.Unlock()
+	return p.hasAlreadyBeenSent
+}
+
+// SetHasAlreadyBeenSent sets the hasAlreadyBeenSent flag to true
+func (p *Profile) SetHasAlreadyBeenSent() {
+	p.Lock()
+	defer p.Unlock()
+	p.hasAlreadyBeenSent = true
 }
 
 // Opts defines the options to create a new profile
@@ -465,7 +484,7 @@ func (p *Profile) getGlobalState() model.EventFilteringProfileState {
 	return globalState // AutoLearning or StableEventType
 }
 
-// GetVersionContext returns the context of the givent version if any
+// GetVersionContext returns the context of the given version if any
 func (p *Profile) GetVersionContext(imageTag string) (*VersionContext, bool) {
 	p.Lock()
 	defer p.Unlock()
@@ -648,7 +667,7 @@ func (p *Profile) MatchesSelector(entry *model.ProcessCacheEntry) bool {
 	for _, workload := range p.Instances {
 		// Check if the workload IDs match
 		workloadID := workload.GetWorkloadID()
-		if workloadID != nil && (workloadID == entry.ContainerID || workloadID == entry.CGroup.CGroupID) {
+		if workloadID != nil && (workloadID == entry.ContainerContext.ContainerID || workloadID == entry.CGroup.CGroupID) {
 			return true
 		}
 	}
@@ -683,7 +702,7 @@ func (p *Profile) getTimeOrderedVersionContexts() []*VersionContext {
 	return orderedVersions
 }
 
-// GetVersionContextIndex returns the context of the givent version if any
+// GetVersionContextIndex returns the context of the given version if any
 func (p *Profile) GetVersionContextIndex(index int) *VersionContext {
 	p.Lock()
 	orderedVersions := p.getTimeOrderedVersionContexts()
@@ -704,11 +723,12 @@ func (p *Profile) ListAllVersionStates() {
 		fmt.Printf("### Profile: %+v\n", p.GetSelectorStr())
 		orderedVersions := p.getTimeOrderedVersionContexts()
 
-		versions := ""
+		var versionsBuilder strings.Builder
 		for version := range p.versionContexts {
-			versions += version + " "
+			versionsBuilder.WriteString(version)
+			versionsBuilder.WriteString(" ")
 		}
-		fmt.Printf("Versions: %s\n", versions)
+		fmt.Printf("Versions: %s\n", versionsBuilder.String())
 
 		fmt.Printf("Global state: %s\n", p.getGlobalState().String())
 		for i, version := range orderedVersions {
@@ -725,7 +745,7 @@ func (p *Profile) ListAllVersionStates() {
 		p.InstancesLock.Lock()
 		defer p.InstancesLock.Unlock()
 		for _, instance := range p.Instances {
-			fmt.Printf("  - %+v\n", instance.ContainerID)
+			fmt.Printf("  - %+v\n", instance.GCroupCacheEntry.GetContainerID())
 		}
 
 	}

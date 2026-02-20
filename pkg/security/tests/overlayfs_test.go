@@ -27,6 +27,7 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func createOverlayLayer(t *testing.T, test *testModule, name string) string {
@@ -207,7 +208,7 @@ func TestOverlayFS(t *testing.T) {
 
 		var inode uint64
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			f, err := os.OpenFile(testFile, os.O_RDONLY, 0755)
 			if err != nil {
 				return err
@@ -217,7 +218,7 @@ func TestOverlayFS(t *testing.T) {
 			inode = getInode(t, testFile)
 
 			validateInodeAndLayer(t, testFile, inode, false, &event.Open.File.FileFields)
-		})
+		}, "test_rule_open")
 	})
 
 	t.Run("override-lower", func(t *testing.T) {
@@ -228,7 +229,7 @@ func TestOverlayFS(t *testing.T) {
 
 		var inode uint64
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			f, err := os.OpenFile(testFile, os.O_RDWR, 0755)
 			if err != nil {
 				return err
@@ -238,7 +239,7 @@ func TestOverlayFS(t *testing.T) {
 			inode = getInode(t, testFile)
 
 			validateInodeAndLayer(t, testFile, inode, true, &event.Open.File.FileFields)
-		})
+		}, "test_rule_open")
 	})
 
 	t.Run("create-upper", func(t *testing.T) {
@@ -249,7 +250,7 @@ func TestOverlayFS(t *testing.T) {
 
 		var inode uint64
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			f, err := os.OpenFile(testFile, os.O_CREATE, 0755)
 			if err != nil {
 				return err
@@ -259,7 +260,7 @@ func TestOverlayFS(t *testing.T) {
 			inode = getInode(t, testFile)
 
 			validateInodeAndLayer(t, testFile, inode, true, &event.Open.File.FileFields)
-		})
+		}, "test_rule_open")
 	})
 
 	t.Run("rename-lower", func(t *testing.T) {
@@ -275,7 +276,7 @@ func TestOverlayFS(t *testing.T) {
 
 		var inode uint64
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return os.Rename(oldFile, newFile)
 		}, func(event *model.Event, _ *rules.Rule) {
 			if value, _ := event.GetFieldValue("rename.file.path"); value.(string) != oldFile {
@@ -289,7 +290,7 @@ func TestOverlayFS(t *testing.T) {
 			assert.Equal(t, true, event.Rename.New.IsInUpperLayer(), "should be in upper layer")
 
 			validateInodeAndLayerFallback(t, newFile, inode, true)
-		})
+		}, "test_rule_rename")
 	})
 
 	t.Run("rename-parent", func(t *testing.T) {
@@ -304,7 +305,7 @@ func TestOverlayFS(t *testing.T) {
 			t.Fatalf("failed to create directory: %s", err)
 		}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			f, err := os.Create(testFile)
 			if err != nil {
 				return err
@@ -312,9 +313,9 @@ func TestOverlayFS(t *testing.T) {
 			return f.Close()
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_parent")
-		})
+		}, "test_rule_parent")
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			newFile, _, err := test.Path("bind/renamed/child")
 			if err != nil {
 				t.Fatal(err)
@@ -331,7 +332,7 @@ func TestOverlayFS(t *testing.T) {
 			return f.Close()
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_renamed_parent")
-		})
+		}, "test_rule_renamed_parent")
 	})
 
 	t.Run("rmdir-lower", func(t *testing.T) {
@@ -342,12 +343,12 @@ func TestOverlayFS(t *testing.T) {
 
 		inode := getInode(t, testDir)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return os.Remove(testDir)
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, inode, event.Rmdir.File.Inode, "wrong rmdir inode")
 			assert.Equal(t, false, event.Rmdir.File.IsInUpperLayer(), "should be in base layer")
-		})
+		}, "test_rule_rmdir")
 	})
 
 	t.Run("chmod-lower", func(t *testing.T) {
@@ -358,13 +359,13 @@ func TestOverlayFS(t *testing.T) {
 
 		var inode uint64
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return os.Chmod(testFile, 0777)
 		}, func(event *model.Event, _ *rules.Rule) {
 			inode = getInode(t, testFile)
 
 			validateInodeAndLayer(t, testFile, inode, true, &event.Chmod.File.FileFields)
-		})
+		}, "test_rule_chmod")
 	})
 
 	t.Run("chmod-upper", func(t *testing.T) {
@@ -380,13 +381,13 @@ func TestOverlayFS(t *testing.T) {
 
 		var inode uint64
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return os.Chmod(testFile, 0777)
 		}, func(event *model.Event, _ *rules.Rule) {
 			inode = getInode(t, testFile)
 
 			validateInodeAndLayer(t, testFile, inode, true, &event.Chmod.File.FileFields)
-		})
+		}, "test_rule_chmod")
 	})
 
 	t.Run("mkdir-lower", func(t *testing.T) {
@@ -397,13 +398,13 @@ func TestOverlayFS(t *testing.T) {
 
 		var inode uint64
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return syscall.Mkdir(testFile, 0777)
 		}, func(event *model.Event, _ *rules.Rule) {
 			inode = getInode(t, testFile)
 
 			validateInodeAndLayer(t, testFile, inode, true, &event.Mkdir.File.FileFields)
-		})
+		}, "test_rule_mkdir")
 	})
 
 	t.Run("utimes-lower", func(t *testing.T) {
@@ -414,13 +415,13 @@ func TestOverlayFS(t *testing.T) {
 
 		var inode uint64
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return os.Chtimes(testFile, time.Now(), time.Now())
 		}, func(event *model.Event, _ *rules.Rule) {
 			inode = getInode(t, testFile)
 
 			validateInodeAndLayer(t, testFile, inode, true, &event.Utimes.File.FileFields)
-		})
+		}, "test_rule_utimes")
 	})
 
 	t.Run("chown-lower", func(t *testing.T) {
@@ -431,13 +432,13 @@ func TestOverlayFS(t *testing.T) {
 
 		var inode uint64
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return os.Chown(testFile, os.Getuid(), os.Getgid())
 		}, func(event *model.Event, _ *rules.Rule) {
 			inode = getInode(t, testFile)
 
 			validateInodeAndLayer(t, testFile, inode, true, &event.Chown.File.FileFields)
-		})
+		}, "test_rule_chown")
 	})
 
 	t.Run("chown-upper", func(t *testing.T) {
@@ -453,13 +454,13 @@ func TestOverlayFS(t *testing.T) {
 
 		var inode uint64
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return os.Chown(testFile, os.Getuid(), os.Getgid())
 		}, func(event *model.Event, _ *rules.Rule) {
 			inode = getInode(t, testFile)
 
 			validateInodeAndLayer(t, testFile, inode, true, &event.Chown.File.FileFields)
-		})
+		}, "test_rule_chown")
 	})
 
 	t.Run("xattr-lower", func(t *testing.T) {
@@ -477,7 +478,7 @@ func TestOverlayFS(t *testing.T) {
 
 		var inode uint64
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			_, _, errno := syscall.Syscall6(syscall.SYS_SETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, unix.XATTR_CREATE, 0)
 			if errno != 0 {
 				return error(errno)
@@ -487,7 +488,7 @@ func TestOverlayFS(t *testing.T) {
 			inode = getInode(t, testFile)
 
 			validateInodeAndLayer(t, testFile, inode, true, &event.SetXAttr.File.FileFields)
-		})
+		}, "test_rule_xattr")
 	})
 
 	t.Run("truncate-lower", func(t *testing.T) {
@@ -498,13 +499,13 @@ func TestOverlayFS(t *testing.T) {
 
 		var inode uint64
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return os.Truncate(testFile, 0)
 		}, func(event *model.Event, _ *rules.Rule) {
 			inode = getInode(t, testFile)
 
 			validateInodeAndLayer(t, testFile, inode, true, &event.Open.File.FileFields)
-		})
+		}, "test_rule_open")
 	})
 
 	t.Run("truncate-upper", func(t *testing.T) {
@@ -520,13 +521,13 @@ func TestOverlayFS(t *testing.T) {
 
 		var inode uint64
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return os.Truncate(testFile, 0)
 		}, func(event *model.Event, _ *rules.Rule) {
 			inode = getInode(t, testFile)
 
 			validateInodeAndLayer(t, testFile, inode, true, &event.Open.File.FileFields)
-		})
+		}, "test_rule_open")
 	})
 
 	t.Run("link-lower", func(t *testing.T) {
@@ -540,12 +541,12 @@ func TestOverlayFS(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return os.Link(testSrc, testTarget)
 		}, func(event *model.Event, _ *rules.Rule) {
 			// fake inode
 			validateInodeAndLayer(t, testTarget, 0, true, &event.Link.Target.FileFields)
-		})
+		}, "test_rule_link")
 	})
 
 	t.Run("unlink-lower", func(t *testing.T) {
@@ -556,12 +557,12 @@ func TestOverlayFS(t *testing.T) {
 
 		inode := getInode(t, testFile)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return os.Remove(testFile)
 		}, func(event *model.Event, _ *rules.Rule) {
 			// impossible to test with the fallback, the file is deleted
 			validateInodeAndLayerRuntime(t, inode, false, &event.Unlink.File.FileFields)
-		})
+		}, "test_rule_unlink")
 	})
 
 	t.Run("rename-upper", func(t *testing.T) {
@@ -582,7 +583,7 @@ func TestOverlayFS(t *testing.T) {
 
 		var inode uint64
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return os.Rename(oldFile, newFile)
 		}, func(event *model.Event, _ *rules.Rule) {
 			if value, _ := event.GetFieldValue("rename.file.path"); value.(string) != oldFile {
@@ -596,7 +597,7 @@ func TestOverlayFS(t *testing.T) {
 			assert.Equal(t, true, event.Rename.New.IsInUpperLayer(), "should be in upper layer")
 
 			validateInodeAndLayerFallback(t, newFile, inode, true)
-		})
+		}, "test_rule_rename")
 	})
 }
 
@@ -609,6 +610,10 @@ func TestOverlayOpOverride(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
 
 	checkDockerCompatibility(t, "this test requires docker to use overlayfs", func(docker *dockerInfo) bool {
 		return docker.Info["Storage Driver"] != "overlay2"
@@ -657,7 +662,7 @@ func TestOverlayOpOverride(t *testing.T) {
 	mkdirTargetFromOverlayMnt := filepath.Join(containerOverlayMount, "/target_dir")
 
 	t.Run("open-from-container", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			output, err := dockerWrapper.Command("touch", []string{"/tmp/target.txt"}, nil).CombinedOutput()
 			if err != nil {
 				return fmt.Errorf("failed to touch file from container: %w:\n%s", err, string(output))
@@ -666,12 +671,13 @@ func TestOverlayOpOverride(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_open")
 			assertFieldEqual(t, event, "open.file.path", "/tmp/target.txt")
-			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
-		})
+			assertFieldNotEmpty(t, event, "process.container.id", "container id shouldn't be empty")
+		}, "test_rule_open")
 	})
 
 	t.Run("open-from-overlay-mnt", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		flake.MarkOnJobName(t, "ubuntu_25.10")
+		test.WaitSignalFromRule(t, func() error {
 			output, err := exec.Command("touch", openTargetFromOverlayMnt).CombinedOutput()
 			if err != nil {
 				return fmt.Errorf("failed to touch file from overlay mount: %w:\n%s", err, string(output))
@@ -680,12 +686,12 @@ func TestOverlayOpOverride(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_open")
 			assertFieldEqual(t, event, "open.file.path", openTargetFromOverlayMnt)
-			assertFieldEqual(t, event, "container.id", "", "container id should be empty")
-		})
+			assertFieldEqual(t, event, "process.container.id", "", "container id should be empty")
+		}, "test_rule_open")
 	})
 
 	t.Run("mkdir-from-overlay-mnt", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			output, err := exec.Command("mkdir", mkdirTargetFromOverlayMnt).CombinedOutput()
 			if err != nil {
 				return fmt.Errorf("failed to mkdir from overlay mount: %w:\n%s", err, string(output))
@@ -694,7 +700,7 @@ func TestOverlayOpOverride(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdir")
 			assertFieldEqual(t, event, "mkdir.file.path", mkdirTargetFromOverlayMnt)
-			assertFieldEqual(t, event, "container.id", "", "container id should be empty")
-		})
+			assertFieldEqual(t, event, "process.container.id", "", "container id should be empty")
+		}, "test_rule_mkdir")
 	})
 }

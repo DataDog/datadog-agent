@@ -13,6 +13,7 @@ import (
 	"github.com/twmb/murmur3"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/indexedset"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -49,14 +50,13 @@ func mergeDynamicTags(dynamicTags ...map[string]struct{}) (out map[string]struct
 }
 
 // FormatConnection converts a ConnectionStats into an model.Connection
-func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionStats, routes map[network.Via]RouteIdx,
-	usmEncoders []usmEncoder, dnsFormatter *dnsFormatter, ipc ipCache, tagsSet *network.TagsSet) {
+func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionStats, routes map[network.Via]RouteIdx, usmEncoders []USMEncoder, dnsFormatter *dnsFormatter, ipc ipCache, resolvConfFormatter *resolvConfFormatter, tagsSet *indexedset.IndexedSet[string], sysProbePid uint32) {
 
 	builder.SetPid(int32(conn.Pid))
 
 	var containerID string
 	if conn.ContainerID.Source != nil {
-		containerID = conn.ContainerID.Source.Get().(string)
+		containerID, _ = conn.ContainerID.Source.Get().(string)
 	}
 	builder.SetLaddr(func(w *model.AddrBuilder) {
 		w.SetIp(ipc.Get(conn.Source))
@@ -66,7 +66,7 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 
 	containerID = ""
 	if conn.ContainerID.Dest != nil {
-		containerID = conn.ContainerID.Dest.Get().(string)
+		containerID, _ = conn.ContainerID.Dest.Get().(string)
 	}
 	builder.SetRaddr(func(w *model.AddrBuilder) {
 		w.SetIp(ipc.Get(conn.Dest))
@@ -123,6 +123,10 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 		staticTags |= encoderStaticTags
 		dynamicTags = mergeDynamicTags(dynamicTags, encoderDynamicTags)
 	}
+	if conn.HasCertInfo() {
+		certInfo := conn.CertInfo.Value()
+		dynamicTags = mergeDynamicTags(dynamicTags, certInfo.GetDynamicTags())
+	}
 
 	conn.StaticTags |= staticTags
 	tags, tagChecksum := formatTags(conn, tagsSet, dynamicTags)
@@ -130,6 +134,10 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 		builder.AddTags(t)
 	}
 	builder.SetTagsChecksum(tagChecksum)
+
+	resolvConfFormatter.FormatResolvConfIdx(&conn, builder)
+
+	builder.SetSystemProbeConn(sysProbePid == conn.Pid)
 }
 
 // FormatCompilationTelemetry converts telemetry from its internal representation to a protobuf message
@@ -266,7 +274,7 @@ func formatRouteIdx(v *network.Via, routes map[network.Via]RouteIdx) int32 {
 	return int32(len(routes)) - 1
 }
 
-func formatTags(c network.ConnectionStats, tagsSet *network.TagsSet, connDynamicTags map[string]struct{}) ([]uint32, uint32) {
+func formatTags(c network.ConnectionStats, tagsSet *indexedset.IndexedSet[string], connDynamicTags map[string]struct{}) ([]uint32, uint32) {
 	var checksum uint32
 
 	staticTags := tls.GetStaticTags(c.StaticTags)
@@ -274,20 +282,26 @@ func formatTags(c network.ConnectionStats, tagsSet *network.TagsSet, connDynamic
 
 	for _, tag := range staticTags {
 		checksum ^= murmur3.StringSum32(tag)
-		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
+		tagsIdx = append(tagsIdx, uint32(tagsSet.Add(tag)))
 	}
 
 	// Dynamic tags
 	for tag := range connDynamicTags {
 		checksum ^= murmur3.StringSum32(tag)
-		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
+		tagsIdx = append(tagsIdx, uint32(tagsSet.Add(tag)))
 	}
 
 	// other tags, e.g., from process env vars like DD_ENV, etc.
 	for _, tag := range c.Tags {
-		t := tag.Get().(string)
+		if tag == nil {
+			continue
+		}
+		t, ok := tag.Get().(string)
+		if !ok {
+			continue
+		}
 		checksum ^= murmur3.StringSum32(t)
-		tagsIdx = append(tagsIdx, tagsSet.Add(t))
+		tagsIdx = append(tagsIdx, uint32(tagsSet.Add(t)))
 	}
 
 	return tagsIdx, checksum

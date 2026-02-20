@@ -1,0 +1,15 @@
+# agent heroku distribution packages
+
+load("//compliance:package_licenses.bzl", "package_licenses")
+
+filegroup(
+    name = "all_deps",
+    srcs = [
+        "//deps:all_deps",
+    ],
+)
+
+package_licenses(
+    name = "license_files",
+    src = ":all_deps",
+)

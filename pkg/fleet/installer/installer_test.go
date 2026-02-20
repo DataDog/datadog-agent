@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
+	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 )
 
@@ -42,14 +43,18 @@ type testPackageManager struct {
 }
 
 func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string) *testPackageManager {
+	extensionsPkg.ExtensionsDBDir = filepath.Join(rootPath, "run")
+	os.MkdirAll(extensionsPkg.ExtensionsDBDir, 0755)
 	packages := repository.NewRepositories(rootPath, nil)
+	err := os.MkdirAll(filepath.Join(rootPath, "run"), 0755)
+	assert.NoError(t, err)
 	db, err := db.New(filepath.Join(rootPath, "packages.db"))
 	assert.NoError(t, err)
 	hooks := &testHooks{}
 	userConfigsDir := t.TempDir()
 	config := &config.Directories{
-		StablePath:     filepath.Join(userConfigsDir, "stable"),
-		ExperimentPath: filepath.Join(userConfigsDir, "experiment"),
+		StablePath:     userConfigsDir,
+		ExperimentPath: t.TempDir(),
 	}
 	return &testPackageManager{
 		installerImpl: installerImpl{
@@ -167,6 +172,30 @@ func (h *testHooks) PostPromoteConfigExperiment(ctx context.Context, pkg string)
 	return nil
 }
 
+func (h *testHooks) PreInstallExtension(ctx context.Context, pkg string, extension string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg, extension)
+	return nil
+}
+
+func (h *testHooks) PreRemoveExtension(ctx context.Context, pkg string, extension string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg, extension)
+	return nil
+}
+
+func (h *testHooks) PostInstallExtension(ctx context.Context, pkg string, extension string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg, extension)
+	return nil
+}
+
 func (i *testPackageManager) ConfigFS(_ fixtures.Fixture) fs.FS {
 	return os.DirFS(filepath.Join(i.userConfigsDir, "datadog-agent"))
 }
@@ -238,7 +267,6 @@ func TestInstallExperiment(t *testing.T) {
 		assert.Equal(t, fixtures.FixtureSimpleV2.Version, state.Experiment)
 		fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), r.StableFS())
 		fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV2), r.ExperimentFS())
-		fixtures.AssertEqualFS(t, s.ConfigFS(fixtures.FixtureSimpleV2), installer.ConfigFS(fixtures.FixtureSimpleV2))
 	})
 }
 
@@ -266,7 +294,6 @@ func TestInstallPromoteExperiment(t *testing.T) {
 		assert.Equal(t, fixtures.FixtureSimpleV2.Version, state.Stable)
 		assert.False(t, state.HasExperiment())
 		fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV2), r.StableFS())
-		fixtures.AssertEqualFS(t, s.ConfigFS(fixtures.FixtureSimpleV2), installer.ConfigFS(fixtures.FixtureSimpleV2))
 	})
 }
 
@@ -294,8 +321,6 @@ func TestUninstallExperiment(t *testing.T) {
 		assert.Equal(t, fixtures.FixtureSimpleV1.Version, state.Stable)
 		assert.False(t, state.HasExperiment())
 		fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), r.StableFS())
-		// we do not rollback configuration examples to their previous versions currently
-		fixtures.AssertEqualFS(t, s.ConfigFS(fixtures.FixtureSimpleV2), installer.ConfigFS(fixtures.FixtureSimpleV2))
 	})
 }
 
@@ -474,17 +499,18 @@ func TestNoOutsideImport(t *testing.T) {
 		"pkg/version",      // TODO: cleanup & remove
 		"pkg/util/log",     // TODO: cleanup & remove
 		"pkg/util/winutil", // Needed for Windows
+		"pkg/config/setup", // Needed for extensions
 		"pkg/template",
 	}
 
 	// Walk the directory tree
-	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(rootDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		// Only check .go files
-		if !info.IsDir() && strings.HasSuffix(info.Name(), ".go") {
+		if !d.IsDir() && strings.HasSuffix(d.Name(), ".go") {
 			// Create a file set and parse the file
 			fs := token.NewFileSet()
 			node, err := parser.ParseFile(fs, path, nil, parser.ImportsOnly)

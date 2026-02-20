@@ -9,12 +9,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNew(t *testing.T) {
 	// full fledge
 	v, err := New("1.2.3-pre+☢", "deadbeef")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, int64(1), v.Major)
 	assert.Equal(t, int64(2), v.Minor)
 	assert.Equal(t, int64(3), v.Patch)
@@ -33,13 +34,13 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, "☢.1+", v.Meta)
 
 	_, err = New("", "")
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	_, err = New("1.2.", "")
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	_, err = New("1.2.3.4", "")
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	_, err = New("1.2.foo", "")
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestString(t *testing.T) {
@@ -50,4 +51,30 @@ func TestString(t *testing.T) {
 func TestGetNumber(t *testing.T) {
 	v, _ := New("1.2.3-pre+☢", "123beef")
 	assert.Equal(t, "1.2.3", v.GetNumber())
+}
+
+func TestCompareToAgentVersion(t *testing.T) {
+	v, err := New("1.2.3-pre+☢", "deadbeef")
+	require.NoError(t, err)
+
+	res, _ := v.CompareTo("1.2.3")
+	assert.Equal(t, 0, res)
+
+	res, _ = v.CompareTo("1.2.4")
+	assert.Equal(t, -1, res)
+
+	res, _ = v.CompareTo("1.3.3")
+	assert.Equal(t, -1, res)
+
+	res, _ = v.CompareTo("2.2.3")
+	assert.Equal(t, -1, res)
+
+	res, _ = v.CompareTo("1.2.1")
+	assert.Equal(t, 1, res)
+
+	res, _ = v.CompareTo("1.0.0")
+	assert.Equal(t, 1, res)
+
+	res, _ = v.CompareTo("0.12.12")
+	assert.Equal(t, 1, res)
 }

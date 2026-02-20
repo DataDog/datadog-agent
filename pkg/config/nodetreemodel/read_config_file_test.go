@@ -174,12 +174,12 @@ c:
 	assert.Equal(t, 456, cfg.Get("c.e.f"))
 	assert.Equal(t, model.SourceDefault, cfg.GetSource("c.e.f"))
 
-	expected := &innerNode{
-		children: map[string]Node{
-			"a": &leafNodeImpl{val: "orange", source: model.SourceFile},
-			"c": &innerNode{
-				children: map[string]Node{
-					"d": &leafNodeImpl{val: 1234, source: model.SourceFile},
+	expected := &nodeImpl{
+		children: map[string]*nodeImpl{
+			"a": {val: "orange", source: model.SourceFile},
+			"c": {
+				children: map[string]*nodeImpl{
+					"d": {val: 1234, source: model.SourceFile},
 				},
 			},
 		},
@@ -209,12 +209,13 @@ c:
 	require.Len(t, c.warnings, 1)
 	assert.Equal(t, errors.New("unknown key from YAML: c.unknown"), c.warnings[0])
 
-	expected := &innerNode{
-		children: map[string]Node{
-			"a": &leafNodeImpl{val: "orange", source: model.SourceFile},
-			"c": &innerNode{
-				children: map[string]Node{
-					"d": &leafNodeImpl{val: 1234, source: model.SourceFile},
+	expected := &nodeImpl{
+		children: map[string]*nodeImpl{
+			"a": {val: "orange", source: model.SourceFile},
+			"c": {
+				children: map[string]*nodeImpl{
+					"d":       {val: 1234, source: model.SourceFile},
+					"unknown": {val: "key", source: model.SourceFile},
 				},
 			},
 		},
@@ -248,21 +249,19 @@ c: 1234
 > a
     leaf(#ptr<000001>), val:"orange", source:file
 > c
-  inner(#ptr<000002>)
-  > d
-      leaf(#ptr<000003>), val:true, source:default
-tree(#ptr<000004>) source=default
+    leaf(#ptr<000002>), val:1234, source:file
+tree(#ptr<000003>) source=default
 > a
-    leaf(#ptr<000005>), val:"apple", source:default
+    leaf(#ptr<000004>), val:"apple", source:default
 > c
-  inner(#ptr<000002>)
+  inner(#ptr<000005>)
   > d
-      leaf(#ptr<000003>), val:true, source:default
-tree(#ptr<000006>) source=file
+      leaf(#ptr<000006>), val:true, source:default
+tree(#ptr<000007>) source=file
 > a
     leaf(#ptr<000001>), val:"orange", source:file
 > c
-    leaf(#ptr<000007>), val:1234, source:file`
+    leaf(#ptr<000002>), val:1234, source:file`
 	assert.Equal(t, expected, c.Stringify("all", model.OmitPointerAddr))
 }
 
@@ -328,4 +327,32 @@ func TestReadConfigInvalidYaml(t *testing.T) {
 
 	err := cfg.ReadConfig(strings.NewReader("123"))
 	require.Error(t, err)
+}
+
+func TestBuildNestedMap(t *testing.T) {
+	m := buildNestedMap([]string{"a", "b", "c"}, 123)
+	expect := map[string]interface{}{
+		"a": map[string]interface{}{
+			"b": map[string]interface{}{
+				"c": 123,
+			},
+		},
+	}
+	require.Equal(t, expect, m)
+}
+
+func TestNilValueFromFileAreIgnored(t *testing.T) {
+	var yamlPayload = `
+a:
+`
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+
+	cfg.SetDefault("a", true)
+
+	cfg.BuildSchema()
+
+	err := cfg.ReadConfig(strings.NewReader(yamlPayload))
+	require.NoError(t, err)
+
+	assert.Equal(t, true, cfg.GetBool("a"))
 }

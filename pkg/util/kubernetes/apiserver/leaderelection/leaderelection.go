@@ -12,16 +12,20 @@ package leaderelection
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
 	"golang.org/x/mod/semver"
+	discv1 "k8s.io/api/discovery/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/discovery"
 	coordinationv1 "k8s.io/client-go/kubernetes/typed/coordination/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	discv1typed "k8s.io/client-go/kubernetes/typed/discovery/v1"
 	"k8s.io/client-go/tools/leaderelection"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 
@@ -32,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -61,6 +66,7 @@ type LeaderEngine struct {
 	LeaderNamespace     string
 	coreClient          corev1.CoreV1Interface
 	coordClient         coordinationv1.CoordinationV1Interface
+	discoveryClient     discv1typed.DiscoveryV1Interface
 	ServiceName         string
 	leaderIdentityMutex sync.RWMutex
 	leaderElector       *leaderelection.LeaderElector
@@ -77,7 +83,7 @@ func newLeaderEngine(ctx context.Context) *LeaderEngine {
 	return &LeaderEngine{
 		ctx:             ctx,
 		LeaseName:       pkgconfigsetup.Datadog().GetString("leader_lease_name"),
-		LeaderNamespace: common.GetResourcesNamespace(),
+		LeaderNamespace: namespace.GetResourcesNamespace(),
 		ServiceName:     pkgconfigsetup.Datadog().GetString("cluster_agent.kubernetes_service_name"),
 		leaderMetric:    metrics.NewLeaderMetric(),
 		subscribers:     []chan struct{}{},
@@ -104,7 +110,7 @@ func (le *LeaderEngine) initialize() *retry.Error {
 // GetLeaderEngine returns an initialized leader engine.
 func GetLeaderEngine() (*LeaderEngine, error) {
 	if globalLeaderEngine == nil {
-		return nil, fmt.Errorf("Global Leader Engine was not created")
+		return nil, errors.New("Global Leader Engine was not created")
 	}
 	err := globalLeaderEngine.initialize()
 	if err != nil {
@@ -162,6 +168,7 @@ func (le *LeaderEngine) init() error {
 
 	le.coreClient = apiClient.Cl.CoreV1()
 	le.coordClient = apiClient.Cl.CoordinationV1()
+	le.discoveryClient = apiClient.Cl.DiscoveryV1()
 
 	usingLease, err := CanUseLeases(apiClient.Cl.Discovery())
 	if err != nil {
@@ -263,17 +270,58 @@ func (le *LeaderEngine) GetLeaderIP() (string, error) {
 		return ip.(string), nil
 	}
 
-	endpointList, err := le.coreClient.Endpoints(le.LeaderNamespace).Get(context.TODO(), le.ServiceName, metav1.GetOptions{})
-	if err != nil {
-		return "", err
-	}
-	target, err := apiserver.SearchTargetPerName(endpointList, leaderName)
-	if err != nil {
-		return "", err
-	}
-	cache.Cache.Set(cacheKey, target.IP, 5*time.Minute)
+	var targetIP string
+	var err error
 
-	return target.IP, nil
+	if apiserver.UseEndpointSlices() {
+		targetIP, err = le.getLeaderIPFromEndpointSlices(leaderName)
+		if err != nil {
+			return "", err
+		}
+	} else {
+		endpointList, err := le.coreClient.Endpoints(le.LeaderNamespace).Get(context.TODO(), le.ServiceName, metav1.GetOptions{})
+		if err != nil {
+			return "", err
+		}
+		target, err := apiserver.SearchTargetPerName(endpointList, leaderName)
+		if err != nil {
+			return "", err
+		}
+		targetIP = target.IP
+	}
+	cache.Cache.Set(cacheKey, targetIP, 5*time.Minute)
+	return targetIP, nil
+}
+
+// getLeaderIPFromEndpointSlices retrieves the leader IP from EndpointSlices
+func (le *LeaderEngine) getLeaderIPFromEndpointSlices(leaderName string) (string, error) {
+	// List EndpointSlices for the service
+	sliceList, err := le.discoveryClient.EndpointSlices(le.LeaderNamespace).List(
+		context.TODO(),
+		metav1.ListOptions{
+			LabelSelector: labels.Set{apiserver.KubernetesServiceNameLabel: le.ServiceName}.String(),
+		},
+	)
+	if err != nil {
+		return "", err
+	}
+
+	if sliceList == nil || len(sliceList.Items) == 0 {
+		return "", fmt.Errorf("no endpointslices found for service %s", le.ServiceName)
+	}
+
+	// Convert Items to slice of pointers for SearchTargetPerNameInEndpointSlices
+	slices := make([]*discv1.EndpointSlice, len(sliceList.Items))
+	for i := range sliceList.Items {
+		slices[i] = &sliceList.Items[i]
+	}
+
+	resultIP, err := apiserver.SearchTargetPerNameInEndpointSlices(slices, leaderName)
+	if err != nil {
+		return "", err
+	}
+
+	return resultIP, nil
 }
 
 // IsLeader returns true if the last observed leader was this client else returns false.
@@ -336,7 +384,7 @@ func CanUseLeases(client discovery.DiscoveryInterface) (bool, error) {
 
 func getLeaseLeaderElectionRecord(client coordinationv1.CoordinationV1Interface) (rl.LeaderElectionRecord, error) {
 	var empty rl.LeaderElectionRecord
-	lease, err := client.Leases(common.GetResourcesNamespace()).Get(context.TODO(), pkgconfigsetup.Datadog().GetString("leader_lease_name"), metav1.GetOptions{})
+	lease, err := client.Leases(namespace.GetResourcesNamespace()).Get(context.TODO(), pkgconfigsetup.Datadog().GetString("leader_lease_name"), metav1.GetOptions{})
 	if err != nil {
 		return empty, err
 	}
@@ -347,7 +395,7 @@ func getLeaseLeaderElectionRecord(client coordinationv1.CoordinationV1Interface)
 
 func getConfigMapLeaderElectionRecord(client corev1.CoreV1Interface) (rl.LeaderElectionRecord, error) {
 	var led rl.LeaderElectionRecord
-	leaderElectionCM, err := client.ConfigMaps(common.GetResourcesNamespace()).Get(context.TODO(), pkgconfigsetup.Datadog().GetString("leader_lease_name"), metav1.GetOptions{})
+	leaderElectionCM, err := client.ConfigMaps(namespace.GetResourcesNamespace()).Get(context.TODO(), pkgconfigsetup.Datadog().GetString("leader_lease_name"), metav1.GetOptions{})
 	if err != nil {
 		return led, err
 	}

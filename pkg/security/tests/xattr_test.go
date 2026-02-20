@@ -61,7 +61,7 @@ func TestSetXAttr(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			_, _, errno := syscall.Syscall6(syscall.SYS_SETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, unix.XATTR_CREATE, 0)
 			if errno != 0 {
 				return error(errno)
@@ -78,7 +78,7 @@ func TestSetXAttr(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
-		})
+		}, "test_rule_xattr")
 	})
 
 	t.Run("lsetxattr", func(t *testing.T) {
@@ -98,7 +98,7 @@ func TestSetXAttr(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			_, _, errno := syscall.Syscall6(syscall.SYS_LSETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, unix.XATTR_CREATE, 0)
 			// Linux and Android don't support xattrs on symlinks according
 			// to xattr(7), so just test that we get the proper error.
@@ -118,7 +118,7 @@ func TestSetXAttr(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
-		})
+		}, "test_rule_xattr")
 	})
 
 	t.Run("fsetxattr", func(t *testing.T) {
@@ -134,7 +134,7 @@ func TestSetXAttr(t *testing.T) {
 		defer f.Close()
 		defer os.Remove(testFile)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			_, _, errno := syscall.Syscall6(syscall.SYS_FSETXATTR, f.Fd(), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, unix.XATTR_CREATE, 0)
 			if errno != 0 {
 				return error(errno)
@@ -151,7 +151,7 @@ func TestSetXAttr(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
-		})
+		}, "test_rule_xattr")
 	})
 
 	t.Run("io_uring-fsetxattr", func(t *testing.T) {
@@ -185,7 +185,7 @@ func TestSetXAttr(t *testing.T) {
 
 		ch := make(chan iouring.Result, 1)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
 				return err
 			}
@@ -215,7 +215,7 @@ func TestSetXAttr(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), true)
-		})
+		}, "test_rule_xattr")
 	})
 
 	t.Run("io_uring-setxattr", func(t *testing.T) {
@@ -243,7 +243,7 @@ func TestSetXAttr(t *testing.T) {
 
 		ch := make(chan iouring.Result, 1)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
 				return err
 			}
@@ -273,7 +273,7 @@ func TestSetXAttr(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), true)
-		})
+		}, "test_rule_xattr")
 	})
 }
 
@@ -327,7 +327,7 @@ func TestRemoveXAttr(t *testing.T) {
 			t.Fatal(error(errno))
 		}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			_, _, errno = syscall.Syscall(syscall.SYS_REMOVEXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), 0)
 			if errno != 0 {
 				return error(errno)
@@ -343,7 +343,7 @@ func TestRemoveXAttr(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
-		})
+		}, "test_rule_xattr")
 	})
 
 	t.Run("lremovexattr", func(t *testing.T) {
@@ -371,7 +371,7 @@ func TestRemoveXAttr(t *testing.T) {
 			t.Fatal(error(errno))
 		}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			_, _, errno = syscall.Syscall(syscall.SYS_LREMOVEXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), 0)
 			// Linux and Android don't support xattrs on symlinks according
 			// to xattr(7), so just test that we get the proper error.
@@ -389,7 +389,7 @@ func TestRemoveXAttr(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
-		})
+		}, "test_rule_xattr")
 	})
 
 	t.Run("fremovexattr", func(t *testing.T) {
@@ -411,7 +411,7 @@ func TestRemoveXAttr(t *testing.T) {
 			t.Fatal(error(errno))
 		}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			_, _, errno = syscall.Syscall(syscall.SYS_FREMOVEXATTR, f.Fd(), uintptr(xattrNamePtr), 0)
 			if errno != 0 {
 				return error(errno)
@@ -436,6 +436,6 @@ func TestRemoveXAttr(t *testing.T) {
 
 			assertNearTime(t, event.RemoveXAttr.File.MTime)
 			assertNearTime(t, event.RemoveXAttr.File.CTime)
-		})
+		}, "test_rule_xattr")
 	})
 }

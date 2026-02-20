@@ -15,12 +15,12 @@ import (
 
 // AssertionResult represents a validation check comparing expected and actual values.
 type AssertionResult struct {
-	Operator Operator         `json:"operator"`
-	Type     AssertionType    `json:"type"`
-	Property AssertionSubType `json:"property"`
-	Expected interface{}      `json:"expected"`
-	Actual   interface{}      `json:"actual"`
-	Valid    bool             `json:"valid"`
+	Operator Operator          `json:"operator"`
+	Type     AssertionType     `json:"type"`
+	Property *AssertionSubType `json:"property,omitempty"`
+	Expected interface{}       `json:"expected"`
+	Actual   interface{}       `json:"actual"`
+	Valid    bool              `json:"valid"`
 }
 
 // Compare evaluates the assertion result by comparing the actual and expected values.
@@ -58,11 +58,11 @@ func (a *AssertionResult) Compare() error {
 	switch a.Operator {
 	case OperatorLessThan:
 		a.Valid = act < exp
-	case OperatorLessThanOrEquals:
+	case OperatorLessThanOrEqual:
 		a.Valid = act <= exp
 	case OperatorMoreThan:
 		a.Valid = act > exp
-	case OperatorMoreThanOrEquals:
+	case OperatorMoreThanOrEqual:
 		a.Valid = act >= exp
 	default:
 		return fmt.Errorf("unsupported operator %v", a.Operator)
@@ -98,12 +98,12 @@ type Request struct {
 
 // NetStats contains aggregated network statistics such as latency and jitter.
 type NetStats struct {
-	PacketsSent          int                        `json:"packetsSent"`
-	PacketsReceived      int                        `json:"packetsReceived"`
-	PacketLossPercentage float32                    `json:"packetLossPercentage"`
-	Jitter               float64                    `json:"jitter"`
-	Latency              payload.E2eProbeRttLatency `json:"latency"`
-	Hops                 payload.HopCountStats      `json:"hops"`
+	PacketsSent          int                         `json:"packetsSent"`
+	PacketsReceived      int                         `json:"packetsReceived"`
+	PacketLossPercentage float32                     `json:"packetLossPercentage"`
+	Jitter               *float64                    `json:"jitter"`
+	Latency              *payload.E2eProbeRttLatency `json:"latency"`
+	Hops                 payload.HopCountStats       `json:"hops"`
 }
 
 // Result represents the outcome of a test run including assertions and stats.
@@ -116,11 +116,30 @@ type Result struct {
 	Assertions      []AssertionResult   `json:"assertions"`
 	Failure         ErrorOrFailure      `json:"failure"`
 	Duration        int64               `json:"duration"`
-	Request         Request             `json:"request"`
+	Config          Config              `json:"config"`
 	Netstats        NetStats            `json:"netstats"`
 	Netpath         payload.NetworkPath `json:"netpath"`
 	Status          string              `json:"status"`
 	RunType         string              `json:"runType"`
+}
+
+// ResultRequest represents the request configuration in the test result.
+type ResultRequest struct {
+	DestinationService *string           `json:"destinationService,omitempty"`
+	Port               *int              `json:"port,omitempty"`
+	MaxTTL             *int              `json:"maxTtl,omitempty"`
+	Host               string            `json:"host"`
+	TracerouteQueries  *int              `json:"tracerouteQueries,omitempty"`
+	E2eQueries         *int              `json:"e2eQueries,omitempty"`
+	SourceService      *string           `json:"sourceService,omitempty"`
+	Timeout            *int              `json:"timeout,omitempty"`
+	TCPMethod          payload.TCPMethod `json:"tcpMethod,omitempty"`
+}
+
+// Config represents the test configuration in the result.
+type Config struct {
+	Assertions []Assertion   `json:"assertions"`
+	Request    ResultRequest `json:"request"`
 }
 
 // Test represents the definition of a test including metadata and version.

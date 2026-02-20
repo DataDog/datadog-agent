@@ -59,6 +59,8 @@ def build(ctx, debug=False, console=False, rebuild=False, race=False, go_mod="re
         bin_path=os.path.join(BIN_PATH, bin_name("ddtray")),
         ldflags=ldflags,
         env=env,
+        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
+        build_tags=["grpcnotrace"],
     )
 
 

@@ -7,19 +7,12 @@
 package catalog
 
 import (
-	"regexp"
-	"strings"
-
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 )
 
 // LegacyProcessExcludeProgram creates a regex-based program for filtering processes based on legacy disallowlist patterns
-func LegacyProcessExcludeProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
-	programName := "LegacyProcessExcludeProgram"
-	var initErrors []error
-
+func LegacyProcessExcludeProgram(b *ProgramBuilder) program.FilterProgram {
 	extractFieldFunc := func(entity workloadfilter.Filterable) string {
 		process, ok := entity.(*workloadfilter.Process)
 		if !ok {
@@ -28,32 +21,19 @@ func LegacyProcessExcludeProgram(filterConfig *FilterConfig, logger log.Componen
 		return process.GetCmdline()
 	}
 
-	processPatterns := filterConfig.ProcessBlacklistPatterns
-	if len(processPatterns) == 0 {
-		return &program.RegexProgram{
-			Name:                 programName,
-			ExtractField:         extractFieldFunc,
-			InitializationErrors: initErrors,
-		}
-	}
+	return b.CreateRegexProgram(
+		workloadfilter.ProcessLegacyExclude,
+		b.config.ProcessBlacklistPatterns,
+		extractFieldFunc,
+	)
+}
 
-	combinedPattern := strings.Join(processPatterns, "|")
-	// Compile the regex pattern
-	excludeRegex, err := regexp.Compile(combinedPattern)
-	if err != nil {
-		initErrors = append(initErrors, err)
-		logger.Warnf("Error compiling regex pattern for %s: %v", programName, err)
-		return &program.RegexProgram{
-			Name:                 programName,
-			ExtractField:         extractFieldFunc,
-			InitializationErrors: initErrors,
-		}
-	}
+// ProcessCELLogsProgram creates a program for filtering process logs via CEL rules
+func ProcessCELLogsProgram(b *ProgramBuilder) program.FilterProgram {
+	return b.CreateCELProgram(workloadfilter.ProcessCELLogs, workloadfilter.ProductLogs)
+}
 
-	return &program.RegexProgram{
-		Name:                 programName,
-		ExcludeRegex:         []*regexp.Regexp{excludeRegex},
-		ExtractField:         extractFieldFunc,
-		InitializationErrors: initErrors,
-	}
+// ProcessCELGlobalProgram creates a program for filtering processes globally via CEL rules
+func ProcessCELGlobalProgram(b *ProgramBuilder) program.FilterProgram {
+	return b.CreateCELProgram(workloadfilter.ProcessCELGlobal, workloadfilter.ProductGlobal)
 }

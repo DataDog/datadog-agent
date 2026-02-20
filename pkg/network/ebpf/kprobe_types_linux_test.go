@@ -75,3 +75,23 @@ func TestCgoAlignment_TLSTagsWrapper(t *testing.T) {
 func TestCgoAlignment_NetTimeMs(t *testing.T) {
 	ebpftest.TestCgoAlignment[NetTimeMs](t)
 }
+
+func TestCgoAlignment_CertItem(t *testing.T) {
+	ebpftest.TestCgoAlignment[CertItem](t)
+}
+
+func TestCgoAlignment_CertSerial(t *testing.T) {
+	ebpftest.TestCgoAlignment[CertSerial](t)
+}
+
+func TestCgoAlignment_CertDomain(t *testing.T) {
+	ebpftest.TestCgoAlignment[CertDomain](t)
+}
+
+func TestCgoAlignment_CertValidity(t *testing.T) {
+	ebpftest.TestCgoAlignment[CertValidity](t)
+}
+
+func TestCgoAlignment_SSLHandshakeState(t *testing.T) {
+	ebpftest.TestCgoAlignment[SSLHandshakeState](t)
+}

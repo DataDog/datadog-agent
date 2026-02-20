@@ -317,7 +317,7 @@ func (kc *KernelCache) processRequests() {
 			delete(kc.pidMaps, pid)
 			kc.telemetry.activePIDs.Set(float64(len(kc.pidMaps)))
 		case <-fatbinCleanup.C:
-			kc.CleanOld()
+			kc.cleanOld()
 		case <-handle.C:
 			continue
 		case <-kc.done:
@@ -366,9 +366,9 @@ func (kc *KernelCache) CleanProcessData(pid int) {
 	kc.telemetry.kernelCacheSize.Set(float64(len(kc.cache)))
 }
 
-// CleanOld removes any old entries that have not been accessed in a while.
+// cleanOld removes any old entries that have not been accessed in a while.
 // Should only be called in the processRequests goroutine, to avoid race issues.
-func (kc *KernelCache) CleanOld() {
+func (kc *KernelCache) cleanOld() {
 	maxFatbinAge := 5 * time.Minute
 	fatbinExpirationTime := time.Now().Add(-maxFatbinAge)
 

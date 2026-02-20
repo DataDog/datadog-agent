@@ -1,0 +1,774 @@
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+
+package(
+    default_package_metadata = [":license"],
+    default_visibility = ["//packages:__subpackages__"],
+)
+
+VERSION = "1.10.2"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+        ":ship_source_offer",
+    ],
+    purl = purl_for_generic(
+        package = "gpg-error",
+        version = VERSION,
+        download_url = "https://www.gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-{version}.tar.bz2",
+    ),
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:LGPL-2.1"],
+    license_text = "COPYING.LIB",
+    visibility = ["//visibility:public"],
+)
+
+ship_source_offer(name = "ship_source_offer")
+
+copy_file(
+    name = "copy_config_h",
+    src = select({
+        "@//:linux_x86_64": "config-linux-x86_64.h",
+        "@//:linux_arm64": "config-linux-aarch64.h",
+    }),
+    out = "config.h",
+)
+
+cc_library(
+    name = "config_h",
+    hdrs = [
+        ":copy_config_h",
+    ],
+)
+
+expand_template(
+    name = "gcrypt_h",
+    out = "src/gcrypt.h",
+    substitutions = {
+        "@VERSION@": "1.11.2",
+        "@VERSION_NUMBER@": "0x010b02",
+    },
+    template = ":src/gcrypt.h.in",
+)
+
+cc_library(
+    name = "libcompat",
+    srcs = [
+        "compat/compat.c",
+        "src/g10lib.h",
+        "src/visibility.h",
+        "src/types.h",
+        "src/gcrypt-int.h",
+        ":gcrypt_h",
+    ],
+    copts = ["-O2"],
+    hdrs = [
+        "compat/libcompat.h",
+    ],
+    includes = [
+        ".",
+        "src",
+    ],
+    implementation_deps = [
+        ":config_h",
+    ],
+    deps = [
+        "@gpg-error//:libgpg-error",
+    ],
+)
+
+# This reproduces what gets executed in gcrypt's configure (actually in config.links)
+# when running on x86
+# For arm64, the file is empty
+genrule(
+    name = "asm-syntax_h",
+    cmd = select({
+        "@@//:linux_x86_64": """echo '#define ELF_SYNTAX' > $@ && \
+            cat $(location mpi/i386/syntax.h) >> $@ && \
+            cat $(location mpi/amd64/func_abi.h) >> $@ && \
+            cat <<EOF >> $@
+#if defined(__ASSEMBLER__) && defined(__CET__)
+# include <cet.h>
+#endif
+EOF""",
+        "@@//:linux_arm64": "touch $@",
+    }),
+    srcs = select({
+        "@@//:linux_x86_64": [
+            "mpi/i386/syntax.h",
+            "mpi/amd64/func_abi.h",
+        ],
+        "//conditions:default": [],
+    }),
+    outs = ["mpi/asm-syntax.h"],
+)
+
+# This file defines a macro to prepend symbols with an underscore
+# when appropriate (ie. only on windows).
+genrule(
+    name = "sysdep_h",
+    outs = ["mpi/sysdep.h"],
+    cmd = "echo '#define C_SYMBOL_NAME(name) name' >> $@",
+)
+
+# This file is dynamically generated based on the list of available sources in
+# mpi/$arch/$func.S and will generate a string containing the name of available
+# functions.
+# See https://github.com/gpg/libgcrypt/blob/master/mpi/config.links#L404-L433
+# We take a shortcut and generate what we know to be there
+genrule(
+    name = "mod-source-info_h",
+    outs = ["mpi/mod-source-info.h"],
+    cmd = select({
+        "@@//:linux_x86_64": """
+    cat <<EOF >> $@
+static char mod_source_info[] =
+  ":amd64/mpih-add1.S"
+  ":amd64/mpih-sub1.S"
+  ":amd64/mpih-mul1.S"
+  ":amd64/mpih-mul2.S"
+  ":amd64/mpih-mul3.S"
+  ":amd64/mpih-lshift.S"
+  ":amd64/mpih-rshift.S"
+  ;
+EOF""",
+        "@@//:linux_arm64": """
+    cat <<EOF >> $@
+static char mod_source_info[] =
+  ":aarch64/mpih-add1.S"
+  ":aarch64/mpih-sub1.S"
+  ":aarch64/mpih-mul1.S"
+  ":aarch64/mpih-mul2.S"
+  ":aarch64/mpih-mul3.S"
+  ":generic/mpih-lshift.c"
+  ":generic/mpih-rshift.c"
+  ;
+EOF""",
+    }),
+)
+
+cc_binary(
+    name = "gost-s-box",
+    srcs = [
+        "cipher/gost-s-box.c",
+    ],
+)
+
+genrule(
+    name = "gost-sb_h",
+    tools = [":gost-s-box"],
+    outs = ["cipher/gost-sb.h"],
+    cmd = "$(location :gost-s-box) $@",
+)
+
+# mpi-asm-defs is symlinked during the configure phase and unconditionally
+# included from mpi/ instead of mpi/$arch so we need to copy it there
+copy_file(
+    name = "copy_mpi-asm-defs_h",
+    out = "mpi/mpi-asm-defs.h",
+    src = select({
+        "@@//:linux_x86_64": "mpi/amd64/mpi-asm-defs.h",
+        "@@//:linux_arm64": "mpi/aarch64/mpi-asm-defs.h",
+    }),
+)
+
+cc_library(
+    name = "libmpi",
+    srcs = [
+        "mpi/longlong.h",
+        "mpi/mpi-add.c",
+        "mpi/mpi-bit.c",
+        "mpi/mpi-cmp.c",
+        "mpi/mpi-div.c",
+        "mpi/mpi-gcd.c",
+        "mpi/mpi-internal.h",
+        "mpi/mpi-inline.h",
+        "mpi/mpi-inline.c",
+        "mpi/mpi-inv.c",
+        "mpi/mpi-mul.c",
+        "mpi/mpi-mod.c",
+        "mpi/mpi-pow.c",
+        "mpi/mpi-mpow.c",
+        "mpi/mpi-scan.c",
+        "mpi/mpicoder.c",
+        "mpi/mpih-div.c",
+        "mpi/mpih-mul.c",
+        "mpi/mpih-pow.c",
+        "mpi/mpih-const-time.c",
+        "mpi/mpiutil.c",
+        "mpi/ec.c",
+        "mpi/ec-internal.h",
+        "mpi/ec-ed25519.c",
+        "mpi/ec-nist.c",
+        "mpi/ec-inline.h",
+        "mpi/ec-hw-s390x.c",
+        "src/mpi.h",
+        "src/visibility.h",
+        "src/types.h",
+        "src/gcrypt-int.h",
+        "src/const-time.h",
+        "src/context.h",
+        "src/ec-context.h",
+        "cipher/bufhelp.h",
+        "cipher/bithelp.h",
+        "src/g10lib.h",
+    ] + select({
+        "@@//:linux_x86_64": [
+            "mpi/asm-common-amd64.h",
+            "mpi/amd64/mpih-add1.S",
+            "mpi/amd64/mpih-sub1.S",
+            "mpi/amd64/mpih-mul1.S",
+            "mpi/amd64/mpih-mul2.S",
+            "mpi/amd64/mpih-mul3.S",
+            "mpi/amd64/mpih-lshift.S",
+            "mpi/amd64/mpih-rshift.S",
+            "cipher/asm-common-amd64.h",
+        ],
+        "@@//:linux_arm64": [
+            "mpi/asm-common-aarch64.h",
+            "mpi/aarch64/mpi-asm-defs.h",
+            "mpi/aarch64/mpih-add1.S",
+            "mpi/aarch64/mpih-mul1.S",
+            "mpi/aarch64/mpih-mul2.S",
+            "mpi/aarch64/mpih-mul3.S",
+            "mpi/aarch64/mpih-sub1.S",
+            "cipher/asm-common-aarch64.h",
+            "mpi/generic/mpih-lshift.c",
+            "mpi/generic/mpih-rshift.c",
+        ],
+    }) + [
+        ":mod-source-info_h",
+        ":sysdep_h",
+        ":asm-syntax_h",
+        ":copy_mpi-asm-defs_h",
+        ":gcrypt_h",
+    ],
+    includes = [
+        ".",
+        "mpi",
+        "src",
+        "cipher",
+    ] + select({
+        "@@//:linux_x86_64": [
+            "mpi/amd64",
+        ],
+        "@@//:linux_arm64": [
+            "mpi/aarch64",
+        ],
+    }),
+    implementation_deps = [
+        ":config_h",
+    ],
+    deps = [
+        "@gpg-error//:libgpg-error",
+        ":libcompat",
+    ],
+    copts = [
+        "-O2",
+    ],
+)
+
+_RAND_COMMON_SRCS = [
+    "random/rand-internal.h",
+    "random/jitterentropy-base.h",
+    "random/jitterentropy-gcd.h",
+    "random/jitterentropy-health.h",
+    "random/jitterentropy-noise.h",
+    "random/jitterentropy-sha3.h",
+    "random/jitterentropy-timer.h",
+    "random/jitterentropy.h",
+    "random/jitterentropy-base-user.h",
+]
+
+_RAND_TEXTUAL_HDRS = [
+    "random/jitterentropy-base.c",
+    "random/jitterentropy-gcd.c",
+    "random/jitterentropy-health.c",
+    "random/jitterentropy-noise.c",
+    "random/jitterentropy-sha3.c",
+    "random/jitterentropy-timer.c",
+]
+
+cc_library(
+    name = "rndjent",
+    srcs = [
+        "random/rndjent.c",
+        "src/cipher-proto.h",
+        "src/g10lib.h",
+        "src/gcrypt-int.h",
+        "src/visibility.h",
+        "src/types.h",
+        "cipher/bithelp.h",
+        ":gcrypt_h",
+    ] + _RAND_COMMON_SRCS,
+    includes = [
+        ".",
+        "src",
+    ],
+    copts = [
+        # librandom's Makefile.am mentions:
+        # `The rndjent module needs to be compiled without optimization.``
+        "-O0",
+    ],
+    implementation_deps = [
+        ":config_h",
+    ],
+    deps = [
+        "@gpg-error//:libgpg-error",
+        ":libcompat",
+    ],
+    textual_hdrs = _RAND_TEXTUAL_HDRS,
+)
+
+cc_library(
+    name = "librandom",
+    srcs = [
+        "random/random.c",
+        "random/random.h",
+        "random/random-csprng.c",
+        "random/random-drbg.c",
+        "random/random-system.c",
+        "random/rndhw.c",
+        "random/rndgetentropy.c",
+        "random/rndoldlinux.c",
+        "random/rndegd.c",
+        "random/rndunix.c",
+        "src/g10lib.h",
+        "src/gcrypt-int.h",
+        "src/visibility.h",
+        "src/types.h",
+        "src/gcrypt-testapi.h",
+        "src/cipher.h",
+        "src/const-time.h",
+        "cipher/bithelp.h",
+        "cipher/sha1.h",
+        "cipher/hash-common.h",
+        "cipher/bufhelp.h",
+        ":gcrypt_h",
+    ] + _RAND_COMMON_SRCS,
+    textual_hdrs = _RAND_TEXTUAL_HDRS,
+    includes = ["."],
+    implementation_deps = [
+        ":config_h",
+    ],
+    deps = [
+        "@gpg-error//:libgpg-error",
+        ":libcompat",
+        ":rndjent",
+    ],
+    copts = [
+        "-O2",
+    ],
+)
+
+_CIPHER_COMMON_SRCS = [
+    "src/g10lib.h",
+    "src/visibility.h",
+    "src/types.h",
+    "src/gcrypt-int.h",
+    "src/cipher.h",
+    "random/random.h",
+    "src/gcrypt-testapi.h",
+    "src/cipher-proto.h",
+    "cipher/bithelp.h",
+    "cipher/bufhelp.h",
+    "src/const-time.h",
+    "cipher/cipher-internal.h",
+    "cipher/poly1305-internal.h",
+    "cipher/bulkhelp.h",
+    ":gcrypt_h",
+]
+
+cc_library(
+    name = "serpent-avx512",
+    srcs = [
+        "cipher/serpent-avx512-x86.c",
+    ] + _CIPHER_COMMON_SRCS,
+    includes = [
+        ".",
+        "src",
+        "cipher",
+    ],
+    implementation_deps = [
+        ":config_h",
+    ],
+    deps = [
+        "@gpg-error//:libgpg-error",
+        ":libcompat",
+    ],
+    copts = ["-mavx512f", "-O2"],
+)
+
+cc_library(
+    name = "cipher-neon-intrinsics-crypto",
+    srcs = [
+        "cipher/camellia-aarch64-ce.c",
+        "cipher/rijndael-vp-aarch64.c",
+        "cipher/rijndael-internal.h",
+        "cipher/rijndael-vp-simd128.h",
+        "cipher/asm-common-aarch64.h",
+        "cipher/camellia-simd128.h",
+        "cipher/simd-common-aarch64.h",
+    ] + _CIPHER_COMMON_SRCS,
+    copts = ["-O2", "-march=armv8-a+simd+crypto"],
+    implementation_deps = [
+        ":config_h",
+    ],
+    deps = [
+        "@gpg-error//:libgpg-error",
+        ":libcompat",
+    ],
+    includes = [
+        ".",
+        "src",
+        "cipher",
+    ],
+)
+
+cc_library(
+    name = "cipher-neon-intrinsics",
+    srcs = [
+        "cipher/cipher-gcm-aarch64-simd.c",
+        "cipher/simd-common-aarch64.h",
+        "cipher/asm-common-aarch64.h",
+    ] + _CIPHER_COMMON_SRCS,
+    copts = ["-O2", "-march=armv8-a+simd"],
+    implementation_deps = [
+        ":config_h",
+    ],
+    deps = [
+        "@gpg-error//:libgpg-error",
+        ":libcompat",
+    ],
+    includes = [
+        ".",
+        "src",
+        "cipher",
+    ],
+)
+
+cc_library(
+    name = "libcipher",
+    srcs = [
+               ":gost-sb_h",
+               "cipher/cipher.c",
+               "cipher/cipher-cbc.c",
+               "cipher/cipher-cfb.c",
+               "cipher/cipher-ofb.c",
+               "cipher/cipher-ctr.c",
+               "cipher/cipher-aeswrap.c",
+               "cipher/cipher-ccm.c",
+               "cipher/cipher-cmac.c",
+               "cipher/cipher-gcm.c",
+               "cipher/cipher-poly1305.c",
+               "cipher/cipher-ocb.c",
+               "cipher/cipher-xts.c",
+               "cipher/cipher-eax.c",
+               "cipher/cipher-siv.c",
+               "cipher/cipher-gcm-siv.c",
+               "cipher/pubkey.c",
+               "cipher/pubkey-internal.h",
+               "cipher/pubkey-util.c",
+               "cipher/md.c",
+               "cipher/mac.c",
+               "cipher/mac-internal.h",
+               "cipher/mac-hmac.c",
+               "cipher/mac-cmac.c",
+               "cipher/mac-gmac.c",
+               "cipher/mac-poly1305.c",
+               "cipher/poly1305.c",
+               "cipher/kem.c",
+               "cipher/sntrup761.c",
+               "cipher/sntrup761.h",
+               "cipher/kem-ecc.c",
+               "cipher/kem-ecc.h",
+               "cipher/mceliece6688128f.c",
+               "cipher/mceliece6688128f.h",
+               "cipher/kdf.c",
+               "cipher/kdf-internal.h",
+               "cipher/primegen.c",
+               "cipher/hash-common.c",
+               "cipher/hash-common.h",
+               "cipher/dsa-common.c",
+               "cipher/rsa-common.c",
+               "cipher/sha1.h",
+               "cipher/aria.c",
+               "cipher/arcfour.c",
+               "cipher/blowfish.c",
+               "cipher/cast5.c",
+               "cipher/chacha20.c",
+               "cipher/crc.c",
+               "cipher/des.c",
+               "cipher/dsa.c",
+               "cipher/elgamal.c",
+               "cipher/ecc.c",
+               "cipher/ecc-curves.c",
+               "cipher/ecc-misc.c",
+               "cipher/ecc-common.h",
+               "cipher/ecc-ecdh.c",
+               "cipher/ecc-ecdsa.c",
+               "cipher/ecc-eddsa.c",
+               "cipher/ecc-gost.c",
+               "cipher/ecc-sm2.c",
+               "cipher/kyber.c",
+               "cipher/kyber.h",
+               "cipher/idea.c",
+               "cipher/gost28147.c",
+               "cipher/gost.h",
+               "cipher/gostr3411-94.c",
+               "cipher/md4.c",
+               "cipher/md5.c",
+               "cipher/rijndael.c",
+               "cipher/rijndael-internal.h",
+               "cipher/rijndael-tables.h",
+               "cipher/rijndael-aesni.c",
+               "cipher/rijndael-padlock.c",
+               "cipher/rijndael-vaes.c",
+               "cipher/rijndael-vp-simd128.h",
+               "cipher/rmd160.c",
+               "cipher/rsa.c",
+               "cipher/salsa20.c",
+               "cipher/scrypt.c",
+               "cipher/seed.c",
+               "cipher/serpent.c",
+               "cipher/sm4.c",
+               "cipher/sha1.c",
+               "cipher/sha256.c",
+               "cipher/sha512.c",
+               "cipher/sm3.c",
+               "cipher/keccak.c",
+               "cipher/keccak_permute_32.h",
+               "cipher/keccak_permute_64.h",
+               "cipher/stribog.c",
+               "cipher/tiger.c",
+               "cipher/whirlpool.c",
+               "cipher/twofish.c",
+               "cipher/rfc2268.c",
+               "cipher/camellia.c",
+               "cipher/camellia.h",
+               "cipher/camellia-glue.c",
+               "cipher/camellia-simd128.h",
+               "cipher/blake2.c",
+           ] + _CIPHER_COMMON_SRCS +
+           select({
+               "@@//:linux_x86_64": [
+                   "cipher/asm-common-amd64.h",
+                   "cipher/asm-poly1305-amd64.h",
+                   "cipher/aria-aesni-avx-amd64.S",
+                   "cipher/aria-aesni-avx2-amd64.S",
+                   "cipher/aria-gfni-avx512-amd64.S",
+                   "cipher/arcfour-amd64.S",
+                   "cipher/blowfish-amd64.S",
+                   "cipher/cast5-amd64.S",
+                   "cipher/chacha20-amd64-ssse3.S",
+                   "cipher/chacha20-amd64-avx2.S",
+                   "cipher/chacha20-amd64-avx512.S",
+                   "cipher/cipher-gcm-intel-pclmul.c",
+                   "cipher/crc-intel-pclmul.c",
+                   "cipher/des-amd64.S",
+                   "cipher/poly1305-amd64-avx512.S",
+                   "cipher/rijndael-amd64.S",
+                   "cipher/rijndael-ssse3-amd64.c",
+                   "cipher/rijndael-ssse3-amd64-asm.S",
+                   "cipher/rijndael-vaes-avx2-amd64.S",
+                   "cipher/rijndael-vaes-i386.c",
+                   "cipher/rijndael-vaes-avx2-i386.S",
+                   "cipher/salsa20-amd64.S",
+                   "cipher/serpent-sse2-amd64.S",
+                   "cipher/serpent-avx2-amd64.S",
+                   "cipher/sm4-aesni-avx-amd64.S",
+                   "cipher/sm4-aesni-avx2-amd64.S",
+                   "cipher/sm4-gfni-avx2-amd64.S",
+                   "cipher/sm4-gfni-avx512-amd64.S",
+                   "cipher/sha1-ssse3-amd64.S",
+                   "cipher/sha1-avx-amd64.S",
+                   "cipher/sha1-avx-bmi2-amd64.S",
+                   "cipher/sha1-avx2-bmi2-amd64.S",
+                   "cipher/sha1-intel-shaext.c",
+                   "cipher/sha256-ssse3-amd64.S",
+                   "cipher/sha256-avx-amd64.S",
+                   "cipher/sha256-avx2-bmi2-amd64.S",
+                   "cipher/sha256-intel-shaext.c",
+                   "cipher/sha512-ssse3-amd64.S",
+                   "cipher/sha512-avx-amd64.S",
+                   "cipher/sha512-avx2-bmi2-amd64.S",
+                   "cipher/sha512-avx512-amd64.S",
+                   "cipher/sha512-ssse3-i386.c",
+                   "cipher/sm3-avx-bmi2-amd64.S",
+                   "cipher/keccak-amd64-avx512.S",
+                   "cipher/whirlpool-sse2-amd64.S",
+                   "cipher/twofish-amd64.S",
+                   "cipher/twofish-avx2-amd64.S",
+                   "cipher/camellia-aesni-avx-amd64.S",
+                   "cipher/camellia-aesni-avx2-amd64.h",
+                   "cipher/camellia-gfni-avx2-amd64.S",
+                   "cipher/camellia-gfni-avx512-amd64.S",
+                   "cipher/camellia-vaes-avx2-amd64.S",
+                   "cipher/camellia-aesni-avx2-amd64.S",
+                   "cipher/blake2b-amd64-avx2.S",
+                   "cipher/blake2b-amd64-avx512.S",
+                   "cipher/blake2s-amd64-avx.S",
+                   "cipher/blake2s-amd64-avx512.S",
+               ],
+               "@@//:linux_arm64": [
+                   "cipher/asm-common-aarch64.h",
+                   "cipher/asm-poly1305-aarch64.h",
+                   "cipher/blowfish-arm.S",
+                   "cipher/cast5-arm.S",
+                   "cipher/chacha20-aarch64.S",
+                   "cipher/cipher-gcm-armv8-aarch32-ce.S",
+                   "cipher/cipher-gcm-armv8-aarch64-ce.S",
+                   "cipher/crc-armv8-ce.c",
+                   "cipher/crc-armv8-aarch64-ce.S",
+                   "cipher/rijndael-arm.S",
+                   "cipher/rijndael-armv8-ce.c",
+                   "cipher/rijndael-armv8-aarch32-ce.S",
+                   "cipher/rijndael-armv8-aarch64-ce.S",
+                   "cipher/rijndael-aarch64.S",
+                   "cipher/salsa20-armv7-neon.S",
+                   "cipher/serpent-armv7-neon.S",
+                   "cipher/simd-common-aarch64.h",
+                   "cipher/sm4-aarch64.S",
+                   "cipher/sm4-armv8-aarch64-ce.S",
+                   "cipher/sha1-armv8-aarch64-ce.S",
+                   "cipher/sha256-armv8-aarch32-ce.S",
+                   "cipher/sha256-armv8-aarch64-ce.S",
+                   "cipher/sha512-armv8-aarch64-ce.S",
+                   "cipher/sm3-aarch64.S",
+                   "cipher/sm3-armv8-aarch64-ce.S",
+                   "cipher/keccak-armv7-neon.S",
+                   "cipher/twofish-arm.S",
+                   "cipher/twofish-aarch64.S",
+                   "cipher/camellia-arm.S",
+                   "cipher/camellia-aarch64.S",
+               ],
+           }),
+    includes = ["."],
+    implementation_deps = [
+        ":config_h",
+    ],
+    deps = [
+        "@gpg-error//:libgpg-error",
+        ":libcompat",
+        ":libmpi",
+    ] + select({
+        "@@//:linux_x86_64": [":serpent-avx512"],
+        "@@//:linux_arm64": [
+            ":cipher-neon-intrinsics",
+            ":cipher-neon-intrinsics-crypto",
+        ],
+        "//conditions:default": [],
+    }),
+    local_defines = [
+        "HAVE_CONFIG_H",
+    ],
+    textual_hdrs = [
+        "cipher/kyber-common.c",
+        "cipher/kyber-kdep.c",
+    ],
+    copts = [
+        "-O2",
+    ],
+)
+
+cc_library(
+    name = "libgcrypt",
+    deps = [
+        ":libcompat",
+        ":librandom",
+        ":libmpi",
+        ":libcipher",
+    ],
+    srcs = [
+        "src/gcrypt-int.h",
+        "src/g10lib.h",
+        "src/visibility.c",
+        "src/visibility.h",
+        "src/types.h",
+        "src/gcrypt-testapi.h",
+        "src/cipher.h",
+        "src/cipher-proto.h",
+        "src/misc.c",
+        "src/global.c",
+        "src/sexp.c",
+        "src/hwfeatures.c",
+        "src/hwf-common.h",
+        "src/stdmem.c",
+        "src/stdmem.h",
+        "src/secmem.c",
+        "src/secmem.h",
+        "src/mpi.h",
+        "src/missing-string.c",
+        "src/fips.c",
+        "src/context.c",
+        "src/context.h",
+        "src/const-time.h",
+        "src/const-time.c",
+        "src/ec-context.h",
+    ] + select({
+        "@@//:linux_x86_64": ["src/hwf-x86.c"],
+        "@@//:linux_arm64": ["src/hwf-arm.c"],
+    }),
+    implementation_deps = [
+        ":config_h",
+    ],
+    copts = [
+        "-O2",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_shared_library(
+    name = "gcrypt",
+    deps = [
+        ":libgcrypt",
+    ],
+    additional_linker_inputs = [
+        "src/libgcrypt.vers",
+    ],
+    user_link_flags = [
+        "-Wl,--version-script=$(location src/libgcrypt.vers)",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+so_symlink(
+    name = "lib_files",
+    src = ":gcrypt",
+    libname = "libgcrypt",
+    version = "20.4.2",
+)
+
+pkg_files(
+    name = "hdr_files",
+    srcs = [":gcrypt_h"],
+    prefix = "include",
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":hdr_files",
+        ":lib_files",
+    ],
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
+)

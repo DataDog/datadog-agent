@@ -11,9 +11,9 @@ import (
 	"go.uber.org/fx"
 
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
@@ -49,10 +49,6 @@ func (m *mock) GetDefaultSender() (sender.Sender, error) {
 	return m.AgentDemultiplexer.GetDefaultSender()
 }
 
-func (m *mock) LazyGetSenderManager() (sender.SenderManager, error) {
-	return m, nil
-}
-
 type mockDependencies struct {
 	fx.In
 	Log      log.Component
@@ -63,10 +59,9 @@ type mockDependencies struct {
 type MockProvides struct {
 	fx.Out
 
-	Comp          demultiplexerComp.Component
-	SenderManager diagnosesendermanager.Component
-	Mock          demultiplexerComp.Mock
-	Sender        sender.SenderManager
+	Comp   demultiplexerComp.Component
+	Mock   demultiplexerComp.Mock
+	Sender sender.SenderManager
 }
 
 func newMock(deps mockDependencies) MockProvides {
@@ -80,13 +75,13 @@ func newMock(deps mockDependencies) MockProvides {
 		LogsCompression:    logscompressionmock.NewMockCompressor(),
 		MetricsCompression: metricscompressionmock.NewMockCompressor(),
 		HaAgent:            haagentmock.NewMockHaAgent(),
+		FilterList:         filterlistmock.NewMockFilterList(),
 	}
 
 	instance := &mock{AgentDemultiplexer: aggregator.InitAndStartAgentDemultiplexerForTest(aggDeps, opts, "")}
 	return MockProvides{
-		Comp:          instance,
-		SenderManager: instance,
-		Mock:          instance,
-		Sender:        instance,
+		Comp:   instance,
+		Mock:   instance,
+		Sender: instance,
 	}
 }

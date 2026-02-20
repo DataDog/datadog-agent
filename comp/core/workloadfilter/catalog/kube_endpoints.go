@@ -7,21 +7,16 @@
 package catalog
 
 import (
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 )
 
 // EndpointCELMetricsProgram creates a program for filtering endpoints metrics via CEL rules
-func EndpointCELMetricsProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
-	programName := "EndpointCELMetricsProgram"
-	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductMetrics, workloadfilter.EndpointType)
-	return createCELExcludeProgram(programName, rule, workloadfilter.EndpointType, logger)
+func EndpointCELMetricsProgram(b *ProgramBuilder) program.FilterProgram {
+	return b.CreateCELProgram(workloadfilter.KubeEndpointCELMetrics, workloadfilter.ProductMetrics)
 }
 
 // EndpointCELGlobalProgram creates a program for filtering endpoints globally via CEL rules
-func EndpointCELGlobalProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
-	programName := "EndpointCELGlobalProgram"
-	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductGlobal, workloadfilter.EndpointType)
-	return createCELExcludeProgram(programName, rule, workloadfilter.EndpointType, logger)
+func EndpointCELGlobalProgram(b *ProgramBuilder) program.FilterProgram {
+	return b.CreateCELProgram(workloadfilter.KubeEndpointCELGlobal, workloadfilter.ProductGlobal)
 }

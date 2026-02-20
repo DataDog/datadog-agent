@@ -3,15 +3,14 @@
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
-load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
     default_package_metadata = [":license"],
-    default_visibility = ["//visibility:private"],
+    default_visibility = ["@@//packages:__subpackages__"],
 )
 
 alias(
@@ -31,7 +30,7 @@ license(
 )
 
 copy_file(
-    name = "copy_config",
+    name = "copy_config_h",
     src = selects.with_or({
         "@//:linux_arm64": "config.lzma-linux-arm64.h",
         "@//:linux_x86_64": "config.lzma-linux-x86_64.h",
@@ -39,7 +38,7 @@ copy_file(
         "@//:macos_x86_64": "config.lzma-osx-x86_64.h",
         "@platforms//os:windows": "config.lzma-windows.h",
     }),
-    out = "src/liblzma/api/config.h",  # minimize the number of exported include paths
+    out = "config.h",
 )
 
 _MAIN_HEADER = ["src/liblzma/api/lzma.h"]
@@ -49,10 +48,19 @@ _API_HEADERS = glob([
 ])
 
 cc_library(
+    name = "xz_config",
+    hdrs = [
+        "config.h",
+    ],
+)
+
+cc_library(
     name = "liblzma",
     srcs = [
         "src/common/tuklib_cpucores.c",
         "src/common/tuklib_physmem.c",
+        "src/common/tuklib_exit.c",
+        "src/common/tuklib_progname.c",
     ] + glob(
         [
             "src/**/*.h",
@@ -74,6 +82,8 @@ cc_library(
     }),
     local_defines = [
         "TUKLIB_SYMBOL_PREFIX=lzma_",
+        "TUKLIB_GETTEXT=0",
+        "HAVE_CONFIG_H",
     ],
     linkopts = select({
         "@platforms//os:android": [],
@@ -85,103 +95,25 @@ cc_library(
     }),
     strip_include_prefix = "src/liblzma/api",  # Allows public header without the path and without COPTS -I or includes = []
     visibility = ["//visibility:public"],
-    deps = [
-        "//:lzma_src_common",
-        "//:lzma_src_liblzma",
-        "//:lzma_src_liblzma_api",
-        "//:lzma_src_liblzma_check",
-        "//:lzma_src_liblzma_common",
-        "//:lzma_src_liblzma_delta",
-        "//:lzma_src_liblzma_lz",
-        "//:lzma_src_liblzma_lzma",
-        "//:lzma_src_liblzma_rangecoder",
-        "//:lzma_src_liblzma_simpler",
+    includes = [
+        ".",
+        "src/common",
+        "src/liblzma/common",
+        "src/liblzma/check",
+        "src/liblzma/lzma",
+        "src/liblzma/lz",
+        "src/liblzma/simple",
+        "src/liblzma/delta",
+        "src/liblzma/rangecoder",
     ],
-)
-
-cc_library(
-    name = "lzma_src_common",
-    srcs = [
-        "src/common/tuklib_exit.c",
-        "src/common/tuklib_progname.c",
+    implementation_deps = [
+        ":xz_config",
     ],
-    hdrs = glob(["src/common/*.h"]),
-    defines = ["HAVE_CONFIG_H"] + select({
-        "@platforms//os:windows": [
-            "LZMA_API_STATIC",
-            "TUKLIB_GETTEXT=0",  # Disable libintl for windows
-        ],
-        "//conditions:default": [],
-    }),
-    strip_include_prefix = "src/common",
-    deps = [
-        "//:lzma_src_liblzma_api",
-    ],
-)
-
-cc_library(
-    name = "lzma_src_liblzma",
-    strip_include_prefix = "src/liblzma",
-)
-
-cc_library(
-    name = "lzma_src_liblzma_api",
-    hdrs = [
-        "src/liblzma/api/config.h",  # Generated above, so missed by glob. In srcs so it's not public like the other headers
-    ] + _API_HEADERS,
-    strip_include_prefix = "src/liblzma/api",
-)
-
-cc_library(
-    name = "lzma_src_liblzma_check",
-    hdrs = glob(["src/liblzma/check/*.h"]),
-    strip_include_prefix = "src/liblzma/check",
-)
-
-cc_library(
-    name = "lzma_src_liblzma_common",
-    hdrs = glob(["src/liblzma/common/*.h"]),
-    includes = ["src/liblzma"],  # Needed as well as some usages use common/*.h instead of just the header
-    strip_include_prefix = "src/liblzma/common",
-)
-
-cc_library(
-    name = "lzma_src_liblzma_delta",
-    hdrs = glob(["src/liblzma/delta/*.h"]),
-    strip_include_prefix = "src/liblzma/delta",
-)
-
-cc_library(
-    name = "lzma_src_liblzma_lz",
-    hdrs = glob(["src/liblzma/lz/*.h"]),
-    strip_include_prefix = "src/liblzma/lz",
-)
-
-cc_library(
-    name = "lzma_src_liblzma_lzma",
-    hdrs = glob(["src/liblzma/lzma/*.h"]),
-    strip_include_prefix = "src/liblzma/lzma",
-)
-
-cc_library(
-    name = "lzma_src_liblzma_rangecoder",
-    hdrs = glob(["src/liblzma/rangecoder/*.h"]),
-    strip_include_prefix = "src/liblzma/rangecoder",
-)
-
-cc_library(
-    name = "lzma_src_liblzma_simpler",
-    hdrs = glob(["src/liblzma/simple/*.h"]),
-    strip_include_prefix = "src/liblzma/simple",
 )
 
 cc_shared_library(
     name = "lzma",
     deps = [":liblzma"],
-    features = select({
-        "@platforms//os:macos": ["-macos_default_link_flags"],
-        "//conditions:default": [],
-    }),
     visibility = ["//visibility:public"],
 )
 
@@ -204,27 +136,19 @@ pkg_files(
     prefix = "include/lzma",
 )
 
-expand_template(
-    name = "gen_pkgconfig",
-    template = "@@//deps/xz:liblzma.pc.in",
-    out = "liblzma.pc",
-    substitutions = {
-        "{{VERSION}}": VERSION,
-    },
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":main_header",
+        ":api_headers",
+        ":lib_files",
+    ],
 )
-
-pkg_files(
-    name = "pkgconfig",
-    srcs = [":gen_pkgconfig"],
-    prefix = "lib/pkgconfig",
-)
-
 pkg_install(
     name = "install",
     srcs = [
         ":main_header",
         ":api_headers",
         ":lib_files",
-        ":pkgconfig",
     ],
 )

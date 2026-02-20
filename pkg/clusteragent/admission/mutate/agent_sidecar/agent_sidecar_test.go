@@ -21,7 +21,7 @@ import (
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -604,7 +604,7 @@ func TestDefaultSidecarTemplateAgentImage(t *testing.T) {
 			name:              "no configuration set",
 			setConfig:         func() model.Config { return configmock.New(t) },
 			containerRegistry: commonRegistry,
-			expectedImage:     fmt.Sprintf("%s/agent:latest", commonRegistry),
+			expectedImage:     commonRegistry + "/agent:latest",
 		},
 		{
 			name:              "setting custom registry, image and tag",
@@ -684,7 +684,7 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 				},
 				{
 					Name:  "DD_CLUSTER_AGENT_URL",
-					Value: fmt.Sprintf("https://datadog-cluster-agent.%s.svc.cluster.local:5005", apicommon.GetMyNamespace()),
+					Value: fmt.Sprintf("https://datadog-cluster-agent.%s.svc.cluster.local:5005", namespace.GetMyNamespace()),
 				},
 				{
 					Name:  "DD_ORCHESTRATOR_EXPLORER_ENABLED",
@@ -723,7 +723,7 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 				},
 				{
 					Name:  "DD_CLUSTER_AGENT_URL",
-					Value: fmt.Sprintf("https://datadog-cluster-agent.%s.svc.cluster.local:5005", apicommon.GetMyNamespace()),
+					Value: fmt.Sprintf("https://datadog-cluster-agent.%s.svc.cluster.local:5005", namespace.GetMyNamespace()),
 				},
 				{
 					Name:  "DD_ORCHESTRATOR_EXPLORER_ENABLED",
@@ -764,7 +764,7 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 				},
 				{
 					Name:  "DD_CLUSTER_AGENT_URL",
-					Value: fmt.Sprintf("https://test-service-name.%s.svc.cluster.local:12345", apicommon.GetMyNamespace()),
+					Value: fmt.Sprintf("https://test-service-name.%s.svc.cluster.local:12345", namespace.GetMyNamespace()),
 				},
 				{
 					Name:  "DD_ORCHESTRATOR_EXPLORER_ENABLED",

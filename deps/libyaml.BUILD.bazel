@@ -1,0 +1,79 @@
+"""BUILD file for libyaml."""
+
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+
+VERSION = "0.2.5"
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:MIT"],
+    license_text = "LICENSE",
+    copyright_notice = """
+    Copyright (c) 2017-2020 Ingy döt Net
+    Copyright (c) 2006-2016 Kirill Simonov
+    """,
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "libyaml",
+    srcs = [
+        "src/api.c",
+        "src/dumper.c",
+        "src/emitter.c",
+        "src/loader.c",
+        "src/parser.c",
+        "src/reader.c",
+        "src/scanner.c",
+        "src/writer.c",
+        "src/yaml_private.h",
+    ],
+    hdrs = ["include/yaml.h"],
+    copts = ["-w"],
+    includes = ["include"],
+    local_defines = [
+        "YAML_VERSION_MAJOR=0",
+        "YAML_VERSION_MINOR=2",
+        "YAML_VERSION_PATCH=5",
+        'YAML_VERSION_STRING=\\"0.2.5\\"',
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_shared_library(
+    name = "yaml",
+    deps = [":libyaml"],
+    visibility = ["//visibility:public"],
+)
+
+so_symlink(
+    name = "lib_files",
+    src = ":yaml",
+    libname = "libyaml",
+    version = VERSION,
+)
+
+pkg_files(
+    name = "headers",
+    srcs = ["include/yaml.h"],
+    prefix = "include",
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":headers",
+        ":lib_files",
+    ],
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
+)

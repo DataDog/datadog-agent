@@ -20,7 +20,8 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
-from tasks.build_tags import UNIT_TEST_TAGS, add_fips_tags, get_default_build_tags
+from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
+from tasks.flavor import AgentFlavor
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag
 from tasks.libs.common.color import color_message
@@ -29,7 +30,6 @@ from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
-    environ,
     get_build_flags,
     get_common_test_args,
     get_embedded_path,
@@ -53,7 +53,7 @@ TEST_PACKAGES_LIST = [
     "./pkg/ebpf/...",
     "./pkg/network/...",
     "./pkg/collector/corechecks/ebpf/...",
-    "./pkg/collector/corechecks/servicediscovery/module/...",
+    "./pkg/discovery/module/...",
     "./pkg/process/monitor/...",
     "./pkg/dyninst/...",
     "./pkg/gpu/...",
@@ -92,6 +92,10 @@ CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
 LIBPCAP_VERSION = "1.10.5"
 
 TEST_HELPER_CBINS = ["cudasample"]
+
+RUST_BINARIES = [
+    "pkg/discovery/module/rust",
+]
 
 
 def get_ebpf_build_dir(arch: Arch) -> Path:
@@ -390,6 +394,13 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
     for prog in test_programs:
         ninja_test_ebpf_program(nw, build_dir, ebpf_c_dir, test_flags, prog)
 
+    # System-probe ebpf subcommand test programs
+    ebpf_subcommand_test_c_dir = os.path.join("cmd", "system-probe", "subcommands", "ebpf", "testdata")
+    ebpf_subcommand_test_programs = ["btf_test"]
+
+    for prog in ebpf_subcommand_test_programs:
+        ninja_test_ebpf_program(nw, build_dir, ebpf_subcommand_test_c_dir, test_flags, prog)
+
 
 def ninja_kernel_bugs_ebpf_programs(nw: NinjaWriter):
     build_dir = os.path.join("pkg", "ebpf", "kernelbugs", "c")
@@ -410,32 +421,17 @@ def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str):
         ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": gpu_flags + " -DDEBUG=1"})
 
 
-def ninja_container_integrations_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
-    container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
-    container_integrations_co_re_flags = f"-I{container_integrations_co_re_dir}"
-    container_integrations_co_re_programs = ["oom-kill", "tcp-queue-length", "ebpf"]
+def ninja_corecheck_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
+    corecheck_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
+    corecheck_co_re_flags = f"-I{corecheck_co_re_dir}"
+    corecheck_co_re_programs = ["oom-kill", "tcp-queue-length", "ebpf", "noisy-neighbor"]
 
-    for prog in container_integrations_co_re_programs:
-        infile = os.path.join(container_integrations_co_re_dir, f"{prog}-kern.c")
+    for prog in corecheck_co_re_programs:
+        infile = os.path.join(corecheck_co_re_dir, f"{prog}-kern.c")
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
-        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": container_integrations_co_re_flags})
+        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": corecheck_co_re_flags})
         root, ext = os.path.splitext(outfile)
-        ninja_ebpf_co_re_program(
-            nw, infile, f"{root}-debug{ext}", {"flags": container_integrations_co_re_flags + " -DDEBUG=1"}
-        )
-
-
-def ninja_discovery_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
-    dir = Path("pkg/collector/corechecks/servicediscovery/c/ebpf/runtime")
-    flags = f"-I{dir} -Ipkg/network/ebpf/c"
-    programs = ["discovery-net"]
-
-    for prog in programs:
-        infile = os.path.join(dir, f"{prog}.c")
-        outfile = os.path.join(co_re_build_dir, f"{prog}.o")
-        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
-        root, ext = os.path.splitext(outfile)
-        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
+        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": corecheck_co_re_flags + " -DDEBUG=1"})
 
 
 def ninja_dynamic_instrumentation_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
@@ -474,7 +470,6 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
     runtime_compiler_files = {
         "pkg/collector/corechecks/ebpf/probe/oomkill/oom_kill.go": "oom-kill",
         "pkg/collector/corechecks/ebpf/probe/tcpqueuelength/tcp_queue_length.go": "tcp-queue-length",
-        "pkg/collector/corechecks/servicediscovery/module/network_ebpf.go": "discovery-net",
         "pkg/network/usm/compile.go": "usm",
         "pkg/network/usm/sharedlibraries/compile.go": "shared-libraries",
         "pkg/network/tracer/compile.go": "conntrack",
@@ -582,9 +577,6 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/network/protocols/events/types.go": [
                 "pkg/network/ebpf/c/protocols/events-types.h",
             ],
-            "pkg/collector/corechecks/servicediscovery/core/kern_types.go": [
-                "pkg/collector/corechecks/servicediscovery/c/ebpf/runtime/discovery-types.h",
-            ],
             "pkg/collector/corechecks/ebpf/probe/tcpqueuelength/tcp_queue_length_kern_types.go": [
                 "pkg/collector/corechecks/ebpf/c/runtime/tcp-queue-length-kern-user.h",
             ],
@@ -602,6 +594,9 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             ],
             "pkg/gpu/ebpf/kprobe_types.go": [
                 "pkg/gpu/ebpf/c/types.h",
+            ],
+            "pkg/collector/corechecks/ebpf/probe/noisyneighbor/ebpf_types.go": [
+                "pkg/collector/corechecks/ebpf/c/runtime/noisy-neighbor-kern-user.h"
             ],
             "pkg/dyninst/output/framing.go": [
                 "pkg/dyninst/ebpf/framing.h",
@@ -696,18 +691,17 @@ def ninja_generate(
             ninja_kernel_bugs_ebpf_programs(nw)
             ninja_kernel_bug_binaries(nw, arch)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
-            ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
+            ninja_corecheck_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
             ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_gpu_ebpf_programs(nw, co_re_build_dir)
-            ninja_discovery_ebpf_programs(nw, co_re_build_dir)
             ninja_dynamic_instrumentation_ebpf_programs(nw, co_re_build_dir)
 
         ninja_cgo_type_files(nw)
 
 
 @task
-def build_libpcap(ctx):
+def build_libpcap(ctx, env: dict, arch: Arch | None = None):
     """Download and build libpcap as a static library in the agent dev directory.
     The library is not rebuilt if it already exists.
     """
@@ -719,45 +713,10 @@ def build_libpcap(ctx):
         if version == LIBPCAP_VERSION:
             ctx.run(f"echo 'libpcap version {version} already exists at {target_file}'")
             return
-    dist_dir = os.path.join(embedded_path, "dist")
-    lib_dir = os.path.join(dist_dir, f"libpcap-{LIBPCAP_VERSION}")
-    ctx.run(f"rm -rf {lib_dir}")
-    with ctx.cd(dist_dir):
-        # TODO check the checksum of the download before using
-        ctx.run(f"curl -L https://www.tcpdump.org/release/libpcap-{LIBPCAP_VERSION}.tar.xz | tar xJ")
-    with ctx.cd(lib_dir):
-        env = {}
-        # TODO cross-compile?
-        if os.getenv('DD_CC'):
-            env['CC'] = os.getenv('DD_CC')
-        if os.getenv('DD_CXX'):
-            env['CXX'] = os.getenv('DD_CXX')
-        with environ(env):
-            config_opts = [
-                f"--prefix={embedded_path}",
-                "--disable-shared",
-                "--disable-largefile",
-                "--disable-instrument-functions",
-                "--disable-remote",
-                "--disable-usb",
-                "--disable-netmap",
-                "--disable-bluetooth",
-                "--disable-dbus",
-                "--disable-rdma",
-                "--without-dag",
-                "--without-dpdk",
-                "--without-libnl",
-                "--without-septel",
-                "--without-snf",
-                "--without-turbocap",
-            ]
-            ctx.run(f"./configure {' '.join(config_opts)}")
-            ctx.run("make install")
-    ctx.run(f"rm -f {os.path.join(embedded_path, 'bin', 'pcap-config')}")
-    ctx.run(f"rm -rf {os.path.join(embedded_path, 'share')}")
-    ctx.run(f"rm -rf {os.path.join(embedded_path, 'lib', 'pkgconfig')}")
-    ctx.run(f"rm -rf {lib_dir}")
+
+    ctx.run(f"bazelisk run -- @libpcap//:install --destdir='{embedded_path}'")
     ctx.run(f"strip -g {target_file}")
+    return
 
 
 def get_libpcap_cgo_flags(ctx, install_path: str = None):
@@ -856,8 +815,9 @@ def build_sysprobe_binary(
         static=static,
     )
 
-    build_tags = get_default_build_tags(build="system-probe")
-    build_tags = add_fips_tags(build_tags, fips_mode)
+    build_tags = get_default_build_tags(
+        build="system-probe", flavor=AgentFlavor.fips if fips_mode else AgentFlavor.base
+    )
     if bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
     if strip_binary:
@@ -871,7 +831,7 @@ def build_sysprobe_binary(
         build_tags = list(set(build_tags).difference({"nvml"}))
 
     if not is_windows and "pcap" in build_tags:
-        build_libpcap(ctx)
+        build_libpcap(ctx, arch=arch_obj, env=env)
         cgo_flags = get_libpcap_cgo_flags(ctx, install_path)
         # append libpcap cgo-related environment variables to any existing ones
         for k, v in cgo_flags.items():
@@ -893,6 +853,7 @@ def build_sysprobe_binary(
         bin_path=binary,
         gcflags=gcflags,
         ldflags=ldflags,
+        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
         coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
         env=env,
     )
@@ -1624,6 +1585,8 @@ def build_object_files(
 
     validate_object_file_metadata(ctx, build_dir, verbose=False)
 
+    build_rust_binaries(ctx, arch=arch_obj)
+
     if not is_windows:
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
@@ -1656,6 +1619,27 @@ def build_object_files(
             with ctx.cd(runtime_dir):
                 ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}/runtime")
                 ctx.run(f"{sudo} find ./ -maxdepth 1 -type f -name '*.c' {cp_cmd('runtime')}")
+
+
+def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None, packages: list[str] | None = None):
+    if is_windows or is_macos:
+        return
+
+    platform_map = {
+        "x86_64": "//bazel/platforms:linux_x86_64",
+        "arm64": "//bazel/platforms:linux_arm64",
+    }
+
+    platform_flag = ""
+    if arch.kmt_arch in platform_map:
+        platform_flag = f"--platforms={platform_map[arch.kmt_arch]}"
+
+    for source_path in RUST_BINARIES:
+        if packages and not any(source_path.startswith(package) for package in packages):
+            continue
+
+        install_dest = output_dir / source_path if output_dir else Path(source_path)
+        ctx.run(f"bazelisk run {platform_flag} -- @//{source_path}:install --destdir={install_dest}")
 
 
 def build_cws_object_files(
@@ -1926,36 +1910,6 @@ def process_btfhub_archive(ctx, branch="main"):
 
 
 @task
-def generate_event_monitor_proto(ctx):
-    with tempfile.TemporaryDirectory() as temp_gobin:
-        with environ({"GOBIN": temp_gobin}):
-            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1")
-            ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.4.0")
-            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2.0")
-
-            plugin_opts = " ".join(
-                [
-                    f"--plugin protoc-gen-go=\"{temp_gobin}/protoc-gen-go\"",
-                    f"--plugin protoc-gen-go-grpc=\"{temp_gobin}/protoc-gen-go-grpc\"",
-                    f"--plugin protoc-gen-go-vtproto=\"{temp_gobin}/protoc-gen-go-vtproto\"",
-                ]
-            )
-
-            ctx.run(
-                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/eventmonitor/proto/api/api.proto"
-            )
-
-    for path in glob.glob("pkg/eventmonitor/**/*.pb.go", recursive=True):
-        print(f"replacing protoc version in {path}")
-        with open(path) as f:
-            content = f.read()
-
-        replaced_content = re.sub(r"\/\/\s*protoc\s*v\d+\.\d+\.\d+", "//  protoc", content)
-        with open(path, "w") as f:
-            f.write(replaced_content)
-
-
-@task
 def save_test_dockers(ctx, output_dir, arch, use_crane=False):
     if is_windows:
         return
@@ -1993,6 +1947,7 @@ def _test_docker_image_list():
 
     docker_compose_paths = glob.glob("./pkg/network/protocols/**/*/docker-compose.yml", recursive=True)
     docker_compose_paths.extend(glob.glob("./pkg/network/usm/**/*/docker-compose.yml", recursive=True))
+    docker_compose_paths.append("./pkg/network/protocols/tls/nodejs/testdata/docker-compose-ubuntu.yml")
     # Add relative docker-compose paths
     # For example:
     #   docker_compose_paths.append("./pkg/network/protocols/dockers/testdata/docker-compose.yml")
@@ -2196,7 +2151,7 @@ def ninja_add_dyninst_test_programs(
             deps = (d for d in deps.split(" ") if d.startswith(progs_prefix))
             pkg_deps[pkg] = {d.removeprefix(progs_prefix) for d in deps}
 
-    go_versions = ["go1.23.11", "go1.24.3", "go1.25.0"]
+    go_versions = ["go1.23.11", "go1.24.3", "go1.25.0", "go1.26rc1"]
     archs = ["amd64", "arm64"]
 
     # Avoiding cgo aids in reproducing the build environment. It's less good in

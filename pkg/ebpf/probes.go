@@ -8,7 +8,7 @@
 package ebpf
 
 import (
-	"fmt"
+	"errors"
 	"runtime"
 	"strings"
 
@@ -34,24 +34,24 @@ func (c *Config) ChooseSyscallProbeExit(tracepoint string, fallback string) (str
 func (c *Config) ChooseSyscallProbe(tracepoint string, indirectProbe string, fallback string) (string, error) {
 	tparts := strings.Split(tracepoint, "/")
 	if len(tparts) != 3 || tparts[0] != "tracepoint" || tparts[1] != "syscalls" {
-		return "", fmt.Errorf("invalid tracepoint name")
+		return "", errors.New("invalid tracepoint name")
 	}
 	category := tparts[1]
 	tpName := tparts[2]
 
 	fparts := strings.Split(fallback, "/")
 	if len(fparts) != 2 {
-		return "", fmt.Errorf("invalid fallback probe name")
+		return "", errors.New("invalid fallback probe name")
 	}
 	syscall := strings.TrimPrefix(fparts[1], "sys_")
 
 	if indirectProbe != "" {
 		xparts := strings.Split(indirectProbe, "/")
 		if len(xparts) < 2 {
-			return "", fmt.Errorf("invalid indirect probe name")
+			return "", errors.New("invalid indirect probe name")
 		}
 		if strings.TrimPrefix(xparts[1], "sys_") != syscall {
-			return "", fmt.Errorf("indirect and fallback probe syscalls do not match")
+			return "", errors.New("indirect and fallback probe syscalls do not match")
 		}
 	}
 

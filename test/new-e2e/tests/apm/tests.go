@@ -6,18 +6,17 @@
 package apm
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
@@ -38,6 +37,7 @@ func testBasicTraces(c *assert.CollectT, service string, intake *components.Fake
 	}
 	tp := trace.TracerPayloads[0]
 	assert.Equal(c, "go", tp.LanguageName)
+	assert.NotContains(c, tp.Tags, "_dd.apm_mode")
 	if !assert.NotEmpty(c, tp.Chunks) {
 		return
 	}
@@ -88,7 +88,7 @@ func testTracesHaveContainerTag(t *testing.T, c *assert.CollectT, service string
 	assert.NoError(c, err)
 	assert.NotEmpty(c, traces)
 	t.Logf("Got %d apm traces", len(traces))
-	assert.True(c, hasContainerTag(traces, fmt.Sprintf("container_name:%s", service)), "got traces: %v", traces)
+	assert.True(c, hasContainerTag(traces, "container_name:"+service), "got traces: %v", traces)
 }
 
 func testProcessTraces(c *assert.CollectT, intake *components.FakeIntake, processTags string) {
@@ -131,7 +131,7 @@ func testStatsHaveContainerTags(t *testing.T, c *assert.CollectT, service string
 					if ss.Service == service {
 						assert.NotEmpty(c, s.ContainerID, "ContainerID should not be empty. Got Stats: %v", stats)
 						assert.NotEmpty(c, s.Tags, "Container Tags should not be empty. Got Stats: %v", stats)
-						assert.Contains(c, s.Tags, fmt.Sprintf("container_name:%s", service))
+						assert.Contains(c, s.Tags, "container_name:"+service)
 					}
 				}
 			}
@@ -172,7 +172,7 @@ func tracesSampledByProbabilitySampler(t *testing.T, c *assert.CollectT, intake 
 					t.Errorf("Expected trace chunk tags to contain _dd.p.dm, but it does not.")
 				}
 				if dm != "-9" {
-					t.Errorf("Expected dm == -9, but got %v", dm)
+					t.Errorf("Expected dm == -9, but got %v for service %s", dm, chunk.Spans[0].Service)
 				}
 			}
 		}
@@ -430,4 +430,24 @@ func hasPoisonPill(t *testing.T, intake *components.FakeIntake) bool {
 	assert.NoError(t, err)
 	t.Logf("Got %d traces", len(traces))
 	return hasTraceForResource(traces, "poison_pill")
+}
+
+func testAPMMode(c *assert.CollectT, intake *components.FakeIntake, expectedAPMMode string) {
+	traces, err := intake.Client().GetTraces()
+	assert.NoError(c, err)
+	if !assert.NotEmpty(c, traces) {
+		return
+	}
+	if expectedAPMMode == "" {
+		for _, p := range traces {
+			// assert that apm mod tag does not exist
+			v, ok := p.Tags["_dd.apm_mode"]
+			assert.False(c, ok)
+			assert.Empty(c, v)
+		}
+		return
+	}
+	for _, p := range traces {
+		assert.Equal(c, expectedAPMMode, p.Tags["_dd.apm_mode"])
+	}
 }

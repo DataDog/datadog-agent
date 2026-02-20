@@ -1,25 +1,39 @@
+# Top level of dependencies originating outside this source repository.
+
+package(default_visibility = ["//visibility:private"])
+
 # Do not depend on this.
 # This is a temporary target to make it easy to force build dependencies
 # before they are used by other targets.
 filegroup(
-    name = "smoketest",
+    name = "all_deps",
     srcs = [
         "@bzip2",
         "@bzip2//:bz2",
         "@libffi//:ffi",
         "@libyaml",
-        "@lua//:liblua",
+        "@patchelf",
         "@sqlite3",
         "@xz//:lzma",
-        "@zlib//:libz_so",
+        "@zlib//:z",
     ] + select({
-        "@platforms//os:linux": [
-            "@libsepol//:sepol",
+        "//packages/agent:linux_default": [
+            "@gpg-error",
+            "@lua//:liblua",
             "@nghttp2",
-            "@pcre2",
-            "@popt",
+        ],
+        "//packages/agent:linux_heroku": [
+            "@gpg-error",
+            "@lua//:liblua",
+            "@nghttp2",
+        ],
+        "@platforms//os:windows": [
+            "@cpython//:python_win",
         ],
         "//conditions:default": [],
     }),
-    visibility = ["//visibility:private"],
+    visibility = [
+        "//compliance:__pkg__",
+        "//packages:__subpackages__",
+    ],
 )

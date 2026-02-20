@@ -21,6 +21,8 @@
 #include "protocols/classification/protocol-classification.h"
 #include "pid_tgid.h"
 
+#include "protocols/tls/tls-certs.h"
+
 SEC("socket/classifier_entry")
 int socket__classifier_entry(struct __sk_buff *skb) {
     protocol_classifier_entrypoint(skb);
@@ -68,6 +70,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_sendmsg) {
 #endif
     log_debug("kprobe/tcp_sendmsg: pid_tgid: %llu, sock: %p", pid_tgid, skp);
     bpf_map_update_with_telemetry(tcp_sendmsg_args, &pid_tgid, &skp, BPF_ANY);
+
     return 0;
 }
 
@@ -123,6 +126,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_sendpage) {
     log_debug("kprobe/tcp_sendpage: pid_tgid: %llu", pid_tgid);
     struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
     bpf_map_update_with_telemetry(tcp_sendpage_args, &pid_tgid, &skp, BPF_ANY);
+
     return 0;
 }
 

@@ -179,14 +179,20 @@ type RuntimeSecurityConfig struct {
 	PolicyMonitorPerRuleEnabled bool
 	// PolicyMonitorReportInternalPolicies enable internal policies monitoring
 	PolicyMonitorReportInternalPolicies bool
+	// RuleCacheEnabled defines if the rule cache should be enabled
+	RuleCacheEnabled bool
 	// SocketPath is the path to the socket that is used to communicate with the security agent
 	SocketPath string
+	// SocketPath is the path to the socket that is used to communicate with system-probe
+	CmdSocketPath string
 	// EventServerBurst defines the maximum burst of events that can be sent over the grpc server
 	EventServerBurst int
 	// EventServerRate defines the grpc server rate at which events can be sent
 	EventServerRate int
 	// EventServerRetention defines an event retention period so that some fields can be resolved
 	EventServerRetention time.Duration
+	// EventRetryQueueThreshold defines the maximum size of the event queue after which we force sending events even if not resolved
+	EventRetryQueueThreshold int
 	// FIMEnabled determines whether fim rules will be loaded
 	FIMEnabled bool
 	// SelfTestEnabled defines if the self tests should be executed at startup or not
@@ -272,8 +278,6 @@ type RuntimeSecurityConfig struct {
 	ActivityDumpSilentWorkloadsDelay time.Duration
 	// ActivityDumpSilentWorkloadsTicker configures ticker that will check if a workload is silent and should be traced
 	ActivityDumpSilentWorkloadsTicker time.Duration
-	// ActivityDumpAutoSuppressionEnabled bool do not send event if part of a dump
-	ActivityDumpAutoSuppressionEnabled bool
 
 	// # Dynamic configuration fields:
 	// ActivityDumpMaxDumpSize defines the maximum size of a dump
@@ -281,6 +285,8 @@ type RuntimeSecurityConfig struct {
 
 	// SecurityProfileEnabled defines if the Security Profile manager should be enabled
 	SecurityProfileEnabled bool
+	// SecurityProfileManagerV2Enabled defines if the v2 Security Profile manager should be used
+	SecurityProfileV2Enabled bool
 	// SecurityProfileMaxImageTags defines the maximum number of profile versions to maintain
 	SecurityProfileMaxImageTags int
 	// SecurityProfileDir defines the directory in which Security Profiles are stored
@@ -295,11 +301,10 @@ type RuntimeSecurityConfig struct {
 	SecurityProfileDNSMatchMaxDepth int
 	// SecurityProfileNodeEvictionTimeout defines the timeout after which non-touched nodes are evicted from profiles
 	SecurityProfileNodeEvictionTimeout time.Duration
-
-	// SecurityProfileAutoSuppressionEnabled do not send event if part of a profile
-	SecurityProfileAutoSuppressionEnabled bool
-	// SecurityProfileAutoSuppressionEventTypes defines the list of event types the can be auto suppressed using security profiles
-	SecurityProfileAutoSuppressionEventTypes []model.EventType
+	// SecurityProfileCleanupDelay defines the delay before removing a profile after all its cgroups are deleted
+	SecurityProfileCleanupDelay time.Duration
+	// SecurityProfileV2EventTypes defines the list of event types that should be captured by the V2 security profile manager
+	SecurityProfileV2EventTypes []model.EventType
 
 	// AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
 	AnomalyDetectionEventTypes []model.EventType
@@ -359,6 +364,8 @@ type RuntimeSecurityConfig struct {
 
 	// SysCtlEnabled defines if the sysctl event should be enabled
 	SysCtlEnabled bool
+	// SysCtlEBPFEnabled defines if the sysctl eBPF collection should be enabled
+	SysCtlEBPFEnabled bool
 	// SysCtlSnapshotEnabled defines if the sysctl snapshot feature should be enabled
 	SysCtlSnapshotEnabled bool
 	// SysCtlSnapshotPeriod defines at which time interval a new snapshot of sysctl parameters should be sent
@@ -370,6 +377,8 @@ type RuntimeSecurityConfig struct {
 
 	// UserSessionsCacheSize defines the size of the User Sessions cache size
 	UserSessionsCacheSize int
+	// SSHUserSessionsEnabled defines if SSH user session features should be enabled
+	SSHUserSessionsEnabled bool
 
 	// EBPFLessEnabled enables the ebpfless probe
 	EBPFLessEnabled bool
@@ -417,6 +426,9 @@ type RuntimeSecurityConfig struct {
 
 	// IMDSIPv4 is used to provide a custom IP address for the IMDS endpoint
 	IMDSIPv4 uint32
+
+	// EventGRPCServer defines which process should be used to send events and activity dumps
+	EventGRPCServer string
 
 	// SendPayloadsFromSystemProbe defines when the event and activity dumps are sent directly from system-probe
 	SendPayloadsFromSystemProbe bool
@@ -502,10 +514,12 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		WindowsWriteEventRateLimiterMaxAllowed: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.windows_write_event_rate_limiter_max_allowed"),
 		WindowsWriteEventRateLimiterPeriod:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.windows_write_event_rate_limiter_period"),
 
-		SocketPath:           pkgconfigsetup.SystemProbe().GetString("runtime_security_config.socket"),
-		EventServerBurst:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_server.burst"),
-		EventServerRate:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_server.rate"),
-		EventServerRetention: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.event_server.retention"),
+		SocketPath:               pkgconfigsetup.SystemProbe().GetString("runtime_security_config.socket"),
+		CmdSocketPath:            pkgconfigsetup.SystemProbe().GetString("runtime_security_config.cmd_socket"),
+		EventServerBurst:         pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_server.burst"),
+		EventServerRate:          pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_server.rate"),
+		EventServerRetention:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.event_server.retention"),
+		EventRetryQueueThreshold: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_retry_queue_threshold"),
 
 		SelfTestEnabled:                 pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.self_test.enabled"),
 		SelfTestSendReport:              pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.self_test.send_report"),
@@ -521,6 +535,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		PolicyMonitorEnabled:                pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.monitor.enabled"),
 		PolicyMonitorPerRuleEnabled:         pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.monitor.per_rule_enabled"),
 		PolicyMonitorReportInternalPolicies: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.monitor.report_internal_policies"),
+		RuleCacheEnabled:                    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.rule_cache_enabled"),
 
 		LogPatterns: pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.log_patterns"),
 		LogTags:     pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.log_tags"),
@@ -550,7 +565,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		ActivityDumpSilentWorkloadsDelay:      pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.silent_workloads.delay"),
 		ActivityDumpSilentWorkloadsTicker:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.silent_workloads.ticker"),
 		ActivityDumpWorkloadDenyList:          pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.activity_dump.workload_deny_list"),
-		ActivityDumpAutoSuppressionEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.auto_suppression.enabled"),
 		// activity dump dynamic fields
 		ActivityDumpMaxDumpSize: func() int {
 			mds := max(pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.max_dump_size"), ADMinMaxDumSize)
@@ -573,6 +587,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// SysCtl config parameter
 		SysCtlEnabled:                        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.enabled"),
+		SysCtlEBPFEnabled:                    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.ebpf.enabled"),
 		SysCtlSnapshotEnabled:                pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.snapshot.enabled"),
 		SysCtlSnapshotPeriod:                 pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sysctl.snapshot.period"),
 		SysCtlSnapshotIgnoredBaseNames:       pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.sysctl.snapshot.ignored_base_names"),
@@ -580,6 +595,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// security profiles
 		SecurityProfileEnabled:             pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),
+		SecurityProfileV2Enabled:           pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.enabled"),
 		SecurityProfileMaxImageTags:        pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.max_image_tags"),
 		SecurityProfileDir:                 pkgconfigsetup.SystemProbe().GetString("runtime_security_config.security_profile.dir"),
 		SecurityProfileWatchDir:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.watch_dir"),
@@ -587,10 +603,8 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SecurityProfileMaxCount:            pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.max_count"),
 		SecurityProfileDNSMatchMaxDepth:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.dns_match_max_depth"),
 		SecurityProfileNodeEvictionTimeout: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.node_eviction_timeout"),
-
-		// auto suppression
-		SecurityProfileAutoSuppressionEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.auto_suppression.enabled"),
-		SecurityProfileAutoSuppressionEventTypes: parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.auto_suppression.event_types")),
+		SecurityProfileCleanupDelay:        pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.profile_cleanup_delay"),
+		SecurityProfileV2EventTypes:        parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.v2.event_types")),
 
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
@@ -619,7 +633,8 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		EnforcementDisarmerExecutablePeriod:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.enforcement.disarmer.executable.period"),
 
 		// User Sessions
-		UserSessionsCacheSize: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.user_sessions.cache_size"),
+		SSHUserSessionsEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.user_sessions.ssh.enabled"),
+		UserSessionsCacheSize:  pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.user_sessions.cache_size"),
 
 		// ebpf less
 		EBPFLessEnabled: IsEBPFLessModeEnabled(),
@@ -627,6 +642,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// IMDS
 		IMDSIPv4: parseIMDSIPv4(),
+
+		// event
+		EventGRPCServer: pkgconfigsetup.SystemProbe().GetString("runtime_security_config.event_grpc_server"),
 
 		// direct sender
 		SendPayloadsFromSystemProbe: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe"),
@@ -661,6 +679,16 @@ func (c *RuntimeSecurityConfig) IsRuntimeEnabled() bool {
 	return c.RuntimeEnabled || c.FIMEnabled
 }
 
+// IsSysctlEventEnabled returns whether the sysctl event is enabled
+func (c *RuntimeSecurityConfig) IsSysctlEventEnabled() bool {
+	return c.SysCtlEnabled && c.SysCtlEBPFEnabled
+}
+
+// IsSysctlSnapshotEnabled returns whether the sysctl snapshot feature is enabled
+func (c *RuntimeSecurityConfig) IsSysctlSnapshotEnabled() bool {
+	return c.SysCtlEnabled && c.SysCtlSnapshotEnabled
+}
+
 // parseIMDSIPv4 returns the uint32 representation of the IMDS IP set by the configuration
 func parseIMDSIPv4() uint32 {
 	ip := pkgconfigsetup.SystemProbe().GetString("runtime_security_config.imds_ipv4")
@@ -689,12 +717,12 @@ func isRemoteConfigEnabled() bool {
 
 // IsEBPFLessModeEnabled returns true if the ebpfless mode is enabled
 // it's based on the configuration itself, but will default on true if
-// running on fargate
+// running in sidecar mode
 func IsEBPFLessModeEnabled() bool {
 	const cfgKey = "runtime_security_config.ebpfless.enabled"
-	// by default on fargate, we enable ebpfless mode
-	if !pkgconfigsetup.SystemProbe().IsConfigured(cfgKey) && fargate.IsFargateInstance() {
-		seclog.Infof("Fargate instance detected, enabling CWS ebpfless mode")
+	// by default in sidecar mode, we enable ebpfless mode
+	if !pkgconfigsetup.SystemProbe().IsConfigured(cfgKey) && fargate.IsSidecar() {
+		seclog.Infof("Sidecar instance detected, enabling CWS ebpfless mode")
 		pkgconfigsetup.SystemProbe().Set(cfgKey, true, pkgconfigmodel.SourceAgentRuntime)
 	}
 

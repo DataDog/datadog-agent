@@ -36,6 +36,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/sbom"
 
+	gopsutil "github.com/shirou/gopsutil/v4/host"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -111,8 +112,8 @@ func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workload
 }
 
 func isProcfsSBOMEnabled(cfg config.Component) bool {
-	// Allowed only on Fargate instance for now
-	return cfg.GetBool("sbom.container.enabled") && fargate.IsFargateInstance()
+	// Allowed only in sidecar mode for now
+	return cfg.GetBool("sbom.container.enabled") && fargate.IsSidecar()
 }
 
 func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBundle) {
@@ -228,6 +229,13 @@ func (p *processor) unregisterContainer(ctr *workloadmeta.Container) {
 
 func (p *processor) processHostScanResult(result sbom.ScanResult) {
 	log.Debugf("processing host scanresult: %v", result)
+
+	info, err := gopsutil.Info()
+	if err != nil {
+		log.Warnf("Failed to get host info: %v", err)
+		info = &gopsutil.InfoStat{}
+	}
+
 	sbom := &model.SBOMEntity{
 		Status:             model.SBOMStatus_SUCCESS,
 		Type:               model.SBOMSourceType_HOST_FILE_SYSTEM,
@@ -235,6 +243,8 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 		InUse:              true,
 		GeneratedAt:        timestamppb.New(result.CreatedAt),
 		GenerationDuration: bomconvert.ConvertDuration(result.Duration),
+		CpuArchitecture:    info.KernelArch,
+		KernelVersion:      info.KernelVersion,
 	}
 
 	if result.Error != nil {
@@ -288,6 +298,13 @@ func (p *processor) triggerProcfsScan(ctr *workloadmeta.Container) {
 
 func (p *processor) processProcfsScanResult(result sbom.ScanResult) {
 	log.Debugf("processing procfs scanresult: %v", result)
+
+	info, err := gopsutil.Info()
+	if err != nil {
+		log.Warnf("Failed to get host info: %v", err)
+		info = &gopsutil.InfoStat{}
+	}
+
 	sbom := &model.SBOMEntity{
 		Status:             model.SBOMStatus_SUCCESS,
 		Id:                 result.RequestID,
@@ -295,6 +312,8 @@ func (p *processor) processProcfsScanResult(result sbom.ScanResult) {
 		InUse:              true,
 		GeneratedAt:        timestamppb.New(result.CreatedAt),
 		GenerationDuration: bomconvert.ConvertDuration(result.Duration),
+		CpuArchitecture:    info.KernelArch,
+		KernelVersion:      info.KernelVersion,
 	}
 
 	if result.Error != nil {
@@ -420,6 +439,10 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 			"short_image:"+shortName)
 		for _, t := range repoTags {
 			ddTags2 = append(ddTags2, "image_tag:"+t)
+		}
+
+		if img.SBOM.GenerationMethod != "" {
+			ddTags2 = append(ddTags2, sbom.ScanMethodTagName+":"+img.SBOM.GenerationMethod)
 		}
 
 		sbom := &model.SBOMEntity{

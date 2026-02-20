@@ -8,6 +8,7 @@ package checks
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -15,13 +16,12 @@ import (
 
 // Name for check performed by process-agent or system-probe
 const (
-	ProcessCheckName       = "process"
-	RTProcessCheckName     = "rtprocess"
-	ContainerCheckName     = "container"
-	RTContainerCheckName   = "rtcontainer"
-	ConnectionsCheckName   = "connections"
-	DiscoveryCheckName     = "process_discovery"
-	ProcessEventsCheckName = "process_events"
+	ProcessCheckName     = "process"
+	RTProcessCheckName   = "rtprocess"
+	ContainerCheckName   = "container"
+	RTContainerCheckName = "rtcontainer"
+	ConnectionsCheckName = "connections"
+	DiscoveryCheckName   = "process_discovery"
 )
 
 // SysProbeConfig provides access to system probe configuration
@@ -112,9 +112,9 @@ func RTName(checkName string) string {
 	}
 }
 
-func canEnableContainerChecks(config pkgconfigmodel.Reader, displayFeatureWarning bool) bool {
+func canEnableContainerChecks(config pkgconfigmodel.Reader, sysConfig pkgconfigmodel.Reader, displayFeatureWarning bool) bool {
 	// The process and container checks are mutually exclusive
-	if config.GetBool("process_config.process_collection.enabled") {
+	if isProcessCheckEnabled(config, sysConfig) {
 		return false
 	}
 	if !env.IsAnyContainerFeaturePresent() {
@@ -125,4 +125,9 @@ func canEnableContainerChecks(config pkgconfigmodel.Reader, displayFeatureWarnin
 	}
 
 	return config.GetBool("process_config.container_collection.enabled")
+}
+
+// isProcessCheckEnabled returns true if the process check is enabled by configuration either for live process collection or service discovery.
+func isProcessCheckEnabled(config pkgconfigmodel.Reader, sysConfig pkgconfigmodel.Reader) bool {
+	return config.GetBool("process_config.process_collection.enabled") || sysConfig.GetBool("discovery.enabled")
 }

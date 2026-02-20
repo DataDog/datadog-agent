@@ -9,23 +9,23 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/common"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 )
 
 const (
-	syntheticsMetricPrefix = "dd.synthetics.agent."
+	syntheticsMetricPrefix = "datadog.synthetics.agent."
 )
 
 // runWorkers starts the configured number of worker goroutines and waits for them.
@@ -56,13 +56,17 @@ func (s *syntheticsTestScheduler) flushLoop(ctx context.Context) {
 			s.log.Info("stopped flush loop")
 			return
 		case flushTime := <-s.tickerC:
-			s.flush(flushTime)
+			s.flush(ctx, flushTime)
 		}
 	}
 }
 
 // flush enqueues tests whose nextRun is due.
-func (s *syntheticsTestScheduler) flush(flushTime time.Time) {
+func (s *syntheticsTestScheduler) flush(ctx context.Context, flushTime time.Time) {
+	if !s.running {
+		return
+	}
+
 	s.state.mu.Lock()
 	defer s.state.mu.Unlock()
 	var testsToRun []*runningTestState
@@ -72,15 +76,32 @@ func (s *syntheticsTestScheduler) flush(flushTime time.Time) {
 			testsToRun = append(testsToRun, rt)
 		}
 	}
+	if len(testsToRun) == 0 {
+		return
+	}
 
+	threshold := int(float64(cap(s.syntheticsTestProcessingChan)) * 0.7)
+	if len(s.syntheticsTestProcessingChan) >= threshold {
+		s.log.Warnf("test queue high usage (≥70%%), increase the number of workers")
+	}
+
+	maxWait := time.Duration(float64(s.flushInterval) / float64(len(testsToRun)) * 0.9)
 	for _, rt := range testsToRun {
+		if !s.running {
+			return
+		}
 		s.log.Debugf("enqueuing test %s", rt.cfg.PublicID)
-		s.syntheticsTestProcessingChan <- SyntheticsTestCtx{
+		select {
+		case s.syntheticsTestProcessingChan <- SyntheticsTestCtx{
 			nextRun: flushTime,
 			cfg:     rt.cfg,
+		}:
+		case <-time.After(maxWait):
+			s.log.Warnf("enqueuing test %s timed out, increase the number of workers", rt.cfg.PublicID)
+		case <-ctx.Done():
+			s.log.Debugf("enqueuing test %s failed because we are stopping the process", rt.cfg.PublicID)
+			return
 		}
-
-		rt.lastRun = rt.nextRun
 		rt.nextRun = rt.nextRun.Add(time.Duration(rt.cfg.Interval) * time.Second)
 	}
 }
@@ -92,11 +113,18 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 		case <-ctx.Done():
 			s.log.Debugf("worker %d stopping", workerID)
 			return
-		case syntheticsTestCtx := <-s.syntheticsTestProcessingChan:
+		case syntheticsTestCtx, ok := <-s.syntheticsTestProcessingChan:
+			if !ok {
+				s.log.Debugf("worker %d stopping: processing channel closed", workerID)
+				return
+			}
+			s.log.Debugf("[worker%d] received, publicID %s", workerID, syntheticsTestCtx.cfg.PublicID)
+
 			tracerouteCfg, err := toNetpathConfig(syntheticsTestCtx.cfg)
 			if err != nil {
 				s.log.Debugf("[worker%d] error interpreting test config: %s", workerID, err)
 				s.statsdClient.Incr(syntheticsMetricPrefix+"error_test_config", []string{"reason:error_test_config", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
+				ErrorTestConfig.Inc(string(syntheticsTestCtx.cfg.Config.Request.GetSubType()))
 			}
 
 			hname, err := s.hostNameService.Get(ctx)
@@ -112,35 +140,41 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 				hostname:      hname,
 			}
 
-			result, tracerouteErr := s.runTraceroute(ctx, tracerouteCfg, s.telemetry)
+			result, tracerouteErr := s.traceroute.Run(ctx, tracerouteCfg)
 			wResult.finishedAt = s.timeNowFn()
 			wResult.duration = wResult.finishedAt.Sub(wResult.startedAt)
 			if tracerouteErr != nil {
-				s.log.Debugf("[worker%d] error running traceroute: %s", workerID, tracerouteErr)
+				s.log.Debugf("[worker%d] error running traceroute: %s, publicID %s", workerID, tracerouteErr, syntheticsTestCtx.cfg.PublicID)
 				wResult.tracerouteError = tracerouteErr
 				s.statsdClient.Incr(syntheticsMetricPrefix+"traceroute.error", []string{"reason:error_running_datadog_traceroute", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
+				TracerouteError.Inc(string(syntheticsTestCtx.cfg.Config.Request.GetSubType()))
 				_, err := s.sendResult(wResult)
 				if err != nil {
-					s.log.Debugf("[worker%d] error sending result: %s", workerID, err)
+					s.log.Debugf("[worker%d] error sending result: %s, publicID %s", workerID, err, syntheticsTestCtx.cfg.PublicID)
 					s.statsdClient.Incr(syntheticsMetricPrefix+"evp.send_result_failure", []string{"reason:error_sending_result", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
+					SendResultFailure.Inc(string(syntheticsTestCtx.cfg.Config.Request.GetSubType()))
 				}
 				continue
 			}
 			wResult.tracerouteResult = result
+
 			wResult.assertionResult = runAssertions(syntheticsTestCtx.cfg, common.NetStats{
 				PacketsSent:          result.E2eProbe.PacketsSent,
 				PacketsReceived:      result.E2eProbe.PacketsReceived,
 				PacketLossPercentage: result.E2eProbe.PacketLossPercentage,
-				Jitter:               result.E2eProbe.Jitter,
-				Latency:              result.E2eProbe.RTT,
+				Jitter:               &result.E2eProbe.Jitter,
+				Latency:              &result.E2eProbe.RTT,
 				Hops:                 result.Traceroute.HopCount,
 			})
+
 			status, err := s.sendResult(wResult)
 			if err != nil {
-				s.log.Debugf("[worker%d] error sending result: %s", workerID, err)
+				s.log.Debugf("[worker%d] error sending result: %s, publicID %s", workerID, err, syntheticsTestCtx.cfg.PublicID)
 				s.statsdClient.Incr(syntheticsMetricPrefix+"evp.send_result_failure", []string{"reason:error_sending_result", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
+				SendResultFailure.Inc(string(syntheticsTestCtx.cfg.Config.Request.GetSubType()))
 			}
-			s.statsdClient.Incr(syntheticsMetricPrefix+"checks_processed", []string{fmt.Sprintf("status:%s", status), fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
+			s.statsdClient.Incr(syntheticsMetricPrefix+"checks_processed", []string{"status:" + status, fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
+			ChecksProcessed.Inc(status, string(syntheticsTestCtx.cfg.Config.Request.GetSubType()))
 		}
 	}
 }
@@ -190,7 +224,7 @@ func toNetpathConfig(c common.SyntheticsTestConfig) (config.Config, error) {
 	case common.UDPConfigRequest:
 		req, ok := c.Config.Request.(common.UDPConfigRequest)
 		if !ok {
-			return config.Config{}, fmt.Errorf("invalid UDP request type")
+			return config.Config{}, errors.New("invalid UDP request type")
 		}
 		cfg.Protocol = payload.ProtocolUDP
 		cfg.DestHostname = req.Host
@@ -202,7 +236,7 @@ func toNetpathConfig(c common.SyntheticsTestConfig) (config.Config, error) {
 	case common.TCPConfigRequest:
 		req, ok := c.Config.Request.(common.TCPConfigRequest)
 		if !ok {
-			return config.Config{}, fmt.Errorf("invalid TCP request type")
+			return config.Config{}, errors.New("invalid TCP request type")
 		}
 		cfg.Protocol = payload.ProtocolTCP
 		cfg.DestHostname = req.Host
@@ -214,7 +248,7 @@ func toNetpathConfig(c common.SyntheticsTestConfig) (config.Config, error) {
 	case common.ICMPConfigRequest:
 		req, ok := c.Config.Request.(common.ICMPConfigRequest)
 		if !ok {
-			return config.Config{}, fmt.Errorf("invalid ICMP request type")
+			return config.Config{}, errors.New("invalid ICMP request type")
 		}
 		cfg.Protocol = payload.ProtocolICMP
 		cfg.DestHostname = req.Host
@@ -254,24 +288,51 @@ func (s *syntheticsTestScheduler) sendSyntheticsTestResult(w *workerResult) (str
 	return res.Result.Status, nil
 }
 
-// runTraceroute is the default traceroute execution using the traceroute package.
-func runTraceroute(ctx context.Context, cfg config.Config, telemetry telemetry.Component) (payload.NetworkPath, error) {
-	tr, err := traceroute.New(cfg, telemetry)
-	if err != nil {
-		return payload.NetworkPath{}, fmt.Errorf("new traceroute error: %s", err)
+// configRequestToResultRequest converts a ConfigRequest to a ResultRequest.
+func configRequestToResultRequest(req common.ConfigRequest) (common.ResultRequest, error) {
+	switch r := req.(type) {
+	case common.UDPConfigRequest:
+		return common.ResultRequest{
+			Host:              r.Host,
+			Port:              r.Port,
+			SourceService:     r.SourceService,
+			MaxTTL:            r.MaxTTL,
+			Timeout:           r.Timeout,
+			TracerouteQueries: r.TracerouteCount,
+			E2eQueries:        r.ProbeCount,
+		}, nil
+	case common.TCPConfigRequest:
+		return common.ResultRequest{
+			Host:               r.Host,
+			Port:               r.Port,
+			DestinationService: r.DestinationService,
+			SourceService:      r.SourceService,
+			MaxTTL:             r.MaxTTL,
+			Timeout:            r.Timeout,
+			TracerouteQueries:  r.TracerouteCount,
+			E2eQueries:         r.ProbeCount,
+			TCPMethod:          r.TCPMethod,
+		}, nil
+	case common.ICMPConfigRequest:
+		return common.ResultRequest{
+			Host:               r.Host,
+			DestinationService: r.DestinationService,
+			SourceService:      r.SourceService,
+			MaxTTL:             r.MaxTTL,
+			Timeout:            r.Timeout,
+			TracerouteQueries:  r.TracerouteCount,
+			E2eQueries:         r.ProbeCount,
+		}, nil
+	default:
+		return common.ResultRequest{}, fmt.Errorf("unknown config request: %q", r)
 	}
-	path, err := tr.Run(ctx)
-	if err != nil {
-		return payload.NetworkPath{}, fmt.Errorf("run traceroute error: %s", err)
-	}
-	return path, nil
 }
 
 // networkPathToTestResult converts a workerResult into the public TestResult structure.
 func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*common.TestResult, error) {
 	t := common.Test{
 		ID:      w.testCfg.cfg.PublicID,
-		SubType: string(w.testCfg.cfg.Config.Request.GetSubType()),
+		SubType: strings.ToLower(string(w.testCfg.cfg.Config.Request.GetSubType())),
 		Type:    w.testCfg.cfg.Type,
 		Version: w.testCfg.cfg.Version,
 	}
@@ -286,9 +347,16 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 	w.tracerouteResult.Source.Hostname = w.hostname
 	w.tracerouteResult.TestConfigID = w.testCfg.cfg.PublicID
 	w.tracerouteResult.TestResultID = testResultID
-	w.tracerouteResult.Origin = "synthetics"
+	w.tracerouteResult.Origin = payload.PathOriginSynthetics
+	w.tracerouteResult.TestRunType = payload.TestRunTypeScheduled
+	w.tracerouteResult.SourceProduct = payload.SourceProductSynthetics
+	w.tracerouteResult.CollectorType = payload.CollectorTypeAgent
 	w.tracerouteResult.Timestamp = w.finishedAt.UnixMilli()
 
+	cfgRequest, err := configRequestToResultRequest(w.testCfg.cfg.Config.Request)
+	if err != nil {
+		return nil, err
+	}
 	result := common.Result{
 		ID:              testResultID,
 		InitialID:       testResultID,
@@ -297,18 +365,16 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 		TestTriggeredAt: w.triggeredAt.UnixMilli(),
 		Duration:        w.duration.Milliseconds(),
 		Assertions:      w.assertionResult,
-		Request: common.Request{
-			Host:    w.tracerouteCfg.DestHostname,
-			Port:    int(w.tracerouteCfg.DestPort),
-			MaxTTL:  int(w.tracerouteCfg.MaxTTL),
-			Timeout: int(w.tracerouteCfg.Timeout.Milliseconds()),
+		Config: common.Config{
+			Assertions: w.testCfg.cfg.Config.Assertions,
+			Request:    cfgRequest,
 		},
 		Netstats: common.NetStats{
 			PacketsSent:          w.tracerouteResult.E2eProbe.PacketsSent,
 			PacketsReceived:      w.tracerouteResult.E2eProbe.PacketsReceived,
 			PacketLossPercentage: w.tracerouteResult.E2eProbe.PacketLossPercentage,
-			Jitter:               w.tracerouteResult.E2eProbe.Jitter,
-			Latency:              w.tracerouteResult.E2eProbe.RTT,
+			Jitter:               &w.tracerouteResult.E2eProbe.Jitter,
+			Latency:              &w.tracerouteResult.E2eProbe.RTT,
 			Hops:                 w.tracerouteResult.Traceroute.HopCount,
 		},
 		Netpath: w.tracerouteResult,
@@ -316,12 +382,21 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 		RunType: w.testCfg.cfg.RunType,
 	}
 
+	if w.tracerouteResult.E2eProbe.RTT.Max == 0 || w.tracerouteResult.E2eProbe.PacketsReceived == 0 {
+		result.Netstats.Latency = nil
+		result.Netstats.Jitter = nil
+	}
+
+	if w.tracerouteResult.E2eProbe.PacketsReceived == 1 {
+		result.Netstats.Jitter = nil
+	}
+
 	s.setResultStatus(w, &result)
 
 	return &common.TestResult{
 		Location: struct {
 			ID string `json:"id"`
-		}{ID: fmt.Sprintf("agent:%s", w.hostname)},
+		}{ID: "agent:" + w.hostname},
 		DD:     make(map[string]interface{}),
 		Result: result,
 		Test:   t,
@@ -367,7 +442,7 @@ func (s *syntheticsTestScheduler) setResultStatus(w *workerResult, result *commo
 
 func hasAssertionOn100PacketLoss(assertionResults []common.AssertionResult) bool {
 	for _, assertion := range assertionResults {
-		if assertion.Type == common.AssertionTypePacketLoss && assertion.Operator == common.OperatorIs && assertion.Expected == "100" {
+		if assertion.Type == common.AssertionTypePacketLoss && assertion.Operator == common.OperatorIs && assertion.Expected == "1" {
 			return true
 		}
 	}

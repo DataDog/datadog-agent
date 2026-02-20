@@ -7,6 +7,7 @@ package config
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -235,7 +236,7 @@ func ensureUTF8(input []byte) ([]byte, error) {
 
 	// Ensure already UTF-8
 	if !utf8.Valid(input) {
-		return nil, fmt.Errorf("contains bytes that are not valid UTF-8")
+		return nil, errors.New("contains bytes that are not valid UTF-8")
 	}
 
 	return input, nil

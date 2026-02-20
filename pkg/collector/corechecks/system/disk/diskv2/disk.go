@@ -37,9 +37,19 @@ const (
 	CheckName   = "disk"
 	diskMetric  = "system.disk.%s"
 	inodeMetric = "system.fs.inodes.%s"
+
+	// Tag prefixes
+	tagDevice      = "device:"
+	tagDeviceName  = "device_name:"
+	tagFilesystem  = "filesystem:"
+	tagLabel       = "label:"
+	tagDeviceLabel = "device_label:"
+
+	// Unit conversion
+	bytesPerKB = 1024
 )
 
-// diskInstanceConfig represents an instance configuration.
+// diskInitConfig represents initialization configuration shared across instances.
 type diskInitConfig struct {
 	DeviceGlobalExclude       []string `yaml:"device_global_exclude"`
 	DeviceGlobalBlacklist     []string `yaml:"device_global_blacklist"`
@@ -94,9 +104,10 @@ type diskInstanceConfig struct {
 	ResolveRootDevice    bool              `yaml:"resolve_root_device"`
 }
 
-func sliceMatchesExpression(slice []regexp.Regexp, expression string) bool {
-	for _, regexp := range slice {
-		if regexp.MatchString(expression) {
+// matchesAnyRegex returns true if value matches any of the provided regular expressions.
+func matchesAnyRegex(value string, regexes []regexp.Regexp) bool {
+	for _, re := range regexes {
+		if re.MatchString(value) {
 			return true
 		}
 	}
@@ -105,7 +116,7 @@ func sliceMatchesExpression(slice []regexp.Regexp, expression string) bool {
 
 func compileRegExp(expr string, ignoreCase bool) (*regexp.Regexp, error) {
 	if ignoreCase {
-		expr = fmt.Sprintf("(?i)%s", expr)
+		expr = "(?i)" + expr
 	}
 	re, err := regexp.Compile(expr)
 	if err != nil {
@@ -131,6 +142,7 @@ type Check struct {
 	diskIOCounters            func(...string) (map[string]gopsutil_disk.IOCountersStat, error)
 	fs                        afero.Fs
 	statFn                    statFunc
+	goos                      string // OS name, defaults to runtime.GOOS, injectable for testing
 
 	initConfig          diskInitConfig
 	instanceConfig      diskInstanceConfig
@@ -160,21 +172,26 @@ func (c *Check) Run() error {
 	if err != nil {
 		return err
 	}
-	err = c.collectDiskMetrics(sender)
-	if err != nil {
-		return err
-	}
+	// IO counter collection is best-effort: on some systems (e.g. Windows Server 2016)
+	// the IOCTL_DISK_PERFORMANCE call may fail with ERROR_INVALID_FUNCTION.
+	// We should not discard partition/usage metrics when this happens.
+	c.collectDiskMetrics(sender)
 	sender.Commit()
 
 	return nil
 }
 
 // Configure parses the check configuration and init the check
-func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	if flavor.GetFlavor() == flavor.DefaultAgent && !pkgconfigsetup.Datadog().GetBool("disk_check.use_core_loader") && !pkgconfigsetup.Datadog().GetBool("use_diskv2_check") {
 		// if use_diskv2_check, then do not skip the core check
 		return fmt.Errorf("%w: disk core check is disabled", check.ErrSkipCheckInstance)
 	}
+
+	// Must be called before CommonConfigure so each instance gets a unique
+	// check ID and therefore its own sender, preventing custom tags set on
+	// one instance from leaking into other instances' metrics.
+	c.BuildID(integrationConfigDigest, data, initConfig)
 
 	err := c.CommonConfigure(senderManager, initConfig, data, source)
 	if err != nil {
@@ -432,11 +449,20 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 	}
 	partitions, err := c.diskPartitionsWithContext(ctx, c.instanceConfig.IncludeAllDevices)
 	if err != nil {
-		log.Warnf("Unable to get disk partitions: %s", err)
-		return err
+		if len(partitions) == 0 {
+			// Complete failure - no partitions retrieved
+			log.Warnf("Unable to get disk partitions: %v", err)
+			return err
+		}
+		// Partial success - some partitions retrieved despite error
+		log.Warnf("Error getting some disk partitions (continuing with %d partitions): %v", len(partitions), err)
+	} else if len(partitions) == 0 {
+		// No error but no partitions - unusual, could indicate a problem
+		log.Warn("No disk partitions found - this may indicate a configuration or access issue")
+		return nil
 	}
 	rootDevices := make(map[string]string)
-	if runtime.GOOS == "linux" && !c.instanceConfig.ResolveRootDevice {
+	if c.goos == "linux" && !c.instanceConfig.ResolveRootDevice {
 		rootDevices, err = c.loadRootDevices()
 		if err != nil {
 			log.Warnf("Error reading raw devices: %s", err)
@@ -476,27 +502,29 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 	return nil
 }
 
-func (c *Check) collectDiskMetrics(sender sender.Sender) error {
+func (c *Check) collectDiskMetrics(sender sender.Sender) {
 	iomap, err := c.diskIOCounters()
 	if err != nil {
-		log.Warnf("Unable to get disk iocounters: %s", err)
-		return err
+		if isExpectedIOCounterError(err) {
+			log.Debugf("IO counter collection not supported on this system: %s", err)
+		} else {
+			log.Warnf("Unable to get disk IO counters: %s", err)
+		}
+		return
 	}
 	for deviceName, ioCounters := range iomap {
 		log.Debugf("Checking iocounters: [device: %s] [ioCounters: %s]", deviceName, ioCounters)
-		tags := c.getDeviceNameTags(deviceName)
+		tags := c.buildDeviceTags(deviceName, deviceName)
 		c.sendDiskMetrics(sender, ioCounters, tags)
 	}
-
-	return nil
 }
 
 func (c *Check) sendPartitionMetrics(sender sender.Sender, usage *gopsutil_disk.UsageStat, tags []string) {
 	// Disk metrics
-	// For legacy reasons,  the standard unit it kB
-	sender.Gauge(fmt.Sprintf(diskMetric, "total"), float64(usage.Total)/1024, "", tags)
-	sender.Gauge(fmt.Sprintf(diskMetric, "used"), float64(usage.Used)/1024, "", tags)
-	sender.Gauge(fmt.Sprintf(diskMetric, "free"), float64(usage.Free)/1024, "", tags)
+	// For legacy reasons, the standard unit is kB
+	sender.Gauge(fmt.Sprintf(diskMetric, "total"), float64(usage.Total)/bytesPerKB, "", tags)
+	sender.Gauge(fmt.Sprintf(diskMetric, "used"), float64(usage.Used)/bytesPerKB, "", tags)
+	sender.Gauge(fmt.Sprintf(diskMetric, "free"), float64(usage.Free)/bytesPerKB, "", tags)
 	sender.Gauge(fmt.Sprintf(diskMetric, "utilized"), usage.UsedPercent, "", tags)
 	// FIXME(8.x): use percent, a lot more logical than in_use
 	sender.Gauge(fmt.Sprintf(diskMetric, "in_use"), usage.UsedPercent/100, "", tags)
@@ -565,7 +593,7 @@ func (c *Check) getPartitionUsage(partition gopsutil_disk.PartitionStat) *gopsut
 func (c *Check) getPartitionTags(partition gopsutil_disk.PartitionStat) []string {
 	tags := []string{}
 	if c.instanceConfig.TagByFilesystem {
-		tags = append(tags, partition.Fstype, fmt.Sprintf("filesystem:%s", partition.Fstype))
+		tags = append(tags, partition.Fstype, tagFilesystem+partition.Fstype)
 	}
 	var deviceName string
 	if c.instanceConfig.UseMount {
@@ -573,32 +601,28 @@ func (c *Check) getPartitionTags(partition gopsutil_disk.PartitionStat) []string
 	} else {
 		deviceName = partition.Device
 	}
-	if c.instanceConfig.LowercaseDeviceTag {
-		tags = append(tags, fmt.Sprintf("device:%s", strings.ToLower(deviceName)))
-	} else {
-		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
-	}
-	tags = append(tags, fmt.Sprintf("device_name:%s", baseDeviceName(partition.Device)))
-	tags = append(tags, c.getDeviceTags(deviceName)...)
-	label, ok := c.deviceLabels[partition.Device]
-	if ok {
-		tags = append(tags, fmt.Sprintf("label:%s", label), fmt.Sprintf("device_label:%s", label))
-	}
+	tags = append(tags, c.buildDeviceTags(deviceName, partition.Device)...)
 	return tags
 }
 
-func (c *Check) getDeviceNameTags(deviceName string) []string {
+// buildDeviceTags creates common device-related tags.
+// deviceForTag is used for the device: tag and regex matching (device_tag_re).
+// deviceForBase is used for the device_name: tag and label lookup.
+func (c *Check) buildDeviceTags(deviceForTag, deviceForBase string) []string {
 	tags := []string{}
+	// On Windows, normalize device name (strip backslashes and lowercase) for legacy compatibility
+	normalizedDeviceName := normalizeDeviceTag(deviceForTag)
 	if c.instanceConfig.LowercaseDeviceTag {
-		tags = append(tags, fmt.Sprintf("device:%s", strings.ToLower(deviceName)))
+		tags = append(tags, tagDevice+strings.ToLower(normalizedDeviceName))
 	} else {
-		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
+		tags = append(tags, tagDevice+normalizedDeviceName)
 	}
-	tags = append(tags, fmt.Sprintf("device_name:%s", baseDeviceName(deviceName)))
-	tags = append(tags, c.getDeviceTags(deviceName)...)
-	label, ok := c.deviceLabels[deviceName]
+	tags = append(tags, tagDeviceName+baseDeviceName(deviceForBase))
+	// Use original deviceForTag for regex matching in device_tag_re
+	tags = append(tags, c.getDeviceTags(deviceForTag)...)
+	label, ok := c.deviceLabels[deviceForBase]
 	if ok {
-		tags = append(tags, fmt.Sprintf("label:%s", label), fmt.Sprintf("device_label:%s", label))
+		tags = append(tags, tagLabel+label, tagDeviceLabel+label)
 	}
 	return tags
 }
@@ -609,69 +633,65 @@ func (c *Check) excludePartition(partition gopsutil_disk.PartitionStat) bool {
 	}
 	device := partition.Device
 	if device == "" || device == "none" {
-		device = ""
 		if !c.instanceConfig.AllPartitions {
 			return true
 		}
+		device = ""
 	}
 	// Hack for NFS secure mounts
 	// Secure mounts might look like this: '/mypath (deleted)', we should
 	// ignore all the bits not part of the mountpoint name. Take also into
 	// account a space might be in the mountpoint.
 	mountPoint := partition.Mountpoint
-	index := strings.LastIndex(mountPoint, " ")
-	// If a space is found, update mountPoint to be everything before the last space.
-	if index != -1 {
+	if index := strings.LastIndex(mountPoint, " "); index != -1 {
 		mountPoint = mountPoint[:index]
 	}
-	excludePartition := c.excludeDevice(device) || c.excludeFileSystem(partition.Fstype) || c.excludeMountPoint(mountPoint)
-	if excludePartition {
+	if c.excludeDevice(device) || c.excludeFileSystem(partition.Fstype) || c.excludeMountPoint(mountPoint) {
 		return true
 	}
-	includePartition := c.includeDevice(device) && c.includeFileSystem(partition.Fstype) && c.includeMountPoint(mountPoint)
-	return !includePartition
+	return !(c.includeDevice(device) && c.includeFileSystem(partition.Fstype) && c.includeMountPoint(mountPoint))
 }
 
 func (c *Check) excludeDevice(device string) bool {
 	if device == "" || len(c.excludedDevices) == 0 {
 		return false
 	}
-	return sliceMatchesExpression(c.excludedDevices, device)
+	return matchesAnyRegex(device, c.excludedDevices)
 }
 
 func (c *Check) includeDevice(device string) bool {
 	if device == "" || len(c.includedDevices) == 0 {
 		return true
 	}
-	return sliceMatchesExpression(c.includedDevices, device)
+	return matchesAnyRegex(device, c.includedDevices)
 }
 
 func (c *Check) excludeFileSystem(fileSystem string) bool {
 	if len(c.excludedFilesystems) == 0 {
 		return false
 	}
-	return sliceMatchesExpression(c.excludedFilesystems, fileSystem)
+	return matchesAnyRegex(fileSystem, c.excludedFilesystems)
 }
 
 func (c *Check) includeFileSystem(fileSystem string) bool {
 	if len(c.includedFilesystems) == 0 {
 		return true
 	}
-	return sliceMatchesExpression(c.includedFilesystems, fileSystem)
+	return matchesAnyRegex(fileSystem, c.includedFilesystems)
 }
 
 func (c *Check) excludeMountPoint(mountPoint string) bool {
 	if len(c.excludedMountpoints) == 0 {
 		return false
 	}
-	return sliceMatchesExpression(c.excludedMountpoints, mountPoint)
+	return matchesAnyRegex(mountPoint, c.excludedMountpoints)
 }
 
 func (c *Check) includeMountPoint(mountPoint string) bool {
 	if len(c.includedMountpoints) == 0 {
 		return true
 	}
-	return sliceMatchesExpression(c.includedMountpoints, mountPoint)
+	return matchesAnyRegex(mountPoint, c.includedMountpoints)
 }
 
 func (c *Check) getDeviceTags(device string) []string {
@@ -690,7 +710,8 @@ func (c *Check) fetchAllDeviceLabels() error {
 	log.Debugf("Fetching all device labels")
 	if c.instanceConfig.UseLsblk {
 		return c.fetchAllDeviceLabelsFromLsblk()
-	} else if c.instanceConfig.BlkidCacheFile != "" {
+	}
+	if c.instanceConfig.BlkidCacheFile != "" {
 		return c.fetchAllDeviceLabelsFromBlkidCache()
 	}
 	return c.fetchAllDeviceLabelsFromBlkid()
@@ -710,6 +731,7 @@ func newCheck() check.Check {
 		diskIOCounters:            gopsutil_disk.IOCounters,
 		fs:                        afero.NewOsFs(),
 		statFn:                    defaultStatFn,
+		goos:                      runtime.GOOS,
 		initConfig: diskInitConfig{
 			DeviceGlobalExclude:       []string{},
 			DeviceGlobalBlacklist:     []string{},

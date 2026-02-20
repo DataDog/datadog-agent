@@ -1,0 +1,56 @@
+# dd-compile-policy - make the prebuilt compiler part of the distribution.
+
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+# Pull from the right repo, depending on build architecture.
+alias(
+    name = "dd_compile_policy",
+    actual = select({
+        "//:linux_arm64": "@compile_policy_arm64//:dd-compile-policy",
+        "//:linux_x86_64": "@compile_policy_x86_64//:dd-compile-policy",
+        "//:windows_x86_64": "@compile_policy_windows_x86_64//:dd-compile-policy.exe",
+    }),
+    target_compatible_with = select({
+        "//:linux_arm64": [],
+        "//:linux_x86_64": [],
+        "//:windows_x86_64": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+)
+
+pkg_files(
+    name = "bin_files",
+    srcs = [":dd_compile_policy"],
+    attributes = select({
+        "//:windows_x86_64": None,  # Windows doesn't use Unix permissions
+        "//conditions:default": pkg_attributes(
+            group = "root",
+            mode = "0755",
+            owner = "root",
+        ),
+    }),
+    prefix = select({
+        "//:windows_x86_64": "bin/agent",
+        "//conditions:default": "embedded/bin",
+    }),
+)
+
+pkg_files(
+    name = "license_file",
+    srcs = [":LICENSE"],
+    prefix = "LICENSES",
+    renames = {
+        "LICENSE": "dd-compile-policy-LICENSE",
+    },
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":bin_files",
+        ":license_file",
+    ],
+)

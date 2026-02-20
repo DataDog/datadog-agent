@@ -9,9 +9,7 @@ package filtermodel
 import (
 	"reflect"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 )
 
 // RuleFilterEventConfig holds the config used by the rule filter event
@@ -29,19 +27,19 @@ func (e *RuleFilterEvent) SetFieldValue(field eval.Field, _ interface{}) error {
 }
 
 // GetFieldMetadata get the type of the field
-func (e *RuleFilterEvent) GetFieldMetadata(field eval.Field) (eval.Field, reflect.Kind, string, error) {
+func (e *RuleFilterEvent) GetFieldMetadata(field eval.Field) (eval.Field, reflect.Kind, string, bool, error) {
 	switch field {
 	case "kernel.version.major", "kernel.version.minor", "kernel.version.patch", "kernel.version.abi":
-		return "*", reflect.Int, "int", nil
+		return "*", reflect.Int, "int", false, nil
 	case "kernel.version.flavor",
 		"os", "os.id", "os.platform_id", "os.version_id", "envs", "origin", "hostname":
-		return "*", reflect.String, "string", nil
+		return "*", reflect.String, "string", false, nil
 	case "os.is_amazon_linux", "os.is_cos", "os.is_debian", "os.is_oracle", "os.is_rhel", "os.is_rhel7",
 		"os.is_rhel8", "os.is_sles", "os.is_sles12", "os.is_sles15", "kernel.core.enabled":
-		return "*", reflect.Bool, "bool", nil
+		return "*", reflect.Bool, "bool", false, nil
 	}
 
-	return "", reflect.Invalid, "", &eval.ErrFieldNotFound{Field: field}
+	return "", reflect.Invalid, "", false, &eval.ErrFieldNotFound{Field: field}
 }
 
 // GetType returns the type for this event
@@ -59,15 +57,12 @@ func (m *RuleFilterModel) ValidateField(_ string, _ eval.FieldValue) error {
 	return nil
 }
 
-// GetFieldRestrictions returns the field event type restrictions
-func (m *RuleFilterModel) GetFieldRestrictions(_ eval.Field) []eval.EventType {
+// ValidateRule returns whether the rule is valid
+func (m *RuleFilterModel) ValidateRule(_ *eval.Rule) error {
 	return nil
 }
 
-func getHostname(ipcComp ipc.Component) string {
-	hostname, err := hostnameutils.GetHostname(ipcComp)
-	if err != nil || hostname == "" {
-		hostname = "unknown"
-	}
-	return hostname
+// GetFieldRestrictions returns the field event type restrictions
+func (m *RuleFilterModel) GetFieldRestrictions(_ eval.Field) []eval.EventType {
+	return nil
 }

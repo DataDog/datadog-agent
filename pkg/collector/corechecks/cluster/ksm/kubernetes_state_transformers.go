@@ -133,6 +133,7 @@ func defaultMetricTransformers(k *KSMCheck) map[string]metricTransformerFunc {
 	if k != nil {
 		transformers["kube_deployment_ongoing_rollout_duration"] = k.transformKubeDeploymentRolloutDurationWithTracker
 		transformers["kube_statefulset_ongoing_rollout_duration"] = k.transformKubeStatefulSetRolloutDurationWithTracker
+		transformers["kube_daemonset_ongoing_rollout_duration"] = k.transformKubeDaemonSetRolloutDurationWithTracker
 	}
 
 	return transformers
@@ -469,8 +470,8 @@ func validJobFailureReason(reason string) bool {
 func validateJob(val float64, tags []string) ([]string, bool) {
 	kubeCronjob := ""
 	for i, tag := range tags {
-		if strings.HasPrefix(tag, "reason:") {
-			if v := strings.TrimPrefix(tag, "reason:"); !validJobFailureReason(v) {
+		if reason, ok := strings.CutPrefix(tag, "reason:"); ok {
+			if !validJobFailureReason(reason) {
 				tags = append(tags[:i], tags[i+1:]...)
 				continue
 			}
@@ -650,4 +651,22 @@ func (k *KSMCheck) transformKubeStatefulSetRolloutDurationWithTracker(s sender.S
 	// Calculate actual rollout duration using instance rollout tracker
 	duration := k.rolloutTracker.GetStatefulSetRolloutDuration(namespace, statefulSetName)
 	s.Gauge(ksmMetricPrefix+"statefulset.rollout_duration", duration, hostname, tags)
+}
+
+// transformKubeDaemonSetRolloutDurationWithTracker transforms DaemonSet rollout duration metrics using instance rollout tracker
+func (k *KSMCheck) transformKubeDaemonSetRolloutDurationWithTracker(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
+	// Only process ongoing rollouts (value 1), not completed ones (value 0)
+	if metric.Val != 1.0 {
+		return
+	}
+
+	namespace, hasNamespace := metric.Labels["namespace"]
+	daemonSetName, hasDaemonSet := metric.Labels["daemonset"]
+
+	if !hasNamespace || !hasDaemonSet {
+		return
+	}
+
+	duration := k.rolloutTracker.GetDaemonSetRolloutDuration(namespace, daemonSetName)
+	s.Gauge(ksmMetricPrefix+"daemonset.rollout_duration", duration, hostname, tags)
 }

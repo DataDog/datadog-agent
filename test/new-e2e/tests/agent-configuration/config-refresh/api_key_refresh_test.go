@@ -9,15 +9,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	secrets "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
@@ -47,12 +48,12 @@ api_key: ENC[api_key]
 
 	v.UpdateEnv(
 		awshost.Provisioner(
-			awshost.WithAgentOptions(
+			awshost.WithRunOptions(scenec2.WithAgentOptions(
 				secrets.WithUnixSetupScript("/tmp/secret.py", false),
 				agentparams.WithSkipAPIKeyInConfig(),
 				agentparams.WithAgentConfig(config),
 			),
-		),
+			)),
 	)
 
 	// Status command shows that original API Key is in use
@@ -65,15 +66,17 @@ api_key: ENC[api_key]
 	require.Contains(v.T(), secretRefreshOutput, "api_key")
 
 	// Assert that the status command shows the new API Key
-	status = v.Env().Agent.Client.Status()
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		status = v.Env().Agent.Client.Status()
 		assert.Contains(t, status.Content, "API key ending with vwxyz")
 	}, 1*time.Minute, 10*time.Second)
 
-	// Assert that the fakeIntake has received the API Key
-	lastAPIKey, err := v.Env().FakeIntake.Client().GetLastAPIKey()
-	assert.NoError(v.T(), err)
-	assert.Equal(v.T(), lastAPIKey, secondAPIKey)
+	// Assert that the fakeIntake has received the new API Key
+	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		lastAPIKey, err := v.Env().FakeIntake.Client().GetLastAPIKey()
+		assert.NoError(t, err)
+		assert.Equal(t, secondAPIKey, lastAPIKey)
+	}, 1*time.Minute, 10*time.Second)
 }
 
 func (v *linuxAPIKeyRefreshSuite) TestIntakeRefreshAPIKeysAdditionalEndpoints() {
@@ -118,12 +121,12 @@ additional_endpoints:
 	// Deploy the agent with the initial secrets
 	v.UpdateEnv(
 		awshost.Provisioner(
-			awshost.WithAgentOptions(
+			awshost.WithRunOptions(scenec2.WithAgentOptions(
 				secrets.WithUnixSetupScript("/tmp/secret.py", false),
 				agentparams.WithSkipAPIKeyInConfig(),
 				agentparams.WithAgentConfig(config),
 			),
-		),
+			)),
 	)
 
 	// Verify initial API keys in status

@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strings"
 
+	"golang.org/x/net/idna"
+
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -55,23 +57,8 @@ func NewAPIKeys(path string, keys ...string) APIKeys {
 	}
 }
 
-// mergeAdditionalEndpoints merges additional endpoints into keysPerDomain
-func mergeAdditionalEndpoints(keysPerDomain, additionalEndpoints map[string][]APIKeys) (map[string][]APIKeys, error) {
-	for domain, apiKeys := range additionalEndpoints {
-		// Validating domain
-		_, err := url.Parse(domain)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse url from 'additional_endpoints' %s: %s", domain, err)
-		}
-
-		if _, ok := keysPerDomain[domain]; ok {
-			keysPerDomain[domain] = append(keysPerDomain[domain], apiKeys...)
-		} else {
-			keysPerDomain[domain] = apiKeys
-		}
-	}
-
-	return keysPerDomain, nil
+func newAPIKeyset(path string, keys ...string) []APIKeys {
+	return []APIKeys{NewAPIKeys(path, keys...)}
 }
 
 // GetMainEndpointBackwardCompatible implements the logic to extract the DD URL from a config, based on `site`,ddURLKey and a backward compatible key
@@ -137,8 +124,35 @@ func DedupAPIKeys(endpoints []APIKeys) []string {
 	return dedupedAPIKeys
 }
 
+// EndpointDescriptor holds configuration about a single endpoint (aka domain) for infra pipelines.
+type EndpointDescriptor struct {
+	BaseURL   string
+	APIKeySet []APIKeys
+	IsMRF     bool
+}
+
+func newEndpointDescriptor(baseURL string, apiKeySet []APIKeys) EndpointDescriptor {
+	return EndpointDescriptor{
+		BaseURL:   baseURL,
+		APIKeySet: apiKeySet,
+	}
+}
+
+// EndpointDescriptorSet is a collection of all endpoints for infra pipelines keyed by base URL.
+type EndpointDescriptorSet = map[string]EndpointDescriptor
+
+// EndpointDescriptorSetFromKeysPerDomain converts legacy endpoint configuration into EndpointDescriptorSet.
+func EndpointDescriptorSetFromKeysPerDomain(keysPerDomain map[string][]APIKeys) EndpointDescriptorSet {
+	eds := EndpointDescriptorSet{}
+	for domain, keyset := range keysPerDomain {
+		eds[domain] = newEndpointDescriptor(domain, keyset)
+	}
+
+	return eds
+}
+
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
-func GetMultipleEndpoints(c pkgconfigmodel.Reader) (map[string][]APIKeys, error) {
+func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error) {
 	ddURL := GetInfraEndpoint(c)
 	// Validating domain
 	if _, err := url.Parse(ddURL); err != nil {
@@ -146,13 +160,26 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (map[string][]APIKeys, error)
 	}
 
 	keysPerDomain := map[string][]APIKeys{
-		ddURL: {{
-			ConfigSettingPath: "api_key",
-			Keys:              []string{c.GetString("api_key")},
-		}},
+		ddURL: newAPIKeyset("api_key", c.GetString("api_key")),
 	}
 
 	additionalEndpoints := MakeEndpoints(c.GetStringMapStringSlice("additional_endpoints"), "additional_endpoints")
+
+	for domain, apiKeys := range additionalEndpoints {
+		// Validating domain
+		_, err := url.Parse(domain)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse url from 'additional_endpoints' %s: %s", domain, err)
+		}
+
+		if oldAPIKeys, ok := keysPerDomain[domain]; ok {
+			keysPerDomain[domain] = append(oldAPIKeys, apiKeys...)
+		} else {
+			keysPerDomain[domain] = apiKeys
+		}
+	}
+
+	eds := EndpointDescriptorSetFromKeysPerDomain(keysPerDomain)
 
 	// populate with MRF endpoints too
 	if c.GetBool("multi_region_failover.enabled") {
@@ -160,16 +187,59 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (map[string][]APIKeys, error)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse MRF endpoint: %s", err)
 		}
-		additionalEndpoints[haURL] = []APIKeys{{
-			ConfigSettingPath: "multi_region_failover.api_key",
-			Keys:              []string{c.GetString("multi_region_failover.api_key")},
-		}}
+		ed := newEndpointDescriptor(
+			haURL,
+			newAPIKeyset("multi_region_failover.api_key", c.GetString("multi_region_failover.api_key")))
+		ed.IsMRF = true
+		eds[haURL] = ed
 	}
 
-	return mergeAdditionalEndpoints(keysPerDomain, additionalEndpoints)
+	return eds, nil
 }
 
-var wellKnownSitesRe = regexp.MustCompile(`(?:datadoghq|datad0g)\.(?:com|eu)$|ddog-gov\.com$`)
+// ddDomainPattern matches known Datadog domains (e.g., datadoghq.com,
+// datad0g.eu, ddog-gov.com). This is the shared building block for
+// wellKnownSitesRe, ddSitePattern, ddSiteFromHostnameRe, and ddURLRegexp.
+const ddDomainPattern = `datad(?:oghq|0g)\.(?:com|eu)|ddog-gov\.com`
+
+var wellKnownSitesRe = regexp.MustCompile(`(?:` + ddDomainPattern + `)$`)
+
+// ddSitePattern matches a Datadog site: an optional datacenter subdomain
+// (e.g., us3, ap1) followed by a known Datadog domain.
+const ddSitePattern = `([a-z]{2,}\d{1,2}\.)?(` + ddDomainPattern + `)`
+
+// ddSiteFromHostnameRe extracts the Datadog site from the end of a hostname.
+// The (?:^|\.) prefix ensures the match starts at a label boundary so that,
+// e.g., "notdatadoghq.com" is not mistaken for "datadoghq.com".
+var ddSiteFromHostnameRe = regexp.MustCompile(`(?:^|\.)` + ddSitePattern + `\.?$`)
+
+// ExtractSiteFromURL extracts the Datadog site from a URL.
+// For example:
+//
+//	"https://intake.profile.us3.datadoghq.com/v1/input" returns "us3.datadoghq.com"
+//	"https://intake.profile.datadoghq.com/v1/input" returns "datadoghq.com"
+//	"https://intake.profile.datadoghq.eu/v1/input" returns "datadoghq.eu"
+//
+// Returns an empty string if the URL cannot be parsed or does not contain a
+// recognized Datadog domain.
+func ExtractSiteFromURL(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+	hostname := strings.ToLower(strings.TrimRight(u.Hostname(), "."))
+	if hostname == "" {
+		return ""
+	}
+
+	matches := ddSiteFromHostnameRe.FindStringSubmatch(hostname)
+	if matches == nil {
+		return ""
+	}
+	// matches[1] is the DC label with trailing dot (e.g., "us3.") or empty
+	// matches[2] is the known domain (e.g., "datadoghq.com")
+	return matches[1] + matches[2]
+}
 
 // BuildURLWithPrefix will return an HTTP(s) URL for a site given a certain prefix.
 // If the site is a datadog well-known one, it is suffixed with a dot to make it a FQDN.
@@ -177,6 +247,9 @@ var wellKnownSitesRe = regexp.MustCompile(`(?:datadoghq|datad0g)\.(?:com|eu)$|dd
 // https://docs.datadoghq.com/getting_started/site/#access-the-datadog-site
 func BuildURLWithPrefix(prefix, site string) string {
 	site = strings.TrimSpace(site)
+	if normalized, err := idna.Lookup.ToASCII(site); err == nil {
+		site = normalized
+	}
 	if pkgconfigsetup.Datadog().GetBool("convert_dd_site_fqdn.enabled") && wellKnownSitesRe.MatchString(site) && !strings.HasSuffix(site, ".") {
 		site += "."
 	}
@@ -250,7 +323,7 @@ func GetMRFInfraEndpoint(c pkgconfigmodel.Reader) (string, error) {
 
 // ddURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed with the Agent
 // version (see AddAgentVersionToDomain).
-var ddURLRegexp = regexp.MustCompile(`^app(\.mrf)?(\.[a-z]{2}\d)?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)(\.)?$`)
+var ddURLRegexp = regexp.MustCompile(`^app(\.mrf)?\.` + ddSitePattern + `\.?$`)
 
 // getDomainPrefix provides the right prefix for agent X.Y.Z
 func getDomainPrefix(app string) string {

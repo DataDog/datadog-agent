@@ -10,6 +10,7 @@ package marshal
 import (
 	"bytes"
 	"io"
+	"slices"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
@@ -36,24 +37,29 @@ func newRedisEncoder(redisPayloads map[redis.Key]*redis.RequestStats) *redisEnco
 	}
 }
 
-func (e *redisEncoder) EncodeConnection(c network.ConnectionStats, builder *model.ConnectionBuilder) (uint64, map[string]struct{}) {
+func (e *redisEncoder) EncodeConnectionDirect(c network.ConnectionStats, conn *model.Connection, buf *bytes.Buffer) (staticTags uint64, dynamicTags map[string]struct{}) {
+	staticTags = e.encodeData(c, buf)
+	conn.DatabaseAggregations = slices.Clone(buf.Bytes())
+	return
+}
+
+func (e *redisEncoder) EncodeConnection(c network.ConnectionStats, builder *model.ConnectionBuilder) (staticTags uint64, dynamicTags map[string]struct{}) {
+	builder.SetDatabaseAggregations(func(b *bytes.Buffer) {
+		staticTags = e.encodeData(c, b)
+	})
+	return
+}
+
+func (e *redisEncoder) encodeData(c network.ConnectionStats, w io.Writer) uint64 {
 	if e == nil {
-		return 0, nil
+		return 0
 	}
 
 	connectionData := e.byConnection.Find(c)
 	if connectionData == nil || len(connectionData.Data) == 0 || connectionData.IsPIDCollision(c) {
-		return 0, nil
+		return 0
 	}
 
-	staticTags := uint64(0)
-	builder.SetDatabaseAggregations(func(b *bytes.Buffer) {
-		staticTags |= e.encodeData(connectionData, b)
-	})
-	return staticTags, nil
-}
-
-func (e *redisEncoder) encodeData(connectionData *USMConnectionData[redis.Key, *redis.RequestStats], w io.Writer) uint64 {
 	var staticTags uint64
 	e.redisAggregationsBuilder.Reset(w)
 
@@ -67,6 +73,8 @@ func (e *redisEncoder) encodeData(connectionData *USMConnectionData[redis.Key, *
 					aggregationBuilder.SetCommand(uint64(model.RedisCommand_RedisGetCommand))
 				case redis.SetCommand:
 					aggregationBuilder.SetCommand(uint64(model.RedisCommand_RedisSetCommand))
+				case redis.PingCommand:
+					aggregationBuilder.SetCommand(uint64(model.RedisCommand_RedisPingCommand))
 				default:
 					aggregationBuilder.SetCommand(uint64(model.RedisCommand_RedisUnknownCommand))
 				}

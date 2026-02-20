@@ -9,13 +9,12 @@
 package selftests
 
 import (
-	"fmt"
+	"context"
 	"math"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"golang.org/x/net/context"
 )
 
 // EBPFLessSelfTest defines an ebpf less self test
@@ -26,7 +25,7 @@ type EBPFLessSelfTest struct {
 
 // GetRuleDefinition returns the rule
 func (o *EBPFLessSelfTest) GetRuleDefinition() *rules.RuleDefinition {
-	o.ruleID = fmt.Sprintf("%s_exec", ruleIDPrefix)
+	o.ruleID = ruleIDPrefix + "_exec"
 
 	return &rules.RuleDefinition{
 		ID:         o.ruleID,

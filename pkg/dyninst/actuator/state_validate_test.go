@@ -9,6 +9,7 @@ package actuator
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
@@ -18,8 +19,8 @@ func validateState(s *state, reportError func(error)) {
 		reportError(fmt.Errorf(format, args...))
 	}
 	for procID, proc := range s.processes {
-		if procID != proc.processKey {
-			report("process %v has mismatched ID field %v", procID, proc.processKey)
+		if procID != proc.processID {
+			report("process %v has mismatched ID field %v", procID, proc.processID)
 		}
 		validateProcess(proc, s, report)
 	}
@@ -84,6 +85,99 @@ func validateState(s *state, reportError func(error)) {
 		}
 	}
 
+	// Verify that Loading/LoadingAborted programs are only currentlyLoading.
+	for progID, prog := range s.programs {
+		switch prog.state {
+		case programStateLoading, programStateLoadingAborted:
+			if s.currentlyLoading == nil || s.currentlyLoading.id != progID {
+				report(
+					"program %v is in %v state but is not currentlyLoading",
+					progID, prog.state,
+				)
+			}
+		}
+	}
+
+	// Verify no two programs claim the same process.
+	progByProcess := make(map[ProcessID]ir.ProgramID)
+	for progID, prog := range s.programs {
+		if prev, exists := progByProcess[prog.processID]; exists {
+			report(
+				"programs %v and %v both claim process %v",
+				prev, progID, prog.processID,
+			)
+		}
+		progByProcess[prog.processID] = progID
+	}
+
+	// Verify no empty inner maps in processesByService.
+	for svc, pids := range s.processesByService {
+		if len(pids) == 0 {
+			report("processesByService[%q] is empty", svc)
+		}
+	}
+
+	// Verify discoveredTypes values are sorted and deduplicated.
+	{
+		computedTotal := 0
+		for svc, types := range s.discoveredTypes {
+			if !slices.IsSorted(types) {
+				report("discoveredTypes[%q] is not sorted: %v", svc, types)
+			}
+			if len(slices.Compact(slices.Clone(types))) != len(types) {
+				report("discoveredTypes[%q] has duplicates: %v", svc, types)
+			}
+			computedTotal += len(types)
+		}
+		if computedTotal != s.totalDiscoveredTypes {
+			report(
+				"totalDiscoveredTypes counter %d does not match computed total %d",
+				s.totalDiscoveredTypes, computedTotal,
+			)
+		}
+	}
+
+	// Verify that when the limit is exceeded, all discoveredTypes entries
+	// belong to services with live processes.
+	if s.totalDiscoveredTypes > s.discoveredTypesLimit {
+		for svc := range s.discoveredTypes {
+			if _, hasProcesses := s.processesByService[svc]; !hasProcesses {
+				report(
+					"discoveredTypes[%q] exists with no live processes while over limit (%d > %d)",
+					svc, s.totalDiscoveredTypes, s.discoveredTypesLimit,
+				)
+			}
+		}
+	}
+
+	// Verify processesByService index integrity.
+	// Every PID in processesByService[svc] must exist in s.processes with matching service.
+	for svc, pids := range s.processesByService {
+		for pid := range pids {
+			proc, exists := s.processes[pid]
+			if !exists {
+				report("processesByService[%q] contains non-existent process %v", svc, pid)
+			} else if proc.service != svc {
+				report(
+					"processesByService[%q] contains process %v with service %q",
+					svc, pid, proc.service,
+				)
+			}
+		}
+	}
+	// Every process with a non-empty service must appear in processesByService.
+	for pid, proc := range s.processes {
+		if proc.service == "" {
+			continue
+		}
+		pids, exists := s.processesByService[proc.service]
+		if !exists {
+			report("process %v with service %q not in processesByService", pid, proc.service)
+		} else if _, ok := pids[pid]; !ok {
+			report("process %v not in processesByService[%q]", pid, proc.service)
+		}
+	}
+
 	// Verify process-program relationships are bidirectional.
 	for procID, proc := range s.processes {
 		if proc.currentProgram != 0 {
@@ -93,10 +187,10 @@ func validateState(s *state, reportError func(error)) {
 					"process %v currentProgram %v does not exist",
 					procID, proc.currentProgram,
 				)
-			} else if prog.processKey != procID {
+			} else if prog.processID != procID {
 				report(
 					"process %v currentProgram %v points to different process %v",
-					procID, proc.currentProgram, prog.processKey,
+					procID, proc.currentProgram, prog.processID,
 				)
 			}
 		}
@@ -104,26 +198,26 @@ func validateState(s *state, reportError func(error)) {
 }
 
 func validateProcess(proc *process, s *state, report func(format string, args ...any)) {
-	procKey := proc.processKey
+	procID := proc.processID
 
 	switch proc.state {
 	case processStateWaitingForProgram:
 		if proc.currentProgram == 0 {
 			report(
 				"process %v in WaitingForProgram state has no currentProgram",
-				procKey,
+				procID,
 			)
 		}
 		if _, exists := s.programs[proc.currentProgram]; !exists {
 			report(
 				"process %v references non-existent program %v",
-				procKey, proc.currentProgram,
+				procID, proc.currentProgram,
 			)
 		}
 		if proc.attachedProgram != nil {
 			report(
 				"process %v in WaitingForProgram state should not have attachedProgram",
-				procKey,
+				procID,
 			)
 		}
 
@@ -131,78 +225,74 @@ func validateProcess(proc *process, s *state, report func(format string, args ..
 		if proc.currentProgram == 0 {
 			report(
 				"process %v in Attaching state has no currentProgram",
-				procKey,
+				procID,
 			)
 		}
 		if _, exists := s.programs[proc.currentProgram]; !exists {
 			report(
 				"process %v references non-existent program %v",
-				procKey, proc.currentProgram,
+				procID, proc.currentProgram,
 			)
 		}
 		if proc.attachedProgram != nil {
 			report(
 				"process %v in Attaching state should not have attachedProgram yet",
-				procKey,
+				procID,
 			)
 		}
 
 	case processStateAttached:
 		if proc.currentProgram == 0 {
-			report("process %v in Attached state has no currentProgram", procKey)
+			report("process %v in Attached state has no currentProgram", procID)
 		}
 		if _, exists := s.programs[proc.currentProgram]; !exists {
 			report(
 				"process %v references non-existent program %v",
-				procKey, proc.currentProgram,
+				procID, proc.currentProgram,
 			)
 		}
 		if proc.attachedProgram == nil {
 			report(
-				"process %v in Attached state has no attachedProgram", procKey,
+				"process %v in Attached state has no attachedProgram", procID,
 			)
 		}
 		if proc.attachedProgram != nil &&
 			proc.attachedProgram.programID != proc.currentProgram {
 			report(
 				"process %v attachedProgram ID %v does not match currentProgram %v",
-				procKey, proc.attachedProgram.programID, proc.currentProgram,
+				procID, proc.attachedProgram.programID, proc.currentProgram,
 			)
 		}
 		if proc.attachedProgram != nil &&
-			proc.attachedProgram.processID != procKey.ProcessID {
+			proc.attachedProgram.processID != procID {
 			report(
 				"process %v attachedProgram has wrong processID %v",
-				procKey, proc.attachedProgram.processID,
+				procID, proc.attachedProgram.processID,
 			)
 		}
 
 	case processStateDetaching:
 		if proc.currentProgram == 0 {
-			report("process %v in Detaching state has no currentProgram", procKey)
+			report("process %v in Detaching state has no currentProgram", procID)
 		}
 		if _, exists := s.programs[proc.currentProgram]; !exists {
 			report(
 				"process %v references non-existent program %v",
-				procKey, proc.currentProgram,
+				procID, proc.currentProgram,
 			)
 		}
 
-	case processStateLoadingFailed:
-		// currentProgram may be 0 after failure.
-		if proc.err == nil {
-			report("process %v in LoadingFailed state has no error", procKey)
-		}
+	case processStateFailed:
 		if len(proc.probes) == 0 {
-			report("process %v has no probes in LoadingFailed state", procKey)
+			report("process %v has no probes in Failed state", procID)
 		}
 
 	case processStateInvalid:
 		// This state should not normally appear in a valid state.
-		report("process %v is in Invalid state", procKey)
+		report("process %v is in Invalid state", procID)
 
 	default:
-		report("process %v has unknown state %v", procKey, proc.state)
+		report("process %v has unknown state %v", procID, proc.state)
 	}
 }
 
@@ -212,16 +302,21 @@ func validateProgram(
 	progID := prog.id
 
 	// Check that processID references exist and are consistent.
-	proc, exists := s.processes[prog.processKey]
+	proc, exists := s.processes[prog.processID]
 	if !exists {
 		report(
-			"program %v references non-existent process %v", progID, prog.processKey,
+			"program %v references non-existent process %v", progID, prog.processID,
 		)
 	} else if proc.currentProgram != progID {
 		report(
 			"program %v is not the current program for process %v",
-			progID, prog.ProcessID,
+			progID, prog.processID,
 		)
+	}
+
+	// Programs should always have at least one probe.
+	if len(prog.config) == 0 {
+		report("program %v has no probes", progID)
 	}
 
 	switch prog.state {
@@ -261,5 +356,62 @@ func validateProgram(
 
 	default:
 		report("program %v has unknown state %v", progID, prog.state)
+	}
+
+	// Cross-check process and program state compatibility.
+	if exists {
+		switch prog.state {
+		case programStateQueued, programStateLoading, programStateLoadingAborted:
+			if proc.state != processStateWaitingForProgram {
+				report(
+					"program %v in %v state but process %v in %v state (expected WaitingForProgram)",
+					progID, prog.state, proc.processID, proc.state,
+				)
+			}
+		case programStateLoaded:
+			switch proc.state {
+			case processStateAttaching, processStateAttached, processStateDetaching:
+				// Valid.
+			default:
+				report(
+					"program %v in Loaded state but process %v in %v state (expected Attaching/Attached/Detaching)",
+					progID, proc.processID, proc.state,
+				)
+			}
+		case programStateDraining:
+			switch proc.state {
+			case processStateDetaching, processStateFailed:
+				// Valid: Detaching is the normal path; Failed happens
+				// when the circuit breaker triggers while attached.
+			default:
+				report(
+					"program %v in Draining state but process %v in %v state (expected Detaching/Failed)",
+					progID, proc.processID, proc.state,
+				)
+			}
+		case programStateUnloading:
+			switch proc.state {
+			case processStateWaitingForProgram, processStateDetaching, processStateFailed:
+				// Valid.
+			default:
+				report(
+					"program %v in Unloading state but process %v in %v state",
+					progID, proc.processID, proc.state,
+				)
+			}
+		}
+	}
+
+	// needsRecompilation should only be set for Loading or Loaded programs.
+	if prog.needsRecompilation {
+		switch prog.state {
+		case programStateLoading, programStateLoaded:
+			// Valid.
+		default:
+			report(
+				"program %v has needsRecompilation=true in state %v",
+				progID, prog.state,
+			)
+		}
 	}
 }

@@ -6,17 +6,18 @@
 package installtest
 
 import (
-	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	boundport "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
+	servicetest "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test/service-test"
 
 	"testing"
 
@@ -288,8 +289,8 @@ func (s *testRepairSuite) TestRepair() {
 	// initialize test helper
 	t := s.newTester(vm)
 
-	// install the agent
-	_ = s.installAgentPackage(vm, s.AgentPackage)
+	// install the agent - skip procdump since this test deletes agent files
+	_ = s.installAgentPackageWithOptions(vm, s.AgentPackage, []PackageInstallOption{WithSkipProcdump()})
 	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), s.AgentPackage.AgentVersion())
 
 	err := windowsCommon.StopService(t.host, "DatadogAgent")
@@ -350,7 +351,7 @@ func (s *testInstallOptsSuite) TestInstallOpts() {
 		windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
 		windowsAgent.WithTags("k1:v1,k2:v2"),
 		windowsAgent.WithHostname("win-installopts"),
-		windowsAgent.WithCmdPort(fmt.Sprintf("%d", cmdPort)),
+		windowsAgent.WithCmdPort(strconv.Itoa(cmdPort)),
 		windowsAgent.WithProxyHost("proxy.foo.com"),
 		windowsAgent.WithProxyPort("1234"),
 		windowsAgent.WithProxyUser("puser"),
@@ -360,6 +361,8 @@ func (s *testInstallOptsSuite) TestInstallOpts() {
 		windowsAgent.WithLogsDdURL("https://logs.someurl.datadoghq.com"),
 		windowsAgent.WithProcessDdURL("https://process.someurl.datadoghq.com"),
 		windowsAgent.WithTraceDdURL("https://trace.someurl.datadoghq.com"),
+		windowsAgent.WithRemoteUpdates("true"),
+		windowsAgent.WithInfrastructureMode("basic"),
 	}
 
 	_ = s.installAgentPackage(vm, s.AgentPackage, installOpts...)
@@ -410,6 +413,12 @@ func (s *testInstallOptsSuite) TestInstallOpts() {
 		assert.Equal(s.T(), "https://trace.someurl.datadoghq.com", apmConf["apm_dd_url"], "apm_dd_url should match")
 	}
 
+	assert.Contains(s.T(), confYaml, "remote_updates")
+	assert.Equal(s.T(), true, confYaml["remote_updates"], "remote_updates should match")
+
+	assert.Contains(s.T(), confYaml, "infrastructure_mode")
+	assert.Equal(s.T(), "basic", confYaml["infrastructure_mode"], "infrastructure_mode should match")
+
 	// check that agent is listening on the new bound port
 	var boundPort boundport.BoundPort
 	s.Require().EventuallyWithTf(func(c *assert.CollectT) {
@@ -417,15 +426,15 @@ func (s *testInstallOptsSuite) TestInstallOpts() {
 		if !assert.NoError(c, err) {
 			return
 		}
-		boundPort, err = common.GetBoundPort(vm, cmdPort)
+		boundPort, err = common.GetBoundPort(vm, "tcp", cmdPort)
 		if !assert.NoError(c, err) {
 			return
 		}
-		if !assert.NotNil(c, boundPort, "port %d should be bound", cmdPort) {
+		if !assert.NotNil(c, boundPort, "port tcp/%d should be bound", cmdPort) {
 			return
 		}
-		assert.Equalf(c, pid, boundPort.PID(), "port %d should be bound by the agent", cmdPort)
-	}, 1*time.Minute, 500*time.Millisecond, "port %d should be bound by the agent", cmdPort)
+		assert.Equalf(c, pid, boundPort.PID(), "port tcp/%d should be bound by the agent", cmdPort)
+	}, 1*time.Minute, 500*time.Millisecond, "port tcp/%d should be bound by the agent", cmdPort)
 	s.Require().EqualValues("127.0.0.1", boundPort.LocalAddress(), "agent should only be listening locally")
 
 	s.cleanupOnSuccessInDevMode()
@@ -466,7 +475,7 @@ func (s *testInstallFailSuite) TestInstallFail() {
 	vm := s.Env().RemoteHost
 
 	// run installer with failure flag
-	if !s.Run(fmt.Sprintf("install %s", s.AgentPackage.AgentVersion()), func() {
+	if !s.Run("install "+s.AgentPackage.AgentVersion(), func() {
 		_, err := s.InstallAgent(vm,
 			windowsAgent.WithPackage(s.AgentPackage),
 			windowsAgent.WithValidAPIKey(),
@@ -510,4 +519,53 @@ func (s *testInstallWithLanmanServerDisabledSuite) TestInstallWithLanmanServerDi
 
 	_ = s.installAgentPackage(vm, s.AgentPackage)
 	RequireAgentRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm))
+}
+
+func TestInstallWithInstallOnlyFlag(t *testing.T) {
+	s := &testInstallWithInstallOnlyFlagSuite{}
+	Run(t, s)
+}
+
+type testInstallWithInstallOnlyFlagSuite struct {
+	baseAgentMSISuite
+}
+
+func (s *testInstallWithInstallOnlyFlagSuite) TestInstallWithInstallOnlyFlag() {
+	vm := s.Env().RemoteHost
+
+	// install the agent with DD_INSTALL_ONLY=1
+	_ = s.installAgentPackage(vm, s.AgentPackage,
+		windowsAgent.WithInstallOnly("true"),
+	)
+
+	// Verify the agent was installed
+	productCode, err := windowsAgent.GetDatadogAgentProductCode(vm)
+	s.Require().NoError(err, "should find installed agent")
+	s.Require().NotEmpty(productCode, "product code should not be empty")
+
+	// Check that services are NOT running
+	// Use the standard list of expected installed services
+	for _, service := range servicetest.ExpectedInstalledServices() {
+		status, err := windowsCommon.GetServiceStatus(vm, service)
+		s.Require().NoError(err, "service %s should exist", service)
+		s.Assert().NotEqual("Running", status,
+			"service %s should not be running when DD_INSTALL_ONLY=1", service)
+	}
+
+	// Verify services can be started manually
+	s.Run("services can be started manually", func() {
+		err := windowsCommon.StartService(vm, "datadogagent")
+		s.Require().NoError(err, "should be able to start datadogagent service")
+
+		// Wait for service to start
+		s.Assert().EventuallyWithT(func(c *assert.CollectT) {
+			status, err := windowsCommon.GetServiceStatus(vm, "datadogagent")
+			assert.NoError(c, err, "should get service status")
+			assert.Equal(c, "Running", status, "datadogagent should be running after manual start")
+		}, 30*time.Second, 1*time.Second, "datadogagent service should start within 30 seconds")
+	})
+
+	// Clean up
+	t := s.newTester(vm)
+	s.uninstallAgentAndRunUninstallTests(t)
 }

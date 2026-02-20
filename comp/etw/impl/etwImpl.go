@@ -5,6 +5,7 @@
 
 //go:build windows
 
+// Package etwimpl provides the implementation of the ETW (Event Tracing for Windows) component.
 package etwimpl
 
 import "C"

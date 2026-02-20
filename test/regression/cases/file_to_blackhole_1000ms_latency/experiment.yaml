@@ -22,6 +22,7 @@ target:
     DD_PROFILING_EXECUTION_TRACE_ENABLED: true
     DD_PROFILING_EXECUTION_TRACE_PERIOD: 1m
     DD_PROFILING_WAIT_PROFILE: true
+    DD_APM_INTERNAL_PROFILING_ENABLED: true
 
 checks:
   - name: memory_usage
@@ -31,9 +32,8 @@ checks:
       # The machine has 12GiB free.
       upper_bound: 1.2GiB
 
-  # Temporarily disable as we expect this to be failing, but not for long.
-  # - name: lost_bytes
-  #   description: "Allowable bytes not polled by log Agent"
-  #   bounds:
-  #     series: lost_bytes
-  #     upper_bound: 0KiB
+  - name: lost_bytes
+    description: "Allowable bytes not polled by log Agent"
+    bounds:
+      series: lost_bytes
+      upper_bound: 0KiB

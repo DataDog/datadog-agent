@@ -21,12 +21,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 
-	proto "github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 )
 
 const transactionsSerializerVersion = 2
 
-// Use an non US ASCII char as a separator (Should neither appear in an HTTP header value nor in a URL).
+// Use a non US ASCII char as a separator (Should neither appear in an HTTP header value nor in a URL).
+// Note: This is not valid UTF-8, but the proto fields using it are defined as `bytes` to avoid UTF-8 validation.
 const squareChar = "\xfe"
 const placeHolderPrefix = squareChar + "API_KEY" + squareChar
 const placeHolderFormat = placeHolderPrefix + "%v" + squareChar
@@ -74,7 +75,7 @@ func NewHTTPTransactionsSerializer(log log.Component, resolver resolver.DomainRe
 // This function uses references on HTTPTransaction.Payload and HTTPTransaction.Headers
 // and so the transaction must not be updated until a call to `GetBytesAndReset`.
 func (s *HTTPTransactionsSerializer) Add(transaction *transaction.HTTPTransaction) error {
-	if d, _ := s.resolver.Resolve(transaction.Endpoint); transaction.Domain != d {
+	if d := s.resolver.Resolve(transaction.Endpoint); transaction.Domain != d {
 		// This error is not supposed to happen (Sanity check).
 		return fmt.Errorf("the domain of the transaction %v does not match the domain %v", transaction.Domain, d)
 	}
@@ -162,7 +163,7 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 
 		priority, err := fromTransactionPriorityProto(tr.Priority)
 		if err == nil {
-			route, err = s.restoreAPIKeys(e.Route, collection.Version)
+			route, err = s.restoreAPIKeys(string(e.Route), collection.Version)
 			if err == nil {
 				proto, err = s.fromHeaderProto(tr.Headers, collection.Version)
 				if err == nil { // TODO: the reason for this nesting pattern is unclear to me
@@ -178,7 +179,7 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 		}
 
 		endpoint := transaction.Endpoint{Route: route, Name: e.Name}
-		domain, _ := s.resolver.Resolve(endpoint)
+		domain := s.resolver.Resolve(endpoint)
 		tr := transaction.HTTPTransaction{
 			Domain:         domain,
 			Endpoint:       endpoint,
@@ -201,18 +202,18 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 // one of them is able to replace the key.
 // Needs to iterate backwards to ensure the latest version of the replacers takes
 // priority.
-func (s *HTTPTransactionsSerializer) replaceAPIKeys(str string) string {
+func (s *HTTPTransactionsSerializer) replaceAPIKeys(str string) []byte {
 	s.placeholderMutex.RLock()
 	defer s.placeholderMutex.RUnlock()
 
 	for replacer := len(s.apiKeyToPlaceholder) - 1; replacer >= 0; replacer-- {
 		replaced := s.apiKeyToPlaceholder[replacer].Replace(str)
 		if str != replaced {
-			return replaced
+			return []byte(replaced)
 		}
 	}
 
-	return str
+	return []byte(str)
 
 }
 
@@ -241,7 +242,7 @@ func (s *HTTPTransactionsSerializer) fromHeaderProto(headersProto map[string]*He
 	for key, headerValuesProto := range headersProto {
 		var headerValues []string
 		for _, v := range headerValuesProto.Values {
-			value, err := s.restoreAPIKeys(v, protoVersion)
+			value, err := s.restoreAPIKeys(string(v), protoVersion)
 			if err != nil {
 				return nil, err
 			}
@@ -279,6 +280,7 @@ func fromTransactionDestinationProto(destination TransactionDestinationProto) (t
 func (s *HTTPTransactionsSerializer) toHeaderProto(headers http.Header) map[string]*HeaderValuesProto {
 	headersProto := make(map[string]*HeaderValuesProto)
 	for key, headerValues := range headers {
+		// Convert strings to bytes after replacing API keys
 		headerValuesProto := HeaderValuesProto{Values: common.StringSliceTransform(headerValues, s.replaceAPIKeys)}
 		headersProto[key] = &headerValuesProto
 	}

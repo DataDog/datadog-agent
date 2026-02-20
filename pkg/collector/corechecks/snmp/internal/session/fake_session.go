@@ -40,7 +40,7 @@ func oidToNumbers(oid string) ([]int, error) {
 func numbersToOID(nums []int) string {
 	segments := make([]string, len(nums))
 	for i, k := range nums {
-		segments[i] = fmt.Sprint(k)
+		segments[i] = strconv.Itoa(k)
 	}
 	return strings.Join(segments, ".")
 }
@@ -146,6 +146,11 @@ func (fs *FakeSession) Close() error {
 // GetVersion always returns 3.
 func (fs *FakeSession) GetVersion() gosnmp.SnmpVersion {
 	return gosnmp.Version3
+}
+
+// IsUnconnectedUDP returns false for FakeSession
+func (fs *FakeSession) IsUnconnectedUDP() bool {
+	return false
 }
 
 // Get gets the values for the given OIDs. OIDs not in the session will return

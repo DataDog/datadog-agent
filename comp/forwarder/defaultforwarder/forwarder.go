@@ -14,7 +14,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -22,10 +24,11 @@ import (
 
 type dependencies struct {
 	fx.In
-	Config config.Component
-	Log    log.Component
-	Lc     fx.Lifecycle
-	Params Params
+	Config  config.Component
+	Log     log.Component
+	Lc      compdef.Lifecycle
+	Params  Params
+	Secrets secrets.Component
 }
 
 type provides struct {
@@ -36,7 +39,7 @@ type provides struct {
 }
 
 func newForwarder(dep dependencies) (provides, error) {
-	options, err := createOptions(dep.Params, dep.Config, dep.Log)
+	options, err := createOptions(dep.Params, dep.Config, dep.Log, dep.Secrets)
 	if err != nil {
 		return provides{}, err
 	}
@@ -44,22 +47,22 @@ func newForwarder(dep dependencies) (provides, error) {
 	return NewForwarder(dep.Config, dep.Log, dep.Lc, true, options), nil
 }
 
-func createOptions(params Params, config config.Component, log log.Component) (*Options, error) {
+func createOptions(params Params, config config.Component, log log.Component, secrets secrets.Component) (*Options, error) {
 	var options *Options
-	keysPerDomain, err := utils.GetMultipleEndpoints(config)
+	endpoints, err := utils.GetMultipleEndpoints(config)
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 		return nil, fmt.Errorf("Misconfiguration of agent endpoints: %s", err)
 	}
 
 	if !params.withResolver {
-		options, err = NewOptions(config, log, keysPerDomain)
+		options, err = NewOptionsWithOPW(config, log, endpoints)
 		if err != nil {
 			log.Error("Error creating forwarder options: ", err)
 			return nil, fmt.Errorf("Error creating forwarder options: %s", err)
 		}
 	} else {
-		r, err := resolver.NewSingleDomainResolvers(keysPerDomain)
+		r, err := resolver.NewSingleDomainResolvers2(endpoints)
 		if err != nil {
 			log.Error("Error creating resolver: ", err)
 			return nil, fmt.Errorf("Error creating resolver: %s", err)
@@ -70,6 +73,8 @@ func createOptions(params Params, config config.Component, log log.Component) (*
 	if disableAPIKeyChecking, ok := params.disableAPIKeyCheckingOverride.Get(); ok {
 		options.DisableAPIKeyChecking = disableAPIKeyChecking
 	}
+	// set the secrets component from the dependencies
+	options.Secrets = secrets
 	options.SetEnabledFeatures(params.features)
 
 	log.Infof("starting forwarder with %d endpoints", len(options.DomainResolvers))
@@ -86,10 +91,10 @@ func createOptions(params Params, config config.Component, log log.Component) (*
 // NewForwarder returns a new forwarder component.
 //
 //nolint:revive
-func NewForwarder(config config.Component, log log.Component, lc fx.Lifecycle, ignoreLifeCycleError bool, options *Options) provides {
+func NewForwarder(config config.Component, log log.Component, lc compdef.Lifecycle, ignoreLifeCycleError bool, options *Options) provides {
 	forwarder := NewDefaultForwarder(config, log, options)
 
-	lc.Append(fx.Hook{
+	lc.Append(compdef.Hook{
 		OnStart: func(context.Context) error {
 			err := forwarder.Start()
 			if ignoreLifeCycleError {
@@ -105,8 +110,9 @@ func NewForwarder(config config.Component, log log.Component, lc fx.Lifecycle, i
 	}
 }
 
-func newMockForwarder(config config.Component, log log.Component) provides {
+func newMockForwarder(config config.Component, log log.Component, secrets secrets.Component) provides {
 	options, _ := NewOptions(config, log, nil)
+	options.Secrets = secrets
 	return provides{
 		Comp: NewDefaultForwarder(config, log, options),
 	}

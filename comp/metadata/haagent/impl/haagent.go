@@ -47,7 +47,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		conf:     reqs.Config,
 		log:      reqs.Log,
 		hostname: hname,
-		data:     make(haAgentMetadata),
+		data:     &haAgentMetadata{},
 		haAgent:  reqs.HaAgent,
 	}
 

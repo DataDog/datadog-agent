@@ -15,7 +15,6 @@ import (
 	adproto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -136,14 +135,13 @@ func protoDecodeProcessNode(p *adproto.ProcessInfo) model.Process {
 			Pid: p.Pid,
 			Tid: p.Tid,
 		},
-		PPid:        p.Ppid,
-		Cookie:      p.Cookie64,
-		IsThread:    p.IsThread,
-		IsExecExec:  p.IsExecChild,
-		FileEvent:   *protoDecodeFileEvent(p.File),
-		ContainerID: containerutils.ContainerID(p.ContainerId),
-		TTYName:     p.Tty,
-		Comm:        p.Comm,
+		PPid:       p.Ppid,
+		Cookie:     p.Cookie64,
+		IsThread:   p.IsThread,
+		IsExecExec: p.IsExecChild,
+		FileEvent:  *protoDecodeFileEvent(p.File),
+		TTYName:    p.Tty,
+		Comm:       p.Comm,
 
 		ForkTime: ProtoDecodeTimestamp(p.ForkTime),
 		ExitTime: ProtoDecodeTimestamp(p.ExitTime),

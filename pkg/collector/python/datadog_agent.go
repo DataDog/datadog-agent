@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
+	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -225,12 +226,12 @@ func SendLog(logLine, checkID *C.char) {
 	line := C.GoString(logLine)
 	cid := C.GoString(checkID)
 
-	cc, err := getCheckContext()
+	cc, err := collectoraggregator.GetCheckContext()
 	if err != nil {
 		log.Errorf("Log submission failed: %s", err)
 	}
 
-	lr, ok := cc.logReceiver.Get()
+	lr, ok := cc.GetLogReceiver()
 	if !ok {
 		log.Error("Log submission failed: no receiver")
 		return
@@ -276,65 +277,10 @@ func lazyInitObfuscator() *obfuscate.Obfuscator {
 
 // sqlConfig holds the config for the python SQL obfuscator.
 type sqlConfig struct {
-	// DBMS identifies the type of database management system (e.g. MySQL, Postgres, and SQL Server).
-	DBMS string `json:"dbms"`
-	// TableNames specifies whether the obfuscator should extract and return table names as SQL metadata when obfuscating.
-	TableNames bool `json:"table_names"`
-	// CollectCommands specifies whether the obfuscator should extract and return commands as SQL metadata when obfuscating.
-	CollectCommands bool `json:"collect_commands"`
-	// CollectComments specifies whether the obfuscator should extract and return comments as SQL metadata when obfuscating.
-	CollectComments bool `json:"collect_comments"`
-	// CollectProcedures specifies whether the obfuscator should extract and return procedure names as SQL metadata when obfuscating.
-	CollectProcedures bool `json:"collect_procedures"`
-	// ReplaceDigits specifies whether digits in table names and identifiers should be obfuscated.
-	ReplaceDigits bool `json:"replace_digits"`
-	// KeepSQLAlias specifies whether or not to strip sql aliases while obfuscating.
-	KeepSQLAlias bool `json:"keep_sql_alias"`
-	// DollarQuotedFunc specifies whether or not to remove $func$ strings in postgres.
-	DollarQuotedFunc bool `json:"dollar_quoted_func"`
+	obfuscate.SQLConfig
+
 	// ReturnJSONMetadata specifies whether the stub will return metadata as JSON.
 	ReturnJSONMetadata bool `json:"return_json_metadata"`
-
-	// ObfuscationMode specifies the obfuscation mode to use for go-sqllexer pkg.
-	// When specified, obfuscator will attempt to use go-sqllexer pkg to obfuscate (and normalize) SQL queries.
-	// Valid values are "obfuscate_only", "obfuscate_and_normalize"
-	ObfuscationMode obfuscate.ObfuscationMode `json:"obfuscation_mode"`
-
-	// RemoveSpaceBetweenParentheses specifies whether to remove spaces between parentheses.
-	// By default, spaces are inserted between parentheses during normalization.
-	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
-	RemoveSpaceBetweenParentheses bool `json:"remove_space_between_parentheses"`
-
-	// KeepNull specifies whether to disable obfuscate NULL value with ?.
-	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
-	KeepNull bool `json:"keep_null"`
-
-	// KeepBoolean specifies whether to disable obfuscate boolean value with ?.
-	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
-	KeepBoolean bool `json:"keep_boolean"`
-
-	// KeepPositionalParameter specifies whether to disable obfuscate positional parameter with ?.
-	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
-	KeepPositionalParameter bool `json:"keep_positional_parameter"`
-
-	// KeepTrailingSemicolon specifies whether to keep trailing semicolon.
-	// By default, trailing semicolon is removed during normalization.
-	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
-	KeepTrailingSemicolon bool `json:"keep_trailing_semicolon"`
-
-	// KeepIdentifierQuotation specifies whether to keep identifier quotation, e.g. "my_table" or [my_table].
-	// By default, identifier quotation is removed during normalization.
-	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
-	KeepIdentifierQuotation bool `json:"keep_identifier_quotation"`
-
-	// KeepJSONPath specifies whether to keep JSON paths following JSON operators in SQL statements in obfuscation.
-	// By default, JSON paths are treated as literals and are obfuscated to ?, e.g. "data::jsonb -> 'name'" -> "data::jsonb -> ?".
-	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
-	KeepJSONPath bool `json:"keep_json_path" yaml:"keep_json_path"`
-
-	// ReplaceBindParameter specifies whether to replace SQL bind parameters such as @P1 with ?.
-	// By default, bind parameters are not replaced.
-	ReplaceBindParameter bool `json:"replace_bind_parameter"`
 }
 
 // ObfuscateSQL obfuscates & normalizes the provided SQL query, writing the error into errResult if the operation
@@ -353,24 +299,7 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 		*errResult = TrackedCString(err.Error())
 	}
 	s := C.GoString(rawQuery)
-	obfuscatedQuery, err := lazyInitObfuscator().ObfuscateSQLStringWithOptions(s, &obfuscate.SQLConfig{
-		DBMS:                          sqlOpts.DBMS,
-		TableNames:                    sqlOpts.TableNames,
-		CollectCommands:               sqlOpts.CollectCommands,
-		CollectComments:               sqlOpts.CollectComments,
-		CollectProcedures:             sqlOpts.CollectProcedures,
-		ReplaceDigits:                 sqlOpts.ReplaceDigits,
-		KeepSQLAlias:                  sqlOpts.KeepSQLAlias,
-		DollarQuotedFunc:              sqlOpts.DollarQuotedFunc,
-		ObfuscationMode:               sqlOpts.ObfuscationMode,
-		RemoveSpaceBetweenParentheses: sqlOpts.RemoveSpaceBetweenParentheses,
-		KeepNull:                      sqlOpts.KeepNull,
-		KeepBoolean:                   sqlOpts.KeepBoolean,
-		KeepPositionalParameter:       sqlOpts.KeepPositionalParameter,
-		KeepTrailingSemicolon:         sqlOpts.KeepTrailingSemicolon,
-		KeepIdentifierQuotation:       sqlOpts.KeepIdentifierQuotation,
-		KeepJSONPath:                  sqlOpts.KeepJSONPath,
-	}, optStr)
+	obfuscatedQuery, err := lazyInitObfuscator().ObfuscateSQLStringWithOptions(s, &sqlOpts.SQLConfig, optStr)
 	if err != nil {
 		// memory will be freed by caller
 		*errResult = TrackedCString(err.Error())
@@ -746,7 +675,7 @@ func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.dou
 func httpHeaders() map[string]string {
 	av, _ := version.Agent()
 	return map[string]string{
-		"User-Agent":   fmt.Sprintf("Datadog Agent/%s", av.GetNumber()),
+		"User-Agent":   "Datadog Agent/" + av.GetNumber(),
 		"Content-Type": "application/x-www-form-urlencoded",
 		"Accept":       "text/html, */*",
 	}

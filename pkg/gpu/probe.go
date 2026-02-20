@@ -23,7 +23,6 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -90,6 +89,10 @@ const (
 	cudaMemcpyProbe              probeFuncName = "uprobe__cudaMemcpy"
 	cudaMemcpyRetProbe           probeFuncName = "uretprobe__cudaMemcpy"
 	setenvProbe                  probeFuncName = "uprobe__setenv"
+	cuStreamSyncProbe            probeFuncName = "uprobe__cuStreamSynchronize"
+	cuStreamSyncRetProbe         probeFuncName = "uretprobe__cuStreamSynchronize"
+	cuLaunchKernelProbe          probeFuncName = "uprobe__cuLaunchKernel"
+	cuLaunchKernelExProbe        probeFuncName = "uprobe__cuLaunchKernelEx"
 )
 
 const ringbufferWakeupSizeConstantName = "ringbuffer_wakeup_size"
@@ -194,14 +197,26 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	}
 
 	attachCfg := getAttacherConfig(cfg)
-	p.attacher, err = uprobes.NewUprobeAttacher(consts.GpuModuleName, consts.GpuAttacherName, attachCfg, p.m, nil, &uprobes.NativeBinaryInspector{}, deps.ProcessMonitor)
+	p.attacher, err = uprobes.NewUprobeAttacher(consts.GpuModuleName, consts.GpuAttacherName, attachCfg, p.m, nil, uprobes.AttacherDependencies{
+		Inspector:      &uprobes.NativeBinaryInspector{},
+		ProcessMonitor: deps.ProcessMonitor,
+		Telemetry:      deps.Telemetry,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
 	}
 
 	memPools.ensureInit(deps.Telemetry)
 	p.streamHandlers = newStreamCollection(sysCtx, deps.Telemetry, cfg)
-	p.consumer = newCudaEventConsumer(sysCtx, p.streamHandlers, p.eventHandler, p.ringBuffer, p.cfg, deps.Telemetry)
+	p.consumer = newCudaEventConsumer(cudaEventConsumerDependencies{
+		sysCtx:         sysCtx,
+		cfg:            cfg,
+		telemetry:      deps.Telemetry,
+		processMonitor: deps.ProcessMonitor,
+		streamHandlers: p.streamHandlers,
+		eventHandler:   p.eventHandler,
+		ringFlusher:    p.ringBuffer,
+	})
 	p.statsGenerator = newStatsGenerator(sysCtx, p.streamHandlers, deps.Telemetry)
 
 	if err = p.start(); err != nil {
@@ -256,7 +271,7 @@ func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 		return nil, err
 	}
 
-	p.telemetry.sentEntries.Add(float64(len(stats.Metrics)))
+	p.telemetry.sentEntries.Add(float64(len(stats.ProcessMetrics)))
 	p.cleanupFinished(now)
 
 	return stats, nil
@@ -287,10 +302,10 @@ func (p *Probe) initCOREGPU(cfg *config.Config) error {
 
 func getAssetName(module string, debug bool) string {
 	if debug {
-		return fmt.Sprintf("%s-debug.o", module)
+		return module + "-debug.o"
 	}
 
-	return fmt.Sprintf("%s.o", module)
+	return module + ".o"
 }
 
 func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
@@ -356,11 +371,8 @@ func (p *Probe) setupSharedBuffer(o *manager.Options) {
 	ringBufferSize := toPowerOf2(numPages * os.Getpagesize())
 
 	o.MapSpecEditors[cudaEventsRingbuf] = manager.MapSpecEditor{
-		Type:       ebpf.RingBuf,
 		MaxEntries: uint32(ringBufferSize),
-		KeySize:    0,
-		ValueSize:  0,
-		EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
+		EditorFlag: manager.EditMaxEntries,
 	}
 
 	o.ConstantEditors = append(o.ConstantEditors, manager.ConstantEditor{
@@ -430,10 +442,28 @@ func getLibcAttacherRule() *uprobes.AttachRule {
 	}
 }
 
+// getCuLibraryAttacherRule returns the attach rule for the CU driver libraries, which we only partially support
+func getCuLibraryAttacherRule() *uprobes.AttachRule {
+	return &uprobes.AttachRule{
+		LibraryNameRegex: regexp.MustCompile(`libcuda\.so`),
+		Targets:          uprobes.AttachToSharedLibraries | uprobes.AttachToExecutable,
+		ProbesSelector: []manager.ProbesSelector{
+			&manager.AllOf{
+				Selectors: []manager.ProbesSelector{
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cuStreamSyncProbe}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cuStreamSyncRetProbe}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cuLaunchKernelProbe}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cuLaunchKernelExProbe}},
+				},
+			},
+		},
+	}
+}
 func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 	return uprobes.AttacherConfig{
 		Rules: []*uprobes.AttachRule{
 			getCudaLibraryAttacherRule(),
+			getCuLibraryAttacherRule(),
 			getLibcAttacherRule(),
 		},
 		EbpfConfig:                     &cfg.Config,
@@ -442,7 +472,7 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 		ScanProcessesInterval:          cfg.ScanProcessesInterval,
 		EnablePeriodicScanNewProcesses: true,
 		EnableDetailedLogging:          cfg.AttacherDetailedLogs,
-		ExcludeTargets:                 uprobes.ExcludeInternal | uprobes.ExcludeSelf,
+		ExcludeTargets:                 uprobes.ExcludeInternal | uprobes.ExcludeSelf | uprobes.ExcludeBuildkit | uprobes.ExcludeContainerdTmp,
 	}
 }
 

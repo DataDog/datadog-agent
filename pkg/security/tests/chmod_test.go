@@ -52,7 +52,7 @@ func TestChmod(t *testing.T) {
 			expectedMode = 0o707
 		}()
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, _, errno := syscall.Syscall(syscall.SYS_FCHMOD, f.Fd(), uintptr(0o707), 0); errno != 0 {
 				return error(errno)
 			}
@@ -69,13 +69,13 @@ func TestChmod(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChmodSchema(t, event)
-		})
+		}, "test_rule")
 	})
 
 	t.Run("fchmodat", func(t *testing.T) {
 		defer func() { expectedMode = 0o757 }()
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, _, errno := syscall.Syscall6(syscall.SYS_FCHMODAT, 0, uintptr(testFilePtr), uintptr(0o757), 0, 0, 0); errno != 0 {
 				return error(errno)
 			}
@@ -92,13 +92,13 @@ func TestChmod(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChmodSchema(t, event)
-		})
+		}, "test_rule")
 	})
 
 	t.Run("fchmodat2", func(t *testing.T) {
 		defer func() { expectedMode = 0o757 }()
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, _, errno := syscall.Syscall6(unix.SYS_FCHMODAT2, 0, uintptr(testFilePtr), uintptr(0o757), 0, 0, 0); errno != 0 {
 				if errno == unix.ENOSYS {
 					return ErrSkipTest{"openat2 is not supported"}
@@ -118,11 +118,11 @@ func TestChmod(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChmodSchema(t, event)
-		})
+		}, "test_rule")
 	})
 
 	t.Run("chmod", ifSyscallSupported("SYS_CHMOD", func(t *testing.T, syscallNB uintptr) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(0o717), 0); errno != 0 {
 				return error(errno)
 			}
@@ -141,6 +141,6 @@ func TestChmod(t *testing.T) {
 			test.validateChmodSchema(t, event)
 			validateSyscallContext(t, event, "$.syscall.chmod.path")
 			validateSyscallContext(t, event, "$.syscall.chmod.mode")
-		})
+		}, "test_rule")
 	}))
 }

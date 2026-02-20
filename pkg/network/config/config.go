@@ -7,9 +7,11 @@
 package config
 
 import (
+	"slices"
 	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -58,6 +60,9 @@ type Config struct {
 	// CollectDNSDomains specifies whether collected DNS stats would be scoped by domain
 	// It is relevant *only* when DNSInspection and CollectDNSStats is enabled.
 	CollectDNSDomains bool
+
+	// DNSMonitoringPortList specifies the list of ports to monitor for DNS traffic
+	DNSMonitoringPortList []int
 
 	// DNSTimeout determines the length of time to wait before considering a DNS Query to have timed out
 	DNSTimeout time.Duration
@@ -171,6 +176,12 @@ type Config struct {
 	// MaxProcessesTracked is the maximum number of processes whose information is stored in the network module
 	MaxProcessesTracked int
 
+	// EnableContainerStore enables reading resolv.conf out of container filesystems. Requires EnableProcessEventMonitoring.
+	EnableContainerStore bool
+
+	// MaxContainersTracked is the maximum number of containers whose resolv.conf information is stored in the network module
+	MaxContainersTracked int
+
 	// EnableRootNetNs disables using the network namespace of the root process (1)
 	// for things like creating netlink sockets for conntrack updates, etc.
 	EnableRootNetNs bool
@@ -203,6 +214,13 @@ type Config struct {
 
 	// EnableCertCollection enables the collection of TLS certificates via userspace probing
 	EnableCertCollection bool
+
+	// CertCollectionMapCleanerInterval is the interval between eBPF map cleaning for TLS cert collection
+	CertCollectionMapCleanerInterval time.Duration
+
+	// DirectSend controls whether we send payloads directly from system-probe or they are queried from process-agent.
+	// Not supported on Windows
+	DirectSend bool
 }
 
 // New creates a config for the network tracer
@@ -273,6 +291,9 @@ func New() *Config {
 		EnableProcessEventMonitoring: cfg.GetBool(sysconfig.FullKeyPath(evNS, "network_process", "enabled")),
 		MaxProcessesTracked:          cfg.GetInt(sysconfig.FullKeyPath(evNS, "network_process", "max_processes_tracked")),
 
+		EnableContainerStore: cfg.GetBool(sysconfig.FullKeyPath(evNS, "network_process", "container_store", "enabled")),
+		MaxContainersTracked: cfg.GetInt(sysconfig.FullKeyPath(evNS, "network_process", "container_store", "max_containers_tracked")),
+
 		EnableRootNetNs: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_root_netns")),
 
 		EnableNPMConnectionRollup: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_connection_rollup")),
@@ -282,7 +303,10 @@ func New() *Config {
 
 		ExpectedTagsDuration: cfg.GetDuration(sysconfig.FullKeyPath(spNS, "expected_tags_duration")),
 
-		EnableCertCollection: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_cert_collection")),
+		EnableCertCollection:             cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_cert_collection")),
+		CertCollectionMapCleanerInterval: cfg.GetDuration(sysconfig.FullKeyPath(netNS, "cert_collection_map_cleaner_interval")),
+
+		DirectSend: cfg.GetBool(sysconfig.FullKeyPath(netNS, "direct_send")),
 	}
 
 	if !c.CollectTCPv4Conns {
@@ -301,9 +325,26 @@ func New() *Config {
 		log.Info("network tracer DNS inspection disabled by configuration")
 	}
 
+	if err := structure.UnmarshalKey(cfg, sysconfig.FullKeyPath(netNS, "dns_monitoring_ports"), &c.DNSMonitoringPortList); err != nil {
+		log.Warnf("failed to parse dns_monitoring_ports: %v", err)
+	}
+
+	if len(c.DNSMonitoringPortList) == 0 {
+		c.DNSMonitoringPortList = []int{53}
+	}
+
+	c.DNSMonitoringPortList = slices.DeleteFunc(c.DNSMonitoringPortList, func(port int) bool {
+		isHTTP := port == 80 || port == 443
+		if isHTTP {
+			log.Warnf("CNM detected and removed HTTP port %d from %s, which is unsupported due to the large volume of traffic it would capture", port, sysconfig.FullKeyPath(netNS, "dns_monitoring_ports"))
+		}
+		return isHTTP
+	})
+
 	if !c.EnableProcessEventMonitoring {
 		log.Info("network process event monitoring disabled")
 	}
+
 	return c
 }
 

@@ -1,0 +1,26 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("@rules_python//python:py_library.bzl", "py_library")
+load("@rules_python//python:py_test.bzl", "py_test")
+
+package(default_visibility = ["//visibility:public"])
+
+py_library(
+    name = "gather_licenses_lib",
+    srcs = ["gather_licenses.py"],
+    deps = ["//tasks:licenses"],
+)
+
+py_binary(
+    name = "gather_licenses",
+    srcs = ["gather_licenses.py"],
+    visibility = ["//visibility:private"],
+    deps = ["//tasks:licenses"],
+)
+
+py_test(
+    name = "gather_licenses_test",
+    srcs = ["gather_licenses_test.py"],
+    deps = [
+        ":gather_licenses_lib",
+    ],
+)

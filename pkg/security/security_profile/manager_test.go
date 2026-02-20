@@ -10,8 +10,8 @@ package securityprofile
 
 import (
 	"errors"
-	"fmt"
 	"math/rand"
+	"strconv"
 	"testing"
 	"time"
 	"unsafe"
@@ -992,17 +992,17 @@ type testIteration struct {
 func craftFakeEvent(t0 time.Time, ti *testIteration, defaultContainerID string) *model.Event {
 	event := model.NewFakeEvent()
 	event.Type = uint32(ti.eventType)
-	event.ContainerContext.CreatedAt = uint64(t0.Add(ti.containerCreatedAt).UnixNano())
 	event.TimestampRaw = uint64(t0.Add(ti.eventTimestampRaw).UnixNano())
 	event.Timestamp = t0.Add(ti.eventTimestampRaw)
 
 	// setting process
 	event.ProcessCacheEntry = model.NewPlaceholderProcessCacheEntry(42, 42, false)
-	event.ProcessCacheEntry.ContainerID = containerutils.ContainerID(defaultContainerID)
+	event.ProcessCacheEntry.ContainerContext.ContainerID = containerutils.ContainerID(defaultContainerID)
 	event.ProcessCacheEntry.FileEvent.PathnameStr = ti.eventProcessPath
 	event.ProcessCacheEntry.FileEvent.Inode = 42
 	event.ProcessCacheEntry.Args = "foo"
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
+	event.ProcessContext.Process.ContainerContext.CreatedAt = uint64(t0.Add(ti.containerCreatedAt).UnixNano())
 	switch ti.eventType {
 	case model.ExecEventType:
 		event.Exec.Process = &event.ProcessCacheEntry.ProcessContext.Process
@@ -1052,6 +1052,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 			eventType:           model.ExecEventType,
 			eventProcessPath:    "/bin/foo0",
 		},
+
 		// and for dns:
 		{
 			name:                "warmup-dns/insert-dns-process",
@@ -1793,15 +1794,10 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 					profile.WithEventTypes([]model.EventType{model.ExecEventType, model.DNSEventType}),
 				)
 				secprof.ActivityTree = activity_tree.NewActivityTree(secprof, nil, "security_profile")
+				cgce := cgroupModel.NewCacheEntry(model.ContainerContext{ContainerID: containerutils.ContainerID(defaultContainerID)}, model.CGroupContext{CGroupID: containerutils.CGroupID(defaultContainerID)}, 0)
 				secprof.Instances = append(secprof.Instances, &tags.Workload{
-					CacheEntry: &cgroupModel.CacheEntry{ContainerContext: model.ContainerContext{
-						ContainerID: containerutils.ContainerID(defaultContainerID),
-					},
-						CGroupContext: model.CGroupContext{
-							CGroupID: containerutils.CGroupID(defaultContainerID),
-						},
-					},
-					Selector: cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"},
+					GCroupCacheEntry: cgce,
+					Selector:         cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"},
 				})
 				secprof.LoadedNano.Store(uint64(t0.UnixNano()))
 			}
@@ -1818,9 +1814,9 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 				baseDNSReq := ti.eventDNSReq
 				for currentIncrement < ti.loopUntil {
 					if ti.eventType == model.ExecEventType {
-						ti.eventProcessPath = basePath + fmt.Sprintf("%d", rand.Int())
+						ti.eventProcessPath = basePath + strconv.Itoa(rand.Int())
 					} else if ti.eventType == model.DNSEventType {
-						ti.eventDNSReq = fmt.Sprintf("%d", rand.Int()) + baseDNSReq
+						ti.eventDNSReq = strconv.Itoa(rand.Int()) + baseDNSReq
 					}
 					ti.eventTimestampRaw = currentIncrement
 					event := craftFakeEvent(t0, &ti, defaultContainerID)

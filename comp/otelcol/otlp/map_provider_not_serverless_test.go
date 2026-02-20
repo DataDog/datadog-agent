@@ -10,14 +10,18 @@ package otlp
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/otelcol"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/configutils"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -33,9 +37,10 @@ func TestNewMap(t *testing.T) {
 		{
 			name: "only gRPC, only Traces",
 			pcfg: PipelineConfig{
-				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 1234, 0),
-				TracePort:          5003,
-				TracesEnabled:      true,
+				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 1234, 0),
+				TracePort:                    5003,
+				TracesEnabled:                true,
+				TracesInfraAttributesEnabled: true,
 				Debug: map[string]any{
 					"verbosity": "none",
 				},
@@ -80,10 +85,11 @@ func TestNewMap(t *testing.T) {
 		{
 			name: "only HTTP, metrics and traces",
 			pcfg: PipelineConfig{
-				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
-				TracePort:          5003,
-				TracesEnabled:      true,
-				MetricsEnabled:     true,
+				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
+				TracePort:                    5003,
+				TracesEnabled:                true,
+				TracesInfraAttributesEnabled: true,
+				MetricsEnabled:               true,
 				Metrics: map[string]any{
 					"delta_ttl":                              2000,
 					"resource_attributes_as_tags":            true,
@@ -92,6 +98,11 @@ func TestNewMap(t *testing.T) {
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
 					},
+				},
+				MetricsBatch: map[string]any{
+					"min_size":      100,
+					"max_size":      200,
+					"flush_timeout": "10s",
 				},
 				Debug: map[string]any{
 					"verbosity": "none",
@@ -133,9 +144,9 @@ func TestNewMap(t *testing.T) {
 						},
 						"sending_queue": map[string]any{
 							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
+								"min_size":      100,
+								"max_size":      200,
+								"flush_timeout": "10s",
 							},
 						},
 					},
@@ -160,10 +171,11 @@ func TestNewMap(t *testing.T) {
 		{
 			name: "only HTTP, metrics and traces, invalid verbosity (ignored)",
 			pcfg: PipelineConfig{
-				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
-				TracePort:          5003,
-				TracesEnabled:      true,
-				MetricsEnabled:     true,
+				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
+				TracePort:                    5003,
+				TracesEnabled:                true,
+				MetricsEnabled:               true,
+				TracesInfraAttributesEnabled: true,
 				Metrics: map[string]any{
 					"delta_ttl":                              2000,
 					"resource_attributes_as_tags":            true,
@@ -172,6 +184,11 @@ func TestNewMap(t *testing.T) {
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
 					},
+				},
+				MetricsBatch: map[string]any{
+					"min_size":      100,
+					"max_size":      200,
+					"flush_timeout": "10s",
 				},
 				Debug: map[string]any{
 					"verbosity": "foo",
@@ -213,9 +230,9 @@ func TestNewMap(t *testing.T) {
 						},
 						"sending_queue": map[string]any{
 							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
+								"min_size":      100,
+								"max_size":      200,
+								"flush_timeout": "10s",
 							},
 						},
 					},
@@ -240,9 +257,10 @@ func TestNewMap(t *testing.T) {
 		{
 			name: "with both",
 			pcfg: PipelineConfig{
-				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 1234, 5678),
-				TracePort:          5003,
-				TracesEnabled:      true,
+				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 1234, 5678),
+				TracePort:                    5003,
+				TracesEnabled:                true,
+				TracesInfraAttributesEnabled: true,
 				Debug: map[string]any{
 					"verbosity": "none",
 				},
@@ -290,9 +308,10 @@ func TestNewMap(t *testing.T) {
 		{
 			name: "only HTTP, only metrics",
 			pcfg: PipelineConfig{
-				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
-				TracePort:          5003,
-				MetricsEnabled:     true,
+				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
+				TracePort:                    5003,
+				MetricsEnabled:               true,
+				TracesInfraAttributesEnabled: true,
 				Metrics: map[string]any{
 					"delta_ttl":                              1500,
 					"resource_attributes_as_tags":            false,
@@ -301,6 +320,11 @@ func TestNewMap(t *testing.T) {
 						"mode":                   "nobuckets",
 						"send_count_sum_metrics": true,
 					},
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      100,
+					"max_size":      200,
+					"flush_timeout": "10s",
 				},
 				Debug: map[string]any{
 					"verbosity": "none",
@@ -332,9 +356,9 @@ func TestNewMap(t *testing.T) {
 						},
 						"sending_queue": map[string]any{
 							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
+								"min_size":      100,
+								"max_size":      200,
+								"flush_timeout": "10s",
 							},
 						},
 					},
@@ -354,9 +378,10 @@ func TestNewMap(t *testing.T) {
 		{
 			name: "only gRPC, only Traces, logging with normal verbosity",
 			pcfg: PipelineConfig{
-				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 1234, 0),
-				TracePort:          5003,
-				TracesEnabled:      true,
+				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 1234, 0),
+				TracePort:                    5003,
+				TracesEnabled:                true,
+				TracesInfraAttributesEnabled: true,
 				Debug: map[string]any{
 					"verbosity": "normal",
 				},
@@ -404,9 +429,10 @@ func TestNewMap(t *testing.T) {
 		{
 			name: "only HTTP, only metrics, logging with detailed verbosity",
 			pcfg: PipelineConfig{
-				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
-				TracePort:          5003,
-				MetricsEnabled:     true,
+				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
+				TracePort:                    5003,
+				MetricsEnabled:               true,
+				TracesInfraAttributesEnabled: true,
 				Metrics: map[string]any{
 					"delta_ttl":                   1500,
 					"resource_attributes_as_tags": false,
@@ -414,6 +440,11 @@ func TestNewMap(t *testing.T) {
 						"mode":                   "nobuckets",
 						"send_count_sum_metrics": true,
 					},
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      100,
+					"max_size":      200,
+					"flush_timeout": "10s",
 				},
 				Debug: map[string]any{
 					"verbosity": "detailed",
@@ -444,9 +475,9 @@ func TestNewMap(t *testing.T) {
 						},
 						"sending_queue": map[string]any{
 							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
+								"min_size":      100,
+								"max_size":      200,
+								"flush_timeout": "10s",
 							},
 						},
 					},
@@ -469,10 +500,11 @@ func TestNewMap(t *testing.T) {
 		{
 			name: "only HTTP, metrics and traces, logging with basic verbosity",
 			pcfg: PipelineConfig{
-				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
-				TracePort:          5003,
-				TracesEnabled:      true,
-				MetricsEnabled:     true,
+				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
+				TracePort:                    5003,
+				TracesEnabled:                true,
+				MetricsEnabled:               true,
+				TracesInfraAttributesEnabled: true,
 				Metrics: map[string]any{
 					"delta_ttl":                   2000,
 					"resource_attributes_as_tags": true,
@@ -480,6 +512,11 @@ func TestNewMap(t *testing.T) {
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
 					},
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      100,
+					"max_size":      200,
+					"flush_timeout": "10s",
 				},
 				Debug: map[string]any{
 					"verbosity": "basic",
@@ -520,9 +557,9 @@ func TestNewMap(t *testing.T) {
 						},
 						"sending_queue": map[string]any{
 							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
+								"min_size":      100,
+								"max_size":      200,
+								"flush_timeout": "10s",
 							},
 						},
 					},
@@ -550,10 +587,11 @@ func TestNewMap(t *testing.T) {
 		{
 			name: "only gRPC, traces and logs",
 			pcfg: PipelineConfig{
-				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 1234, 0),
-				TracePort:          5003,
-				TracesEnabled:      true,
-				LogsEnabled:        true,
+				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 1234, 0),
+				TracePort:                    5003,
+				TracesEnabled:                true,
+				LogsEnabled:                  true,
+				TracesInfraAttributesEnabled: true,
 				Debug: map[string]any{
 					"verbosity": "none",
 				},
@@ -584,11 +622,7 @@ func TestNewMap(t *testing.T) {
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
-							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
-							},
+							"batch": any(nil),
 						},
 					},
 				},
@@ -612,11 +646,19 @@ func TestNewMap(t *testing.T) {
 		{
 			name: "only HTTP; metrics, logs and traces",
 			pcfg: PipelineConfig{
-				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
-				TracePort:          5003,
-				TracesEnabled:      true,
-				MetricsEnabled:     true,
-				LogsEnabled:        true,
+				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
+				TracePort:                    5003,
+				TracesEnabled:                true,
+				MetricsEnabled:               true,
+				LogsEnabled:                  true,
+				TracesInfraAttributesEnabled: true,
+				Logs: map[string]interface{}{
+					"batch": map[string]interface{}{
+						"min_size":      100,
+						"max_size":      200,
+						"flush_timeout": "10s",
+					},
+				},
 				Metrics: map[string]any{
 					"delta_ttl":                              2000,
 					"resource_attributes_as_tags":            true,
@@ -625,6 +667,11 @@ func TestNewMap(t *testing.T) {
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
 					},
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      100,
+					"max_size":      200,
+					"flush_timeout": "10s",
 				},
 				Debug: map[string]any{
 					"verbosity": "none",
@@ -666,18 +713,18 @@ func TestNewMap(t *testing.T) {
 						},
 						"sending_queue": map[string]any{
 							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
+								"min_size":      100,
+								"max_size":      200,
+								"flush_timeout": "10s",
 							},
 						},
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
 							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
+								"min_size":      100,
+								"max_size":      200,
+								"flush_timeout": "10s",
 							},
 						},
 					},
@@ -707,11 +754,19 @@ func TestNewMap(t *testing.T) {
 		{
 			name: "only HTTP; metrics, logs and traces; invalid verbosity (ignored)",
 			pcfg: PipelineConfig{
-				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
-				TracePort:          5003,
-				TracesEnabled:      true,
-				MetricsEnabled:     true,
-				LogsEnabled:        true,
+				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
+				TracePort:                    5003,
+				TracesEnabled:                true,
+				MetricsEnabled:               true,
+				LogsEnabled:                  true,
+				TracesInfraAttributesEnabled: true,
+				Logs: map[string]interface{}{
+					"batch": map[string]interface{}{
+						"min_size":      100,
+						"max_size":      200,
+						"flush_timeout": "10s",
+					},
+				},
 				Metrics: map[string]any{
 					"delta_ttl":                              2000,
 					"resource_attributes_as_tags":            true,
@@ -720,6 +775,11 @@ func TestNewMap(t *testing.T) {
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
 					},
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      100,
+					"max_size":      200,
+					"flush_timeout": "10s",
 				},
 				Debug: map[string]any{
 					"verbosity": "foo",
@@ -761,18 +821,18 @@ func TestNewMap(t *testing.T) {
 						},
 						"sending_queue": map[string]any{
 							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
+								"min_size":      100,
+								"max_size":      200,
+								"flush_timeout": "10s",
 							},
 						},
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
 							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
+								"min_size":      100,
+								"max_size":      200,
+								"flush_timeout": "10s",
 							},
 						},
 					},
@@ -802,10 +862,18 @@ func TestNewMap(t *testing.T) {
 		{
 			name: "traces and logs, with both gRPC and HTTP",
 			pcfg: PipelineConfig{
-				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 1234, 5678),
-				TracePort:          5003,
-				TracesEnabled:      true,
-				LogsEnabled:        true,
+				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 1234, 5678),
+				TracePort:                    5003,
+				TracesEnabled:                true,
+				LogsEnabled:                  true,
+				TracesInfraAttributesEnabled: true,
+				Logs: map[string]interface{}{
+					"batch": map[string]interface{}{
+						"min_size":      100,
+						"max_size":      200,
+						"flush_timeout": "10s",
+					},
+				},
 				Debug: map[string]any{
 					"verbosity": "none",
 				},
@@ -840,9 +908,9 @@ func TestNewMap(t *testing.T) {
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
 							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
+								"min_size":      100,
+								"max_size":      200,
+								"flush_timeout": "10s",
 							},
 						},
 					},
@@ -867,10 +935,18 @@ func TestNewMap(t *testing.T) {
 		{
 			name: "only HTTP, metrics and logs",
 			pcfg: PipelineConfig{
-				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
-				TracePort:          5003,
-				MetricsEnabled:     true,
-				LogsEnabled:        true,
+				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
+				TracePort:                    5003,
+				MetricsEnabled:               true,
+				LogsEnabled:                  true,
+				TracesInfraAttributesEnabled: true,
+				Logs: map[string]interface{}{
+					"batch": map[string]interface{}{
+						"min_size":      100,
+						"max_size":      200,
+						"flush_timeout": "10s",
+					},
+				},
 				Metrics: map[string]any{
 					"delta_ttl":                              1500,
 					"resource_attributes_as_tags":            false,
@@ -879,6 +955,11 @@ func TestNewMap(t *testing.T) {
 						"mode":                   "nobuckets",
 						"send_count_sum_metrics": true,
 					},
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      100,
+					"max_size":      200,
+					"flush_timeout": "10s",
 				},
 				Debug: map[string]any{
 					"verbosity": "none",
@@ -910,18 +991,18 @@ func TestNewMap(t *testing.T) {
 						},
 						"sending_queue": map[string]any{
 							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
+								"min_size":      100,
+								"max_size":      200,
+								"flush_timeout": "10s",
 							},
 						},
 					},
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
 							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
+								"min_size":      100,
+								"max_size":      200,
+								"flush_timeout": "10s",
 							},
 						},
 					},
@@ -946,10 +1027,18 @@ func TestNewMap(t *testing.T) {
 		{
 			name: "only gRPC, traces and logs, logging with normal verbosity",
 			pcfg: PipelineConfig{
-				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 1234, 0),
-				TracePort:          5003,
-				TracesEnabled:      true,
-				LogsEnabled:        true,
+				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 1234, 0),
+				TracePort:                    5003,
+				TracesEnabled:                true,
+				LogsEnabled:                  true,
+				TracesInfraAttributesEnabled: true,
+				Logs: map[string]interface{}{
+					"batch": map[string]interface{}{
+						"min_size":      100,
+						"max_size":      200,
+						"flush_timeout": "10s",
+					},
+				},
 				Debug: map[string]any{
 					"verbosity": "normal",
 				},
@@ -984,9 +1073,9 @@ func TestNewMap(t *testing.T) {
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
 							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
+								"min_size":      100,
+								"max_size":      200,
+								"flush_timeout": "10s",
 							},
 						},
 					},
@@ -1011,10 +1100,18 @@ func TestNewMap(t *testing.T) {
 		{
 			name: "only HTTP, metrics and logs, logging with detailed verbosity",
 			pcfg: PipelineConfig{
-				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
-				TracePort:          5003,
-				MetricsEnabled:     true,
-				LogsEnabled:        true,
+				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
+				TracePort:                    5003,
+				MetricsEnabled:               true,
+				LogsEnabled:                  true,
+				TracesInfraAttributesEnabled: true,
+				Logs: map[string]interface{}{
+					"batch": map[string]interface{}{
+						"min_size":      100,
+						"max_size":      200,
+						"flush_timeout": "10s",
+					},
+				},
 				Metrics: map[string]any{
 					"delta_ttl":                   1500,
 					"resource_attributes_as_tags": false,
@@ -1022,6 +1119,11 @@ func TestNewMap(t *testing.T) {
 						"mode":                   "nobuckets",
 						"send_count_sum_metrics": true,
 					},
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      100,
+					"max_size":      200,
+					"flush_timeout": "10s",
 				},
 				Debug: map[string]any{
 					"verbosity": "detailed",
@@ -1052,9 +1154,9 @@ func TestNewMap(t *testing.T) {
 						},
 						"sending_queue": map[string]any{
 							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
+								"min_size":      100,
+								"max_size":      200,
+								"flush_timeout": "10s",
 							},
 						},
 					},
@@ -1064,9 +1166,9 @@ func TestNewMap(t *testing.T) {
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
 							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
+								"min_size":      100,
+								"max_size":      200,
+								"flush_timeout": "10s",
 							},
 						},
 					},
@@ -1091,11 +1193,19 @@ func TestNewMap(t *testing.T) {
 		{
 			name: "only HTTP; metrics, traces, and logs; logging with basic verbosity",
 			pcfg: PipelineConfig{
-				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
-				TracePort:          5003,
-				TracesEnabled:      true,
-				MetricsEnabled:     true,
-				LogsEnabled:        true,
+				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
+				TracePort:                    5003,
+				TracesEnabled:                true,
+				MetricsEnabled:               true,
+				LogsEnabled:                  true,
+				TracesInfraAttributesEnabled: true,
+				Logs: map[string]interface{}{
+					"batch": map[string]interface{}{
+						"min_size":      100,
+						"max_size":      200,
+						"flush_timeout": "10s",
+					},
+				},
 				Metrics: map[string]any{
 					"delta_ttl":                   2000,
 					"resource_attributes_as_tags": true,
@@ -1103,6 +1213,11 @@ func TestNewMap(t *testing.T) {
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
 					},
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      100,
+					"max_size":      200,
+					"flush_timeout": "10s",
 				},
 				Debug: map[string]any{
 					"verbosity": "basic",
@@ -1143,9 +1258,9 @@ func TestNewMap(t *testing.T) {
 						},
 						"sending_queue": map[string]any{
 							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
+								"min_size":      100,
+								"max_size":      200,
+								"flush_timeout": "10s",
 							},
 						},
 					},
@@ -1155,9 +1270,9 @@ func TestNewMap(t *testing.T) {
 					"logsagent": map[string]any{
 						"sending_queue": map[string]any{
 							"batch": map[string]any{
-								"flush_timeout": "10000ms",
-								"min_size":      10,
-								"max_size":      100,
+								"min_size":      100,
+								"max_size":      200,
+								"flush_timeout": "10s",
 							},
 						},
 					},
@@ -1198,11 +1313,12 @@ func TestNewMap(t *testing.T) {
 
 func TestUnmarshal(t *testing.T) {
 	pcfg := PipelineConfig{
-		OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 4317, 4318),
-		TracePort:          5001,
-		MetricsEnabled:     true,
-		TracesEnabled:      true,
-		LogsEnabled:        true,
+		OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("localhost", 4317, 4318),
+		TracePort:                    5001,
+		MetricsEnabled:               true,
+		TracesEnabled:                true,
+		LogsEnabled:                  true,
+		TracesInfraAttributesEnabled: true,
 		Metrics: map[string]any{
 			"delta_ttl":                              2000,
 			"resource_attributes_as_tags":            true,
@@ -1232,6 +1348,24 @@ func TestUnmarshal(t *testing.T) {
 	components, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, hostnameimpl.NewHostnameService(), nil)
 	require.NoError(t, err)
 
-	_, err = provider.Get(context.Background(), components)
+	svccfg, err := provider.Get(context.Background(), components)
 	require.NoError(t, err)
+
+	scfgRaw := svccfg.Exporters[component.MustNewID(serializerexporter.TypeStr)]
+	require.NotNil(t, scfgRaw)
+	scfg, ok := scfgRaw.(*serializerexporter.ExporterConfig)
+	require.True(t, ok, "failed to cast serializerexporter.ExporterConfig")
+	sBatchCfg := scfg.QueueBatchConfig.Get().Batch.Get()
+	assert.Equal(t, 200*time.Millisecond, sBatchCfg.FlushTimeout)
+	assert.Equal(t, int64(8192), sBatchCfg.MinSize)
+	assert.Equal(t, int64(0), sBatchCfg.MaxSize)
+
+	lcfgRaw := svccfg.Exporters[component.MustNewID(logsagentexporter.TypeStr)]
+	require.NotNil(t, lcfgRaw)
+	lcfg, ok := lcfgRaw.(*logsagentexporter.Config)
+	require.True(t, ok, "failed to cast logsagentexporter.Config")
+	lBatchCfg := lcfg.QueueSettings.Get().Batch.Get()
+	assert.Equal(t, 200*time.Millisecond, lBatchCfg.FlushTimeout)
+	assert.Equal(t, int64(8192), lBatchCfg.MinSize)
+	assert.Equal(t, int64(0), lBatchCfg.MaxSize)
 }

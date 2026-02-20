@@ -66,12 +66,12 @@ bool memcmp_len(char *a_buf, size_t a_size, char *b_buf, size_t b_size) {
     return cmp == 0;
 }
 bool matches_utc(char *test_name, char *kind, char *expected, char *actual) {
-    bool matches = !memcmp(expected, actual, UTC_TIME_LEN);
+    bool matches = !memcmp(expected, actual, UTC_ZONELESS_LEN);
     if (!matches) {
         printf("[%s] mismatched %s, expected:\n", test_name, kind);
-        printf("    %.*s\n", UTC_TIME_LEN, expected);
+        printf("    %.*s\n", UTC_ZONELESS_LEN, expected);
         printf("actual:\n");
-        printf("    %.*s\n", UTC_TIME_LEN, actual);
+        printf("    %.*s\n", UTC_ZONELESS_LEN, actual);
     }
 
     return matches;
@@ -137,8 +137,8 @@ bool test_datadoghq() {
     char expected_serial[] = {0x07, 0x7C, 0x68, 0xDF, 0xBA, 0x21, 0x15, 0x28, 0xFA, 0xB6, 0x4E, 0x47, 0xC5, 0x1C, 0x7E, 0xB7};
     dd_cert.serial.len = sizeof(expected_serial);
     memcpy(dd_cert.serial.data, expected_serial, sizeof(expected_serial));
-    strncpy(dd_cert.validity.not_before, "250702000000", UTC_TIME_LEN);
-    strncpy(dd_cert.validity.not_after, "260702235959", UTC_TIME_LEN);
+    strncpy(dd_cert.validity.not_before, "250702000000", UTC_ZONELESS_LEN);
+    strncpy(dd_cert.validity.not_after, "260702235959", UTC_ZONELESS_LEN);
 
     const char *domain = "*.datadoghq.com";
     dd_cert.domain.len = strlen(domain);
@@ -167,8 +167,8 @@ bool test_digicert_ca() {
     char expected_serial[] = {0x0C, 0xF5, 0xBD, 0x06, 0x2B, 0x56, 0x02, 0xF4, 0x7A, 0xB8, 0x50, 0x2C, 0x23, 0xCC, 0xF0, 0x66};
     dd_cert.serial.len = sizeof(expected_serial);
     memcpy(dd_cert.serial.data, expected_serial, sizeof(expected_serial));
-    strncpy(dd_cert.validity.not_before, "210330000000", UTC_TIME_LEN);
-    strncpy(dd_cert.validity.not_after, "310329235959", UTC_TIME_LEN);
+    strncpy(dd_cert.validity.not_before, "210330000000", UTC_ZONELESS_LEN);
+    strncpy(dd_cert.validity.not_after, "310329235959", UTC_ZONELESS_LEN);
 
     return check_memcmp_len("digicert_ca", dd_cert, actual);
 }

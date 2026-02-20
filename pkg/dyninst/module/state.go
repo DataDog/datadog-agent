@@ -8,7 +8,6 @@
 package module
 
 import (
-	"io"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
@@ -20,11 +19,11 @@ import (
 
 type processState struct {
 	procRuntimeID
-	executable       actuator.Executable
-	symbolicator     symbol.Symbolicator
-	symbolicatorFile io.Closer
-	symbolicatorErr  error
-	gitInfo          process.GitInfo
+	executable      actuator.Executable
+	symbolicator    *refCountedSymbolicator
+	symbolicatorErr error
+	gitInfo         process.GitInfo
+	containerInfo   process.ContainerInfo
 }
 
 type processStore struct {
@@ -45,9 +44,9 @@ func (ps *processStore) remove(removals []process.ID, dm *diagnosticsManager) {
 	defer ps.mu.Unlock()
 	for _, pid := range removals {
 		if state, ok := ps.processes[pid]; ok {
-			if state.symbolicatorFile != nil {
-				if err := state.symbolicatorFile.Close(); err != nil {
-					log.Warnf("error closing symbolicator file for process %v: %v", pid, err)
+			if state.symbolicator != nil {
+				if err := state.symbolicator.Close(); err != nil {
+					log.Warnf("error closing symbolicator for process %v: %v", pid, err)
 				}
 			}
 			delete(ps.processes, pid)
@@ -69,16 +68,42 @@ func (ps *processStore) ensureExists(update *process.Config) procRuntimeID {
 				version:     update.Version,
 				environment: update.Environment,
 			},
-			executable: update.Executable,
-			gitInfo:    update.GitInfo,
+			executable:    update.Executable,
+			gitInfo:       update.GitInfo,
+			containerInfo: update.Container,
 		}
 		if update.GitInfo != (process.GitInfo{}) {
 			proc.procRuntimeID.gitInfo = &proc.gitInfo
 		}
 		if update.Container != (process.ContainerInfo{}) {
-			proc.procRuntimeID.containerInfo = &update.Container
+			proc.procRuntimeID.containerInfo = &proc.containerInfo
 		}
 		ps.processes[update.ProcessID] = proc
+		return proc.procRuntimeID
+	}
+	// Update existing metadata with the latest information.
+	if update.Service != "" {
+		proc.service = update.Service
+	}
+	if update.Version != "" {
+		proc.version = update.Version
+	}
+	if update.Environment != "" {
+		proc.environment = update.Environment
+	}
+	if update.RuntimeID != "" {
+		proc.runtimeID = update.RuntimeID
+	}
+	if update.Executable.Path != "" {
+		proc.executable = update.Executable
+	}
+	if update.GitInfo != (process.GitInfo{}) {
+		proc.gitInfo = update.GitInfo
+		proc.procRuntimeID.gitInfo = &proc.gitInfo
+	}
+	if update.Container != (process.ContainerInfo{}) {
+		proc.containerInfo = update.Container
+		proc.procRuntimeID.containerInfo = &proc.containerInfo
 	}
 	return proc.procRuntimeID
 }
@@ -96,14 +121,23 @@ func (ps *processStore) getSymbolicator(progID ir.ProgramID) symbol.Symbolicator
 		return noopSymbolicator{}
 	}
 	if proc.symbolicator != nil {
+		proc.symbolicator.addRef()
 		return proc.symbolicator
 	}
-
-	proc.symbolicator, proc.symbolicatorFile, proc.symbolicatorErr = newSymbolicator(proc.executable)
 	if proc.symbolicatorErr != nil {
-		log.Warnf("error creating symbolicator for %v: %v", proc.executable, proc.symbolicatorErr)
-		proc.symbolicator = noopSymbolicator{}
+		return noopSymbolicator{}
 	}
+
+	inner, file, err := newSymbolicator(proc.executable)
+	proc.symbolicatorErr = err
+	if err != nil {
+		log.Warnf("error creating symbolicator for %v: %v", proc.executable, err)
+		return noopSymbolicator{}
+	}
+	// refCount starts at 1 for the processState's own reference.
+	// addRef adds the caller's (sink's) reference.
+	proc.symbolicator = newRefCountedSymbolicator(inner, file)
+	proc.symbolicator.addRef()
 	return proc.symbolicator
 }
 

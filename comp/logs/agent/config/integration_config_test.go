@@ -81,12 +81,13 @@ func TestAutoMultilineEnabled(t *testing.T) {
 
 }
 
+func decode(cfg string) *LogsConfig {
+	lc := LogsConfig{}
+	json.Unmarshal([]byte(cfg), &lc)
+	return &lc
+}
+
 func TestLegacyAutoMultilineEnabled(t *testing.T) {
-	decode := func(cfg string) *LogsConfig {
-		lc := LogsConfig{}
-		json.Unmarshal([]byte(cfg), &lc)
-		return &lc
-	}
 	mockConfig := config.NewMock(t)
 	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", false)
 	assert.False(t, decode(`{"auto_multi_line_detection":false}`).LegacyAutoMultiLineEnabled(mockConfig))
@@ -136,6 +137,13 @@ func TestLegacyAutoMultilineEnabled(t *testing.T) {
 	assert.True(t, decode(`{"auto_multi_line_detection":true}`).LegacyAutoMultiLineEnabled(mockConfig))
 }
 
+func TestEncoding(t *testing.T) {
+	assert.Equal(t, UTF16BE, decode(`{"encoding":"utf-16-be"}`).Encoding)
+	assert.Equal(t, UTF16LE, decode(`{"encoding":"utf-16-le"}`).Encoding)
+	assert.Equal(t, SHIFTJIS, decode(`{"encoding":"shift-jis"}`).Encoding)
+	assert.Equal(t, "", decode(`{}`).Encoding)
+}
+
 func TestConfigDump(t *testing.T) {
 	config := LogsConfig{Type: FileType, Path: "/var/log/foo.log"}
 	dump := config.Dump(true)
@@ -180,5 +188,20 @@ func TestFingerprintConfig(t *testing.T) {
 	for _, config := range invalidConfigs {
 		err := ValidateFingerprintConfig(config)
 		assert.NotNil(t, err)
+	}
+}
+
+func TestValidateWildcardWithBeginningMode(t *testing.T) {
+	validConfigs := []*LogsConfig{
+		{Type: FileType, Path: "/var/log/*.log", TailingMode: "beginning"},
+		{Type: FileType, Path: "/var/log/app-?.log", TailingMode: "beginning"},
+		{Type: FileType, Path: "/var/log/[abc].log", TailingMode: "beginning"},
+		{Type: FileType, Path: "/var/log/**/*.log", TailingMode: "forceBeginning"},
+		{Type: FileType, Path: "/tmp/test*.log", TailingMode: "forceBeginning"},
+	}
+
+	for _, config := range validConfigs {
+		err := config.Validate()
+		assert.Nil(t, err, "Wildcard path %s with tailing mode %s should be valid", config.Path, config.TailingMode)
 	}
 }

@@ -65,7 +65,7 @@ func (cm CollectorMetadata) CollectorTags() []string {
 	if cm.Version == "" {
 		return nil
 	}
-	return []string{fmt.Sprintf("kube_api_version:%s", cm.Version)}
+	return []string{"kube_api_version:" + cm.Version}
 }
 
 // FullName returns a string that contains the collector name and version.
@@ -97,12 +97,17 @@ type ECSCollectorRunConfig struct {
 type CollectorRunConfig struct {
 	K8sCollectorRunConfig
 	ECSCollectorRunConfig
-	ClusterID           string
-	Config              *config.OrchestratorConfig
-	MsgGroupRef         *atomic.Int32
-	TerminatedResources bool
-	AgentVersion        *model.AgentVersion
+	ClusterID                 string
+	Config                    *config.OrchestratorConfig
+	MsgGroupRef               *atomic.Int32
+	TerminatedResources       bool
+	AgentVersion              *model.AgentVersion
+	StopCh                    chan struct{}
+	TerminatedResourceHandler TerminatedResourceHandler
 }
+
+// TerminatedResourceHandler is used to handle collected terminated resources.
+type TerminatedResourceHandler func(k8sCollector K8sCollector, obj any)
 
 // CollectorRunResult contains information about what the collector has done.
 // Metadata is a list of payload, each payload contains a list of k8s resources metadata and manifest

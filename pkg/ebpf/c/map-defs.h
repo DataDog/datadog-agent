@@ -22,8 +22,11 @@
 #define BPF_PERF_EVENT_ARRAY_MAP(name, value_type) \
     BPF_MAP(name, BPF_MAP_TYPE_PERF_EVENT_ARRAY, u32, value_type, 0, 0, 0, INCLUDE_KEY_TYPE)
 
-#define BPF_RINGBUF_MAP(name, value_type) \
-    BPF_MAP(name, BPF_MAP_TYPE_RINGBUF, u32, value_type, 0, 0, 0, INCLUDE_KEY_TYPE)
+#define BPF_RINGBUF_MAP(name, _max_entries) \
+    struct { \
+        __uint(type, BPF_MAP_TYPE_RINGBUF); \
+        __uint(max_entries, _max_entries); \
+    } name SEC(".maps");
 
 #define BPF_ARRAY_MAP(name, value_type, max_entries) \
     BPF_MAP(name, BPF_MAP_TYPE_ARRAY, u32, value_type, max_entries, 0, 0, INCLUDE_KEY_TYPE)
@@ -57,5 +60,13 @@
 
 #define BPF_STACK_MAP(name, value_type, max_entries) \
     BPF_MAP(name, BPF_MAP_TYPE_STACK, 0, value_type, max_entries, 0, 0, EXCLUDE_KEY_TYPE)
+
+#define BPF_TASK_STORAGE_MAP(name, value_type) \
+    struct {                                   \
+        __uint(type, BPF_MAP_TYPE_TASK_STORAGE); \
+        __uint(map_flags, BPF_F_NO_PREALLOC);   \
+        __type(key, int);                        \
+        __type(value, value_type);               \
+    } name SEC(".maps");
 
 #endif

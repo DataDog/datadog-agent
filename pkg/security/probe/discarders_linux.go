@@ -56,20 +56,16 @@ var (
 
 	// recentlyAddedTimeout do not add twice the same discarder in 2sec
 	recentlyAddedTimeout = uint64(2 * time.Second.Nanoseconds())
-)
 
-type discarderHandler func(rs *rules.RuleSet, event *model.Event, probe *EBPFProbe, discarder Discarder) (bool, error)
-
-var (
 	allDiscarderHandlers = make(map[eval.Field]discarderHandler)
 	eventZeroDiscarder   = model.NewFakeEvent()
 )
 
-var dnsMask uint16
+type discarderHandler func(rs *rules.RuleSet, event *model.Event, probe *EBPFProbe, discarder Discarder) (bool, error)
 
 // bumpDiscardersRevision sends an eRPC request to bump the discarders revisionr
 func bumpDiscardersRevision(e *erpc.ERPC) error {
-	req := erpc.NewERPCRequest(erpc.BumpDiscardersRevision)
+	req := erpc.NewERPCRequest(erpc.BumpDiscardersRevisionOp)
 	return e.Request(req)
 }
 
@@ -221,7 +217,7 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 		return nil, nil
 	}
 
-	if _, _, _, err := id.discarderEvent.GetFieldMetadata(field); err != nil {
+	if _, _, _, _, err := id.discarderEvent.GetFieldMetadata(field); err != nil {
 		return nil, err
 	}
 
@@ -230,7 +226,7 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 	}
 
 	basenameField := strings.Replace(field, model.PathSuffix, model.NameSuffix, 1)
-	if _, _, _, err := id.discarderEvent.GetFieldMetadata(basenameField); err != nil {
+	if _, _, _, _, err := id.discarderEvent.GetFieldMetadata(basenameField); err != nil {
 		return nil, err
 	}
 
@@ -568,29 +564,81 @@ func dumpDiscarders(resolver *dentry.Resolver, inodeMap, statsFB, statsBB *ebpf.
 	return dump, nil
 }
 
-func dnsResponseCodeDiscarderHandler(_ *rules.RuleSet, event *model.Event, probe *EBPFProbe, _ Discarder) (bool, error) {
-	dnsResponse := &event.DNS
-
-	if !dnsResponse.HasResponse() {
-		return false, nil
+func applyDNSDefaultDropMaskFromRules(manager *manager.Manager, rs *rules.RuleSet) error {
+	bucket := rs.GetRuleBucket(model.DNSEventType.String())
+	if bucket == nil {
+		return setDNSDiscarderMask(manager, ^uint16(0))
 	}
 
-	mask := uint16(1)
-	mask <<= dnsResponse.Response.ResponseCode
-	dnsMask |= mask
+	var allowMask uint16
 
-	bufferSelector, err := managerhelper.Map(probe.Manager, "filtered_dns_rcodes")
+	for code := 0; code < 16; code++ {
+		ev := rs.NewFakeEvent()
+		_ = ev.SetFieldValue("dns.response.code", code)
+
+		ctx := eval.NewContext(ev)
+
+		isDiscarder := true
+		for _, r := range bucket.GetRules() {
+			ok, err := r.PartialEval(ctx, "dns.response.code")
+			if err != nil {
+				var nf *eval.ErrFieldNotFound
+				if errors.As(err, &nf) {
+					continue
+				}
+				isDiscarder = false
+				break
+			}
+			if ok {
+				isDiscarder = false
+				break
+			}
+		}
+
+		if !isDiscarder {
+			allowMask |= 1 << uint(code)
+		}
+	}
+
+	return setDNSDiscarderMask(manager, ^allowMask)
+}
+
+func prCtlDiscarder(_ *rules.RuleSet, event *model.Event, probe *EBPFProbe, _ Discarder) (bool, error) {
+	value, err := event.GetFieldValue("prctl.new_name")
 	if err != nil {
 		return false, err
+	}
+
+	name := value.(string)
+	if len(name) > 16 {
+		return false, errors.New("prctl name length exceeded the maximum of 16 bytes")
+	}
+
+	probe.erpcRequest.OP = erpc.DiscardPrctlOp
+	probe.erpcRequest.Data = [256]byte{}
+	copy(probe.erpcRequest.Data[:], name)
+	err = probe.Erpc.Request(probe.erpcRequest)
+
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func setDNSDiscarderMask(manager *manager.Manager, dnsMask uint16) error {
+	bufferSelector, err := managerhelper.Map(manager, "filtered_dns_rcodes")
+	if err != nil {
+		return err
 	}
 
 	err = bufferSelector.Put(uint32(0), dnsMask)
 	if err != nil {
-		return false, err
+		return err
 	}
 
-	seclog.Tracef("DNS discarder for response code: %d", dnsResponse.Response.ResponseCode)
-	return true, nil
+	seclog.Tracef("DNS discarder for response code: %d", dnsMask)
+	return nil
 }
 
 func init() {
@@ -654,7 +702,7 @@ func init() {
 			return "chdir.file.path", &event.Open.File, false
 		})
 
-	allDiscarderHandlers["dns.response.code"] = dnsResponseCodeDiscarderHandler
+	allDiscarderHandlers["prctl.new_name"] = prCtlDiscarder
 
 	// Add all the discarders to the SupportedDiscarders map
 	for field := range allDiscarderHandlers {

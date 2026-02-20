@@ -10,6 +10,7 @@ package compliance
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -93,14 +94,15 @@ func newOSCAPIO(file string) *oscapIO {
 func (p *oscapIO) Run(ctx context.Context) error {
 	defer p.Stop()
 
+	var oscapProbeRoot string
+
 	if env.IsContainerized() {
 		hostRoot := os.Getenv("HOST_ROOT")
 		if hostRoot == "" {
 			hostRoot = "/host"
 		}
 
-		os.Setenv("OSCAP_PROBE_ROOT", hostRoot)
-		defer os.Unsetenv("OSCAP_PROBE_ROOT")
+		oscapProbeRoot = hostRoot
 	}
 
 	args := []string{}
@@ -114,8 +116,14 @@ func (p *oscapIO) Run(ctx context.Context) error {
 		return err
 	}
 
-	cmd := exec.CommandContext(ctx, binPath, args...)
+	// Build command: /proc/self/exe compliance oscap-exec <oscap-io-path> [args...]
+	execArgs := append([]string{"compliance", "oscap-exec", binPath}, args...)
+	cmd := exec.CommandContext(ctx, "/proc/self/exe", execArgs...)
 	cmd.Dir = filepath.Dir(p.File)
+	cmd.Env = os.Environ()
+	if oscapProbeRoot != "" {
+		cmd.Env = append(cmd.Env, "OSCAP_PROBE_ROOT="+oscapProbeRoot)
+	}
 	p.cmd = cmd
 
 	stdin, err := cmd.StdinPipe()
@@ -348,10 +356,10 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient statsd
 			case XCCDF_RESULT_FAIL:
 				event = NewCheckEvent(XCCDFEvaluator, CheckFailed, ruleResult.Data, hostname, "host", rule, benchmark)
 			case XCCDF_RESULT_ERROR, XCCDF_RESULT_UNKNOWN:
-				errReason := fmt.Errorf("XCCDF_RESULT_ERROR")
+				errReason := errors.New("XCCDF_RESULT_ERROR")
 				event = NewCheckError(XCCDFEvaluator, errReason, hostname, "host", rule, benchmark)
 			case XCCDF_RESULT_NOT_APPLICABLE:
-				skipReason := fmt.Errorf("XCCDF_RESULT_NOT_APPLICABLE")
+				skipReason := errors.New("XCCDF_RESULT_NOT_APPLICABLE")
 				event = NewCheckSkipped(XCCDFEvaluator, skipReason, hostname, "host", rule, benchmark)
 			case XCCDF_RESULT_NOT_CHECKED, XCCDF_RESULT_NOT_SELECTED:
 			}

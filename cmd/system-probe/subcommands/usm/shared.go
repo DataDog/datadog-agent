@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	sysconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -33,13 +34,14 @@ func makeOneShotCommand(
 				runFunc,
 				fx.Supply(globalParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(""),
+					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					SysprobeConfigParams: sysconfigimpl.NewParams(
 						sysconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath),
 						sysconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams: log.ForOneShot("SYS-PROBE", "off", false),
+					LogParams: log.ForOneShot(command.LoggerName, "off", false),
 				}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 		SilenceUsage: true,

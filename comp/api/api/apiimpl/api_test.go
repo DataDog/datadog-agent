@@ -234,7 +234,7 @@ func TestStartServerWithGrpcServer(t *testing.T) {
 
 	addr := deps.API.CMDServerAddress().String()
 
-	url := fmt.Sprintf("https://%s", addr)
+	url := "https://" + addr
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/grpc")
@@ -277,7 +277,7 @@ func TestStartServerWithoutGrpcServer(t *testing.T) {
 
 	addr := deps.API.CMDServerAddress().String()
 
-	url := fmt.Sprintf("https://%s", addr)
+	url := "https://" + addr
 
 	// test the api routes does not routes grpc request to the grpc server
 	req, err := http.NewRequest(http.MethodGet, url, nil)

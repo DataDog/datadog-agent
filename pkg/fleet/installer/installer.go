@@ -26,6 +26,7 @@ import (
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -44,9 +45,8 @@ type Installer interface {
 
 	AvailableDiskSpace() (uint64, error)
 	State(ctx context.Context, pkg string) (repository.State, error)
-	States(ctx context.Context) (map[string]repository.State, error)
 	ConfigState(ctx context.Context, pkg string) (repository.State, error)
-	ConfigStates(ctx context.Context) (map[string]repository.State, error)
+	ConfigAndPackageStates(ctx context.Context) (*repository.PackageStates, error)
 
 	Install(ctx context.Context, url string, args []string) error
 	ForceInstall(ctx context.Context, url string, args []string) error
@@ -58,9 +58,14 @@ type Installer interface {
 	RemoveExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
 
-	InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations) error
+	InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations, decryptedSecrets map[string]string) error
 	RemoveConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
+
+	InstallExtensions(ctx context.Context, url string, extensionList []string) error
+	RemoveExtensions(ctx context.Context, pkg string, extensionList []string) error
+	SaveExtensions(ctx context.Context, pkg string, path string) error
+	RestoreExtensions(ctx context.Context, url string, path string) error
 
 	GarbageCollect(ctx context.Context) error
 
@@ -91,7 +96,7 @@ func NewInstaller(env *env.Env) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
 	}
-	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(10*time.Second))
+	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(5*time.Minute))
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
@@ -103,7 +108,7 @@ func NewInstaller(env *env.Env) (Installer, error) {
 		packages:   pkgs,
 		config: &config.Directories{
 			StablePath:     paths.AgentConfigDir,
-			ExperimentPath: paths.AgentConfigDir + "-exp",
+			ExperimentPath: paths.AgentConfigDirExp,
 		},
 		hooks: packages.NewHooks(env, pkgs),
 
@@ -123,11 +128,6 @@ func (i *installerImpl) State(_ context.Context, pkg string) (repository.State, 
 	return i.packages.GetState(pkg)
 }
 
-// States returns the states of all packages.
-func (i *installerImpl) States(_ context.Context) (map[string]repository.State, error) {
-	return i.packages.GetStates()
-}
-
 // ConfigState returns the state of a package.
 func (i *installerImpl) ConfigState(_ context.Context, _ string) (repository.State, error) {
 	state, err := i.config.GetState()
@@ -140,8 +140,8 @@ func (i *installerImpl) ConfigState(_ context.Context, _ string) (repository.Sta
 	}, nil
 }
 
-// ConfigStates returns the states of all packages.
-func (i *installerImpl) ConfigStates(_ context.Context) (map[string]repository.State, error) {
+// configStates returns the config states of all supported packages (only datadog-agent is supported today).
+func (i *installerImpl) configStates(_ context.Context) (map[string]repository.State, error) {
 	state, err := i.config.GetState()
 	if err != nil {
 		return nil, fmt.Errorf("could not get config state: %w", err)
@@ -155,6 +155,22 @@ func (i *installerImpl) ConfigStates(_ context.Context) (map[string]repository.S
 			Stable:     stableDeploymentID,
 			Experiment: state.ExperimentDeploymentID,
 		},
+	}, nil
+}
+
+// ConfigAndPackageStates returns the states of all packages' configurations and packages.
+func (i *installerImpl) ConfigAndPackageStates(ctx context.Context) (*repository.PackageStates, error) {
+	configStates, err := i.configStates(ctx)
+	if err != nil {
+		return nil, err
+	}
+	packageStates, err := i.packages.GetStates()
+	if err != nil {
+		return nil, err
+	}
+	return &repository.PackageStates{
+		ConfigStates: configStates,
+		States:       packageStates,
 	}, nil
 }
 
@@ -206,7 +222,7 @@ func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
 	defer i.m.Unlock()
 
 	// make sure data directory is set up correctly
-	err := paths.EnsureInstallerDataDir()
+	err := paths.SetupInstallerDataDir()
 	if err != nil {
 		return fmt.Errorf("could not ensure installer data directory permissions: %w", err)
 	}
@@ -349,6 +365,10 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if err != nil {
 		return fmt.Errorf("could not store package installation in db: %w", err)
 	}
+	err = extensions.SetPackage(ctx, pkg.Name, pkg.Version, false)
+	if err != nil {
+		return fmt.Errorf("could not store package extensions in db: %w", err)
+	}
 	return nil
 }
 
@@ -482,7 +502,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 	}
 	if !state.HasExperiment() {
 		// Fail early
-		return fmt.Errorf("no experiment to promote")
+		return errors.New("no experiment to promote")
 	}
 
 	err = i.hooks.PrePromoteExperiment(ctx, pkg)
@@ -513,9 +533,14 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 }
 
 // InstallConfigExperiment installs an experiment on top of an existing package.
-func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations) error {
+func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations, decryptedSecrets map[string]string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
+
+	// Replace secrets in operations
+	if err := config.ReplaceSecrets(&operations, decryptedSecrets); err != nil {
+		return fmt.Errorf("could not replace secrets: %w", err)
+	}
 
 	err := i.packages.Get(pkg).DeleteExperiment(ctx)
 	if err != nil {
@@ -584,6 +609,13 @@ func (i *installerImpl) Purge(ctx context.Context) {
 		if err != nil {
 			log.Warnf("could not remove package %s: %v", pkg.Name, err)
 		}
+		// Delete the package entry from the database.
+		// This ensures the entry is removed even if os.Remove(packages.db) fails later
+		// due to file locking race conditions on Windows.
+		err = i.db.DeletePackage(pkg.Name)
+		if err != nil {
+			log.Warnf("could not delete package %s from db: %v", pkg.Name, err)
+		}
 	}
 	// NOTE: On Windows, purge must be called from a copy of the installer that
 	//       exists outside of the install directory. If purge is called from
@@ -593,9 +625,15 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	//         failing the uninstall.
 	//       We can't workaround this by moving removePackage to the end of purge,
 	//       as the daemon may be running and holding locks on files that need to be removed.
-	err = i.hooks.PreRemove(ctx, packageDatadogAgent, packages.PackageTypeOCI, false)
-	if err != nil {
-		log.Warnf("could not remove agent: %v", err)
+	//
+	// Note: If DD_NO_AGENT_UNINSTALL is set, then the agent will not be uninstalled.
+	//       This is used to prevent the agent from being uninstalled when purge is
+	//       called from within the MSI.
+	if uninstallAgent, ok := os.LookupEnv("DD_NO_AGENT_UNINSTALL"); !ok || strings.ToLower(uninstallAgent) != "true" {
+		err = i.hooks.PreRemove(ctx, packageDatadogAgent, packages.PackageTypeOCI, false)
+		if err != nil {
+			log.Warnf("could not remove agent: %v", err)
+		}
 	}
 	// TODO: wont need this when Linux packages are merged
 	if runtime.GOOS != "windows" {
@@ -608,7 +646,8 @@ func (i *installerImpl) Purge(ctx context.Context) {
 
 	// Must close dependencies before removing the rest of the files,
 	// as some may be open/locked by the dependencies
-	i.close()
+	// TODO: check if error must trigger a specific flow
+	_ = i.close()
 
 	err = os.RemoveAll(paths.ConfigsPath)
 	if err != nil {
@@ -652,6 +691,10 @@ func (i *installerImpl) Remove(ctx context.Context, pkg string) error {
 	if err != nil {
 		return fmt.Errorf("could not delete repository: %w", err)
 	}
+	err = extensions.DeletePackage(ctx, pkg, false)
+	if err != nil {
+		return fmt.Errorf("could not remove package from extensions db: %w", err)
+	}
 	err = i.db.DeletePackage(pkg)
 	if err != nil {
 		return fmt.Errorf("could not remove package installation in db: %w", err)
@@ -679,12 +722,25 @@ func (i *installerImpl) InstrumentAPMInjector(ctx context.Context, method string
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	injectorInstalled, err := i.IsInstalled(ctx, packageAPMInjector)
-	if err != nil {
-		return fmt.Errorf("could not check if APM injector is installed: %w", err)
-	}
-	if !injectorInstalled {
-		return fmt.Errorf("APM injector is not installed")
+	var err error
+	if runtime.GOOS == "windows" && method == env.APMInstrumentationEnabledIIS {
+		var isDotnetInstalled bool
+		isDotnetInstalled, err = i.IsInstalled(ctx, packageAPMLibraryDotnet)
+		if err != nil {
+			return fmt.Errorf("could not check if APM dotnet library is installed: %w", err)
+		}
+		if !isDotnetInstalled {
+			return errors.New("APM dotnet library is not installed")
+		}
+	} else {
+		var isInjectorInstalled bool
+		isInjectorInstalled, err = i.IsInstalled(ctx, packageAPMInjector)
+		if err != nil {
+			return fmt.Errorf("could not check if APM injector is installed: %w", err)
+		}
+		if !isInjectorInstalled {
+			return errors.New("APM injector is not installed")
+		}
 	}
 
 	err = packages.InstrumentAPMInjector(ctx, method)
@@ -699,17 +755,133 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	injectorInstalled, err := i.IsInstalled(ctx, packageAPMInjector)
-	if err != nil {
-		return fmt.Errorf("could not check if APM injector is installed: %w", err)
-	}
-	if !injectorInstalled {
-		return fmt.Errorf("APM injector is not installed")
+	var err error
+	if runtime.GOOS == "windows" && method == env.APMInstrumentationEnabledIIS {
+		var isDotnetInstalled bool
+		isDotnetInstalled, err = i.IsInstalled(ctx, packageAPMLibraryDotnet)
+		if err != nil {
+			return fmt.Errorf("could not check if APM dotnet library is installed: %w", err)
+		}
+		if !isDotnetInstalled {
+			return errors.New("APM dotnet library is not installed")
+		}
+	} else {
+		var isInjectorInstalled bool
+		isInjectorInstalled, err = i.IsInstalled(ctx, packageAPMInjector)
+		if err != nil {
+			return fmt.Errorf("could not check if APM injector is installed: %w", err)
+		}
+		if !isInjectorInstalled {
+			return errors.New("APM injector is not installed")
+		}
 	}
 
 	err = packages.UninstrumentAPMInjector(ctx, method)
 	if err != nil {
-		return fmt.Errorf("could not instrument APM: %w", err)
+		return fmt.Errorf("could not uninstrument APM: %w", err)
+	}
+	return nil
+}
+
+// InstallExtensions installs multiple extensions.
+func (i *installerImpl) InstallExtensions(ctx context.Context, url string, extensionList []string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	if len(extensionList) == 0 {
+		return nil
+	}
+
+	pkg, err := i.downloader.Download(ctx, url) // Downloads pkg metadata only
+	if err != nil {
+		return installerErrors.Wrap(
+			installerErrors.ErrDownloadFailed,
+			fmt.Errorf("could not download package: %w", err),
+		)
+	}
+	span, ok := telemetry.SpanFromContext(ctx)
+	if ok {
+		span.SetResourceName("install_extensions")
+		span.SetTag("package_name", pkg.Name)
+		span.SetTag("package_version", pkg.Version)
+		span.SetTag("extensions", strings.Join(extensionList, ","))
+		span.SetTag("url", url)
+	}
+
+	existingPkg, err := i.db.GetPackage(pkg.Name)
+	if err != nil && !errors.Is(err, db.ErrPackageNotFound) {
+		return fmt.Errorf("could not get package %s from database: %w", pkg.Name, err)
+	}
+	if existingPkg.Version != pkg.Version && !errors.Is(err, db.ErrPackageNotFound) {
+		return fmt.Errorf("package %s is installed at version %s, requested version is %s", pkg.Name, existingPkg.Version, pkg.Version)
+	}
+
+	err = extensions.Install(ctx, i.downloader, url, extensionList, false, i.hooks)
+	if err != nil {
+		return fmt.Errorf("could not install extensions: %w", err)
+	}
+
+	// Special case for Linux & datadog-agent: restart the Agent after installing Agent extensions.
+	if pkg.Name == packageDatadogAgent {
+		return packages.RestartDatadogAgent(ctx)
+	}
+	return nil
+}
+
+// RemoveExtensions removes multiple extensions.
+func (i *installerImpl) RemoveExtensions(ctx context.Context, pkg string, extensionList []string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	if len(extensionList) == 0 {
+		return nil
+	}
+
+	span, ok := telemetry.SpanFromContext(ctx)
+	if ok {
+		span.SetResourceName("remove_extensions")
+		span.SetTag("package_name", pkg)
+		span.SetTag("extensions", strings.Join(extensionList, ","))
+	}
+
+	err := extensions.Remove(ctx, pkg, extensionList, false, i.hooks)
+	if err != nil {
+		return fmt.Errorf("could not remove extensions: %w", err)
+	}
+
+	// Special case for Linux & datadog-agent: restart the Agent after removing Agent extensions.
+	if pkg == packageDatadogAgent {
+		return packages.RestartDatadogAgent(ctx)
+	}
+	return nil
+}
+
+// SaveExtensions saves the extensions to a specific location on disk.
+func (i *installerImpl) SaveExtensions(ctx context.Context, pkg string, path string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+	return extensions.Save(ctx, pkg, path)
+}
+
+// RestoreExtensions restores the extensions from a specific location on disk.
+func (i *installerImpl) RestoreExtensions(ctx context.Context, url string, path string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+	pkg, err := i.downloader.Download(ctx, url) // Downloads pkg metadata only
+	if err != nil {
+		return installerErrors.Wrap(
+			installerErrors.ErrDownloadFailed,
+			fmt.Errorf("could not download package: %w", err),
+		)
+	}
+	err = extensions.Restore(ctx, i.downloader, pkg.Name, url, path, false, i.hooks)
+	if err != nil {
+		return fmt.Errorf("could not restore extensions: %w", err)
+	}
+
+	// Special case for datadog-agent: restart the Agent after restoring Agent extensions manually.
+	if pkg.Name == packageDatadogAgent {
+		return packages.RestartDatadogAgent(ctx)
 	}
 	return nil
 }
@@ -769,14 +941,22 @@ func checkAvailableDiskSpace(repositories *repository.Repositories, pkg *oci.Dow
 
 // ensureRepositoriesExist creates the temp, packages and configs directories if they don't exist
 func ensureRepositoriesExist() error {
-	// TODO: should we call paths.EnsureInstallerDataDir() here?
-	//       It should probably be anywhere that the below directories must be
-	//       created, but it feels wrong to have the constructor perform work
-	//       like this. For example, "read only" subcommands like `get-states`
-	//       will end up iterating the filesystem tree to apply permissions,
-	//       and every subprocess during experiments will repeat the work,
-	//       even though it should only be needed at install/setup time.
-	err := os.MkdirAll(paths.PackagesPath, 0755)
+	// Enforce permissions on the installer data directory
+	//
+	// TODO: Avoid setup-like work in the installer constructor.
+	// These directories should be created properly at install/setup time, however
+	// the installer constructor is called before install/setup runs, and will fail if
+	// these directories do not exist, so we must do some minimal creation/validation here.
+	// We must avoid doing too much work here (e.g. iterating the filesystem tree)
+	// because the constructor is called for every subprocess, even "read only"
+	// subcommands like `get-states`.
+	err := paths.EnsureInstallerDataDir()
+	if err != nil {
+		return fmt.Errorf("could not ensure installer data directory permissions: %w", err)
+	}
+
+	// create subdirectories
+	err = os.MkdirAll(paths.PackagesPath, 0755)
 	if err != nil {
 		return fmt.Errorf("error creating packages directory: %w", err)
 	}

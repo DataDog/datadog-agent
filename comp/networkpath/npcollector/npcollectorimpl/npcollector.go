@@ -11,26 +11,26 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
+	"iter"
 	"net/netip"
 	"sync"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfilter"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfilter"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -74,14 +74,10 @@ type npCollectorImpl struct {
 	flushInterval         time.Duration
 	inputChanFullLogLimit *utillog.Limit
 
-	// Telemetry component
-	telemetrycomp telemetryComp.Component
+	traceroute traceroute.Component
 
 	// structures needed to ease mocking/testing
 	TimeNowFn func() time.Time
-	// TODO: instead of mocking traceroute via function replacement like this
-	//       we should ideally create a fake/mock traceroute instance that can be passed/injected in NpCollector
-	runTraceroute func(cfg config.Config, telemetrycomp telemetryComp.Component) (payload.NetworkPath, error)
 
 	networkDevicesNamespace string
 	filter                  *connfilter.ConnFilter
@@ -93,7 +89,7 @@ func newNoopNpCollectorImpl() *npCollectorImpl {
 	}
 }
 
-func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component, telemetrycomp telemetryComp.Component, rdnsquerier rdnsquerier.Component, statsd ddgostatsd.ClientInterface) *npCollectorImpl {
+func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, traceroute traceroute.Component, logger log.Component, rdnsquerier rdnsquerier.Component, statsd ddgostatsd.ClientInterface) *npCollectorImpl {
 	logger.Infof("New NpCollector %+v", collectorConfigs)
 	filter, errs := connfilter.NewConnFilter(collectorConfigs.filterConfig, collectorConfigs.ddSite, collectorConfigs.monitorIPWithoutDomain)
 
@@ -124,22 +120,20 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		processedTracerouteCount: atomic.NewUint64(0),
 		TimeNowFn:                time.Now,
 
-		telemetrycomp: telemetrycomp,
+		traceroute: traceroute,
 
 		stopChan:              make(chan struct{}),
 		pathtestsListenerDone: make(chan struct{}),
 		flushLoopDone:         make(chan struct{}),
 		workersDone:           make(chan struct{}),
 
-		runTraceroute: runTraceroute,
-
 		filter: filter,
 	}
 }
 
 // makePathtest extracts pathtest information using a single connection and the connection check's reverse dns map
-func (s *npCollectorImpl) makePathtest(conn *model.Connection, domain string) common.Pathtest {
-	protocol := convertProtocol(conn.GetType())
+func (s *npCollectorImpl) makePathtest(conn npmodel.NetworkPathConnection) common.Pathtest {
+	protocol := modelProtocolToPayload[conn.Type]
 	if s.collectorConfigs.icmpMode.ShouldUseICMP(protocol) {
 		protocol = payload.ProtocolICMP
 	}
@@ -147,114 +141,96 @@ func (s *npCollectorImpl) makePathtest(conn *model.Connection, domain string) co
 	var remotePort uint16
 	// only TCP traces can be done to the active port
 	if protocol == payload.ProtocolTCP {
-		remotePort = uint16(conn.Raddr.GetPort())
+		remotePort = conn.Dest.Port()
 	}
 
-	sourceContainer := conn.Laddr.GetContainerId()
-
-	var hostname string
-	if domain != "" {
-		hostname = domain
-	} else {
-		hostname = conn.Raddr.GetIp()
+	hostname := conn.Dest.Addr().String()
+	if conn.Domain != "" {
+		hostname = conn.Domain
 	}
 
 	return common.Pathtest{
 		Hostname:          hostname,
 		Port:              remotePort,
 		Protocol:          protocol,
-		SourceContainerID: sourceContainer,
+		SourceContainerID: conn.SourceContainerID,
 		Metadata: common.PathtestMetadata{
-			ReverseDNSHostname: domain,
+			ReverseDNSHostname: conn.Domain,
 		},
 	}
 }
 
-func doSubnetsContainIP(subnets []*net.IPNet, ip netip.Addr) bool {
+func doSubnetsContainIP(subnets []netip.Prefix, ip netip.Addr) bool {
 	for _, subnet := range subnets {
-		if subnet.Contains(net.IP(ip.AsSlice())) {
+		if subnet.Contains(ip) {
 			return true
 		}
 	}
 	return false
 }
 
-func (s *npCollectorImpl) checkPassesConnCIDRFilters(conn *model.Connection, vpcSubnets []*net.IPNet) bool {
+func (s *npCollectorImpl) checkPassesConnCIDRFilters(conn npmodel.NetworkPathConnection, vpcSubnets []netip.Prefix) bool {
 	if len(vpcSubnets) == 0 && len(s.sourceExcludes) == 0 && len(s.destExcludes) == 0 {
 		// this should be most customers - parsing IPs is not necessary
 		return true
 	}
 
-	sourceAddr, err := netip.ParseAddr(conn.Laddr.Ip)
-	if err != nil {
-		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:failed_parse_source_ip"}, 1) //nolint:errcheck
-		return false
+	if !conn.TranslatedDest.IsValid() {
+		conn.TranslatedDest = conn.Dest
 	}
-	source := netip.AddrPortFrom(sourceAddr, uint16(conn.Laddr.Port))
 
-	translatedDest := conn.Raddr.Ip
-	// prefer IP translation if it's available
-	if conn.IpTranslation != nil && conn.IpTranslation.ReplDstIP != "" {
-		translatedDest = conn.IpTranslation.ReplDstIP
-	}
-	destAddr, err := netip.ParseAddr(translatedDest)
-	if err != nil {
-		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:failed_parse_dest_ip"}, 1) //nolint:errcheck
-		return false
-	}
-	dest := netip.AddrPortFrom(destAddr, uint16(conn.Raddr.Port))
-
-	if doSubnetsContainIP(vpcSubnets, dest.Addr()) {
-		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_vpc"}, 1) //nolint:errcheck
+	if doSubnetsContainIP(vpcSubnets, conn.TranslatedDest.Addr()) {
+		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_vpc"}, 1)
 		return false
 	}
 
 	filterable := networkfilter.FilterableConnection{
 		Type:   conn.Type,
-		Source: source,
-		Dest:   dest,
+		Source: conn.Source,
+		Dest:   conn.TranslatedDest,
 	}
 	if networkfilter.IsExcludedConnection(s.sourceExcludes, s.destExcludes, filterable) {
-		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_cidr_excluded"}, 1) //nolint:errcheck
+		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_cidr_excluded"}, 1)
 		return false
 	}
-	return true
 
+	return true
 }
-func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connection, vpcSubnets []*net.IPNet, domain string) bool {
-	if conn == nil {
+
+func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn npmodel.NetworkPathConnection, vpcSubnets []netip.Prefix) bool {
+	if conn.IntraHost {
+		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_host"}, 1)
 		return false
 	}
-	if conn.IntraHost {
-		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_host"}, 1) //nolint:errcheck
+	if conn.SystemProbeConn {
+		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_system_probe_conn"}, 1)
 		return false
 	}
 	if conn.Direction != model.ConnectionDirection_outgoing {
-		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_incoming"}, 1) //nolint:errcheck
+		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_incoming"}, 1)
 		return false
 	}
-
 	// only ipv4 is supported currently
 	// if domain is present, we will traceroute the domain, so, it doesn't matter if the conn family is IPv4 or IPv6
-	if domain == "" && conn.Family != model.ConnectionFamily_v4 {
-		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_ipv6"}, 1) //nolint:errcheck
+	if conn.Domain == "" && conn.Family != model.ConnectionFamily_v4 {
+		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_ipv6"}, 1)
 		return false
 	}
 
 	if !s.checkPassesConnCIDRFilters(conn, vpcSubnets) {
-		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_not_matched_by_conn_filters"}, 1) //nolint:errcheck
+		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_not_matched_by_conn_filters"}, 1)
 		return false
 	}
 
-	if !s.filter.IsIncluded(domain, conn.Raddr.GetIp()) {
-		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_not_matched_by_filters"}, 1) //nolint:errcheck
+	if !s.filter.IsIncluded(conn.Domain, conn.Dest.Addr()) {
+		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_not_matched_by_filters"}, 1)
 		return false
 	}
 
 	return true
 }
 
-func (s *npCollectorImpl) getVPCSubnets() ([]*net.IPNet, error) {
+func (s *npCollectorImpl) getVPCSubnets() ([]netip.Prefix, error) {
 	if !s.collectorConfigs.disableIntraVPCCollection {
 		return nil, nil
 	}
@@ -269,7 +245,7 @@ func (s *npCollectorImpl) getVPCSubnets() ([]*net.IPNet, error) {
 	return vpcSubnets, nil
 }
 
-func (s *npCollectorImpl) ScheduleConns(conns *model.Connections) {
+func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
 	if !s.collectorConfigs.connectionsMonitoringEnabled {
 		return
 	}
@@ -278,27 +254,23 @@ func (s *npCollectorImpl) ScheduleConns(conns *model.Connections) {
 		s.logger.Errorf("Failed to get VPC subnets to skip: %s", err)
 		return
 	}
-	startTime := s.TimeNowFn()
-	_ = s.statsdClient.Count(common.NetworkPathCollectorMetricPrefix+"schedule.conns_received", int64(len(conns.Conns)), []string{}, 1)
-	for _, conn := range conns.Conns {
-		// Get domain from conns.Dns
-		domain := getDNSNameForIP(conns, conn.Raddr.GetIp())
 
-		if !s.shouldScheduleNetworkPathForConn(conn, vpcSubnets, domain) {
-			protocol := convertProtocol(conn.GetType())
-			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Raddr, protocol)
+	startTime := s.TimeNowFn()
+	connCount := 0
+	for conn := range conns {
+		connCount++
+		if !s.shouldScheduleNetworkPathForConn(conn, vpcSubnets) {
+			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Dest, conn.Type)
 			continue
 		}
-		pathtest := s.makePathtest(conn, domain)
-
+		pathtest := s.makePathtest(conn)
 		err := s.scheduleOne(&pathtest)
 		if err != nil {
 			s.logger.Errorf("Error scheduling pathtests: %s", err)
 		}
 	}
-
-	scheduleDuration := s.TimeNowFn().Sub(startTime)
-	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"schedule.duration", scheduleDuration.Seconds(), nil, 1)
+	_ = s.statsdClient.Count(common.NetworkPathCollectorMetricPrefix+"schedule.conns_received", int64(connCount), []string{}, 1)
+	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"schedule.duration", s.TimeNowFn().Sub(startTime).Seconds(), nil, 1)
 }
 
 // scheduleOne schedules pathtests.
@@ -385,9 +357,9 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 
 	s.logger.Debugf("Running traceroute with config: %+v", cfg)
 
-	path, err := s.runTraceroute(cfg, s.telemetrycomp)
+	path, err := s.traceroute.Run(context.TODO(), cfg)
 	if err != nil {
-		s.logger.Errorf("%s", err)
+		s.logger.Errorf("run traceroute error: %s", err)
 		return
 	}
 
@@ -400,6 +372,9 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	path.Source.ContainerID = ptest.Pathtest.SourceContainerID
 	path.Namespace = s.networkDevicesNamespace
 	path.Origin = payload.PathOriginNetworkTraffic
+	path.TestRunType = payload.TestRunTypeDynamic
+	path.SourceProduct = s.collectorConfigs.sourceProduct
+	path.CollectorType = payload.CollectorTypeAgent
 
 	// Perform reverse DNS lookup on destination and hop IPs
 	s.enrichPathWithRDNS(&path, ptest.Pathtest.Metadata.ReverseDNSHostname)
@@ -415,18 +390,6 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 			s.logger.Errorf("failed to send event to epForwarder: %s", err)
 		}
 	}
-}
-
-func runTraceroute(cfg config.Config, telemetry telemetryComp.Component) (payload.NetworkPath, error) {
-	tr, err := traceroute.New(cfg, telemetry)
-	if err != nil {
-		return payload.NetworkPath{}, fmt.Errorf("new traceroute error: %s", err)
-	}
-	path, err := tr.Run(context.TODO())
-	if err != nil {
-		return payload.NetworkPath{}, fmt.Errorf("run traceroute error: %s", err)
-	}
-	return path, nil
 }
 
 func (s *npCollectorImpl) flushLoop() {

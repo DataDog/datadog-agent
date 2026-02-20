@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
-
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -23,7 +23,7 @@ type loadBalancerSuiteMetrics struct {
 }
 
 func TestLoadBalancer(t *testing.T) {
-	e2e.Run(t, &loadBalancerSuiteMetrics{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithFakeIntakeOptions(fakeintake.WithLoadBalancer()))))
+	e2e.Run(t, &loadBalancerSuiteMetrics{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(ec2.WithFakeIntakeOptions(fakeintake.WithLoadBalancer())))), e2e.WithSkipCoverage())
 }
 
 func (v *loadBalancerSuiteMetrics) Test_FakeIntakeReceivesMetrics() {

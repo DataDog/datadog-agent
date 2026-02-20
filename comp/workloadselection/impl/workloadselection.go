@@ -7,11 +7,9 @@
 package workloadselectionimpl
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -26,8 +24,7 @@ import (
 )
 
 var (
-	configPath                  = filepath.Join(config.DefaultConfPath, "managed", "rc-orgwide-wls-policy.bin")
-	ddPolicyCompileRelativePath = filepath.Join("embedded", "bin", "dd-compile-policy")
+	configPath = filepath.Join(config.DefaultConfPath, "managed", "rc-orgwide-wls-policy.bin")
 	// Pattern to extract policy ID from config path: datadog/\d+/<product>/<config_id>/<hash>
 	policyIDPattern = regexp.MustCompile(`^datadog/\d+/[^/]+/([^/]+)/`)
 	// Pattern to extract numeric prefix from policy ID: N.<name>
@@ -76,36 +73,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 type workloadselectionComponent struct {
 	log    log.Component
 	config config.Component
-}
-
-// isCompilePolicyBinaryAvailable checks if the compile policy binary is available
-// and executable
-func (c *workloadselectionComponent) isCompilePolicyBinaryAvailable() bool {
-	compilePath := filepath.Join(getInstallPath(), ddPolicyCompileRelativePath)
-	info, err := os.Stat(compilePath)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			c.log.Warnf("failed to stat APM workload selection compile policy binary: %v", err)
-		}
-		return false
-	}
-	return info.Mode().IsRegular() && info.Mode()&0111 != 0
-}
-
-// compilePolicyBinary compiles the policy binary into a binary file
-// readable by the injector
-func (c *workloadselectionComponent) compileAndWriteConfig(rawConfig []byte) error {
-	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
-		return err
-	}
-	cmd := exec.Command(filepath.Join(getInstallPath(), ddPolicyCompileRelativePath), "--input-string", string(rawConfig), "--output-file", configPath)
-	var stdoutBuf, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("error executing dd-policy-compile (%w); out: '%s'; err: '%s'", err, stdoutBuf.String(), stderrBuf.String())
-	}
-	return nil
 }
 
 // policyConfig represents a config with its ordering information

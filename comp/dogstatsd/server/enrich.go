@@ -85,8 +85,6 @@ func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, 
 // serverlessSourceCustomToRuntime converts Serverless custom metric source to its corresponding runtime metric source
 func serverlessSourceCustomToRuntime(metricSource metrics.MetricSource) metrics.MetricSource {
 	switch metricSource {
-	case metrics.MetricSourceAwsLambdaCustom:
-		metricSource = metrics.MetricSourceAwsLambdaRuntime
 	case metrics.MetricSourceAzureAppServiceCustom:
 		metricSource = metrics.MetricSourceAzureAppServiceRuntime
 	case metrics.MetricSourceAzureContainerAppCustom:

@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 	"unsafe"
@@ -28,64 +29,99 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
 
+const (
+	// goVersionHmap is the Go major version that uses hmap implementation.
+	goVersionHmap = "go1.23"
+	// goVersionSwissMap is the Go major version that uses swiss map implementation.
+	goVersionSwissMap = "go1.24"
+)
+
 func FuzzDecoder(f *testing.F) {
-	probeNames := make([]string, 0, len(cases))
+	probeNameSet := make(map[string]bool)
+	goVersions := make(map[string]bool)
 	for _, c := range cases {
-		probeNames = append(probeNames, c.probeName)
+		probeNameSet[c.probeName] = true
+		goVersions[c.goVersion] = true
 	}
-	irProg := generateIrForProbes(f, "simple", probeNames...)
-	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
-	require.NoError(f, err)
-	for _, c := range cases {
-		f.Add(c.eventConstructor(f, irProg))
+	probeNames := make([]string, 0, len(probeNameSet))
+	for name := range probeNameSet {
+		probeNames = append(probeNames, name)
+	}
+	for goVersion := range goVersions {
+		irProg := generateIrForProbes(f, "simple", goVersion, probeNames...)
+		for _, c := range cases {
+			if c.goVersion == goVersion {
+				f.Add(c.eventConstructor(f, irProg))
+			}
+		}
 	}
 	f.Fuzz(func(t *testing.T, item []byte) {
+		// Use first go version for fuzzing
+		irProg := generateIrForProbes(t, "simple", cases[0].goVersion, probeNames...)
+		decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+		require.NoError(t, err)
 		_, _, _ = decoder.Decode(Event{
 			EntryOrLine: output.Event(item),
 			ServiceName: "foo",
-		}, &noopSymbolicator{}, []byte{})
-		require.Empty(t, decoder.entry.dataItems)
-		require.Empty(t, decoder.entry.currentlyEncoding)
+		}, &noopSymbolicator{}, nil, []byte{})
+		require.Empty(t, decoder.entryOrLine.dataItems)
+		require.Empty(t, decoder.entryOrLine.currentlyEncoding)
+		require.Empty(t, decoder._return.dataItems)
 	})
 }
+
+type (
+	captures struct{ Entry struct{ Arguments any } }
+	debugger struct {
+		Snapshot         struct{ Captures captures }
+		EvaluationErrors []struct {
+			Expression string `json:"expr"`
+			Message    string `json:"message"`
+		} `json:"evaluationErrors,omitempty"`
+	}
+	eventCaptures struct {
+		Debugger debugger
+		Message  string `json:"message,omitempty"`
+	}
+)
 
 // TestDecoderManually is a test that manually constructs an event and decodes
 // it.
 //
 // This makes it easy to assert properties of the decoder's internal state.
 func TestDecoderManually(t *testing.T) {
-	type captures struct{ Entry struct{ Arguments any } }
-	type debugger struct{ Snapshot struct{ Captures captures } }
-	type eventCaptures struct{ Debugger debugger }
 	for _, c := range cases {
-		t.Run(c.probeName, func(t *testing.T) {
-			irProg := generateIrForProbes(t, "simple", c.probeName)
+		t.Run(fmt.Sprintf("%s-%s", c.probeName, c.goVersion), func(t *testing.T) {
+			irProg := generateIrForProbes(t, "simple", c.goVersion, c.probeName)
 			item := c.eventConstructor(t, irProg)
 			decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
 			require.NoError(t, err)
 			buf, probe, err := decoder.Decode(Event{
 				EntryOrLine: output.Event(item),
 				ServiceName: "foo",
-			}, &noopSymbolicator{}, []byte{})
+			}, &noopSymbolicator{}, nil, []byte{})
 			require.NoError(t, err)
 			require.Equal(t, c.probeName, probe.GetID())
 			var e eventCaptures
 			require.NoError(t, json.Unmarshal(buf, &e))
 			require.Equal(t, c.expected, e.Debugger.Snapshot.Captures.Entry.Arguments)
-			require.Empty(t, decoder.entry.dataItems)
-			require.Empty(t, decoder.entry.currentlyEncoding)
-			require.Nil(t, decoder.entry.rootType)
-			require.Nil(t, decoder.entry.rootData)
-			require.Zero(t, decoder.entry.evaluationErrors)
-			require.Zero(t, decoder.snapshotMessage)
+			if c.expectedMessage != "" {
+				require.Equal(t, c.expectedMessage, e.Message)
+			}
+			require.Empty(t, decoder.entryOrLine.dataItems)
+			require.Empty(t, decoder.entryOrLine.currentlyEncoding)
+			require.Nil(t, decoder.entryOrLine.rootType)
+			require.Nil(t, decoder.entryOrLine.rootData)
+			require.Zero(t, decoder.entryOrLine.evaluationErrors)
+			require.Zero(t, decoder.message)
 		})
 	}
 }
 
 func BenchmarkDecoder(b *testing.B) {
 	for _, c := range cases {
-		b.Run(c.probeName, func(b *testing.B) {
-			irProg := generateIrForProbes(b, "simple", c.probeName)
+		b.Run(fmt.Sprintf("%s-%s", c.probeName, c.goVersion), func(b *testing.B) {
+			irProg := generateIrForProbes(b, "simple", c.goVersion, c.probeName)
 			decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
 			require.NoError(b, err)
 			symbolicator := &noopSymbolicator{}
@@ -95,7 +131,7 @@ func BenchmarkDecoder(b *testing.B) {
 			}
 			b.ResetTimer()
 			for b.Loop() {
-				_, _, err := decoder.Decode(event, symbolicator, []byte{})
+				_, _, err := decoder.Decode(event, symbolicator, nil, []byte{})
 				require.NoError(b, err)
 			}
 		})
@@ -104,38 +140,67 @@ func BenchmarkDecoder(b *testing.B) {
 
 type testCase struct {
 	probeName        string
+	goVersion        string
 	eventConstructor func(testing.TB, *ir.Program) []byte
 	expected         any
+	expectedMessage  string
 }
 
 var cases = []testCase{
 	{
 		probeName:        "stringArg",
+		goVersion:        goVersionHmap,
 		eventConstructor: simpleStringArgEvent,
 		expected:         simpleStringArgExpected,
+		expectedMessage:  "s: abcdefghijklmnop",
 	},
 	{
 		probeName:        "mapArg",
+		goVersion:        goVersionHmap,
 		eventConstructor: simpleMapArgEvent,
 		expected:         simpleMapArgExpected,
+		expectedMessage:  "m: map[a: 1]",
 	},
 	{
 		probeName:        "bigMapArg",
+		goVersion:        goVersionHmap,
 		eventConstructor: simpleBigMapArgEvent,
 		expected:         simpleBigMapArgExpected,
+		expectedMessage:  "m: map[b: {Field1: 1, Field2: 0, Field3: 0, Field4: 0, Field5: 0, ...}}]",
 	},
 	{
 		probeName:        "PointerChainArg",
+		goVersion:        goVersionHmap,
 		eventConstructor: simplePointerChainArgEvent,
 		expected:         simplePointerChainArgExpected,
+		expectedMessage:  "ptr: 17",
+	},
+	{
+		probeName:        "mapArg",
+		goVersion:        goVersionSwissMap,
+		eventConstructor: simpleSwissMapArgEvent,
+		expected:         simpleMapArgExpected,
+		expectedMessage:  "m: map[a: 1]",
+	},
+	{
+		probeName:        "mapArg",
+		goVersion:        goVersionSwissMap,
+		eventConstructor: simpleSwissMapTablesArgEvent,
+		expected:         simpleMapArgExpected,
+		expectedMessage:  "m: map[a: 1]",
 	},
 }
 
 func generateIrForProbes(
-	t testing.TB, progName string, probeNames ...string,
+	t testing.TB, progName string, goVersion string, probeNames ...string,
 ) *ir.Program {
 	cfgs := testprogs.MustGetCommonConfigs(t)
-	bin := testprogs.MustGetBinary(t, progName, cfgs[0])
+	cfgIdx := slices.IndexFunc(cfgs, func(c testprogs.Config) bool {
+		return strings.HasPrefix(c.GOTOOLCHAIN, goVersion)
+	})
+	require.NotEqual(t, -1, cfgIdx, "no config found for go version prefix %q", goVersion)
+	cfg := cfgs[cfgIdx]
+	bin := testprogs.MustGetBinary(t, progName, cfg)
 	probes := testprogs.MustGetProbeDefinitions(t, progName)
 	probes = slices.DeleteFunc(probes, func(p ir.ProbeDefinition) bool {
 		return !slices.Contains(probeNames, p.GetID())
@@ -172,14 +237,14 @@ func simpleStringArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	}
 	require.NotNil(t, stringType)
 	require.NotNil(t, eventType)
-	require.Equal(t, uint32(17), eventType.GetByteSize())
+	require.Equal(t, uint32(33), eventType.GetByteSize())
 
 	var item []byte
 	eventHeader := output.EventHeader{
 		Data_byte_len: uint32(
 			unsafe.Sizeof(output.EventHeader{}) +
 				1 /* bitset */ + unsafe.Sizeof(output.DataItemHeader{}) +
-				16 + 7 /* padding */ +
+				32 + 7 /* padding */ +
 				unsafe.Sizeof(output.DataItemHeader{}) +
 				16,
 		),
@@ -190,7 +255,7 @@ func simpleStringArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	}
 	dataItem0 := output.DataItemHeader{
 		Type:    uint32(eventType.GetID()),
-		Length:  17,
+		Length:  33,
 		Address: 0,
 	}
 	dataItem1 := output.DataItemHeader{
@@ -204,7 +269,11 @@ func simpleStringArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	item = append(item, unsafe.Slice(
 		(*byte)(unsafe.Pointer(&dataItem0)), unsafe.Sizeof(dataItem0))...,
 	)
-	item = append(item, 1) // bitset
+	item = append(item, 3) // bitset: bit 0 (argument) and bit 1 (template_segment) set
+	// First expression (argument) at offset 1
+	item = binary.NativeEndian.AppendUint64(item, 0xdeadbeef)
+	item = binary.NativeEndian.AppendUint64(item, 16)
+	// Second expression (template_segment) at offset 17
 	item = binary.NativeEndian.AppendUint64(item, 0xdeadbeef)
 	item = binary.NativeEndian.AppendUint64(item, 16)
 	item = append(item, 0, 0, 0, 0, 0, 0, 0) // padding
@@ -245,8 +314,8 @@ func simpleMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	)
 
 	require.NotNil(t, eventType)
-	// Expect exactly one expression for parameter 'm'
-	require.NotEmpty(t, eventType.Expressions)
+	// Expect two expressions: argument and template_segment
+	require.GreaterOrEqual(t, len(eventType.Expressions), 2)
 	paramType := eventType.Expressions[0].Expression.Type
 	var ok bool
 	mapParamType, ok = paramType.(*ir.GoMapType)
@@ -290,14 +359,18 @@ func simpleMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		strAddr     = uint64(0x300000003)
 	)
 
-	// Build root data item (presence bitset + pointer to header)
+	// Build root data item (presence bitset + pointers to header)
 	rootData := make([]byte, rootLen)
-	// Set presence bit for first expression
+	// Set presence bits for both expressions (bit 0 for argument, bit 1 for template_segment)
 	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 1
+		rootData[0] = 3 // bits 0 and 1 set
 	}
+	// First expression (argument) at offset 1
 	ptrOff := int(eventType.Expressions[0].Offset)
 	binary.NativeEndian.PutUint64(rootData[ptrOff:ptrOff+8], headerAddr)
+	// Second expression (template_segment) at offset 9
+	templatePtrOff := int(eventType.Expressions[1].Offset)
+	binary.NativeEndian.PutUint64(rootData[templatePtrOff:templatePtrOff+8], headerAddr)
 
 	// Build header bytes
 	headerData := make([]byte, headerLen)
@@ -405,6 +478,446 @@ func simpleMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	return item
 }
 
+func simpleSwissMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
+	probe := slices.IndexFunc(irProg.Probes, func(p *ir.Probe) bool {
+		return p.GetID() == "mapArg"
+	})
+	require.NotEqual(t, -1, probe)
+	events := irProg.Probes[probe].Events
+	require.GreaterOrEqual(t, len(events), 1)
+	eventType := events[0].Type
+
+	var (
+		mapParamType    *ir.GoMapType
+		headerType      *ir.GoSwissMapHeaderType
+		groupType       *ir.StructureType
+		stringHdrType   *ir.GoStringHeaderType
+		slotsArrayType  *ir.ArrayType
+		entryStructType *ir.StructureType
+	)
+
+	require.NotNil(t, eventType)
+	require.GreaterOrEqual(t, len(eventType.Expressions), 2)
+	paramType := eventType.Expressions[0].Expression.Type
+	var ok bool
+	mapParamType, ok = paramType.(*ir.GoMapType)
+	require.True(t, ok, "expected map parameter type, got %T", paramType)
+	headerType, ok = mapParamType.HeaderType.(*ir.GoSwissMapHeaderType)
+	require.True(t, ok, "expected swiss map header type, got %T", mapParamType.HeaderType)
+	groupType = headerType.GroupType
+	require.NotNil(t, groupType)
+
+	// Find slots field in group
+	slotsFieldIdx := slices.IndexFunc(groupType.RawFields, func(f ir.Field) bool {
+		return f.Name == "slots"
+	})
+	require.NotEqual(t, -1, slotsFieldIdx, "slots field not found")
+	slotsField := groupType.RawFields[slotsFieldIdx]
+	slotsFieldOffset := slotsField.Offset
+	ctrlField := fieldOffsetByName(t, groupType.RawFields, "ctrl")
+	slotsArrayType, ok = slotsField.Type.(*ir.ArrayType)
+	require.True(t, ok, "expected slots to be array type, got %T", slotsField.Type)
+	entryStructType, ok = slotsArrayType.Element.(*ir.StructureType)
+	require.True(t, ok, "expected slots element to be struct type, got %T", slotsArrayType.Element)
+
+	// Find key and elem fields in entry struct
+	keyFieldIdx := slices.IndexFunc(entryStructType.RawFields, func(f ir.Field) bool {
+		return f.Name == "key"
+	})
+	require.NotEqual(t, -1, keyFieldIdx, "key field not found")
+	keyFieldOffset := entryStructType.RawFields[keyFieldIdx].Offset
+	elemFieldOffset := fieldOffsetByName(t, entryStructType.RawFields, "elem")
+	keyFieldType := entryStructType.RawFields[keyFieldIdx].Type
+	stringHdrType, ok = keyFieldType.(*ir.GoStringHeaderType)
+	require.True(t, ok, "expected string key type, got %T", keyFieldType)
+
+	// Offsets in header
+	dirPtrOff := fieldOffsetByName(t, headerType.RawFields, "dirPtr")
+	dirLenOff := fieldOffsetByName(t, headerType.RawFields, "dirLen")
+	usedOff := fieldOffsetByName(t, headerType.RawFields, "used")
+
+	// Offsets in string header
+	strPtrOff := fieldOffsetByName(t, stringHdrType.RawFields, "str")
+	strLenOff := fieldOffsetByName(t, stringHdrType.RawFields, "len")
+
+	// Sizes
+	rootLen := int(eventType.GetByteSize())
+	headerLen := int(headerType.GetByteSize())
+	groupLen := int(groupType.GetByteSize())
+	entrySize := int(entryStructType.GetByteSize())
+
+	// Addresses
+	const (
+		headerAddr = uint64(0x100000001)
+		groupAddr  = uint64(0x200000002)
+		strAddr    = uint64(0x300000003)
+	)
+
+	// Build root data item
+	rootData := make([]byte, rootLen)
+	if eventType.PresenceBitsetSize > 0 {
+		rootData[0] = 3 // bits 0 and 1 set
+	}
+	ptrOff := int(eventType.Expressions[0].Offset)
+	binary.NativeEndian.PutUint64(rootData[ptrOff:ptrOff+8], headerAddr)
+	templatePtrOff := int(eventType.Expressions[1].Offset)
+	binary.NativeEndian.PutUint64(rootData[templatePtrOff:templatePtrOff+8], headerAddr)
+
+	// Build header bytes
+	headerData := make([]byte, headerLen)
+	// dirLen = 0 (means dirPtr points directly to group)
+	binary.NativeEndian.PutUint64(headerData[dirLenOff:dirLenOff+8], 0)
+	// dirPtr points to group
+	binary.NativeEndian.PutUint64(headerData[dirPtrOff:dirPtrOff+8], groupAddr)
+	// used = 1
+	binary.NativeEndian.PutUint64(headerData[usedOff:usedOff+8], 1)
+
+	// Build group data with one entry: ["a"] => 1
+	groupData := make([]byte, groupLen)
+	// ctrl: mark slot 0 as occupied (bit 7+0*8 = bit 7 should be 0)
+	// All other slots empty (bits 7+1*8 through 7+7*8 should be 1)
+	ctrlWord := uint64(0)
+	for i := 1; i < 8; i++ {
+		ctrlWord |= 1 << (7 + uint(i*8))
+	}
+	binary.LittleEndian.PutUint64(groupData[ctrlField:ctrlField+8], ctrlWord)
+	// Entry 0: key (string header)
+	entry0Off := slotsFieldOffset + 0*uint32(entrySize)
+	keyOff := entry0Off + keyFieldOffset
+	binary.NativeEndian.PutUint64(groupData[keyOff+strPtrOff:keyOff+strPtrOff+8], strAddr)
+	binary.NativeEndian.PutUint64(groupData[keyOff+strLenOff:keyOff+strLenOff+8], 1)
+	// Entry 0: value (int = 1)
+	elemOff := entry0Off + elemFieldOffset
+	binary.NativeEndian.PutUint64(groupData[elemOff:elemOff+8], 1)
+
+	// String data bytes for "a"
+	strData := []byte("a")
+
+	// Compute total event length with padding
+	const (
+		eventHeaderSize    = int(unsafe.Sizeof(output.EventHeader{}))
+		dataItemHeaderSize = int(unsafe.Sizeof(output.DataItemHeader{}))
+	)
+	nextMultipleOf8 := func(v int) int { return (v + 7) & ^7 }
+
+	sz := eventHeaderSize
+	sz += dataItemHeaderSize + rootLen
+	sz = nextMultipleOf8(sz)
+	sz += dataItemHeaderSize + headerLen
+	sz = nextMultipleOf8(sz)
+	sz += dataItemHeaderSize + groupLen
+	sz = nextMultipleOf8(sz)
+	sz += dataItemHeaderSize + len(strData)
+	sz = nextMultipleOf8(sz)
+
+	var item []byte
+	eventHeader := output.EventHeader{
+		Data_byte_len:  uint32(sz),
+		Prog_id:        1,
+		Stack_byte_len: 0,
+		Stack_hash:     1,
+		Ktime_ns:       1,
+	}
+
+	rootHeader := output.DataItemHeader{
+		Type:    uint32(eventType.GetID()),
+		Length:  uint32(rootLen),
+		Address: 0,
+	}
+	mapHeader := output.DataItemHeader{
+		Type:    uint32(headerType.GetID()),
+		Length:  uint32(headerLen),
+		Address: headerAddr,
+	}
+	groupHeader := output.DataItemHeader{
+		Type:    uint32(groupType.GetID()),
+		Length:  uint32(groupLen),
+		Address: groupAddr,
+	}
+	strHeader := output.DataItemHeader{
+		Type:    uint32(stringHdrType.Data.GetID()),
+		Length:  uint32(len(strData)),
+		Address: strAddr,
+	}
+
+	pad := func() {
+		for (len(item) % 8) != 0 {
+			item = append(item, 0)
+		}
+	}
+
+	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&eventHeader)), unsafe.Sizeof(eventHeader))...)
+	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&rootHeader)), unsafe.Sizeof(rootHeader))...)
+	item = append(item, rootData...)
+	pad()
+	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&mapHeader)), unsafe.Sizeof(mapHeader))...)
+	item = append(item, headerData...)
+	pad()
+	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&groupHeader)), unsafe.Sizeof(groupHeader))...)
+	item = append(item, groupData...)
+	pad()
+	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&strHeader)), unsafe.Sizeof(strHeader))...)
+	item = append(item, strData...)
+	pad()
+
+	return item
+}
+
+func simpleSwissMapTablesArgEvent(t testing.TB, irProg *ir.Program) []byte {
+	probe := slices.IndexFunc(irProg.Probes, func(p *ir.Probe) bool {
+		return p.GetID() == "mapArg"
+	})
+	require.NotEqual(t, -1, probe)
+	events := irProg.Probes[probe].Events
+	require.GreaterOrEqual(t, len(events), 1)
+	eventType := events[0].Type
+
+	var (
+		mapParamType      *ir.GoMapType
+		headerType        *ir.GoSwissMapHeaderType
+		groupType         *ir.StructureType
+		stringHdrType     *ir.GoStringHeaderType
+		tablePtrSliceType *ir.GoSliceDataType
+		tablePtrType      *ir.PointerType
+		tableType         *ir.StructureType
+		groupsType        *ir.GoSwissMapGroupsType
+		groupSliceType    *ir.GoSliceDataType
+		slotsArrayType    *ir.ArrayType
+		entryStructType   *ir.StructureType
+	)
+
+	require.NotNil(t, eventType)
+	require.GreaterOrEqual(t, len(eventType.Expressions), 2)
+	paramType := eventType.Expressions[0].Expression.Type
+	var ok bool
+	mapParamType, ok = paramType.(*ir.GoMapType)
+	require.True(t, ok, "expected map parameter type, got %T", paramType)
+	headerType, ok = mapParamType.HeaderType.(*ir.GoSwissMapHeaderType)
+	require.True(t, ok, "expected swiss map header type, got %T", mapParamType.HeaderType)
+	groupType = headerType.GroupType
+	require.NotNil(t, groupType)
+	tablePtrSliceType = headerType.TablePtrSliceType
+	require.NotNil(t, tablePtrSliceType)
+	tablePtrType, ok = tablePtrSliceType.Element.(*ir.PointerType)
+	require.True(t, ok, "expected table pointer type")
+	tableType, ok = tablePtrType.Pointee.(*ir.StructureType)
+	require.True(t, ok, "expected table structure type")
+
+	// Find groups field in table
+	groupsFieldIdx := slices.IndexFunc(tableType.RawFields, func(f ir.Field) bool {
+		return f.Name == "groups"
+	})
+	require.NotEqual(t, -1, groupsFieldIdx, "groups field not found")
+	groupsField := tableType.RawFields[groupsFieldIdx]
+	groupsType, ok = groupsField.Type.(*ir.GoSwissMapGroupsType)
+	require.True(t, ok, "expected swiss map groups type, got %T", groupsField.Type)
+	groupSliceType = groupsType.GroupSliceType
+	require.NotNil(t, groupSliceType)
+
+	// Find slots field in group
+	slotsFieldIdx := slices.IndexFunc(groupType.RawFields, func(f ir.Field) bool {
+		return f.Name == "slots"
+	})
+	require.NotEqual(t, -1, slotsFieldIdx, "slots field not found")
+	slotsField := groupType.RawFields[slotsFieldIdx]
+	slotsArrayType, ok = slotsField.Type.(*ir.ArrayType)
+	require.True(t, ok, "expected slots to be array type, got %T", slotsField.Type)
+	entryStructType, ok = slotsArrayType.Element.(*ir.StructureType)
+	require.True(t, ok, "expected slots element to be struct type, got %T", slotsArrayType.Element)
+
+	// Find key and elem fields in entry struct
+	keyFieldIdx := slices.IndexFunc(entryStructType.RawFields, func(f ir.Field) bool {
+		return f.Name == "key"
+	})
+	require.NotEqual(t, -1, keyFieldIdx, "key field not found")
+	keyFieldOffset := entryStructType.RawFields[keyFieldIdx].Offset
+	elemFieldOffset := fieldOffsetByName(t, entryStructType.RawFields, "elem")
+	keyFieldType := entryStructType.RawFields[keyFieldIdx].Type
+	stringHdrType, ok = keyFieldType.(*ir.GoStringHeaderType)
+	require.True(t, ok, "expected string key type, got %T", keyFieldType)
+
+	// Offsets in header
+	dirPtrOff := fieldOffsetByName(t, headerType.RawFields, "dirPtr")
+	dirLenOff := fieldOffsetByName(t, headerType.RawFields, "dirLen")
+	usedOff := fieldOffsetByName(t, headerType.RawFields, "used")
+
+	// Offsets in table
+	groupsFieldOffset := groupsField.Offset
+
+	// Offsets in groups structure
+	dataFieldOffset := fieldOffsetByName(t, groupsType.RawFields, "data")
+
+	// Offsets in group
+	slotsFieldOffset := slotsField.Offset
+	ctrlField := fieldOffsetByName(t, groupType.RawFields, "ctrl")
+
+	// Offsets in string header
+	strPtrOff := fieldOffsetByName(t, stringHdrType.RawFields, "str")
+	strLenOff := fieldOffsetByName(t, stringHdrType.RawFields, "len")
+
+	// Sizes
+	rootLen := int(eventType.GetByteSize())
+	headerLen := int(headerType.GetByteSize())
+	tableLen := int(tableType.GetByteSize())
+	groupsStructLen := int(groupsType.GetByteSize())
+	entrySize := int(entryStructType.GetByteSize())
+	groupSliceElementSize := int(groupSliceType.Element.GetByteSize())
+
+	// Addresses
+	const (
+		headerAddr        = uint64(0x100000001)
+		tablePtrSliceAddr = uint64(0x200000002)
+		tableAddr         = uint64(0x300000003)
+		groupsSliceAddr   = uint64(0x400000004)
+		strAddr           = uint64(0x500000005)
+	)
+
+	// Build root data item
+	rootData := make([]byte, rootLen)
+	if eventType.PresenceBitsetSize > 0 {
+		rootData[0] = 3 // bits 0 and 1 set
+	}
+	ptrOff := int(eventType.Expressions[0].Offset)
+	binary.NativeEndian.PutUint64(rootData[ptrOff:ptrOff+8], headerAddr)
+	templatePtrOff := int(eventType.Expressions[1].Offset)
+	binary.NativeEndian.PutUint64(rootData[templatePtrOff:templatePtrOff+8], headerAddr)
+
+	// Build header bytes
+	headerData := make([]byte, headerLen)
+	// dirLen = 1 (means dirPtr points to table pointer slice)
+	binary.NativeEndian.PutUint64(headerData[dirLenOff:dirLenOff+8], 1)
+	// dirPtr points to table pointer slice
+	binary.NativeEndian.PutUint64(headerData[dirPtrOff:dirPtrOff+8], tablePtrSliceAddr)
+	// used = 1
+	binary.NativeEndian.PutUint64(headerData[usedOff:usedOff+8], 1)
+
+	// Build table pointer slice data (one pointer to table)
+	tablePtrSliceData := make([]byte, 8)
+	binary.NativeEndian.PutUint64(tablePtrSliceData, tableAddr)
+
+	// Build table data
+	tableData := make([]byte, tableLen)
+	// groups field is stored inline in the table (not a pointer)
+	// The groups structure's data field points to the slice
+	groupsStructInline := tableData[groupsFieldOffset : groupsFieldOffset+uint32(groupsStructLen)]
+	binary.NativeEndian.PutUint64(groupsStructInline[dataFieldOffset:dataFieldOffset+8], groupsSliceAddr)
+
+	// Build groups slice data (one group)
+	groupsSliceData := make([]byte, groupSliceElementSize)
+	// Copy group data will be done separately, but we need the slice to point to it
+	// Actually, the groups slice contains the group data directly, not pointers
+	// So groupsSliceData IS the group data
+	groupData := groupsSliceData
+
+	// Build group data with one entry: ["a"] => 1
+	// ctrl: mark slot 0 as occupied (bit 7+0*8 = bit 7 should be 0)
+	ctrlWord := uint64(0)
+	for i := 1; i < 8; i++ {
+		ctrlWord |= 1 << (7 + uint(i*8))
+	}
+	binary.LittleEndian.PutUint64(groupData[ctrlField:ctrlField+8], ctrlWord)
+	// Entry 0: key (string header)
+	entry0Off := slotsFieldOffset + 0*uint32(entrySize)
+	keyOff := entry0Off + keyFieldOffset
+	binary.NativeEndian.PutUint64(groupData[keyOff+strPtrOff:keyOff+strPtrOff+8], strAddr)
+	binary.NativeEndian.PutUint64(groupData[keyOff+strLenOff:keyOff+strLenOff+8], 1)
+	// Entry 0: value (int = 1)
+	elemOff := entry0Off + elemFieldOffset
+	binary.NativeEndian.PutUint64(groupData[elemOff:elemOff+8], 1)
+
+	// String data bytes for "a"
+	strData := []byte("a")
+
+	// Compute total event length with padding
+	const (
+		eventHeaderSize    = int(unsafe.Sizeof(output.EventHeader{}))
+		dataItemHeaderSize = int(unsafe.Sizeof(output.DataItemHeader{}))
+	)
+	nextMultipleOf8 := func(v int) int { return (v + 7) & ^7 }
+
+	sz := eventHeaderSize
+	sz += dataItemHeaderSize + rootLen
+	sz = nextMultipleOf8(sz)
+	sz += dataItemHeaderSize + headerLen
+	sz = nextMultipleOf8(sz)
+	sz += dataItemHeaderSize + len(tablePtrSliceData)
+	sz = nextMultipleOf8(sz)
+	sz += dataItemHeaderSize + tableLen
+	sz = nextMultipleOf8(sz)
+	sz += dataItemHeaderSize + len(groupsSliceData)
+	sz = nextMultipleOf8(sz)
+	sz += dataItemHeaderSize + len(strData)
+	sz = nextMultipleOf8(sz)
+
+	var item []byte
+	eventHeader := output.EventHeader{
+		Data_byte_len:  uint32(sz),
+		Prog_id:        1,
+		Stack_byte_len: 0,
+		Stack_hash:     1,
+		Ktime_ns:       1,
+	}
+
+	rootHeader := output.DataItemHeader{
+		Type:    uint32(eventType.GetID()),
+		Length:  uint32(rootLen),
+		Address: 0,
+	}
+	mapHeader := output.DataItemHeader{
+		Type:    uint32(headerType.GetID()),
+		Length:  uint32(headerLen),
+		Address: headerAddr,
+	}
+	tablePtrSliceHeader := output.DataItemHeader{
+		Type:    uint32(tablePtrSliceType.GetID()),
+		Length:  uint32(len(tablePtrSliceData)),
+		Address: tablePtrSliceAddr,
+	}
+	tableHeader := output.DataItemHeader{
+		Type:    uint32(tableType.GetID()),
+		Length:  uint32(tableLen),
+		Address: tableAddr,
+	}
+	groupsSliceHeader := output.DataItemHeader{
+		Type:    uint32(groupSliceType.GetID()),
+		Length:  uint32(len(groupsSliceData)),
+		Address: groupsSliceAddr,
+	}
+	strHeader := output.DataItemHeader{
+		Type:    uint32(stringHdrType.Data.GetID()),
+		Length:  uint32(len(strData)),
+		Address: strAddr,
+	}
+
+	pad := func() {
+		for (len(item) % 8) != 0 {
+			item = append(item, 0)
+		}
+	}
+
+	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&eventHeader)), unsafe.Sizeof(eventHeader))...)
+	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&rootHeader)), unsafe.Sizeof(rootHeader))...)
+	item = append(item, rootData...)
+	pad()
+	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&mapHeader)), unsafe.Sizeof(mapHeader))...)
+	item = append(item, headerData...)
+	pad()
+	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&tablePtrSliceHeader)), unsafe.Sizeof(tablePtrSliceHeader))...)
+	item = append(item, tablePtrSliceData...)
+	pad()
+	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&tableHeader)), unsafe.Sizeof(tableHeader))...)
+	item = append(item, tableData...)
+	pad()
+	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&groupsSliceHeader)), unsafe.Sizeof(groupsSliceHeader))...)
+	item = append(item, groupsSliceData...)
+	pad()
+	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&strHeader)), unsafe.Sizeof(strHeader))...)
+	item = append(item, strData...)
+	pad()
+
+	return item
+}
+
 var simpleBigMapArgExpected = map[string]any{
 	"m": map[string]any{
 		"type": "map[string]main.bigStruct",
@@ -494,11 +1007,16 @@ func simpleBigMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	)
 
 	rootData := make([]byte, rootLen)
+	// Set presence bits for both expressions (bit 0 for argument, bit 1 for template_segment)
 	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 1
+		rootData[0] = 3 // bits 0 and 1 set
 	}
+	// First expression (argument) at offset 1
 	ptrOff := int(eventType.Expressions[0].Offset)
 	binary.NativeEndian.PutUint64(rootData[ptrOff:ptrOff+8], headerAddr)
+	// Second expression (template_segment) at offset 9
+	templatePtrOff := int(eventType.Expressions[1].Offset)
+	binary.NativeEndian.PutUint64(rootData[templatePtrOff:templatePtrOff+8], headerAddr)
 
 	headerData := make([]byte, headerLen)
 	binary.NativeEndian.PutUint64(headerData[countOff:countOff+8], 1)
@@ -611,8 +1129,9 @@ func simplePointerChainArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	eventType := events[0].Type
 	rootLen := int(eventType.GetByteSize())
 	rootData := make([]byte, rootLen)
+	// Set presence bits for both expressions (bit 0 for argument, bit 1 for template_segment)
 	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 1
+		rootData[0] = 3 // bits 0 and 1 set
 	}
 	// Build a fully captured pointer chain *****int → int(17)
 	argType := eventType.Expressions[0].Expression.Type
@@ -636,9 +1155,12 @@ func simplePointerChainArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		addr4 = uint64(0xa0000004)
 		addr5 = uint64(0xa0000005)
 	)
-	// Root data contains address of first pointer
+	// First expression (argument) at offset 1: address of first pointer
 	off := int(eventType.Expressions[0].Offset)
 	binary.NativeEndian.PutUint64(rootData[off:off+8], addr1)
+	// Second expression (template_segment) at offset 9: same address
+	templateOff := int(eventType.Expressions[1].Offset)
+	binary.NativeEndian.PutUint64(rootData[templateOff:templateOff+8], addr1)
 
 	// Helper to build a pointer data item (8-byte address payload)
 	makePtrItem := func(tid ir.TypeID, addr uint64, pointsTo uint64) (hdr output.DataItemHeader, data []byte) {
@@ -723,6 +1245,29 @@ func fieldOffsetByName(t testing.TB, fields []ir.Field, name string) uint32 {
 	return 0
 }
 
+// addStackToEvent adds a stack trace to an event and returns a new event with
+// the stack embedded.
+func addStackToEvent(event []byte, stack []uint64) []byte {
+	stackByteLen := len(stack) * 8
+	headerSize := int(unsafe.Sizeof(output.EventHeader{}))
+	newEvent := make([]byte, len(event)+stackByteLen)
+	copy(newEvent, event)
+	copy(newEvent[headerSize+stackByteLen:], event[headerSize:])
+	header, err := output.Event(newEvent[:len(event)]).Header()
+	if err != nil {
+		panic(fmt.Sprintf("failed to get header: %v", err))
+	}
+	header.Data_byte_len += uint32(stackByteLen)
+	header.Stack_byte_len = uint16(stackByteLen)
+	*(*output.EventHeader)(unsafe.Pointer(&newEvent[0])) = *header
+	for i, addr := range stack {
+		binary.NativeEndian.PutUint64(
+			newEvent[headerSize+i*8:], addr,
+		)
+	}
+	return newEvent
+}
+
 type noopSymbolicator struct{}
 
 func (s *noopSymbolicator) Symbolicate(
@@ -752,13 +1297,13 @@ func (t *panicDecoderType) encodeValueFields(
 }
 
 func TestDecoderPanics(t *testing.T) {
-	irProg := generateIrForProbes(t, "simple", "stringArg")
-	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
-	require.NoError(t, err)
 	caseIdx := slices.IndexFunc(cases, func(c testCase) bool {
 		return c.probeName == "stringArg"
 	})
 	testCase := &cases[caseIdx]
+	irProg := generateIrForProbes(t, "simple", testCase.goVersion, "stringArg")
+	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+	require.NoError(t, err)
 	input := testCase.eventConstructor(t, irProg)
 	var stringType ir.Type
 	for _, t := range irProg.Types {
@@ -774,6 +1319,7 @@ func TestDecoderPanics(t *testing.T) {
 		EntryOrLine: output.Event(input),
 		ServiceName: "foo"},
 		&noopSymbolicator{},
+		nil,
 		[]byte{},
 	)
 	require.Error(t, err)
@@ -781,13 +1327,13 @@ func TestDecoderPanics(t *testing.T) {
 }
 
 func TestDecoderFailsOnEvaluationError(t *testing.T) {
-	irProg := generateIrForProbes(t, "simple", "stringArg")
-	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
-	require.NoError(t, err)
 	caseIdx := slices.IndexFunc(cases, func(c testCase) bool {
 		return c.probeName == "stringArg"
 	})
 	testCase := &cases[caseIdx]
+	irProg := generateIrForProbes(t, "simple", testCase.goVersion, "stringArg")
+	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+	require.NoError(t, err)
 	input := testCase.eventConstructor(t, irProg)
 	var stringType ir.Type
 	for _, t := range irProg.Types {
@@ -803,10 +1349,51 @@ func TestDecoderFailsOnEvaluationError(t *testing.T) {
 		EntryOrLine: output.Event(input),
 		ServiceName: "foo"},
 		&noopSymbolicator{},
+		nil,
 		[]byte{},
 	)
 	require.NoError(t, err)
 	require.Contains(t, string(out), "no decoder type found")
+}
+
+func TestDecoderIsRobustToDataItemDecodingErrors(t *testing.T) {
+	c := cases[0]
+	irProg := generateIrForProbes(t, "simple", c.goVersion, c.probeName)
+	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+	require.NoError(t, err)
+	eventData := simpleStringArgEvent(t, irProg)
+	event := output.Event(eventData)
+	eventHeader, err := output.Event(eventData).Header()
+	require.NoError(t, err)
+	newItemOffset := eventHeader.Data_byte_len
+	eventHeader.Data_byte_len += uint32(unsafe.Sizeof(output.DataItemHeader{}) + 8)
+	for range unsafe.Sizeof(output.DataItemHeader{}) + 8 {
+		event = append(event, 0)
+	}
+	dataItemHeader := (*output.DataItemHeader)(unsafe.Pointer(&event[newItemOffset]))
+	dataItemHeader.Type = uint32(ir.TypeID(1))
+	dataItemHeader.Length = 424242 // too long
+	dataItemHeader.Address = 0xdeadbeef
+	var items []output.DataItem
+	var itemErr error
+	for item, err := range event.DataItems() {
+		if err != nil {
+			itemErr = err
+			break
+		}
+		items = append(items, item)
+	}
+	require.Regexp(t, "not enough bytes to read data item", itemErr)
+
+	buf, probe, err := decoder.Decode(Event{
+		EntryOrLine: event,
+		ServiceName: "foo",
+	}, &noopSymbolicator{}, nil, []byte{})
+	require.NoError(t, err)
+	require.Equal(t, c.probeName, probe.GetID())
+	var e eventCaptures
+	require.NoError(t, json.Unmarshal(buf, &e))
+	require.Equal(t, c.expected, e.Debugger.Snapshot.Captures.Entry.Arguments)
 }
 
 // TestDecoderFailsOnEvaluationErrorAndRetainsPassedBuffer tests that the decoder
@@ -815,13 +1402,13 @@ func TestDecoderFailsOnEvaluationError(t *testing.T) {
 // buffer to avoid unnecessary allocations and they will expect the buffer to be
 // appended to only.
 func TestDecoderFailsOnEvaluationErrorAndRetainsPassedBuffer(t *testing.T) {
-	irProg := generateIrForProbes(t, "simple", "stringArg")
-	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
-	require.NoError(t, err)
 	caseIdx := slices.IndexFunc(cases, func(c testCase) bool {
 		return c.probeName == "stringArg"
 	})
 	testCase := &cases[caseIdx]
+	irProg := generateIrForProbes(t, "simple", testCase.goVersion, "stringArg")
+	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+	require.NoError(t, err)
 	input := testCase.eventConstructor(t, irProg)
 	var stringType ir.Type
 	for _, t := range irProg.Types {
@@ -843,10 +1430,120 @@ func TestDecoderFailsOnEvaluationErrorAndRetainsPassedBuffer(t *testing.T) {
 		EntryOrLine: output.Event(input),
 		ServiceName: "foo"},
 		&noopSymbolicator{},
+		nil,
 		buf,
 	)
 	require.NoError(t, err)
 	require.Contains(t, string(out), "no decoder type found")
 	require.Equal(t, buf, []byte{1, 2, 3, 4, 5})
 
+}
+
+func TestDecoderMissingReturnEventEvaluationError(t *testing.T) {
+	tests := []struct {
+		name                    string
+		pairingExpectation      output.EventPairingExpectation
+		expectedErrorExpression string
+		expectedErrorMessage    string
+		shouldHaveError         bool
+	}{
+		{
+			name:                    "return pairing expected",
+			pairingExpectation:      output.EventPairingExpectationReturnPairingExpected,
+			expectedErrorExpression: "@duration",
+			expectedErrorMessage:    "not available: return event not received",
+			shouldHaveError:         true,
+		},
+		{
+			name:                    "buffer full",
+			pairingExpectation:      output.EventPairingExpectationBufferFull,
+			expectedErrorExpression: "@duration",
+			expectedErrorMessage:    "not available: userspace buffer capacity exceeded",
+			shouldHaveError:         true,
+		},
+		{
+			name:                    "call map full",
+			pairingExpectation:      output.EventPairingExpectationCallMapFull,
+			expectedErrorExpression: "@duration",
+			expectedErrorMessage:    "not available: call map capacity exceeded",
+			shouldHaveError:         true,
+		},
+		{
+			name:                    "call count exceeded",
+			pairingExpectation:      output.EventPairingExpectationCallCountExceeded,
+			expectedErrorExpression: "@duration",
+			expectedErrorMessage:    "not available: maximum call count exceeded",
+			shouldHaveError:         true,
+		},
+		{
+			name:                    "inlined",
+			pairingExpectation:      output.EventPairingExpectationNoneInlined,
+			expectedErrorExpression: "@duration",
+			expectedErrorMessage:    "not available: function was inlined",
+			shouldHaveError:         true,
+		},
+		{
+			name:                    "no body",
+			pairingExpectation:      output.EventPairingExpectationNoneNoBody,
+			expectedErrorExpression: "@duration",
+			expectedErrorMessage:    "not available: function has no body",
+			shouldHaveError:         true,
+		},
+		{
+			name:               "no pairing expected",
+			pairingExpectation: output.EventPairingExpectationNone,
+			shouldHaveError:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			caseIdx := slices.IndexFunc(cases, func(c testCase) bool {
+				return c.probeName == "stringArg"
+			})
+			testCase := &cases[caseIdx]
+			irProg := generateIrForProbes(t, "simple", testCase.goVersion, "stringArg")
+			decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+			require.NoError(t, err)
+
+			// Construct an entry event with the specified pairing expectation
+			eventData := simpleStringArgEvent(t, irProg)
+			stack := []uint64{0x1000, 0x2000, 0x3000}
+			newEvent := addStackToEvent(eventData, stack)
+			header, err := output.Event(newEvent).Header()
+			require.NoError(t, err)
+			header.Event_pairing_expectation = uint8(tt.pairingExpectation)
+
+			buf, probe, err := decoder.Decode(Event{
+				EntryOrLine: newEvent,
+				Return:      nil, // Explicitly no return event
+				ServiceName: "foo",
+			}, &noopSymbolicator{}, nil, []byte{})
+			require.NoError(t, err)
+			require.Equal(t, "stringArg", probe.GetID())
+
+			var e eventCaptures
+			require.NoError(t, json.Unmarshal(buf, &e))
+
+			if tt.shouldHaveError {
+				require.NotEmpty(t, e.Debugger.EvaluationErrors,
+					"expected evaluation error but none found")
+				found := false
+				for _, evalErr := range e.Debugger.EvaluationErrors {
+					if evalErr.Expression == tt.expectedErrorExpression &&
+						evalErr.Message == tt.expectedErrorMessage {
+						found = true
+						break
+					}
+				}
+				require.True(t, found,
+					"expected evaluation error with expression %q and message %q, got errors: %+v",
+					tt.expectedErrorExpression, tt.expectedErrorMessage,
+					e.Debugger.EvaluationErrors)
+			} else {
+				// Check that there's no return-related error
+				require.Empty(t, e.Debugger.EvaluationErrors)
+			}
+		})
+	}
 }

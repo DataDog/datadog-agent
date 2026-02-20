@@ -19,22 +19,6 @@ var _ = time.Time{}
 var _ = net.IP{}
 var _ = eval.NewContext
 
-// GetContainerCreatedAt returns the value of the field, resolving if necessary
-func (ev *Event) GetContainerCreatedAt() int {
-	if ev.BaseEvent.ContainerContext == nil {
-		return 0
-	}
-	return ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)
-}
-
-// GetContainerId returns the value of the field, resolving if necessary
-func (ev *Event) GetContainerId() string {
-	if ev.BaseEvent.ContainerContext == nil {
-		return ""
-	}
-	return ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext)
-}
-
 // GetEventService returns the value of the field, resolving if necessary
 func (ev *Event) GetEventService() string {
 	return ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)

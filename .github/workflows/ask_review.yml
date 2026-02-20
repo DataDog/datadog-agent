@@ -1,0 +1,45 @@
+---
+name: "Ask for code reviews"
+
+on:
+  pull_request:
+    types: [labeled, review_requested]
+
+permissions: {}
+
+jobs:
+  ask-reviews:
+    if: github.triggering_actor != 'dd-devflow[bot]' && (github.event.action != 'labeled' || github.event.label.name == 'ask-review')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
+      - name: Ask for code reviews
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+          REQUESTED_TEAMS: ${{ toJSON(github.event.pull_request.requested_teams) }}
+        run: |
+          options=()
+          if [ "${{ github.event.action }}" == "labeled" ] && [ "${{ github.event.label.name }}" == "ask-review" ]; then
+            # ask_reviews uses @task(iterable=["team_slugs"]) so we pass --team-slugs multiple times
+            mapfile -t slugs < <(jq -r '.[].slug' <<< "$REQUESTED_TEAMS")
+            for slug in "${slugs[@]}"; do
+              options+=(--team-slugs "$slug")
+            done
+          elif [ "${{ github.event.action }}" == "review_requested" ]; then
+            # Only handle team review requests; ignore user review requests (requested_team is empty in that case)
+            if [ -n "${{ github.event.requested_team.slug }}" ]; then
+              options+=(--team-slugs "${{ github.event.requested_team.slug }}")
+            else
+              echo "review_requested for a user (no requested_team); skipping."
+              exit 0
+            fi
+          fi
+          dda inv -- -e issue.ask-reviews -p "${{ github.event.pull_request.number }}" -a "${{ github.event.action }}" "${options[@]}"

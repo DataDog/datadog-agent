@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    [Remote Agent Management](https://docs.datadoghq.com/agent/fleet_automation/remote_management)
+    is now enabled by default for Agents running on Linux and Windows hosts.
+    This feature allows you to remotely upgrade and configure the Agent from the Datadog UI in Fleet Automation.
+
+    To disable, set ``remote_updates`` to ``false`` in the Agent configuration file.

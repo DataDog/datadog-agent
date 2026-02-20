@@ -35,11 +35,30 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 	}
 }
 func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
+	// handle legacy field mapping
+	if newField, found := GetDefaultLegacyFields(field); found {
+		field = newField
+	}
 	switch field {
 	}
 	return nil
 }
 func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int) (eval.Evaluator, error) {
+	// Handle array index access (e.g., field[0])
+	// This is processed here before the switch to support all array fields
+	baseField, arrayIndex, isArrayAccess, err := eval.ExtractArrayIndexAccess(field)
+	if err != nil {
+		return nil, err
+	}
+	if isArrayAccess {
+		// Get the base field evaluator (returns the full array)
+		arrayEvaluator, err := (&Model{}).GetEvaluator(baseField, regID, offset)
+		if err != nil {
+			return nil, err
+		}
+		// Wrap it to return only the specific index
+		return eval.WrapEvaluatorWithArrayIndex(arrayEvaluator, arrayIndex, baseField)
+	}
 	switch field {
 	case "change_permission.new_sd":
 		return &eval.StringEvaluator{
@@ -105,39 +124,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
-			Offset: offset,
-		}, nil
-	case "container.created_at":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
-	case "container.id":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
-	case "container.tags":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
-			},
-			Field:  field,
-			Weight: 9999 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "create.file.device_path":
@@ -581,15 +567,37 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: 200 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "exec.container.created_at":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Exec.Process.ContainerContext.CreatedAt)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "exec.container.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.Exec.Process.ContainerID
+				return string(ev.Exec.Process.ContainerContext.ContainerID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exec.container.tags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveContainerTags(ev, &ev.Exec.Process.ContainerContext)
+			},
+			Field:  field,
+			Weight: 9999 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "exec.created_at":
@@ -763,15 +771,37 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "exit.container.created_at":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Exit.Process.ContainerContext.CreatedAt)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "exit.container.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.Exit.Process.ContainerID
+				return string(ev.Exit.Process.ContainerContext.ContainerID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exit.container.tags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveContainerTags(ev, &ev.Exit.Process.ContainerContext)
+			},
+			Field:  field,
+			Weight: 9999 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "exit.created_at":
@@ -1031,6 +1061,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: 200 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "process.ancestors.container.created_at":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.ContainerContext.CreatedAt)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.ContainerContext.CreatedAt)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "process.ancestors.container.id":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -1042,20 +1099,47 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := element.ProcessContext.Process.ContainerID
+					result := string(element.ProcessContext.Process.ContainerContext.ContainerID)
 					return []string{result}
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
-					return current.ProcessContext.Process.ContainerID
+					return string(current.ProcessContext.Process.ContainerContext.ContainerID)
 				})
 				ctx.StringCache[field] = results
 				return results
 			},
 			Field:  field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.container.tags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveContainerTags(ev, &element.ProcessContext.Process.ContainerContext)
+					return result
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIteratorArray(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) []string {
+					return ev.FieldHandlers.ResolveContainerTags(ev, &current.ProcessContext.Process.ContainerContext)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: 9999 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "process.ancestors.created_at":
@@ -1410,15 +1494,37 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: 200 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "process.container.created_at":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.BaseEvent.ProcessContext.Process.ContainerContext.CreatedAt)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "process.container.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.BaseEvent.ProcessContext.Process.ContainerID
+				return string(ev.BaseEvent.ProcessContext.Process.ContainerContext.ContainerID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.container.tags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveContainerTags(ev, &ev.BaseEvent.ProcessContext.Process.ContainerContext)
+			},
+			Field:  field,
+			Weight: 9999 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "process.created_at":
@@ -1529,6 +1635,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: 200 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "process.parent.container.created_at":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return 0
+				}
+				return int(ev.BaseEvent.ProcessContext.Parent.ContainerContext.CreatedAt)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "process.parent.container.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -1537,10 +1657,24 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				return ev.BaseEvent.ProcessContext.Parent.ContainerID
+				return string(ev.BaseEvent.ProcessContext.Parent.ContainerContext.ContainerID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.container.tags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveContainerTags(ev, &ev.BaseEvent.ProcessContext.Parent.ContainerContext)
+			},
+			Field:  field,
+			Weight: 9999 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "process.parent.created_at":
@@ -2168,16 +2302,13 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
 func (ev *Event) GetFields() []eval.Field {
-	return []eval.Field{
+	fields := []eval.Field{
 		"change_permission.new_sd",
 		"change_permission.old_sd",
 		"change_permission.path",
 		"change_permission.type",
 		"change_permission.user_domain",
 		"change_permission.username",
-		"container.created_at",
-		"container.id",
-		"container.tags",
 		"create.file.device_path",
 		"create.file.device_path.length",
 		"create.file.extension",
@@ -2216,7 +2347,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"event.source",
 		"event.timestamp",
 		"exec.cmdline",
+		"exec.container.created_at",
 		"exec.container.id",
+		"exec.container.tags",
 		"exec.created_at",
 		"exec.envp",
 		"exec.envs",
@@ -2232,7 +2365,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.cause",
 		"exit.cmdline",
 		"exit.code",
+		"exit.container.created_at",
 		"exit.container.id",
+		"exit.container.tags",
 		"exit.created_at",
 		"exit.envp",
 		"exit.envs",
@@ -2254,7 +2389,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"open_key.registry.key_path",
 		"open_key.registry.key_path.length",
 		"process.ancestors.cmdline",
+		"process.ancestors.container.created_at",
 		"process.ancestors.container.id",
+		"process.ancestors.container.tags",
 		"process.ancestors.created_at",
 		"process.ancestors.envp",
 		"process.ancestors.envs",
@@ -2269,7 +2406,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.user",
 		"process.ancestors.user_sid",
 		"process.cmdline",
+		"process.container.created_at",
 		"process.container.id",
+		"process.container.tags",
 		"process.created_at",
 		"process.envp",
 		"process.envs",
@@ -2279,7 +2418,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.file.path",
 		"process.file.path.length",
 		"process.parent.cmdline",
+		"process.parent.container.created_at",
 		"process.parent.container.id",
+		"process.parent.container.tags",
 		"process.parent.created_at",
 		"process.parent.envp",
 		"process.parent.envs",
@@ -2332,341 +2473,373 @@ func (ev *Event) GetFields() []eval.Field {
 		"write.file.path",
 		"write.file.path.length",
 	}
+	// Add legacy field names if mapping is available
+	legacyKeys := GetDefaultLegacyFieldsKeys()
+	if legacyKeys != nil {
+		fields = append(fields, legacyKeys...)
+	}
+	return fields
 }
-func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, error) {
+
+// GetFieldMetadata returns EventType, reflect.Kind, BasicType, IsArray, error
+func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, bool, error) {
+	originalField := field
+	// handle legacy field mapping
+	if newField, found := GetDefaultLegacyFields(field); found {
+		field = newField
+	}
 	switch field {
 	case "change_permission.new_sd":
-		return "change_permission", reflect.String, "string", nil
+		return "change_permission", reflect.String, "string", false, nil
 	case "change_permission.old_sd":
-		return "change_permission", reflect.String, "string", nil
+		return "change_permission", reflect.String, "string", false, nil
 	case "change_permission.path":
-		return "change_permission", reflect.String, "string", nil
+		return "change_permission", reflect.String, "string", false, nil
 	case "change_permission.type":
-		return "change_permission", reflect.String, "string", nil
+		return "change_permission", reflect.String, "string", false, nil
 	case "change_permission.user_domain":
-		return "change_permission", reflect.String, "string", nil
+		return "change_permission", reflect.String, "string", false, nil
 	case "change_permission.username":
-		return "change_permission", reflect.String, "string", nil
-	case "container.created_at":
-		return "", reflect.Int, "int", nil
-	case "container.id":
-		return "", reflect.String, "string", nil
-	case "container.tags":
-		return "", reflect.String, "string", nil
+		return "change_permission", reflect.String, "string", false, nil
 	case "create.file.device_path":
-		return "create", reflect.String, "string", nil
+		return "create", reflect.String, "string", false, nil
 	case "create.file.device_path.length":
-		return "create", reflect.Int, "int", nil
+		return "create", reflect.Int, "int", false, nil
 	case "create.file.extension":
-		return "create", reflect.String, "string", nil
+		return "create", reflect.String, "string", false, nil
 	case "create.file.name":
-		return "create", reflect.String, "string", nil
+		return "create", reflect.String, "string", false, nil
 	case "create.file.name.length":
-		return "create", reflect.Int, "int", nil
+		return "create", reflect.Int, "int", false, nil
 	case "create.file.path":
-		return "create", reflect.String, "string", nil
+		return "create", reflect.String, "string", false, nil
 	case "create.file.path.length":
-		return "create", reflect.Int, "int", nil
+		return "create", reflect.Int, "int", false, nil
 	case "create.registry.key_name":
-		return "create_key", reflect.String, "string", nil
+		return "create_key", reflect.String, "string", false, nil
 	case "create.registry.key_name.length":
-		return "create_key", reflect.Int, "int", nil
+		return "create_key", reflect.Int, "int", false, nil
 	case "create.registry.key_path":
-		return "create_key", reflect.String, "string", nil
+		return "create_key", reflect.String, "string", false, nil
 	case "create.registry.key_path.length":
-		return "create_key", reflect.Int, "int", nil
+		return "create_key", reflect.Int, "int", false, nil
 	case "create_key.registry.key_name":
-		return "create_key", reflect.String, "string", nil
+		return "create_key", reflect.String, "string", false, nil
 	case "create_key.registry.key_name.length":
-		return "create_key", reflect.Int, "int", nil
+		return "create_key", reflect.Int, "int", false, nil
 	case "create_key.registry.key_path":
-		return "create_key", reflect.String, "string", nil
+		return "create_key", reflect.String, "string", false, nil
 	case "create_key.registry.key_path.length":
-		return "create_key", reflect.Int, "int", nil
+		return "create_key", reflect.Int, "int", false, nil
 	case "delete.file.device_path":
-		return "delete", reflect.String, "string", nil
+		return "delete", reflect.String, "string", false, nil
 	case "delete.file.device_path.length":
-		return "delete", reflect.Int, "int", nil
+		return "delete", reflect.Int, "int", false, nil
 	case "delete.file.extension":
-		return "delete", reflect.String, "string", nil
+		return "delete", reflect.String, "string", false, nil
 	case "delete.file.name":
-		return "delete", reflect.String, "string", nil
+		return "delete", reflect.String, "string", false, nil
 	case "delete.file.name.length":
-		return "delete", reflect.Int, "int", nil
+		return "delete", reflect.Int, "int", false, nil
 	case "delete.file.path":
-		return "delete", reflect.String, "string", nil
+		return "delete", reflect.String, "string", false, nil
 	case "delete.file.path.length":
-		return "delete", reflect.Int, "int", nil
+		return "delete", reflect.Int, "int", false, nil
 	case "delete.registry.key_name":
-		return "delete_key", reflect.String, "string", nil
+		return "delete_key", reflect.String, "string", false, nil
 	case "delete.registry.key_name.length":
-		return "delete_key", reflect.Int, "int", nil
+		return "delete_key", reflect.Int, "int", false, nil
 	case "delete.registry.key_path":
-		return "delete_key", reflect.String, "string", nil
+		return "delete_key", reflect.String, "string", false, nil
 	case "delete.registry.key_path.length":
-		return "delete_key", reflect.Int, "int", nil
+		return "delete_key", reflect.Int, "int", false, nil
 	case "delete_key.registry.key_name":
-		return "delete_key", reflect.String, "string", nil
+		return "delete_key", reflect.String, "string", false, nil
 	case "delete_key.registry.key_name.length":
-		return "delete_key", reflect.Int, "int", nil
+		return "delete_key", reflect.Int, "int", false, nil
 	case "delete_key.registry.key_path":
-		return "delete_key", reflect.String, "string", nil
+		return "delete_key", reflect.String, "string", false, nil
 	case "delete_key.registry.key_path.length":
-		return "delete_key", reflect.Int, "int", nil
+		return "delete_key", reflect.Int, "int", false, nil
 	case "event.hostname":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "event.origin":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "event.os":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "event.rule.tags":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "event.service":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "event.source":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "event.timestamp":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "exec.cmdline":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
+	case "exec.container.created_at":
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.container.id":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
+	case "exec.container.tags":
+		return "exec", reflect.String, "string", true, nil
 	case "exec.created_at":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.envp":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", true, nil
 	case "exec.envs":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", true, nil
 	case "exec.file.extension":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.file.name":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.file.name.length":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.file.path":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.file.path.length":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.pid":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.ppid":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.user":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.user_sid":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exit.cause":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.cmdline":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.code":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
+	case "exit.container.created_at":
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.container.id":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
+	case "exit.container.tags":
+		return "exit", reflect.String, "string", true, nil
 	case "exit.created_at":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.envp":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", true, nil
 	case "exit.envs":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", true, nil
 	case "exit.file.extension":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.file.name":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.file.name.length":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.file.path":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.file.path.length":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.pid":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.ppid":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.user":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.user_sid":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "open.registry.key_name":
-		return "open_key", reflect.String, "string", nil
+		return "open_key", reflect.String, "string", false, nil
 	case "open.registry.key_name.length":
-		return "open_key", reflect.Int, "int", nil
+		return "open_key", reflect.Int, "int", false, nil
 	case "open.registry.key_path":
-		return "open_key", reflect.String, "string", nil
+		return "open_key", reflect.String, "string", false, nil
 	case "open.registry.key_path.length":
-		return "open_key", reflect.Int, "int", nil
+		return "open_key", reflect.Int, "int", false, nil
 	case "open_key.registry.key_name":
-		return "open_key", reflect.String, "string", nil
+		return "open_key", reflect.String, "string", false, nil
 	case "open_key.registry.key_name.length":
-		return "open_key", reflect.Int, "int", nil
+		return "open_key", reflect.Int, "int", false, nil
 	case "open_key.registry.key_path":
-		return "open_key", reflect.String, "string", nil
+		return "open_key", reflect.String, "string", false, nil
 	case "open_key.registry.key_path.length":
-		return "open_key", reflect.Int, "int", nil
+		return "open_key", reflect.Int, "int", false, nil
 	case "process.ancestors.cmdline":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
+	case "process.ancestors.container.created_at":
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.container.id":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
+	case "process.ancestors.container.tags":
+		return "", reflect.String, "string", true, nil
 	case "process.ancestors.created_at":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.envp":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.ancestors.envs":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.ancestors.file.extension":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.file.name":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.file.name.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.file.path":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.file.path.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.pid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.ppid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.user":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.user_sid":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.cmdline":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
+	case "process.container.created_at":
+		return "", reflect.Int, "int", false, nil
 	case "process.container.id":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
+	case "process.container.tags":
+		return "", reflect.String, "string", true, nil
 	case "process.created_at":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.envp":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.envs":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.file.extension":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.file.name":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.file.name.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.file.path":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.file.path.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.cmdline":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
+	case "process.parent.container.created_at":
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.container.id":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
+	case "process.parent.container.tags":
+		return "", reflect.String, "string", true, nil
 	case "process.parent.created_at":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.envp":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.parent.envs":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.parent.file.extension":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.file.name":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.file.name.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.file.path":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.file.path.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.pid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.ppid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.user":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.user_sid":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.pid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ppid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.user":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.user_sid":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "rename.file.destination.device_path":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.destination.device_path.length":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.destination.extension":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.destination.name":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.destination.name.length":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.destination.path":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.destination.path.length":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.device_path":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.device_path.length":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.extension":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.name":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.name.length":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.path":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.path.length":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "set.registry.key_name":
-		return "set_key_value", reflect.String, "string", nil
+		return "set_key_value", reflect.String, "string", false, nil
 	case "set.registry.key_name.length":
-		return "set_key_value", reflect.Int, "int", nil
+		return "set_key_value", reflect.Int, "int", false, nil
 	case "set.registry.key_path":
-		return "set_key_value", reflect.String, "string", nil
+		return "set_key_value", reflect.String, "string", false, nil
 	case "set.registry.key_path.length":
-		return "set_key_value", reflect.Int, "int", nil
+		return "set_key_value", reflect.Int, "int", false, nil
 	case "set.registry.value_name":
-		return "set_key_value", reflect.String, "string", nil
+		return "set_key_value", reflect.String, "string", false, nil
 	case "set.registry.value_name.length":
-		return "set_key_value", reflect.Int, "int", nil
+		return "set_key_value", reflect.Int, "int", false, nil
 	case "set.value_name":
-		return "set_key_value", reflect.String, "string", nil
+		return "set_key_value", reflect.String, "string", false, nil
 	case "set_key_value.registry.key_name":
-		return "set_key_value", reflect.String, "string", nil
+		return "set_key_value", reflect.String, "string", false, nil
 	case "set_key_value.registry.key_name.length":
-		return "set_key_value", reflect.Int, "int", nil
+		return "set_key_value", reflect.Int, "int", false, nil
 	case "set_key_value.registry.key_path":
-		return "set_key_value", reflect.String, "string", nil
+		return "set_key_value", reflect.String, "string", false, nil
 	case "set_key_value.registry.key_path.length":
-		return "set_key_value", reflect.Int, "int", nil
+		return "set_key_value", reflect.Int, "int", false, nil
 	case "set_key_value.registry.value_name":
-		return "set_key_value", reflect.String, "string", nil
+		return "set_key_value", reflect.String, "string", false, nil
 	case "set_key_value.registry.value_name.length":
-		return "set_key_value", reflect.Int, "int", nil
+		return "set_key_value", reflect.Int, "int", false, nil
 	case "set_key_value.value_name":
-		return "set_key_value", reflect.String, "string", nil
+		return "set_key_value", reflect.String, "string", false, nil
 	case "write.file.device_path":
-		return "write", reflect.String, "string", nil
+		return "write", reflect.String, "string", false, nil
 	case "write.file.device_path.length":
-		return "write", reflect.Int, "int", nil
+		return "write", reflect.Int, "int", false, nil
 	case "write.file.extension":
-		return "write", reflect.String, "string", nil
+		return "write", reflect.String, "string", false, nil
 	case "write.file.name":
-		return "write", reflect.String, "string", nil
+		return "write", reflect.String, "string", false, nil
 	case "write.file.name.length":
-		return "write", reflect.Int, "int", nil
+		return "write", reflect.Int, "int", false, nil
 	case "write.file.path":
-		return "write", reflect.String, "string", nil
+		return "write", reflect.String, "string", false, nil
 	case "write.file.path.length":
-		return "write", reflect.Int, "int", nil
+		return "write", reflect.Int, "int", false, nil
 	}
-	return "", reflect.Invalid, "", &eval.ErrFieldNotFound{Field: field}
+	return "", reflect.Invalid, "", false, &eval.ErrFieldNotFound{Field: originalField}
 }
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
-	if strings.HasPrefix(field, "process.") || strings.HasPrefix(field, "exec.") {
-		ev.initProcess()
+	// handle legacy field mapping
+	mappedField := field
+	if newField, found := GetDefaultLegacyFields(field); found {
+		mappedField = newField
 	}
-	switch field {
+	if strings.HasPrefix(mappedField, "process.") || strings.HasPrefix(mappedField, "exec.") || strings.HasPrefix(mappedField, "exit.") || strings.HasPrefix(mappedField, "ptrace.") {
+		ev.initPointerFields()
+	}
+	switch mappedField {
 	case "change_permission.new_sd":
 		return ev.setStringFieldValue("change_permission.new_sd", &ev.ChangePermission.NewSd, value)
 	case "change_permission.old_sd":
@@ -2679,26 +2852,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("change_permission.user_domain", &ev.ChangePermission.UserDomain, value)
 	case "change_permission.username":
 		return ev.setStringFieldValue("change_permission.username", &ev.ChangePermission.UserName, value)
-	case "container.created_at":
-		if ev.BaseEvent.ContainerContext == nil {
-			ev.BaseEvent.ContainerContext = &ContainerContext{}
-		}
-		return ev.setUint64FieldValue("container.created_at", &ev.BaseEvent.ContainerContext.CreatedAt, value)
-	case "container.id":
-		if ev.BaseEvent.ContainerContext == nil {
-			ev.BaseEvent.ContainerContext = &ContainerContext{}
-		}
-		rv, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "container.id"}
-		}
-		ev.BaseEvent.ContainerContext.ContainerID = containerutils.ContainerID(rv)
-		return nil
-	case "container.tags":
-		if ev.BaseEvent.ContainerContext == nil {
-			ev.BaseEvent.ContainerContext = &ContainerContext{}
-		}
-		return ev.setStringArrayFieldValue("container.tags", &ev.BaseEvent.ContainerContext.Tags, value)
 	case "create.file.device_path":
 		return ev.setStringFieldValue("create.file.device_path", &ev.CreateNewFile.File.PathnameStr, value)
 	case "create.file.device_path.length":
@@ -2775,8 +2928,17 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint64FieldValue("event.timestamp", &ev.BaseEvent.TimestampRaw, value)
 	case "exec.cmdline":
 		return ev.setStringFieldValue("exec.cmdline", &ev.Exec.Process.CmdLine, value)
+	case "exec.container.created_at":
+		return ev.setUint64FieldValue("exec.container.created_at", &ev.Exec.Process.ContainerContext.CreatedAt, value)
 	case "exec.container.id":
-		return ev.setStringFieldValue("exec.container.id", &ev.Exec.Process.ContainerID, value)
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.container.id"}
+		}
+		ev.Exec.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
+		return nil
+	case "exec.container.tags":
+		return ev.setStringArrayFieldValue("exec.container.tags", &ev.Exec.Process.ContainerContext.Tags, value)
 	case "exec.created_at":
 		return ev.setUint64FieldValue("exec.created_at", &ev.Exec.Process.CreatedAt, value)
 	case "exec.envp":
@@ -2804,76 +2966,43 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exit.cause":
 		return ev.setUint32FieldValue("exit.cause", &ev.Exit.Cause, value)
 	case "exit.cmdline":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.cmdline", &ev.Exit.Process.CmdLine, value)
 	case "exit.code":
 		return ev.setUint32FieldValue("exit.code", &ev.Exit.Code, value)
+	case "exit.container.created_at":
+		return ev.setUint64FieldValue("exit.container.created_at", &ev.Exit.Process.ContainerContext.CreatedAt, value)
 	case "exit.container.id":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exit.container.id"}
 		}
-		return ev.setStringFieldValue("exit.container.id", &ev.Exit.Process.ContainerID, value)
+		ev.Exit.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
+		return nil
+	case "exit.container.tags":
+		return ev.setStringArrayFieldValue("exit.container.tags", &ev.Exit.Process.ContainerContext.Tags, value)
 	case "exit.created_at":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint64FieldValue("exit.created_at", &ev.Exit.Process.CreatedAt, value)
 	case "exit.envp":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringArrayFieldValue("exit.envp", &ev.Exit.Process.Envp, value)
 	case "exit.envs":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringArrayFieldValue("exit.envs", &ev.Exit.Process.Envs, value)
 	case "exit.file.extension":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.file.extension", &ev.Exit.Process.FileEvent.Extension, value)
 	case "exit.file.name":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.file.name", &ev.Exit.Process.FileEvent.BasenameStr, value)
 	case "exit.file.name.length":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return &eval.ErrFieldReadOnly{Field: "exit.file.name.length"}
 	case "exit.file.path":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.file.path", &ev.Exit.Process.FileEvent.PathnameStr, value)
 	case "exit.file.path.length":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return &eval.ErrFieldReadOnly{Field: "exit.file.path.length"}
 	case "exit.pid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.pid", &ev.Exit.Process.PIDContext.Pid, value)
 	case "exit.ppid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.ppid", &ev.Exit.Process.PPid, value)
 	case "exit.user":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.user", &ev.Exit.Process.User, value)
 	case "exit.user_sid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.user_sid", &ev.Exit.Process.OwnerSidString, value)
 	case "open.registry.key_name":
 		return ev.setStringFieldValue("open.registry.key_name", &ev.OpenRegistryKey.Registry.KeyName, value)
@@ -2893,8 +3022,17 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return &eval.ErrFieldReadOnly{Field: "open_key.registry.key_path.length"}
 	case "process.ancestors.cmdline":
 		return ev.setStringFieldValue("process.ancestors.cmdline", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CmdLine, value)
+	case "process.ancestors.container.created_at":
+		return ev.setUint64FieldValue("process.ancestors.container.created_at", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerContext.CreatedAt, value)
 	case "process.ancestors.container.id":
-		return ev.setStringFieldValue("process.ancestors.container.id", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerID, value)
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "process.ancestors.container.id"}
+		}
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
+		return nil
+	case "process.ancestors.container.tags":
+		return ev.setStringArrayFieldValue("process.ancestors.container.tags", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerContext.Tags, value)
 	case "process.ancestors.created_at":
 		return ev.setUint64FieldValue("process.ancestors.created_at", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CreatedAt, value)
 	case "process.ancestors.envp":
@@ -2923,8 +3061,17 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("process.ancestors.user_sid", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.OwnerSidString, value)
 	case "process.cmdline":
 		return ev.setStringFieldValue("process.cmdline", &ev.BaseEvent.ProcessContext.Process.CmdLine, value)
+	case "process.container.created_at":
+		return ev.setUint64FieldValue("process.container.created_at", &ev.BaseEvent.ProcessContext.Process.ContainerContext.CreatedAt, value)
 	case "process.container.id":
-		return ev.setStringFieldValue("process.container.id", &ev.BaseEvent.ProcessContext.Process.ContainerID, value)
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "process.container.id"}
+		}
+		ev.BaseEvent.ProcessContext.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
+		return nil
+	case "process.container.tags":
+		return ev.setStringArrayFieldValue("process.container.tags", &ev.BaseEvent.ProcessContext.Process.ContainerContext.Tags, value)
 	case "process.created_at":
 		return ev.setUint64FieldValue("process.created_at", &ev.BaseEvent.ProcessContext.Process.CreatedAt, value)
 	case "process.envp":
@@ -2943,8 +3090,17 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return &eval.ErrFieldReadOnly{Field: "process.file.path.length"}
 	case "process.parent.cmdline":
 		return ev.setStringFieldValue("process.parent.cmdline", &ev.BaseEvent.ProcessContext.Parent.CmdLine, value)
+	case "process.parent.container.created_at":
+		return ev.setUint64FieldValue("process.parent.container.created_at", &ev.BaseEvent.ProcessContext.Parent.ContainerContext.CreatedAt, value)
 	case "process.parent.container.id":
-		return ev.setStringFieldValue("process.parent.container.id", &ev.BaseEvent.ProcessContext.Parent.ContainerID, value)
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "process.parent.container.id"}
+		}
+		ev.BaseEvent.ProcessContext.Parent.ContainerContext.ContainerID = containerutils.ContainerID(rv)
+		return nil
+	case "process.parent.container.tags":
+		return ev.setStringArrayFieldValue("process.parent.container.tags", &ev.BaseEvent.ProcessContext.Parent.ContainerContext.Tags, value)
 	case "process.parent.created_at":
 		return ev.setUint64FieldValue("process.parent.created_at", &ev.BaseEvent.ProcessContext.Parent.CreatedAt, value)
 	case "process.parent.envp":

@@ -15,15 +15,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
+	scenwindows "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awsHostWindows "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 )
 
@@ -38,8 +39,10 @@ var systemProbeConfig string
 
 func TestUSMAutoTaggingSuite(t *testing.T) {
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoFakeIntake(
-		awsHostWindows.WithAgentOptions(
-			agentparams.WithSystemProbeConfig(systemProbeConfig),
+		awsHostWindows.WithRunOptions(
+			scenwindows.WithAgentOptions(
+				agentparams.WithSystemProbeConfig(systemProbeConfig),
+			),
 		),
 	))}
 	if *devMode {
@@ -320,16 +323,16 @@ func (v *apmvmSuite) TestUSMAutoTaggingSuite() {
 			if test.targetPath != "" {
 				targetpath = test.targetPath
 			}
-			var envstring string
+			var envstringBuilder strings.Builder
 			for k, v := range test.clientEnvVars {
-				envstring += fmt.Sprintf("$Env:%s=\"%s\" ; ", k, v)
+				fmt.Fprintf(&envstringBuilder, "$Env:%s=\"%s\" ; ", k, v)
 			}
-			localcmd := fmt.Sprintf(pscommand, envstring, testScript, targetport, targetpath, strings.Join(test.expectedClientTags, ","), strings.Join(test.expectedServerTags, ","), testExe)
+			localcmd := fmt.Sprintf(pscommand, envstringBuilder.String(), testScript, targetport, targetpath, strings.Join(test.expectedClientTags, ","), strings.Join(test.expectedServerTags, ","), testExe)
 
 			if len(test.clientEnvVars) > 0 {
-				var envarg string
+				var envargBuilder strings.Builder
 				for k, v := range test.clientEnvVars {
-					envarg += fmt.Sprintf("%s=%s", k, v)
+					fmt.Fprintf(&envargBuilder, "%s=%s", k, v)
 				}
 			}
 

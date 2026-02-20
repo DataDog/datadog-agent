@@ -20,12 +20,11 @@ Type=simple
 PIDFile={{.InstallDir}}/run/installer.pid
 Restart=on-failure
 EnvironmentFile=-{{.EtcDir}}/environment
-Environment="DD_BUNDLED_AGENT=installer"
 Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
 {{- if not .Stable}}
 Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
 {{- end}}
-ExecStart={{.InstallDir}}/bin/agent/agent run -c {{.EtcDir}} -p {{.InstallDir}}/run/installer.pid
+ExecStart={{.InstallDir}}/embedded/bin/installer run -c {{.EtcDir}} -p {{.InstallDir}}/run/installer.pid
 StartLimitInterval=10
 StartLimitBurst=5
 

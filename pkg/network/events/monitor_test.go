@@ -29,6 +29,12 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 				Type: uint32(model.ExecEventType),
 				ProcessContext: &model.ProcessContext{
 					Process: model.Process{
+						ContainerContext: model.ContainerContext{
+							ContainerID: "cid_exec",
+						},
+						CGroup: model.CGroupContext{
+							CGroupID: "cid_exec",
+						},
 						PIDContext: model.PIDContext{
 							Pid: 2233,
 						},
@@ -40,13 +46,7 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 						},
 					},
 				},
-				ContainerContext: &model.ContainerContext{
-					ContainerID: "cid_exec",
-				},
 				FieldHandlers: &model.FakeFieldHandlers{},
-			},
-			CGroupContext: &model.CGroupContext{
-				CGroupID: "cid_exec",
 			},
 		}
 		evHandler := &eventConsumerWrapper{}
@@ -71,6 +71,12 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 				Type: uint32(model.ForkEventType),
 				ProcessContext: &model.ProcessContext{
 					Process: model.Process{
+						ContainerContext: model.ContainerContext{
+							ContainerID: "cid_fork",
+						},
+						CGroup: model.CGroupContext{
+							CGroupID: "cid_fork",
+						},
 						PIDContext: model.PIDContext{
 							Pid: 2244,
 						},
@@ -82,13 +88,7 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 						},
 					},
 				},
-				ContainerContext: &model.ContainerContext{
-					ContainerID: "cid_fork",
-				},
 				FieldHandlers: &model.FakeFieldHandlers{},
-			},
-			CGroupContext: &model.CGroupContext{
-				CGroupID: "cid_fork",
 			},
 		}
 		evHandler := &eventConsumerWrapper{}
@@ -122,6 +122,12 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 				Type: uint32(model.TracerMemfdSealEventType),
 				ProcessContext: &model.ProcessContext{
 					Process: model.Process{
+						ContainerContext: model.ContainerContext{
+							ContainerID: "cid_tracer_memfd",
+						},
+						CGroup: model.CGroupContext{
+							CGroupID: "cid_tracer_memfd",
+						},
 						PIDContext: model.PIDContext{
 							Pid: 1234,
 						},
@@ -134,13 +140,7 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 						},
 					},
 				},
-				ContainerContext: &model.ContainerContext{
-					ContainerID: "cid_tracer_memfd",
-				},
 				FieldHandlers: &model.FakeFieldHandlers{},
-			},
-			CGroupContext: &model.CGroupContext{
-				CGroupID: "cid_tracer_memfd",
 			},
 			TracerMemfdSeal: model.TracerMemfdSealEvent{
 				Fd: 5,
@@ -247,23 +247,29 @@ func TestEventHandleTracerTags(t *testing.T) {
 				Type: uint32(model.ExecEventType),
 				ProcessContext: &model.ProcessContext{
 					Process: model.Process{
+						ContainerContext: model.ContainerContext{
+							ContainerID: "test-container",
+						},
 						PIDContext: model.PIDContext{
 							Pid: 1234,
 						},
 						ExecTime: now,
 						Envp: []string{
+							"DD_SERVICE=service-from-envp",
 							"DD_ENV=env-from-envp",
+							"DD_VERSION=version-from-envp",
 						},
 						TracerTags: []string{
-							"service:my-service",
-							"env:my-env",
-							"version:my-version",
+							"tracer_service_name:my-service",
+							"tracer_service_env:my-env",
+							"tracer_service_version:my-version",
 							"entrypoint.name:my-entrypoint",
+							// Should be skipped because it matches the UST tags
+							"tracer_service_name:service-from-envp",
+							"tracer_service_env:env-from-envp",
+							"tracer_service_version:version-from-envp",
 						},
 					},
-				},
-				ContainerContext: &model.ContainerContext{
-					ContainerID: "test-container",
 				},
 				FieldHandlers: &model.FakeFieldHandlers{},
 			},
@@ -275,10 +281,14 @@ func TestEventHandleTracerTags(t *testing.T) {
 		require.Len(t, handler.events, 1, "should have received 1 process event")
 		receivedProc := handler.events[0]
 		assert.Equal(t, uint32(1234), receivedProc.Pid)
+		assert.Contains(t, receivedProc.Tags, intern.GetByString("service:service-from-envp"))
 		assert.Contains(t, receivedProc.Tags, intern.GetByString("env:env-from-envp"))
-		assert.Contains(t, receivedProc.Tags, intern.GetByString("service:my-service"))
-		assert.Contains(t, receivedProc.Tags, intern.GetByString("env:my-env"))
-		assert.Contains(t, receivedProc.Tags, intern.GetByString("version:my-version"))
+		assert.Contains(t, receivedProc.Tags, intern.GetByString("tracer_service_name:my-service"))
+		assert.Contains(t, receivedProc.Tags, intern.GetByString("tracer_service_env:my-env"))
+		assert.Contains(t, receivedProc.Tags, intern.GetByString("tracer_service_version:my-version"))
+		assert.NotContains(t, receivedProc.Tags, intern.GetByString("tracer_service_name:service-from-envp"))
+		assert.NotContains(t, receivedProc.Tags, intern.GetByString("tracer_service_env:env-from-envp"))
+		assert.NotContains(t, receivedProc.Tags, intern.GetByString("tracer_service_version:version-from-envp"))
 		assert.Contains(t, receivedProc.Tags, intern.GetByString("entrypoint.name:my-entrypoint"))
 	})
 

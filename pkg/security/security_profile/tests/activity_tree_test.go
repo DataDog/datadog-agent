@@ -91,7 +91,7 @@ func matchResultTree(at *activity_tree.ActivityTree, toMatch map[string][]string
 func craftFakeProcess(containerID string, test *testIteration) *model.ProcessCacheEntry {
 	// setting process
 	process := model.NewPlaceholderProcessCacheEntry(42, 42, false)
-	process.ContainerID = containerutils.ContainerID(containerID)
+	process.ContainerContext.ContainerID = containerutils.ContainerID(containerID)
 	process.FileEvent.PathnameStr = test.processPath
 	process.FileEvent.BasenameStr = filepath.Base(test.processPath)
 	process.Argv0 = filepath.Base(test.processPath)
@@ -106,7 +106,7 @@ func craftFakeProcess(containerID string, test *testIteration) *model.ProcessCac
 
 	// setting process ancestor
 	process.Ancestor = model.NewPlaceholderProcessCacheEntry(41, 41, false)
-	process.Ancestor.ContainerID = containerutils.ContainerID(containerID)
+	process.Ancestor.ContainerContext.ContainerID = containerutils.ContainerID(containerID)
 	process.Ancestor.FileEvent.PathnameStr = test.parentProcessPath
 	process.Ancestor.FileEvent.BasenameStr = filepath.Base(test.parentProcessPath)
 	process.Ancestor.Argv0 = filepath.Base(test.parentProcessPath)
@@ -133,7 +133,7 @@ func craftFakeProcess(containerID string, test *testIteration) *model.ProcessCac
 	process.Ancestor.Ancestor.FileEvent.PathnameStr = "/usr/bin/systemd"
 	process.Ancestor.Ancestor.FileEvent.BasenameStr = "systemd"
 	if test.granpaInsideContainer {
-		process.Ancestor.Ancestor.ContainerID = containerutils.ContainerID(containerID)
+		process.Ancestor.Ancestor.ContainerContext.ContainerID = containerutils.ContainerID(containerID)
 	}
 	process.Ancestor.Ancestor.FileEvent.Inode = 40
 	process.Ancestor.Ancestor.FileEvent.MountID = 40
@@ -696,14 +696,10 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 								)
 								at = activity_tree.NewActivityTree(profile, nil, "profile")
 								profile.ActivityTree = at
+								cgce := cgroupModel.NewCacheEntry(model.ContainerContext{ContainerID: containerutils.ContainerID(contID)}, model.CGroupContext{CGroupID: containerutils.CGroupID(contID)}, 0)
 								profile.Instances = append(profile.Instances, &tags.Workload{
-									CacheEntry: &cgroupModel.CacheEntry{
-										ContainerContext: model.ContainerContext{
-											ContainerID: containerutils.ContainerID(contID),
-										},
-										CGroupContext: model.CGroupContext{CGroupID: containerutils.CGroupID(contID)},
-									},
-									Selector: cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"},
+									GCroupCacheEntry: cgce,
+									Selector:         cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"},
 								})
 							}
 						} else { // retrieve last saved tree state

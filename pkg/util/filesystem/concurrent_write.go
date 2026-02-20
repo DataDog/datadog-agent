@@ -45,7 +45,7 @@ func FetchArtifact[T any](ctx context.Context, location string, factory Artifact
 
 		select {
 		case <-ctx.Done():
-			return zero, fmt.Errorf("unable to read the artifact in the given time")
+			return zero, errors.New("unable to read the artifact in the given time")
 		case <-time.After(retryDelay):
 			// try again
 		}
@@ -138,7 +138,7 @@ func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory 
 
 		select {
 		case <-ctx.Done():
-			return zero, errors.Join(fmt.Errorf("unable to read the artifact or acquire the lock in the given time"), lockErr)
+			return zero, errors.Join(errors.New("unable to read the artifact or acquire the lock in the given time"), lockErr)
 		case <-time.After(retryDelay):
 			// try again
 		}

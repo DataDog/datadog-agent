@@ -56,7 +56,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 		line := scanner.Text()
 		result := re.FindStringSubmatch(line)
 		// result should have [leftmost matched, status (1st group), name (2nd group)]
-		if result == nil || len(result) < 3 {
+		if len(result) < 3 {
 			continue
 		}
 		status := result[1]

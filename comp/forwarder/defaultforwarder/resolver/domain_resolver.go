@@ -41,45 +41,27 @@ const (
 	Local
 )
 
-// DomainResolver interface abstracts domain selection by `transaction.Endpoint`
-type DomainResolver interface {
-	// Resolve returns the domain to be used to send data for a given `transaction.Endpoint` along with a
-	// destination type
-	Resolve(endpoint transaction.Endpoint) (string, DestinationType)
-	// GetAPIKeysInfo returns the list of API Keys and config paths associated with this `DomainResolver`
-	GetAPIKeysInfo() ([]utils.APIKeys, int)
-	// GetAPIKeys returns the list of API Keys associated with this `DomainResolver`
-	GetAPIKeys() []string
-	// UpdateAPIKeys updates the api keys at the given config path and sets the deduped keys to the new list.
-	UpdateAPIKeys(configPath string, newKeys []utils.APIKeys)
-	// GetAPIKeyVersion gets the current version for the API keys (version should be incremented each time the
-	// keys are updated).
-	GetAPIKeyVersion() int
-	// GetBaseDomain returns the base domain for this `DomainResolver`
-	GetBaseDomain() string
-	// GetAlternateDomains returns all the domains that can be returned by `Resolve()` minus the base domain
-	GetAlternateDomains() []string
-	// SetBaseDomain sets the base domain to a new value
-	SetBaseDomain(domain string)
-	// UpdateAPIKey replaces instances of the oldKey with the newKey
-	UpdateAPIKey(configPath, oldKey, newKey string)
-	// GetBearerAuthToken returns Bearer authtoken, used for internal communication
-	GetBearerAuthToken() string
-	// GetForwarderHealth returns the health checker
-	GetForwarderHealth() ForwarderHealth
-	// SetForwarderHealth sets the health checker for this domain
-	// Needed so we update the health checker when API keys are updated
-	SetForwarderHealth(ForwarderHealth)
-}
+// DomainResolver is a syntactic backwards compatibility shim
+type DomainResolver = *domainResolver
 
 // SingleDomainResolver will always return the same host
-type SingleDomainResolver struct {
-	domain         string
-	apiKeys        []utils.APIKeys
-	keyVersion     int
-	dedupedAPIKeys []string
-	mu             sync.Mutex
-	healthChecker  ForwarderHealth
+type domainResolver struct {
+	// configName is the url as it was configured by the user.
+	configName string
+	// domain is the url base to be used for network requests, it is modified by the forwarder.
+	domain          string
+	apiKeys         []utils.APIKeys
+	keyVersion      int
+	dedupedAPIKeys  []string
+	mu              sync.Mutex
+	healthChecker   ForwarderHealth
+	destinationType DestinationType
+	authToken       string
+
+	overrides           map[string]destination
+	alternateDomainList []string
+
+	isMRF bool
 }
 
 // OnUpdateConfig adds a hook into the config which will listen for updates to the API keys
@@ -172,33 +154,40 @@ func updateAdditionalEndpoints(resolver DomainResolver, setting string, config c
 	}
 }
 
-// NewSingleDomainResolver creates a SingleDomainResolver with its destination domain & API keys
-func NewSingleDomainResolver(domain string, apiKeys []utils.APIKeys) (*SingleDomainResolver, error) {
+// NewSingleDomainResolver2 creates a DomainResolver from an endpoint configuration object.
+func NewSingleDomainResolver2(descriptor utils.EndpointDescriptor) (DomainResolver, error) {
 	// Ensure all API keys have a config setting path so we can keep track to ensure they are updated
 	// when the config changes.
-	for key := range apiKeys {
-		if apiKeys[key].ConfigSettingPath == "" {
-			return nil, fmt.Errorf("Api key for %v does not specify a config setting path", domain)
+	for _, keys := range descriptor.APIKeySet {
+		if keys.ConfigSettingPath == "" {
+			return nil, fmt.Errorf("API key for %v does not specify a config setting path", descriptor.BaseURL)
 		}
 	}
 
-	deduped := utils.DedupAPIKeys(apiKeys)
+	deduped := utils.DedupAPIKeys(descriptor.APIKeySet)
 
-	return &SingleDomainResolver{
-		domain:         domain,
-		apiKeys:        apiKeys,
+	return &domainResolver{
+		configName:     descriptor.BaseURL,
+		domain:         descriptor.BaseURL,
+		apiKeys:        descriptor.APIKeySet,
 		keyVersion:     0,
 		dedupedAPIKeys: deduped,
 		mu:             sync.Mutex{},
+		isMRF:          descriptor.IsMRF,
 	}, nil
 }
 
-// NewSingleDomainResolvers converts a map of domain/api keys into a map of SingleDomainResolver
+// NewSingleDomainResolvers converts a map of domain/api keys into a map of DomainResolver
 func NewSingleDomainResolvers(keysPerDomain map[string][]utils.APIKeys) (map[string]DomainResolver, error) {
+	return NewSingleDomainResolvers2(utils.EndpointDescriptorSetFromKeysPerDomain(keysPerDomain))
+}
+
+// NewSingleDomainResolvers2 creates a set of domain resolvers from an EndpointDescriptorSet.
+func NewSingleDomainResolvers2(eds utils.EndpointDescriptorSet) (map[string]DomainResolver, error) {
 	resolvers := make(map[string]DomainResolver)
-	for domain, keys := range keysPerDomain {
+	for _, ed := range eds {
 		var err error
-		resolvers[domain], err = NewSingleDomainResolver(domain, keys)
+		resolvers[ed.BaseURL], err = NewSingleDomainResolver2(ed)
 		if err != nil {
 			return nil, err
 		}
@@ -206,25 +195,20 @@ func NewSingleDomainResolvers(keysPerDomain map[string][]utils.APIKeys) (map[str
 	return resolvers, nil
 }
 
-// Resolve always returns the only destination available for a SingleDomainResolver
-func (r *SingleDomainResolver) Resolve(transaction.Endpoint) (string, DestinationType) {
-	return r.domain, Datadog
-}
-
 // GetBaseDomain returns the only destination available for a SingleDomainResolver
-func (r *SingleDomainResolver) GetBaseDomain() string {
+func (r *domainResolver) GetBaseDomain() string {
 	return r.domain
 }
 
 // GetAPIKeys returns the slice of API keys associated with this SingleDomainResolver
-func (r *SingleDomainResolver) GetAPIKeys() []string {
+func (r *domainResolver) GetAPIKeys() []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.dedupedAPIKeys
 }
 
 // GetAPIKeyVersion get the version of the keys.
-func (r *SingleDomainResolver) GetAPIKeyVersion() int {
+func (r *domainResolver) GetAPIKeyVersion() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -255,24 +239,19 @@ func scrubKeys(keys []string) []string {
 }
 
 // GetAPIKeysInfo returns the list of APIKeys and config paths associated with this `DomainResolver`
-func (r *SingleDomainResolver) GetAPIKeysInfo() ([]utils.APIKeys, int) {
+func (r *domainResolver) GetAPIKeysInfo() ([]utils.APIKeys, int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.apiKeys, r.keyVersion
 }
 
 // SetBaseDomain sets the only destination available for a SingleDomainResolver
-func (r *SingleDomainResolver) SetBaseDomain(domain string) {
+func (r *domainResolver) SetBaseDomain(domain string) {
 	r.domain = domain
 }
 
-// GetAlternateDomains always returns an empty slice for SingleDomainResolver
-func (r *SingleDomainResolver) GetAlternateDomains() []string {
-	return []string{}
-}
-
 // UpdateAPIKeys updates the api keys at the given config path and sets the deduped keys to the new list.
-func (r *SingleDomainResolver) UpdateAPIKeys(configPath string, newKeys []utils.APIKeys) {
+func (r *domainResolver) UpdateAPIKeys(configPath string, newKeys []utils.APIKeys) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	newAPIKeys := make([]utils.APIKeys, 0)
@@ -288,7 +267,7 @@ func (r *SingleDomainResolver) UpdateAPIKeys(configPath string, newKeys []utils.
 }
 
 // UpdateAPIKey replaces instances of the oldKey with the newKey
-func (r *SingleDomainResolver) UpdateAPIKey(configPath, oldKey, newKey string) {
+func (r *domainResolver) UpdateAPIKey(configPath, oldKey, newKey string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -312,19 +291,19 @@ func (r *SingleDomainResolver) UpdateAPIKey(configPath, oldKey, newKey string) {
 }
 
 // GetBearerAuthToken is not implemented for SingleDomainResolver
-func (r *SingleDomainResolver) GetBearerAuthToken() string {
-	return ""
+func (r *domainResolver) GetBearerAuthToken() string {
+	return r.authToken
 
 }
 
 // GetForwarderHealth returns the health checker
-func (r *SingleDomainResolver) GetForwarderHealth() ForwarderHealth {
+func (r *domainResolver) GetForwarderHealth() ForwarderHealth {
 	return r.healthChecker
 }
 
 // SetForwarderHealth sets the health checker for this domain
 // Needed so we update the health checker when API keys are updated
-func (r *SingleDomainResolver) SetForwarderHealth(healthChecker ForwarderHealth) {
+func (r *domainResolver) SetForwarderHealth(healthChecker ForwarderHealth) {
 	r.healthChecker = healthChecker
 }
 
@@ -333,32 +312,21 @@ type destination struct {
 	dType  DestinationType
 }
 
-// MultiDomainResolver holds a default value and can provide alternate domain for some route
-type MultiDomainResolver struct {
-	baseDomain          string
-	apiKeys             []utils.APIKeys
-	keyVersion          int
-	dedupedAPIKeys      []string
-	overrides           map[string]destination
-	alternateDomainList []string
-	mu                  sync.Mutex
-	healthChecker       ForwarderHealth
-}
-
 // NewMultiDomainResolver initializes a MultiDomainResolver with its API keys and base destination
-func NewMultiDomainResolver(baseDomain string, apiKeys []utils.APIKeys) (*MultiDomainResolver, error) {
+func NewMultiDomainResolver(domain string, apiKeys []utils.APIKeys) (DomainResolver, error) {
 	// Ensure all API keys have a config setting path so we can keep track to ensure they are updated
 	// when the config changes.
 	for key := range apiKeys {
 		if apiKeys[key].ConfigSettingPath == "" {
-			return nil, fmt.Errorf("Api key for %v does not specify a config setting path", baseDomain)
+			return nil, fmt.Errorf("API key for %v does not specify a config setting path", domain)
 		}
 	}
 
 	deduped := utils.DedupAPIKeys(apiKeys)
 
-	return &MultiDomainResolver{
-		baseDomain:          baseDomain,
+	return &domainResolver{
+		configName:          domain,
+		domain:              domain,
 		apiKeys:             apiKeys,
 		keyVersion:          0,
 		dedupedAPIKeys:      deduped,
@@ -368,95 +336,25 @@ func NewMultiDomainResolver(baseDomain string, apiKeys []utils.APIKeys) (*MultiD
 	}, nil
 }
 
-// GetAPIKeys returns the slice of API keys associated with this SingleDomainResolver
-func (r *MultiDomainResolver) GetAPIKeys() []string {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.dedupedAPIKeys
-}
-
-// GetAPIKeyVersion get the version of the keys
-func (r *MultiDomainResolver) GetAPIKeyVersion() int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	return r.keyVersion
-}
-
-// UpdateAPIKeys updates the api keys at the given config path and sets the deduped keys to the new list.
-func (r *MultiDomainResolver) UpdateAPIKeys(configPath string, newKeys []utils.APIKeys) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	newAPIKeys := make([]utils.APIKeys, 0)
-	for idx := range r.apiKeys {
-		if r.apiKeys[idx].ConfigSettingPath != configPath {
-			newAPIKeys = append(newAPIKeys, r.apiKeys[idx])
+// Resolve returns the destiation for a given request endpoint
+func (r *domainResolver) Resolve(endpoint transaction.Endpoint) string {
+	if r.overrides != nil {
+		if d, ok := r.overrides[endpoint.Name]; ok {
+			return d.domain
 		}
 	}
-
-	r.apiKeys = append(newAPIKeys, newKeys...)
-	r.dedupedAPIKeys = utils.DedupAPIKeys(r.apiKeys)
-
-	r.keyVersion++
-}
-
-// GetAPIKeysInfo returns the list of endpoints associated with this `DomainResolver`
-func (r *MultiDomainResolver) GetAPIKeysInfo() ([]utils.APIKeys, int) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.apiKeys, r.keyVersion
-}
-
-// Resolve returns the destiation for a given request endpoint
-func (r *MultiDomainResolver) Resolve(endpoint transaction.Endpoint) (string, DestinationType) {
-	if d, ok := r.overrides[endpoint.Name]; ok {
-		return d.domain, d.dType
-	}
-	return r.baseDomain, Datadog
-}
-
-// GetBaseDomain returns the base domain
-func (r *MultiDomainResolver) GetBaseDomain() string {
-	return r.baseDomain
-}
-
-// SetBaseDomain updates the base domain
-func (r *MultiDomainResolver) SetBaseDomain(domain string) {
-	r.baseDomain = domain
+	return r.domain
 }
 
 // GetAlternateDomains returns a slice with all alternate domain
-func (r *MultiDomainResolver) GetAlternateDomains() []string {
+func (r *domainResolver) GetAlternateDomains() []string {
 	return r.alternateDomainList
-}
-
-// UpdateAPIKey replaces instances of the oldKey with the newKey
-func (r *MultiDomainResolver) UpdateAPIKey(configPath, oldKey, newKey string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	for idx := range r.apiKeys {
-		if r.apiKeys[idx].ConfigSettingPath == configPath {
-			replace := make([]string, 0, len(r.apiKeys[idx].Keys))
-			for _, key := range r.apiKeys[idx].Keys {
-				if key == oldKey {
-					replace = append(replace, newKey)
-				} else {
-					replace = append(replace, key)
-				}
-			}
-
-			r.apiKeys[idx].Keys = replace
-		}
-	}
-
-	r.dedupedAPIKeys = utils.DedupAPIKeys(r.apiKeys)
 }
 
 // RegisterAlternateDestination adds an alternate destination to a MultiDomainResolver.
 // The resolver will match transaction.Endpoint.Name against forwarderName to check if the request shall
 // be diverted.
-func (r *MultiDomainResolver) RegisterAlternateDestination(domain string, forwarderName string, dType DestinationType) {
+func (r *domainResolver) RegisterAlternateDestination(domain string, forwarderName string, dType DestinationType) {
 	d := destination{
 		domain: domain,
 		dType:  dType,
@@ -468,24 +366,8 @@ func (r *MultiDomainResolver) RegisterAlternateDestination(domain string, forwar
 	r.alternateDomainList = append(r.alternateDomainList, domain)
 }
 
-// GetBearerAuthToken is not implemented for MultiDomainResolver
-func (r *MultiDomainResolver) GetBearerAuthToken() string {
-	return ""
-}
-
-// GetForwarderHealth returns the health checker
-func (r *MultiDomainResolver) GetForwarderHealth() ForwarderHealth {
-	return r.healthChecker
-}
-
-// SetForwarderHealth sets the health checker for this domain
-// Needed so we update the health checker when API keys are updated
-func (r *MultiDomainResolver) SetForwarderHealth(healthChecker ForwarderHealth) {
-	r.healthChecker = healthChecker
-}
-
 // NewDomainResolverWithMetricToVector initialize a resolver with metrics diverted to a vector endpoint
-func NewDomainResolverWithMetricToVector(mainEndpoint string, apiKeys []utils.APIKeys, vectorEndpoint string) (*MultiDomainResolver, error) {
+func NewDomainResolverWithMetricToVector(mainEndpoint string, apiKeys []utils.APIKeys, vectorEndpoint string) (DomainResolver, error) {
 	r, err := NewMultiDomainResolver(mainEndpoint, apiKeys)
 	if err != nil {
 		return nil, err
@@ -496,76 +378,60 @@ func NewDomainResolverWithMetricToVector(mainEndpoint string, apiKeys []utils.AP
 	return r, nil
 }
 
-// LocalDomainResolver contains domain address in local cluster and authToken for internal communication
-type LocalDomainResolver struct {
-	domain    string
-	authToken string
-}
-
 // NewLocalDomainResolver creates a LocalDomainResolver with domain in local cluster and authToken for internal communication
 // For example, the internal cluster-agent endpoint
-func NewLocalDomainResolver(domain string, authToken string) *LocalDomainResolver {
-	return &LocalDomainResolver{
-		domain,
-		authToken,
+func NewLocalDomainResolver(domain string, authToken string) DomainResolver {
+	return &domainResolver{
+		configName:      domain,
+		domain:          domain,
+		authToken:       authToken,
+		destinationType: Local,
 	}
 }
 
-// Resolve returns the domain to be used to send data and local destination type
-func (r *LocalDomainResolver) Resolve(transaction.Endpoint) (string, DestinationType) {
-	return r.domain, Local
+// IsUsable returns true if the resolver has valid configuration.
+func (r *domainResolver) IsUsable() bool {
+	return r.IsLocal() || len(r.dedupedAPIKeys) > 0
 }
 
-// GetBaseDomain returns the base domain for this LocalDomainResolver
-func (r *LocalDomainResolver) GetBaseDomain() string {
-	return r.domain
+// IsLocal returns true if the domain corresponds to another agent.
+func (r *domainResolver) IsLocal() bool {
+	return r.destinationType == Local
 }
 
-// GetAPIKeys is not implemented for LocalDomainResolver
-func (r *LocalDomainResolver) GetAPIKeys() []string {
-	return []string{}
+// IsMRF returns true when the domain is used as the target for multi region failover.
+func (r *domainResolver) IsMRF() bool {
+	return r.isMRF
 }
 
-// GetAPIKeyVersion get the version of the keys
-func (r *LocalDomainResolver) GetAPIKeyVersion() int {
-	return 0
+type authHeader struct {
+	key, value string
 }
 
-// GetAPIKeysInfo returns the list of endpoints associated with this `DomainResolver`
-func (r *LocalDomainResolver) GetAPIKeysInfo() ([]utils.APIKeys, int) {
-	return []utils.APIKeys{}, 0
+// Authorize configures required headers on a transaction.
+func (ah authHeader) Authorize(t *transaction.HTTPTransaction) {
+	t.Headers.Set(ah.key, ah.value)
 }
 
-// SetBaseDomain sets the base domain to a new value
-func (r *LocalDomainResolver) SetBaseDomain(domain string) {
-	r.domain = domain
+// GetAuthHeaders returns
+func (r *domainResolver) GetAuthorizers() (res []authHeader) {
+	if r.IsLocal() {
+		res = append(res, authHeader{
+			key:   "Authorization",
+			value: "Bearer " + r.authToken,
+		})
+	} else {
+		for _, key := range r.GetAPIKeys() {
+			res = append(res, authHeader{
+				key:   "DD-Api-Key",
+				value: key,
+			})
+		}
+	}
+	return
 }
 
-// GetAlternateDomains is not implemented for LocalDomainResolver
-func (r *LocalDomainResolver) GetAlternateDomains() []string {
-	return []string{}
-}
-
-// UpdateAPIKeys is not implemented for LocalDomainResolver
-func (r *LocalDomainResolver) UpdateAPIKeys(_ string, _ []utils.APIKeys) {
-}
-
-// UpdateAPIKey is not implemented for LocalDomainResolver
-func (r *LocalDomainResolver) UpdateAPIKey(_, _, _ string) {
-}
-
-// GetBearerAuthToken returns Bearer authtoken, used for internal communication
-func (r *LocalDomainResolver) GetBearerAuthToken() string {
-	return r.authToken
-}
-
-// GetForwarderHealth returns the health checker
-// Not used for LocalDomainResolver
-func (r *LocalDomainResolver) GetForwarderHealth() ForwarderHealth {
-	return nil
-}
-
-// SetForwarderHealth sets the health checker for this domain
-// Not used for LocalDomainResolver
-func (r *LocalDomainResolver) SetForwarderHealth(_ ForwarderHealth) {
+// GetConfigName returns the base url as it was originally written in the config.
+func (r *domainResolver) GetConfigName() string {
+	return r.configName
 }

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"unsafe"
@@ -26,8 +27,10 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	bugs "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -36,6 +39,8 @@ const (
 	maxActive              = 1024
 	sharedLibrariesPerfMap = "shared_libraries"
 	probeUID               = "so"
+	perCPUBufferPages      = 8
+	dataChannelSize        = 100
 
 	// probe used for streaming shared library events
 	openSysCall    = "open"
@@ -61,25 +66,10 @@ type libsetHandler struct {
 	// callbacks is a map of the callbacks that are subscribed to this libset
 	callbacks map[*LibraryCallback]struct{}
 
-	// done is a channel that is closed when the handler stops, to signal the goroutine to end
-	done chan struct{}
-
-	// perfHandler is the perf handler for this libset, that will get the events from the perf buffer
-	perfHandler *ddebpf.PerfHandler
-
 	// enabled is true if the eBPF program has been enabled for this libset,
-	// which means that the perf buffer is being read, the eBPF program has been
-	// edited to enable this libset, and the handler that redirects events to
-	// callbacks is running.
+	// which means that the perf buffer is being read and the eBPF program has been
+	// edited to enable this libset.
 	enabled bool
-
-	// requested means that the libset has been requested to be enabled, but it
-	// might not be enabled yet. We need to have this distinction as the init flow
-	// is different depending on whether a libset is enabled/requested or none.
-	// For example, an enabled program will need to stop the handlers and re-start them
-	// as the underlying eBPF probe is updated. Meanwhile, a requested program will not
-	// need to stop the handlers, as they are not running yet.
-	requested bool
 }
 
 // EbpfProgram represents the shared libraries eBPF program.
@@ -99,9 +89,6 @@ type EbpfProgram struct {
 	// refcount is the number of times the program has been initialized. It is used to
 	// stop the program only when the refcount reaches 0.
 	refcount uint16
-
-	// initMutex is a mutex to protect the initialization variables and the libset map
-	wg sync.WaitGroup
 
 	// We need to protect the initialization variables and libset map with a
 	// mutex, as the program can be initialized from multiple goroutines at the
@@ -176,36 +163,39 @@ func (e *EbpfProgram) isLibsetEnabled(libset Libset) bool {
 	return ok && data.enabled
 }
 
-// isLibsetEnabled checks if the libset has been requested to be enabled. Assumes initMutex is locked
-func (e *EbpfProgram) isLibsetRequested(libset Libset) bool {
-	data, ok := e.libsets[libset]
-	return ok && data.requested
-}
-
 // setupManagerAndPerfHandlers sets up the manager and perf handlers for the eBPF program, creating the perf handlers
 // Assumes initMutex is locked
-func (e *EbpfProgram) setupManagerAndPerfHandlers() {
+func (e *EbpfProgram) setupManagerAndPerfHandlers() error {
 	mgr := &manager.Manager{}
+	numCPUs, err := kernel.PossibleCPUs()
+	if err != nil {
+		numCPUs = 1
+	}
 
-	// Tell the manager to load all possible maps
+	perfBufferSize := perCPUBufferPages * os.Getpagesize()
+	ringBufferSize := common.ToPowerOf2(perfBufferSize * numCPUs)
+
+	managerMods := []ddebpf.Modifier{
+		&ebpftelemetry.ErrorsTelemetryModifier{},
+	}
+
+	// Load perf handlers for all enabled libsets
 	for libset, handler := range e.libsets {
-		perfHandler := ddebpf.NewPerfHandler(100)
-		pm := &manager.PerfMap{
-			Map: manager.Map{
-				Name: fmt.Sprintf("%s_%s", string(libset), sharedLibrariesPerfMap),
-			},
-			PerfMapOptions: manager.PerfMapOptions{
-				PerfRingBufferSize: 8 * os.Getpagesize(),
-				Watermark:          1,
-				RecordHandler:      perfHandler.RecordHandler,
-				LostHandler:        perfHandler.LostHandler,
-				RecordGetter:       perfHandler.RecordGetter,
-				TelemetryEnabled:   e.cfg.InternalTelemetryEnabled,
-			},
+		if !handler.enabled {
+			continue
 		}
-		mgr.PerfMaps = append(mgr.PerfMaps, pm)
-		ebpftelemetry.ReportPerfMapTelemetry(pm)
-		handler.perfHandler = perfHandler
+
+		mapName := string(libset) + "_" + sharedLibrariesPerfMap
+		mode := perf.UpgradePerfBuffers(perfBufferSize, dataChannelSize, perf.Watermark(1), ringBufferSize)
+
+		perfHandler, err := perf.NewEventHandler(mapName, handler.handleEvent, mode,
+			perf.SendTelemetry(e.cfg.InternalTelemetryEnabled),
+			perf.RingBufferEnabledConstantName("ringbuffers_enabled"))
+		if err != nil {
+			return fmt.Errorf("failed to create perf handler for map %s: %w", mapName, err)
+		}
+
+		managerMods = append(managerMods, perfHandler)
 	}
 
 	e.initializeProbes()
@@ -217,7 +207,9 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() {
 		mgr.Probes = append(mgr.Probes, probe)
 	}
 
-	e.Manager = ddebpf.NewManager(mgr, "shared-libraries", &ebpftelemetry.ErrorsTelemetryModifier{})
+	e.Manager = ddebpf.NewManager(mgr, "shared-libraries", managerMods...)
+
+	return nil
 }
 
 // areLibsetsAlreadyEnabled checks if the eBPF program is already enabled for the given libsets
@@ -298,12 +290,15 @@ func (e *EbpfProgram) InitWithLibsets(libsets ...Libset) error {
 		e.stopImpl()
 	}
 
-	e.setupManagerAndPerfHandlers()
-
-	// Mark the libsets as requested so they can be started
-	// Note that other libsets might be requested from previous executions
+	// Mark the libsets as enabled, so that we will edit the corresponding constants and
+	// enable the corresponding perf handlers.
+	// Note that other libsets might be enabled from previous executions
 	for _, libset := range libsets {
-		e.libsets[libset].requested = true
+		e.libsets[libset].enabled = true
+	}
+
+	if err := e.setupManagerAndPerfHandlers(); err != nil {
+		return fmt.Errorf("cannot setup manager and perf handlers: %w", err)
 	}
 
 	if err := e.loadProgram(); err != nil {
@@ -321,6 +316,7 @@ func (e *EbpfProgram) InitWithLibsets(libsets ...Libset) error {
 
 // start starts the eBPF program and the perf handlers, assumes the initMutex is locked
 func (e *EbpfProgram) start() error {
+	// Manager.Start will also start all the perf handlers that were added to the manager
 	err := e.Manager.Start()
 	if err != nil {
 		return err
@@ -328,42 +324,7 @@ func (e *EbpfProgram) start() error {
 
 	ddebpf.AddProbeFDMappings(e.Manager.Manager)
 
-	for _, handler := range e.libsets {
-		if !handler.requested {
-			continue
-		}
-
-		// Init the "done" channel for the handler, it will be closed when the handler stops
-		handler.done = make(chan struct{})
-		e.wg.Add(1)
-		go handler.eventLoop(&e.wg)
-
-		handler.enabled = true
-	}
-
 	return nil
-}
-
-// eventLoop is the main loop for a single libset. Should be called with all perfHandlers initialized.
-func (l *libsetHandler) eventLoop(wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	dataChan := l.perfHandler.DataChannel()
-	lostChan := l.perfHandler.LostChannel()
-	for {
-		select {
-		case <-l.done:
-			return
-		case event, ok := <-dataChan:
-			if !ok {
-				return
-			}
-			l.handleEvent(&event)
-		case <-lostChan:
-			// Nothing to do in this case
-			break
-		}
-	}
 }
 
 // toLibPath casts the perf event data to the LibPath structure
@@ -371,10 +332,8 @@ func toLibPath(data []byte) LibPath {
 	return *(*LibPath)(unsafe.Pointer(&data[0]))
 }
 
-func (l *libsetHandler) handleEvent(event *ddebpf.DataEvent) {
-	defer event.Done()
-
-	libpath := toLibPath(event.Data)
+func (l *libsetHandler) handleEvent(data []byte) {
+	libpath := toLibPath(data)
 
 	l.callbacksMutex.RLock()
 	defer l.callbacksMutex.RUnlock()
@@ -382,21 +341,6 @@ func (l *libsetHandler) handleEvent(event *ddebpf.DataEvent) {
 		// Not using a callback runner for now, as we don't have a lot of callbacks
 		(*callback)(libpath)
 	}
-}
-
-// stop stops the libset handler. Assumes the initMutex for the main ebpfProgram is locked. To be called
-func (l *libsetHandler) stop() {
-	// The done channel might not be initialized if the program is stopped before it starts (e.g., two sequential calls to InitWithLibsets()).
-	if l.done != nil {
-		close(l.done)
-	}
-
-	// stop the perf handler after the event loop is done
-	if l.perfHandler != nil {
-		l.perfHandler.Stop()
-	}
-
-	l.enabled = false
 }
 
 // subscribe subscribes to the shared libraries events for this libset, returns the function
@@ -487,14 +431,6 @@ func (e *EbpfProgram) stopImpl() {
 		}
 	}
 
-	for _, handler := range e.libsets {
-		if handler.enabled {
-			handler.stop()
-		}
-	}
-
-	e.wg.Wait()
-
 	e.Manager = nil
 }
 
@@ -515,17 +451,17 @@ func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	var enabledMsgs []string
 	for libset := range LibsetToLibSuffixes {
 		value := uint64(0)
-		if e.isLibsetRequested(libset) {
+		if e.isLibsetEnabled(libset) {
 			value = uint64(1)
 		}
 
 		constEd := manager.ConstantEditor{
-			Name:  fmt.Sprintf("%s_libset_enabled", string(libset)),
+			Name:  string(libset) + "_libset_enabled",
 			Value: value,
 		}
 
 		options.ConstantEditors = append(options.ConstantEditors, constEd)
-		enabledMsgs = append(enabledMsgs, fmt.Sprintf("%s=%d", libset, value))
+		enabledMsgs = append(enabledMsgs, string(libset)+"="+strconv.FormatUint(value, 10))
 	}
 
 	log.Infof("loading shared libraries program with libsets enabled: %s", strings.Join(enabledMsgs, ", "))
@@ -614,7 +550,7 @@ func (e *EbpfProgram) initializeProbes() {
 	// Tracing represents fentry/fexit probes.
 	tracingProbes := []manager.ProbeIdentificationPair{
 		{
-			EBPFFuncName: fmt.Sprintf("do_sys_%s_exit", openat2SysCall),
+			EBPFFuncName: "do_sys_" + openat2SysCall + "_exit",
 			UID:          probeUID,
 		},
 	}
@@ -633,7 +569,7 @@ func (e *EbpfProgram) initializeProbes() {
 	for _, probe := range openatProbes {
 		for _, traceType := range traceTypes {
 			tpProbes = append(tpProbes, manager.ProbeIdentificationPair{
-				EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_%s_%s", traceType, probe),
+				EBPFFuncName: "tracepoint__syscalls__sys_" + traceType + "_" + probe,
 				UID:          probeUID,
 			})
 		}
@@ -684,10 +620,10 @@ func (e *EbpfProgram) initializeProbes() {
 
 func getAssetName(module string, debug bool) string {
 	if debug {
-		return fmt.Sprintf("%s-debug.o", module)
+		return module + "-debug.o"
 	}
 
-	return fmt.Sprintf("%s.o", module)
+	return module + ".o"
 }
 
 // ToBytes converts the libpath to a byte array containing the path

@@ -1,0 +1,35 @@
+---
+.deploy_network_devices:
+  stage: deploy_packages
+  rules:
+    !reference [.on_deploy]
+  before_script:
+    - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv agent.version --url-safe)" || exit $?; fi
+    - VERSION="${VERSION}-1"
+  script:
+    - TAG_SUFFIX=${TAG_SUFFIX:-}
+    - |
+      if [[ "$BUCKET_BRANCH" == "nightly" ]]; then
+        export ECR_RELEASE_SUFFIX="-nightly"
+      else
+        export ECR_RELEASE_SUFFIX=${CI_COMMIT_TAG+-release}
+      fi
+    - IMG_SOURCE=${SRC_IMAGE}${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}$TAG_SUFFIX-$ARCH
+    - 'echo "IMG_SOURCE: ${IMG_SOURCE}"'
+    - TAR_FILENAME="${FLAVOR}_${VERSION}_${ARCH}.tar"
+    - 'echo "TAR_FILENAME: ${TAR_FILENAME}"'
+    - 'skopeo copy --override-os linux --override-arch ${ARCH} docker://${IMG_SOURCE} docker-archive:${TAR_FILENAME}:datadog/${FLAVOR}:${VERSION}'
+    - $S3_CP_CMD --recursive --exclude "*" --include "${TAR_FILENAME}" . "${S3_RELEASE_ARTIFACTS_URI}/tar/${ARCH}/"
+  artifacts:
+    paths:
+      - "*.tar"
+    expire_in: 2 weeks
+
+deploy_packages_tar-x64-7:
+  extends: [.deploy_network_devices, .docker_build_amd64]
+  needs:
+    - job: docker_build_agent7
+  variables:
+    SRC_IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
+    TAG_SUFFIX: -7
+    FLAVOR: datadog-agent

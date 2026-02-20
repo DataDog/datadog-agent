@@ -8,6 +8,7 @@
 package module
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -17,6 +18,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -31,6 +33,13 @@ type Config struct {
 	DiagsUploaderURL   string
 	SymDBUploadEnabled bool
 	SymDBUploaderURL   string
+	// ProbeTombstoneFilePath is the path to the tombstone file used to detect
+	// if we crashed while loading programs. Empty means don't use tombstone
+	// file.
+	ProbeTombstoneFilePath string
+	// The directory for the persistent cache tracking SymDB uploads. If empty,
+	// no cache will be used.
+	SymDBCacheDir string
 
 	// DiskCacheEnabled enables the disk cache for debug info.  If this is
 	// false, no disk cache will be used and the debug info will be stored in
@@ -39,27 +48,15 @@ type Config struct {
 	// DiskCacheConfig is the configuration for the disk cache for debug info.
 	DiskCacheConfig object.DiskCacheConfig
 
-	// ProcessSyncDisabled disables the process sync for the module.
-	ProcessSyncDisabled bool
+	// ActuatorConfig is the configuration for the actuator.
+	ActuatorConfig actuator.Config
 
 	TestingKnobs struct {
 		LoaderOptions             []loader.Option
 		IRGeneratorOverride       func(IRGenerator) IRGenerator
 		ProcessSubscriberOverride func(ProcessSubscriber) ProcessSubscriber
+		TombstoneSleepKnobs       tombstone.WaitTestingKnobs
 	}
-}
-
-// erasedActuator is an erased type for an Actuator.
-type erasedActuator[A Actuator[AT], AT ActuatorTenant] struct {
-	a A
-}
-
-func (e *erasedActuator[A, AT]) NewTenant(name string, rt actuator.Runtime) ActuatorTenant {
-	return e.a.NewTenant(name, rt)
-}
-
-func (e *erasedActuator[A, AT]) Shutdown() error {
-	return e.a.Shutdown()
 }
 
 // NewConfig creates a new Config object.
@@ -71,13 +68,18 @@ func NewConfig(_ *sysconfigtypes.Config) (*Config, error) {
 	}
 
 	c := &Config{
-		Config:             *ebpf.NewConfig(),
-		LogUploaderURL:     withPath(traceAgentURL, logUploaderPath),
-		DiagsUploaderURL:   withPath(traceAgentURL, diagsUploaderPath),
-		SymDBUploadEnabled: pkgconfigsetup.SystemProbe().GetBool("dynamic_instrumentation.symdb_upload_enabled"),
-		SymDBUploaderURL:   withPath(traceAgentURL, symdbUploaderPath),
-		DiskCacheEnabled:   cacheEnabled,
-		DiskCacheConfig:    cacheConfig,
+		Config:                 *ebpf.NewConfig(),
+		LogUploaderURL:         withPath(traceAgentURL, logUploaderPath),
+		DiagsUploaderURL:       withPath(traceAgentURL, diagsUploaderPath),
+		SymDBUploadEnabled:     pkgconfigsetup.SystemProbe().GetBool("dynamic_instrumentation.symdb_upload_enabled"),
+		SymDBUploaderURL:       withPath(traceAgentURL, symdbUploaderPath),
+		SymDBCacheDir:          "/tmp/datadog-agent/system-probe/dynamic-instrumentation/symdb-uploads",
+		ProbeTombstoneFilePath: "/tmp/datadog-agent/system-probe/dynamic-instrumentation/debugger-probes-tombstone.json",
+		DiskCacheEnabled:       cacheEnabled,
+		DiskCacheConfig:        cacheConfig,
+		ActuatorConfig: actuator.Config{
+			CircuitBreakerConfig: getCircuitBreakerConfig(),
+		},
 	}
 	return c, nil
 }
@@ -117,6 +119,20 @@ func getDebugInfoDiskCacheConfig() (
 	return
 }
 
+func getCircuitBreakerConfig() actuator.CircuitBreakerConfig {
+	cfg := pkgconfigsetup.SystemProbe()
+	sysconfig.Adjust(cfg)
+	key := func(k string) string {
+		return sysconfig.FullKeyPath(diNS, "circuit_breaker", k)
+	}
+	return actuator.CircuitBreakerConfig{
+		Interval:          cfg.GetDuration(key("interval")),
+		PerProbeCPULimit:  cfg.GetFloat64(key("per_probe_cpu_limit")),
+		AllProbesCPULimit: cfg.GetFloat64(key("all_probes_cpu_limit")),
+		InterruptOverhead: cfg.GetDuration(key("interrupt_overhead")),
+	}
+}
+
 func withPath(u url.URL, path string) string {
 	u.Path = path
 	return u.String()
@@ -136,7 +152,7 @@ const (
 	symdbUploaderPath = "/symdb/v1/input"
 )
 
-var errSchemeRequired = fmt.Errorf("scheme is required")
+var errSchemeRequired = errors.New("scheme is required")
 
 // Parse the trace agent URL from the environment variables, falling back to the
 // default.

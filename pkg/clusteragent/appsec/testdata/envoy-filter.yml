@@ -1,0 +1,103 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: datadog-aap-gateway-filter
+  names pace: <your-preferred-namespace> # Change to your preferred namespace, ensure it's resolvable by the Envoy proxy
+spec:
+  ## If workloadSelector is omitted, the following patches apply to Gateway pods in this EnvoyFilter's namespace
+  ## Use workloadSelector to target a specific Gateway instance.
+  # workloadSelector:
+  #   labels:
+  #     istio: ingressgateway # Label for the default Istio Gateway implementation
+  configPatches:
+    # Patch to add the External Processing Filter to the Gateway's HTTP connection manager
+    - applyTo: HTTP_FILTER
+      match:
+        context: GATEWAY
+        listener:
+          filterChain:
+            filter:
+              name: "envoy.filters.network.http_connection_manager"
+              subFilter:
+                name: "envoy.filters.http.router"
+      patch:
+        # Insert this filter before the router filter. This filter needs to be the earliest filter in the chain to process malicious traffic before the data is sent to an application.
+        operation: INSERT_BEFORE
+        value:
+          name: envoy.filters.http.ext_proc
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor
+            grpc_service:
+              envoy_grpc:
+                cluster_name: datadog_appsec_ext_proc_cluster
+
+              ## Mandatory: Correctly show the service as an Envoy proxy in the UI.
+              initial_metadata:
+                - key: x-datadog-envoy-integration
+                  value: '1'
+
+              ## A timeout configuration for the grpc connection exist but is not useful in our case.
+              ## This timeout is for all the request lifetime. A timeout on the route is preferred.
+              #timeout: 0s
+
+            ## Optional: Enable fail open mode. Default is false.
+            ## Normally, if the external processor fails or times out, the filter fails and Envoy
+            ## returns a 5xx error to the downstream client. Setting this to true allows requests
+            ## to continue without error if a failure occurs.
+            failure_mode_allow: true # It won't cause 5xx error if an error occurs.
+
+            ## Mandatory: Only enable the request and response header modes.
+            ## If you want to enable body processing, please see the section below.
+            processing_mode:
+              request_header_mode: SEND
+              response_header_mode: SEND
+
+            ## Optional for headers analysis only but **mandatory** for body processing.
+            ## The external processor can dynamically override the processing mode as needed instructing
+            ## Envoy to forward request and response bodies to the external processor. Body processing is
+            ## enabled when DD_APPSEC_BODY_PARSING_SIZE_LIMIT is set on the external processor container.
+            allow_mode_override: true
+
+            ## Optional: Set a timeout by processing message. Default is 200ms.
+            ## There is a maxium of 2 messages per requests with headers only and 4 messages maximum
+            ## with body processing enabled.
+            ## Note: This timeout also includes the data communication between Envoy and the external processor.
+            ## Optional: When the body processing is enabled, the timeout should be adjusted to accommodate
+            ## the additional possible processing time. Larger payloads will require a longer timeout.
+            #message_timeout: 200ms
+
+            ## Optional: Enable asynchronous mode analysis. Default is false.
+            ## This mode will disable all blocking capabilities. The external processor should also be
+            ## configured with the DD_SERVICE_EXTENSION_OBSERVABILITY_MODE environment variable.
+            ## Beware, there is no flow control implemented in Envoy
+            ## (cf https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/filters/http/ext_proc/v3/ext_proc.proto#envoy-v3-api-field-extensions-filters-http-ext-proc-v3-externalprocessor-observability-mode)
+            #observability_mode: true
+            ## Optional: When in asynchronous mode, the message_timeout is not used. This deferred
+            ## timeout starts when the http request is finished, to let the External Processor
+            ## process all processing messages. Default is 5s.
+            #deferred_close_timeout: 5s
+
+
+    # Patch to add the cluster definition for the Datadog External Processing service
+    - applyTo: CLUSTER
+      match:
+        context: GATEWAY
+        cluster:
+          service: "*"
+      patch:
+        operation: ADD
+        value:
+          name: "datadog_appsec_ext_proc_cluster" # A unique name for this cluster configuration
+          type: STRICT_DNS
+          lb_policy: ROUND_ROBIN
+          http2_protocol_options: {}
+          load_assignment:
+            cluster_name: "datadog_appsec_ext_proc_cluster"
+            endpoints:
+              - lb_endpoints:
+                  - endpoint:
+                      address:
+                        socket_address:
+                          # Address of the Datadog External Processor service
+                          address: "datadog-appsec-extproc-service.datadog.svc.cluster.local" # Adjust if your service name or namespace is different
+                          port_value: 443

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	bolt "go.etcd.io/bbolt"
 )
@@ -22,10 +23,11 @@ const (
 	boltBucket = "boltdb"
 )
 
-// onDeleteCallback describes a callback function that is called before deleting an entry from a PersistentDB.
+// onDeleteCallback describes a callback function that is called before deleting an entry.
 type onDeleteCallback = func(key string, value []byte) error
 
-// BoltDB implements the PersistentDB interface. It holds a bolt.DB instance and the storage directory.
+// BoltDB implements a persistent key-value store. It holds a bolt.DB instance
+// and the storage directory.
 type BoltDB struct {
 	db        *bolt.DB
 	directory string
@@ -96,14 +98,20 @@ func (b BoltDB) Delete(keys []string, callback onDeleteCallback) error {
 // Get retrieves the value attached to the given key.
 func (b BoltDB) Get(key string) ([]byte, error) {
 	var res []byte
-	return res, b.db.View(func(tx *bolt.Tx) error {
+
+	err := b.db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(boltBucket))
 		if bucket == nil {
 			return fmt.Errorf("bucket %s not found", boltBucket)
 		}
-		res = bucket.Get([]byte(key))
+		res = slices.Clone(bucket.Get([]byte(key)))
 		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
 }
 
 // Store inserts a key in the database.

@@ -14,28 +14,5 @@ type ChannelMessage struct {
 	// Optional. Must be UTC. If not provided, time.Now().UTC() will be used
 	// Used in the Serverless Agent
 	Timestamp time.Time
-	// Optional.
-	// Used in the Serverless Agent
-	Lambda  *Lambda
-	IsError bool
-}
-
-// Lambda is a struct storing information about the Lambda function and function execution.
-type Lambda struct {
-	ARN          string
-	RequestID    string
-	FunctionName string
-}
-
-// NewChannelMessageFromLambda construts a message with content and with the given timestamp and Lambda metadata
-func NewChannelMessageFromLambda(content []byte, utcTime time.Time, ARN, reqID string, isError bool) *ChannelMessage {
-	return &ChannelMessage{
-		Content:   content,
-		Timestamp: utcTime,
-		Lambda: &Lambda{
-			ARN:       ARN,
-			RequestID: reqID,
-		},
-		IsError: isError,
-	}
+	IsError   bool
 }

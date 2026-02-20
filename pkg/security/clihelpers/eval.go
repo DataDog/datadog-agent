@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"runtime"
 
@@ -52,6 +53,21 @@ type EvalRuleParams struct {
 func evalRule(provider rules.PolicyProvider, decoder *json.Decoder, evalArgs EvalRuleParams) (EvalReport, error) {
 	var report EvalReport
 
+	// we need to initialize the model early on to handle legacy field when setting field values in dataFromJSON
+	var m eval.Model
+	var eventCtor func() eval.Event
+	if evalArgs.UseWindowsModel {
+		wmodel := &winmodel.Model{}
+		wmodel.SetLegacyFields(winmodel.SECLLegacyFields)
+		m = wmodel
+		eventCtor = newFakeWindowsEvent
+	} else {
+		lmodel := &model.Model{}
+		lmodel.SetLegacyFields(model.SECLLegacyFields)
+		m = lmodel
+		eventCtor = newFakeEvent
+	}
+
 	event, variables, err := dataFromJSON(decoder)
 	if err != nil {
 		return report, err
@@ -59,11 +75,23 @@ func evalRule(provider rules.PolicyProvider, decoder *json.Decoder, evalArgs Eva
 
 	report.Event = event
 
+	// store the variables values so that we can reapply them after policies are loaded
+	variablesValues := make(map[string]any)
+	for k, v := range variables {
+		rv, ok := v.(eval.Variable)
+		if !ok {
+			continue
+		}
+
+		value, _ := rv.GetValue()
+		variablesValues[k] = value
+	}
+
 	// enabled all the rules
 	enabled := map[eval.EventType]bool{"*": true}
 
 	ruleOpts := rules.NewRuleOpts(enabled)
-	evalOpts := newEvalOpts(evalArgs.UseWindowsModel)
+	evalOpts := newEvalOpts(evalArgs.UseWindowsModel).WithVariables(variables)
 	ruleOpts.WithLogger(seclog.DefaultLogger)
 
 	agentVersionFilter, err := newAgentVersionFilter()
@@ -84,38 +112,20 @@ func evalRule(provider rules.PolicyProvider, decoder *json.Decoder, evalArgs Eva
 
 	loader := rules.NewPolicyLoader(provider)
 
-	var ruleSet *rules.RuleSet
-	if evalArgs.UseWindowsModel {
-		ruleSet = rules.NewRuleSet(&winmodel.Model{}, newFakeWindowsEvent, ruleOpts, evalOpts)
-	} else {
-		ruleSet = rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
-	}
-
+	ruleSet := rules.NewRuleSet(m, eventCtor, ruleOpts, evalOpts)
 	if _, err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
 		return report, err
 	}
 
-	ctx := eval.NewContext(event)
-
-	for varName, value := range variables {
-		definition, ok := evalOpts.VariableStore.GetDefinition(eval.VariableName(varName))
-		if definition == nil || !ok {
-			var definedVariableNames []string
-			evalOpts.VariableStore.IterVariableDefinitions(func(definition eval.VariableDefinition) {
-				definedVariableNames = append(definedVariableNames, definition.VariableName(true))
-			})
-			return report, fmt.Errorf("no variable named `%s` was found in current ruleset (found: %q)", varName, definedVariableNames)
-		}
-		instance, added, err := definition.AddNewInstance(ctx)
-		if err != nil {
-			return report, fmt.Errorf("failed to register new variable instance `%s`: %s", varName, err)
-		}
-		if !added {
-			return report, fmt.Errorf("failed to add new variable instance `%s`", varName)
-		}
-		err = instance.Set(value)
-		if err != nil {
-			return report, fmt.Errorf("failed to set value of variable `%s` to value `%v`: %s", varName, value, err)
+	// reapply the variables values
+	vars := ruleSet.GetVariables()
+	for k, v := range variablesValues {
+		if _, ok := vars[k]; ok {
+			if mv, ok := vars[k].(eval.MutableVariable); ok {
+				if err := mv.Set(nil, v); err != nil {
+					return report, fmt.Errorf("failed to set variable %s: %w", k, err)
+				}
+			}
 		}
 	}
 
@@ -177,9 +187,8 @@ func eventFromTestData(testData TestData) (eval.Event, error) {
 
 	event := &model.Event{
 		BaseEvent: model.BaseEvent{
-			Type:             uint32(kind),
-			FieldHandlers:    &model.FakeFieldHandlers{},
-			ContainerContext: &model.ContainerContext{},
+			Type:          uint32(kind),
+			FieldHandlers: &model.FakeFieldHandlers{},
 		},
 	}
 	event.Init()
@@ -214,62 +223,90 @@ func eventFromTestData(testData TestData) (eval.Event, error) {
 	return event, nil
 }
 
-func variablesFromTestData(testData TestData) (map[string]any, error) {
-	variables := make(map[string]any)
+func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, error) {
+	variables := make(map[string]eval.SECLVariable)
 
-	for varName, value := range testData.Variables {
-		switch value := value.(type) {
+	// copy the embedded variables
+	maps.Copy(variables, model.SECLVariables)
+
+	varOpts := eval.VariableOpts{
+		TTL: 10000000,
+	}
+
+	// add the variables from the test data
+	for k, v := range testData.Variables {
+		switch v := v.(type) {
 		case string:
-			variables[varName] = value
-		case json.Number:
-			v, err := value.Int64()
-			if err != nil {
-				return nil, fmt.Errorf("failed to convert %s to int: %w", varName, err)
+			if rules.IsScopeVariable(k) {
+				variables[k] = eval.NewScopedStringVariable(func(_ *eval.Context, _ bool) (string, bool) {
+					return v, true
+				}, nil)
+			} else {
+				variables[k] = eval.NewStringVariable(v, varOpts)
 			}
-			variables[varName] = int(v)
-		case float64:
-			variables[varName] = int(value)
-		case bool:
-			variables[varName] = value
 		case []any:
-			if len(value) == 0 {
-				return nil, fmt.Errorf("test variable `%s` has unknown type: %T", varName, value)
-			}
-			switch value[0].(type) {
+			switch v[0].(type) {
 			case string:
-				values := make([]string, 0, len(value))
-				for _, v := range value {
-					values = append(values, v.(string))
+				values := make([]string, len(v))
+				for i, value := range v {
+					values[i] = value.(string)
 				}
-				variables[varName] = values
+				if rules.IsScopeVariable(k) {
+					variables[k] = eval.NewScopedStringArrayVariable(func(_ *eval.Context, _ bool) ([]string, bool) {
+						return values, true
+					}, nil)
+				} else {
+					variables[k] = eval.NewStringArrayVariable(values, varOpts)
+				}
 			case json.Number:
-				values := make([]int, 0, len(value))
-				for _, v := range value {
-					v, err := v.(json.Number).Int64()
+				values := make([]int, len(v))
+				for i, value := range v {
+					v64, err := value.(json.Number).Int64()
 					if err != nil {
-						return nil, fmt.Errorf("failed to convert %s to int: %w", varName, err)
+						return nil, fmt.Errorf("failed to convert %s to int: %w", v, err)
 					}
-					values = append(values, int(v))
+					values[i] = int(v64)
 				}
-				variables[varName] = values
-			case float64:
-				values := make([]int, 0, len(value))
-				for _, v := range value {
-					values = append(values, int(v.(float64)))
+
+				if rules.IsScopeVariable(k) {
+					variables[k] = eval.NewScopedIntArrayVariable(func(_ *eval.Context, _ bool) ([]int, bool) {
+						return values, true
+					}, nil)
+				} else {
+					variables[k] = eval.NewIntArrayVariable(values, varOpts)
 				}
-				variables[varName] = values
 			default:
-				return nil, fmt.Errorf("test variable `%s` has unknown type: %T", varName, value)
+				return nil, fmt.Errorf("unknown variable type %s: %T", k, v)
+			}
+		case json.Number:
+			value, err := v.Int64()
+			if err != nil {
+				return nil, fmt.Errorf("failed to convert %s to int: %w", v, err)
+			}
+			if rules.IsScopeVariable(k) {
+				variables[k] = eval.NewScopedIntVariable(func(_ *eval.Context, _ bool) (int, bool) {
+					return int(value), true
+				}, nil)
+			} else {
+				variables[k] = eval.NewIntVariable(int(value), varOpts)
+			}
+		case bool:
+			if rules.IsScopeVariable(k) {
+				variables[k] = eval.NewScopedBoolVariable(func(_ *eval.Context, _ bool) (bool, bool) {
+					return v, true
+				}, nil)
+			} else {
+				variables[k] = eval.NewBoolVariable(v, varOpts)
 			}
 		default:
-			return nil, fmt.Errorf("test variable `%s` has unknown type: %T", varName, value)
+			return nil, fmt.Errorf("unknown variable type %s: %T", k, v)
 		}
 	}
 
 	return variables, nil
 }
 
-func dataFromJSON(decoder *json.Decoder) (eval.Event, map[string]any, error) {
+func dataFromJSON(decoder *json.Decoder) (eval.Event, map[string]eval.SECLVariable, error) {
 	var testData TestData
 	if err := decoder.Decode(&testData); err != nil {
 		return nil, nil, err

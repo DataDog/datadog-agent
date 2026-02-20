@@ -36,7 +36,7 @@ func (fpk *FakeProcessKillerOS) getProcesses(scope string, ev *model.Event, entr
 			path: ev.ProcessContext.FileEvent.PathnameStr,
 		},
 	}
-	if entry.ContainerID != "" && scope == "container" {
+	if entry.Process.ContainerContext.ContainerID != "" && scope == "container" {
 		kcs = append(kcs, []killContext{
 			{
 				pid:  int(ev.ProcessContext.Pid + 1),
@@ -74,7 +74,7 @@ func (p *ProcessKiller) getRuleStatsNoAlloc(ruleID string) *processKillerStats {
 func assertKillEvent(t *testing.T, pk *ProcessKiller, rule *rules.Rule, container, executable string, pid uint32, status KillActionStatus, scope string) {
 	event := craftFakeEvent(container, executable, pid)
 	// First kill should be enqueued
-	killed := pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
+	killed, _ := pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
 	if status == KillActionStatusPerformed {
 		assert.True(t, killed)
 	} else {
@@ -90,7 +90,7 @@ func assertKillEvent(t *testing.T, pk *ProcessKiller, rule *rules.Rule, containe
 	assert.Equal(t, false, report.resolved)
 }
 
-func assertProcesssKillEvent(t *testing.T, pk *ProcessKiller, rule *rules.Rule, container, executable string, pid uint32, status KillActionStatus) {
+func assertProcessKillEvent(t *testing.T, pk *ProcessKiller, rule *rules.Rule, container, executable string, pid uint32, status KillActionStatus) {
 	assertKillEvent(t, pk, rule, container, executable, pid, status, "process")
 }
 
@@ -116,11 +116,12 @@ func TestProcessKillerExclusion(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func craftKillRule(id, scope string) *rules.Rule {
-	return &rules.Rule{
+func craftKillRule(t *testing.T, id, scope string) (*rules.Rule, *rules.RuleSet) {
+	rule := &rules.Rule{
 		PolicyRule: &rules.PolicyRule{
 			Def: &rules.RuleDefinition{
-				ID: id,
+				ID:         id,
+				Expression: `exec.file.path == "/tmp/malware"`,
 				Actions: []*rules.ActionDefinition{
 					{
 						Kill: &rules.KillDefinition{
@@ -148,17 +149,23 @@ func craftKillRule(id, scope string) *rules.Rule {
 			ID: id,
 		},
 	}
+
+	opts := rules.NewRuleOpts(map[eval.EventType]bool{"*": true})
+	ruleSet := rules.NewRuleSet(&model.Model{}, nil, opts, &eval.Opts{})
+	_, err := ruleSet.AddRule(rule.PolicyRule)
+	assert.NoError(t, err)
+
+	return rule, ruleSet
 }
 
 func craftFakeEvent(containerID, executable string, pid uint32) *model.Event {
 	event := model.NewFakeEvent()
-	event.ContainerContext = &model.ContainerContext{
-		ContainerID: containerutils.ContainerID(containerID),
-	}
 	event.ProcessCacheEntry = &model.ProcessCacheEntry{
 		ProcessContext: model.ProcessContext{
 			Process: model.Process{
-				ContainerID: containerutils.ContainerID(containerID),
+				ContainerContext: model.ContainerContext{
+					ContainerID: containerutils.ContainerID(containerID),
+				},
 				FileEvent: model.FileEvent{
 					PathnameStr: executable,
 				},
@@ -199,21 +206,20 @@ func TestProcessKillerDisarmers(t *testing.T) {
 
 	pk, err := NewProcessKiller(cfg, &FakeProcessKillerOS{})
 	assert.NoError(t, err)
-	rule := craftKillRule("test-rule", "process")
-	ruleSet := rules.NewFakeRuleSet(rule)
+	rule, ruleSet := craftKillRule(t, "test-rule", "process")
 
 	t.Run("dismantle-rule-kill-action-by-executable", func(t *testing.T) {
 		pk.Reset(ruleSet)
 		pk.vacumChan()
 
 		// First kill should be enqueued
-		assertProcesssKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusQueued)
+		assertProcessKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusQueued)
 
 		// Second kill should be enqueued as well
-		assertProcesssKillEvent(t, pk, rule, "container1", "executable1", 456, KillActionStatusQueued)
+		assertProcessKillEvent(t, pk, rule, "container1", "executable1", 456, KillActionStatusQueued)
 
 		// Third kill should dismantle the rule
-		assertProcesssKillEvent(t, pk, rule, "container1", "executable2", 789, KillActionStatusRuleDismantled)
+		assertProcessKillEvent(t, pk, rule, "container1", "executable2", 789, KillActionStatusRuleDismantled)
 
 		// check stats
 		stats := pk.getRuleStatsNoAlloc("test-rule")
@@ -229,13 +235,13 @@ func TestProcessKillerDisarmers(t *testing.T) {
 		pk.vacumChan()
 
 		// First kill should be enqueued
-		assertProcesssKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusQueued)
+		assertProcessKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusQueued)
 
 		// Second kill should be enqueued as well
-		assertProcesssKillEvent(t, pk, rule, "container1", "executable1", 456, KillActionStatusQueued)
+		assertProcessKillEvent(t, pk, rule, "container1", "executable1", 456, KillActionStatusQueued)
 
 		// Third kill should dismantle the rule
-		assertProcesssKillEvent(t, pk, rule, "container2", "executable1", 789, KillActionStatusRuleDismantled)
+		assertProcessKillEvent(t, pk, rule, "container2", "executable1", 789, KillActionStatusRuleDismantled)
 
 		// check stats
 		stats := pk.getRuleStatsNoAlloc("test-rule")
@@ -251,7 +257,7 @@ func TestProcessKillerDisarmers(t *testing.T) {
 		pk.vacumChan()
 
 		// First kill should be enqueued
-		assertProcesssKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusQueued)
+		assertProcessKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusQueued)
 
 		// trick the disarmer to be after the warmup period
 		disarmer := pk.getDisarmer("test-rule")
@@ -259,10 +265,10 @@ func TestProcessKillerDisarmers(t *testing.T) {
 		disarmer.warmupEnd = time.Now().Add(-time.Second)
 
 		// Second kill should be enqueued as well
-		assertProcesssKillEvent(t, pk, rule, "container1", "executable1", 456, KillActionStatusPerformed)
+		assertProcessKillEvent(t, pk, rule, "container1", "executable1", 456, KillActionStatusPerformed)
 
 		// Third kill should dismantle the rule
-		assertProcesssKillEvent(t, pk, rule, "container1", "executable2", 456, KillActionStatusRuleDisarmed)
+		assertProcessKillEvent(t, pk, rule, "container1", "executable2", 456, KillActionStatusRuleDisarmed)
 
 		// check stats
 		stats := pk.getRuleStatsNoAlloc("test-rule")
@@ -278,7 +284,7 @@ func TestProcessKillerDisarmers(t *testing.T) {
 		pk.vacumChan()
 
 		// First kill should be enqueued
-		assertProcesssKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusQueued)
+		assertProcessKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusQueued)
 
 		// trick the disarmer to be after the warmup period
 		disarmer := pk.getDisarmer("test-rule")
@@ -286,10 +292,10 @@ func TestProcessKillerDisarmers(t *testing.T) {
 		disarmer.warmupEnd = time.Now().Add(-time.Second)
 
 		// Second kill should be enqueued as well
-		assertProcesssKillEvent(t, pk, rule, "container1", "executable1", 456, KillActionStatusPerformed)
+		assertProcessKillEvent(t, pk, rule, "container1", "executable1", 456, KillActionStatusPerformed)
 
 		// Third kill should dismantle the rule
-		assertProcesssKillEvent(t, pk, rule, "container2", "executable1", 456, KillActionStatusRuleDisarmed)
+		assertProcessKillEvent(t, pk, rule, "container2", "executable1", 456, KillActionStatusRuleDisarmed)
 
 		// check stats
 		stats := pk.getRuleStatsNoAlloc("test-rule")
@@ -317,18 +323,17 @@ func TestProcessKillerNoDisarmers(t *testing.T) {
 
 	pk, err := NewProcessKiller(cfg, &FakeProcessKillerOS{})
 	assert.NoError(t, err)
-	rule := craftKillRule("test-rule", "process")
-	ruleSet := rules.NewFakeRuleSet(rule)
+	rule, ruleSet := craftKillRule(t, "test-rule", "process")
 
 	t.Run("no-executable-disarmer-rule-to-disarm", func(t *testing.T) {
 		pk.Reset(ruleSet)
 		pk.vacumChan()
 
 		// First kill should be enqueued
-		assertProcesssKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusQueued)
+		assertProcessKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusQueued)
 
 		// Second kill should be enqueued as well
-		assertProcesssKillEvent(t, pk, rule, "container1", "executable2", 456, KillActionStatusQueued)
+		assertProcessKillEvent(t, pk, rule, "container1", "executable2", 456, KillActionStatusQueued)
 
 		// trick the disarmer to be after the warmup period
 		disarmer := pk.getDisarmer("test-rule")
@@ -336,10 +341,10 @@ func TestProcessKillerNoDisarmers(t *testing.T) {
 		disarmer.warmupEnd = time.Now().Add(-time.Second)
 
 		// Third kill should be performed
-		assertProcesssKillEvent(t, pk, rule, "container1", "executable3", 789, KillActionStatusPerformed)
+		assertProcessKillEvent(t, pk, rule, "container1", "executable3", 789, KillActionStatusPerformed)
 
 		// Fourth kill should disarm the rule
-		assertProcesssKillEvent(t, pk, rule, "container2", "executable3", 111, KillActionStatusRuleDisarmed)
+		assertProcessKillEvent(t, pk, rule, "container2", "executable3", 111, KillActionStatusRuleDisarmed)
 
 		// check stats
 		stats := pk.getRuleStatsNoAlloc("test-rule")
@@ -355,13 +360,13 @@ func TestProcessKillerNoDisarmers(t *testing.T) {
 		pk.vacumChan()
 
 		// First kill should be enqueued
-		assertProcesssKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusQueued)
+		assertProcessKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusQueued)
 
 		// Second kill should be enqueued as well
-		assertProcesssKillEvent(t, pk, rule, "container1", "executable2", 456, KillActionStatusQueued)
+		assertProcessKillEvent(t, pk, rule, "container1", "executable2", 456, KillActionStatusQueued)
 
 		// Third kill should disarm the rule
-		assertProcesssKillEvent(t, pk, rule, "container2", "executable2", 111, KillActionStatusRuleDismantled)
+		assertProcessKillEvent(t, pk, rule, "container2", "executable2", 111, KillActionStatusRuleDismantled)
 
 		// check stats
 		stats := pk.getRuleStatsNoAlloc("test-rule")
@@ -381,10 +386,10 @@ func TestProcessKillerNoDisarmers(t *testing.T) {
 		pk.vacumChan()
 
 		// First kill should be enqueued
-		assertProcesssKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusQueued)
+		assertProcessKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusQueued)
 
 		// Second kill should be enqueued as well
-		assertProcesssKillEvent(t, pk, rule, "container2", "executable1", 456, KillActionStatusQueued)
+		assertProcessKillEvent(t, pk, rule, "container2", "executable1", 456, KillActionStatusQueued)
 
 		// trick the disarmer to be after the warmup period
 		disarmer := pk.getDisarmer("test-rule")
@@ -392,10 +397,10 @@ func TestProcessKillerNoDisarmers(t *testing.T) {
 		disarmer.warmupEnd = time.Now().Add(-time.Second)
 
 		// Third kill should be performed
-		assertProcesssKillEvent(t, pk, rule, "container3", "executable1", 789, KillActionStatusPerformed)
+		assertProcessKillEvent(t, pk, rule, "container3", "executable1", 789, KillActionStatusPerformed)
 
 		// Fourth kill should disarm the rule
-		assertProcesssKillEvent(t, pk, rule, "container3", "executable2", 111, KillActionStatusRuleDisarmed)
+		assertProcessKillEvent(t, pk, rule, "container3", "executable2", 111, KillActionStatusRuleDisarmed)
 
 		// check stats
 		stats := pk.getRuleStatsNoAlloc("test-rule")
@@ -411,13 +416,13 @@ func TestProcessKillerNoDisarmers(t *testing.T) {
 		pk.vacumChan()
 
 		// First kill should be enqueued
-		assertProcesssKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusQueued)
+		assertProcessKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusQueued)
 
 		// Second kill should be enqueued as well
-		assertProcesssKillEvent(t, pk, rule, "container2", "executable1", 456, KillActionStatusQueued)
+		assertProcessKillEvent(t, pk, rule, "container2", "executable1", 456, KillActionStatusQueued)
 
 		// Third kill should disarm the rule
-		assertProcesssKillEvent(t, pk, rule, "container2", "executable2", 111, KillActionStatusRuleDismantled)
+		assertProcessKillEvent(t, pk, rule, "container2", "executable2", 111, KillActionStatusRuleDismantled)
 
 		// check stats
 		stats := pk.getRuleStatsNoAlloc("test-rule")
@@ -437,13 +442,13 @@ func TestProcessKillerNoDisarmers(t *testing.T) {
 		pk.vacumChan()
 
 		// First kill should be performed
-		assertProcesssKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusPerformed)
+		assertProcessKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusPerformed)
 
 		// Second kill should be performed as well
-		assertProcesssKillEvent(t, pk, rule, "container2", "executable1", 456, KillActionStatusPerformed)
+		assertProcessKillEvent(t, pk, rule, "container2", "executable1", 456, KillActionStatusPerformed)
 
 		// Third kill should be performed as well
-		assertProcesssKillEvent(t, pk, rule, "container2", "executable2", 111, KillActionStatusPerformed)
+		assertProcessKillEvent(t, pk, rule, "container2", "executable2", 111, KillActionStatusPerformed)
 
 		// check stats
 		stats := pk.getRuleStatsNoAlloc("test-rule")
@@ -471,29 +476,28 @@ func TestProcessKillerNoEnforcement(t *testing.T) {
 
 	pk, err := NewProcessKiller(cfg, &FakeProcessKillerOS{})
 	assert.NoError(t, err)
-	rule := craftKillRule("test-rule", "process")
-	ruleSet := rules.NewFakeRuleSet(rule)
+	rule, ruleSet := craftKillRule(t, "test-rule", "process")
 
 	t.Run("no-enforcement-rule-kill-action-by-executable", func(t *testing.T) {
 		pk.Reset(ruleSet)
 
 		event := craftFakeEvent("container1", "executable1", 123)
 		// First kill should be performed
-		killed := pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
+		killed, _ := pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
 		assert.False(t, killed)
 		assert.Equal(t, 0, len(event.ActionReports))
 
 		// reset event to different pid, but same container, same executable
 		event = craftFakeEvent("container1", "executable1", 456)
 		// Second kill should be performed as well
-		killed = pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
+		killed, _ = pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
 		assert.False(t, killed)
 		assert.Equal(t, 0, len(event.ActionReports))
 
 		// reset event to different pid AND executable
 		event = craftFakeEvent("container1", "executable2", 789)
 		// Third kill should be performed as well
-		killed = pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
+		killed, _ = pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
 		assert.False(t, killed)
 		assert.Equal(t, 0, len(event.ActionReports))
 
@@ -507,21 +511,21 @@ func TestProcessKillerNoEnforcement(t *testing.T) {
 
 		event := craftFakeEvent("container1", "executable1", 123)
 		// First kill should be performed
-		killed := pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
+		killed, _ := pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
 		assert.False(t, killed)
 		assert.Equal(t, 0, len(event.ActionReports))
 
 		// reset event to different pid, but same container, same executable
 		event = craftFakeEvent("container1", "executable1", 456)
 		// Second kill should be performed as well
-		killed = pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
+		killed, _ = pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
 		assert.False(t, killed)
 		assert.Equal(t, 0, len(event.ActionReports))
 
 		// reset event to different pid AND container
 		event = craftFakeEvent("container2", "executable1", 789)
 		// Third kill should be performed as well
-		killed = pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
+		killed, _ = pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
 		assert.False(t, killed)
 		assert.Equal(t, 0, len(event.ActionReports))
 
@@ -547,19 +551,18 @@ func TestProcessKillerRuleNoDisarmers(t *testing.T) {
 
 	pk, err := NewProcessKiller(cfg, &FakeProcessKillerOS{})
 	assert.NoError(t, err)
-	rule := craftKillRule("test-rule", "process")
+	rule, ruleSet := craftKillRule(t, "test-rule", "process")
 	rule.PolicyRule.Def.Actions[0].Kill.DisableExecutableDisarmer = true
-	ruleSet := rules.NewFakeRuleSet(rule)
 
 	t.Run("no-executable-disarmer-by-rule-to-disarm", func(t *testing.T) {
 		pk.Reset(ruleSet)
 		pk.vacumChan()
 
 		// First kill should be enqueued
-		assertProcesssKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusQueued)
+		assertProcessKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusQueued)
 
 		// Second kill should be enqueued as well
-		assertProcesssKillEvent(t, pk, rule, "container1", "executable2", 456, KillActionStatusQueued)
+		assertProcessKillEvent(t, pk, rule, "container1", "executable2", 456, KillActionStatusQueued)
 
 		// trick the disarmer to be after the warmup period
 		disarmer := pk.getDisarmer("test-rule")
@@ -567,10 +570,10 @@ func TestProcessKillerRuleNoDisarmers(t *testing.T) {
 		disarmer.warmupEnd = time.Now().Add(-time.Second)
 
 		// Third kill should be performed
-		assertProcesssKillEvent(t, pk, rule, "container1", "executable3", 789, KillActionStatusPerformed)
+		assertProcessKillEvent(t, pk, rule, "container1", "executable3", 789, KillActionStatusPerformed)
 
 		// Fourth kill should disarm the rule
-		assertProcesssKillEvent(t, pk, rule, "container2", "executable3", 111, KillActionStatusRuleDisarmed)
+		assertProcessKillEvent(t, pk, rule, "container2", "executable3", 111, KillActionStatusRuleDisarmed)
 
 		// check stats
 		stats := pk.getRuleStatsNoAlloc("test-rule")
@@ -586,13 +589,13 @@ func TestProcessKillerRuleNoDisarmers(t *testing.T) {
 		pk.vacumChan()
 
 		// First kill should be enqueued
-		assertProcesssKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusQueued)
+		assertProcessKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusQueued)
 
 		// Second kill should be enqueued as well
-		assertProcesssKillEvent(t, pk, rule, "container1", "executable2", 456, KillActionStatusQueued)
+		assertProcessKillEvent(t, pk, rule, "container1", "executable2", 456, KillActionStatusQueued)
 
 		// Third kill should disarm the rule
-		assertProcesssKillEvent(t, pk, rule, "container2", "executable2", 111, KillActionStatusRuleDismantled)
+		assertProcessKillEvent(t, pk, rule, "container2", "executable2", 111, KillActionStatusRuleDismantled)
 
 		// check stats
 		stats := pk.getRuleStatsNoAlloc("test-rule")
@@ -612,10 +615,10 @@ func TestProcessKillerRuleNoDisarmers(t *testing.T) {
 		pk.vacumChan()
 
 		// First kill should be enqueued
-		assertProcesssKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusQueued)
+		assertProcessKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusQueued)
 
 		// Second kill should be enqueued as well
-		assertProcesssKillEvent(t, pk, rule, "container2", "executable1", 456, KillActionStatusQueued)
+		assertProcessKillEvent(t, pk, rule, "container2", "executable1", 456, KillActionStatusQueued)
 
 		// trick the disarmer to be after the warmup period
 		disarmer := pk.getDisarmer("test-rule")
@@ -623,10 +626,10 @@ func TestProcessKillerRuleNoDisarmers(t *testing.T) {
 		disarmer.warmupEnd = time.Now().Add(-time.Second)
 
 		// Third kill should be performed
-		assertProcesssKillEvent(t, pk, rule, "container3", "executable1", 789, KillActionStatusPerformed)
+		assertProcessKillEvent(t, pk, rule, "container3", "executable1", 789, KillActionStatusPerformed)
 
 		// Fourth kill should disarm the rule
-		assertProcesssKillEvent(t, pk, rule, "container3", "executable2", 111, KillActionStatusRuleDisarmed)
+		assertProcessKillEvent(t, pk, rule, "container3", "executable2", 111, KillActionStatusRuleDisarmed)
 
 		// check stats
 		stats := pk.getRuleStatsNoAlloc("test-rule")
@@ -642,13 +645,13 @@ func TestProcessKillerRuleNoDisarmers(t *testing.T) {
 		pk.vacumChan()
 
 		// First kill should be enqueued
-		assertProcesssKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusQueued)
+		assertProcessKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusQueued)
 
 		// Second kill should be enqueued as well
-		assertProcesssKillEvent(t, pk, rule, "container2", "executable1", 456, KillActionStatusQueued)
+		assertProcessKillEvent(t, pk, rule, "container2", "executable1", 456, KillActionStatusQueued)
 
 		// Third kill should disarm the rule
-		assertProcesssKillEvent(t, pk, rule, "container2", "executable2", 111, KillActionStatusRuleDismantled)
+		assertProcessKillEvent(t, pk, rule, "container2", "executable2", 111, KillActionStatusRuleDismantled)
 
 		// check stats
 		stats := pk.getRuleStatsNoAlloc("test-rule")
@@ -668,13 +671,13 @@ func TestProcessKillerRuleNoDisarmers(t *testing.T) {
 		pk.vacumChan()
 
 		// First kill should be performed
-		assertProcesssKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusPerformed)
+		assertProcessKillEvent(t, pk, rule, "container1", "executable1", 123, KillActionStatusPerformed)
 
 		// Second kill should be performed as well
-		assertProcesssKillEvent(t, pk, rule, "container2", "executable1", 456, KillActionStatusPerformed)
+		assertProcessKillEvent(t, pk, rule, "container2", "executable1", 456, KillActionStatusPerformed)
 
 		// Third kill should be performed as well
-		assertProcesssKillEvent(t, pk, rule, "container2", "executable2", 111, KillActionStatusPerformed)
+		assertProcessKillEvent(t, pk, rule, "container2", "executable2", 111, KillActionStatusPerformed)
 
 		// check stats
 		stats := pk.getRuleStatsNoAlloc("test-rule")
@@ -702,8 +705,7 @@ func TestProcessKillerRuleScopeContainer(t *testing.T) {
 
 	pk, err := NewProcessKiller(cfg, &FakeProcessKillerOS{})
 	assert.NoError(t, err)
-	rule := craftKillRule("test-rule", "container")
-	ruleSet := rules.NewFakeRuleSet(rule)
+	rule, ruleSet := craftKillRule(t, "test-rule", "container")
 
 	t.Run("kill-container-rule-to-executable-disarm", func(t *testing.T) {
 		pk.Reset(ruleSet)
@@ -725,7 +727,7 @@ func TestProcessKillerRuleScopeContainer(t *testing.T) {
 
 		// Third kill should NOT perform any kill (because no container AND container scope)
 		event := craftFakeEvent("", "executable1", 111)
-		killed := pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
+		killed, _ := pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
 		assert.False(t, killed)
 		assert.Equal(t, 0, len(event.ActionReports))
 

@@ -252,11 +252,10 @@ func (e *blockedEndpoints) isBlockForSend(endpoint string, timeNow time.Time) bo
 		case blocked:
 			if timeNow.Before(b.until) {
 				return true
-			} else {
-				// The timeout has expired, move to `halfBlocked` and send this transaction.
-				b.setState(halfBlocked)
-				return false
 			}
+			// The timeout has expired, move to `halfBlocked` and send this transaction.
+			b.setState(halfBlocked)
+			return false
 		}
 	}
 	return false

@@ -27,7 +27,6 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
@@ -40,7 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 )
 
 const (
@@ -366,9 +364,9 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	}
 
 	// container context
-	event.ContainerContext.ContainerID = containerutils.ContainerID(syscallMsg.ContainerID)
+	event.ProcessContext.ContainerContext.ContainerID = containerutils.ContainerID(syscallMsg.ContainerID)
 	if containerContext, exists := p.containerContexts[syscallMsg.ContainerID]; exists {
-		event.ContainerContext.CreatedAt = containerContext.CreatedAt
+		event.ProcessContext.ContainerContext.CreatedAt = containerContext.CreatedAt
 	}
 
 	// copy span context if any
@@ -406,7 +404,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 
 // DispatchEvent sends an event to the probe event handler
 func (p *EBPFLessProbe) DispatchEvent(event *model.Event) {
-	logTraceEvent(event.GetEventType(), event)
+	p.probe.logTraceEvent(event.GetEventType(), event)
 
 	// send event to wildcard handlers, like the CWS rule engine, first
 	p.probe.sendEventToHandlers(event)
@@ -636,8 +634,12 @@ func (p *EBPFLessProbe) FlushDiscarders() error {
 }
 
 // ApplyRuleSet applies the new ruleset
-func (p *EBPFLessProbe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.FilterReport, error) {
-	return &kfilters.FilterReport{}, nil
+func (p *EBPFLessProbe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.FilterReport, bool, error) {
+	return &kfilters.FilterReport{}, false, nil
+}
+
+// ReplayEvents replays the events from the rule set
+func (p *EBPFLessProbe) ReplayEvents() {
 }
 
 // OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
@@ -658,14 +660,24 @@ func (p *EBPFLessProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 		case action.Def.Kill != nil:
 			// do not handle kill action on event with error
 			if ev.Error != nil {
-				return
+				continue
 			}
-
-			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev) {
+			tryToKill, _ := p.processKiller.KillAndReport(action.Def.Kill, rule, ev)
+			if tryToKill {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		case action.Def.Hash != nil:
-			if p.fileHasher.HashAndReport(rule, action.Def.Hash, ev) {
+			fileEvent, err := ev.GetFileField(action.Def.Hash.Field)
+			if err != nil {
+				seclog.Errorf("failed to get file field %s: %v", action.Def.Hash.Field, err)
+				continue
+			}
+
+			if p.fieldHandlers.ResolveFilePath(ev, fileEvent) == "" {
+				continue
+			}
+
+			if p.fileHasher.HashAndReport(rule, action.Def.Hash, ev, fileEvent) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		}
@@ -699,6 +711,7 @@ func (p *EBPFLessProbe) zeroEvent() *model.Event {
 	probeEventZeroer(p.event)
 	p.event.FieldHandlers = p.fieldHandlers
 	p.event.Origin = EBPFLessOrigin
+	p.event.ProcessContext = &model.ProcessContext{}
 	return p.event
 }
 
@@ -713,7 +726,7 @@ func (p *EBPFLessProbe) GetAgentContainerContext() *events.AgentContainerContext
 }
 
 // NewEBPFLessProbe returns a new eBPF less probe
-func NewEBPFLessProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts Opts) (*EBPFLessProbe, error) {
+func NewEBPFLessProbe(probe *Probe, config *config.Config, hostname string, opts Opts) (*EBPFLessProbe, error) {
 	opts.normalize()
 
 	processKiller, err := NewProcessKiller(config, nil)
@@ -747,11 +760,6 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, ipc ipc.Component, op
 	}
 
 	p.fileHasher = NewFileHasher(config, p.Resolvers.HashResolver)
-
-	hostname, err := hostnameutils.GetHostname(ipc)
-	if err != nil || hostname == "" {
-		hostname = "unknown"
-	}
 
 	fh, err := NewEBPFLessFieldHandlers(config, p.Resolvers, hostname)
 	if err != nil {

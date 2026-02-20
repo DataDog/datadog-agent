@@ -101,7 +101,7 @@ func parseProcControlGroupsData(data []byte, validateCgroupEntry func(string, st
 		data = data[nextStart:]
 	}
 
-	// return the lastest error
+	// return the latest error
 	return err
 }
 
@@ -242,6 +242,9 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 			// in case of relative path use rootCgroupPath
 			if strings.HasPrefix(path, "/..") || path == "/" {
 				cgroupPath = filepath.Join(cfs.rootCGroupPath, path)
+				if mountpoint == cgroupPath { // if relative path == the relative mount point, it means that's our current cgroup
+					cgroupPath = cfs.rootCGroupPath
+				}
 			} else {
 				cgroupPath = filepath.Join(mountpoint, ctrlDirectory, path)
 			}
@@ -308,8 +311,8 @@ func checkPidExists(sysFScGroupPath string, expectedPid uint32) (bool, error) {
 	return false, nil
 }
 
-// GetCgroupPids returns the list of PIDs attached to the given cgroup name
-func (cfs *CGroupFS) GetCgroupPids(cgroupName string) ([]uint32, error) {
+// GetCGroupPids returns the list of PIDs attached to the given cgroup name
+func (cfs *CGroupFS) GetCGroupPids(cgroupName string) ([]uint32, error) {
 	var data []byte
 	var err error
 	for _, cgroupMountPoint := range cfs.cGroupMountPoints {

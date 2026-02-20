@@ -8,14 +8,16 @@
 // Package ecs provides information about the ECS Agent Version when running in ECS
 package ecs
 
-import (
-	"context"
-)
+// MetaECS stores ECS cluster metadata
+type MetaECS struct {
+	AWSAccountID    string
+	Region          string
+	ECSCluster      string
+	ECSClusterID    string
+	ECSAgentVersion string
+}
 
-// MetaECS stores ECS metadata to be exported to a json file in the agent flare
-type MetaECS struct{}
-
-// NewECSMeta returns a MetaECS object
-func NewECSMeta(_ context.Context) (*MetaECS, error) {
-	return nil, nil
+// GetClusterMeta returns the cluster meta for ECS.
+func GetClusterMeta() (*MetaECS, error) {
+	return &MetaECS{}, nil
 }

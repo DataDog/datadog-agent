@@ -85,9 +85,9 @@ func GetStaticTagsSlice(ctx context.Context, datadogConfig config.Reader) (tags 
 		tags = append(tags, "provider_kind:"+providerKind)
 	}
 
-	// fargate (ECS or EKS) does not have host tags, so we need to
+	// sidecar (ECS or EKS) does not have host tags, so we need to
 	// add static tags to each container manually
-	if fargate.IsFargateInstance() {
+	if fargate.IsSidecar() {
 		tags = append(tags, getFargateStaticTags(ctx, datadogConfig)...)
 	}
 
@@ -122,6 +122,12 @@ func GetClusterAgentStaticTags(ctx context.Context, config config.Reader) map[st
 	kubeDistro := cloudprovider.DCAGetName(ctx)
 	if kubeDistro != "" {
 		tags = append(tags, taggertags.KubeDistribution+":"+kubeDistro)
+	}
+
+	// Orchestrator Cluster ID global tag
+	clusterIDValue, _ := clustername.GetClusterID()
+	if clusterIDValue != "" {
+		tags = append(tags, taggertags.OrchClusterID+":"+clusterIDValue)
 	}
 
 	if tags == nil {

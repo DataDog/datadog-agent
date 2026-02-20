@@ -24,14 +24,25 @@ func runAssertions(cfg common.SyntheticsTestConfig, result common.NetStats) []co
 
 func runAssertion(assertion common.Assertion, stats common.NetStats) common.AssertionResult {
 	var actual float64
+	invalidAssertion := common.AssertionResult{
+		Operator: assertion.Operator,
+		Type:     assertion.Type,
+		Property: assertion.Property,
+		Expected: assertion.Target,
+		Valid:    false,
+	}
+
+	if (stats.Latency == nil || stats.Latency.Max == 0 || stats.PacketsReceived == 0) && assertion.Type == common.AssertionTypeLatency || (stats.Jitter == nil || stats.PacketsReceived < 2 || stats.Latency.Max == 0) && assertion.Type == common.AssertionTypePacketJitter {
+		return invalidAssertion
+	}
 
 	switch assertion.Type {
 	case common.AssertionTypePacketLoss:
 		actual = float64(stats.PacketLossPercentage)
 	case common.AssertionTypePacketJitter:
-		actual = stats.Jitter
+		actual = *stats.Jitter
 	case common.AssertionTypeLatency:
-		switch assertion.Property {
+		switch *assertion.Property {
 		case common.AssertionSubTypeAverage:
 			actual = stats.Latency.Avg
 		case common.AssertionSubTypeMin:
@@ -39,16 +50,10 @@ func runAssertion(assertion common.Assertion, stats common.NetStats) common.Asse
 		case common.AssertionSubTypeMax:
 			actual = stats.Latency.Max
 		default:
-			return common.AssertionResult{
-				Operator: assertion.Operator,
-				Type:     assertion.Type,
-				Property: assertion.Property,
-				Expected: assertion.Target,
-				Valid:    false,
-			}
+			return invalidAssertion
 		}
 	case common.AssertionTypeNetworkHops:
-		switch assertion.Property {
+		switch *assertion.Property {
 		case common.AssertionSubTypeAverage:
 			actual = stats.Hops.Avg
 		case common.AssertionSubTypeMin:
@@ -56,22 +61,10 @@ func runAssertion(assertion common.Assertion, stats common.NetStats) common.Asse
 		case common.AssertionSubTypeMax:
 			actual = float64(stats.Hops.Max)
 		default:
-			return common.AssertionResult{
-				Operator: assertion.Operator,
-				Type:     assertion.Type,
-				Property: assertion.Property,
-				Expected: assertion.Target,
-				Valid:    false,
-			}
+			return invalidAssertion
 		}
 	default:
-		return common.AssertionResult{
-			Operator: assertion.Operator,
-			Type:     assertion.Type,
-			Property: assertion.Property,
-			Expected: assertion.Target,
-			Valid:    false,
-		}
+		return invalidAssertion
 	}
 
 	assertionResult := common.AssertionResult{

@@ -9,7 +9,7 @@
 package events
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 )
@@ -19,7 +19,7 @@ type NetworkConsumer struct{}
 
 // Start starts the event consumer (noop)
 func (n *NetworkConsumer) Start() error {
-	return fmt.Errorf("network consumer is only supported on linux")
+	return errors.New("network consumer is only supported on linux")
 }
 
 // Stop stops the event consumer (noop)
@@ -32,5 +32,5 @@ func (n *NetworkConsumer) ID() string {
 
 // NewNetworkConsumer returns a new NetworkConsumer instance
 func NewNetworkConsumer(_ *eventmonitor.EventMonitor) (*NetworkConsumer, error) {
-	return nil, fmt.Errorf("network consumer is only supported on linux")
+	return nil, errors.New("network consumer is only supported on linux")
 }

@@ -10,6 +10,7 @@ package workload
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -247,7 +248,7 @@ func createFakePodAutoscaler(testTime time.Time) model.FakePodAutoscalerInternal
 			},
 			Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 				MinReplicas: pointer.Ptr(int32(1)),
-				MaxReplicas: int32(10),
+				MaxReplicas: pointer.Ptr(int32(10)),
 				Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
 					{
 						Name:    "app",
@@ -322,9 +323,9 @@ func createFakePodAutoscaler(testTime time.Time) model.FakePodAutoscalerInternal
 					},
 				},
 			},
-			VerticalError:   fmt.Errorf("test vertical error"),
+			VerticalError:   errors.New("test vertical error"),
 			HorizontalError: nil,
-			Error:           fmt.Errorf("test error"),
+			Error:           errors.New("test error"),
 		},
 		MainScalingValues: model.ScalingValues{
 			Horizontal: &model.HorizontalScalingValues{
@@ -415,8 +416,8 @@ func createFakePodAutoscaler(testTime time.Time) model.FakePodAutoscalerInternal
 			Version: "1",
 			Type:    datadoghqcommon.DatadogPodAutoscalerRolloutTriggeredVerticalActionType,
 		},
-		VerticalLastActionError: fmt.Errorf("test vertical last action error"),
-		Error:                   fmt.Errorf("test error"),
+		VerticalLastActionError: errors.New("test vertical last action error"),
+		Error:                   errors.New("test error"),
 	}
 }
 

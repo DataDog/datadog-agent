@@ -1,0 +1,21 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Enable the Go disk and network core checks by default for Windows and Linux.
+    These are direct ports of the existing Python disk and network checks and allow
+    the Python runtime to be lazy loaded when other integrations are enabled. It
+    can be disabled with setting ``use_diskv2_check`` and ``use_networkv2_check``
+    respectively along with the loader in your configuration to use the Python
+    version.
+  - |
+    Python runtime will now be lazy loaded when there are no Python integrations
+    configured. This can be disabled by setting ``python_lazy_loading: false``
+    in your configuration.
+

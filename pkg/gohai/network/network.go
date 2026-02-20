@@ -17,6 +17,49 @@ import (
 // ErrAddressNotFound means no such address could be found
 var ErrAddressNotFound = errors.New("address not found")
 
+// networkInterface abstracts net.Interface to allow mocking in tests.
+// It provides access to interface properties and addresses.
+type networkInterface interface {
+	// GetName returns the interface name
+	GetName() string
+	// GetFlags returns the interface flags
+	GetFlags() net.Flags
+	// GetHardwareAddr returns the hardware (MAC) address
+	GetHardwareAddr() net.HardwareAddr
+	// Addrs returns the list of unicast interface addresses
+	Addrs() ([]net.Addr, error)
+}
+
+// realNetworkInterface wraps net.Interface to implement networkInterface
+type realNetworkInterface struct {
+	iface net.Interface
+}
+
+func (r *realNetworkInterface) GetName() string                   { return r.iface.Name }
+func (r *realNetworkInterface) GetFlags() net.Flags               { return r.iface.Flags }
+func (r *realNetworkInterface) GetHardwareAddr() net.HardwareAddr { return r.iface.HardwareAddr }
+func (r *realNetworkInterface) Addrs() ([]net.Addr, error)        { return r.iface.Addrs() }
+
+// interfacesProvider is a function type that returns network interfaces.
+// This allows for mocking in tests.
+type interfacesProvider func() ([]networkInterface, error)
+
+// defaultGetInterfaces is the default implementation that calls net.Interfaces().
+func defaultGetInterfaces() ([]networkInterface, error) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil, err
+	}
+	result := make([]networkInterface, len(ifaces))
+	for i := range ifaces {
+		result[i] = &realNetworkInterface{iface: ifaces[i]}
+	}
+	return result, nil
+}
+
+// getInterfaces can be replaced in tests for mocking.
+var getInterfaces interfacesProvider = defaultGetInterfaces
+
 // Interface holds information about a specific interface
 type Interface struct {
 	// Name is the name of the interface
@@ -109,22 +152,24 @@ func (netInfo *Info) AsJSON() (interface{}, []string, error) {
 
 func getMultiNetworkInfo() ([]Interface, error) {
 	multiNetworkInfo := []Interface{}
-	ifaces, err := net.Interfaces()
+	ifaces, err := getInterfaces()
 	if err != nil {
 		return multiNetworkInfo, err
 	}
 
 	for _, iface := range ifaces {
-		defaultAddrErr := fmt.Errorf("%s: %w", iface.Name, ErrAddressNotFound)
+		name := iface.GetName()
+		defaultAddrErr := fmt.Errorf("%s: %w", name, ErrAddressNotFound)
 		_iface := Interface{
 			IPv6Network: utils.NewErrorValue[string](defaultAddrErr),
 			IPv4Network: utils.NewErrorValue[string](defaultAddrErr),
 			MacAddress:  utils.NewErrorValue[string](defaultAddrErr),
 			IPv4:        []string{},
 			IPv6:        []string{},
-			Name:        iface.Name,
+			Name:        name,
 		}
-		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+		flags := iface.GetFlags()
+		if flags&net.FlagUp == 0 || flags&net.FlagLoopback != 0 {
 			// interface down or loopback interface
 			continue
 		}
@@ -145,8 +190,8 @@ func getMultiNetworkInfo() ([]Interface, error) {
 				_iface.IPv4 = append(_iface.IPv4, ip.String())
 				_iface.IPv4Network = utils.NewValue(network.String())
 			}
-			if len(iface.HardwareAddr.String()) > 0 {
-				_iface.MacAddress = utils.NewValue(iface.HardwareAddr.String())
+			if len(iface.GetHardwareAddr().String()) > 0 {
+				_iface.MacAddress = utils.NewValue(iface.GetHardwareAddr().String())
 			}
 		}
 		multiNetworkInfo = append(multiNetworkInfo, _iface)
@@ -156,14 +201,15 @@ func getMultiNetworkInfo() ([]Interface, error) {
 }
 
 func externalIpv6Address() (string, error) {
-	ifaces, err := net.Interfaces()
+	ifaces, err := getInterfaces()
 
 	if err != nil {
 		return "", err
 	}
 
 	for _, iface := range ifaces {
-		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+		flags := iface.GetFlags()
+		if flags&net.FlagUp == 0 || flags&net.FlagLoopback != 0 {
 			// interface down or loopback interface
 			continue
 		}
@@ -198,13 +244,14 @@ func externalIpv6Address() (string, error) {
 }
 
 func externalIPAddress() (string, error) {
-	ifaces, err := net.Interfaces()
+	ifaces, err := getInterfaces()
 	if err != nil {
 		return "", err
 	}
 
 	for _, iface := range ifaces {
-		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+		flags := iface.GetFlags()
+		if flags&net.FlagUp == 0 || flags&net.FlagLoopback != 0 {
 			// interface down or loopback interface
 			continue
 		}
@@ -235,14 +282,15 @@ func externalIPAddress() (string, error) {
 }
 
 func macAddress() (string, error) {
-	ifaces, err := net.Interfaces()
+	ifaces, err := getInterfaces()
 
 	if err != nil {
 		return "", err
 	}
 
 	for _, iface := range ifaces {
-		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+		flags := iface.GetFlags()
+		if flags&net.FlagUp == 0 || flags&net.FlagLoopback != 0 {
 			// interface down or loopback interface
 			continue
 		}
@@ -261,7 +309,7 @@ func macAddress() (string, error) {
 			if ip == nil || ip.IsLoopback() || ip.To4() == nil {
 				continue
 			}
-			return iface.HardwareAddr.String(), nil
+			return iface.GetHardwareAddr().String(), nil
 		}
 	}
 	return "", errors.New("not connected to the network")

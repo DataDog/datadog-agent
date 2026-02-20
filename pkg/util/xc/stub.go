@@ -7,10 +7,10 @@
 
 package xc
 
-import "fmt"
+import "errors"
 
 // GetSystemFreq grabs the system clock frequency
 // NOP on cross-compiled systems
 func GetSystemFreq() (int64, error) {
-	return 0, fmt.Errorf("frequency unavailable")
+	return 0, errors.New("frequency unavailable")
 }

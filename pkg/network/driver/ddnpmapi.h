@@ -299,11 +299,14 @@ typedef struct _userFlowData {
     uint16_t        tls_version_chosen;
     uint64_t        tls_alpn_requested;
     uint64_t        tls_alpn_chosen;
+
     // stats unique to a particular transport
     union {
         TCP_FLOW_DATA     tcp;
         UDP_FLOW_DATA     udp;
     } protocol_u;
+
+    uint16_t tls_cipher_suite;
 } USER_FLOW_DATA;
 
 #define CLASSIFICATION_UNCLASSIFIED                 (0)

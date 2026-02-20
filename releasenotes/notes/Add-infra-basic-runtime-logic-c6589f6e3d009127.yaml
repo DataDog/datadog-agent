@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    Implement check filtering in the scheduler and CLI to enforce infrastructure basic mode restrictions. When running in basic mode (``infrastructure_mode: "basic"``), only core system checks (cpu, disk, memory, network, uptime, load, io, file_handle, ntp, system_core, telemetry) are allowed to execute. Additional checks can be allowlisted via the ``infra_basic_additional_checks`` configuration option.
+    Implement check filtering in the scheduler and CLI to enforce infrastructure basic mode restrictions. When running in basic mode (``infrastructure_mode: "basic"``), only core system checks (cpu, disk, memory, network, uptime, load, io, file_handle, ntp, system_core, telemetry) are allowed to execute. Additional checks can be allowlisted via the ``allowed_additional_checks`` configuration option.
 

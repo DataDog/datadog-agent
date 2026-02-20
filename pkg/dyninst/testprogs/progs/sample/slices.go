@@ -69,6 +69,10 @@ func testVeryLargeSlice(xs []uint) {}
 func testSliceEmptyStructs(xs []struct{}) {}
 
 //nolint:all
+//go:noinline
+func testSubslices(as []uint, bs []uint, cs []uint) {}
+
+//nolint:all
 func executeSliceFuncs() {
 	originalSlice := []int{1, 2, 3}
 	expandSlice(originalSlice)
@@ -94,4 +98,8 @@ func executeSliceFuncs() {
 	testNilSliceWithOtherParams(1, nil, 5)
 	testNilSlice(nil)
 	testSliceEmptyStructs([]struct{}{{}, {}})
+
+	// Check captures when multiple variables are aliasing the same underlying buffer.
+	s2 := []uint{1, 2, 3}
+	testSubslices(s2[:2], s2[:1], s2)
 }

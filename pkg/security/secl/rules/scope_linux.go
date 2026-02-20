@@ -7,20 +7,27 @@
 package rules
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-// DefaultVariableScopers returns the default variable scopers
-func DefaultVariableScopers() map[Scope]*eval.VariableScoper {
-	variableScopers := getCommonVariableScopers()
-	variableScopers[ScopeCGroup] = eval.NewVariableScoper(eval.CGroupScoperType, func(ctx *eval.Context) (eval.VariableScope, error) {
-		if ctx.Event.(*model.Event).CGroupContext == nil || ctx.Event.(*model.Event).CGroupContext.CGroupFile.IsNull() {
-			return nil, fmt.Errorf("failed to get cgroup scope")
-		}
-		return ctx.Event.(*model.Event).CGroupContext, nil
-	})
-	return variableScopers
+// VariableScopes is the list of scopes for variables
+var VariableScopes = []string{
+	ScopeCGroup,
+	ScopeProcess,
+	ScopeContainer,
+}
+
+// DefaultStateScopes returns the default state scopes for variables
+func DefaultStateScopes() map[Scope]VariableProviderFactory {
+	stateScopes := getCommonStateScopes()
+	stateScopes[ScopeCGroup] = func() VariableProvider {
+		return eval.NewScopedVariables(ScopeCGroup, func(ctx *eval.Context) eval.VariableScope {
+			if ctx.Event.(*model.Event).ProcessContext == nil || ctx.Event.(*model.Event).ProcessContext.Process.CGroup.IsNull() {
+				return nil
+			}
+			return &ctx.Event.(*model.Event).ProcessContext.CGroup
+		})
+	}
+	return stateScopes
 }

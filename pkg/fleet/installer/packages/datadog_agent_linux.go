@@ -7,14 +7,20 @@ package packages
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
+	"gopkg.in/yaml.v3"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
+	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/fapolicyd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/integrations"
@@ -25,8 +31,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/sysvinit"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/upstart"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var datadogAgentPackage = hooks{
@@ -43,6 +52,10 @@ var datadogAgentPackage = hooks{
 	postStartConfigExperiment:   postStartConfigExperimentDatadogAgent,
 	preStopConfigExperiment:     preStopConfigExperimentDatadogAgent,
 	postPromoteConfigExperiment: postPromoteConfigExperimentDatadogAgent,
+
+	preInstallExtension:  preInstallExtensionDatadogAgent,
+	postInstallExtension: postInstallExtensionDatadogAgent,
+	preRemoveExtension:   preRemoveExtensionDatadogAgent,
 }
 
 const (
@@ -82,13 +95,20 @@ var (
 		{Path: "embedded/share/system-probe/ebpf", Owner: "root", Group: "root", Recursive: true},
 	}
 
-	// agentPackageUninstallPaths are the paths that are deleted during an uninstall
+	// agentPackageUninstallPaths are the agent paths that are deleted during an uninstall
 	agentPackageUninstallPaths = file.Paths{
 		"embedded/ssl/fipsmodule.cnf",
 		"run",
 		".pre_python_installed_packages.txt",
 		".post_python_installed_packages.txt",
 		".diff_python_installed_packages.txt",
+	}
+
+	// installerPackageUninstallPaths are the installer paths that are deleted during an uninstall
+	// The only one left is packages.db, which is owned by root and will cause no issue during reinstallation.
+	installerPackageUninstallPaths = file.Paths{
+		"run", // Includes RC DB & Task DB
+		"tmp",
 	}
 
 	// agentConfigUninstallPaths are the files that are deleted during an uninstall
@@ -101,14 +121,14 @@ var (
 	agentService = datadogAgentService{
 		SystemdMainUnitStable: "datadog-agent.service",
 		SystemdMainUnitExp:    "datadog-agent-exp.service",
-		SystemdUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service"},
-		SystemdUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service"},
+		SystemdUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service", "datadog-agent-data-plane.service", "datadog-agent-action.service", "datadog-agent-ddot.service", "datadog-agent-procmgrd.service"},
+		SystemdUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service", "datadog-agent-data-plane-exp.service", "datadog-agent-action-exp.service", "datadog-agent-ddot-exp.service", "datadog-agent-procmgrd-exp.service"},
 
 		UpstartMainService: "datadog-agent",
-		UpstartServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security"},
+		UpstartServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-action"},
 
 		SysvinitMainService: "datadog-agent",
-		SysvinitServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security"},
+		SysvinitServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-action"},
 	}
 
 	// oldInstallerUnitsPaths are the deb/rpm/oci installer package unit paths
@@ -181,6 +201,10 @@ func uninstallFilesystem(ctx HookContext) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to remove package paths: %w", err)
 	}
+	err = installerPackageUninstallPaths.EnsureAbsent(ctx, paths.PackagesPath)
+	if err != nil {
+		return fmt.Errorf("failed to remove installer package paths: %w", err)
+	}
 	err = agentConfigUninstallPaths.EnsureAbsent(ctx, "/etc/datadog-agent")
 	if err != nil {
 		return fmt.Errorf("failed to remove config paths: %w", err)
@@ -191,10 +215,10 @@ func uninstallFilesystem(ctx HookContext) (err error) {
 	}
 
 	installerTarget, err := os.Readlink(installerSymlink)
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to read installer symlink: %w", err)
 	}
-	if strings.HasPrefix(installerTarget, ctx.PackagePath) {
+	if err == nil && strings.HasPrefix(installerTarget, ctx.PackagePath) {
 		err = file.EnsureSymlinkAbsent(ctx, installerSymlink)
 		if err != nil {
 			return fmt.Errorf("failed to remove installer symlink: %w", err)
@@ -230,6 +254,13 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	}
 	if err := integrations.RestoreCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore custom integrations: %s", err)
+	}
+	if err := extensionsPkg.SetPackage(ctx, agentPackage, getCurrentAgentVersion(), false); err != nil {
+		return fmt.Errorf("failed to set package version in extensions db: %w", err)
+	}
+	if err := restoreAgentExtensions(ctx, false); err != nil {
+		fmt.Printf("failed to restore extensions: %s\n", err.Error())
+		log.Warnf("failed to restore extensions: %s", err)
 	}
 	if err := agentService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
@@ -271,6 +302,9 @@ func preRemoveDatadogAgent(ctx HookContext) error {
 		if err := integrations.RemoveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 			log.Warnf("failed to remove custom integrations: %s\n", err.Error())
 		}
+		if err := removeAgentExtensions(ctx, false); err != nil {
+			log.Warnf("failed to remove agent extensions: %s", err)
+		}
 		if err := integrations.RemoveCompiledFiles(ctx.PackagePath); err != nil {
 			log.Warnf("failed to remove compiled files: %s", err)
 		}
@@ -283,6 +317,12 @@ func preRemoveDatadogAgent(ctx HookContext) error {
 		}
 		if err := integrations.RemoveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 			log.Warnf("failed to remove custom integrations: %s\n", err.Error())
+		}
+		if err := saveAgentExtensions(ctx); err != nil {
+			log.Warnf("failed to save agent extensions: %s", err)
+		}
+		if err := removeAgentExtensions(ctx, false); err != nil {
+			log.Warnf("failed to remove agent extensions: %s", err)
 		}
 		if err := integrations.RemoveCompiledFiles(ctx.PackagePath); err != nil {
 			log.Warnf("failed to remove compiled files: %s", err)
@@ -301,6 +341,9 @@ func preStartExperimentDatadogAgent(ctx HookContext) error {
 	if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 		log.Warnf("failed to save custom integrations: %s", err)
 	}
+	if err := saveAgentExtensions(ctx); err != nil {
+		log.Warnf("failed to save agent extensions: %s", err)
+	}
 	return nil
 }
 
@@ -312,6 +355,9 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 	}
 	if err := integrations.RestoreCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore custom integrations: %s", err)
+	}
+	if err := restoreAgentExtensions(ctx, true); err != nil {
+		log.Warnf("failed to restore agent extensions: %s", err)
 	}
 	if err := agentService.WriteExperiment(ctx); err != nil {
 		return err
@@ -329,6 +375,9 @@ func preStopExperimentDatadogAgent(ctx HookContext) error {
 	ctx.Context = detachedCtx
 	if err := agentService.StopExperiment(ctx); err != nil {
 		return fmt.Errorf("failed to stop experiment unit: %s", err)
+	}
+	if err := extensionsPkg.DeletePackage(ctx, agentPackage, true); err != nil {
+		return fmt.Errorf("failed to delete agent extensions: %s", err)
 	}
 	if err := agentService.RemoveExperiment(ctx); err != nil {
 		return fmt.Errorf("failed to remove experiment unit: %s", err)
@@ -366,6 +415,10 @@ func postPromoteExperimentDatadogAgent(ctx HookContext) error {
 	err = agentService.EnableStable(ctx)
 	if err != nil {
 		return err
+	}
+	err = extensionsPkg.Promote(ctx, agentPackage)
+	if err != nil {
+		return fmt.Errorf("failed to promote extensions: %s", err)
 	}
 	err = agentService.RestartStable(ctx)
 	if err != nil {
@@ -409,6 +462,135 @@ func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
 	return nil
 }
 
+type datadogAgentConfig struct {
+	Installer installerConfig `yaml:"installer"`
+}
+
+type installerConfig struct {
+	Registry installerRegistryConfig `yaml:"registry,omitempty"`
+}
+
+type installerRegistryConfig struct {
+	URL      string `yaml:"url,omitempty"`
+	Auth     string `yaml:"auth,omitempty"`
+	Username string `yaml:"username,omitempty"`
+	Password string `yaml:"password,omitempty"`
+}
+
+// preInstallExtensionDatadogAgent runs pre-installation steps for agent extensions
+func preInstallExtensionDatadogAgent(ctx HookContext) error {
+	switch ctx.Extension {
+	case "ddot":
+		return preInstallDDOTExtension(ctx)
+	default:
+		return nil
+	}
+}
+
+// postInstallExtensionDatadogAgent runs post-installation steps for agent extensions
+func postInstallExtensionDatadogAgent(ctx HookContext) error {
+	extensionPath := filepath.Join(ctx.PackagePath, "ext", ctx.Extension)
+
+	// Set ownership recursively to dd-agent:dd-agent for all extensions
+	extensionPermissions := file.Permissions{
+		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
+	}
+	if err := extensionPermissions.Ensure(ctx, extensionPath); err != nil {
+		return fmt.Errorf("failed to set extension ownerships: %v", err)
+	}
+
+	switch ctx.Extension {
+	case "ddot":
+		return postInstallDDOTExtension(ctx)
+	default:
+		return nil
+	}
+}
+
+// preRemoveExtensionDatadogAgent runs pre-removal steps for agent extensions
+func preRemoveExtensionDatadogAgent(ctx HookContext) error {
+	switch ctx.Extension {
+	case "ddot":
+		return preRemoveDDOTExtension(ctx)
+	default:
+		return nil
+	}
+}
+
+// setRegistryConfig is a best effort to get the `installer` block from `datadog.yaml` and update the env.
+func setRegistryConfig(env *env.Env) {
+	configPath := filepath.Join(paths.AgentConfigDir, "datadog.yaml")
+	rawConfig, err := os.ReadFile(configPath)
+	if err != nil {
+		return
+	}
+	var config datadogAgentConfig
+	err = yaml.Unmarshal(rawConfig, &config)
+	if err != nil {
+		return
+	}
+
+	// Update env with values from config if not already set
+	if config.Installer.Registry.URL != "" && env.RegistryOverride == "" {
+		env.RegistryOverride = config.Installer.Registry.URL
+	}
+	if config.Installer.Registry.Auth != "" && env.RegistryAuthOverride == "" {
+		env.RegistryAuthOverride = config.Installer.Registry.Auth
+	}
+	if config.Installer.Registry.Username != "" && env.RegistryUsername == "" {
+		env.RegistryUsername = config.Installer.Registry.Username
+	}
+	if config.Installer.Registry.Password != "" && env.RegistryPassword == "" {
+		env.RegistryPassword = config.Installer.Registry.Password
+	}
+}
+
+// saveAgentExtensions saves the extensions of the Agent package by writing them to a file on disk.
+// the extensions can then be picked up by the restoreAgentExtensions function to restore them
+func saveAgentExtensions(ctx HookContext) error {
+	storagePath := ctx.PackagePath
+	if strings.HasPrefix(ctx.PackagePath, paths.PackagesPath) {
+		storagePath = paths.RootTmpDir
+	}
+
+	return extensionsPkg.Save(ctx, agentPackage, storagePath)
+}
+
+// removeAgentExtensions removes the extensions of the Agent package & then deletes the package from the extensions db.
+func removeAgentExtensions(ctx HookContext, experiment bool) error {
+	env := env.FromEnv()
+	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks))
+	err := extensionsPkg.RemoveAll(ctx, agentPackage, experiment, hooks)
+	if err != nil {
+		return fmt.Errorf("failed to remove all extensions: %w", err)
+	}
+	return extensionsPkg.DeletePackage(ctx, agentPackage, experiment)
+}
+
+// restoreAgentExtensions restores the extensions for a package by setting the new package version in the extensions db &
+// then reading the extensions from a file on disk
+func restoreAgentExtensions(ctx HookContext, experiment bool) error {
+	if err := extensionsPkg.SetPackage(ctx, agentPackage, getCurrentAgentVersion(), experiment); err != nil {
+		return fmt.Errorf("failed to set package version in extensions db: %w", err)
+	}
+
+	storagePath := ctx.PackagePath
+	if strings.HasPrefix(ctx.PackagePath, paths.PackagesPath) {
+		storagePath = paths.RootTmpDir
+	}
+
+	env := env.FromEnv()
+
+	// Best effort to get the registry config from datadog.yaml
+	setRegistryConfig(env)
+
+	downloader := oci.NewDownloader(env, env.HTTPClient())
+	url := oci.PackageURL(env, agentPackage, getCurrentAgentVersion())
+	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks))
+
+	return extensionsPkg.Restore(ctx, downloader, agentPackage, url, storagePath, experiment, hooks)
+}
+
 type datadogAgentService struct {
 	SystemdMainUnitStable string
 	SystemdMainUnitExp    string
@@ -428,14 +610,14 @@ func (s *datadogAgentService) checkPlatformSupport(ctx HookContext) error {
 		return nil
 	case service.UpstartType:
 		if ctx.PackageType != PackageTypeDEB && ctx.PackageType != PackageTypeRPM {
-			return fmt.Errorf("upstart is only supported in DEB and RPM packages")
+			return errors.New("upstart is only supported in DEB and RPM packages")
 		}
 	case service.SysvinitType:
 		if ctx.PackageType != PackageTypeDEB {
-			return fmt.Errorf("sysvinit is only supported in DEB packages")
+			return errors.New("sysvinit is only supported in DEB packages")
 		}
 	default:
-		return fmt.Errorf("could not determine service manager type, platform is not supported")
+		return errors.New("could not determine service manager type, platform is not supported")
 	}
 	return nil
 }
@@ -453,7 +635,7 @@ func (s *datadogAgentService) EnableStable(ctx HookContext) error {
 	case service.SysvinitType:
 		return sysvinit.InstallAll(ctx, s.SysvinitServices...)
 	default:
-		return fmt.Errorf("unsupported service manager")
+		return errors.New("unsupported service manager")
 	}
 }
 
@@ -470,11 +652,12 @@ func (s *datadogAgentService) DisableStable(ctx HookContext) error {
 	case service.SysvinitType:
 		return sysvinit.RemoveAll(ctx, s.SysvinitServices...)
 	default:
-		return fmt.Errorf("unsupported service manager")
+		return errors.New("unsupported service manager")
 	}
 }
 
 // RestartStable restarts the stable unit. It will only attempt to restart if the config exists.
+// The systemd unit will be reset first to avoid triggering the restart limit.
 func (s *datadogAgentService) RestartStable(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
@@ -494,7 +677,7 @@ func (s *datadogAgentService) RestartStable(ctx HookContext) error {
 	case service.SysvinitType:
 		return sysvinit.Restart(ctx, s.SysvinitMainService)
 	default:
-		return fmt.Errorf("unsupported service manager")
+		return errors.New("unsupported service manager")
 	}
 }
 
@@ -511,7 +694,7 @@ func (s *datadogAgentService) StopStable(ctx HookContext) error {
 	case service.SysvinitType:
 		return sysvinit.StopAll(ctx, reverseStringSlice(s.SysvinitServices)...)
 	default:
-		return fmt.Errorf("unsupported service manager")
+		return errors.New("unsupported service manager")
 	}
 }
 
@@ -528,7 +711,7 @@ func (s *datadogAgentService) WriteStable(ctx HookContext) error {
 	case service.SysvinitType:
 		return nil // Nothing to do, files are embedded in the package
 	}
-	return fmt.Errorf("unsupported service manager")
+	return errors.New("unsupported service manager")
 }
 
 // RemoveStable removes the stable units
@@ -544,7 +727,7 @@ func (s *datadogAgentService) RemoveStable(ctx HookContext) error {
 	case service.SysvinitType:
 		return nil // Nothing to do, files are embedded in the package
 	}
-	return fmt.Errorf("unsupported service manager")
+	return errors.New("unsupported service manager")
 }
 
 // StartExperiment starts the experiment unit
@@ -556,11 +739,11 @@ func (s *datadogAgentService) StartExperiment(ctx HookContext) error {
 	case service.SystemdType:
 		return systemd.StartUnit(ctx, s.SystemdMainUnitExp)
 	case service.UpstartType:
-		return fmt.Errorf("experiments are not supported on upstart")
+		return errors.New("experiments are not supported on upstart")
 	case service.SysvinitType:
-		return fmt.Errorf("experiments are not supported on sysvinit")
+		return errors.New("experiments are not supported on sysvinit")
 	}
-	return fmt.Errorf("unsupported service manager")
+	return errors.New("unsupported service manager")
 }
 
 // StopExperiment stops the experiment units
@@ -576,7 +759,7 @@ func (s *datadogAgentService) StopExperiment(ctx HookContext) error {
 	case service.SysvinitType:
 		return nil // Experiments are not supported on sysvinit
 	}
-	return fmt.Errorf("unsupported service manager")
+	return errors.New("unsupported service manager")
 }
 
 // WriteExperiment writes the experiment units to the system and reloads the systemd daemon
@@ -588,11 +771,11 @@ func (s *datadogAgentService) WriteExperiment(ctx HookContext) error {
 	case service.SystemdType:
 		return writeEmbeddedUnitsAndReload(ctx, s.SystemdUnitsExp...)
 	case service.UpstartType:
-		return fmt.Errorf("experiments are not supported on upstart")
+		return errors.New("experiments are not supported on upstart")
 	case service.SysvinitType:
-		return fmt.Errorf("experiments are not supported on sysvinit")
+		return errors.New("experiments are not supported on sysvinit")
 	}
-	return fmt.Errorf("unsupported service manager")
+	return errors.New("unsupported service manager")
 }
 
 // RemoveExperiment removes the experiment units from the disk
@@ -608,7 +791,7 @@ func (s *datadogAgentService) RemoveExperiment(ctx HookContext) error {
 	case service.SysvinitType:
 		return nil // Experiments are not supported on sysvinit
 	}
-	return fmt.Errorf("unsupported service manager")
+	return errors.New("unsupported service manager")
 }
 
 // isAgentConfigFilePresent checks if the agent config file exists
@@ -702,4 +885,20 @@ func isAmbiantCapabilitiesSupported() (bool, error) {
 		return false, fmt.Errorf("failed to read /proc/self/status: %v", err)
 	}
 	return strings.Contains(string(content), "CapAmb:"), nil
+}
+
+func getCurrentAgentVersion() string {
+	v := version.AgentVersionURLSafe
+	if strings.HasSuffix(v, "-1") {
+		return v
+	}
+	return v + "-1"
+}
+
+// RestartDatadogAgent restarts the datadog-agent service if it is running
+func RestartDatadogAgent(ctx context.Context) error {
+	if ok, err := systemd.IsRunning(); err != nil || !ok {
+		return nil
+	}
+	return systemd.RestartUnit(ctx, "datadog-agent.service")
 }

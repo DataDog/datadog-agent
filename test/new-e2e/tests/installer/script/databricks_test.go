@@ -6,17 +6,16 @@
 package installscript
 
 import (
-	"fmt"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
-
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
 const (
-	databricksAgentVersion          = "7.71.1-1"
-	databricksApmInjectVersion      = "0.45.0"
-	databricksApmLibraryJavaVersion = "1.53.0"
+	databricksAgentVersion          = "7.74.0-1"
+	databricksApmInjectVersion      = "0.53.0"
+	databricksApmLibraryJavaVersion = "1.58.0"
 )
 
 type installScriptDatabricksSuite struct {
@@ -26,7 +25,7 @@ type installScriptDatabricksSuite struct {
 
 func testDatabricksScript(os e2eos.Descriptor, arch e2eos.Architecture) installerScriptSuite {
 	s := &installScriptDatabricksSuite{
-		installerScriptBaseSuite: newInstallerScriptSuite("installer-databricks", os, arch, awshost.WithoutFakeIntake(), awshost.WithoutAgent()),
+		installerScriptBaseSuite: newInstallerScriptSuite("installer-databricks", os, arch, awshost.WithRunOptions(scenec2.WithoutFakeIntake()), awshost.WithRunOptions(scenec2.WithoutAgent())),
 	}
 	s.url = s.scriptURLPrefix + "install-databricks.sh"
 
@@ -36,7 +35,7 @@ func testDatabricksScript(os e2eos.Descriptor, arch e2eos.Architecture) installe
 func (s *installScriptDatabricksSuite) TestDatabricksWorkerInstallScript() {
 	s.RunInstallScript(s.url)
 	state := s.host.State()
-	agentPath := fmt.Sprintf("/opt/datadog-packages/datadog-agent/%s", databricksAgentVersion)
+	agentPath := "/opt/datadog-packages/datadog-agent/" + databricksAgentVersion
 	state.AssertDirExists(agentPath, 0755, "dd-agent", "dd-agent")
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", agentPath, "root", "root")
 
@@ -46,9 +45,9 @@ func (s *installScriptDatabricksSuite) TestDatabricksWorkerInstallScript() {
 func (s *installScriptDatabricksSuite) TestDatabricksDriverInstallScript() {
 	s.RunInstallScript(s.url, "DB_IS_DRIVER=TRUE")
 	state := s.host.State()
-	agentPath := fmt.Sprintf("/opt/datadog-packages/datadog-agent/%s", databricksAgentVersion)
-	javaPath := fmt.Sprintf("/opt/datadog-packages/datadog-apm-library-java/%s", databricksApmLibraryJavaVersion)
-	injectPath := fmt.Sprintf("/opt/datadog-packages/datadog-apm-inject/%s", databricksApmInjectVersion)
+	agentPath := "/opt/datadog-packages/datadog-agent/" + databricksAgentVersion
+	javaPath := "/opt/datadog-packages/datadog-apm-library-java/" + databricksApmLibraryJavaVersion
+	injectPath := "/opt/datadog-packages/datadog-apm-inject/" + databricksApmInjectVersion
 
 	state.AssertDirExists(agentPath, 0755, "dd-agent", "dd-agent")
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", agentPath, "root", "root")
