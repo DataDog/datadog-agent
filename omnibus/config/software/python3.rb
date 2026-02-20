@@ -6,7 +6,6 @@ unless windows?
   dependency "zlib"
   dependency "bzip2"
   dependency "libsqlite3"
-  dependency "liblzma"
 end
 dependency "openssl3"
 
