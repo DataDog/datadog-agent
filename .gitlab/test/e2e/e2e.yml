@@ -340,7 +340,11 @@ new-e2e-containers-openshift-init:
 new-e2e-containers-openshift:
   extends: .new_e2e_template_needs_container_deploy_linux
   rules:
-    - !reference [.on_main_or_rc_and_no_skip_e2e]
+    - !reference [.on_e2e_main_release_or_rc]
+    - changes:
+        paths:
+          - test/new-e2e/tests/containers/**/*
+        compare_to: $COMPARE_TO_BRANCH
     - !reference [.manual]
   needs:
     - !reference [.new_e2e_template_needs_container_deploy_linux, needs]
