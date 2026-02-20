@@ -1,0 +1,38 @@
+exporters:
+    otlphttp/datadoghq.eu_0:
+        headers:
+            dd-api-key: eu_key_1
+        metrics_endpoint: https://otlp.datadoghq.eu/v1/metrics
+        profiles_endpoint: https://intake.profile.datadoghq.eu/v1development/profiles
+extensions:
+    ddprofiling/default: {}
+    hpflare/default: {}
+processors:
+    infraattributes/default:
+        allow_hostname_override: true
+        cardinality: 2
+    resource/dd-profiler-internal-metadata:
+        attributes:
+            - action: upsert
+              key: profiler_name
+              value: full-host-profiler
+            - action: upsert
+              key: profiler_version
+              value: 7.0.0-test
+receivers:
+    hostprofiler:
+        symbol_uploader:
+            enabled: true
+            symbol_endpoints:
+                - api_key: eu_key_1
+                  site: datadoghq.eu
+service:
+    pipelines:
+        profiles:
+            exporters:
+                - otlphttp/datadoghq.eu_0
+            processors:
+                - infraattributes/default
+                - resource/dd-profiler-internal-metadata
+            receivers:
+                - hostprofiler

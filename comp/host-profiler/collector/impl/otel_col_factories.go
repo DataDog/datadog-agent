@@ -46,6 +46,7 @@ type ExtraFactories interface {
 	GetConverters() []confmap.ConverterFactory
 	GetExtensions() []extension.Factory
 	GetLoggingOptions() []zap.Option
+	GetAgentConfig() config.Component
 }
 
 // extraFactoriesWithAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is available.
@@ -93,6 +94,10 @@ func (e extraFactoriesWithAgentCore) GetLoggingOptions() []zap.Option {
 	}
 }
 
+func (e extraFactoriesWithAgentCore) GetAgentConfig() config.Component {
+	return e.config
+}
+
 func (e extraFactoriesWithAgentCore) GetExtensions() []extension.Factory {
 	return []extension.Factory{
 		ddprofilingextensionimpl.NewFactoryForAgent(e.traceAgent, e.log),
@@ -108,9 +113,7 @@ func (e extraFactoriesWithAgentCore) GetProcessors() []processor.Factory {
 }
 
 func (e extraFactoriesWithAgentCore) GetConverters() []confmap.ConverterFactory {
-	return []confmap.ConverterFactory{
-		converters.NewFactoryWithAgent(e.config),
-	}
+	return []confmap.ConverterFactory{}
 }
 
 // extraFactoriesWithoutAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is NOT available.
@@ -125,6 +128,10 @@ func NewExtraFactoriesWithoutAgentCore() ExtraFactories {
 
 func (e extraFactoriesWithoutAgentCore) GetLoggingOptions() []zap.Option {
 	return []zap.Option{}
+}
+
+func (e extraFactoriesWithoutAgentCore) GetAgentConfig() config.Component {
+	return nil
 }
 
 // GetExtensions returns the extensions for the collector.
