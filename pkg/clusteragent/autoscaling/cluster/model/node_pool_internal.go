@@ -8,6 +8,7 @@
 package model
 
 import (
+	"maps"
 	"slices"
 
 	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
@@ -231,7 +232,7 @@ func UpdateNodePoolObject(targetNp, datadogNp *karpenterv1.NodePool, npi NodePoo
 		// Preserve ObjectMeta from Datadog-created NodePool
 		npCopy.ObjectMeta = datadogNp.ObjectMeta
 		// Allow label updates to propagate from target to replica
-		npCopy.ObjectMeta.Labels = targetNp.GetLabels()
+		npCopy.ObjectMeta.Labels = maps.Clone(targetNp.GetLabels())
 
 		modifyReplicaNodePool(npCopy, npi, false)
 	} else {
