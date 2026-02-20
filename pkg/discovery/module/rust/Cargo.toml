@@ -53,7 +53,8 @@ dircpy = "0.3.19"
 nix = { version = "0.29", features = ["signal"] }
 
 [profile.release]
+# debug = true  # Add debugging information. Useful for profiling.
 lto = "fat"
-opt-level = "z"
+opt-level = "z" # Optimize for size
 strip = "symbols"
-panic = "abort"
+panic = "abort" # Remove stack unwinding on panic => lower binary size.
