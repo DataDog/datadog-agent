@@ -2,7 +2,7 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("//bazel/rules:so_symlink.bzl", "so_symlink")
-load("//rtloader:defs.bzl", "COMMON_COPTS", "COMMON_DEFINES")
+load("//rtloader:defs.bzl", "COMMON_CXXOPTS", "COMMON_COPTS", "COMMON_DEFINES")
 
 package(default_visibility = ["//rtloader:__pkg__"])
 
@@ -29,6 +29,7 @@ cc_library(
         "rtloader.cpp",
         "//rtloader/common:rtloader_mem.c",
     ],
+    cxxopts = COMMON_CXXOPTS,
     copts = COMMON_COPTS + select({
         "@platforms//os:windows": [
             # Static library on windows so we don't have to distribute CRT.
@@ -50,6 +51,11 @@ cc_library(
         ],
         "@platforms//os:linux": [
             # backtrace / execinfo.h is provided by glibc 2.1+ so we know it to be available
+            "HAS_BACKTRACE_LIB",
+        ],
+        "@platforms//os:macos": [
+            # backtrace / execinfo.h is provided by the macOS libc since Mac OS X 10.5
+            # https://manp.gs/mac/3/backtrace#HISTORY
             "HAS_BACKTRACE_LIB",
         ],
         "//conditions:default": [],
