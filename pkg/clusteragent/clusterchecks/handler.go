@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
@@ -212,15 +214,34 @@ func (h *Handler) leaderWatch(ctx context.Context) {
 // updateLeaderIP queries the leader election engine and updates
 // the leader IP accordlingly. In case of leadership statuschange,
 // a state type is sent on leadershipChan.
+func stateName(s state) string {
+	switch s {
+	case leader:
+		return "leader"
+	case follower:
+		return "follower"
+	default:
+		return "unknown"
+	}
+}
+
 func (h *Handler) updateLeaderIP() error {
+	span := tracer.StartSpan("cluster_checks.handler.update_leader_ip",
+		tracer.ResourceName("update_leader_ip"),
+		tracer.SpanType("worker"))
+	defer span.Finish()
+
 	newIP, err := h.leaderStatusCallback()
 	if err != nil {
+		span.SetTag("error", true)
 		return err
 	}
 
 	// Lock after the leader engine call returns
 	h.m.Lock()
 	defer h.m.Unlock()
+
+	span.SetTag("current_state", stateName(h.state))
 
 	var newState state
 	if h.leaderForwarder != nil && newIP != h.leaderIP {
@@ -248,6 +269,7 @@ func (h *Handler) updateLeaderIP() error {
 	}
 
 	if newState != unknown {
+		span.SetTag("new_state", stateName(newState))
 		h.state = newState
 		h.leadershipChan <- newState
 	}
