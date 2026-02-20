@@ -143,11 +143,6 @@ func TestMutatePod(t *testing.T) {
 			},
 			expectNoChange: true,
 		},
-<<<<<<< HEAD
-		// Re-admission guard: when the webhook runs again on an already-injected pod we must not
-		// mutate further (e.g. must not append to LD_PRELOAD or add duplicate init containers).
-=======
->>>>>>> 6b4e53246ba (Add tests for re-admission in init-container and img-vol mode)
 		"re-admission with init_container mode init container already present does not mutate": {
 			configPath: "testdata/filter_simple_namespace.yaml",
 			in: mutatecommon.FakePodSpec{

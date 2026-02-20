@@ -1,3 +1,3 @@
 fixes:
   - |
-    Fixes a bug in the admission controller webhook that allowed admission to re-run for pods that already had APM injection in image-volume mode.
+    Fixes a bug in the admission controller webhook that allowed admission to re-run for pods that already had APM Injection in image-volume mode.
