@@ -2583,6 +2583,10 @@ func TestProcessSubreaperReparenting(t *testing.T) {
 	}, func(event *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_subreaper_open")
 		assertFieldEqual(t, event, "process.parent.file.name", "syscall_tester", "after subreaper reparenting, parent should be syscall_tester")
-		assertFieldEqual(t, event, "process.parent.pid", subreaperPid, "after subreaper reparenting, parent PID should be the subreaper's PID, not the intermediate child's")
+		if testEnvironment != DockerEnvironment {
+			// In Docker mode, cmd.Process.Pid is the container-namespace PID
+			// while process.parent.pid is the host PID from eBPF.
+			assertFieldEqual(t, event, "process.parent.pid", subreaperPid, "after subreaper reparenting, parent PID should be the subreaper's PID, not the intermediate child's")
+		}
 	}, "test_subreaper_open")
 }
