@@ -97,6 +97,14 @@ func (m specMetric) supportsDeviceFeature(mode string) bool {
 	return ok && v == "true"
 }
 
+func (m specMetric) isDeviceFeatureExplicitlyUnsupported(mode string) bool {
+	if m.Support.DeviceFeatures == nil {
+		return false
+	}
+	v, ok := m.Support.DeviceFeatures[mode]
+	return ok && v == "false"
+}
+
 var nvmlFieldNameToFieldID = map[string]uint32{
 	"FI_DEV_MEMORY_TEMP":                       nvml.FI_DEV_MEMORY_TEMP,
 	"FI_DEV_NVLINK_THROUGHPUT_DATA_RX":         nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX,
@@ -262,6 +270,10 @@ func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
 
 				fieldValues := allConfiguredNVMLFieldValues()
 				err = dev.GetFieldValues(fieldValues)
+				if mode == testutil.DeviceFeatureVGPU && err != nil && ddnvml.IsUnsupported(err) {
+					// vGPU mode can report field APIs as unsupported.
+					return
+				}
 				require.NoError(t, err, "GetFieldValues should not return an error")
 				for _, fv := range fieldValues {
 					_, isUnsupported := unsupportedSet[fv.FieldId]
@@ -312,6 +324,12 @@ func TestMetricsFollowSpec(t *testing.T) {
 
 				for metricName := range emittedTagsByMetric {
 					assert.Contains(t, specMetrics, metricName, "metric emitted by check is missing from spec: %s", metricName)
+
+					metricSpec := spec.Metrics[metricName]
+					assert.False(t, metricSpec.Deprecated, "deprecated metric should not be emitted in this run: %s", metricName)
+					assert.False(t, notExpectedOnBasicRun[metricName], "metric should not be emitted in basic run: %s", metricName)
+					assert.True(t, metricSpec.supportsArchitecture(archName), "metric %s emitted on unsupported architecture %s", metricName, archName)
+					assert.False(t, metricSpec.isDeviceFeatureExplicitlyUnsupported(string(mode)), "metric %s emitted on unsupported device mode %s", metricName, mode)
 				}
 
 				for name, m := range spec.Metrics {
@@ -584,6 +602,10 @@ func validateMetricTagsAgainstSpec(t *testing.T, spec *specFile, metricName stri
 
 		for tag := range requiredTags {
 			require.Contains(t, tagsByKey, tag, "metric %s missing required tag key %s", metricName, tag)
+		}
+		for tag := range tagsByKey {
+			_, allowed := requiredTags[tag]
+			require.True(t, allowed, "metric %s has unknown tag key %s", metricName, tag)
 		}
 
 		for key, values := range tagsByKey {

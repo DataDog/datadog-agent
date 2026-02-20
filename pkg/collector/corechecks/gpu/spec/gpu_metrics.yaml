@@ -41,7 +41,7 @@ metrics:
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -71,7 +71,7 @@ metrics:
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -101,7 +101,7 @@ metrics:
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -133,7 +133,7 @@ metrics:
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -149,7 +149,7 @@ metrics:
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -165,7 +165,7 @@ metrics:
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -181,7 +181,7 @@ metrics:
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -197,7 +197,7 @@ metrics:
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -213,7 +213,7 @@ metrics:
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -229,7 +229,7 @@ metrics:
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -245,7 +245,7 @@ metrics:
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -419,7 +419,7 @@ metrics:
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -434,7 +434,7 @@ metrics:
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -453,6 +453,7 @@ metrics:
         - volta
         - turing
         - ampere
+        - ada
       device_features:
         mig: "true"
         physical: "true"
@@ -475,6 +476,7 @@ metrics:
         - volta
         - turing
         - ampere
+        - ada
       device_features:
         mig: "true"
         physical: "true"
@@ -497,6 +499,7 @@ metrics:
         - volta
         - turing
         - ampere
+        - ada
       device_features:
         mig: "true"
         physical: "true"
@@ -535,6 +538,7 @@ metrics:
         - volta
         - turing
         - ampere
+        - ada
       device_features:
         mig: "true"
         physical: "true"
@@ -666,7 +670,7 @@ metrics:
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -695,6 +699,7 @@ metrics:
         - fermi
         - kepler
         - maxwell
+        - ada
       device_features:
         mig: "false"
         physical: "true"
@@ -713,6 +718,7 @@ metrics:
         - fermi
         - kepler
         - maxwell
+        - ada
       device_features:
         mig: "false"
         physical: "true"
@@ -731,6 +737,7 @@ metrics:
         - fermi
         - kepler
         - maxwell
+        - ada
       device_features:
         mig: "false"
         physical: "true"
@@ -749,10 +756,11 @@ metrics:
         - fermi
         - kepler
         - maxwell
+        - ada
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -767,10 +775,11 @@ metrics:
         - fermi
         - kepler
         - maxwell
+        - ada
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -785,10 +794,11 @@ metrics:
         - fermi
         - kepler
         - maxwell
+        - ada
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -803,10 +813,11 @@ metrics:
         - fermi
         - kepler
         - maxwell
+        - ada
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -821,10 +832,11 @@ metrics:
         - fermi
         - kepler
         - maxwell
+        - ada
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -840,10 +852,11 @@ metrics:
         - kepler
         - maxwell
         - pascal
+        - ada
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -858,10 +871,11 @@ metrics:
         - fermi
         - kepler
         - maxwell
+        - ada
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -876,10 +890,11 @@ metrics:
         - fermi
         - kepler
         - maxwell
+        - ada
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -894,10 +909,11 @@ metrics:
         - fermi
         - kepler
         - maxwell
+        - ada
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -912,10 +928,11 @@ metrics:
         - fermi
         - kepler
         - maxwell
+        - ada
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -930,10 +947,11 @@ metrics:
         - fermi
         - kepler
         - maxwell
+        - ada
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -949,7 +967,7 @@ metrics:
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -965,7 +983,7 @@ metrics:
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -981,7 +999,7 @@ metrics:
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -1011,7 +1029,7 @@ metrics:
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -1026,7 +1044,7 @@ metrics:
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -1152,7 +1170,7 @@ metrics:
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -1173,7 +1191,7 @@ metrics:
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -1194,7 +1212,7 @@ metrics:
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -1215,7 +1233,7 @@ metrics:
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -1231,7 +1249,7 @@ metrics:
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -1265,6 +1283,7 @@ metrics:
         - volta
         - turing
         - ampere
+        - ada
       device_features:
         mig: "true"
         physical: "true"
@@ -1287,6 +1306,7 @@ metrics:
         - volta
         - turing
         - ampere
+        - ada
       device_features:
         mig: "true"
         physical: "true"
@@ -1305,7 +1325,7 @@ metrics:
       device_features:
         mig: unknown
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
@@ -1324,6 +1344,7 @@ metrics:
         - volta
         - turing
         - ampere
+        - ada
       device_features:
         mig: "true"
         physical: "true"
@@ -1346,7 +1367,7 @@ metrics:
       device_features:
         mig: "false"
         physical: "true"
-        vgpu: unknown
+        vgpu: "false"
       process_data: false
     deprecated: false
     replaced_by: ""
