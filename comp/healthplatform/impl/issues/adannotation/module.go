@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+// Package adannotation provides a complete module for handling AD annotation issues
 package adannotation
 
 import (
