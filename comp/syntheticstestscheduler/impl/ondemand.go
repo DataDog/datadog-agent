@@ -13,11 +13,9 @@ import (
 	"net/url"
 	"time"
 
-	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/common"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 type onDemandTestResponse struct {
@@ -35,15 +33,11 @@ type onDemandPoller struct {
 	done            chan struct{}
 }
 
-func newOnDemandPoller(agentConfig agentconfig.Component, hostNameService hostname.Component, logger log.Component, timeNowFn func() time.Time) *onDemandPoller {
-	site := agentConfig.GetString("site")
-	if site == "" {
-		site = pkgconfigsetup.DefaultSite
-	}
+func newOnDemandPoller(config *onDemandPollerConfig, hostNameService hostname.Component, logger log.Component, timeNowFn func() time.Time) *onDemandPoller {
 	return &onDemandPoller{
 		httpClient:      &http.Client{Timeout: 10 * time.Second},
-		endpoint:        "https://intake.synthetics." + site + "/api/unstable/synthetics/agents/tests",
-		apiKey:          agentConfig.GetString("api_key"),
+		endpoint:        "https://intake.synthetics." + config.site + "/api/unstable/synthetics/agents/tests",
+		apiKey:          config.apiKey,
 		hostNameService: hostNameService,
 		log:             logger,
 		timeNowFn:       timeNowFn,

@@ -64,7 +64,7 @@ func TestOnDemandPoller_FetchTests_ReturnsTests(t *testing.T) {
 
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"tests":[{
-			"version":1,"type":"network","subtype":"TCP","org_id":99,"public_id":"od-1",
+			"version":1,"type":"network","subtype":"TCP","org_id":99,"public_id":"od-1","result_id":"od-result-1",
 			"config":{"assertions":[],"request":{"host":"example.com","port":443,"tcp_method":"SYN"}}
 		}]}`))
 	}))
@@ -86,6 +86,7 @@ func TestOnDemandPoller_FetchTests_ReturnsTests(t *testing.T) {
 	require.Len(t, tests, 1)
 	assert.Equal(t, "od-1", tests[0].PublicID)
 	assert.Equal(t, 99, tests[0].OrgID)
+	assert.Equal(t, "od-result-1", tests[0].ResultID)
 	assert.Equal(t, "example.com", tests[0].Config.Request.(common.TCPConfigRequest).Host)
 }
 

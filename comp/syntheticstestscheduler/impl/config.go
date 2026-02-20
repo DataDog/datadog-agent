@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 type schedulerConfigs struct {
@@ -22,5 +23,22 @@ func newSchedulerConfigs(agentConfig config.Component) *schedulerConfigs {
 		syntheticsSchedulerEnabled: agentConfig.GetBool("synthetics.collector.enabled"),
 		workers:                    agentConfig.GetInt("synthetics.collector.workers"),
 		flushInterval:              agentConfig.GetDuration("synthetics.collector.flush_interval"),
+	}
+}
+
+type onDemandPollerConfig struct {
+	site   string
+	apiKey string
+}
+
+func newOnDemandPollerConfig(agentConfig config.Component) *onDemandPollerConfig {
+	site := agentConfig.GetString("site")
+	if site == "" {
+		site = pkgconfigsetup.DefaultSite
+	}
+
+	return &onDemandPollerConfig{
+		site:   site,
+		apiKey: agentConfig.GetString("api_key"),
 	}
 }

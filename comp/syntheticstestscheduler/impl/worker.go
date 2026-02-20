@@ -344,9 +344,16 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 		Version: w.testCfg.cfg.Version,
 	}
 
-	testResultID, err := s.generateTestResultID(rand.Int)
-	if err != nil {
-		return nil, err
+	// on-demand tests have a result ID generated on the backend
+	testResultID := ""
+	if w.testCfg.cfg.ResultID != "" {
+		testResultID = w.testCfg.cfg.ResultID
+	} else {
+		resultID, err := s.generateTestResultID(rand.Int)
+		if err != nil {
+			return nil, err
+		}
+		testResultID = resultID
 	}
 
 	w.tracerouteResult.Source.Name = w.hostname
