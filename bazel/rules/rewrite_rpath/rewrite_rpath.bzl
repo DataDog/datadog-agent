@@ -1,46 +1,48 @@
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 
 def _rewrite_rpath_impl(ctx):
-    input = ctx.file.input
     if ctx.attr.os == "unsupported":
-        return DefaultInfo(files = depset([input]))
+        return DefaultInfo(files = depset(ctx.files.inputs))
+    processed_files = []
     rpath = ctx.attr.rpath.format(install_dir=ctx.attr._install_dir[BuildSettingInfo].value)
-    processed_file = ctx.actions.declare_file("patched/" + input.basename)
-    if ctx.attr.os == "linux":
-        toolchain = ctx.toolchains["@@//bazel/toolchains/patchelf:patchelf_toolchain_type"].patchelf
-        args = ctx.actions.args()
-        args.add("--set-rpath", rpath)
-        args.add("--force-rpath")
-        args.add(input.path)
-        args.add("--output", processed_file.path)
-        ctx.actions.run(
-            inputs = [input],
-            outputs = [processed_file],
-            arguments = [args],
-            executable = toolchain.path,
-        )
-    else:
-        toolchain = ctx.toolchains["@@//bazel/toolchains/otool:otool_toolchain_type"].otool
-        args = ctx.actions.args()
-        args.add(toolchain.path)
-        args.add(rpath)
-        args.add(input.path)
-        args.add(processed_file.path)
-        ctx.actions.run(
-            inputs = [input],
-            outputs = [processed_file],
-            executable = ctx.file.script,
-            arguments = [args],
-        )
+    for input in ctx.files.inputs:
+        processed_file = ctx.actions.declare_file("patched/" + input.basename)
+        if ctx.attr.os == "linux":
+            toolchain = ctx.toolchains["@@//bazel/toolchains/patchelf:patchelf_toolchain_type"].patchelf
+            args = ctx.actions.args()
+            args.add("--set-rpath", rpath)
+            args.add("--force-rpath")
+            args.add(input.path)
+            args.add("--output", processed_file.path)
+            ctx.actions.run(
+                inputs = [input],
+                outputs = [processed_file],
+                arguments = [args],
+                executable = toolchain.path,
+            )
+        else:
+            toolchain = ctx.toolchains["@@//bazel/toolchains/otool:otool_toolchain_type"].otool
+            args = ctx.actions.args()
+            args.add(toolchain.path)
+            args.add(rpath)
+            args.add(input.path)
+            args.add(processed_file.path)
+            ctx.actions.run(
+                inputs = [input],
+                outputs = [processed_file],
+                executable = ctx.file.script,
+                arguments = [args],
+            )
+        processed_files.append(processed_file)
 
-    return DefaultInfo(files = depset([processed_file]))
+    return DefaultInfo(files = depset(processed_files))
 
 _rewrite_rpath = rule(
     implementation = _rewrite_rpath_impl,
     attrs = {
-        "input": attr.label(
-            allow_single_file = True,
-            doc = "The binary to patch",
+        "inputs": attr.label_list(
+            doc = "The binaries to patch",
+            mandatory=True,
         ),
         "os": attr.string(
             mandatory = True,
@@ -69,7 +71,7 @@ _rewrite_rpath = rule(
     ],
 )
 
-def rewrite_rpath(name, input, rpath = None):
+def rewrite_rpath(name, inputs, rpath = None):
     """
     Set a binary's rpath to the provided value.
 
@@ -80,7 +82,7 @@ def rewrite_rpath(name, input, rpath = None):
     """
     _rewrite_rpath(
         name = name,
-        input = input,
+        inputs = inputs,
         rpath = rpath,
         script = select({
             "@platforms//os:macos": ":macos.sh",
