@@ -34,9 +34,9 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-import yaml
-from datadog_api_client import Configuration, ApiClient
+from datadog_api_client import ApiClient, Configuration
 from datadog_api_client.v1.api.metrics_api import MetricsApi
+import yaml
 
 
 # Architecture generation order for filtering
@@ -79,12 +79,24 @@ def load_spec(spec_path: str) -> dict:
         return yaml.safe_load(f)
 
 
-def arch_index(arch_name: str) -> int:
-    """Return the index of an architecture in ARCH_ORDER, or -1 if unknown."""
-    arch_name = arch_name.lower()
-    if arch_name in ARCH_ORDER:
-        return ARCH_ORDER.index(arch_name)
-    return -1
+def normalize_support_value(value) -> bool | None:
+    """
+    Normalize support values from the YAML spec.
+
+    Returns:
+    - True for explicit support ("true", true)
+    - False for explicit non-support ("false", false)
+    - None for unknown/missing/other values
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered == "true":
+            return True
+        if lowered == "false":
+            return False
+    return None
 
 
 def get_expected_metrics(spec: dict, arch_filter: str | None = None) -> dict[str, list[dict]]:
@@ -92,40 +104,42 @@ def get_expected_metrics(spec: dict, arch_filter: str | None = None) -> dict[str
     Extract expected metric names from the spec.
     Returns a dict of metric_name -> list of spec entries.
 
-    If arch_filter is provided, only include metrics whose min_architecture
-    is at or below the given architecture generation.
+    If arch_filter is provided, only include metrics that are not explicitly
+    unsupported on that architecture.
     """
-    arch_idx = None
+    arch_name = None
     if arch_filter:
         arch_filter = arch_filter.lower()
         if arch_filter in ARCH_ORDER:
-            arch_idx = ARCH_ORDER.index(arch_filter)
+            arch_name = arch_filter
 
-    namespace = spec.get("namespace", "gpu")
+    namespace = spec.get("metric_prefix", "gpu")
     expected = {}
 
-    for collector in spec.get("collectors", []):
-        for metric in collector.get("metrics", []):
-            full_name = f"{namespace}.{metric['name']}"
+    for metric_name, metric in spec.get("metrics", {}).items():
+        if metric.get("deprecated", False):
+            continue
 
-            # Architecture filtering
-            if arch_idx is not None:
-                min_arch = metric.get("min_architecture", "fermi")
-                if min_arch in ARCH_ORDER:
-                    if ARCH_ORDER.index(min_arch) > arch_idx:
-                        continue  # Skip metrics requiring newer architecture
+        support = metric.get("support", {})
+        unsupported_archs = support.get("unsupported_architectures", [])
 
-            if full_name not in expected:
-                expected[full_name] = []
-            expected[full_name].append({
-                "collector": collector["name"],
-                "priority": metric.get("priority", "low"),
-                "per_process": metric.get("per_process", False),
-                "tagset": metric.get("tagset", "device"),
-                "custom_tags": metric.get("custom_tags", []),
-                "device_support": metric.get("device_support", {}),
-                "min_architecture": metric.get("min_architecture", "fermi"),
-            })
+        # Architecture filtering
+        if arch_name is not None and arch_name in unsupported_archs:
+            continue
+
+        full_name = f"{namespace}.{metric_name}"
+        if full_name not in expected:
+            expected[full_name] = []
+        expected[full_name].append({
+            "type": metric.get("type", ""),
+            "tagsets": metric.get("tagsets", []),
+            "custom_tags": metric.get("custom_tags", []),
+            "memory_locations": metric.get("memory_locations", []),
+            "support": support,
+            "unsupported_architectures": unsupported_archs,
+            "device_features": support.get("device_features", {}),
+            "process_data": support.get("process_data", False),
+        })
 
     return expected
 
@@ -140,52 +154,53 @@ def get_expected_metrics_for_host(
     device mode (physical/mig/vgpu).
 
     Filters by:
-    - min_architecture: metric's min_arch must be <= host's arch
-    - device_support: metric must support the host's device_mode
+    - unsupported_architectures: host arch must not be listed
+    - device_features: host mode must not be explicitly "false"
       (true or unknown both count as expected)
     """
-    host_arch_idx = arch_index(host_arch)
-    namespace = spec.get("namespace", "gpu")
+    namespace = spec.get("metric_prefix", "gpu")
     expected = {}
 
-    for collector in spec.get("collectors", []):
-        for metric in collector.get("metrics", []):
-            full_name = f"{namespace}.{metric['name']}"
+    for metric_name, metric in spec.get("metrics", {}).items():
+        if metric.get("deprecated", False):
+            continue
 
-            # Architecture filtering
-            min_arch = metric.get("min_architecture", "fermi")
-            min_arch_idx = arch_index(min_arch)
-            if min_arch_idx > host_arch_idx and host_arch_idx >= 0:
-                continue
+        support = metric.get("support", {})
+        unsupported_archs = support.get("unsupported_architectures", [])
+        if host_arch.lower() in unsupported_archs:
+            continue
 
-            # Device mode filtering
-            device_support = metric.get("device_support", {})
-            support_value = device_support.get(device_mode, "unknown")
-            if support_value is False:
-                continue  # Explicitly unsupported
+        # Device mode filtering: only explicit false is unsupported.
+        device_features = support.get("device_features", {})
+        support_value = normalize_support_value(device_features.get(device_mode))
+        if support_value is False:
+            continue
 
-            if full_name not in expected:
-                expected[full_name] = []
-            expected[full_name].append({
-                "collector": collector["name"],
-                "priority": metric.get("priority", "low"),
-                "per_process": metric.get("per_process", False),
-                "tagset": metric.get("tagset", "device"),
-                "custom_tags": metric.get("custom_tags", []),
-                "device_support": device_support,
-                "min_architecture": min_arch,
-            })
+        full_name = f"{namespace}.{metric_name}"
+        if full_name not in expected:
+            expected[full_name] = []
+        expected[full_name].append({
+            "type": metric.get("type", ""),
+            "tagsets": metric.get("tagsets", []),
+            "custom_tags": metric.get("custom_tags", []),
+            "memory_locations": metric.get("memory_locations", []),
+            "support": support,
+            "unsupported_architectures": unsupported_archs,
+            "device_features": device_features,
+            "process_data": support.get("process_data", False),
+        })
 
     return expected
 
 
 def get_deprecated_metrics(spec: dict) -> set[str]:
     """Get set of deprecated metric names."""
-    namespace = spec.get("namespace", "gpu")
-    return {
-        f"{namespace}.{m['name']}"
-        for m in spec.get("deprecated_metrics", [])
-    }
+    namespace = spec.get("metric_prefix", "gpu")
+    deprecated = set()
+    for metric_name, metric in spec.get("metrics", {}).items():
+        if metric.get("deprecated", False):
+            deprecated.add(f"{namespace}.{metric_name}")
+    return deprecated
 
 
 def get_all_spec_device_groups(spec: dict) -> set[tuple[str, str]]:
@@ -483,14 +498,14 @@ def generate_report(
     if missing_expected:
         lines.append("### Missing Expected Metrics (Global)")
         lines.append("")
-        lines.append("| Metric | Collector(s) | Min Architecture | Priority |")
-        lines.append("|--------|-------------|-----------------|----------|")
+        lines.append("| Metric | Type | Tagsets | Unsupported Architectures |")
+        lines.append("|--------|------|---------|---------------------------|")
         for name in sorted(missing_expected):
             entries = expected[name]
-            collectors = ", ".join(sorted(set(e["collector"] for e in entries)))
-            min_arch = entries[0].get("min_architecture", "fermi")
-            priority = entries[0].get("priority", "low")
-            lines.append(f"| `{name}` | {collectors} | {min_arch} | {priority} |")
+            metric_type = entries[0].get("type", "")
+            tagsets = ", ".join(entries[0].get("tagsets", []))
+            unsupported_archs = ", ".join(entries[0].get("unsupported_architectures", []))
+            lines.append(f"| `{name}` | {metric_type} | {tagsets} | {unsupported_archs} |")
         lines.append("")
 
     if present_deprecated:
@@ -556,8 +571,8 @@ def generate_report(
                     lines.append("")
                     for m in missing:
                         entries = group_expected.get(m, [])
-                        collectors = ", ".join(sorted(set(e["collector"] for e in entries))) if entries else "?"
-                        lines.append(f"- `{m}` ({collectors})")
+                        tagsets = ", ".join(entries[0].get("tagsets", [])) if entries else "?"
+                        lines.append(f"- `{m}` (tagsets: {tagsets})")
                     lines.append("")
                     lines.append("</details>")
                     lines.append("")
@@ -638,8 +653,8 @@ def main():
         print("\n--- Expected metrics ---")
         for name in sorted(expected.keys()):
             entries = expected[name]
-            collectors = ", ".join(set(e["collector"] for e in entries))
-            print(f"  {name} [{collectors}]")
+            tagsets = ", ".join(entries[0].get("tagsets", [])) if entries else ""
+            print(f"  {name} [tagsets: {tagsets}]")
         return
 
     # Determine site
@@ -686,7 +701,7 @@ def main():
     print("\n── Step 4: Per-host tag spot-checks ──")
     per_host_tag_results: dict[str, list[dict]] = {}
 
-    for group, hosts in sorted(sampled.items()):
+    for _, hosts in sorted(sampled.items()):
         for hostname in hosts:
             print(f"  Tag checks for: {hostname}")
             per_host_tag_results[hostname] = validate_tags_for_host(site, hostname)
