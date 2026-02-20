@@ -6,6 +6,7 @@
 package ssi
 
 import (
+	"encoding/json"
 	"os"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/ssi/testutils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
@@ -92,6 +94,9 @@ func (v *injectionModeSuite) TestInjectionModes() {
 	for _, tc := range testCases {
 		v.Run(tc.name, func() {
 			pod := FindPodInNamespace(v.T(), k8s, "injection-mode", tc.name)
+			if tc.name == "app-image-volume" {
+				logPodDiagnostics(v.T(), pod, tc.name)
+			}
 			podValidator := testutils.NewPodValidator(pod, tc.mode)
 
 			podValidator.RequireInjection(v.T(), []string{tc.name})
@@ -107,4 +112,42 @@ func (v *injectionModeSuite) TestInjectionModes() {
 			}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", tc.name)
 		})
 	}
+}
+
+func logPodDiagnostics(t *testing.T, pod *corev1.Pod, containerName string) {
+	t.Helper()
+	t.Logf("=== Pod diagnostics for %s (pod=%s) ===", containerName, pod.Name)
+	t.Logf("Annotations: %s", mustJSON(pod.Annotations))
+
+	t.Logf("Volumes (%d):", len(pod.Spec.Volumes))
+	for _, v := range pod.Spec.Volumes {
+		t.Logf("  - %s (image=%v, emptyDir=%v, csi=%v)",
+			v.Name, v.VolumeSource.Image != nil, v.VolumeSource.EmptyDir != nil, v.VolumeSource.CSI != nil)
+	}
+
+	t.Logf("Init containers (%d):", len(pod.Spec.InitContainers))
+	for _, c := range pod.Spec.InitContainers {
+		t.Logf("  - %s image=%s", c.Name, c.Image)
+	}
+
+	for _, c := range pod.Spec.Containers {
+		t.Logf("Container %q volume mounts (%d):", c.Name, len(c.VolumeMounts))
+		for _, m := range c.VolumeMounts {
+			t.Logf("  - name=%s mountPath=%s subPath=%s readOnly=%v", m.Name, m.MountPath, m.SubPath, m.ReadOnly)
+		}
+		t.Logf("Container %q env vars (%d):", c.Name, len(c.Env))
+		for _, e := range c.Env {
+			if e.Value != "" {
+				t.Logf("  - %s=%s", e.Name, e.Value)
+			} else {
+				t.Logf("  - %s (valueFrom)", e.Name)
+			}
+		}
+	}
+	t.Logf("=== End pod diagnostics ===")
+}
+
+func mustJSON(v any) string {
+	b, _ := json.Marshal(v)
+	return string(b)
 }
