@@ -19,7 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
+	hostnameimpl "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
@@ -55,7 +56,6 @@ func TestCommand(t *testing.T) {
 	fxutil.Test[ipc.Component](t,
 		ipcfx.ModuleReadWrite(),
 		core.MockBundle(),
-		hostnameimpl.MockModule(),
 	)
 
 	// closely mirrors what the agents would use, but with mock modules where possible
@@ -65,6 +65,7 @@ func TestCommand(t *testing.T) {
 			core.Bundle(),
 			hostnameimpl.Module(),
 			secretsfx.Module(),
+			delegatedauthfx.Module(),
 
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			workloadfilterfxmock.MockModule(),

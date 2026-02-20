@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/comp/core/diagnose/format"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
@@ -126,6 +127,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:            log.ForOneShot(command.LoggerName, cliParams.logLevelDefaultOff.Value(), false),
 				}),
 				secretfx.Module(),
+				delegatedauthfx.Module(),
 				flare.Module(flare.NewLocalParams(
 					defaultpaths.GetDistPath(),
 					defaultpaths.PyChecksPath,

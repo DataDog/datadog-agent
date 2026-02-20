@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -59,6 +60,7 @@ func complianceCheckCommand(globalParams *command.GlobalParams) *cobra.Command {
 				fx.Supply(bundleParams),
 				core.Bundle(),
 				secretsfx.Module(),
+				delegatedauthfx.Module(),
 				logscompressionfx.Module(),
 				statsd.Module(),
 				ipcfx.ModuleReadOnly(),

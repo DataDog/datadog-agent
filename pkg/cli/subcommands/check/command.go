@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
@@ -175,6 +176,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				core.Bundle(),
 				hostnameimpl.Module(),
 				secretsfx.Module(),
+				delegatedauthfx.Module(),
 
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),

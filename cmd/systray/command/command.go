@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -110,6 +111,7 @@ func MakeCommand() *cobra.Command {
 					defaultpaths.StreamlogsLogFile,
 				)),
 				secretsnoopfx.Module(),
+				delegatedauthnoopfx.Module(),
 				diagnosefx.Module(),
 				fx.Supply(option.None[workloadmeta.Component]()),
 				logscompressionfx.Module(),

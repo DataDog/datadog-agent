@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/comp/core/diagnose/format"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
@@ -108,6 +109,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				core.Bundle(),
 				secretnoopfx.Module(),
+				delegatedauthnoopfx.Module(),
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
 				workloadmetafx.Module(workloadmeta.Params{
@@ -171,6 +173,7 @@ This command print the V5 metadata payload for the Agent. This payload is used t
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
 				secretnoopfx.Module(),
+				delegatedauthnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -187,6 +190,7 @@ This command prints the gohai data sent by the Agent, including current processe
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
 				secretnoopfx.Module(),
+				delegatedauthnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -203,6 +207,7 @@ This command print the inventory-agent metadata payload. This payload is used by
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
 				secretnoopfx.Module(),
+				delegatedauthnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -219,6 +224,7 @@ This command print the host-gpu metadata payload. This payload is used by the 'h
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
 				secretnoopfx.Module(),
+				delegatedauthnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -235,6 +241,7 @@ This command print the inventory-host metadata payload. This payload is used by 
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
 				secretnoopfx.Module(),
+				delegatedauthnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -251,6 +258,7 @@ This command print the ha-agent metadata payload. This payload is used by the 'H
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
 				secretnoopfx.Module(),
+				delegatedauthnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -267,6 +275,7 @@ This command print the inventory-checks metadata payload. This payload is used b
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
 				secretnoopfx.Module(),
+				delegatedauthnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -283,6 +292,7 @@ This command print the package-signing metadata payload. This payload is used by
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
 				secretnoopfx.Module(),
+				delegatedauthnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -299,6 +309,7 @@ This command print the system-probe metadata payload. This payload is used by th
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
 				secretnoopfx.Module(),
+				delegatedauthnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -315,6 +326,7 @@ This command print the security-agent metadata payload. This payload is used by 
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
 				secretnoopfx.Module(),
+				delegatedauthnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -330,6 +342,7 @@ This command print the security-agent metadata payload. This payload is used by 
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
 				secretnoopfx.Module(),
+				delegatedauthnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -344,6 +357,7 @@ This command print the security-agent metadata payload. This payload is used by 
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
 				secretnoopfx.Module(),
+				delegatedauthnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -360,6 +374,7 @@ This command print the host system info metadata payload.`,
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
 				secretnoopfx.Module(),
+				delegatedauthnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -375,6 +390,7 @@ Health platform must be enabled for issues to be reported.`,
 			return fxutil.OneShot(printHealthPlatformIssues,
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
+				delegatedauthnoopfx.Module(),
 				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)

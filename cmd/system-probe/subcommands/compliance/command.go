@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -63,6 +64,7 @@ func CheckCommand(globalParams *command.GlobalParams) *cobra.Command {
 				fx.Supply(bundleParams),
 				core.Bundle(),
 				secretsnoopfx.Module(),
+				delegatedauthnoopfx.Module(),
 				logscompressionfx.Module(),
 				statsd.Module(),
 				ipcfx.ModuleInsecure(),
@@ -93,6 +95,7 @@ func complianceLoadCommand(globalParams *command.GlobalParams) *cobra.Command {
 				}),
 				core.Bundle(),
 				secretsnoopfx.Module(),
+				delegatedauthnoopfx.Module(),
 			)
 		},
 	}

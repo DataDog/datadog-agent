@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/host-profiler/globalparams"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -99,6 +100,7 @@ func getRemoteTaggerOptions() []fx.Option {
 	return []fx.Option{
 		ipcfx.ModuleReadOnly(),
 		secretfx.Module(),
+		delegatedauthfx.Module(),
 		remoteTaggerFx.Module(tagger.NewRemoteParams()),
 	}
 }

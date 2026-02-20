@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -91,6 +92,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				}),
 				core.Bundle(),
 				secretsfx.Module(),
+				delegatedauthfx.Module(),
 				diagnosefx.Module(),
 				ipcfx.ModuleInsecure(),
 			)
