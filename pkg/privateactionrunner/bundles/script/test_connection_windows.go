@@ -15,8 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type TestConnectionHandler struct {
-}
+// TestConnectionHandler is a stub for Windows. The action relies on
+// Unix-specific su(1) and user lookup and cannot run on Windows.
+type TestConnectionHandler struct{}
 
 func NewTestConnectionHandler() *TestConnectionHandler {
 	return &TestConnectionHandler{}
