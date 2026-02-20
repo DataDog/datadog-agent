@@ -108,11 +108,6 @@ if(Backtrace_FOUND)
 endif()
 endif()
 
--- probably not needed, -m32 comes from the toolchain
-if(ARCH_I386)
-    set_target_properties(datadog-agent-rtloader PROPERTIES COMPILE_FLAGS "-m32" LINK_FLAGS "-m32")
-endif()
-
 install(TARGETS datadog-agent-rtloader
     RUNTIME DESTINATION bin
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
