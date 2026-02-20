@@ -252,6 +252,7 @@ copy_to_directory(
         "**/python{}/test/**/*".format(VERSION_STR),
         "**/*.exe",
         "**/Makefile",
+        "**/*.pc",
     ],
     include_external_repositories = ["*"],
     root_paths = ["python_unix"],
