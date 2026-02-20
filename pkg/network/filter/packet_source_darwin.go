@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,8 +29,14 @@ const (
 	defaultSnapLen      = 4096
 	pcapTimeout         = time.Second
 
-	// localAddrRefreshInterval is how often we refresh local addresses
+	// localAddrRefreshInterval controls how often we discover new interfaces
+	// and refresh local address caches. After a BPF error (e.g. interface
+	// removal), capture on that interface stops immediately; if the interface
+	// reappears it will be detected on the next tick (up to this interval).
 	localAddrRefreshInterval = 30 * time.Second
+
+	// statsInterval controls how often per-interface pcap stats are polled
+	statsInterval = 5 * time.Second
 
 	// packetChannelSize is the buffer size for the merged packet channel
 	packetChannelSize = 1000
@@ -46,23 +53,27 @@ var packetSourceTelemetry = struct {
 	telemetry.NewStatCounterWrapper(telemetryModuleName, "dropped_packets", []string{}, "Counter measuring the number of dropped packets"),
 }
 
-// bufferPool is used to reuse packet buffers and reduce GC pressure
+// bufferPool is used to reuse packet buffers and reduce GC pressure.
 // All buffers have the same capacity (defaultSnapLen) since libpcap truncates
-// packets at snapLen anyway, guaranteeing all packets fit
+// packets at snapLen anyway, guaranteeing all packets fit.
 var bufferPool = sync.Pool{
 	New: func() interface{} {
 		return make([]byte, defaultSnapLen)
 	},
 }
 
-// getBuffer retrieves a snapLen-sized buffer from the pool
+// getBuffer retrieves a defaultSnapLen-capacity buffer from the pool.
+// The returned slice always has len == cap == defaultSnapLen.
 func getBuffer() []byte {
 	return bufferPool.Get().([]byte)
 }
 
-// putBuffer returns a buffer to the pool
+// putBuffer returns a buffer to the pool. The slice is always reset to its
+// full capacity before pooling so that the next caller always receives a
+// slice with len == cap == defaultSnapLen, preventing a panic when a future
+// caller tries to reslice to a length larger than the stored len.
 func putBuffer(buf []byte) {
-	bufferPool.Put(buf)
+	bufferPool.Put(buf[:cap(buf)])
 }
 
 // packetWithInfo wraps copied packet data with metadata
@@ -84,18 +95,17 @@ type interfaceHandle struct {
 
 // LibpcapSource provides packet capture using libpcap/BPF on macOS
 type LibpcapSource struct {
-	interfaces []*interfaceHandle
-	snapLen    int
+	interfacesMu sync.RWMutex
+	interfaces   map[string]*interfaceHandle // keyed by interface name
+	snapLen      int
 
-	exit chan struct{}
+	exit      chan struct{}
+	closeOnce sync.Once // ensures Close() is safe to call multiple times
 
-	// packetChan is a persistent channel fed by reader goroutines started once
-	// in the constructor. VisitPackets drains this channel.
+	// packetChan is a persistent channel fed by reader goroutines.
+	// VisitPackets drains this channel.
 	packetChan chan packetWithInfo
-	// errChan receives errors from reader goroutines
-	errChan chan error
 	// readerWg tracks reader goroutines so Close() can wait for them to finish
-	// before closing pcap handles
 	readerWg sync.WaitGroup
 }
 
@@ -110,6 +120,19 @@ type DarwinPacketInfo struct {
 //
 // Defaults to 4096 bytes
 type OptSnapLen int
+
+// isEligibleInterface reports whether an interface should be captured.
+// Skips loopback and bridge/vlan virtual interfaces.
+func isEligibleInterface(iface net.Interface) bool {
+	if iface.Flags&net.FlagLoopback != 0 {
+		return false
+	}
+	name := iface.Name
+	if strings.HasPrefix(name, "bridge") || strings.HasPrefix(name, "vlan") {
+		return false
+	}
+	return true
+}
 
 // NewLibpcapSource creates a LibpcapSource using libpcap
 func NewLibpcapSource(_ int, opts ...interface{}) (*LibpcapSource, error) {
@@ -126,63 +149,50 @@ func NewLibpcapSource(_ int, opts ...interface{}) (*LibpcapSource, error) {
 		}
 	}
 
-	// TODO: Make this configurable - for now just use en0
-	ifaceNames := []string{"en0"}
-
 	ps := &LibpcapSource{
-		interfaces: make([]*interfaceHandle, 0, len(ifaceNames)),
+		interfaces: make(map[string]*interfaceHandle),
 		snapLen:    snapLen,
 		exit:       make(chan struct{}),
 		packetChan: make(chan packetWithInfo, packetChannelSize),
-		errChan:    make(chan error, len(ifaceNames)),
 	}
 
-	// Open a handle for each interface
-	for _, ifaceName := range ifaceNames {
-		ih, err := ps.openInterface(ifaceName, snapLen)
-		if err != nil {
-			// Clean up any already-opened handles
-			for _, existing := range ps.interfaces {
-				existing.handle.Close()
-			}
-			return nil, err
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list network interfaces: %w", err)
+	}
+
+	for _, iface := range ifaces {
+		if !isEligibleInterface(iface) {
+			continue
 		}
-		ps.interfaces = append(ps.interfaces, ih)
+		if err := ps.addInterface(iface.Name); err != nil {
+			log.Warnf("skipping interface %s: %v", iface.Name, err)
+		}
 	}
 
-	// Start persistent reader goroutines (one per interface)
-	for _, ih := range ps.interfaces {
-		ps.readerWg.Add(1)
-		go func(ih *interfaceHandle) {
-			defer ps.readerWg.Done()
-			if err := ps.readPacketsFromInterface(ih); err != nil {
-				select {
-				case ps.errChan <- fmt.Errorf("interface %s error: %w", ih.ifaceName, err):
-				case <-ps.exit:
-				}
-			}
-		}(ih)
+	if len(ps.interfaces) == 0 {
+		return nil, errors.New("no eligible network interfaces found for packet capture")
 	}
 
-	// Start background goroutines
-	go ps.pollStats()
-	go ps.refreshLocalAddrsLoop()
+	go ps.refreshLocalAddrs()
 
 	log.Infof("created libpcap source on %d interfaces, snaplen=%d", len(ps.interfaces), snapLen)
 	return ps, nil
 }
 
-// openInterface opens a pcap handle on the specified interface
-func (p *LibpcapSource) openInterface(ifaceName string, snapLen int) (*interfaceHandle, error) {
-	handle, err := pcap.OpenLive(ifaceName, int32(snapLen), true, pcapTimeout)
+// addInterface opens a pcap handle on ifaceName, registers it in p.interfaces,
+// and starts a reader goroutine that owns the handle for its lifetime.
+// When the reader exits for any reason it removes itself from the map and
+// closes the handle, so the caller never needs to do that explicitly.
+func (p *LibpcapSource) addInterface(ifaceName string) error {
+	handle, err := pcap.OpenLive(ifaceName, int32(p.snapLen), true, pcapTimeout)
 	if err != nil {
-		return nil, fmt.Errorf("error opening pcap handle on %s: %w", ifaceName, err)
+		return fmt.Errorf("error opening pcap handle on %s: %w", ifaceName, err)
 	}
 
-	// Set BPF filter to only capture TCP and UDP packets
 	if err := handle.SetBPFFilter("tcp or udp"); err != nil {
 		handle.Close()
-		return nil, fmt.Errorf("error setting BPF filter on %s: %w", ifaceName, err)
+		return fmt.Errorf("error setting BPF filter on %s: %w", ifaceName, err)
 	}
 
 	ih := &interfaceHandle{
@@ -191,77 +201,113 @@ func (p *LibpcapSource) openInterface(ifaceName string, snapLen int) (*interface
 		localAddrs: make(map[string]struct{}),
 	}
 
-	// Initialize local addresses for direction detection
 	if err := ih.refreshLocalAddrs(); err != nil {
 		log.Warnf("failed to get local addresses for %s: %v", ifaceName, err)
 	}
 
+	p.interfacesMu.Lock()
+	p.interfaces[ifaceName] = ih
+	p.interfacesMu.Unlock()
+
+	p.readerWg.Add(1)
+	go func() {
+		defer p.readerWg.Done()
+		// Self-cleanup: remove from the map and close the handle regardless of
+		// why this goroutine exits (global shutdown, interface removal, or error).
+		defer func() {
+			p.interfacesMu.Lock()
+
+			delete(p.interfaces, ih.ifaceName)
+			p.interfacesMu.Unlock()
+			ih.handle.Close()
+			log.Infof("closed pcap handle on interface %s", ih.ifaceName)
+		}()
+
+		p.readPacketsFromInterface(ih)
+	}()
+
 	log.Infof("opened pcap handle on interface %s", ifaceName)
-	return ih, nil
+	return nil
 }
 
-// VisitPackets reads packets from the persistent channel and invokes the visitor callback for each.
-// Reader goroutines are started once in the constructor, so calling VisitPackets multiple times
-// (e.g. on retry) does not leak goroutines.
+// VisitPackets reads packets from the persistent channel and invokes the visitor
+// callback for each. The data slice and PacketInfo pointer passed to the visitor
+// are only valid for the duration of the call and must not be retained.
 func (p *LibpcapSource) VisitPackets(visitor func(data []byte, info PacketInfo, timestamp time.Time) error) error {
 	packetInfo := &DarwinPacketInfo{}
 
-	// Process packets from the persistent channel
 	for {
 		select {
 		case pkt := <-p.packetChan:
+			defer putBuffer(pkt.data)
 			packetInfo.PktType = pkt.direction
 
-			// Call visitor with packet data
 			err := visitor(pkt.data, packetInfo, pkt.timestamp)
-
-			// Return buffer to pool after visitor completes
-			putBuffer(pkt.data)
-
 			if err != nil {
 				return err
 			}
 
 			packetSourceTelemetry.processed.Add(1)
 
-		case err := <-p.errChan:
-			return err
-
 		case <-p.exit:
 			return nil
 		}
 	}
 }
 
-// readPacketsFromInterface reads packets from a single interface and sends them to the persistent channel.
-// This runs for the lifetime of the LibpcapSource.
-func (p *LibpcapSource) readPacketsFromInterface(ih *interfaceHandle) error {
+// readPacketsFromInterface reads packets from a single interface and sends them
+// to the shared packet channel. It also polls pcap stats on a periodic ticker,
+// which keeps stats collection inside the goroutine that owns the handle,
+// eliminating any use-after-close risk from an external stats goroutine.
+//
+// The function returns when p.exit is closed (clean shutdown) or when the
+// underlying handle returns a non-timeout error (e.g. the interface was removed).
+func (p *LibpcapSource) readPacketsFromInterface(ih *interfaceHandle) {
+	statsTicker := time.NewTicker(statsInterval)
+	defer statsTicker.Stop()
+
+	prevStats := struct{ captured, dropped uint64 }{}
+
 	for {
+		// Check for shutdown or a stats tick before blocking on the next read.
+		// ZeroCopyReadPacketData returns at least every pcapTimeout (1s) so
+		// the ticker fires with at most 1s extra latency.
 		select {
 		case <-p.exit:
-			return nil
+			return
+		case <-statsTicker.C:
+			p.collectStats(ih, &prevStats)
 		default:
 		}
 
-		// Zero-copy read - buffer is only valid until next read
+		// Zero-copy read — buffer is only valid until next read
 		data, ci, err := ih.handle.ZeroCopyReadPacketData()
 
 		if err != nil {
 			if err == pcap.NextErrorTimeoutExpired {
 				continue
 			}
-			return fmt.Errorf("error reading packet: %w", err)
+			// Any other error (e.g. EIO when the interface is removed) means
+			// this reader can no longer function. Log and exit so the deferred
+			// cleanup runs; syncInterfaces will re-add the interface if it
+			// reappears later.
+			select {
+			case <-p.exit:
+				// Clean shutdown coincided with a read error — don't alarm.
+			default:
+				log.Warnf("pcap read error on interface %s, stopping capture: %v", ih.ifaceName, err)
+			}
+			return
 		}
 
-		// Determine direction before copying
 		direction := ih.determinePacketDirection(data)
 
-		// Copy data to pooled buffer immediately (before buffer is reused)
+		// Copy data to a pooled buffer immediately (before the zero-copy
+		// buffer is reused by the next ZeroCopyReadPacketData call).
 		buf := getBuffer()
-		buf = buf[:len(data)] // Resize to actual packet size
+		buf = buf[:len(data)]
 		copy(buf, data)
 
-		// Send to channel
 		select {
 		case p.packetChan <- packetWithInfo{
 			data:      buf,
@@ -269,33 +315,115 @@ func (p *LibpcapSource) readPacketsFromInterface(ih *interfaceHandle) error {
 			direction: direction,
 		}:
 		case <-p.exit:
-			putBuffer(buf) // Don't leak buffer
-			return nil
+			putBuffer(buf)
+			return
 		}
 	}
 }
 
-// LayerType returns the layer type for packets from this source
-// Returns LayerTypeEthernet since libpcap on macOS returns full Ethernet frames
+// collectStats polls pcap stats for ih and updates the telemetry counters.
+// It is called from within the reader goroutine that owns ih.handle, so there
+// is no risk of calling Stats() on a closed handle.
+func (p *LibpcapSource) collectStats(ih *interfaceHandle, prev *struct{ captured, dropped uint64 }) {
+	stats, err := ih.handle.Stats()
+	if err != nil {
+		log.Debugf("error polling pcap stats for %s: %s", ih.ifaceName, err)
+		return
+	}
+
+	captured := uint64(stats.PacketsReceived) - prev.captured
+	dropped := uint64(stats.PacketsDropped) - prev.dropped
+
+	if captured > 0 || dropped > 0 {
+		log.Debugf("pcap stats (%s): captured=%d dropped=%d", ih.ifaceName, captured, dropped)
+	}
+
+	packetSourceTelemetry.captured.Add(int64(captured))
+	packetSourceTelemetry.dropped.Add(int64(dropped))
+
+	prev.captured = uint64(stats.PacketsReceived)
+	prev.dropped = uint64(stats.PacketsDropped)
+}
+
+// LayerType returns the layer type for packets from this source.
+// Returns LayerTypeEthernet since libpcap on macOS returns full Ethernet frames.
 func (p *LibpcapSource) LayerType() gopacket.LayerType {
 	return layers.LayerTypeEthernet
 }
 
-// Close stops packet capture and cleans up resources.
-// It signals all goroutines to stop, waits for reader goroutines to finish,
-// then closes pcap handles.
+// Close stops packet capture and cleans up resources. Safe to call multiple times.
+// It signals all goroutines to stop and waits for reader goroutines to finish;
+// each reader goroutine closes its own pcap handle on exit.
 func (p *LibpcapSource) Close() {
-	// Signal all goroutines to exit
-	close(p.exit)
-
-	// Wait for reader goroutines to finish before closing handles.
-	// Readers check p.exit and will return after at most one pcap timeout (1s).
+	p.closeOnce.Do(func() {
+		close(p.exit)
+	})
+	// Readers check p.exit and return after at most one pcap timeout (1s),
+	// at which point they each close their own handle via deferred cleanup.
 	p.readerWg.Wait()
+}
 
-	// Now safe to close handles - no goroutines are reading from them
+// refreshLocalAddrs is the periodic loop that discovers new interfaces and
+// refreshes local address caches. Interface removal is handled automatically
+// by each reader goroutine when its underlying handle errors out, so this
+// loop only needs to look for additions.
+func (p *LibpcapSource) refreshLocalAddrs() {
+	ticker := time.NewTicker(localAddrRefreshInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			p.syncInterfaces()
+		case <-p.exit:
+			return
+		}
+	}
+}
+
+// syncInterfaces adds captures for any newly-appeared eligible interfaces and
+// refreshes local addresses for existing ones. Removal of gone interfaces is
+// handled by reader goroutines self-terminating on BPF errors.
+func (p *LibpcapSource) syncInterfaces() {
+	systemIfaces, err := net.Interfaces()
+	if err != nil {
+		log.Warnf("failed to list network interfaces during refresh: %v", err)
+		return
+	}
+
+	// Add captures for eligible interfaces not yet in the map
+	p.interfacesMu.RLock()
+	var toAdd []string
+	for _, iface := range systemIfaces {
+		if !isEligibleInterface(iface) {
+			continue
+		}
+		if _, ok := p.interfaces[iface.Name]; !ok {
+			toAdd = append(toAdd, iface.Name)
+		}
+	}
+	p.interfacesMu.RUnlock()
+
+	for _, name := range toAdd {
+		log.Infof("new interface %s detected, starting capture", name)
+		if err := p.addInterface(name); err != nil {
+			log.Warnf("failed to add capture on interface %s: %v", name, err)
+		}
+	}
+
+	// Refresh local addresses for all current interfaces.
+	// net.InterfaceByName does not touch the pcap handle, so this is safe
+	// even if a reader goroutine is concurrently exiting.
+	p.interfacesMu.RLock()
+	current := make([]*interfaceHandle, 0, len(p.interfaces))
 	for _, ih := range p.interfaces {
-		if ih.handle != nil {
-			ih.handle.Close()
+		current = append(current, ih)
+	}
+	p.interfacesMu.RUnlock()
+
+	for _, ih := range current {
+		if err := ih.refreshLocalAddrs(); err != nil {
+			log.Debugf("failed to refresh local addresses for %s: %v", ih.ifaceName, err)
 		}
 	}
 }
@@ -315,10 +443,8 @@ func (ih *interfaceHandle) refreshLocalAddrs() error {
 	ih.localAddrsMu.Lock()
 	defer ih.localAddrsMu.Unlock()
 
-	// Clear existing addresses
 	ih.localAddrs = make(map[string]struct{})
 
-	// Add each address to the set
 	for _, addr := range addrs {
 		var ip net.IP
 		switch v := addr.(type) {
@@ -328,7 +454,6 @@ func (ih *interfaceHandle) refreshLocalAddrs() error {
 			ip = v.IP
 		}
 		if ip != nil {
-			// Store as raw bytes for fast lookup
 			if ip4 := ip.To4(); ip4 != nil {
 				ih.localAddrs[string(ip4)] = struct{}{}
 			} else {
@@ -341,25 +466,6 @@ func (ih *interfaceHandle) refreshLocalAddrs() error {
 	return nil
 }
 
-// refreshLocalAddrsLoop periodically refreshes the local address cache for all interfaces
-func (p *LibpcapSource) refreshLocalAddrsLoop() {
-	ticker := time.NewTicker(localAddrRefreshInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			for _, ih := range p.interfaces {
-				if err := ih.refreshLocalAddrs(); err != nil {
-					log.Debugf("failed to refresh local addresses for %s: %v", ih.ifaceName, err)
-				}
-			}
-		case <-p.exit:
-			return
-		}
-	}
-}
-
 // isLocalAddr checks if an IP (as raw bytes) is a local address for this interface
 func (ih *interfaceHandle) isLocalAddr(ip []byte) bool {
 	ih.localAddrsMu.RLock()
@@ -369,8 +475,8 @@ func (ih *interfaceHandle) isLocalAddr(ip []byte) bool {
 	return exists
 }
 
-// determinePacketDirection examines the packet's IP addresses to determine direction
-// Returns PACKET_OUTGOING if source is local, PACKET_HOST if destination is local
+// determinePacketDirection examines the packet's IP addresses to determine direction.
+// Returns PacketOutgoing if the source is a local address, PacketHost otherwise.
 func (ih *interfaceHandle) determinePacketDirection(data []byte) uint8 {
 	// Need at least Ethernet header (14 bytes)
 	if len(data) < 14 {
@@ -387,17 +493,7 @@ func (ih *interfaceHandle) determinePacketDirection(data []byte) uint8 {
 		}
 		// Source IP at offset 26-29 (14 + 12)
 		// Destination IP at offset 30-33 (14 + 16)
-		srcIP := data[26:30]
-		dstIP := data[30:34]
-
-		srcIsLocal := ih.isLocalAddr(srcIP)
-		dstIsLocal := ih.isLocalAddr(dstIP)
-
-		log.Debugf("srcIP: %s, dstIP: %s", net.IP(srcIP).String(), net.IP(dstIP).String())
-		log.Debugf("srcIsLocal: %v, dstIsLocal: %v", srcIsLocal, dstIsLocal)
-
-		if srcIsLocal && !dstIsLocal {
-			log.Debugf("returning PACKET_OUTGOING")
+		if ih.isLocalAddr(data[26:30]) && !ih.isLocalAddr(data[30:34]) {
 			return PacketOutgoing
 		}
 		return PacketHost
@@ -408,64 +504,13 @@ func (ih *interfaceHandle) determinePacketDirection(data []byte) uint8 {
 		}
 		// Source IP at offset 22-37 (14 + 8)
 		// Destination IP at offset 38-53 (14 + 24)
-		srcIP := data[22:38]
-		dstIP := data[38:54]
-
-		srcIsLocal := ih.isLocalAddr(srcIP)
-		dstIsLocal := ih.isLocalAddr(dstIP)
-
-		log.Debugf("srcIP: %s, dstIP: %s", net.IP(srcIP).String(), net.IP(dstIP).String())
-		log.Debugf("srcIsLocal: %v, dstIsLocal: %v", srcIsLocal, dstIsLocal)
-
-		if srcIsLocal && !dstIsLocal {
-			log.Debugf("returning PACKET_OUTGOING")
+		if ih.isLocalAddr(data[22:38]) && !ih.isLocalAddr(data[38:54]) {
 			return PacketOutgoing
 		}
 		return PacketHost
 
 	default:
 		return PacketHost
-	}
-}
-
-// pollStats periodically polls capture statistics from all handles
-func (p *LibpcapSource) pollStats() {
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-
-	// Track previous stats per interface
-	prevStats := make(map[string]struct{ captured, dropped uint64 })
-
-	for {
-		select {
-		case <-ticker.C:
-			for _, ih := range p.interfaces {
-				stats, err := ih.handle.Stats()
-				if err != nil {
-					log.Debugf("error polling pcap stats for %s: %s", ih.ifaceName, err)
-					continue
-				}
-
-				prev := prevStats[ih.ifaceName]
-				captured := uint64(stats.PacketsReceived) - prev.captured
-				dropped := uint64(stats.PacketsDropped) - prev.dropped
-
-				if captured > 0 || dropped > 0 {
-					log.Debugf("pcap stats (%s): captured=%d dropped=%d", ih.ifaceName, captured, dropped)
-				}
-
-				packetSourceTelemetry.captured.Add(int64(captured))
-				packetSourceTelemetry.dropped.Add(int64(dropped))
-
-				prevStats[ih.ifaceName] = struct{ captured, dropped uint64 }{
-					captured: uint64(stats.PacketsReceived),
-					dropped:  uint64(stats.PacketsDropped),
-				}
-			}
-
-		case <-p.exit:
-			return
-		}
 	}
 }
 
