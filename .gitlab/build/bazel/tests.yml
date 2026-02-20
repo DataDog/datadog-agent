@@ -1,0 +1,27 @@
+.bazel:tests:
+  rules:
+    - !reference [ .except_mergequeue ]
+    - when: on_success
+  stage: source_test
+
+bazel:tests:linux-amd64:
+  extends: [ .bazel:tests, .bazel:runner:linux-amd64 ]
+  script:
+    - bazel test //bazel/tests/...
+    - bazel build //packages/agent/linux:debian
+
+bazel:tests:linux-arm64:
+  extends: [ .bazel:tests, .bazel:runner:linux-arm64 ]
+  script:
+    - bazel test //bazel/tests/...
+
+bazel:tests:macos-amd64:
+  extends: [ .bazel:tests, .bazel:runner:macos-amd64 ]
+  script:
+    - bazel test //bazel/tests/...
+
+bazel:tests:macos-arm64:
+  extends: [ .bazel:tests, .bazel:runner:macos-arm64 ]
+  script:
+    - bazel test //bazel/tests/...
+

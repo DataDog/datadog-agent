@@ -7,6 +7,7 @@
 package suite
 
 import (
+	"os"
 	"regexp"
 	"slices"
 	"testing"
@@ -43,6 +44,15 @@ var (
 	// AllPlatforms is the list of all supported platforms.
 	AllPlatforms = append(LinuxPlatforms, WindowsPlatforms...)
 )
+
+// Platforms returns the list of platforms to test, excluding Windows platforms
+// when the SKIP_WINDOWS environment variable is set to "true".
+func Platforms() []e2eos.Descriptor {
+	if os.Getenv("SKIP_WINDOWS") == "true" {
+		return LinuxPlatforms
+	}
+	return AllPlatforms
+}
 
 // FleetSuite is a base suite for fleet tests.
 type FleetSuite struct {

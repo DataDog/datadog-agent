@@ -19,7 +19,7 @@ import (
 )
 
 func ECSLinuxDaemonDefinition(e aws.Environment, name string, apiKeySSMParamName pulumi.StringInput, fakeintake *fakeintake.Fakeintake, clusterArn pulumi.StringInput, options ...ecsagentparams.Option) (*ecs.EC2Service, error) {
-	params, err := ecsagentparams.NewParams(options...)
+	params, err := ecsagentparams.NewParams(&e, options...)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +83,7 @@ func ecsLinuxAgentSingleContainerDefinition(e config.Env, apiKeySSMParamName pul
 		Cpu:       pulumi.IntPtr(200),
 		Memory:    pulumi.IntPtr(512),
 		Name:      pulumi.String("datadog-agent"),
-		Image:     pulumi.String(dockerAgentFullImagePath(e, "public.ecr.aws/datadog/agent", "", false, false, false, false)),
+		Image:     pulumi.String(dockerAgentFullImagePath(e, "public.ecr.aws/datadog/agent", "", false, false, false, params.WindowsImage)),
 		Essential: pulumi.BoolPtr(true),
 		LinuxParameters: ecs.TaskDefinitionLinuxParametersArgs{
 			Capabilities: ecs.TaskDefinitionKernelCapabilitiesArgs{
