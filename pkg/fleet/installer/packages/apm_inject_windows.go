@@ -12,11 +12,15 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
+
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	pkgExec "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -61,6 +65,10 @@ func postInstallAPMInject(ctx HookContext) (err error) {
 	span, _ := ctx.StartSpan("setup_apm_inject")
 	defer func() { span.Finish(err) }()
 
+	if err := enableSystemProbeConfig(ctx); err != nil {
+		return fmt.Errorf("failed to enable system-probe config: %w", err)
+	}
+
 	// Get the installer path
 	packagePath, err := filepath.EvalSymlinks(getAPMInjectTargetPath("stable"))
 	if err != nil {
@@ -76,6 +84,46 @@ func postInstallAPMInject(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to install APM inject driver: %w", err)
 	}
 
+	return nil
+}
+
+// enableSystemProbeConfig writes system_probe_config.enabled: true into system-probe.yaml
+// when host instrumentation is enabled. This covers the standalone install path (e.g. remote
+// update) where the setup script config writing does not run. Needed for monitoring and crash
+// detection of driver crashes.
+func enableSystemProbeConfig(ctx HookContext) (err error) {
+	e := env.FromEnv()
+	if e.InstallScript.APMInstrumentationEnabled != env.APMInstrumentationEnabledHost {
+		return nil
+	}
+
+	span, _ := telemetry.StartSpanFromContext(ctx, "enable_system_probe_config")
+	defer func() { span.Finish(err) }()
+
+	configPath := filepath.Join(paths.AgentConfigDir, "system-probe.yaml")
+
+	cfg := config.SystemProbeConfig{}
+	existing, err := os.ReadFile(configPath)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to read system-probe.yaml: %w", err)
+	}
+	if len(existing) > 0 {
+		if err := yaml.Unmarshal(existing, &cfg); err != nil {
+			return fmt.Errorf("failed to unmarshal system-probe.yaml: %w", err)
+		}
+	}
+	if cfg.SystemProbeSettings.Enabled != nil && *cfg.SystemProbeSettings.Enabled {
+		return nil
+	}
+
+	cfg.SystemProbeSettings.Enabled = config.BoolToPtr(true)
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to marshal system-probe.yaml: %w", err)
+	}
+	if err := os.WriteFile(configPath, data, 0640); err != nil {
+		return fmt.Errorf("failed to write system-probe.yaml: %w", err)
+	}
 	return nil
 }
 
