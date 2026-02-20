@@ -331,6 +331,12 @@ func (t *ebpfLessTracer) guessConnectionDirection(conn *network.ConnectionStats,
 		}
 	}
 
+	// todo: temp fix for eudm testing
+	if conn.Type == network.TCP || conn.Type == network.UDP {
+		log.Debugf("defaulting %s connection to outgoing for testing: %s", conn.Type, conn)
+		return network.OUTGOING, nil
+	}
+
 	switch pktType {
 	case filter.PacketHost:
 		return network.INCOMING, nil
