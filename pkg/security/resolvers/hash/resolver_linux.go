@@ -499,7 +499,7 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, cgroupID cont
 
 		if len(computedHashes) > 0 {
 			// Find the cheapest computed hash to use as cache key
-			cheapestHash := computedHashes[0]
+			cheapestHash = computedHashes[0]
 
 			// Check if we have a cached SSDEEP for this cheap hash
 			ssdeepKey := SSDeepCacheKey{cheapHash: cheapestHash, inode: file.Inode, size: size}

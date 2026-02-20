@@ -299,8 +299,10 @@ func TestSSDeepCaching(t *testing.T) {
 	}
 	defer os.Remove(tmpFile.Name())
 
+	var size int = 8192
+
 	// Write some data (SSDEEP requires at least 4KB typically)
-	testData := generateFileDataWithPattern(8192, 'a')
+	testData := generateFileDataWithPattern(size, 'a')
 	if _, err := tmpFile.Write(testData); err != nil {
 		t.Fatalf("couldn't write file content: %v", err)
 	}
@@ -359,7 +361,7 @@ func TestSSDeepCaching(t *testing.T) {
 
 	// Verify SSDEEP is cached with MD5 as key
 	if resolver.ssdeepCache != nil {
-		ssdeepKey := SSDeepCacheKey{cheapHash: md5Hash1}
+		ssdeepKey := SSDeepCacheKey{cheapHash: md5Hash1, inode: file.Inode, size: int64(size)}
 		cached, ok := resolver.ssdeepCache.Get(ssdeepKey)
 		assert.True(t, ok, "SSDEEP should be cached with MD5 as key")
 		assert.Equal(t, ssdeepHash1, cached.ssdeepHash, "cached SSDEEP should match")
@@ -391,7 +393,10 @@ func TestSSDeepCaching(t *testing.T) {
 	if err != nil {
 		t.Fatalf("couldn't open file for modification: %v", err)
 	}
-	newData := generateFileDataWithPattern(16384, 'z')
+
+	size = 16384
+
+	newData := generateFileDataWithPattern(size, 'z')
 	if _, err := f.Write(newData); err != nil {
 		t.Fatalf("couldn't write new content: %v", err)
 	}
@@ -420,7 +425,7 @@ func TestSSDeepCaching(t *testing.T) {
 
 	// Verify new SSDEEP is cached with new MD5
 	if resolver.ssdeepCache != nil {
-		ssdeepKey := SSDeepCacheKey{cheapHash: md5Hash3}
+		ssdeepKey := SSDeepCacheKey{cheapHash: md5Hash3, inode: file.Inode, size: int64(size)}
 		cached, ok := resolver.ssdeepCache.Get(ssdeepKey)
 		assert.True(t, ok, "new SSDEEP should be cached with new MD5 as key")
 		assert.Equal(t, ssdeepHash3, cached.ssdeepHash, "cached SSDEEP should match new hash")
