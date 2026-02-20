@@ -21,27 +21,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
-const (
-	maxBackoff                   = 3 * time.Minute
-	minBackoff                   = 1 * time.Second
-	maxAttempts                  = 20
-	waitBeforeRetry              = 5 * time.Minute
-	loopInterval                 = 1 * time.Second
-	opmsRequestTimeout           = 30_000
-	runnerPoolSize               = 1
-	defaultHealthCheckEndpoint   = "/healthz"
-	healthCheckInterval          = 30_000
-	defaultHTTPServerReadTimeout = 10_000
-	defaultHTTPTimeout           = 30 * time.Second
-	// defaultHTTPServerWriteTimeout defines how long a request is allowed to run for after the HTTP connection is established. If actions are timing out often, `httpServerWriteTimeout` can be adjusted in config.yaml to override this value. See the Golang docs under `WriteTimeout` for more information about how the server uses this value - https://pkg.go.dev/net/http#Server
-	defaultHTTPServerWriteTimeout = 60_000
-	runnerAccessTokenHeader       = "X-Datadog-Apps-On-Prem-Runner-Access-Token"
-	runnerAccessTokenIDHeader     = "X-Datadog-Apps-On-Prem-Runner-Access-Token-ID"
-	defaultPort                   = 9016
-	defaultJwtRefreshInterval     = 15 * time.Second
-	heartbeatInterval             = 20 * time.Second
-)
-
 func FromDDConfig(config config.Component) (*Config, error) {
 	ddSite := config.GetString("site")
 	encodedPrivateKey := config.GetString(setup.PARPrivateKey)
@@ -73,7 +52,7 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		taskTimeoutSeconds = &v
 	}
 
-	httpTimeout := defaultHTTPTimeout
+	httpTimeout := defaultHTTPClientTimeout
 	if v := config.GetInt32(setup.PARHttpTimeoutSeconds); v != 0 {
 		httpTimeout = time.Duration(v) * time.Second
 	}
@@ -85,7 +64,7 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		WaitBeforeRetry:           waitBeforeRetry,
 		LoopInterval:              loopInterval,
 		OpmsRequestTimeout:        opmsRequestTimeout,
-		RunnerPoolSize:            runnerPoolSize,
+		RunnerPoolSize:            config.GetInt32(setup.PARTaskConcurrency),
 		HealthCheckInterval:       healthCheckInterval,
 		HttpServerReadTimeout:     defaultHTTPServerReadTimeout,
 		HttpServerWriteTimeout:    defaultHTTPServerWriteTimeout,
@@ -103,6 +82,7 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		Allowlist:                 config.GetStringSlice(setup.PARHttpAllowlist),
 		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
 		DDHost:                    strings.Join([]string{"api", ddSite}, "."),
+		DDApiHost:                 strings.Join([]string{"api", ddSite}, "."),
 		Modes:                     []modes.Mode{modes.ModePull},
 		OrgId:                     orgID,
 		PrivateKey:                privateKey,
@@ -123,5 +103,32 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 		}
 		allowlist[bundleName] = previous.Insert(actionName)
 	}
+
+	bundleInheritedActions := GetBundleInheritedAllowedActions(allowlist)
+	for bundleID, actionsSet := range bundleInheritedActions {
+		allowlist[bundleID] = allowlist[bundleID].Union(actionsSet)
+	}
+
 	return allowlist
+}
+
+func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[string]) map[string]sets.Set[string] {
+	result := make(map[string]sets.Set[string])
+
+	for _, specialAction := range BundleInheritedAllowedActions {
+		specialBundleID, specialActionName := actions.SplitFQN(specialAction)
+		specialBundleID = strings.ToLower(specialBundleID)
+
+		actionsSet, ok := actionsAllowlist[specialBundleID]
+		if !ok || actionsSet.Len() == 0 {
+			continue
+		}
+
+		if _, exists := result[specialBundleID]; !exists {
+			result[specialBundleID] = sets.New[string]()
+		}
+		result[specialBundleID].Insert(specialActionName)
+	}
+
+	return result
 }

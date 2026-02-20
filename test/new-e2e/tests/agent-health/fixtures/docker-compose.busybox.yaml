@@ -1,0 +1,47 @@
+version: '3.9'
+
+services:
+  spam1:
+    image: public.ecr.aws/docker/library/busybox:latest
+    container_name: spam1
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "2"
+    command: sh -c "while true; do echo container-1:$$(date); sleep 0.5; done"
+
+  spam2:
+    image: public.ecr.aws/docker/library/busybox:latest
+    container_name: spam2
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "2"
+    command: sh -c "while true; do echo container-2:$$(date); sleep 0.5; done"
+
+  spam3:
+    image: public.ecr.aws/docker/library/busybox:latest
+    container_name: spam3
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "2"
+    command: sh -c "while true; do echo container-3:$$(date); sleep 0.5; done"
+
+  spam4:
+    image: public.ecr.aws/docker/library/busybox:latest
+    container_name: spam4
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "2"
+    command: sh -c "while true; do echo container-4:$$(date); sleep 0.5; done"
+
+  spam5:
+    image: public.ecr.aws/docker/library/busybox:latest
+    container_name: spam5
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "2"
+    command: sh -c "while true; do echo container-5:$$(date); sleep 0.5; done"

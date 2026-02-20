@@ -9,10 +9,12 @@ package serializerexporter
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
 	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
@@ -652,4 +654,145 @@ func TestUsageMetric_GW(t *testing.T) {
 
 	gwUsage = otel.NewGatewayUsage(true)
 	usageMetricGW(t, gwUsage, float64(1.0), float64(1.0))
+}
+
+func createTestMetricsWithRuntimeMetrics() pmetric.Metrics {
+	md := pmetric.NewMetrics()
+	rm := md.ResourceMetrics().AppendEmpty()
+	ilm := rm.ScopeMetrics().AppendEmpty()
+	metricsArray := ilm.Metrics()
+
+	runtimeMetrics := []string{
+		"system.filesystem.utilization",
+		"process.runtime.go.goroutines",
+		"process.runtime.dotnet.exceptions.count",
+		"process.runtime.jvm.threads.count",
+	}
+
+	for _, metricName := range runtimeMetrics {
+		met := metricsArray.AppendEmpty()
+		met.SetName(metricName)
+		dps := met.SetEmptyGauge().DataPoints()
+		dp := dps.AppendEmpty()
+		dp.SetTimestamp(0)
+		dp.SetIntValue(42)
+	}
+
+	return md
+}
+
+func TestMetricRemapping(t *testing.T) {
+	tests := []struct {
+		newGate         bool
+		oldGate         bool
+		expectedMetrics []string
+	}{
+		{
+			newGate: false,
+			oldGate: false,
+			expectedMetrics: []string{
+				// Original metrics with otel. prefix
+				"otel.system.filesystem.utilization",
+				"otel.process.runtime.go.goroutines",
+				"otel.process.runtime.dotnet.exceptions.count",
+				"otel.process.runtime.jvm.threads.count",
+				// Mapped runtime metrics
+				"runtime.go.num_goroutine",
+				"runtime.dotnet.exceptions.count",
+				"jvm.thread_count",
+				// Internal telemetry metrics
+				"datadog.agent.otlp.metrics",
+				"datadog.agent.otlp.runtime_metrics",
+				"datadog.agent.otlp.runtime_metrics",
+				"datadog.agent.otlp.runtime_metrics",
+				"datadog.otel.gateway.configured",
+			},
+		},
+		{
+			newGate: true,
+			oldGate: false,
+			expectedMetrics: []string{
+				// Original metrics without remapping
+				"system.filesystem.utilization",
+				"process.runtime.go.goroutines",
+				"process.runtime.dotnet.exceptions.count",
+				"process.runtime.jvm.threads.count",
+				// Internal telemetry metrics
+				"datadog.agent.otlp.metrics",
+				"datadog.otel.gateway.configured",
+			},
+		},
+		{
+			newGate: false,
+			oldGate: true,
+			expectedMetrics: []string{
+				// Original metrics without prefix
+				"system.filesystem.utilization",
+				"process.runtime.go.goroutines",
+				"process.runtime.dotnet.exceptions.count",
+				"process.runtime.jvm.threads.count",
+				// Mapped runtime metrics
+				"runtime.go.num_goroutine",
+				"runtime.dotnet.exceptions.count",
+				"jvm.thread_count",
+				// Internal telemetry metrics
+				"datadog.agent.otlp.metrics",
+				"datadog.agent.otlp.runtime_metrics",
+				"datadog.agent.otlp.runtime_metrics",
+				"datadog.agent.otlp.runtime_metrics",
+				"datadog.otel.gateway.configured",
+			},
+		},
+		{
+			newGate: true,
+			oldGate: true,
+			expectedMetrics: []string{
+				// Original metrics without remapping (new gate takes precedence)
+				"system.filesystem.utilization",
+				"process.runtime.go.goroutines",
+				"process.runtime.dotnet.exceptions.count",
+				"process.runtime.jvm.threads.count",
+				// Internal telemetry metrics
+				"datadog.agent.otlp.metrics",
+				"datadog.otel.gateway.configured",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("new=%v,old=%v", tt.newGate, tt.oldGate), func(t *testing.T) {
+			reg := featuregate.GlobalRegistry()
+			prevNewVal := featuregates.DisableMetricRemappingFeatureGate.IsEnabled()
+			prevOldVal := featuregates.MetricRemappingDisabledFeatureGate.IsEnabled()
+			require.NoError(t, reg.Set(featuregates.DisableMetricRemappingFeatureGate.ID(), tt.newGate))
+			require.NoError(t, reg.Set(featuregates.MetricRemappingDisabledFeatureGate.ID(), tt.oldGate))
+			defer func() {
+				require.NoError(t, reg.Set(featuregates.DisableMetricRemappingFeatureGate.ID(), prevNewVal))
+				require.NoError(t, reg.Set(featuregates.MetricRemappingDisabledFeatureGate.ID(), prevOldVal))
+			}()
+
+			rec := &metricRecorder{}
+			f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
+				return "", nil
+			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
+			cfg := f.CreateDefaultConfig().(*ExporterConfig)
+			exp, err := f.CreateMetrics(
+				t.Context(),
+				exportertest.NewNopSettings(component.MustNewType("datadog")),
+				cfg,
+			)
+			require.NoError(t, err)
+			require.NoError(t, exp.Start(t.Context(), componenttest.NewNopHost()))
+			testMetrics := createTestMetricsWithRuntimeMetrics()
+			err = exp.ConsumeMetrics(t.Context(), testMetrics)
+			require.NoError(t, err)
+			require.NoError(t, exp.Shutdown(t.Context()))
+
+			actualMetrics := make([]string, 0, len(rec.series))
+			for _, s := range rec.series {
+				actualMetrics = append(actualMetrics, s.Name)
+			}
+			assert.ElementsMatch(t, tt.expectedMetrics, actualMetrics)
+		})
+	}
 }

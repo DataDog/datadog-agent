@@ -26,6 +26,7 @@ pub mod config;
 mod envs;
 mod ephemeral;
 mod errors;
+pub mod ffi;
 mod fs;
 mod injector;
 mod language;

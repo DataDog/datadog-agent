@@ -6,6 +6,7 @@
 package idx
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/tinylib/msgp/msgp"
@@ -38,7 +39,7 @@ func (tp *InternalTracerPayload) UnmarshalMsg(bts []byte) (o []byte, err error) 
 			// If strings are sent they must be sent first.
 			// TODO: this should always be an error
 			if tp.Strings.Len() > 1 {
-				err = msgp.WrapError(err, "Unexpected strings attribute, strings must be sent first")
+				err = errors.New("Unexpected strings attribute, strings must be sent first")
 				return
 			}
 			o, err = unmarshalStringTable(o, tp.Strings)
@@ -118,7 +119,7 @@ func limitedReadArrayHeaderBytes(bts []byte) (sz uint32, o []byte, err error) {
 		return
 	}
 	if sz > maxSize {
-		err = msgp.WrapError(err, "Array too large")
+		err = fmt.Errorf("Array too large: %d > %.0f", sz, maxSize)
 		return
 	}
 	return
@@ -130,7 +131,7 @@ func limitedReadMapHeaderBytes(bts []byte) (sz uint32, o []byte, err error) {
 		return
 	}
 	if sz > maxSize {
-		err = msgp.WrapError(err, "Map too large")
+		err = fmt.Errorf("Map too large: %d > %.0f", sz, maxSize)
 		return
 	}
 	return

@@ -541,7 +541,7 @@ func newRuleContext(e *model.Event, rule *rules.Rule, scrubber *utils.Scrubber) 
 }
 
 func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (variables Variables) {
-	if rule != nil && rule.Opts.VariableStore != nil {
+	if rule != nil && rule.Opts != nil && rule.Opts.VariableStore != nil {
 		store := rule.Opts.VariableStore
 		for name, variable := range store.Variables {
 			// do not serialize hardcoded variables like process.pid

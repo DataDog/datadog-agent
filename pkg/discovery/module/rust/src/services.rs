@@ -22,7 +22,7 @@ use crate::{service_name, tracer_metadata};
 #[derive(Debug, Serialize)]
 pub struct ServicesResponse {
     pub services: Vec<Service>,
-    pub injected_pids: Vec<u32>,
+    pub injected_pids: Vec<i32>,
 }
 
 impl ServicesResponse {
@@ -36,7 +36,7 @@ impl ServicesResponse {
 
 #[derive(Debug, Default, Serialize)]
 pub struct Service {
-    pub pid: u32,
+    pub pid: i32,
     pub generated_name: Option<String>,
     pub generated_name_source: Option<ServiceNameSource>,
     pub additional_generated_names: Vec<String>,
@@ -86,7 +86,7 @@ pub fn get_services(params: Params) -> ServicesResponse {
     resp
 }
 
-fn get_service(pid: u32, context: &mut ParsingContext) -> Option<Service> {
+fn get_service(pid: i32, context: &mut ParsingContext) -> Option<Service> {
     let open_files_info = procfs::fd::get_open_files_info(pid).ok()?;
 
     let log_files = procfs::fd::get_log_files(pid, &open_files_info.logs);
@@ -148,7 +148,7 @@ fn get_service(pid: u32, context: &mut ParsingContext) -> Option<Service> {
     })
 }
 
-fn get_heartbeat_service(pid: u32, context: &mut ParsingContext) -> Option<Service> {
+fn get_heartbeat_service(pid: i32, context: &mut ParsingContext) -> Option<Service> {
     let open_files_info = procfs::fd::get_open_files_info(pid).ok()?;
 
     let log_files = procfs::fd::get_log_files(pid, &open_files_info.logs);
@@ -196,7 +196,7 @@ mod tests {
 
             std::fs::write(&log_path, "Service started\n").expect("Failed to write to log");
 
-            let pid = std::process::id();
+            let pid = std::process::id().cast_signed();
 
             let open_files_info =
                 procfs::fd::get_open_files_info(pid).expect("Failed to collect open files");
@@ -233,7 +233,7 @@ mod tests {
                 .open(&log_path)
                 .expect("Failed to open log file");
 
-            let pid = std::process::id();
+            let pid = std::process::id().cast_signed();
 
             let proc_path = procfs::root_path().join(pid.to_string());
             assert!(
@@ -284,7 +284,7 @@ mod tests {
                 .open(&log_path)
                 .expect("Failed to open log file 2");
 
-            let pid = std::process::id();
+            let pid = std::process::id().cast_signed();
 
             let proc_path = procfs::root_path().join(pid.to_string());
             assert!(

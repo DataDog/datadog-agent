@@ -51,7 +51,7 @@ run_binary(
     srcs = (
         glob(
             ["**"],
-            exclude = ["**/*.pyc"],
+            exclude = ["**/*.pyc", "BUILD.bazel"],
         ) + [
             "bzip2_win_dir",
             "mpdecimal_win_dir",
@@ -252,6 +252,7 @@ copy_to_directory(
         "**/python{}/test/**/*".format(VERSION_STR),
         "**/*.exe",
         "**/Makefile",
+        "**/*.pc",
     ],
     include_external_repositories = ["*"],
     root_paths = ["python_unix"],
@@ -341,7 +342,6 @@ pkg_install(
     name = "install",
     srcs = select({
         "@platforms//os:windows": [
-            "@openssl//:openssl_exe_file",
             ":install_files_win",
         ],
         "//conditions:default": [

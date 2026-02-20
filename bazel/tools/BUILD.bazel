@@ -7,7 +7,6 @@ check_bazel_version()
 py_binary(
     name = "generate_module_bazel",
     srcs = ["generate_module_bazel.py"],
-    main = "generate_module_bazel.py",
     visibility = ["//deps:__subpackages__"],
 )
 

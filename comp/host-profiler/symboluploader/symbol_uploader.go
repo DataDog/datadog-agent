@@ -292,6 +292,7 @@ func (d *DatadogSymbolUploader) uploadWorker(ctx context.Context, elfSymbols Elf
 		if backendSymbolSource.Err != nil {
 			slog.Warn("Failed to query symbols for executable",
 				slog.String("executable", elfSymbols.String()),
+				slog.Int("endpoint", i),
 				slog.String("error", backendSymbolSource.Err.Error()))
 			removeFromCache = true
 			continue
