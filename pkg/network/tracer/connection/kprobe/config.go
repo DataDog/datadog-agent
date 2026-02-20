@@ -105,9 +105,9 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[manage
 		// runtime compiled implementation
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer || coreTracer, kv, probes.TCPRetransmit, probes.TCPRetransmitPre470, kv470))
 		enableProbe(enabled, probes.TCPRetransmitRet)
-		if runtimeTracer {
-			// TCPEnterLoss and TCPEnterRecovery are compiled into the runtime tracer only
-			// (inside the COMPILE_RUNTIME block in tracer.c; not in prebuilt or CO-RE fentry).
+		if runtimeTracer || coreTracer {
+			// TCPEnterLoss and TCPEnterRecovery exist in both the runtime-compiled and
+			// CO-RE kprobe ELFs. Not available on prebuilt.
 			enableProbe(enabled, probes.TCPEnterLoss)
 			enableProbe(enabled, probes.TCPEnterRecovery)
 		}

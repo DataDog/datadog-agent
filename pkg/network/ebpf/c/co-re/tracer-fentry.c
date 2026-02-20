@@ -620,9 +620,12 @@ int BPF_PROG(inet6_bind_exit, struct socket *sock, struct sockaddr *uaddr, int a
     return sys_exit_bind(rc);
 }
 
+// tcp_enter_loss and tcp_enter_recovery fire from the kernel's RTO timer in
+// softirq context, not from a userspace syscall. RETURN_IF_NOT_IN_SYSPROBE_TASK
+// must NOT be used here because bpf_get_ns_current_pid_tgid() will fail when
+// the interrupted task is a kernel thread (e.g. ksoftirqd).
 SEC("kprobe/tcp_enter_loss")
 int kprobe__tcp_enter_loss(struct pt_regs *ctx) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("kprobe/tcp_enter_loss");
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     conn_tuple_t t = {};
     u64 zero = 0;
@@ -640,7 +643,6 @@ int kprobe__tcp_enter_loss(struct pt_regs *ctx) {
 
 SEC("kprobe/tcp_enter_recovery")
 int kprobe__tcp_enter_recovery(struct pt_regs *ctx) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("kprobe/tcp_enter_recovery");
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     conn_tuple_t t = {};
     u64 zero = 0;
