@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -139,6 +140,32 @@ func TestMutatePod(t *testing.T) {
 			in:         mutatecommon.FakePodWithNamespace("foo-service", "foo"),
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("foo", nil),
+			},
+			expectNoChange: true,
+		},
+		"re-admission with init_container mode init container already present does not mutate": {
+			configPath: "testdata/filter_simple_namespace.yaml",
+			in: mutatecommon.FakePodSpec{
+				NS: "application",
+				InitContainers: []corev1.Container{
+					{Name: "datadog-lib-python-init", Image: "registry/dd-lib-python-init:v3"},
+				},
+			}.Create(),
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("application", nil),
+			},
+			expectNoChange: true,
+		},
+		"re-admission with image_volume mode init container already present does not mutate": {
+			configPath: "testdata/filter_simple_namespace.yaml",
+			in: mutatecommon.FakePodSpec{
+				NS: "application",
+				InitContainers: []corev1.Container{
+					{Name: libraryinjection.InjectLDPreloadInitContainerName, Image: "registry/apm-inject:0"},
+				},
+			}.Create(),
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("application", nil),
 			},
 			expectNoChange: true,
 		},
