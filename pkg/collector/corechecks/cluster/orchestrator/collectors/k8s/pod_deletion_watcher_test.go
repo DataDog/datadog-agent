@@ -24,298 +24,342 @@ import (
 	k8stesting "k8s.io/client-go/testing"
 )
 
-// PodDeletionWatcherTestSuite provides a test suite for PodDeletionWatcher with common setup.
-type PodDeletionWatcherTestSuite struct {
-	suite.Suite
+// testParams holds all per-test parameters. This is made necessary by the lack of proper go routine management in
+// client-go retry watcher. To work around this we want to be able to hot swap the entire set of test parameters at
+// once, otherwise the retry watcher receive routine created from a previous test could concurrently access parameters
+// during the next test setup.
+type testParams struct {
 	fakeClient *fake.Clientset
+	fakeStore  *fakeStore
 	fakeWatch  *watch.FakeWatcher
 	mu         sync.Mutex
 	podChan    chan *corev1.Pod
 	recorder   *actionRecorder
 	stopCh     chan struct{}
-	fakeStore  *fakeStore
 	watcher    *PodDeletionWatcher
+}
+
+func (p *testParams) createPod(name, namespace string) *corev1.Pod {
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            name,
+			Namespace:       namespace,
+			ResourceVersion: p.getFakeStore().Update(),
+		},
+	}
+}
+
+func (p *testParams) getFakeStore() *fakeStore {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.fakeStore
+}
+
+func (p *testParams) getFakeWatcher() *watch.FakeWatcher {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.fakeWatch
+}
+
+func (p *testParams) receivePod() *corev1.Pod {
+	return <-p.podChan
+}
+
+func (p *testParams) setFakeWatcher(w *watch.FakeWatcher) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.fakeWatch = w
+}
+
+// PodDeletionWatcherTestSuite is a test suite for PodDeletionWatcher.
+type PodDeletionWatcherTestSuite struct {
+	suite.Suite
+	mu     sync.Mutex
+	params *testParams
+}
+
+func (s *PodDeletionWatcherTestSuite) getParams() *testParams {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.params
+}
+
+func (s *PodDeletionWatcherTestSuite) setParams(p *testParams) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.params = p
 }
 
 // SetupTest runs before each test to create a fresh fake client and watcher.
 func (s *PodDeletionWatcherTestSuite) SetupTest() {
-	s.fakeClient = fake.NewSimpleClientset()
-	s.recorder = newActionRecorder()
-	s.setFakeWatcher(watch.NewFake())
-	s.fakeStore = NewFakeStore()
+	p := &testParams{
+		fakeClient: fake.NewSimpleClientset(),
+		fakeStore:  NewFakeStore(),
+		fakeWatch:  watch.NewFake(),
+		podChan:    make(chan *corev1.Pod, 10),
+		recorder:   newActionRecorder(),
+		stopCh:     make(chan struct{}),
+	}
 
-	// Intercept list calls to return the resource version
-	s.fakeClient.PrependReactor("list", "pods", func(action k8stesting.Action) (bool, runtime.Object, error) {
-		s.recorder.RecordAction(action)
+	// Intercept list calls and return the store resource version
+	p.fakeClient.PrependReactor("list", "pods", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		p.recorder.RecordAction(action)
 		podList := &corev1.PodList{
 			ListMeta: metav1.ListMeta{
-				ResourceVersion: s.fakeStore.ResourceVersion(),
+				ResourceVersion: p.getFakeStore().ResourceVersion(),
 			},
 		}
 		return true, podList, nil
 	})
 
 	// Intercept watch calls and return our fake watcher
-	s.fakeClient.PrependWatchReactor("pods", func(action k8stesting.Action) (bool, watch.Interface, error) {
-		s.recorder.RecordAction(action)
-		return true, s.getFakeWatcher(), nil
+	p.fakeClient.PrependWatchReactor("pods", func(action k8stesting.Action) (bool, watch.Interface, error) {
+		p.recorder.RecordAction(action)
+		return true, p.getFakeWatcher(), nil
 	})
 
-	// Create pod channel for receiving deletion events
-	s.podChan = make(chan *corev1.Pod, 10)
-
-	// Create stop channel for watcher lifecycle
-	s.stopCh = make(chan struct{})
-
 	eventHandler := func(pod *corev1.Pod) {
-		s.podChan <- pod
+		p.podChan <- pod
 	}
 
 	// Create watcher with event handler (starts automatically)
-	s.watcher = NewPodDeletionWatcher(s.fakeClient, eventHandler, s.stopCh)
+	p.watcher = NewPodDeletionWatcher(p.fakeClient, eventHandler, p.stopCh)
+	s.setParams(p)
 }
 
 // TearDownTest runs after each test to clean up resources.
 func (s *PodDeletionWatcherTestSuite) TearDownTest() {
-	close(s.stopCh)
-	s.watcher.AwaitStop()
+	p := s.getParams()
+	close(p.stopCh)
+	p.watcher.AwaitStop()
 }
 
 // TestFiltersNonDeleteEvents verifies that the watcher only processes
 // delete events and ignores add, modify, and bookmark events.
 func (s *PodDeletionWatcherTestSuite) TestFiltersNonDeleteEvents() {
-	pod := s.createPod("pod-name-1", "pod-namespace-1")
+	p := s.getParams()
+	pod := p.createPod("pod-name-1", "pod-namespace-1")
 
 	// Send non-delete events which should be filtered
-	s.getFakeWatcher().Add(pod)
-	s.getFakeWatcher().Modify(pod)
+	p.getFakeWatcher().Add(pod)
+	p.getFakeWatcher().Modify(pod)
 
-	s.assertNoPod()
+	s.assertNoPod(p)
 }
 
 // TestHandles401Unauthorized verifies that the watcher handles 401 Unauthorized errors
 // by reconnecting with backoff.
 func (s *PodDeletionWatcherTestSuite) TestHandles401Unauthorized() {
-	pod1 := s.createPod("pod-name-1", "pod-namespace-1")
-	s.getFakeWatcher().Delete(pod1)
-	s.Equal(pod1, s.receivePod())
+	p := s.getParams()
+	pod1 := p.createPod("pod-name-1", "pod-namespace-1")
+	p.getFakeWatcher().Delete(pod1)
+	s.Equal(pod1, p.receivePod())
 
 	// Send 401 Unauthorized error
-	s.getFakeWatcher().Error(&metav1.Status{
+	p.getFakeWatcher().Error(&metav1.Status{
 		Code:   http.StatusUnauthorized,
 		Reason: metav1.StatusReasonUnauthorized,
 	})
 
 	// Stop old fake watcher and create a new one for reconnection
-	s.getFakeWatcher().Stop()
-	s.setFakeWatcher(watch.NewFake())
+	p.getFakeWatcher().Stop()
+	p.setFakeWatcher(watch.NewFake())
 
 	// Verify watcher reconnected by sending event on new fake watcher
-	pod2 := s.createPod("pod-name-2", "pod-namespace-2")
-	s.getFakeWatcher().Delete(pod2)
-	s.Equal(pod2, s.receivePod())
+	pod2 := p.createPod("pod-name-2", "pod-namespace-2")
+	p.getFakeWatcher().Delete(pod2)
+	s.Equal(pod2, p.receivePod())
 }
 
 // TestHandles403Forbidden verifies that the watcher handles 403 Forbidden errors
 // by reconnecting with backoff.
 func (s *PodDeletionWatcherTestSuite) TestHandles403Forbidden() {
-	pod1 := s.createPod("pod-name-1", "pod-namespace-1")
-	s.getFakeWatcher().Delete(pod1)
-	s.Equal(pod1, s.receivePod())
+	p := s.getParams()
+	pod1 := p.createPod("pod-name-1", "pod-namespace-1")
+	p.getFakeWatcher().Delete(pod1)
+	s.Equal(pod1, p.receivePod())
 
 	// Send 403 Forbidden error
-	s.getFakeWatcher().Error(&metav1.Status{
+	p.getFakeWatcher().Error(&metav1.Status{
 		Code:   http.StatusForbidden,
 		Reason: metav1.StatusReasonForbidden,
 	})
 
 	// Stop old fake watcher and create a new one for reconnection
-	s.getFakeWatcher().Stop()
-	s.setFakeWatcher(watch.NewFake())
+	p.getFakeWatcher().Stop()
+	p.setFakeWatcher(watch.NewFake())
 
 	// Verify watcher reconnected by sending event on new fake watcher
-	pod2 := s.createPod("pod-name-2", "pod-namespace-2")
-	s.getFakeWatcher().Delete(pod2)
-	s.Equal(pod2, s.receivePod())
+	pod2 := p.createPod("pod-name-2", "pod-namespace-2")
+	p.getFakeWatcher().Delete(pod2)
+	s.Equal(pod2, p.receivePod())
 }
 
 // TestHandles410Gone verifies that the watcher detects 410 Gone errors
 // and reconnects successfully.
 func (s *PodDeletionWatcherTestSuite) TestHandles410Gone() {
-	pod1 := s.createPod("pod-name-1", "pod-namespace-1")
-	s.getFakeWatcher().Delete(pod1)
-	s.Equal(pod1, s.receivePod())
+	p := s.getParams()
+	pod1 := p.createPod("pod-name-1", "pod-namespace-1")
+	p.getFakeWatcher().Delete(pod1)
+	s.Equal(pod1, p.receivePod())
 
 	// Send 410 Gone error and the watcher should reconnect
-	s.getFakeWatcher().Error(&metav1.Status{
+	p.getFakeWatcher().Error(&metav1.Status{
 		Code:   http.StatusGone,
 		Reason: metav1.StatusReasonExpired,
 	})
 
 	// Stop old fake watcher and create a new one for reconnection
-	s.getFakeWatcher().Stop()
-	s.setFakeWatcher(watch.NewFake())
+	p.getFakeWatcher().Stop()
+	p.setFakeWatcher(watch.NewFake())
 
 	// Verify watcher reconnected by sending event on new fake watcher
-	pod2 := s.createPod("pod-name-2", "pod-namespace-2")
-	s.getFakeWatcher().Delete(pod2)
-	s.Equal(pod2, s.receivePod())
+	pod2 := p.createPod("pod-name-2", "pod-namespace-2")
+	p.getFakeWatcher().Delete(pod2)
+	s.Equal(pod2, p.receivePod())
 }
 
 // TestHandles429TooManyRequests verifies that the watcher handles 429 errors
 // by reconnecting with backoff.
 func (s *PodDeletionWatcherTestSuite) TestHandles429TooManyRequests() {
-	pod1 := s.createPod("pod-name-1", "pod-namespace-1")
-	s.getFakeWatcher().Delete(pod1)
-	s.Equal(pod1, s.receivePod())
+	p := s.getParams()
+	pod1 := p.createPod("pod-name-1", "pod-namespace-1")
+	p.getFakeWatcher().Delete(pod1)
+	s.Equal(pod1, p.receivePod())
 
 	// Send 429 Too Many Requests error
-	s.getFakeWatcher().Error(&metav1.Status{
+	p.getFakeWatcher().Error(&metav1.Status{
 		Code:   http.StatusTooManyRequests,
 		Reason: metav1.StatusReasonTooManyRequests,
 	})
 
 	// Stop old fake watcher and create a new one for reconnection
-	s.getFakeWatcher().Stop()
-	s.setFakeWatcher(watch.NewFake())
+	p.getFakeWatcher().Stop()
+	p.setFakeWatcher(watch.NewFake())
 
 	// Verify watcher reconnected by sending event on new fake watcher
-	pod2 := s.createPod("pod-name-2", "pod-namespace-2")
-	s.getFakeWatcher().Delete(pod2)
-	s.Equal(pod2, s.receivePod())
+	pod2 := p.createPod("pod-name-2", "pod-namespace-2")
+	p.getFakeWatcher().Delete(pod2)
+	s.Equal(pod2, p.receivePod())
 }
 
 // TestHandles500InternalError verifies that the watcher handles 500 errors
 // by reconnecting with backoff.
 func (s *PodDeletionWatcherTestSuite) TestHandles500InternalError() {
-	pod1 := s.createPod("pod-name-1", "pod-namespace-1")
-	s.getFakeWatcher().Delete(pod1)
-	s.Equal(pod1, s.receivePod())
+	p := s.getParams()
+	pod1 := p.createPod("pod-name-1", "pod-namespace-1")
+	p.getFakeWatcher().Delete(pod1)
+	s.Equal(pod1, p.receivePod())
 
 	// Send 500 Internal Server Error
-	s.getFakeWatcher().Error(&metav1.Status{
+	p.getFakeWatcher().Error(&metav1.Status{
 		Code:   http.StatusInternalServerError,
 		Reason: metav1.StatusReasonInternalError,
 	})
 
 	// Stop old fake watcher and create a new one for reconnection
-	s.getFakeWatcher().Stop()
-	s.setFakeWatcher(watch.NewFake())
+	p.getFakeWatcher().Stop()
+	p.setFakeWatcher(watch.NewFake())
 
 	// Verify watcher reconnected by sending event on new fake watcher
-	pod2 := s.createPod("pod-name-2", "pod-namespace-2")
-	s.getFakeWatcher().Delete(pod2)
-	s.Equal(pod2, s.receivePod())
+	pod2 := p.createPod("pod-name-2", "pod-namespace-2")
+	p.getFakeWatcher().Delete(pod2)
+	s.Equal(pod2, p.receivePod())
 }
 
 // TestHandles504GatewayTimeout verifies that the watcher handles 504 errors
 // by reconnecting with backoff.
 func (s *PodDeletionWatcherTestSuite) TestHandles504GatewayTimeout() {
-	pod1 := s.createPod("pod-name-1", "pod-namespace-1")
-	s.getFakeWatcher().Delete(pod1)
-	s.Equal(pod1, s.receivePod())
+	p := s.getParams()
+	pod1 := p.createPod("pod-name-1", "pod-namespace-1")
+	p.getFakeWatcher().Delete(pod1)
+	s.Equal(pod1, p.receivePod())
 
 	// Send 504 Gateway Timeout error
-	s.getFakeWatcher().Error(&metav1.Status{
+	p.getFakeWatcher().Error(&metav1.Status{
 		Code:   http.StatusGatewayTimeout,
 		Reason: metav1.StatusReasonTimeout,
 	})
 
 	// Stop old fake watcher and create a new one for reconnection
-	s.getFakeWatcher().Stop()
-	s.setFakeWatcher(watch.NewFake())
+	p.getFakeWatcher().Stop()
+	p.setFakeWatcher(watch.NewFake())
 
 	// Verify watcher reconnected by sending event on new fake watcher
-	pod2 := s.createPod("pod-name-2", "pod-namespace-2")
-	s.getFakeWatcher().Delete(pod2)
-	s.Equal(pod2, s.receivePod())
+	pod2 := p.createPod("pod-name-2", "pod-namespace-2")
+	p.getFakeWatcher().Delete(pod2)
+	s.Equal(pod2, p.receivePod())
 }
 
 // TestHandlesMultipleDeletions verifies that the watcher can handle
 // multiple pod deletion events in sequence.
 func (s *PodDeletionWatcherTestSuite) TestHandlesMultipleDeletions() {
+	p := s.getParams()
 	pods := []*corev1.Pod{
-		s.createPod("pod-name-1", "pod-namespace-1"),
-		s.createPod("pod-name-2", "pod-namespace-2"),
-		s.createPod("pod-name-3", "pod-namespace-3"),
+		p.createPod("pod-name-1", "pod-namespace-1"),
+		p.createPod("pod-name-2", "pod-namespace-2"),
+		p.createPod("pod-name-3", "pod-namespace-3"),
 	}
 
 	for _, pod := range pods {
-		s.getFakeWatcher().Delete(pod)
+		p.getFakeWatcher().Delete(pod)
 	}
 
 	for _, pod := range pods {
-		s.Equal(pod, s.receivePod())
+		s.Equal(pod, p.receivePod())
 	}
 }
 
 // TestHandlesNonPodDeleteEvent verifies that the watcher gracefully
 // handles delete events with non-pod objects.
 func (s *PodDeletionWatcherTestSuite) TestHandlesNonPodDeleteEvent() {
+	p := s.getParams()
+
 	// Send a delete event with a non-pod object
-	status := &metav1.Status{Message: "not a pod"}
-	s.getFakeWatcher().Delete(status)
+	sa := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "service-account-name-1",
+			Namespace: "service-account-namespace-1",
+		},
+	}
+	p.getFakeWatcher().Delete(sa)
 
 	// Verify handler was NOT called
-	s.assertNoPod()
+	s.assertNoPod(p)
 }
 
 // TestReceivesDeleteEvents verifies that the watcher receives and processes
 // pod deletion events.
 func (s *PodDeletionWatcherTestSuite) TestReceivesDeleteEvents() {
-	pod := s.createPod("pod-name-1", "pod-namespace-1")
-	s.getFakeWatcher().Delete(pod)
-	s.Equal(pod, s.receivePod())
+	p := s.getParams()
+	pod := p.createPod("pod-name-1", "pod-namespace-1")
+	p.getFakeWatcher().Delete(pod)
+	s.Equal(pod, p.receivePod())
 }
 
 func (s *PodDeletionWatcherTestSuite) TestResourceVersionAdvances() {
-	pod := s.createPod("pod-name-1", "pod-namespace-1")
-	s.getFakeWatcher().Delete(pod)
-	s.Equal(pod, s.receivePod())
+	p := s.getParams()
+	pod := p.createPod("pod-name-1", "pod-namespace-1")
+	p.getFakeWatcher().Delete(pod)
+	s.Equal(pod, p.receivePod())
 
-	s.recorder.Enable()
+	p.recorder.Enable()
 
 	// Close fake watcher result channel forces reconnect
-	s.getFakeWatcher().Stop()
+	p.getFakeWatcher().Stop()
 
-	action, received := s.recorder.ConsumeWatchAction()
+	action, received := p.recorder.ConsumeWatchAction()
 	s.Require().True(received)
-	s.Require().Equal(s.fakeStore.ResourceVersion(), action.GetWatchRestrictions().ResourceVersion)
+	s.Require().Equal(p.getFakeStore().ResourceVersion(), action.GetWatchRestrictions().ResourceVersion)
 }
 
-func (s *PodDeletionWatcherTestSuite) assertNoPod() {
+func (s *PodDeletionWatcherTestSuite) assertNoPod(p *testParams) {
 	select {
-	case <-s.podChan:
+	case <-p.podChan:
 		s.Fail("Pod received")
 	case <-time.After(1 * time.Second):
 		return
 	}
-}
-
-func (s *PodDeletionWatcherTestSuite) createPod(name, namespace string) *corev1.Pod {
-	return &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            name,
-			Namespace:       namespace,
-			ResourceVersion: s.fakeStore.Update(),
-		},
-	}
-}
-
-func (s *PodDeletionWatcherTestSuite) getFakeWatcher() *watch.FakeWatcher {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.fakeWatch
-}
-
-func (s *PodDeletionWatcherTestSuite) receivePod() *corev1.Pod {
-	return <-s.podChan
-}
-
-func (s *PodDeletionWatcherTestSuite) setFakeWatcher(watcher *watch.FakeWatcher) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.fakeWatch = watcher
 }
 
 const (
@@ -332,7 +376,7 @@ type actionRecorder struct {
 	watchActions chan k8stesting.WatchAction
 }
 
-// NewActionRecorder creates a new action recorder that drops all actions until Record is called.
+// newActionRecorder creates a new action recorder that drops all actions until Record is called.
 func newActionRecorder() *actionRecorder {
 	return &actionRecorder{
 		listActions:  make(chan k8stesting.ListAction, actionRecorderBufferSize),

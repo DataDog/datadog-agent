@@ -1032,3 +1032,76 @@ func TestConvertModelServiceToService_Normalization(t *testing.T) {
 		})
 	}
 }
+
+func TestTracerAlreadyCollectsLogs(t *testing.T) {
+	tests := []struct {
+		name             string
+		inputService     *model.Service
+		expectedLogFiles []string
+	}{
+		{
+			name: "logs not collected by tracer passes log files through",
+			inputService: &model.Service{
+				GeneratedName: "my-service",
+				Language:      "python",
+				LogFiles:      []string{"/var/log/app.log", "/tmp/debug.log"},
+				TracerMetadata: []tracermetadata.TracerMetadata{
+					{TracerLanguage: "python", LogsCollected: false},
+				},
+			},
+			expectedLogFiles: []string{"/var/log/app.log", "/tmp/debug.log"},
+		},
+		{
+			name: "logs collected by tracer filters out log files",
+			inputService: &model.Service{
+				GeneratedName: "my-service",
+				Language:      "python",
+				LogFiles:      []string{"/var/log/app.log", "/tmp/debug.log"},
+				TracerMetadata: []tracermetadata.TracerMetadata{
+					{TracerLanguage: "python", LogsCollected: true},
+				},
+			},
+			expectedLogFiles: nil,
+		},
+		{
+			name: "no tracer metadata passes log files through",
+			inputService: &model.Service{
+				GeneratedName: "my-service",
+				Language:      "python",
+				LogFiles:      []string{"/var/log/app.log"},
+			},
+			expectedLogFiles: []string{"/var/log/app.log"},
+		},
+		{
+			name: "logs collected by one of multiple tracers filters out log files",
+			inputService: &model.Service{
+				GeneratedName: "my-service",
+				Language:      "python",
+				LogFiles:      []string{"/var/log/app.log"},
+				TracerMetadata: []tracermetadata.TracerMetadata{
+					{TracerLanguage: "python", LogsCollected: false},
+					{TracerLanguage: "java", LogsCollected: true},
+				},
+			},
+			expectedLogFiles: nil,
+		},
+		{
+			name: "no log files with tracer collecting logs",
+			inputService: &model.Service{
+				GeneratedName: "my-service",
+				Language:      "python",
+				TracerMetadata: []tracermetadata.TracerMetadata{
+					{TracerLanguage: "python", LogsCollected: true},
+				},
+			},
+			expectedLogFiles: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := convertModelServiceToService(tt.inputService)
+			assert.Equal(t, tt.expectedLogFiles, result.LogFiles)
+		})
+	}
+}
