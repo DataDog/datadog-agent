@@ -16,6 +16,14 @@ load("//compliance:package_licenses.bzl", "package_licenses")
 
 package(default_visibility = ["//packages:__subpackages__"])
 
+
+pkg_filegroup(
+    name = "security_agent_components",
+    srcs = [
+        "@openscap//:lib_files",
+    ]
+)
+
 # This is everything in the distro. All the things that were explicit
 # in datadog-agent-dependencies.rb should show up here.
 pkg_filegroup(
@@ -26,6 +34,10 @@ pkg_filegroup(
         "//packages/install_dir:embedded",
         "//packages/install_dir:etc",
         "@libpcap//:all_files",
+        # This should probably be in its own target instead and aggregated later on
+        # but this is good enough for now so that we can start pulling in dependencies
+        # in the package automatically
+        ":security_agent_components"
     ],
     prefix = "/opt/datadog-agent",
 )
