@@ -118,7 +118,6 @@ func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[strin
 	for _, specialAction := range BundleInheritedAllowedActions {
 		specialBundleID, specialActionName := actions.SplitFQN(specialAction)
 		specialBundleID = strings.ToLower(specialBundleID)
-		specialActionName = strings.ToLower(specialActionName)
 
 		actionsSet, ok := actionsAllowlist[specialBundleID]
 		if !ok || actionsSet.Len() == 0 {
