@@ -10,6 +10,7 @@ import (
 	"context"
 	json "encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"runtime"
 	"slices"
@@ -646,6 +647,61 @@ func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportP
 
 	return &api.GetRuleSetReportMessage{
 		RuleSetReportMessage: transform.FromFilterReportToProtoRuleSetReportMessage(report),
+	}, nil
+}
+
+type policyDump struct {
+	Name         string                    `json:"name"`
+	Source       string                    `json:"source"`
+	Version      string                    `json:"version,omitempty"`
+	InternalType string                    `json:"internal_type,omitempty"`
+	Macros       []*rules.MacroDefinition  `json:"macros,omitempty"`
+	Rules        []*rules.RuleDefinition   `json:"rules,omitempty"`
+}
+
+// GetLoadedPolicies returns the currently loaded policies as JSON
+func (a *APIServer) GetLoadedPolicies(_ context.Context, params *api.GetLoadedPoliciesParams) (*api.GetLoadedPoliciesMessage, error) {
+	if a.cwsConsumer == nil || a.cwsConsumer.ruleEngine == nil {
+		return nil, errors.New("no rule engine")
+	}
+
+	ruleSet := a.cwsConsumer.ruleEngine.GetRuleSet()
+	if ruleSet == nil {
+		return nil, errors.New("failed to get loaded rule set")
+	}
+
+	var dumps []policyDump
+	for _, policy := range ruleSet.GetPolicies() {
+		if policy.Info.IsInternal && !params.IncludeBundled {
+			continue
+		}
+
+		dump := policyDump{
+			Name:         policy.Info.Name,
+			Source:       policy.Info.Source,
+			Version:      policy.Info.Version,
+			InternalType: string(policy.Info.InternalType),
+		}
+
+		if policy.Def != nil {
+			for _, macro := range policy.Def.Macros {
+				dump.Macros = append(dump.Macros, macro)
+			}
+			for _, rule := range policy.Def.Rules {
+				dump.Rules = append(dump.Rules, rule)
+			}
+		}
+
+		dumps = append(dumps, dump)
+	}
+
+	content, err := json.MarshalIndent(dumps, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal policies: %w", err)
+	}
+
+	return &api.GetLoadedPoliciesMessage{
+		Policies: string(content),
 	}, nil
 }
 
