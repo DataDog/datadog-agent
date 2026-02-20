@@ -94,13 +94,7 @@ func NewComponent(deps Requires) Provides {
 			},
 			&ConnectionErrorExtractor{},
 			NewPatternLogProcessor([]PatternLogAnomalyDetector{
-				&WatchdogLogAnomalyDetector{
-					ResultChannel:     make(chan *observerdef.LogProcessorResult, 1024),
-					Period:            15 * time.Second,
-					Alpha:             0.95,
-					EvictionThreshold: 0.1,
-					PatternRate:       make(map[int]float64),
-				},
+				NewWatchdogLogAnomalyDetector(make(chan *observerdef.LogProcessorResult, 1024)),
 			}),
 		},
 		tsAnalyses: []observerdef.TimeSeriesAnalysis{
