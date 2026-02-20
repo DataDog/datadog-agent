@@ -91,7 +91,7 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 
 	err := json.Unmarshal([]byte(checksJSON), &namedChecks)
 	if err != nil {
-		return nil, fmt.Errorf("invalid JSON in pod check annotation (ad.datadoghq.com/<container>.checks): %w", err)
+		return nil, fmt.Errorf("invalid JSON in check configuration (ad.datadoghq.com/<container>.checks): %w", err)
 	}
 
 	checks := make([]integration.Config, 0, len(namedChecks))
