@@ -52,6 +52,12 @@ import (
 const (
 	streamRecvTimeout = 10 * time.Minute
 	cacheExpiration   = 1 * time.Minute
+
+	// negativeCacheExpiration controls how long a failed container ID resolution
+	// is cached before retry. On bare-metal hosts where resolution always fails,
+	// this prevents unbounded gRPC round-trips to the core agent's tagger.
+	// See: AGENT-15616
+	negativeCacheExpiration = 1 * time.Minute
 )
 
 // Requires defines the dependencies for the remote tagger.
@@ -101,7 +107,23 @@ type remoteTagger struct {
 	checksCardinality    types.TagCardinality
 	dogstatsdCardinality types.TagCardinality
 
+	// containerIDCache caches both positive and negative container ID resolution
+	// results to prevent unbounded gRPC calls on bare-metal hosts. The shared
+	// cache.GetWithExpiration utility (cache.go:95) does not cache errors, so on
+	// non-containerized hosts every request triggers a fresh gRPC round-trip.
+	// See: AGENT-15616
+	containerIDCache   map[string]containerIDCacheEntry
+	containerIDCacheMu sync.RWMutex
+
 	wg sync.WaitGroup
+}
+
+// containerIDCacheEntry holds a cached container ID resolution result,
+// including negative results (errors).
+type containerIDCacheEntry struct {
+	containerID string
+	err         error
+	expireAt    time.Time
 }
 
 // Options contains the options needed to configure the remote tagger.
@@ -151,6 +173,8 @@ func newRemoteTagger(params tagger.RemoteParams, cfg config.Component, log log.C
 		log:            log,
 		tlsConfig:      ipc.GetTLSClientConfig(),
 		authToken:      ipc.GetAuthToken(),
+
+		containerIDCache: make(map[string]containerIDCacheEntry),
 	}
 
 	// Override the default TLS config and auth token if provided
@@ -317,32 +341,67 @@ func (t *remoteTagger) TagWithCompleteness(entityID types.EntityID, cardinality 
 }
 
 // GenerateContainerIDFromOriginInfo returns a container ID for the given Origin Info.
+//
+// This method caches both successful and failed lookups. The shared
+// cache.GetWithExpiration utility (pkg/util/cache/cache.go:95) skips caching
+// when the callback returns an error. On bare-metal hosts, container ID
+// resolution always fails, so without negative caching every HTTP request to
+// the trace-agent triggers a fresh gRPC round-trip to the core agent.
+//
+// See: AGENT-15616
 func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
-	fail := true
-	defer func() {
-		if fail {
-			t.telemetryStore.OriginInfoRequests.Inc("failed")
-		} else {
-			t.telemetryStore.OriginInfoRequests.Inc("success")
-		}
-	}()
-
 	key := cache.BuildAgentKey(
 		"remoteTagger",
 		"originInfo",
 		origindetection.OriginInfoString(originInfo),
 	)
 
-	cachedContainerID, err := cache.GetWithExpiration(key, func() (containerID string, err error) {
-		containerID, err = t.queryContainerIDFromOriginInfo(originInfo)
-		return containerID, err
-	}, cacheExpiration)
+	// Check the local cache (includes both positive and negative entries)
+	t.containerIDCacheMu.RLock()
+	if entry, found := t.containerIDCache[key]; found && time.Now().Before(entry.expireAt) {
+		t.containerIDCacheMu.RUnlock()
+		if entry.err != nil {
+			t.telemetryStore.OriginInfoRequests.Inc("failed")
+			return "", entry.err
+		}
+		t.telemetryStore.OriginInfoRequests.Inc("success")
+		return entry.containerID, nil
+	}
+	t.containerIDCacheMu.RUnlock()
+
+	// Cache miss or expired — make the gRPC call
+	containerID, err := t.queryContainerIDFromOriginInfo(originInfo)
+
+	// Cache the result (success OR failure)
+	ttl := cacheExpiration
+	if err != nil {
+		ttl = negativeCacheExpiration
+	}
+
+	t.containerIDCacheMu.Lock()
+	// Lazy eviction: purge expired entries when the map grows beyond threshold.
+	// Bounds memory on hosts with high PID churn (e.g. PHP Horizon workers).
+	if len(t.containerIDCache) > 1000 {
+		now := time.Now()
+		for k, v := range t.containerIDCache {
+			if now.After(v.expireAt) {
+				delete(t.containerIDCache, k)
+			}
+		}
+	}
+	t.containerIDCache[key] = containerIDCacheEntry{
+		containerID: containerID,
+		err:         err,
+		expireAt:    time.Now().Add(ttl),
+	}
+	t.containerIDCacheMu.Unlock()
 
 	if err != nil {
+		t.telemetryStore.OriginInfoRequests.Inc("failed")
 		return "", err
 	}
-	fail = false
-	return cachedContainerID, nil
+	t.telemetryStore.OriginInfoRequests.Inc("success")
+	return containerID, nil
 }
 
 // queryContainerIDFromOriginInfo calls the local tagger to get the container ID from the Origin Info.

@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Process Agent: Add ``datadog.process.processes.skipped`` metric with a
+    ``reason`` tag (``short_lived``, ``disallow_listed``, ``zombie``) to provide
+    visibility into processes skipped during collection. Processes must be
+    observed in two consecutive collection cycles to be reported, so processes
+    living less than approximately 20 seconds may not be captured.
