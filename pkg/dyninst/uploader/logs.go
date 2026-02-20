@@ -27,6 +27,7 @@ type LogsUploaderFactory struct {
 	uploaders     map[LogsUploaderMetadata]*refCountedUploader
 	maxUploaderID uint64
 	cfg           config
+	metrics       *Metrics
 }
 
 // LogsUploaderMetadata is the metadata applied to the requests sent by this
@@ -61,6 +62,7 @@ func NewLogsUploaderFactory(opts ...Option) *LogsUploaderFactory {
 	lu := &LogsUploaderFactory{
 		uploaders: make(map[LogsUploaderMetadata]*refCountedUploader),
 		cfg:       defaultConfig(),
+		metrics:   &Metrics{},
 	}
 	for _, opt := range opts {
 		opt(&lu.cfg)
@@ -128,7 +130,7 @@ func (u *LogsUploaderFactory) GetUploader(metadata LogsUploaderMetadata) *LogsUp
 
 	sender := newLogSender(u.cfg.client, logsURL, headers, u.cfg.sendTimeout)
 	taggedUploader := &LogsUploader{
-		batcher:  newBatcher(name, sender, u.cfg.batcherConfig),
+		batcher:  newBatcher(name, sender, u.cfg.batcherConfig, u.metrics),
 		metadata: metadata,
 		factory:  u,
 	}
@@ -182,17 +184,7 @@ func (u *LogsUploaderFactory) Stop() {
 
 // Stats returns the combined metrics of all managed uploaders.
 func (u *LogsUploaderFactory) Stats() map[string]int64 {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-
-	totalStats := make(map[string]int64)
-	for _, rc := range u.uploaders {
-		stats := rc.state.metrics.Stats()
-		for k, v := range stats {
-			totalStats[k] += v
-		}
-	}
-	return totalStats
+	return u.metrics.Stats()
 }
 
 type logSender struct {

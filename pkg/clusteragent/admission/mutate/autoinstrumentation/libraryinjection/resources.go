@@ -9,19 +9,28 @@ package libraryinjection
 
 import (
 	"fmt"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 var (
-	// MinimumCPULimit is the minimum CPU limit required for init containers.
+	// minimumCPULimit is the minimum CPU limit required for init containers.
 	// Below this, copying + library initialization would take too long.
-	MinimumCPULimit = resource.MustParse("0.05") // 0.05 core
+	minimumCPULimit = resource.MustParse("0.05") // 0.05 core
 
-	// MinimumMemoryLimit is the minimum memory limit required for init containers.
+	// minimumMemoryLimit is the minimum memory limit required for init containers.
 	// This is the recommended minimum by Alpine.
-	MinimumMemoryLimit = resource.MustParse("100Mi") // 100 MB
+	minimumMemoryLimit = resource.MustParse("100Mi") // 100 MB
+
+	// minimumMicroCPULimit is the minimum CPU limit required for the micro init container
+	// used by image_volume injection (e.g., a simple `cp`).
+	minimumMicroCPULimit = resource.MustParse("5m")
+
+	// minimumMicroMemoryLimit is the minimum memory limit required for the micro init container
+	// used by image_volume injection (e.g., a simple `cp`).
+	minimumMicroMemoryLimit = resource.MustParse("16Mi")
 )
 
 // ResourceRequirementsResult holds the result of computing resource requirements.
@@ -31,47 +40,78 @@ type ResourceRequirementsResult struct {
 	Message      string
 }
 
-// ComputeResourceRequirements computes the resource requirements for init containers
-// based on the pod's existing resources and optional default requirements.
-// It returns whether injection should be skipped if the pod has insufficient resources.
-func ComputeResourceRequirements(pod *corev1.Pod, defaultRequirements map[corev1.ResourceName]resource.Quantity) ResourceRequirementsResult {
+// ComputeInitContainerResourceRequirementsForInitContainer computes init container resource requirements
+// for a specific init-container type, identified by its name.
+// Returns an error if initContainerName is unknown (programming error).
+func ComputeInitContainerResourceRequirementsForInitContainer(
+	pod *corev1.Pod,
+	defaultRequirements map[corev1.ResourceName]resource.Quantity,
+	initContainerName string,
+) (ResourceRequirementsResult, error) {
+	switch initContainerName {
+	case InjectorInitContainerName:
+		// NOTE: init_container injection mode historically treats configured init_resources as an explicit override,
+		// so we do not enforce minimums on configured values (for now).
+		return computeInitContainerResourceRequirements(pod, defaultRequirements, minimumCPULimit, minimumMemoryLimit, false), nil
+	case InjectLDPreloadInitContainerName:
+		// The image_volume micro init container is a critical prerequisite, so enforce minimums even when configured.
+		return computeInitContainerResourceRequirements(pod, defaultRequirements, minimumMicroCPULimit, minimumMicroMemoryLimit, true), nil
+	default:
+		if isLibraryInitContainerName(initContainerName) {
+			return computeInitContainerResourceRequirements(pod, defaultRequirements, minimumCPULimit, minimumMemoryLimit, false), nil
+		}
+		return ResourceRequirementsResult{}, fmt.Errorf("unknown init container name %q for resource requirement computation", initContainerName)
+	}
+}
+
+// isLibraryInitContainerName returns true if name matches the naming convention used for language library init containers
+// (LibraryInitContainerNameTemplate), e.g. "datadog-lib-java-init".
+func isLibraryInitContainerName(name string) bool {
+	return strings.HasPrefix(name, "datadog-lib-") && strings.HasSuffix(name, "-init")
+}
+
+func computeInitContainerResourceRequirements(pod *corev1.Pod, defaultRequirements map[corev1.ResourceName]resource.Quantity, minCPULimit resource.Quantity, minMemoryLimit resource.Quantity, enforceMinimumsOnConfigured bool) ResourceRequirementsResult {
 	requirements := corev1.ResourceRequirements{
 		Limits:   corev1.ResourceList{},
 		Requests: corev1.ResourceList{},
 	}
 
 	podRequirements := PodSumResourceRequirements(pod)
-	insufficientResourcesMessage := "The overall pod's containers limit is too low"
+	baseMessage := "The overall pod's containers limit is too low for injection"
+	var insufficientResourcesMessage strings.Builder
+	insufficientResourcesMessage.WriteString(baseMessage)
 	shouldSkip := false
 
 	for _, k := range [2]corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory} {
-		// If a resource quantity was set in config, use it
+		min := resource.Quantity{}
+		switch k {
+		case corev1.ResourceCPU:
+			min = minCPULimit
+		case corev1.ResourceMemory:
+			min = minMemoryLimit
+		}
+
+		// If a resource quantity was set in config, use it.
 		if q, ok := defaultRequirements[k]; ok {
 			requirements.Limits[k] = q
 			requirements.Requests[k] = q
-		} else {
-			// Otherwise, try to use as much of the resource as we can without impacting pod scheduling
-			if maxPodLim, ok := podRequirements.Limits[k]; ok {
-				// Check if the pod has sufficient resources
-				switch k {
-				case corev1.ResourceMemory:
-					if MinimumMemoryLimit.Cmp(maxPodLim) == 1 {
-						shouldSkip = true
-						insufficientResourcesMessage += fmt.Sprintf(", %v pod_limit=%v needed=%v", k, maxPodLim.String(), MinimumMemoryLimit.String())
-					}
-				case corev1.ResourceCPU:
-					if MinimumCPULimit.Cmp(maxPodLim) == 1 {
-						shouldSkip = true
-						insufficientResourcesMessage += fmt.Sprintf(", %v pod_limit=%v needed=%v", k, maxPodLim.String(), MinimumCPULimit.String())
-					}
-				default:
-					// We don't support other resources
-				}
-				requirements.Limits[k] = maxPodLim
+			if enforceMinimumsOnConfigured && min.Cmp(q) == 1 {
+				shouldSkip = true
+				_, _ = fmt.Fprintf(&insufficientResourcesMessage, ", %v configured=%v needed=%v", k, q.String(), min.String())
 			}
-			if maxPodReq, ok := podRequirements.Requests[k]; ok {
-				requirements.Requests[k] = maxPodReq
+			continue
+		}
+
+		// Otherwise, try to use as much of the resource as we can without impacting pod scheduling.
+		if maxPodLim, ok := podRequirements.Limits[k]; ok {
+			if min.Cmp(maxPodLim) == 1 {
+				shouldSkip = true
+				_, _ = fmt.Fprintf(&insufficientResourcesMessage, ", %v pod_limit=%v needed=%v", k, maxPodLim.String(), min.String())
 			}
+			requirements.Limits[k] = maxPodLim
+		}
+		if maxPodReq, ok := podRequirements.Requests[k]; ok {
+			requirements.Requests[k] = maxPodReq
 		}
 	}
 
@@ -79,7 +119,7 @@ func ComputeResourceRequirements(pod *corev1.Pod, defaultRequirements map[corev1
 		return ResourceRequirementsResult{
 			Requirements: requirements,
 			ShouldSkip:   true,
-			Message:      insufficientResourcesMessage,
+			Message:      insufficientResourcesMessage.String(),
 		}
 	}
 	return ResourceRequirementsResult{

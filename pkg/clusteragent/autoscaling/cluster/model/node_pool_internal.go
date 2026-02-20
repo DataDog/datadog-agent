@@ -137,7 +137,7 @@ func convertTaints(input []*kubeAutoscaling.Taints) []corev1.Taint {
 
 var deprecatedLabels = sets.New("beta.kubernetes.io/arch", "beta.kubernetes.io/os")
 
-// buildNodePoolSpec is used for creating new NodePools
+// buildNodePoolSpec is used for creating new NodePools from scratch
 func buildNodePoolSpec(n NodePoolInternal, nodeClassName string) karpenterv1.NodePoolSpec {
 	wellKnownLabels := karpenterv1.WellKnownLabels
 
@@ -210,27 +210,61 @@ func buildNodePoolSpec(n NodePoolInternal, nodeClassName string) karpenterv1.Nod
 	return npSpec
 }
 
-// BuildReplicaNodePool updates the target NodePool spec to create a replica NodePool
-// TODO: Add logic for any existing requirements that could be incompatible with recommendations
-func BuildReplicaNodePool(knp *karpenterv1.NodePool, npi NodePoolInternal) {
+// BuildReplicaNodePool copies the target NodePool spec and updates it to create a replica NodePool
+func BuildReplicaNodePool(targetNp *karpenterv1.NodePool, npi NodePoolInternal) *karpenterv1.NodePool {
 
-	// Update NodePool with recommendation
-	instanceTypeLabelFound := false
+	replicaNp := targetNp.DeepCopy()
+
+	modifyNodePoolSpec(replicaNp, npi)
+
+	modifyReplicaNodePool(replicaNp, npi, true)
+
+	return replicaNp
+}
+
+// UpdateNodePoolObject updates a copy of a NodePool object with the recommended instance types and object metadata.
+func UpdateNodePoolObject(targetNp, datadogNp *karpenterv1.NodePool, npi NodePoolInternal) *karpenterv1.NodePool {
+	var npCopy *karpenterv1.NodePool
+	if targetNp != nil {
+		// Base replica NodePool on target NodePool spec
+		npCopy = targetNp.DeepCopy()
+		// Preserve ObjectMeta from Datadog-created NodePool
+		npCopy.ObjectMeta = datadogNp.ObjectMeta
+
+		modifyReplicaNodePool(npCopy, npi, false)
+	} else {
+		npCopy = datadogNp.DeepCopy()
+	}
+
+	modifyNodePoolSpec(npCopy, npi)
+
+	return npCopy
+}
+
+// TODO: Add logic for any existing requirements that could be incompatible with recommendations
+func modifyNodePoolSpec(np *karpenterv1.NodePool, npi NodePoolInternal) {
 	instanceTypes := npi.RecommendedInstanceTypes()
 	slices.Sort(instanceTypes)
 
-	for i := range knp.Spec.Template.Spec.Requirements {
-		r := &knp.Spec.Template.Spec.Requirements[i]
+	// Update instance type requirements
+	instanceTypeLabelFound := false
+	for i := range np.Spec.Template.Spec.Requirements {
+		r := &np.Spec.Template.Spec.Requirements[i]
 		if r.Key == corev1.LabelInstanceTypeStable {
-			r.Operator = corev1.NodeSelectorOpIn
-			r.Values = instanceTypes
-
 			instanceTypeLabelFound = true
+			if r.Operator != corev1.NodeSelectorOpIn {
+				r.Operator = corev1.NodeSelectorOpIn
+			}
+
+			if !slices.Equal(r.Values, instanceTypes) {
+				r.Values = instanceTypes
+			}
 			break
 		}
 	}
+
 	if !instanceTypeLabelFound {
-		knp.Spec.Template.Spec.Requirements = append(knp.Spec.Template.Spec.Requirements,
+		np.Spec.Template.Spec.Requirements = append(np.Spec.Template.Spec.Requirements,
 			karpenterv1.NodeSelectorRequirementWithMinValues{
 				NodeSelectorRequirement: corev1.NodeSelectorRequirement{
 					Key:      corev1.LabelInstanceTypeStable,
@@ -241,102 +275,43 @@ func BuildReplicaNodePool(knp *karpenterv1.NodePool, npi NodePoolInternal) {
 		)
 	}
 
-	// Update NodePool weight with (target NodePool weight) + 1
-	weight := int32(1)
-	if knp.Spec.Weight != nil {
-		if *knp.Spec.Weight == 100 {
-			log.Warnf("Target weight is at the max possible value for target NodePool: %s", npi.TargetName())
-		}
-		weight = min(*knp.Spec.Weight+1, 100)
+	// Update Template ObjectMeta labels
+	if np.Spec.Template.ObjectMeta.Labels == nil {
+		np.Spec.Template.ObjectMeta.Labels = make(map[string]string)
 	}
-	knp.Spec.Weight = &weight
-
-	knp.TypeMeta = metav1.TypeMeta{
-		Kind:       "NodePool",
-		APIVersion: "karpenter.sh/v1",
-	}
-
-	// Reset the top-level labels and annotations
-	knp.ObjectMeta = metav1.ObjectMeta{
-		Name:        npi.Name(),
-		Labels:      map[string]string{DatadogCreatedLabelKey: "true"},
-		Annotations: map[string]string{datadogReplicaAnnotationKey: npi.TargetName()},
-	}
-
-	// Append to NodeClaimTemplate labels
-	if knp.Spec.Template.ObjectMeta.Labels == nil {
-		knp.Spec.Template.ObjectMeta.Labels = make(map[string]string)
-	}
-	knp.Spec.Template.ObjectMeta.Labels[kubernetes.AutoscalingLabelKey] = "true"
-
-	// Reset the status
-	knp.Status = karpenterv1.NodePoolStatus{}
+	np.Spec.Template.ObjectMeta.Labels[kubernetes.AutoscalingLabelKey] = "true"
 }
 
-// BuildNodePoolPatch is used to construct a JSON patch if the NodePool requirements have changed
-// returns a nil patch if the NodePool requirements have not changed
-func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) map[string]any {
-	isUpdated := false
-	// Build requirements patch, only updating values for the instance types
-	updatedRequirements := []map[string]any{}
-	instanceTypeLabelExists := false
-	// sort the recommended instance types for readability
-	instanceTypes := npi.RecommendedInstanceTypes()
-	slices.Sort(instanceTypes)
-
-	for _, r := range np.Spec.Template.Spec.Requirements {
-		if r.Key == corev1.LabelInstanceTypeStable {
-			instanceTypeLabelExists = true
-			if r.Operator != corev1.NodeSelectorOpIn {
-				isUpdated = true
-				r.Operator = corev1.NodeSelectorOpIn
-			}
-
-			if !slices.Equal(r.Values, instanceTypes) {
-				isUpdated = true
-				r.Values = instanceTypes
-			}
+func modifyReplicaNodePool(replicaNp *karpenterv1.NodePool, npi NodePoolInternal, isNew bool) {
+	if isNew {
+		// Reset the TypeMeta
+		replicaNp.TypeMeta = metav1.TypeMeta{
+			Kind:       "NodePool",
+			APIVersion: "karpenter.sh/v1",
 		}
 
-		updatedRequirements = append(updatedRequirements, map[string]any{
-			"key":      r.Key,
-			"operator": string(r.Operator),
-			"values":   r.Values,
-		})
+		// Reset the ObjectMeta
+		replicaNp.ObjectMeta = metav1.ObjectMeta{
+			Name:        npi.Name(), // Ensure replica name is used in lieu of TargetName
+			Labels:      map[string]string{DatadogCreatedLabelKey: "true"},
+			Annotations: map[string]string{datadogReplicaAnnotationKey: npi.TargetName()},
+		}
+		// Reset the Status
+		replicaNp.Status = karpenterv1.NodePoolStatus{}
+	} else {
+		if replicaNp.ObjectMeta.Labels == nil {
+			replicaNp.ObjectMeta.Labels = make(map[string]string)
+		}
+		replicaNp.ObjectMeta.Labels[datadogModifiedLabelKey] = "true"
 	}
 
-	if !instanceTypeLabelExists {
-		isUpdated = true
-		updatedRequirements = append(updatedRequirements, map[string]any{
-			"key":      corev1.LabelInstanceTypeStable,
-			"operator": "In",
-			"values":   instanceTypes,
-		})
+	// Update the weight
+	weight := int32(1)
+	if replicaNp.Spec.Weight != nil {
+		if *replicaNp.Spec.Weight == 100 {
+			log.Warnf("Target weight is at the max possible value for target NodePool: %s", npi.TargetName())
+		}
+		weight = min(*replicaNp.Spec.Weight+1, 100)
 	}
-
-	if !isUpdated {
-		return nil
-	}
-
-	patchData := map[string]any{
-		"metadata": map[string]any{
-			"labels": map[string]any{
-				datadogModifiedLabelKey: "true",
-			},
-		},
-		"spec": map[string]any{
-			"template": map[string]any{
-				"metadata": map[string]any{
-					"labels": map[string]string{
-						kubernetes.AutoscalingLabelKey: "true",
-					},
-				},
-				"spec": map[string]any{
-					"requirements": updatedRequirements,
-				},
-			},
-		},
-	}
-
-	return patchData
+	replicaNp.Spec.Weight = &weight
 }

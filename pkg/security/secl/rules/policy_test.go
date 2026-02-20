@@ -1097,21 +1097,10 @@ func stringPtr(input string) *string {
 	return &input
 }
 
-func fakeOpenEvent(path string, pid uint32, ancestor *model.ProcessCacheEntry) *model.Event {
+func fakeOpenEvent(path string, pce *model.ProcessCacheEntry) *model.Event {
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.FileOpenEventType)
-	event.ProcessCacheEntry = &model.ProcessCacheEntry{
-		ProcessContext: model.ProcessContext{
-			Process: model.Process{
-				PIDContext: model.PIDContext{
-					Pid: pid,
-				},
-			},
-		},
-	}
-	if ancestor != nil {
-		event.ProcessCacheEntry.ProcessContext.Ancestor = ancestor
-	}
+	event.ProcessCacheEntry = pce
 	event.SetFieldValue("open.file.path", path)
 	return event
 }
@@ -1186,6 +1175,19 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 					},
 				},
 			},
+			{
+				ID:         "variable_noise",
+				Expression: `open.file.path == "/tmp/noise"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:  "noise",
+							Value: "noise",
+							Scope: "process",
+						},
+					},
+				},
+			},
 		},
 	}
 
@@ -1222,7 +1224,9 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 	assert.NotNil(t, parentCorrelationKeysScopedVariable)
 	assert.True(t, ok)
 
-	event := fakeOpenEvent("/tmp/first", 1, nil)
+	pce1 := newFakeProcessCacheEntry(1, nil)
+
+	event := fakeOpenEvent("/tmp/first", pce1)
 	ctx := eval.NewContext(event)
 
 	// test correlation key initial value
@@ -1245,8 +1249,16 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 
 	correlationKeyFromFirstRule := correlationKeyValue.(string)
 
+	pce2 := newFakeProcessCacheEntry(2, pce1)
+
+	// trigger the variable_noise rule
+	eventNoise := fakeOpenEvent("/tmp/noise", pce2)
+	if !rs.Evaluate(eventNoise) {
+		t.Errorf("Expected event to match rule")
+	}
+
 	// trigger the first rule again, and make sure nothing changes
-	event2 := fakeOpenEvent("/tmp/first", 2, event.ProcessCacheEntry)
+	event2 := fakeOpenEvent("/tmp/first", pce2)
 	ctx = eval.NewContext(event2)
 
 	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx, false)
@@ -1269,7 +1281,8 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 	// jump to the third rule, check:
 	//  - that the correlation key is updated with the pattern from the third rule
 	//  - that the first correlation key is now in the "parent correlation keys" variable
-	event3 := fakeOpenEvent("/tmp/third", 3, event2.ProcessCacheEntry)
+	pce3 := newFakeProcessCacheEntry(3, pce2)
+	event3 := fakeOpenEvent("/tmp/third", pce3)
 	ctx = eval.NewContext(event3)
 
 	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx, false)
@@ -1292,7 +1305,8 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 	correlationKeyFromThirdRule := correlationKeyValue.(string)
 
 	// trigger the second rule, make sure nothing changes
-	event4 := fakeOpenEvent("/tmp/second", 4, event3.ProcessCacheEntry)
+	pce4 := newFakeProcessCacheEntry(4, pce3)
+	event4 := fakeOpenEvent("/tmp/second", pce4)
 	ctx = eval.NewContext(event4)
 
 	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx, false)
@@ -1313,21 +1327,23 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 	assert.True(t, len(parentCorrelationKeysValue.([]string)) == 1 && slices.Contains(parentCorrelationKeysValue.([]string), correlationKeyFromFirstRule))
 }
 
-func newFakeCGroupWrite(cgroupWritePID int, path string, pid uint32, ancestor *model.ProcessCacheEntry) *model.Event {
-	event := model.NewFakeEvent()
-	event.Type = uint32(model.CgroupWriteEventType)
-	event.ProcessCacheEntry = &model.ProcessCacheEntry{
+func newFakeProcessCacheEntry(pid uint32, ancestor *model.ProcessCacheEntry) *model.ProcessCacheEntry {
+	return &model.ProcessCacheEntry{
 		ProcessContext: model.ProcessContext{
 			Process: model.Process{
 				PIDContext: model.PIDContext{
 					Pid: pid,
 				},
 			},
+			Ancestor: ancestor,
 		},
 	}
-	if ancestor != nil {
-		event.ProcessCacheEntry.ProcessContext.Ancestor = ancestor
-	}
+}
+
+func newFakeCGroupWrite(cgroupWritePID int, path string, pce *model.ProcessCacheEntry) *model.Event {
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.CgroupWriteEventType)
+	event.ProcessCacheEntry = pce
 	event.SetFieldValue("cgroup_write.pid", cgroupWritePID)
 	event.SetFieldValue("cgroup_write.file.path", path)
 	return event
@@ -1482,11 +1498,19 @@ func TestActionSetVariableScopeField(t *testing.T) {
 	assert.NotNil(t, parentCorrelationKeysScopedVariable)
 	assert.True(t, ok)
 
+	pce1 := newFakeProcessCacheEntry(1, nil)
+	pce2 := newFakeProcessCacheEntry(2, nil)
+	pce3 := newFakeProcessCacheEntry(3, pce2)
+
 	// create cgroup_write event
-	event1 := newFakeCGroupWrite(2, "/tmp/one", 1, nil)
-	event2 := newFakeCGroupWrite(2, "/tmp/two", 1, nil)
-	eventPID2 := newFakeCGroupWrite(0, "", 2, nil)
-	event3 := fakeOpenEvent("/tmp/third", 3, eventPID2.ProcessCacheEntry)
+	event1 := newFakeCGroupWrite(2, "/tmp/one", pce1)
+	event1.FieldHandlers.(*model.FakeFieldHandlers).PCEs[2] = pce2
+
+	event2 := newFakeCGroupWrite(2, "/tmp/two", pce1)
+	event2.FieldHandlers.(*model.FakeFieldHandlers).PCEs[2] = pce2
+
+	event3 := fakeOpenEvent("/tmp/third", pce3)
+
 	ctx1 := eval.NewContext(event1)
 	ctx3 := eval.NewContext(event3)
 

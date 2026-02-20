@@ -113,7 +113,7 @@ func mustReadSystemdUnit(name string, data systemdTemplateData, ambiantCapabilit
 	return buf.Bytes()
 }
 
-func systemdUnits(stableData, expData, ddotStableData, ddotExpData systemdTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
+func systemdUnits(stableData, expData systemdTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
 	units := map[string][]byte{
 		"datadog-agent.service":                mustReadSystemdUnit("datadog-agent.service", stableData, ambiantCapabilitiesSupported),
 		"datadog-agent-exp.service":            mustReadSystemdUnit("datadog-agent.service", expData, ambiantCapabilitiesSupported),
@@ -129,10 +129,12 @@ func systemdUnits(stableData, expData, ddotStableData, ddotExpData systemdTempla
 		"datadog-agent-security-exp.service":   mustReadSystemdUnit("datadog-agent-security.service", expData, ambiantCapabilitiesSupported),
 		"datadog-agent-sysprobe.service":       mustReadSystemdUnit("datadog-agent-sysprobe.service", stableData, ambiantCapabilitiesSupported),
 		"datadog-agent-sysprobe-exp.service":   mustReadSystemdUnit("datadog-agent-sysprobe.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-ddot.service":           mustReadSystemdUnit("datadog-agent-ddot.service", ddotStableData, ambiantCapabilitiesSupported),
-		"datadog-agent-ddot-exp.service":       mustReadSystemdUnit("datadog-agent-ddot.service", ddotExpData, ambiantCapabilitiesSupported),
+		"datadog-agent-ddot.service":           mustReadSystemdUnit("datadog-agent-ddot.service", stableData, ambiantCapabilitiesSupported),
+		"datadog-agent-ddot-exp.service":       mustReadSystemdUnit("datadog-agent-ddot.service", expData, ambiantCapabilitiesSupported),
 		"datadog-agent-action.service":         mustReadSystemdUnit("datadog-agent-action.service", stableData, ambiantCapabilitiesSupported),
 		"datadog-agent-action-exp.service":     mustReadSystemdUnit("datadog-agent-action.service", expData, ambiantCapabilitiesSupported),
+		"datadog-agent-procmgrd.service":       mustReadSystemdUnit("datadog-agent-procmgrd.service", stableData, ambiantCapabilitiesSupported),
+		"datadog-agent-procmgrd-exp.service":   mustReadSystemdUnit("datadog-agent-procmgrd.service", expData, ambiantCapabilitiesSupported),
 	}
 	return units
 }
@@ -168,24 +170,9 @@ var (
 		Stable:           false,
 	}
 
-	ddotStableDataOCI = systemdTemplateData{
-		InstallDir:       "/opt/datadog-packages/datadog-agent-ddot/stable",
-		EtcDir:           "/etc/datadog-agent",
-		FleetPoliciesDir: "/etc/datadog-agent/managed/datadog-agent/stable",
-		PIDDir:           "/opt/datadog-packages/datadog-agent/stable",
-		Stable:           true,
-	}
-	ddotExpDataOCI = systemdTemplateData{
-		InstallDir:       "/opt/datadog-packages/datadog-agent-ddot/experiment",
-		EtcDir:           "/etc/datadog-agent-exp",
-		FleetPoliciesDir: "/etc/datadog-agent-exp/managed/datadog-agent/stable",
-		PIDDir:           "/opt/datadog-packages/datadog-agent/experiment",
-		Stable:           false,
-	}
+	systemdUnitsOCI    = systemdUnits(stableDataOCI, expDataOCI, true)
+	systemdUnitsDebRpm = systemdUnits(stableDataDebRpm, expDataDebRpm, true)
 
-	systemdUnitsOCI    = systemdUnits(stableDataOCI, expDataOCI, ddotStableDataOCI, ddotExpDataOCI, true)
-	systemdUnitsDebRpm = systemdUnits(stableDataDebRpm, expDataDebRpm, stableDataDebRpm, expDataDebRpm, true)
-
-	systemdUnitsOCILegacyKernel    = systemdUnits(stableDataOCI, expDataOCI, ddotStableDataOCI, ddotExpDataOCI, false)
-	systemdUnitsDebRpmLegacyKernel = systemdUnits(stableDataDebRpm, expDataDebRpm, stableDataDebRpm, expDataDebRpm, false)
+	systemdUnitsOCILegacyKernel    = systemdUnits(stableDataOCI, expDataOCI, false)
+	systemdUnitsDebRpmLegacyKernel = systemdUnits(stableDataDebRpm, expDataDebRpm, false)
 )

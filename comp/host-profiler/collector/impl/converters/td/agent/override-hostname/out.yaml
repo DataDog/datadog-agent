@@ -4,7 +4,7 @@ exporters:
             dd-api-key: test-api-key
 processors:
     infraattributes:
-        allow_hostname_override: true
+        allow_hostname_override: false
         some_config: value
     resource/dd-profiler-internal-metadata:
         attributes:

@@ -95,9 +95,8 @@ var endpoints = []Endpoint{
 		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(V07, r.handleTraces) },
 	},
 	{
-		Pattern:   "/v1.0/traces",
-		Handler:   func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(V10, r.handleTraces) },
-		IsEnabled: func(cfg *config.AgentConfig) bool { return cfg.EnableV1TraceEndpoint },
+		Pattern: "/v1.0/traces",
+		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(V10, r.handleTracesV1) },
 	},
 	{
 		Pattern:         "/profiling/v1/input",
