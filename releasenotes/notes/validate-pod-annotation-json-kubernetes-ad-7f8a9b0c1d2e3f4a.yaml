@@ -1,5 +1,5 @@
 ---
-agent:
+features:
   - |
     **Kubernetes pod check annotations**: Invalid JSON in pod check annotations
     (ad.datadoghq.com/<container>.checks) now produces a clear error message
