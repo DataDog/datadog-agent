@@ -174,9 +174,7 @@ configure_make(
         ],
         "//conditions:default": [],
     }),
-    out_data_dirs = [
-        "lib/pkgconfig",
-    ] + select({
+    out_data_dirs = select({
         "@//packages/agent:fips_flavor": [
             "ssl",
             "lib/ossl-modules",

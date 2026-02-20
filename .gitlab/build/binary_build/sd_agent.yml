@@ -6,9 +6,7 @@
   rules:
     - when: on_success
   script:
-    - bazelisk build --config=sd-agent-release //pkg/discovery/module/rust:sd-agent
-    - mkdir -p sd-agent-build-outputs
-    - cp bazel-bin/pkg/discovery/module/rust/sd-agent sd-agent-build-outputs/
+    - bazel run --config=sd-agent-release //pkg/discovery/module/rust:install -- --destdir=$PWD/sd-agent-build-outputs
     - tar -cJf $CI_PROJECT_DIR/sd-agent-build-outputs.tar.xz sd-agent-build-outputs/
   artifacts:
     expire_in: 2 weeks

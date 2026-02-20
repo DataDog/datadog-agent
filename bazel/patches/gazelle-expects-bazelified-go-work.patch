@@ -1,9 +1,0 @@
---- internal/bzlmod/go_mod.bzl
-+++ internal/bzlmod/go_mod.bzl
-@@ -480,4 +480,4 @@ def _check_go_mod_name(name):
- def _check_go_work_name(name):
--    if name != "go.work":
--        fail("go_deps.from_file requires a 'go.work' file, not '{}'".format(name))
-+    if name != ".bazelified.go.work":
-+        fail("go_deps.from_file requires a '.bazelified.go.work' file, not '{}'".format(name))
- 

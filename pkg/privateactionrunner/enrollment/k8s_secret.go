@@ -29,9 +29,10 @@ import (
 )
 
 const (
-	defaultSecretName = "private-action-runner-identity"
-	privateKeyField   = "private_key"
-	urnField          = "urn"
+	defaultSecretName  = "private-action-runner-identity"
+	privateKeyField    = "private_key"
+	urnField           = "urn"
+	secretPollInterval = 1 * time.Second
 )
 
 // getIdentityFromK8sSecret retrieves PAR identity from a Kubernetes secret
@@ -51,11 +52,19 @@ func getIdentityFromK8sSecret(ctx context.Context, cfg configModel.Reader) (*Per
 
 	secret, err := client.CoreV1().Secrets(ns).Get(ctx, secretName, metav1.GetOptions{})
 	if err != nil {
-		if !k8serrors.IsNotFound(err) {
+		if isNonTransientK8sError(err) {
 			return nil, fmt.Errorf("failed to get identity secret: %w", err)
 		}
-		log.Info("PAR identity secret does not exist, waiting for leader to create it...")
-		secret, err = waitForLeaderAndSecret(ctx, le, client, ns, secretName)
+		if k8serrors.IsNotFound(err) {
+			log.Info("PAR identity secret does not exist, waiting for leader to create it...")
+		} else {
+			log.Warnf("Transient error fetching PAR identity secret, will retry: %v", err)
+		}
+		leadershipChange, isLeader := le.Subscribe()
+		secret, err = waitForLeaderAndSecret(
+			ctx, leadershipChange, isLeader, client, ns, secretName,
+			secretPollInterval,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -69,9 +78,18 @@ func getIdentityFromK8sSecret(ctx context.Context, cfg configModel.Reader) (*Per
 // waitForLeaderAndSecret waits until either:
 // - We become leader (then returns nil to trigger enrollment)
 // - The secret appears (created by current or previous leader)
-func waitForLeaderAndSecret(ctx context.Context, le *leaderelection.LeaderEngine, client kubernetes.Interface, ns, secretName string) (*corev1.Secret, error) {
-	leadershipChange, isLeader := le.Subscribe()
-
+// - The context is cancelled
+//
+// Transient K8s API errors (timeouts, rate limiting, 5xx) are logged and
+// retried indefinitely at a constant polling interval.
+func waitForLeaderAndSecret(
+	ctx context.Context,
+	leadershipChange <-chan struct{},
+	isLeader func() bool,
+	client kubernetes.Interface,
+	ns, secretName string,
+	pollInterval time.Duration,
+) (*corev1.Secret, error) {
 	if isLeader() {
 		log.Info("This replica is the leader, will create PAR identity secret")
 		return nil, nil
@@ -79,7 +97,7 @@ func waitForLeaderAndSecret(ctx context.Context, le *leaderelection.LeaderEngine
 
 	log.Info("This replica is a follower, waiting for leader to create PAR identity secret")
 
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
 	for {
@@ -92,14 +110,18 @@ func waitForLeaderAndSecret(ctx context.Context, le *leaderelection.LeaderEngine
 				log.Info("Became leader, will create PAR identity secret")
 				return nil, nil
 			}
+
 		case <-ticker.C:
 			secret, err := client.CoreV1().Secrets(ns).Get(ctx, secretName, metav1.GetOptions{})
 			if err == nil {
 				log.Infof("Follower replica: found PAR identity secret created by leader: %s/%s", ns, secretName)
 				return secret, nil
 			}
+			if isNonTransientK8sError(err) {
+				return nil, fmt.Errorf("non-transient error checking for secret %s/%s: %w", ns, secretName, err)
+			}
 			if !k8serrors.IsNotFound(err) {
-				return nil, fmt.Errorf("error checking for secret: %w", err)
+				log.Warnf("Transient error checking for secret %s/%s (will retry): %v", ns, secretName, err)
 			}
 		}
 	}
@@ -191,6 +213,21 @@ func persistIdentityToK8sSecret(ctx context.Context, cfg configModel.Reader, res
 
 	log.Infof("Created PAR identity in K8s secret: %s/%s", ns, secretName)
 	return nil
+}
+
+// isNonTransientK8sError returns true for errors that indicate a permanent
+// problem (e.g. RBAC misconfiguration) that will not resolve by retrying.
+// Unknown errors and network-level errors are assumed transient.
+func isNonTransientK8sError(err error) bool {
+	return k8serrors.IsForbidden(err) ||
+		k8serrors.IsUnauthorized(err) ||
+		k8serrors.IsBadRequest(err) ||
+		k8serrors.IsMethodNotSupported(err) ||
+		k8serrors.IsNotAcceptable(err) ||
+		k8serrors.IsGone(err) ||
+		k8serrors.IsInvalid(err) ||
+		k8serrors.IsRequestEntityTooLargeError(err) ||
+		k8serrors.IsUnsupportedMediaType(err)
 }
 
 func getKubeClient() (kubernetes.Interface, error) {

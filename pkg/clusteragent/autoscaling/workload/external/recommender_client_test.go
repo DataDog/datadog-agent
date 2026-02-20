@@ -81,7 +81,7 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 					},
 					Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 						MinReplicas: pointer.Ptr[int32](2),
-						MaxReplicas: 4,
+						MaxReplicas: pointer.Ptr[int32](4),
 					},
 				},
 				CurrentReplicas: pointer.Ptr[int32](3),
@@ -236,7 +236,7 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 					},
 					Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 						MinReplicas: pointer.Ptr[int32](2),
-						MaxReplicas: 4,
+						MaxReplicas: pointer.Ptr[int32](4),
 					},
 				},
 			},
@@ -266,7 +266,7 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 					},
 					Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 						MinReplicas: pointer.Ptr[int32](2),
-						MaxReplicas: 4,
+						MaxReplicas: pointer.Ptr[int32](4),
 					},
 				},
 				CustomRecommenderConfiguration: &model.RecommenderConfiguration{
@@ -299,7 +299,7 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 					},
 					Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 						MinReplicas: pointer.Ptr[int32](2),
-						MaxReplicas: 4,
+						MaxReplicas: pointer.Ptr[int32](4),
 					},
 				},
 				CustomRecommenderConfiguration: &model.RecommenderConfiguration{
