@@ -16,17 +16,35 @@ import (
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
-// autoMultilineHandler is a thin adapter satisfying the LineHandler interface.
-// It delegates all processing to a Pipeline that runs stages in the correct order:
-// JSON aggregation → tokenization → labeling → aggregation.
-type autoMultilineHandler struct {
+// newPipelineHandler is the single constructor for all pipeline-based line handlers.
+// The caller picks the Combiner that determines the combining strategy; everything else
+// (tokenization, JSON aggregation, sampling) is wired identically.
+func newPipelineHandler(combiner preprocessor.Combiner, tok *preprocessor.Tokenizer, sampler preprocessor.Sampler, jsonAggregator *preprocessor.JSONAggregator, enableJSONAggregation bool, flushTimeout time.Duration) LineHandler {
+	pipeline := preprocessor.NewPipeline(combiner, tok, sampler, jsonAggregator, enableJSONAggregation, flushTimeout)
+	return &pipelineLineHandler{pipeline: pipeline}
+}
+
+// pipelineLineHandler is a thin adapter that satisfies the LineHandler interface
+// by delegating all processing to a preprocessor.Pipeline.
+type pipelineLineHandler struct {
 	pipeline *preprocessor.Pipeline
 }
 
-// NewAutoMultilineHandler creates a new auto multiline handler.
-// The aggregator parameter determines whether logs are combined (combiningAggregator) or just tagged (detectingAggregator).
-// enableJSONAggregation controls whether split JSON objects should be combined before processing.
-func NewAutoMultilineHandler(aggregator preprocessor.Aggregator, tokenizer *preprocessor.Tokenizer, maxContentSize int, flushTimeout time.Duration, tailerInfo *status.InfoRegistry, sourceSettings *config.SourceAutoMultiLineOptions, sourceSamples []*config.AutoMultilineSample, enableJSONAggregation bool) LineHandler {
+func (h *pipelineLineHandler) process(msg *message.Message) {
+	h.pipeline.Process(msg)
+}
+
+func (h *pipelineLineHandler) flushChan() <-chan time.Time {
+	return h.pipeline.FlushChan()
+}
+
+func (h *pipelineLineHandler) flush() {
+	h.pipeline.Flush()
+}
+
+// buildAutoMultilineLabeler constructs a Labeler configured from global settings and any
+// per-source overrides. It is shared by both aggregating and detecting pipeline modes.
+func buildAutoMultilineLabeler(sourceSettings *config.SourceAutoMultiLineOptions, sourceSamples []*config.AutoMultilineSample, tailerInfo *status.InfoRegistry) *preprocessor.Labeler {
 	heuristics := []preprocessor.Heuristic{}
 	sourceHasSettings := sourceSettings != nil
 
@@ -60,27 +78,9 @@ func NewAutoMultilineHandler(aggregator preprocessor.Aggregator, tokenizer *prep
 	if sourceHasSettings && sourceSettings.PatternTableMatchThreshold != nil {
 		patternTableMatchThreshold = *sourceSettings.PatternTableMatchThreshold
 	}
-	analyticsHeuristics := []preprocessor.Heuristic{preprocessor.NewPatternTable(
-		patternTableMaxSize,
-		patternTableMatchThreshold,
-		tailerInfo),
+	analyticsHeuristics := []preprocessor.Heuristic{
+		preprocessor.NewPatternTable(patternTableMaxSize, patternTableMatchThreshold, tailerInfo),
 	}
 
-	labeler := preprocessor.NewLabeler(heuristics, analyticsHeuristics)
-	jsonAggregator := preprocessor.NewJSONAggregator(pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.tag_aggregated_json"), maxContentSize)
-	pipeline := preprocessor.NewPipeline(aggregator, tokenizer, labeler, jsonAggregator, enableJSONAggregation, flushTimeout)
-
-	return &autoMultilineHandler{pipeline: pipeline}
-}
-
-func (a *autoMultilineHandler) process(msg *message.Message) {
-	a.pipeline.Process(msg)
-}
-
-func (a *autoMultilineHandler) flushChan() <-chan time.Time {
-	return a.pipeline.FlushChan()
-}
-
-func (a *autoMultilineHandler) flush() {
-	a.pipeline.Flush()
+	return preprocessor.NewLabeler(heuristics, analyticsHeuristics)
 }

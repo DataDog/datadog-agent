@@ -16,28 +16,56 @@ import (
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
-// captureAggregator is a test aggregator that records processed messages.
-type captureAggregator struct {
-	messages []capturedMessage
-	flushed  bool
+// --- test doubles ---
+
+// captureSampler records emitted messages.
+type captureSampler struct {
+	emitted []*message.Message
 }
 
-type capturedMessage struct {
-	msg   *message.Message
-	label Label
+func (s *captureSampler) Process(msg *message.Message) { s.emitted = append(s.emitted, msg) }
+func (s *captureSampler) Flush()                       {}
+func (s *captureSampler) FlushChan() <-chan time.Time  { return nil }
+
+// captureAutoMultilineCombiner wraps autoMultilineCombiner and exposes the emitted slice.
+// Used to verify that the combiner received the right messages from processOne.
+type captureCombiner struct {
+	received []*message.Message
 }
 
-func (c *captureAggregator) Process(msg *message.Message, label Label) {
-	c.messages = append(c.messages, capturedMessage{msg: msg, label: label})
+func (c *captureCombiner) Process(msg *message.Message) []*message.Message {
+	c.received = append(c.received, msg)
+	return []*message.Message{msg}
+}
+func (c *captureCombiner) Flush() []*message.Message { return nil }
+func (c *captureCombiner) IsEmpty() bool             { return true }
+
+// flushCaptureCombiner tracks flush calls.
+type flushCaptureCombiner struct {
+	flushed bool
+	pending *message.Message
 }
 
-func (c *captureAggregator) Flush() {
+func (c *flushCaptureCombiner) Process(msg *message.Message) []*message.Message {
+	c.pending = msg
+	return nil // buffer the message
+}
+
+func (c *flushCaptureCombiner) Flush() []*message.Message {
 	c.flushed = true
+	if c.pending != nil {
+		msg := c.pending
+		c.pending = nil
+		return []*message.Message{msg}
+	}
+	return nil
 }
 
-func (c *captureAggregator) IsEmpty() bool {
-	return len(c.messages) == 0
+func (c *flushCaptureCombiner) IsEmpty() bool {
+	return c.pending == nil
 }
+
+// --- helpers ---
 
 func newTestPipelineMessage(content string) *message.Message {
 	msg := message.NewMessage([]byte(content), nil, message.StatusInfo, 0)
@@ -45,97 +73,100 @@ func newTestPipelineMessage(content string) *message.Message {
 	return msg
 }
 
-func newTestPipeline(enableJSON bool) (*Pipeline, *captureAggregator) {
+func newTestPipeline(enableJSON bool) (*Pipeline, *captureCombiner, *captureSampler) {
 	tailerInfo := status.NewInfoRegistry()
-	aggregator := &captureAggregator{}
+	combiner := &captureCombiner{}
+	sampler := &captureSampler{}
 	tokenizer := NewTokenizer(1000)
-	labeler := NewLabeler([]Heuristic{}, []Heuristic{NewPatternTable(100, 0.8, tailerInfo)})
 	jsonAggregator := NewJSONAggregator(false, 10000)
-	pipeline := NewPipeline(aggregator, tokenizer, labeler, jsonAggregator, enableJSON, 10*time.Second)
-	return pipeline, aggregator
+	// PatternTable is needed so the pipeline is representative, but combiner is captured above
+	_ = tailerInfo
+	pipeline := NewPipeline(combiner, tokenizer, sampler, jsonAggregator, enableJSON, 10*time.Second)
+	return pipeline, combiner, sampler
+}
+
+// --- tests ---
+
+// TestPipeline_TokenizesBeforeCombining verifies that tokens are populated on the message
+// before it is passed to the combiner.
+func TestPipeline_TokenizesBeforeCombining(t *testing.T) {
+	pipeline, combiner, _ := newTestPipeline(false)
+
+	pipeline.Process(newTestPipelineMessage(`2024-01-01 12:00:00 INFO Starting`))
+
+	require.Len(t, combiner.received, 1)
+	msg := combiner.received[0]
+	assert.NotNil(t, msg.ParsingExtra.Tokens, "Tokens should be set before combiner sees the message")
+	assert.NotEmpty(t, msg.ParsingExtra.Tokens)
 }
 
 // TestPipeline_TokenizesAfterJSONAggregation verifies that tokenization runs AFTER JSON
 // aggregation so that tokens reflect the complete, compacted content.
 func TestPipeline_TokenizesAfterJSONAggregation(t *testing.T) {
-	pipeline, agg := newTestPipeline(true)
+	pipeline, combiner, _ := newTestPipeline(true)
 
-	// Send two parts of a JSON object
+	// Two fragments that together form a complete JSON object
 	pipeline.Process(newTestPipelineMessage(`{"key":`))
 	pipeline.Process(newTestPipelineMessage(`"value"}`))
 
-	// The two parts should be aggregated into one message before reaching the aggregator
-	require.Len(t, agg.messages, 1, "JSON parts should be aggregated into one message")
+	// JSON aggregation should combine the two fragments into one before the combiner sees it
+	require.Len(t, combiner.received, 1, "JSON parts should be aggregated into one message")
 
-	// Tokens should reflect the compacted JSON, not the fragments
-	capturedMsg := agg.messages[0].msg
-	assert.NotNil(t, capturedMsg.ParsingExtra.Tokens, "Tokens should be set on the aggregated message")
-	assert.NotEmpty(t, capturedMsg.ParsingExtra.Tokens, "Tokens should not be empty")
-
-	// Verify the content is the compacted JSON
-	assert.Equal(t, `{"key":"value"}`, string(capturedMsg.GetContent()))
-}
-
-// TestPipeline_TokenizesWhenJSONDisabled verifies that tokenization still runs when JSON
-// aggregation is disabled.
-func TestPipeline_TokenizesWhenJSONDisabled(t *testing.T) {
-	pipeline, agg := newTestPipeline(false)
-
-	pipeline.Process(newTestPipelineMessage(`2024-01-01 12:00:00 INFO Starting`))
-
-	require.Len(t, agg.messages, 1)
-	msg := agg.messages[0].msg
-	assert.NotNil(t, msg.ParsingExtra.Tokens, "Tokens should be set even when JSON aggregation is disabled")
+	msg := combiner.received[0]
+	assert.Equal(t, `{"key":"value"}`, string(msg.GetContent()))
+	assert.NotNil(t, msg.ParsingExtra.Tokens, "Tokens should reflect the compacted JSON content")
 	assert.NotEmpty(t, msg.ParsingExtra.Tokens)
 }
 
-// TestPipeline_FlushPropagatesJSONThenAggregator verifies that Flush processes pending
-// JSON fragments through processOne before flushing the aggregator.
-func TestPipeline_FlushPropagatesJSONThenAggregator(t *testing.T) {
-	pipeline, agg := newTestPipeline(true)
+// TestPipeline_JSONDisabledPassesThroughDirectly verifies that with JSON aggregation disabled,
+// messages go directly to processOne without JSON buffering.
+func TestPipeline_JSONDisabledPassesThroughDirectly(t *testing.T) {
+	pipeline, combiner, _ := newTestPipeline(false)
 
-	// Send an incomplete JSON fragment
 	pipeline.Process(newTestPipelineMessage(`{"key":`))
+	pipeline.Process(newTestPipelineMessage(`"value"}`))
 
-	// Nothing should reach the aggregator yet
-	assert.Empty(t, agg.messages, "Incomplete JSON should not reach aggregator yet")
+	assert.Len(t, combiner.received, 2, "Both messages should pass directly when JSON aggregation is disabled")
+}
 
-	// Flush should push the fragment through processOne and then flush the aggregator
+// TestPipeline_FlushCascadesInOrder verifies that Flush processes pending JSON fragments
+// through processOne, then flushes the combiner, then calls sampler.Flush.
+func TestPipeline_FlushCascadesInOrder(t *testing.T) {
+	tailerInfo := status.NewInfoRegistry()
+	_ = tailerInfo
+	combiner := &flushCaptureCombiner{}
+	sampler := &captureSampler{}
+	tokenizer := NewTokenizer(1000)
+	jsonAggregator := NewJSONAggregator(false, 10000)
+	pipeline := NewPipeline(combiner, tokenizer, sampler, jsonAggregator, true, 10*time.Second)
+
+	// Send an incomplete JSON fragment — it stays in jsonAggregator
+	pipeline.Process(newTestPipelineMessage(`{"key":`))
+	assert.Nil(t, combiner.pending, "Combiner should not see incomplete JSON yet")
+
+	// Flush must: (1) push JSON fragment to processOne → combiner.Process, (2) combiner.Flush → sampler
 	pipeline.Flush()
 
-	// The fragment should now have been processed (as a single message since it's incomplete)
-	assert.True(t, agg.flushed, "Aggregator should have been flushed")
-	require.Len(t, agg.messages, 1, "Flushed JSON fragment should reach aggregator")
-	assert.NotNil(t, agg.messages[0].msg.ParsingExtra.Tokens, "Flushed message should be tokenized")
+	assert.True(t, combiner.flushed, "Combiner should have been flushed")
+	// The JSON fragment went through processOne (combiner.Process returned nil),
+	// then combiner.Flush returned it, so sampler should have received it
+	require.Len(t, sampler.emitted, 1, "Sampler should have received the flushed message")
+	assert.Equal(t, `{"key":`, string(sampler.emitted[0].GetContent()))
 }
 
 // TestPipeline_FlushChanNilWhenEmpty verifies that FlushChan returns nil when nothing is buffered.
 func TestPipeline_FlushChanNilWhenEmpty(t *testing.T) {
-	pipeline, _ := newTestPipeline(true)
+	pipeline, _, _ := newTestPipeline(true)
 	assert.Nil(t, pipeline.FlushChan(), "FlushChan should be nil when pipeline is empty")
 }
 
-// TestPipeline_JSONDisabledPassesThroughDirectly verifies that with JSON aggregation disabled,
-// messages go directly through processOne without JSON buffering.
-func TestPipeline_JSONDisabledPassesThroughDirectly(t *testing.T) {
-	pipeline, agg := newTestPipeline(false)
+// TestPipeline_SamplerReceivesCompletedMessages verifies that messages returned by the
+// combiner flow to the sampler.
+func TestPipeline_SamplerReceivesCompletedMessages(t *testing.T) {
+	pipeline, _, sampler := newTestPipeline(false)
 
-	pipeline.Process(newTestPipelineMessage(`{"key":`))
-	pipeline.Process(newTestPipelineMessage(`"value"}`))
+	pipeline.Process(newTestPipelineMessage(`hello world`))
 
-	// Both messages should reach the aggregator immediately (no JSON buffering)
-	assert.Len(t, agg.messages, 2, "Both messages should pass through directly when JSON aggregation is disabled")
-}
-
-// TestPipeline_LabelPassedToAggregator verifies that the label from the labeler is correctly
-// passed to the aggregator (not stored on the message).
-func TestPipeline_LabelPassedToAggregator(t *testing.T) {
-	pipeline, agg := newTestPipeline(false)
-
-	// A message without a timestamp should get the aggregate label (default)
-	pipeline.Process(newTestPipelineMessage(`continuation line without timestamp`))
-
-	require.Len(t, agg.messages, 1)
-	// The label should be set (aggregate is the default for lines without timestamps)
-	_ = agg.messages[0].label // label was passed to the aggregator
+	require.Len(t, sampler.emitted, 1, "Sampler should receive the message that combiner returned")
+	assert.Equal(t, `hello world`, string(sampler.emitted[0].GetContent()))
 }
