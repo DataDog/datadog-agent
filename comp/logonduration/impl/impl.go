@@ -222,24 +222,24 @@ func buildTimelineMilestones(tl BootTimeline) []Milestone {
 		name string
 		ts   time.Time
 	}{
-		{"boot_start", tl.BootStart},
-		{"smss_start", tl.SmssStart},
-		{"user_session_smss", tl.UserSmssStart},
-		{"winlogon_start", tl.WinlogonStart},
-		{"winlogon_init", tl.WinlogonInit},
-		{"services_ready", tl.ServicesReady},
-		{"machine_gp_start", tl.MachineGPStart},
-		{"machine_gp_complete", tl.MachineGPEnd},
-		{"user_session_winlogon", tl.UserWinlogonStart},
-		{"logon_start", tl.LogonStart},
-		{"profile_load_start", tl.ProfileStart},
-		{"shell_start", tl.ShellStart},
-		{"userinit_start", tl.UserinitStart},
-		{"shell_started", tl.ShellStarted},
-		{"explorer_start", tl.ExplorerStart},
-		{"desktop_ready", tl.DesktopReady},
-		{"user_gp_start", tl.UserGPStart},
-		{"user_gp_complete", tl.UserGPEnd},
+		{"Boot Start", tl.BootStart},
+		{"SMSS Start", tl.SmssStart},
+		{"User Session SMSS Start", tl.UserSmssStart},
+		{"Winlogon Start", tl.WinlogonStart},
+		{"Winlogon Init", tl.WinlogonInit},
+		{"Services Ready", tl.ServicesReady},
+		{"Machine GP Start", tl.MachineGPStart},
+		{"Machine GP Complete", tl.MachineGPEnd},
+		{"User Session Winlogon Start", tl.UserWinlogonStart},
+		{"Logon Start", tl.LogonStart},
+		{"Profile Load Start", tl.ProfileStart},
+		{"Shell Start", tl.ShellStart},
+		{"Userinit Start", tl.UserinitStart},
+		{"Shell Started", tl.ShellStarted},
+		{"Explorer Start", tl.ExplorerStart},
+		{"Desktop Ready", tl.DesktopReady},
+		{"User GP Start", tl.UserGPStart},
+		{"User GP Complete", tl.UserGPEnd},
 	}
 
 	var milestones []Milestone
@@ -262,21 +262,37 @@ func buildCustomPayload(tl BootTimeline) map[string]interface{} {
 	custom["boot_timeline"] = buildTimelineMilestones(tl)
 
 	durations := make(map[string]interface{})
+	if !tl.BootStart.IsZero() && !tl.DesktopReady.IsZero() {
+		durations["Total Boot Duration (ms)"] = getDurationMilliseconds(tl.BootStart, tl.DesktopReady)
+	}
 	if !tl.LogonStart.IsZero() && !tl.DesktopReady.IsZero() {
-		durations["total_logon_ms"] = getDurationMilliseconds(tl.LogonStart, tl.DesktopReady)
+		durations["Total Logon Duration (ms)"] = getDurationMilliseconds(tl.LogonStart, tl.DesktopReady)
 	}
 	if !tl.ProfileStart.IsZero() && !tl.ProfileEnd.IsZero() {
-		durations["profile_load_ms"] = getDurationMilliseconds(tl.ProfileStart, tl.ProfileEnd)
+		durations["Profile Load Duration (ms)"] = getDurationMilliseconds(tl.ProfileStart, tl.ProfileEnd)
 	}
 	if !tl.MachineGPStart.IsZero() && !tl.MachineGPEnd.IsZero() {
-		durations["machine_gp_ms"] = getDurationMilliseconds(tl.MachineGPStart, tl.MachineGPEnd)
+		durations["Machine GP Duration (ms)"] = getDurationMilliseconds(tl.MachineGPStart, tl.MachineGPEnd)
 	}
 	if !tl.UserGPStart.IsZero() && !tl.UserGPEnd.IsZero() {
-		durations["user_gp_ms"] = getDurationMilliseconds(tl.UserGPStart, tl.UserGPEnd)
+		durations["User GP Duration (ms)"] = getDurationMilliseconds(tl.UserGPStart, tl.UserGPEnd)
 	}
 	if !tl.ShellStart.IsZero() && !tl.DesktopReady.IsZero() {
-		durations["shell_to_desktop_ms"] = getDurationMilliseconds(tl.ShellStart, tl.DesktopReady)
+		durations["Shell Startup Duration (ms)"] = getDurationMilliseconds(tl.ShellStart, tl.ShellStarted)
 	}
+	if !tl.ShellStarted.IsZero() && !tl.DesktopReady.IsZero() {
+		durations["Shell Launch Duration (ms)"] = getDurationMilliseconds(tl.ShellStarted, tl.ExplorerStart)
+	}
+	if !tl.ExplorerStart.IsZero() && !tl.DesktopReady.IsZero() {
+		durations["Explorer Launch Duration (ms)"] = getDurationMilliseconds(tl.ExplorerStart, tl.DesktopReady)
+	}
+	if !tl.SCMNotifyStart.IsZero() && !tl.SCMNotifyEnd.IsZero() {
+		durations["SCM Notify Duration (ms)"] = getDurationMilliseconds(tl.SCMNotifyStart, tl.SCMNotifyEnd)
+	}
+	if !tl.LogonScriptsStart.IsZero() && !tl.LogonScriptsEnd.IsZero() {
+		durations["Logon Scripts Duration (ms)"] = getDurationMilliseconds(tl.LogonScriptsStart, tl.LogonScriptsEnd)
+	}
+
 	if len(durations) > 0 {
 		custom["durations"] = durations
 	}
@@ -300,7 +316,7 @@ func (c *logonDurationComponent) submitEvent(result *AnalysisResult) error {
 
 	msg := "Windows logon duration analysis after reboot"
 	if durations, ok := custom["durations"].(map[string]interface{}); ok {
-		if totalMs, ok := durations["total_logon_ms"]; ok {
+		if totalMs, ok := durations["Total Boot Duration (ms)"]; ok {
 			msg = fmt.Sprintf("Windows logon took %d ms", totalMs)
 		}
 	}
@@ -317,7 +333,7 @@ func (c *logonDurationComponent) submitEvent(result *AnalysisResult) error {
 					"event_type": "Logon duration",
 				},
 				"attributes": map[string]interface{}{
-					"status":   "info",
+					"status":   "ok",
 					"priority": "3",
 					"custom":   custom,
 				},
