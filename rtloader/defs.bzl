@@ -6,6 +6,9 @@ COMMON_DEFINES = [
 
 COMMON_COPTS = [
     "-O2",
+]
+
+COMMON_CXXOPTS = [
     # This was ported from the equivalent original CMake `set(CMAKE_CXX_STANDARD 11)` et al.
     "-std=c++11",
 ]
