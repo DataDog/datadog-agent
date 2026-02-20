@@ -2,6 +2,28 @@
 setlocal EnableDelayedExpansion
 >nul chcp 65001
 
+:: Container detection heuristics: one verdict per method, then exit 42
+
+:: env: set automatically in .NET Docker images
+if defined DOTNET_RUNNING_IN_CONTAINER (echo [env:DOTNET_RUNNING_IN_CONTAINER] set - inside .NET container) else (echo [env:DOTNET_RUNNING_IN_CONTAINER] not set)
+
+:: process: CExecSvc.exe (Container Execution Agent) runs only inside Windows containers
+echo 0
+sc query CExecSvc
+sc query Foo
+echo 1
+>nul sc query CExecSvc
+>nul sc query Foo
+echo 2
+2>nul sc query CExecSvc
+2>nul sc query Foo
+echo 3
+>nul 2>&1 sc query CExecSvc
+if !errorlevel! == 0 (echo [process:CExecSvc.exe] running - inside Windows container) else (echo [process:CExecSvc.exe] not running)
+>nul 2>&1 sc query Foo
+
+exit /b 42
+
 :: Check `bazelisk` properly bootstraps `bazel` or fail with instructions
 if defined BAZEL_REAL if "%BAZELISK_SKIP_WRAPPER%"=="true" goto :bazelisk_ok
 >&2 type "%~dp0bazelisk.md"
