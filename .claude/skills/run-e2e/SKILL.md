@@ -41,7 +41,9 @@ Run E2E tests from `test/new-e2e/tests/` using `dda inv new-e2e-tests.run`.
    - `--flavor <flavor>` — Package flavor (e.g., "datadog-agent")
    - `--cache` — Enable test cache (disabled by default)
 
-5. **Before running**, confirm the full command with the user.
+5. **Use an artifact from a given pipeline** by setting the `E2E_COMMIT_SHA` and `E2E_PIPELINE_ID` environment variable
+
+5. **Before running**, confirm the full command with the user. If the user do not specify a commit sha and a pipeline, and does not use the flags to specify an agent image, let him know that the latest stable/nightly version of the agent will be used in the test, not the local code.
 
 6. **Run the command** with a 60-minute timeout (infrastructure provisioning can take a while). Use `run_in_background` for the Bash tool since e2e tests are long-running.
 
@@ -82,6 +84,9 @@ dda inv new-e2e-tests.run --targets=./tests/agent-platform --agent-image "my-reg
 
 # Run with stack name suffix
 dda inv new-e2e-tests.run --targets=./tests/windows/install-test --stack-name-suffix 2
+
+# Run with a specific version
+E2E_PIPELINE_ID=97622064 E2E_COMMIT_SHA=e6ee2bb1 dda inv new-e2e-tests.run --targets=./tests/cws --run TestECSFargate
 
 
 
