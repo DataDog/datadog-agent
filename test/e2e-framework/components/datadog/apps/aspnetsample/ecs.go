@@ -61,7 +61,13 @@ func FargateAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, apiK
 				Condition:     pulumi.String("HEALTHY"),
 			},
 		},
-		PortMappings: ecs.TaskDefinitionPortMappingArray{},
+		PortMappings: ecs.TaskDefinitionPortMappingArray{
+			ecs.TaskDefinitionPortMappingArgs{
+				ContainerPort: pulumi.IntPtr(8080),
+				HostPort:      pulumi.IntPtr(8080),
+				Protocol:      pulumi.StringPtr("tcp"),
+			},
+		},
 	}
 
 	serverTaskDef, err := ecsClient.FargateWindowsTaskDefinitionWithAgent(e, "aspnet-fg-server", pulumi.String("aspnet-fg"), 4096, 8192, map[string]ecs.TaskDefinitionContainerDefinitionArgs{"aspnetsample": *serverContainer}, apiKeySSMParamName, fakeIntake, "", opts...)
