@@ -93,7 +93,12 @@ func NewComponent(deps Requires) Provides {
 				},
 			},
 			&ConnectionErrorExtractor{},
-			NewPatternLogProcessor(),
+			NewPatternLogProcessor([]PatternLogAnomalyDetector{
+				&WatchdogLogAnomalyDetector{
+					ResultChannel: make(chan *observerdef.LogProcessorResult, 1024),
+					Period:        15 * time.Second,
+				},
+			}),
 		},
 		tsAnalyses: []observerdef.TimeSeriesAnalysis{
 			NewCUSUMDetector(),
