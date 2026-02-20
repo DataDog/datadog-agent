@@ -5,6 +5,7 @@
 #     "datadog-api-client>=2.20.0",
 #     "pydantic>=2.0",
 #     "pyyaml>=6.0",
+#     "tabulate>=0.9.0",
 # ]
 # ///
 """
@@ -23,12 +24,50 @@ import time
 from pathlib import Path
 
 from datadog_api_client import ApiClient, Configuration
-from datadog_api_client.v1.api.metrics_api import MetricsApi
+from datadog_api_client.v1.api.metrics_api import MetricsApi as MetricsApiV1
+from datadog_api_client.v2.api.metrics_api import MetricsApi as MetricsApiV2
+from datadog_api_client.v2.model.metrics_aggregator import MetricsAggregator
+from datadog_api_client.v2.model.metrics_data_source import MetricsDataSource
+from datadog_api_client.v2.model.metrics_scalar_query import MetricsScalarQuery
+from datadog_api_client.v2.model.scalar_formula_query_request import ScalarFormulaQueryRequest
+from datadog_api_client.v2.model.scalar_formula_request import ScalarFormulaRequest
+from datadog_api_client.v2.model.scalar_formula_request_attributes import ScalarFormulaRequestAttributes
+from datadog_api_client.v2.model.scalar_formula_request_queries import ScalarFormulaRequestQueries
+from datadog_api_client.v2.model.scalar_formula_request_type import ScalarFormulaRequestType
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator  # pyright: ignore[reportMissingImports]
+from tabulate import tabulate  # pyright: ignore[reportMissingImports,reportMissingModuleSource]
 import yaml
 
 
 DEVICE_MODES = ("physical", "mig", "vgpu")
+SCALAR_QUERY_BATCH_SIZE = 80
+ANSI_GREEN = "\033[32m"
+ANSI_RED = "\033[31m"
+ANSI_YELLOW = "\033[33m"
+ANSI_RESET = "\033[0m"
+
+
+def color_status(status: str) -> str:
+    if status == "ok":
+        return f"{ANSI_GREEN}{status}{ANSI_RESET}"
+    if status == "fail":
+        return f"{ANSI_RED}{status}{ANSI_RESET}"
+    return f"{ANSI_YELLOW}{status}{ANSI_RESET}"
+
+
+def color_metric_counts(missing: int, known: int, unknown: int) -> str:
+    missing_str = f"{ANSI_RED}{missing}{ANSI_RESET}" if missing > 0 else str(missing)
+    known_str = f"{ANSI_GREEN}{known}{ANSI_RESET}" if known > 0 else str(known)
+    unknown_str = f"{ANSI_YELLOW}{unknown}{ANSI_RESET}" if unknown > 0 else str(unknown)
+    return f"{missing_str}/{known_str}/{unknown_str}"
+
+
+def color_tag_failures(count: int) -> str:
+    if count > 0:
+        return f"{ANSI_RED}{count}{ANSI_RESET}"
+    return (
+        str(count)
+    )
 
 
 class SupportModel(BaseModel):
@@ -88,6 +127,7 @@ class ComboModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
     architecture: str
     device_mode: str
+    is_known: bool = True
 
 
 class ComboValidationResultModel(BaseModel):
@@ -96,6 +136,8 @@ class ComboValidationResultModel(BaseModel):
     device_count: int
     expected_metrics: set[str]
     present_metrics: set[str]
+    unknown_metrics: set[str] = Field(default_factory=set)
+    tag_failures: dict[str, list[str]] = Field(default_factory=dict)
 
     @property
     def missing_metrics(self) -> set[str]:
@@ -137,12 +179,12 @@ def build_combinations(architectures: ArchitecturesSpecModel) -> list[ComboModel
         unsupported = {x.lower() for x in arch.unsupported_device_features}
         for mode in DEVICE_MODES:
             if mode not in unsupported:
-                combos.append(ComboModel(architecture=arch_name.lower(), device_mode=mode))
+                combos.append(ComboModel(architecture=arch_name.lower(), device_mode=mode, is_known=True))
     return combos
 
 
-def get_expected_metrics_for_combo(spec: SpecModel, combo: ComboModel) -> set[str]:
-    expected: set[str] = set()
+def get_expected_metrics_for_combo(spec: SpecModel, combo: ComboModel) -> dict[str, MetricModel]:
+    expected: dict[str, MetricModel] = {}
     for metric_name, metric in spec.metrics.items():
         if metric.deprecated:
             continue
@@ -153,7 +195,7 @@ def get_expected_metrics_for_combo(spec: SpecModel, combo: ComboModel) -> set[st
         if mode_support is False:
             continue
 
-        expected.add(f"{spec.metric_prefix}.{metric_name}")
+        expected[f"{spec.metric_prefix}.{metric_name}"] = metric
     return expected
 
 
@@ -175,6 +217,17 @@ def combo_filter(combo: ComboModel) -> str:
     return ",".join(parts)
 
 
+def combo_filter_expression(combo: ComboModel) -> str:
+    parts = [f"gpu_architecture:{combo.architecture}"]
+    if combo.device_mode == "mig":
+        parts.append("gpu_slicing_mode:mig")
+    elif combo.device_mode == "vgpu":
+        parts.append("gpu_virtualization_mode:vgpu")
+    else:
+        parts.append("gpu_virtualization_mode:passthrough")
+    return " AND ".join(parts)
+
+
 def _extract_tag_value(tag_set, key: str) -> str | None:
     for tag in tag_set or []:
         if isinstance(tag, str) and tag.startswith(f"{key}:"):
@@ -182,7 +235,14 @@ def _extract_tag_value(tag_set, key: str) -> str | None:
     return None
 
 
-def query_device_count(api: MetricsApi, combo: ComboModel, from_ts: int, to_ts: int) -> int:
+def _extract_point_value(point) -> float | None:
+    value = getattr(point, "_data_store", {}).get("value")
+    if isinstance(value, (list, tuple)) and len(value) >= 2:
+        return value[1]
+    return None
+
+
+def query_device_count(api: MetricsApiV1, combo: ComboModel, from_ts: int, to_ts: int) -> int:
     query = f"avg:gpu.device.total{{{combo_filter(combo)}}} by {{gpu_uuid}}"
     response = api.query_metrics(_from=from_ts, to=to_ts, query=query)
     series_list = response.series if hasattr(response, "series") and response.series else []
@@ -195,45 +255,252 @@ def query_device_count(api: MetricsApi, combo: ComboModel, from_ts: int, to_ts: 
     return len(uuids)
 
 
-def metric_present_for_combo(
-    api: MetricsApi,
-    metric_name: str,
+def _normalize_device_mode(slicing_mode: str | None, virtualization_mode: str | None) -> str:
+    if (slicing_mode or "").lower() == "mig":
+        return "mig"
+    if (virtualization_mode or "").lower() == "vgpu":
+        return "vgpu"
+    return "physical"
+
+
+def discover_live_combos(api: MetricsApiV1, from_ts: int, to_ts: int) -> set[tuple[str, str]]:
+    query = (
+        "avg:gpu.device.total{*} by "
+        "{gpu_architecture,gpu_slicing_mode,gpu_virtualization_mode}"
+    )
+    response = api.query_metrics(_from=from_ts, to=to_ts, query=query)
+    series_list = response.series if hasattr(response, "series") and response.series else []
+
+    combos: set[tuple[str, str]] = set()
+    for series in series_list:
+        pointlist = getattr(series, "pointlist", []) or []
+        # Ignore discovered groups that did not report a positive device count.
+        if not any((value is not None and value > 0) for value in (_extract_point_value(p) for p in pointlist)):
+            continue
+        tag_set = getattr(series, "tag_set", [])
+        arch = _extract_tag_value(tag_set, "gpu_architecture")
+        slicing_mode = _extract_tag_value(tag_set, "gpu_slicing_mode")
+        virtualization_mode = _extract_tag_value(tag_set, "gpu_virtualization_mode")
+        if not arch:
+            continue
+        arch = arch.strip().lower()
+        # Drop placeholder architecture values at discovery time.
+        if arch in {"n/a", "na", "none", "unknown", ""}:
+            continue
+        combos.add((arch, _normalize_device_mode(slicing_mode, virtualization_mode)))
+    return combos
+
+
+def get_expected_tags_for_metric(spec: SpecModel, metric: MetricModel) -> list[str]:
+    tags: list[str] = []
+    for tagset_name in metric.tagsets:
+        tagset = spec.tagsets.get(tagset_name)
+        if tagset:
+            tags.extend(tagset.tags)
+    tags.extend(metric.custom_tags)
+    return list(dict.fromkeys(tags))
+
+
+def _chunk(items: list[str], chunk_size: int) -> list[list[str]]:
+    return [items[i : i + chunk_size] for i in range(0, len(items), chunk_size)]
+
+
+def _normalize_group_value(value) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, list):
+        if not value:
+            return None
+        first = value[0]
+        if first is None:
+            return None
+        return str(first)
+    return str(value)
+
+
+def query_scalar_metrics_for_combo(
+    api: MetricsApiV2,
+    metric_names: list[str],
+    expected_tags_by_metric: dict[str, list[str]],
     combo_query_filter: str,
     from_ts: int,
     to_ts: int,
-) -> bool:
-    query = f"avg:{metric_name}{{{combo_query_filter}}}"
-    response = api.query_metrics(_from=from_ts, to=to_ts, query=query)
-    series_list = response.series if hasattr(response, "series") and response.series else []
-    return any(getattr(series, "pointlist", None) for series in series_list)
+) -> tuple[set[str], dict[str, list[str]]]:
+    if not metric_names:
+        return set(), {}
+
+    queries: list[MetricsScalarQuery] = []
+    query_name_to_metric: dict[str, str] = {}
+    for idx, metric_name in enumerate(metric_names):
+        query_name = f"q{idx}"
+        query = f"avg:{metric_name}{{{combo_query_filter}}}"
+        expected_tags = expected_tags_by_metric.get(metric_name, [])
+        if expected_tags:
+            query = f"{query} by {{{','.join(expected_tags)}}}"
+        queries.append(
+            MetricsScalarQuery(
+                name=query_name,
+                aggregator=MetricsAggregator.AVG,
+                data_source=MetricsDataSource.METRICS,
+                query=query,
+            )
+        )
+        query_name_to_metric[query_name] = metric_name
+
+    body = ScalarFormulaQueryRequest(
+        data=ScalarFormulaRequest(
+            attributes=ScalarFormulaRequestAttributes(
+                _from=from_ts * 1000,
+                to=to_ts * 1000,
+                queries=ScalarFormulaRequestQueries(queries),
+            ),
+            type=ScalarFormulaRequestType.SCALAR_REQUEST,
+        )
+    )
+    response = api.query_scalar_data(body=body)
+    attrs = getattr(getattr(response, "data", None), "attributes", None)
+    columns = getattr(attrs, "columns", []) if attrs else []
+
+    group_columns: dict[str, list] = {}
+    number_columns: dict[str, list] = {}
+    for column in columns or []:
+        col_type = str(getattr(column, "type", "")).lower()
+        col_name = getattr(column, "name", "")
+        col_values = getattr(column, "values", []) or []
+        if col_type == "group":
+            group_columns[col_name] = col_values
+        elif col_type == "number":
+            number_columns[col_name] = col_values
+
+    present_metrics: set[str] = set()
+    tag_failures: dict[str, list[str]] = {}
+    nullish_values = {"", "none", "null", "n/a"}
+    for query_name, metric_name in query_name_to_metric.items():
+        values = number_columns.get(query_name, [])
+        present_row_indexes = [row_idx for row_idx, value in enumerate(values) if value is not None]
+        if not present_row_indexes:
+            continue
+        present_metrics.add(metric_name)
+
+        expected_tags = expected_tags_by_metric.get(metric_name, [])
+        if not expected_tags:
+            continue
+        non_null_seen = {tag: False for tag in expected_tags}
+        for row_idx in present_row_indexes:
+            for tag in expected_tags:
+                tag_values = group_columns.get(tag, [])
+                if row_idx >= len(tag_values):
+                    continue
+                normalized_value = _normalize_group_value(tag_values[row_idx])
+                if normalized_value is None:
+                    continue
+                if normalized_value.strip().lower() not in nullish_values:
+                    non_null_seen[tag] = True
+        missing_tags = [tag for tag, seen in non_null_seen.items() if not seen]
+        if missing_tags:
+            tag_failures[metric_name] = missing_tags
+
+    return present_metrics, tag_failures
+
+
+def query_live_gpu_metrics_for_combo(
+    api: MetricsApiV2,
+    combo: ComboModel,
+    lookback_seconds: int,
+    metric_prefix: str,
+) -> set[str]:
+    metrics: set[str] = set()
+    filter_expr = combo_filter_expression(combo)
+    page_cursor = None
+    while True:
+        kwargs = {
+            "filter_tags": filter_expr,
+            "filter_queried": True,
+            "window_seconds": max(lookback_seconds, 3600),
+            "page_size": 1000,
+        }
+        if page_cursor:
+            kwargs["page_cursor"] = page_cursor
+        response = api.list_tag_configurations(**kwargs)
+        for item in response.data or []:
+            metric_name = getattr(item, "id", "")
+            if metric_name.startswith(f"{metric_prefix}."):
+                metrics.add(metric_name)
+
+        pagination = getattr(getattr(response, "meta", None), "pagination", None)
+        page_cursor = getattr(pagination, "next_cursor", None) if pagination else None
+        if not page_cursor:
+            break
+    return metrics
 
 
 def validate_combo(
-    api: MetricsApi,
+    metrics_api_v1: MetricsApiV1,
+    metrics_api_v2: MetricsApiV2,
     spec: SpecModel,
     combo: ComboModel,
     from_ts: int,
     to_ts: int,
 ) -> ComboValidationResultModel:
-    expected_metrics = get_expected_metrics_for_combo(spec, combo)
-    device_count = query_device_count(api, combo, from_ts, to_ts)
+    expected_metrics_map = get_expected_metrics_for_combo(spec, combo)
+    expected_metrics = set(expected_metrics_map.keys())
+    device_count = query_device_count(metrics_api_v1, combo, from_ts, to_ts)
     query_filter = combo_filter(combo)
 
     present_metrics: set[str] = set()
+    unknown_metrics: set[str] = set()
+    tag_failures: dict[str, list[str]] = {}
     if device_count > 0:
-        total = len(expected_metrics)
-        for idx, metric_name in enumerate(sorted(expected_metrics), 1):
-            if idx % 20 == 0 or idx == total:
-                print(f"    Querying metrics: {idx}/{total}...")
-            if metric_present_for_combo(api, metric_name, query_filter, from_ts, to_ts):
-                present_metrics.add(metric_name)
+        metric_names = sorted(expected_metrics)
+        expected_tags_by_metric: dict[str, list[str]] = {}
+        for metric_name in metric_names:
+            relative_name = metric_name.removeprefix(f"{spec.metric_prefix}.")
+            metric_model = expected_metrics_map.get(metric_name) or spec.metrics[relative_name]
+            expected_tags_by_metric[metric_name] = get_expected_tags_for_metric(spec, metric_model)
+
+        for batch_index, metric_batch in enumerate(_chunk(metric_names, SCALAR_QUERY_BATCH_SIZE), start=1):
+            batch_present, batch_failures = query_scalar_metrics_for_combo(
+                metrics_api_v2,
+                metric_batch,
+                expected_tags_by_metric,
+                query_filter,
+                from_ts,
+                to_ts,
+            )
+            present_metrics.update(batch_present)
+            tag_failures.update(batch_failures)
+            print(
+                f"    Scalar query batches: {batch_index}/{(len(metric_names) + SCALAR_QUERY_BATCH_SIZE - 1) // SCALAR_QUERY_BATCH_SIZE}..."
+            )
+        live_gpu_metrics = query_live_gpu_metrics_for_combo(
+            metrics_api_v2,
+            combo,
+            max(to_ts - from_ts, 0),
+            spec.metric_prefix,
+        )
+        unknown_metrics = live_gpu_metrics - expected_metrics
 
     return ComboValidationResultModel(
         combo=combo,
         device_count=device_count,
         expected_metrics=expected_metrics,
         present_metrics=present_metrics,
+        unknown_metrics=unknown_metrics,
+        tag_failures=tag_failures,
     )
+
+
+def combine_known_and_live_combos(
+    known_combos: list[ComboModel],
+    live_combo_keys: set[tuple[str, str]],
+) -> list[ComboModel]:
+    by_key: dict[tuple[str, str], ComboModel] = {
+        (c.architecture, c.device_mode): c for c in known_combos
+    }
+    for key in sorted(live_combo_keys):
+        if key not in by_key:
+            by_key[key] = ComboModel(architecture=key[0], device_mode=key[1], is_known=False)
+    return sorted(by_key.values(), key=lambda combo: (combo.architecture, combo.device_mode))
 
 
 def main():
@@ -254,39 +521,105 @@ def main():
 
     spec = load_spec(args.spec)
     architectures = load_architectures(args.architectures)
-    combos = build_combinations(architectures)
     site = args.site or os.environ.get("DD_SITE", "datadoghq.com")
 
     print(f"Loaded metrics spec: {len(spec.metrics)} entries")
     print(f"Loaded architecture spec: {len(architectures.architectures)} architectures")
-    print(f"Generated combinations: {len(combos)}")
     print(f"Querying Datadog API at {site}...")
 
     now = int(time.time())
     from_ts = now - args.lookback_seconds
     failing_count = 0
+    summary_rows: list[list[str | int]] = []
+    known_combos = build_combinations(architectures)
 
     config = make_api_client(site)
     with ApiClient(config) as api_client:
-        api = MetricsApi(api_client)
+        metrics_api_v1 = MetricsApiV1(api_client)
+        metrics_api_v2 = MetricsApiV2(api_client)
+        live_combo_keys = discover_live_combos(metrics_api_v1, from_ts, now)
+        combos = combine_known_and_live_combos(known_combos, live_combo_keys)
+        print(f"Generated combinations: {len(combos)} ({len(known_combos)} known, {len(combos) - len(known_combos)} discovered)")
         for combo in combos:
             label = f"{combo.architecture}/{combo.device_mode}"
             print(f"\n-- {label} --")
-            result = validate_combo(api, spec, combo, from_ts, now)
+            result = validate_combo(metrics_api_v1, metrics_api_v2, spec, combo, from_ts, now)
+            if not combo.is_known and result.device_count == 0:
+                print("  discovered combo ignored (no devices)")
+                continue
             print(f"  devices: {result.device_count}")
             print(f"  expected metrics: {len(result.expected_metrics)}")
             if result.device_count == 0:
                 print("  present metrics: skipped (no devices)")
                 print("  missing metrics: skipped (no devices)")
+                known_metrics = len(result.expected_metrics) if combo.is_known else 0
+                unknown_metrics = 0 if combo.is_known else len(result.expected_metrics)
+                summary_rows.append(
+                    [
+                        combo.architecture,
+                        combo.device_mode,
+                        color_status("unknown" if not combo.is_known else "missing"),
+                        result.device_count,
+                        color_metric_counts(0, known_metrics, unknown_metrics),
+                        color_tag_failures(0),
+                    ]
+                )
                 continue
             print(f"  present metrics: {len(result.present_metrics)}")
             print(f"  missing metrics: {len(result.missing_metrics)}")
+            print(f"  unknown metrics: {len(result.unknown_metrics)}")
+            print(f"  tag failures: {len(result.tag_failures)}")
+            summary_rows.append(
+                [
+                    combo.architecture,
+                    combo.device_mode,
+                    color_status(
+                        "unknown"
+                        if not combo.is_known
+                        else ("fail" if (result.missing_metrics or result.tag_failures) else "ok")
+                    ),
+                    result.device_count,
+                    color_metric_counts(
+                        len(result.missing_metrics),
+                        len(result.expected_metrics),
+                        len(result.unknown_metrics),
+                    ),
+                    color_tag_failures(len(result.tag_failures)),
+                ]
+            )
             if result.missing_metrics:
-                failing_count += 1
+                print("  missing metric names:")
                 for name in sorted(result.missing_metrics):
-                    print(f"    - {name}")
+                    print(f"    - MISSING {name}")
+            if result.unknown_metrics:
+                print("  unknown metric names:")
+                for name in sorted(result.unknown_metrics):
+                    print(f"    - UNKNOWN {name}")
+            if result.tag_failures:
+                print("  tag failure details:")
+                for metric_name in sorted(result.tag_failures):
+                    tags = ", ".join(result.tag_failures[metric_name])
+                    print(f"    - TAG FAIL {metric_name}: missing/non-null [{tags}]")
+            if combo.is_known and (result.missing_metrics or result.unknown_metrics or result.tag_failures):
+                failing_count += 1
 
-    print(f"\nCombinations with missing metrics (and devices present): {failing_count}")
+    print("\nSummary:")
+    print(
+        tabulate(
+            summary_rows,
+            headers=[
+                "architecture",
+                "device mode",
+                    "status",
+                "found devices",
+                "missing/known/unknown metrics",
+                "tag failures",
+            ],
+            tablefmt="github",
+        )
+    )
+
+    print(f"\nCombinations with metric/tag failures (and devices present): {failing_count}")
     if failing_count > 0:
         sys.exit(1)
 
