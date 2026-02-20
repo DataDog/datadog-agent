@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
@@ -938,7 +939,7 @@ func TestSubreaperReparenting(t *testing.T) {
 	// tryReparentChildrenFromProcfs reads /proc/realPid/status which returns realPPid,
 	// matching grandparent in the cache.
 	resolver.Lock()
-	resolver.tryReparentChildrenFromProcfs(fakeParent.ProcessCacheEntry)
+	resolver.tryReparentChildrenFromProcfs(fakeParent.ProcessCacheEntry, metrics.ReparentCallpathDoExit)
 	resolver.deleteEntry(fakeParentPid, time.Now())
 	resolver.Unlock()
 
