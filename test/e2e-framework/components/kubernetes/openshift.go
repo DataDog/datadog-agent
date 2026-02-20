@@ -104,7 +104,7 @@ func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, pullSecre
 		}
 
 		setupCRC, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("crc-setup"), &command.Args{
-			Create: pulumi.String("crc config set preset microshift &&crc config set disk-size 100 && crc config set cpus 6 && crc config set memory 16384 && crc setup"),
+			Create: pulumi.String("crc config set preset microshift && crc config set disk-size 100 && crc config set cpus 6 && crc config set memory 16384 && crc setup"),
 		}, utils.MergeOptions(opts, utils.PulumiDependsOn(pullSecretFile, enableLinger, installCRC))...)
 		if err != nil {
 			return err
