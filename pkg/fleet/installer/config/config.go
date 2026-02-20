@@ -187,7 +187,7 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
 			return err
 		}
 		// Set proper ownership and permissions for the file
-		if err := setFileOwnershipAndPermissions(ctx, filepath.Join(root.Name(), path), spec); err != nil {
+		if err := setFileOwnershipAndPermissions(ctx, root, path, spec); err != nil {
 			return err
 		}
 		return nil
@@ -219,7 +219,7 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
 		}
 
 		// Set proper ownership and permissions for the destination file
-		if err := setFileOwnershipAndPermissions(ctx, filepath.Join(root.Name(), destinationPath), destSpec); err != nil {
+		if err := setFileOwnershipAndPermissions(ctx, root, destinationPath, destSpec); err != nil {
 			return err
 		}
 		return nil
@@ -240,7 +240,7 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
 		}
 
 		// Set proper ownership and permissions for the destination file
-		if err := setFileOwnershipAndPermissions(ctx, filepath.Join(root.Name(), destinationPath), destSpec); err != nil {
+		if err := setFileOwnershipAndPermissions(ctx, root, destinationPath, destSpec); err != nil {
 			return err
 		}
 		return nil
