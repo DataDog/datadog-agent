@@ -51,6 +51,32 @@ func ExtractTemplatesFromAnnotations(entityName string, annotations map[string]s
 	return res, err
 }
 
+// ValidatePodChecksAnnotation validates the JSON used in Kubernetes pod check
+// annotations (e.g. ad.datadoghq.com/<container>.checks). It returns an error
+// if the JSON is syntactically invalid or does not match the expected structure.
+// Use this to validate annotation content before applying to a pod, or from a
+// CLI tool. Invalid JSON causes the autodiscovery check to fail; errors are
+// reported in the "Configuration Errors" section of `agent status`.
+func ValidatePodChecksAnnotation(checksJSON string) error {
+	if checksJSON == "" {
+		return fmt.Errorf("pod check annotation JSON is empty")
+	}
+	var namedChecks map[string]struct {
+		Name                    string          `json:"name"`
+		InitConfig              json.RawMessage `json:"init_config"`
+		Instances               []interface{}   `json:"instances"`
+		Logs                    json.RawMessage `json:"logs"`
+		IgnoreAutodiscoveryTags bool            `json:"ignore_autodiscovery_tags"`
+		CheckTagCardinality     string          `json:"check_tag_cardinality"`
+	}
+	if err := json.Unmarshal([]byte(checksJSON), &namedChecks); err != nil {
+		return fmt.Errorf("invalid JSON in pod check annotation (ad.datadoghq.com/<container>.checks): %w", err)
+	}
+	// Run the same parsing logic as parseChecksJSON to catch structural errors (e.g. invalid instances).
+	_, err := parseChecksJSON("", checksJSON)
+	return err
+}
+
 // parseChecksJSON parses an AD annotation v2
 // (ad.datadoghq.com/redis.checks) JSON string into []integration.Config.
 func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Config, error) {
@@ -65,7 +91,7 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 
 	err := json.Unmarshal([]byte(checksJSON), &namedChecks)
 	if err != nil {
-		return nil, fmt.Errorf("cannot parse check configuration: %w", err)
+		return nil, fmt.Errorf("invalid JSON in pod check annotation (ad.datadoghq.com/<container>.checks): %w", err)
 	}
 
 	checks := make([]integration.Config, 0, len(namedChecks))
