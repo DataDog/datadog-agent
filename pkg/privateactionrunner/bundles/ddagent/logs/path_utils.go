@@ -10,20 +10,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 )
 
 const (
 	hostRoot         = "/host"
-	podLogRoot       = "/var/log/pods"
 	maxLineCount     = 1000
 	defaultLineCount = 10
 	maxLineLength    = 64 * 1024 // 64KB
 )
-
-// validPathComponent matches safe Kubernetes resource names (RFC 1123 DNS subdomain).
-var validPathComponent = regexp.MustCompile(`^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$`)
 
 // sanitizeAndResolvePath cleans a user-provided file path, validates it is absolute,
 // prepends the /host root, and confirms the result still resides under /host.
@@ -37,27 +32,6 @@ func sanitizeAndResolvePath(userPath string) (string, error) {
 	resolved = filepath.Clean(resolved)
 	if !strings.HasPrefix(resolved, hostRoot+"/") {
 		return "", fmt.Errorf("resolved path %q escapes host root", resolved)
-	}
-	return resolved, nil
-}
-
-// sanitizePodLogPath constructs the expected pod log directory under /host/var/log/pods.
-func sanitizePodLogPath(namespace, podName, podUID string) (string, error) {
-	for _, component := range []string{namespace, podName} {
-		if !validPathComponent.MatchString(component) {
-			return "", fmt.Errorf("invalid path component: %q", component)
-		}
-	}
-	if podUID == "" {
-		return "", fmt.Errorf("pod UID must not be empty")
-	}
-	// Pod log dirs follow: /var/log/pods/{namespace}_{podName}_{uid}/
-	dirName := fmt.Sprintf("%s_%s_%s", namespace, podName, podUID)
-	resolved := filepath.Join(hostRoot, podLogRoot, dirName)
-	resolved = filepath.Clean(resolved)
-	expectedPrefix := filepath.Clean(filepath.Join(hostRoot, podLogRoot)) + "/"
-	if !strings.HasPrefix(resolved, expectedPrefix) {
-		return "", fmt.Errorf("resolved pod log path %q escapes pod log root", resolved)
 	}
 	return resolved, nil
 }
