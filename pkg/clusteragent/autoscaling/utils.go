@@ -36,10 +36,10 @@ var Semantic = conversion.EqualitiesOrDie(
 		return a.Cmp(b) == 0
 	},
 	func(a, b metav1.MicroTime) bool {
-		return a.Truncate(time.Second).UTC() == b.Truncate(time.Second).UTC()
+		return a.Truncate(time.Second).Equal(b.Truncate(time.Second))
 	},
 	func(a, b metav1.Time) bool {
-		return a.Truncate(time.Second).UTC() == b.Truncate(time.Second).UTC()
+		return a.Truncate(time.Second).Equal(b.Truncate(time.Second))
 	},
 	func(a, b labels.Selector) bool {
 		return a.String() == b.String()

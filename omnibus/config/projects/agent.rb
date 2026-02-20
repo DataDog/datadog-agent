@@ -230,16 +230,12 @@ if do_build
   dependency 'datadog-agent'
 
   # This depends on the agent and must be added after it
-  if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+  unless heroku_target? || osx_target?
     dependency 'datadog-security-agent-policies'
   end
 
   if osx_target?
     dependency 'datadog-agent-mac-app'
-  end
-
-  if linux_target?
-    dependency 'datadog-security-agent-policies'
   end
 
   # this dependency puts few files out of the omnibus install dir and move them
@@ -320,12 +316,13 @@ if windows_target?
     "#{install_dir}\\bin\\agent\\trace-agent.exe",
     "#{install_dir}\\bin\\agent\\process-agent.exe",
     "#{install_dir}\\bin\\agent\\system-probe.exe",
+    "#{install_dir}\\bin\\agent\\secret-generic-connector.exe",
     "#{install_dir}\\datadog-installer.exe"
   ]
 
   if not fips_mode?
-    # TODO(AGENTCFG-XXX): SGC is not supported in FIPS mode
-    GO_BINARIES << "#{install_dir}\\bin\\agent\\secret-generic-connector.exe"
+    # TODO(ACTP-XXX): PAR is not enabled in Gov yet
+    GO_BINARIES << "#{install_dir}\\bin\\agent\\privateactionrunner.exe"
   end
 
   if not windows_arch_i386? and ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?

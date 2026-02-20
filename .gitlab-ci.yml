@@ -129,25 +129,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v91623141-e13c2467
+  CI_IMAGE_BTF_GEN: v96864623-38cade90
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v91623141-e13c2467
+  CI_IMAGE_DOCKER_X64: v96864623-38cade90
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v91623141-e13c2467
+  CI_IMAGE_DOCKER_ARM64: v96864623-38cade90
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v91623141-e13c2467
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v96864623-38cade90
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v93279297-c459726e
+  CI_IMAGE_LINUX: v96864623-38cade90
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v91623141-e13c2467
+  CI_IMAGE_RPM_X64: v96864623-38cade90
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v91623141-e13c2467
+  CI_IMAGE_RPM_ARM64: v96864623-38cade90
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v91623141-e13c2467
+  CI_IMAGE_RPM_ARMHF: v96864623-38cade90
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v94029061-83297652
+  CI_IMAGE_WIN_LTSC2022_X64: v95648322-a2e015b0
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v94029061-83297652
+  CI_IMAGE_WIN_LTSC2025_X64: v95648322-a2e015b0
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -356,6 +356,8 @@ variables:
     - release.json
     # SMP regression detector experiments
     - test/regression/**/*
+    # Containers
+    - Dockerfiles/**/*
 
 .if_coverage_pipeline: &if_coverage_pipeline
   if: $E2E_COVERAGE_PIPELINE == "true"
@@ -375,6 +377,7 @@ workflow:
     - <<: *if_triggered_pipeline
     - <<: *if_main_branch
       variables:
+        BAZEL_CACHE_POLICY_SUFFIX: "-push"
         GO_TEST_SKIP_FLAKE: "false"
     - <<: *if_release_branch
     - <<: *if_deploy
@@ -437,6 +440,7 @@ workflow:
   - changes:
       paths:
         - .gitlab/deploy/internal_image_deploy/internal_image_deploy.yml
+        - Dockerfiles/**/*
       compare_to: $COMPARE_TO_BRANCH
     variables:
       RELEASE_PROD: "false"
@@ -510,6 +514,14 @@ workflow:
       <<: *artifacts_build_impacting_paths
       compare_to: $COMPARE_TO_BRANCH
 
+.on_dev_branches_with_artifact_changes_manual:
+  - !reference [.on_dev_branches]
+  - changes:
+      <<: *artifacts_build_impacting_paths
+      compare_to: $COMPARE_TO_BRANCH
+    when: manual
+    allow_failure: true
+
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy
     when: always
@@ -541,12 +553,83 @@ workflow:
   - <<: *if_installer_tests
   - <<: *on_build_changes
 
-.on_default_new_e2e_tests:
+# Specific rules for each e2e test type
+.on_install_script_tests:
   - !reference [.except_mergequeue]
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_installer_tests
   - <<: *on_build_changes
+  - changes:
+      paths:
+        - test/new-e2e/tests/agent-platform/install-script/**/*
+        - test/e2e-framework/**/*
+
+.on_ddot_tests:
+  - !reference [.except_mergequeue]
+  - <<: *if_disable_e2e_tests
+    when: never
+  - <<: *if_installer_tests
+  - <<: *on_build_changes
+  - changes:
+      paths:
+        - test/new-e2e/tests/agent-platform/ddot/**/*
+        - test/e2e-framework/**/*
+
+.on_step_by_step_tests:
+  - !reference [.except_mergequeue]
+  - <<: *if_disable_e2e_tests
+    when: never
+  - <<: *if_installer_tests
+  - <<: *on_build_changes
+  - changes:
+      paths:
+        - test/new-e2e/tests/agent-platform/step-by-step/**/*
+        - test/e2e-framework/**/*
+
+.on_upgrade_tests:
+  - !reference [.except_mergequeue]
+  - <<: *if_disable_e2e_tests
+    when: never
+  - <<: *if_installer_tests
+  - <<: *on_build_changes
+  - changes:
+      paths:
+        - test/new-e2e/tests/agent-platform/upgrade/**/*
+        - test/e2e-framework/**/*
+
+.on_persisting_integrations_tests:
+  - !reference [.except_mergequeue]
+  - <<: *if_disable_e2e_tests
+    when: never
+  - <<: *if_installer_tests
+  - <<: *on_build_changes
+  - changes:
+      paths:
+        - test/new-e2e/tests/agent-platform/persisting-integrations/**/*
+        - test/e2e-framework/**/*
+
+.on_rpm_tests:
+  - !reference [.except_mergequeue]
+  - <<: *if_disable_e2e_tests
+    when: never
+  - <<: *if_installer_tests
+  - <<: *on_build_changes
+  - changes:
+      paths:
+        - test/new-e2e/tests/agent-platform/rpm/**/*
+        - test/e2e-framework/**/*
+
+.on_package_signing_tests:
+  - !reference [.except_mergequeue]
+  - <<: *if_disable_e2e_tests
+    when: never
+  - <<: *if_installer_tests
+  - <<: *on_build_changes
+  - changes:
+      paths:
+        - test/new-e2e/tests/agent-platform/package-signing/**/*
+        - test/e2e-framework/**/*
 
 .security_agent_change_paths: &security_agent_change_paths
   - pkg/ebpf/**/*
@@ -905,6 +988,7 @@ workflow:
         - test/new-e2e/tests/fleet/**/*
         - test/new-e2e/tests/installer/**/*
         - tasks/installer.py
+        - tools/windows/DatadogAgentInstaller/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -1064,6 +1148,15 @@ workflow:
         - pkg/security/**/*
         - pkg/eventmonitor/**/*
         - test/new-e2e/tests/security-agent-functional/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+.on_healthplatform_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - comp/healthplatform/**/*
+        - test/new-e2e/tests/agent-health/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 

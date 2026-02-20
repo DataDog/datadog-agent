@@ -1,13 +1,12 @@
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
-load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@bazel_skylib//rules:native_binary.bzl", "native_test")
 load("@package_metadata//licenses/rules:license.bzl", "license")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
     default_package_metadata = [":package_metadata"],
@@ -186,7 +185,7 @@ cc_binary(
     }),
     visibility = ["//visibility:public"],
     deps = [":pcre2test_dotc_headers", ":libpcre2", ":libpcre2-posix"],
-    dynamic_deps = [":pcre2-8", ":pcre2-posix"]
+    dynamic_deps = [":pcre2-8", ":pcre2-posix"],
 )
 
 filegroup(
@@ -206,49 +205,6 @@ native_test(
     }),
     data = [":pcre2test", ":testdata"],
     size = "small",
-)
-
-expand_template(
-    name = "gen_pkgconfig",
-    template = "//:libpcre2-8.pc.in",
-    out = "libpcre2-8.pc",
-    substitutions = {
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@PACKAGE_VERSION@": VERSION,
-        "@LIB_POSTFIX@": "",
-        "@PTHREAD_CFLAGS@": "",
-        "@PTHREAD_LIBS@": "",
-        "@PCRE2_STATIC_CFLAG@": "",
-    },
-)
-
-expand_template(
-    name = "gen_pkgconfig_posix",
-    template = "//:libpcre2-posix.pc.in",
-    out = "libpcre2-posix.pc",
-    substitutions = {
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@PACKAGE_VERSION@": VERSION,
-        "@LIB_POSTFIX@": "",
-        "@PTHREAD_CFLAGS@": "",
-        "@PTHREAD_LIBS@": "",
-        "@PCRE2POSIX_STATIC_CFLAG@": "",
-    },
-)
-
-pkg_files(
-    name = "pkgconfig",
-    srcs = [
-        ":gen_pkgconfig",
-        ":gen_pkgconfig_posix",
-    ],
-    prefix = "lib/pkgconfig",
 )
 
 cc_shared_library(
@@ -287,12 +243,19 @@ pkg_files(
     prefix = "include",
 )
 
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":headers",
+        ":pcre2_libfiles",
+        ":pcre2posix_libfiles",
+    ],
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+)
+
 pkg_install(
     name = "install",
     srcs = [
-        ":headers",
-        ":pkgconfig",
-        ":pcre2_libfiles",
-        ":pcre2posix_libfiles",
+        ":all_files",
     ],
 )

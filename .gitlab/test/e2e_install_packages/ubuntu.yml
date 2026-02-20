@@ -23,7 +23,7 @@ new-e2e-agent-platform-install-script-ubuntu-a7-x86_64:
     - .new-e2e_ubuntu_a7_x86_64
     - .new-e2e_agent_a7
   rules:
-    !reference [.on_default_new_e2e_tests]
+    !reference [.on_install_script_tests]
   variables:
     FLAVOR: datadog-agent
 
@@ -132,7 +132,7 @@ new-e2e-agent-platform-ddot-ubuntu-a7-x86_64:
     - .new_e2e_template
     - .new-e2e_ddot
     - .new-e2e_ubuntu_a7_x86_64
-  rules: !reference [.on_default_new_e2e_tests]
+  rules: !reference [.on_ddot_tests]
   variables:
     E2E_OSDESCRIPTORS: "ubuntu/x86_64/16-04,ubuntu/x86_64/18-04,ubuntu/x86_64/20-04,ubuntu/x86_64/22-04,ubuntu/x86_64/24-04"
 
@@ -141,4 +141,4 @@ new-e2e-agent-platform-ddot-ubuntu-a7-arm64:
     - .new_e2e_template
     - .new-e2e_ddot
     - .new-e2e_ubuntu_a7_arm64
-  rules: !reference [.on_default_new_e2e_tests]
+  rules: !reference [.on_ddot_tests]

@@ -19,15 +19,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Checkout base repo for trusted code (tasks, dda install)
+      # NOTE: Do NOT use sparse-checkout here — reno uses dulwich which doesn't
+      # support the extensions.worktreeConfig that sparse-checkout enables.
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: main
           fetch-depth: 0
-          sparse-checkout: |
-            .gitlab-ci.yml
-            .github/actions/install-dda
-            tasks
           persist-credentials: false
       # Fetch and checkout only releasenotes folders from PR (data only, no code execution)
       # Using refs/pull/NUMBER/head works for both fork and non-fork PRs

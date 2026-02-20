@@ -51,7 +51,7 @@ func GetCmdSocketPath(socketPath string, cmdSocketPath string) (string, error) {
 				return "", fmt.Errorf("invalid socket port: %s", addrPort[1])
 			}
 
-			cmdSocketPath = fmt.Sprintf("%s:%d", addrPort[0], port+1)
+			cmdSocketPath = addrPort[0] + ":" + strconv.Itoa(port+1)
 		}
 	}
 

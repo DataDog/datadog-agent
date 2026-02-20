@@ -36,6 +36,8 @@ golang_deps_commenter                @DataDog/agent-runtimes
 
 # Binary build
 build_system-probe*                  @DataDog/ebpf-platform
+build_sd-agent*                      @DataDog/agent-discovery
+build_dd-procmgrd*                   @DataDog/agent-runtimes
 cluster_agent_cloudfoundry-build*    @Datadog/agent-integrations
 cluster_agent-build*                 @DataDog/container-integrations
 cluster_agent_fips-build*            @DataDog/container-integrations

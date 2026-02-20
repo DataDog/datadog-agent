@@ -161,12 +161,20 @@ pkg_filegroup(
     prefix = "embedded/",
 )
 
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":hdr_files",
+        ":bin_files",
+        ":all_libs",
+    ],
+    visibility = ["@@//packages:__subpackages__"],
+)
+
 pkg_install(
     name = "install",
     srcs = [
-        ":hdr_files",
+        ":all_files",
         ":pc_files",
-        ":bin_files",
-        ":all_libs",
     ],
 )

@@ -12,16 +12,8 @@ import (
 
 // supportedConnections defines all connection types that can be auto-created
 var supportedConnections = map[string]ConnectionDefinition{
-	"http": {
-		BundleID:        "com.datadoghq.http",
-		IntegrationType: "HTTP",
-		Credentials: CredentialConfig{
-			Type:             "HTTPNoAuth",
-			AdditionalFields: nil,
-		},
-	},
 	"kubernetes": {
-		BundleID:        "com.datadoghq.kubernetes",
+		FQNPrefix:       "com.datadoghq.kubernetes",
 		IntegrationType: "Kubernetes",
 		Credentials: CredentialConfig{
 			Type:             "KubernetesServiceAccount",
@@ -29,36 +21,36 @@ var supportedConnections = map[string]ConnectionDefinition{
 		},
 	},
 	"script": {
-		BundleID:        "com.datadoghq.script",
+		FQNPrefix:       "com.datadoghq.script",
 		IntegrationType: "Script",
 		Credentials: CredentialConfig{
 			Type: "Script",
 			AdditionalFields: map[string]interface{}{
-				"configFileLocation": "/etc/dd-action-runner/config/credentials/script.yaml",
+				"configFileLocation": getScriptConfigPath(),
 			},
 		},
 	},
 }
 
-func allowlistContainsBundle(allowlist []string, bundleID string) bool {
-	for _, pattern := range allowlist {
-		// The agent allowlist only supports FQNs
-		if strings.HasPrefix(pattern, bundleID+".") {
+func actionsAllowlistContainsBundle(actionsAllowlist []string, fqnPrefix string) bool {
+	for _, fqn := range actionsAllowlist {
+		// The agent actionsAllowlist only supports FQNs
+		if strings.HasPrefix(fqn, fqnPrefix) {
 			return true
 		}
 	}
 	return false
 }
 
-func DetermineConnectionsToCreate(allowlist []string) []ConnectionDefinition {
-	if len(allowlist) == 0 {
+func DetermineConnectionsToCreate(actionsAllowlist []string) []ConnectionDefinition {
+	if len(actionsAllowlist) == 0 {
 		return []ConnectionDefinition{}
 	}
 
 	var result []ConnectionDefinition
 
 	for _, definition := range supportedConnections {
-		if allowlistContainsBundle(allowlist, definition.BundleID) {
+		if actionsAllowlistContainsBundle(actionsAllowlist, definition.FQNPrefix) {
 			result = append(result, definition)
 		}
 	}

@@ -376,7 +376,7 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		return true, nil
 	} else if node == nil {
 		// a process node couldn't be found or created for this event, ignore it
-		return false, errors.New("a process node couldn't be found or created for this event")
+		return false, fmt.Errorf("a process node couldn't be found or created for this event: %w", err)
 	}
 
 	// resolve fields

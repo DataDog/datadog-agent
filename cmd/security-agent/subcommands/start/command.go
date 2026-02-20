@@ -330,7 +330,7 @@ func RunAgent(log log.Component, config config.Component, secrets secrets.Compon
 	}
 
 	if err := setupInternalProfiling(config); err != nil {
-		return log.Errorf("Error while setuping internal profiling, exiting: %v", err)
+		return log.Errorf("Error while setting up internal profiling, exiting: %v", err)
 	}
 
 	log.Infof("Datadog Security Agent is now running.")

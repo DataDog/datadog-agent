@@ -22,11 +22,15 @@ import (
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
+	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	privateactionrunnerfx "github.com/DataDog/datadog-agent/comp/privateactionrunner/fx"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -52,7 +56,7 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 		}),
 		fx.Supply(core.BundleParams{
 			ConfigParams: config.NewAgentParams(confPath, config.WithExtraConfFiles(extraConfFiles)),
-			LogParams:    log.ForDaemon(command.LoggerName, "privateactionrunner.log_file", pkgconfigsetup.DefaultPrivateActionRunnerLogFile)}),
+			LogParams:    log.ForDaemon(command.LoggerName, pkgconfigsetup.PARLogFile, pkgconfigsetup.DefaultPrivateActionRunnerLogFile)}),
 		core.Bundle(),
 		secretsnoopfx.Module(),
 		fx.Provide(func(c config.Component) settings.Params {
@@ -69,6 +73,11 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 		rcserviceimpl.Module(),
 		rcclientimpl.Module(),
 		fx.Supply(rcclient.Params{AgentName: "private-action-runner", AgentVersion: version.AgentVersion}),
+		getTaggerModule(),
+		remotetraceroute.Module(),
+		logscompressionfx.Module(),
+		eventplatformreceiverimpl.Module(),
+		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 		privateactionrunnerfx.Module(),
 	}
 

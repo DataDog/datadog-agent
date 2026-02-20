@@ -257,7 +257,7 @@ func (rsa *RuntimeSecurityAgent) startActivityDumpStreamListener() {
 	}
 }
 
-// DispatchEvent dispatches a security event message to the subsytems of the runtime security agent
+// DispatchEvent dispatches a security event message to the subsystems of the runtime security agent
 func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
 	if evt.Track == string(common.SecInfo) {
 		if rsa.secInfoReporter == nil {

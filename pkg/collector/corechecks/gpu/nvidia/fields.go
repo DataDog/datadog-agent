@@ -21,7 +21,6 @@ import (
 )
 
 const computeRate = true
-const noComputeRate = false
 
 type lastPoint struct {
 	value     float64
@@ -32,14 +31,16 @@ type fieldsCollector struct {
 	device       ddnvml.Device
 	fieldMetrics []fieldValueMetric
 	lastPoints   map[string]lastPoint
+	now          func() time.Time
 }
 
 func newFieldsCollector(device ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
 	c := &fieldsCollector{
 		device:     device,
 		lastPoints: make(map[string]lastPoint),
+		now:        time.Now,
 	}
-	c.fieldMetrics = append(c.fieldMetrics, metricNameToFieldID...) // copy all metrics to avoid modifying the original slice
+	c.fieldMetrics = append(c.fieldMetrics, allFieldMetrics...) // copy all metrics to avoid modifying the original slice
 
 	// Remove any unsupported fields, we also want to check if we have any fields left
 	// to avoid doing unnecessary work
@@ -93,7 +94,7 @@ func (c *fieldsCollector) getFieldValues() ([]nvml.FieldValue, error) {
 
 // Collect collects all the metrics from the given NVML device.
 func (c *fieldsCollector) Collect() ([]Metric, error) {
-	now := time.Now()
+	now := c.now()
 	fields, err := c.getFieldValues()
 	if err != nil {
 		return nil, err
@@ -127,8 +128,12 @@ func (c *fieldsCollector) Collect() ([]Metric, error) {
 
 			delta := currPoint.value - lastPoint.value
 			seconds := now.Sub(lastPoint.timestamp).Seconds()
-			if delta <= 0 || seconds <= 0 {
+			if seconds <= 0 {
 				continue
+			}
+
+			if delta < 0 {
+				delta = 0
 			}
 
 			rate := float64(delta) / float64(seconds)
@@ -136,10 +141,11 @@ func (c *fieldsCollector) Collect() ([]Metric, error) {
 		}
 
 		metrics = append(metrics, Metric{
-			Name:  name,
-			Value: value,
-			Type:  c.fieldMetrics[i].metricType},
-		)
+			Name:     name,
+			Value:    value,
+			Type:     c.fieldMetrics[i].metricType,
+			Priority: c.fieldMetrics[i].priority,
+		})
 	}
 
 	return metrics, err
@@ -151,7 +157,10 @@ func (c *fieldsCollector) Name() CollectorName {
 }
 
 // fieldValueMetric represents a metric that can be retrieved using the NVML
-// FieldValues API, and associates a name for that metric
+// FieldValues API, and associates a name for that metric.
+// When multiple field IDs can emit the same metric name, priority determines
+// which one is preferred: higher priority wins. Duplicate resolution is handled
+// by RemoveDuplicateMetrics at collection time.
 type fieldValueMetric struct {
 	name         string
 	fieldValueID uint32 // No specific type, but these are constants prefixed with FI_DEV in the nvml package
@@ -160,25 +169,44 @@ type fieldValueMetric struct {
 	scopeID     uint32
 	metricType  metrics.MetricType
 	computeRate bool
+	priority    MetricPriority
 }
 
-var metricNameToFieldID = []fieldValueMetric{
-	{"memory.temperature", nvml.FI_DEV_MEMORY_TEMP, 0, metrics.GaugeType, noComputeRate},
-	// we don't want to use bandwidth fields as they are deprecated:
-	// https://github.com/NVIDIA/nvidia-settings/blob/main/src/nvml.h#L2049-L2057
-	// uint_max to collect the aggregated value summed up across all links (ref: https://github.com/NVIDIA/nvidia-settings/blob/main/src/nvml.h#L2175-L2177)
-	// Also, despite NVIDIA calling this a "throughput", it's actually the number of bytes transferred. That's why we compute the rate in the code.
-	{"nvlink.throughput.data.rx", nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX, math.MaxUint32, metrics.GaugeType, computeRate},
-	{"nvlink.throughput.data.tx", nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX, math.MaxUint32, metrics.GaugeType, computeRate},
-	{"nvlink.throughput.raw.rx", nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX, math.MaxUint32, metrics.GaugeType, computeRate},
-	{"nvlink.throughput.raw.tx", nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX, math.MaxUint32, metrics.GaugeType, computeRate},
-	{"nvlink.speed", nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON, 0, metrics.GaugeType, noComputeRate},
-	{"nvlink.nvswitch_connected", nvml.FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT, 0, metrics.GaugeType, noComputeRate},
-	{"nvlink.errors.crc.data", nvml.FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL, 0, metrics.GaugeType, noComputeRate},
-	{"nvlink.errors.crc.flit", nvml.FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL, 0, metrics.GaugeType, noComputeRate},
-	{"nvlink.errors.ecc", nvml.FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL, 0, metrics.GaugeType, noComputeRate},
-	{"nvlink.errors.recovery", nvml.FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL, 0, metrics.GaugeType, noComputeRate},
-	{"nvlink.errors.replay", nvml.FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL, 0, metrics.GaugeType, noComputeRate},
-	{"pci.replay_counter", nvml.FI_DEV_PCIE_REPLAY_COUNTER, 0, metrics.GaugeType, noComputeRate},
-	{"slowdown_temperature", nvml.FI_DEV_PERF_POLICY_THERMAL, 0, metrics.GaugeType, noComputeRate},
+// allFieldMetrics lists all candidate field-value metrics. When multiple entries
+// share the same metric name, they are alternatives for the same logical metric;
+// the highest-priority one is selected by RemoveDuplicateMetrics at collection time.
+//
+// Low (default) = legacy fields (pre-NVLink5), MediumLow = newer per-link fields
+// introduced with NVLink5/Blackwell (field IDs 164+). The newer fields use
+// scopeId to specify the link index and support >12 links.
+var allFieldMetrics = []fieldValueMetric{
+	// -- Non-NVLink metrics (no alternatives) --
+	{name: "memory.temperature", fieldValueID: nvml.FI_DEV_MEMORY_TEMP, metricType: metrics.GaugeType},
+	{name: "pci.replay_counter", fieldValueID: nvml.FI_DEV_PCIE_REPLAY_COUNTER, metricType: metrics.GaugeType},
+	{name: "slowdown_temperature", fieldValueID: nvml.FI_DEV_PERF_POLICY_THERMAL, metricType: metrics.GaugeType},
+
+	// -- NVLink throughput --
+	// Despite NVIDIA calling these "throughput", they report cumulative bytes transferred,
+	// so we compute the rate ourselves.
+	// scopeId=MaxUint32 aggregates across all links (see nvml.h L2175-L2177).
+	{name: "nvlink.throughput.data.rx", fieldValueID: nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX, scopeID: math.MaxUint32, metricType: metrics.GaugeType, computeRate: computeRate},
+	{name: "nvlink.throughput.data.tx", fieldValueID: nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX, scopeID: math.MaxUint32, metricType: metrics.GaugeType, computeRate: computeRate},
+	{name: "nvlink.throughput.raw.rx", fieldValueID: nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX, scopeID: math.MaxUint32, metricType: metrics.GaugeType, computeRate: computeRate},
+	{name: "nvlink.throughput.raw.tx", fieldValueID: nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX, scopeID: math.MaxUint32, metricType: metrics.GaugeType, computeRate: computeRate},
+
+	// -- NVLink speed --
+	// MediumLow: newer field (164), uses scopeId=0 for link 0 speed. As we do not report per-link speeds, we assume all links are at the same speed.
+	// Low (default): legacy SPEED_MBPS_COMMON (90), returns common speed across all active links.
+	{name: "nvlink.speed", fieldValueID: nvml.FI_DEV_NVLINK_GET_SPEED, priority: MediumLow, metricType: metrics.GaugeType},
+	{name: "nvlink.speed", fieldValueID: nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON, metricType: metrics.GaugeType},
+
+	// -- NVLink connection info --
+	{name: "nvlink.nvswitch_connected", fieldValueID: nvml.FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT, metricType: metrics.GaugeType},
+
+	// -- NVLink error counters --
+	{name: "nvlink.errors.crc.data", fieldValueID: nvml.FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},
+	{name: "nvlink.errors.crc.flit", fieldValueID: nvml.FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},
+	{name: "nvlink.errors.ecc", fieldValueID: nvml.FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},
+	{name: "nvlink.errors.recovery", fieldValueID: nvml.FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},
+	{name: "nvlink.errors.replay", fieldValueID: nvml.FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL, metricType: metrics.GaugeType},
 }

@@ -6,6 +6,8 @@
 // Package listeners is a wrapper that registers the available autodiscovery listerners.
 package listeners
 
+import autoutils "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
+
 const (
 	cloudFoundryBBSListenerName = "cloudfoundry-bbs"
 	containerListenerName       = "container"
@@ -18,6 +20,7 @@ const (
 	staticConfigListenerName    = "static config"
 	dbmAuroraListenerName       = "database-monitoring-aurora"
 	dbmRdsListenerName          = "database-monitoring-rds"
+	crdListenerName             = "crd"
 )
 
 // RegisterListeners registers the available autodiscovery listerners.
@@ -26,7 +29,6 @@ func RegisterListeners(serviceListenerFactories map[string]ServiceListenerFactor
 	Register(cloudFoundryBBSListenerName, NewCloudFoundryListener, serviceListenerFactories)
 	Register(containerListenerName, NewContainerListener, serviceListenerFactories)
 	Register(environmentListenerName, NewEnvironmentListener, serviceListenerFactories)
-	Register(kubeEndpointsListenerName, NewKubeEndpointsListener, serviceListenerFactories)
 	Register(kubeServicesListenerName, NewKubeServiceListener, serviceListenerFactories)
 	Register(kubeletListenerName, NewKubeletListener, serviceListenerFactories)
 	Register(processListenerName, NewProcessListener, serviceListenerFactories)
@@ -34,4 +36,11 @@ func RegisterListeners(serviceListenerFactories map[string]ServiceListenerFactor
 	Register(staticConfigListenerName, NewStaticConfigListener, serviceListenerFactories)
 	Register(dbmAuroraListenerName, NewDBMAuroraListener, serviceListenerFactories)
 	Register(dbmRdsListenerName, NewDBMRdsListener, serviceListenerFactories)
+	Register(crdListenerName, NewCRDListerner, serviceListenerFactories)
+
+	endpointsListener := NewKubeEndpointsListener
+	if autoutils.UseEndpointSlices() {
+		endpointsListener = NewKubeEndpointSlicesListener
+	}
+	Register(kubeEndpointsListenerName, endpointsListener, serviceListenerFactories)
 }

@@ -68,7 +68,7 @@ func TestNetDevice(t *testing.T) {
 		_ = exec.Command(executable, "link", "delete", "host-eth0").Run()
 	}()
 
-	// those tests are dependend on each other, they can't be run in isolation
+	// those tests are dependent on each other, they can't be run in isolation
 
 	// register_netdevice
 	err = test.GetProbeEvent(func() error {

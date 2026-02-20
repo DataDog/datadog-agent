@@ -6,7 +6,6 @@
 package workloadmeta
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -72,14 +71,14 @@ func TestExtractor(t *testing.T) {
 	procs, cacheVersion := extractor.GetAllProcessEntities()
 	assert.Equal(t, int32(1), cacheVersion)
 	assert.Equal(t, map[string]*ProcessEntity{
-		hashProcess(Pid1, proc1.Stats.CreateTime): {
+		procutil.ProcessIdentity(Pid1, proc1.Stats.CreateTime, proc1.Cmdline): {
 			Pid:          proc1.Pid,
 			NsPid:        proc1.NsPid,
 			CreationTime: proc1.Stats.CreateTime,
 			Language:     &languagemodels.Language{Name: languagemodels.Java},
 			ContainerId:  ctrId1,
 		},
-		hashProcess(Pid2, proc2.Stats.CreateTime): {
+		procutil.ProcessIdentity(Pid2, proc2.Stats.CreateTime, proc2.Cmdline): {
 			Pid:          proc2.Pid,
 			NsPid:        proc2.NsPid,
 			CreationTime: proc2.Stats.CreateTime,
@@ -119,14 +118,14 @@ func TestExtractor(t *testing.T) {
 	procs, cacheVersion = extractor.GetAllProcessEntities()
 	assert.Equal(t, int32(1), cacheVersion) // cache version doesn't change
 	assert.Equal(t, map[string]*ProcessEntity{
-		hashProcess(Pid1, proc1.Stats.CreateTime): {
+		procutil.ProcessIdentity(Pid1, proc1.Stats.CreateTime, proc1.Cmdline): {
 			Pid:          proc1.Pid,
 			NsPid:        proc1.NsPid,
 			CreationTime: proc1.Stats.CreateTime,
 			Language:     &languagemodels.Language{Name: languagemodels.Java},
 			ContainerId:  ctrId1,
 		},
-		hashProcess(Pid2, proc2.Stats.CreateTime): {
+		procutil.ProcessIdentity(Pid2, proc2.Stats.CreateTime, proc2.Cmdline): {
 			Pid:          proc2.Pid,
 			NsPid:        proc2.NsPid,
 			CreationTime: proc2.Stats.CreateTime,
@@ -145,7 +144,7 @@ func TestExtractor(t *testing.T) {
 	procs, cacheVersion = extractor.GetAllProcessEntities()
 	assert.Equal(t, int32(2), cacheVersion)
 	assert.Equal(t, map[string]*ProcessEntity{
-		hashProcess(Pid2, proc2.Stats.CreateTime): {
+		procutil.ProcessIdentity(Pid2, proc2.Stats.CreateTime, proc2.Cmdline): {
 			Pid:          proc2.Pid,
 			NsPid:        proc2.NsPid,
 			CreationTime: proc2.Stats.CreateTime,
@@ -176,14 +175,14 @@ func TestExtractor(t *testing.T) {
 	procs, cacheVersion = extractor.GetAllProcessEntities()
 	assert.Equal(t, int32(3), cacheVersion)
 	assert.Equal(t, map[string]*ProcessEntity{
-		hashProcess(Pid2, proc2.Stats.CreateTime): {
+		procutil.ProcessIdentity(Pid2, proc2.Stats.CreateTime, proc2.Cmdline): {
 			Pid:          proc2.Pid,
 			NsPid:        proc2.NsPid,
 			CreationTime: proc2.Stats.CreateTime,
 			Language:     &languagemodels.Language{Name: languagemodels.Python},
 			ContainerId:  ctrId1,
 		},
-		hashProcess(Pid3, proc3.Stats.CreateTime): {
+		procutil.ProcessIdentity(Pid3, proc3.Stats.CreateTime, proc3.Cmdline): {
 			Pid:          proc3.Pid,
 			NsPid:        proc3.NsPid,
 			CreationTime: proc3.Stats.CreateTime,
@@ -214,14 +213,14 @@ func TestExtractor(t *testing.T) {
 	procs, cacheVersion = extractor.GetAllProcessEntities()
 	assert.Equal(t, int32(4), cacheVersion)
 	assert.Equal(t, map[string]*ProcessEntity{
-		hashProcess(Pid3, proc3.Stats.CreateTime): {
+		procutil.ProcessIdentity(Pid3, proc3.Stats.CreateTime, proc3.Cmdline): {
 			Pid:          proc3.Pid,
 			NsPid:        proc3.NsPid,
 			CreationTime: proc3.Stats.CreateTime,
 			Language:     &languagemodels.Language{Name: languagemodels.Unknown},
 			ContainerId:  ctrId1,
 		},
-		hashProcess(Pid4, proc4.Stats.CreateTime): {
+		procutil.ProcessIdentity(Pid4, proc4.Stats.CreateTime, proc4.Cmdline): {
 			Pid:          proc4.Pid,
 			NsPid:        proc4.NsPid,
 			CreationTime: proc4.Stats.CreateTime,
@@ -250,23 +249,6 @@ func TestExtractor(t *testing.T) {
 			ContainerId:  ctrId1,
 		},
 	}, diff.Deletion)
-}
-
-func BenchmarkHashProcess(b *testing.B) {
-	b.Run("itoa", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			hashProcess(0, 0)
-		}
-	})
-	b.Run("sprintf", func(b *testing.B) {
-		hashProcess := func(pid int32, createTime int64) string {
-			return fmt.Sprintf("pid:%v|createTime:%v", pid, createTime)
-		}
-
-		for i := 0; i < b.N; i++ {
-			hashProcess(0, 0)
-		}
-	})
 }
 
 // Occasionally, WorkloadMeta will not have the ContainerID by the first time a process collection is executed. This test
@@ -322,4 +304,70 @@ func TestLateContainerId(t *testing.T) {
 		},
 		Deletion: []*ProcessEntity{},
 	}, <-extractor.ProcessCacheDiff())
+}
+
+// TestExecCmdlineChange tests that when a process has a different cmdline but same PID and same createTime
+// the extractor treats it as a new process and generates creation/deletion events accordingly.
+func TestExecCmdlineChange(t *testing.T) {
+	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
+
+	extractor := NewWorkloadMetaExtractor(configmock.New(t))
+
+	// Create a process with a specific createTime
+	createTime := time.Now().Unix()
+	// Use different NsPid values to differentiate bash vs htop in assertions
+	// (In reality exec() preserves NsPid, but this helps verify correct events)
+	bashNsPid := int32(100)
+	htopNsPid := int32(200)
+
+	proc1Bash := &procutil.Process{
+		Pid:     Pid1,
+		NsPid:   bashNsPid,
+		Cmdline: []string{"bash"},
+		Stats:   &procutil.Stats{CreateTime: createTime},
+	}
+
+	// First extraction: bash process
+	extractor.Extract(map[int32]*procutil.Process{
+		Pid1: proc1Bash,
+	})
+
+	procs, cacheVersion := extractor.GetAllProcessEntities()
+	assert.Equal(t, int32(1), cacheVersion)
+	assert.Len(t, procs, 1)
+
+	diff := <-extractor.ProcessCacheDiff()
+	assert.Equal(t, int32(1), diff.cacheVersion)
+	assert.Len(t, diff.Creation, 1)
+	assert.Equal(t, proc1Bash.Pid, diff.Creation[0].Pid)
+	assert.Equal(t, bashNsPid, diff.Creation[0].NsPid)
+	assert.Len(t, diff.Deletion, 0)
+
+	proc1htop := &procutil.Process{
+		Pid:     Pid1,
+		NsPid:   htopNsPid,
+		Cmdline: []string{"htop"},
+		Stats:   &procutil.Stats{CreateTime: createTime}, // Same createTime as before!
+	}
+
+	extractor.Extract(map[int32]*procutil.Process{
+		Pid1: proc1htop,
+	})
+
+	procs, cacheVersion = extractor.GetAllProcessEntities()
+	assert.Equal(t, int32(2), cacheVersion)
+	assert.Len(t, procs, 1) // Still 1 process, but it should be the new one
+
+	diff = <-extractor.ProcessCacheDiff()
+	assert.Equal(t, int32(2), diff.cacheVersion)
+
+	// We should generate a creation event for the new process (htop)
+	assert.Len(t, diff.Creation, 1, "Expected creation event for exec'd process")
+	assert.Equal(t, int32(Pid1), diff.Creation[0].Pid)
+	assert.Equal(t, htopNsPid, diff.Creation[0].NsPid, "Creation event should be for htop process")
+
+	// We should generate a deletion event for the old process (bash)
+	assert.Len(t, diff.Deletion, 1, "Expected deletion event for original process")
+	assert.Equal(t, int32(Pid1), diff.Deletion[0].Pid)
+	assert.Equal(t, bashNsPid, diff.Deletion[0].NsPid, "Deletion event should be for bash process")
 }
