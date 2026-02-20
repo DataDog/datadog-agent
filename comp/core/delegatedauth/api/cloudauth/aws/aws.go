@@ -75,14 +75,14 @@ func NewAWSAuth(config *cloudauthconfig.AWSProviderConfig) *AWSAuth {
 // GenerateAuthProof generates an AWS-specific authentication proof using SigV4 signing.
 // This proof includes a signed AWS STS GetCallerIdentity request that proves access to AWS credentials.
 // The context parameter allows for cancellation of the proof generation.
-func (a *AWSAuth) GenerateAuthProof(ctx context.Context, cfg pkgconfigmodel.Reader, config *common.AuthConfig) (string, error) {
+func (a *AWSAuth) GenerateAuthProof(ctx context.Context, _ pkgconfigmodel.Reader, config *common.AuthConfig) (string, error) {
 	// Check for context cancellation early
 	if ctx.Err() != nil {
 		return "", ctx.Err()
 	}
 
 	// Get local AWS Credentials
-	credentials := a.getCredentials(cfg)
+	credentials := a.getCredentials()
 
 	if config == nil || config.OrgUUID == "" {
 		return "", errors.New("missing org UUID in config")
@@ -100,8 +100,8 @@ func (a *AWSAuth) GenerateAuthProof(ctx context.Context, cfg pkgconfigmodel.Read
 }
 
 // getCredentials retrieves AWS credentials using the same approach as EC2 tags fetching.
-// It first tries config/environment variables, then falls back to EC2 instance metadata service.
-func (a *AWSAuth) getCredentials(cfg pkgconfigmodel.Reader) *creds.SecurityCredentials {
+// It first tries environment variables, then falls back to EC2 instance metadata service.
+func (a *AWSAuth) getCredentials() *creds.SecurityCredentials {
 	awsCredentials := &creds.SecurityCredentials{}
 
 	// Try to get credentials from environment variables
