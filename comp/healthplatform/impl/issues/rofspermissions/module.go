@@ -5,6 +5,8 @@
 
 //go:build linux
 
+// Package rofspermissions provides a complete module for handling Read-Only Filesystem permission issues specifically
+// checking if the Agent as write permissions to all the expected directories.
 package rofspermissions
 
 import (
