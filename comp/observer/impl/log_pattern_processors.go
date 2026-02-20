@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -61,6 +62,10 @@ func (p *PatternLogProcessor) Name() string {
 }
 
 func (p *PatternLogProcessor) Process(log observer.LogView) observer.LogProcessorResult {
+	// TODO A:
+	if !strings.Contains(string(log.GetContent()), "q-log") {
+		return observer.LogProcessorResult{}
+	}
 	fmt.Printf("Processing log: %s\n", string(log.GetContent()))
 
 	p.ClustererPipeline.Process(string(log.GetContent()))
@@ -109,6 +114,8 @@ type WatchdogLogAnomalyDetector struct {
 	// TODO: How to do eviction with that?
 	History       map[int]TimeSeriesHistory
 	SnapshotIndex int
+	AlertCooldown time.Duration
+	LastAlerts    map[int]time.Time
 }
 
 func NewWatchdogLogAnomalyDetector(resultChannel chan *observer.LogProcessorResult) *WatchdogLogAnomalyDetector {
@@ -124,6 +131,8 @@ func NewWatchdogLogAnomalyDetector(resultChannel chan *observer.LogProcessorResu
 		BaselineLen:       20,
 		History:           make(map[int]TimeSeriesHistory),
 		SnapshotIndex:     0,
+		AlertCooldown:     15 * time.Second,
+		LastAlerts:        make(map[int]time.Time),
 	}
 }
 
@@ -134,6 +143,11 @@ type TimeSeriesHistory struct {
 	Preprocess *queue.Queue
 	Eval       *queue.Queue
 	Baseline   *queue.Queue
+}
+
+type AlertInfo struct {
+	ClusterID int
+	ZScore    float64
 }
 
 // TODO: Is it better to have this in the processor and not each anomaly detector?
@@ -184,32 +198,34 @@ func (w *WatchdogLogAnomalyDetector) ProcessBatch(batch []*LogAnomalyDetectionPr
 
 	// We can do anomaly detection
 	if w.Snapshot() {
-		if len(w.PatternRate) > 0 {
-			maxRate := 0.0
-			maxRatePatternID := 0
-			for patternID, rate := range w.PatternRate {
-				w.PatternRate[patternID] = rate * w.Alpha
+		/*
+			if len(w.PatternRate) > 0 {
+				maxRate := 0.0
+				maxRatePatternID := 0
+				for patternID, rate := range w.PatternRate {
+					w.PatternRate[patternID] = rate * w.Alpha
 
-				if rate < w.EvictionThreshold {
-					delete(w.PatternRate, patternID)
-					// fmt.Printf("[cc] WatchdogLogAnomalyDetector: Evicting pattern: %d\n", patternID)
+					if rate < w.EvictionThreshold {
+						delete(w.PatternRate, patternID)
+						// fmt.Printf("[cc] WatchdogLogAnomalyDetector: Evicting pattern: %d\n", patternID)
+					}
+
+					if rate > maxRate {
+						maxRate = rate
+						maxRatePatternID = patternID
+					}
 				}
 
-				if rate > maxRate {
-					maxRate = rate
-					maxRatePatternID = patternID
+				clusterInfo, err := w.Processor.ClustererPipeline.GetClusterInfo(maxRatePatternID)
+				if err != nil {
+					fmt.Printf("[cc] WatchdogLogAnomalyDetector: Error getting cluster info: %v\n", err)
+					return
 				}
-			}
 
-			clusterInfo, err := w.Processor.ClustererPipeline.GetClusterInfo(maxRatePatternID)
-			if err != nil {
-				fmt.Printf("[cc] WatchdogLogAnomalyDetector: Error getting cluster info: %v\n", err)
-				return
+				fmt.Printf("[cc] WatchdogLogAnomalyDetector: Max Rate Cluster: Rate: %f, ID: %d, Pattern: %s\n", maxRate, maxRatePatternID, clusterInfo.PatternString)
+				fmt.Printf("[cc] WatchdogLogAnomalyDetector: Pattern rates: %d\n", len(w.PatternRate))
 			}
-
-			fmt.Printf("[cc] WatchdogLogAnomalyDetector: Max Rate Cluster: Rate: %f, ID: %d, Pattern: %s\n", maxRate, maxRatePatternID, clusterInfo.PatternString)
-			fmt.Printf("[cc] WatchdogLogAnomalyDetector: Pattern rates: %d\n", len(w.PatternRate))
-		}
+		*/
 
 		w.DetectAnomalies()
 	}
@@ -271,7 +287,7 @@ func (w *WatchdogLogAnomalyDetector) Snapshot() bool {
 // DetectAnomalies detects anomalies in the history
 func (w *WatchdogLogAnomalyDetector) DetectAnomalies() {
 	// TODO
-	zThreshold := 2.5
+	zThreshold := 3.0
 
 	for clusterID, history := range w.History {
 		// TODO: Is half filled enough?
@@ -307,12 +323,22 @@ func (w *WatchdogLogAnomalyDetector) DetectAnomalies() {
 		zScore := (evalMean - baselineMean) / baselineStddev
 		if math.Abs(zScore) > zThreshold {
 			// TODO: Lock...
-			clusterInfo, err := w.Processor.ClustererPipeline.GetClusterInfo(clusterID)
-			if err != nil {
-				fmt.Printf("[cc] WatchdogLogAnomalyDetector: Error getting cluster info: %v\n", err)
-				continue
-			}
-			fmt.Printf("[cc] WatchdogLogAnomalyDetector: Anomaly detected for cluster: %d, Z-Score: %f, Pattern: %s\n", clusterID, zScore, clusterInfo.PatternString)
+			alertInfo := AlertInfo{ClusterID: clusterID, ZScore: zScore}
+			w.OnAnomalyDetected(alertInfo)
 		}
+	}
+}
+
+func (w *WatchdogLogAnomalyDetector) OnAnomalyDetected(alert AlertInfo) {
+	if _, ok := w.LastAlerts[alert.ClusterID]; !ok || time.Since(w.LastAlerts[alert.ClusterID]) >= w.AlertCooldown {
+		w.LastAlerts[alert.ClusterID] = time.Now()
+
+		clusterInfo, err := w.Processor.ClustererPipeline.GetClusterInfo(alert.ClusterID)
+		if err != nil {
+			fmt.Printf("[cc] WatchdogLogAnomalyDetector: Error getting cluster info: %v\n", err)
+			return
+		}
+
+		fmt.Printf("[cc] WatchdogLogAnomalyDetector: ALERT: Cluster: %d, Z-Score: %f, Pattern: %s\n", alert.ClusterID, alert.ZScore, clusterInfo.PatternString)
 	}
 }
