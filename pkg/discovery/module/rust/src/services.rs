@@ -9,7 +9,6 @@ use serde::Serialize;
 use crate::apm;
 use crate::envs;
 use crate::fs::SubDirFs;
-use crate::injector::is_apm_injector_in_process_maps;
 use crate::language::Language;
 use crate::params::Params;
 use crate::ports::{self, ParsingContext};
@@ -62,13 +61,16 @@ pub fn get_services(params: Params) -> ServicesResponse {
 
     // Process new PIDs with full service info collection
     if let Some(new_pids) = &params.new_pids {
-        // Check for APM injector even if process is not detected as a service.
+        // Single /maps read per PID: checks injector and GPU libraries in one pass.
+        // APM injector is checked even if the process is not detected as a service.
         for pid in new_pids {
-            if is_apm_injector_in_process_maps(*pid) {
+            let maps_info = procfs::maps::scan(*pid);
+
+            if maps_info.is_injected {
                 resp.injected_pids.push(*pid);
             }
 
-            if let Some(service) = get_service(*pid, &mut context) {
+            if let Some(service) = get_service(*pid, maps_info.has_gpu_libs, &mut context) {
                 info!("found service {service:#?}");
                 resp.services.push(service);
             }
@@ -87,8 +89,8 @@ pub fn get_services(params: Params) -> ServicesResponse {
     resp
 }
 
-fn get_service(pid: i32, context: &mut ParsingContext) -> Option<Service> {
-    let open_files_info = procfs::fd::get_open_files_info(pid).ok()?;
+fn get_service(pid: i32, has_gpu_libs: bool, context: &mut ParsingContext) -> Option<Service> {
+    let open_files_info = procfs::fd::get_open_files_info(pid, has_gpu_libs).ok()?;
 
     let log_files = procfs::fd::get_log_files(pid, &open_files_info.logs);
 
@@ -131,9 +133,7 @@ fn get_service(pid: i32, context: &mut ParsingContext) -> Option<Service> {
     let apm_instrumentation =
         tracer_metadata.is_some() || apm::detect(&language, pid, &cmdline, &envs);
 
-    // Detect GPU usage: Fast path (devices) already checked, fallback to libraries
-    let has_nvidia_gpu = open_files_info.has_gpu_device
-        || procfs::maps::has_gpu_nvidia_libraries(pid);
+    let has_nvidia_gpu = has_gpu_libs || open_files_info.has_gpu_device;
 
     Some(Service {
         pid,
@@ -155,7 +155,7 @@ fn get_service(pid: i32, context: &mut ParsingContext) -> Option<Service> {
 }
 
 fn get_heartbeat_service(pid: i32, context: &mut ParsingContext) -> Option<Service> {
-    let open_files_info = procfs::fd::get_open_files_info(pid).ok()?;
+    let open_files_info = procfs::fd::get_open_files_info(pid, false).ok()?;
 
     let log_files = procfs::fd::get_log_files(pid, &open_files_info.logs);
 

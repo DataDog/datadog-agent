@@ -27,26 +27,81 @@ const GPU_LIBS: &[&[u8]] = &[
     b"libnccl.so",
 ];
 
-/// Internal function to check for GPU libraries given a reader
+/// Result of a single-pass scan of /proc/[pid]/maps.
+pub struct MapsInfo {
+    pub is_injected: bool,
+    pub has_gpu_libs: bool,
+}
+
+fn is_injected_in_line(line: &[u8]) -> bool {
+    let Ok(line_str) = std::str::from_utf8(line) else {
+        return false;
+    };
+    let Some(filename) = line_str.split_whitespace().last() else {
+        return false;
+    };
+    let Some(after_prefix) =
+        filename.strip_prefix("/opt/datadog-packages/datadog-apm-inject/")
+    else {
+        return false;
+    };
+    let Some(slash_pos) = after_prefix.find('/') else {
+        return false;
+    };
+    if slash_pos == 0 {
+        return false;
+    }
+    after_prefix
+        .get(slash_pos..)
+        .is_some_and(|remainder| remainder == "/inject/launcher.preload.so")
+}
+
+fn has_gpu_lib_in_line(line: &[u8]) -> bool {
+    GPU_LIBS
+        .iter()
+        .any(|&lib| line.windows(lib.len()).any(|window| window == lib))
+}
+
+/// Scans /proc/[pid]/maps once, checking for the APM injector and NVIDIA GPU
+/// libraries in a single pass. Stops early once both are found.
+pub fn scan(pid: i32) -> MapsInfo {
+    let Ok(reader) = get_reader_for_pid(pid) else {
+        return MapsInfo {
+            is_injected: false,
+            has_gpu_libs: false,
+        };
+    };
+    scan_reader(reader)
+}
+
+fn scan_reader<R: BufRead>(reader: R) -> MapsInfo {
+    let mut is_injected = false;
+    let mut has_gpu_libs = false;
+
+    for line in reader.split(b'\n').filter_map(|l| l.ok()) {
+        if !is_injected {
+            is_injected = is_injected_in_line(&line);
+        }
+        if !has_gpu_libs {
+            has_gpu_libs = has_gpu_lib_in_line(&line);
+        }
+        if is_injected && has_gpu_libs {
+            break;
+        }
+    }
+
+    MapsInfo {
+        is_injected,
+        has_gpu_libs,
+    }
+}
+
+#[cfg(test)]
 fn check_for_gpu_libraries<R: BufRead>(reader: R) -> bool {
-    // Read the maps file line by line and check for any of the GPU libraries
     reader
         .split(b'\n')
         .filter_map(|line_result| line_result.ok())
-        .any(|line| {
-            GPU_LIBS
-                .iter()
-                .any(|&lib| line.windows(lib.len()).any(|window| window == lib))
-        })
-}
-
-/// Detects if a process is using NVIDIA GPU libraries by checking /proc/[pid]/maps
-pub fn has_gpu_nvidia_libraries(pid: i32) -> bool {
-    let Ok(reader) = get_reader_for_pid(pid) else {
-        return false;
-    };
-
-    check_for_gpu_libraries(reader)
+        .any(|line| has_gpu_lib_in_line(&line))
 }
 
 #[cfg(test)]
@@ -95,7 +150,7 @@ mod tests {
             return;
         };
         temp_env::with_var("HOST_PROC", Some(temp_dir.path()), || {
-            assert!(!has_gpu_nvidia_libraries(999999));
+            assert!(!scan(999999).has_gpu_libs);
         });
     }
 

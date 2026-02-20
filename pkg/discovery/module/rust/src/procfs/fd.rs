@@ -36,7 +36,7 @@ struct FdInfo {
     flags: u32,
 }
 
-pub fn get_open_files_info(pid: i32) -> Result<OpenFilesInfo, std::io::Error> {
+pub fn get_open_files_info(pid: i32, has_gpu_libs: bool) -> Result<OpenFilesInfo, std::io::Error> {
     let fd_path = root_path().join(pid.to_string()).join("fd");
     let mut result = OpenFilesInfo {
         sockets: Vec::new(),
@@ -54,8 +54,8 @@ pub fn get_open_files_info(pid: i32) -> Result<OpenFilesInfo, std::io::Error> {
             Some((path, link))
         })
         .for_each(|(entry, link)| {
-            // Check for GPU device first (before link is moved)
-            if !result.has_gpu_device && is_gpu_device(link.as_path()) {
+            // Skip GPU device check if GPU libraries were already detected via /maps
+            if !has_gpu_libs && !result.has_gpu_device && is_gpu_device(link.as_path()) {
                 result.has_gpu_device = true;
             }
 
@@ -564,7 +564,7 @@ mod tests {
 
             let pid = std::process::id().cast_signed();
 
-            let open_files_info = get_open_files_info(pid).expect("Failed to collect open files");
+            let open_files_info = get_open_files_info(pid, false).expect("Failed to collect open files");
 
             let temp_path_str = temp_path
                 .to_str()
