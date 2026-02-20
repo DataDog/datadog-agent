@@ -215,9 +215,9 @@ func TestValidateAdditionalDirs(t *testing.T) {
 func TestDeduplication(t *testing.T) {
 	// Simulate two sources returning the same path
 	seen := make(map[string]struct{})
-	var result []LogFileEntry
+	var result []FileEntry
 
-	entries := []LogFileEntry{
+	entries := []FileEntry{
 		{Path: "/var/log/syslog", Source: "process"},
 		{Path: "/var/log/syslog", Source: "filesystem"},
 		{Path: "/var/log/other.log", Source: "filesystem"},

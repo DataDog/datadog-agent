@@ -13,8 +13,8 @@ import (
 
 // collectFilesystemLogs walks /var/log (excluding K8s/Docker subdirs) plus
 // any user-specified additional directories.
-func collectFilesystemLogs(hostPrefix string, additionalDirs []string) ([]LogFileEntry, []string) {
-	var entries []LogFileEntry
+func collectFilesystemLogs(hostPrefix string, additionalDirs []string) ([]FileEntry, []string) {
+	var entries []FileEntry
 	var errs []string
 
 	// Walk /var/log with the isLogFile heuristic
@@ -29,7 +29,7 @@ func collectFilesystemLogs(hostPrefix string, additionalDirs []string) ([]LogFil
 			}
 			outputPath := toOutputPath(hostPrefix, path)
 			if isLogFile(outputPath) {
-				entries = append(entries, LogFileEntry{
+				entries = append(entries, FileEntry{
 					Path:   outputPath,
 					Source: "filesystem",
 				})
@@ -58,7 +58,7 @@ func collectFilesystemLogs(hostPrefix string, additionalDirs []string) ([]LogFil
 			if !d.Type().IsRegular() {
 				return nil
 			}
-			entries = append(entries, LogFileEntry{
+			entries = append(entries, FileEntry{
 				Path:   toOutputPath(hostPrefix, path),
 				Source: "filesystem",
 			})

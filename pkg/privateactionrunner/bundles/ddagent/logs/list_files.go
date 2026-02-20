@@ -16,13 +16,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-// ListLogFilesInputs are the optional inputs for the listLogFiles action.
-type ListLogFilesInputs struct {
+// ListFilesInputs are the optional inputs for the listFiles action.
+type ListFilesInputs struct {
 	AdditionalDirs []string `json:"additionalDirs,omitempty"`
 }
 
-// LogFileEntry represents a single log file discovered by the action.
-type LogFileEntry struct {
+// FileEntry represents a single file discovered by the action.
+type FileEntry struct {
 	Path        string `json:"path"`                  // host-relative path
 	Source      string `json:"source"`                // "process", "kubernetes", or "filesystem"
 	ProcessName string `json:"processName,omitempty"` // set when source is "process"
@@ -30,29 +30,29 @@ type LogFileEntry struct {
 	ServiceName string `json:"serviceName,omitempty"` // set when source is "process"
 }
 
-// ListLogFilesOutputs is the output returned by the listLogFiles action.
-type ListLogFilesOutputs struct {
-	LogFiles []LogFileEntry `json:"logFiles"`
-	Errors   []string       `json:"errors,omitempty"`
+// ListFilesOutputs is the output returned by the listFiles action.
+type ListFilesOutputs struct {
+	Files  []FileEntry `json:"files"`
+	Errors []string    `json:"errors,omitempty"`
 }
 
-// ListLogFilesHandler implements the listLogFiles action.
-type ListLogFilesHandler struct {
+// ListFilesHandler implements the listFiles action.
+type ListFilesHandler struct {
 	wmeta workloadmeta.Component
 }
 
-// NewListLogFilesHandler creates a new ListLogFilesHandler.
-func NewListLogFilesHandler(wmeta workloadmeta.Component) *ListLogFilesHandler {
-	return &ListLogFilesHandler{wmeta: wmeta}
+// NewListFilesHandler creates a new ListFilesHandler.
+func NewListFilesHandler(wmeta workloadmeta.Component) *ListFilesHandler {
+	return &ListFilesHandler{wmeta: wmeta}
 }
 
-// Run executes the listLogFiles action.
-func (h *ListLogFilesHandler) Run(
+// Run executes the listFiles action.
+func (h *ListFilesHandler) Run(
 	_ context.Context,
 	task *types.Task,
 	_ *privateconnection.PrivateCredentials,
 ) (interface{}, error) {
-	inputs, err := types.ExtractInputs[ListLogFilesInputs](task)
+	inputs, err := types.ExtractInputs[ListFilesInputs](task)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func (h *ListLogFilesHandler) Run(
 
 	hostPrefix := getHostPrefix()
 	seen := make(map[string]struct{})
-	var allEntries []LogFileEntry
+	var allEntries []FileEntry
 	var allErrors []string
 
 	// 1. Process logs from workloadmeta
@@ -98,12 +98,12 @@ func (h *ListLogFilesHandler) Run(
 	}
 
 	if allEntries == nil {
-		allEntries = []LogFileEntry{}
+		allEntries = []FileEntry{}
 	}
 
-	return &ListLogFilesOutputs{
-		LogFiles: allEntries,
-		Errors:   allErrors,
+	return &ListFilesOutputs{
+		Files:  allEntries,
+		Errors: allErrors,
 	}, nil
 }
 
