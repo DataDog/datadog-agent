@@ -77,7 +77,7 @@ func SetupLogger(i LoggerInterface, level string) {
 
 // SetupLoggerWithLevelVar setup agent wide logger with support for dynamic log level changes
 func SetupLoggerWithLevelVar(i LoggerInterface, level *slog.LevelVar) {
-	logger.Store(setupCommonLogger(i, level))
+	setupCommonLogger(i, level)
 
 	// Flush the log entries logged before initialization now that the logger is initialized
 	bufferMutex.Lock()
@@ -88,7 +88,7 @@ func SetupLoggerWithLevelVar(i LoggerInterface, level *slog.LevelVar) {
 	logsBuffer = []func(){}
 }
 
-func setupCommonLogger(i LoggerInterface, level *slog.LevelVar) *DatadogLogger {
+func setupCommonLogger(i LoggerInterface, level *slog.LevelVar) {
 	l := &DatadogLogger{
 		inner: i,
 		level: level,
@@ -103,7 +103,16 @@ func setupCommonLogger(i LoggerInterface, level *slog.LevelVar) *DatadogLogger {
 	// below cannot be performed.
 	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
 
-	return l
+	oldLogger := logger.Load()
+	logger.Store(l)
+
+	if oldLogger != nil {
+		oldLogger.l.Lock()
+		if oldLogger.inner != nil {
+			oldLogger.inner.Close()
+		}
+		oldLogger.l.Unlock()
+	}
 }
 
 func addLogToBuffer(logHandle func()) {
