@@ -28,12 +28,22 @@ func (idComputeInfo *IDComputeInfo) NextID() int {
 
 // Cluster represents a group of similar log messages.
 type Cluster struct {
+	// TODO: Use a map to efficiently get the cluster by ID
 	ID        int
 	Signature string
 	Pattern   []Token
 	Count     int
 	Tags      map[string]string
 	Samples   []string
+}
+
+// "Shallow" copy of the cluster
+type ClusterInfo struct {
+	ID            int
+	Signature     string
+	PatternString string
+	Count         int
+	FirstSample   string
 }
 
 // PatternString returns the human-readable pattern for this cluster.
@@ -43,6 +53,16 @@ func (c *Cluster) PatternString() string {
 		b.WriteString(t.PatternString())
 	}
 	return b.String()
+}
+
+func (c *Cluster) ToClusterInfo() ClusterInfo {
+	return ClusterInfo{
+		ID:            c.ID,
+		Signature:     c.Signature,
+		PatternString: c.PatternString(),
+		Count:         c.Count,
+		FirstSample:   c.Samples[0],
+	}
 }
 
 // ClusterResult is returned when processing a new log message.

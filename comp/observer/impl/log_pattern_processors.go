@@ -156,7 +156,12 @@ func (w *WatchdogLogAnomalyDetector) ProcessBatch(batch []*LogAnomalyDetectionPr
 		}
 	}
 
-	// TODO: We can't use the string repr since it's not thread safe, we should block this when necessary (once the anomaly is detected)
-	fmt.Printf("[cc] WatchdogLogAnomalyDetector: Max rate: %f (pattern: %d)\n", maxRate, maxRatePatternID)
+	clusterInfo, err := w.Processor.ClustererPipeline.GetClusterInfo(maxRatePatternID)
+	if err != nil {
+		fmt.Printf("[cc] WatchdogLogAnomalyDetector: Error getting cluster info: %v\n", err)
+		return
+	}
+
+	fmt.Printf("[cc] WatchdogLogAnomalyDetector: Max Rate Cluster: Rate: %f, ID: %d, Pattern: %s\n", maxRate, maxRatePatternID, clusterInfo.PatternString)
 	fmt.Printf("[cc] WatchdogLogAnomalyDetector: Pattern rates: %d\n", len(w.PatternRate))
 }

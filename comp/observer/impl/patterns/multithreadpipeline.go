@@ -8,6 +8,7 @@ package patterns
 // Used to efficiently cluster logs in a multi-threaded way
 
 import (
+	"fmt"
 	"math/rand"
 	"strings"
 )
@@ -74,6 +75,19 @@ func (pipeline *MultiThreadPipeline) Process(message string) {
 	}
 	tokenizerId := rand.Intn(pipeline.NCpus)
 	pipeline.Tokenizers[tokenizerId].Channel <- message
+}
+
+func (pipeline *MultiThreadPipeline) GetClusterInfo(patternID int) (ClusterInfo, error) {
+	// TODO: We can't use the string repr since it's not thread safe, we should block this when necessary (once the anomaly is detected)
+	for _, clusterer := range pipeline.PatternClusterers {
+		for _, cluster := range clusterer.PatternClusterer.GetClusters() {
+			if cluster.ID == patternID {
+				return cluster.ToClusterInfo(), nil
+			}
+		}
+	}
+
+	return ClusterInfo{}, fmt.Errorf("cluster not found")
 }
 
 func (tokenizer *MultiThreadTokenizer) Run() {
