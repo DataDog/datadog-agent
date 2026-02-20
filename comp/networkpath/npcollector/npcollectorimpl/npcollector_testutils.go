@@ -52,7 +52,7 @@ var testOptions = fx.Options(
 	forwarderimpl.MockModule(),
 	demultiplexerimpl.MockModule(),
 	defaultforwarder.MockModule(),
-	eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
+	eventplatformimpl.MockModule(),
 	eventplatformreceiverimpl.Module(),
 	rdnsqueriermock.MockModule(),
 	logscompression.MockModule(),
