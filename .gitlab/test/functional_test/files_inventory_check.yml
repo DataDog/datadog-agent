@@ -2,8 +2,8 @@ files_inventory_check:
   stage: functional_test
   rules:
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a special artifact that will not pass the quality gate
-    - !reference [.on_main_or_release_branch]
-    - !reference [.on_dev_branches]
+    - !reference [.on_dev_branches_with_artifact_changes]
+    - !reference [.except_mergequeue]
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]

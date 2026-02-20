@@ -252,7 +252,7 @@ def get_current_pr(branch_name: str | None):
         print(f"Found PR #{prs[0].number} for branch {branch_name}, target branch: {prs[0].base.ref}")
         return prs[0]
     except Exception as e:
-        print(f"Warning: Failed to get PR base branch for {branch_name}: {e}")
+        print(f"Warning: Failed to get PR associated with branch {branch_name}: {e}")
         return None
 
 

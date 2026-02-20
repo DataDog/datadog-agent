@@ -224,7 +224,7 @@ class ArtifactProcessor(Protocol):
         artifact_ref: str,
         gate_config: QualityGateConfig,
         debug: bool,
-        filter: Callable[[str], bool] = None,
+        filter: Callable[[str], bool] = lambda _: True,
     ) -> tuple[int, int, list[FileInfo], Any]:
         """
         Measure an artifact and return wire size, disk size, file inventory, and optional metadata.
@@ -290,13 +290,15 @@ class FileUtilities:
             return None
 
     @staticmethod
-    def walk_files(directory: str, debug: bool, filter: Callable[[str], bool] = None) -> list[FileInfo]:
+    def walk_files(directory: str, debug: bool, filter: Callable[[str], bool] = lambda _: True) -> list[FileInfo]:
         """
         Walk through files in a directory and create file inventory.
 
         Args:
             directory: Directory containing files to analyze
             debug: Enable debug logging
+            filter: a callback to filter out some patterns. If it returns false, the file
+                    will not be added to the inventory.
 
         Returns:
             List of FileInfo objects for all files
@@ -317,7 +319,7 @@ class FileUtilities:
                 continue
             try:
                 relative_path = str(file_path.relative_to(directory_path))
-                if callable(filter) and not filter(relative_path):
+                if not filter(relative_path):
                     continue
 
                 # Regular file - use lstat to not follow symlinks
@@ -605,7 +607,7 @@ class UniversalArtifactMeasurer:
         gate_name: str,
         build_job_name: str,
         debug: bool = False,
-        filter: Callable[[str], bool] = None,
+        filter: Callable[[str], bool] = lambda _: True,
     ) -> InPlaceArtifactReport:
         """
         Measure an artifact using the configured processor.
@@ -616,6 +618,7 @@ class UniversalArtifactMeasurer:
             gate_name: Quality gate name from configuration
             build_job_name: Name of the CI job that built this artifact
             debug: Enable debug logging
+            filter: A callback to filter out some results.
 
         Returns:
             InPlaceArtifactReport with complete measurement data
@@ -655,7 +658,7 @@ class PackageProcessor:
         artifact_ref: str,
         gate_config: QualityGateConfig,
         debug: bool,
-        filter: Callable[[str], bool] = None,
+        filter: Callable[[str], bool] = lambda _: True,
     ) -> tuple[int, int, list[FileInfo], Any]:
         """Measure package artifact using extraction and analysis."""
         if not os.path.exists(artifact_ref):
@@ -697,7 +700,7 @@ class DockerProcessor:
         artifact_ref: str,
         gate_config: QualityGateConfig,
         debug: bool,
-        filter: Callable[[str], bool] = None,
+        filter: Callable[[str], bool] = lambda _: True,
     ) -> tuple[int, int, list[FileInfo], DockerImageInfo]:
         """Measure Docker image using manifest inspection for wire size and crane pull for disk analysis."""
         if debug:
@@ -714,7 +717,7 @@ class DockerProcessor:
         ctx: Context,
         image_ref: str,
         debug: bool = False,
-        filter: Callable[[str], bool] = None,
+        filter: Callable[[str], bool] = lambda _: True,
     ) -> tuple[int, list[FileInfo], DockerImageInfo | None]:
         """Measure disk size and generate file inventory using crane pull with OCI format."""
         try:
@@ -775,7 +778,7 @@ class DockerProcessor:
         self,
         extract_dir: str,
         debug: bool = False,
-        filter: Callable[[str], bool] = None,
+        filter: Callable[[str], bool] = lambda _: True,
     ) -> tuple[int, list[FileInfo]]:
         """Analyze extracted crane pull tarball to get disk size and file inventory.
 
@@ -863,7 +866,7 @@ class DockerProcessor:
                             # Skip whiteout files (Those are marking files from lower layers that are removed in this layer)
                             if relative_path.startswith('.wh.') or '/.wh.' in relative_path:
                                 continue
-                            if callable(filter) and not filter(relative_path):
+                            if not filter(relative_path):
                                 continue
 
                             try:
@@ -1055,7 +1058,7 @@ class InPlacePackageMeasurer:
         gate_name: str,
         build_job_name: str,
         debug: bool = False,
-        filter: Callable[[str], bool] = None,
+        filter: Callable[[str], bool] = lambda _: True,
     ) -> InPlaceArtifactReport:
         """
         Measure a package artifact and generate a comprehensive report.
@@ -1116,7 +1119,7 @@ class InPlaceDockerMeasurer:
         build_job_name: str,
         include_layer_analysis: bool = True,
         debug: bool = False,
-        filter: None | Callable[[str], bool] = None,
+        filter: Callable[[str], bool] = lambda _: True,
     ) -> InPlaceArtifactReport:
         """
         Measure a Docker image and generate a comprehensive report.
@@ -1142,6 +1145,7 @@ class InPlaceDockerMeasurer:
             gate_name=gate_name,
             build_job_name=build_job_name,
             debug=debug,
+            filter=filter,
         )
 
     def save_report_to_yaml(self, report: InPlaceArtifactReport, output_path: str) -> None:
@@ -1157,7 +1161,7 @@ def measure_package_local(
     output_path=None,
     build_job_name="local_test",
     debug=False,
-    filter: Callable[[str], bool] = None,
+    filter: Callable[[str], bool] = lambda _: True,
 ):
     """
     Run the in-place package measurer locally for testing and development.

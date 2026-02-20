@@ -55,9 +55,6 @@ def push_signed_commits(ctx: Context, branch: str, commit_message: str, source_b
 @task
 def get_ancestor(ctx, branch: str) -> str:
     base_branch = get_ancestor_base_branch(branch)
-    # get_common_ancestor is supposed to fetch this but it doesn't, so we do it here explicitly
-    ctx.run(f"git fetch origin {branch.removeprefix('origin/')}", hide=True)
-    ctx.run(f"git fetch origin {base_branch.removeprefix('origin/')}", hide=True)
     ancestor = get_common_ancestor(ctx, "HEAD", base_branch)
     current_commit = get_commit_sha(ctx)
     # Detect if we're on main branch (ancestor == current commit means merge-base is HEAD itself)
