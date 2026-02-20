@@ -129,25 +129,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v95180930-5bed5d79
+  CI_IMAGE_BTF_GEN: v96864623-38cade90
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v95180930-5bed5d79
+  CI_IMAGE_DOCKER_X64: v96864623-38cade90
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v95180930-5bed5d79
+  CI_IMAGE_DOCKER_ARM64: v96864623-38cade90
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v95180930-5bed5d79
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v96864623-38cade90
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v95180930-5bed5d79
+  CI_IMAGE_LINUX: v96864623-38cade90
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v95180930-5bed5d79
+  CI_IMAGE_RPM_X64: v96864623-38cade90
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v95180930-5bed5d79
+  CI_IMAGE_RPM_ARM64: v96864623-38cade90
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v95180930-5bed5d79
+  CI_IMAGE_RPM_ARMHF: v96864623-38cade90
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v95180930-5bed5d79
+  CI_IMAGE_WIN_LTSC2022_X64: v95648322-a2e015b0
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v95180930-5bed5d79
+  CI_IMAGE_WIN_LTSC2025_X64: v95648322-a2e015b0
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -356,6 +356,8 @@ variables:
     - release.json
     # SMP regression detector experiments
     - test/regression/**/*
+    # Containers
+    - Dockerfiles/**/*
 
 .if_coverage_pipeline: &if_coverage_pipeline
   if: $E2E_COVERAGE_PIPELINE == "true"
@@ -986,6 +988,7 @@ workflow:
         - test/new-e2e/tests/fleet/**/*
         - test/new-e2e/tests/installer/**/*
         - tasks/installer.py
+        - tools/windows/DatadogAgentInstaller/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -1145,6 +1148,15 @@ workflow:
         - pkg/security/**/*
         - pkg/eventmonitor/**/*
         - test/new-e2e/tests/security-agent-functional/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+.on_healthplatform_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - comp/healthplatform/**/*
+        - test/new-e2e/tests/agent-health/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 

@@ -21,8 +21,10 @@ type HashingTagsAccumulator struct {
 
 // RetainFunc keeps tags if `keep` returns true, otherwise the tag and associated
 // hash removed.
-func (h *HashingTagsAccumulator) RetainFunc(keep func(tag string) bool) {
+// Return value: the number of tags removed.
+func (h *HashingTagsAccumulator) RetainFunc(keep func(tag string) bool) int {
 	idx := 0
+	oldLen := len(h.data)
 	for arridx, tag := range h.data {
 		if keep(tag) {
 			h.data[idx] = h.data[arridx]
@@ -32,12 +34,14 @@ func (h *HashingTagsAccumulator) RetainFunc(keep func(tag string) bool) {
 	}
 	h.data = h.data[0:idx]
 	h.hash = h.hash[0:idx]
+
+	return oldLen - idx
 }
 
 // RetainWithTagNameFilter is an optimized version of RetainFunc for filtering based on tag names.
 // It takes a map of tag name hashes and an exclude flag, avoiding redundant string operations.
 // If exclude is true, tags with names in the map are removed. If false, only those tags are kept.
-func (h *HashingTagsAccumulator) RetainWithTagNameFilter(tagNameHashes map[uint64]struct{}, exclude bool) {
+func (h *HashingTagsAccumulator) RetainWithTagNameFilter(tagNameHashes map[uint64]struct{}, exclude bool) int {
 	idx := 0
 	for arridx, tag := range h.data {
 		// Find the colon separator using a manual loop (faster than strings.Index for short strings)
@@ -67,8 +71,11 @@ func (h *HashingTagsAccumulator) RetainWithTagNameFilter(tagNameHashes map[uint6
 			idx++
 		}
 	}
+	len := len(h.data)
 	h.data = h.data[0:idx]
 	h.hash = h.hash[0:idx]
+
+	return len - idx
 }
 
 // NewHashingTagsAccumulator returns a new empty HashingTagsAccumulator

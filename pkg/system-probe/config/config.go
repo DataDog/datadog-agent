@@ -42,6 +42,8 @@ const (
 	GPUMonitoringModule          types.ModuleName = "gpu"
 	SoftwareInventoryModule      types.ModuleName = "software_inventory"
 	PrivilegedLogsModule         types.ModuleName = "privileged_logs"
+	InjectorModule               types.ModuleName = "injector"
+	NoisyNeighborModule          types.ModuleName = "noisy_neighbor"
 )
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
@@ -183,10 +185,14 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(privilegedLogsNS("enabled")) {
 		c.EnabledModules[PrivilegedLogsModule] = struct{}{}
 	}
+	if cfg.GetBool(NSkey("noisy_neighbor", "enabled")) {
+		c.EnabledModules[NoisyNeighborModule] = struct{}{}
+	}
 
 	if cfg.GetBool(wcdNS("enabled")) {
 		c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
 	}
+
 	if runtime.GOOS == "windows" {
 		if c.ModuleIsEnabled(NetworkTracerModule) || c.ModuleIsEnabled(EventMonitorModule) {
 			// enable the windows crash detection module if the network tracer
@@ -195,6 +201,21 @@ func load() (*types.Config, error) {
 		}
 		if swEnabled {
 			c.EnabledModules[SoftwareInventoryModule] = struct{}{}
+		}
+
+		// injector telemetry is enabled by default, disable only if explicitly configured by the user
+		injectorDefaultEnabled := false
+		if !cfg.IsConfigured("injector.enable_telemetry") {
+			injectorDefaultEnabled = true
+		} else if cfg.GetBool("injector.enable_telemetry") {
+			c.EnabledModules[InjectorModule] = struct{}{}
+		}
+
+		// This check must be last for any default modules on Windows,
+		// Only add default modules if other explicit modules have been enabled
+		// because the count of enabled modules will implicitly enable system probe.
+		if len(c.EnabledModules) > 0 && injectorDefaultEnabled {
+			c.EnabledModules[InjectorModule] = struct{}{}
 		}
 	}
 

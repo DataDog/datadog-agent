@@ -111,8 +111,9 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 		if tagNameHashes, exclude, strip := filterList.GetTagNameFilter(metricSampleContext.GetName()); strip {
 			// Currently only distributions are supported, strip out tags if it is configured to remove tags for this given
 			// metric. Use optimized filtering that avoids redundant string operations and hashing.
-			cr.taggerBuffer.RetainWithTagNameFilter(tagNameHashes, exclude)
-			cr.metricBuffer.RetainWithTagNameFilter(tagNameHashes, exclude)
+			removedTagger := cr.taggerBuffer.RetainWithTagNameFilter(tagNameHashes, exclude)
+			removedMetric := cr.metricBuffer.RetainWithTagNameFilter(tagNameHashes, exclude)
+			tlmFilteredTags.Add(float64(removedTagger + removedMetric))
 		}
 	}
 

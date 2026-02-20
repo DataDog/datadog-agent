@@ -18,11 +18,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 // GetIdentityFromPreviousEnrollment retrieves PAR identity from either K8s secret or file based on configuration
 func GetIdentityFromPreviousEnrollment(ctx context.Context, cfg configModel.Reader) (*PersistedIdentity, error) {
-	if cfg.GetBool("cluster_agent.enabled") {
+	if cfg.GetBool(setup.PARIdentityUseK8sSecret) && flavor.GetFlavor() == flavor.ClusterAgent {
 		return getIdentityFromK8sSecret(ctx, cfg)
 	}
 	return getIdentityFromFile(cfg)
@@ -30,7 +31,7 @@ func GetIdentityFromPreviousEnrollment(ctx context.Context, cfg configModel.Read
 
 // PersistIdentity persists identity to either K8s secret or file based on configuration
 func PersistIdentity(ctx context.Context, cfg configModel.Reader, result *Result) error {
-	if cfg.GetBool("cluster_agent.enabled") {
+	if cfg.GetBool(setup.PARIdentityUseK8sSecret) && flavor.GetFlavor() == flavor.ClusterAgent {
 		return persistIdentityToK8sSecret(ctx, cfg, result)
 	}
 	return persistIdentityToFile(cfg, result)
@@ -79,6 +80,7 @@ func persistIdentityToFile(cfg configModel.Reader, result *Result) error {
 	jsonData, err := json.Marshal(PersistedIdentity{
 		PrivateKey: base64.RawURLEncoding.EncodeToString(marshalledPrivateKey),
 		URN:        result.URN,
+		Hostname:   result.Hostname,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to marshal identity content to JSON: %w", err)

@@ -175,7 +175,6 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.sql_obfuscation_mode", "", "DD_APM_SQL_OBFUSCATION_MODE")
 	config.BindEnvAndSetDefault("apm_config.debug.port", 5012, "DD_APM_DEBUG_PORT")
 	config.BindEnvAndSetDefault("apm_config.debug_v1_payloads", false, "DD_APM_DEBUG_V1_PAYLOADS")
-	config.BindEnvAndSetDefault("apm_config.enable_v1_trace_endpoint", false, "DD_APM_ENABLE_V1_TRACE_ENDPOINT")
 	config.BindEnvAndSetDefault("apm_config.send_all_internal_stats", false, "DD_APM_SEND_ALL_INTERNAL_STATS")
 	config.BindEnvAndSetDefault("apm_config.enable_container_tags_buffer", true, "DD_APM_ENABLE_CONTAINER_TAGS_BUFFER")
 	config.ParseEnvAsStringSlice("apm_config.features", func(s string) []string {
@@ -229,6 +228,16 @@ func setupAPM(config pkgconfigmodel.Setup) {
 		var out []string
 		if err := json.Unmarshal([]byte(in), &out); err != nil {
 			log.Warnf(`"apm_config.peer_tags" can not be parsed: %v`, err)
+		}
+		return out
+	})
+
+	config.BindEnvAndSetDefault("apm_config.span_derived_primary_tags", []string{}, "DD_APM_SPAN_DERIVED_PRIMARY_TAGS")
+	config.ParseEnvAsStringSlice("apm_config.span_derived_primary_tags", func(in string) []string {
+		var out []string
+		if err := json.Unmarshal([]byte(in), &out); err != nil {
+			log.Warnf(`"apm_config.span_derived_primary_tags" can not be parsed: %v`, err)
+			return nil
 		}
 		return out
 	})

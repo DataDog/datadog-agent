@@ -12,13 +12,14 @@ package tools
 
 import (
 	_ "github.com/aarzilli/whydeadcode"
+	_ "github.com/bazelbuild/bazelisk"
 	_ "github.com/frapposelli/wwhrd"
 	_ "github.com/go-enry/go-license-detector/v4/cmd/license-detector"
 	_ "github.com/golangci/golangci-lint/v2/cmd/golangci-lint"
 	_ "github.com/goware/modvendor"
 	_ "github.com/stormcat24/protodep"
 	_ "github.com/uber-go/gopatch"
-	_ "github.com/vektra/mockery/v2"
+	_ "github.com/vektra/mockery/v3"
 	_ "github.com/wadey/gocovmerge"
 	_ "golang.org/x/mobile/cmd/gobind"
 	_ "golang.org/x/mobile/cmd/gomobile"

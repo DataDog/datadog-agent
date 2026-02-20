@@ -682,6 +682,9 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 		a.Replacer.ReplaceV1(chunk)
 
 		a.setRootSpanTagsV1(root)
+		if !p.ClientComputedTopLevel {
+			traceutil.ComputeTopLevelV1(chunk)
+		}
 
 		pt := processedTraceV1(p, chunk, root, imageTag, gitCommitSha)
 		if !p.ClientComputedStats {
@@ -813,12 +816,11 @@ func processedTraceV1(p *api.PayloadV1, chunk *idx.InternalTraceChunk, root *idx
 		TracerEnv:              p.TracerPayload.Env(),
 		TracerHostname:         p.TracerPayload.Hostname(),
 		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.TracerPayload.Chunks)),
-		GitCommitSha:           version.GetGitCommitShaFromTraceV1(chunk),
+		GitCommitSha:           gitCommitSha,
 	}
 	pt.ImageTag = imageTag
-	// Only override the GitCommitSha if it was not set in the trace.
-	if pt.GitCommitSha == "" {
-		pt.GitCommitSha = gitCommitSha
+	if payloadGitCommitSha, ok := p.TracerPayload.GetAttributeAsString("_dd.git.commit.sha"); ok {
+		pt.GitCommitSha = payloadGitCommitSha
 	}
 	return pt
 }
