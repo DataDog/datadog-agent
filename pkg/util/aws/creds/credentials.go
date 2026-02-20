@@ -19,9 +19,9 @@ import (
 // SecurityCredentials represents AWS security credentials from the EC2 instance metadata service.
 // The Token field contains the session token (also known as SessionToken in AWS SDK terminology).
 type SecurityCredentials struct {
-	AccessKeyID     string
-	SecretAccessKey string
-	Token           string // Session token from IMDS (maps to AWS_SESSION_TOKEN)
+	AccessKeyID     string `json:"AccessKeyId"`
+	SecretAccessKey string `json:"SecretAccessKey"`
+	Token           string `json:"Token"` // Session token from IMDS (maps to AWS_SESSION_TOKEN)
 }
 
 // GetSecurityCredentials retrieves AWS security credentials from the EC2 instance metadata service.

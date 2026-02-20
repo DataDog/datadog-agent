@@ -168,7 +168,7 @@ func TestGenerateAwsAuthDataIntegrationDebug(t *testing.T) {
 	}
 
 	// Generate the signing data
-	signingData, err := auth.generateAwsAuthData(orgUUID, creds)
+	signingData, err := auth.generateAwsAuthData(orgUUID, awsCreds)
 	require.NoError(t, err)
 	require.NotNil(t, signingData)
 

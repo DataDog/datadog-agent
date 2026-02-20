@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package ec2internal contains internal helpers for EC2 metadata.
+// Package ec2internal contains internal helpers for AWS IMDS (Instance Metadata Service).
+// Note: This duplicates pkg/util/ec2/internal because Go's internal package rules
+// prevent importing that package from outside the ec2 directory tree.
 package ec2internal
 
 import (

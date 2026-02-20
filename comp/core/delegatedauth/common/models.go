@@ -7,6 +7,8 @@
 package common
 
 import (
+	"context"
+
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -28,5 +30,6 @@ type ProviderConfig interface {
 type Provider interface {
 	// GenerateAuthProof generates a cloud-specific authentication proof string.
 	// This proof will be passed to Datadog's intake-key API to exchange for an API key.
-	GenerateAuthProof(cfg pkgconfigmodel.Reader, config *AuthConfig) (string, error)
+	// The context allows for cancellation of the proof generation.
+	GenerateAuthProof(ctx context.Context, cfg pkgconfigmodel.Reader, config *AuthConfig) (string, error)
 }

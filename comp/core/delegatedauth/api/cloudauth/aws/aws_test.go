@@ -160,4 +160,59 @@ func TestGenerateAwsAuthDataMissingCredentials(t *testing.T) {
 	_, err = auth.generateAwsAuthData(orgUUID, &creds.SecurityCredentials{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "missing AWS credentials")
+
+	// Test with missing SecretAccessKey
+	_, err = auth.generateAwsAuthData(orgUUID, &creds.SecurityCredentials{
+		AccessKeyID: "test-access-key",
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "missing AWS credentials")
+
+	// Test with missing AccessKeyID
+	_, err = auth.generateAwsAuthData(orgUUID, &creds.SecurityCredentials{
+		SecretAccessKey: "test-secret-key",
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "missing AWS credentials")
+}
+
+func TestGenerateAwsAuthDataWithoutToken(t *testing.T) {
+	// Test that credentials without a Token (permanent IAM users) work correctly
+	auth := &AWSAuth{
+		AwsRegion: "us-east-1",
+	}
+
+	// Permanent IAM user credentials (no session token)
+	awsCreds := &creds.SecurityCredentials{
+		AccessKeyID:     "AKIAIOSFODNN7EXAMPLE",
+		SecretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+		Token:           "", // No session token for permanent IAM users
+	}
+
+	orgUUID := "test-org-uuid-12345"
+
+	signingData, err := auth.generateAwsAuthData(orgUUID, awsCreds)
+	require.NoError(t, err)
+	require.NotNil(t, signingData)
+
+	// Verify the SigningData structure is populated
+	assert.NotEmpty(t, signingData.HeadersEncoded)
+	assert.NotEmpty(t, signingData.BodyEncoded)
+	assert.NotEmpty(t, signingData.URLEncoded)
+	assert.Equal(t, "POST", signingData.Method)
+
+	// Decode and verify headers
+	headersJSON, err := base64.StdEncoding.DecodeString(signingData.HeadersEncoded)
+	require.NoError(t, err)
+
+	var headers map[string][]string
+	err = json.Unmarshal(headersJSON, &headers)
+	require.NoError(t, err)
+
+	// Verify Authorization header is present and properly signed
+	assert.Contains(t, headers, "Authorization")
+	assert.Contains(t, headers["Authorization"][0], "AWS4-HMAC-SHA256")
+
+	// X-Amz-Security-Token should NOT be present for permanent credentials
+	assert.NotContains(t, headers, "X-Amz-Security-Token")
 }
