@@ -15,12 +15,12 @@ Flags:
     --model         Model to use (default: gpt-5.2-2025-12-11)
 """
 
-import json
-import sys
-import os
 import argparse
-import urllib.request
+import json
+import os
+import sys
 import urllib.error
+import urllib.request
 
 BASE_CONTEXT = """This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
 
@@ -78,12 +78,13 @@ JSON_CONTEXT = """
 - sample_anomalies: A few example anomalies for context
 """
 
+
 def build_context(args):
     """Build context string based on flags."""
     parts = [BASE_CONTEXT]
-    
+
     include_all = args.all or not (args.cusum or args.lightesd or args.graphsketch or args.timecluster)
-    
+
     if args.cusum or include_all:
         parts.append(CUSUM_CONTEXT)
     if args.lightesd or include_all:
@@ -92,26 +93,21 @@ def build_context(args):
         parts.append(GRAPHSKETCH_CONTEXT)
     if args.timecluster or include_all:
         parts.append(TIMECLUSTER_CONTEXT)
-    
+
     parts.append(JSON_CONTEXT)
     return "\n".join(parts)
+
 
 def call_openai(prompt, model, api_key):
     """Call OpenAI API using urllib (no dependencies)."""
     url = "https://api.openai.com/v1/chat/completions"
-    
-    payload = json.dumps({
-        "model": model,
-        "messages": [{"role": "user", "content": prompt}]
-    }).encode('utf-8')
-    
-    headers = {
-        'Content-Type': 'application/json',
-        'Authorization': f'Bearer {api_key}'
-    }
-    
+
+    payload = json.dumps({"model": model, "messages": [{"role": "user", "content": prompt}]}).encode('utf-8')
+
+    headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {api_key}'}
+
     req = urllib.request.Request(url, data=payload, headers=headers)
-    
+
     try:
         with urllib.request.urlopen(req) as response:
             result = json.loads(response.read().decode('utf-8'))
@@ -124,16 +120,17 @@ def call_openai(prompt, model, api_key):
         print(f"Connection error: {e}")
         sys.exit(1)
 
+
 def analyze(filepath, context, model):
     api_key = os.environ.get('OPENAI_API_KEY')
     if not api_key:
         print("Error: Set OPENAI_API_KEY environment variable")
         print("  export OPENAI_API_KEY='sk-...'")
         sys.exit(1)
-    
-    with open(filepath, 'r') as f:
+
+    with open(filepath) as f:
         data = f.read()
-    
+
     prompt = f"""{context}
 
 Here is the data:
@@ -147,21 +144,24 @@ Be concise. Answer:
 4. Confidence level (high/medium/low)
 5. If not high confidence: what are the alternative possibilities and why are you uncertain?
 6. Supporting evidence (bullet points from the data)"""
-    
-    print("="*60)
+
+    print("=" * 60)
     print("PROMPT (context only, JSON data omitted):")
-    print("="*60)
+    print("=" * 60)
     print(context)
     print("\n[JSON data omitted]\n")
-    print("Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence")
-    print("="*60)
+    print(
+        "Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence"
+    )
+    print("=" * 60)
     print(f"\nAnalyzing with {model}...\n", flush=True)
-    
+
     output = call_openai(prompt, model, api_key)
-    print("="*60)
+    print("=" * 60)
     print("RESPONSE:")
-    print("="*60)
+    print("=" * 60)
     print(output, flush=True)
+
 
 def main():
     parser = argparse.ArgumentParser(description='Analyze observer results with OpenAI')
@@ -172,11 +172,12 @@ def main():
     parser.add_argument('--timecluster', action='store_true', help='Add TimeCluster correlator context')
     parser.add_argument('--all', action='store_true', help='Add all context (default)')
     parser.add_argument('--model', default='gpt-5.2-2025-12-11', help='OpenAI model (default: gpt-5.2-2025-12-11)')
-    
+
     args = parser.parse_args()
-    
+
     context = build_context(args)
     analyze(args.json_file, context, args.model)
+
 
 if __name__ == '__main__':
     main()

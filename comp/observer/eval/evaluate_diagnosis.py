@@ -13,12 +13,12 @@ Scenarios (built-in ground truths):
     network-latency  - Network delay injected on Redis pod
 """
 
-import json
-import sys
-import os
 import argparse
-import urllib.request
+import json
+import os
+import sys
 import urllib.error
+import urllib.request
 
 # Map scenario names to human-readable problem types
 PROBLEM_TYPES = {
@@ -62,7 +62,6 @@ resources:
 
 **Root cause:** Application-level memory leak—the Python process accumulates heap allocations in a list (leaked.append(bytearray(...))) without ever releasing them, causing unbounded memory growth until the cgroup limit triggers an OOM kill.
 """,
-
     "network-latency": """
 ## Ground Truth: Network Latency Scenario
 
@@ -82,7 +81,6 @@ tc_result = subprocess.run(
 
 **Root cause:** Network-level latency injection via tc qdisc netem on the Redis pod, simulating a network partition, congested link, or cross-datacenter communication delay.
 """,
-
     "crash-loop": """
 ## Ground Truth: Crash Loop Scenario
 
@@ -94,7 +92,6 @@ The injected fault is a Python script that exits with code 1 after a random 5-15
 
 **Key indicators:** Exit code 1, container restart count increasing, CrashLoopBackOff status.
 """,
-
     "oom-kill": """
 ## Ground Truth: OOM Kill Scenario
 
@@ -106,7 +103,6 @@ The injected fault is a Python script that allocates 10MB memory chunks in a loo
 
 **Key indicators:** Exit code 137, OOMKilled status, memory usage at limit before termination.
 """,
-
     "sigpipe-crash": """
 ## Ground Truth: SIGPIPE Crash Scenario
 
@@ -118,7 +114,6 @@ The injected fault is a Unix Domain Socket server (uds-server) that exits every 
 
 **Key indicators:** Exit code 141, signal 13, broken pipe errors, socket communication failure.
 """,
-
     "cpu-starvation": """
 ## Ground Truth: CPU Starvation Scenario
 
@@ -130,7 +125,6 @@ The injected fault is backend CPU limits too low for the incoming traffic load.
 
 **Key indicators:** CPU throttling metrics, cpu.cfs_throttled, high latency, request timeouts.
 """,
-
     "connection-timeout": """
 ## Ground Truth: Connection Timeout Scenario
 
@@ -142,7 +136,6 @@ The injected fault is a network partition between backend and Redis pods.
 
 **Key indicators:** Redis connection errors, i/o timeout errors, high latency on successful connections.
 """,
-
     "slow-serialization": """
 ## Ground Truth: Slow Serialization Scenario
 
@@ -154,7 +147,6 @@ The injected fault is a deployment (v2.0.5) that switched to reflection-based JS
 
 **Key indicators:** Deployment version change, latency increase correlated with deployment, serialization-related panics.
 """,
-
     "memory-exhaustion": """
 ## Ground Truth: Memory Exhaustion Scenario
 
@@ -166,7 +158,6 @@ The injected fault is Redis maxmemory limit (256Mi) being exceeded.
 
 **Key indicators:** Redis OOM errors, memory at maxmemory limit, write failures, eviction activity.
 """,
-
     "traffic-spike": """
 ## Ground Truth: Traffic Spike Scenario
 
@@ -177,7 +168,7 @@ The injected fault is an 18x sudden increase in requests per second.
 **Root cause:** 18x RPS spike overwhelming system - backend and Redis at 100% CPU, 48% success, 42% overload errors (503), 10% timeout.
 
 **Key indicators:** Request rate spike, CPU saturation across services, high error rate, mixed error types (overload + timeout).
-"""
+""",
 }
 
 EVALUATION_PROMPT = """You are evaluating whether an automated diagnosis identified the problem.
@@ -212,18 +203,12 @@ def call_openai(prompt, model, api_key):
     """Call OpenAI API using urllib (no dependencies)."""
     url = "https://api.openai.com/v1/chat/completions"
 
-    payload = json.dumps({
-        "model": model,
-        "messages": [{"role": "user", "content": prompt}]
-    }).encode('utf-8')
-    
-    headers = {
-        'Content-Type': 'application/json',
-        'Authorization': f'Bearer {api_key}'
-    }
-    
+    payload = json.dumps({"model": model, "messages": [{"role": "user", "content": prompt}]}).encode('utf-8')
+
+    headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {api_key}'}
+
     req = urllib.request.Request(url, data=payload, headers=headers)
-    
+
     try:
         with urllib.request.urlopen(req) as response:
             result = json.loads(response.read().decode('utf-8'))
@@ -243,17 +228,13 @@ def evaluate(diagnosis_file, ground_truth, problem_type, model):
         print("Error: Set OPENAI_API_KEY environment variable")
         print("  export OPENAI_API_KEY='sk-...'")
         sys.exit(1)
-    
+
     # Read diagnosis file
-    with open(diagnosis_file, 'r') as f:
+    with open(diagnosis_file) as f:
         diagnosis = f.read()
-    
-    prompt = EVALUATION_PROMPT.format(
-        ground_truth=ground_truth,
-        diagnosis=diagnosis,
-        problem_type=problem_type
-    )
-    
+
+    prompt = EVALUATION_PROMPT.format(ground_truth=ground_truth, diagnosis=diagnosis, problem_type=problem_type)
+
     print("=" * 60)
     print("EVALUATION")
     print("=" * 60)
@@ -262,14 +243,14 @@ def evaluate(diagnosis_file, ground_truth, problem_type, model):
     print(f"Model: {model}")
     print("=" * 60)
     print(f"\nChecking if diagnosis identified: {problem_type}...\n", flush=True)
-    
+
     output = call_openai(prompt, model, api_key)
-    
+
     print("=" * 60)
     print("EVALUATION RESULT:")
     print("=" * 60)
     print(output, flush=True)
-    
+
     return output
 
 
@@ -288,22 +269,19 @@ Examples:
   
   # List available scenarios
   python3 evaluate_diagnosis.py --list-scenarios
-"""
+""",
     )
     parser.add_argument('diagnosis_file', nargs='?', help='Path to diagnosis output file')
-    parser.add_argument('--scenario', choices=list(GROUND_TRUTHS.keys()),
-                        help='Use built-in ground truth for scenario')
-    parser.add_argument('--ground-truth', dest='ground_truth_file',
-                        help='Path to custom ground truth file')
-    parser.add_argument('--problem-type', dest='problem_type',
-                        help='Problem type to check for (required with --ground-truth)')
-    parser.add_argument('--model', default='gpt-5.2-2025-12-11',
-                        help='OpenAI model (default: gpt-5.2-2025-12-11)')
-    parser.add_argument('--list-scenarios', action='store_true',
-                        help='List available built-in scenarios')
-    
+    parser.add_argument('--scenario', choices=list(GROUND_TRUTHS.keys()), help='Use built-in ground truth for scenario')
+    parser.add_argument('--ground-truth', dest='ground_truth_file', help='Path to custom ground truth file')
+    parser.add_argument(
+        '--problem-type', dest='problem_type', help='Problem type to check for (required with --ground-truth)'
+    )
+    parser.add_argument('--model', default='gpt-5.2-2025-12-11', help='OpenAI model (default: gpt-5.2-2025-12-11)')
+    parser.add_argument('--list-scenarios', action='store_true', help='List available built-in scenarios')
+
     args = parser.parse_args()
-    
+
     if args.list_scenarios:
         print("Available built-in scenarios:")
         for name, desc in GROUND_TRUTHS.items():
@@ -311,31 +289,30 @@ Examples:
             first_line = [l for l in desc.strip().split('\n') if l.strip()][0]
             print(f"  {name:20} - {first_line.strip('#').strip()}")
         sys.exit(0)
-    
+
     if not args.diagnosis_file:
         parser.error("diagnosis_file is required (or use --list-scenarios)")
-    
+
     if not args.scenario and not args.ground_truth_file:
         parser.error("Either --scenario or --ground-truth is required")
-    
+
     if args.scenario and args.ground_truth_file:
         parser.error("Use either --scenario or --ground-truth, not both")
-    
+
     # Get ground truth and problem type
     if args.scenario:
         ground_truth = GROUND_TRUTHS[args.scenario]
         problem_type = PROBLEM_TYPES[args.scenario]
     else:
-        with open(args.ground_truth_file, 'r') as f:
+        with open(args.ground_truth_file) as f:
             ground_truth = f.read()
         # For custom ground truth, require problem type
         if not args.problem_type:
             parser.error("--problem-type is required when using --ground-truth")
         problem_type = args.problem_type
-    
+
     evaluate(args.diagnosis_file, ground_truth, problem_type, args.model)
 
 
 if __name__ == '__main__':
     main()
-

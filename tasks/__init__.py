@@ -64,6 +64,7 @@ from tasks import (
     process_agent,
     protobuf,
     python_version,
+    q,
     quality_gates,
     release,
     rtloader,
@@ -251,6 +252,7 @@ ns.add_collection(worktree)
 ns.add_collection(sbomgen)
 ns.add_collection(pkg_template)
 ns.add_collection(virustotal)
+ns.add_collection(q)
 ns.configure(
     {
         "run": {
