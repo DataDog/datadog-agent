@@ -23,8 +23,8 @@ import (
 
 	"github.com/shirou/gopsutil/v4/net"
 	"github.com/spf13/afero"
+	yaml "go.yaml.in/yaml/v2"
 	"golang.org/x/sys/unix"
-	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
