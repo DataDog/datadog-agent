@@ -35,6 +35,11 @@ func NewPatternLogProcessor(anomalyDetectors []PatternLogAnomalyDetector) *Patte
 		AnomalyDetectors:  anomalyDetectors,
 	}
 
+	for _, anomalyDetector := range p.AnomalyDetectors {
+		anomalyDetector.SetProcessor(p)
+		anomalyDetector.Run()
+	}
+
 	go func() {
 		for result := range resultChannel {
 			fmt.Printf("[cc] Processor: Result: (ID: %d) %+v\n", result.ClusterResult.Cluster.ID, result.ClusterResult.Signature)
@@ -60,9 +65,9 @@ func (p *PatternLogProcessor) Process(log observer.LogView) observer.LogProcesso
 	return observer.LogProcessorResult{}
 }
 
-// --- Anomaly Detectors ---
 // What we plug after the log processor
 type PatternLogAnomalyDetector interface {
+	SetProcessor(processor *PatternLogProcessor)
 	Run()
 	Name() string
 	// TODO: Pattern id not pattern to avoid multi threading issues
@@ -74,14 +79,22 @@ type LogAnomalyDetectionProcessInput struct {
 	ClustererResult *patterns.ClusterResult
 }
 
+// --- Watchdog Anomaly Detector ---
 // AD algorithm similar to Watchdog
 type WatchdogLogAnomalyDetector struct {
+	Processor       *PatternLogProcessor
 	ResultChannel   chan *observer.LogProcessorResult
 	Period          time.Duration
 	InputBatchMutex sync.Mutex
 	InputBatch      []*LogAnomalyDetectionProcessInput
+	// How much decay we apply to the pattern rate
+	Alpha             float64
+	EvictionThreshold float64
+	// "Rate" corresponds to the new patterns count with decay applied
+	PatternRate map[int]float64
 }
 
+// TODO: Is it better to have this in the processor and not each anomaly detector?
 func (w *WatchdogLogAnomalyDetector) Run() {
 	go func() {
 		ticker := time.NewTicker(w.Period)
@@ -92,16 +105,13 @@ func (w *WatchdogLogAnomalyDetector) Run() {
 				var batch []*LogAnomalyDetectionProcessInput
 				{
 					w.InputBatchMutex.Lock()
-					defer w.InputBatchMutex.Unlock()
 					batch = w.InputBatch
 					w.InputBatch = make([]*LogAnomalyDetectionProcessInput, 0)
+					w.InputBatchMutex.Unlock()
 				}
 
 				// Process whole batch
-				fmt.Printf("[cc] WatchdogLogAnomalyDetector: Processing batch: %d\n", len(batch))
-
-				// TODO
-				w.ResultChannel <- &observer.LogProcessorResult{}
+				w.ProcessBatch(batch)
 			}
 		}
 	}()
@@ -115,4 +125,38 @@ func (w *WatchdogLogAnomalyDetector) Process(clustererInput *patterns.ClustererI
 	w.InputBatchMutex.Lock()
 	defer w.InputBatchMutex.Unlock()
 	w.InputBatch = append(w.InputBatch, &LogAnomalyDetectionProcessInput{ClustererInput: clustererInput, ClustererResult: clustererResult})
+}
+
+func (w *WatchdogLogAnomalyDetector) SetProcessor(processor *PatternLogProcessor) {
+	w.Processor = processor
+}
+
+func (w *WatchdogLogAnomalyDetector) ProcessBatch(batch []*LogAnomalyDetectionProcessInput) {
+	fmt.Printf("[cc] WatchdogLogAnomalyDetector: Processing batch: %d\n", len(batch))
+	for _, input := range batch {
+		if _, ok := w.PatternRate[input.ClustererResult.Cluster.ID]; !ok {
+			w.PatternRate[input.ClustererResult.Cluster.ID] = 0
+		}
+		w.PatternRate[input.ClustererResult.Cluster.ID] += 1
+	}
+
+	maxRate := 0.0
+	maxRatePatternID := 0
+	for patternID, rate := range w.PatternRate {
+		w.PatternRate[patternID] = rate * w.Alpha
+
+		if rate < w.EvictionThreshold {
+			delete(w.PatternRate, patternID)
+			fmt.Printf("[cc] WatchdogLogAnomalyDetector: Evicting pattern: %d\n", patternID)
+		}
+
+		if rate > maxRate {
+			maxRate = rate
+			maxRatePatternID = patternID
+		}
+	}
+
+	// TODO: We can't use the string repr since it's not thread safe, we should block this when necessary (once the anomaly is detected)
+	fmt.Printf("[cc] WatchdogLogAnomalyDetector: Max rate: %f (pattern: %d)\n", maxRate, maxRatePatternID)
+	fmt.Printf("[cc] WatchdogLogAnomalyDetector: Pattern rates: %d\n", len(w.PatternRate))
 }
