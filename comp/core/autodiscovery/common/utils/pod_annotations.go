@@ -7,6 +7,7 @@ package utils
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -59,7 +60,7 @@ func ExtractTemplatesFromAnnotations(entityName string, annotations map[string]s
 // reported in the "Configuration Errors" section of `agent status`.
 func ValidatePodChecksAnnotation(checksJSON string) error {
 	if checksJSON == "" {
-		return fmt.Errorf("pod check annotation JSON is empty")
+		return errors.New("pod check annotation JSON is empty")
 	}
 	var namedChecks map[string]struct {
 		Name                    string          `json:"name"`
