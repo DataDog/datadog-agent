@@ -81,16 +81,14 @@ type OTLP struct {
 	// AttributesTranslator specifies an OTLP to Datadog attributes translator.
 	AttributesTranslator *ddattributes.Translator `mapstructure:"-"`
 
-	// IgnoreMissingDatadogFields specifies whether we should recompute DD span fields if the corresponding "datadog."
-	// namespaced span attributes are missing. If it is false (default), we will use the incoming "datadog." namespaced
-	// OTLP span attributes to construct the DD span, and if they are missing, we will recompute them from the other
-	// OTLP semantic convention attributes. If it is true, we will only populate a field if its associated "datadog."
-	// OTLP span attribute exists, otherwise we will leave it empty.
-	IgnoreMissingDatadogFields bool `mapstructure:"ignore_missing_datadog_fields"`
-
 	// GrpcMaxRecvMsgSizeMib specifies the max receive message size (in Mib) in OTLP receiver gRPC server in the trace agent binary.
 	// This config only applies to Agent OTLP ingestion. It does not apply to OSS Datadog exporter/connector or DDOT.
 	GrpcMaxRecvMsgSizeMib int `mapstructure:"-"`
+
+	// IgnoreMissingDatadogFields is deprecated and no longer used.
+	// It is kept for backwards compatibility with external packages.
+	// Deprecated: This field is ignored - the Agent now always uses standard OTel semantic conventions.
+	IgnoreMissingDatadogFields bool `mapstructure:"-"`
 }
 
 // ObfuscationConfig holds the configuration for obfuscating sensitive data
@@ -360,11 +358,12 @@ type AgentConfig struct {
 	Endpoints []*Endpoint
 
 	// Concentrator
-	BucketInterval         time.Duration // the size of our pre-aggregation per bucket
-	ExtraAggregators       []string      // DEPRECATED
-	PeerTagsAggregation    bool          // enables/disables stats aggregation for peer entity tags, used by Concentrator and ClientStatsAggregator
-	ComputeStatsBySpanKind bool          // enables/disables the computing of stats based on a span's `span.kind` field
-	PeerTags               []string      // additional tags to use for peer entity stats aggregation
+	BucketInterval            time.Duration // the size of our pre-aggregation per bucket
+	ExtraAggregators          []string      // DEPRECATED
+	PeerTagsAggregation       bool          // enables/disables stats aggregation for peer entity tags, used by Concentrator and ClientStatsAggregator
+	ComputeStatsBySpanKind    bool          // enables/disables the computing of stats based on a span's `span.kind` field
+	PeerTags                  []string      // additional tags to use for peer entity stats aggregation
+	SpanDerivedPrimaryTagKeys []string      // tag keys to use for span-derived primary tag stats aggregation
 
 	// Sampler configuration
 	ExtraSampleRate float64
@@ -550,9 +549,6 @@ type AgentConfig struct {
 
 	// DebugV1Payloads enables debug logging for V1 payloads when they fail to decode
 	DebugV1Payloads bool
-
-	// EnableV1TraceEndpoint enables the V1 trace endpoint, it is hidden by default
-	EnableV1TraceEndpoint bool
 
 	// SendAllInternalStats enables all internal stats to be published, otherwise some less-frequently-used stats will be omitted when zero to save costs
 	SendAllInternalStats bool
@@ -767,6 +763,16 @@ func (c *AgentConfig) ConfiguredPeerTags() []string {
 		return nil
 	}
 	return preparePeerTags(append(basePeerTags, c.PeerTags...))
+}
+
+// ConfiguredSpanDerivedPrimaryTagKeys returns the set of span-derived primary tag keys that should be used
+// for stats aggregation. These tag keys will be used to extract tags from spans
+// for use in aggregation keys, similar to peer tags.
+func (c *AgentConfig) ConfiguredSpanDerivedPrimaryTagKeys() []string {
+	if len(c.SpanDerivedPrimaryTagKeys) == 0 {
+		return nil
+	}
+	return preparePeerTags(c.SpanDerivedPrimaryTagKeys)
 }
 
 func inAzureAppServices() bool {

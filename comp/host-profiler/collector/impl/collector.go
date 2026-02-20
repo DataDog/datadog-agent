@@ -109,6 +109,7 @@ func newCollectorSettings(uri string, extraFactories ExtraFactories) (otelcol.Co
 				ConverterFactories: extraFactories.GetConverters(),
 			},
 		},
+		LoggingOptions: extraFactories.GetLoggingOptions(),
 	}, nil
 }
 

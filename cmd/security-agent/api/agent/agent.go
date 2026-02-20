@@ -24,7 +24,6 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare/securityagent"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -50,7 +49,6 @@ func NewAgent(statusComponent status.Component, settings settings.Component, wme
 func (a *Agent) SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/version", version.Get).Methods("GET")
 	r.HandleFunc("/flare", a.makeFlare).Methods("POST")
-	r.HandleFunc("/hostname", a.getHostname).Methods("GET")
 	r.HandleFunc("/stop", a.stopAgent).Methods("POST")
 	r.HandleFunc("/status", a.getStatus).Methods("GET")
 	r.HandleFunc("/status/health", a.getHealth).Methods("GET")
@@ -89,22 +87,6 @@ func (a *Agent) stopAgent(w http.ResponseWriter, _ *http.Request) {
 	signals.Stopper <- true
 	w.Header().Set("Content-Type", "application/json")
 	j, err := json.Marshal("")
-	if err != nil {
-		log.Warnf("Failed to serialize json: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Write(j)
-}
-
-func (a *Agent) getHostname(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	hname, err := hostname.Get(r.Context())
-	if err != nil {
-		log.Warnf("Error getting hostname: %s\n", err) // or something like this
-		hname = ""
-	}
-	j, err := json.Marshal(hname)
 	if err != nil {
 		log.Warnf("Failed to serialize json: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -166,7 +148,7 @@ func (a *Agent) makeFlare(w http.ResponseWriter, _ *http.Request) {
 func (a *Agent) refreshSecrets(w http.ResponseWriter, _ *http.Request) {
 	res, err := a.secrets.Refresh(true)
 	if err != nil {
-		log.Errorf("error while refresing secrets: %s", err)
+		log.Errorf("error while refreshing secrets: %s", err)
 		w.Header().Set("Content-Type", "application/json")
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
 		http.Error(w, string(body), http.StatusInternalServerError)

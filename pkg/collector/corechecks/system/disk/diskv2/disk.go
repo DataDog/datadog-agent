@@ -172,21 +172,26 @@ func (c *Check) Run() error {
 	if err != nil {
 		return err
 	}
-	err = c.collectDiskMetrics(sender)
-	if err != nil {
-		return err
-	}
+	// IO counter collection is best-effort: on some systems (e.g. Windows Server 2016)
+	// the IOCTL_DISK_PERFORMANCE call may fail with ERROR_INVALID_FUNCTION.
+	// We should not discard partition/usage metrics when this happens.
+	c.collectDiskMetrics(sender)
 	sender.Commit()
 
 	return nil
 }
 
 // Configure parses the check configuration and init the check
-func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	if flavor.GetFlavor() == flavor.DefaultAgent && !pkgconfigsetup.Datadog().GetBool("disk_check.use_core_loader") && !pkgconfigsetup.Datadog().GetBool("use_diskv2_check") {
 		// if use_diskv2_check, then do not skip the core check
 		return fmt.Errorf("%w: disk core check is disabled", check.ErrSkipCheckInstance)
 	}
+
+	// Must be called before CommonConfigure so each instance gets a unique
+	// check ID and therefore its own sender, preventing custom tags set on
+	// one instance from leaking into other instances' metrics.
+	c.BuildID(integrationConfigDigest, data, initConfig)
 
 	err := c.CommonConfigure(senderManager, initConfig, data, source)
 	if err != nil {
@@ -497,19 +502,21 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 	return nil
 }
 
-func (c *Check) collectDiskMetrics(sender sender.Sender) error {
+func (c *Check) collectDiskMetrics(sender sender.Sender) {
 	iomap, err := c.diskIOCounters()
 	if err != nil {
-		log.Warnf("Unable to get disk iocounters: %s", err)
-		return err
+		if isExpectedIOCounterError(err) {
+			log.Debugf("IO counter collection not supported on this system: %s", err)
+		} else {
+			log.Warnf("Unable to get disk IO counters: %s", err)
+		}
+		return
 	}
 	for deviceName, ioCounters := range iomap {
 		log.Debugf("Checking iocounters: [device: %s] [ioCounters: %s]", deviceName, ioCounters)
 		tags := c.buildDeviceTags(deviceName, deviceName)
 		c.sendDiskMetrics(sender, ioCounters, tags)
 	}
-
-	return nil
 }
 
 func (c *Check) sendPartitionMetrics(sender sender.Sender, usage *gopsutil_disk.UsageStat, tags []string) {

@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -51,7 +52,7 @@ var newClock = clock.New
 var templatesFS embed.FS
 
 // this is overridden by tests when needed
-var checkRightsFunc = checkRights
+var checkRightsFunc = filesystem.CheckRights
 
 // Provides list the provided interfaces from the secrets Component
 type Provides struct {
@@ -284,13 +285,7 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	}
 	r.backendArguments = params.Arguments
 	r.backendTimeout = params.Timeout
-	if r.backendTimeout == 0 {
-		r.backendTimeout = SecretBackendTimeoutDefault
-	}
 	r.responseMaxSize = params.MaxSize
-	if r.responseMaxSize == 0 {
-		r.responseMaxSize = SecretBackendOutputMaxSizeDefault
-	}
 
 	r.refreshInterval = time.Duration(params.RefreshInterval) * time.Second
 	r.refreshIntervalScatter = params.RefreshIntervalScatter
@@ -302,9 +297,6 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	}
 	r.auditFilename = filepath.Join(params.RunPath, auditFileBasename)
 	r.auditFileMaxSize = params.AuditFileMaxSize
-	if r.auditFileMaxSize == 0 {
-		r.auditFileMaxSize = SecretAuditFileMaxSizeDefault
-	}
 
 	r.scopeIntegrationToNamespace = params.ScopeIntegrationToNamespace
 	r.allowedNamespace = params.AllowedNamespace

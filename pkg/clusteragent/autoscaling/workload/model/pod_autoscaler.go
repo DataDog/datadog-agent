@@ -17,6 +17,7 @@ import (
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	corev1 "k8s.io/api/core/v1"
@@ -93,6 +94,10 @@ type PodAutoscalerInternal struct {
 
 	// verticalLastActionError is the last error encountered on vertical scaling
 	verticalLastActionError error
+
+	// verticalLastLimitReason is the reason vertical scaling was limited by min/max constraints.
+	// When non-nil, it carries a ConditionError so that both Reason and Message are preserved.
+	verticalLastLimitReason error
 
 	// currentReplicas is the current number of PODs for the targetRef
 	currentReplicas *int32
@@ -277,6 +282,32 @@ func (p *PodAutoscalerInternal) UpdateFromVerticalAction(action *datadoghqcommon
 	}
 }
 
+// ClearHorizontalState clears horizontal scaling status data when horizontal scaling is disabled.
+func (p *PodAutoscalerInternal) ClearHorizontalState() {
+	p.horizontalLastActions = nil
+	p.horizontalLastRecommendations = nil
+	p.horizontalLastLimitReason = ""
+	p.horizontalLastActionError = nil
+}
+
+// SetConstrainedVerticalScaling replaces the vertical scaling values and the limit error
+func (p *PodAutoscalerInternal) SetConstrainedVerticalScaling(v *VerticalScalingValues, limitErr error) {
+	if v == nil {
+		p.verticalLastLimitReason = nil
+		return
+	}
+	p.scalingValues.Vertical = v
+	p.verticalLastLimitReason = limitErr
+}
+
+// ClearVerticalState clears vertical scaling status data when vertical scaling is disabled.
+func (p *PodAutoscalerInternal) ClearVerticalState() {
+	p.verticalLastAction = nil
+	p.verticalLastActionError = nil
+	p.verticalLastLimitReason = nil
+	p.scaledReplicas = nil
+}
+
 // SetGeneration sets the generation of the PodAutoscaler
 func (p *PodAutoscalerInternal) SetGeneration(generation int64) {
 	p.generation = generation
@@ -290,6 +321,11 @@ func (p *PodAutoscalerInternal) SetScaledReplicas(replicas int32) {
 // SetCurrentReplicas sets the current number of replicas for the targetRef
 func (p *PodAutoscalerInternal) SetCurrentReplicas(replicas int32) {
 	p.currentReplicas = &replicas
+}
+
+// ClearCurrentReplicas clears the tracked replica count (e.g. when the target no longer exists).
+func (p *PodAutoscalerInternal) ClearCurrentReplicas() {
+	p.currentReplicas = nil
 }
 
 // SetError sets an error encountered by the controller not specific to a scaling action
@@ -345,24 +381,30 @@ func (p *PodAutoscalerInternal) UpdateFromStatus(status *datadoghqcommon.Datadog
 		p.currentReplicas = status.CurrentReplicas
 	}
 
-	// Reading potential errors from conditions. Resetting internal errors first.
-	// We're only keeping error string, loosing type, but it's not important for what we do.
+	// Reading potential errors from conditions.
+	// We restore the error with its programmatic reason when available.
 	for _, cond := range status.Conditions {
 		switch {
 		case cond.Type == datadoghqcommon.DatadogPodAutoscalerErrorCondition && cond.Status == corev1.ConditionTrue:
 			// Error condition could refer to a controller error or from a general Datadog error
 			// We're restoring this to error as it's the most generic
-			p.error = errors.New(cond.Reason)
+			p.error = errorFromCondition(cond)
 		case cond.Type == datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition && cond.Status == corev1.ConditionFalse:
-			p.scalingValues.HorizontalError = errors.New(cond.Reason)
+			p.scalingValues.HorizontalError = errorFromCondition(cond)
 		case cond.Type == datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition && cond.Status == corev1.ConditionFalse:
-			p.horizontalLastActionError = errors.New(cond.Reason)
+			p.horizontalLastActionError = errorFromCondition(cond)
 		case cond.Type == datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition && cond.Status == corev1.ConditionTrue:
-			p.horizontalLastLimitReason = cond.Reason
+			p.horizontalLastLimitReason = cond.Message
+			// Backward compatibility: if Message is empty, fall back to Reason
+			if p.horizontalLastLimitReason == "" {
+				p.horizontalLastLimitReason = cond.Reason
+			}
 		case cond.Type == datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition && cond.Status == corev1.ConditionFalse:
-			p.scalingValues.VerticalError = errors.New(cond.Reason)
+			p.scalingValues.VerticalError = errorFromCondition(cond)
 		case cond.Type == datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply && cond.Status == corev1.ConditionFalse:
-			p.verticalLastActionError = errors.New(cond.Reason)
+			p.verticalLastActionError = errorFromCondition(cond)
+		case cond.Type == datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition && cond.Status == corev1.ConditionTrue:
+			p.verticalLastLimitReason = errorFromCondition(cond)
 		}
 	}
 }
@@ -399,6 +441,34 @@ func (p *PodAutoscalerInternal) Generation() int64 {
 // Spec returns the spec of the PodAutoscaler
 func (p *PodAutoscalerInternal) Spec() *datadoghq.DatadogPodAutoscalerSpec {
 	return p.spec
+}
+
+func (p *PodAutoscalerInternal) IsHorizontalScalingEnabled() bool {
+	if p.spec == nil || p.spec.ApplyPolicy == nil {
+		return true
+	}
+
+	scaleUpDisabled := p.spec.ApplyPolicy.ScaleUp != nil &&
+		p.spec.ApplyPolicy.ScaleUp.Strategy != nil &&
+		*p.spec.ApplyPolicy.ScaleUp.Strategy == datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect
+
+	scaleDownDisabled := p.spec.ApplyPolicy.ScaleDown != nil &&
+		p.spec.ApplyPolicy.ScaleDown.Strategy != nil &&
+		*p.spec.ApplyPolicy.ScaleDown.Strategy == datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect
+
+	return !(scaleUpDisabled && scaleDownDisabled)
+}
+
+func (p *PodAutoscalerInternal) IsVerticalScalingEnabled() bool {
+	if p.spec == nil || p.spec.ApplyPolicy == nil {
+		return true
+	}
+
+	if p.spec.ApplyPolicy.Update == nil {
+		return true
+	}
+
+	return p.spec.ApplyPolicy.Update.Strategy != datadoghqcommon.DatadogPodAutoscalerDisabledUpdateStrategy
 }
 
 // SettingsTimestamp returns the timestamp of the last settings update
@@ -479,7 +549,7 @@ func (p *PodAutoscalerInternal) TargetGVK() (schema.GroupVersionKind, error) {
 
 	gv, err := schema.ParseGroupVersion(p.spec.TargetRef.APIVersion)
 	if err != nil || gv.Group == "" || gv.Version == "" {
-		return schema.GroupVersionKind{}, fmt.Errorf("failed to parse API version '%s', err: %w", p.spec.TargetRef.APIVersion, err)
+		return schema.GroupVersionKind{}, autoscaling.NewConditionError(autoscaling.ConditionReasonInvalidTargetRef, fmt.Errorf("failed to parse API version '%s', err: %w", p.spec.TargetRef.APIVersion, err))
 	}
 
 	p.targetGVK = schema.GroupVersionKind{
@@ -503,13 +573,16 @@ func (p *PodAutoscalerInternal) CustomRecommenderConfiguration() *RecommenderCon
 func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStatus *datadoghqcommon.DatadogPodAutoscalerStatus) datadoghqcommon.DatadogPodAutoscalerStatus {
 	status := datadoghqcommon.DatadogPodAutoscalerStatus{}
 
+	verticalEnabled := p.IsVerticalScalingEnabled()
+	horizontalEnabled := p.IsHorizontalScalingEnabled()
+
 	// Syncing current replicas
 	if p.currentReplicas != nil {
 		status.CurrentReplicas = p.currentReplicas
 	}
 
 	// Produce Horizontal status only if we have a desired number of replicas
-	if p.scalingValues.Horizontal != nil {
+	if horizontalEnabled && p.scalingValues.Horizontal != nil {
 		status.Horizontal = &datadoghqcommon.DatadogPodAutoscalerHorizontalStatus{
 			Target: &datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
 				Source:      p.scalingValues.Horizontal.Source,
@@ -532,7 +605,7 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 	}
 
 	// Produce Vertical status only if we have a desired container resources
-	if p.scalingValues.Vertical != nil {
+	if verticalEnabled && p.scalingValues.Vertical != nil {
 		cpuReqSum, memReqSum := p.scalingValues.Vertical.SumCPUMemoryRequests()
 
 		status.Vertical = &datadoghqcommon.DatadogPodAutoscalerVerticalStatus{
@@ -558,6 +631,7 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 		datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition:  nil,
 		datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition:   nil,
 		datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply:                nil,
+		datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition:    nil,
 	}
 
 	if currentStatus != nil {
@@ -578,55 +652,62 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 
 	// Building active condition, should handle multiple reasons, currently only disabled if target replicas = 0
 	if p.currentReplicas != nil && *p.currentReplicas == 0 {
-		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionFalse, "Target has been scaled to 0 replicas", currentTime, datadoghqcommon.DatadogPodAutoscalerActiveCondition, existingConditions))
+		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionFalse, "", "Target has been scaled to 0 replicas", currentTime, datadoghqcommon.DatadogPodAutoscalerActiveCondition, existingConditions))
 	} else {
-		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionTrue, "", currentTime, datadoghqcommon.DatadogPodAutoscalerActiveCondition, existingConditions))
+		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionTrue, "", "", currentTime, datadoghqcommon.DatadogPodAutoscalerActiveCondition, existingConditions))
 	}
 
 	// Building errors related to compute recommendations
 	var horizontalAbleToRecommend datadoghqcommon.DatadogPodAutoscalerCondition
-	if p.scalingValues.HorizontalError != nil || p.scalingValues.Horizontal != nil {
+	if horizontalEnabled && (p.scalingValues.HorizontalError != nil || p.scalingValues.Horizontal != nil) {
 		horizontalAbleToRecommend = newConditionFromError(false, currentTime, p.scalingValues.HorizontalError, datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, existingConditions)
 	} else {
-		horizontalAbleToRecommend = newCondition(corev1.ConditionUnknown, "", currentTime, datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, existingConditions)
+		horizontalAbleToRecommend = newCondition(corev1.ConditionUnknown, "", "", currentTime, datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, existingConditions)
 	}
 	status.Conditions = append(status.Conditions, horizontalAbleToRecommend)
 
 	var verticalAbleToRecommend datadoghqcommon.DatadogPodAutoscalerCondition
-	if p.scalingValues.VerticalError != nil || p.scalingValues.Vertical != nil {
+	if verticalEnabled && (p.scalingValues.VerticalError != nil || p.scalingValues.Vertical != nil) {
 		verticalAbleToRecommend = newConditionFromError(false, currentTime, p.scalingValues.VerticalError, datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, existingConditions)
 	} else {
-		verticalAbleToRecommend = newCondition(corev1.ConditionUnknown, "", currentTime, datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, existingConditions)
+		verticalAbleToRecommend = newCondition(corev1.ConditionUnknown, "", "", currentTime, datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, existingConditions)
 	}
 	status.Conditions = append(status.Conditions, verticalAbleToRecommend)
 
 	// Horizontal: handle scaling limited condition
-	if p.horizontalLastLimitReason != "" {
-		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionTrue, p.horizontalLastLimitReason, currentTime, datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, existingConditions))
+	if horizontalEnabled && p.horizontalLastLimitReason != "" {
+		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionTrue, "", p.horizontalLastLimitReason, currentTime, datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, existingConditions))
 	} else {
-		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionFalse, "", currentTime, datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, existingConditions))
+		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionFalse, "", "", currentTime, datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, existingConditions))
+	}
+
+	// Vertical: handle scaling limited condition
+	if verticalEnabled && p.verticalLastLimitReason != nil {
+		status.Conditions = append(status.Conditions, newConditionFromError(true, currentTime, p.verticalLastLimitReason, datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition, existingConditions))
+	} else {
+		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionFalse, "", "", currentTime, datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition, existingConditions))
 	}
 
 	// Building rollout errors
-	var horizontalReason string
+	var horizontalReason, horizontalMessage string
 	horizontalStatus := corev1.ConditionUnknown
 	if p.horizontalLastActionError != nil {
 		horizontalStatus = corev1.ConditionFalse
-		horizontalReason = p.horizontalLastActionError.Error()
+		horizontalReason, horizontalMessage = reasonAndMessageFromError(p.horizontalLastActionError)
 	} else if len(p.horizontalLastActions) > 0 {
 		horizontalStatus = corev1.ConditionTrue
 	}
-	status.Conditions = append(status.Conditions, newCondition(horizontalStatus, horizontalReason, currentTime, datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, existingConditions))
+	status.Conditions = append(status.Conditions, newCondition(horizontalStatus, horizontalReason, horizontalMessage, currentTime, datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, existingConditions))
 
-	var verticalReason string
+	var verticalReason, verticalMessage string
 	rolloutStatus := corev1.ConditionUnknown
 	if p.verticalLastActionError != nil {
 		rolloutStatus = corev1.ConditionFalse
-		verticalReason = p.verticalLastActionError.Error()
+		verticalReason, verticalMessage = reasonAndMessageFromError(p.verticalLastActionError)
 	} else if p.verticalLastAction != nil {
 		rolloutStatus = corev1.ConditionTrue
 	}
-	status.Conditions = append(status.Conditions, newCondition(rolloutStatus, verticalReason, currentTime, datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, existingConditions))
+	status.Conditions = append(status.Conditions, newCondition(rolloutStatus, verticalReason, verticalMessage, currentTime, datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, existingConditions))
 
 	return status
 }
@@ -690,33 +771,71 @@ func addRecommendationToHistory(currentTime time.Time, retention time.Duration, 
 	return history
 }
 
-func newConditionFromError(trueOnError bool, currentTime metav1.Time, err error, conditionType datadoghqcommon.DatadogPodAutoscalerConditionType, existingConditions map[datadoghqcommon.DatadogPodAutoscalerConditionType]*datadoghqcommon.DatadogPodAutoscalerCondition) datadoghqcommon.DatadogPodAutoscalerCondition {
-	var condition corev1.ConditionStatus
+// errorFromCondition restores an error from a Kubernetes condition.
+// If the condition has a programmatic Reason, the error is wrapped with it.
+// For backward compatibility, if Message is empty, Reason is used as the error message
+// (matching the old behavior where err.Error() was stored in the Reason field).
+func errorFromCondition(cond datadoghqcommon.DatadogPodAutoscalerCondition) error {
+	message := cond.Message
+	// Backward compatibility: if Message is empty, fall back to Reason as error message
+	if message == "" {
+		message = cond.Reason
+		if message == "" {
+			return errors.New("unknown error")
+		}
+		return errors.New(message)
+	}
 
-	var reason string
+	if cond.Reason != "" {
+		return autoscaling.NewConditionError(autoscaling.ConditionReasonType(cond.Reason), errors.New(message))
+	}
+	return errors.New(message)
+}
+
+// reasonAndMessageFromError extracts a programmatic reason and human-readable message from an error.
+// If the error implements autoscaling.ConditionReason, the reason is extracted from it.
+// The message is always the error's Error() string.
+func reasonAndMessageFromError(err error) (reason, message string) {
+	if err == nil {
+		return "", ""
+	}
+
+	message = err.Error()
+	var cr autoscaling.ConditionReason
+	if errors.As(err, &cr) {
+		reason = string(cr.Reason())
+	}
+	return reason, message
+}
+
+func newConditionFromError(trueOnError bool, currentTime metav1.Time, err error, conditionType datadoghqcommon.DatadogPodAutoscalerConditionType, existingConditions map[datadoghqcommon.DatadogPodAutoscalerConditionType]*datadoghqcommon.DatadogPodAutoscalerCondition) datadoghqcommon.DatadogPodAutoscalerCondition {
+	var status corev1.ConditionStatus
+
+	var reason, message string
 	if err != nil {
-		reason = err.Error()
+		reason, message = reasonAndMessageFromError(err)
 		if trueOnError {
-			condition = corev1.ConditionTrue
+			status = corev1.ConditionTrue
 		} else {
-			condition = corev1.ConditionFalse
+			status = corev1.ConditionFalse
 		}
 	} else {
 		if trueOnError {
-			condition = corev1.ConditionFalse
+			status = corev1.ConditionFalse
 		} else {
-			condition = corev1.ConditionTrue
+			status = corev1.ConditionTrue
 		}
 	}
 
-	return newCondition(condition, reason, currentTime, conditionType, existingConditions)
+	return newCondition(status, reason, message, currentTime, conditionType, existingConditions)
 }
 
-func newCondition(status corev1.ConditionStatus, reason string, currentTime metav1.Time, conditionType datadoghqcommon.DatadogPodAutoscalerConditionType, existingConditions map[datadoghqcommon.DatadogPodAutoscalerConditionType]*datadoghqcommon.DatadogPodAutoscalerCondition) datadoghqcommon.DatadogPodAutoscalerCondition {
+func newCondition(status corev1.ConditionStatus, reason, message string, currentTime metav1.Time, conditionType datadoghqcommon.DatadogPodAutoscalerConditionType, existingConditions map[datadoghqcommon.DatadogPodAutoscalerConditionType]*datadoghqcommon.DatadogPodAutoscalerCondition) datadoghqcommon.DatadogPodAutoscalerCondition {
 	condition := datadoghqcommon.DatadogPodAutoscalerCondition{
-		Type:   conditionType,
-		Status: status,
-		Reason: reason,
+		Type:    conditionType,
+		Status:  status,
+		Reason:  reason,
+		Message: message,
 	}
 
 	prevCondition := existingConditions[conditionType]

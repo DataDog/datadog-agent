@@ -37,23 +37,46 @@ archive_override(
     urls = ["https://github.com/aiuto/supply-chain/archive/refs/tags/dd_test.tar.gz"],
 )
 
-bazel_dep(name = "supply_chain_tools", version = "0.0.1")
-bazel_dep(name = "platforms", version = "1.0.0")
-bazel_dep(name = "bazel_features", version = "1.34.0")
-bazel_dep(name = "bazel_skylib", version = "1.8.2")
 bazel_dep(name = "bazel_lib", version = "3.1.1")
-bazel_dep(name = "rules_go", version = "0.59.0")  # for https://github.com/bazel-contrib/rules_go/pull/4493
-bazel_dep(name = "rules_pkg", version = "1.1.0")
-bazel_dep(name = "rules_shell", version = "0.6.1")
+bazel_dep(name = "bazel_skylib", version = "1.9.0")
+bazel_dep(name = "gazelle", version = "0.47.0")
 bazel_dep(name = "libarchive", version = "3.8.1")
+bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "re.bzl", version = "0.2.0")
+bazel_dep(name = "rules_go", version = "0.60.0")
+bazel_dep(name = "rules_pkg", version = "1.2.0")
+bazel_dep(name = "rules_python", version = "1.8.4")
+bazel_dep(name = "rules_shell", version = "0.6.1")
+bazel_dep(name = "supply_chain_tools", version = "0.0.1")
 
 bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 
-# Temporary until rules_pkg 1.2.0 is in BCR
-archive_override(
+# Temporary until gazelle > 0.47.0 with Go 1.24+ fixes is in BCR
+git_override(
+    module_name = "gazelle",
+    commit = "6b2aeccd77d2668a21202f5b60e10b035419c61a",  # master as of Feb 13, 2026
+    remote = "https://github.com/bazel-contrib/bazel-gazelle.git",
+)
+
+# Temporary until rules_go > 0.60.0 with go.work support is in BCR
+git_override(
+    module_name = "rules_go",
+    commit = "9ca4797bbca6f785febcff7bc1508c83110a5de8",  # main as of Feb 11, 2026
+    remote = "https://github.com/bazel-contrib/rules_go.git",
+)
+
+# Temporary until rules_pkg > 1.2.0 is in BCR
+git_override(
     module_name = "rules_pkg",
-    sha256 = "b5c9184a23bb0bcff241981fd9d9e2a97638a1374c9953bb1808836ce711f990",
-    urls = ["https://github.com/bazelbuild/rules_pkg/releases/download/1.2.0/rules_pkg-1.2.0.tar.gz"],
+    commit = "2bd928123ad46f5b96970f537af073e0acb5b654",  # main as of Feb 10, 2026
+    remote = "https://github.com/bazelbuild/rules_pkg.git",
+)
+
+# Temporary until rules_python > 1.8.4 with Windows runfiles fix is in BCR
+git_override(
+    module_name = "rules_python",
+    commit = "f78add7f273bc2fe54ce9187da44abd68588961a",  # main as of Feb 11, 2026
+    remote = "https://github.com/bazel-contrib/rules_python.git",
 )
 
 #########################
@@ -119,6 +142,7 @@ git_override(
         "//bazel/patches:gcc-toolchain/0001-Remove-fortran-related-actions-adapt-to-our-ctng-too.patch",
         "//bazel/patches:gcc-toolchain/0002-fix-c-x86_64-header-locations-with-our-ctng-toolchai.patch",
         "//bazel/patches:gcc-toolchain/0003-add-nostdinc-to-asmflags.patch",
+        "//bazel/patches:gcc-toolchain/0004-fix-re-fetching.patch",  # https://github.com/f0rmiga/gcc-toolchain/pull/207
     ],
     remote = "https://github.com/f0rmiga/gcc-toolchain.git",
 )
@@ -160,8 +184,6 @@ visual_studio(
 # Keep in sync with .python-version
 PYTHON_VERSION = "3.12"
 
-bazel_dep(name = "rules_python", version = "1.6.3")
-
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
 python.defaults(python_version = PYTHON_VERSION)
 python.toolchain(
@@ -199,11 +221,9 @@ use_repo(rust, "rust_toolchains")
 
 register_toolchains("@rust_toolchains//:all")
 
-crate = use_extension("@rules_rust//crate_universe:extension.bzl", "crate")
+bazel_dep(name = "rules_rs", version = "0.0.27")
 
 include("//deps:crates.MODULE.bazel")
-
-use_repo(crate, "sdagent_crates")
 
 #########################
 ## Native dependencies ##
@@ -227,10 +247,16 @@ include("//deps/compile_policy:compile_policy.MODULE.bazel")
 include("//deps/cpython:cpython.MODULE.bazel")
 
 # buildifier: leave-alone
+include("//deps/curl:curl.MODULE.bazel")
+
+# buildifier: leave-alone
 include("//deps/freetds:freetds.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/gstatus:gstatus.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/jmxfetch:jmxfetch.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/nfsiostat:nfsiostat.MODULE.bazel")
@@ -252,6 +278,9 @@ include("//deps/windows:drivers.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/msodbcsql18:msodbcsql18.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps:go.MODULE.bazel")
 
 # This enables cross-compilation for macOS x86_64 on Apple Silicon.
 # Simply add --platforms=@apple_support//platforms:macos_x86_64

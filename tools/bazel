@@ -17,8 +17,14 @@ if [ -n "${CI:-}" ]; then
   # Pass CI-specific options through `.user.bazelrc` so any nested `bazel run` also honor them
   cat >"$(dirname "$(dirname "$0")")/user.bazelrc" <<EOF
 common --config=ci
-common --config=adms
 EOF
+fi
+
+# Warn non-CI users running `bazel` in a container without persisting its cache
+if [[ -z "${XDG_CACHE_HOME:-}" && ( -e /.dockerenv || -e /run/.containerenv ) ]]; then
+  >&2 echo "💡 To persist caches across restarts, consider sharing a directory and setting XDG_CACHE_HOME to its path:"
+  # shellcheck disable=SC2016
+  >&2 echo '    docker run --env=XDG_CACHE_HOME=/cache --volume="$HOME/.cache:/cache" ...'
 fi
 
 exec "$BAZEL_REAL" "$@"

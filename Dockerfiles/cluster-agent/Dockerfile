@@ -9,7 +9,7 @@ COPY nosys-seccomp/nosys.c   /tmp/nosys.c
 COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
 RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sym -o /tmp/nosys.so /tmp/nosys.c -lseccomp
 
-FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS release-base
+FROM ${BASE_IMAGE_REGISTRY}/ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS release-base
 ARG BASE_IMAGE_UBUNTU_VERSION=24.04
 ARG BASE_IMAGE_UBUNTU_NAME=noble
 LABEL maintainer "Datadog <package@datadoghq.com>"
@@ -42,13 +42,19 @@ ENV PATH="/opt/datadog-agent/bin/:$PATH" \
 RUN apt-get update \
     && apt full-upgrade -y \
     && apt-get install --no-install-recommends -y ca-certificates curl libseccomp2 tzdata adduser\
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+    && rm -rf \
+      /var/cache/debconf/*-old \
+      /var/lib/apt/lists/* \
+      /var/log/* \
+      /tmp/* \
+      /var/tmp/*
 
 COPY ./conf.d /etc/datadog-agent/conf.d
 COPY ./datadog-cluster.yaml /etc/datadog-agent/datadog-cluster.yaml
 COPY ./security-agent-policies/compliance/containers/cis-kubernetes*.yaml /etc/datadog-agent/compliance.d/
 COPY ./security-agent-policies/compliance/containers/*.rego /etc/datadog-agent/compliance.d/
 COPY ./install_info etc/datadog-agent/install_info
+COPY ./private-action-runner /etc/datadog-agent/private-action-runner
 COPY entrypoint.sh .
 COPY readsecret.sh readsecret_multiple_providers.sh ./
 

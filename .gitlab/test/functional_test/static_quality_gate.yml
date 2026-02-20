@@ -3,8 +3,10 @@ static_quality_gates:
   rules:
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a special artifact that will not pass the quality gate
     - !reference [.on_main_or_release_branch]
-    - !reference [.on_dev_branches]
-    - when: on_success
+    - !reference [.on_mergequeue]
+    - !reference [.on_dev_branches_with_artifact_changes]
+    - when: manual
+      allow_failure: true
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64", "specific:true"]
   needs:
@@ -75,7 +77,7 @@ manual_gate_threshold_update:
   rules:
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a special artifact that will not pass the quality gate
     - !reference [.on_main_manual]
-    - !reference [.on_dev_branches]
+    - !reference [.on_dev_branches_with_artifact_changes_manual]
     - when: manual
       allow_failure: true
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64

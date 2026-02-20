@@ -286,6 +286,11 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.PeerTags = core.GetStringSlice("apm_config.peer_tags")
 	}
 
+	if core.IsConfigured("apm_config.span_derived_primary_tags") {
+		c.SpanDerivedPrimaryTagKeys = core.GetStringSlice("apm_config.span_derived_primary_tags")
+		log.Infof("span_derived_primary_tags configured: %v", c.SpanDerivedPrimaryTagKeys)
+	}
+
 	if core.IsConfigured("apm_config.extra_sample_rate") {
 		c.ExtraSampleRate = core.GetFloat64("apm_config.extra_sample_rate")
 	}
@@ -417,15 +422,14 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 
 	c.OTLPReceiver = &config.OTLP{
-		BindHost:                   c.ReceiverHost,
-		GRPCPort:                   grpcPort,
-		MaxRequestBytes:            c.MaxRequestBytes,
-		SpanNameRemappings:         pkgconfigsetup.Datadog().GetStringMapString("otlp_config.traces.span_name_remappings"),
-		SpanNameAsResourceName:     core.GetBool("otlp_config.traces.span_name_as_resource_name"),
-		IgnoreMissingDatadogFields: core.GetBool("otlp_config.traces.ignore_missing_datadog_fields"),
-		ProbabilisticSampling:      core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
-		AttributesTranslator:       attributesTranslator,
-		GrpcMaxRecvMsgSizeMib:      core.GetInt("otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib"),
+		BindHost:               c.ReceiverHost,
+		GRPCPort:               grpcPort,
+		MaxRequestBytes:        c.MaxRequestBytes,
+		SpanNameRemappings:     pkgconfigsetup.Datadog().GetStringMapString("otlp_config.traces.span_name_remappings"),
+		SpanNameAsResourceName: core.GetBool("otlp_config.traces.span_name_as_resource_name"),
+		ProbabilisticSampling:  core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
+		AttributesTranslator:   attributesTranslator,
+		GrpcMaxRecvMsgSizeMib:  core.GetInt("otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib"),
 	}
 
 	if core.IsSet("apm_config.install_id") {
@@ -672,9 +676,6 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "apm_config.debug_v1_payloads"; core.IsSet(k) {
 		c.DebugV1Payloads = core.GetBool("apm_config.debug_v1_payloads")
 	}
-	if k := "apm_config.enable_v1_trace_endpoint"; core.IsSet(k) {
-		c.EnableV1TraceEndpoint = core.GetBool("apm_config.enable_v1_trace_endpoint")
-	}
 	if k := "apm_config.mode"; core.IsConfigured(k) {
 		c.APMMode = normalizeAPMMode(core.GetString(k))
 	}
@@ -843,7 +844,7 @@ func validate(c *config.AgentConfig, core corecompcfg.Component) error {
 		return errors.New("agent binary path not set")
 	}
 
-	if c.Hostname == "" && !core.GetBool("serverless.enabled") {
+	if c.Hostname == "" && !core.GetBool("serverless.enabled") && !core.GetBool("otelcollector.gateway.mode") {
 		if err := hostname(c); err != nil {
 			return err
 		}

@@ -4,7 +4,7 @@ load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 XSLT_VERSION = "1.1.43"
 EXSLT_VERSION = "0.8.25"
@@ -133,24 +133,6 @@ pkg_files(
 )
 
 expand_template(
-    name = "gen_xslt_pkgconfig",
-    template = "libxslt.pc.in",
-    out = "libxslt.pc",
-    substitutions = {
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@VERSION@": XSLT_VERSION,
-        "@XSLT_INCLUDEDIR@": "-I${includedir}",
-        "@LIBXSLT_CFLAGS@": "",
-        "@XSLT_LIBDIR@": "-L${libdir}",
-        "@XSLT_PRIVATE_LIBS@": "",
-    },
-    visibility = ["//visibility:public"],
-)
-
-expand_template(
     name = "exsltconfig_h",
     template = "libexslt/exsltconfig.h.in",
     out = "libexslt/exsltconfig.h",
@@ -221,37 +203,20 @@ pkg_files(
     prefix = "include/libexslt",
 )
 
-expand_template(
-    name = "gen_exslt_pkgconfig",
-    template = "libexslt.pc.in",
-    out = "libexslt.pc",
-    substitutions = {
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@LIBEXSLT_VERSION@": EXSLT_VERSION,
-        "@EXSLT_INCLUDEDIR@": "-I${includedir}",
-        "@LIBEXSLT_CFLAGS@": "",
-        "@EXSLT_LIBDIR@": "-L${libdir}",
-        "@EXSLT_PRIVATE_LIBS@": "",
-    },
-    visibility = ["//visibility:public"],
-)
-
-pkg_files(
-    name = "pkgconfig",
-    srcs = [":gen_xslt_pkgconfig", ":gen_exslt_pkgconfig"],
-    prefix = "lib/pkgconfig",
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":xslt_headers",
+        ":exslt_headers",
+        ":xslt_lib_files",
+        ":exslt_lib_files",
+    ],
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
 pkg_install(
     name = "install",
     srcs = [
-        ":xslt_headers",
-        ":exslt_headers",
-        ":pkgconfig",
-        ":xslt_lib_files",
-        ":exslt_lib_files",
+        ":all_files",
     ],
 )
