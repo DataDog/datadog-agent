@@ -199,9 +199,16 @@ func (t *ebpfLessTracer) processConnection(
 	isNewConn := !ok
 	if isNewConn {
 		conn = t.connPool.Get()
-		// NOTE: this tuple does not have the connection direction set yet.
-		// That will be set from determineConnectionDirection later
 		conn.ConnectionTuple = ebpfless.MakeConnStatsTuple(tuple)
+
+		// guess direction before calling the processors; for TCP, the processor
+		// may also set direction from the SYN packet
+		direction, err := guessConnectionDirection(conn, pktType, t.boundPorts)
+		if err != nil {
+			t.putConn(conn)
+			return err
+		}
+		conn.Direction = direction
 	}
 
 	var ts int64
@@ -232,23 +239,6 @@ func (t *ebpfLessTracer) processConnection(
 
 	if isNewConn && result.ShouldPersist() {
 		conn.Duration = time.Duration(time.Now().UnixNano())
-		direction, err := guessConnectionDirection(conn, pktType, t.boundPorts)
-		if err != nil {
-			return err
-		}
-		if direction == network.UNKNOWN {
-			// silently drop connections whose direction can't be determined
-			// (e.g. preexisting TCP connections where the SYN was missed)
-			if conn.Type == network.TCP {
-				t.tcp.RemoveConn(tuple)
-			}
-			t.putConn(conn)
-			ebpfLessTracerTelemetry.droppedConnections.Inc()
-			return nil
-		}
-		conn.Direction = direction
-
-		// now that the direction is set, hash the connection
 		t.cookieHasher.Hash(conn)
 	}
 
