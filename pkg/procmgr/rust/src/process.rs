@@ -35,11 +35,11 @@ impl ManagedProcess {
             info!("[{}] auto_start=false, skipping", self.name);
             return false;
         }
-        if let Some(ref path) = self.config.condition_path_exists {
-            if !std::path::Path::new(path).exists() {
-                info!("[{}] condition_path_exists not met: {path}", self.name);
-                return false;
-            }
+        if let Some(ref path) = self.config.condition_path_exists
+            && !std::path::Path::new(path).exists()
+        {
+            info!("[{}] condition_path_exists not met: {path}", self.name);
+            return false;
         }
         true
     }
@@ -77,12 +77,11 @@ impl ManagedProcess {
     }
 
     pub fn send_signal(&self, sig: Signal) {
-        if let Some(ref child) = self.child {
-            if let Some(pid) = child.id() {
-                if let Err(e) = signal::kill(Pid::from_raw(pid as i32), sig) {
-                    warn!("[{}] failed to send {sig}: {e}", self.name);
-                }
-            }
+        if let Some(ref child) = self.child
+            && let Some(pid) = child.id()
+            && let Err(e) = signal::kill(Pid::from_raw(pid as i32), sig)
+        {
+            warn!("[{}] failed to send {sig}: {e}", self.name);
         }
     }
 
