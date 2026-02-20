@@ -323,6 +323,14 @@ func (t *remoteTagger) Tag(entityID types.EntityID, cardinality types.TagCardina
 	return []string{}, nil
 }
 
+// TagWithCompleteness returns tags for a given entity at the desired cardinality,
+// along with a boolean indicating whether the entity's data is complete.
+// The remote tagger does not track completeness, so the boolean is always true.
+func (t *remoteTagger) TagWithCompleteness(entityID types.EntityID, cardinality types.TagCardinality) ([]string, bool, error) {
+	tags, err := t.Tag(entityID, cardinality)
+	return tags, true, err
+}
+
 // GenerateContainerIDFromOriginInfo returns a container ID for the given Origin Info.
 //
 // This method caches both successful and failed lookups. The shared
