@@ -3345,6 +3345,71 @@ func (s *TracerSuite) TestTCPRetransmitSyncOnClose() {
 	}, 5*time.Second, 100*time.Millisecond)
 }
 
+func (s *TracerSuite) TestTCPCongestionSignals() {
+	t := s.T()
+	cfg := testConfig()
+	if isPrebuilt(cfg) {
+		t.Skip("congestion signals not available on prebuilt")
+	}
+	skipOnEbpflessNotSupported(t, cfg)
+
+	tr := setupTracer(t, cfg)
+
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+		io.Copy(io.Discard, c)
+		c.Close()
+	})
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
+
+	// Connect and send initial data so delivered > 0
+	c, err := server.Dial()
+	require.NoError(t, err)
+	defer c.Close()
+
+	_, err = c.Write([]byte("initial data"))
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+
+	// Induce RTO: drop packets and send data, then wait for RTO to fire
+	iptablesWrapper(t, func() {
+		_, err = c.Write([]byte("data during loss"))
+		require.NoError(t, err)
+		// RTO min is ~200ms with backoff 200, 400, 800, 1600...
+		// 2 seconds should give us 2-3 RTOs.
+		time.Sleep(2 * time.Second)
+	})
+
+	// Send after iptables restored to trigger a fresh congestion snapshot
+	_, err = c.Write([]byte("post-loss data"))
+	require.NoError(t, err)
+
+	// TODO: remove this debug sleep before productionizing. It allows manual
+	// inspection of kprobe state via bpftool while the test is running:
+	//   sudo bpftool prog list | grep -i tcp_ent
+	//   sudo bpftool prog show id <ID>          # check run_cnt
+	//   sudo cat /sys/kernel/debug/kprobes/list | grep tcp_enter
+	t.Log("DEBUG: probes active — check bpftool now. Sleeping 30s...")
+	time.Sleep(30 * time.Second)
+
+	// Single assertion block: check all signals after the loss event.
+	// We use one EventuallyWithT to avoid state-delta issues from multiple
+	// GetActiveConnections calls (the state tracker returns deltas per client).
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		if !assert.True(ct, ok, "connection not found") {
+			return
+		}
+		t.Logf("Congestion signals: delivered=%d packets_out=%d lost_out=%d sacked_out=%d retrans_out=%d ca_state=%d rto_count=%d recovery_count=%d",
+			conn.TCPDelivered, conn.TCPPacketsOut, conn.TCPLostOut, conn.TCPSackedOut,
+			conn.TCPRetransOut, conn.TCPCAState, conn.TCPRTOCount, conn.TCPRecoveryCount)
+		assert.Greater(ct, conn.TCPDelivered, uint32(0), "delivered should be > 0 after successful send")
+		assert.Greater(ct, conn.TCPRTOCount, uint32(0), "rto_count should be > 0 after RTO")
+	}, 5*time.Second, 100*time.Millisecond)
+}
+
 func expectDNSWorkload(ct *assert.CollectT, connections *network.Connections) *network.ConnectionStats {
 	// find a connection from Python client to CoreDNS
 	conn := network.FirstConnection(connections, func(c network.ConnectionStats) bool {
