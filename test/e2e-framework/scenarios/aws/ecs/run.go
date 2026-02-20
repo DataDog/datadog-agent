@@ -29,7 +29,7 @@ import (
 // isEC2ProviderSet checks whether at least one EC2 capacity provider is set in the given params
 // An EC2 provider is considered set if at least one of its node groups is enabled.
 func isEC2ProviderSet(params *Params) bool {
-	return params.LinuxNodeGroup || params.LinuxARMNodeGroup || params.WindowsNodeGroup || params.LinuxBottleRocketNodeGroup || params.ManagedInstanceNodeGroup
+	return params.LinuxNodeGroup || params.LinuxARMNodeGroup || params.WindowsNodeGroup || params.LinuxBottleRocketNodeGroup
 }
 
 // Run is the entry point for the scenario when run via pulumi.

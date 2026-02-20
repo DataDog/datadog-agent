@@ -28,7 +28,7 @@ This directory contains **7 test suites** with **61 total tests**:
 
 ### 1. `apm_test.go` - APM/Tracing (8 tests)
 Tests APM trace collection and distributed tracing across ECS environments.
-Deploys the `ecs-multiservice` workload (frontend/backend/database with `DD_LOGS_INJECTION=true`) in addition to the standard testing workload for trace-log correlation testing.
+Uses the standard testing workload which includes `tracegen` with `DD_LOGS_INJECTION=true` for trace-log correlation testing.
 
 **Tests**:
 - `Test00AgentAPMReady` - APM agent readiness check
@@ -51,7 +51,7 @@ Deploys the `ecs-multiservice` workload (frontend/backend/database with `DD_LOGS
 
 ### 2. `logs_test.go` - Log Collection (9 tests)
 Tests log collection, processing, and enrichment from ECS containers.
-Deploys the `ecs-log-generator` workload (with `DD_LOGS_INJECTION=true`, structured JSON logs, and multiline stack traces) in addition to the standard testing workload for trace-log correlation testing.
+Uses the standard testing workload which includes `tracegen` with `DD_LOGS_INJECTION=true` for trace-log correlation testing.
 
 **Tests**:
 - `Test00AgentLogsReady` - Log agent readiness check
@@ -218,14 +218,9 @@ Tests platform-specific functionality and performance monitoring.
 
 ### Test Applications
 
-All suites use the shared testing workload via `scenecs.WithTestingWorkload()`, which deploys standard test applications (redis, nginx, tracegen, dogstatsd, cpustress, prometheus) on EC2 and Fargate launch types.
+All suites use the shared testing workload via `scenecs.WithTestingWorkload()`, which deploys standard test applications (redis, nginx, tracegen, dogstatsd, cpustress, prometheus) on EC2 and Fargate launch types. The `tracegen` app has `DD_LOGS_INJECTION=true` enabled for trace-log correlation testing.
 
-Some suites deploy additional workloads for feature-specific testing:
-
-| Suite | Additional Workload | Purpose |
-|-------|-------------------|---------|
-| `apm_test.go` | `ecs-multiservice` | 3-tier app (frontend/backend/database) with `DD_LOGS_INJECTION=true` for trace-log correlation and multi-service distributed tracing |
-| `logs_test.go` | `ecs-log-generator` | Generates structured JSON logs, multiline stack traces, and trace-correlated logs via `DD_LOGS_INJECTION=true` |
+The managed instance suite additionally deploys `tracegen` explicitly via `scenecs.WithWorkloadApp()` since `WithTestingWorkload()` only deploys on EC2 capacity providers.
 
 ### Deployment Scenarios
 
@@ -334,10 +329,6 @@ func TestECSAPMSuite(t *testing.T) {
                 scenecs.WithLinuxNodeGroup(),
             ),
             scenecs.WithTestingWorkload(),
-            // Add feature-specific workloads as needed:
-            scenecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
-                return ecsmultiservice.EcsAppDefinition(e, clusterArn)
-            }),
         ),
     )))
 }
