@@ -29,10 +29,7 @@ require (
 	go.uber.org/zap v1.27.1
 )
 
-require (
-	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
-)
+require gopkg.in/yaml.v3 v3.0.1 // indirect
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.180 // indirect
@@ -71,7 +68,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.72.2 // indirect
-	github.com/DataDog/viper v1.15.0 // indirect
+	github.com/DataDog/viper v1.15.1 // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
