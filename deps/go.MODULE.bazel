@@ -25,7 +25,7 @@ use_repo(
     "com_github_uber_go_gopatch",
     "com_github_vektra_mockery_v3",
     "com_github_wadey_gocovmerge",
-    "in_gopkg_yaml_v3",
+    "in_yaml_go_yaml_v3",
     "org_golang_google_grpc",
     "org_golang_google_grpc_cmd_protoc_gen_go_grpc",
     "org_golang_google_protobuf",
