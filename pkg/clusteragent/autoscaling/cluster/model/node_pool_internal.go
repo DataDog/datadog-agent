@@ -230,6 +230,8 @@ func UpdateNodePoolObject(targetNp, datadogNp *karpenterv1.NodePool, npi NodePoo
 		npCopy = targetNp.DeepCopy()
 		// Preserve ObjectMeta from Datadog-created NodePool
 		npCopy.ObjectMeta = datadogNp.ObjectMeta
+		// Allow label updates to propagate from target to replica
+		npCopy.ObjectMeta.Labels = targetNp.GetLabels()
 
 		modifyReplicaNodePool(npCopy, npi, false)
 	} else {
