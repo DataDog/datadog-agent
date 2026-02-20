@@ -23,6 +23,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
@@ -2568,16 +2569,26 @@ func configureDelegatedAuth(config pkgconfigmodel.Config, delegatedAuthComp dele
 	// To add delegated auth support for a new config prefix, call bindDelegatedAuthConfig(config, prefix)
 	// during config initialization (see bindDelegatedAuthConfig for examples)
 
-	// Collect all instances that need to be configured
-	type instanceConfig struct {
-		orgUUID         string
-		refreshInterval int
-		apiKeyConfigKey string
-		description     string
+	// Get global provider config from delegated_auth prefix (used for all instances)
+	var providerConfig common.ProviderConfig
+	provider := config.GetString("delegated_auth.provider")
+	switch provider {
+	case "aws":
+		providerConfig = &cloudauthconfig.AWSProviderConfig{
+			Region: config.GetString("delegated_auth.aws.region"),
+		}
+	case "":
+		// Empty provider means auto-detect; ProviderConfig stays nil
+		// But if aws config is present, we can still use it when auto-detect picks AWS
+		if awsRegion := config.GetString("delegated_auth.aws.region"); awsRegion != "" {
+			providerConfig = &cloudauthconfig.AWSProviderConfig{
+				Region: awsRegion,
+			}
+		}
 	}
-	var instances []instanceConfig
-	var initParams delegatedauth.InitParams
-	var needsInit bool
+
+	// Track if any instances were configured
+	configured := false
 
 	// Scan all registered prefixes to find which ones have delegated auth enabled
 	for prefix, apiKeyConfigKey := range registeredDelegatedAuthConfigs {
@@ -2595,69 +2606,33 @@ func configureDelegatedAuth(config pkgconfigmodel.Config, delegatedAuthComp dele
 			continue
 		}
 
-		// Use the first configured instance to initialize the component
-		if !needsInit {
-			provider := config.GetString(configPrefix + ".provider")
-			initParams = delegatedauth.InitParams{
-				Config: config,
-			}
-
-			// Create provider-specific configuration from nested config
-			switch provider {
-			case "aws":
-				initParams.ProviderConfig = &cloudauthconfig.AWSProviderConfig{
-					Region: config.GetString(configPrefix + ".aws.region"),
-				}
-			case "":
-				// Empty provider means auto-detect; ProviderConfig stays nil
-				// But if aws config is present, we can still use it when auto-detect picks AWS
-				if awsRegion := config.GetString(configPrefix + ".aws.region"); awsRegion != "" {
-					initParams.ProviderConfig = &cloudauthconfig.AWSProviderConfig{
-						Region: awsRegion,
-					}
-				}
-			}
-
-			needsInit = true
-		}
-
 		// Build description for logging
 		description := "global"
 		if prefix != "" {
 			description = prefix
 		}
 
-		instances = append(instances, instanceConfig{
-			orgUUID:         orgUUID,
-			refreshInterval: config.GetInt(configPrefix + ".refresh_interval_mins"),
-			apiKeyConfigKey: apiKeyConfigKey,
-			description:     description,
-		})
-	}
+		log.Infof("Configuring delegated authentication for '%s'", description)
 
-	if !needsInit {
-		log.Debug("Delegated authentication is not configured")
-		return nil
-	}
-
-	// Initialize the component once
-	if err := delegatedAuthComp.Initialize(initParams); err != nil {
-		log.Errorf("Failed to initialize delegated authentication: %v", err)
-		return err
-	}
-
-	// Add each instance
-	for _, inst := range instances {
-		log.Infof("Configuring delegated authentication for '%s'", inst.description)
-
+		// Call AddInstance - the component auto-initializes on the first call
+		// Config and ProviderConfig are only used on the first call
 		err := delegatedAuthComp.AddInstance(delegatedauth.InstanceParams{
-			OrgUUID:         inst.orgUUID,
-			RefreshInterval: inst.refreshInterval,
-			APIKeyConfigKey: inst.apiKeyConfigKey,
+			Config:          config,
+			ProviderConfig:  providerConfig,
+			OrgUUID:         orgUUID,
+			RefreshInterval: config.GetInt(configPrefix + ".refresh_interval_mins"),
+			APIKeyConfigKey: apiKeyConfigKey,
 		})
 		if err != nil {
-			log.Errorf("Failed to configure delegated auth for '%s': %v", inst.description, err)
+			log.Errorf("Failed to configure delegated auth for '%s': %v", description, err)
+			continue
 		}
+		configured = true
+	}
+
+	if !configured {
+		log.Debug("Delegated authentication is not configured")
+		return nil
 	}
 
 	log.Info("Finished configuring delegated authentication")

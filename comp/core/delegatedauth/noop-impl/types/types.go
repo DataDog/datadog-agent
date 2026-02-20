@@ -15,12 +15,7 @@ type DelegatedAuthNoop struct{}
 
 var _ delegatedauth.Component = (*DelegatedAuthNoop)(nil)
 
-// Initialize does nothing
-func (r *DelegatedAuthNoop) Initialize(_ delegatedauth.InitParams) error {
-	return nil
-}
-
-// AddInstance does nothing
+// AddInstance does nothing in the noop implementation
 func (r *DelegatedAuthNoop) AddInstance(_ delegatedauth.InstanceParams) error {
 	return nil
 }
