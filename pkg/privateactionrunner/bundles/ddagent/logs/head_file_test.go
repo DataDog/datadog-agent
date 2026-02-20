@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-func TestHeadProcessLogHandler(t *testing.T) {
+func TestHeadFileHandler(t *testing.T) {
 	// Create a temp file that simulates a host-mounted log.
 	// We need to place it under /host to match sanitizeAndResolvePath expectations.
 	// Since /host won't exist in test, we test the handler logic by calling
@@ -44,7 +44,7 @@ func TestHeadProcessLogHandler(t *testing.T) {
 	})
 }
 
-func TestHeadProcessLogHandler_ExtractInputs(t *testing.T) {
+func TestHeadFileHandler_ExtractInputs(t *testing.T) {
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
 		Inputs: map[string]interface{}{
@@ -53,14 +53,14 @@ func TestHeadProcessLogHandler_ExtractInputs(t *testing.T) {
 		},
 	}
 
-	inputs, err := types.ExtractInputs[headProcessLogInputs](task)
+	inputs, err := types.ExtractInputs[headFileInputs](task)
 	require.NoError(t, err)
 	assert.Equal(t, "/var/log/myapp.log", inputs.FilePath)
 	assert.Equal(t, 5, inputs.LineCount)
 }
 
-func TestHeadProcessLogHandler_Run_InvalidPath(t *testing.T) {
-	handler := NewHeadProcessLogHandler()
+func TestHeadFileHandler_Run_InvalidPath(t *testing.T) {
+	handler := NewHeadFileHandler()
 
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{

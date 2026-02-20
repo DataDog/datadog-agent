@@ -12,26 +12,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-// TailProcessLogHandler implements tailProcessLog: reads the last N lines of a host file.
-type TailProcessLogHandler struct{}
+// TailFileHandler implements tailFile: reads the last N lines of a host file.
+type TailFileHandler struct{}
 
-// NewTailProcessLogHandler creates a new TailProcessLogHandler.
-func NewTailProcessLogHandler() *TailProcessLogHandler {
-	return &TailProcessLogHandler{}
+// NewTailFileHandler creates a new TailFileHandler.
+func NewTailFileHandler() *TailFileHandler {
+	return &TailFileHandler{}
 }
 
-type tailProcessLogInputs struct {
+type tailFileInputs struct {
 	FilePath  string `json:"filePath"`
 	LineCount int    `json:"lineCount,omitempty"`
 }
 
-// Run executes the tailProcessLog action.
-func (h *TailProcessLogHandler) Run(
+// Run executes the tailFile action.
+func (h *TailFileHandler) Run(
 	_ context.Context,
 	task *types.Task,
 	_ *privateconnection.PrivateCredentials,
 ) (interface{}, error) {
-	inputs, err := types.ExtractInputs[tailProcessLogInputs](task)
+	inputs, err := types.ExtractInputs[tailFileInputs](task)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func (h *TailProcessLogHandler) Run(
 		return nil, err
 	}
 
-	return &processLogOutput{
+	return &fileOutput{
 		Lines:     lines,
 		LineCount: count,
 		FilePath:  inputs.FilePath,

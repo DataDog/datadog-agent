@@ -19,8 +19,8 @@ type LogsBundle struct {
 func NewLogs(wmeta workloadmeta.Component) types.Bundle {
 	return &LogsBundle{
 		actions: map[string]types.Action{
-			"headProcessLog": NewHeadProcessLogHandler(),
-			"tailProcessLog": NewTailProcessLogHandler(),
+			"headFile": NewHeadFileHandler(),
+			"tailFile": NewTailFileHandler(),
 			"listFiles":      NewListFilesHandler(wmeta),
 		},
 	}
