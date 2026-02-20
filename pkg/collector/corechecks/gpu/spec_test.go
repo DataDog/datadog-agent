@@ -8,6 +8,7 @@
 package gpu
 
 import (
+	"fmt"
 	"os"
 	"slices"
 	"strings"
@@ -21,10 +22,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	mock_containers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
@@ -38,8 +41,7 @@ type specFile struct {
 }
 
 type specTagset struct {
-	Tags         []string `yaml:"tags"`
-	FallbackTags []string `yaml:"fallback_tags"`
+	Tags []string `yaml:"tags"`
 }
 
 // metricsMap is metrics by name (map format in YAML only).
@@ -306,13 +308,9 @@ func TestMetricsFollowSpec(t *testing.T) {
 			mode := mode
 			subtestName := "arch=" + archName + "/mode=" + string(mode)
 			t.Run(subtestName, func(t *testing.T) {
-				emittedMetrics := runCheckAndCollectMetricNamesWithConfig(t, archName, mode, archSpec)
-				emittedSet := make(map[string]struct{}, len(emittedMetrics))
-				for _, name := range emittedMetrics {
-					emittedSet[name] = struct{}{}
-				}
+				emittedTagsByMetric, knownTagValues := collectMetricSamples(t, archName, mode, archSpec)
 
-				for _, metricName := range emittedMetrics {
+				for metricName := range emittedTagsByMetric {
 					assert.Contains(t, specMetrics, metricName, "metric emitted by check is missing from spec: %s", metricName)
 				}
 
@@ -322,8 +320,9 @@ func TestMetricsFollowSpec(t *testing.T) {
 					}
 
 					t.Run(name, func(t *testing.T) {
-						_, found := emittedSet[name]
+						_, found := emittedTagsByMetric[name]
 						require.True(t, found, "spec metric is not emitted by check run: %s", name)
+						validateMetricTagsAgainstSpec(t, spec, name, m, emittedTagsByMetric[name], knownTagValues)
 					})
 				}
 			})
@@ -331,9 +330,25 @@ func TestMetricsFollowSpec(t *testing.T) {
 	}
 }
 
-// runCheckAndCollectMetricNamesWithConfig runs the GPU check with a capability-driven mock
-// for the given architecture and device feature mode, then returns emitted metric names (without "gpu." prefix).
-func runCheckAndCollectMetricNamesWithConfig(t *testing.T, archName string, mode testutil.DeviceFeatureMode, archSpec architectureSpec) []string {
+// collectMetricSamples runs the GPU check with a capability-driven mock
+// for the given architecture and device feature mode, then returns emitted metrics (without "gpu." prefix)
+// and their tags.
+func collectMetricSamples(t *testing.T, archName string, mode testutil.DeviceFeatureMode, archSpec architectureSpec) (map[string][][]string, map[string]string) {
+	t.Helper()
+
+	collectionSetup := setupMockCheckForMetricCollection(t, archName, mode, archSpec)
+	collectionSetup.runCollection()
+
+	return getEmittedGPUMetricsWithTags(collectionSetup.mockSender), collectionSetup.knownTagValues
+}
+
+type metricCollectionSetup struct {
+	mockSender     *mocksender.MockSender
+	runCollection  func()
+	knownTagValues map[string]string
+}
+
+func setupMockCheckForMetricCollection(t *testing.T, archName string, mode testutil.DeviceFeatureMode, archSpec architectureSpec) metricCollectionSetup {
 	t.Helper()
 
 	opts := []testutil.NvmlMockOption{
@@ -360,15 +375,61 @@ func runCheckAndCollectMetricNamesWithConfig(t *testing.T, archName string, mode
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))
 
-	wmeta := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
+	wmeta := testutil.GetWorkloadMetaMock(t)
+	for idx, uuid := range testutil.GPUUUIDs {
+		gpu := newMockWorkloadMetaGPU(uuid, idx, workloadmeta.GPUDeviceTypePhysical, "")
+		wmeta.Set(gpu)
+		fakeTagger.SetTags(
+			taggertypes.NewEntityID(taggertypes.GPU, uuid),
+			"spec-test",
+			gpuTagsFromWorkloadMetaGPU(gpu),
+			nil,
+			nil,
+			nil,
+		)
+	}
 	if mode == testutil.DeviceFeatureMIG {
-		for _, uuids := range testutil.MIGChildrenUUIDs {
-			for _, u := range uuids {
-				wmeta.Set(&workloadmeta.GPU{
-					EntityID: workloadmeta.EntityID{ID: u, Kind: workloadmeta.KindGPU},
-				})
+		for parentIdx, uuids := range testutil.MIGChildrenUUIDs {
+			parentUUID := testutil.GPUUUIDs[parentIdx]
+			for migIdx, uuid := range uuids {
+				gpu := newMockWorkloadMetaGPU(uuid, migIdx, workloadmeta.GPUDeviceTypeMIG, parentUUID)
+				wmeta.Set(gpu)
+				fakeTagger.SetTags(
+					taggertypes.NewEntityID(taggertypes.GPU, uuid),
+					"spec-test",
+					gpuTagsFromWorkloadMetaGPU(gpu),
+					nil,
+					nil,
+					nil,
+				)
 			}
 		}
+	}
+
+	pidToContainerID := map[int]string{
+		1:    "container-1",
+		1234: "container-1234",
+		5678: "container-5678",
+	}
+	for _, containerID := range pidToContainerID {
+		wmeta.Set(&workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   containerID,
+			},
+			Runtime: workloadmeta.ContainerRuntimeDocker,
+		})
+		fakeTagger.SetTags(
+			taggertypes.NewEntityID(taggertypes.ContainerID, containerID),
+			"spec-test",
+			nil,
+			nil,
+			[]string{
+				"container_id:" + containerID,
+				"container_name:" + fmt.Sprintf("name-%s", containerID),
+			},
+			nil,
+		)
 	}
 
 	checkGeneric := newCheck(fakeTagger, testutil.GetTelemetryMock(t), wmeta)
@@ -376,8 +437,12 @@ func runCheckAndCollectMetricNamesWithConfig(t *testing.T, archName string, mode
 	require.True(t, ok)
 
 	WithGPUConfigEnabled(t)
+	pkgconfigsetup.Datadog().SetWithoutSource("gpu.disabled_collectors", []string{"device_events"})
+	t.Cleanup(func() {
+		pkgconfigsetup.Datadog().SetWithoutSource("gpu.disabled_collectors", []string{})
+	})
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	mockContainerProvider.EXPECT().GetPidToCid(gomock.Any()).Return(map[int]string{}).AnyTimes()
+	mockContainerProvider.EXPECT().GetPidToCid(gomock.Any()).Return(pidToContainerID).AnyTimes()
 	check.containerProvider = mockContainerProvider
 	require.NoError(t, check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test"))
 	t.Cleanup(func() { checkGeneric.Cancel() })
@@ -413,17 +478,29 @@ func runCheckAndCollectMetricNamesWithConfig(t *testing.T, archName string, mode
 	})
 	check.spCache = spCache
 
-	// Some metrics require a second run to be collected, so we run it twice and clear
-	// the mock sender between runs.
-	require.NoError(t, checkGeneric.Run())
-	mockSender.ResetCalls()
-	require.NoError(t, checkGeneric.Run())
+	runCollection := func() {
+		// Some metrics require a second run to be collected, so we run it twice and clear
+		// the mock sender between runs.
+		require.NoError(t, checkGeneric.Run())
+		mockSender.ResetCalls()
+		require.NoError(t, checkGeneric.Run())
+	}
 
-	return getEmittedGPUMetrics(mockSender)
+	// Known values are defined at the same place where the mock behavior/data is configured.
+	knownTagValues := map[string]string{
+		"gpu_vendor":         "nvidia",
+		"gpu_driver_version": testutil.DefaultNvidiaDriverVersion,
+	}
+
+	return metricCollectionSetup{
+		mockSender:     mockSender,
+		runCollection:  runCollection,
+		knownTagValues: knownTagValues,
+	}
 }
 
-func getEmittedGPUMetrics(mockSender *mocksender.MockSender) []string {
-	metricsSet := make(map[string]struct{})
+func getEmittedGPUMetricsWithTags(mockSender *mocksender.MockSender) map[string][][]string {
+	metricsByName := make(map[string][][]string)
 
 	for _, call := range mockSender.Mock.Calls {
 		if call.Method != "GaugeWithTimestamp" && call.Method != "CountWithTimestamp" {
@@ -440,14 +517,94 @@ func getEmittedGPUMetrics(mockSender *mocksender.MockSender) []string {
 		}
 
 		specMetricName := strings.TrimPrefix(metricName, "gpu.")
-		metricsSet[specMetricName] = struct{}{}
+		tags := []string{}
+		if len(call.Arguments) > 3 {
+			if callTags, ok := call.Arguments.Get(3).([]string); ok {
+				tags = append([]string(nil), callTags...)
+			}
+		}
+
+		metricsByName[specMetricName] = append(metricsByName[specMetricName], tags)
 	}
 
-	metrics := make([]string, 0, len(metricsSet))
-	for metric := range metricsSet {
-		metrics = append(metrics, metric)
-	}
-	slices.Sort(metrics)
+	return metricsByName
+}
 
-	return metrics
+func newMockWorkloadMetaGPU(uuid string, index int, deviceType workloadmeta.GPUDeviceType, parentUUID string) *workloadmeta.GPU {
+	gpu := &workloadmeta.GPU{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindGPU,
+			ID:   uuid,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: testutil.DefaultGPUName,
+		},
+		Vendor:             "nvidia",
+		Device:             testutil.DefaultGPUName,
+		DriverVersion:      testutil.DefaultNvidiaDriverVersion,
+		Index:              index,
+		DeviceType:         deviceType,
+		VirtualizationMode: "none",
+	}
+
+	if parentUUID != "" {
+		gpu.ParentGPUUUID = parentUUID
+	}
+
+	return gpu
+}
+
+func gpuTagsFromWorkloadMetaGPU(gpu *workloadmeta.GPU) []string {
+	return []string{
+		"gpu_uuid:" + gpu.ID,
+		"gpu_device:" + strings.ToLower(strings.ReplaceAll(gpu.Device, " ", "_")),
+		"gpu_vendor:" + strings.ToLower(gpu.Vendor),
+		"gpu_driver_version:" + gpu.DriverVersion,
+	}
+}
+
+func validateMetricTagsAgainstSpec(t *testing.T, spec *specFile, metricName string, metricSpec specMetric, samples [][]string, knownTagValues map[string]string) {
+	t.Helper()
+	require.NotEmpty(t, samples, "metric %s has no emitted samples to validate tags", metricName)
+
+	requiredTags := make(map[string]struct{})
+	for _, tagsetName := range metricSpec.Tagsets {
+		tagsetSpec, ok := spec.Tagsets[tagsetName]
+		require.True(t, ok, "metric %s references unknown tagset %s", metricName, tagsetName)
+		for _, tag := range tagsetSpec.Tags {
+			requiredTags[tag] = struct{}{}
+		}
+	}
+	for _, tag := range metricSpec.CustomTags {
+		requiredTags[tag] = struct{}{}
+	}
+
+	for _, sampleTags := range samples {
+		tagsByKey := tagsToKeyValues(sampleTags)
+
+		for tag := range requiredTags {
+			require.Contains(t, tagsByKey, tag, "metric %s missing required tag key %s", metricName, tag)
+		}
+
+		for key, values := range tagsByKey {
+			for _, value := range values {
+				require.NotEmpty(t, value, "metric %s has empty value for tag %s", metricName, key)
+				if expectedValue, ok := knownTagValues[key]; ok {
+					require.Equal(t, expectedValue, value, "metric %s has unexpected value for tag %s", metricName, key)
+				}
+			}
+		}
+	}
+}
+
+func tagsToKeyValues(tags []string) map[string][]string {
+	result := make(map[string][]string, len(tags))
+	for _, tag := range tags {
+		key, value, ok := strings.Cut(tag, ":")
+		if !ok || key == "" || value == "" {
+			continue
+		}
+		result[key] = append(result[key], value)
+	}
+	return result
 }

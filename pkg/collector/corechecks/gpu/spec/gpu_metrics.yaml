@@ -4,20 +4,14 @@ tagsets:
     tags:
       - container_id
       - container_name
-    fallback_tags: []
   device:
     tags:
       - gpu_uuid
       - gpu_device
       - gpu_vendor
       - gpu_driver_version
-    fallback_tags:
-      - gpu_uuid
   process:
     tags:
-      - pid
-      - nspid
-    fallback_tags:
       - pid
       - nspid
 metrics:

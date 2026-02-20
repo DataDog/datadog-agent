@@ -235,3 +235,9 @@ Active time is derived from kernel execution intervals captured within each coll
 
 - **Per-process**: Merge intervals for a single process, then compute the percentage of the window that was active.
 - **Device-wide**: Merge intervals across all processes on the device, then compute the percentage of the window that was active.
+
+## GPU Spec Test Tag Validation
+
+- In `pkg/collector/corechecks/gpu/spec_test.go`, required tags are validated from the union of `tagsets` + `custom_tags` declared in `spec/gpu_metrics.yaml`.
+- Known-value assertions are data-driven through a tag->value map produced during test mock setup (no tag-specific conditionals in validation).
+- Spec tests seed explicit GPU and container tags in the fake tagger to make required-tag checks deterministic across architectures/modes.
