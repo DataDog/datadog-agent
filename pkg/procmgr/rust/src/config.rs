@@ -22,6 +22,7 @@ fn default_inherit() -> String {
 #[derive(Debug, Deserialize)]
 pub struct ProcessConfig {
     #[serde(default)]
+    #[allow(dead_code)]
     pub description: Option<String>,
     pub command: String,
     #[serde(default)]
@@ -29,6 +30,7 @@ pub struct ProcessConfig {
     #[serde(default)]
     pub env: HashMap<String, String>,
     pub working_dir: Option<String>,
+    #[allow(dead_code)]
     pub pidfile: Option<String>,
     #[serde(default = "default_inherit")]
     pub stdout: String,

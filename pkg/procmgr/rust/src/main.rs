@@ -56,10 +56,10 @@ fn start_processes() -> Result<Vec<ManagedProcess>> {
 
     for (name, cfg) in configs {
         let mut proc = ManagedProcess::new(name, cfg);
-        if proc.should_start() {
-            if let Err(e) = proc.spawn() {
-                warn!("{e:#}");
-            }
+        if proc.should_start()
+            && let Err(e) = proc.spawn()
+        {
+            warn!("{e:#}");
         }
         processes.push(proc);
     }
