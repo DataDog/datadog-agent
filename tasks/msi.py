@@ -648,6 +648,7 @@ def fetch_driver_msm(ctx, drivers=None):
         print(f"Updated {driver}")
         print(f"\t-> Downloaded {url} to {path}")
 
+
 @task(
     help={
         'ref': 'The name of the ref (branch, tag) to fetch the latest artifacts from',
