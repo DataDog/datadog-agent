@@ -12,6 +12,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -70,7 +71,8 @@ type provider struct {
 	compression logscompression.Component
 }
 
-// NewProvider returns a new Provider
+// NewProvider returns a new Provider.
+// This preserves the existing API for callers that do not need API key refresh on 403.
 func NewProvider(
 	numberOfPipelines int,
 	sink sender.Sink,
@@ -85,11 +87,36 @@ func NewProvider(
 	legacyMode bool,
 	serverless bool,
 ) Provider {
+	return NewProviderWithSecrets(
+		numberOfPipelines, sink, diagnosticMessageReceiver, processingRules,
+		endpoints, destinationsContext, status, hostname, cfg, compression,
+		legacyMode, serverless, nil,
+	)
+}
+
+// NewProviderWithSecrets returns a new Provider with optional secrets support.
+// When secretsComp is non-nil, HTTP destinations will trigger an async API key refresh
+// on 403 responses and retry the payload instead of dropping it.
+func NewProviderWithSecrets(
+	numberOfPipelines int,
+	sink sender.Sink,
+	diagnosticMessageReceiver diagnostic.MessageReceiver,
+	processingRules []*config.ProcessingRule,
+	endpoints *config.Endpoints,
+	destinationsContext *client.DestinationsContext,
+	status statusinterface.Status,
+	hostname hostnameinterface.Component,
+	cfg pkgconfigmodel.Reader,
+	compression logscompression.Component,
+	legacyMode bool,
+	serverless bool,
+	secretsComp secrets.Component,
+) Provider {
 	var senderImpl sender.PipelineComponent
 	serverlessMeta := sender.NewServerlessMeta(serverless)
 
 	if endpoints.UseHTTP {
-		senderImpl = httpSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, serverlessMeta, legacyMode)
+		senderImpl = httpSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, serverlessMeta, legacyMode, secretsComp)
 	} else {
 		senderImpl = tcpSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, status, serverlessMeta, legacyMode)
 	}
@@ -154,6 +181,7 @@ func httpSender(
 	destinationsContext *client.DestinationsContext,
 	serverlessMeta sender.ServerlessMeta,
 	legacyMode bool,
+	secretsComp secrets.Component,
 ) *sender.Sender {
 	var queueCount, workersPerQueue, minSenderConcurrency, maxSenderConcurrency int
 	if legacyMode {
@@ -198,6 +226,7 @@ func httpSender(
 		workersPerQueue,
 		minSenderConcurrency,
 		maxSenderConcurrency,
+		secretsComp,
 	)
 }
 

@@ -102,7 +102,7 @@ func buildHTTPEndpointsForRestart(coreConfig model.Reader) (*config.Endpoints, e
 
 // buildPipelineProvider builds a new pipeline provider with the given configuration
 func buildPipelineProvider(a *logAgent, processingRules []*config.ProcessingRule, diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver, destinationsCtx *client.DestinationsContext) pipeline.Provider {
-	pipelineProvider := pipeline.NewProvider(
+	pipelineProvider := pipeline.NewProviderWithSecrets(
 		a.config.GetInt("logs_config.pipelines"),
 		a.auditor,
 		diagnosticMessageReceiver,
@@ -115,6 +115,7 @@ func buildPipelineProvider(a *logAgent, processingRules []*config.ProcessingRule
 		a.compression,
 		a.config.GetBool("logs_config.disable_distributed_senders"), // legacy
 		false, // serverless
+		a.secrets,
 	)
 	return pipelineProvider
 }
