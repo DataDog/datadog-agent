@@ -15,7 +15,7 @@ func NewADAnnotationIssue() *ADAnnotationIssue {
 	return &ADAnnotationIssue{}
 }
 
-func (A *ADAnnotationIssue) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
+func (A *ADAnnotationIssue) BuildIssue(map[string]string) (*healthplatform.Issue, error) {
 	return &healthplatform.Issue{
 		Id:          "misconfigured-ad-annotation",
 		IssueName:   "misconfigured_ad_annotation",
