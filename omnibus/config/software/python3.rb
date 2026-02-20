@@ -4,7 +4,6 @@ default_version "3.13.12"
 
 unless windows?
   dependency "zlib"
-  dependency "libsqlite3"
 end
 dependency "openssl3"
 
