@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -50,6 +51,7 @@ type FactoryDependencies struct {
 	Tagger               tagger.Component
 	Telemetry            telemetry.Component
 	Compression          logscompression.Component
+	Secrets              secrets.Component
 	Statsd               ddgostatsd.ClientInterface
 	Hostname             hostname.Component
 	Ipc                  ipc.Component
