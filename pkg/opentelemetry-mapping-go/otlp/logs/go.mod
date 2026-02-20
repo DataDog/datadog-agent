@@ -4,9 +4,9 @@ go 1.25.0
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.180
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.73.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum v0.72.0-devel.0.20250907091827-dbb380833b5f
-	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.77.0-devel.0.20260211235139-a5361978c2b6
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.77.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum v0.77.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.77.0-rc.1
 	github.com/DataDog/datadog-api-client-go/v2 v2.54.0
 	github.com/stretchr/testify v1.11.1
 	github.com/twmb/murmur3 v1.1.8
@@ -20,12 +20,12 @@ require (
 require github.com/cespare/xxhash/v2 v2.3.0 // indirect
 
 require (
-	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.72.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.72.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.72.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.77.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.77.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.77.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.77.0-rc.1 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
