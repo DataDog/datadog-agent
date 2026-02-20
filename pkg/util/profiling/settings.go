@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
+	"github.com/DataDog/dd-trace-go/v2/profiler"
 )
 
 // Settings contains the settings for internal profiling, to be passed to Start().
