@@ -84,7 +84,7 @@ func TestGuessConnectionDirection(t *testing.T) {
 			expectedDir: network.OUTGOING,
 		},
 		{
-			name: "loopback dest port not bound falls through",
+			name: "loopback dest port not bound falls through to unknown for TCP",
 			conn: &network.ConnectionStats{
 				ConnectionTuple: network.ConnectionTuple{
 					Source: loopbackAddr,
@@ -96,7 +96,7 @@ func TestGuessConnectionDirection(t *testing.T) {
 			},
 			pktType:     unix.PACKET_HOST,
 			ports:       mockBoundPortLookup{},
-			expectedDir: network.INCOMING,
+			expectedDir: network.UNKNOWN,
 		},
 		{
 			name: "non-loopback dest port bound is not checked",
@@ -111,7 +111,7 @@ func TestGuessConnectionDirection(t *testing.T) {
 			},
 			pktType:     unix.PACKET_HOST,
 			ports:       mockBoundPortLookup{8080: network.TCP},
-			expectedDir: network.INCOMING,
+			expectedDir: network.UNKNOWN,
 		},
 		{
 			name: "source system port is incoming",
@@ -144,7 +144,7 @@ func TestGuessConnectionDirection(t *testing.T) {
 			expectedDir: network.OUTGOING,
 		},
 		{
-			name: "PACKET_HOST fallback is incoming",
+			name: "TCP PACKET_HOST fallback returns unknown",
 			conn: &network.ConnectionStats{
 				ConnectionTuple: network.ConnectionTuple{
 					Source: remoteAddr,
@@ -156,10 +156,10 @@ func TestGuessConnectionDirection(t *testing.T) {
 			},
 			pktType:     unix.PACKET_HOST,
 			ports:       mockBoundPortLookup{},
-			expectedDir: network.INCOMING,
+			expectedDir: network.UNKNOWN,
 		},
 		{
-			name: "PACKET_OUTGOING fallback is outgoing",
+			name: "TCP PACKET_OUTGOING fallback returns unknown",
 			conn: &network.ConnectionStats{
 				ConnectionTuple: network.ConnectionTuple{
 					Source: remoteAddr,
@@ -167,6 +167,36 @@ func TestGuessConnectionDirection(t *testing.T) {
 					SPort:  12345,
 					DPort:  8080,
 					Type:   network.TCP,
+				},
+			},
+			pktType:     unix.PACKET_OUTGOING,
+			ports:       mockBoundPortLookup{},
+			expectedDir: network.UNKNOWN,
+		},
+		{
+			name: "UDP PACKET_HOST fallback is incoming",
+			conn: &network.ConnectionStats{
+				ConnectionTuple: network.ConnectionTuple{
+					Source: remoteAddr,
+					Dest:   remoteAddr,
+					SPort:  12345,
+					DPort:  8080,
+					Type:   network.UDP,
+				},
+			},
+			pktType:     unix.PACKET_HOST,
+			ports:       mockBoundPortLookup{},
+			expectedDir: network.INCOMING,
+		},
+		{
+			name: "UDP PACKET_OUTGOING fallback is outgoing",
+			conn: &network.ConnectionStats{
+				ConnectionTuple: network.ConnectionTuple{
+					Source: remoteAddr,
+					Dest:   remoteAddr,
+					SPort:  12345,
+					DPort:  8080,
+					Type:   network.UDP,
 				},
 			},
 			pktType:     unix.PACKET_OUTGOING,
@@ -181,7 +211,7 @@ func TestGuessConnectionDirection(t *testing.T) {
 					Dest:   remoteAddr,
 					SPort:  12345,
 					DPort:  8080,
-					Type:   network.TCP,
+					Type:   network.UDP,
 				},
 			},
 			pktType:     99,

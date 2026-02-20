@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/sync"
+	syncutil "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 const (
@@ -68,7 +68,7 @@ type ebpfLessTracer struct {
 	boundPorts   *ebpfless.BoundPorts
 	cookieHasher *cookieHasher
 
-	connPool sync.TypedPool[network.ConnectionStats]
+	connPool *syncutil.TypedPool[network.ConnectionStats]
 
 	ns netns.NsHandle
 }
@@ -92,7 +92,7 @@ func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
 		conns:         make(map[ebpfless.PCAPTuple]*network.ConnectionStats, cfg.MaxTrackedConnections),
 		boundPorts:    ebpfless.NewBoundPorts(cfg),
 		cookieHasher:  newCookieHasher(),
-		connPool:      sync.NewDefaultTypedPool[network.ConnectionStats](),
+		connPool:      syncutil.NewDefaultTypedPool[network.ConnectionStats](),
 	}
 
 	tr.ns, err = netns.Get()
@@ -237,7 +237,14 @@ func (t *ebpfLessTracer) processConnection(
 			return err
 		}
 		if direction == network.UNKNOWN {
-			return errors.New("could not determine connection direction")
+			// silently drop connections whose direction can't be determined
+			// (e.g. preexisting TCP connections where the SYN was missed)
+			if conn.Type == network.TCP {
+				t.tcp.RemoveConn(tuple)
+			}
+			t.putConn(conn)
+			ebpfLessTracerTelemetry.droppedConnections.Inc()
+			return nil
 		}
 		conn.Direction = direction
 
@@ -353,6 +360,12 @@ func guessConnectionDirection(conn *network.ConnectionStats, pktType uint8, port
 	}
 	if conn.DPort < 1024 {
 		return network.OUTGOING, nil
+	}
+
+	// for TCP, don't guess direction from packet type; if we missed the SYN
+	// then we can't reliably determine direction
+	if conn.Type == network.TCP {
+		return network.UNKNOWN, nil
 	}
 
 	switch pktType {
