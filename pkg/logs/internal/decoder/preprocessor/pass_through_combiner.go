@@ -28,8 +28,8 @@ func NewPassThroughCombiner(lineLimit int) *PassThroughCombiner {
 }
 
 // Process handles a log line, applying truncation flags if the content exceeds
-// lineLimit, and returns it as a single-element slice.
-func (c *PassThroughCombiner) Process(msg *message.Message) []*message.Message {
+// lineLimit, and returns it as a single-element slice. label is unused.
+func (c *PassThroughCombiner) Process(msg *message.Message, _ Label) []*message.Message {
 	lastWasTruncated := c.shouldTruncate
 	content := msg.GetContent()
 	c.shouldTruncate = len(content) > c.lineLimit || msg.ParsingExtra.IsTruncated

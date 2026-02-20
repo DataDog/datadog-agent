@@ -7,7 +7,6 @@
 package preprocessor
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -86,7 +85,7 @@ var minimumTokenLength = 8
 
 func makeStaticTokenGraph() *TokenGraph {
 	tokenizer := NewTokenizer(100) // 100 is arbitrary, anything larger than the longest knownTimestampFormat is fine.
-	inputData := make([][]types.Token, len(knownTimestampFormats))
+	inputData := make([][]Token, len(knownTimestampFormats))
 	for i, format := range knownTimestampFormats {
 		tokens, _ := tokenizer.Tokenize([]byte(format))
 		inputData[i] = tokens

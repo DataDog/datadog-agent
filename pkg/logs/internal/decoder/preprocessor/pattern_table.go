@@ -12,12 +12,11 @@ import (
 	"sync"
 
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
-	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type row struct {
-	tokens          []types.Token
+	tokens          []Token
 	label           Label
 	labelAssignedBy string
 	count           int64

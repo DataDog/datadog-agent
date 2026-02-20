@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
-	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -21,7 +20,7 @@ const defaultMatchThreshold = 0.75
 // UserSample represents a user-defined sample for auto multi-line detection.
 type UserSample struct {
 	// Parse fields
-	tokens         []types.Token
+	tokens         []Token
 	matchThreshold float64
 	label          Label
 	compiledRegex  *regexp.Regexp

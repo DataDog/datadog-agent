@@ -18,9 +18,10 @@ import (
 
 // newPipelineHandler is the single constructor for all pipeline-based line handlers.
 // The caller picks the Combiner that determines the combining strategy; everything else
-// (tokenization, JSON aggregation, sampling) is wired identically.
-func newPipelineHandler(combiner preprocessor.Combiner, tok *preprocessor.Tokenizer, sampler preprocessor.Sampler, jsonAggregator *preprocessor.JSONAggregator, enableJSONAggregation bool, flushTimeout time.Duration) LineHandler {
-	pipeline := preprocessor.NewPipeline(combiner, tok, sampler, jsonAggregator, enableJSONAggregation, flushTimeout)
+// (tokenization, labeling, JSON aggregation, sampling) is wired identically.
+// Pass nil for labeler on paths that don't use auto multiline detection (regex, pass-through).
+func newPipelineHandler(combiner preprocessor.Combiner, tok *preprocessor.Tokenizer, labeler *preprocessor.Labeler, sampler preprocessor.Sampler, jsonAggregator *preprocessor.JSONAggregator, enableJSONAggregation bool, flushTimeout time.Duration) LineHandler {
+	pipeline := preprocessor.NewPipeline(combiner, tok, labeler, sampler, jsonAggregator, enableJSONAggregation, flushTimeout)
 	return &pipelineLineHandler{pipeline: pipeline}
 }
 

@@ -6,8 +6,6 @@
 // Package preprocessor contains auto multiline detection and aggregation logic.
 package preprocessor
 
-import "github.com/DataDog/datadog-agent/pkg/logs/types"
-
 // TokenGraph is a directed cyclic graph of tokens that model the relationship between any two tokens.
 // It is used to calculate the probability of an unknown sequence of tokens being represented by the graph.
 type TokenGraph struct {
@@ -24,9 +22,9 @@ type MatchContext struct {
 }
 
 // NewTokenGraph returns a new TokenGraph.
-func NewTokenGraph(minimumTokenLength int, inputData [][]types.Token) *TokenGraph {
+func NewTokenGraph(minimumTokenLength int, inputData [][]Token) *TokenGraph {
 	g := &TokenGraph{
-		adjacencies:        make([][]bool, types.End),
+		adjacencies:        make([][]bool, End),
 		minimumTokenLength: minimumTokenLength,
 	}
 	for _, tokens := range inputData {
@@ -36,11 +34,11 @@ func NewTokenGraph(minimumTokenLength int, inputData [][]types.Token) *TokenGrap
 }
 
 // add adds a sequence of tokens to the graph.
-func (m *TokenGraph) add(ts []types.Token) {
+func (m *TokenGraph) add(ts []Token) {
 	lastToken := ts[0]
 	for _, token := range ts[1:] {
 		if m.adjacencies[lastToken] == nil {
-			m.adjacencies[lastToken] = make([]bool, types.End)
+			m.adjacencies[lastToken] = make([]bool, End)
 		}
 		m.adjacencies[lastToken][token] = true
 		lastToken = token
@@ -48,7 +46,7 @@ func (m *TokenGraph) add(ts []types.Token) {
 }
 
 // MatchProbability returns the probability of a sequence of tokens being represented by the graph.
-func (m *TokenGraph) MatchProbability(ts []types.Token) MatchContext {
+func (m *TokenGraph) MatchProbability(ts []Token) MatchContext {
 	if len(ts) < m.minimumTokenLength {
 		return MatchContext{}
 	}

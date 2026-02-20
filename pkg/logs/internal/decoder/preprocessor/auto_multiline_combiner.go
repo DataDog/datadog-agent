@@ -7,9 +7,9 @@ package preprocessor
 
 import "github.com/DataDog/datadog-agent/pkg/logs/message"
 
-// autoMultilineCombiner implements Combiner using a Labeler and Aggregator.
+// autoMultilineCombiner implements Combiner using an Aggregator.
+// The label is computed by the Pipeline and passed in via Process.
 type autoMultilineCombiner struct {
-	labeler    *Labeler
 	aggregator Aggregator
 	collected  []*message.Message
 }
@@ -21,19 +21,18 @@ type autoMultilineCombiner struct {
 // append to the combiner's collected slice, but the combiner struct doesn't exist
 // until this function runs. The closure captures the pointer once and is safe to call
 // from within Process and Flush.
-func NewAutoMultilineCombiner(labeler *Labeler, aggregatorFactory func(outputFn func(*message.Message)) Aggregator) Combiner {
-	c := &autoMultilineCombiner{labeler: labeler}
+func NewAutoMultilineCombiner(aggregatorFactory func(outputFn func(*message.Message)) Aggregator) Combiner {
+	c := &autoMultilineCombiner{}
 	c.aggregator = aggregatorFactory(func(msg *message.Message) {
 		c.collected = append(c.collected, msg)
 	})
 	return c
 }
 
-// Process labels the message and passes it to the aggregator.
+// Process passes the message and its pre-computed label to the aggregator.
 // Returns any messages the aggregator emitted in response.
-func (c *autoMultilineCombiner) Process(msg *message.Message) []*message.Message {
+func (c *autoMultilineCombiner) Process(msg *message.Message, label Label) []*message.Message {
 	c.collected = c.collected[:0]
-	label := c.labeler.Label(msg)
 	c.aggregator.Process(msg, label)
 	return c.collected
 }

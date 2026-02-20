@@ -10,9 +10,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 // mockTokenCountingHeuristic counts how many times it's called with non-nil tokens
@@ -27,116 +24,58 @@ func (m *mockTokenCountingHeuristic) ProcessAndContinue(context *messageContext)
 	return true
 }
 
-func TestLabelerReusesTokensFromParsingExtra(t *testing.T) {
-	// Create a mock heuristic that counts tokenization
+func TestLabelerReceivesTokensWhenProvided(t *testing.T) {
 	mockHeuristic := &mockTokenCountingHeuristic{}
-
-	// Create labeler with the mock heuristic
 	labeler := NewLabeler([]Heuristic{mockHeuristic}, nil)
 
-	// Create a message with pre-populated tokens
-	content := []byte("2024-01-01 12:00:00 INFO Test message")
-	msg := message.NewMessage(content, nil, message.StatusInfo, 0)
-
-	// Manually populate tokens (simulating what TokenizingLineHandler does)
-	msg.ParsingExtra.Tokens = []types.Token{
-		types.D1 + 4, // "2024"
-		types.Dash,   // "-"
-		types.D1 + 2, // "01"
-		types.Dash,   // "-"
-		types.D1 + 2, // "01"
-		types.Space,  // " "
+	tokens := []Token{
+		D1 + 4, // "2024"
+		Dash,   // "-"
+		D1 + 2, // "01"
+		Dash,   // "-"
+		D1 + 2, // "01"
+		Space,  // " "
 	}
-	msg.ParsingExtra.TokenIndices = []int{0, 4, 5, 7, 8, 10}
+	tokenIndices := []int{0, 4, 5, 7, 8, 10}
 
-	// Call Label - should reuse tokens
-	labeler.Label(msg)
+	labeler.Label([]byte("2024-01-01 12:00:00 INFO Test message"), tokens, tokenIndices)
 
-	// Verify the mock heuristic saw tokens (meaning they were reused)
 	assert.Equal(t, 1, mockHeuristic.tokenizeCount, "Heuristic should have seen non-nil tokens")
 }
 
-func TestLabelProducesSameResultWithOrWithoutTokens(t *testing.T) {
-	// Create labeler with a simple heuristic
-	heuristics := []Heuristic{
-		NewJSONDetector(),
-	}
-	labeler := NewLabeler(heuristics, nil)
+func TestLabelerWorksWithNilTokens(t *testing.T) {
+	mockHeuristic := &mockTokenCountingHeuristic{}
+	labeler := NewLabeler([]Heuristic{mockHeuristic}, nil)
 
-	testCases := []struct {
-		name    string
-		content string
-	}{
-		{
-			name:    "json",
-			content: `{"level":"INFO","msg":"test"}`,
-		},
-		{
-			name:    "plain text",
-			content: "Simple log message",
-		},
-	}
+	labeler.Label([]byte("some log message"), nil, nil)
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// Test without pre-populated tokens
-			msg1 := message.NewMessage([]byte(tc.content), nil, message.StatusInfo, 0)
-			labelWithoutTokens := labeler.Label(msg1)
-
-			// Manually populate tokens to simulate TokenizingLineHandler
-			msg2 := message.NewMessage([]byte(tc.content), nil, message.StatusInfo, 0)
-			msg2.ParsingExtra.Tokens = []types.Token{types.C1, types.Space, types.D1}
-			msg2.ParsingExtra.TokenIndices = []int{0, 1, 2}
-			labelWithTokens := labeler.Label(msg2)
-
-			// Results should be consistent regardless of whether tokens are pre-populated
-			// (for this simple heuristic that doesn't depend on specific tokens)
-			assert.NotEqual(t, Label(0), labelWithoutTokens, "Label should be set without tokens")
-			assert.NotEqual(t, Label(0), labelWithTokens, "Label should be set with tokens")
-		})
-	}
+	assert.Equal(t, 0, mockHeuristic.tokenizeCount, "Heuristic should see no tokens when nil is passed")
 }
 
-func TestLabelConvertsTokensCorrectly(t *testing.T) {
-	// Create a capturing heuristic that verifies token conversion
-	var capturedTokens []types.Token
-	capturingHeuristic := &struct {
-		ProcessAndContinue func(*messageContext) bool
-	}{
-		ProcessAndContinue: func(ctx *messageContext) bool {
-			capturedTokens = ctx.tokens
-			return true
-		},
-	}
-
-	// Wrap in a type that satisfies Heuristic interface
-	wrapper := &mockCapturingHeuristic{fn: capturingHeuristic.ProcessAndContinue}
-	labeler := NewLabeler([]Heuristic{wrapper}, nil)
-
-	// Create message with specific tokens
-	msg := message.NewMessage([]byte("test"), nil, message.StatusInfo, 0)
-	msg.ParsingExtra.Tokens = []types.Token{
-		types.D1 + 4,
-		types.Dash,
-		types.Space,
-	}
-	msg.ParsingExtra.TokenIndices = []int{0, 4, 5}
-
-	// Call Label
-	labeler.Label(msg)
-
-	// Verify tokens were converted correctly
-	require.Len(t, capturedTokens, 3, "Should have 3 tokens")
-	assert.Equal(t, types.D1+4, capturedTokens[0], "First token should be D1+4")
-	assert.Equal(t, types.Dash, capturedTokens[1], "Second token should be Dash")
-	assert.Equal(t, types.Space, capturedTokens[2], "Third token should be Space")
-}
-
-// mockCapturingHeuristic allows capturing tokens from the context
+// mockCapturingHeuristic allows capturing context fields in tests.
 type mockCapturingHeuristic struct {
 	fn func(*messageContext) bool
 }
 
 func (m *mockCapturingHeuristic) ProcessAndContinue(ctx *messageContext) bool {
 	return m.fn(ctx)
+}
+
+func TestLabelConvertsTokensCorrectly(t *testing.T) {
+	var capturedTokens []Token
+	wrapper := &mockCapturingHeuristic{fn: func(ctx *messageContext) bool {
+		capturedTokens = ctx.tokens
+		return true
+	}}
+	labeler := NewLabeler([]Heuristic{wrapper}, nil)
+
+	tokens := []Token{D1 + 4, Dash, Space}
+	tokenIndices := []int{0, 4, 5}
+
+	labeler.Label([]byte("test"), tokens, tokenIndices)
+
+	require.Len(t, capturedTokens, 3, "Should have 3 tokens")
+	assert.Equal(t, D1+4, capturedTokens[0])
+	assert.Equal(t, Dash, capturedTokens[1])
+	assert.Equal(t, Space, capturedTokens[2])
 }

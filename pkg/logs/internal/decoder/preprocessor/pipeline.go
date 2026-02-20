@@ -13,10 +13,11 @@ import (
 )
 
 // Pipeline owns all preprocessor stages and wires them in the correct order:
-// JSON aggregation (optional) → tokenization → combining → sampling
+// JSON aggregation (optional) → tokenization → labeling → combining → sampling
 type Pipeline struct {
 	jsonAggregator        *JSONAggregator
 	tokenizer             *Tokenizer
+	labeler               *Labeler
 	combiner              Combiner
 	sampler               Sampler
 	enableJSONAggregation bool
@@ -26,11 +27,13 @@ type Pipeline struct {
 
 // NewPipeline creates a new Pipeline.
 // Pass nil for jsonAggregator when JSON aggregation is not needed.
-func NewPipeline(combiner Combiner, tokenizer *Tokenizer, sampler Sampler,
+// Pass nil for labeler when labeling is not needed (regex and pass-through paths).
+func NewPipeline(combiner Combiner, tokenizer *Tokenizer, labeler *Labeler, sampler Sampler,
 	jsonAggregator *JSONAggregator, enableJSONAggregation bool, flushTimeout time.Duration) *Pipeline {
 	return &Pipeline{
 		jsonAggregator:        jsonAggregator,
 		tokenizer:             tokenizer,
+		labeler:               labeler,
 		combiner:              combiner,
 		sampler:               sampler,
 		enableJSONAggregation: enableJSONAggregation,
@@ -53,10 +56,17 @@ func (p *Pipeline) Process(msg *message.Message) {
 }
 
 func (p *Pipeline) processOne(msg *message.Message) {
-	// Step 1: Tokenize the complete (possibly JSON-aggregated) message
-	msg.ParsingExtra.Tokens, msg.ParsingExtra.TokenIndices = p.tokenizer.Tokenize(msg.GetContent())
+	// Step 1: Tokenize and label — only when a labeler is present (auto multiline paths).
+	// Tokens stay local; they are never stored on the message.
+	var label Label
+	if p.labeler != nil {
+		var tokens []Token
+		var tokenIndices []int
+		tokens, tokenIndices = p.tokenizer.Tokenize(msg.GetContent())
+		label = p.labeler.Label(msg.GetContent(), tokens, tokenIndices)
+	}
 	// Step 2: Combine (may buffer; returns zero or more completed messages)
-	for _, completed := range p.combiner.Process(msg) {
+	for _, completed := range p.combiner.Process(msg, label) {
 		// Step 3: Sample/emit
 		p.sampler.Process(completed)
 	}
