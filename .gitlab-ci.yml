@@ -13,7 +13,6 @@ test:
     - |
       if true; then
         echo "This is a test"
-        exit 0
       fi
     - export TEST_VAR="Hello world !"
     - echo $TEST_VAR
