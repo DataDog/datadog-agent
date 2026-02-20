@@ -22,28 +22,36 @@ func newTestMessage(content string) *message.Message {
 	return msg
 }
 
-func newCombiningHandler(outputFn func(*message.Message), maxContentSize int, flushTimeout time.Duration) LineHandler {
+// newCombiningHandler creates an auto multiline handler in combining/aggregation mode.
+// outputChan receives fully combined messages via a NoopSampler.
+func newCombiningHandler(outputChan chan *message.Message, maxContentSize int, flushTimeout time.Duration) LineHandler {
 	tailerInfo := status.NewInfoRegistry()
-	aggregator := preprocessor.NewCombiningAggregator(outputFn, maxContentSize, false, false, tailerInfo)
-	tokenizer := preprocessor.NewTokenizer(1000)
-	return NewAutoMultilineHandler(aggregator, tokenizer, maxContentSize, flushTimeout, tailerInfo, nil, nil, true)
+	sampler := preprocessor.NewNoopSampler(outputChan)
+	labeler := buildAutoMultilineLabeler(nil, nil, tailerInfo)
+	aggregatorFactory := func(outputFn func(*message.Message)) preprocessor.Aggregator {
+		return preprocessor.NewCombiningAggregator(outputFn, maxContentSize, false, false, tailerInfo)
+	}
+	combiner := preprocessor.NewAutoMultilineCombiner(labeler, aggregatorFactory)
+	jsonAgg := preprocessor.NewJSONAggregator(false, maxContentSize)
+	return newPipelineHandler(combiner, preprocessor.NewTokenizer(1000), sampler, jsonAgg, true, flushTimeout)
 }
 
-func newDetectingHandler(outputFn func(*message.Message), maxContentSize int, flushTimeout time.Duration) LineHandler {
+// newDetectingHandler creates an auto multiline handler in detection-only mode.
+// outputChan receives individual messages (tagged when a multiline group is detected).
+func newDetectingHandler(outputChan chan *message.Message, _ int, flushTimeout time.Duration) LineHandler {
 	tailerInfo := status.NewInfoRegistry()
-	aggregator := preprocessor.NewDetectingAggregator(outputFn, tailerInfo)
-	tokenizer := preprocessor.NewTokenizer(1000)
-	return NewAutoMultilineHandler(aggregator, tokenizer, maxContentSize, flushTimeout, tailerInfo, nil, nil, false)
+	sampler := preprocessor.NewNoopSampler(outputChan)
+	labeler := buildAutoMultilineLabeler(nil, nil, tailerInfo)
+	aggregatorFactory := func(outputFn func(*message.Message)) preprocessor.Aggregator {
+		return preprocessor.NewDetectingAggregator(outputFn, tailerInfo)
+	}
+	combiner := preprocessor.NewAutoMultilineCombiner(labeler, aggregatorFactory)
+	return newPipelineHandler(combiner, preprocessor.NewTokenizer(1000), sampler, nil, false, flushTimeout)
 }
 
 func TestAutoMultilineHandler_ManualFlush(t *testing.T) {
 	outputChan := make(chan *message.Message, 10)
-	outputFn := func(m *message.Message) {
-		outputChan <- m
-	}
-
-	// Create handler with long flush timeout to avoid auto-flush during test
-	handler := newCombiningHandler(outputFn, 100, 10*time.Second)
+	handler := newCombiningHandler(outputChan, 100, 10*time.Second)
 
 	// Add an incomplete message
 	handler.process(newTestMessage(`{"key":`))
@@ -58,12 +66,7 @@ func TestAutoMultilineHandler_ManualFlush(t *testing.T) {
 
 func TestAutoMultilineHandler_FlushWithPendingJSON(t *testing.T) {
 	outputChan := make(chan *message.Message, 10)
-	outputFn := func(m *message.Message) {
-		outputChan <- m
-	}
-
-	// Create handler with long flush timeout
-	handler := newCombiningHandler(outputFn, 100, 10*time.Second)
+	handler := newCombiningHandler(outputChan, 100, 10*time.Second)
 
 	// Add incomplete JSON messages
 	handler.process(newTestMessage(`{"key":`))
@@ -83,11 +86,7 @@ func TestAutoMultilineHandler_FlushWithPendingJSON(t *testing.T) {
 
 func TestAutoMultilineHandler_CompleteJSONGrouping(t *testing.T) {
 	outputChan := make(chan *message.Message, 10)
-	outputFn := func(m *message.Message) {
-		outputChan <- m
-	}
-
-	handler := newCombiningHandler(outputFn, 1000, 10*time.Second)
+	handler := newCombiningHandler(outputChan, 1000, 10*time.Second)
 
 	// Process complete JSON, should output immediately
 	handler.process(newTestMessage(`{"key":"value"}`))
@@ -99,11 +98,7 @@ func TestAutoMultilineHandler_CompleteJSONGrouping(t *testing.T) {
 
 func TestAutoMultilineHandler_MultiPartJSONGrouping(t *testing.T) {
 	outputChan := make(chan *message.Message, 10)
-	outputFn := func(m *message.Message) {
-		outputChan <- m
-	}
-
-	handler := newCombiningHandler(outputFn, 1000, 10*time.Second)
+	handler := newCombiningHandler(outputChan, 1000, 10*time.Second)
 
 	// Process multi-part JSON
 	handler.process(newTestMessage(`{"key":`))
@@ -118,11 +113,7 @@ func TestAutoMultilineHandler_MultiPartJSONGrouping(t *testing.T) {
 
 func TestAutoMultilineHandler_FlushAfterInvalidJSON(t *testing.T) {
 	outputChan := make(chan *message.Message, 10)
-	outputFn := func(m *message.Message) {
-		outputChan <- m
-	}
-
-	handler := newCombiningHandler(outputFn, 1000, 10*time.Second)
+	handler := newCombiningHandler(outputChan, 1000, 10*time.Second)
 
 	// Start with valid JSON part
 	handler.process(newTestMessage(`{"key":`))
@@ -143,11 +134,7 @@ func TestAutoMultilineHandler_FlushAfterInvalidJSON(t *testing.T) {
 
 func TestAutoMultilineHandler_MixedFormatLog(t *testing.T) {
 	outputChan := make(chan *message.Message, 10)
-	outputFn := func(m *message.Message) {
-		outputChan <- m
-	}
-
-	handler := newCombiningHandler(outputFn, 1000, 10*time.Second)
+	handler := newCombiningHandler(outputChan, 1000, 10*time.Second)
 
 	// Process multi-part JSON
 	handler.process(newTestMessage(`{"key":`))
@@ -192,15 +179,16 @@ func TestAutoMultilineHandler_MixedFormatLog(t *testing.T) {
 
 func TestAutoMultilineHandler_JSONAggregationDisabled(t *testing.T) {
 	outputChan := make(chan *message.Message, 10)
-	outputFn := func(m *message.Message) {
-		outputChan <- m
-	}
 
 	// Create handler with JSON aggregation explicitly disabled
 	tailerInfo := status.NewInfoRegistry()
-	aggregator := preprocessor.NewCombiningAggregator(outputFn, 1000, false, false, tailerInfo)
-	tokenizer := preprocessor.NewTokenizer(1000)
-	handler := NewAutoMultilineHandler(aggregator, tokenizer, 1000, 10*time.Second, tailerInfo, nil, nil, false)
+	sampler := preprocessor.NewNoopSampler(outputChan)
+	labeler := buildAutoMultilineLabeler(nil, nil, tailerInfo)
+	aggregatorFactory := func(outputFn func(*message.Message)) preprocessor.Aggregator {
+		return preprocessor.NewCombiningAggregator(outputFn, 1000, false, false, tailerInfo)
+	}
+	combiner := preprocessor.NewAutoMultilineCombiner(labeler, aggregatorFactory)
+	handler := newPipelineHandler(combiner, preprocessor.NewTokenizer(1000), sampler, nil, false, 10*time.Second)
 
 	// Process multi-part JSON
 	handler.process(newTestMessage(`{"key":`))
@@ -223,12 +211,7 @@ func TestAutoMultilineHandler_JSONAggregationDisabled(t *testing.T) {
 
 func TestAutoMultilineHandler_DetectionOnlyMode_SingleLineNotTagged(t *testing.T) {
 	outputChan := make(chan *message.Message, 10)
-	outputFn := func(m *message.Message) {
-		outputChan <- m
-	}
-
-	// Create handler with detection-only mode enabled
-	handler := newDetectingHandler(outputFn, 1000, 10*time.Second)
+	handler := newDetectingHandler(outputChan, 1000, 10*time.Second)
 
 	// Process single-line logs
 	handler.process(newTestMessage(`2025-12-15 10:00:00 [INFO] Single line log`))
@@ -254,12 +237,7 @@ func TestAutoMultilineHandler_DetectionOnlyMode_SingleLineNotTagged(t *testing.T
 
 func TestAutoMultilineHandler_DetectionOnlyMode_MultilineTagged(t *testing.T) {
 	outputChan := make(chan *message.Message, 10)
-	outputFn := func(m *message.Message) {
-		outputChan <- m
-	}
-
-	// Create handler with detection-only mode enabled
-	handler := newDetectingHandler(outputFn, 1000, 10*time.Second)
+	handler := newDetectingHandler(outputChan, 1000, 10*time.Second)
 
 	// Process multiline log (stack trace)
 	handler.process(newTestMessage(`2025-12-15 10:00:00 [ERROR] Exception occurred`))
@@ -289,12 +267,7 @@ func TestAutoMultilineHandler_DetectionOnlyMode_MultilineTagged(t *testing.T) {
 
 func TestAutoMultilineHandler_DetectionOnlyMode_TwoLineGroup(t *testing.T) {
 	outputChan := make(chan *message.Message, 10)
-	outputFn := func(m *message.Message) {
-		outputChan <- m
-	}
-
-	// Create handler with detection-only mode enabled
-	handler := newDetectingHandler(outputFn, 1000, 10*time.Second)
+	handler := newDetectingHandler(outputChan, 1000, 10*time.Second)
 
 	// Process 2-line multiline log
 	handler.process(newTestMessage(`2025-12-15 10:00:00 [ERROR] Error message`))
@@ -320,12 +293,7 @@ func TestAutoMultilineHandler_DetectionOnlyMode_TwoLineGroup(t *testing.T) {
 
 func TestAutoMultilineHandler_DetectionOnlyMode_MixedLogs(t *testing.T) {
 	outputChan := make(chan *message.Message, 10)
-	outputFn := func(m *message.Message) {
-		outputChan <- m
-	}
-
-	// Create handler with detection-only mode enabled
-	handler := newDetectingHandler(outputFn, 1000, 10*time.Second)
+	handler := newDetectingHandler(outputChan, 1000, 10*time.Second)
 
 	// Mix of single-line and multiline logs
 	handler.process(newTestMessage(`2025-12-15 10:00:00 [INFO] Single line`))
@@ -356,12 +324,7 @@ func TestAutoMultilineHandler_DetectionOnlyMode_MixedLogs(t *testing.T) {
 
 func TestAutoMultilineHandler_AggregationMode_CombinesLines(t *testing.T) {
 	outputChan := make(chan *message.Message, 10)
-	outputFn := func(m *message.Message) {
-		outputChan <- m
-	}
-
-	// Create handler with aggregation mode (isDetectionOnly=false)
-	handler := newCombiningHandler(outputFn, 1000, 10*time.Second)
+	handler := newCombiningHandler(outputChan, 1000, 10*time.Second)
 
 	// Process multiline log
 	handler.process(newTestMessage(`2025-12-15 10:00:00 [ERROR] Exception occurred`))
@@ -384,11 +347,7 @@ func TestAutoMultilineHandler_AggregationMode_CombinesLines(t *testing.T) {
 
 func TestAutoMultilineHandler_DetectionMode_DoesNotCombineJSON(t *testing.T) {
 	outputChan := make(chan *message.Message, 10)
-	outputFn := func(m *message.Message) {
-		outputChan <- m
-	}
-
-	handler := newDetectingHandler(outputFn, 1000, 10*time.Second)
+	handler := newDetectingHandler(outputChan, 1000, 10*time.Second)
 
 	// Process split JSON that would be combined in aggregation mode
 	handler.process(newTestMessage(`{"key":`))
@@ -403,11 +362,7 @@ func TestAutoMultilineHandler_DetectionMode_DoesNotCombineJSON(t *testing.T) {
 
 func TestAutoMultilineHandler_CombiningMode_CombinesJSON(t *testing.T) {
 	outputChan := make(chan *message.Message, 10)
-	outputFn := func(m *message.Message) {
-		outputChan <- m
-	}
-
-	handler := newCombiningHandler(outputFn, 1000, 10*time.Second)
+	handler := newCombiningHandler(outputChan, 1000, 10*time.Second)
 
 	// Combining mode enables JSON aggregation - split JSON should be combined
 	handler.process(newTestMessage(`{"key":`))

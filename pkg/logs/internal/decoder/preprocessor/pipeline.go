@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package preprocessor contains auto multiline detection and aggregation logic.
 package preprocessor
 
 import (
@@ -12,25 +13,26 @@ import (
 )
 
 // Pipeline owns all preprocessor stages and wires them in the correct order:
-// JSON aggregation → tokenization → labeling → aggregation
+// JSON aggregation (optional) → tokenization → combining → sampling
 type Pipeline struct {
 	jsonAggregator        *JSONAggregator
 	tokenizer             *Tokenizer
-	labeler               *Labeler
-	aggregator            Aggregator
+	combiner              Combiner
+	sampler               Sampler
 	enableJSONAggregation bool
 	flushTimeout          time.Duration
 	flushTimer            *time.Timer
 }
 
-// NewPipeline creates a new Pipeline with stages wired in the correct order.
-func NewPipeline(aggregator Aggregator, tokenizer *Tokenizer, labeler *Labeler,
+// NewPipeline creates a new Pipeline.
+// Pass nil for jsonAggregator when JSON aggregation is not needed.
+func NewPipeline(combiner Combiner, tokenizer *Tokenizer, sampler Sampler,
 	jsonAggregator *JSONAggregator, enableJSONAggregation bool, flushTimeout time.Duration) *Pipeline {
 	return &Pipeline{
 		jsonAggregator:        jsonAggregator,
 		tokenizer:             tokenizer,
-		labeler:               labeler,
-		aggregator:            aggregator,
+		combiner:              combiner,
+		sampler:               sampler,
 		enableJSONAggregation: enableJSONAggregation,
 		flushTimeout:          flushTimeout,
 	}
@@ -53,9 +55,11 @@ func (p *Pipeline) Process(msg *message.Message) {
 func (p *Pipeline) processOne(msg *message.Message) {
 	// Step 1: Tokenize the complete (possibly JSON-aggregated) message
 	msg.ParsingExtra.Tokens, msg.ParsingExtra.TokenIndices = p.tokenizer.Tokenize(msg.GetContent())
-	// Steps 2+3: Label and aggregate; label stays local and never touches the message
-	label := p.labeler.Label(msg)
-	p.aggregator.Process(msg, label)
+	// Step 2: Combine (may buffer; returns zero or more completed messages)
+	for _, completed := range p.combiner.Process(msg) {
+		// Step 3: Sample/emit
+		p.sampler.Process(completed)
+	}
 }
 
 // FlushChan returns a channel that signals when a flush should occur.
@@ -68,17 +72,21 @@ func (p *Pipeline) FlushChan() <-chan time.Time {
 
 // Flush flushes all pipeline stages in order.
 func (p *Pipeline) Flush() {
-	if p.enableJSONAggregation {
+	if p.enableJSONAggregation && p.jsonAggregator != nil {
 		for _, m := range p.jsonAggregator.Flush() {
 			p.processOne(m)
 		}
 	}
-	p.aggregator.Flush()
+	for _, completed := range p.combiner.Flush() {
+		p.sampler.Process(completed)
+	}
+	p.sampler.Flush()
 	p.stopFlushTimerIfNeeded()
 }
 
 func (p *Pipeline) isEmpty() bool {
-	return p.aggregator.IsEmpty() && p.jsonAggregator.IsEmpty()
+	jsonEmpty := p.jsonAggregator == nil || p.jsonAggregator.IsEmpty()
+	return p.combiner.IsEmpty() && jsonEmpty
 }
 
 func (p *Pipeline) stopFlushTimerIfNeeded() {

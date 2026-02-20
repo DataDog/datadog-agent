@@ -57,10 +57,9 @@ type decoderImpl struct {
 	inputChan  chan *message.Message
 	outputChan chan *message.Message
 
-	framer          *framer.Framer
-	lineParser      LineParser
-	lineHandler     LineHandler
-	adaptiveSampler AdaptiveSampler
+	framer      *framer.Framer
+	lineParser  LineParser
+	lineHandler LineHandler
 
 	// The decoder holds on to an instace of DetectedPattern which is a thread safe container used to
 	// pass a multiline pattern up from the line handler in order to surface it to the tailer.
@@ -99,6 +98,21 @@ func syncSourceInfo(source *sources.ReplaceableSource, lh *MultiLineHandler) {
 	}
 }
 
+// syncSourceInfoForRegexCombiner syncs the RegexCombiner's counters with the source's info
+// registry so that multiple tailers for the same source share the same count displays.
+func syncSourceInfoForRegexCombiner(source *sources.ReplaceableSource, c *preprocessor.RegexCombiner) {
+	if existingInfo, ok := source.GetInfo(c.CountInfo().InfoKey()).(*status.CountInfo); ok {
+		c.SetCountInfo(existingInfo)
+	} else {
+		source.RegisterInfo(c.CountInfo())
+	}
+	if existingInfo, ok := source.GetInfo(c.LinesCombinedInfo().InfoKey()).(*status.CountInfo); ok {
+		c.SetLinesCombinedInfo(existingInfo)
+	} else {
+		source.RegisterInfo(c.LinesCombinedInfo())
+	}
+}
+
 // NewNoopDecoder initializes a decoder with all dependent components in passthrough mode.
 func NewNoopDecoder() Decoder {
 	inputChan := make(chan *message.Message)
@@ -106,14 +120,11 @@ func NewNoopDecoder() Decoder {
 	detectedPattern := &DetectedPattern{}
 	maxMessageSize := config.MaxMessageSizeBytes(pkgconfigsetup.Datadog())
 
-	// Create adaptive sampler (noop for now) - outputs to final outputChan
-	adaptiveSampler := NewNoopSampler(outputChan)
-
 	lineHandler := NewNoopLineHandler(outputChan)
 	lineParser := NewSingleLineParser(lineHandler, noop.New())
 	framer := framer.NewFramer(lineParser.process, framer.NoFraming, maxMessageSize)
 
-	return New(inputChan, outputChan, framer, lineParser, lineHandler, adaptiveSampler, detectedPattern)
+	return New(inputChan, outputChan, framer, lineParser, lineHandler, detectedPattern)
 }
 
 // NewDecoderWithFraming initialize a decoder with given endline strategy.
@@ -123,20 +134,15 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 	outputChan := make(chan *message.Message)
 	detectedPattern := &DetectedPattern{}
 
-	// Create adaptive sampler (noop for now) - outputs to final outputChan
-	adaptiveSampler := NewNoopSampler(outputChan)
-
-	// Create output function that goes through the adaptive sampler
-	outputFn := func(msg *message.Message) {
-		adaptiveSampler.process(msg)
-	}
+	// Sampler is the final step of the Pipeline — emits completed messages to outputChan.
+	sampler := preprocessor.NewNoopSampler(outputChan)
 
 	// TODO: AGNTLOG-553 Respect source-specific tokenizer settings
 	//       (source.Config().AutoMultiLineOptions.TokenizerMaxInputBytes) to
 	//       avoid breaking change for sources with custom tokenizer config
 	tokenizerMaxInputBytes := pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
 	tok := preprocessor.NewTokenizer(tokenizerMaxInputBytes)
-	lineHandler := buildLineHandler(source, multiLinePattern, tailerInfo, outputFn, detectedPattern, tok)
+	lineHandler := buildLineHandler(source, multiLinePattern, tailerInfo, outputChan, detectedPattern, tok, sampler)
 
 	var lineParser LineParser
 	if parser.SupportsPartialLine() {
@@ -147,61 +153,64 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 
 	framer := framer.NewFramer(lineParser.process, framing, maxMessageSize)
 
-	return New(inputChan, outputChan, framer, lineParser, lineHandler, adaptiveSampler, detectedPattern)
+	return New(inputChan, outputChan, framer, lineParser, lineHandler, detectedPattern)
 }
 
-func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, outputFn func(*message.Message), detectedPattern *DetectedPattern, tok *preprocessor.Tokenizer) LineHandler {
+func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, outputChan chan *message.Message, detectedPattern *DetectedPattern, tok *preprocessor.Tokenizer, sampler preprocessor.Sampler) LineHandler {
 	maxContentSize := config.MaxMessageSizeBytes(pkgconfigsetup.Datadog())
+	flushTimeout := config.AggregationTimeout(pkgconfigsetup.Datadog())
 
-	// construct the lineHandler
+	// directOutputFn is used by legacy handlers that bypass the Pipeline.
+	directOutputFn := func(msg *message.Message) { outputChan <- msg }
+
+	// User-configured multiline regex — each line is matched against the regex to detect group
+	// boundaries; completed groups are emitted as a single combined message.
 	var lineHandler LineHandler
 	for _, rule := range source.Config().ProcessingRules {
 		if rule.Type == config.MultiLine {
-			lh := NewMultiLineHandler(outputFn, rule.Regex, config.AggregationTimeout(pkgconfigsetup.Datadog()), maxContentSize, false, tailerInfo, "multi_line")
-			syncSourceInfo(source, lh)
-			lineHandler = lh
+			regexCombiner := preprocessor.NewRegexCombiner(rule.Regex, maxContentSize, false, tailerInfo, "multi_line")
+			syncSourceInfoForRegexCombiner(source, regexCombiner)
+			lineHandler = newPipelineHandler(regexCombiner, tok, sampler, nil, false, flushTimeout)
 		}
 	}
-	if lineHandler == nil {
-		// Priority order for line handlers:
-		// 1. Legacy auto multiline (if explicitly enabled)
-		// 2. New auto multiline with aggregation (if explicitly enabled)
-		// 3. Detection-only tagging (tags without aggregation, enabled by default as fallback)
-		// 4. Single line handler (no multiline detection)
-		if source.Config().LegacyAutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
-			lineHandler = getLegacyAutoMultilineHandler(outputFn, multiLinePattern, maxContentSize, source, detectedPattern, tailerInfo)
-		} else if source.Config().AutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
-			lineHandler = getAutoMultilineAggregatingHandler(outputFn, maxContentSize, tailerInfo, source, tok)
-		} else if pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line_detection_tagging") {
-			lineHandler = getAutoMultilineDetectingHandler(outputFn, tailerInfo, maxContentSize, source, tok)
-		} else {
-			lineHandler = NewSingleLineHandler(outputFn, maxContentSize)
+
+	if lineHandler != nil {
+		return lineHandler
+	}
+
+	// Priority order when no user-configured regex rule was set:
+	// 1. Legacy auto multiline (bypasses Pipeline; outputs directly to outputChan)
+	// 2. Auto multiline with aggregation — combines detected groups into one message
+	// 3. Auto multiline detection-only — tags group starts without combining, this is the default
+	// 4. Pass-through — tokenizes and samples every line individually
+	if source.Config().LegacyAutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
+		return getLegacyAutoMultilineHandler(directOutputFn, multiLinePattern, maxContentSize, source, detectedPattern, tailerInfo)
+	} else if source.Config().AutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
+		labeler := buildAutoMultilineLabeler(source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, tailerInfo)
+		aggregatorFactory := func(outputFn func(*message.Message)) preprocessor.Aggregator {
+			return preprocessor.NewCombiningAggregator(outputFn, maxContentSize,
+				pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs"),
+				pkgconfigsetup.Datadog().GetBool("logs_config.tag_multi_line_logs"),
+				tailerInfo)
 		}
+		combiner := preprocessor.NewAutoMultilineCombiner(labeler, aggregatorFactory)
+		enableJSON := pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_json_aggregation")
+		if source.Config().AutoMultiLineOptions != nil && source.Config().AutoMultiLineOptions.EnableJSONAggregation != nil {
+			enableJSON = *source.Config().AutoMultiLineOptions.EnableJSONAggregation
+		}
+		jsonAgg := preprocessor.NewJSONAggregator(pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.tag_aggregated_json"), maxContentSize)
+		return newPipelineHandler(combiner, tok, sampler, jsonAgg, enableJSON, flushTimeout)
+	} else if pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line_detection_tagging") {
+		labeler := buildAutoMultilineLabeler(source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, tailerInfo)
+		aggregatorFactory := func(outputFn func(*message.Message)) preprocessor.Aggregator {
+			// JSON aggregation is disabled in detection mode — we don't want to combine JSON
+			// while only tagging everything else.
+			return preprocessor.NewDetectingAggregator(outputFn, tailerInfo)
+		}
+		combiner := preprocessor.NewAutoMultilineCombiner(labeler, aggregatorFactory)
+		return newPipelineHandler(combiner, tok, sampler, nil, false, flushTimeout)
 	}
-	return lineHandler
-}
-
-func getAutoMultilineDetectingHandler(outputFn func(msg *message.Message), tailerInfo *status.InfoRegistry, maxContentSize int, source *sources.ReplaceableSource, tok *preprocessor.Tokenizer) LineHandler {
-	// JSON aggregation is disabled in detection mode for consistency - we don't want to combine JSON
-	// while only tagging everything else
-	aggregator := preprocessor.NewDetectingAggregator(outputFn, tailerInfo)
-	return NewAutoMultilineHandler(aggregator, tok, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, false)
-}
-
-func getAutoMultilineAggregatingHandler(outputFn func(msg *message.Message), maxContentSize int, tailerInfo *status.InfoRegistry, source *sources.ReplaceableSource, tok *preprocessor.Tokenizer) LineHandler {
-	aggregator := preprocessor.NewCombiningAggregator(
-		outputFn,
-		maxContentSize,
-		pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs"),
-		pkgconfigsetup.Datadog().GetBool("logs_config.tag_multi_line_logs"),
-		tailerInfo)
-
-	// Read JSON aggregation setting from config, can be overridden by source settings
-	enableJSONAggregation := pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_json_aggregation")
-	if source.Config().AutoMultiLineOptions != nil && source.Config().AutoMultiLineOptions.EnableJSONAggregation != nil {
-		enableJSONAggregation = *source.Config().AutoMultiLineOptions.EnableJSONAggregation
-	}
-	return NewAutoMultilineHandler(aggregator, tok, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, enableJSONAggregation)
+	return newPipelineHandler(preprocessor.NewPassThroughCombiner(maxContentSize), tok, sampler, nil, false, flushTimeout)
 }
 
 func getLegacyAutoMultilineHandler(outputFn func(*message.Message), multiLinePattern *regexp.Regexp, maxContentSize int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) LineHandler {
@@ -256,14 +265,13 @@ func buildLegacyAutoMultilineHandlerFromConfig(outputFn func(*message.Message), 
 }
 
 // New returns an initialized Decoder
-func New(InputChan chan *message.Message, OutputChan chan *message.Message, framer *framer.Framer, lineParser LineParser, lineHandler LineHandler, adaptiveSampler AdaptiveSampler, detectedPattern *DetectedPattern) Decoder {
+func New(InputChan chan *message.Message, OutputChan chan *message.Message, framer *framer.Framer, lineParser LineParser, lineHandler LineHandler, detectedPattern *DetectedPattern) Decoder {
 	return &decoderImpl{
 		inputChan:       InputChan,
 		outputChan:      OutputChan,
 		framer:          framer,
 		lineParser:      lineParser,
 		lineHandler:     lineHandler,
-		adaptiveSampler: adaptiveSampler,
 		detectedPattern: detectedPattern,
 	}
 }
@@ -286,7 +294,6 @@ func (d *decoderImpl) run() {
 		// output channel
 		d.lineParser.flush()
 		d.lineHandler.flush()
-		d.adaptiveSampler.flush()
 		close(d.outputChan)
 	}()
 	for {
@@ -306,10 +313,6 @@ func (d *decoderImpl) run() {
 		case <-d.lineHandler.flushChan():
 			log.Debug("Flushing line handler because the flush timeout has been reached.")
 			d.lineHandler.flush()
-
-		case <-d.adaptiveSampler.flushChan():
-			log.Debug("Flushing adaptive sampler because the flush timeout has been reached.")
-			d.adaptiveSampler.flush()
 		}
 	}
 }
