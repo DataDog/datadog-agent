@@ -7,8 +7,6 @@ package com_datadoghq_ddagent_logs
 
 import (
 	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -57,58 +55,6 @@ func TestSanitizeAndResolvePath(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := sanitizeAndResolvePath(tt.input)
-			if tt.wantError {
-				assert.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				assert.Equal(t, tt.want, got)
-			}
-		})
-	}
-}
-
-func TestSanitizePodLogPath(t *testing.T) {
-	tests := []struct {
-		name      string
-		namespace string
-		podName   string
-		podUID    string
-		want      string
-		wantError bool
-	}{
-		{
-			name:      "valid components",
-			namespace: "default",
-			podName:   "my-app-abc123",
-			podUID:    "uid-1234",
-			want:      "/host/var/log/pods/default_my-app-abc123_uid-1234",
-		},
-		{
-			name:      "invalid namespace with slashes",
-			namespace: "../etc",
-			podName:   "my-app",
-			podUID:    "uid-1234",
-			wantError: true,
-		},
-		{
-			name:      "empty pod UID",
-			namespace: "default",
-			podName:   "my-app",
-			podUID:    "",
-			wantError: true,
-		},
-		{
-			name:      "invalid pod name with uppercase",
-			namespace: "default",
-			podName:   "MyApp",
-			podUID:    "uid-1234",
-			wantError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := sanitizePodLogPath(tt.namespace, tt.podName, tt.podUID)
 			if tt.wantError {
 				assert.Error(t, err)
 			} else {
@@ -191,29 +137,6 @@ func TestTailFile(t *testing.T) {
 
 	t.Run("non-existent file", func(t *testing.T) {
 		_, _, err := tailFile("/no/such/file", 10)
-		assert.Error(t, err)
-	})
-}
-
-func TestFindLatestLogFile(t *testing.T) {
-	t.Run("picks highest numbered log", func(t *testing.T) {
-		dir := t.TempDir()
-		for _, name := range []string{"0.log", "1.log", "2.log"} {
-			require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("data"), 0644))
-		}
-		got, err := findLatestLogFile(dir)
-		require.NoError(t, err)
-		assert.True(t, strings.HasSuffix(got, "2.log"))
-	})
-
-	t.Run("empty directory", func(t *testing.T) {
-		dir := t.TempDir()
-		_, err := findLatestLogFile(dir)
-		assert.Error(t, err)
-	})
-
-	t.Run("non-existent directory", func(t *testing.T) {
-		_, err := findLatestLogFile("/no/such/dir")
 		assert.Error(t, err)
 	})
 }
