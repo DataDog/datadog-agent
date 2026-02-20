@@ -21,7 +21,7 @@ func NewLogs(wmeta workloadmeta.Component) types.Bundle {
 		actions: map[string]types.Action{
 			"headProcessLog": NewHeadProcessLogHandler(),
 			"tailProcessLog": NewTailProcessLogHandler(),
-			"listLogFiles":   NewListLogFilesHandler(wmeta),
+			"listFiles":      NewListFilesHandler(wmeta),
 		},
 	}
 }

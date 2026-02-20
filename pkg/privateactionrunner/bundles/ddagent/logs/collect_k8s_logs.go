@@ -19,8 +19,8 @@ var k8sLogDirs = []string{
 
 // collectK8sLogs walks Kubernetes log directories and returns all *.log files
 // found. Non-existent directories are silently skipped.
-func collectK8sLogs(hostPrefix string) ([]LogFileEntry, []string) {
-	var entries []LogFileEntry
+func collectK8sLogs(hostPrefix string) ([]FileEntry, []string) {
+	var entries []FileEntry
 	var errs []string
 
 	for _, dir := range k8sLogDirs {
@@ -38,7 +38,7 @@ func collectK8sLogs(hostPrefix string) ([]LogFileEntry, []string) {
 				return nil
 			}
 			if strings.HasSuffix(d.Name(), ".log") {
-				entries = append(entries, LogFileEntry{
+				entries = append(entries, FileEntry{
 					Path:   toOutputPath(hostPrefix, path),
 					Source: "kubernetes",
 				})

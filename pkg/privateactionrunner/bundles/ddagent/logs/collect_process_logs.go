@@ -11,19 +11,19 @@ import (
 
 // collectProcessLogs queries workloadmeta for all processes and extracts their
 // associated log files. Paths from workloadmeta are already host-relative.
-func collectProcessLogs(wmeta workloadmeta.Component) []LogFileEntry {
+func collectProcessLogs(wmeta workloadmeta.Component) []FileEntry {
 	if wmeta == nil {
 		return nil
 	}
 
 	processes := wmeta.ListProcesses()
-	var entries []LogFileEntry
+	var entries []FileEntry
 	for _, proc := range processes {
 		if proc.Service == nil || len(proc.Service.LogFiles) == 0 {
 			continue
 		}
 		for _, logPath := range proc.Service.LogFiles {
-			entries = append(entries, LogFileEntry{
+			entries = append(entries, FileEntry{
 				Path:        logPath,
 				Source:      "process",
 				ProcessName: proc.Name,
