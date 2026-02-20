@@ -92,11 +92,6 @@ func postInstallAPMInject(ctx HookContext) (err error) {
 // update) where the setup script config writing does not run. Needed for monitoring and crash
 // detection of driver crashes.
 func enableSystemProbeConfig(ctx HookContext) (err error) {
-	e := env.FromEnv()
-	if e.InstallScript.APMInstrumentationEnabled != env.APMInstrumentationEnabledHost {
-		return nil
-	}
-
 	span, _ := telemetry.StartSpanFromContext(ctx, "enable_system_probe_config")
 	defer func() { span.Finish(err) }()
 
