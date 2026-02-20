@@ -267,13 +267,14 @@ func (b *bucket) aggregateStatsBucket(sb *pb.ClientStatsBucket, payloadAggKey Pa
 		agg, ok := payloadAgg[aggKey]
 		if !ok {
 			agg = &aggregatedStats{
-				hits:               gs.Hits,
-				topLevelHits:       gs.TopLevelHits,
-				errors:             gs.Errors,
-				duration:           gs.Duration,
-				peerTags:           gs.PeerTags,
-				okDistributionRaw:  gs.OkSummary,    // store encoded version only
-				errDistributionRaw: gs.ErrorSummary, // store encoded version only
+				hits:                   gs.Hits,
+				topLevelHits:           gs.TopLevelHits,
+				errors:                 gs.Errors,
+				duration:               gs.Duration,
+				peerTags:               gs.PeerTags,
+				spanDerivedPrimaryTags: gs.SpanDerivedPrimaryTags,
+				okDistributionRaw:      gs.OkSummary,    // store encoded version only
+				errDistributionRaw:     gs.ErrorSummary, // store encoded version only
 			}
 			payloadAgg[aggKey] = agg
 			continue
@@ -377,24 +378,26 @@ func exporGroupedStats(aggrKey BucketsAggregationKey, stats *aggregatedStats) (*
 		}
 	}
 	return &pb.ClientGroupedStats{
-		Service:        aggrKey.Service,
-		Name:           aggrKey.Name,
-		SpanKind:       aggrKey.SpanKind,
-		Resource:       aggrKey.Resource,
-		HTTPStatusCode: aggrKey.StatusCode,
-		Type:           aggrKey.Type,
-		Synthetics:     aggrKey.Synthetics,
-		IsTraceRoot:    aggrKey.IsTraceRoot,
-		GRPCStatusCode: aggrKey.GRPCStatusCode,
-		HTTPMethod:     aggrKey.HTTPMethod,
-		HTTPEndpoint:   aggrKey.HTTPEndpoint,
-		PeerTags:       stats.peerTags,
-		TopLevelHits:   stats.topLevelHits,
-		Hits:           stats.hits,
-		Errors:         stats.errors,
-		Duration:       stats.duration,
-		OkSummary:      okSummary,
-		ErrorSummary:   errSummary,
+		Service:                aggrKey.Service,
+		Name:                   aggrKey.Name,
+		SpanKind:               aggrKey.SpanKind,
+		Resource:               aggrKey.Resource,
+		HTTPStatusCode:         aggrKey.StatusCode,
+		Type:                   aggrKey.Type,
+		Synthetics:             aggrKey.Synthetics,
+		ServiceSource:          aggrKey.ServiceSource,
+		IsTraceRoot:            aggrKey.IsTraceRoot,
+		GRPCStatusCode:         aggrKey.GRPCStatusCode,
+		HTTPMethod:             aggrKey.HTTPMethod,
+		HTTPEndpoint:           aggrKey.HTTPEndpoint,
+		PeerTags:               stats.peerTags,
+		SpanDerivedPrimaryTags: stats.spanDerivedPrimaryTags,
+		TopLevelHits:           stats.topLevelHits,
+		Hits:                   stats.hits,
+		Errors:                 stats.errors,
+		Duration:               stats.duration,
+		OkSummary:              okSummary,
+		ErrorSummary:           errSummary,
 	}, nil
 }
 
@@ -420,6 +423,7 @@ func newBucketAggregationKey(b *pb.ClientGroupedStats) BucketsAggregationKey {
 		Type:           b.Type,
 		Synthetics:     b.Synthetics,
 		StatusCode:     b.HTTPStatusCode,
+		ServiceSource:  b.ServiceSource,
 		GRPCStatusCode: b.GRPCStatusCode,
 		IsTraceRoot:    b.IsTraceRoot,
 		HTTPMethod:     b.HTTPMethod,
@@ -427,6 +431,9 @@ func newBucketAggregationKey(b *pb.ClientGroupedStats) BucketsAggregationKey {
 	}
 	if tags := b.GetPeerTags(); len(tags) > 0 {
 		k.PeerTagsHash = tagsFnvHash(tags)
+	}
+	if tags := b.GetSpanDerivedPrimaryTags(); len(tags) > 0 {
+		k.SpanDerivedPrimaryTagsHash = tagsFnvHash(tags)
 	}
 	return k
 }
@@ -436,6 +443,7 @@ type aggregatedStats struct {
 	// aggregated counts
 	hits, topLevelHits, errors, duration uint64
 	peerTags                             []string
+	spanDerivedPrimaryTags               []string
 
 	// aggregated DDSketches
 	okDistribution, errDistribution *ddsketch.DDSketch

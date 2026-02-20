@@ -194,6 +194,13 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	pkgconfig.Set("apm_config.debug.port", 0, pkgconfigmodel.SourceDefault)      // Disabled in the otel-agent
 	pkgconfig.Set(pkgconfigsetup.OTLPTracePort, 0, pkgconfigmodel.SourceDefault) // Disabled in the otel-agent
 
+	if pkgconfig.GetBool("otelcollector.gateway.mode") {
+		// Use SourceAgentRuntime to override DD_HOSTNAME env var (SourceEnvVar), which the
+		// Helm chart sets to spec.nodeName for the gateway deployment. In gateway mode the
+		// trace agent forwards traffic and should not claim any host identity.
+		pkgconfig.Set("hostname", "", pkgconfigmodel.SourceAgentRuntime)
+	}
+
 	pkgconfig.Set("otlp_config.traces.span_name_as_resource_name", ddc.Traces.SpanNameAsResourceName, pkgconfigmodel.SourceFile)
 	pkgconfig.Set("otlp_config.traces.span_name_remappings", ddc.Traces.SpanNameRemappings, pkgconfigmodel.SourceFile)
 

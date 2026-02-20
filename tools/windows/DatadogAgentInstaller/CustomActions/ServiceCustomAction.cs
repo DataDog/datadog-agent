@@ -2,7 +2,7 @@ using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Datadog.CustomActions.Rollback;
-using Microsoft.Deployment.WindowsInstaller;
+using WixToolset.Dtf.WindowsInstaller;
 using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
@@ -209,6 +209,10 @@ namespace Datadog.CustomActions
             }
             _serviceController.SetCredentials(Constants.AgentServiceName, ddAgentUserName, ddAgentUserPassword);
             _serviceController.SetCredentials(Constants.TraceAgentServiceName, ddAgentUserName, ddAgentUserPassword);
+            if (_serviceController.ServiceExists(Constants.PrivateActionRunnerServiceName))
+            {
+                _serviceController.SetCredentials(Constants.PrivateActionRunnerServiceName, ddAgentUserName, ddAgentUserPassword);
+            }
 
             // SYSTEM
             // LocalSystem is a SCM specific shorthand that doesn't need to be localized
@@ -248,6 +252,10 @@ namespace Datadog.CustomActions
                 Constants.AgentServiceName,
                 Constants.InstallerServiceName,
             };
+            if (_serviceController.ServiceExists(Constants.PrivateActionRunnerServiceName))
+            {
+                services.Add(Constants.PrivateActionRunnerServiceName);
+            }
 
             services.Add(Constants.SecurityAgentServiceName);
 

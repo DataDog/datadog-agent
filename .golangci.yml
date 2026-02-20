@@ -104,6 +104,8 @@ linters:
             - "!**/comp/core/autodiscovery/providers/prometheus_pods_nop.go"
             - "!**/comp/core/autodiscovery/providers/prometheus_services.go"
             - "!**/comp/core/autodiscovery/providers/prometheus_services_nop.go"
+            - "!**/comp/core/autodiscovery/providers/prometheus_services_eps.go"
+            - "!**/comp/core/autodiscovery/providers/prometheus_services_eps_nop.go"
             - "!**/comp/core/autodiscovery/providers/providers.go"
             - "!**/comp/core/autodiscovery/providers/remote_config.go"
             - "!**/comp/core/autodiscovery/providers/types/types.go"

@@ -123,10 +123,6 @@ if(ARCH_I386)
     set_target_properties(datadog-agent-rtloader PROPERTIES COMPILE_FLAGS "-m32" LINK_FLAGS "-m32")
 endif()
 
-if(NOT WIN32)
-find_library( LIBdl dl )
-endif()
-
 install(TARGETS datadog-agent-rtloader
     RUNTIME DESTINATION bin
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

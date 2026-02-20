@@ -18,11 +18,14 @@ import (
 	"time"
 
 	"golang.org/x/mod/semver"
+	discv1 "k8s.io/api/discovery/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/discovery"
 	coordinationv1 "k8s.io/client-go/kubernetes/typed/coordination/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	discv1typed "k8s.io/client-go/kubernetes/typed/discovery/v1"
 	"k8s.io/client-go/tools/leaderelection"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 
@@ -63,6 +66,7 @@ type LeaderEngine struct {
 	LeaderNamespace     string
 	coreClient          corev1.CoreV1Interface
 	coordClient         coordinationv1.CoordinationV1Interface
+	discoveryClient     discv1typed.DiscoveryV1Interface
 	ServiceName         string
 	leaderIdentityMutex sync.RWMutex
 	leaderElector       *leaderelection.LeaderElector
@@ -164,6 +168,7 @@ func (le *LeaderEngine) init() error {
 
 	le.coreClient = apiClient.Cl.CoreV1()
 	le.coordClient = apiClient.Cl.CoordinationV1()
+	le.discoveryClient = apiClient.Cl.DiscoveryV1()
 
 	usingLease, err := CanUseLeases(apiClient.Cl.Discovery())
 	if err != nil {
@@ -265,17 +270,58 @@ func (le *LeaderEngine) GetLeaderIP() (string, error) {
 		return ip.(string), nil
 	}
 
-	endpointList, err := le.coreClient.Endpoints(le.LeaderNamespace).Get(context.TODO(), le.ServiceName, metav1.GetOptions{})
-	if err != nil {
-		return "", err
-	}
-	target, err := apiserver.SearchTargetPerName(endpointList, leaderName)
-	if err != nil {
-		return "", err
-	}
-	cache.Cache.Set(cacheKey, target.IP, 5*time.Minute)
+	var targetIP string
+	var err error
 
-	return target.IP, nil
+	if apiserver.UseEndpointSlices() {
+		targetIP, err = le.getLeaderIPFromEndpointSlices(leaderName)
+		if err != nil {
+			return "", err
+		}
+	} else {
+		endpointList, err := le.coreClient.Endpoints(le.LeaderNamespace).Get(context.TODO(), le.ServiceName, metav1.GetOptions{})
+		if err != nil {
+			return "", err
+		}
+		target, err := apiserver.SearchTargetPerName(endpointList, leaderName)
+		if err != nil {
+			return "", err
+		}
+		targetIP = target.IP
+	}
+	cache.Cache.Set(cacheKey, targetIP, 5*time.Minute)
+	return targetIP, nil
+}
+
+// getLeaderIPFromEndpointSlices retrieves the leader IP from EndpointSlices
+func (le *LeaderEngine) getLeaderIPFromEndpointSlices(leaderName string) (string, error) {
+	// List EndpointSlices for the service
+	sliceList, err := le.discoveryClient.EndpointSlices(le.LeaderNamespace).List(
+		context.TODO(),
+		metav1.ListOptions{
+			LabelSelector: labels.Set{apiserver.KubernetesServiceNameLabel: le.ServiceName}.String(),
+		},
+	)
+	if err != nil {
+		return "", err
+	}
+
+	if sliceList == nil || len(sliceList.Items) == 0 {
+		return "", fmt.Errorf("no endpointslices found for service %s", le.ServiceName)
+	}
+
+	// Convert Items to slice of pointers for SearchTargetPerNameInEndpointSlices
+	slices := make([]*discv1.EndpointSlice, len(sliceList.Items))
+	for i := range sliceList.Items {
+		slices[i] = &sliceList.Items[i]
+	}
+
+	resultIP, err := apiserver.SearchTargetPerNameInEndpointSlices(slices, leaderName)
+	if err != nil {
+		return "", err
+	}
+
+	return resultIP, nil
 }
 
 // IsLeader returns true if the last observed leader was this client else returns false.
