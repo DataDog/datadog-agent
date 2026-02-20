@@ -157,7 +157,7 @@ func (suite *DockerSuite) TestDockerMetrics() {
 	}
 	ctrName := "exit_42_" + string(ctrNameData)
 
-	suite.Env().RemoteHost.MustExecute(fmt.Sprintf("docker run -d --name \"%s\" public.ecr.aws/docker/library/busybox sh -c \"exit 42\"", ctrName))
+	suite.Env().RemoteHost.MustExecute(fmt.Sprintf("docker run -d --name \"%s\" 669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/library/busybox:1.37.0 sh -c \"exit 42\"", ctrName))
 
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
@@ -166,9 +166,9 @@ func (suite *DockerSuite) TestDockerMetrics() {
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
-				`^docker_image:public.ecr.aws/docker/library/busybox:latest$`,
-				`^image_name:public.ecr.aws/docker/library/busybox$`,
-				`^image_tag:latest$`,
+				`^docker_image:669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/library/busybox:1.37.0$`,
+				`^image_name:669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/library/busybox$`,
+				`^image_tag:1.37.0$`,
 				`^short_image:busybox$`,
 			},
 			Value: &testMetricExpectValueArgs{
@@ -202,7 +202,7 @@ func (suite *DockerSuite) TestDockerEvents() {
 	}
 	ctrName := "exit_42_" + string(ctrNameData)
 
-	suite.Env().RemoteHost.MustExecute(fmt.Sprintf("docker run -d --name \"%s\" public.ecr.aws/docker/library/busybox sh -c \"exit 42\"", ctrName))
+	suite.Env().RemoteHost.MustExecute(fmt.Sprintf("docker run -d --name \"%s\" 669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/library/busybox:1.37.0 sh -c \"exit 42\"", ctrName))
 
 	suite.testEvent(&testEventArgs{
 		Filter: testEventFilterArgs{
@@ -215,9 +215,9 @@ func (suite *DockerSuite) TestDockerEvents() {
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:` + regexp.QuoteMeta(ctrName) + `$`,
-				`^docker_image:public.ecr.aws/docker/library/busybox$`,
+				`^docker_image:669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/library/busybox:1.37.0$`,
 				`^image_id:sha256:`,
-				`^image_name:public.ecr.aws/docker/library/busybox$`,
+				`^image_name:669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/library/busybox$`,
 				`^short_image:busybox$`,
 			},
 			Title:     `busybox .*1 die`,
