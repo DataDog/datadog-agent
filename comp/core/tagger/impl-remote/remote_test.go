@@ -299,7 +299,7 @@ func TestGenerateContainerIDFromOriginInfo_ExpiryAndEviction(t *testing.T) {
 	for i := 0; i < 1001; i++ {
 		k := cache.BuildAgentKey("remoteTagger", "originInfo", fmt.Sprintf("expired-%d", i))
 		rt.containerIDCache[k] = containerIDCacheEntry{
-			err:      fmt.Errorf("stale error"),
+			err:      errors.New("stale error"),
 			expireAt: time.Now().Add(-1 * time.Minute),
 		}
 	}
