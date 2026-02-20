@@ -1002,7 +1002,6 @@ require (
 	gitlab.com/gitlab-org/api/client-go v1.14.0
 	go.temporal.io/api v1.62.2
 	go.temporal.io/sdk v1.39.0
-	gopkg.in/DataDog/dd-trace-go.v1 v1.74.8
 )
 
 require (
@@ -1077,7 +1076,9 @@ require (
 	github.com/go-git/go-git/v5 v5.14.0 // indirect
 	github.com/go-jose/go-jose/v3 v3.0.4 // indirect
 	github.com/go-ozzo/ozzo-validation v3.6.0+incompatible // indirect
+	github.com/gocql/gocql v1.6.0 // indirect
 	github.com/godbus/dbus v4.1.0+incompatible // indirect
+	github.com/gofrs/uuid v4.4.0+incompatible // indirect
 	github.com/google/certificate-transparency-go v1.3.2 // indirect
 	github.com/google/go-metrics-stackdriver v0.2.0 // indirect
 	github.com/google/licensecheck v0.3.1 // indirect
