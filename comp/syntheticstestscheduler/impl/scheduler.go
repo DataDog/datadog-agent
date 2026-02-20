@@ -47,10 +47,11 @@ type syntheticsTestScheduler struct {
 	sendResult                   func(w *workerResult) (string, error)
 	hostNameService              hostname.Component
 	statsdClient                 ddgostatsd.ClientInterface
+	onDemandPoller               *onDemandPoller
 }
 
 // newSyntheticsTestScheduler creates a scheduler and initializes its state.
-func newSyntheticsTestScheduler(configs *schedulerConfigs, forwarder eventplatform.Forwarder, logger log.Component, hostNameService hostname.Component, timeFunc func() time.Time, statsd ddgostatsd.ClientInterface, telemetryComp telemetry.Component) *syntheticsTestScheduler {
+func newSyntheticsTestScheduler(configs *schedulerConfigs, forwarder eventplatform.Forwarder, logger log.Component, hostNameService hostname.Component, timeFunc func() time.Time, statsd ddgostatsd.ClientInterface, telemetryComp telemetry.Component, poller *onDemandPoller) *syntheticsTestScheduler {
 	scheduler := &syntheticsTestScheduler{
 		epForwarder:                  forwarder,
 		log:                          logger,
@@ -66,6 +67,7 @@ func newSyntheticsTestScheduler(configs *schedulerConfigs, forwarder eventplatfo
 		generateTestResultID:         generateRandomStringUInt63,
 		runTraceroute:                runTraceroute,
 		statsdClient:                 statsd,
+		onDemandPoller:               poller,
 	}
 
 	// by default, sendResult delegates to the real forwarder-backed implementation
@@ -124,7 +126,9 @@ func (s *syntheticsTestScheduler) updateRunningState(newConfig map[string]common
 		pubID := newTestConfig.PublicID
 		seen[pubID] = true
 		current, exists := s.state.tests[pubID]
+
 		s.statsdClient.Incr(syntheticsMetricPrefix+"checks_received", []string{fmt.Sprintf("org_id:%d", newTestConfig.OrgID)}, 1) //nolint:errcheck
+
 		if !exists {
 			s.state.tests[pubID] = &runningTestState{
 				cfg:     newTestConfig,
@@ -157,6 +161,7 @@ func (s *syntheticsTestScheduler) start(ctx context.Context) error {
 
 	go s.flushLoop(ctx)
 	go s.runWorkers(ctx)
+	s.onDemandPoller.start(ctx)
 
 	return nil
 }
@@ -184,6 +189,10 @@ func (s *syntheticsTestScheduler) stop() {
 	<-s.flushLoopDone
 	s.ticker.Stop()
 	s.log.Debug("flush loop stopped")
+
+	// Wait for on-demand poll loop to stop
+	s.onDemandPoller.stop()
+	s.log.Debug("on-demand poll loop stopped")
 
 	s.log.Info("synthetics test scheduler stopped")
 }
