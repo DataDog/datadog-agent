@@ -303,18 +303,12 @@ func extractPublisherFromBundleID(bundleID string) string {
 	return ""
 }
 
-// getPublisherFromInfoPlist extracts publisher from Info.plist using multiple fields
+// getPublisherFromPlistData extracts publisher from a pre-parsed plist map (no I/O).
 // Priority order:
 // 1. NSHumanReadableCopyright (extract company name)
 // 2. CFBundleIdentifier (extract from reverse DNS, e.g., com.microsoft.* → "Microsoft")
 // 3. CFBundleName (fallback, may contain company name)
-func getPublisherFromInfoPlist(bundlePath string) string {
-	infoPlistPath := filepath.Join(bundlePath, "Contents", "Info.plist")
-	plistData, err := readPlistFile(infoPlistPath)
-	if err != nil {
-		return ""
-	}
-
+func getPublisherFromPlistData(plistData map[string]string) string {
 	// Priority 1: NSHumanReadableCopyright
 	if copyright, ok := plistData["NSHumanReadableCopyright"]; ok && copyright != "" {
 		if publisher := extractCompanyFromCopyright(copyright); publisher != "" {
@@ -340,6 +334,17 @@ func getPublisherFromInfoPlist(bundlePath string) string {
 	}
 
 	return ""
+}
+
+// getPublisherFromInfoPlist extracts publisher from Info.plist at the given bundle path.
+// It reads the plist from disk and delegates to getPublisherFromPlistData.
+func getPublisherFromInfoPlist(bundlePath string) string {
+	infoPlistPath := filepath.Join(bundlePath, "Contents", "Info.plist")
+	plistData, err := readPlistFile(infoPlistPath)
+	if err != nil {
+		return ""
+	}
+	return getPublisherFromPlistData(plistData)
 }
 
 // pkgInfo contains information about a package installation from pkgutil
@@ -402,10 +407,12 @@ func getPkgInfo(path string) *pkgInfo {
 	return nil
 }
 
-// entryWithPath pairs an Entry with its bundle path for parallel processing
+// entryWithPath pairs an Entry with its bundle path for parallel processing.
+// When plistData is non-nil, the worker uses it to compute publisher without reading the file.
 type entryWithPath struct {
-	entry *Entry
-	path  string
+	entry     *Entry
+	path      string
+	plistData map[string]string // optional: already-read plist; nil means read from path
 }
 
 // populatePublishersParallel gets publisher info for multiple entries in parallel
@@ -417,7 +424,9 @@ func populatePublishersParallel(items []entryWithPath) {
 		return
 	}
 
+	// Create buffered channel with capacity = number of items
 	jobs := make(chan *entryWithPath, len(items))
+	// Queue items into the channel
 	for i := range items {
 		jobs <- &items[i]
 	}
@@ -433,7 +442,11 @@ func populatePublishersParallel(items []entryWithPath) {
 		go func() {
 			defer wg.Done()
 			for item := range jobs {
-				item.entry.Publisher = getPublisherFromInfoPlist(item.path)
+				if item.plistData != nil {
+					item.entry.Publisher = getPublisherFromPlistData(item.plistData)
+				} else {
+					item.entry.Publisher = getPublisherFromInfoPlist(item.path)
+				}
 			}
 		}()
 	}

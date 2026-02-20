@@ -105,7 +105,7 @@ func (c *kernelExtensionsCollector) Collect() ([]*Entry, []*Warning, error) {
 			}
 
 			entries = append(entries, entry)
-			itemsForPublisher = append(itemsForPublisher, entryWithPath{entry: entry, path: kextPath})
+			itemsForPublisher = append(itemsForPublisher, entryWithPath{entry: entry, path: kextPath, plistData: plistData})
 		}
 	}
 

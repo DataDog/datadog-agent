@@ -251,7 +251,7 @@ func (c *applicationsCollector) Collect() ([]*Entry, []*Warning, error) {
 			}
 
 			entries = append(entries, entry)
-			itemsForPublisher = append(itemsForPublisher, entryWithPath{entry: entry, path: appPath})
+			itemsForPublisher = append(itemsForPublisher, entryWithPath{entry: entry, path: appPath, plistData: plistData})
 
 			// Queue for parallel pkgutil lookup if needed
 			if needsPkgLookup {
