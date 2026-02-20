@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 const (
@@ -67,6 +68,8 @@ type ebpfLessTracer struct {
 	boundPorts   *ebpfless.BoundPorts
 	cookieHasher *cookieHasher
 
+	connPool sync.TypedPool[network.ConnectionStats]
+
 	ns netns.NsHandle
 }
 
@@ -89,6 +92,7 @@ func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
 		conns:         make(map[ebpfless.PCAPTuple]*network.ConnectionStats, cfg.MaxTrackedConnections),
 		boundPorts:    ebpfless.NewBoundPorts(cfg),
 		cookieHasher:  newCookieHasher(),
+		connPool:      sync.NewDefaultTypedPool[network.ConnectionStats](),
 	}
 
 	tr.ns, err = netns.Get()
@@ -194,11 +198,10 @@ func (t *ebpfLessTracer) processConnection(
 	conn, ok := t.conns[tuple]
 	isNewConn := !ok
 	if isNewConn {
-		conn = &network.ConnectionStats{
-			// NOTE: this tuple does not have the connection direction set yet.
-			// That will be set from determineConnectionDirection later
-			ConnectionTuple: ebpfless.MakeConnStatsTuple(tuple),
-		}
+		conn = t.connPool.Get()
+		// NOTE: this tuple does not have the connection direction set yet.
+		// That will be set from determineConnectionDirection later
+		conn.ConnectionTuple = ebpfless.MakeConnStatsTuple(tuple)
 	}
 
 	var ts int64
@@ -244,6 +247,7 @@ func (t *ebpfLessTracer) processConnection(
 
 	switch result {
 	case ebpfless.ProcessResultNone:
+		t.putConn(conn)
 	case ebpfless.ProcessResultStoreConn:
 		// if we fail to store this connection at any point, remove its TCP state tracking
 		storeConnOk := false
@@ -254,6 +258,7 @@ func (t *ebpfLessTracer) processConnection(
 			if conn.Type == network.TCP {
 				t.tcp.RemoveConn(tuple)
 			}
+			t.putConn(conn)
 			ebpfLessTracerTelemetry.droppedConnections.Inc()
 		}()
 
@@ -261,13 +266,20 @@ func (t *ebpfLessTracer) processConnection(
 		storeConnOk = ebpfless.WriteMapWithSizeLimit(t.conns, tuple, conn, maxTrackedConns)
 	case ebpfless.ProcessResultCloseConn:
 		delete(t.conns, tuple)
+		// do not call putConn after this, since the close handler owns it now
 		closeCallback(conn)
 	case ebpfless.ProcessResultMapFull:
 		delete(t.conns, tuple)
+		t.putConn(conn)
 		ebpfLessTracerTelemetry.droppedConnections.Inc()
 	}
 
 	return nil
+}
+
+func (t *ebpfLessTracer) putConn(conn *network.ConnectionStats) {
+	*conn = network.ConnectionStats{}
+	t.connPool.Put(conn)
 }
 
 type packetFlags struct {
