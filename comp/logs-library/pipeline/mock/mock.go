@@ -9,9 +9,9 @@ package mock
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
 // mockProvider mocks pipeline providing logic

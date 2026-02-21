@@ -149,6 +149,8 @@ linters:
             - "!**/comp/forwarder/defaultforwarder/blocked_endpoints.go"
             - "!**/comp/forwarder/defaultforwarder/default_forwarder.go"
             - "!**/comp/forwarder/eventplatform/eventplatformimpl/epforwarder.go"
+            - "!**/comp/logs-library/pipeline/provider.go"
+            - "!**/comp/logs-library/pipeline/provider_test.go"
             - "!**/comp/logs/agent/agentimpl/agent_test.go"
             - "!**/comp/logs/agent/agentimpl/analyze_logs_init.go"
             - "!**/comp/logs/agent/agentimpl/serverless.go"
