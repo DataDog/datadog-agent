@@ -22,13 +22,24 @@ Run E2E tests from `test/new-e2e/tests/` using `dda inv new-e2e-tests.run`.
    - If the user gives a test function name (starts with `Test`), find which package contains it using Grep under `test/new-e2e/tests/`, then set `--targets` to the package path (relative to `test/new-e2e/`) and `--run` to the test name
    - If ambiguous, list the matching options and ask the user to pick one
 
-3. **Build the command**:
+3. **Ask about keeping infrastructure** (if `--keep-stack` not already in `$ARGUMENTS`):
+   Use `AskUserQuestion` to ask the user if they want to keep the test infrastructure running:
+
+   **Question**: "Do you want to keep the test infrastructure running after the test completes?"
+
+   **Options**:
+   - "Clean up automatically (Recommended)" — Destroy all test infrastructure after the test finishes. This is the default and prevents costs from accumulating.
+   - "Keep infrastructure running" — Leave all resources up after the test. Useful for debugging, but requires manual cleanup later to avoid charges.
+
+   If the user chooses to keep infrastructure, add `--keep-stack` to the command.
+
+4. **Build the command**:
    ```
    dda inv new-e2e-tests.run --targets=./tests/<path> [flags]
    ```
    IMPORTANT: `--targets` paths are relative to `test/new-e2e/`. Do NOT include `test/new-e2e/` in the target path.
 
-4. **Supported flags** (pass through from `$ARGUMENTS`):
+5. **Supported flags** (pass through from `$ARGUMENTS`):
    - `--run <regex>` — Only run tests matching this regex
    - `--skip <regex>` — Skip tests matching this regex
    - `--keep-stack` — Keep infrastructure up after test (for debugging)
@@ -41,11 +52,11 @@ Run E2E tests from `test/new-e2e/tests/` using `dda inv new-e2e-tests.run`.
    - `--flavor <flavor>` — Package flavor (e.g., "datadog-agent")
    - `--cache` — Enable test cache (disabled by default)
 
-5. **Before running**, confirm the full command with the user.
+6. **Before running**, confirm the full command with the user.
 
-6. **Run the command** with a 60-minute timeout (infrastructure provisioning can take a while). Use `run_in_background` for the Bash tool since e2e tests are long-running.
+7. **Run the command** with a 60-minute timeout (infrastructure provisioning can take a while). Use `run_in_background` for the Bash tool since e2e tests are long-running.
 
-7. **After completion**, summarize the results: which tests passed, which failed, and any useful error output.
+8. **After completion**, summarize the results: which tests passed, which failed, and any useful error output.
 
 ## Prerequisites
 
