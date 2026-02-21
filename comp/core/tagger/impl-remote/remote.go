@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -53,11 +55,16 @@ const (
 	streamRecvTimeout = 10 * time.Minute
 	cacheExpiration   = 1 * time.Minute
 
-	// negativeCacheExpiration controls how long a failed container ID resolution
-	// is cached before retry. On bare-metal hosts where resolution always fails,
-	// this prevents unbounded gRPC round-trips to the core agent's tagger.
-	// See: AGENT-15616
+	// negativeCacheExpiration is used for failed resolutions that include stable
+	// origin hints (container ID, inode, pod metadata).
 	negativeCacheExpiration = 1 * time.Minute
+
+	// pidOnlyNegativeCacheExpiration is used for PID-only origin info. PID-only
+	// identifiers can be low-entropy across PID namespaces, so use a short TTL to
+	// avoid poisoning future lookups while still throttling repeated failures.
+	pidOnlyNegativeCacheExpiration = 1 * time.Second
+
+	unresolvedContainerIDError = "unable to resolve container ID from OriginInfo"
 )
 
 // Requires defines the dependencies for the remote tagger.
@@ -363,29 +370,34 @@ func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetect
 	// Cache miss or expired — make the gRPC call
 	containerID, err := t.queryContainerIDFromOriginInfo(originInfo)
 
-	// Cache the result (success OR failure)
+	// Cache the result. For errors, only cache unresolved-container misses.
 	ttl := cacheExpiration
+	cacheResult := true
 	if err != nil {
-		ttl = negativeCacheExpiration
+		var shouldCache bool
+		ttl, shouldCache = negativeCacheTTL(originInfo, err)
+		cacheResult = shouldCache
 	}
 
-	t.containerIDCacheMu.Lock()
-	// Lazy eviction: purge expired entries when the map grows beyond threshold.
-	// Bounds memory on hosts with high PID churn (e.g. PHP Horizon workers).
-	if len(t.containerIDCache) > 1000 {
-		now := time.Now()
-		for k, v := range t.containerIDCache {
-			if now.After(v.expireAt) {
-				delete(t.containerIDCache, k)
+	if cacheResult {
+		t.containerIDCacheMu.Lock()
+		// Lazy eviction: purge expired entries when the map grows beyond threshold.
+		// Bounds memory on hosts with high PID churn (e.g. PHP Horizon workers).
+		if len(t.containerIDCache) > 1000 {
+			now := time.Now()
+			for k, v := range t.containerIDCache {
+				if now.After(v.expireAt) {
+					delete(t.containerIDCache, k)
+				}
 			}
 		}
+		t.containerIDCache[key] = containerIDCacheEntry{
+			containerID: containerID,
+			err:         err,
+			expireAt:    time.Now().Add(ttl),
+		}
+		t.containerIDCacheMu.Unlock()
 	}
-	t.containerIDCache[key] = containerIDCacheEntry{
-		containerID: containerID,
-		err:         err,
-		expireAt:    time.Now().Add(ttl),
-	}
-	t.containerIDCacheMu.Unlock()
 
 	if err != nil {
 		t.telemetryStore.OriginInfoRequests.Inc("failed")
@@ -434,6 +446,43 @@ func (t *remoteTagger) queryContainerIDFromOriginInfo(originInfo origindetection
 	t.log.Debugf("Container ID generated successfully from origin info %+v: %s", originInfo, containerID)
 
 	return containerID, err
+}
+
+// negativeCacheTTL returns the TTL for unresolved container ID lookups.
+// It only caches unresolved-container misses (not transport/timeout errors).
+func negativeCacheTTL(originInfo origindetection.OriginInfo, err error) (time.Duration, bool) {
+	if err == nil || !isContainerIDResolutionMiss(err) {
+		return 0, false
+	}
+
+	if hasStableOriginHints(originInfo) {
+		return negativeCacheExpiration, true
+	}
+
+	return pidOnlyNegativeCacheExpiration, true
+}
+
+func isContainerIDResolutionMiss(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if st, ok := status.FromError(err); ok {
+		return strings.Contains(st.Message(), unresolvedContainerIDError)
+	}
+	return strings.Contains(err.Error(), unresolvedContainerIDError)
+}
+
+func hasStableOriginHints(originInfo origindetection.OriginInfo) bool {
+	if originInfo.LocalData.ContainerID != "" || originInfo.LocalData.Inode != 0 {
+		return true
+	}
+
+	if originInfo.ExternalData.PodUID != "" || originInfo.ExternalData.ContainerName != "" {
+		return true
+	}
+
+	return false
 }
 
 // accumulateTagsFor returns tags for a given entity at the desired cardinality.
