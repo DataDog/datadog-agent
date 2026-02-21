@@ -3,19 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+#[cfg(test)]
 use std::io::BufRead;
 
-use crate::procfs;
-
-pub fn is_apm_injector_in_process_maps(pid: i32) -> bool {
-    log::debug!("Checking injector status for {}", pid);
-    let Ok(maps_reader) = procfs::maps::get_reader_for_pid(pid) else {
-        return false;
-    };
-
-    is_injector_in_maps(maps_reader)
-}
-
+#[cfg(test)]
 fn is_injector_in_maps<T>(maps_reader: T) -> bool
 where
     T: BufRead,
