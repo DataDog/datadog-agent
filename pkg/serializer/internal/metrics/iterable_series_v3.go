@@ -111,8 +111,6 @@ const (
 	valueSint64  int64 = 0x10
 	valueFloat32 int64 = 0x20
 	valueFloat64 int64 = 0x30
-
-	flagNoIndex = 0x100
 )
 
 const (
@@ -406,6 +404,7 @@ func (pb *payloadsBuilderV3) writeMetricCommon(
 	interval int64,
 	sourceTypeName string,
 	source metrics.MetricSource,
+	noIndex bool,
 	numPoints int,
 ) {
 	pb.txn.Sint64(columnNameRef, pb.deltaNameRef.encode(pb.dict.internName(name)))
@@ -420,9 +419,10 @@ func (pb *payloadsBuilderV3) writeMetricCommon(
 
 	pb.txn.Sint64(columnOriginRef, pb.deltaOriginRef.encode(
 		pb.dict.internOriginInfo(originInfo{
-			product:  metricSourceToOriginProduct(source),
-			category: metricSourceToOriginCategory(source),
-			service:  metricSourceToOriginService(source),
+			product:    metricSourceToOriginProduct(source),
+			category:   metricSourceToOriginCategory(source),
+			service:    metricSourceToOriginService(source),
+			metricType: noIndexToOriginMetricType(noIndex),
 		})))
 
 	pb.txn.Int64(columnNumPoints, int64(numPoints))
@@ -443,6 +443,7 @@ func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
 		serie.Interval,
 		serie.SourceTypeName,
 		serie.Source,
+		serie.NoIndex,
 		len(serie.Points),
 	)
 
@@ -453,9 +454,6 @@ func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
 	valueType := pointKind.toValueType()
 
 	typeValue := valueType | metricType(serie.MType)
-	if serie.NoIndex {
-		typeValue |= flagNoIndex
-	}
 
 	pb.txn.Int64(columnType, typeValue)
 
@@ -513,6 +511,7 @@ func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
 		0,
 		"",
 		sketch.Source,
+		sketch.NoIndex,
 		len(sketch.Points),
 	)
 
@@ -526,12 +525,7 @@ func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
 	}
 	valueType := pointKind.toValueType()
 
-	typeValue := valueType | metricSketch
-	if sketch.NoIndex {
-		typeValue |= flagNoIndex
-	}
-
-	pb.txn.Int64(columnType, typeValue)
+	pb.txn.Int64(columnType, metricSketch|valueType)
 
 	for _, pnt := range sketch.Points {
 		pb.writePointCommon(pnt.Ts)
@@ -643,16 +637,25 @@ func (v istr) appendTo(txn *stream.ColumnTransaction, dataColumnID int) {
 	txn.Write(dataColumnID, []byte(v))
 }
 
+type originMetricType int32
+
+const (
+	omtDefault     originMetricType = 0
+	omtAgentHidden originMetricType = 9
+)
+
 type originInfo struct {
-	product  int32
-	category int32
-	service  int32
+	product    int32
+	category   int32
+	service    int32
+	metricType originMetricType
 }
 
 func (info originInfo) appendTo(txn *stream.ColumnTransaction, dataColumnID int) {
 	txn.Int64(dataColumnID, int64(info.product))
 	txn.Int64(dataColumnID, int64(info.category))
 	txn.Int64(dataColumnID, int64(info.service))
+	txn.Int64(dataColumnID, int64(info.metricType))
 }
 
 type dictionaryBuilder struct {
@@ -930,4 +933,11 @@ const (
 
 func protobufFieldID(field int, ty protobufType) uint64 {
 	return uint64(field)<<3 | uint64(ty)
+}
+
+func noIndexToOriginMetricType(noIndex bool) originMetricType {
+	if noIndex {
+		return omtAgentHidden
+	}
+	return omtDefault
 }
