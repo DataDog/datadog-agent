@@ -268,6 +268,22 @@ end
 # will package is the correct one
 disable_version_manifest do_package
 
+# For lite flavor, create separate Python artifacts
+if flavor == 'lite' && do_build
+  # Create Python runtime artifact
+  if Dir.exist?("#{install_dir}/python-runtime")
+    extra_package_file "#{install_dir}/python-runtime" => "datadog-lite-agent-python-runtime"
+  end
+  
+  # Create Python integrations artifact  
+  if Dir.exist?("#{install_dir}/python-integrations")
+    extra_package_file "#{install_dir}/python-integrations" => "datadog-lite-agent-python-integrations"
+  end
+  
+  # Exclude Python artifacts from main package
+  exclude 'python-runtime'
+  exclude 'python-integrations'
+end
 
 if linux_target?
   extra_package_file "#{output_config_dir}/etc/datadog-agent/"
