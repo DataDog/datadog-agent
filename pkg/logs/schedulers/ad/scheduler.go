@@ -262,7 +262,7 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 		if service != nil {
 			// a config defined in a container label or a pod annotation does not always contain a type,
 			// override it here to ensure that the config won't be dropped at validation.
-			if (cfg.Type == logsConfig.FileType || cfg.Type == logsConfig.TCPType || cfg.Type == logsConfig.UDPType || cfg.Type == logsConfig.IntegrationType) && (config.Provider == names.Kubernetes || config.Provider == names.Container || config.Provider == names.KubeContainer || config.Provider == logsConfig.FileType || config.Provider == names.ProcessLog || config.Provider == names.DataStreamsLiveMessages) {
+			if (cfg.Type == logsConfig.FileType || cfg.Type == logsConfig.TCPType || cfg.Type == logsConfig.UDPType || cfg.Type == logsConfig.UnixType || cfg.Type == logsConfig.UnixgramType || cfg.Type == logsConfig.IntegrationType) && (config.Provider == names.Kubernetes || config.Provider == names.Container || config.Provider == names.KubeContainer || config.Provider == logsConfig.FileType || config.Provider == names.ProcessLog || config.Provider == names.DataStreamsLiveMessages) {
 				// cfg.Type is not overwritten as tailing a file from a Docker or Kubernetes AD configuration
 				// is explicitly supported (other combinations may be supported later)
 				cfg.Identifier = service.Identifier
@@ -281,6 +281,7 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 			source.Config.IntegrationName = configName
 		}
 		sources = append(sources, source)
+		cfg.ApplyDefaults(pkgconfigsetup.Datadog())
 		if err := cfg.Validate(); err != nil {
 			log.Warnf("Invalid logs configuration: %v", err)
 			source.Status.Error(err)

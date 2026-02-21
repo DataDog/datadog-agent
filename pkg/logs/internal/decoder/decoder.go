@@ -114,7 +114,7 @@ func NewNoopDecoder() Decoder {
 
 // NewDecoderWithFraming initialize a decoder with given endline strategy.
 func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Parser, framing framer.Framing, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry) Decoder {
-	maxMessageSize := config.MaxMessageSizeBytes(pkgconfigsetup.Datadog())
+	maxMessageSize := source.Config().GetMaxMessageSizeBytes(pkgconfigsetup.Datadog())
 	inputChan := make(chan *message.Message)
 	outputChan := make(chan *message.Message)
 	detectedPattern := &DetectedPattern{}

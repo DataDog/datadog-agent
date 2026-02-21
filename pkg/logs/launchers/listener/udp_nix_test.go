@@ -28,7 +28,7 @@ func TestUDPShoulProperlyCollectLogSplitPerDatadgram(t *testing.T) {
 	listener := NewUDPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), frameSize)
 	listener.Start()
 
-	conn, err := net.Dial("udp", listener.tailer.Conn.LocalAddr().String())
+	conn, err := net.Dial("udp", listener.Conn.LocalAddr().String())
 	assert.Nil(t, err)
 
 	var msg *message.Message
@@ -63,7 +63,7 @@ func TestUDPShouldProperlyTruncateBigMessages(t *testing.T) {
 	listener := NewUDPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), frameSize)
 	listener.Start()
 
-	conn, err := net.Dial("udp", listener.tailer.Conn.LocalAddr().String())
+	conn, err := net.Dial("udp", listener.Conn.LocalAddr().String())
 	assert.Nil(t, err)
 
 	var msg *message.Message
@@ -94,7 +94,7 @@ func TestUDPShoulDropTooBigMessages(t *testing.T) {
 	listener := NewUDPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), maxUDPFrameLen)
 	listener.Start()
 
-	conn, err := net.Dial("udp", listener.tailer.Conn.LocalAddr().String())
+	conn, err := net.Dial("udp", listener.Conn.LocalAddr().String())
 	assert.Nil(t, err)
 
 	var msg *message.Message

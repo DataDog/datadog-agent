@@ -207,6 +207,14 @@ type ParsingExtra struct {
 	IsMultiLine bool
 	IsMRFAllow  bool
 	Tags        []string
+	// SourceOverride, if non-empty, is applied to the message origin's source
+	// by the tailer after origin creation. Used by parsers (e.g. syslog) that
+	// run before the origin exists.
+	SourceOverride string
+	// ServiceOverride, if non-empty, is applied to the message origin's service
+	// by the tailer after origin creation. Used by parsers (e.g. syslog) that
+	// run before the origin exists.
+	ServiceOverride string
 }
 
 // ServerlessExtra ships extra information from logs processing in serverless envs.
