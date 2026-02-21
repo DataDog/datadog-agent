@@ -87,6 +87,9 @@ type daemonImpl struct {
 	m        sync.Mutex
 	stopChan chan struct{}
 
+	ctx    context.Context
+	cancel context.CancelFunc
+
 	env             *env.Env
 	installer       func(*env.Env) installer.Installer
 	rc              *remoteConfig
@@ -167,6 +170,7 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 }
 
 func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env, taskDB *taskDB, refreshInterval time.Duration, gcInterval time.Duration, secretsPubKey, secretsPrivKey *[32]byte) *daemonImpl {
+	ctx, cancel := context.WithCancel(context.Background())
 	i := &daemonImpl{
 		env:             env,
 		clientID:        rc.client.GetClientID(),
@@ -183,8 +187,10 @@ func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installe
 		gcInterval:      gcInterval,
 		secretsPubKey:   secretsPubKey,
 		secretsPrivKey:  secretsPrivKey,
+		ctx:             ctx,
+		cancel:          cancel,
 	}
-	i.refreshState(context.Background())
+	i.refreshState(ctx)
 	return i
 }
 
@@ -371,14 +377,14 @@ func (d *daemonImpl) Start(_ context.Context) error {
 			select {
 			case <-gcTicker.C:
 				d.m.Lock()
-				err := d.installer(d.env).GarbageCollect(context.Background())
+				err := d.installer(d.env).GarbageCollect(d.ctx)
 				d.m.Unlock()
 				if err != nil {
 					log.Errorf("Daemon: could not run GC: %v", err)
 				}
 			case <-refreshStateTicker.C:
 				d.m.Lock()
-				d.refreshState(context.Background())
+				d.refreshState(d.ctx)
 				d.m.Unlock()
 			case <-d.stopChan:
 				return
@@ -396,6 +402,10 @@ func (d *daemonImpl) Start(_ context.Context) error {
 
 // Stop stops the garbage collector.
 func (d *daemonImpl) Stop(_ context.Context) error {
+	// Cancel the daemon context before acquiring the mutex so that any in-flight
+	// child processes spawned by refreshState() are killed immediately.
+	d.cancel()
+
 	d.m.Lock()
 	defer d.m.Unlock()
 
@@ -632,7 +642,7 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 	d.m.Lock()
 	defer d.m.Unlock()
 	defer d.requestsWG.Done()
-	parentSpan, ctx := newRequestContext(request)
+	parentSpan, ctx := newRequestContext(d.ctx, request)
 	defer parentSpan.Finish(err)
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
@@ -792,8 +802,8 @@ type requestState struct {
 	ErrorCode installerErrors.InstallerErrorCode
 }
 
-func newRequestContext(request remoteAPIRequest) (*telemetry.Span, context.Context) {
-	ctx := context.WithValue(context.Background(), requestStateKey, &requestState{
+func newRequestContext(baseCtx context.Context, request remoteAPIRequest) (*telemetry.Span, context.Context) {
+	ctx := context.WithValue(baseCtx, requestStateKey, &requestState{
 		Package: request.Package,
 		ID:      request.ID,
 		State:   pbgo.TaskState_RUNNING,
