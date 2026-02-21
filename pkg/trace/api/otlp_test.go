@@ -2345,10 +2345,11 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"otelcol.component.id":   "otlp",
 					"otelcol.component.kind": "Receiver",
 
-					"net.sock.peer.addr": "127.0.0.1",
-					"rpc.method":         "Export",
-					"rpc.service":        "opentelemetry.proto.collector.trace.v1.TraceService",
-					"rpc.system":         "grpc",
+					"net.sock.peer.addr":   "127.0.0.1",
+					"rpc.method":           "Export",
+					"rpc.service":          "opentelemetry.proto.collector.trace.v1.TraceService",
+					"rpc.system":           "grpc",
+					"rpc.grpc.status_code": "0",
 
 					"span.kind":        "server",
 					"otel.status_code": "Unset",

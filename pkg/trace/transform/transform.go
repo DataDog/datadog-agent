@@ -92,6 +92,9 @@ func OtelSpanToDDSpanMinimal(
 	if code != 0 {
 		ddspan.Metrics[traceutil.TagStatusCode] = float64(code)
 	}
+	if grpcCode := GetOTelGRPCStatusCode(otelspan, otelres); grpcCode != "" {
+		ddspan.Meta["rpc.grpc.status_code"] = grpcCode
+	}
 	if isTopLevel {
 		traceutil.SetTopLevel(ddspan, true)
 	}
@@ -220,6 +223,46 @@ func GetOTelStatusCode(span ptrace.Span, res pcommon.Resource) uint32 {
 		return uint32(code.Int())
 	}
 	return 0
+}
+
+var grpcStatusCodeFields = []string{"rpc.grpc.status_code", "grpc.code", "rpc.grpc.status.code", "grpc.status.code", "grpc.status_code"}
+
+func isRPCSystemGRPC(attrs pcommon.Map) bool {
+	if rpcSystem, ok := attrs.Get("rpc.system"); ok && rpcSystem.AsString() == "grpc" {
+		return true
+	}
+	if rpcSystem, ok := attrs.Get("rpc.system.name"); ok && rpcSystem.AsString() == "grpc" {
+		return true
+	}
+	return false
+}
+
+// GetOTelGRPCStatusCode returns the gRPC status code from span or resource attributes.
+func GetOTelGRPCStatusCode(span ptrace.Span, res pcommon.Resource) string {
+	sattr := span.Attributes()
+	rattr := res.Attributes()
+
+	for _, key := range grpcStatusCodeFields {
+		if code, ok := sattr.Get(key); ok {
+			return code.AsString()
+		}
+	}
+	for _, key := range grpcStatusCodeFields {
+		if code, ok := rattr.Get(key); ok {
+			return code.AsString()
+		}
+	}
+
+	if isRPCSystemGRPC(sattr) || isRPCSystemGRPC(rattr) {
+		if code, ok := sattr.Get("rpc.response.status_code"); ok {
+			return code.AsString()
+		}
+		if code, ok := rattr.Get("rpc.response.status_code"); ok {
+			return code.AsString()
+		}
+	}
+
+	return ""
 }
 
 // GetOTelContainerTags returns a list of DD container tags in the OTel resource attributes.
