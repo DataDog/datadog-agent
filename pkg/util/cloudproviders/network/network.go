@@ -21,8 +21,9 @@ import (
 )
 
 const (
-	networkIDCacheKey         = "networkID"
-	vpcSubnetsForHostCacheKey = "vpcSubnetsForHost"
+	networkIDCacheKey             = "networkID"
+	vpcSubnetsForHostCacheKey     = "vpcSubnetsForHost"
+	securityGroupsForHostCacheKey = "securityGroupsForHost"
 )
 
 // GetNetworkID retrieves the network_id which can be used to improve network
@@ -86,6 +87,44 @@ func GetVPCSubnetsForHost(ctx context.Context) ([]netip.Prefix, error) {
 			var parsedSubnets []netip.Prefix
 			for _, subnet := range subnets {
 				ipnet, err := netip.ParsePrefix(subnet)
+				if err != nil {
+					return nil, err
+				}
+				parsedSubnets = append(parsedSubnets, ipnet)
+			}
+
+			return parsedSubnets, nil
+		}, 15*time.Minute)
+}
+
+// use a global to allow easy mocking
+var getSecurityGroupsForHost = getSecurityGroupsForHostImpl
+
+// GetSecurityGroupsForHost retrieves the security groups for the host implementation.
+func getSecurityGroupsForHostImpl(ctx context.Context) ([]string, error) {
+	sg, ec2err := ec2.GetSecurityGroupsForInterface(ctx)
+	if ec2err == nil {
+		return sg, nil
+	}
+
+	// TODO support GCE, azure
+
+	return nil, fmt.Errorf("could not detect Security groups: %w", errors.Join(ec2err))
+}
+
+// GetSecurityGroupsForHost retrieves the security groups for the host.
+func GetSecurityGroupsForHost(ctx context.Context) ([]*net.IPNet, error) {
+	return cache.GetWithExpiration[[]*net.IPNet](
+		securityGroupsForHostCacheKey,
+		func() ([]*net.IPNet, error) {
+			sgs, err := getSecurityGroupsForHost(ctx)
+			if err != nil {
+				return nil, err
+			}
+
+			var parsedSubnets []*net.IPNet
+			for _, sg := range sgs {
+				_, ipnet, err := net.ParseCIDR(sg)
 				if err != nil {
 					return nil, err
 				}
