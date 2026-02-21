@@ -48,3 +48,8 @@ func GetDistPath() string {
 func GetInstallPath() string {
 	return _here
 }
+
+// GetDefaultConfPath returns the fully qualified directory path where the agent looks for the datadog.yaml config
+func GetDefaultConfPath() string {
+	return ConfPath
+}
