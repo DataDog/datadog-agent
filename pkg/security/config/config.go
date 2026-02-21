@@ -346,6 +346,8 @@ type RuntimeSecurityConfig struct {
 	SBOMResolverWorkloadsCacheSize int
 	// SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM
 	SBOMResolverHostEnabled bool
+	// SBOMResolverEnrichmentTicker defines the ticker for enriching SBOMs with runtime usage information
+	SBOMResolverEnrichmentTicker time.Duration
 
 	// HashResolverEnabled defines if the hash resolver should be enabled
 	HashResolverEnabled bool
@@ -574,6 +576,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		// SBOM resolver
 		SBOMResolverEnabled:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.enabled"),
 		SBOMResolverWorkloadsCacheSize: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.sbom.workloads_cache_size"),
+		SBOMResolverEnrichmentTicker:   pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.enrichment_ticker"),
 		SBOMResolverHostEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.host.enabled"),
 
 		// Hash resolver

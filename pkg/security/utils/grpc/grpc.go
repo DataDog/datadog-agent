@@ -10,8 +10,10 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/user"
 	"strconv"
 	"sync"
+	"syscall"
 
 	"github.com/mdlayher/vsock"
 	"google.golang.org/grpc"
@@ -26,6 +28,30 @@ type Server struct {
 	wg      sync.WaitGroup
 	family  string
 	address string
+}
+
+// getDDAgentIDs returns the UID and GID of the dd-agent user if it exists
+// Returns °, 0 if the user doesn't exist or on error
+func getDDAgentIDs() (int, int) {
+	var uid, gid int
+
+	ddUser, err := user.Lookup("dd-agent")
+	if err == nil {
+		if uid, err = strconv.Atoi(ddUser.Uid); err != nil {
+			uid = -1
+			seclog.Warnf("failed to parse dd-agent UID: %v", err)
+		}
+	}
+
+	ddGroup, err := user.LookupGroup("dd-agent")
+	if err == nil {
+		if gid, err = strconv.Atoi(ddGroup.Gid); err != nil {
+			gid = -1
+			seclog.Warnf("failed to parse dd-agent GID: %v", err)
+		}
+	}
+
+	return uid, gid
 }
 
 // NewServer returns a new gRPC server
@@ -78,8 +104,20 @@ func (g *Server) Start() error {
 	}
 
 	if g.family == "unix" {
-		if err := os.Chmod(g.address, 0700); err != nil {
+		if err := os.Chmod(g.address, 0770); err != nil {
 			return fmt.Errorf("unable to update permissions of runtime security socket: %w", err)
+		}
+
+		// Set ownership to dd-agent user/group if it exists
+		// This allows the agent running as dd-agent to access the socket
+		uid, gid := getDDAgentIDs()
+		if uid != -1 && gid != -1 {
+			if err := syscall.Chown(g.address, uid, gid); err != nil {
+				seclog.Warnf("unable to set dd-agent ownership for runtime security socket: %v", err)
+				// Don't return error - this is not critical if running as root
+			} else {
+				seclog.Debugf("set runtime security socket ownership to dd-agent (uid=%d, gid=%d)", uid, gid)
+			}
 		}
 	}
 

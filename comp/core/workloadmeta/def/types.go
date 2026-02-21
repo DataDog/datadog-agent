@@ -92,9 +92,13 @@ const (
 	// workloadmeta.
 	SourceRemoteWorkloadmeta Source = "remote_workloadmeta"
 
-	// SourceRemoteProcessCollector reprents processes entities detected
+	// SourceRemoteProcessCollector represents processes entities detected
 	// by the RemoteProcessCollector.
 	SourceRemoteProcessCollector Source = "remote_process_collector"
+
+	// SourceRemoteSBOMCollector represents SBOM entities computed
+	// by the RemoteSBOMCollector.
+	SourceRemoteSBOMCollector Source = "remote_sbom_collector"
 
 	// SourceLanguageDetectionServer represents container languages
 	// detected by node agents
@@ -364,6 +368,7 @@ type ContainerState struct {
 	StartedAt  time.Time
 	FinishedAt time.Time
 	ExitCode   *int64
+	SBOM       *SBOM
 }
 
 // String returns a string representation of ContainerState.
@@ -657,6 +662,8 @@ type Container struct {
 	// Linux only.
 	CgroupPath   string
 	RestartCount int
+
+	SBOM *SBOM
 }
 
 // GetID implements Entity#GetID.
