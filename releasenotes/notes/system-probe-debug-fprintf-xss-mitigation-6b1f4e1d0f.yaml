@@ -1,0 +1,6 @@
+---
+security:
+  - |
+    Harden system-probe debug HTTP handlers by avoiding use of ``fmt.Fprintf`` on
+    ``http.ResponseWriter`` and switching to ``http.Error`` or plain text writes.
+    This mitigates potential XSS vectors in error paths (rule: go-security/responsewriter-no-fprintf).
