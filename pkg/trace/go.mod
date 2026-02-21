@@ -40,7 +40,7 @@ require (
 	golang.org/x/time v0.14.0
 	google.golang.org/grpc v1.79.1
 	google.golang.org/protobuf v1.36.11
-	gopkg.in/ini.v1 v1.67.0
+	gopkg.in/ini.v1 v1.67.1
 	k8s.io/apimachinery v0.35.0-alpha.0
 )
 
