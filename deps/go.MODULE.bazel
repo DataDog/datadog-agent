@@ -7,6 +7,8 @@ go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 # TODO(agent-build): when all Go modules are migrated, use //:go.work instead of @bazelify_go_work//:go.work
 use_repo_rule("//bazel/repo:bazelify_go_work.bzl", "bazelify_go_work")(name = "bazelify_go_work")
 
+use_repo_rule("//bazel/repo:go_mod_tidy_all.bzl", "go_mod_tidy_all")(name = "go_mod_tidy_all")
+
 go_deps.from_file(go_work = "@bazelify_go_work//:go.work")
 use_repo(
     go_deps,
