@@ -40,16 +40,16 @@ func TestCustomBoltCache_Artifacts(t *testing.T) {
 		require.NoError(t, cache.Close())
 	}()
 
-	_, err = cache.GetArtifact("non-existing-ID")
+	_, err = cache.GetArtifact(context.TODO(), "non-existing-ID")
 	require.Error(t, err)
 
 	artifactID := "some_ID"
 	artifactInfo := newTestArtifactInfo()
 
-	err = cache.PutArtifact(artifactID, artifactInfo)
+	err = cache.PutArtifact(context.TODO(), artifactID, artifactInfo)
 	require.NoError(t, err)
 
-	storedArtifact, err := cache.GetArtifact(artifactID)
+	storedArtifact, err := cache.GetArtifact(context.TODO(), artifactID)
 	require.NoError(t, err)
 	require.Equal(t, artifactInfo, storedArtifact)
 }
@@ -62,16 +62,16 @@ func TestCustomBoltCache_Blobs(t *testing.T) {
 		require.NoError(t, cache.Close())
 	}()
 
-	_, err = cache.GetBlob("non-existing-ID")
+	_, err = cache.GetBlob(context.TODO(), "non-existing-ID")
 	require.Error(t, err)
 
 	blobID := "some_ID"
 	blobInfo := newTestBlobInfo()
 
-	err = cache.PutBlob(blobID, blobInfo)
+	err = cache.PutBlob(context.TODO(), blobID, blobInfo)
 	require.NoError(t, err)
 
-	storedBlobInfo, err := cache.GetBlob(blobID)
+	storedBlobInfo, err := cache.GetBlob(context.TODO(), blobID)
 	require.NoError(t, err)
 	require.Equal(t, blobInfo, storedBlobInfo)
 }
@@ -87,23 +87,23 @@ func TestCustomBoltCache_MissingBlobs(t *testing.T) {
 	existingArtifactID := "1"
 	existingBlobID := "2"
 
-	err = cache.PutArtifact(existingArtifactID, newTestArtifactInfo())
+	err = cache.PutArtifact(context.TODO(), existingArtifactID, newTestArtifactInfo())
 	require.NoError(t, err)
 
-	err = cache.PutBlob(existingBlobID, newTestBlobInfo())
+	err = cache.PutBlob(context.TODO(), existingBlobID, newTestBlobInfo())
 	require.NoError(t, err)
 
 	nonExistingBlobIDs := []string{"non-existing-1", "non-existing-2"}
 	inputBlobIDs := append([]string{existingBlobID}, nonExistingBlobIDs...)
 
 	// Artifact exists. Some blobs missing.
-	missingArtifact, missingBlobIDs, err := cache.MissingBlobs(existingArtifactID, inputBlobIDs)
+	missingArtifact, missingBlobIDs, err := cache.MissingBlobs(context.TODO(), existingArtifactID, inputBlobIDs)
 	require.False(t, missingArtifact)
 	require.Equal(t, nonExistingBlobIDs, missingBlobIDs)
 	require.NoError(t, err)
 
 	// Artifact does not exist. Some blobs missing.
-	missingArtifact, missingBlobIDs, err = cache.MissingBlobs("non-existing-ID", inputBlobIDs)
+	missingArtifact, missingBlobIDs, err = cache.MissingBlobs(context.TODO(), "non-existing-ID", inputBlobIDs)
 	require.True(t, missingArtifact)
 	require.Equal(t, nonExistingBlobIDs, missingBlobIDs)
 	require.NoError(t, err)
@@ -119,13 +119,13 @@ func TestCustomBoltCache_Clear(t *testing.T) {
 
 	artifactID := "some_ID"
 
-	err = cache.PutArtifact(artifactID, newTestArtifactInfo())
+	err = cache.PutArtifact(context.TODO(), artifactID, newTestArtifactInfo())
 	require.NoError(t, err)
 
-	err = cache.Clear()
+	err = cache.Clear(context.TODO())
 	require.NoError(t, err)
 
-	_, err = cache.GetArtifact(artifactID)
+	_, err = cache.GetArtifact(context.TODO(), artifactID)
 	require.Error(t, err)
 }
 
@@ -143,7 +143,7 @@ func TestCustomBoltCache_CurrentObjectSize(t *testing.T) {
 	// Store two artifacts
 	artifactIDs := []string{"some_ID", "some_other_ID"}
 	for _, id := range artifactIDs {
-		err = cache.PutArtifact(id, newTestArtifactInfo())
+		err = cache.PutArtifact(context.TODO(), id, newTestArtifactInfo())
 		require.NoError(t, err)
 	}
 
@@ -181,7 +181,7 @@ func TestCustomBoltCache_Eviction(t *testing.T) {
 		require.NoError(t, err)
 		artifactSize[id] = len(serializedArtifactInfo)
 		totalSize += len(serializedArtifactInfo)
-		err = cache.PutArtifact(id, artifact)
+		err = cache.PutArtifact(context.TODO(), id, artifact)
 		require.NoError(t, err)
 	}
 
@@ -190,11 +190,11 @@ func TestCustomBoltCache_Eviction(t *testing.T) {
 	require.Equal(t, totalSize-artifactSize["key0"], persistentCache.GetCurrentCachedObjectTotalSize())
 
 	for i := 1; i < cacheSize+1; i++ {
-		_, err = cache.GetArtifact(fmt.Sprintf("key%d", i))
+		_, err = cache.GetArtifact(context.TODO(), fmt.Sprintf("key%d", i))
 		require.NoError(t, err)
 	}
 
-	_, err = cache.GetArtifact("key0")
+	_, err = cache.GetArtifact(context.TODO(), "key0")
 	require.Error(t, err)
 }
 
@@ -213,19 +213,19 @@ func TestCustomBoltCache_DiskSizeLimit(t *testing.T) {
 		require.NoError(t, cache.Close())
 	}()
 	// Store two items
-	err = cache.PutArtifact("key1", artifact)
+	err = cache.PutArtifact(context.TODO(), "key1", artifact)
 	require.NoError(t, err)
 
 	artifact.Architecture = "architecture2"
-	err = cache.PutArtifact("key2", artifact)
+	err = cache.PutArtifact(context.TODO(), "key2", artifact)
 	require.NoError(t, err)
 
 	// Verify that only the second item is stored and currentCachedObjectTotalSize is correctly updated
-	retrievedArtifact, err := cache.GetArtifact("key2")
+	retrievedArtifact, err := cache.GetArtifact(context.TODO(), "key2")
 	require.NoError(t, err)
 	require.Equal(t, artifact, retrievedArtifact)
 
-	_, err = cache.GetArtifact("key1")
+	_, err = cache.GetArtifact(context.TODO(), "key1")
 	require.Error(t, err)
 
 	persistentCache := cache.cache
@@ -287,42 +287,42 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 	}()
 
 	// Store the artifacts of both images, the exclusive blobs and the shared blob
-	err = cache.PutArtifact("key1", newTestArtifactInfo())
+	err = cache.PutArtifact(context.TODO(), "key1", newTestArtifactInfo())
 	require.NoError(t, err)
 
-	err = cache.PutArtifact("key2", newTestArtifactInfo())
+	err = cache.PutArtifact(context.TODO(), "key2", newTestArtifactInfo())
 	require.NoError(t, err)
 
-	err = cache.PutBlob("sharedBlob", newTestBlobInfo())
+	err = cache.PutBlob(context.TODO(), "sharedBlob", newTestBlobInfo())
 	require.NoError(t, err)
 
-	err = cache.PutBlob("blob1", newTestBlobInfo())
+	err = cache.PutBlob(context.TODO(), "blob1", newTestBlobInfo())
 	require.NoError(t, err)
 
-	err = cache.PutBlob("blob2", newTestBlobInfo())
+	err = cache.PutBlob(context.TODO(), "blob2", newTestBlobInfo())
 	require.NoError(t, err)
 
 	// Wait for the garbage collector to be called
 	time.Sleep(time.Second)
 
 	// Check that no cache object was removed
-	artifact, err := cache.GetArtifact("key1")
+	artifact, err := cache.GetArtifact(context.TODO(), "key1")
 	require.NoError(t, err)
 	require.Equal(t, newTestArtifactInfo(), artifact)
 
-	artifact, err = cache.GetArtifact("key2")
+	artifact, err = cache.GetArtifact(context.TODO(), "key2")
 	require.NoError(t, err)
 	require.Equal(t, newTestArtifactInfo(), artifact)
 
-	blob, err := cache.GetBlob("sharedBlob")
+	blob, err := cache.GetBlob(context.TODO(), "sharedBlob")
 	require.NoError(t, err)
 	require.Equal(t, newTestBlobInfo(), blob)
 
-	blob, err = cache.GetBlob("blob1")
+	blob, err = cache.GetBlob(context.TODO(), "blob1")
 	require.NoError(t, err)
 	require.Equal(t, newTestBlobInfo(), blob)
 
-	blob, err = cache.GetBlob("blob2")
+	blob, err = cache.GetBlob(context.TODO(), "blob2")
 	require.NoError(t, err)
 	require.Equal(t, newTestBlobInfo(), blob)
 
@@ -333,21 +333,21 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 	time.Sleep(time.Second)
 
 	// Check that only artifact "key2" and "blob2" were removed
-	_, err = cache.GetArtifact("key2")
+	_, err = cache.GetArtifact(context.TODO(), "key2")
 	require.Error(t, err)
 
-	_, err = cache.GetBlob("blob2")
+	_, err = cache.GetBlob(context.TODO(), "blob2")
 	require.Error(t, err)
 
-	artifact, err = cache.GetArtifact("key1")
+	artifact, err = cache.GetArtifact(context.TODO(), "key1")
 	require.NoError(t, err)
 	require.Equal(t, newTestArtifactInfo(), artifact)
 
-	blob, err = cache.GetBlob("sharedBlob")
+	blob, err = cache.GetBlob(context.TODO(), "sharedBlob")
 	require.NoError(t, err)
 	require.Equal(t, newTestBlobInfo(), blob)
 
-	blob, err = cache.GetBlob("blob1")
+	blob, err = cache.GetBlob(context.TODO(), "blob1")
 	require.NoError(t, err)
 	require.Equal(t, newTestBlobInfo(), blob)
 
