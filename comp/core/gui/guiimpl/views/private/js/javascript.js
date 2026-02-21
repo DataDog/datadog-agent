@@ -251,6 +251,25 @@ $(document).on('click', '.load_more', function (e) {
   loadMore();
 });
 
+// Delegate change handler for software inventory filter (works after DOMPurify sanitization)
+$(document).on('change', '#sw-type-filter', function () {
+  var type = this.value;
+  var entries = document.querySelectorAll('.sw-entry');
+  var visibleCount = 0;
+  entries.forEach(function(entry) {
+    if (type === '' || entry.getAttribute('data-sw-type') === type) {
+      entry.style.display = '';
+      visibleCount++;
+    } else {
+      entry.style.display = 'none';
+    }
+  });
+  var countSpan = document.getElementById('sw-filter-count');
+  if (countSpan) {
+    countSpan.textContent = type !== '' ? 'Showing ' + visibleCount + ' entries' : '';
+  }
+});
+
 // Handler for loading more lines of the currently displayed log file
 function loadMore() {
   var data = $(".log_data").html();
