@@ -1,0 +1,8 @@
+fixes:
+  - |
+    APM: Fixed high CPU usage on the core Datadog Agent when running on
+    bare-metal (non-containerized) hosts with APM Single Step Instrumentation
+    enabled. The trace-agent's container ID resolution was making unbounded
+    gRPC calls to the core agent because failed lookups were not cached.
+    Failed lookups are now cached for 1 minute, reducing the gRPC call rate
+    from O(request_rate) to near-zero on non-containerized hosts.
