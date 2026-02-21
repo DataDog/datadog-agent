@@ -1500,6 +1500,9 @@ func agent(config pkgconfigmodel.Setup) {
 	// Notable Events (EUDM)
 	config.BindEnvAndSetDefault("notable_events.enabled", false)
 
+	// Logon Duration (EUDM)
+	config.BindEnvAndSetDefault("logon_duration.enabled", false)
+
 	// Event Management v2 API
 	// https://docs.datadoghq.com/api/latest/events#post-an-event
 	bindEnvAndSetLogsConfigKeys(config, "event_management.forwarder.")
