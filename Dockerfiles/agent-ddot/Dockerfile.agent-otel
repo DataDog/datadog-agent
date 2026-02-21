@@ -13,6 +13,7 @@ ARG AGENT_VERSION
 ARG AGENT_GIT_REF
 ARG CI
 ARG DDA_VERSION=v0.29.0
+ARG PACKAGE_TYPE
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Set the working directory
@@ -29,6 +30,19 @@ RUN apt-get update && \
     rpm \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Windows cross-compilation tools if building for Windows
+RUN if [ "$PACKAGE_TYPE" = "windows" ]; then \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        g++-mingw-w64-x86-64-posix \
+        gcc-mingw-w64 \
+        binutils-mingw-w64-x86-64 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix \
+    && update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix; \
+    fi
 
 # We can't get tarballs for dev branches, so we can't just pull the tarball from github.
 # Instead we make a treeless clone at the reference provided, and build from the repo.
@@ -82,12 +96,16 @@ RUN dda inv collector.generate && \
     go clean -cache -modcache
 
 # Build the OTel agent with cleanup
-RUN dda inv otel-agent.build --byoc && \
-    go clean -cache
+RUN if [ "$PACKAGE_TYPE" = "windows" ]; then \
+    GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CXX=x86_64-w64-mingw32-g++ CC=x86_64-w64-mingw32-gcc dda inv otel-agent.build --byoc && \
+    go clean -cache; \
+    else \
+    dda inv otel-agent.build --byoc && \
+    go clean -cache; \
+    fi
 
-# Install nfpm if package type is specified
-ARG PACKAGE_TYPE
-RUN if [ -n "$PACKAGE_TYPE" ]; then \
+# Install nfpm if package type is specified (not needed for windows)
+RUN if [ -n "$PACKAGE_TYPE" ] && [ "$PACKAGE_TYPE" != "windows" ]; then \
     ARCH=$(dpkg --print-architecture) && \
     if [ "$ARCH" = "amd64" ]; then ARCH="x86_64"; fi && \
     curl -fsSL --retry 4 "https://github.com/goreleaser/nfpm/releases/download/v2.43.0/nfpm_2.43.0_linux_${ARCH}.tar.gz" | tar -xzf - -C /usr/local/bin/ && \
@@ -98,9 +116,11 @@ RUN if [ -n "$PACKAGE_TYPE" ]; then \
 RUN <<'RUNSCRIPT'
 ARCH=$(dpkg --print-architecture)
 mkdir -p /dist
-if [ -n "$PACKAGE_TYPE" ]; then
+if [ "$PACKAGE_TYPE" = "windows" ]; then
+  cp /workspace/datadog-agent/bin/otel-agent/otel-agent.exe /dist/
+elif [ -n "$PACKAGE_TYPE" ]; then
   if [ "$PACKAGE_TYPE" != "deb" ] && [ "$PACKAGE_TYPE" != "rpm" ]; then
-    echo "PACKAGE_TYPE must be 'deb' or 'rpm', got: $PACKAGE_TYPE" >&2
+    echo "PACKAGE_TYPE must be 'deb', 'rpm', or 'windows', got: $PACKAGE_TYPE" >&2
     exit 1
   fi
   cd /workspace/datadog-agent
