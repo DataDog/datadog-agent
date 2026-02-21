@@ -310,7 +310,7 @@ func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, err
 	// check event type
 	if !at.validator.IsEventTypeValid(event.GetEventType()) {
 		if !dryRun {
-			at.Stats.counts[event.GetEventType()].droppedCount[eventTypeReason].Inc()
+			at.Stats.counts[event.GetEventType()].droppedCount[eventTypeReason].Add(1)
 		}
 		return false, untracedEventError{eventType: event.GetEventType()}
 	}
@@ -321,7 +321,7 @@ func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, err
 		// ignore non IPv4 / IPv6 bind events for now
 		if event.Bind.AddrFamily != unix.AF_INET && event.Bind.AddrFamily != unix.AF_INET6 {
 			if !dryRun {
-				at.Stats.counts[model.BindEventType].droppedCount[bindFamilyReason].Inc()
+				at.Stats.counts[model.BindEventType].droppedCount[bindFamilyReason].Add(1)
 			}
 			return false, errors.New("invalid event: invalid bind family")
 		}
@@ -343,7 +343,7 @@ func (at *ActivityTree) Insert(event *model.Event, insertMissingProcesses bool, 
 	newEntry, err := at.insertEvent(event, false /* !dryRun */, insertMissingProcesses, imageTag, generationType, resolvers)
 	if newEntry {
 		// this doesn't count the exec events which are counted separately
-		at.Stats.counts[event.GetEventType()].addedCount[generationType].Inc()
+		at.Stats.counts[event.GetEventType()].addedCount[generationType].Add(1)
 	}
 	return newEntry, err
 }
@@ -384,13 +384,13 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 
 	// ignore events with an error
 	if event.Error != nil {
-		at.Stats.counts[event.GetEventType()].droppedCount[brokenEventReason].Inc()
+		at.Stats.counts[event.GetEventType()].droppedCount[brokenEventReason].Add(1)
 		return false, event.Error
 	}
 
 	// the count of processed events is the count of events that matched the activity dump selector = the events for
 	// which we successfully found a process activity node
-	at.Stats.counts[event.GetEventType()].processedCount.Inc()
+	at.Stats.counts[event.GetEventType()].processedCount.Add(1)
 	node.AppendImageTag(imageTag, event.ResolveEventTime())
 	// insert the event based on its type
 	switch event.GetEventType() {
@@ -596,7 +596,7 @@ func (at *ActivityTree) insertBranch(parent ProcessNodeParent, branchToInsert []
 			parent.AppendChild(matchingNode)
 
 			// insert the new node in the list of children
-			at.Stats.counts[model.ExecEventType].addedCount[generationType].Inc()
+			at.Stats.counts[model.ExecEventType].addedCount[generationType].Add(1)
 			at.Stats.ProcessNodes++
 
 			parent = matchingNode
@@ -726,7 +726,7 @@ func (at *ActivityTree) rebaseTree(parent ProcessNodeParent, childIndexToRebase 
 			childrenCursor.AppendChild(n)
 		}
 		at.Stats.ProcessNodes++
-		at.Stats.counts[model.ExecEventType].addedCount[generationType].Inc()
+		at.Stats.counts[model.ExecEventType].addedCount[generationType].Add(1)
 
 		childrenCursor = n
 	}
