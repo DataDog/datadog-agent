@@ -145,6 +145,16 @@ func (agent *agentCommandRunner) Secret(commandArgs ...agentclient.AgentArgsOpti
 	return agent.executeCommand("secret", commandArgs...)
 }
 
+// Shell runs the shell command and returns its output
+func (agent *agentCommandRunner) Shell(commandArgs ...agentclient.AgentArgsOption) string {
+	return agent.executeCommand("shell", commandArgs...)
+}
+
+// ShellWithError runs the shell command and returns its output or an error
+func (agent *agentCommandRunner) ShellWithError(commandArgs ...agentclient.AgentArgsOption) (string, error) {
+	return agent.executeCommandWithError("shell", commandArgs...)
+}
+
 // IsReady runs status command and returns true if the command returns a zero exit code.
 // This function should rarely be used.
 func (agent *agentCommandRunner) IsReady() bool {
