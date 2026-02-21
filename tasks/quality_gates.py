@@ -614,6 +614,58 @@ def _print_quality_gates_report(gate_states: list[dict[str, typing.Any]]):
             )
 
 
+def _run_gate(ctx, gate: StaticQualityGate):
+    try:
+        result = gate.execute_gate(ctx)
+        if not result.success:
+            violation_messages = []
+            for violation in result.violations:
+                current_mb = violation.current_size / (1024 * 1024)
+                max_mb = violation.max_size / (1024 * 1024)
+                excess_mb = violation.excess_bytes / (1024 * 1024)
+                if excess_mb < 1:
+                    excess_kb = violation.excess_bytes / 1024
+                    excess_str = f"{excess_kb:.1f} KB"
+                else:
+                    excess_str = f"{excess_mb:.1f} MB"
+                violation_messages.append(
+                    f"{violation.measurement_type.title()} size {current_mb:.1f} MB "
+                    f"exceeds limit of {max_mb:.1f} MB by {excess_str}"
+                )
+            error_message = f"{gate.config.gate_name} failed!\n" + "\n".join(violation_messages)
+            print(color_message(error_message, "red"))
+            raise StaticQualityGateError(error_message)
+        return {
+            "name": result.config.gate_name,
+            "state": True,
+            "error_type": None,
+            "message": None,
+            "result": result,
+        }
+    except StaticQualityGateError as e:
+        return {
+            "name": gate.config.gate_name,
+            "state": False,
+            "error_type": "StaticQualityGateFailed",
+            "message": str(e),
+            "blocking": True,  # May be updated to False if delta=0 after relative size calculation
+        }
+    except InfraError as e:
+        print(color_message(f"Gate {gate.config.gate_name} flaked ! (InfraError)\n Restarting the job...", "red"))
+        for line in traceback.format_exception(e):
+            print(color_message(line, "red"))
+        ctx.run("datadog-ci tag --level job --tags static_quality_gates:\"restart\"")
+        raise Exit(code=42) from e
+    except Exception:
+        return {
+            "name": gate.config.gate_name,
+            "state": False,
+            "error_type": "StackTrace",
+            "message": traceback.format_exc(),
+            "blocking": True,  # StackTrace errors are always blocking
+        }
+
+
 @task
 def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[StaticQualityGate]:
     """
@@ -662,83 +714,36 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                     print(color_message(f"PR author: {pr_author}", "cyan"))
 
     for gate in gate_list:
-        result = None
-        try:
-            result = gate.execute_gate(ctx)
-            if not result.success:
-                violation_messages = []
-                for violation in result.violations:
-                    current_mb = violation.current_size / (1024 * 1024)
-                    max_mb = violation.max_size / (1024 * 1024)
-                    excess_mb = violation.excess_bytes / (1024 * 1024)
-                    if excess_mb < 1:
-                        excess_kb = violation.excess_bytes / 1024
-                        excess_str = f"{excess_kb:.1f} KB"
-                    else:
-                        excess_str = f"{excess_mb:.1f} MB"
-                    violation_messages.append(
-                        f"{violation.measurement_type.title()} size {current_mb:.1f} MB "
-                        f"exceeds limit of {max_mb:.1f} MB by {excess_str}"
-                    )
-                error_message = f"{gate.config.gate_name} failed!\n" + "\n".join(violation_messages)
-                print(color_message(error_message, "red"))
-                raise StaticQualityGateError(error_message)
-            gate_states.append({"name": result.config.gate_name, "state": True, "error_type": None, "message": None})
-        except StaticQualityGateError as e:
+        gate_result = _run_gate(ctx, gate)
+        if 'blocking' in gate_result and gate_result['blocking']:
             final_state = "failure"
-            gate_states.append(
-                {
-                    "name": gate.config.gate_name,
-                    "state": False,
-                    "error_type": "StaticQualityGateFailed",
-                    "message": str(e),
-                    "blocking": True,  # May be updated to False if delta=0 after relative size calculation
-                }
-            )
-        except InfraError as e:
-            print(color_message(f"Gate {gate.config.gate_name} flaked ! (InfraError)\n Restarting the job...", "red"))
-            for line in traceback.format_exception(e):
-                print(color_message(line, "red"))
-            ctx.run("datadog-ci tag --level job --tags static_quality_gates:\"restart\"")
-            raise Exit(code=42) from e
-        except Exception:
-            final_state = "failure"
-            gate_states.append(
-                {
-                    "name": gate.config.gate_name,
-                    "state": False,
-                    "error_type": "StackTrace",
-                    "message": traceback.format_exc(),
-                    "blocking": True,  # StackTrace errors are always blocking
-                }
-            )
-        finally:
-            # Build tags dict - only include pr_number and pr_author if we have a PR
-            gate_tags = {
-                "gate_name": gate.config.gate_name,
-                "arch": gate.config.arch,
-                "os": gate.config.os,
-                "pipeline_id": os.environ["CI_PIPELINE_ID"],
-                "ci_commit_ref_slug": os.environ["CI_COMMIT_REF_SLUG"],
-                "ci_commit_sha": os.environ["CI_COMMIT_SHA"],
-            }
-            if pr_number:
-                gate_tags["pr_number"] = pr_number
-            if pr_author:
-                gate_tags["pr_author"] = pr_author
+        result = gate_result['result']
+        # Build tags dict - only include pr_number and pr_author if we have a PR
+        gate_tags = {
+            "gate_name": gate.config.gate_name,
+            "arch": gate.config.arch,
+            "os": gate.config.os,
+            "pipeline_id": os.environ["CI_PIPELINE_ID"],
+            "ci_commit_ref_slug": os.environ["CI_COMMIT_REF_SLUG"],
+            "ci_commit_sha": os.environ["CI_COMMIT_SHA"],
+        }
+        if pr_number:
+            gate_tags["pr_number"] = pr_number
+        if pr_author:
+            gate_tags["pr_author"] = pr_author
 
-            metric_handler.register_gate_tags(gate.config.gate_name, **gate_tags)
-            metric_handler.register_metric(gate.config.gate_name, "max_on_wire_size", gate.config.max_on_wire_size)
-            metric_handler.register_metric(gate.config.gate_name, "max_on_disk_size", gate.config.max_on_disk_size)
+        metric_handler.register_gate_tags(gate.config.gate_name, **gate_tags)
+        metric_handler.register_metric(gate.config.gate_name, "max_on_wire_size", gate.config.max_on_wire_size)
+        metric_handler.register_metric(gate.config.gate_name, "max_on_disk_size", gate.config.max_on_disk_size)
 
-            # Only register current sizes if gate executed successfully and we have a result
-            if result is not None:
-                metric_handler.register_metric(
-                    gate.config.gate_name, "current_on_wire_size", result.measurement.on_wire_size
-                )
-                metric_handler.register_metric(
-                    gate.config.gate_name, "current_on_disk_size", result.measurement.on_disk_size
-                )
+        # Only register current sizes if gate executed successfully and we have a result
+        if result is not None:
+            metric_handler.register_metric(
+                gate.config.gate_name, "current_on_wire_size", result.measurement.on_wire_size
+            )
+            metric_handler.register_metric(
+                gate.config.gate_name, "current_on_disk_size", result.measurement.on_disk_size
+            )
 
     ctx.run(f"datadog-ci tag --level job --tags static_quality_gates:\"{final_state}\"")
 
