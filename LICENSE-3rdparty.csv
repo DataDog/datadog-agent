@@ -2151,9 +2151,11 @@ core,github.com/redis/go-redis/v9/internal/hashtag,BSD-2-Clause,Copyright (c) 20
 core,github.com/redis/go-redis/v9/internal/hscan,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
 core,github.com/redis/go-redis/v9/internal/interfaces,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
 core,github.com/redis/go-redis/v9/internal/maintnotifications/logs,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
+core,github.com/redis/go-redis/v9/internal/otel,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
 core,github.com/redis/go-redis/v9/internal/pool,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
 core,github.com/redis/go-redis/v9/internal/proto,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
 core,github.com/redis/go-redis/v9/internal/rand,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
+core,github.com/redis/go-redis/v9/internal/routing,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
 core,github.com/redis/go-redis/v9/internal/util,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
 core,github.com/redis/go-redis/v9/maintnotifications,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
 core,github.com/redis/go-redis/v9/push,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
