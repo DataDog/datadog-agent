@@ -36,12 +36,8 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
-      exporters: [datadog/connector]
-    traces/send:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: [datadog]
+      processors: [memory_limiter, batch]
+      exporters: [datadog/connector, datadog]
     metrics:
       receivers: [datadog/connector]
       processors: [batch]
