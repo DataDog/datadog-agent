@@ -338,7 +338,7 @@ require (
 	github.com/uptrace/bun/dialect/pgdialect v1.2.16
 	github.com/uptrace/bun/driver/pgdriver v1.2.16
 	github.com/urfave/negroni v1.0.0
-	github.com/valyala/fastjson v1.6.7
+	github.com/valyala/fastjson v1.6.10
 	github.com/vibrantbyte/go-antpath v1.1.1
 	github.com/vishvananda/netlink v1.3.1
 	github.com/vishvananda/netns v0.0.5
