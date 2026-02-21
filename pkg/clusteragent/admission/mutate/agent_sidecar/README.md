@@ -86,6 +86,75 @@ Note that an empty provider is valid, as it represents the absence of provider.
 
 
 
+## TLS Verification for Fargate Sidecars
+
+When running agent sidecars on EKS Fargate, the sidecar cannot mount secrets from the Datadog namespace directly (since Kubernetes secrets are namespace-scoped). To enable secure TLS communication between the Fargate sidecar and the Cluster Agent, you can configure the sidecar to fetch the CA certificate from the Kubernetes API at startup.
+
+### Configuration
+
+Set the following options in the Cluster Agent configuration:
+
+```yaml
+admission_controller:
+  agent_sidecar:
+    cluster_agent:
+      tls_verify: true
+      ca_cert_secret_name: "datadog-agent-cluster-ca-secret"
+      ca_cert_secret_namespace: "datadog-agent"
+```
+
+Environment variables:
+- `DD_ADMISSION_CONTROLLER_AGENT_SIDECAR_CLUSTER_AGENT_TLS_VERIFY`: Enable TLS verification
+- `DD_ADMISSION_CONTROLLER_AGENT_SIDECAR_CLUSTER_AGENT_CA_CERT_SECRET_NAME`: Name of the secret containing the CA certificate
+- `DD_ADMISSION_CONTROLLER_AGENT_SIDECAR_CLUSTER_AGENT_CA_CERT_SECRET_NAMESPACE`: Namespace where the CA secret is located
+
+### RBAC Requirements
+
+For the Fargate sidecar to fetch the CA certificate from a secret in another namespace, users must configure RBAC permissions.
+
+#### 1. ClusterRole
+
+Create a ClusterRole that grants read access to the CA secret. This role is scoped to only the specific secret by name:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: datadog-fargate-ca-reader
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: ["datadog-agent-cluster-ca-secret"]
+  verbs: ["get"]
+```
+
+#### 2. ClusterRoleBinding
+
+Create a ClusterRoleBinding for each ServiceAccount that needs access to the CA secret:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: my-app-datadog-ca-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: datadog-fargate-ca-reader
+subjects:
+- kind: ServiceAccount
+  name: my-app-service-account  # The ServiceAccount used by the Fargate pod
+  namespace: my-app-namespace
+```
+
+You can bind multiple ServiceAccounts in a single ClusterRoleBinding by adding more subjects.
+
+### How It Works
+
+1. The Cluster Agent admission controller injects TLS configuration environment variables into the Fargate sidecar
+2. At startup, the sidecar uses the Kubernetes API to fetch the CA certificate from the specified secret
+3. The sidecar uses the CA certificate to verify the Cluster Agent's TLS certificate and establish secure communciation
+
 ## Notes
 - For now, we only support configuring 1 custom selector and 1 custom profile.
 - For now, only `fargate` provider is supported

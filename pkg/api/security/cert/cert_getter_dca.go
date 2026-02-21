@@ -79,30 +79,46 @@ func readClusterCA(caCertPath, caKeyPath string) (*x509.Certificate, any, error)
 	return caCert, caPrivKey, nil
 }
 
-// readClusterCAConfig reads cluster CA configuration and files from disk once
-// Returns nil if no cluster CA is configured
+// readClusterCAConfig reads cluster CA configuration from filesystem or Kubernetes Secret.
 func readClusterCAConfig(config configModel.Reader) (*clusterCAData, error) {
 	enableTLSVerification := config.GetBool("cluster_trust_chain.enable_tls_verification")
+
+	// Option 1: File-based configuration
 	clusterCAPath := config.GetString("cluster_trust_chain.ca_cert_file_path")
 	clusterCAKeyPath := config.GetString("cluster_trust_chain.ca_key_file_path")
+	if clusterCAPath != "" && clusterCAKeyPath != "" {
+		// Read cluster CA certificate and private key from disk
+		caCert, caPrivKey, err := readClusterCA(clusterCAPath, clusterCAKeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("unable to read cluster CA cert and key: %w", err)
+		}
 
-	// If no cluster CA path is configured, return nil (not an error)
-	if clusterCAPath == "" || clusterCAKeyPath == "" {
 		return &clusterCAData{
 			enableTLSVerification: enableTLSVerification,
+			caCert:                caCert,
+			caPrivKey:             caPrivKey,
 		}, nil
 	}
 
-	// Read cluster CA certificate and private key from disk
-	caCert, caPrivKey, err := readClusterCA(clusterCAPath, clusterCAKeyPath)
-	if err != nil {
-		return nil, fmt.Errorf("unable to read cluster CA cert and key: %w", err)
+	// Option 2: Kubernetes Secret-based configuration (for Fargate sidecars via K8s API)
+	caSecretName := config.GetString("cluster_trust_chain.ca_cert_secret_name")
+	caSecretNamespace := config.GetString("cluster_trust_chain.ca_cert_secret_namespace")
+	if caSecretName != "" && caSecretNamespace != "" {
+		caCert, err := fetchClusterCAFromSecret(caSecretNamespace, caSecretName)
+		if err != nil {
+			return nil, fmt.Errorf("unable to fetch cluster CA from secret: %w", err)
+		}
+
+		return &clusterCAData{
+			enableTLSVerification: enableTLSVerification,
+			caCert:                caCert,
+			caPrivKey:             nil, // Not needed for client-side verification
+		}, nil
 	}
 
+	// No cluster CA configured - TLS verification will be disabled
 	return &clusterCAData{
 		enableTLSVerification: enableTLSVerification,
-		caCert:                caCert,
-		caPrivKey:             caPrivKey,
 	}, nil
 }
 
@@ -116,10 +132,11 @@ func (c *clusterCAData) buildClusterClientTLSConfig() (*tls.Config, error) {
 		}, nil
 	}
 
-	// If TLS verification is enabled, configure proper certificate validation
-	// It's not possible to have TLS verification enabled without a CA certificate
-	if c.caCert == nil || c.caPrivKey == nil {
-		return nil, errors.New("cluster_trust_chain.enable_tls_verification cannot be true if cluster_trust_chain.ca_cert_file_path or cluster_trust_chain.ca_key_file_path is not set")
+	// If TLS verification is enabled, we need the CA certificate.
+	// Note: The private key is NOT required for client-side TLS verification.
+	// Clients only need the CA certificate to verify the server's certificate.
+	if c.caCert == nil {
+		return nil, errors.New("cluster_trust_chain.enable_tls_verification is true but no CA certificate available. Set ca_cert_file_path/ca_key_file_path or ca_cert_secret_name/ca_cert_secret_namespace")
 	}
 
 	clusterClientCertPool := x509.NewCertPool()
