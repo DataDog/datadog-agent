@@ -421,70 +421,76 @@ func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor
 	e.apiServer.ApplyPolicyStates(policies)
 }
 
-type seclVariableEventPreparator struct {
-	ctxPool *eval.ContextPool
-	event   *model.Event
-}
-
-func (e *RuleEngine) newSECLVariableEventPreparator() *seclVariableEventPreparator {
-	return &seclVariableEventPreparator{
-		ctxPool: eval.NewContextPool(),
-		event:   e.probe.PlatformProbe.NewEvent(),
+// GetSECLVariables returns the set of SECL variables along with their values.
+// Note: This method may return a large map when scoped variables (process, container, cgroup)
+// are in use, as it includes one entry per active scope instance (e.g., one per process).
+// Consider the performance implications when calling this method frequently or in hot paths.
+func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
+	rs := e.GetRuleSet()
+	if rs == nil {
+		return nil
 	}
-}
 
-var eventZeroer = model.NewEventZeroer()
+	rsVariables := rs.GetVariables()
+	seclVariables := make(map[string]*api.SECLVariableState, len(rsVariables))
 
-func (p *seclVariableEventPreparator) get(f func(event *model.Event)) *eval.Context {
-	eventZeroer(p.event)
-	f(p.event)
-	return p.ctxPool.Get(p.event)
-}
+	for name, variable := range rsVariables {
+		var scope rules.Scope
+		var nameWithoutScopePrefix string
 
-func (p *seclVariableEventPreparator) put(ctx *eval.Context) {
-	p.ctxPool.Put(ctx)
-}
-
-func (e *RuleEngine) fillCommonSECLVariables(rsVariables map[string]eval.SECLVariable, seclVariables map[string]*api.SECLVariableState, preparator *seclVariableEventPreparator) {
-	for name, value := range rsVariables {
 		if strings.HasPrefix(name, "process.") {
-			scopedVariable := value.(eval.ScopedVariable)
-			if !scopedVariable.IsMutable() {
-				continue
-			}
-
-			e.probe.Walk(func(entry *model.ProcessCacheEntry) {
-				ctx := preparator.get(func(event *model.Event) {
-					event.ProcessCacheEntry = entry
-				})
-				defer preparator.put(ctx)
-
-				value, found := scopedVariable.GetValue(ctx, true) // for status, let's not follow inheritance
-				if !found {
-					return
-				}
-
-				scopedName := fmt.Sprintf("%s.%d", name, entry.Pid)
-				scopedValue := fmt.Sprintf("%+v", value)
-				seclVariables[scopedName] = &api.SECLVariableState{
-					Name:  scopedName,
-					Value: scopedValue,
-				}
-			})
-		} else if strings.Contains(name, ".") { // other scopes
-			continue
+			scope = rules.ScopeProcess
+			nameWithoutScopePrefix = strings.TrimPrefix(name, "process.")
+		} else if strings.HasPrefix(name, "container.") {
+			scope = rules.ScopeContainer
+			nameWithoutScopePrefix = strings.TrimPrefix(name, "container.")
+		} else if strings.HasPrefix(name, "cgroup.") {
+			scope = rules.ScopeCGroup
+			nameWithoutScopePrefix = strings.TrimPrefix(name, "cgroup.")
 		} else { // global variables
-			value, found := value.(eval.Variable).GetValue()
-			if !found {
+			globalVariable, ok := variable.(eval.Variable)
+			if !ok {
 				continue
 			}
-			scopedValue := fmt.Sprintf("%+v", value)
+
+			value, ok := globalVariable.GetValue()
+			if !ok {
+				continue
+			}
+
 			seclVariables[name] = &api.SECLVariableState{
 				Name:  name,
-				Value: scopedValue,
+				Value: fmt.Sprintf("%+v", value),
+			}
+			continue
+		}
+
+		// scoped-variables
+		// This iterates through all instances for this scope, which can be large.
+		for scopeKey, scopeVariable := range rs.GetScopedVariables(scope, nameWithoutScopePrefix) {
+			value, ok := scopeVariable.GetValue()
+			if !ok {
+				continue
+			}
+
+			var scopedName string
+			switch scope {
+			case rules.ScopeProcess:
+				// scoped name format is: name + pid
+				scopedName = fmt.Sprintf("%s.%d", name, scopeKey.Integer)
+			case rules.ScopeContainer, rules.ScopeCGroup:
+				// scoped name format is: name + container/cgroup id
+				scopedName = name + "." + scopeKey.String
+			}
+
+			seclVariables[scopedName] = &api.SECLVariableState{
+				Name:  scopedName,
+				Value: fmt.Sprintf("%+v", value),
 			}
 		}
 	}
+
+	return seclVariables
 }
 
 func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
