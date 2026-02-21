@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/user"
 	"strconv"
+	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -69,4 +70,57 @@ func (p *Permission) RemoveAccessToOtherUsers(path string) error {
 	// We keep the original 'user' rights but set 'group' and 'other' to zero.
 	newPerm := fperm.Mode().Perm() & 0700
 	return os.Chmod(path, fs.FileMode(newPerm))
+}
+
+func getDatadogUserUID() (uint32, error) {
+	if ddAgentUser, err := user.Lookup("dd-agent"); err == nil {
+		ddAgentUID, err := strconv.Atoi(ddAgentUser.Uid)
+		if err != nil {
+			return 0, err
+		}
+		return uint32(ddAgentUID), nil
+	}
+
+	return 0, errors.New("user 'dd-agent' not found")
+}
+
+func (p *Permission) isAllowedOwner(uid uint32) bool {
+	// check if its 'root' or the current user
+	if uid == 0 || uid == uint32(os.Getuid()) {
+		return true
+	}
+
+	// check if it's the dd user if it exists
+	if ddUserUID, err := getDatadogUserUID(); err == nil {
+		return uid == ddUserUID
+	}
+	return false
+}
+
+// checkOwner verifies that the file/directory is owned by either 'root', 'dd-agent' or current user
+func (p *Permission) checkOwner(path string) error {
+	var stat syscall.Stat_t
+	if err := syscall.Stat(path, &stat); err != nil {
+		return err
+	}
+
+	if !p.isAllowedOwner(stat.Uid) {
+		return errors.New("file owner is neither `root`, `dd-agent` or current user")
+	}
+
+	return nil
+}
+
+// CheckOwnerAndPermissions verifies that the owner and permissions of a file/directory correspond to the expected restrictions
+func CheckOwnerAndPermissions(path string) error {
+	p, err := NewPermission()
+	if err != nil {
+		return err
+	}
+
+	if err := p.checkOwner(path); err != nil {
+		return err
+	}
+
+	return CheckRights(path, true)
 }
