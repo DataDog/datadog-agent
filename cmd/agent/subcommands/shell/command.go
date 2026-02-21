@@ -16,7 +16,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
-	"mvdan.cc/sh/v3/interp"
+	"github.com/DataDog/datadog-agent/pkg/shell/interp"
 	"mvdan.cc/sh/v3/syntax"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
