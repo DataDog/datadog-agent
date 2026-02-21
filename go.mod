@@ -255,7 +255,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/mux v1.8.1
-	github.com/gosnmp/gosnmp v1.38.0
+	github.com/gosnmp/gosnmp v1.43.2
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/h2non/filetype v1.1.3
 	github.com/hashicorp/consul/api v1.32.1
