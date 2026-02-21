@@ -102,6 +102,7 @@ func TestHttpDestinationFactory(t *testing.T) {
 				"",
 				1,
 				10,
+				nil,
 			)
 
 			// Test 1: Verify first call creates destinations
