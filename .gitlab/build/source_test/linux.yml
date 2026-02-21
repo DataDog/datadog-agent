@@ -207,6 +207,7 @@ tests_gpu:
   allow_failure: true
   before_script:
     - !reference [.retrieve_linux_go_deps]
+    - apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y nvidia-cuda-toolkit
   after_script:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]

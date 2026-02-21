@@ -881,7 +881,7 @@ def get_sysprobe_test_buildtags(is_windows, bundle_ebpf):
     return build_tags
 
 
-@task
+@task(iterable=['extra_tags'])
 def test(
     ctx,
     packages=TEST_PACKAGES,
@@ -893,6 +893,7 @@ def test(
     kernel_release=None,
     timeout=None,
     extra_arguments="",
+    extra_tags: list[str] | None = None,
 ):
     """
     Run tests on eBPF parts
@@ -914,6 +915,9 @@ def test(
         )
 
     build_tags = get_sysprobe_test_buildtags(is_windows, bundle_ebpf)
+
+    if extra_tags:
+        build_tags.extend(extra_tags)
 
     args = get_common_test_args(build_tags, failfast)
     args["output_params"] = f"-c -o {output_path}" if output_path else ""

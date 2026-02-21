@@ -14,7 +14,12 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
@@ -45,4 +50,34 @@ func withTelemetryEnabledPools(t *testing.T, tm telemetry.Component) {
 		ddsync.ResetGlobalPoolTelemetry()
 		memPools.ensureInitNoTelemetry()
 	})
+}
+
+// TestSystemContext exposes the GPU system context behavior needed by tests in other packages. This way we avoid
+// exposing the entire interface and functions, which are internal implementation details.
+type TestSystemContext interface {
+	GetCurrentActiveGpuDevice(pid int, tid int, containerIDFunc func() string) (ddnvml.Device, error)
+	SetDeviceSelection(pid int, tid int, deviceIndex int32)
+}
+
+type testSystemContext struct {
+	sysCtx *systemContext
+}
+
+func (tsc *testSystemContext) GetCurrentActiveGpuDevice(pid int, tid int, containerIDFunc func() string) (ddnvml.Device, error) {
+	return tsc.sysCtx.getCurrentActiveGpuDevice(pid, tid, containerIDFunc)
+}
+
+func (tsc *testSystemContext) SetDeviceSelection(pid int, tid int, deviceIndex int32) {
+	tsc.sysCtx.setDeviceSelection(pid, tid, deviceIndex)
+}
+
+// GetSystemContext creates a new SystemContext with the given options.
+func GetTestSystemContext(t testing.TB, wmeta workloadmeta.Component, tm telemetry.Component) TestSystemContext {
+	sysCtx, err := getSystemContext(
+		withProcRoot(kernel.ProcFSRoot()),
+		withWorkloadMeta(wmeta),
+		withTelemetry(tm),
+	)
+	require.NoError(t, err, "failed to create test system context")
+	return &testSystemContext{sysCtx: sysCtx}
 }

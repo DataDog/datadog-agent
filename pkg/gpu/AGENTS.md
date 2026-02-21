@@ -157,6 +157,11 @@ Releases all held resources without emitting spans:
 - When draining channels during cleanup, limit iterations to prevent blocking
 - Use `cap(channel)` as upper bound for iterations
 
+### Workloadmeta Docker Collector Build Tags
+- The workloadmeta Docker collector is behind the `docker` build tag.
+- GPU integration tests that depend on real docker workloadmeta must include `docker` in their `//go:build` line or be run with `-tags docker`.
+- In tests, feature detection is disabled; call `env.SetFeatures(t, env.Docker)` to allow the docker workloadmeta collector to start.
+
 ## Testing Pools
 
 Use `withTelemetryEnabledPools(t, telemetryMock)` to enable pool telemetry in tests.
