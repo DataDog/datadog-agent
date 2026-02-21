@@ -396,6 +396,10 @@ linters:
     - path: "pkg/privateactionrunner/"
       linters:
         - revive
+    # Darwin packet constants use ALL_CAPS to match Linux unix.PACKET_* re-exports for cross-platform code
+    - path: "pkg/network/filter/packet_constants_darwin.go"
+      linters:
+        - revive
     # disable typecheck in folder where it breaks because of build tags
     - path: "pkg/security/"
       linters: [typecheck]

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build (linux && linux_bpf) || (windows && npm)
+//go:build (linux && linux_bpf) || (windows && npm) || darwin
 
 package modules
 
@@ -277,11 +277,14 @@ func writeConnections(w http.ResponseWriter, marshaler marshal.Marshaler, cs *ne
 	log.Tracef("/connections: %d connections", len(cs.Conns))
 }
 
+// writeDisabledProtocolMessage is used by USM endpoint handlers on Linux.
+//
+//nolint:unused
 func writeDisabledProtocolMessage(protocolName string, w http.ResponseWriter) {
 	log.Warnf("%s monitoring is disabled", protocolName)
 	w.WriteHeader(404)
 	// Writing JSON to ensure compatibility when using the jq bash utility for output
-	outputString := map[string]string{"error": fmt.Sprintf("%s monitoring is disabled", protocolName)}
+	outputString := map[string]string{"error": protocolName + " monitoring is disabled"}
 	// We are marshaling a static string, so we can ignore the error
 	buf, _ := json.Marshal(outputString)
 	w.Write(buf)
