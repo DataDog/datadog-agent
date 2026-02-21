@@ -7,7 +7,12 @@
 
 package connection
 
-import "github.com/DataDog/datadog-agent/pkg/network/filter"
+import (
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
+
+	"github.com/DataDog/datadog-agent/pkg/network/filter"
+)
 
 // extractPacketType extracts the packet type from platform-specific PacketInfo
 func extractPacketType(info filter.PacketInfo) uint8 {
@@ -16,4 +21,14 @@ func extractPacketType(info filter.PacketInfo) uint8 {
 	}
 	// Default to outgoing if we can't determine
 	return filter.PacketOutgoing
+}
+
+// extractLayerType returns the gopacket layer type for this packet's
+// link-layer encapsulation, as determined at capture time.
+// Falls back to LayerTypeEthernet for unknown or unset types.
+func extractLayerType(info filter.PacketInfo) gopacket.LayerType {
+	if darwinInfo, ok := info.(*filter.DarwinPacketInfo); ok && darwinInfo.LayerType != 0 {
+		return darwinInfo.LayerType
+	}
+	return layers.LayerTypeEthernet
 }

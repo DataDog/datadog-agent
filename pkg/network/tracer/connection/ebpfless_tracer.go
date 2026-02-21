@@ -98,27 +98,29 @@ func (t *ebpfLessTracer) Start(closeCallback func(*network.ConnectionStats)) err
 			t.packetSrcBusy.Done()
 		}()
 		var eth layers.Ethernet
+		var loopback layers.Loopback
 		var ip4 layers.IPv4
 		var ip6 layers.IPv6
 		var tcp layers.TCP
 		var udp layers.UDP
 		decoded := make([]gopacket.LayerType, 0, 5)
 
-		// Use the LayerType from the packet source to initialize the parser.
-		// Both Linux (AFPacket) and Darwin (libpcap) return Ethernet frames,
-		// so LayerTypeEthernet is expected. The else branch handles any future
-		// packet source that strips the link layer.
-		layerType := t.packetSrc.LayerType()
-		var parser *gopacket.DecodingLayerParser
-		if layerType == layers.LayerTypeEthernet {
-			parser = gopacket.NewDecodingLayerParser(layerType, &eth, &ip4, &ip6, &tcp, &udp)
-		} else {
-			parser = gopacket.NewDecodingLayerParser(layerType, &ip4, &ip6, &tcp, &udp)
-		}
-		parser.IgnoreUnsupported = true
+		// Two parsers to handle mixed link types on Darwin (e.g. Ethernet for
+		// en0 and BSD Loopback for utun* VPN interfaces). On Linux, every
+		// packet is Ethernet via AF_PACKET so loopbackParser is never used.
+		ethernetParser := gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, &eth, &ip4, &ip6, &tcp, &udp)
+		ethernetParser.IgnoreUnsupported = true
+		loopbackParser := gopacket.NewDecodingLayerParser(layers.LayerTypeLoopback, &loopback, &ip4, &ip6, &tcp, &udp)
+		loopbackParser.IgnoreUnsupported = true
 
 		for {
 			err := t.packetSrc.VisitPackets(func(b []byte, info filter.PacketInfo, _ time.Time) error {
+				var parser *gopacket.DecodingLayerParser
+				if extractLayerType(info) == layers.LayerTypeLoopback {
+					parser = loopbackParser
+				} else {
+					parser = ethernetParser
+				}
 				if err := parser.DecodeLayers(b, &decoded); err != nil {
 					return fmt.Errorf("error decoding packet layers: %w", err)
 				}
@@ -377,7 +379,6 @@ func (t *ebpfLessTracer) GetConnections(buffer *network.ConnectionBuffer, filter
 		return nil
 	}
 
-	log.Trace(t.conns)
 	conns := make([]network.ConnectionStats, 0, len(t.conns))
 	for _, c := range t.conns {
 		if filter != nil && !filter(c) {

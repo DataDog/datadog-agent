@@ -7,7 +7,12 @@
 
 package connection
 
-import "github.com/DataDog/datadog-agent/pkg/network/filter"
+import (
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
+
+	"github.com/DataDog/datadog-agent/pkg/network/filter"
+)
 
 // extractPacketType extracts the packet type from platform-specific PacketInfo
 func extractPacketType(info filter.PacketInfo) uint8 {
@@ -16,4 +21,10 @@ func extractPacketType(info filter.PacketInfo) uint8 {
 	}
 	// Default to outgoing if we can't determine
 	return filter.PacketOutgoing
+}
+
+// extractLayerType returns the gopacket layer type for this packet.
+// Linux AF_PACKET always delivers Ethernet frames.
+func extractLayerType(_ filter.PacketInfo) gopacket.LayerType {
+	return layers.LayerTypeEthernet
 }
