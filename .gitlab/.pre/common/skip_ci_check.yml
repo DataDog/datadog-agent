@@ -1,18 +1,17 @@
-# Disallow [skip ci] in commit messages
+# Disallow [skip ci] in commit messages and PR descriptions
 
 skip-ci-check:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   needs: []
   stage: setup
   tags: ["arch:amd64", "specific:true"]
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   rules:
     - !reference [.on_mergequeue]
   script:
-    - commit_message="$(git log --format=%B -n 1 $CI_COMMIT_SHA)"
-    # https://docs.github.com/en/actions/managing-workflow-runs/skipping-workflow-runs
-    - |
-      if [[ "$commit_message" =~ *"[ci skip]"*|*"[skip ci]"*|*"[actions skip]"*|*"[skip actions]"*|*"[no ci]"*|*"skip-checks: true"*|*"skip-checks:true"* ]]; then
-            echo "error: The commit message of this PR contains ci skip tags. Do not skip checks when merging PRs, please change the description of the merge commit" >& 2
-            exit 1
-      fi
-    - "echo 'success: No check skip found'"
+    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.pull-request-read)
+    - bash tools/ci/check_skip_ci.sh "$CI_COMMIT_SHA"
+  after_script:
+    - if [ -n "${GITHUB_TOKEN:-}" ]; then dd-octo-sts revoke -t "$GITHUB_TOKEN" || true; fi
