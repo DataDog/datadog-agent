@@ -160,10 +160,10 @@ func (s *extensionsSuite) TestExtensionSaveAndRestore() {
 // TestExtensionSurvivesExperiment verifies that extensions installed on the
 // datadog-agent package survive an upgrade via the experiment (start/promote) flow.
 func (s *extensionsSuite) TestExtensionSurvivesExperiment() {
-	s.Agent.MustInstall(agent.WithPipelineID("98077405")) // TODO: use staging package for persistence
+	s.Agent.MustInstall(agent.WithPipelineID("98087596")) // TODO: use staging package for persistence
 	defer s.Agent.MustUninstall()
 
-	s.Installer.MustInstallExtension(s.getAgentPackageURL("98077405"), "ddot")
+	s.Installer.MustInstallExtension(s.getAgentPackageURL("98087596"), "ddot")
 	defer func() {
 		_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")
 	}()
@@ -183,10 +183,10 @@ func (s *extensionsSuite) TestExtensionSurvivesExperiment() {
 // TestExtensionRestoredAfterExperimentRollback verifies that extensions are
 // restored to their stable state when an experiment is stopped (rolled back).
 func (s *extensionsSuite) TestExtensionRestoredAfterExperimentRollback() {
-	s.Agent.MustInstall(agent.WithPipelineID("98077405")) // TODO: use staging package for persistence
+	s.Agent.MustInstall(agent.WithPipelineID("98087596")) // TODO: use staging package for persistence
 	defer s.Agent.MustUninstall()
 
-	s.Installer.MustInstallExtension(s.getAgentPackageURL("98077405"), "ddot")
+	s.Installer.MustInstallExtension(s.getAgentPackageURL("98087596"), "ddot")
 	defer func() {
 		_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")
 	}()
