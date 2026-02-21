@@ -22,56 +22,37 @@ import (
 )
 
 // Gohai is the inner payload for Gohai.
-// Its types must match those returned by Datadog/gohai.
-// The `Collect` methods from DataDog/gohai return an interface{},
+// Its types must match those returned by Datadog/datadog-agent/pkg/gohai.
+// The `AsJSON` methods from DataDog/datadog-agent/pkg/gohai return an interface{},
 // so we need to carefully define the types of the fields here.
 type Gohai struct {
 	// CPU contains CPU information.
-	// Type check:
-	// - Collect calls getCPUInfo: https://github.com/DataDog/gohai/blob/4316413/cpu/cpu.go#L63
-	//   - On macOS, getCPUInfo returns a map[string]string: https://github.com/DataDog/gohai/blob/4316413/cpu/cpu_darwin.go#L25
-	//   - On Linux/arm64, getCPUInfo returns a map[string]string: https://github.com/DataDog/gohai/blob/4316413/cpu/cpu_linux_arm64.go#L26
-	//   - On Linux/!arm64, getCPUInfo returns a map[string]string: https://github.com/DataDog/gohai/blob/4316413/cpu/cpu_linux_default.go#L36
-	//   - On Windows, getCPUInfo returns a map[string]string: https://github.com/DataDog/gohai/blob/4316413/cpu/cpu_windows.go#L221
-	//
-	// All branches return a map[string]string, so we can safely define CPU as map[string]string.
-	CPU map[string]string `json:"cpu"`
+	// cpu.Info.AsJSON (https://github.com/DataDog/datadog-agent/blob/5f7a9b3d/pkg/gohai/cpu/cpu.go#L53)
+	// calls utils.AsJSON (https://github.com/DataDog/datadog-agent/blob/5f7a9b3d/pkg/gohai/utils/common.go#L85)
+	// which always returns a map[string]any.
+	CPU map[string]any `json:"cpu"`
 
 	// FileSystem contains filesystem information.
-	// Type check:
-	// - Collect calls getFileSystemInfo https://github.com/DataDog/gohai/blob/4316413/filesystem/filesystem_common.go#L23
-	//   - On Linux, getFileSystemInfo calls parseDfOutput: https://github.com/DataDog/gohai/blob/4316413/filesystem/filesystem.go#L39
-	//     - parseDfOutput returns a []any: https://github.com/DataDog/gohai/blob/4316413/filesystem/filesystem.go#L58
-	//   - On Windows, getFileSystemInfo returns a []any: https://github.com/DataDog/gohai/blob/4316413/filesystem/filesystem_windows.go#L121
-	//
-	// All branches return a []any, so we can safely define FileSystem as []any.
+	// filesystem.Info.AsJSON (https://github.com/DataDog/datadog-agent/blob/5f7a9b3d/pkg/gohai/filesystem/filesystem.go#L35)
+	// always returns a []any.
 	FileSystem []any `json:"filesystem"`
 
 	// Memory contains memory information.
-	// Type check:
-	// - Collect calls getMemoryInfo: https://github.com/DataDog/gohai/blob/4316413/memory/memory.go#L28
-	//   - On macOS, getMemoryInfo returns a map[string]string: https://github.com/DataDog/gohai/blob/4316413/memory/memory_darwin.go#L16
-	//   - On Linux, getMemoryInfo returns a map[string]string: https://github.com/DataDog/gohai/blob/4316413/memory/memory_linux.go#L24
-	//   - On Windows, getMemoryInfo returns a map[string]string: https://github.com/DataDog/gohai/blob/4316413/memory/memory_windows.go#L29
-	//
-	// All branches return a map[string]string, so we can safely define Memory as map[string]string.
-	Memory map[string]string `json:"memory"`
+	// memory.Info.AsJSON (https://github.com/DataDog/datadog-agent/blob/5f7a9b3d/pkg/gohai/memory/memory.go#L30)
+	// calls utils.AsJSON (https://github.com/DataDog/datadog-agent/blob/5f7a9b3d/pkg/gohai/utils/common.go#L85)
+	// which always returns a map[string]any.
+	Memory map[string]any `json:"memory"`
 
 	// Network contains network information.
-	// Type check:
-	// - Collect calls getNetworkInfo: https://github.com/DataDog/gohai/blob/4316413/network/network_common.go#L41
-	//   - getNetworkInfo returns a map[string]any: https://github.com/DataDog/gohai/blob/4316413/network/network.go#L9
-	//
-	// All branches return a map[string]any, so we can safely define Network as map[string]any.
+	// network.Info.AsJSON (https://github.com/DataDog/datadog-agent/blob/5f7a9b3d/pkg/gohai/network/network.go#L136)
+	// always returns a map[string]any.
 	Network map[string]any `json:"network"`
 
 	// Platform contains platform information.
-	// Type check:
-	// - Collect calls getPlatformInfo: https://github.com/DataDog/gohai/blob/4316413/platform/platform.go#L22
-	//   - getPlatformInfo returns a map[string]string: https://github.com/DataDog/gohai/blob/4316413/platform/platform.go#L52
-	//
-	// All branches return a map[string]string, so we can safely define Platform as map[string]string.
-	Platform map[string]string `json:"platform"`
+	// platform.Info.AsJSON (https://github.com/DataDog/datadog-agent/blob/5f7a9b3d/pkg/gohai/platform/platform.go#L60)
+	// calls utils.AsJSON (https://github.com/DataDog/datadog-agent/blob/5f7a9b3d/pkg/gohai/utils/common.go#L85)
+	// which always returns a map[string]any.
+	Platform map[string]any `json:"platform"`
 }
 
 // Payload handles the JSON unmarshalling of the metadata payload
@@ -84,18 +65,18 @@ type Payload struct {
 
 // Platform returns a reference to the Gohai payload 'platform' map.
 // It initializes the field if nil.
-func (p *Payload) Platform() map[string]string {
+func (p *Payload) Platform() map[string]any {
 	if p.Gohai.Gohai.Platform == nil {
-		p.Gohai.Gohai.Platform = map[string]string{}
+		p.Gohai.Gohai.Platform = map[string]any{}
 	}
 	return p.Gohai.Gohai.Platform
 }
 
 // CPU returns a reference to the Gohai payload 'cpu' map.
 // It initializes the field if nil.
-func (p *Payload) CPU() map[string]string {
+func (p *Payload) CPU() map[string]any {
 	if p.Gohai.Gohai.CPU == nil {
-		p.Gohai.Gohai.CPU = map[string]string{}
+		p.Gohai.Gohai.CPU = map[string]any{}
 	}
 	return p.Gohai.Gohai.CPU
 }
@@ -148,11 +129,11 @@ func NewEmpty() Payload {
 	return Payload{
 		Gohai: gohaiMarshaler{
 			Gohai: &Gohai{
-				CPU:        map[string]string{},
+				CPU:        map[string]any{},
 				FileSystem: []any{},
-				Memory:     map[string]string{},
+				Memory:     map[string]any{},
 				Network:    map[string]any{},
-				Platform:   map[string]string{},
+				Platform:   map[string]any{},
 			},
 		},
 	}

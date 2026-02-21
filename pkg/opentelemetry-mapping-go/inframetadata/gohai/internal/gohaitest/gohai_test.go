@@ -6,39 +6,45 @@ package gohaitest
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/gohai"
-	"github.com/DataDog/gohai/cpu"
-	"github.com/DataDog/gohai/filesystem"
-	"github.com/DataDog/gohai/memory"
-	"github.com/DataDog/gohai/network"
-	"github.com/DataDog/gohai/platform"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
+	"github.com/DataDog/datadog-agent/pkg/gohai/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/gohai/memory"
+	"github.com/DataDog/datadog-agent/pkg/gohai/network"
+	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/gohai"
 )
 
 func TestGohaiHasTheRightTypes(t *testing.T) {
 	res := new(gohai.Gohai)
-	p, err := new(cpu.Cpu).Collect()
+
+	p, _, err := cpu.CollectInfo().AsJSON()
 	require.NoError(t, err)
-	res.CPU = p.(map[string]string)
+	res.CPU = p.(map[string]any)
 	require.NotNil(t, res.CPU)
 
-	p, err = new(filesystem.FileSystem).Collect()
+	info, err := filesystem.CollectInfo()
+	require.NoError(t, err)
+	p, _, err = info.AsJSON()
 	require.NoError(t, err)
 	res.FileSystem = p.([]any)
 	require.NotNil(t, res.FileSystem)
 
-	p, err = new(memory.Memory).Collect()
+	p, _, err = memory.CollectInfo().AsJSON()
 	require.NoError(t, err)
-	res.Memory = p.(map[string]string)
+	res.Memory = p.(map[string]any)
 	require.NotNil(t, res.Memory)
 
-	p, err = new(network.Network).Collect()
+	info2, err := network.CollectInfo()
+	require.NoError(t, err)
+	p, _, err = info2.AsJSON()
 	require.NoError(t, err)
 	res.Network = p.(map[string]any)
 	require.NotNil(t, res.Network)
 
-	p, err = new(platform.Platform).Collect()
+	p, _, err = platform.CollectInfo().AsJSON()
 	require.NoError(t, err)
-	res.Platform = p.(map[string]string)
+	res.Platform = p.(map[string]any)
 	require.NotNil(t, res.Platform)
 }
