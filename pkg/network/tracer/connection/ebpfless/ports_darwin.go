@@ -73,10 +73,8 @@ func readPortsDarwin(cfg *config.Config) (map[boundPortsKey]struct{}, error) {
 				// ignore ephemeral port binds as they are more likely to be from
 				// clients calling bind with port 0
 				if network.IsPortInEphemeralRange(network.AFINET, network.UDP, port) == network.EphemeralTrue {
-					log.Debugf("ignoring ephemeral UDP port bind to %d", port)
 					continue
 				}
-				log.Debugf("adding UDP port binding: port: %d", port)
 				ports[boundPortsKey{network.UDP, port}] = struct{}{}
 			}
 		}

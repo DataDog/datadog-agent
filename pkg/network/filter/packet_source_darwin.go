@@ -81,12 +81,20 @@ type packetWithInfo struct {
 	data      []byte // Copied data from pool, caller must return via putBuffer
 	timestamp time.Time
 	direction uint8 // PACKET_HOST or PACKET_OUTGOING
+	layerType gopacket.LayerType
 }
 
 // interfaceHandle holds a pcap handle and its associated local addresses
 type interfaceHandle struct {
 	handle    *pcap.Handle
 	ifaceName string
+	// linkType is the raw pcap DLT for this interface, used by
+	// determinePacketDirection to select the correct header parser.
+	linkType layers.LinkType
+	// goPacketLayerType is the gopacket.LayerType derived from linkType,
+	// computed once at open time and stamped on every outgoing packet so
+	// the decoder can select the right parser without a per-packet conversion.
+	goPacketLayerType gopacket.LayerType
 
 	// localAddrs contains the local IP addresses for this interface
 	localAddrs   map[string]struct{}
@@ -111,9 +119,14 @@ type LibpcapSource struct {
 
 // DarwinPacketInfo holds information about a packet on Darwin
 type DarwinPacketInfo struct {
-	// PktType indicates packet direction
+	// PktType indicates packet direction:
 	// PACKET_HOST (0) for incoming, PACKET_OUTGOING (4) for outgoing
 	PktType uint8
+	// LayerType is the gopacket layer type for this packet's link-layer
+	// encapsulation. Callers must use this to select the correct decoder —
+	// different interfaces on macOS may use different encapsulations
+	// (e.g. LayerTypeEthernet for en0, LayerTypeLoopback for utun0).
+	LayerType gopacket.LayerType
 }
 
 // OptSnapLen specifies the maximum length of the packet to read
@@ -176,7 +189,12 @@ func NewLibpcapSource(_ int, opts ...interface{}) (*LibpcapSource, error) {
 
 	go ps.refreshLocalAddrs()
 
+	names := make([]string, 0, len(ps.interfaces))
+	for name := range ps.interfaces {
+		names = append(names, name)
+	}
 	log.Infof("created libpcap source on %d interfaces, snaplen=%d", len(ps.interfaces), snapLen)
+	log.Debugf("capturing on interfaces: %v", names)
 	return ps, nil
 }
 
@@ -185,7 +203,7 @@ func NewLibpcapSource(_ int, opts ...interface{}) (*LibpcapSource, error) {
 // When the reader exits for any reason it removes itself from the map and
 // closes the handle, so the caller never needs to do that explicitly.
 func (p *LibpcapSource) addInterface(ifaceName string) error {
-	handle, err := pcap.OpenLive(ifaceName, int32(p.snapLen), true, pcapTimeout)
+	handle, err := pcap.OpenLive(ifaceName, int32(p.snapLen), false, pcapTimeout)
 	if err != nil {
 		return fmt.Errorf("error opening pcap handle on %s: %w", ifaceName, err)
 	}
@@ -195,10 +213,13 @@ func (p *LibpcapSource) addInterface(ifaceName string) error {
 		return fmt.Errorf("error setting BPF filter on %s: %w", ifaceName, err)
 	}
 
+	lt := handle.LinkType()
 	ih := &interfaceHandle{
-		handle:     handle,
-		ifaceName:  ifaceName,
-		localAddrs: make(map[string]struct{}),
+		handle:            handle,
+		ifaceName:         ifaceName,
+		linkType:          lt,
+		goPacketLayerType: linkTypeToLayerType(lt),
+		localAddrs:        make(map[string]struct{}),
 	}
 
 	if err := ih.refreshLocalAddrs(); err != nil {
@@ -220,7 +241,15 @@ func (p *LibpcapSource) addInterface(ifaceName string) error {
 			delete(p.interfaces, ih.ifaceName)
 			p.interfacesMu.Unlock()
 			ih.handle.Close()
-			log.Infof("closed pcap handle on interface %s", ih.ifaceName)
+
+			// Distinguish a clean shutdown from an unexpected interface removal
+			// so the logs are actionable.
+			select {
+			case <-p.exit:
+				log.Debugf("stopped capture on interface %s (shutdown)", ih.ifaceName)
+			default:
+				log.Infof("interface %s removed or errored, stopping capture", ih.ifaceName)
+			}
 		}()
 
 		p.readPacketsFromInterface(ih)
@@ -239,12 +268,19 @@ func (p *LibpcapSource) VisitPackets(visitor func(data []byte, info PacketInfo, 
 	for {
 		select {
 		case pkt := <-p.packetChan:
-			defer putBuffer(pkt.data)
 			packetInfo.PktType = pkt.direction
+			packetInfo.LayerType = pkt.layerType
 
-			err := visitor(pkt.data, packetInfo, pkt.timestamp)
-			if err != nil {
-				return err
+			// Wrap in a closure so putBuffer runs via defer even if visitor
+			// panics, preventing a permanent pool leak.
+			var visitorErr error
+			func() {
+				defer putBuffer(pkt.data)
+				visitorErr = visitor(pkt.data, packetInfo, pkt.timestamp)
+			}()
+
+			if visitorErr != nil {
+				return visitorErr
 			}
 
 			packetSourceTelemetry.processed.Add(1)
@@ -302,6 +338,14 @@ func (p *LibpcapSource) readPacketsFromInterface(ih *interfaceHandle) {
 
 		direction := ih.determinePacketDirection(data)
 
+		// Drop packets that belong to neither side of our connections.
+		// In promiscuous mode we capture all frames on the wire, including
+		// traffic between other hosts, broadcasts, and multicast — none of
+		// which should influence our connection stats.
+		if direction == PacketOtherHost {
+			continue
+		}
+
 		// Copy data to a pooled buffer immediately (before the zero-copy
 		// buffer is reused by the next ZeroCopyReadPacketData call).
 		buf := getBuffer()
@@ -313,6 +357,7 @@ func (p *LibpcapSource) readPacketsFromInterface(ih *interfaceHandle) {
 			data:      buf,
 			timestamp: ci.Timestamp,
 			direction: direction,
+			layerType: ih.goPacketLayerType,
 		}:
 		case <-p.exit:
 			putBuffer(buf)
@@ -345,8 +390,11 @@ func (p *LibpcapSource) collectStats(ih *interfaceHandle, prev *struct{ captured
 	prev.dropped = uint64(stats.PacketsDropped)
 }
 
-// LayerType returns the layer type for packets from this source.
-// Returns LayerTypeEthernet since libpcap on macOS returns full Ethernet frames.
+// LayerType returns a default layer type for this source. On Darwin, packets
+// may come from both Ethernet interfaces (LayerTypeEthernet) and BSD-loopback
+// interfaces such as utun* (LayerTypeLoopback). Callers that need the accurate
+// per-packet type should read DarwinPacketInfo.LayerType instead of relying on
+// this method.
 func (p *LibpcapSource) LayerType() gopacket.LayerType {
 	return layers.LayerTypeEthernet
 }
@@ -475,10 +523,42 @@ func (ih *interfaceHandle) isLocalAddr(ip []byte) bool {
 	return exists
 }
 
+// linkTypeToLayerType converts a pcap DLT link type to the gopacket.LayerType
+// needed by the packet decoder. We map explicitly rather than calling
+// LinkType.LayerType() because that method returns LayerTypeZero (0) for
+// LinkTypeNull when the gopacket metadata table has no entry for DLT 0,
+// which causes the downstream parser selector to fall back to Ethernet and
+// misparse BSD-loopback packets from utun/VPN interfaces.
+func linkTypeToLayerType(lt layers.LinkType) gopacket.LayerType {
+	switch lt {
+	case layers.LinkTypeNull, layers.LinkTypeLoop:
+		return layers.LayerTypeLoopback
+	default:
+		return layers.LayerTypeEthernet
+	}
+}
+
 // determinePacketDirection examines the packet's IP addresses to determine direction.
-// Returns PacketOutgoing if the source is a local address, PacketHost otherwise.
+// Returns:
+//   - PacketOutgoing  — source is local, destination is not local
+//   - PacketHost      — destination is local (incoming)
+//   - PacketOtherHost — neither source nor destination is a local address
+//     (e.g. promiscuous-mode traffic between other hosts, broadcast, multicast)
 func (ih *interfaceHandle) determinePacketDirection(data []byte) uint8 {
-	// Need at least Ethernet header (14 bytes)
+	switch ih.linkType {
+	case layers.LinkTypeNull, layers.LinkTypeLoop:
+		// DLT_NULL (0) and DLT_LOOP (108) both use the 4-byte BSD loopback
+		// header. DLT_NULL is used by utun/VPN interfaces on macOS;
+		// DLT_LOOP is its OpenBSD-originated counterpart.
+		return ih.determineLoopbackPacketDirection(data)
+	default:
+		return ih.determineEthernetPacketDirection(data)
+	}
+}
+
+// determineEthernetPacketDirection handles Ethernet-encapsulated packets
+// (DLT_EN10MB). The Ethernet header is 14 bytes; IP starts immediately after.
+func (ih *interfaceHandle) determineEthernetPacketDirection(data []byte) uint8 {
 	if len(data) < 14 {
 		return PacketHost
 	}
@@ -493,10 +573,7 @@ func (ih *interfaceHandle) determinePacketDirection(data []byte) uint8 {
 		}
 		// Source IP at offset 26-29 (14 + 12)
 		// Destination IP at offset 30-33 (14 + 16)
-		if ih.isLocalAddr(data[26:30]) && !ih.isLocalAddr(data[30:34]) {
-			return PacketOutgoing
-		}
-		return PacketHost
+		return classifyDirection(ih, data[26:30], data[30:34])
 
 	case 0x86DD: // IPv6
 		if len(data) < 54 { // Ethernet (14) + IPv6 header minimum (40)
@@ -504,14 +581,55 @@ func (ih *interfaceHandle) determinePacketDirection(data []byte) uint8 {
 		}
 		// Source IP at offset 22-37 (14 + 8)
 		// Destination IP at offset 38-53 (14 + 24)
-		if ih.isLocalAddr(data[22:38]) && !ih.isLocalAddr(data[38:54]) {
-			return PacketOutgoing
-		}
-		return PacketHost
+		return classifyDirection(ih, data[22:38], data[38:54])
 
 	default:
 		return PacketHost
 	}
+}
+
+// determineLoopbackPacketDirection handles BSD loopback-encapsulated packets
+// (DLT_NULL), used by macOS tunnel interfaces such as utun*. The header is a
+// 4-byte address-family number in host byte order followed by a raw IP packet.
+func (ih *interfaceHandle) determineLoopbackPacketDirection(data []byte) uint8 {
+	if len(data) < 4 {
+		return PacketHost
+	}
+
+	// On little-endian macOS the AF number sits in the first byte
+	// (AF_INET=2, AF_INET6=28). The upper three bytes are always zero.
+	switch data[0] {
+	case 2: // AF_INET — IPv4 follows
+		if len(data) < 24 { // 4-byte header + IPv4 minimum (20)
+			return PacketHost
+		}
+		// Source IP at offset 4+12=16, destination at 4+16=20
+		return classifyDirection(ih, data[16:20], data[20:24])
+
+	case 28, 30: // AF_INET6 — IPv6 follows (28=macOS, 30=some BSD)
+		if len(data) < 44 { // 4-byte header + IPv6 minimum (40)
+			return PacketHost
+		}
+		// Source IP at offset 4+8=12, destination at 4+24=28
+		return classifyDirection(ih, data[12:28], data[28:44])
+
+	default:
+		return PacketHost
+	}
+}
+
+// classifyDirection returns the packet direction given raw source and
+// destination IP bytes checked against the interface's local address set.
+func classifyDirection(ih *interfaceHandle, srcIP, dstIP []byte) uint8 {
+	srcIsLocal := ih.isLocalAddr(srcIP)
+	dstIsLocal := ih.isLocalAddr(dstIP)
+	if srcIsLocal && !dstIsLocal {
+		return PacketOutgoing
+	}
+	if dstIsLocal {
+		return PacketHost
+	}
+	return PacketOtherHost
 }
 
 var _ PacketSource = &LibpcapSource{}
