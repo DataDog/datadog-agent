@@ -189,6 +189,39 @@ func TestFromEnv(t *testing.T) {
 				NoProxy:                        os.Getenv("NO_PROXY"), // Default value from the environment, as some test envs set it
 			},
 		},
+		{
+			name: "RUM configuration",
+			envVars: map[string]string{
+				envRumEnabled:               "true",
+				envRumApplicationID:         "test-app-id",
+				envRumClientToken:           "pub_token_123",
+				envRumRemoteConfigurationID: "config-123",
+				envRumSite:                  "datadoghq.eu",
+			},
+			expected: &Env{
+				APIKey:                         "",
+				Site:                           "datadoghq.com",
+				RegistryOverride:               "",
+				RegistryAuthOverride:           "",
+				RegistryOverrideByImage:        map[string]string{},
+				RegistryAuthOverrideByImage:    map[string]string{},
+				RegistryUsernameByImage:        map[string]string{},
+				RegistryPasswordByImage:        map[string]string{},
+				DefaultPackagesInstallOverride: map[string]bool{},
+				DefaultPackagesVersionOverride: map[string]string{},
+				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationNotSet,
+					RumEnabled:                boolPtr(true),
+					RumApplicationID:          "test-app-id",
+					RumClientToken:            "pub_token_123",
+					RumRemoteConfigurationID:  "config-123",
+					RumSite:                   "datadoghq.eu",
+				},
+				Tags:    []string{},
+				NoProxy: os.Getenv("NO_PROXY"),
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -291,6 +324,25 @@ func TestToEnv(t *testing.T) {
 				"DD_INFRASTRUCTURE_MODE=end_user_device",
 			},
 		},
+		{
+			name: "RUM configuration",
+			env: &Env{
+				InstallScript: InstallScriptEnv{
+					RumEnabled:               boolPtr(true),
+					RumApplicationID:         "test-app-id",
+					RumClientToken:           "pub_token_123",
+					RumRemoteConfigurationID: "config-123",
+					RumSite:                  "datadoghq.eu",
+				},
+			},
+			expected: []string{
+				"DD_RUM_ENABLED=true",
+				"DD_RUM_APPLICATION_ID=test-app-id",
+				"DD_RUM_CLIENT_TOKEN=pub_token_123",
+				"DD_RUM_REMOTE_CONFIGURATION_ID=config-123",
+				"DD_RUM_SITE=datadoghq.eu",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -299,6 +351,10 @@ func TestToEnv(t *testing.T) {
 			assert.ElementsMatch(t, tt.expected, result)
 		})
 	}
+}
+
+func boolPtr(b bool) *bool {
+	return &b
 }
 
 func TestAgentUserVars(t *testing.T) {
