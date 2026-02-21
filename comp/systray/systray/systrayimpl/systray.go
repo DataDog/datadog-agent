@@ -17,6 +17,7 @@ import (
 	"os/exec"
 	"runtime"
 	"sync"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -105,6 +106,12 @@ const (
 	menuSeparator         = "SEPARATOR"
 )
 
+const (
+	overlayHotKeyID = 0xDD0C
+	modWin          = 0x0008
+	overlayHotKey   = win.VK_F12
+)
+
 var (
 	cmds = map[string]func(*systrayImpl){
 		cmdTextStartService:   onStart,
@@ -112,6 +119,12 @@ var (
 		cmdTextRestartService: onRestart,
 		cmdTextConfig:         onConfigure,
 	}
+
+	user32               = syscall.NewLazyDLL("user32.dll")
+	procRegisterHotKey   = user32.NewProc("RegisterHotKey")
+	procUnregisterHotKey = user32.NewProc("UnregisterHotKey")
+	hookWndProc          uintptr
+	originalWndProc      uintptr
 )
 
 // newSystray creates a new systray component, which will start and stop based on
@@ -223,6 +236,24 @@ func windowRoutine(s *systrayImpl) {
 			win.PostQuitMessage(0)
 		})
 	}
+
+	// Custom message handler to handle hot keys.
+	hookWndProc = syscall.NewCallback(func(hwnd win.HWND, msg uint32, wParam, lParam uintptr) uintptr {
+		switch msg {
+		case win.WM_HOTKEY:
+			if wParam == overlayHotKeyID {
+				onOverlay(s)
+				return 0
+			}
+		case win.WM_NCDESTROY:
+			win.SetWindowLongPtr(hwnd, win.GWLP_WNDPROC, originalWndProc)
+			unregisterHotKeys(s, hwnd)
+		}
+		return win.CallWindowProc(originalWndProc, hwnd, msg, wParam, lParam)
+	})
+
+	// Register hot keys and a custom message handler.
+	originalWndProc = registerHotKeys(s, mw.Handle(), hookWndProc)
 
 	// Run the message loop
 	// use the notifyWindowToStop function to stop the message loop
@@ -422,6 +453,7 @@ func createMenuItems(s *systrayImpl, _ *walk.NotifyIcon) []menuItem {
 	menuitems = append(menuitems, menuItem{label: "&Restart", handler: menuHandler(cmdTextRestartService), enabled: true})
 	menuitems = append(menuitems, menuItem{label: "&Configure", handler: menuHandler(cmdTextConfig), enabled: true})
 	menuitems = append(menuitems, menuItem{label: "&Flare", handler: func() { onFlare(s) }, enabled: true})
+	menuitems = append(menuitems, menuItem{label: "Stat&us", handler: func() { onOverlay(s) }, enabled: true})
 	menuitems = append(menuitems, menuItem{label: menuSeparator})
 	menuitems = append(menuitems, menuItem{label: "E&xit", handler: func() { onExit(s) }, enabled: true})
 
@@ -445,5 +477,41 @@ func open(url string) error {
 func execCmd(s *systrayImpl, cmd string) {
 	if cmds[cmd] != nil {
 		cmds[cmd](s)
+	}
+}
+
+// registerHotKeys register global hot keys and a custom message handler to handle them.
+func registerHotKeys(s *systrayImpl, mainWnd win.HWND, customWndProc uintptr) uintptr {
+	if procRegisterHotKey == nil || procUnregisterHotKey == nil {
+		return 0
+	}
+
+	hasOverlayHotKey, _, _ := procRegisterHotKey.Call(
+		uintptr(mainWnd), uintptr(overlayHotKeyID), uintptr(modWin), uintptr(overlayHotKey))
+	if hasOverlayHotKey == win.FALSE {
+		return 0
+	}
+
+	// This replaces the message handler in the (github.com/lxn/walk/MainWindow) window
+	// with a custom one to handle hot keys.
+	prevWndProc := win.SetWindowLongPtr(mainWnd, win.GWLP_WNDPROC, customWndProc)
+	if prevWndProc == 0 {
+		unregisterHotKeys(s, mainWnd)
+		return 0
+	}
+
+	s.log.Infof("Registered Win+F12 hot key for overlay")
+	return prevWndProc
+}
+
+// unregisterHotKeys removes the previously registered global hot keys.
+func unregisterHotKeys(s *systrayImpl, mainWnd win.HWND) {
+	if procRegisterHotKey == nil || procUnregisterHotKey == nil {
+		return
+	}
+
+	retVal, _, _ := procUnregisterHotKey.Call(uintptr(mainWnd), uintptr(overlayHotKeyID))
+	if retVal == win.FALSE {
+		s.log.Errorf("Failed to unregister hot key: %v", syscall.GetLastError())
 	}
 }
