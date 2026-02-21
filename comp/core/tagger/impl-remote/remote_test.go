@@ -19,6 +19,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
@@ -327,4 +329,42 @@ func TestGenerateContainerIDFromOriginInfo_ExpiryAndEviction(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "live-container", surviving.containerID)
 	assert.NoError(t, surviving.err)
+}
+
+func TestNegativeCacheTTL(t *testing.T) {
+	unresolvedErr := status.Error(codes.Unknown, "unable to resolve container ID from OriginInfo: {...}")
+	transportErr := status.Error(codes.Unavailable, "connection reset by peer")
+
+	t.Run("PIDOnlyUsesShortTTL", func(t *testing.T) {
+		originInfo := origindetection.OriginInfo{
+			ProductOrigin: origindetection.ProductOriginAPM,
+			LocalData:     origindetection.LocalData{ProcessID: 1234},
+		}
+
+		ttl, shouldCache := negativeCacheTTL(originInfo, unresolvedErr)
+		require.True(t, shouldCache)
+		assert.Equal(t, pidOnlyNegativeCacheExpiration, ttl)
+	})
+
+	t.Run("StableHintsUseLongTTL", func(t *testing.T) {
+		originInfo := origindetection.OriginInfo{
+			ProductOrigin: origindetection.ProductOriginAPM,
+			LocalData:     origindetection.LocalData{Inode: 42},
+		}
+
+		ttl, shouldCache := negativeCacheTTL(originInfo, unresolvedErr)
+		require.True(t, shouldCache)
+		assert.Equal(t, negativeCacheExpiration, ttl)
+	})
+
+	t.Run("TransportErrorsAreNotCached", func(t *testing.T) {
+		originInfo := origindetection.OriginInfo{
+			ProductOrigin: origindetection.ProductOriginAPM,
+			LocalData:     origindetection.LocalData{Inode: 42},
+		}
+
+		ttl, shouldCache := negativeCacheTTL(originInfo, transportErr)
+		assert.False(t, shouldCache)
+		assert.Zero(t, ttl)
+	})
 }
