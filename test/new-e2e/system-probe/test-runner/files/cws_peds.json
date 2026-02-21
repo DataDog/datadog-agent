@@ -5,5 +5,8 @@
 				"TestEventMonitor"
 			]
 		}
-	}
+	},
+	"additional_test_args": [
+		"-test.shuffle=on"
+	]
 }

@@ -5839,13 +5839,48 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 						continue
 					}
 					commPath := filepath.Join(procDir, entry.Name(), "comm")
+					cmdlinePath := filepath.Join(procDir, entry.Name(), "cmdline")
 					data, err := os.ReadFile(commPath)
 					if err != nil {
 						continue
 					}
-					if strings.Contains(string(data), "syscall_tester") {
-						discoveredPIDs = append(discoveredPIDs, uint32(pidInt))
+					if !strings.Contains(string(data), "syscall_tester") {
+						continue
 					}
+
+					data2, err := os.ReadFile(cmdlinePath)
+					if err != nil {
+						continue
+					}
+
+					// Read additional process info (state and PPid) and parent cmdline for debugging.
+					statusPath := filepath.Join(procDir, entry.Name(), "status")
+					statusData, _ := os.ReadFile(statusPath)
+
+					ppid := ""
+					state := ""
+					for _, line := range strings.Split(string(statusData), "\n") {
+						if strings.HasPrefix(line, "PPid:") {
+							ppid = strings.TrimSpace(strings.TrimPrefix(line, "PPid:"))
+						}
+						if strings.HasPrefix(line, "State:") {
+							state = strings.TrimSpace(strings.TrimPrefix(line, "State:"))
+						}
+					}
+
+					parentCmdline := ""
+					if ppid != "" {
+						parentCmd := filepath.Join(procDir, ppid, "cmdline")
+						if b, err := os.ReadFile(parentCmd); err == nil {
+							parentCmdline = string(b)
+						}
+					}
+
+					discoveredPIDs = append(discoveredPIDs, uint32(pidInt))
+					fmt.Printf(
+						"Found syscall_tester pid %d (state=%s, ppid=%s, parent_cmdline=%q): %q\n",
+						uint32(pidInt), state, ppid, parentCmdline, string(data2),
+					)
 				}
 			}
 
