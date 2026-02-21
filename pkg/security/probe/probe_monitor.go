@@ -190,6 +190,76 @@ func (m *EBPFMonitors) ProcessEvent(event *model.Event, scrubber *utils.Scrubber
 
 	var pathErr *path.ErrPathResolution
 	if errors.As(event.Error, &pathErr) {
+		// Print detailed information about the abnormal path detection
+		fmt.Printf("\n========== ABNORMAL PATH DETECTED ==========\n")
+		fmt.Printf("Event Type: %s\n", event.GetType())
+		fmt.Printf("Error: %v\n", pathErr.Err)
+		fmt.Printf("Timestamp: %v\n", event.ResolveEventTime())
+
+		// Print process context if available
+		if event.ProcessContext != nil {
+			proc := event.ProcessContext.Process
+			fmt.Printf("\n--- Process Information ---\n")
+			fmt.Printf("PID: %d\n", proc.Pid)
+			fmt.Printf("Comm: %s\n", proc.Comm)
+			fmt.Printf("Exe: %s\n", proc.FileEvent.PathnameStr)
+			fmt.Printf("UID: %d, GID: %d\n", proc.UID, proc.GID)
+
+			// Container info
+			if proc.ContainerContext.ContainerID != "" {
+				fmt.Printf("Container ID: %s\n", proc.ContainerContext.ContainerID)
+			}
+
+			// Parent process if available
+			if event.ProcessContext.HasParent() && event.ProcessContext.Parent != nil {
+				fmt.Printf("Parent PID: %d, Parent Comm: %s\n",
+					event.ProcessContext.Parent.Pid,
+					event.ProcessContext.Parent.Comm)
+			}
+		}
+
+		// Print file-specific information based on event type
+		fmt.Printf("\n--- File/Path Information ---\n")
+		switch event.GetEventType() {
+		case model.FileOpenEventType:
+			fmt.Printf("Open File Path: %s (attempted)\n", event.Open.File.PathnameStr)
+			fmt.Printf("Open Flags: 0x%x, Mode: 0%o\n", event.Open.Flags, event.Open.Mode)
+			fmt.Printf("Inode: %d, MountID: %d\n", event.Open.File.Inode, event.Open.File.MountID)
+			if event.Open.SyscallPath != "" {
+				fmt.Printf("Syscall Path Arg: %s\n", event.Open.SyscallPath)
+			}
+		case model.FileChmodEventType:
+			fmt.Printf("Chmod File Path: %s (attempted)\n", event.Chmod.File.PathnameStr)
+			fmt.Printf("Inode: %d, MountID: %d\n", event.Chmod.File.Inode, event.Chmod.File.MountID)
+		case model.FileChownEventType:
+			fmt.Printf("Chown File Path: %s (attempted)\n", event.Chown.File.PathnameStr)
+			fmt.Printf("Inode: %d, MountID: %d\n", event.Chown.File.Inode, event.Chown.File.MountID)
+		case model.FileUnlinkEventType:
+			fmt.Printf("Unlink File Path: %s (attempted)\n", event.Unlink.File.PathnameStr)
+			fmt.Printf("Inode: %d, MountID: %d\n", event.Unlink.File.Inode, event.Unlink.File.MountID)
+		case model.FileRenameEventType:
+			fmt.Printf("Rename Old Path: %s (attempted)\n", event.Rename.Old.PathnameStr)
+			fmt.Printf("Rename New Path: %s (attempted)\n", event.Rename.New.PathnameStr)
+			fmt.Printf("Old Inode: %d, New Inode: %d\n", event.Rename.Old.Inode, event.Rename.New.Inode)
+		case model.FileMkdirEventType:
+			fmt.Printf("Mkdir Path: %s (attempted)\n", event.Mkdir.File.PathnameStr)
+			fmt.Printf("Inode: %d, MountID: %d\n", event.Mkdir.File.Inode, event.Mkdir.File.MountID)
+		case model.FileRmdirEventType:
+			fmt.Printf("Rmdir Path: %s (attempted)\n", event.Rmdir.File.PathnameStr)
+			fmt.Printf("Inode: %d, MountID: %d\n", event.Rmdir.File.Inode, event.Rmdir.File.MountID)
+		case model.FileLinkEventType:
+			fmt.Printf("Link Source: %s, Target: %s (attempted)\n", event.Link.Source.PathnameStr, event.Link.Target.PathnameStr)
+		case model.ExecEventType:
+			if event.Exec.Process != nil {
+				fmt.Printf("Exec File Path: %s (attempted)\n", event.Exec.Process.FileEvent.PathnameStr)
+				fmt.Printf("Inode: %d, MountID: %d\n", event.Exec.Process.FileEvent.Inode, event.Exec.Process.FileEvent.MountID)
+			}
+		default:
+			fmt.Printf("Event-specific file info not displayed for type: %s\n", event.GetType())
+		}
+
+		fmt.Printf("============================================\n\n")
+
 		m.ebpfProbe.probe.DispatchCustomEvent(
 			NewAbnormalEvent(m.ebpfProbe.GetAgentContainerContext(), events.AbnormalPathRuleID, events.AbnormalPathRuleDesc, event, scrubber, pathErr.Err, opts),
 		)
