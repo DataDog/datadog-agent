@@ -121,3 +121,5 @@ replace github.com/DataDog/datadog-agent/pkg/util/system => ../../util/system
 replace github.com/DataDog/datadog-agent/pkg/util/testutil => ../../util/testutil
 
 replace github.com/DataDog/datadog-agent/pkg/trace => ../../trace
+
+replace github.com/shirou/gopsutil/v4 => github.com/shirou/gopsutil/v4 v4.25.11

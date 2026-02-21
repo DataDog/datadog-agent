@@ -358,3 +358,5 @@ replace (
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../../../../../test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ../../../../../../test/otel
 )
+
+replace github.com/shirou/gopsutil/v4 => github.com/shirou/gopsutil/v4 v4.25.11
