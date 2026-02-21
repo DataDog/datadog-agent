@@ -343,10 +343,10 @@ func TestNegativeCacheTTL(t *testing.T) {
 
 		ttl, shouldCache := negativeCacheTTL(originInfo, unresolvedErr)
 		require.True(t, shouldCache)
-		assert.Equal(t, pidOnlyNegativeCacheExpiration, ttl)
+		assert.Equal(t, negativeCacheExpiration, ttl)
 	})
 
-	t.Run("StableHintsUseLongTTL", func(t *testing.T) {
+	t.Run("StableHintsAlsoUseShortTTL", func(t *testing.T) {
 		originInfo := origindetection.OriginInfo{
 			ProductOrigin: origindetection.ProductOriginAPM,
 			LocalData:     origindetection.LocalData{Inode: 42},
@@ -365,7 +365,7 @@ func TestNegativeCacheTTL(t *testing.T) {
 
 		ttl, shouldCache := negativeCacheTTL(originInfo, unresolvedErr)
 		require.True(t, shouldCache)
-		assert.Equal(t, pidOnlyNegativeCacheExpiration, ttl)
+		assert.Equal(t, negativeCacheExpiration, ttl)
 	})
 
 	t.Run("NoOriginHintsAreNotCached", func(t *testing.T) {
