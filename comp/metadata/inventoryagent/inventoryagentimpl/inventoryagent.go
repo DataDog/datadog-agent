@@ -496,7 +496,7 @@ func (ia *inventoryagent) getConfigs(data agentMetadata) {
 				}
 			}
 		}
-		if yaml, err := ia.marshalAndScrub(ia.conf.AllSettings()); err == nil {
+		if yaml, err := ia.marshalAndScrub(ia.conf.AllSettingsWithoutSecrets()); err == nil {
 			data["full_configuration"] = yaml
 		}
 	}

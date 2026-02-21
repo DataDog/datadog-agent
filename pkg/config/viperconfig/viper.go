@@ -790,6 +790,23 @@ func (c *safeConfig) AllSettingsBySource() map[model.Source]interface{} {
 	return res
 }
 
+// AllSettingsWithoutSecrets returns all settings from the config without the secret backend layer.
+// In the viper implementation, secrets are not stored as a separate layer, so this falls back
+// to AllSettings which should still run the scrubber
+func (c *safeConfig) AllSettingsWithoutSecrets() map[string]interface{} {
+	return c.AllSettings()
+}
+
+// In the viper implementation, fall back to AllSettingsWithoutDefault
+func (c *safeConfig) AllSettingsWithoutDefaultOrSecrets() map[string]interface{} {
+	return c.AllSettingsWithoutDefault()
+}
+
+// GetSecretSettingPaths does not exist in the viper impl
+func (c *safeConfig) GetSecretSettingPaths() []string {
+	return nil
+}
+
 // AllFlattenedSettingsWithSequenceID returns all settings as a flattened map along with the sequence ID.
 // Keys are flattened (e.g., "logs_config.enabled" instead of nested {"logs_config": {"enabled": ...}}).
 // This provides atomic access to flattened keys, values, and sequence ID under a single lock.
