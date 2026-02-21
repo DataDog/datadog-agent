@@ -137,7 +137,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.54.0 // indirect
 	github.com/DataDog/datadog-go/v5 v5.8.3 // indirect
-	github.com/DataDog/go-sqllexer v0.1.13 // indirect; indirectom/DataDog/go-tuf v1.1.1-0.5.2 // indirect
+	github.com/DataDog/go-sqllexer v0.2.0 // indirect; indirectom/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/DataDog/viper v1.15.0 // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect
