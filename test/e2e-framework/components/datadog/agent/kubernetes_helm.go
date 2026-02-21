@@ -578,13 +578,6 @@ func buildLinuxHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentI
 					"name":  pulumi.String("DD_CLC_RUNNER_REMOTE_TAGGER_ENABLED"),
 					"value": pulumi.String("true"),
 				},
-				// namespace labels as tags are removed here ƒrom the cluster check runner to
-				// be able to test that it can get the namespace labels from the cluster tagger
-				// via the remote tagger
-				pulumi.StringMap{
-					"name":  pulumi.String("DD_KUBERNETES_NAMESPACE_LABELS_AS_TAGS"),
-					"value": pulumi.JSONMarshal(map[string]interface{}{}),
-				},
 			},
 			"resources": pulumi.StringMapMap{
 				"requests": pulumi.StringMap{
