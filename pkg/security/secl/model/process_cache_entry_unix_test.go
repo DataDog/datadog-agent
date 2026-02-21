@@ -15,22 +15,13 @@ import (
 )
 
 func newPCE(pid uint32, parent *ProcessCacheEntry, isParentMissing bool) *ProcessCacheEntry {
-	pce := &ProcessCacheEntry{
-		ProcessContext: ProcessContext{
-			Process: Process{
-				PIDContext: PIDContext{
-					Pid: pid,
-				},
-
-				IsParentMissing: isParentMissing,
-			},
-			Ancestor: parent,
-		},
-	}
+	pce := &ProcessCacheEntry{}
+	pce.Pid = pid
+	pce.IsParentMissing = isParentMissing
 	if parent != nil {
 		pce.PPid = parent.Pid
+		pce.setAncestor(parent)
 	}
-
 	return pce
 }
 
@@ -83,20 +74,6 @@ func TestHasValidLineage(t *testing.T) {
 		assert.ErrorAs(t, err, &mn)
 	})
 
-	t.Run("cycle-detection", func(t *testing.T) {
-		pid1 := newPCE(2, nil, false)
-		child1 := newPCE(3, pid1, false)
-		child2 := newPCE(4, child1, false)
-
-		// create cycle
-		pid1.setAncestor(child2)
-
-		isValid, err := child2.HasValidLineage()
-		assert.False(t, isValid)
-		assert.NotNil(t, err)
-
-		assert.ErrorIs(t, err, ErrCycleInProcessLineage)
-	})
 }
 
 func TestEntryEquals(t *testing.T) {

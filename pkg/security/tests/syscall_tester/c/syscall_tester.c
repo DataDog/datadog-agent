@@ -1928,6 +1928,76 @@ int test_dnsloop(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+// subreaper test: sets the current process as a subreaper, forks a child that
+// forks a grandchild and immediately exits. The grandchild is reparented to the
+// subreaper, performs 50 fork/exit cycles to stress the process cache, then
+// opens the file given as argument.
+// Usage: syscall_tester subreaper <filepath>
+int test_subreaper(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Usage: subreaper <filepath>\n");
+        return EXIT_FAILURE;
+    }
+    char *filepath = argv[1];
+
+    if (prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) != 0) {
+        perror("prctl PR_SET_CHILD_SUBREAPER");
+        return EXIT_FAILURE;
+    }
+
+    pid_t child = fork();
+    if (child < 0) {
+        perror("fork (child)");
+        return EXIT_FAILURE;
+    }
+
+    if (child == 0) {
+        // child: fork a grandchild and exit immediately
+        pid_t grandchild = fork();
+        if (grandchild < 0) {
+            perror("fork (grandchild)");
+            _exit(EXIT_FAILURE);
+        }
+        if (grandchild == 0) {
+            // Build a chain of 50 fork/exit: each process forks a child,
+            // the parent exits, and the last child in the chain opens the file.
+            // Every intermediate process is reparented to the subreaper.
+            for (int i = 0; i < 50; i++) {
+                pid_t p = fork();
+                if (p < 0) {
+                    // fork failed: this process opens the file instead
+                    break;
+                }
+                if (p > 0) {
+                    // parent: exit, child will be reparented to subreaper
+                    _exit(EXIT_SUCCESS);
+                }
+                // child: continue the loop to fork the next level
+            }
+
+            // Wait for the previous process in the chain to exit and for
+            // the kernel to complete reparenting before opening the file.
+            sleep(1);
+
+            int fd = open(filepath, O_RDONLY | O_CREAT, 0400);
+            if (fd > 0)
+                close(fd);
+            _exit(EXIT_SUCCESS);
+        }
+        // child exits, grandchild will be reparented to the subreaper
+        _exit(EXIT_SUCCESS);
+    }
+
+    // subreaper: wait for child, then wait for all reparented descendants.
+    // With the fork/exit chain, every intermediate process is reparented to
+    // this subreaper. We must stay alive and reap them all so that the last
+    // child in the chain still has us as its parent when it opens the file.
+    waitpid(child, NULL, 0);
+    while (waitpid(-1, NULL, 0) > 0) {}
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     setbuf(stdout, NULL);
 
@@ -2047,6 +2117,8 @@ int main(int argc, char **argv) {
             exit_code = test_udploop(sub_argc, sub_argv);
         } else if (strcmp(cmd, "dnsloop") == 0) {
             exit_code = test_dnsloop(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "subreaper") == 0) {
+            exit_code = test_subreaper(sub_argc, sub_argv);
         } else {
             fprintf(stderr, "Unknown command: %s\n", cmd);
             exit_code = EXIT_FAILURE;
