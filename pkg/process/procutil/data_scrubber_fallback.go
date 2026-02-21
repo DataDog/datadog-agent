@@ -17,6 +17,7 @@ var (
 		"*access_token*", "*auth_token*",
 		"*api_key*", "*apikey*",
 		"*secret*", "*credentials*", "stripetoken",
+		"*key*", "*token*", "*auth*",
 	}
 
 	forbiddenSymbolsRegex = "[^a-zA-Z0-9_*]"
