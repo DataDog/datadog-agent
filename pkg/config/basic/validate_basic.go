@@ -12,9 +12,9 @@ import (
 	"strings"
 )
 
-// TODO: Callers that are using SetWithoutSource improperly, need to be fixed
+// TODO: Callers that are using SetInTest improperly, need to be fixed
 var allowlistCaller = []string{
-	// Fixing this test by updating its use of SetWithoutSources causes other failures, needs investigation
+	// Fixing this test by updating its use of SetInTest causes other failures, needs investigation
 	"comp/core/autodiscovery/listeners/snmp_test.go",
 
 	// TestNewConfig has an expectedConfig, which has embedded structs pathteststore.Config and connfilter.Config
@@ -35,7 +35,7 @@ func ValidateBasicTypes(value interface{}) bool {
 		return true
 	}
 
-	// Allow existing callers that are using SetWithoutSource. Fix these later
+	// Allow existing callers that are using SetInTest. Fix these later
 	for _, stackSkip := range []int{2, 3, 4} {
 		_, absfile, _, _ := runtime.Caller(stackSkip)
 		for _, allowSource := range allowlistCaller {

@@ -45,7 +45,7 @@ func TestNewMock_ProvidesMockFilter(t *testing.T) {
 
 func TestNewMock_UsesMockConfig(t *testing.T) {
 	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("container_exclude", "name:excluded-container")
+	cfg.SetInTest("container_exclude", "name:excluded-container")
 
 	logger := logmock.New(t)
 	telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())

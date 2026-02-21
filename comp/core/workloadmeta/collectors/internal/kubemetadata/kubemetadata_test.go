@@ -1037,7 +1037,7 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 			// of cache miss. They are only testing parsePods behaves correctly depending
 			// on the cluster agent version and the agent configuration.
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("kubelet_cache_pods_duration", 5) // Cache is disabled by default. Enable it.
+			mockConfig.SetInTest("kubelet_cache_pods_duration", 5) // Cache is disabled by default. Enable it.
 			cache.Cache.Set("KubeletPodListCacheKey", podsCache, -1)
 
 			kubeUtilFake := kubelet.NewKubeUtil()

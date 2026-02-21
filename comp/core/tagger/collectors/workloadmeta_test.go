@@ -1211,7 +1211,7 @@ func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			cfg.SetWithoutSource("kubernetes_persistent_volume_claims_as_tags", false)
+			cfg.SetInTest("kubernetes_persistent_volume_claims_as_tags", false)
 			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 			collector.staticTags = tt.staticTags
 
@@ -1900,7 +1900,7 @@ func TestHandleECSTask(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			cfg.SetWithoutSource("ecs_collect_resource_tags_ec2", true)
+			cfg.SetInTest("ecs_collect_resource_tags_ec2", true)
 			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 
 			actual := collector.handleECSTask(workloadmeta.Event{
@@ -3096,10 +3096,10 @@ func TestNoGlobalTags(t *testing.T) {
 	fakeProcessor := &fakeProcessor{ch: collectorCh}
 
 	// Global tags that SHOULD NOT be stored in the tagger's global entity
-	mockConfig.SetWithoutSource("tags", []string{"some:tag"})
-	mockConfig.SetWithoutSource("extra_tags", []string{"extra:tag"})
-	mockConfig.SetWithoutSource("cluster_checks.extra_tags", []string{"cluster:tag"})
-	mockConfig.SetWithoutSource("orchestrator_explorer.extra_tags", []string{"orch:tag"})
+	mockConfig.SetInTest("tags", []string{"some:tag"})
+	mockConfig.SetInTest("extra_tags", []string{"extra:tag"})
+	mockConfig.SetInTest("cluster_checks.extra_tags", []string{"cluster:tag"})
+	mockConfig.SetInTest("orchestrator_explorer.extra_tags", []string{"orch:tag"})
 
 	wmetaCollector := NewWorkloadMetaCollector(context.Background(), mockConfig, nil, fakeProcessor)
 	wmetaCollector.collectStaticGlobalTags(context.Background(), mockConfig)

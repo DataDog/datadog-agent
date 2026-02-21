@@ -24,7 +24,7 @@ import (
 
 func TestPull(t *testing.T) {
 	config := configmock.New(t)
-	config.SetWithoutSource("container_image.enabled", false)
+	config.SetInTest("container_image.enabled", false)
 
 	createTime := time.Now().Add(-10 * time.Minute).UnixNano()
 	startTime := time.Now().Add(-5 * time.Minute).UnixNano()
@@ -525,7 +525,7 @@ func TestGenerateImageEventFromContainer(t *testing.T) {
 
 func TestOptimizedImageCollection(t *testing.T) {
 	config := configmock.New(t)
-	config.SetWithoutSource("container_image.enabled", true)
+	config.SetInTest("container_image.enabled", true)
 
 	tests := []struct {
 		name                     string
@@ -662,7 +662,7 @@ func TestOptimizedImageCollection(t *testing.T) {
 func TestPullWithImageCollectionEnabled(t *testing.T) {
 	config := configmock.New(t)
 	// Enable image collection to test the optimized image collection path
-	config.SetWithoutSource("container_image.enabled", true)
+	config.SetInTest("container_image.enabled", true)
 
 	createTime := time.Now().Add(-10 * time.Minute).UnixNano()
 	startTime := time.Now().Add(-5 * time.Minute).UnixNano()

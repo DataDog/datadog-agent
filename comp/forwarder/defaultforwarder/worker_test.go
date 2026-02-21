@@ -45,7 +45,7 @@ func TestNewNoSSLWorker(t *testing.T) {
 	requeue := make(chan transaction.Transaction)
 
 	mockConfig := mock.New(t)
-	mockConfig.SetWithoutSource("skip_ssl_validation", true)
+	mockConfig.SetInTest("skip_ssl_validation", true)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
 	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, 1, mockConfig))
@@ -258,7 +258,7 @@ func TestWorkerCancelsWaitingTransactions(t *testing.T) {
 	// Configure the worker to have 3 maximum concurrent requests
 	requests := 3
 
-	mockConfig.SetWithoutSource("forwarder_max_concurrent_requests", requests)
+	mockConfig.SetInTest("forwarder_max_concurrent_requests", requests)
 	secrets := secretsmock.New(t)
 	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, requests, mockConfig))
 

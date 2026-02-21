@@ -139,7 +139,7 @@ func (suite *TailerTestSuite) TestTailerTimeDurationConfig() {
 	// To satisfy the suite level tailer
 	suite.tailer.StartFromBeginning()
 
-	mockConfig.SetWithoutSource("logs_config.close_timeout", 42)
+	mockConfig.SetInTest("logs_config.close_timeout", 42)
 
 	tailer := NewTailer(suite.createTailerOptions(nil))
 	tailer.StartFromBeginning()
@@ -243,7 +243,7 @@ func (suite *TailerTestSuite) TestRecoverTailing() {
 
 func (suite *TailerTestSuite) TestWithBlanklinesSingleLineHandler() {
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection_tagging", false)
+	mockConfig.SetInTest("logs_config.auto_multi_line_detection_tagging", false)
 
 	// Recreate the tailer after config change so decoder uses SingleLineHandler
 	suite.tailer = NewTailer(suite.createTailerOptions(nil))
@@ -362,18 +362,18 @@ func (suite *TailerTestSuite) TestBuildTagsFileDir() {
 
 func (suite *TailerTestSuite) TestTruncatedTagAutoMultilineHandler() {
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("logs_config.max_message_size_bytes", 100)     // Small size to force truncation when aggregated
-	mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", true)        // Enable truncation tagging
-	mockConfig.SetWithoutSource("logs_config.tag_multi_line_logs", true)       // Enable multiline tagging
-	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", true) // Enable multiline tagging
+	mockConfig.SetInTest("logs_config.max_message_size_bytes", 100)     // Small size to force truncation when aggregated
+	mockConfig.SetInTest("logs_config.tag_truncated_logs", true)        // Enable truncation tagging
+	mockConfig.SetInTest("logs_config.tag_multi_line_logs", true)       // Enable multiline tagging
+	mockConfig.SetInTest("logs_config.auto_multi_line_detection", true) // Enable multiline tagging
 
 	// Enable auto multiline detection with aggregation (not just detection-only tagging)
-	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection_tagging", false) // Disable detection-only
+	mockConfig.SetInTest("logs_config.auto_multi_line_detection_tagging", false) // Disable detection-only
 	// Instead, enable full auto multiline on the source itself
 
-	defer mockConfig.SetWithoutSource("logs_config.max_message_size_bytes", pkgconfigsetup.DefaultMaxMessageSizeBytes)
-	defer mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", false)
-	defer mockConfig.SetWithoutSource("logs_config.tag_multi_line_logs", false)
+	defer mockConfig.SetInTest("logs_config.max_message_size_bytes", pkgconfigsetup.DefaultMaxMessageSizeBytes)
+	defer mockConfig.SetInTest("logs_config.tag_truncated_logs", false)
+	defer mockConfig.SetInTest("logs_config.tag_multi_line_logs", false)
 
 	autoML := true
 	source := sources.NewLogSource("", &config.LogsConfig{
@@ -417,12 +417,12 @@ func (suite *TailerTestSuite) TestTruncatedTagAutoMultilineHandler() {
 
 func (suite *TailerTestSuite) TestTruncatedTagSingleLineHandler() {
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("logs_config.max_message_size_bytes", 3)
-	mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", true)
-	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection_tagging", false)
-	defer mockConfig.SetWithoutSource("logs_config.max_message_size_bytes", pkgconfigsetup.DefaultMaxMessageSizeBytes)
-	defer mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", false)
-	defer mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection_tagging", true)
+	mockConfig.SetInTest("logs_config.max_message_size_bytes", 3)
+	mockConfig.SetInTest("logs_config.tag_truncated_logs", true)
+	mockConfig.SetInTest("logs_config.auto_multi_line_detection_tagging", false)
+	defer mockConfig.SetInTest("logs_config.max_message_size_bytes", pkgconfigsetup.DefaultMaxMessageSizeBytes)
+	defer mockConfig.SetInTest("logs_config.tag_truncated_logs", false)
+	defer mockConfig.SetInTest("logs_config.auto_multi_line_detection_tagging", true)
 
 	source := sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,

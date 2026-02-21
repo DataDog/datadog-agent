@@ -302,7 +302,7 @@ func TestRegistrationRefreshContention(t *testing.T) {
 	configComp := configmock.New(t)
 
 	// Set a short query timeout for faster test
-	configComp.SetWithoutSource("remote_agent_registry.query_timeout", 50*time.Millisecond)
+	configComp.SetInTest("remote_agent_registry.query_timeout", 50*time.Millisecond)
 
 	registerCallCount := 0
 	refreshCallCount := 0

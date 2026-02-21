@@ -658,10 +658,10 @@ func TestExpectedTagDuration(t *testing.T) {
 	tags := []string{"tag1:value1"}
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
-	mockConfig.SetWithoutSource("tags", tags)
+	mockConfig.SetInTest("tags", tags)
 	// We do not want to trigger the log, local tag provider cleanup routine. Setting it to 1h to make sure this
 	// test, even with the race detector enabled, don't hit that time limit.
-	mockConfig.SetWithoutSource("logs_config.expected_tags_duration", "1h")
+	mockConfig.SetInTest("logs_config.expected_tags_duration", "1h")
 
 	mockJournal := &MockJournal{m: &sync.Mutex{}}
 	source := sources.NewLogSource("", &config.LogsConfig{})

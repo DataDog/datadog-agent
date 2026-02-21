@@ -1838,7 +1838,7 @@ func TestKSMCheckInitTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			conf := configmock.New(t)
-			conf.SetWithoutSource("tags", tt.tagsInConfig)
+			conf.SetInTest("tags", tt.tagsInConfig)
 
 			k := &KSMCheck{
 				instance:            tt.fields.instance,

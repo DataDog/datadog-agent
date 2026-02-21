@@ -41,7 +41,7 @@ func Test_SyntheticsTestScheduler_StartAndStop(t *testing.T) {
 	// GIVEN
 	testDir := t.TempDir()
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("run_path", testDir)
+	mockConfig.SetInTest("run_path", testDir)
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 	l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, utillog.DebugLvl)
@@ -412,7 +412,7 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			testDir := t.TempDir()
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("run_path", testDir)
+			mockConfig.SetInTest("run_path", testDir)
 			firstUpdateTime := time.Now()
 			secondUpdateTime := firstUpdateTime.Add(5 * time.Minute)
 			isFirstUpdate := true
@@ -551,7 +551,7 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			testDir := t.TempDir()
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("run_path", testDir)
+			mockConfig.SetInTest("run_path", testDir)
 
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)

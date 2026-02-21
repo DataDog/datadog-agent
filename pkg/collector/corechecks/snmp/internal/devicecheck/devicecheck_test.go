@@ -1037,7 +1037,7 @@ collect_topology: false
 	assert.Nil(t, err)
 
 	cfg := agentconfig.NewMock(t)
-	cfg.SetWithoutSource("tags", []string{"tag1:value1"})
+	cfg.SetInTest("tags", []string{"tag1:value1"})
 
 	connMgr := NewConnectionManager(config, sessionFactory)
 	deviceCk, err := NewDeviceCheck(config, connMgr, cfg)

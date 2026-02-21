@@ -38,8 +38,8 @@ func TestGetPreferredDSDEndpointNix(t *testing.T) {
 
 	t.Run("UDS available", func(t *testing.T) {
 		sockPath := createSocket(t)
-		cfg.SetWithoutSource("dogstatsd_socket", sockPath)
-		cfg.SetWithoutSource("use_dogstatsd", true)
+		cfg.SetInTest("dogstatsd_socket", sockPath)
+		cfg.SetInTest("use_dogstatsd", true)
 
 		j := NewJMXFetch(nil, nil)
 		assert.Equal(t, "statsd:unix://"+sockPath, j.getPreferredDSDEndpoint())
@@ -47,9 +47,9 @@ func TestGetPreferredDSDEndpointNix(t *testing.T) {
 
 	t.Run("DSD disabled falls back to UDP", func(t *testing.T) {
 		sockPath := createSocket(t)
-		cfg.SetWithoutSource("dogstatsd_socket", sockPath)
-		cfg.SetWithoutSource("dogstatsd_port", "8125")
-		cfg.SetWithoutSource("use_dogstatsd", false)
+		cfg.SetInTest("dogstatsd_socket", sockPath)
+		cfg.SetInTest("dogstatsd_port", "8125")
+		cfg.SetInTest("use_dogstatsd", false)
 
 		j := NewJMXFetch(nil, nil)
 		assert.Equal(t, "statsd:localhost:8125", j.getPreferredDSDEndpoint())

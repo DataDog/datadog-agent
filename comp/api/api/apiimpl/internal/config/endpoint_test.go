@@ -101,7 +101,7 @@ func TestConfigEndpoint(t *testing.T) {
 			cfg, server, configEndpoint := getConfigServer(t, authorizedConfigPaths)
 			if testCase.existing {
 				cfg.SetDefault(configName, "")
-				cfg.SetWithoutSource(configName, "some_value")
+				cfg.SetInTest(configName, "some_value")
 			}
 			testConfigValue(t, configEndpoint, server, configName, testCase.expectedStatus)
 		})
@@ -110,8 +110,8 @@ func TestConfigEndpoint(t *testing.T) {
 	t.Run("authorized_not_marshallable", func(t *testing.T) {
 		configName := "my.config.value"
 		cfg, _, _ := getConfigServer(t, api.AuthorizedSet{configName: {}})
-		// calling SetWithoutSource with an invalid type of data will panic
-		assert.Panics(t, func() { cfg.SetWithoutSource(configName, make(chan int)) })
+		// calling SetInTest with an invalid type of data will panic
+		assert.Panics(t, func() { cfg.SetInTest(configName, make(chan int)) })
 	})
 
 	parentConfigName := "root.parent"
@@ -126,9 +126,9 @@ func TestConfigEndpoint(t *testing.T) {
 			cfg, server, configEndpoint := getConfigServer(t, api.AuthorizedSet{parentConfigName: struct{}{}})
 
 			cfg.SetDefault(childConfigNameOne, "")
-			cfg.SetWithoutSource(childConfigNameOne, "child1_value")
+			cfg.SetInTest(childConfigNameOne, "child1_value")
 			cfg.SetDefault(childConfigNameTwo, "")
-			cfg.SetWithoutSource(childConfigNameTwo, "child2_value")
+			cfg.SetInTest(childConfigNameTwo, "child2_value")
 
 			testConfigValue(t, configEndpoint, server, testCase.configName, testCase.expectedStatus)
 		})
@@ -141,7 +141,7 @@ func TestConfigEndpoint(t *testing.T) {
 		cfg, server, configEndpoint := getConfigServer(t, api.AuthorizedSet{childConfigName: struct{}{}})
 
 		cfg.SetDefault(childConfigName, "")
-		cfg.SetWithoutSource(childConfigName, "child_value")
+		cfg.SetInTest(childConfigName, "child_value")
 
 		testConfigValue(t, configEndpoint, server, childConfigName, http.StatusOK)
 		testConfigValue(t, configEndpoint, server, parentConfigName, http.StatusForbidden)
@@ -186,7 +186,7 @@ func TestConfigListEndpoint(t *testing.T) {
 			cfg, server, _ := getConfigServer(t, test.authorizedConfigs)
 			for key, value := range test.configValues {
 				cfg.SetDefault(key, "")
-				cfg.SetWithoutSource(key, value)
+				cfg.SetInTest(key, value)
 			}
 
 			// test with and without trailing slash
@@ -220,9 +220,7 @@ func TestConfigEndpointJSONError(t *testing.T) {
 
 	cfg, server, _ := getConfigServer(t, api.AuthorizedSet{"my.config": {}})
 	cfg.SetDefault("my.config.value", []string{})
-	cfg.SetWithoutSource("my.config.value", []interface{}{
-		map[interface{}]interface{}{"a": "b", "c": "d"},
-	})
+	cfg.SetInTest("my.config.value", []interface{}{map[interface{}]interface{}{"a": "b", "c": "d"}})
 
 	for _, endpoint := range []string{"/", "/my.config"} {
 		resp, err := server.Client().Get(server.URL + endpoint)

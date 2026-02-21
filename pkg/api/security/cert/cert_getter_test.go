@@ -63,12 +63,12 @@ func setupTempConfig(t *testing.T) (model.Config, string) {
 	config := mock.New(t)
 
 	// Explicitly clear/set all relevant config values to prevent global state contamination
-	config.SetWithoutSource("ipc_cert_file_path", filepath.Join(tempDir, "test_cert.pem"))
-	config.SetWithoutSource("cluster_trust_chain.ca_cert_file_path", "")
-	config.SetWithoutSource("cluster_trust_chain.ca_key_file_path", "")
-	config.SetWithoutSource("cluster_trust_chain.enable_tls_verification", false)
-	config.SetWithoutSource("clc_runner_host", "")
-	config.SetWithoutSource("auth_token_file_path", "")
+	config.SetInTest("ipc_cert_file_path", filepath.Join(tempDir, "test_cert.pem"))
+	config.SetInTest("cluster_trust_chain.ca_cert_file_path", "")
+	config.SetInTest("cluster_trust_chain.ca_key_file_path", "")
+	config.SetInTest("cluster_trust_chain.enable_tls_verification", false)
+	config.SetInTest("clc_runner_host", "")
+	config.SetInTest("auth_token_file_path", "")
 
 	return config, tempDir
 }
@@ -97,12 +97,12 @@ func setupTempConfigWithCA(t *testing.T) (model.Config, string, *x509.Certificat
 	config := mock.New(t)
 
 	// Explicitly clear/set all relevant config values to prevent global state contamination
-	config.SetWithoutSource("ipc_cert_file_path", filepath.Join(tempDir, "test_cert.pem"))
-	config.SetWithoutSource("cluster_trust_chain.ca_cert_file_path", caCertPath)
-	config.SetWithoutSource("cluster_trust_chain.ca_key_file_path", caKeyPath)
-	config.SetWithoutSource("cluster_trust_chain.enable_tls_verification", true)
-	config.SetWithoutSource("clc_runner_host", "")
-	config.SetWithoutSource("auth_token_file_path", "")
+	config.SetInTest("ipc_cert_file_path", filepath.Join(tempDir, "test_cert.pem"))
+	config.SetInTest("cluster_trust_chain.ca_cert_file_path", caCertPath)
+	config.SetInTest("cluster_trust_chain.ca_key_file_path", caKeyPath)
+	config.SetInTest("cluster_trust_chain.enable_tls_verification", true)
+	config.SetInTest("clc_runner_host", "")
+	config.SetInTest("auth_token_file_path", "")
 
 	// Decode the certificate PEM
 	block, _ := pem.Decode(clusterCAcert)
@@ -176,7 +176,7 @@ func TestFetchOrCreateIPCCert_WithCLCRunnerHost(t *testing.T) {
 
 	// Set up CLC runner host configuration
 	testHostname := "123.456.789.0"
-	config.SetWithoutSource("clc_runner_host", testHostname)
+	config.SetInTest("clc_runner_host", testHostname)
 
 	// Generate certificate with CLC runner host
 	ctx := context.Background()
@@ -230,12 +230,12 @@ func TestFetchOrCreateIPCCert_WithCAAndCLCRunner(t *testing.T) {
 	config, tempDir, caCert, _ := setupTempConfigWithCA(t)
 
 	// Fake to be a CLC Runner
-	config.SetWithoutSource("clc_runner_enabled", true)
-	defer config.SetWithoutSource("clc_runner_enabled", false)
+	config.SetInTest("clc_runner_enabled", true)
+	defer config.SetInTest("clc_runner_enabled", false)
 
 	// Also set up CLC runner host configuration
 	testHostname := "clc-runner.example.com"
-	config.SetWithoutSource("clc_runner_host", testHostname)
+	config.SetInTest("clc_runner_host", testHostname)
 
 	// Generate certificate using both CA and CLC runner host config
 	ctx := context.Background()
@@ -504,8 +504,8 @@ func TestFetchOrCreateIPCCert_ClusterAgentFlavor(t *testing.T) {
 	// Mocking cluster agent URL configuration is required for ClusterAgent flavor
 	// This is needed because ClusterAgent flavor tries to get the cluster agent endpoint
 	// for adding it to certificate SANs.
-	config.SetWithoutSource("cluster_agent.url", "https://127.0.0.1:5005")
-	defer config.SetWithoutSource("cluster_agent.url", "")
+	config.SetInTest("cluster_agent.url", "https://127.0.0.1:5005")
+	defer config.SetInTest("cluster_agent.url", "")
 
 	// Generate certificate with ClusterAgent flavor
 	ctx := context.Background()

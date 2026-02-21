@@ -110,13 +110,13 @@ func (suite *KubeletConfigTestSuite) SetupSuite() {
 	kubelet.ResetCache()
 	jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("cluster_agent.enabled", true)
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "127.0.0.1")
-	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
-	mockConfig.SetWithoutSource("orchestrator_explorer.enabled", true)
-	mockConfig.SetWithoutSource("orchestrator_explorer.manifest_collection.enabled", true)
-	mockConfig.SetWithoutSource("kubernetes_pod_labels_as_tags", `{"tier":"dd_tier","component":"dd_component"}`)
-	mockConfig.SetWithoutSource("kubernetes_pod_annotations_as_tags", `{"kubernetes.io/config.source":"config_source","kubernetes.io/config.hash":"config_hash"}`)
+	mockConfig.SetInTest("cluster_agent.enabled", true)
+	mockConfig.SetInTest("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.SetInTest("kubelet_tls_verify", false)
+	mockConfig.SetInTest("orchestrator_explorer.enabled", true)
+	mockConfig.SetInTest("orchestrator_explorer.manifest_collection.enabled", true)
+	mockConfig.SetInTest("kubernetes_pod_labels_as_tags", `{"tier":"dd_tier","component":"dd_component"}`)
+	mockConfig.SetInTest("kubernetes_pod_annotations_as_tags", `{"kubernetes.io/config.source":"config_source","kubernetes.io/config.hash":"config_hash"}`)
 
 	sender := &fakeSender{}
 	suite.sender = sender

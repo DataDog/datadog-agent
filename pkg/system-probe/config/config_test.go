@@ -71,7 +71,7 @@ func TestEventStreamEnabledForSupportedKernelsWindowsUnsupported(t *testing.T) {
 func TestEnableDiscovery(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		cfg := mock.NewSystemProbe(t)
-		cfg.SetWithoutSource("discovery.enabled", true)
+		cfg.SetInTest("discovery.enabled", true)
 		assert.True(t, cfg.GetBool(discoveryNS("enabled")))
 	})
 
@@ -127,7 +127,7 @@ func TestEnableDiscovery(t *testing.T) {
 		mockCfg := mock.NewSystemProbe(t)
 
 		t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
-		mockCfg.SetWithoutSource("discovery.enabled", false)
+		mockCfg.SetInTest("discovery.enabled", false)
 
 		cfg, err := New("", "")
 		require.NoError(t, err)

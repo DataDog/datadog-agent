@@ -820,9 +820,9 @@ func TestDisabledCollectorsConfiguration(t *testing.T) {
 			require.True(t, ok)
 
 			WithGPUConfigEnabled(t)
-			pkgconfigsetup.Datadog().SetWithoutSource("gpu.disabled_collectors", tt.disabledCollectors)
+			pkgconfigsetup.Datadog().SetInTest("gpu.disabled_collectors", tt.disabledCollectors)
 			t.Cleanup(func() {
-				pkgconfigsetup.Datadog().SetWithoutSource("gpu.disabled_collectors", []string{})
+				pkgconfigsetup.Datadog().SetInTest("gpu.disabled_collectors", []string{})
 			})
 
 			check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))

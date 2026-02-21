@@ -215,9 +215,9 @@ func (suite *RestartTestSuite) TestAgentStartRestart() {
 	// Update config to point to HTTP server before restart
 	// This ensures buildEndpoints() will use HTTP when restart() is called
 	httpURL := fmt.Sprintf("http://%s:%d", httpServer.Endpoint.Host, httpServer.Endpoint.Port)
-	// Type assert to pkgconfigmodel.Config to access SetWithoutSource
+	// Type assert to pkgconfigmodel.Config to access SetInTest
 	if cfg, ok := agent.config.(pkgconfigmodel.Config); ok {
-		cfg.SetWithoutSource("logs_config.logs_dd_url", httpURL)
+		cfg.SetInTest("logs_config.logs_dd_url", httpURL)
 	}
 
 	suite.T().Logf("RESTARTING AGENT")
@@ -276,7 +276,7 @@ func (suite *RestartTestSuite) TestRestart_FlushesAuditor() {
 	defer httpServer.Stop()
 	httpURL := fmt.Sprintf("http://%s:%d", httpServer.Endpoint.Host, httpServer.Endpoint.Port)
 	if c, ok := agent.config.(pkgconfigmodel.Config); ok {
-		c.SetWithoutSource("logs_config.logs_dd_url", httpURL)
+		c.SetInTest("logs_config.logs_dd_url", httpURL)
 	}
 
 	// Get the auditor registry file path to check it was written
@@ -549,7 +549,7 @@ func (suite *RestartTestSuite) TestRestartWithHTTPUpgrade_Success() {
 
 	httpURL := fmt.Sprintf("http://%s:%d", httpServer.Endpoint.Host, httpServer.Endpoint.Port)
 	if c, ok := agent.config.(pkgconfigmodel.Config); ok {
-		c.SetWithoutSource("logs_config.logs_dd_url", httpURL)
+		c.SetInTest("logs_config.logs_dd_url", httpURL)
 	}
 
 	// Execute HTTP upgrade
@@ -583,7 +583,7 @@ func (suite *RestartTestSuite) TestRestartWithHTTPUpgrade_FailureRollsBackToTCP(
 
 	// Set invalid HTTP URL to trigger failure
 	if c, ok := agent.config.(pkgconfigmodel.Config); ok {
-		c.SetWithoutSource("logs_config.logs_dd_url", "invalid-address-will-fail")
+		c.SetInTest("logs_config.logs_dd_url", "invalid-address-will-fail")
 	}
 
 	// Attempt HTTP upgrade (should fail and rollback)
@@ -619,7 +619,7 @@ func (suite *RestartTestSuite) TestRestartWithHTTPUpgrade_PreservesComponentRefe
 
 	httpURL := fmt.Sprintf("http://%s:%d", httpServer.Endpoint.Host, httpServer.Endpoint.Port)
 	if c, ok := agent.config.(pkgconfigmodel.Config); ok {
-		c.SetWithoutSource("logs_config.logs_dd_url", httpURL)
+		c.SetInTest("logs_config.logs_dd_url", httpURL)
 	}
 
 	// Execute HTTP upgrade
@@ -689,7 +689,7 @@ func (suite *RestartTestSuite) TestRestart_FailureRollbackThenRetrySuccess() {
 	// ATTEMPT 1: Try to restart with invalid HTTP URL (should fail and rollback)
 	suite.T().Log("ATTEMPT 1: Restart with invalid HTTP URL")
 	if cfg, ok := agent.config.(pkgconfigmodel.Config); ok {
-		cfg.SetWithoutSource("logs_config.logs_dd_url", "invalid-address-will-fail")
+		cfg.SetInTest("logs_config.logs_dd_url", "invalid-address-will-fail")
 	}
 
 	err := agent.restartWithHTTPUpgrade(context.TODO())
@@ -708,7 +708,7 @@ func (suite *RestartTestSuite) TestRestart_FailureRollbackThenRetrySuccess() {
 
 	httpURL := fmt.Sprintf("http://%s:%d", httpServer.Endpoint.Host, httpServer.Endpoint.Port)
 	if c, ok := agent.config.(pkgconfigmodel.Config); ok {
-		c.SetWithoutSource("logs_config.logs_dd_url", httpURL)
+		c.SetInTest("logs_config.logs_dd_url", httpURL)
 	}
 
 	err = agent.restartWithHTTPUpgrade(context.TODO())

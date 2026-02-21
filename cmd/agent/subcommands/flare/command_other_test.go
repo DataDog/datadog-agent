@@ -16,9 +16,9 @@ import (
 
 // InjectConnectionFailures injects a failure in TestReadProfileDataErrors.
 func InjectConnectionFailures(mockSysProbeConfig model.Config, _ model.Config) {
-	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
-	mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", "/opt/datadog-agent/run/sysprobe-bad.sock")
-	mockSysProbeConfig.SetWithoutSource("network_config.enabled", true)
+	mockSysProbeConfig.SetInTest("system_probe_config.enabled", true)
+	mockSysProbeConfig.SetInTest("system_probe_config.sysprobe_socket", "/opt/datadog-agent/run/sysprobe-bad.sock")
+	mockSysProbeConfig.SetInTest("network_config.enabled", true)
 }
 
 // CheckExpectedConnectionFailures checks the expected errors after simulated

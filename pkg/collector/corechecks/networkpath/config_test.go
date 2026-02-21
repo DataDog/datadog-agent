@@ -19,7 +19,7 @@ import (
 
 func TestNewCheckConfig(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("network_devices.namespace", "my-namespace")
+	mockConfig.SetInTest("network_devices.namespace", "my-namespace")
 	tests := []struct {
 		name           string
 		rawInstance    integration.Data

@@ -76,8 +76,8 @@ func TestNewWebSocket(t *testing.T) {
 			agentConfig := mock.New(t)
 
 			// TLS test uses bogus certs
-			agentConfig.SetWithoutSource("skip_ssl_validation", true)                    // Transport
-			agentConfig.SetWithoutSource("remote_configuration.no_tls_validation", true) // RC check
+			agentConfig.SetInTest("skip_ssl_validation", true)                    // Transport
+			agentConfig.SetInTest("remote_configuration.no_tls_validation", true) // RC check
 
 			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 			defer cancel()
@@ -148,7 +148,7 @@ func TestNewWebSocket(t *testing.T) {
 				ts.StartTLS()
 			} else {
 				// TLS requires an explicit config opt-in.
-				agentConfig.SetWithoutSource("remote_configuration.no_tls", true)
+				agentConfig.SetInTest("remote_configuration.no_tls", true)
 				ts.Start()
 			}
 
@@ -178,9 +178,9 @@ func TestUserAgent(t *testing.T) {
 	agentConfig := mock.New(t)
 
 	// TLS test uses bogus certs
-	agentConfig.SetWithoutSource("skip_ssl_validation", true)                    // Transport
-	agentConfig.SetWithoutSource("remote_configuration.no_tls_validation", true) // RC check
-	agentConfig.SetWithoutSource("remote_configuration.no_tls", true)
+	agentConfig.SetInTest("skip_ssl_validation", true)                    // Transport
+	agentConfig.SetInTest("remote_configuration.no_tls_validation", true) // RC check
+	agentConfig.SetInTest("remote_configuration.no_tls", true)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()

@@ -19,7 +19,7 @@ import (
 func TestLinuxGetIPCServerPath(t *testing.T) {
 	t.Run("default unix socket", func(t *testing.T) {
 		cfg := configmock.New(t)
-		cfg.SetWithoutSource("agent_ipc.use_socket", true)
+		cfg.SetInTest("agent_ipc.use_socket", true)
 
 		path, enabled := GetIPCServerPath()
 		require.True(t, enabled)
@@ -32,8 +32,8 @@ func TestLinuxGetListener(t *testing.T) {
 		dir := t.TempDir()
 		socketPath := filepath.Join(dir, "agent_ipc.socket")
 		cfg := configmock.New(t)
-		cfg.SetWithoutSource("agent_ipc.use_socket", true)
-		cfg.SetWithoutSource("agent_ipc.socket_path", socketPath)
+		cfg.SetInTest("agent_ipc.use_socket", true)
+		cfg.SetInTest("agent_ipc.socket_path", socketPath)
 
 		res, err := GetListener(socketPath)
 		require.NoError(t, err)

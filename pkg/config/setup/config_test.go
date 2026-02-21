@@ -133,7 +133,7 @@ b:
 	slices.Sort(res)
 	assert.Equal(t, []string{"aa", "b.c.d"}, res)
 
-	conf.SetWithoutSource("a", 12)
+	conf.SetInTest("a", 12)
 	res = findUnknownKeys(conf)
 	slices.Sort(res)
 	assert.Equal(t, []string{"aa", "b.c.d"}, res)
@@ -144,7 +144,7 @@ b:
 	slices.Sort(res)
 	assert.Equal(t, []string{"aa"}, res)
 
-	conf.SetWithoutSource("unknown_key.unknown_subkey", "true")
+	conf.SetInTest("unknown_key.unknown_subkey", "true")
 	res = findUnknownKeys(conf)
 	slices.Sort(res)
 	assert.Equal(t, []string{"aa", "unknown_key.unknown_subkey"}, res)
@@ -225,9 +225,9 @@ func TestProxy(t *testing.T) {
 		{
 			name: "from configuration",
 			setup: func(_ *testing.T, config pkgconfigmodel.Config) {
-				config.SetWithoutSource("proxy.http", expectedProxy.HTTP)
-				config.SetWithoutSource("proxy.https", expectedProxy.HTTPS)
-				config.SetWithoutSource("proxy.no_proxy", expectedProxy.NoProxy)
+				config.SetInTest("proxy.http", expectedProxy.HTTP)
+				config.SetInTest("proxy.https", expectedProxy.HTTPS)
+				config.SetInTest("proxy.no_proxy", expectedProxy.NoProxy)
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t, expectedProxy, config.GetProxies())
@@ -319,8 +319,8 @@ func TestProxy(t *testing.T) {
 			name: "from UNIX env vars and conf",
 			setup: func(t *testing.T, config pkgconfigmodel.Config) {
 				t.Setenv("HTTP_PROXY", "http_env")
-				config.SetWithoutSource("proxy.no_proxy", []string{"d", "e", "f"})
-				config.SetWithoutSource("proxy.http", "http_conf")
+				config.SetInTest("proxy.no_proxy", []string{"d", "e", "f"})
+				config.SetInTest("proxy.http", "http_conf")
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t,
@@ -337,8 +337,8 @@ func TestProxy(t *testing.T) {
 			name: "from DD env vars and conf",
 			setup: func(t *testing.T, config pkgconfigmodel.Config) {
 				t.Setenv("DD_PROXY_HTTP", "http_env")
-				config.SetWithoutSource("proxy.no_proxy", []string{"d", "e", "f"})
-				config.SetWithoutSource("proxy.http", "http_conf")
+				config.SetInTest("proxy.no_proxy", []string{"d", "e", "f"})
+				config.SetInTest("proxy.http", "http_conf")
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t,
@@ -359,7 +359,7 @@ func TestProxy(t *testing.T) {
 				t.Setenv("HTTP_PROXY", "env_http_url")
 				t.Setenv("HTTPS_PROXY", "")
 				t.Setenv("NO_PROXY", "")
-				config.SetWithoutSource("proxy.https", "https_conf")
+				config.SetInTest("proxy.https", "https_conf")
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t,
@@ -428,7 +428,7 @@ func TestProxy(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 
 			config := newTestConf(t)
-			config.SetWithoutSource("use_proxy_for_cloud_metadata", c.proxyForCloudMetadata)
+			config.SetInTest("use_proxy_for_cloud_metadata", c.proxyForCloudMetadata)
 
 			path := t.TempDir()
 			configPath := filepath.Join(path, "empty_conf.yaml")
@@ -514,7 +514,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 		{
 			name: "default auto discovery is enabled from configuration",
 			setup: func(_ *testing.T, config pkgconfigmodel.Config) {
-				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.enabled", true)
+				config.SetInTest("database_monitoring.autodiscovery.aurora.enabled", true)
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.True(t, config.GetBool("database_monitoring.autodiscovery.aurora.enabled"))
@@ -526,12 +526,12 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 		{
 			name: "auto discovery interval and tags are set from configuration",
 			setup: func(_ *testing.T, config pkgconfigmodel.Config) {
-				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.enabled", true)
-				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.discovery_interval", 10)
-				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.query_timeout", 4)
-				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.tags", []string{"foo:bar"})
-				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.dbm_tag", "usedbm")
-				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.global_view_db_tag", "dbtag")
+				config.SetInTest("database_monitoring.autodiscovery.aurora.enabled", true)
+				config.SetInTest("database_monitoring.autodiscovery.aurora.discovery_interval", 10)
+				config.SetInTest("database_monitoring.autodiscovery.aurora.query_timeout", 4)
+				config.SetInTest("database_monitoring.autodiscovery.aurora.tags", []string{"foo:bar"})
+				config.SetInTest("database_monitoring.autodiscovery.aurora.dbm_tag", "usedbm")
+				config.SetInTest("database_monitoring.autodiscovery.aurora.global_view_db_tag", "dbtag")
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.True(t, config.GetBool("database_monitoring.autodiscovery.aurora.enabled"))
@@ -568,19 +568,19 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 func TestSanitizeAPIKeyConfig(t *testing.T) {
 	config := newTestConf(t)
 
-	config.SetWithoutSource("api_key", "foo")
+	config.SetInTest("api_key", "foo")
 	sanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
-	config.SetWithoutSource("api_key", "foo\n")
+	config.SetInTest("api_key", "foo\n")
 	sanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
-	config.SetWithoutSource("api_key", "foo\n\n")
+	config.SetInTest("api_key", "foo\n\n")
 	sanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
-	config.SetWithoutSource("api_key", " \n  foo   \n")
+	config.SetInTest("api_key", " \n  foo   \n")
 	sanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 }
@@ -588,14 +588,14 @@ func TestSanitizeAPIKeyConfig(t *testing.T) {
 func TestNumWorkers(t *testing.T) {
 	config := newTestConf(t)
 
-	config.SetWithoutSource("check_runners", 4)
-	config.SetWithoutSource("tracemalloc_debug", false)
+	config.SetInTest("check_runners", 4)
+	config.SetInTest("tracemalloc_debug", false)
 
 	setNumWorkers(config)
 	workers := config.GetInt("check_runners")
 	assert.Equal(t, workers, config.GetInt("check_runners"))
 
-	config.SetWithoutSource("tracemalloc_debug", true)
+	config.SetInTest("tracemalloc_debug", true)
 	setNumWorkers(config)
 	workers = config.GetInt("check_runners")
 	assert.Equal(t, workers, 1)
@@ -1131,7 +1131,7 @@ process_config:
 func TestConfigAssignAtPath(t *testing.T) {
 
 	config := newTestConf(t)
-	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	config.SetInTest("use_proxy_for_cloud_metadata", true)
 	// This setting is required because overrideRunInCoreAgentConfig in pkg/config/setup/process.go adds
 	// it for non-linux OSes. By adding it here the test passes on all OSes.
 	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
@@ -1230,7 +1230,7 @@ secret_backend_arguments:
 func TestConfigAssignAtPathSimple(t *testing.T) {
 
 	config := newTestConf(t)
-	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	config.SetInTest("use_proxy_for_cloud_metadata", true)
 	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testSimpleConf, 0o600)
@@ -1334,7 +1334,7 @@ additional_endpoints:
   2: carrot
 `)
 	config := newTestConf(t)
-	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	config.SetInTest("use_proxy_for_cloud_metadata", true)
 	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testIntKeysConf, 0o600)

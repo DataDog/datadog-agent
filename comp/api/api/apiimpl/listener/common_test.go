@@ -22,7 +22,7 @@ func TestGetIPCServerPath(t *testing.T) {
 
 	t.Run("enabled", func(t *testing.T) {
 		cfg := configmock.New(t)
-		cfg.SetWithoutSource("agent_ipc.port", 1234)
+		cfg.SetInTest("agent_ipc.port", 1234)
 
 		hostPort, enabled := GetIPCServerPath()
 		require.Equal(t, "localhost:1234", hostPort)
@@ -31,7 +31,7 @@ func TestGetIPCServerPath(t *testing.T) {
 
 	t.Run("disabled", func(t *testing.T) {
 		cfg := configmock.New(t)
-		cfg.SetWithoutSource("agent_ipc.port", 0)
+		cfg.SetInTest("agent_ipc.port", 0)
 
 		_, enabled := GetIPCServerPath()
 		require.False(t, enabled)

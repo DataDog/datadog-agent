@@ -384,15 +384,15 @@ customKey2: unused
 		assert.NotContains(t, slices.Collect(maps.Keys(ntmConf.GetKnownKeysLowercased())), "customkey2")
 	})
 
-	t.Run("SetWithoutSource won't create known key", func(t *testing.T) {
+	t.Run("SetInTest won't create known key", func(t *testing.T) {
 		dataYaml := `
 port: 8080
 `
 		viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
 			cfg.SetKnown("port") //nolint:forbidigo // testing behavior
 		})
-		viperConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
-		ntmConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
+		viperConf.SetInTest("unknown_key.unknown_subkey", "true")
+		ntmConf.SetInTest("unknown_key.unknown_subkey", "true")
 
 		wantKeys := []string{"port"}
 		assert.ElementsMatch(t, wantKeys, slices.Collect(maps.Keys(viperConf.GetKnownKeysLowercased())))
@@ -465,15 +465,15 @@ customKey2: unused
 		assert.ElementsMatch(t, wantKeys, ntmConf.AllKeysLowercased())
 	})
 
-	t.Run("SetWithoutSource will create unknown key", func(t *testing.T) {
+	t.Run("SetInTest will create unknown key", func(t *testing.T) {
 		dataYaml := `
 port: 8080
 `
 		viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
 			cfg.SetKnown("port") //nolint:forbidigo // testing behavior
 		})
-		viperConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
-		ntmConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
+		viperConf.SetInTest("unknown_key.unknown_subkey", "true")
+		ntmConf.SetInTest("unknown_key.unknown_subkey", "true")
 
 		wantKeys := []string{"port", "unknown_key.unknown_subkey"}
 		assert.ElementsMatch(t, wantKeys, viperConf.AllKeysLowercased())

@@ -32,7 +32,7 @@ func TestGetInstanceIdentity(t *testing.T) {
 	defer ts.Close()
 	ec2internal.InstanceIdentityURL = ts.URL
 	conf := configmock.New(t)
-	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
+	conf.SetInTest("ec2_metadata_timeout", 1000)
 
 	assert.EventuallyWithT(
 		t, func(_ *assert.CollectT) {

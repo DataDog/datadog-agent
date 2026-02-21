@@ -73,7 +73,7 @@ func newMock(deps mockDependencies, t testing.TB) sysprobeconfig.Component {
 	// Overrides are explicit and will take precedence over any other
 	// setting
 	for k, v := range deps.Params.Overrides {
-		setup.SystemProbe().SetWithoutSource(k, v)
+		setup.SystemProbe().SetInTest(k, v)
 	}
 
 	syscfg, err := setupConfig(deps.Params.sysProbeConfFilePath, deps.Params.fleetPoliciesDirPath)

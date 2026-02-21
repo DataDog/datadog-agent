@@ -137,11 +137,11 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	}
 }
 
-// SetWithoutSource sets the given value using source Unknown, may only be called from tests
-func (c *safeConfig) SetWithoutSource(key string, value interface{}) {
-	c.assertIsTest("SetWithoutSource")
+// SetInTest sets the given value using source Unknown, may only be called from tests
+func (c *safeConfig) SetInTest(key string, value interface{}) {
+	c.assertIsTest("SetInTest")
 	if !basic.ValidateBasicTypes(value) {
-		panic(fmt.Errorf("SetWithoutSource can only be called with basic types (int, string, slice, map, etc), got %v", value))
+		panic(fmt.Errorf("SetInTest can only be called with basic types (int, string, slice, map, etc), got %v", value))
 	}
 	c.Set(key, value, model.SourceUnknown)
 }

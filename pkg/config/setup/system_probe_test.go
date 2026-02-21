@@ -80,7 +80,7 @@ func TestDiscoveryUseSdAgent(t *testing.T) {
 	t.Run("enabled from config", func(t *testing.T) {
 		cfg := newEmptyMockConf(t)
 		InitSystemProbeConfig(cfg)
-		cfg.SetWithoutSource("discovery.use_sd_agent", true)
+		cfg.SetInTest("discovery.use_sd_agent", true)
 		assert.True(t, cfg.GetBool("discovery.use_sd_agent"))
 	})
 }

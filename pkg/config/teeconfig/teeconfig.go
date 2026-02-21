@@ -68,10 +68,10 @@ func (t *teeConfig) Set(key string, newValue interface{}, source model.Source) {
 	t.compare.Set(key, newValue, source)
 }
 
-// SetWithoutSource sets the given value using source Unknown
-func (t *teeConfig) SetWithoutSource(key string, value interface{}) {
-	t.baseline.SetWithoutSource(key, value)
-	t.compare.SetWithoutSource(key, value)
+// SetInTest sets the given value using source Unknown
+func (t *teeConfig) SetInTest(key string, value interface{}) {
+	t.baseline.SetInTest(key, value)
+	t.compare.SetInTest(key, value)
 }
 
 // SetDefault wraps Viper for concurrent access

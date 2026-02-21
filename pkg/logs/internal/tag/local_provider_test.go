@@ -23,10 +23,10 @@ func TestLocalProviderShouldReturnEmptyList(t *testing.T) {
 
 	tags := []string{"tag1:value1", "tag2", "tag3"}
 
-	mockConfig.SetWithoutSource("tags", tags)
-	defer mockConfig.SetWithoutSource("tags", nil)
+	mockConfig.SetInTest("tags", tags)
+	defer mockConfig.SetInTest("tags", nil)
 
-	mockConfig.SetWithoutSource("logs_config.expected_tags_duration", "0")
+	mockConfig.SetInTest("logs_config.expected_tags_duration", "0")
 
 	p := NewLocalProvider([]string{})
 	assert.Equal(t, 0, len(p.GetTags()))
@@ -44,12 +44,12 @@ func TestLocalProviderExpectedTags(t *testing.T) {
 
 	tags := []string{"tag1:value1", "tag2", "tag3"}
 
-	mockConfig.SetWithoutSource("tags", tags)
-	defer mockConfig.SetWithoutSource("tags", nil)
+	mockConfig.SetInTest("tags", tags)
+	defer mockConfig.SetInTest("tags", nil)
 
 	expectedTagsDuration := 5 * time.Second
-	mockConfig.SetWithoutSource("logs_config.expected_tags_duration", "5s")
-	defer mockConfig.SetWithoutSource("logs_config.expected_tags_duration", "0")
+	mockConfig.SetInTest("logs_config.expected_tags_duration", "5s")
+	defer mockConfig.SetInTest("logs_config.expected_tags_duration", "0")
 
 	p := newLocalProviderWithClock([]string{}, clock)
 	pp := p.(*localProvider)

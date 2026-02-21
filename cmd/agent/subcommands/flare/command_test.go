@@ -119,18 +119,18 @@ func (c *commandTestSuite) TestReadProfileData() {
 	httpsPort := u.Port()
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("expvar_port", port)
-	mockConfig.SetWithoutSource("apm_config.enabled", true)
-	mockConfig.SetWithoutSource("apm_config.debug.port", httpsPort)
-	mockConfig.SetWithoutSource("apm_config.receiver_timeout", "10")
-	mockConfig.SetWithoutSource("process_config.expvar_port", port)
-	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
+	mockConfig.SetInTest("expvar_port", port)
+	mockConfig.SetInTest("apm_config.enabled", true)
+	mockConfig.SetInTest("apm_config.debug.port", httpsPort)
+	mockConfig.SetInTest("apm_config.receiver_timeout", "10")
+	mockConfig.SetInTest("process_config.expvar_port", port)
+	mockConfig.SetInTest("security_agent.expvar_port", port)
 
 	mockSysProbeConfig := configmock.NewSystemProbe(t)
 	if runtime.GOOS != "darwin" {
-		mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
-		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
-		mockSysProbeConfig.SetWithoutSource("network_config.enabled", true)
+		mockSysProbeConfig.SetInTest("system_probe_config.enabled", true)
+		mockSysProbeConfig.SetInTest("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
+		mockSysProbeConfig.SetInTest("network_config.enabled", true)
 	}
 
 	profiler := getProfiler(t)
@@ -189,18 +189,18 @@ func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 	port := u.Port()
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("expvar_port", port)
-	mockConfig.SetWithoutSource("apm_config.enabled", true)
-	mockConfig.SetWithoutSource("apm_config.debug.port", 0)
-	mockConfig.SetWithoutSource("apm_config.receiver_timeout", "10")
-	mockConfig.SetWithoutSource("process_config.expvar_port", port)
-	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
+	mockConfig.SetInTest("expvar_port", port)
+	mockConfig.SetInTest("apm_config.enabled", true)
+	mockConfig.SetInTest("apm_config.debug.port", 0)
+	mockConfig.SetInTest("apm_config.receiver_timeout", "10")
+	mockConfig.SetInTest("process_config.expvar_port", port)
+	mockConfig.SetInTest("security_agent.expvar_port", port)
 
 	mockSysProbeConfig := configmock.NewSystemProbe(t)
 	if runtime.GOOS != "darwin" {
-		mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
-		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
-		mockSysProbeConfig.SetWithoutSource("network_config.enabled", true)
+		mockSysProbeConfig.SetInTest("system_probe_config.enabled", true)
+		mockSysProbeConfig.SetInTest("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
+		mockSysProbeConfig.SetInTest("network_config.enabled", true)
 	}
 
 	profiler := getProfiler(t)
@@ -252,12 +252,12 @@ func (c *commandTestSuite) TestReadProfileDataErrors() {
 	mockConfig := configmock.New(t)
 	// setting Core Agent Expvar port to 0 to ensure failing on fetch (using the default value can lead to
 	// successful request when running next to an Agent)
-	mockConfig.SetWithoutSource("expvar_port", 0)
-	mockConfig.SetWithoutSource("security_agent.expvar_port", 0)
-	mockConfig.SetWithoutSource("apm_config.enabled", true)
-	mockConfig.SetWithoutSource("apm_config.debug.port", 0)
-	mockConfig.SetWithoutSource("process_config.enabled", true)
-	mockConfig.SetWithoutSource("process_config.expvar_port", 0)
+	mockConfig.SetInTest("expvar_port", 0)
+	mockConfig.SetInTest("security_agent.expvar_port", 0)
+	mockConfig.SetInTest("apm_config.enabled", true)
+	mockConfig.SetInTest("apm_config.debug.port", 0)
+	mockConfig.SetInTest("process_config.enabled", true)
+	mockConfig.SetInTest("process_config.expvar_port", 0)
 
 	mockSysProbeConfig := configmock.NewSystemProbe(t)
 	InjectConnectionFailures(mockSysProbeConfig, mockConfig)

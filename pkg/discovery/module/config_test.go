@@ -56,7 +56,7 @@ func TestConfigIgnoredComms(t *testing.T) {
 			require.NotEmpty(t, mockSystemProbe)
 
 			commsStr := strings.Join(test.comms, "   ") // intentionally multiple spaces for sensitivity testing
-			mockSystemProbe.SetWithoutSource("discovery.ignored_command_names", commsStr)
+			mockSystemProbe.SetInTest("discovery.ignored_command_names", commsStr)
 
 			discovery := newDiscovery()
 			require.NotEmpty(t, discovery)

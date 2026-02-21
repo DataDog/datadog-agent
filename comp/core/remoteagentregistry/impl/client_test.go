@@ -27,7 +27,7 @@ func TestCallAgentsForService(t *testing.T) {
 	config := configmock.New(t)
 
 	// Set a short timeout for testing
-	config.SetWithoutSource("remote_agent_registry.query_timeout", 1*time.Second)
+	config.SetInTest("remote_agent_registry.query_timeout", 1*time.Second)
 
 	// Create agents with different response delays
 	fastAgent := buildRemoteAgent(t, ipcComp, "fast-agent", "Fast Agent", "1111",
@@ -192,7 +192,7 @@ func TestRemoteAgentServiceDiscovery(t *testing.T) {
 	config := configmock.New(t)
 
 	// Set a short timeout for testing
-	config.SetWithoutSource("remote_agent_registry.query_timeout", 1*time.Second)
+	config.SetInTest("remote_agent_registry.query_timeout", 1*time.Second)
 
 	// Agent without any services (empty services list)
 	agentWithoutServices := buildRemoteAgent(t, ipcComp, "without-services", "Without Services", "1111")

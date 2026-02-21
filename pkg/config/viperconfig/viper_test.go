@@ -33,7 +33,7 @@ func TestConcurrencySetGet(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for n := 0; n <= 1000; n++ {
-			config.SetWithoutSource("foo", "bar")
+			config.SetInTest("foo", "bar")
 		}
 	}()
 
@@ -451,7 +451,7 @@ func TestUnsetForSourceRemoveIfNotPrevious(t *testing.T) {
 	_, found = cfg.AllSettings()["api_key"]
 	assert.False(t, found)
 
-	cfg.SetWithoutSource("api_key", "0123456789abcdef")
+	cfg.SetInTest("api_key", "0123456789abcdef")
 
 	// api_key is set
 	assert.Equal(t, "0123456789abcdef", cfg.GetString("api_key"))

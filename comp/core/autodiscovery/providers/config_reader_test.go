@@ -241,8 +241,8 @@ instances:
 
 	// Change config
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("autoconf_config_files_poll", true)
-	mockConfig.SetWithoutSource("autoconf_config_files_poll_interval", 2)
+	mockConfig.SetInTest("autoconf_config_files_poll", true)
+	mockConfig.SetInTest("autoconf_config_files_poll_interval", 2)
 
 	// Write file + reset reader (trigger a read on all files)
 	assert.NoError(t, os.WriteFile(testFilePath, []byte(testFileContent), 0o660))

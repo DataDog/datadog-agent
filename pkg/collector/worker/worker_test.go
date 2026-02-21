@@ -216,7 +216,7 @@ func TestWorkerName(t *testing.T) {
 func TestWorker(t *testing.T) {
 	mockConfig := configmock.New(t)
 	expvars.Reset()
-	mockConfig.SetWithoutSource("hostname", "myhost")
+	mockConfig.SetInTest("hostname", "myhost")
 
 	var wg sync.WaitGroup
 
@@ -293,7 +293,7 @@ func TestWorker(t *testing.T) {
 func TestWorkerUtilizationExpvars(t *testing.T) {
 	mockConfig := configmock.New(t)
 	expvars.Reset()
-	mockConfig.SetWithoutSource("hostname", "myhost")
+	mockConfig.SetInTest("hostname", "myhost")
 
 	var wg sync.WaitGroup
 
@@ -369,7 +369,7 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 func TestWorkerErrorAndWarningHandling(t *testing.T) {
 	mockConfig := configmock.New(t)
 	expvars.Reset()
-	mockConfig.SetWithoutSource("hostname", "myhost")
+	mockConfig.SetInTest("hostname", "myhost")
 
 	var wg sync.WaitGroup
 
@@ -378,7 +378,7 @@ func TestWorkerErrorAndWarningHandling(t *testing.T) {
 	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 	mockConfig = configmock.New(t)
 
-	mockConfig.SetWithoutSource("hostname", "myhost")
+	mockConfig.SetInTest("hostname", "myhost")
 
 	testCheck1 := newCheck(t, "testing:123", true, nil)
 	testCheck2 := newCheck(t, "testing2:234", true, nil)
@@ -426,14 +426,14 @@ func TestWorkerErrorAndWarningHandling(t *testing.T) {
 func TestWorkerConcurrentCheckScheduling(t *testing.T) {
 	mockConfig := configmock.New(t)
 	expvars.Reset()
-	mockConfig.SetWithoutSource("hostname", "myhost")
+	mockConfig.SetInTest("hostname", "myhost")
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
 	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 	mockConfig = configmock.New(t)
 
-	mockConfig.SetWithoutSource("hostname", "myhost")
+	mockConfig.SetInTest("hostname", "myhost")
 
 	testCheck := newCheck(t, "testing:123", true, nil)
 
@@ -457,7 +457,7 @@ func TestWorkerConcurrentCheckScheduling(t *testing.T) {
 func TestWorkerStatsAddition(t *testing.T) {
 	mockConfig := configmock.New(t)
 	expvars.Reset()
-	mockConfig.SetWithoutSource("hostname", "myhost")
+	mockConfig.SetInTest("hostname", "myhost")
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
@@ -467,7 +467,7 @@ func TestWorkerStatsAddition(t *testing.T) {
 	}
 	mockConfig = configmock.New(t)
 
-	mockConfig.SetWithoutSource("hostname", "myhost")
+	mockConfig.SetInTest("hostname", "myhost")
 
 	longRunningCheckNoErrorNoWarning := &testCheck{
 		t:           t,
@@ -518,8 +518,8 @@ func TestWorkerStatsAddition(t *testing.T) {
 func TestWorkerServiceCheckSending(t *testing.T) {
 	expvars.Reset()
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("hostname", "myhost")
-	mockConfig.SetWithoutSource("integration_check_status_enabled", "true")
+	mockConfig.SetInTest("hostname", "myhost")
+	mockConfig.SetInTest("integration_check_status_enabled", "true")
 
 	var wg sync.WaitGroup
 
@@ -608,7 +608,7 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 func TestWorkerSenderNil(t *testing.T) {
 	mockConfig := configmock.New(t)
 	expvars.Reset()
-	mockConfig.SetWithoutSource("hostname", "myhost")
+	mockConfig.SetInTest("hostname", "myhost")
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
@@ -643,7 +643,7 @@ func TestWorkerSenderNil(t *testing.T) {
 func TestWorkerServiceCheckSendingLongRunningTasks(t *testing.T) {
 	mockConfig := configmock.New(t)
 	expvars.Reset()
-	mockConfig.SetWithoutSource("hostname", "myhost")
+	mockConfig.SetInTest("hostname", "myhost")
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
@@ -828,7 +828,7 @@ func TestWorkerWatchdogWarningLog(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			expvars.Reset()
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("hostname", "myhost")
+			mockConfig.SetInTest("hostname", "myhost")
 
 			var logBuffer bytes.Buffer
 			logWriter := bufio.NewWriter(&logBuffer)
