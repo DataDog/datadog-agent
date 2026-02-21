@@ -10,6 +10,7 @@ package gpu
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -184,7 +185,7 @@ func (c *WorkloadTagCache) buildContainerTags(containerID string) ([]string, err
 func (c *WorkloadTagCache) buildProcessTags(processID string) ([]string, error) {
 	var multiErr error
 
-	pidInt, err := strconv.Atoi(processID)
+	pidInt, err := strconv.ParseInt(processID, 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("error converting process ID to int: %w", err)
 	}
@@ -221,7 +222,7 @@ func (c *WorkloadTagCache) buildProcessTags(processID string) ([]string, error) 
 	if nspid == 0 {
 		usedFallbacks = true
 
-		nspid, nspidErr = getNsPID(pid)
+		nspid, nspidErr = getNsPID(uint32(pid))
 		if nspidErr != nil && !errors.Is(nspidErr, secutils.ErrNoNSPid) {
 			multiErr = errors.Join(multiErr, fmt.Errorf("error getting nspid for process %d: %w", pid, nspidErr))
 		}
@@ -263,8 +264,8 @@ func (c *WorkloadTagCache) buildProcessTags(processID string) ([]string, error) 
 // have the same NSpid values, specially in case of unusual pid namespace setups.
 // As such, we attempt reading the nspid for only on the main thread (group leader)
 // in /proc/X/task/X/status, or fail otherwise
-func getNsPID(pid int32) (int32, error) {
-	nspids, err := secutils.GetNsPids(uint32(pid), strconv.FormatUint(uint64(pid), 10))
+func getNsPID(pid uint32) (int32, error) {
+	nspids, err := secutils.GetNsPids(pid, strconv.FormatUint(uint64(pid), 10))
 	if err != nil {
 		return 0, fmt.Errorf("could not get nspid for pid %d: %w", pid, err)
 	}
@@ -272,7 +273,12 @@ func getNsPID(pid int32) (int32, error) {
 		return 0, secutils.ErrNoNSPid
 	}
 
-	return int32(nspids[len(nspids)-1]), nil
+	nspid := nspids[len(nspids)-1]
+	if nspid > math.MaxInt32 {
+		return 0, fmt.Errorf("nspid %d is too large to fit in int32", nspid)
+	}
+
+	return int32(nspid), nil
 }
 
 // getContainerID retrieves the container ID for a given PID from the container
