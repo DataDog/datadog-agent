@@ -491,45 +491,6 @@ func (s *discovery) getPorts(context parsingContext, pid int32, sockets []uint64
 	return tcpPorts, udpPorts, nil
 }
 
-// getServices processes categorized PID lists and returns service information for each.
-// This is used by the /services endpoint which accepts explicit PID lists and bypasses
-// the port retry logic used by the /check endpoint. The caller (the Core-Agent
-// process collector) will handle the retry.
-func (s *discovery) getServices(params core.Params) (*model.ServicesResponse, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	response := &model.ServicesResponse{
-		Services: make([]model.Service, 0),
-	}
-
-	context := newParsingContext()
-
-	// Process new PIDs with full service info collection
-	for _, pid := range params.NewPids {
-		// Check for APM injector even if process is not detected as a service
-		if detectAPMInjectorFromMaps(pid) {
-			response.InjectedPIDs = append(response.InjectedPIDs, int(pid))
-		}
-
-		service := s.getServiceWithoutRetry(context, pid)
-		if service == nil {
-			continue
-		}
-		response.Services = append(response.Services, *service)
-	}
-
-	// Process heartbeat PIDs with minimal updates (only ports and log files)
-	for _, pid := range params.HeartbeatPids {
-		service := s.getHeartbeatServiceInfo(context, pid)
-		if service == nil {
-			continue
-		}
-		response.Services = append(response.Services, *service)
-	}
-
-	return response, nil
-}
-
 // getServiceWithoutRetry extracts service information for a PID without port retry logic.
 // Unlike getService(), this function immediately returns nil if no ports are found,
 // rather than tracking retry attempts. This is used by the /services endpoint.
