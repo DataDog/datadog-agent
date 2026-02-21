@@ -264,7 +264,7 @@ func (s *extensionsSuite) getExtensionPath(pkg, version, extensionName string) s
 func (s *extensionsSuite) getAgentPackageURL(version string) string {
 	if version == "" {
 		// Use pipeline-specific URL for E2E tests
-		version := os.Getenv("E2E_PIPELINE_ID")
+		version = os.Getenv("E2E_PIPELINE_ID")
 		if version == "" {
 			s.T().Fatal("E2E_PIPELINE_ID environment variable not set")
 		}

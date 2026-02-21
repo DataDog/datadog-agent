@@ -11,8 +11,10 @@ namespace Datadog.CustomActions
     /// MSI custom actions that call the datadog-installer prerm/postinst hooks
     /// to save/restore Agent extensions during install, upgrade, and uninstall.
     ///
-    /// These actions are skipped when FLEET_INSTALL=1 because the fleet automation
-    /// handles extension lifecycle through its own experiment hooks.
+    /// The pre-remove hook is skipped when FLEET_INSTALL=1 because the fleet automation
+    /// saves/removes extensions explicitly before invoking the MSI.
+    /// The post-install hook always runs (even for fleet installs) so that extensions
+    /// are restored before StartServices starts the agent.
     /// </summary>
     public class InstallerHooksCustomAction
     {
@@ -61,12 +63,6 @@ namespace Datadog.CustomActions
 
         private ActionResult RunHook(string hookArgs)
         {
-            if (ShouldSkip())
-            {
-                _session.Log("Skipping installer hook as FLEET_INSTALL is set to 1");
-                return ActionResult.Success;
-            }
-
             if (!File.Exists(_installerExecutable))
             {
                 _session.Log($"Installer executable not found at {_installerExecutable}");
@@ -94,8 +90,14 @@ namespace Datadog.CustomActions
         }
 
         // Deferred: called during MSI uninstall or upgrade (before the old version is removed).
+        // Skipped for fleet installs: fleet saves/removes extensions explicitly before invoking the MSI.
         private ActionResult RunPreRemoveHookImpl()
         {
+            if (ShouldSkip())
+            {
+                _session.Log("Skipping pre-remove hook as FLEET_INSTALL is set to 1");
+                return ActionResult.Success;
+            }
             if (IsUpgrade())
             {
                 return RunHook("prerm --upgrade datadog-agent msi");

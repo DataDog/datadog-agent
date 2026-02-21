@@ -210,8 +210,6 @@ func postStartExperimentDatadogAgentBackground(ctx context.Context) error {
 
 	// Save and remove stable extensions before uninstalling the stable agent.
 	// PreRemoveExtension cleans up after the stable version (stops DDOT service, etc.).
-	// PostInstallExtension during the experiment MSI install will reconfigure for the
-	// experiment version. The agent is restarted after restore to pick up the new config.
 	if err := saveAgentExtensions(hookCtx, false); err != nil {
 		log.Warnf("failed to save extensions: %s", err)
 	}
@@ -247,22 +245,6 @@ func postStartExperimentDatadogAgentBackground(ctx context.Context) error {
 			err = fmt.Errorf("%w, %w", err, restoreErr)
 		}
 		return err
-	}
-
-	// Get the actual experiment version from the repository state.
-	// getCurrentAgentVersion() returns the stable version since this process
-	// runs from a copy of the stable installer binary.
-	repoState, err := getAgentPackageState()
-	if err != nil || repoState.Experiment == "" {
-		log.Warnf("could not determine experiment version for extension restore: %v", err)
-	} else {
-		experimentVersion := repoState.Experiment
-		if err := extensionsPkg.SetPackage(hookCtx, agentPackage, experimentVersion, true); err != nil {
-			return fmt.Errorf("failed to set package version for experiment: %w", err)
-		}
-		if err := restoreAgentExtensions(hookCtx, experimentVersion, true); err != nil {
-			log.Warnf("failed to restore extensions as experiment: %s", err)
-		}
 	}
 
 	// now we start our watchdog to make sure the Agent is running
@@ -324,24 +306,6 @@ func postStopExperimentDatadogAgentBackground(ctx context.Context) (err error) {
 		// we failed to reinstall the stable Agent
 		// we can't do much here
 		return fmt.Errorf("failed to reinstall stable Agent: %w", err)
-	}
-
-	// Get stable version from repository state (we're running from the experiment binary
-	// so getCurrentAgentVersion() returns the experiment version, not the stable version).
-	state, err := getAgentPackageState()
-	if err != nil || state.Stable == "" {
-		log.Warnf("could not determine stable version for extension restore: %v", err)
-		return nil
-	}
-	stableVersion := state.Stable
-
-	if err := extensionsPkg.SetPackage(hookCtx, agentPackage, stableVersion, false); err != nil {
-		return fmt.Errorf("failed to set package version for stable: %w", err)
-	}
-
-	// Restore stable extensions
-	if err := restoreAgentExtensions(hookCtx, stableVersion, false); err != nil {
-		log.Warnf("failed to restore stable extensions: %s", err)
 	}
 
 	return nil

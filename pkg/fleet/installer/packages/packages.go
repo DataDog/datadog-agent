@@ -143,17 +143,17 @@ func (h *hooksCLI) PostPromoteConfigExperiment(ctx context.Context, pkg string) 
 
 // PreInstallExtension calls the pre-install-extension hook for the package.
 func (h *hooksCLI) PreInstallExtension(ctx context.Context, pkg string, extension string) error {
-	return h.callHook(ctx, false, pkg, "preInstallExtension", h.extensionPackageType(), false, nil, extension)
+	return h.callHook(ctx, false, pkg, "preInstallExtension", h.extensionPackageType(pkg), false, nil, extension)
 }
 
 // PreRemoveExtension calls the pre-remove-extension hook for the package.
 func (h *hooksCLI) PreRemoveExtension(ctx context.Context, pkg string, extension string) error {
-	return h.callHook(ctx, false, pkg, "preRemoveExtension", h.extensionPackageType(), false, nil, extension)
+	return h.callHook(ctx, false, pkg, "preRemoveExtension", h.extensionPackageType(pkg), false, nil, extension)
 }
 
 // PostInstallExtension calls the post-install-extension hook for the package.
 func (h *hooksCLI) PostInstallExtension(ctx context.Context, pkg string, extension string, isExperiment bool) error {
-	return h.callHook(ctx, isExperiment, pkg, "postInstallExtension", h.extensionPackageType(), false, nil, extension)
+	return h.callHook(ctx, isExperiment, pkg, "postInstallExtension", h.extensionPackageType(pkg), false, nil, extension)
 }
 
 // PackageType is the type of package.
@@ -204,7 +204,7 @@ func (h *hooksCLI) getPath(pkg string, pkgType PackageType, experiment bool) str
 			return h.packages.Get(pkg).ExperimentPath()
 		}
 	case PackageTypeDEB, PackageTypeRPM:
-		if pkg == "datadog-agent" {
+		if pkg == agentPackage {
 			return "/opt/datadog-agent"
 		}
 	}
@@ -214,7 +214,10 @@ func (h *hooksCLI) getPath(pkg string, pkgType PackageType, experiment bool) str
 // extensionPackageType detects whether the agent is OCI- or DEB/RPM-installed by checking
 // the location of the running installer binary. Extension hooks must use this rather than
 // assuming PackageTypeOCI so that the hook receives the correct PackagePath.
-func (h *hooksCLI) extensionPackageType() PackageType {
+func (h *hooksCLI) extensionPackageType(pkg string) PackageType {
+	if pkg != agentPackage {
+		return PackageTypeOCI
+	}
 	if runtime.GOOS != "linux" {
 		return PackageTypeOCI
 	}
@@ -239,7 +242,7 @@ func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, na
 		"postInstallExtension",
 	}
 
-	if pkg == "datadog-agent" && runtime.GOOS == "linux" && !slices.Contains(hooksWithoutReExec, name) {
+	if pkg == agentPackage && runtime.GOOS == "linux" && !slices.Contains(hooksWithoutReExec, name) {
 		agentInstallerPath := filepath.Join(pkgPath, "embedded", "bin", "installer")
 		_, err := os.Stat(agentInstallerPath)
 		if err != nil && !os.IsNotExist(err) {
