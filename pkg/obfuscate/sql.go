@@ -328,6 +328,12 @@ func (o *Obfuscator) ObfuscateSQLStringWithOptions(in string, opts *SQLConfig, o
 
 		defer func() {
 			if oq != nil && err == nil {
+				// Clone the query string before caching to release the potentially
+				// over-sized backing array from strings.Builder. The go-sqllexer
+				// package pre-allocates the builder with input size for performance,
+				// but the obfuscated output is typically much smaller. Without cloning,
+				// the cache would hold the full input-sized backing array indefinitely.
+				oq = oq.Clone()
 				o.queryCache.Set(cacheKey, oq, oq.Cost())
 			}
 		}()
@@ -385,6 +391,19 @@ func (oq *ObfuscatedQuery) Cost() int64 {
 	// - 24 * 3 bytes for the Comments, Commands, and Procedures slices headers
 	// - 8 bytes for the Size int64 field
 	return int64(len(oq.Query)) + oq.Metadata.Size + 320
+}
+
+// Clone returns a copy of the ObfuscatedQuery with the Query string cloned
+// to release any over-sized backing array. This is important for caching
+// because strings returned from strings.Builder.String() share the builder's
+// backing array, which may be larger than the actual string content.
+// The go-sqllexer package pre-allocates the builder with input query size
+// for performance, but the obfuscated output is typically much smaller.
+func (oq *ObfuscatedQuery) Clone() *ObfuscatedQuery {
+	return &ObfuscatedQuery{
+		Query:    strings.Clone(oq.Query),
+		Metadata: oq.Metadata,
+	}
 }
 
 // attemptObfuscation attempts to obfuscate the SQL query loaded into the tokenizer, using the given set of filters.
