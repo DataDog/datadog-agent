@@ -214,7 +214,7 @@ require (
 	github.com/containerd/typeurl/v2 v2.2.3
 	github.com/containernetworking/cni v1.2.3
 	github.com/coreos/go-semver v0.3.1
-	github.com/coreos/go-systemd/v22 v22.6.0
+	github.com/coreos/go-systemd/v22 v22.7.0
 	github.com/cri-o/ocicni v0.4.3
 	github.com/cyphar/filepath-securejoin v0.6.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
