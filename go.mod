@@ -225,7 +225,7 @@ require (
 	github.com/elastic/go-libaudit/v2 v2.6.2
 	github.com/elastic/go-seccomp-bpf v1.6.0
 	github.com/envoyproxy/gateway v1.5.7
-	github.com/evanphx/json-patch v5.9.11+incompatible
+	github.com/evanphx/json-patch v5.9.11+incompatible // indirect
 	github.com/fatih/color v1.18.0
 	github.com/fatih/structtag v1.2.0
 	github.com/freddierice/go-losetup v0.0.0-20220711213114-2a14873012db
