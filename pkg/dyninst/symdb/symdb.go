@@ -1134,7 +1134,7 @@ func (b *packagesIterator) exploreSubprogram(
 	// to this entry.
 	if abstractFunc := ok && inlineAttr == dwarf2.DW_INL_inlined; abstractFunc {
 		if _, ok := b.abstractFunctions[entry.Offset]; !ok {
-			af, err := b.parseAbstractFunction(entry.Offset)
+			af, err := b.parseAbstractFunction(entry.Offset, reader)
 			if err != nil {
 				return Function{}, err
 			}
@@ -1312,11 +1312,15 @@ func (b *packagesIterator) exploreInlinedInstance(
 		}
 
 		var err error
-		af, err = b.parseAbstractFunction(originOffset)
+		af, err = b.parseAbstractFunction(originOffset, reader)
 		if err != nil {
 			return err
 		}
 		b.abstractFunctions[originOffset] = af
+		reader.Seek(entry.Offset)
+		if _, err := reader.Next(); err != nil {
+			return err
+		}
 	}
 	if !af.interesting {
 		return earlyExit()
@@ -1529,13 +1533,7 @@ func (b *packagesIterator) parseFunctionName(entry *dwarf.Entry) (
 	return
 }
 
-func (b *packagesIterator) parseAbstractFunction(offset dwarf.Offset) (*abstractFunction, error) {
-	// TODO: once we switch to Go 1.25, instead of constructing a new Reader, we
-	// should take one in and Seek() to the desired offset; that would be more
-	// efficient when seeking within the same compilation unit as the one we're
-	// already in. Unfortunately, seeking across compilation units is broken
-	// until Go 1.25 (see https://go-review.googlesource.com/c/go/+/655976).
-	reader := b.dwarfData.Reader()
+func (b *packagesIterator) parseAbstractFunction(offset dwarf.Offset, reader *dwarf.Reader) (*abstractFunction, error) {
 	reader.Seek(offset)
 	entry, err := reader.Next()
 	if err != nil {
