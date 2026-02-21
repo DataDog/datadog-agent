@@ -55,7 +55,7 @@ func (m *defaultMapper) MapNumberMetrics(
 	dt DataType,
 	slice pmetric.NumberDataPointSlice,
 ) {
-	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval)
+	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval, m.cfg.EncodeSliceMetadataAsTags)
 }
 
 // MapHistogramMetrics maps double histogram metrics slices to Datadog metrics
@@ -87,7 +87,7 @@ func (m *defaultMapper) MapHistogramMetrics(
 
 		startTs := uint64(p.StartTimestamp())
 		ts := uint64(p.Timestamp())
-		pointDims := dims.WithAttributeMap(p.Attributes())
+		pointDims := dims.WithAttributeMap(p.Attributes(), m.cfg.EncodeSliceMetadataAsTags)
 
 		histInfo := histogramInfo{ok: true}
 
@@ -172,7 +172,7 @@ func (m *defaultMapper) MapSummaryMetrics(
 
 		startTs := uint64(p.StartTimestamp())
 		ts := uint64(p.Timestamp())
-		pointDims := dims.WithAttributeMap(p.Attributes())
+		pointDims := dims.WithAttributeMap(p.Attributes(), m.cfg.EncodeSliceMetadataAsTags)
 
 		// treat count as a cumulative monotonic metric
 		// and sum as a non-monotonic metric
@@ -239,7 +239,7 @@ func (m *defaultMapper) MapExponentialHistogramMetrics(
 		p := slice.At(i)
 		startTs := uint64(p.StartTimestamp())
 		ts := uint64(p.Timestamp())
-		pointDims := dims.WithAttributeMap(p.Attributes())
+		pointDims := dims.WithAttributeMap(p.Attributes(), m.cfg.EncodeSliceMetadataAsTags)
 
 		histInfo := histogramInfo{ok: true}
 
