@@ -32,7 +32,7 @@ ARG CI
 RUN go build -o /fakeintake cmd/server/main.go
 
 ## Deploy
-FROM alpine:3.21
+FROM alpine:3.23
 
 RUN apk add curl
 
