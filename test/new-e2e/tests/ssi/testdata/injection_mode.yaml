@@ -2,13 +2,6 @@
 clusterAgent:
   admissionController:
     configMode: "hostip"
-
-# Temporary until the Datadog CSI driver is released
-datadog-csi-driver:
-  image:
-    repository: "gcr.io/datadoghq/csi-driver"
-    tag: "main"
-
 datadog:
   csi:
     enabled: true
