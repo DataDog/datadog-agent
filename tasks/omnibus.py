@@ -562,11 +562,15 @@ def docker_build(
 
     This task:
     1. Runs the omnibus build inside a Docker container (with caching)
-    2. Creates a Docker image from the build output
-    3. Loads the image into your local Docker daemon
+    2. Builds system-probe with eBPF support (downloads clang-bpf/llc-bpf from public S3)
+    3. Creates a Docker image from the build output
+    4. Loads the image into your local Docker daemon
+
+    Note: Modern kernels (5.2+) have built-in BTF and work fully. The minimal BTF tarball
+    created means CO-RE on old kernels (<5.2) won't work, but those are increasingly rare.
 
     Examples:
-        # Build and create Docker image (default)
+        # Build and create Docker image
         dda inv omnibus.docker-build
 
         # Build with custom image tag
@@ -620,6 +624,7 @@ def docker_build(
     gems_dir = os.path.join(cache_dir, "gems")
     go_mod_dir = os.path.join(cache_dir, "go-mod")
     go_build_dir = os.path.join(cache_dir, "go-build")
+    go_bin_dir = os.path.join(cache_dir, "go-bin")
 
     # VIRTIO-FS WORKAROUND: Single Volume for Git Cache + Install Dir
     #
@@ -650,8 +655,20 @@ def docker_build(
     opt_subdir = os.path.join(omnibus_state_dir, "opt", "datadog-agent")
 
     # Create directories if they don't exist
-    for d in [omnibus_dir, omnibus_state_dir, git_cache_subdir, opt_subdir, gems_dir, go_mod_dir, go_build_dir]:
+    for d in [
+        omnibus_dir,
+        omnibus_state_dir,
+        git_cache_subdir,
+        opt_subdir,
+        gems_dir,
+        go_mod_dir,
+        go_build_dir,
+        go_bin_dir,
+    ]:
         os.makedirs(d, exist_ok=True)
+
+    # Auto-cleanup old packages to prevent disk bloat
+    _cleanup_old_packages(os.path.join(omnibus_dir, "pkg"))
 
     # Get current working directory (repo root)
     repo_root = os.getcwd()
@@ -677,6 +694,7 @@ def docker_build(
         f"-v {gems_dir}:/gems",
         f"-v {go_mod_dir}:/go/pkg/mod",
         f"-v {go_build_dir}:/root/.cache/go-build",
+        f"-v {go_bin_dir}:/go/bin",  # Cache Go binaries (include_headers, integrity) for eBPF builds
         f"-v {repo_root}:/go/src/github.com/DataDog/datadog-agent",
     ]
 
@@ -684,22 +702,61 @@ def docker_build(
     env_str = " ".join(env_args)
     vol_str = " ".join(volume_args)
 
-    # Create symlink for /opt/datadog-agent pointing to the single volume mount
-    # This ensures git-cache and install-dir share the same VirtioFS I/O channel
-    build_cmd = (
-        'bash -c "'
-        'mkdir -p /omnibus-state/opt/datadog-agent && '
-        'rm -rf /opt/datadog-agent && '
-        'ln -sfn /omnibus-state/opt/datadog-agent /opt/datadog-agent && '
-        'dda inv -- -e omnibus.build --base-dir=/omnibus --gem-path=/gems'
-        '"'
-    )
+    # Base omnibus build command
+    omnibus_cmd = "dda inv -- -e omnibus.build --base-dir=/omnibus --gem-path=/gems"
+
+    # Build the shell script to run inside the container
+    build_steps = [
+        # Setup: create directories and symlinks
+        "mkdir -p /omnibus-state/opt/datadog-agent",
+        "rm -rf /opt/datadog-agent",
+        "ln -sfn /omnibus-state/opt/datadog-agent /opt/datadog-agent",
+    ]
+
+    # Get clang/llc version info
+    from tasks.system_probe import get_clang_version_and_build_version
+
+    clang_version, clang_build_version = get_clang_version_and_build_version()
+
+    # Public S3 URL for clang/llc (no auth required)
+    s3_base = "https://dd-agent-omnibus.s3.amazonaws.com/llvm"
+
+    # Build the S3 URLs for clang and llc
+    clang_url = f"{s3_base}/clang-{clang_version}.{arch}.{clang_build_version}"
+    llc_url = f"{s3_base}/llc-{clang_version}.{arch}.{clang_build_version}"
+
+    # System-probe build steps
+    sysprobe_steps = [
+        # Build eBPF object files
+        f"echo '=== Building eBPF object files for {arch} ==='",
+        f"dda inv -- -e system-probe.object-files --arch={arch}",
+        # Create system-probe bin directory
+        "mkdir -p /tmp/system-probe",
+        # Download clang-bpf from public S3
+        "echo '=== Downloading clang-bpf from public S3 ==='",
+        f"wget -nv {clang_url} -O /tmp/system-probe/clang-bpf || {{ echo 'ERROR: Failed to download clang-bpf from {clang_url}'; exit 1; }}",
+        "chmod 0755 /tmp/system-probe/clang-bpf",
+        # Download llc-bpf from public S3
+        "echo '=== Downloading llc-bpf from public S3 ==='",
+        f"wget -nv {llc_url} -O /tmp/system-probe/llc-bpf || {{ echo 'ERROR: Failed to download llc-bpf from {llc_url}'; exit 1; }}",
+        "chmod 0755 /tmp/system-probe/llc-bpf",
+        # Create minimal BTF tarball - CO-RE requires 64GB+ processing that's impractical locally.
+        # Modern kernels (5.2+) have built-in BTF and don't need this file.
+        # Only old kernels (<5.2) are affected, and those are increasingly rare.
+        "echo '=== Creating minimal BTF tarball (CO-RE on old kernels disabled) ==='",
+        "mkdir -p /tmp/btf-empty && tar -cJf /tmp/system-probe/minimized-btfs.tar.xz -C /tmp/btf-empty .",
+    ]
+    build_steps.extend(sysprobe_steps)
+    omnibus_cmd += " --system-probe-bin=/tmp/system-probe"
+
+    build_steps.append(omnibus_cmd)
+
+    # Join all steps with ' && ' for fail-fast behavior
+    build_script = " && ".join(build_steps)
+    build_cmd = f'bash -c "{build_script}"'
+
     docker_cmd = (
-        f"docker run --rm "
-        f"{env_str} {vol_str} "
-        f"-w /go/src/github.com/DataDog/datadog-agent "
-        f"{build_image} "
-        f"{build_cmd}"
+        f"docker run --rm {env_str} {vol_str} -w /go/src/github.com/DataDog/datadog-agent {build_image} {build_cmd}"
     )
 
     print(f"Building Datadog Agent for {arch}")
@@ -769,6 +826,50 @@ def docker_build(
     print(f"  docker run --rm -it {tag} /bin/bash")
     print("\nInspect the image:")
     print(f"  docker run --rm {tag} ls -la /opt/datadog-agent/bin/agent/")
+
+
+def _cleanup_old_packages(pkg_dir: str, keep: int = 2) -> None:
+    """Auto-cleanup old packages, keeping the most recent N per architecture."""
+    if not os.path.exists(pkg_dir):
+        return
+
+    # Pattern: datadog-agent[-dbg]-VERSION-ARCH.tar[.xz]
+    pattern = re.compile(
+        r'^(datadog-agent(?:-dbg)?)-[\d.]+-devel\.git\.\d+\.[a-f0-9]+-\d+-(arm64|amd64)\.(tar(?:\.xz)?)$'
+    )
+
+    # Group by (type, arch, ext)
+    groups: dict[tuple[str, str, str], list[tuple[str, float]]] = defaultdict(list)
+    unmatched: list[str] = []
+    for f in os.listdir(pkg_dir):
+        m = pattern.match(f)
+        if m:
+            groups[(m[1], m[2], m[3])].append((os.path.join(pkg_dir, f), os.path.getmtime(os.path.join(pkg_dir, f))))
+        elif not f.endswith('.metadata.json'):
+            unmatched.append(f)
+
+    # Remove old files (keep newest N per group)
+    removed = 0
+    for files in groups.values():
+        for filepath, _ in sorted(files, key=lambda x: x[1], reverse=True)[keep:]:
+            try:
+                os.remove(filepath)
+                removed += 1
+                # Also remove metadata
+                meta = filepath + ".metadata.json"
+                if os.path.exists(meta):
+                    os.remove(meta)
+                    removed += 1
+            except OSError:
+                pass
+
+    if removed:
+        print(f"Auto-cleaned {removed} old package files (keeping last {keep} per type)")
+    if unmatched:
+        print(
+            f"Skipped {len(unmatched)} unrecognized files in {pkg_dir}: {', '.join(unmatched[:5])}"
+            + (f" (+{len(unmatched) - 5} more)" if len(unmatched) > 5 else "")
+        )
 
 
 def _pipeline_id_of_package(package: DebPackageInfo) -> int:
