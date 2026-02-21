@@ -156,6 +156,25 @@ type Event struct {
 	VethPair         VethPairEvent         `field:"-"`
 	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
 	TracerMemfdSeal  TracerMemfdSealEvent  `field:"-"`
+
+	StartTime       time.Time              `field:"-"`
+	ProcessingTrace []ProcessingCheckpoint `field:"-"`
+}
+
+// ProcessingCheckpoint records a named timing point during event processing
+type ProcessingCheckpoint struct {
+	Name      string `json:"name"`
+	ElapsedUs int64  `json:"elapsed_us"` // microseconds since StartTime
+}
+
+// RecordCheckpoint records a named checkpoint with the elapsed time since StartTime
+func (e *Event) RecordCheckpoint(name string) {
+	if !e.StartTime.IsZero() {
+		e.ProcessingTrace = append(e.ProcessingTrace, ProcessingCheckpoint{
+			Name:      name,
+			ElapsedUs: time.Since(e.StartTime).Microseconds(),
+		})
+	}
 }
 
 // NewEventZeroer returns a function that can be used to zero an Event

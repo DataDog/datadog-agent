@@ -322,6 +322,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.capabilities_monitoring.enabled", false)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.capabilities_monitoring.period", "5s")
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.snapshot_using_listmount", false)
+	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.event_processing_time.enabled", true)
 	cfg.BindEnvAndSetDefault("event_monitoring_config.env_vars_resolution.enabled", true)
 
 	// process event monitoring data limits for network tracer

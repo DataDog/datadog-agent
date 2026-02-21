@@ -62,7 +62,9 @@ func (m *Manager) LookupEventInProfiles(event *model.Event) {
 	var tags []string
 
 	// First try container-based lookup
+	event.RecordCheckpoint("profile_resolve_tags")
 	event.FieldHandlers.ResolveContainerTags(event, &event.ProcessContext.Process.ContainerContext)
+	event.RecordCheckpoint("profile_resolve_tags_done")
 	if len(event.ProcessContext.Process.ContainerContext.Tags) > 0 {
 		tags = event.ProcessContext.Process.ContainerContext.Tags
 		selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", tags), "*")
