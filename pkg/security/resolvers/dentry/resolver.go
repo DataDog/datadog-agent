@@ -17,6 +17,7 @@ import (
 	"math/rand"
 	"os"
 	"strings"
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -68,8 +69,9 @@ type Resolver struct {
 	keys             []model.PathKey
 	cacheNameEntries [][]byte
 
-	hitsCounters map[counterEntry]*atomic.Int64
-	missCounters map[counterEntry]*atomic.Int64
+	hitsCounters        map[counterEntry]*atomic.Int64
+	missCounters        map[counterEntry]*atomic.Int64
+	erpcResolutionTimes atomic.Int64
 }
 
 // ErrEntryNotFound is thrown when a path key was not found in the cache
@@ -139,6 +141,9 @@ func (dr *Resolver) SendStats() error {
 	}
 
 	_ = dr.statsdClient.Gauge(metrics.MetricDentryCacheSize, float64(dr.cache.Len()), []string{}, 1)
+
+	timeMs := dr.erpcResolutionTimes.Swap(0)
+	_ = dr.statsdClient.Gauge(metrics.MetricDentryERPCResolutionTimeMs, float64(timeMs), nil, 1)
 
 	return dr.sendERPCStats()
 }
@@ -570,7 +575,14 @@ func (dr *Resolver) Resolve(pathKey model.PathKey, cache bool) (string, error) {
 		path, err = dr.ResolveFromCache(pathKey)
 	}
 	if err != nil && dr.config.ERPCDentryResolutionEnabled {
+		t := time.Now()
 		path, err = dr.ResolveFromERPC(pathKey, cache)
+		durationMs := time.Since(t).Milliseconds()
+		lastErpcTime := dr.erpcResolutionTimes.Load()
+		if durationMs > lastErpcTime {
+			dr.erpcResolutionTimes.CompareAndSwap(lastErpcTime, durationMs)
+		}
+
 	}
 	if err != nil && err != errTruncatedParentsERPC && dr.config.MapDentryResolutionEnabled {
 		path, err = dr.ResolveFromMap(pathKey, cache)
