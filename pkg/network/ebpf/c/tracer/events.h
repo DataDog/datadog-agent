@@ -195,15 +195,9 @@ static __always_inline void flush_conn_close_if_full(void *ctx) {
         return;
     }
 
-    // Here we copy the batch data to a variable allocated in the eBPF stack
-    // This is necessary for older Kernel versions only (we validated this behavior on 4.4.0),
-    // since you can't directly write a map entry to the perf buffer.
-    batch_t batch_copy = {};
-    bpf_memcpy(&batch_copy, batch_ptr, sizeof(batch_copy));
+    submit_closed_conn_event(ctx, cpu, batch_ptr, sizeof(batch_t));
     batch_ptr->len = 0;
     batch_ptr->id++;
-
-    submit_closed_conn_event(ctx, cpu, &batch_copy, sizeof(batch_t));
 }
 
 #endif // __TRACER_EVENTS_H
