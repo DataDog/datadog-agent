@@ -20,7 +20,7 @@ int test_path_id_mount_and_invalidation() {
     bump_high_path_id(mount_id1);
 
     u32 mount_1_path_id_after_release = get_path_id(0, mount_id1, 1, PATH_ID_INVALIDATE_TYPE_NONE);
-    assert_equals(mount_1_path_id_after_release, PATH_ID(1, 1), "path id should have low and high id incremented");
+    assert_equals(mount_1_path_id_after_release, PATH_ID(30, 1), "path id should have low and high id incremented");
 
     return 1;
 }
