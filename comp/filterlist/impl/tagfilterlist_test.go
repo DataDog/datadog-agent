@@ -29,18 +29,26 @@ func TestNewTagMatcher(t *testing.T) {
 	})
 
 	assert.NotNil(t, matcher)
+
+	envHash := murmur3.StringSum64("env")
+	hostHash := murmur3.StringSum64("host")
+	podHash := murmur3.StringSum64("pod")
+
 	assert.Equal(t, matcher.MetricTags["metric1"], hashedMetricTagList{
-		tags:   []uint64{murmur3.StringSum64("env"), murmur3.StringSum64("host")},
+		tags:   []uint64{envHash, hostHash},
+		tagMap: map[uint64]struct{}{envHash: {}, hostHash: {}},
 		action: Exclude,
 	})
 
 	assert.Equal(t, matcher.MetricTags["metric2"], hashedMetricTagList{
 		tags:   []uint64{},
+		tagMap: map[uint64]struct{}{},
 		action: Include,
 	})
 
 	assert.Equal(t, matcher.MetricTags["metric3"], hashedMetricTagList{
-		tags:   []uint64{murmur3.StringSum64("pod")},
+		tags:   []uint64{podHash},
+		tagMap: map[uint64]struct{}{podHash: {}},
 		action: Exclude,
 	})
 }

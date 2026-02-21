@@ -46,3 +46,7 @@ func (*noopTagMatcher) ShouldStripTags(_ string) (func(tag string) bool, bool) {
 		return true
 	}, false
 }
+
+func (*noopTagMatcher) GetTagNameFilter(_ string) (map[uint64]struct{}, bool, bool) {
+	return nil, false, false
+}
