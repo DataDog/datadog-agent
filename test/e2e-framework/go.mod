@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/test/e2e-framework
 
-go 1.25.0
+go 1.25.6
 
 require (
 	dario.cat/mergo v1.0.2
@@ -22,7 +22,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.67.7
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492
 	github.com/cenkalti/backoff/v5 v5.0.3
-	github.com/docker/cli v29.0.3+incompatible
+	github.com/docker/cli v29.2.1+incompatible
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/google/gofuzz v1.2.0
 	github.com/google/uuid v1.6.0
@@ -172,7 +172,7 @@ require (
 	github.com/jmespath/go-jmespath v0.4.1-0.20220621161143-b0104c826a24 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
-	github.com/klauspost/compress v1.18.3 // indirect
+	github.com/klauspost/compress v1.18.4 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
