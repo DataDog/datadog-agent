@@ -126,6 +126,28 @@ func TestUnbundledEventsTransform(t *testing.T) {
 				"bagon_attribute3": "value3",
 			},
 		},
+		{
+			ContainerID:   "ec7da5a07ebc6d001e4d19d2d20a633dfaf836d0c4a98231033fb4e4cda6df90",
+			ContainerName: "charmander",
+			ImageName:     "pokemon/charmander",
+			Action:        events.ActionDie,
+			Timestamp:     time.Now(),
+			Attributes: map[string]string{
+				"exitCode":             "1",
+				"charmander_attribute": "value",
+			},
+		},
+		{
+			ContainerID:   "c198dbe0c0236e574ecaaf627b53fe2b7dcd2972872db45a1c3636638987fb39",
+			ContainerName: "bulbasaur",
+			ImageName:     "pokemon/bulbasaur",
+			Action:        events.ActionDie,
+			Timestamp:     time.Now(),
+			Attributes: map[string]string{
+				"exitCode":            "invalid",
+				"bulbasaur_attribute": "value",
+			},
+		},
 	}
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
@@ -184,6 +206,44 @@ pokemon/bagon 1 copy 1 disable on test-host
 					},
 				},
 				{
+					Title: "pokemon/bulbasaur 1 die on test-host",
+					Text: fmt.Sprintf(`%s 
+pokemon/bulbasaur 1 die on test-host
+%s
+%s
+%s
+ %s`, eventBlock, codeBlock, "DIE\tbulbasaur", codeBlock, eventBlock),
+					Host:           hostname,
+					Priority:       "normal",
+					SourceTypeName: "docker",
+					AggregationKey: "docker:pokemon/bulbasaur",
+					AlertType:      "info",
+					EventType:      "docker",
+					Tags: []string{
+						"image_name:pokemon/bulbasaur",
+						"container_name:bulbasaur",
+					},
+				},
+				{
+					Title: "pokemon/charmander 1 die on test-host",
+					Text: fmt.Sprintf(`%s 
+pokemon/charmander 1 die on test-host
+%s
+%s
+%s
+ %s`, eventBlock, codeBlock, "DIE\tcharmander", codeBlock, eventBlock),
+					Host:           hostname,
+					Priority:       "normal",
+					SourceTypeName: "docker",
+					AggregationKey: "docker:pokemon/charmander",
+					AlertType:      "info",
+					EventType:      "docker",
+					Tags: []string{
+						"image_name:pokemon/charmander",
+						"container_name:charmander",
+					},
+				},
+				{
 					Title: "pokemon/squirtle 1 start on test-host",
 					Text: fmt.Sprintf(`%s 
 pokemon/squirtle 1 start on test-host
@@ -214,6 +274,44 @@ pokemon/squirtle 1 start on test-host
 				string(events.ActionStart),
 			},
 			expectedEvents: []event.Event{
+				{
+					Title: "pokemon/bulbasaur 1 die on test-host",
+					Text: fmt.Sprintf(`%s 
+pokemon/bulbasaur 1 die on test-host
+%s
+%s
+%s
+ %s`, eventBlock, codeBlock, "DIE\tbulbasaur", codeBlock, eventBlock),
+					Host:           hostname,
+					Priority:       "normal",
+					SourceTypeName: "docker",
+					AggregationKey: "docker:pokemon/bulbasaur",
+					AlertType:      "info",
+					EventType:      "docker",
+					Tags: []string{
+						"image_name:pokemon/bulbasaur",
+						"container_name:bulbasaur",
+					},
+				},
+				{
+					Title: "pokemon/charmander 1 die on test-host",
+					Text: fmt.Sprintf(`%s 
+pokemon/charmander 1 die on test-host
+%s
+%s
+%s
+ %s`, eventBlock, codeBlock, "DIE\tcharmander", codeBlock, eventBlock),
+					Host:           hostname,
+					Priority:       "normal",
+					SourceTypeName: "docker",
+					AggregationKey: "docker:pokemon/charmander",
+					AlertType:      "info",
+					EventType:      "docker",
+					Tags: []string{
+						"image_name:pokemon/charmander",
+						"container_name:charmander",
+					},
+				},
 				{
 					Title: "pokemon/squirtle 1 exec_create on test-host",
 					Text: fmt.Sprintf(`%s 
@@ -292,6 +390,45 @@ pokemon/azurill 1 top on test-host
 						"image_name:pokemon/bagon",
 						"container_name:bagon",
 						"event_type:copy",
+					},
+				},
+			},
+		},
+		{
+			name:                   "die events that are collected and unbundled will have an exit_code tag if the event contains a valid attribute",
+			bundleUnspecifedEvents: false,
+			filteredEventTypes:     []string{},
+			collectedEventTypes: []string{
+				string(events.ActionDie),
+			},
+			expectedEvents: []event.Event{
+				{
+					Title:          "Container c198dbe0c0236e574ecaaf627b53fe2b7dcd2972872db45a1c3636638987fb39: die",
+					Text:           `Container c198dbe0c0236e574ecaaf627b53fe2b7dcd2972872db45a1c3636638987fb39 (running image "pokemon/bulbasaur"): die`,
+					Host:           hostname,
+					Priority:       "normal",
+					AggregationKey: "docker:c198dbe0c0236e574ecaaf627b53fe2b7dcd2972872db45a1c3636638987fb39",
+					AlertType:      "info",
+					SourceTypeName: "docker",
+					Tags: []string{
+						"image_name:pokemon/bulbasaur",
+						"container_name:bulbasaur",
+						"event_type:die",
+					},
+				},
+				{
+					Title:          "Container ec7da5a07ebc6d001e4d19d2d20a633dfaf836d0c4a98231033fb4e4cda6df90: die",
+					Text:           `Container ec7da5a07ebc6d001e4d19d2d20a633dfaf836d0c4a98231033fb4e4cda6df90 (running image "pokemon/charmander"): die`,
+					Host:           hostname,
+					Priority:       "normal",
+					AggregationKey: "docker:ec7da5a07ebc6d001e4d19d2d20a633dfaf836d0c4a98231033fb4e4cda6df90",
+					AlertType:      "info",
+					SourceTypeName: "docker",
+					Tags: []string{
+						"image_name:pokemon/charmander",
+						"container_name:charmander",
+						"event_type:die",
+						"exit_code:1",
 					},
 				},
 			},
