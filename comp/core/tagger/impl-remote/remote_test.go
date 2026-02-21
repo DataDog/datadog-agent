@@ -357,6 +357,27 @@ func TestNegativeCacheTTL(t *testing.T) {
 		assert.Equal(t, negativeCacheExpiration, ttl)
 	})
 
+	t.Run("ContainerNameWithoutPodUIDUsesShortTTL", func(t *testing.T) {
+		originInfo := origindetection.OriginInfo{
+			ProductOrigin: origindetection.ProductOriginAPM,
+			ExternalData:  origindetection.ExternalData{ContainerName: "tracegen"},
+		}
+
+		ttl, shouldCache := negativeCacheTTL(originInfo, unresolvedErr)
+		require.True(t, shouldCache)
+		assert.Equal(t, pidOnlyNegativeCacheExpiration, ttl)
+	})
+
+	t.Run("NoOriginHintsAreNotCached", func(t *testing.T) {
+		originInfo := origindetection.OriginInfo{
+			ProductOrigin: origindetection.ProductOriginAPM,
+		}
+
+		ttl, shouldCache := negativeCacheTTL(originInfo, unresolvedErr)
+		assert.False(t, shouldCache)
+		assert.Zero(t, ttl)
+	})
+
 	t.Run("TransportErrorsAreNotCached", func(t *testing.T) {
 		originInfo := origindetection.OriginInfo{
 			ProductOrigin: origindetection.ProductOriginAPM,
