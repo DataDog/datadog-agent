@@ -32,7 +32,8 @@ func IsBuiltin(name string) bool {
 		"wait", "builtin", "trap", "type", "source", ".", "command",
 		"dirs", "pushd", "popd", "umask", "alias", "unalias",
 		"fg", "bg", "getopts", "eval", "test", "[", "exec",
-		"return", "read", "mapfile", "readarray", "shopt":
+		"return", "read", "mapfile", "readarray", "shopt",
+		"ls":
 		return true
 	}
 	return false
@@ -165,7 +166,7 @@ func (r *Runner) builtin(ctx context.Context, pos syntax.Pos, name string, args 
 			r.out(arg)
 		}
 		if newline {
-			r.out("\n")
+			r.out("\n--\n")
 		}
 	case "printf":
 		if len(args) == 0 {
@@ -897,6 +898,8 @@ func (r *Runner) builtin(ctx context.Context, pos syntax.Pos, name string, args 
 		}
 		r.setVar(arrayName, vr)
 
+	case "ls":
+		exit = r.builtinLs(ctx, args)
 	default:
 		// "umask", "fg", "bg",
 		return failf(2, "%s: unimplemented builtin\n", name)

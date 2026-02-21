@@ -8,6 +8,7 @@ package interp
 import (
 	"context"
 	"fmt"
+	"io/fs"
 
 	"mvdan.cc/sh/v3/syntax"
 )
@@ -55,3 +56,11 @@ type waitStatus struct{}
 
 func (waitStatus) Signaled() bool { return false }
 func (waitStatus) Signal() int    { return 0 }
+
+// lsFileOwnership returns stub ownership info on non-Unix platforms.
+func lsFileOwnership(info fs.FileInfo, numeric bool) (owner, group string, nlink uint64, inode uint64) {
+	return "0", "0", 1, 0
+}
+
+// lsFileBlocks returns 0 on non-Unix platforms.
+func lsFileBlocks(info fs.FileInfo) int64 { return 0 }
