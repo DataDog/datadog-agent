@@ -55,14 +55,10 @@ const (
 	streamRecvTimeout = 10 * time.Minute
 	cacheExpiration   = 1 * time.Minute
 
-	// negativeCacheExpiration is used for failed resolutions that include stable
-	// origin hints (container ID, inode, pod metadata).
-	negativeCacheExpiration = 1 * time.Minute
-
-	// pidOnlyNegativeCacheExpiration is used for PID-only origin info. PID-only
-	// identifiers can be low-entropy across PID namespaces, so use a short TTL to
-	// avoid poisoning future lookups while still throttling repeated failures.
-	pidOnlyNegativeCacheExpiration = 1 * time.Second
+	// negativeCacheExpiration uses a short TTL to throttle repeated unresolved
+	// lookups while minimizing stale misses for workloads that may become
+	// resolvable shortly after startup.
+	negativeCacheExpiration = 250 * time.Millisecond
 
 	unresolvedContainerIDError = "unable to resolve container ID from OriginInfo"
 
@@ -464,12 +460,7 @@ func negativeCacheTTL(originInfo origindetection.OriginInfo, err error) (time.Du
 	if err == nil || !isContainerIDResolutionMiss(err) || !hasAnyOriginHints(originInfo) {
 		return 0, false
 	}
-
-	if hasStableOriginHints(originInfo) {
-		return negativeCacheExpiration, true
-	}
-
-	return pidOnlyNegativeCacheExpiration, true
+	return negativeCacheExpiration, true
 }
 
 func isContainerIDResolutionMiss(err error) bool {
@@ -481,19 +472,6 @@ func isContainerIDResolutionMiss(err error) bool {
 		return strings.Contains(st.Message(), unresolvedContainerIDError)
 	}
 	return strings.Contains(err.Error(), unresolvedContainerIDError)
-}
-
-func hasStableOriginHints(originInfo origindetection.OriginInfo) bool {
-	if originInfo.LocalData.ContainerID != "" || originInfo.LocalData.Inode != 0 {
-		return true
-	}
-
-	// External resolution requires both pod UID and container name.
-	if originInfo.ExternalData.PodUID != "" && originInfo.ExternalData.ContainerName != "" {
-		return true
-	}
-
-	return false
 }
 
 func hasAnyOriginHints(originInfo origindetection.OriginInfo) bool {
