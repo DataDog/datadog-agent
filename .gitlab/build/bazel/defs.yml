@@ -79,6 +79,7 @@
     ARCH: x64
     GIT_DEPTH: 2
   script:
+    - Get-Content $env:RUNNER_TEMP_PROJECT_DIR/git-template/config
     - |-
       $FailFast = @'
       $ErrorActionPreference = 'Stop'

@@ -26,6 +26,7 @@ bazel:build-deps:macos-arm64:
 
 bazel:build-deps:windows-amd64:
   extends: [ .bazel:build-deps, .bazel:runner:windows-amd64 ]
+  parallel: 10
   variables:
     POWERSHELL_SCRIPT: |-
       [Console]::WriteLine("🟡 TODO(regis): compilation errors remain - limiting to a working subset for the time being")
