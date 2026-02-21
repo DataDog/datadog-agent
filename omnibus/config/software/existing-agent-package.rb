@@ -4,6 +4,8 @@ description 'A previously built artifact, unpacked'
 
 always_build true
 
+dependency 'systemd'
+
 source_url = ENV['OMNIBUS_REPACKAGE_SOURCE_URL']
 target_package = File.basename(source_url)
 source url: source_url,
