@@ -704,6 +704,10 @@ core,github.com/circonus-labs/circonus-gometrics/api/config,BSD-3-Clause,"Copyri
 core,github.com/circonus-labs/circonus-gometrics/checkmgr,BSD-3-Clause,"Copyright (c) 2016, Circonus, Inc. All rights reserved"
 core,github.com/circonus-labs/circonusllhist,BSD-3-Clause,"Copyright (c) 2016 Circonus, Inc. All rights reserved"
 core,github.com/clbanning/mxj,MIT,Copyright (c) 2012-2016 Charles Banning <clbanning@gmail.com>.  All rights reserved | Copyright 2009 The Go Authors. All rights reserved
+core,github.com/clipperhouse/displaywidth,MIT,Copyright (c) 2025 Matt Sherman
+core,github.com/clipperhouse/stringish,MIT,Copyright (c) 2025 Matt Sherman
+core,github.com/clipperhouse/uax29/v2/graphemes,MIT,Copyright (c) 2020 Matt Sherman
+core,github.com/clipperhouse/uax29/v2/internal/iterators,MIT,Copyright (c) 2020 Matt Sherman
 core,github.com/cloudflare/cbpfc,BSD-3-Clause,"Copyright (c) 2019, Cloudflare. All rights reserved"
 core,github.com/cloudflare/circl/dh/x25519,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
 core,github.com/cloudflare/circl/dh/x448,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
@@ -1561,7 +1565,17 @@ core,github.com/netsampler/goflow2/utils,BSD-3-Clause,"Copyright (c) 2021, NetSa
 core,github.com/nexus-rpc/sdk-go/nexus,MIT,Copyright (c) 2023 Temporal Technologies Inc. All Rights Reserved
 core,github.com/oklog/ulid,Apache-2.0,- Peter Bourgon (@peterbourgon) | - Tomás Senart (@tsenart)
 core,github.com/oklog/ulid/v2,Apache-2.0,- Peter Bourgon (@peterbourgon) | - Tomás Senart (@tsenart)
+core,github.com/olekukonko/cat,MIT,Copyright (c) 2025 Oleku Konko
+core,github.com/olekukonko/errors,MIT,Copyright (c) 2025 Oleku Konko
+core,github.com/olekukonko/ll,MIT,Copyright (c) 2025 Oleku Konko
+core,github.com/olekukonko/ll/lh,MIT,Copyright (c) 2025 Oleku Konko
+core,github.com/olekukonko/ll/lx,MIT,Copyright (c) 2025 Oleku Konko
 core,github.com/olekukonko/tablewriter,MIT,Copyright (C) 2014 by Oleku Konko
+core,github.com/olekukonko/tablewriter/pkg/twcache,MIT,Copyright (C) 2014 by Oleku Konko
+core,github.com/olekukonko/tablewriter/pkg/twwarp,MIT,Copyright (C) 2014 by Oleku Konko
+core,github.com/olekukonko/tablewriter/pkg/twwidth,MIT,Copyright (C) 2014 by Oleku Konko
+core,github.com/olekukonko/tablewriter/renderer,MIT,Copyright (C) 2014 by Oleku Konko
+core,github.com/olekukonko/tablewriter/tw,MIT,Copyright (C) 2014 by Oleku Konko
 core,github.com/oliveagle/jsonpath,MIT,Copyright (c) 2015 oliver
 core,github.com/open-policy-agent/opa/capabilities,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/bundle,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
@@ -2161,7 +2175,6 @@ core,github.com/richardartoul/molecule,MIT,Copyright (c) 2020 Richard Artoul
 core,github.com/richardartoul/molecule/src/codec,Apache-2.0,Copyright (c) 2020 Richard Artoul
 core,github.com/richardartoul/molecule/src/protowire,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2020 Richard Artoul
 core,github.com/rickar/props,BSD-3-Clause,Copyright (c) 2013 Rick Arnold. All rights reserved
-core,github.com/rivo/uniseg,MIT,Copyright (c) 2019 Oliver Kuederle
 core,github.com/robfig/cron,MIT,Copyright (C) 2012 Rob Figueiredo
 core,github.com/robfig/cron/v3,MIT,Copyright (C) 2012 Rob Figueiredo
 core,github.com/rogpeppe/go-internal/fmtsort,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
