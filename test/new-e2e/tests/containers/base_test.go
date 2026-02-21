@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/samber/lo"
@@ -83,10 +84,10 @@ func (mc *myCollectT) Errorf(format string, args ...interface{}) {
 	mc.CollectT.Errorf(format, args...)
 }
 
-func (suite *baseSuite[Env]) testMetric(args *testMetricArgs) {
+func (suite *baseSuite[Env]) testMetric(t *testing.T, args *testMetricArgs) {
 	prettyMetricQuery := fmt.Sprintf("%s{%s}", args.Filter.Name, strings.Join(args.Filter.Tags, ","))
 
-	suite.Run("metric   "+prettyMetricQuery, func() {
+	t.Run("metric   "+prettyMetricQuery, func(t *testing.T) {
 		var expectedTags []*regexp.Regexp
 		if args.Expect.Tags != nil {
 			expectedTags = lo.Map(*args.Expect.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
@@ -99,7 +100,7 @@ func (suite *baseSuite[Env]) testMetric(args *testMetricArgs) {
 
 		sendEvent := func(alertType, text string) {
 			formattedArgs, err := yaml.Marshal(args)
-			suite.Require().NoError(err)
+			require.NoError(t, err)
 
 			tags := lo.Map(args.Filter.Tags, func(tag string, _ int) string {
 				return "filter_tag_" + tag
@@ -125,22 +126,22 @@ func (suite *baseSuite[Env]) testMetric(args *testMetricArgs) {
 					"app:agent-new-e2e-tests-containers",
 					"cluster_name:" + suite.clusterName,
 					"metric:" + args.Filter.Name,
-					"test:" + suite.T().Name(),
+					"test:" + t.Name(),
 				}, tags...),
 			}); err != nil {
-				suite.T().Logf("Failed to post event: %s", err)
+				t.Logf("Failed to post event: %s", err)
 			}
 		}
 
 		defer func() {
-			if suite.T().Failed() {
+			if t.Failed() {
 				sendEvent("error", fmt.Sprintf("Failed finding %s with proper tags and value", prettyMetricQuery))
 			} else {
 				sendEvent("success", "All good!")
 			}
 		}()
 
-		suite.EventuallyWithTf(func(collect *assert.CollectT) {
+		require.EventuallyWithTf(t, func(collect *assert.CollectT) {
 			c := &myCollectT{
 				CollectT: collect,
 				errors:   []error{},
@@ -212,10 +213,10 @@ type testLogExpectArgs struct {
 	Message string
 }
 
-func (suite *baseSuite[Env]) testLog(args *testLogArgs) {
+func (suite *baseSuite[Env]) testLog(t *testing.T, args *testLogArgs) {
 	prettyLogQuery := fmt.Sprintf("%s{%s}", args.Filter.Service, strings.Join(args.Filter.Tags, ","))
 
-	suite.Run("log   "+prettyLogQuery, func() {
+	t.Run("log   "+prettyLogQuery, func(t *testing.T) {
 		var expectedTags []*regexp.Regexp
 		if args.Expect.Tags != nil {
 			expectedTags = lo.Map(*args.Expect.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
@@ -228,7 +229,7 @@ func (suite *baseSuite[Env]) testLog(args *testLogArgs) {
 
 		sendEvent := func(alertType, text string) {
 			formattedArgs, err := yaml.Marshal(args)
-			suite.Require().NoError(err)
+			require.NoError(t, err)
 
 			tags := lo.Map(args.Filter.Tags, func(tag string, _ int) string {
 				return "filter_tag_" + tag
@@ -254,22 +255,22 @@ func (suite *baseSuite[Env]) testLog(args *testLogArgs) {
 					"app:agent-new-e2e-tests-containers",
 					"cluster_name:" + suite.clusterName,
 					"log_service:" + args.Filter.Service,
-					"test:" + suite.T().Name(),
+					"test:" + t.Name(),
 				}, tags...),
 			}); err != nil {
-				suite.T().Logf("Failed to post event: %s", err)
+				t.Logf("Failed to post event: %s", err)
 			}
 		}
 
 		defer func() {
-			if suite.T().Failed() {
+			if t.Failed() {
 				sendEvent("error", fmt.Sprintf("Failed finding %s with proper tags and message", prettyLogQuery))
 			} else {
 				sendEvent("success", "All good!")
 			}
 		}()
 
-		suite.EventuallyWithTf(func(collect *assert.CollectT) {
+		require.EventuallyWithTf(t, func(collect *assert.CollectT) {
 			c := &myCollectT{
 				CollectT: collect,
 				errors:   []error{},
@@ -345,10 +346,10 @@ type testCheckRunExpectArgs struct {
 	AcceptUnexpectedTags bool
 }
 
-func (suite *baseSuite[Env]) testCheckRun(args *testCheckRunArgs) {
+func (suite *baseSuite[Env]) testCheckRun(t *testing.T, args *testCheckRunArgs) {
 	prettyCheckRunQuery := fmt.Sprintf("%s{%s}", args.Filter.Name, strings.Join(args.Filter.Tags, ","))
 
-	suite.Run("checkRun   "+prettyCheckRunQuery, func() {
+	t.Run("checkRun   "+prettyCheckRunQuery, func(t *testing.T) {
 		var expectedTags []*regexp.Regexp
 		if args.Expect.Tags != nil {
 			expectedTags = lo.Map(*args.Expect.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
@@ -361,7 +362,7 @@ func (suite *baseSuite[Env]) testCheckRun(args *testCheckRunArgs) {
 
 		sendEvent := func(alertType, text string) {
 			formattedArgs, err := yaml.Marshal(args)
-			suite.Require().NoError(err)
+			require.NoError(t, err)
 
 			tags := lo.Map(args.Filter.Tags, func(tag string, _ int) string {
 				return "filter_tag_" + tag
@@ -387,22 +388,22 @@ func (suite *baseSuite[Env]) testCheckRun(args *testCheckRunArgs) {
 					"app:agent-new-e2e-tests-containers",
 					"cluster_name:" + suite.clusterName,
 					"check_run:" + args.Filter.Name,
-					"test:" + suite.T().Name(),
+					"test:" + t.Name(),
 				}, tags...),
 			}); err != nil {
-				suite.T().Logf("Failed to post event: %s", err)
+				t.Logf("Failed to post event: %s", err)
 			}
 		}
 
 		defer func() {
-			if suite.T().Failed() {
+			if t.Failed() {
 				sendEvent("error", fmt.Sprintf("Failed finding %s with proper tags and value", prettyCheckRunQuery))
 			} else {
 				sendEvent("success", "All good!")
 			}
 		}()
 
-		suite.EventuallyWithTf(func(collect *assert.CollectT) {
+		require.EventuallyWithTf(t, func(collect *assert.CollectT) {
 			c := &myCollectT{
 				CollectT: collect,
 				errors:   []error{},
@@ -463,10 +464,10 @@ type testEventExpectArgs struct {
 	AlertType event.AlertType
 }
 
-func (suite *baseSuite[Env]) testEvent(args *testEventArgs) {
+func (suite *baseSuite[Env]) testEvent(t *testing.T, args *testEventArgs) {
 	prettyEventQuery := fmt.Sprintf("%s{%s}", args.Filter.Source, strings.Join(args.Filter.Tags, ","))
 
-	suite.Run("event   "+prettyEventQuery, func() {
+	t.Run("event   "+prettyEventQuery, func(t *testing.T) {
 		var expectedTags []*regexp.Regexp
 		if args.Expect.Tags != nil {
 			expectedTags = lo.Map(*args.Expect.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
@@ -474,7 +475,7 @@ func (suite *baseSuite[Env]) testEvent(args *testEventArgs) {
 
 		sendEvent := func(alertType, text string) {
 			formattedArgs, err := yaml.Marshal(args)
-			suite.Require().NoError(err)
+			require.NoError(t, err)
 
 			tags := lo.Map(args.Filter.Tags, func(tag string, _ int) string {
 				return "filter_tag_" + tag
@@ -500,22 +501,22 @@ func (suite *baseSuite[Env]) testEvent(args *testEventArgs) {
 					"app:agent-new-e2e-tests-containers",
 					"cluster_name:" + suite.clusterName,
 					"event_source:" + args.Filter.Source,
-					"test:" + suite.T().Name(),
+					"test:" + t.Name(),
 				}, tags...),
 			}); err != nil {
-				suite.T().Logf("Failed to post event: %s", err)
+				t.Logf("Failed to post event: %s", err)
 			}
 		}
 
 		defer func() {
-			if suite.T().Failed() {
+			if t.Failed() {
 				sendEvent("error", fmt.Sprintf("Failed finding %s with proper tags and message", prettyEventQuery))
 			} else {
 				sendEvent("success", "All good!")
 			}
 		}()
 
-		suite.EventuallyWithTf(func(collect *assert.CollectT) {
+		require.EventuallyWithTf(t, func(collect *assert.CollectT) {
 			c := &myCollectT{
 				CollectT: collect,
 				errors:   []error{},
@@ -586,17 +587,17 @@ type testHostTags struct {
 	OptionalTags []string
 }
 
-func sendEvent[Env any](suite *baseSuite[Env], alertType, text string, args *testHostTags) {
+func sendHostTagsEvent[Env any](suite *baseSuite[Env], t *testing.T, alertType, text string, args *testHostTags) {
 	formattedArgs, err := yaml.Marshal(args)
-	suite.Require().NoError(err)
+	require.NoError(t, err)
 
 	_, err = suite.DatadogClient().PostEvent(&datadog.Event{
-		Title:     pointer.Ptr("test Host-Tags " + suite.T().Name()),
+		Title:     pointer.Ptr("test Host-Tags " + t.Name()),
 		AlertType: &alertType,
 		Tags: append([]string{
 			"app:agent-new-e2e-tests-containers",
 			"cluster_name:" + suite.clusterName,
-			"test:" + suite.T().Name(),
+			"test:" + t.Name(),
 		}, args.ExpectedTags...),
 		Text: pointer.Ptr(fmt.Sprintf(
 			`%%%%%%
@@ -616,12 +617,12 @@ func sendEvent[Env any](suite *baseSuite[Env], alertType, text string, args *tes
 	})
 
 	if err != nil {
-		suite.T().Logf("Failed to post event: %s", err)
+		t.Logf("Failed to post event: %s", err)
 	}
 }
 
-func (suite *baseSuite[Env]) testHostTags(args *testHostTags) {
-	suite.EventuallyWithT(func(ct *assert.CollectT) {
+func (suite *baseSuite[Env]) testHostTags(t *testing.T, args *testHostTags) {
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		c := &myCollectT{
 			CollectT: ct,
 			errors:   []error{},
@@ -629,9 +630,9 @@ func (suite *baseSuite[Env]) testHostTags(args *testHostTags) {
 
 		defer func() {
 			if len(c.errors) == 0 {
-				sendEvent(suite, "success", "All good!", args)
+				sendHostTagsEvent(suite, t, "success", "All good!", args)
 			} else {
-				sendEvent(suite, "warning", errors.Join(c.errors...).Error(), args)
+				sendHostTagsEvent(suite, t, "warning", errors.Join(c.errors...).Error(), args)
 			}
 		}()
 
@@ -651,7 +652,7 @@ func (suite *baseSuite[Env]) testHostTags(args *testHostTags) {
 		}
 
 		for _, host := range hosts {
-			suite.T().Logf("%s - validate host tags on host %s", time.Now().Format(time.TimeOnly), host)
+			t.Logf("%s - validate host tags on host %s", time.Now().Format(time.TimeOnly), host)
 
 			hostInfos, err := suite.Fakeintake.GetHostTags(host)
 			require.NoError(c, err, "failed to get host-tags for host %s", host)
@@ -668,7 +669,7 @@ func (suite *baseSuite[Env]) testHostTags(args *testHostTags) {
 
 			hostTags := hostInfo.HostTags
 
-			suite.T().Logf("Found host tags:\n- %s\n", strings.ReplaceAll(strings.Join(hostTags, "\n"), "\n", "\n- "))
+			t.Logf("Found host tags:\n- %s\n", strings.ReplaceAll(strings.Join(hostTags, "\n"), "\n", "\n- "))
 
 			require.NotNil(c, hostTags, "wrong payload, could not find 'host-tags' object in payload")
 			err = assertTags(hostTags, regexTags, optionalRegexTags, false)
