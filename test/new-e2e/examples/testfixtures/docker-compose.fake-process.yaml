@@ -3,8 +3,9 @@ services:
     container_name: fake-process
     build:
       context: .
+      # You can use public ECR or DockerHub for base images, but if your test is going to be running in CI, it is better to pull from our pull-through cache.
       dockerfile_inline: |
-        FROM public.ecr.aws/docker/library/alpine:3.20
+        FROM 669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/alpine:3.20.3
 
         # generates a synthetic process that consumes CPU and memory
         ENTRYPOINT ["dd", "if=/dev/zero", "of=/tmp/test-process.txt"]
