@@ -1118,13 +1118,20 @@ static __always_inline int handle_net_dev_queue(struct sk_buff* skb) {
 
     conn_tuple_t sock_tup;
     bpf_memset(&sock_tup, 0, sizeof(conn_tuple_t));
-    if (!read_conn_tuple(&sock_tup, sk, 0, CONN_TYPE_TCP)) {
+    u64 pid_tgid = 0; //bpf_get_current_pid_tgid();
+    if (!read_conn_tuple(&sock_tup, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
     sock_tup.netns = 0;
+#ifdef COMPILE_PREBUILT
     sock_tup.pid = 0;
+#else
+    struct task_struct *task = (void *)bpf_get_current_task();
+    skb_tup.pid = BPF_CORE_READ(task, tgid);
+#endif
 
     if (!is_equal(&skb_tup, &sock_tup)) {
+        log_debug("guy | handle net dev | skb pid: %d | sock pid: %d", skb_tup.pid, sock_tup.pid);
         normalize_tuple(&skb_tup);
         normalize_tuple(&sock_tup);
         // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics

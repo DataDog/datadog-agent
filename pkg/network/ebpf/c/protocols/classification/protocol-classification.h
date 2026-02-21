@@ -74,6 +74,7 @@ static __always_inline void classify_grpc(classification_context_t *classificati
     }
 
     if (status == PAYLOAD_GRPC) {
+        log_debug("guy | grpc true | pid: %d", classification_ctx->tuple.pid);
         update_protocol_information(classification_ctx, protocol_stack, PROTOCOL_GRPC);
     }
 
@@ -121,6 +122,7 @@ static __always_inline protocol_t classify_queue_protocols(struct __sk_buff *skb
         return PROTOCOL_AMQP;
     }
     if (is_kafka(skb, skb_info, buf, size)) {
+        log_debug("guy | kafka");
         return PROTOCOL_KAFKA;
     }
 
@@ -136,6 +138,11 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     if (!read_conn_tuple_skb(skb, &skb_info, &skb_tup)) {
         return;
     }
+
+#ifndef COMPILE_PREBUILT
+    struct task_struct *task = (void *)bpf_get_current_task();
+    skb_tup.pid = BPF_CORE_READ(task, tgid);
+#endif // COMPILE_PREBUILT
 
     // We support non empty TCP payloads for classification at the moment.
     if (!is_tcp(&skb_tup) || is_payload_empty(&skb_info)) {
@@ -275,6 +282,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_queues
     if (!protocol_stack) {
         return;
     }
+    log_debug("guy | queue | pid: %d | sport %d | dport %d", classification_ctx->tuple.pid, classification_ctx->tuple.sport, classification_ctx->tuple.dport);
     update_protocol_information(classification_ctx, protocol_stack, cur_fragment_protocol);
     mark_as_fully_classified(protocol_stack);
 
