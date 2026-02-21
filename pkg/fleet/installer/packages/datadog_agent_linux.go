@@ -259,7 +259,6 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to set package version in extensions db: %w", err)
 	}
 	if err := restoreAgentExtensions(ctx, false); err != nil {
-		fmt.Printf("failed to restore extensions: %s\n", err.Error())
 		log.Warnf("failed to restore extensions: %s", err)
 	}
 	if err := agentService.WriteStable(ctx); err != nil {

@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup"
+	setupcommon "github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -56,6 +57,7 @@ func newCmd(operation string) *cmd {
 	ctx, stop := context.WithCancel(ctx)
 	handleSignals(ctx, stop)
 	setInstallerUmask(span)
+	setupcommon.SetupLogger(env, span)
 	return &cmd{
 		t:              t,
 		ctx:            ctx,
