@@ -13,6 +13,7 @@ import (
 	"slices"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/sketches-go/ddsketch"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
@@ -21,6 +22,7 @@ import (
 
 type postgresEncoder struct {
 	postgresAggregationsBuilder *model.DatabaseAggregationsBuilder
+	sketchBuilder               *ddsketch.DDSketchCollectionBuilder
 	byConnection                *USMConnectionIndex[postgres.Key, *postgres.RequestStat]
 }
 
@@ -31,6 +33,7 @@ func newPostgresEncoder(postgresPayloads map[postgres.Key]*postgres.RequestStat)
 
 	return &postgresEncoder{
 		postgresAggregationsBuilder: model.NewDatabaseAggregationsBuilder(nil),
+		sketchBuilder:               ddsketch.NewDDSketchCollectionBuilder(nil),
 		byConnection: GroupByConnection("postgres", postgresPayloads, func(key postgres.Key) types.ConnectionKey {
 			return key.ConnectionKey
 		}),
@@ -73,7 +76,8 @@ func (e *postgresEncoder) encodeData(c network.ConnectionStats, w io.Writer) uin
 				statsBuilder.SetOperation(uint64(toPostgresModelOperation(key.Operation)))
 				if latencies := stats.Latencies; latencies != nil {
 					statsBuilder.SetLatencies(func(b *bytes.Buffer) {
-						latencies.EncodeProto(b)
+						e.sketchBuilder.Reset(b)
+						e.sketchBuilder.AddSketch(latencies)
 					})
 				} else {
 					statsBuilder.SetFirstLatencySample(stats.FirstLatencySample)
