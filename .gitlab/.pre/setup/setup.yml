@@ -2,7 +2,7 @@
 setup_agent_version:
   stage: setup
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   script:
     - |
       if ! dda inv -- -e agent.version --cache-version > build.env; then
@@ -27,7 +27,7 @@ setup_agent_version:
 github_rate_limit_info:
   stage: .pre
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success

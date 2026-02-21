@@ -48,7 +48,7 @@
 
 .linux_x64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
 
 tests_linux-x64-py3:
   extends:
@@ -123,7 +123,7 @@ tests_linux-arm64-py3:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64", "specific:true"]
+  tags: ["arch:arm64-cidc"]
   variables:
     CONDA_ENV: ddpy3
 
@@ -170,7 +170,7 @@ go_mod_tidy_check:
 new-e2e-unit-tests:
   extends: .linux_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   needs:
     - go_e2e_deps
     - go_deps

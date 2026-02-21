@@ -2,7 +2,7 @@
 build_dogstatsd_static-binary_x64:
   stage: binary_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   needs: ["go_deps"]
   variables:
     ARCH: amd64
@@ -18,7 +18,7 @@ build_dogstatsd_static-binary_arm64:
   rules:
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64", "specific:true"]
+  tags: ["arch:arm64-cidc"]
   needs: ["go_deps"]
   variables:
     ARCH: arm64
@@ -35,7 +35,7 @@ build_dogstatsd-binary_x64:
     - !reference [.except_mergequeue]
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   needs: ["go_deps"]
   before_script:
     - !reference [.retrieve_linux_go_deps]
@@ -50,7 +50,7 @@ build_dogstatsd-binary_arm64:
     - when: on_success
   stage: binary_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64", "specific:true"]
+  tags: ["arch:arm64-cidc"]
   needs: ["go_deps"]
   variables:
     ARCH: arm64
@@ -68,7 +68,7 @@ build_iot_agent-binary_x64:
     - !reference [.except_mergequeue]
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   needs: ["go_deps"]
   variables:
     KUBERNETES_CPU_REQUEST: 4
@@ -83,7 +83,7 @@ build_iot_agent-binary_arm64:
   rules: !reference [.on_all_builds]
   stage: binary_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64", "specific:true"]
+  tags: ["arch:arm64-cidc"]
   needs: ["go_deps"]
   variables:
     ARCH: arm64

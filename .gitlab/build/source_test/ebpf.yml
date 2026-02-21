@@ -32,7 +32,7 @@
 tests_ebpf_x64:
   extends: .tests_linux_ebpf
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   variables:
     ARCH: amd64
     TASK_ARCH: x64
@@ -40,7 +40,7 @@ tests_ebpf_x64:
 tests_ebpf_arm64:
   extends: .tests_linux_ebpf
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64", "specific:true"]
+  tags: ["arch:arm64-cidc"]
   needs: ["go_deps", "go_tools_deps_arm64"]
   before_script:
     - !reference [.retrieve_linux_go_deps]
@@ -72,7 +72,7 @@ tests_ebpf_arm64:
 prepare_sysprobe_ebpf_functional_tests_arm64:
   extends: .prepare_sysprobe_ebpf_functional_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64", "specific:true"]
+  tags: ["arch:arm64-cidc"]
   variables:
     ARCH: arm64
     DD_CC: "aarch64-unknown-linux-gnu-gcc"
@@ -81,7 +81,7 @@ prepare_sysprobe_ebpf_functional_tests_arm64:
 prepare_sysprobe_ebpf_functional_tests_x64:
   extends: .prepare_sysprobe_ebpf_functional_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   variables:
     ARCH: amd64
     DD_CC: "x86_64-unknown-linux-gnu-gcc"
@@ -109,7 +109,7 @@ prepare_sysprobe_ebpf_functional_tests_x64:
 prepare_secagent_ebpf_functional_tests_arm64:
   extends: .prepare_secagent_ebpf_functional_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64", "specific:true"]
+  tags: ["arch:arm64-cidc"]
   variables:
     ARCH: arm64
     DD_CC: "aarch64-unknown-linux-gnu-gcc"
@@ -118,7 +118,7 @@ prepare_secagent_ebpf_functional_tests_arm64:
 prepare_secagent_ebpf_functional_tests_x64:
   extends: .prepare_secagent_ebpf_functional_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   variables:
     ARCH: amd64
     DD_CC: "x86_64-unknown-linux-gnu-gcc"

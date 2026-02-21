@@ -7,7 +7,7 @@
   stage: internal_image_deploy
   rules: !reference [.on_deploy_internal_or_internal_image_change_or_manual]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   timeout: 1h
   parallel:
     matrix: # See https://github.com/DataDog/datadog-agent/pull/45778

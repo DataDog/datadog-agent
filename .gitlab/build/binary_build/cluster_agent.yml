@@ -34,14 +34,14 @@ cluster_agent-build_amd64:
   rules:
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
 
 cluster_agent-build_arm64:
   extends: .cluster_agent-build_common
   rules:
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64", "specific:true"]
+  tags: ["arch:arm64-cidc"]
 
 cluster_agent_fips-build_amd64:
   extends: cluster_agent-build_amd64

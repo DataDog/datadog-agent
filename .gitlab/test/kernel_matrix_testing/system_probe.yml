@@ -27,7 +27,7 @@ upload_dependencies_sysprobe_arm64:
 .pull_test_dockers:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   needs: []
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   stage: kernel_matrix_testing_prepare
   script:
@@ -59,7 +59,7 @@ pull_test_dockers_arm64:
 .upload_minimized_btfs:
   stage: kernel_matrix_testing_prepare
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   script:
     # Build dependencies directory
     - mkdir -p $DEPENDENCIES
@@ -183,7 +183,7 @@ upload_sysprobe_tests_x64:
     - prepare_sysprobe_ebpf_functional_tests_x64
     - tests_ebpf_x64
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   variables:
     ARCH: x86_64
     INSTANCE_TYPE: r5d.metal
@@ -196,7 +196,7 @@ upload_sysprobe_tests_arm64:
     - prepare_sysprobe_ebpf_functional_tests_arm64
     - tests_ebpf_arm64
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64", "specific:true"]
+  tags: ["arch:arm64-cidc"]
   variables:
     ARCH: arm64
     INSTANCE_TYPE: r6gd.metal
@@ -213,7 +213,7 @@ kmt_run_sysprobe_tests_x64:
   extends:
     - .kmt_run_sysprobe_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   needs:
     - kmt_setup_env_sysprobe_x64
     - upload_dependencies_sysprobe_x64
@@ -254,7 +254,7 @@ kmt_run_sysprobe_tests_arm64:
   extends:
     - .kmt_run_sysprobe_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64", "specific:true"]
+  tags: ["arch:arm64-cidc"]
   needs:
     - kmt_setup_env_sysprobe_arm64
     - upload_dependencies_sysprobe_arm64

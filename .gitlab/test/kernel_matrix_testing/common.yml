@@ -116,7 +116,7 @@
   before_script:
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   script:
     # upload dependencies
     - !reference [.wait_for_instance]
@@ -140,7 +140,7 @@
   stage: kernel_matrix_testing_prepare
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   needs: !reference [.kmt_setup_needs]
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   retry: !reference [.retry_only_infra_failure, retry]
   variables:
     AWS_REGION: us-east-1
@@ -215,7 +215,7 @@
 .kmt_cleanup:
   stage: kernel_matrix_testing_cleanup
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   before_script:
     - !reference [.kmt_new_profile]
   script:
@@ -313,7 +313,7 @@
 .notify_ebpf_complexity_changes:
   extends: .notify-job
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   timeout: 15m
   needs:
     # We need to specify the jobs that generate complexity explicitly, else we hit the limit of "needs"

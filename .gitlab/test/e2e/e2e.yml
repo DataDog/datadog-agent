@@ -4,7 +4,7 @@
 .new_e2e_template:
   stage: e2e
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   needs:
     - !reference [.needs_new_e2e_template]
   before_script:
@@ -161,7 +161,7 @@ new-e2e-base:
 go_e2e_test_binaries:
   stage: binary_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   needs:
     - go_e2e_deps
   variables:
@@ -1219,7 +1219,7 @@ new-e2e-gpu:
 
 all-artifacts: # This job is used to collect all artifacts needed in the flake finder pipeline, because we are limited to 5 cross pipelines needs: https://forum.gitlab.com/t/needs-pipeline-job-limit-on-premise/88731
   stage: e2e
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   rules:
     - !reference [.except_disable_e2e_tests]
@@ -1270,7 +1270,7 @@ generate-flakes-finder-pipeline:
     - qa_agent_fips_linux_jmx
     - qa_agent_full
     - tests_windows_sysprobe_x64
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   script:
     - dda inv -- -e testwasher.generate-flake-finder-pipeline
     - dda inv -- -e linter.gitlab-ci --input-file $CI_PROJECT_DIR/flake-finder-gitlab-ci.yml
@@ -1330,7 +1330,7 @@ generate-fips-e2e-pipeline:
     - qa_agent_fips_linux
     - qa_agent_fips_linux_jmx
     - tests_windows_sysprobe_x64
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   script:
     - dda inv -- -e fips.generate-fips-e2e-pipeline
     - dda inv -- -e linter.gitlab-ci --input-file $CI_PROJECT_DIR/fips-e2e-gitlab-ci.yml

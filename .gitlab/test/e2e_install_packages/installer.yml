@@ -1,7 +1,7 @@
 qa_installer_script_main:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   stage: e2e_install_packages
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   rules:
     - !reference [.only_main] # Disable non-main branch. Must be first.
     - !reference [.on_installer_or_e2e_changes]

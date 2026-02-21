@@ -5,7 +5,7 @@
 dogstatsd_x64_size_test:
   stage: integration_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   needs: ["build_dogstatsd_static-binary_x64"]
   before_script:
     - mkdir -p $STATIC_BINARIES_DIR

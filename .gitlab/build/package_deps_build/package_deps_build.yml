@@ -7,7 +7,7 @@
   rules:
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/btf-gen$CI_IMAGE_BTF_GEN_SUFFIX:$CI_IMAGE_BTF_GEN
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   script:
     - cd $CI_PROJECT_DIR
     - export BTFS_ETAG=$(aws s3api head-object --region us-east-1 --bucket dd-agent-omnibus --key btfs/$BTFHUB_ARCHIVE_BRANCH/btfs-$ARCH.tar --query ETag --output text | tr -d \")
