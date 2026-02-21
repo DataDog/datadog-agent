@@ -414,7 +414,10 @@ EMAIL_SLACK_ID_MAP = {
     "guy20495@gmail.com": "U03LJSCAPK2",
     "safchain@gmail.com": "U01009CUG9X",
     "usamasaqib.96@live.com": "U03D807V94J",
-    "leeavital@gmail.com": "UDG2223C1",
+}
+GITHUB_SLACK_ID_MAP = {
+    "gjulianm": "U069N8XCSQ0",
+    "jmw51798": "U05FPPV9ASF",
 }
 
 
@@ -472,6 +475,12 @@ def changelog(ctx, new_commit_sha):
         author_handle = ""
         if author_email in EMAIL_SLACK_ID_MAP:
             author_handle = EMAIL_SLACK_ID_MAP[author_email]
+        elif author_email.endswith("@users.noreply.github.com"):
+            github_username = author_email.removesuffix("@users.noreply.github.com")
+            if "+" in github_username:
+                github_username = github_username.split("+", maxsplit=1)[1]
+            if github_username in GITHUB_SLACK_ID_MAP:
+                author_handle = GITHUB_SLACK_ID_MAP[github_username]
         else:
             try:
                 recipient = client.users_lookupByEmail(email=author_email)
@@ -487,13 +496,12 @@ def changelog(ctx, new_commit_sha):
         messages.append(f"{message_link} {author_handle}")
 
     if messages:
-        slack_message += (
-            "\n".join(messages) + "\n:wave: Authors, please check the "
-            "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98?tpl_var_kube_cluster_name%5B0%5D=stripe"
-            "&tpl_var_kube_cluster_name%5B1%5D=oddish-b&tpl_var_kube_cluster_name%5B2%5D=lagaffe"
-            "&tpl_var_kube_cluster_name%5B3%5D=diglet&tpl_var_kube_cluster_name%5B4%5D=snowver"
-            "&tpl_var_kube_cluster_name%5B5%5D=chillpenguin&tpl_var_kube_cluster_name%5B6%5D=muk|dashboard> for issues"
-        )
+        slack_message += "\n".join(messages)
+        slack_message += "\n:wave: Authors, please check the <https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98?"
+        clusters = ["chillpenguin", "diglet", "lagaffe", "muk", "oddish-b", "snowver", "stripe", "venomoth"]
+        for i, cluster_name in enumerate(clusters):
+            slack_message += f"{"&" if i > 0 else ""}tpl_var_kube_cluster_name%5B{i}%5D={cluster_name}"
+        slack_message += "|dashboard> for issues"
     else:
         slack_message += empty_changelog_msg
 
