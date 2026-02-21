@@ -370,6 +370,27 @@ func TestGetDirectorStatus(t *testing.T) {
 	require.Equal(t, expectedDirectorStatus, actualDirectorStatus)
 }
 
+func TestGetTopology(t *testing.T) {
+	expectedTopology := []Neighbor{
+		{
+			
+		},
+	}
+
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	require.NoError(t, err)
+
+	actualTopology, err := client.GetTopology("test-branch-2B")
+	require.NoError(t, err)
+
+	// Check contents
+	require.Equal(t, expectedTopology, actualTopology)
+
+}
+
 func TestGetSLAMetrics(t *testing.T) {
 	expectedSLAMetrics := []SLAMetrics{
 		{
