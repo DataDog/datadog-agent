@@ -23,7 +23,7 @@ import (
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secretnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
+	serverdebugimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpltopk"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
