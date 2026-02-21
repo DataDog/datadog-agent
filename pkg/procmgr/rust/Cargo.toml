@@ -12,8 +12,14 @@ path = "src/main.rs"
 [dependencies]
 anyhow = "1.0.98"
 log = "0.4"
+nix = { version = "0.30", features = ["signal", "process"] }
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
 simple_logger = { version = "5.0", features = ["timestamps"] }
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "process", "fs", "time"] }
+
+[dev-dependencies]
+tempfile = "3"
 
 [profile.release]
 lto = "fat"
