@@ -73,6 +73,12 @@ func getExtensionStoragePath(_ string) string {
 	return paths.ProtectedDir
 }
 
+// getAgentPackageState returns the current repository state for the agent package.
+func getAgentPackageState() (repository.State, error) {
+	repos := repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks)
+	return repos.Get(agentPackage).GetState()
+}
+
 // postInstallDatadogAgent runs post install scripts for a given package.
 func postInstallDatadogAgent(ctx HookContext) error {
 	if ctx.PackageType != PackageTypeMSI {
@@ -105,11 +111,15 @@ func postInstallDatadogAgent(ctx HookContext) error {
 	// Common for both OCI and MSI: Restore extensions
 	// Call SetPackage separately (not inside restoreAgentExtensions)
 	agentVersion := getCurrentAgentVersion()
-	if err := extensionsPkg.SetPackage(ctx, agentPackage, agentVersion, false); err != nil {
+	// Detect whether this install is an experiment so hooks use the correct package path.
+	// When the experiment MSI runs postInstall, isExperiment=true ensures PostInstallExtension
+	// uses ExperimentPath() (resolved to the versioned dir) rather than StablePath().
+	state, _ := getAgentPackageState()
+	isExperiment := state.Experiment == agentVersion
+	if err := extensionsPkg.SetPackage(ctx, agentPackage, agentVersion, isExperiment); err != nil {
 		return fmt.Errorf("failed to set package version in extensions db: %w", err)
 	}
-
-	if err := restoreAgentExtensions(ctx, agentVersion, false); err != nil {
+	if err := restoreAgentExtensions(ctx, agentVersion, isExperiment); err != nil {
 		log.Warnf("failed to restore extensions: %s", err)
 	}
 
@@ -198,12 +208,15 @@ func postStartExperimentDatadogAgentBackground(ctx context.Context) error {
 	env := getenv()
 	hookCtx := HookContext{Context: ctx, PackagePath: paths.DatadogProgramFilesDir}
 
-	// Save stable extensions before removing agent.
-	// Do NOT remove extensions here: the experiment agent starts as part of MSI installation
-	// and needs extension config (e.g. datadog.yaml entries) to be in place from the start.
-	// PreRemoveExtension would strip that config before the experiment agent starts.
+	// Save and remove stable extensions before uninstalling the stable agent.
+	// PreRemoveExtension cleans up after the stable version (stops DDOT service, etc.).
+	// PostInstallExtension during the experiment MSI install will reconfigure for the
+	// experiment version. The agent is restarted after restore to pick up the new config.
 	if err := saveAgentExtensions(hookCtx, false); err != nil {
 		log.Warnf("failed to save extensions: %s", err)
+	}
+	if err := removeAgentExtensions(hookCtx, false); err != nil {
+		log.Warnf("failed to remove extensions: %s", err)
 	}
 
 	// remove the Agent if it is installed
@@ -239,13 +252,12 @@ func postStartExperimentDatadogAgentBackground(ctx context.Context) error {
 	// Get the actual experiment version from the repository state.
 	// getCurrentAgentVersion() returns the stable version since this process
 	// runs from a copy of the stable installer binary.
-	repos := repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks)
-	repoState, err := repos.Get(agentPackage).GetState()
+	repoState, err := getAgentPackageState()
 	if err != nil || repoState.Experiment == "" {
 		log.Warnf("could not determine experiment version for extension restore: %v", err)
 	} else {
 		experimentVersion := repoState.Experiment
-		if err := extensionsPkg.SetPackage(ctx, agentPackage, experimentVersion, true); err != nil {
+		if err := extensionsPkg.SetPackage(hookCtx, agentPackage, experimentVersion, true); err != nil {
 			return fmt.Errorf("failed to set package version for experiment: %w", err)
 		}
 		if err := restoreAgentExtensions(hookCtx, experimentVersion, true); err != nil {
@@ -292,10 +304,6 @@ func postStopExperimentDatadogAgentBackground(ctx context.Context) (err error) {
 	env := getenv()
 	hookCtx := HookContext{Context: ctx, PackagePath: paths.DatadogProgramFilesDir}
 
-	// Save experiment extensions before removing
-	if err := saveAgentExtensions(hookCtx, true); err != nil {
-		log.Warnf("failed to save experiment extensions: %s", err)
-	}
 	if err := removeAgentExtensions(hookCtx, true); err != nil {
 		log.Warnf("failed to remove experiment extensions: %s", err)
 	}
@@ -320,15 +328,14 @@ func postStopExperimentDatadogAgentBackground(ctx context.Context) (err error) {
 
 	// Get stable version from repository state (we're running from the experiment binary
 	// so getCurrentAgentVersion() returns the experiment version, not the stable version).
-	repos := repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks)
-	state, err := repos.Get(agentPackage).GetState()
+	state, err := getAgentPackageState()
 	if err != nil || state.Stable == "" {
 		log.Warnf("could not determine stable version for extension restore: %v", err)
 		return nil
 	}
 	stableVersion := state.Stable
 
-	if err := extensionsPkg.SetPackage(ctx, agentPackage, stableVersion, false); err != nil {
+	if err := extensionsPkg.SetPackage(hookCtx, agentPackage, stableVersion, false); err != nil {
 		return fmt.Errorf("failed to set package version for stable: %w", err)
 	}
 

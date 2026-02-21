@@ -410,7 +410,7 @@ func Restore(ctx context.Context, downloader *oci.Downloader, pkg string, downlo
 		return fmt.Errorf("could not install extensions: %w", err)
 	}
 
-	return os.RemoveAll(savePath)
+	return nil
 }
 
 // getExtensionsPath returns the path to the extensions for a package.

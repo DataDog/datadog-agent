@@ -347,6 +347,9 @@ func preStartExperimentDatadogAgent(ctx HookContext) error {
 	if err := saveAgentExtensions(ctx, false); err != nil {
 		log.Warnf("failed to save agent extensions: %s", err)
 	}
+	if err := removeAgentExtensions(ctx, false); err != nil {
+		log.Warnf("failed to remove agent extensions: %s", err)
+	}
 	return nil
 }
 
