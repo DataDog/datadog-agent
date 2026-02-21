@@ -192,10 +192,10 @@ require (
 	github.com/aquasecurity/trivy-db v0.0.0-20250604074528-8a8d6e3cc002
 	github.com/avast/retry-go/v4 v4.7.0
 	github.com/aws/aws-sdk-go-v2 v1.41.1
-	github.com/aws/aws-sdk-go-v2/config v1.32.7
-	github.com/aws/aws-sdk-go-v2/credentials v1.19.7
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.285.0
-	github.com/aws/aws-sdk-go-v2/service/rds v1.113.2
+	github.com/aws/aws-sdk-go-v2/config v1.32.9
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.9
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.290.0
+	github.com/aws/aws-sdk-go-v2/service/rds v1.116.0
 	github.com/aws/karpenter-provider-aws v1.8.6
 	github.com/beevik/ntp v1.5.0
 	github.com/benbjohnson/clock v1.3.5
@@ -522,8 +522,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.17 // indirect
 	github.com/aws/aws-sdk-go-v2/service/lightsail v1.50.10 // indirect
 	github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.39.22 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.30.9 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.13 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.30.10 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.14 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.41.6
 	github.com/aws/smithy-go v1.24.0 // indirect
 	github.com/awslabs/operatorpkg v0.0.0-20250909182303-e8e550b6f339 // indirect
@@ -980,8 +980,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/ddtrivy v0.0.0-20260115083325-07614fb0b8d5
-	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.0
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.64.4
+	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.1
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.68.0
 	github.com/aymerick/raymond v2.0.2+incompatible
 	github.com/creack/pty v1.1.24
 	github.com/frapposelli/wwhrd v0.4.0
