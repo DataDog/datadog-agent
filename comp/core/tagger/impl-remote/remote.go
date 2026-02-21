@@ -65,6 +65,8 @@ const (
 	pidOnlyNegativeCacheExpiration = 1 * time.Second
 
 	unresolvedContainerIDError = "unable to resolve container ID from OriginInfo"
+
+	maxContainerIDCacheEntries = 256
 )
 
 // Requires defines the dependencies for the remote tagger.
@@ -132,6 +134,8 @@ type containerIDCacheEntry struct {
 	err         error
 	expireAt    time.Time
 }
+
+var errCachedUnresolvedContainerID = errors.New(unresolvedContainerIDError)
 
 // Options contains the options needed to configure the remote tagger.
 type Options struct {
@@ -380,10 +384,16 @@ func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetect
 	}
 
 	if cacheResult {
+		cacheErr := err
+		// Keep cached payloads small: we only need the unresolved marker on cache hit.
+		if err != nil {
+			cacheErr = errCachedUnresolvedContainerID
+		}
+
 		t.containerIDCacheMu.Lock()
 		// Lazy eviction: purge expired entries when the map grows beyond threshold.
 		// Bounds memory on hosts with high PID churn (e.g. PHP Horizon workers).
-		if len(t.containerIDCache) > 1000 {
+		if len(t.containerIDCache) > maxContainerIDCacheEntries {
 			now := time.Now()
 			for k, v := range t.containerIDCache {
 				if now.After(v.expireAt) {
@@ -393,7 +403,7 @@ func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetect
 		}
 		t.containerIDCache[key] = containerIDCacheEntry{
 			containerID: containerID,
-			err:         err,
+			err:         cacheErr,
 			expireAt:    time.Now().Add(ttl),
 		}
 		t.containerIDCacheMu.Unlock()
@@ -451,7 +461,7 @@ func (t *remoteTagger) queryContainerIDFromOriginInfo(originInfo origindetection
 // negativeCacheTTL returns the TTL for unresolved container ID lookups.
 // It only caches unresolved-container misses (not transport/timeout errors).
 func negativeCacheTTL(originInfo origindetection.OriginInfo, err error) (time.Duration, bool) {
-	if err == nil || !isContainerIDResolutionMiss(err) {
+	if err == nil || !isContainerIDResolutionMiss(err) || !hasAnyOriginHints(originInfo) {
 		return 0, false
 	}
 
@@ -478,10 +488,22 @@ func hasStableOriginHints(originInfo origindetection.OriginInfo) bool {
 		return true
 	}
 
-	if originInfo.ExternalData.PodUID != "" || originInfo.ExternalData.ContainerName != "" {
+	// External resolution requires both pod UID and container name.
+	if originInfo.ExternalData.PodUID != "" && originInfo.ExternalData.ContainerName != "" {
 		return true
 	}
 
+	return false
+}
+
+func hasAnyOriginHints(originInfo origindetection.OriginInfo) bool {
+	if originInfo.LocalData.ContainerID != "" ||
+		originInfo.LocalData.ProcessID != 0 ||
+		originInfo.LocalData.Inode != 0 ||
+		originInfo.ExternalData.PodUID != "" ||
+		originInfo.ExternalData.ContainerName != "" {
+		return true
+	}
 	return false
 }
 
