@@ -129,6 +129,35 @@ func (s *packageApmInjectSuite) TestInstrumentHost() {
 	s.assertDockerdNotInstrumented()
 }
 
+// TestInstrumentHostEnablesSystemProbe tests the standalone install path:
+// the agent is already installed, then apm-inject is installed with
+// DD_APM_INSTRUMENTATION_ENABLED=host. The enableSystemProbeConfig method
+// must write system_probe_config.enabled: true into system-probe.yaml.
+func (s *packageApmInjectSuite) TestInstrumentHostEnablesSystemProbe() {
+	// First install the agent without APM inject
+	s.RunInstallScript()
+	defer s.Purge()
+	s.host.WaitForUnitActive(s.T(), "datadog-agent.service")
+
+	// Now install apm-inject with host instrumentation
+	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=host", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
+
+	// Verify system-probe.yaml has system_probe_config.enabled: true
+	state := s.host.State()
+	state.AssertFileExists("/etc/datadog-agent/system-probe.yaml", 0640, "root", "root")
+	content, err := s.host.ReadFile("/etc/datadog-agent/system-probe.yaml")
+	assert.NoError(s.T(), err)
+
+	systemProbeConfig := map[string]interface{}{}
+	err = yaml.Unmarshal(content, &systemProbeConfig)
+	assert.NoError(s.T(), err)
+	spCfg, ok := systemProbeConfig["system_probe_config"].(map[string]interface{})
+	assert.True(s.T(), ok, "system_probe_config key missing in system-probe.yaml")
+	if ok {
+		assert.Equal(s.T(), true, spCfg["enabled"], "system_probe_config.enabled should be true")
+	}
+}
+
 func (s *packageApmInjectSuite) TestInstrumentProfilingEnabled() {
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=host", "DD_APM_INSTRUMENTATION_LIBRARIES=python", "DD_PROFILING_ENABLED=auto", "DD_DATA_STREAMS_ENABLED=true")
 	defer s.Purge()
