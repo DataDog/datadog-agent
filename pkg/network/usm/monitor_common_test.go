@@ -192,8 +192,7 @@ const (
 var (
 	// httpMethods and httpMethodsWithBody are defined in platform-specific files
 	// (monitor_common_linux_test.go and monitor_common_windows_test.go) because
-	// Windows maps some HTTP methods (TRACE, PATCH, CONNECT) to MethodUnknown,
-	// which causes them to be silently dropped by the statkeeper.
+	// Windows does not support TRACE and CONNECT (Go net/http server limitation).
 	statusCodes = []int{nethttp.StatusOK, nethttp.StatusMultipleChoices, nethttp.StatusBadRequest, nethttp.StatusInternalServerError}
 )
 
