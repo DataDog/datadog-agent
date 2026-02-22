@@ -82,6 +82,7 @@ build do
               move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", "#{output_config_dir}/etc/datadog-agent", :force=>true
               move "#{install_dir}/etc/datadog-agent/runtime-security.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
               move "#{install_dir}/etc/datadog-agent/compliance.d", "#{output_config_dir}/etc/datadog-agent"
+              move "#{install_dir}/etc/datadog-agent/private-action-runner", "#{output_config_dir}/etc/datadog-agent"
             end
 
             # Create the installer symlink if the file doesn't already exist
@@ -106,13 +107,13 @@ build do
 
             # The prerm script of the package should use this list to remove the pyc/pyo files
             command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.py_compiled_files.txt"
-            command "find #{install_dir}/embedded '(' -name '*.pyc' -o -name '*.pyo' ')' -type f -delete -print >> #{install_dir}/embedded/.py_compiled_files.txt"
+            command "find #{install_dir}/embedded '(' -name '*.pyc' -o -name '*.pyo' ')' -type f -delete -print | sort >> #{install_dir}/embedded/.py_compiled_files.txt"
 
             # The prerm and preinst scripts of the package will use this list to detect which files
             # have been setup by the installer, this way, on removal, we'll be able to delete only files
             # which have not been created by the package.
             command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.installed_by_pkg.txt"
-            command "find . -path './embedded/lib/python*/site-packages/*' >> #{install_dir}/embedded/.installed_by_pkg.txt", cwd: install_dir
+            command "find . -path './embedded/lib/python*/site-packages/*' | sort >> #{install_dir}/embedded/.installed_by_pkg.txt", cwd: install_dir
 
             # removing the doc from the embedded folder to reduce package size by ~3MB
             delete "#{install_dir}/embedded/share/doc"

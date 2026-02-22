@@ -1,0 +1,18 @@
+[Unit]
+Description=Datadog Process Manager Daemon
+After=datadog-agent.service datadog-agent-exp.service
+BindsTo=datadog-agent.service
+Conflicts=datadog-agent-exp.service datadog-agent-procmgrd-exp.service
+ConditionPathExists=/opt/datadog-packages/datadog-agent/stable/embedded/bin/dd-procmgrd
+
+[Service]
+Type=simple
+User=dd-agent
+Restart=on-failure
+EnvironmentFile=-/etc/datadog-agent/environment
+ExecStart=/opt/datadog-packages/datadog-agent/stable/embedded/bin/dd-procmgrd
+StartLimitInterval=10
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

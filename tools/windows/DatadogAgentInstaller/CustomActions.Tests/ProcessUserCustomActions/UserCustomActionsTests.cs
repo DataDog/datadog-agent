@@ -3,7 +3,7 @@ using System.Security.Principal;
 using AutoFixture.Xunit2;
 using Datadog.CustomActions.Native;
 using FluentAssertions;
-using Microsoft.Deployment.WindowsInstaller;
+using WixToolset.Dtf.WindowsInstaller;
 using Moq;
 using Xunit;
 

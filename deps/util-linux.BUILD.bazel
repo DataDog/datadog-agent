@@ -101,20 +101,6 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-expand_template(
-    name = "gen_blkid_pkgconfig",
-    out = "blkid.pc",
-    substitutions = {
-        # Prepare the .pc file for our own substitution later
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@LIBBLKID_VERSION@": _VERSION,
-    },
-    template = "libblkid/blkid.pc.in",
-)
-
 so_symlink(
     name = "libblkid_libfiles",
     src = ":blkid",
@@ -126,12 +112,6 @@ pkg_files(
     name = "blkid_hdr_files",
     srcs = [":blkid_h"],
     prefix = "include/blkid",
-)
-
-pkg_files(
-    name = "blkid_pc_file",
-    srcs = [":gen_blkid_pkgconfig"],
-    prefix = "lib/pkgconfig",
 )
 
 pkg_filegroup(
@@ -147,6 +127,5 @@ pkg_install(
     name = "blkid_install",
     srcs = [
         ":all_files",
-        ":blkid_pc_file",
     ],
 )

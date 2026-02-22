@@ -1,5 +1,4 @@
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
@@ -83,31 +82,10 @@ so_symlink(
     version = "0.0.2",
 )
 
-expand_template(
-    name = "gen_pkgconfig",
-    out = "popt.pc",
-    substitutions = {
-        # Prepare the .pc file for our own substitution later
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@VERSION@": "1.19",
-        "@LTLIBICONV@": "",
-    },
-    template = "popt.pc.in",
-)
-
 pkg_files(
     name = "hdr_files",
     srcs = glob(["src/popt.h"]),
     prefix = "include",
-)
-
-pkg_files(
-    name = "pc_file",
-    srcs = [":gen_pkgconfig"],
-    prefix = "lib/pkgconfig",
 )
 
 pkg_filegroup(
@@ -123,6 +101,5 @@ pkg_install(
     name = "install",
     srcs = [
         ":all_files",
-        ":pc_file",
     ],
 )

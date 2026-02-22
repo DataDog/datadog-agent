@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/logs/types
 
-go 1.24.0
+go 1.25.0
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 

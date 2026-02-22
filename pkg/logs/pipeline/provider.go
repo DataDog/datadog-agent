@@ -8,6 +8,7 @@ package pipeline
 import (
 	"context"
 	"strconv"
+	"sync"
 
 	"go.uber.org/atomic"
 
@@ -68,6 +69,11 @@ type provider struct {
 	hostname    hostnameinterface.Component
 	cfg         pkgconfigmodel.Reader
 	compression logscompression.Component
+
+	failoverEnabled    bool
+	routerChannels     []chan *message.Message
+	currentRouterIndex *atomic.Uint32
+	forwarderWaitGroup sync.WaitGroup
 }
 
 // NewProvider returns a new Provider
@@ -224,10 +230,16 @@ func newProvider(
 		hostname:                  hostname,
 		cfg:                       cfg,
 		compression:               compression,
+
+		failoverEnabled:    cfg.GetBool("logs_config.pipeline_failover.enabled"),
+		currentRouterIndex: atomic.NewUint32(0),
 	}
 }
 
-// Start initializes the pipelines
+// Start initializes the pipelines and starts the sender.
+// If failover is enabled, creates N router channels (one per pipeline) and starts
+// N forwarder goroutines. Each forwarder reads from its own router channel and
+// routes messages to pipelines with automatic failover when the primary is blocked.
 func (p *provider) Start() {
 	p.sender.Start()
 
@@ -246,12 +258,29 @@ func (p *provider) Start() {
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)
 	}
+
+	if p.failoverEnabled {
+		routerChannelSize := p.cfg.GetInt("logs_config.pipeline_failover.router_channel_size")
+		p.routerChannels = make([]chan *message.Message, p.numberOfPipelines)
+		for i := 0; i < p.numberOfPipelines; i++ {
+			p.routerChannels[i] = make(chan *message.Message, routerChannelSize)
+			p.forwarderWaitGroup.Add(1)
+			go p.forwardWithFailover(i)
+		}
+
+	}
 }
 
-// Stop stops all pipelines in parallel,
-// this call blocks until all pipelines are stopped
+// Stop stops all pipelines in parallel. This call blocks until all pipelines are stopped.
+// If failover is enabled, closes all router channels and waits for forwarder goroutines
+// to finish draining before stopping pipelines.
 func (p *provider) Stop() {
 	stopper := startstop.NewParallelStopper()
+
+	for _, ch := range p.routerChannels {
+		close(ch)
+	}
+	p.forwarderWaitGroup.Wait()
 
 	// close the pipelines
 	for _, pipeline := range p.pipelines {
@@ -261,32 +290,95 @@ func (p *provider) Stop() {
 	stopper.Stop()
 	p.sender.Stop()
 	p.pipelines = p.pipelines[:0]
+	p.routerChannels = nil
 }
 
-// NextPipelineChan returns the next pipeline input channel
+// NextPipelineChan returns a channel for sending log messages to the pipeline.
+// If failover is enabled, returns a router channel selected by round-robin.
+// Each router has its own forwarder goroutine with failover capability.
+// If failover is disabled, returns a direct pipeline InputChan (legacy behavior).
 func (p *provider) NextPipelineChan() chan *message.Message {
 	pipelinesLen := len(p.pipelines)
 	if pipelinesLen == 0 {
 		return nil
 	}
-	index := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
-	nextPipeline := p.pipelines[index]
-	return nextPipeline.InputChan
+
+	if !p.failoverEnabled {
+		// Legacy: direct pipeline access
+		index := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
+		nextPipeline := p.pipelines[index]
+		return nextPipeline.InputChan
+	}
+
+	index := p.currentRouterIndex.Inc() % uint32(len(p.routerChannels))
+	return p.routerChannels[index]
 }
 
 func (p *provider) GetOutputChan() chan *message.Message {
 	return nil
 }
 
-// NextPipelineChanWithMonitor returns the next pipeline input channel with it's monitor.
+// NextPipelineChanWithMonitor returns a channel for sending log messages along with
+// a capacity monitor. Used by file tailers which track capacity metrics.
+// If failover is enabled, returns a router channel with a nil monitor. Ingress tracking
+// is handled by the forwarder goroutine on the actual destination pipeline.
+// If failover is disabled, returns a direct pipeline InputChan with its monitor.
 func (p *provider) NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor) {
 	pipelinesLen := len(p.pipelines)
 	if pipelinesLen == 0 {
 		return nil, nil
 	}
-	index := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
-	nextPipeline := p.pipelines[index]
-	return nextPipeline.InputChan, nextPipeline.pipelineMonitor.GetCapacityMonitor(metrics.ProcessorTlmName, strconv.Itoa(int(index)))
+
+	if !p.failoverEnabled {
+		// Legacy behavior: direct pipeline access with pipeline monitor
+		index := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
+		nextPipeline := p.pipelines[index]
+		return nextPipeline.InputChan, nextPipeline.pipelineMonitor.GetCapacityMonitor(metrics.ProcessorTlmName, strconv.Itoa(int(index)))
+	}
+
+	index := p.currentRouterIndex.Inc() % uint32(len(p.routerChannels))
+	return p.routerChannels[index], nil
+}
+
+// forwardWithFailover reads messages from routerChannels[routerIndex] and routes
+// them to pipelines. Tries pipeline[routerIndex] first (primary), then iterates
+// through other pipelines via non-blocking sends. If all pipelines are blocked,
+// applies backpressure by blocking on the primary pipeline.
+func (p *provider) forwardWithFailover(routerIndex int) {
+	defer p.forwarderWaitGroup.Done()
+
+	primaryPipelineIndex := uint32(routerIndex)
+	for msg := range p.routerChannels[routerIndex] {
+		if !p.trySendToPipeline(msg, primaryPipelineIndex) {
+			// All pipelines blocked, apply backpressure via blocking
+			// and AddIngress on the primary pipeline
+			p.pipelines[primaryPipelineIndex].InputChan <- msg // Blocks until pipeline accepts
+			monitor := p.pipelines[primaryPipelineIndex].pipelineMonitor.GetCapacityMonitor(metrics.ProcessorTlmName, strconv.Itoa(int(primaryPipelineIndex)))
+			monitor.AddIngress(msg)
+		}
+	}
+}
+
+// trySendToPipeline attempts to send a message to a pipeline using non-blocking sends.
+// It first tries the primary pipeline, then iterates through other pipelines if blocked.
+// Returns true if the message was successfully sent, false if all pipelines are blocked.
+// Tracks ingress metrics on the pipeline that actually receives the message.
+func (p *provider) trySendToPipeline(msg *message.Message, primaryPipelineIndex uint32) bool {
+	for attempt := 0; attempt < len(p.pipelines); attempt++ {
+		idx := (primaryPipelineIndex + uint32(attempt)) % uint32(len(p.pipelines))
+		pipeline := p.pipelines[idx]
+
+		select {
+		case pipeline.InputChan <- msg:
+			// Ingress tracking on the pipeline
+			monitor := pipeline.pipelineMonitor.GetCapacityMonitor(metrics.ProcessorTlmName, strconv.Itoa(int(idx)))
+			monitor.AddIngress(msg)
+			return true
+		default:
+			continue
+		}
+	}
+	return false
 }
 
 // Flush flushes synchronously all the contained pipeline of this provider.

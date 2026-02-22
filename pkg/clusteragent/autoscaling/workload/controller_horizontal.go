@@ -16,10 +16,8 @@ import (
 
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
-	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	scaleclient "k8s.io/client-go/scale"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/clock"
 
@@ -45,15 +43,15 @@ type horizontalController struct {
 	scaler        scaler
 }
 
-func newHorizontalReconciler(clock clock.Clock, eventRecorder record.EventRecorder, restMapper apimeta.RESTMapper, scaleGetter scaleclient.ScalesGetter) *horizontalController {
+func newHorizontalReconciler(clock clock.Clock, eventRecorder record.EventRecorder, scaler scaler) *horizontalController {
 	return &horizontalController{
 		clock:         clock,
 		eventRecorder: eventRecorder,
-		scaler:        newScaler(restMapper, scaleGetter),
+		scaler:        scaler,
 	}
 }
 
-func (hr *horizontalController) sync(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, autoscalerInternal *model.PodAutoscalerInternal) (autoscaling.ProcessResult, error) {
+func (hr *horizontalController) sync(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, autoscalerInternal *model.PodAutoscalerInternal, scale *autoscalingv1.Scale, gr schema.GroupResource, scaleErr error) (autoscaling.ProcessResult, error) {
 	// If we have no Spec, nothing to do
 	if autoscalerInternal.Spec() == nil {
 		return autoscaling.NoRequeue, nil
@@ -65,20 +63,11 @@ func (hr *horizontalController) sync(ctx context.Context, podAutoscaler *datadog
 		return autoscaling.NoRequeue, nil
 	}
 
-	// Get the GVK of the target resource
-	gvk, err := autoscalerInternal.TargetGVK()
-	if err != nil {
-		// Resolving GVK is considered a global error, not updating horizontal last error
-		autoscalerInternal.SetError(err)
-		return autoscaling.NoRequeue, err
-	}
-
-	// Get the current scale of the target resource
-	scale, gr, err := hr.scaler.get(ctx, autoscalerInternal.Namespace(), autoscalerInternal.Spec().TargetRef.Name, gvk)
-	if err != nil {
-		err = autoscaling.NewConditionError(autoscaling.ConditionReasonTargetNotFound, fmt.Errorf("failed to get scale subresource for autoscaler %s, err: %w", autoscalerInternal.ID(), err))
-		autoscalerInternal.UpdateFromHorizontalAction(nil, err)
-		return autoscaling.Requeue, err
+	// Handle pre-fetched scale errors (NotFound is already handled by the parent controller)
+	if scaleErr != nil {
+		scaleErr = autoscaling.NewConditionError(autoscaling.ConditionReasonScaleFailed, fmt.Errorf("failed to get scale subresource for autoscaler %s, err: %w", autoscalerInternal.ID(), scaleErr))
+		autoscalerInternal.UpdateFromHorizontalAction(nil, scaleErr)
+		return autoscaling.Requeue, scaleErr
 	}
 
 	return hr.performScaling(ctx, podAutoscaler, autoscalerInternal, gr, scale)
@@ -104,8 +93,8 @@ func (hr *horizontalController) performScaling(ctx context.Context, podAutoscale
 	}
 
 	maxReplicas := defaultMaxReplicas
-	if specConstraints != nil && specConstraints.MaxReplicas >= minReplicas {
-		maxReplicas = specConstraints.MaxReplicas
+	if specConstraints != nil && specConstraints.MaxReplicas != nil && *specConstraints.MaxReplicas >= minReplicas {
+		maxReplicas = *specConstraints.MaxReplicas
 	}
 
 	// Compute the desired number of replicas based on recommendations, rules and constraints

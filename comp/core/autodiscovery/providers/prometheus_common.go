@@ -35,3 +35,27 @@ func getPrometheusConfigs() ([]*types.PrometheusCheck, error) {
 
 	return validChecks, nil
 }
+
+// promAnnotationsDiffer returns whether a service update corresponds to a config invalidation
+func promAnnotationsDiffer(checks []*types.PrometheusCheck, first, second map[string]string) bool {
+	for _, annotation := range types.PrometheusStandardAnnotations {
+		if first[annotation] != second[annotation] {
+			return true
+		}
+	}
+
+	for _, check := range checks {
+		for k := range check.AD.GetIncludeAnnotations() {
+			if first[k] != second[k] {
+				return true
+			}
+		}
+		for k := range check.AD.GetExcludeAnnotations() {
+			if first[k] != second[k] {
+				return true
+			}
+		}
+	}
+
+	return false
+}

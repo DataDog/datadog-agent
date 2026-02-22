@@ -1,6 +1,6 @@
-using NineDigit.WixSharpExtensions;
 using System;
 using System.IO;
+using System.Xml.Linq;
 using WixSetup.Datadog_Agent;
 using WixSharp;
 using WixSharp.CommonTasks;
@@ -90,6 +90,7 @@ namespace WixSetup.Datadog_Installer
             // Always generate a new GUID otherwise WixSharp will generate one based on
             // the version
             project.ProductId = Guid.NewGuid();
+            project.AlwaysScheduleInitRuntime = false;
             project
                 .SetCustomActions(_installerCustomActions)
                 .SetProjectInfo(
@@ -127,7 +128,8 @@ namespace WixSetup.Datadog_Installer
             project.Platform = Platform.x64;
             project.InstallerVersion = 500;
             project.Codepage = "1252";
-            project.InstallPrivileges = InstallPrivileges.elevated;
+            // WiX 5 migration: InstallPrivileges is obsolete in WiX4.
+            // Per-machine installation (elevated) is the default, so this line is removed.
             project.LocalizationFile = "localization-en-us.wxl";
             if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("AGENT_MSI_OUTDIR")))
             {
@@ -135,15 +137,22 @@ namespace WixSetup.Datadog_Installer
                 project.OutDir = Environment.GetEnvironmentVariable("AGENT_MSI_OUTDIR");
             }
             project.OutFileName = $"datadog-installer-{_agentVersion.PackageVersion}-1-x86_64";
-            project.Package.AttributesDefinition = $"Comments={ProductComment}";
+            // WiX 5 migration: Comments attribute is no longer valid on Package element
+            // The comment is already set via ControlPanelInfo.Comments in SetControlPanelInfo()
             project.UI = WUI.WixUI_Common;
             project.CustomUI = new DatadogInstallerUI(this, _installerCustomActions);
             project.WixSourceGenerated += document =>
             {
                 WixSourceGenerated?.Invoke(document);
+                // WiX 5 migration: WixFailWhenDeferred was replaced with util:FailWhenDeferred element
                 document
-                    .Select("Wix/Product")
-                    .AddElement("CustomActionRef", "Id=WixFailWhenDeferred");
+                    .Select("Wix/Package")
+                    .Add(new XElement(WixExtension.Util.ToXName("FailWhenDeferred")));
+                // WiX 5 migration: SummaryInformation/Comments is a new element in WiX 5
+                // ControlPanelInfo.Comments doesn't generate this, so we add it manually
+                document
+                    .Select("Wix/Package")
+                    .AddElement("SummaryInformation", $"Comments={ProductComment}");
             };
             project.WixSourceFormated += (ref string content) => WixSourceFormated?.Invoke(content);
             project.WixSourceSaved += name => WixSourceSaved?.Invoke(name);

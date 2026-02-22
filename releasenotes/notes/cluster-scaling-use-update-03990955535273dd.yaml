@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    In the Cluster Autoscaling controller, use Kubernetes client ``update``
+    instead of ``patch``.

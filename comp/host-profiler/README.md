@@ -76,7 +76,18 @@ Datadog Platform
 
 #### `collector/impl/converters/`
 
-- **[`converters.go`](collector/impl/converters/converters.go)** - Implements configuration converters that remove Agent-dependent components from the pipeline when running without Agent Core.
+Configuration converters normalize user-provided OTEL collector configs for the host profiler. They follow the **"explicit config wins"** principle:
+
+- **User-set leaf configs are never overwritten.** If a user explicitly sets a value, even if incompatible with what Datadog needs, the converter preserves it.
+- **Missing configs are added.** If a required leaf config is not defined, the converter adds it along with all required parent keys using sensible defaults.
+- **Incompatible values generate warnings.** If a user-set value conflicts with Datadog requirements (e.g. host.arch disabled), a warning is logged but the user's value is preserved.
+- **External settings error out.** Configs that require external information (API keys, endpoints) that cannot be inferred will cause an error in standalone mode.
+
+Files:
+
+- **[`converters.go`](collector/impl/converters/converters.go)** - Shared helpers (`Get`, `Set`, `SetDefault`, `Ensure`) for path-based config manipulation, and configuration converter factories.
+- **[`converter_with_agent.go`](collector/impl/converters/converter_with_agent.go)** - Converter applied when running alongside the Datadog Agent. Can infer missing config (exporters, endpoints) from the Agent's own configuration.
+- **[`converter_without_agent.go`](collector/impl/converters/converter_without_agent.go)** - Converter applied when running standalone (without the Agent). Cannot infer external settings, so it errors out if required config (API keys, exporters) is missing.
 
 #### `collector/impl/receiver/`
 

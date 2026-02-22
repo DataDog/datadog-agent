@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/tagger/def
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel

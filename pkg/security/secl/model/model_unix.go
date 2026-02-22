@@ -16,6 +16,7 @@ import (
 	"net/netip"
 	"runtime"
 	"time"
+	"unsafe"
 
 	"github.com/google/gopacket"
 
@@ -42,7 +43,9 @@ func (m *Model) NewEvent() eval.Event {
 func NewFakeEvent() *Event {
 	return &Event{
 		BaseEvent: BaseEvent{
-			FieldHandlers:  &FakeFieldHandlers{},
+			FieldHandlers: &FakeFieldHandlers{
+				PCEs: make(map[uint32]*ProcessCacheEntry),
+			},
 			ProcessContext: &ProcessContext{},
 			Os:             runtime.GOOS,
 		},
@@ -51,6 +54,9 @@ func NewFakeEvent() *Event {
 
 // ResolveProcessCacheEntryFromPID stub implementation
 func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *ProcessCacheEntry {
+	if fh.PCEs[pid] != nil {
+		return fh.PCEs[pid]
+	}
 	return GetPlaceholderProcessCacheEntry(pid, pid, false)
 }
 
@@ -438,8 +444,7 @@ func SetAncestorFields(pce *ProcessCacheEntry, subField string, _ interface{}) (
 // Hash returns a unique key for the entity
 func (pc *ProcessCacheEntry) Hash() eval.ScopeHashKey {
 	return eval.ScopeHashKey{
-		Integer: pc.Pid,
-		String:  pc.Comm,
+		Uintptr: uintptr(unsafe.Pointer(pc)),
 	}
 }
 

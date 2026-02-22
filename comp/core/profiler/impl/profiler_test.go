@@ -232,7 +232,8 @@ func TestTimeout(t *testing.T) {
 				"process_config.run_in_core_agent.enabled": true,
 			},
 			extraSysCfgs: map[string]interface{}{
-				"network_config.enabled": true,
+				"network_config.enabled":      true,
+				"system_probe_config.enabled": true,
 			},
 			profileDuration: 10 * time.Second,
 			expTimeout:      baseTimeout + 8*(10*time.Second),
@@ -244,6 +245,7 @@ func TestTimeout(t *testing.T) {
 			},
 			extraSysCfgs: map[string]interface{}{
 				"service_monitoring_config.enabled": true,
+				"system_probe_config.enabled":       true,
 			},
 			profileDuration: 10 * time.Second,
 			expTimeout:      baseTimeout + 8*(10*time.Second),

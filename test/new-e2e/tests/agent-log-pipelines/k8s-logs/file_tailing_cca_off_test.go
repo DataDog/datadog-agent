@@ -53,9 +53,11 @@ func (v *k8sCCAOffSuite) TestADAnnotations() {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:    "annotations-job",
-							Image:   "ubuntu",
-							Command: []string{"echo", testLogMessage},
+							Name:  "annotations-job",
+							Image: "ubuntu",
+							// Sleep is added here so k8s doesn't kill the container before
+							// the agent container can detect it.
+							Command: []string{"sh", "-c", "echo '" + testLogMessage + "' && sleep 10"},
 						},
 					},
 					RestartPolicy: corev1.RestartPolicyNever,
@@ -98,9 +100,11 @@ func (v *k8sCCAOffSuite) TestCCAOff() {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:    "cca-off-job",
-							Image:   "ubuntu",
-							Command: []string{"echo", testLogMessage},
+							Name:  "cca-off-job",
+							Image: "ubuntu",
+							// Sleep is added here so k8s doesn't kill the container before
+							// the agent container can detect it.
+							Command: []string{"sh", "-c", "echo '" + testLogMessage + "' && sleep 10"},
 						},
 					},
 					RestartPolicy: corev1.RestartPolicyNever,

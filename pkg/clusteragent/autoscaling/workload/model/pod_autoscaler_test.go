@@ -18,6 +18,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 )
@@ -444,6 +446,7 @@ func TestUpdateFromStatus(t *testing.T) {
 			{Type: datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, Status: corev1.ConditionTrue, Reason: limitReason},
 			{Type: datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, Status: corev1.ConditionFalse, Reason: "vRecErr"},
 			{Type: datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, Status: corev1.ConditionFalse, Reason: "vApplyErr"},
+			{Type: datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition, Status: corev1.ConditionTrue, Reason: "LimitedByConstraint", Message: "clamped for containers: app"},
 		},
 	}
 
@@ -485,6 +488,7 @@ func TestUpdateFromStatus(t *testing.T) {
 		HorizontalLastActionError: errors.New("hScaleErr"),
 		VerticalLastAction:        status.Vertical.LastAction,
 		VerticalLastActionError:   errors.New("vApplyErr"),
+		VerticalLastLimitReason:   autoscaling.NewConditionError(autoscaling.ConditionReasonLimitedByConstraint, errors.New("clamped for containers: app")),
 		CurrentReplicas:           &currentReplicas,
 		Error:                     errors.New("globalErr"),
 	}

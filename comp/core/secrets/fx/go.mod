@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/secrets/fx
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/secrets/impl v0.70.0

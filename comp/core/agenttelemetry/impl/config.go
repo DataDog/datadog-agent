@@ -222,6 +222,9 @@ var defaultProfiles = `
         - name: dogstatsd.uds_packets_bytes
         - name: logs.bytes_missed
         - name: logs.bytes_sent
+          aggregate_tags:
+            - remote_agent
+          aggregate_total: true
         - name: logs.decoded
         - name: logs.dropped
         - name: logs.encoded_bytes_sent
@@ -458,7 +461,34 @@ var defaultProfiles = `
           aggregate_tags:
             - repository
             - tag
+            - bucket
             - outcome
+    schedule:
+      start_after: 30
+      iterations: 0
+      period: 900
+  - name: injector
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: injector.processes_added_to_injection_tracker
+        - name: injector.processes_removed_from_injection_tracker
+        - name: injector.processes_skipped_subsystem
+        - name: injector.processes_skipped_container
+        - name: injector.processes_skipped_protected
+        - name: injector.processes_skipped_system
+        - name: injector.processes_skipped_excluded
+        - name: injector.injection_attempts
+        - name: injector.injection_attempt_failures
+        - name: injector.injection_max_time_us
+        - name: injector.injection_successes
+        - name: injector.injection_failures
+        - name: injector.pe_caching_failures
+        - name: injector.import_directory_restoration_failures
+        - name: injector.pe_memory_allocation_failures
+        - name: injector.pe_injection_context_allocated
+        - name: injector.pe_injection_context_cleanedup
     schedule:
       start_after: 30
       iterations: 0

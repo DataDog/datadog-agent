@@ -7,115 +7,12 @@ package idx
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
 	sync "sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
-
-func TestInternalTracerPayload_RemoveUnusedStrings(t *testing.T) {
-	payload := testPayload()
-	pbPayload := payload.ToProto()
-
-	// Collect expected used refs from the proto payload before calling RemoveUnusedStrings
-	pbPayloadValue := reflect.ValueOf(pbPayload).Elem()
-	pbPayloadType := pbPayloadValue.Type()
-	expectedUsedRefs := make(map[string]uint32)
-	for i := 0; i < pbPayloadType.NumField(); i++ {
-		field := pbPayloadType.Field(i)
-		fieldValue := pbPayloadValue.Field(i)
-
-		// Look for fields ending with "Ref" that are uint32 (string references)
-		if field.Type.Kind() == reflect.Uint32 && strings.HasSuffix(field.Name, "Ref") {
-			refValue := fieldValue.Uint()
-			if refValue != 0 {
-				expectedUsedRefs[field.Name] = uint32(refValue)
-			} else {
-				assert.Fail(t, "testPayload must provide a non-empty string value for all fields", "missing field: %s", field.Name)
-			}
-		}
-	}
-
-	pbPayload.RemoveUnusedStrings()
-
-	// Use reflection to verify all expected string references are still present in the proto payload
-	for fieldName, expectedRef := range expectedUsedRefs {
-		field := pbPayloadValue.FieldByName(fieldName)
-		if field.IsValid() {
-			actualRef := field.Uint()
-			// Get the string value from the proto's Strings array to verify it's still there
-			stringValue := pbPayload.Strings[actualRef]
-			assert.NotEmpty(t, stringValue, "String reference field %s should not be empty", fieldName)
-			assert.Equal(t, expectedRef, uint32(actualRef), "String reference field %s should not have changed", fieldName)
-		}
-	}
-	// Check TraceChunks within the proto payload
-	for chunkIndex, chunk := range pbPayload.Chunks {
-		chunkValue := reflect.ValueOf(chunk).Elem()
-		chunkType := chunkValue.Type()
-		for i := 0; i < chunkType.NumField(); i++ {
-			field := chunkType.Field(i)
-			fieldValue := chunkValue.Field(i)
-			if field.Type.Kind() == reflect.Uint32 && strings.HasSuffix(field.Name, "Ref") {
-				refValue := fieldValue.Uint()
-				if refValue != 0 {
-					stringValue := pbPayload.Strings[refValue]
-					assert.NotEmpty(t, stringValue, "Chunk %d field %s should not be empty", chunkIndex, field.Name)
-				}
-			}
-		}
-		// Check spans within the chunk
-		for spanIndex, span := range chunk.Spans {
-			spanValue := reflect.ValueOf(span).Elem()
-			spanType := spanValue.Type()
-			for i := 0; i < spanType.NumField(); i++ {
-				field := spanType.Field(i)
-				fieldValue := spanValue.Field(i)
-				if field.Type.Kind() == reflect.Uint32 && strings.HasSuffix(field.Name, "Ref") {
-					refValue := fieldValue.Uint()
-					if refValue != 0 {
-						stringValue := pbPayload.Strings[refValue]
-						assert.NotEmpty(t, stringValue, "Chunk %d span %d field %s should not be empty", chunkIndex, spanIndex, field.Name)
-					}
-				}
-			}
-			// Check span links
-			for linkIndex, link := range span.Links {
-				linkValue := reflect.ValueOf(link).Elem()
-				linkType := linkValue.Type()
-				for i := 0; i < linkType.NumField(); i++ {
-					field := linkType.Field(i)
-					fieldValue := linkValue.Field(i)
-					if field.Type.Kind() == reflect.Uint32 && strings.HasSuffix(field.Name, "Ref") {
-						refValue := fieldValue.Uint()
-						if refValue != 0 {
-							stringValue := pbPayload.Strings[refValue]
-							assert.NotEmpty(t, stringValue, "Chunk %d span %d link %d field %s should not be empty", chunkIndex, spanIndex, linkIndex, field.Name)
-						}
-					}
-				}
-			}
-			// Check span events
-			for eventIndex, event := range span.Events {
-				eventValue := reflect.ValueOf(event).Elem()
-				eventType := eventValue.Type()
-				for i := 0; i < eventType.NumField(); i++ {
-					field := eventType.Field(i)
-					fieldValue := eventValue.Field(i)
-					if field.Type.Kind() == reflect.Uint32 && strings.HasSuffix(field.Name, "Ref") {
-						refValue := fieldValue.Uint()
-						if refValue != 0 {
-							stringValue := pbPayload.Strings[refValue]
-							assert.NotEmpty(t, stringValue, "Chunk %d span %d event %d field %s should not be empty", chunkIndex, spanIndex, eventIndex, field.Name)
-						}
-					}
-				}
-			}
-		}
-	}
-}
 
 func TestInternalSpan_GetStringAttributeAs_UnknownKey(t *testing.T) {
 	strings := NewStringTable()
@@ -946,24 +843,10 @@ func createBenchmarkPayload(numChunks, spansPerChunk, attrsPerSpan int) *TracerP
 	}
 }
 
-func BenchmarkRemoveUnusedStrings_Medium(b *testing.B) {
-	for b.Loop() {
-		payload := createBenchmarkPayload(10, 20, 5)
-		payload.RemoveUnusedStrings()
-	}
-}
-
 func BenchmarkCompactStrings_Medium(b *testing.B) {
 	for b.Loop() {
 		payload := createBenchmarkPayload(10, 20, 5)
 		payload.CompactStrings()
-	}
-}
-
-func BenchmarkRemoveUnusedStrings_Large(b *testing.B) {
-	for b.Loop() {
-		payload := createBenchmarkPayload(50, 50, 10)
-		payload.RemoveUnusedStrings()
 	}
 }
 

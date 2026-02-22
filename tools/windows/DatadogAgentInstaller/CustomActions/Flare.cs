@@ -1,5 +1,5 @@
 using Datadog.CustomActions.Interfaces;
-using Microsoft.Deployment.WindowsInstaller;
+using WixToolset.Dtf.WindowsInstaller;
 using System;
 using System.Collections.Generic;
 using System.IO;

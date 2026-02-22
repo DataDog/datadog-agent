@@ -426,6 +426,9 @@ func TestNewBuiltinCRDConfigs(t *testing.T) {
 		"karpenter.sh/v1/",
 		"karpenter.k8s.aws/v1/",
 		"karpenter.azure.com/v1beta1/",
+
+		// EKS Auto Mode NodeClass resource
+		"eks.amazonaws.com/v1/nodeclasses",
 	}
 
 	// Verify all expected configs are present

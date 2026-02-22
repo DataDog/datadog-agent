@@ -208,3 +208,96 @@ func TestGetPrometheusConfigs(t *testing.T) {
 		})
 	}
 }
+
+func TestPromAnnotationsDiffer(t *testing.T) {
+	tests := []struct {
+		name   string
+		checks []*types.PrometheusCheck
+		first  map[string]string
+		second map[string]string
+		want   bool
+	}{
+		{
+			name:   "scrape annotation changed",
+			checks: []*types.PrometheusCheck{types.DefaultPrometheusCheck},
+			first:  map[string]string{"prometheus.io/scrape": "true"},
+			second: map[string]string{"prometheus.io/scrape": "false"},
+			want:   true,
+		},
+		{
+			name:   "scrape annotation unchanged",
+			checks: []*types.PrometheusCheck{types.DefaultPrometheusCheck},
+			first:  map[string]string{"prometheus.io/scrape": "true"},
+			second: map[string]string{"prometheus.io/scrape": "true"},
+			want:   false,
+		},
+		{
+			name:   "scrape annotation removed",
+			checks: []*types.PrometheusCheck{types.DefaultPrometheusCheck},
+			first:  map[string]string{"prometheus.io/scrape": "true"},
+			second: map[string]string{"foo": "bar"},
+			want:   true,
+		},
+		{
+			name:   "path annotation changed",
+			checks: []*types.PrometheusCheck{types.DefaultPrometheusCheck},
+			first:  map[string]string{"prometheus.io/path": "/metrics"},
+			second: map[string]string{"prometheus.io/path": "/metrics_custom"},
+			want:   true,
+		},
+		{
+			name:   "path annotation unchanged",
+			checks: []*types.PrometheusCheck{types.DefaultPrometheusCheck},
+			first:  map[string]string{"prometheus.io/path": "/metrics"},
+			second: map[string]string{"prometheus.io/path": "/metrics"},
+			want:   false,
+		},
+		{
+			name:   "port annotation changed",
+			checks: []*types.PrometheusCheck{types.DefaultPrometheusCheck},
+			first:  map[string]string{"prometheus.io/port": "1234"},
+			second: map[string]string{"prometheus.io/port": "4321"},
+			want:   true,
+		},
+		{
+			name:   "port annotation unchanged",
+			checks: []*types.PrometheusCheck{types.DefaultPrometheusCheck},
+			first:  map[string]string{"prometheus.io/port": "1234"},
+			second: map[string]string{"prometheus.io/port": "1234"},
+			want:   false,
+		},
+		{
+			name:   "include annotation changed",
+			checks: []*types.PrometheusCheck{{AD: &types.ADConfig{KubeAnnotations: &types.InclExcl{Incl: map[string]string{"include": "true"}}}}},
+			first:  map[string]string{"include": "true"},
+			second: map[string]string{"include": "foo"},
+			want:   true,
+		},
+		{
+			name:   "include annotation unchanged",
+			checks: []*types.PrometheusCheck{{AD: &types.ADConfig{KubeAnnotations: &types.InclExcl{Incl: map[string]string{"include": "true"}}}}},
+			first:  map[string]string{"include": "true"},
+			second: map[string]string{"include": "true"},
+			want:   false,
+		},
+		{
+			name:   "exclude annotation changed",
+			checks: []*types.PrometheusCheck{{AD: &types.ADConfig{KubeAnnotations: &types.InclExcl{Excl: map[string]string{"exclude": "true"}}}}},
+			first:  map[string]string{"exclude": "true"},
+			second: map[string]string{"exclude": "foo"},
+			want:   true,
+		},
+		{
+			name:   "exclude annotation unchanged",
+			checks: []*types.PrometheusCheck{{AD: &types.ADConfig{KubeAnnotations: &types.InclExcl{Excl: map[string]string{"exclude": "true"}}}}},
+			first:  map[string]string{"exclude": "true"},
+			second: map[string]string{"exclude": "true"},
+			want:   false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, promAnnotationsDiffer(tt.checks, tt.first, tt.second))
+		})
+	}
+}

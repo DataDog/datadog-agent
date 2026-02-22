@@ -218,9 +218,13 @@ build do
     copy ENV['SD_AGENT_BIN'], "#{install_dir}/embedded/bin/sd-agent"
   end
 
+  # dd-procmgrd (process manager daemon)
+  if ENV['DD_PROCMGRD_BIN'] && linux_target?
+    copy ENV['DD_PROCMGRD_BIN'], "#{install_dir}/embedded/bin/dd-procmgrd"
+  end
+
   # Security agent
-  secagent_support = (not heroku_target?) and (not windows_target? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?))
-  if secagent_support
+  unless heroku_target?
     command "dda inv -- -e security-agent.build #{fips_args} --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     if windows_target?
       copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"

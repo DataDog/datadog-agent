@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
+	discv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 
@@ -81,6 +82,55 @@ func (m serviceMapper) MapOnIP(nodeName string, pods []*kubelet.Pod, endpointLis
 	return nil
 }
 
+// MapOnIPFromEndpointSlices matches pods to services via IP using EndpointSlices. It supports Kubernetes 1.21+
+func (m serviceMapper) MapOnIPFromEndpointSlices(nodeName string, pods []*kubelet.Pod, slices []discv1.EndpointSlice) error {
+	ipToServices := make(map[string][]string)     // maps the IP address from an endpoint (pod) to associated services
+	podToIP := make(map[string]map[string]string) // maps pod names to its IP address keyed by the namespace
+
+	if len(pods) == 0 {
+		return fmt.Errorf("empty podlist received for nodeName %q", nodeName)
+	}
+	if nodeName == "" {
+		log.Debugf("Service mapper was given an empty node name. Mapping might be incorrect.")
+	}
+
+	for _, pod := range pods {
+		if pod.Status.PodIP == "" {
+			log.Debugf("PodIP is empty, ignoring pod %s in namespace %s", pod.Metadata.Name, pod.Metadata.Namespace)
+			continue
+		}
+		if _, ok := podToIP[pod.Metadata.Namespace]; !ok {
+			podToIP[pod.Metadata.Namespace] = make(map[string]string)
+		}
+		podToIP[pod.Metadata.Namespace][pod.Metadata.Name] = pod.Status.PodIP
+	}
+
+	for _, slice := range slices {
+		serviceName := slice.Labels[KubernetesServiceNameLabel]
+		if serviceName == "" {
+			log.Tracef("EndpointSlice %s/%s missing service label, skipping", slice.Namespace, slice.Name)
+			continue
+		}
+
+		for _, endpoint := range slice.Endpoints {
+			if endpoint.NodeName != nil && *endpoint.NodeName == nodeName {
+				for _, ip := range endpoint.Addresses {
+					ipToServices[ip] = append(ipToServices[ip], serviceName)
+				}
+			}
+		}
+	}
+
+	for ns, pods := range podToIP {
+		for name, ip := range pods {
+			if svcs, found := ipToServices[ip]; found {
+				m.Set(ns, name, svcs...)
+			}
+		}
+	}
+	return nil
+}
+
 // MapOnRef matches pods to services via endpoint TargetRef objects. It supports Kubernetes 1.3+
 func (m serviceMapper) MapOnRef(_ string, pods []*kubelet.Pod, endpointList v1.EndpointsList) error {
 	uidToPod := make(map[types.UID]v1.ObjectReference)
@@ -127,6 +177,56 @@ func (m serviceMapper) MapOnRef(_ string, pods []*kubelet.Pod, endpointList v1.E
 	return nil
 }
 
+// MapOnRefFromEndpointSlices matches pods to services via endpoint TargetRef objects using EndpointSlices. It supports Kubernetes 1.21+
+func (m serviceMapper) MapOnRefFromEndpointSlices(_ string, pods []*kubelet.Pod, slices []discv1.EndpointSlice) error {
+	uidToPod := make(map[types.UID]v1.ObjectReference)
+	uidToServices := make(map[types.UID][]string)
+	kubeletPodUIDs := make(map[types.UID]struct{}) // set of pod UIDs for pods from the kubelet
+
+	for _, pod := range pods {
+		kubeletPodUIDs[types.UID(pod.Metadata.UID)] = struct{}{}
+	}
+
+	for _, slice := range slices {
+		serviceName := slice.Labels[KubernetesServiceNameLabel]
+		if serviceName == "" {
+			log.Tracef("EndpointSlice %s/%s missing service label, skipping", slice.Namespace, slice.Name)
+			continue
+		}
+
+		for _, endpoint := range slice.Endpoints {
+			if endpoint.TargetRef == nil {
+				log.Debugf("Empty TargetRef on endpointslice %s/%s, skipping", slice.Namespace, slice.Name)
+				continue
+			}
+			ref := *endpoint.TargetRef
+			if ref.Kind != "Pod" {
+				continue
+			}
+			if ref.Name == "" || ref.Namespace == "" {
+				log.Debugf("Incomplete reference for object %s on endpointslice %s/%s, skipping", ref.UID, slice.Namespace, slice.Name)
+				continue
+			}
+
+			if _, ok := kubeletPodUIDs[ref.UID]; !ok {
+				continue
+			}
+
+			uidToPod[ref.UID] = ref
+			uidToServices[ref.UID] = append(uidToServices[ref.UID], serviceName)
+		}
+	}
+
+	for uid, svcs := range uidToServices {
+		pod, ok := uidToPod[uid]
+		if !ok {
+			continue
+		}
+		m.Set(pod.Namespace, pod.Name, svcs...)
+	}
+	return nil
+}
+
 // mapServices maps each pod (endpoint) to the metadata associated with it.
 // It is on a per node basis to avoid mixing up the services pods are actually connected to if all pods of different nodes share a similar subnet, therefore sharing a similar IP.
 func (metaBundle *MetadataMapperBundle) mapServices(nodeName string, pods []*kubelet.Pod, endpointList v1.EndpointsList) error {
@@ -136,6 +236,23 @@ func (metaBundle *MetadataMapperBundle) mapServices(nodeName string, pods []*kub
 		err = serviceMapper.MapOnIP(nodeName, pods, endpointList)
 	} else { // Default behaviour
 		err = serviceMapper.MapOnRef(nodeName, pods, endpointList)
+	}
+	if err != nil {
+		return err
+	}
+	log.Tracef("The services matched %q", fmt.Sprintf("%s", metaBundle.Services))
+	return nil
+}
+
+// mapServicesFromEndpointSlices maps each pod (endpoint) to the metadata associated with it using EndpointSlices.
+// It is on a per node basis to avoid mixing up the services pods are actually connected to if all pods of different nodes share a similar subnet, therefore sharing a similar IP.
+func (metaBundle *MetadataMapperBundle) mapServicesFromEndpointSlices(nodeName string, pods []*kubelet.Pod, slices []discv1.EndpointSlice) error {
+	var err error
+	serviceMapper := ConvertToServiceMapper(metaBundle.Services)
+	if metaBundle.mapOnIP {
+		err = serviceMapper.MapOnIPFromEndpointSlices(nodeName, pods, slices)
+	} else { // Default behaviour
+		err = serviceMapper.MapOnRefFromEndpointSlices(nodeName, pods, slices)
 	}
 	if err != nil {
 		return err

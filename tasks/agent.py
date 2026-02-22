@@ -938,6 +938,11 @@ def generate_config(ctx, build_type, output_file, env=None):
         "template_file": "./pkg/config/config_template.yaml",
         "output_file": output_file,
     }
+    if build_type == "system-probe":
+        args["template_file"] = "./pkg/config/system-probe_template.yaml"
+    elif build_type == "security-agent":
+        args["template_file"] = "./pkg/config/security-agent_template.yaml"
+
     cmd = "go run {go_file} {build_type} {template_file} {output_file}"
     return ctx.run(cmd.format(**args), env=env or {})
 

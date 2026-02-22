@@ -37,8 +37,9 @@ namespace WixSetup
             var directorySize = filesInSourceDir
                 .Sum(file => file.Length)
                 .ToString();
+            // WiX 5 migration: Product was renamed to Package in WiX 4/5
             document
-                .Select("Wix/Product")
+                .Select("Wix/Package")
                 .AddElement("Property", $"Id={sourceDirName}_SIZE; Value={directorySize}");
 
             var psi = new ProcessStartInfo

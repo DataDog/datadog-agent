@@ -8,14 +8,17 @@ in build jobs, generating detailed reports with file inventories for comparison.
 import os
 import stat
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+from enum import IntFlag, auto
 from pathlib import Path
 from typing import Any, Protocol
 
 import yaml
 from invoke import Context
 
+from tasks.libs.common.color import color_message
 from tasks.libs.package.size import extract_package, file_size
 from tasks.static_quality_gates.gates import (
     QualityGateConfig,
@@ -79,6 +82,28 @@ class FileInfo(SizeMixin):
         self._validate_size_bytes(self.size_bytes)
         if self.is_symlink and not self.symlink_target:
             raise ValueError("symlink_target must be provided when is_symlink is True")
+
+
+@dataclass(frozen=True)
+class FileChange:
+    """
+    Encapsulate a detected file change when comparing 2 inventories
+    """
+
+    class Flags(IntFlag):
+        Size = auto()
+        Permissions = auto()
+        Owner = auto()
+        Group = auto()
+
+    flags: Flags
+    previous: FileInfo
+    current: FileInfo
+    size_percent: float | None
+
+    def __post_init__(self):
+        if self.flags | FileChange.Flags.Size == 0 and self.size_percent is not None:
+            raise ValueError("size_percent can only be provided when the size change flag is set")
 
 
 @dataclass(frozen=True)
@@ -199,6 +224,7 @@ class ArtifactProcessor(Protocol):
         artifact_ref: str,
         gate_config: QualityGateConfig,
         debug: bool,
+        filter: Callable[[str], bool] = lambda _: True,
     ) -> tuple[int, int, list[FileInfo], Any]:
         """
         Measure an artifact and return wire size, disk size, file inventory, and optional metadata.
@@ -264,13 +290,15 @@ class FileUtilities:
             return None
 
     @staticmethod
-    def walk_files(directory: str, debug: bool) -> list[FileInfo]:
+    def walk_files(directory: str, debug: bool, filter: Callable[[str], bool] = lambda _: True) -> list[FileInfo]:
         """
         Walk through files in a directory and create file inventory.
 
         Args:
             directory: Directory containing files to analyze
             debug: Enable debug logging
+            filter: a callback to filter out some patterns. If it returns false, the file
+                    will not be added to the inventory.
 
         Returns:
             List of FileInfo objects for all files
@@ -289,9 +317,11 @@ class FileUtilities:
             # Skip directories
             if file_path.is_dir():
                 continue
-
             try:
                 relative_path = str(file_path.relative_to(directory_path))
+                if not filter(relative_path):
+                    continue
+
                 # Regular file - use lstat to not follow symlinks
                 file_stat = file_path.lstat()
                 chmod = stat.S_IMODE(file_stat.st_mode)
@@ -577,6 +607,7 @@ class UniversalArtifactMeasurer:
         gate_name: str,
         build_job_name: str,
         debug: bool = False,
+        filter: Callable[[str], bool] = lambda _: True,
     ) -> InPlaceArtifactReport:
         """
         Measure an artifact using the configured processor.
@@ -587,6 +618,7 @@ class UniversalArtifactMeasurer:
             gate_name: Quality gate name from configuration
             build_job_name: Name of the CI job that built this artifact
             debug: Enable debug logging
+            filter: A callback to filter out some results.
 
         Returns:
             InPlaceArtifactReport with complete measurement data
@@ -598,7 +630,7 @@ class UniversalArtifactMeasurer:
         gate_config = self.config_manager.get_gate_config(gate_name)
 
         wire_size, disk_size, file_inventory, artifact_metadata = self.processor.measure_artifact(
-            ctx, artifact_ref, gate_config, debug
+            ctx, artifact_ref, gate_config, debug, filter
         )
 
         return self.report_builder.create_report(
@@ -626,6 +658,7 @@ class PackageProcessor:
         artifact_ref: str,
         gate_config: QualityGateConfig,
         debug: bool,
+        filter: Callable[[str], bool] = lambda _: True,
     ) -> tuple[int, int, list[FileInfo], Any]:
         """Measure package artifact using extraction and analysis."""
         if not os.path.exists(artifact_ref):
@@ -642,7 +675,7 @@ class PackageProcessor:
 
             extract_package(ctx, gate_config.os, artifact_ref, extract_dir)
             disk_size = FileUtilities.calculate_directory_size(extract_dir)
-            file_inventory = FileUtilities.walk_files(extract_dir, debug)
+            file_inventory = FileUtilities.walk_files(extract_dir, debug, filter)
 
             if debug:
                 print("✅ Package analysis completed:")
@@ -667,6 +700,7 @@ class DockerProcessor:
         artifact_ref: str,
         gate_config: QualityGateConfig,
         debug: bool,
+        filter: Callable[[str], bool] = lambda _: True,
     ) -> tuple[int, int, list[FileInfo], DockerImageInfo]:
         """Measure Docker image using manifest inspection for wire size and crane pull for disk analysis."""
         if debug:
@@ -674,7 +708,7 @@ class DockerProcessor:
 
         wire_size = self._get_wire_size(ctx, artifact_ref, debug)
 
-        disk_size, file_inventory, docker_info = self._measure_on_disk_size(ctx, artifact_ref, debug)
+        disk_size, file_inventory, docker_info = self._measure_on_disk_size(ctx, artifact_ref, debug, filter)
 
         return wire_size, disk_size, file_inventory, docker_info
 
@@ -683,6 +717,7 @@ class DockerProcessor:
         ctx: Context,
         image_ref: str,
         debug: bool = False,
+        filter: Callable[[str], bool] = lambda _: True,
     ) -> tuple[int, list[FileInfo], DockerImageInfo | None]:
         """Measure disk size and generate file inventory using crane pull with OCI format."""
         try:
@@ -698,7 +733,7 @@ class DockerProcessor:
                 if debug:
                     print(f"📁 Pulled OCI image to: {oci_dir}")
 
-                disk_size, file_inventory = self._analyze_extracted_docker_layers(oci_dir, debug)
+                disk_size, file_inventory = self._analyze_extracted_docker_layers(oci_dir, debug, filter)
 
                 docker_info = self._extract_docker_metadata(oci_dir, image_ref, debug)
 
@@ -743,6 +778,7 @@ class DockerProcessor:
         self,
         extract_dir: str,
         debug: bool = False,
+        filter: Callable[[str], bool] = lambda _: True,
     ) -> tuple[int, list[FileInfo]]:
         """Analyze extracted crane pull tarball to get disk size and file inventory.
 
@@ -829,6 +865,8 @@ class DockerProcessor:
 
                             # Skip whiteout files (Those are marking files from lower layers that are removed in this layer)
                             if relative_path.startswith('.wh.') or '/.wh.' in relative_path:
+                                continue
+                            if not filter(relative_path):
                                 continue
 
                             try:
@@ -1020,6 +1058,7 @@ class InPlacePackageMeasurer:
         gate_name: str,
         build_job_name: str,
         debug: bool = False,
+        filter: Callable[[str], bool] = lambda _: True,
     ) -> InPlaceArtifactReport:
         """
         Measure a package artifact and generate a comprehensive report.
@@ -1044,6 +1083,7 @@ class InPlacePackageMeasurer:
             gate_name=gate_name,
             build_job_name=build_job_name,
             debug=debug,
+            filter=filter,
         )
 
     def save_report_to_yaml(self, report: InPlaceArtifactReport, output_path: str) -> None:
@@ -1079,6 +1119,7 @@ class InPlaceDockerMeasurer:
         build_job_name: str,
         include_layer_analysis: bool = True,
         debug: bool = False,
+        filter: Callable[[str], bool] = lambda _: True,
     ) -> InPlaceArtifactReport:
         """
         Measure a Docker image and generate a comprehensive report.
@@ -1104,6 +1145,7 @@ class InPlaceDockerMeasurer:
             gate_name=gate_name,
             build_job_name=build_job_name,
             debug=debug,
+            filter=filter,
         )
 
     def save_report_to_yaml(self, report: InPlaceArtifactReport, output_path: str) -> None:
@@ -1119,6 +1161,7 @@ def measure_package_local(
     output_path=None,
     build_job_name="local_test",
     debug=False,
+    filter: Callable[[str], bool] = lambda _: True,
 ):
     """
     Run the in-place package measurer locally for testing and development.
@@ -1133,12 +1176,11 @@ def measure_package_local(
         output_path: Path to save the measurement report (default: {gate_name}_report.yml)
         build_job_name: Simulated build job name (default: local_test)
         debug: Enable debug logging for troubleshooting (default: false)
+        filter: Optional callback to filter out files based on their path
 
     Example:
         dda inv experimental-gates.measure-package-local --package-path /path/to/package.deb --gate-name static_quality_gate_agent_deb_amd64
     """
-    from tasks.libs.common.color import color_message
-
     if not os.path.exists(package_path):
         print(color_message(f"❌ Package file not found: {package_path}", "red"))
         return
@@ -1179,6 +1221,7 @@ def measure_package_local(
             gate_name=gate_name,
             build_job_name=build_job_name,
             debug=debug,
+            filter=filter,
         )
 
         # Save the report
@@ -1246,7 +1289,6 @@ def measure_image_local(
     Example:
         dda inv experimental-gates.measure-image-local --image-ref nginx:latest --gate-name static_quality_gate_docker_agent_amd64
     """
-    from tasks.libs.common.color import color_message
 
     if not os.path.exists(config_path):
         print(color_message(f"❌ Configuration file not found: {config_path}", "red"))

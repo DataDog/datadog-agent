@@ -142,6 +142,38 @@ func TestRedisObfuscator(t *testing.T) {
 			"HELLO",
 		},
 		{
+			"ACL SETUSER alice on >password ~* &* +@all",
+			"ACL SETUSER ?",
+		},
+		{
+			"ACL SETUSER bob on >mysecretpassword ~keys:* resetchannels &channel:* +@all -@dangerous",
+			"ACL SETUSER ?",
+		},
+		{
+			"ACL GETUSER alice",
+			"ACL GETUSER ?",
+		},
+		{
+			"ACL DELUSER alice",
+			"ACL DELUSER ?",
+		},
+		{
+			"ACL DELUSER alice bob charlie",
+			"ACL DELUSER ?",
+		},
+		{
+			"ACL LIST",
+			"ACL LIST",
+		},
+		{
+			"ACL WHOAMI",
+			"ACL WHOAMI",
+		},
+		{
+			"ACL",
+			"ACL",
+		},
+		{
 			"APPEND key value",
 			"APPEND key ?",
 		},

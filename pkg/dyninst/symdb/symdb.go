@@ -914,7 +914,10 @@ func (b *packagesIterator) addAbstractFunctions(targetPackage *Package) {
 		}
 		// Sort variables so that output is stable.
 		sort.Slice(variables, func(i, j int) bool {
-			return variables[i].Name < variables[j].Name
+			if variables[i].Name != variables[j].Name {
+				return variables[i].Name < variables[j].Name
+			}
+			return variables[i].DeclLine < variables[j].DeclLine
 		})
 		f := Function{
 			Name:            af.name,

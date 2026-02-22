@@ -25,6 +25,7 @@ services:
         GID: ${GID}
     privileged: true
     pid: "host"
+    cgroup: "host"
     # host-profiler needs to share agent's loopback
     network_mode: "service:datadog-agent"
     environment:

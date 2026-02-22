@@ -275,6 +275,44 @@ func TestRetransmitMultipleSegments(t *testing.T) {
 	require.Equal(t, expectedStats, f.conn.Monotonic)
 }
 
+// TestPartialOverlapRetransmit tests that when the kernel retransmits a segment
+// that partially overlaps with previously-counted data but extends beyond the
+// high-water mark.
+func TestPartialOverlapRetransmit(t *testing.T) {
+	pb := newPacketBuilder(lowerSeq, higherSeq)
+	traffic := []testCapture{
+		pb.outgoing(0, 0, 0, SYN),
+		pb.incoming(0, 0, 1, SYN|ACK),
+		pb.outgoing(0, 1, 1, ACK),
+		// send 100 bytes [1..100], maxSeqSent=101, SentBytes=100
+		pb.outgoing(100, 1, 1, ACK),
+		// partial retransmit [51..150], overlap=50, new=50, maxSeqSent=151, SentBytes=150
+		pb.outgoing(100, 51, 1, ACK),
+		// another partial retransmit [101..200], overlap=50, new=50, maxSeqSent=201, SentBytes=200
+		pb.outgoing(100, 101, 1, ACK),
+		// clean close
+		pb.outgoing(0, 201, 1, FIN|ACK),
+		pb.incoming(0, 1, 202, FIN|ACK),
+		pb.outgoing(0, 2, 2, ACK),
+	}
+
+	f := newTCPTestFixture(t)
+	f.runPkts(traffic)
+
+	require.Empty(t, f.conn.TCPFailures)
+
+	expectedStats := network.StatCounters{
+		SentBytes:      200,
+		RecvBytes:      0,
+		SentPackets:    7,
+		RecvPackets:    2,
+		Retransmits:    0,
+		TCPEstablished: 1,
+		TCPClosed:      1,
+	}
+	require.Equal(t, expectedStats, f.conn.Monotonic)
+}
+
 func TestIncomingRetransmitAfterClose(t *testing.T) {
 	pb := newPacketBuilder(lowerSeq, higherSeq)
 

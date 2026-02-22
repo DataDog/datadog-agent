@@ -45,6 +45,7 @@ docker_image_build_otel:
       --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
       --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
       --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
+      --build-arg BASE_IMAGE_REGISTRY=registry.ddbuild.io/images/mirror \
       --build-arg CI \
       --build-arg DDA_VERSION=$DDA_VERSION \
       --tag agent-byoc:latest \

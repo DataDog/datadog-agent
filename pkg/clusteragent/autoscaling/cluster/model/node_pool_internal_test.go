@@ -11,12 +11,12 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	karpenterv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 
 	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
-	"github.com/stretchr/testify/assert"
-
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestConvertLabels(t *testing.T) {
@@ -278,8 +278,7 @@ func TestBuildReplicaNodePool(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			np := tt.nodePool.DeepCopy()
-			BuildReplicaNodePool(np, tt.minNodePool)
+			np := BuildReplicaNodePool(&tt.nodePool, tt.minNodePool)
 
 			assert.Equal(t, "true", np.Spec.Template.ObjectMeta.Labels[kubernetes.AutoscalingLabelKey])
 			assert.Equal(t, "true", np.ObjectMeta.Labels[DatadogCreatedLabelKey])
@@ -296,12 +295,15 @@ func TestBuildReplicaNodePool(t *testing.T) {
 	}
 }
 
-func TestBuildNodePoolPatch(t *testing.T) {
+func TestUpdateNodePoolObject(t *testing.T) {
+	weightOne := int32(1)
+
 	tests := []struct {
-		name          string
-		nodePool      karpenterv1.NodePool
-		minNodePool   NodePoolInternal
-		expectedPatch map[string]any
+		name             string
+		targetNodePool   karpenterv1.NodePool
+		ddNodePool       karpenterv1.NodePool
+		minNodePool      NodePoolInternal
+		expectedNodePool karpenterv1.NodePool
 	}{
 		{
 			name: "instance type requirements have changed",
@@ -317,7 +319,10 @@ func TestBuildNodePoolPatch(t *testing.T) {
 					},
 				},
 			},
-			nodePool: karpenterv1.NodePool{
+			targetNodePool: karpenterv1.NodePool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "targetNp",
+				},
 				Spec: karpenterv1.NodePoolSpec{
 					Template: karpenterv1.NodeClaimTemplate{
 						Spec: karpenterv1.NodeClaimTemplateSpec{
@@ -360,36 +365,102 @@ func TestBuildNodePoolPatch(t *testing.T) {
 					},
 				},
 			},
-			expectedPatch: map[string]any{
-				"metadata": map[string]any{
-					"labels": map[string]any{
-						datadogModifiedLabelKey: "true",
-					},
+			ddNodePool: karpenterv1.NodePool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "replicaNp",
 				},
-				"spec": map[string]any{
-					"template": map[string]any{
-						"metadata": map[string]any{
-							"labels": map[string]string{
-								kubernetes.AutoscalingLabelKey: "true",
+				Spec: karpenterv1.NodePoolSpec{
+					Template: karpenterv1.NodeClaimTemplate{
+						Spec: karpenterv1.NodeClaimTemplateSpec{
+							Taints: []corev1.Taint{
+								{
+									Key:    "node",
+									Value:  "test",
+									Effect: corev1.TaintEffectNoSchedule,
+								},
+							},
+							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
+								{
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      "kubernetes.io/arch",
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"amd64"},
+									},
+								},
+								{
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      "kubernetes.io/os",
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"linux"},
+									},
+								},
+								{
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      corev1.LabelInstanceTypeStable,
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"m5.large", "t3.micro"},
+									},
+								},
+							},
+							NodeClassRef: &karpenterv1.NodeClassReference{
+								Kind:  "EC2NodeClass",
+								Name:  "default",
+								Group: "karpenter.k8s.aws",
 							},
 						},
-						"spec": map[string]any{
-							"requirements": []map[string]any{
+					},
+				},
+			},
+			expectedNodePool: karpenterv1.NodePool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "replicaNp",
+					Labels: map[string]string{
+						"autoscaling.datadoghq.com/modified": "true",
+					},
+				},
+				Spec: karpenterv1.NodePoolSpec{
+					Weight: &weightOne,
+					Template: karpenterv1.NodeClaimTemplate{
+						ObjectMeta: karpenterv1.ObjectMeta{
+							Labels: map[string]string{
+								"autoscaling.datadoghq.com/managed": "true",
+							},
+						},
+						Spec: karpenterv1.NodeClaimTemplateSpec{
+							Taints: []corev1.Taint{
 								{
-									"key":      "kubernetes.io/arch",
-									"operator": "In",
-									"values":   []string{"amd64"},
+									Key:    "node",
+									Value:  "test",
+									Effect: corev1.TaintEffectNoSchedule,
+								},
+							},
+							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
+								{
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      "kubernetes.io/arch",
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"amd64"},
+									},
 								},
 								{
-									"key":      "kubernetes.io/os",
-									"operator": "In",
-									"values":   []string{"linux"},
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      "kubernetes.io/os",
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"linux"},
+									},
 								},
 								{
-									"key":      corev1.LabelInstanceTypeStable,
-									"operator": "In",
-									"values":   []string{"c5.xlarge", "t3.micro"},
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      corev1.LabelInstanceTypeStable,
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"c5.xlarge", "t3.micro"},
+									},
 								},
+							},
+							NodeClassRef: &karpenterv1.NodeClassReference{
+								Kind:  "EC2NodeClass",
+								Name:  "default",
+								Group: "karpenter.k8s.aws",
 							},
 						},
 					},
@@ -410,7 +481,10 @@ func TestBuildNodePoolPatch(t *testing.T) {
 					},
 				},
 			},
-			nodePool: karpenterv1.NodePool{
+			targetNodePool: karpenterv1.NodePool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "targetNp",
+				},
 				Spec: karpenterv1.NodePoolSpec{
 					Template: karpenterv1.NodeClaimTemplate{
 						Spec: karpenterv1.NodeClaimTemplateSpec{
@@ -453,85 +527,102 @@ func TestBuildNodePoolPatch(t *testing.T) {
 					},
 				},
 			},
-			expectedPatch: map[string]any{
-				"metadata": map[string]any{
-					"labels": map[string]any{
-						datadogModifiedLabelKey: "true",
-					},
+			ddNodePool: karpenterv1.NodePool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "replicaNp",
 				},
-				"spec": map[string]any{
-					"template": map[string]any{
-						"metadata": map[string]any{
-							"labels": map[string]string{
-								kubernetes.AutoscalingLabelKey: "true",
-							},
-						},
-						"spec": map[string]any{
-							"requirements": []map[string]any{
-								{
-									"key":      "kubernetes.io/arch",
-									"operator": "In",
-									"values":   []string{"amd64"},
-								},
-								{
-									"key":      "kubernetes.io/os",
-									"operator": "In",
-									"values":   []string{"linux"},
-								},
-								{
-									"key":      corev1.LabelInstanceTypeStable,
-									"operator": "In",
-									"values":   []string{"m5.large", "t3.micro"},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "instance type requirements order has changed",
-			minNodePool: NodePoolInternal{
-				name:                     "default",
-				recommendedInstanceTypes: []string{"c5.xlarge", "t3.micro"},
-			},
-			nodePool: karpenterv1.NodePool{
 				Spec: karpenterv1.NodePoolSpec{
 					Template: karpenterv1.NodeClaimTemplate{
 						Spec: karpenterv1.NodeClaimTemplateSpec{
+							Taints: []corev1.Taint{
+								{
+									Key:    "node",
+									Value:  "test",
+									Effect: corev1.TaintEffectNoSchedule,
+								},
+							},
 							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
+								{
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      "kubernetes.io/arch",
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"amd64"},
+									},
+								},
+								{
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      "kubernetes.io/os",
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"linux"},
+									},
+								},
+								{
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      corev1.LabelInstanceTypeStable,
+										Operator: corev1.NodeSelectorOpNotIn,
+										Values:   []string{"m5.large", "t3.micro"},
+									},
+								},
+							},
+							NodeClassRef: &karpenterv1.NodeClassReference{
+								Kind:  "EC2NodeClass",
+								Name:  "default",
+								Group: "karpenter.k8s.aws",
+							},
+						},
+					},
+				},
+			},
+			expectedNodePool: karpenterv1.NodePool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "replicaNp",
+					Labels: map[string]string{
+						"autoscaling.datadoghq.com/modified": "true",
+					},
+				},
+				Spec: karpenterv1.NodePoolSpec{
+					Weight: &weightOne,
+					Template: karpenterv1.NodeClaimTemplate{
+						ObjectMeta: karpenterv1.ObjectMeta{
+							Labels: map[string]string{
+								"autoscaling.datadoghq.com/managed": "true",
+							},
+						},
+						Spec: karpenterv1.NodeClaimTemplateSpec{
+							Taints: []corev1.Taint{
+								{
+									Key:    "node",
+									Value:  "test",
+									Effect: corev1.TaintEffectNoSchedule,
+								},
+							},
+							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
+								{
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      "kubernetes.io/arch",
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"amd64"},
+									},
+								},
+								{
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      "kubernetes.io/os",
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"linux"},
+									},
+								},
 								{
 									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
 										Key:      corev1.LabelInstanceTypeStable,
 										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"t3.micro", "c5.xlarge"},
+										Values:   []string{"m5.large", "t3.micro"},
 									},
 								},
 							},
-						},
-					},
-				},
-			},
-			expectedPatch: map[string]any{
-				"metadata": map[string]any{
-					"labels": map[string]any{
-						datadogModifiedLabelKey: "true",
-					},
-				},
-				"spec": map[string]any{
-					"template": map[string]any{
-						"metadata": map[string]any{
-							"labels": map[string]string{
-								kubernetes.AutoscalingLabelKey: "true",
-							},
-						},
-						"spec": map[string]any{
-							"requirements": []map[string]any{
-								{
-									"key":      corev1.LabelInstanceTypeStable,
-									"operator": "In",
-									"values":   []string{"c5.xlarge", "t3.micro"},
-								},
+							NodeClassRef: &karpenterv1.NodeClassReference{
+								Kind:  "EC2NodeClass",
+								Name:  "default",
+								Group: "karpenter.k8s.aws",
 							},
 						},
 					},
@@ -542,62 +633,158 @@ func TestBuildNodePoolPatch(t *testing.T) {
 			name: "instance type requirements have not changed",
 			minNodePool: NodePoolInternal{
 				name:                     "default",
-				recommendedInstanceTypes: []string{"c5.xlarge", "t3.micro"},
+				recommendedInstanceTypes: []string{"m5.large", "t3.micro"},
+				labels:                   map[string]string{"kubernetes.io/arch": "amd64", "kubernetes.io/os": "linux"},
+				taints: []corev1.Taint{
+					{
+						Key:    "node",
+						Value:  "test",
+						Effect: corev1.TaintEffectNoSchedule,
+					},
+				},
 			},
-			nodePool: karpenterv1.NodePool{
+			targetNodePool: karpenterv1.NodePool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "targetNp",
+				},
 				Spec: karpenterv1.NodePoolSpec{
 					Template: karpenterv1.NodeClaimTemplate{
 						Spec: karpenterv1.NodeClaimTemplateSpec{
+							Taints: []corev1.Taint{
+								{
+									Key:    "node",
+									Value:  "test",
+									Effect: corev1.TaintEffectNoSchedule,
+								},
+							},
 							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
+								{
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      "kubernetes.io/arch",
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"amd64"},
+									},
+								},
+								{
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      "kubernetes.io/os",
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"linux"},
+									},
+								},
 								{
 									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
 										Key:      corev1.LabelInstanceTypeStable,
 										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"c5.xlarge", "t3.micro"},
+										Values:   []string{"m5.large", "t3.micro"},
 									},
 								},
 							},
+							NodeClassRef: &karpenterv1.NodeClassReference{
+								Kind:  "EC2NodeClass",
+								Name:  "default",
+								Group: "karpenter.k8s.aws",
+							},
 						},
 					},
 				},
 			},
-			expectedPatch: nil,
-		},
-		{
-			name: "instance type requirements do not exist",
-			minNodePool: NodePoolInternal{
-				name:                     "default",
-				recommendedInstanceTypes: []string{"c5.xlarge", "t3.micro"},
-			},
-			nodePool: karpenterv1.NodePool{
+			ddNodePool: karpenterv1.NodePool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "replicaNp",
+				},
 				Spec: karpenterv1.NodePoolSpec{
 					Template: karpenterv1.NodeClaimTemplate{
 						Spec: karpenterv1.NodeClaimTemplateSpec{
-							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{},
+							Taints: []corev1.Taint{
+								{
+									Key:    "node",
+									Value:  "test",
+									Effect: corev1.TaintEffectNoSchedule,
+								},
+							},
+							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
+								{
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      "kubernetes.io/arch",
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"amd64"},
+									},
+								},
+								{
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      "kubernetes.io/os",
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"linux"},
+									},
+								},
+								{
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      corev1.LabelInstanceTypeStable,
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"m5.large", "t3.micro"},
+									},
+								},
+							},
+							NodeClassRef: &karpenterv1.NodeClassReference{
+								Kind:  "EC2NodeClass",
+								Name:  "default",
+								Group: "karpenter.k8s.aws",
+							},
 						},
 					},
 				},
 			},
-			expectedPatch: map[string]any{
-				"metadata": map[string]any{
-					"labels": map[string]any{
-						datadogModifiedLabelKey: "true",
+			expectedNodePool: karpenterv1.NodePool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "replicaNp",
+					Labels: map[string]string{
+						"autoscaling.datadoghq.com/modified": "true",
 					},
 				},
-				"spec": map[string]any{
-					"template": map[string]any{
-						"metadata": map[string]any{
-							"labels": map[string]string{
-								kubernetes.AutoscalingLabelKey: "true",
+				Spec: karpenterv1.NodePoolSpec{
+					Weight: &weightOne,
+					Template: karpenterv1.NodeClaimTemplate{
+						ObjectMeta: karpenterv1.ObjectMeta{
+							Labels: map[string]string{
+								"autoscaling.datadoghq.com/managed": "true",
 							},
 						},
-						"spec": map[string]any{
-							"requirements": []map[string]any{
+						Spec: karpenterv1.NodeClaimTemplateSpec{
+							Taints: []corev1.Taint{
 								{
-									"key":      corev1.LabelInstanceTypeStable,
-									"operator": "In",
-									"values":   []string{"c5.xlarge", "t3.micro"},
+									Key:    "node",
+									Value:  "test",
+									Effect: corev1.TaintEffectNoSchedule,
 								},
+							},
+							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
+								{
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      "kubernetes.io/arch",
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"amd64"},
+									},
+								},
+								{
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      "kubernetes.io/os",
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"linux"},
+									},
+								},
+								{
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      corev1.LabelInstanceTypeStable,
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"m5.large", "t3.micro"},
+									},
+								},
+							},
+							NodeClassRef: &karpenterv1.NodeClassReference{
+								Kind:  "EC2NodeClass",
+								Name:  "default",
+								Group: "karpenter.k8s.aws",
 							},
 						},
 					},
@@ -608,8 +795,8 @@ func TestBuildNodePoolPatch(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resultPatch := BuildNodePoolPatch(&tt.nodePool, tt.minNodePool)
-			assert.Equal(t, tt.expectedPatch, resultPatch, "Resulting patch does not match expected patch")
+			np := UpdateNodePoolObject(&tt.targetNodePool, &tt.ddNodePool, tt.minNodePool)
+			assert.Equal(t, tt.expectedNodePool, *np, "Resulting NodePool does not match expected NodePool")
 		})
 	}
 }

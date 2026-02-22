@@ -18,128 +18,69 @@ source url: "https://github.com/OpenSCAP/openscap/releases/download/#{version}/o
 build do
   command_on_repo_root "bazelisk run -- @acl//:install --destdir='#{install_dir}'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/pkgconfig/libacl.pc" \
     " #{install_dir}/embedded/lib/libacl.so"
 
   command_on_repo_root "bazelisk run -- @attr//:install --destdir='#{install_dir}'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/pkgconfig/libattr.pc" \
     " #{install_dir}/embedded/lib/libattr.so"
 
   command_on_repo_root "bazelisk run -- @dbus//:install --destdir='#{install_dir}/embedded'"
-  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/pkgconfig/dbus-1.pc"
 
   command_on_repo_root "bazelisk run -- @libselinux//:install --destdir='#{install_dir}/embedded'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/pkgconfig/libselinux.pc" \
     " #{install_dir}/embedded/lib/libselinux.so"
 
   command_on_repo_root "bazelisk run -- @libsepol//:install --destdir='#{install_dir}/embedded'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/pkgconfig/libsepol.pc" \
     " #{install_dir}/embedded/lib/libsepol.so"
 
   command_on_repo_root "bazelisk run -- @libyaml//:install --destdir='#{install_dir}/embedded'"
   sh_lib = if linux_target? then "libyaml.so" else "libyaml.dylib" end
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded' " \
-    "#{install_dir}/embedded/lib/pkgconfig/yaml-0.1.pc " \
     "#{install_dir}/embedded/lib/#{sh_lib}"
 
   command_on_repo_root "bazelisk run -- @pcre2//:install --destdir=#{install_dir}/embedded"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix " \
     "--prefix #{install_dir}/embedded " \
-    "#{install_dir}/embedded/lib/pkgconfig/libpcre2*.pc " \
     "#{install_dir}/embedded/lib/libpcre2*.so"
 
   command_on_repo_root "bazelisk run -- @popt//:install --destdir='#{install_dir}/embedded'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/pkgconfig/popt.pc" \
     " #{install_dir}/embedded/lib/libpopt.so"
 
   command_on_repo_root "bazelisk run -- @rpm//:install --destdir='#{install_dir}/embedded'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/pkgconfig/rpm.pc" \
     " #{install_dir}/embedded/lib/librpm.so" \
     " #{install_dir}/embedded/lib/librpmio.so"
 
   command_on_repo_root "bazelisk run -- @util-linux//:blkid_install --destdir='#{install_dir}/embedded'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/pkgconfig/blkid.pc" \
     " #{install_dir}/embedded/lib/libblkid.so"
-end
 
-dependency 'bzip2'
-dependency 'curl'
-dependency 'libgcrypt'
-dependency 'libxslt'
-dependency 'xmlsec'
+  command_on_repo_root "bazelisk run -- @gpg-error//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- @gcrypt//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/libgcrypt.so" \
+    " #{install_dir}/embedded/lib/libgpg-error.so" \
 
-relative_path "openscap-#{version}"
+  command_on_repo_root "bazelisk run -- @libxml2//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/libxml2.so"
 
-build do
-  env = with_standard_compiler_flags(with_embedded_path)
+  command_on_repo_root "bazelisk run -- @libxslt//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/libxslt.so" \
+    " #{install_dir}/embedded/lib/libexslt.so"
 
-  patch source: "fsdev-ignore-host.patch", env: env # ignore /host directory in fsdev probe
-  patch source: "systemd-dbus-address.patch", env: env # fix dbus address in systemd probe
-  patch source: "rpm-verbosity-err.patch", env: env # decrease rpmlog verbosity level to ERR
-  patch source: "session-print-syschar.patch", env: env # add a function to print system characteristics
-  patch source: "memusage-cgroup.patch", env: env # consider cgroup when determining memory usage
-  patch source: "oval_probe_session_reset.patch", env: env # use oval_probe_session_reset instead of oval_probe_session_reinit
-  patch source: "sysctl-probe-offline-skip.patch", env: env # skip sysctl probe in offline mode
-  patch source: "probes-no-procfs.patch", env: env # handle systems with no procfs available
-  patch source: "dpkginfo-virtual-packages-revert.patch", env: env # revert handling of virtual packages in dpkginfo probe
+  command_on_repo_root "bazelisk run -- @xmlsec//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/libxmlsec1*.so" \
 
-  patch source: "oscap-io.patch", env: env # add new oscap-io tool
+  command_on_repo_root "bazelisk run -- @openscap//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/libopenscap.so" \
+    " #{install_dir}/embedded/lib/libopenscap_sce.so" \
+    " #{install_dir}/embedded/bin/oscap" \
+    " #{install_dir}/embedded/bin/oscap-io"
 
-  env["CXXFLAGS"] += " -static-libstdc++ -std=c++11 -DDPKG_DATADIR=/usr/share/dpkg"
-
-  cmake_build_dir = "#{project_dir}/build"
-  cmake_options = [
-    "-DENABLE_PERL=OFF",
-    "-DENABLE_PYTHON3=OFF",
-    "-DWITH_PCRE2=ON",
-    "-DENABLE_TESTS=OFF",
-    "-DACL_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
-    "-DACL_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libacl.so",
-    "-DBLKID_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
-    "-DBLKID_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libblkid.so",
-    "-DBZIP2_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
-    "-DBZIP2_LIBRARY_RELEASE:FILEPATH=#{install_dir}/embedded/lib/libbz2.so",
-    "-DCURL_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
-    "-DCURL_LIBRARY_RELEASE:FILEPATH=#{install_dir}/embedded/lib/libcurl.so",
-    "-DDBUS_INCLUDE_DIR:PATH=#{install_dir}/embedded/include/dbus-1.0",
-    "-DDBUS_LIBRARIES:FILEPATH=#{install_dir}/embedded/lib/libdbus-1.a",
-    "-DGCRYPT_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
-    "-DGCRYPT_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libgcrypt.so",
-    "-DLIBXML2_INCLUDE_DIR:PATH=#{install_dir}/embedded/include/libxml2",
-    "-DLIBXML2_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libxml2.so",
-    "-DLIBXSLT_EXSLT_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
-    "-DLIBXSLT_EXSLT_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libexslt.so",
-    "-DLIBXSLT_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
-    "-DLIBXSLT_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libxslt.so",
-    "-DLIBYAML_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
-    "-DLIBYAML_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libyaml.so",
-    "-DOPENSSL_CRYPTO_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libcrypto.so",
-    "-DOPENSSL_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
-    "-DOPENSSL_SSL_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libssl.so",
-    "-DPCRE2_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
-    "-DPCRE2_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libpcre2-8.so",
-    "-DPOPT_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
-    "-DPOPT_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libpopt.so",
-    "-DPYTHON_INCLUDE_DIR:PATH=#{install_dir}/embedded/include/python3.8",
-    "-DPYTHON_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libpython3.8.so",
-    "-DRPM_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
-    "-DRPMIO_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/librpmio.so",
-    "-DRPM_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/librpm.so",
-    "-DSELINUX_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
-    "-DSELINUX_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libselinux.so",
-    "-DXMLSEC_INCLUDE_DIR:PATH=#{install_dir}/embedded/include/xmlsec1",
-    "-DXMLSEC_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libxmlsec1.so",
-    "-DXMLSEC_OPENSSL_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libxmlsec1-openssl.so",
-  ]
-  cmake(*cmake_options, env: env, cwd: cmake_build_dir, prefix: "#{install_dir}/embedded")
-
-  # Remove OpenSCAP XML schemas, since they are not useful when XSD validation is disabled.
-  delete "#{install_dir}/embedded/share/openscap/schemas"
 end

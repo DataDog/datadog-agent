@@ -106,19 +106,6 @@ func Install(ctx context.Context, downloader *oci.Downloader, url string, extens
 		dbPkg.Extensions = make(map[string]struct{})
 	}
 
-	// Track successfully installed extensions for rollback
-	var installedExtensions []string
-
-	// Rollback function
-	rollback := func() {
-		for _, ext := range installedExtensions {
-			log.Warnf("Rolling back extension %s due to installation failure", ext)
-			if removeErr := removeSingle(ctx, pkg.Name, pkg.Version, ext, hooks); removeErr != nil {
-				log.Errorf("Failed to rollback extension %s: %v", ext, removeErr)
-			}
-		}
-	}
-
 	// Process each extension
 	for _, extension := range extensions {
 		// Check if extension is already installed with the same package version
@@ -129,13 +116,10 @@ func Install(ctx context.Context, downloader *oci.Downloader, url string, extens
 
 		err := installSingle(ctx, pkg, extension, hooks)
 		if err != nil {
-			// Rollback all successfully installed extensions
-			rollback()
-			return fmt.Errorf("failed to install extension %s: %w", extension, err)
+			fmt.Printf("Failed to install extension %s: %v\n", extension, err)
+			continue
 		}
 
-		// Track for potential rollback
-		installedExtensions = append(installedExtensions, extension)
 		// Mark as installed
 		dbPkg.Extensions[extension] = struct{}{}
 	}
@@ -143,8 +127,6 @@ func Install(ctx context.Context, downloader *oci.Downloader, url string, extens
 	// Update DB now that all extensions installed successfully
 	err = db.SetPackage(dbPkg, isExperiment)
 	if err != nil {
-		// Rollback on DB update failure
-		rollback()
 		return fmt.Errorf("could not update package in db: %w", err)
 	}
 
@@ -158,6 +140,8 @@ func installSingle(ctx context.Context, pkg *oci.DownloadedPackage, extension st
 	span.SetTag("extension", extension)
 	span.SetTag("package_name", pkg.Name)
 	span.SetTag("package_version", pkg.Version)
+
+	// TODO: Nuke previous extension if it exists
 
 	// Pre-install hook
 	err = hooks.PreInstallExtension(ctx, pkg.Name, extension)

@@ -60,11 +60,14 @@ func setFileReadableByEveryone(path string) error {
 		return fmt.Errorf("failed to get DACL: %w", err)
 	}
 
-	// Only set the DACL, don't touch owner or group
+	// Set the explicit DACL and allow inheritance from the parent directory.
+	// Not using PROTECTED_DACL_SECURITY_INFORMATION so that the file inherits
+	// ACEs from the parent (SYSTEM:F, Admins:F, ddagentuser:F via CREATOR OWNER),
+	// ensuring the agent retains write access for subsequent config updates.
 	return windows.SetNamedSecurityInfo(
 		path,
 		windows.SE_FILE_OBJECT,
-		windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION,
+		windows.DACL_SECURITY_INFORMATION,
 		nil,  // owner - leave unchanged
 		nil,  // group - leave unchanged
 		dacl, // DACL - set this

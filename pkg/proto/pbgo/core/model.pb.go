@@ -634,6 +634,7 @@ type Entity struct {
 	OrchestratorCardinalityTags []string               `protobuf:"bytes,4,rep,name=orchestratorCardinalityTags,proto3" json:"orchestratorCardinalityTags,omitempty"`
 	LowCardinalityTags          []string               `protobuf:"bytes,5,rep,name=lowCardinalityTags,proto3" json:"lowCardinalityTags,omitempty"`
 	StandardTags                []string               `protobuf:"bytes,6,rep,name=standardTags,proto3" json:"standardTags,omitempty"`
+	IsComplete                  bool                   `protobuf:"varint,7,opt,name=isComplete,proto3" json:"isComplete,omitempty"`
 	unknownFields               protoimpl.UnknownFields
 	sizeCache                   protoimpl.SizeCache
 }
@@ -708,6 +709,13 @@ func (x *Entity) GetStandardTags() []string {
 		return x.StandardTags
 	}
 	return nil
+}
+
+func (x *Entity) GetIsComplete() bool {
+	if x != nil {
+		return x.IsComplete
+	}
+	return false
 }
 
 type GenerateContainerIDFromOriginInfoRequest struct {
@@ -1631,14 +1639,17 @@ const file_datadog_model_v1_model_proto_rawDesc = "" +
 	"\x10DeprecatedFilter\x12$\n" +
 	"\rkubeNamespace\x18\x01 \x01(\tR\rkubeNamespace\x12\x14\n" +
 	"\x05image\x18\x02 \x01(\tR\x05image\x12$\n" +
-	"\rcontainerName\x18\x03 \x01(\tR\rcontainerName\"\x90\x02\n" +
+	"\rcontainerName\x18\x03 \x01(\tR\rcontainerName\"\xb0\x02\n" +
 	"\x06Entity\x12*\n" +
 	"\x02id\x18\x01 \x01(\v2\x1a.datadog.model.v1.EntityIdR\x02id\x12\x12\n" +
 	"\x04hash\x18\x02 \x01(\tR\x04hash\x120\n" +
 	"\x13highCardinalityTags\x18\x03 \x03(\tR\x13highCardinalityTags\x12@\n" +
 	"\x1borchestratorCardinalityTags\x18\x04 \x03(\tR\x1borchestratorCardinalityTags\x12.\n" +
 	"\x12lowCardinalityTags\x18\x05 \x03(\tR\x12lowCardinalityTags\x12\"\n" +
-	"\fstandardTags\x18\x06 \x03(\tR\fstandardTags\"\xff\x04\n" +
+	"\fstandardTags\x18\x06 \x03(\tR\fstandardTags\x12\x1e\n" +
+	"\n" +
+	"isComplete\x18\a \x01(\bR\n" +
+	"isComplete\"\xff\x04\n" +
 	"(GenerateContainerIDFromOriginInfoRequest\x12g\n" +
 	"\tlocalData\x18\x01 \x01(\v2D.datadog.model.v1.GenerateContainerIDFromOriginInfoRequest.LocalDataH\x00R\tlocalData\x88\x01\x01\x12p\n" +
 	"\fexternalData\x18\x02 \x01(\v2G.datadog.model.v1.GenerateContainerIDFromOriginInfoRequest.ExternalDataH\x01R\fexternalData\x88\x01\x01\x1a\xc0\x01\n" +

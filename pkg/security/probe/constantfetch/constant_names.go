@@ -33,6 +33,8 @@ const (
 	OffsetNameMountMntID                = "mount_id_offset"
 	OffsetNameMountMntIDUnique          = "mount_id_unique_offset"
 	OffsetNameMountMntNs                = "mount_ns_offset"
+	OffsetNameMountParent               = "mount_parent_offset"
+	OffsetNameMountMountpoint           = "mount_mountpoint_offset"
 	OffsetNameMntNamespaceNs            = "mnt_namespace_ns"
 	OffsetNameNsCommonInum              = "ns_common_inum_offset"
 	OffsetNameSbDev                     = "sb_dev_offset"

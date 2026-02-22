@@ -309,6 +309,25 @@ datadog:
 	}
 }
 
+// WithStackIDTag sets the stackid tag on the agent using a pulumi.StringInput.
+func WithStackIDTag(stackID pulumi.StringInput) func(*Params) error {
+	return func(p *Params) error {
+		values := pulumi.Sprintf(`
+datadog:
+  tags:
+    - stackid:%s
+  dogstatsd:
+    tags:
+      - stackid:%s
+`, stackID, stackID)
+
+		p.HelmValues = append(p.HelmValues, values.ApplyT(func(s string) (pulumi.Asset, error) {
+			return pulumi.NewStringAsset(s), nil
+		}).(pulumi.AssetOutput))
+		return nil
+	}
+}
+
 // WithGPUMonitoring enables GPU monitoring in the agent.
 func WithGPUMonitoring() func(*Params) error {
 	return func(p *Params) error {

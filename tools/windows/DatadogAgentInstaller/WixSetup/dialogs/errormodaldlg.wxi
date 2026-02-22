@@ -1,4 +1,4 @@
-<Include>
+<Include xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Dialog Id="ErrorModalDlg" Width="270" Height="105" Title="!(loc.ErrorModalDialog_Title)">
 
     <Control Id="Text" Type="Text" X="48" Y="15" Width="210" Height="60" 
@@ -6,7 +6,8 @@
 
     <Control Id="OK" Type="PushButton" X="100" Y="80" Width="56" 
         Height="17" Default="yes" Cancel="yes" Text="!(loc.WixUIOK)">
-        <Publish Event="EndDialog" Value="Return">1</Publish>
+        <!-- WiX 5: Publish condition moved to attribute -->
+        <Publish Event="EndDialog" Value="Return" Condition="1" />
     </Control>
 
     <Control Id="Icon" Type="Icon" X="15" Y="15" Width="24" Height="24" 

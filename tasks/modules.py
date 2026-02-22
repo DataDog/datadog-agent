@@ -13,6 +13,7 @@ from pathlib import Path
 import yaml
 from invoke import Context, Exit, task
 
+from tasks.libs.build.bazel import bazel
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.gomodules import (
     ConfigDumper,
@@ -84,10 +85,7 @@ def go_work(ctx: Context):
     """
     Update the go work to use all the modules defined in modules.yml
     """
-
-    ctx.run(
-        "go run ./internal/tools/worksynchronizer/worksynchronizer.go --path ./go.work --modules-file ./modules.yml"
-    )
+    bazel("run", "//:write_go_work")
 
 
 @task

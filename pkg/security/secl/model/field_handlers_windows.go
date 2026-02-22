@@ -140,7 +140,9 @@ type FieldHandlers interface {
 	// custom handlers not tied to any fields
 	ExtraFieldHandlers
 }
-type FakeFieldHandlers struct{}
+type FakeFieldHandlers struct {
+	PCEs map[uint32]*ProcessCacheEntry
+}
 
 func (dfh *FakeFieldHandlers) ResolveContainerTags(ev *Event, e *ContainerContext) []string {
 	return []string(e.Tags)

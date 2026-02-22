@@ -4,3 +4,9 @@ NTP offset: {{ humanizeDuration .ntpOffset "s"}}
 {{yellowText "NTP offset is high. Datadog may ignore metrics sent by this Agent."}}
 {{- end }}
 {{- end }}
+{{- if .intakeOffset }}
+Intake offset: {{ humanizeDuration .intakeOffset "s"}}
+{{- if ntpWarning .intakeOffset}}
+{{yellowText "Intake offset is high. Datadog may drop metrics from this Agent."}}
+{{- end }}
+{{- end }}

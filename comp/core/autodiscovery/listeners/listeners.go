@@ -6,6 +6,8 @@
 // Package listeners is a wrapper that registers the available autodiscovery listerners.
 package listeners
 
+import autoutils "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
+
 const (
 	cloudFoundryBBSListenerName = "cloudfoundry-bbs"
 	containerListenerName       = "container"
@@ -22,7 +24,7 @@ const (
 )
 
 // RegisterListeners registers the available autodiscovery listerners.
-func RegisterListeners(serviceListenerFactories map[string]ServiceListenerFactory, useEndpointSlicesListener bool) {
+func RegisterListeners(serviceListenerFactories map[string]ServiceListenerFactory) {
 	// register the available listeners
 	Register(cloudFoundryBBSListenerName, NewCloudFoundryListener, serviceListenerFactories)
 	Register(containerListenerName, NewContainerListener, serviceListenerFactories)
@@ -37,7 +39,7 @@ func RegisterListeners(serviceListenerFactories map[string]ServiceListenerFactor
 	Register(crdListenerName, NewCRDListerner, serviceListenerFactories)
 
 	endpointsListener := NewKubeEndpointsListener
-	if useEndpointSlicesListener {
+	if autoutils.UseEndpointSlices() {
 		endpointsListener = NewKubeEndpointSlicesListener
 	}
 	Register(kubeEndpointsListenerName, endpointsListener, serviceListenerFactories)

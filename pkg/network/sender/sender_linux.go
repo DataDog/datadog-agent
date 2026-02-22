@@ -46,11 +46,9 @@ import (
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	ddmaps "github.com/DataDog/datadog-agent/pkg/util/maps"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 	ddslices "github.com/DataDog/datadog-agent/pkg/util/slices"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -152,7 +150,7 @@ func New(
 		},
 		ctx:        ctx,
 		cancelFunc: cancel,
-		resolver:   newContainerResolver(deps.Wmeta, metrics.GetProvider(option.New(deps.Wmeta))),
+		resolver:   newContainerResolver(deps.Wmeta),
 
 		sysprobeconfig: syscfg,
 		tagger:         deps.Tagger,
@@ -308,7 +306,7 @@ func (d *directSender) networkPathConnections(conns *network.Connections) iter.S
 
 			srcContainerID := ""
 			if conn.ContainerID.Source != nil {
-				srcContainerID = conn.ContainerID.Source.Get().(string)
+				srcContainerID, _ = conn.ContainerID.Source.Get().(string)
 			}
 
 			npc := npmodel.NetworkPathConnection{
@@ -561,7 +559,8 @@ func getInternedString(v *intern.Value) string {
 	if v == nil {
 		return ""
 	}
-	return v.Get().(string)
+	s, _ := v.Get().(string)
+	return s
 }
 
 const (

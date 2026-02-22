@@ -25,8 +25,8 @@ import (
 
 const (
 	generateConstantsAnnotationPrefix = "// generate_constants:"
-	SECLDocForLength                  = "SECLDoc[length] Definition:`Length of the corresponding element`" // SECLDocForLength defines SECL doc for length
-
+	SECLDocForLength                  = "SECLDoc[length] Definition:`Length of the corresponding element`"           // SECLDocForLength defines SECL doc for length
+	SECLDocForRootDomain              = "SECLDoc[root_domain] Definition:`Root domain of the corresponding element`" // SECLDocForRootDomain defines SECL doc for root_domain
 )
 
 type documentation struct {

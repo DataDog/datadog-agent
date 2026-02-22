@@ -76,7 +76,19 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 		return autoscaling.NoRequeue, nil
 	}
 
-	recommendationID := scalingValues.Vertical.ResourcesHash
+	// Deep-copy to avoid mutating the original recommendation stored in mainScalingValues/fallbackScalingValues.
+	// Without this, clamped values would persist and the VerticalScalingLimited condition would be
+	// cleared on the next sync since constraints re-applied to already-clamped values are no-ops.
+	constrainedVertical := scalingValues.Vertical.DeepCopy()
+	limitErr, err := applyVerticalConstraints(constrainedVertical, autoscalerInternal.Spec().Constraints)
+	if err != nil {
+		autoscalerInternal.SetConstrainedVerticalScaling(nil, nil)
+		autoscalerInternal.UpdateFromVerticalAction(nil, err)
+		return autoscaling.NoRequeue, err
+	}
+	autoscalerInternal.SetConstrainedVerticalScaling(constrainedVertical, limitErr)
+
+	recommendationID := constrainedVertical.ResourcesHash
 
 	// Get the pods for the pod owner
 	pods := u.podWatcher.GetPodsForOwner(target)
@@ -138,10 +150,10 @@ func (u *verticalController) triggerRollout(
 	// Generate the patch request which adds the scaling hash annotation to the pod template
 	gvr := targetGVK.GroupVersion().WithResource(strings.ToLower(targetGVK.Kind) + "s")
 	patchTime := u.clock.Now()
-	patchData, err := json.Marshal(map[string]interface{}{
-		"spec": map[string]interface{}{
-			"template": map[string]interface{}{
-				"metadata": map[string]interface{}{
+	patchData, err := json.Marshal(map[string]any{
+		"spec": map[string]any{
+			"template": map[string]any{
+				"metadata": map[string]any{
 					"annotations": map[string]string{
 						model.RolloutTimestampAnnotation: patchTime.Format(time.RFC3339),
 						model.RecommendationIDAnnotation: recommendationID,

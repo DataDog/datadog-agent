@@ -67,6 +67,10 @@ FIX_OPENSSL_PATHS = """
 
     # === OPENSSLDIR paths ===
     # OPENSSLDIR display string: /ssl"
+    if [ $$(echo $${SANDBOX} | wc -c) -lt $$(echo $${TARGET} | wc -c) ]; then
+        echo "The new path placeholder is larger than the target it should replace replace ($${SANDBOX})";
+        exit 1;
+    fi
     OLD_PATH="$${SANDBOX}/ssl\\"" NEW_PATH="$${TARGET}/ssl\\"" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
 
     # OPENSSLDIR internal path (bare, no quote) - used for actual config lookup
@@ -144,6 +148,12 @@ configure_make(
         },
         "//conditions:default": {},
     }),
+    install_prefix = select({
+        "@platforms//os:windows": "",
+        # Provide a long value to ensure we end up with a path to openssl in the sandbox that
+        # is longer than the placeholder we will replace it with as part of the postfix script
+        "//conditions:default": "placeholder" + '_' * 50,
+    }),
     lib_source = ":all_srcs",
     out_include_dir = "include",
     out_interface_libs = select({
@@ -164,9 +174,7 @@ configure_make(
         ],
         "//conditions:default": [],
     }),
-    out_data_dirs = [
-        "lib/pkgconfig",
-    ] + select({
+    out_data_dirs = select({
         "@//packages/agent:fips_flavor": [
             "ssl",
             "lib/ossl-modules",
@@ -198,6 +206,8 @@ configure_make(
     }),
     targets = ["depend", "", "install_sw", "install_ssldirs"],
     # Fix install names, as openssl's build system might not get them right
+    # Maybe for macos, @loader_path should be @rpath. That helped get curl_bin
+    # to link
     postfix_script = select({
         "@platforms//os:macos": """
             # Fix install names

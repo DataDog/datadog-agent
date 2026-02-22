@@ -1,0 +1,22 @@
+receivers:
+    otlp:
+
+exporters:
+    nop:
+
+extensions:
+  otlp_encoding/user-defined:
+    protocol: otlp_proto
+
+service:
+    extensions: [otlp_encoding/user-defined]
+    pipelines:
+        traces:
+            receivers: [nop]
+            exporters: [nop]
+        metrics:
+            receivers: [nop]
+            exporters: [nop]
+        logs:
+            receivers: [nop]
+            exporters: [nop]

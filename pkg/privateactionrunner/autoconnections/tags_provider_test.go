@@ -9,76 +9,15 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
-	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	pkgtaggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// mockTagger is a simple test double for tagger.Component
-type mockTagger struct {
-	globalTags []string
-	globalErr  error
-}
-
-func (m *mockTagger) Tag(entityID taggertypes.EntityID, cardinality taggertypes.TagCardinality) ([]string, error) {
-	return nil, nil
-}
-
-func (m *mockTagger) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
-	return "", nil
-}
-
-func (m *mockTagger) Standard(entityID taggertypes.EntityID) ([]string, error) {
-	return nil, nil
-}
-
-func (m *mockTagger) List() taggertypes.TaggerListResponse {
-	return taggertypes.TaggerListResponse{}
-}
-
-func (m *mockTagger) GetEntity(entityID taggertypes.EntityID) (*taggertypes.Entity, error) {
-	return nil, nil
-}
-
-func (m *mockTagger) Subscribe(subscriptionID string, filter *taggertypes.Filter) (taggertypes.Subscription, error) {
-	return nil, nil
-}
-
-func (m *mockTagger) GetEntityHash(entityID taggertypes.EntityID, cardinality taggertypes.TagCardinality) string {
-	return ""
-}
-
-func (m *mockTagger) AgentTags(cardinality taggertypes.TagCardinality) ([]string, error) {
-	return nil, nil
-}
-
-func (m *mockTagger) GlobalTags(cardinality taggertypes.TagCardinality) ([]string, error) {
-	return m.globalTags, m.globalErr
-}
-
-func (m *mockTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo pkgtaggertypes.OriginInfo) {
-}
-
-// createMockTaggerWithClusterTags creates a mock tagger with cluster tags set
-func createMockTaggerWithClusterTags(clusterName, clusterID string) *mockTagger {
-	var tags []string
-	if clusterName != "" {
-		tags = append(tags, "kube_cluster_name:"+clusterName)
-	}
-	if clusterID != "" {
-		tags = append(tags, "orch_cluster_id:"+clusterID)
-	}
-
-	return &mockTagger{
-		globalTags: tags,
-	}
-}
-
 func TestTagsProvider_WithClusterTags(t *testing.T) {
-	mockTagger := createMockTaggerWithClusterTags("production", "abc-123-def")
+	mockTagger := taggerfxmock.SetupFakeTagger(t)
+	mockTagger.SetGlobalTags([]string{"kube_cluster_name:production", "orch_cluster_id:abc-123-def"}, nil, nil, nil)
 	provider := NewTagsProvider(mockTagger)
 
 	tags := provider.GetTags(context.Background(), "runner-abc", "host-01")
@@ -91,13 +30,12 @@ func TestTagsProvider_WithClusterTags(t *testing.T) {
 }
 
 func TestTagsProvider_WithEnvTag(t *testing.T) {
-	mockTagger := &mockTagger{
-		globalTags: []string{
-			"env:production",
-			"kube_cluster_name:my-cluster",
-			"team:platform", // Not in tagSet, should be filtered out
-		},
-	}
+	mockTagger := taggerfxmock.SetupFakeTagger(t)
+	mockTagger.SetGlobalTags([]string{
+		"env:production",
+		"kube_cluster_name:my-cluster",
+		"team:platform", // Not in tagSet, should be filtered out
+	}, nil, nil, nil)
 	provider := NewTagsProvider(mockTagger)
 
 	tags := provider.GetTags(context.Background(), "runner-xyz", "host-02")
@@ -111,9 +49,7 @@ func TestTagsProvider_WithEnvTag(t *testing.T) {
 }
 
 func TestTagsProvider_NoClusterTagsAvailable(t *testing.T) {
-	// Mock tagger with no cluster tags
-	mockTagger := createMockTaggerWithClusterTags("", "")
-
+	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	provider := NewTagsProvider(mockTagger)
 
 	tags := provider.GetTags(context.Background(), "runner-abc", "host-01")
@@ -124,17 +60,16 @@ func TestTagsProvider_NoClusterTagsAvailable(t *testing.T) {
 }
 
 func TestTagsProvider_AllWhitelistedTags(t *testing.T) {
-	mockTagger := &mockTagger{
-		globalTags: []string{
-			"env:staging",
-			"cluster_name:my-cluster",
-			"kube_cluster_name:k8s-cluster",
-			"orch_cluster_id:cluster-123",
-			"kube_distribution:eks",
-			"region:us-east-1", // Not in tagSet, should be filtered
-			"team:platform",    // Not in tagSet, should be filtered
-		},
-	}
+	mockTagger := taggerfxmock.SetupFakeTagger(t)
+	mockTagger.SetGlobalTags([]string{
+		"env:staging",
+		"cluster_name:my-cluster",
+		"kube_cluster_name:k8s-cluster",
+		"orch_cluster_id:cluster-123",
+		"kube_distribution:eks",
+		"region:us-east-1", // Not in tagSet, should be filtered
+		"team:platform",    // Not in tagSet, should be filtered
+	}, nil, nil, nil)
 	provider := NewTagsProvider(mockTagger)
 
 	tags := provider.GetTags(context.Background(), "runner-abc", "host-01")

@@ -1064,7 +1064,13 @@ func TestConcentratorInput(t *testing.T) {
 
 func TestConcentratorInputV1(t *testing.T) {
 	rootSpan := func(strs *idx.StringTable) *idx.InternalSpan {
-		return idx.NewInternalSpan(strs, &idx.Span{SpanID: 3, ServiceRef: strs.Add("a"), NameRef: strs.Add("name"), ResourceRef: strs.Add("resource")})
+		return idx.NewInternalSpan(strs, &idx.Span{SpanID: 3, ServiceRef: strs.Add("a"), NameRef: strs.Add("name"), ResourceRef: strs.Add("resource"), Attributes: map[uint32]*idx.AnyValue{
+			strs.Add("_top_level"): {
+				Value: &idx.AnyValue_DoubleValue{
+					DoubleValue: 1.0,
+				},
+			},
+		}})
 	}
 	tts := []struct {
 		name            string
@@ -1181,7 +1187,7 @@ func TestConcentratorInputV1(t *testing.T) {
 			if tc.withFargate {
 				cfg.FargateOrchestrator = config.OrchestratorECS
 			}
-			cfg.RareSamplerEnabled = true
+			cfg.RareSamplerEnabled = false
 			agent := NewTestAgent(context.TODO(), cfg, telemetry.NewNoopCollector())
 			tc.in.Source = agent.Receiver.Stats.GetTagStats(info.Tags{})
 			agent.ProcessV1(tc.in)
@@ -1247,13 +1253,23 @@ func assertInternalSpanEqual(t *testing.T, expected *idx.InternalSpan, actual *i
 	assert.Equal(t, expected.Duration(), actual.Duration())
 	assert.Equal(t, expected.Error(), actual.Error())
 	assert.Equal(t, expected.Kind(), actual.Kind())
-	require.Equal(t, len(expected.Attributes()), len(actual.Attributes()))
-	assertAttributesEqual(t, expected.Strings, expected.Attributes(), actual.Strings, actual.Attributes())
+
+	expectedAttrs := expected.Attributes()
+	actualAttrs := actual.Attributes()
+	if len(expectedAttrs) != len(actualAttrs) {
+		t.Logf("Expected span %s", expected.DebugString())
+		t.Logf("Actual span %s", actual.DebugString())
+	}
+	require.Equal(t, len(expectedAttrs), len(actualAttrs))
+
+	assertAttributesEqual(t, expected.Strings, expectedAttrs, actual.Strings, actualAttrs)
+
 	require.Equal(t, len(expected.Events()), len(actual.Events()))
 	for i, expectedEvent := range expected.Events() {
 		assert.Equal(t, expectedEvent.Name(), actual.Events()[i].Name())
 		assertAttributesEqual(t, expected.Strings, expectedEvent.Attributes(), actual.Strings, actual.Events()[i].Attributes())
 	}
+
 	require.Equal(t, len(expected.Links()), len(actual.Links()))
 	for i, expectedLink := range expected.Links() {
 		assert.Equal(t, expectedLink.SpanID(), actual.Links()[i].SpanID())
@@ -1337,6 +1353,55 @@ func TestClientComputedTopLevel(t *testing.T) {
 		assert.True(t, ok)
 		_, ok = payloads[0].TracerPayload.Chunks[0].Spans[0].Metrics["_dd.top_level"]
 		assert.True(t, ok)
+	})
+}
+
+func TestClientComputedTopLevelV1(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	t.Run("computeTopLevel when ClientComputedTopLevel is false", func(t *testing.T) {
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		p := testutil.GeneratePayloadV1(1, &testutil.TraceConfig{
+			MinSpans: 2,
+			Keep:     true,
+		}, nil)
+		agnt.ProcessV1(&api.PayloadV1{
+			TracerPayload:          p,
+			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			ClientComputedTopLevel: false,
+		})
+		payloads := agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		// Root span should have _top_level set when ComputeTopLevelV1 is called
+		root := traceutil.GetRootV1(payloads[0].TracerPayload.Chunks[0])
+		_, ok := root.GetAttributeAsFloat64("_top_level")
+		assert.True(t, ok, "_top_level should be set when ClientComputedTopLevel is false")
+	})
+
+	t.Run("skip computeTopLevel when ClientComputedTopLevel is true", func(t *testing.T) {
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		p := testutil.GeneratePayloadV1(1, &testutil.TraceConfig{
+			MinSpans: 2,
+			Keep:     true,
+		}, nil)
+		agnt.ProcessV1(&api.PayloadV1{
+			TracerPayload:          p,
+			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			ClientComputedTopLevel: true,
+		})
+		payloads := agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		// Root span should not have _top_level set when ComputeTopLevelV1 is skipped
+		// (unless UpdateTracerTopLevelV1 was called on individual spans)
+		root := traceutil.GetRootV1(payloads[0].TracerPayload.Chunks[0])
+		_, ok := root.GetAttributeAsFloat64("_top_level")
+		// When ClientComputedTopLevel is true, ComputeTopLevelV1 is not called,
+		// so _top_level should not be set unless UpdateTracerTopLevelV1 was called
+		// on the span (which requires _dd.top_level to be set by the tracer)
+		assert.False(t, ok, "_top_level should not be set by ComputeTopLevelV1 when ClientComputedTopLevel is true")
 	})
 }
 

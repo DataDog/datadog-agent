@@ -1,4 +1,3 @@
-load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
@@ -145,35 +144,5 @@ pkg_install(
     name = "install",
     srcs = [
         ":all_files",
-    ],
-)
-
-# The pc file is temporary until curl builds with bazel and we don't need it
-# any more.
-dd_agent_expand_template(
-    name = "pc_file",
-    template = "lib/libnghttp2.pc.in",
-    out = "libnghttp2.pc",
-    substitutions = {
-        "@prefix@": "{install_dir}/embedded",
-        "@exec_prefix@": "{install_dir}/embedded/bin",
-        "@libdir@": "{install_dir}/embedded/lib",
-        "@includedir@": "{install_dir}/embedded/include",
-        "@VERSION@": VERSION,
-    },
-)
-
-pkg_files(
-    name = "pc_files",
-    srcs = [":pc_file"],
-    prefix = "lib/pkgconfig",
-)
-
-# This should be installed with --destdir=/, so that the pc file
-# is always in /lib/pkgconfig so the rest of the build can find it
-pkg_install(
-    name = "install_pc",
-    srcs = [
-        ":pc_files",
     ],
 )

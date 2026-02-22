@@ -3,21 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build !windows
+
 package com_datadoghq_script
 
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/santhosh-tekuri/jsonschema/v5"
-
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/tmpl"
-	workflowjsonschema "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/workflowjsonschema"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -135,31 +133,6 @@ func evaluateScriptWithParameters(scriptConfig RunPredefinedScriptConfig, parame
 	}
 
 	return evaluatedCommand, nil
-}
-
-func validateParameters(params interface{}, parameterSchema map[string]interface{}) error {
-	schemaData := map[string]interface{}{
-		"type":       "object",
-		"properties": parameterSchema["properties"],
-	}
-	if req, ok := parameterSchema["required"]; ok {
-		schemaData["required"] = req
-	}
-
-	schemaJSON, err := json.Marshal(schemaData)
-	if err != nil {
-		return fmt.Errorf("failed to marshal schema to JSON: %w", err)
-	}
-
-	schema, err := jsonschema.CompileString("parameter-schema.json", string(schemaJSON))
-	if err != nil {
-		return fmt.Errorf("failed to compile schema: %w", err)
-	}
-
-	if err := workflowjsonschema.Validate(schema, params); err != nil {
-		return fmt.Errorf("parameter validation failed: %w", err)
-	}
-	return nil
 }
 
 func formatOutput(output string, noStripTrailingNewline bool) string {

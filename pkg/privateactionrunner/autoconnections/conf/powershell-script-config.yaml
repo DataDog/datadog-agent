@@ -1,15 +1,13 @@
 schemaId: script-credentials-v1
 runPredefinedPowershellScript:
   helloWorld:
-    command:
-    - Write-Output
-    - "Hello World"
+    script: |
+      Write-Output "Hello World"
   
   # Example with parameters
   greet:
-    command:
-      - Write-Output
-      - "Call parameter {{ parameters.name }} !"
+    script: |
+      Write-Output "Call parameter {{ parameters.name }} !"
     parameterSchema:
       properties:
         name:

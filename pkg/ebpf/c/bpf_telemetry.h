@@ -4,6 +4,7 @@
 #include "bpf_helpers.h"
 #include "telemetry_types.h"
 #include "map-defs.h"
+#include "compiler.h"
 
 /* redefinition of some error values */
 #ifdef COMPILE_CORE

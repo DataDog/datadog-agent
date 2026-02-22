@@ -622,6 +622,21 @@ api_key:
 #
 #   validation_period: 60
 
+## @param remote_configuration - custom object - optional
+## Configuration for Remote Configuration.
+## Remote Configuration allows you to configure your Agents from the Datadog UI.
+## See https://docs.datadoghq.com/agent/guide/setup_remote_config/ for more information.
+#
+# remote_configuration:
+
+#   # @param enabled - boolean - optional - default: true
+#   # @env DD_REMOTE_CONFIGURATION_ENABLED - boolean - optional - default: true
+#   # Set to true to enable Remote Configuration. Enabled by default.
+#   # Note: On GovCloud (ddog-gov.com), Remote Configuration is disabled by default
+#   # and must be explicitly enabled.
+#
+#   enabled: true
+
 ## @param fips - custom object - optional
 ## Uncomment this parameter and the one below to enable them.
 #
@@ -827,7 +842,8 @@ api_key:
 ## integrations and affect their behavior if they rely on the psutil python package.
 #
 # procfs_path: <PROCFS_PATH>
-{{ if .Python }}
+
+{{ if .CoreAgent -}}
 ## @param disable_py3_validation - boolean - optional - default: false
 ## @env DD_DISABLE_PY3_VALIDATION - boolean - optional - default: false
 ## Disable Python3 validation of python checks.
@@ -1019,31 +1035,8 @@ api_key:
 #   <Kubernetes image name>:
 #     - "<full secret handle>"
 #     - ...
-#
-{{ if .InternalProfiling -}}
-## @param profiling - custom object - optional
-## Enter specific configurations for internal profiling.
-##
-## Please note that:
-##   1. This does *not* enable profiling for user applications.
-##   2. This only enables internal profiling of the agent go runtime.
-##   3. To enable profiling for user apps please refer to
-##      https://docs.datadoghq.com/tracing/profiling/
-##   4. Enabling this feature will incur in billing charges and other
-##      unexpected side-effects (ie. agent profiles showing with your
-##      services).
-##
-## Uncomment this parameter and the one below to enable profiling.
-#
-# internal_profiling:
-#
-#   # @param enabled - boolean - optional - default: false
-#   # @env DD_INTERNAL_PROFILING_ENABLED - boolean - optional - default: false
-#   # Enable internal profiling for the Agent process.
-#
-#   enabled: false
-{{ end -}}
-{{ if (eq .OS "windows") }}
+{{- if (eq .OS "windows") }}
+
 #####################################################
 ## Datadog Agent Manager System Tray Configuration ##
 #####################################################
@@ -1059,7 +1052,8 @@ api_key:
 #   log_file: <TRAY_LOG_FILE_PATH>
 {{ end -}}
 {{ end -}}
-{{ if .LogsAgent }}
+
+{{- if .LogsAgent }}
 ##################################
 ## Log collection Configuration ##
 ##################################
@@ -1742,31 +1736,8 @@ api_key:
 #   ## DD_APM_ADDITIONAL_PROFILE_TAGS='{"_dd.origin":"appservice","secondtag":"custom"}'
 #
 #   # additional_profile_tags: {}
-{{ if .InternalProfiling }}
-#   # @param profiling - custom object - optional
-#   # Enter specific configurations for internal profiling.
-#   #
-#   # Please note that:
-#   #   1. This does *not* enable profiling for user applications.
-#   #   2. This only enables internal profiling of the agent go runtime.
-#   #   3. To enable profiling for user apps please refer to
-#   #      https://docs.datadoghq.com/tracing/profiling/
-#   #   4. Enabling this feature will incur in billing charges and other
-#   #      unexpected side-effects (ie. agent profiles showing with your
-#   #      services).
-#   #
-#   # Uncomment this parameter and the one below to enable profiling.
-#
-#   internal_profiling:
-#
-#     # @param enabled - boolean - optional - default: false
-#     # @env DD_INTERNAL_PROFILING_ENABLED - boolean - optional - default: false
-#     # Enable internal profiling for the trace-agent process.
-#
-#     enabled: false
 {{ end -}}
-{{ end -}}
-{{ if .ProcessAgent }}
+{{ if .CoreAgent }}
 ######################################
 ## Process Collection Configuration ##
 ######################################
@@ -1912,34 +1883,7 @@ api_key:
 #   # Disable realtime process and container checks
 #
 #   disable_realtime_checks: false
-
-{{ if .InternalProfiling -}}
-#   # @param profiling - custom object - optional
-#   # Enter specific configurations for internal profiling.
-#   #
-#   # Please note that:
-#   #   1. This does *not* enable profiling for user applications.
-#   #   2. This only enables internal profiling of the agent go runtime.
-#   #   3. To enable profiling for user apps please refer to
-#   #      https://docs.datadoghq.com/tracing/profiling/
-#   #   4. Enabling this feature will incur in billing charges and other
-#   #      unexpected side-effects (ie. agent profiles showing with your
-#   #      services).
-#   #
-#   # Uncomment this parameter and the one below to enable profiling.
-#
-#   internal_profiling:
-#
-#   # @param enabled - boolean - optional - default: false
-#   # @env DD_INTERNAL_PROFILING_ENABLED - boolean - optional - default: false
-#   # Enable internal profiling for the Process Agent process.
-#
-#   enabled: false
-
-{{ end -}}
-
-{{ if .NetworkPath -}}
-{{ if (ne .OS "darwin") -}}
+{{- if (ne .OS "darwin") }}
 
 #############################################
 ## Network Path Dynamic Test Configuration ##
@@ -2061,12 +2005,8 @@ api_key:
 #     # The maximum number of pathtest contexts that can be maintained.
 #
 #     pathtest_contexts_limit: 1000
+{{- end }}
 
-{{ end -}}
-{{ end -}}
-{{ end -}}
-
-{{ if .Synthetics -}}
 ########################################
 ## Synthetics Configuration           ##
 ########################################
@@ -2098,9 +2038,6 @@ api_key:
 #
 #     flush_interval: 10s
 
-{{ end -}}
-
-{{ if .Compliance -}}
 #############################################
 ## Security Agent Compliance Configuration ##
 #############################################
@@ -2130,9 +2067,7 @@ api_key:
 #   # @env DD_COMPLIANCE_CONFIG_CHECK_MAX_EVENTS_PER_RUN - integer - optional - default: 100
 #   #
 #   check_max_events_per_run: 100
-{{ end -}}
 
-{{ if .SBOM -}}
 ## @param sbom - custom object - optional
 ## Enter specific configuration for the Cloud Security Management Vulnerability Management feature
 # sbom:
@@ -2148,338 +2083,9 @@ api_key:
 #     enabled: false
 {{ if (eq .OS "linux") -}}
 
-
 #   container_image:
 #     enabled: false
 {{ end -}}
-{{ end -}}
-{{ if .SystemProbe -}}
-##################################
-## System Probe Configuration ##
-##################################
-
-## @param system_probe_config - custom object - optional
-## Enter specific configurations for your System Probe data collection.
-## Uncomment this parameter and the one below to enable them.
-#
-# system_probe_config:
-{{ if (eq .OS "windows") }}
-#   # @param sysprobe_socket - string - optional - default: localhost:3333
-#   # @env DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET - string - optional - default: localhost:3333
-#   # The TCP address where system probes are accessed.
-#
-#   sysprobe_socket: localhost:3333
-{{ else }}
-#   # @param sysprobe_socket - string - optional - default: /opt/datadog-agent/run/sysprobe.sock
-#   # @env DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET - string - optional - default: /opt/datadog-agent/run/sysprobe.sock
-#   # The full path to the location of the unix socket where system probes are accessed.
-#
-#   sysprobe_socket: /opt/datadog-agent/run/sysprobe.sock
-{{ end }}
-#   # @param log_file - string - optional - default: /var/log/datadog/system-probe.log
-#   # @env DD_SYSTEM_PROBE_CONFIG_LOG_FILE - string - optional - default: /var/log/datadog/system-probe.log
-#   # The full path to the file where system-probe logs are written.
-#
-#   log_file: /var/log/datadog/system-probe.log
-
-#   # @param langauge_detection - custom object - optional
-#   # Enter specific configurations for language detection
-#   # Uncomment this parameter and the one below to enable them.
-#
-#   language_detection:
-
-#     # @param enabled - bool - optional - default: false
-#     # @env DD_SYSTEM_PROBE_CONFIG_LANGUAGE_DETECTION_ENABLED - bool - optional - default: false
-#     # [Beta] Enables language detection via binary analysis in the system probe.
-#
-#     enabled: false
-
-#   # @param health_port - integer - optional - default: 0
-#   # @env DD_SYSTEM_PROBE_HEALTH_PORT - integer - optional - default: 0
-#   # The Agent can expose its health check on a dedicated HTTP port.
-#   # This is useful for orchestrators that support HTTP probes.
-#   # Default is 0 (disabled). Set a valid port number (example: 5558) to enable.
-#
-#   health_port: 0
-{{ if .InternalProfiling }}
-#   # @param profiling - custom object - optional
-#   # Enter specific configurations for internal profiling.
-#   #
-#   # Please note that:
-#   #   1. This does *not* enable profiling for user applications.
-#   #   2. This only enables internal profiling of the agent go runtime.
-#   #   3. To enable profiling for user apps please refer to
-#   #      https://docs.datadoghq.com/tracing/profiling/
-#   #   4. Enabling this feature will incur in billing charges and other
-#   #      unexpected side-effects (ie. agent profiles showing with your
-#   #      services).
-#   #
-#   # Uncomment this parameter and the one below to enable profiling.
-#
-#   internal_profiling:
-#
-#     # @param enabled - boolean - optional - default: false
-#     # @env DD_INTERNAL_PROFILING_ENABLED - boolean - optional - default: false
-#     # Enable internal profiling for the System Probe process.
-#
-#     enabled: false
-
-#   # @param memory_controller - custom object - optional
-#   # Cgroup memory controller for internal memory profiling.
-#   #
-#   memory_controller:
-#
-#     # @param enabled - boolean - optional - default: false
-#     # Enable cgroup memory controller.
-#
-#     enabled: false
-#
-#     # @param thresholds - map of strings - optional
-#     # Thresholds and the respective active actions to trigger when
-#     # memory usage is above the specified threshold.
-#     # Threshold can be either an absolute value - such as 500MB or 2GB -
-#     # or a percentage of the cgroup allocated memory such as 50%.
-#     # The action can be:
-#     # - gc: to trigger the Go garbage collector
-#     # - profile: to generate a system-probe memory profile in /tmp
-#     # - log: to simply log that the threshold was reached
-#
-#     thresholds:
-#       500MB: gc
-#       50%: profile
-
-#     # @param pressure_levels - map of strings - optional
-#     # Pressure levels and the respective active actions to trigger when
-#     # memory usage reaches the specified level.
-#     # The pressure level is 'low', 'medium' or 'critical'.
-#     # The actions are the same for thresholds (see above).
-#
-#     pressure_levels:
-#       medium: gc
-{{ end -}}
-{{ if .NetworkModule }}
-########################################
-## System Probe Network Configuration ##
-########################################
-
-# network_config:
-{{ if (eq .OS "windows") -}}
-#   # Please note that enabling the Network Module of the System
-#   # Probe will result in a kernel driver being loaded.
-{{ end -}}
-#   # @param enabled - boolean - optional - default: false
-#   # Set to true to enable the Network Module of the System Probe
-#
-#   enabled: false
-
-#   # @param dns_monitoring_ports - list of integers - optional - default: [53]
-#   # @env DD_SYSTEM_PROBE_CONFIG_DNS_MONITORING_PORTS - space separated list of integers - optional - default: [53]
-#   # A list of ports that should be monitored for DNS traffic.
-#
-#   dns_monitoring_ports:
-#     - 53
-{{ end -}}
-{{ if .UniversalServiceMonitoringModule }}
-#############################################################
-## System Probe Universal Service monitoring Configuration ##
-#############################################################
-
-# service_monitoring_config:
-{{ if (eq .OS "windows") -}}
-#   # Please note that enabling the Universal Service Monitoring
-#   # Module of the System Probe will result in a kernel driver
-#   # being loaded.
-{{ end -}}
-#   # @param enabled - boolean - optional - default: false
-#   # Set to true to enable the Universal Service Monitoring Module of the System Probe
-#
-#   enabled: false
-{{ end -}}
-{{ if .PingModule }}
-#####################################
-## System Probe Ping Configuration ##
-#####################################
-
-# ping:
-#   # @param enabled - boolean - optional - default: false
-#   # Set to true to enable the Ping Module of the System Probe
-#
-#   enabled: false
-{{ end -}}
-{{ if .TracerouteModule }}
-###########################################
-## System Probe Traceroute Configuration ##
-###########################################
-
-# traceroute:
-#   # @param enabled - boolean - optional - default: false
-#   # Set to true to enable the Traceroute Module of the System Probe
-#
-#   enabled: false
-{{ end -}}
-{{ if .SecurityModule }}
-##########################################
-## Security Agent Runtime Configuration ##
-##                                      ##
-## Settings to sent logs to Datadog are ##
-## fetched from section `logs_config`   ##
-##########################################
-
-# runtime_security_config:
-#   # @param enabled - boolean - optional - default: false
-#   # @env DD_RUNTIME_SECURITY_CONFIG_ENABLED - boolean - optional - default: false
-#   # Set to true to enable Cloud Workload Security (CWS).
-#
-#   enabled: false
-
-#   # @param fim_enabled - boolean - optional - default: false
-#   # Set to true to enable the File Integrity Monitoring (FIM) feature of Cloud Workload Security (CWS).
-#
-#   fim_enabled: false
-{{ if (eq .OS "windows") }}
-#   # @param sysprobe_socket - string - optional - default: localhost:3334
-#   # @env DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET - string - optional - default: localhost:3334
-#   # The TCP address where the security runtime module is accessed.
-#
-#   socket: localhost:3334
-{{ else }}
-#   # @param socket - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
-#   # @env DD_RUNTIME_SECURITY_CONFIG_SOCKET - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
-#   # The full path to the location of the unix socket where security runtime module is accessed.
-#
-#   socket: /opt/datadog-agent/run/runtime-security.sock
-{{ end }}
-#   # @param policies - custom object - optional
-#   # Policy files
-#   policies:
-{{ if (eq .OS "windows") }}
-#     # @param dir - string - default: %ProgramData%\Datadog\runtime-security.d
-#     # @env DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR - string - default: /etc/datadog-agent/runtime-security.d
-#     # Path from where the policy files are loaded
-#
-#     dir: c:\ProgramData\Datadog\runtime-security.d
-{{ else }}
-#     # @param dir - string - default: /etc/datadog-agent/runtime-security.d
-#     # @env DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR - string - default: /etc/datadog-agent/runtime-security.d
-#     # Path from where the policy files will be loaded
-#
-#     dir: /etc/datadog-agent/runtime-security.d
-{{ end }}
-#   # @param syscall_monitor - custom object - optional
-#   # Syscall monitoring
-#
-#   syscall_monitor:
-
-#     # @param enabled - boolean - optional - default: false
-#     # @env DD_RUNTIME_SECURITY_CONFIG_SYSCALL_MONITOR_ENABLED - boolean - optional - default: false
-#     # Set to true to enable the Syscall monitoring (recommended for troubleshooting only).
-#
-#     enabled: false
-
-#   # @param custom_sensitive_words - list of strings - optional
-#   # @env DD_RUNTIME_SECURITY_CONFIG_CUSTOM_SENSITIVE_WORDS - space separated list of strings - optional
-#   # Define your own list of sensitive data to be merged with the default one.
-#   # Read more on Datadog documentation:
-#   # https://docs.datadoghq.com/graphing/infrastructure/process/#process-arguments-scrubbing
-#
-#   custom_sensitive_words:
-#     - 'personal_key'
-#     - '*token'
-#     - 'sql*'
-#     - '*pass*d*'
-#
-#   custom_sensitive_regexps:
-#     - 'gh-[a-zA-Z0-9]+'
-
-#   # @param envs_with_value - list of strings - optional
-#   # @env DD_RUNTIME_SECURITY_CONFIG_ENVS_WITH_VALUE - space separated list of strings - optional
-#   # Define your own list of non-sensitive environment variable names whose value will not be
-#   # concealed by the runtime security module.
-#   # Default: LD_PRELOAD, LD_LIBRARY_PATH, PATH, HISTSIZE, HISTFILESIZE, GLIBC_TUNABLES
-#
-#   envs_with_value:
-#     - LD_PRELOAD
-#     - LD_LIBRARY_PATH
-#     - PATH
-#     - HISTSIZE
-#     - HISTFILESIZE
-
-#   # @param activity_dump - custom object - optional
-#   # Activity dump section configures if/how the Agent sends activity dumps to Datadog
-#
-#   activity_dump:
-
-#     # @param enabled - boolean - optional - default: false
-#     # @env DD_RUNTIME_SECURITY_CONFIG_ACTIVITY_DUMP_ENABLED - boolean - optional - default: false
-#     # Set to true to activate the security profiles feature.
-#
-#     enabled: false
-
-#     # @param traced_cgroups_count - integer - optional - default: 5
-#     # @env DD_RUNTIME_SECURITY_CONFIG_ACTIVITY_DUMP_TRACED_CGROUPS_COUNT - integer - optional - default: 5
-#     # Defines the number of concurrent cgroups to be traced.
-#
-#     traced_cgroups_count: 5
-
-#     # @param dump_duration - duration - optional - default: 30m
-#     # @env DD_RUNTIME_SECURITY_CONFIG_ACTIVITY_DUMP_DUMP_DURATION - duration - optional - default: 30m
-#     # Defines the duration of cgroups learning phase. Minimum value is 10m.
-#
-#     dump_duration: 30m
-
-#   # @param network - custom object - optional
-#   # Network section is used to configure Cloud Workload Security (CWS) network features.
-#
-#   network:
-
-#     # @param enabled - boolean - optional - default: true
-#     # @env DD_RUNTIME_SECURITY_CONFIG_NETWORK_ENABLED - boolean - optional - default: true
-#     # Set to true to activate the CWS network detections.
-#
-#     enabled: true
-{{ if (eq .OS "windows") }}
-##################################################
-## Datadog Agent Windows Crash Detection module ##
-##################################################
-
-# windows_crash_detection:
-#   # @param enabled - boolean - optional - default: false
-#   # Enables the system probe module which supports the Windows crash detection check.
-#
-#   enabled: false
-{{ end -}}
-{{ end -}}
-{{ end -}}
-{{ if .SecurityAgent -}}
-####################################
-## Runtime Security configuration ##
-####################################
-
-# runtime_security_config:
-#   # @param enabled - boolean - optional - default: false
-#   # Set to true to enable Cloud Workload Security (CWS).
-#
-#   enabled: false
-{{ if (eq .OS "windows") }}
-#   # @param socket - string - optional - default: localhost:3334
-#   # The local address and port where the security runtime module is accessed
-#
-#   socket: localhost:3334
-{{ else }}
-#   # @param socket - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
-#   # The full path to the location of the unix socket where security runtime module is accessed.
-#
-#   socket: /opt/datadog-agent/run/runtime-security.sock
-{{ end }}
-##########################################
-## Compliance monitoring configuration  ##
-##########################################
-
-# compliance_config:
-#   # @param enabled - boolean - optional - default: false
-#   # Set to true to enable Cloud Security Posture Management (CSPM).
-#
-#   enabled: false
 {{ end -}}
 {{ if .Dogstatsd }}
 #############################
@@ -2701,7 +2307,7 @@ api_key:
 #
 # statsd_metric_namespace: ""
 {{ end -}}
-{{ if .Metadata }}
+{{ if .Agent }}
 ## @param metadata_providers - list of custom object - optional
 ## @env DD_METADATA_PROVIDERS - list of custom object - optional
 ## Metadata providers, add or remove from the list to enable or disable collection.
@@ -2712,7 +2318,7 @@ api_key:
 #   - name: k8s
 #     interval: 60
 {{ end -}}
-{{ if .JMX }}
+{{ if .CoreAgent }}
 #######################
 ## JMX Configuration ##
 #######################
@@ -2916,7 +2522,7 @@ api_key:
 #
 # log_all_goroutines_when_unhealthy: false
 {{ end -}}
-{{ if .Autoconfig }}
+{{ if .CoreAgent }}
 ##############################
 ## Autoconfig Configuration ##
 ##############################
@@ -3028,8 +2634,7 @@ api_key:
 #   - kubernetes
 #   - orchestratorexplorer
 #   - podman
-{{ end -}}
-{{ if .Autodiscovery }}
+
 ###########################################
 ## Container Autodiscovery Configuration ##
 ###########################################
@@ -3211,6 +2816,33 @@ api_key:
 #     # Idle timeout in seconds.
 #
 #     idle_timeout_seconds: 60
+
+#   # @param tracing - custom object - optional
+#   # APM tracing for the Cluster Agent. When enabled, traces internal operations for
+#   # improved debugging. Traces appear in APM with service name "datadog-cluster-agent".
+#   # Covers: cluster check dispatching and rebalancing decisions.
+#   # To view traces: APM -> Services -> datadog-cluster-agent -> Traces
+#
+#   tracing:
+
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_CLUSTER_AGENT_TRACING_ENABLED - boolean - optional - default: false
+#     # Enable APM tracing for the Cluster Agent.
+#
+#     enabled: false
+
+#     # @param env - string - optional - default: ""
+#     # @env DD_CLUSTER_AGENT_TRACING_ENV - string - optional - default: ""
+#     # The environment tag to apply to all traces emitted by the Cluster Agent.
+#
+#     env: ""
+
+#     # @param sample_rate - float - optional - default: 0.1
+#     # @env DD_CLUSTER_AGENT_TRACING_SAMPLE_RATE - float - optional - default: 0.1
+#     # Sample rate for traces emitted by the Cluster Agent (0.0 to 1.0).
+#     # Default is 0.1 (10%) for safety. Set to 1.0 to trace all operations.
+#
+#     sample_rate: 0.1
 {{ end -}}
 {{ if .ClusterChecks }}
 #################################
@@ -3647,17 +3279,22 @@ api_key:
 #
 # ecs_deployment_mode: auto
 {{ end -}}
-{{ if .CRI }}
-###################################
-## CRI integration Configuration ##
-###################################
+{{ if .CoreAgent }}
+##################################################
+## CRI and Containerd integration Configuration ##
+##################################################
 
 ## @param cri_socket_path - string - optional - default: ""
 ## @env DD_CRI_SOCKET_PATH - string - optional - default: ""
-## To activate the CRI check, indicate the path of the CRI socket you're using
+## This setting enabled both CRI and Containerd integration.
+##
+## To activate the CRI or Containerd check, indicate the path of the socket you're using
 ## and mount it in the container if needed.
-## If left empty, the CRI check is disabled.
-## see: https://docs.datadoghq.com/integrations/cri/
+##
+## For containerd see: https://docs.datadoghq.com/integrations/containerd/
+## For CRI see:: https://docs.datadoghq.com/integrations/cri/
+##
+## If left empty, the CRI and Containerd checks are disabled.
 #
 # cri_socket_path: ""
 
@@ -3669,26 +3306,7 @@ api_key:
 
 ## @param cri_query_timeout - integer - optional - default: 5
 ## @env DD_CRI_QUERY_TIMEOUT - integer - optional - default: 5
-## Configure the timeout in seconds for querying the CRI.
-#
-# cri_query_timeout: 5
-{{ end -}}
-{{ if .Containerd }}
-##########################################
-## Containerd integration Configuration ##
-##########################################
-
-## @param cri_socket_path - string - optional - default: /var/run/containerd/containerd.sock
-## @env DD_CRI_SOCKET_PATH - string - optional - default: /var/run/containerd/containerd.sock
-## To activate the Containerd check, indicate the path of the Containerd socket you're using
-## and mount it in the container if needed.
-## see: https://docs.datadoghq.com/integrations/containerd/
-#
-# cri_socket_path: /var/run/containerd/containerd.sock
-
-## @param cri_query_timeout - integer - optional - default: 5
-## @env DD_CRI_QUERY_TIMEOUT - integer - optional - default: 5
-## Configure the timeout in seconds for querying the Containerd API.
+## Configure the timeout in seconds for querying the CRI or Containerd API.
 #
 # cri_query_timeout: 5
 
@@ -3948,7 +3566,7 @@ api_key:
 # kubernetes_ad_tags_disabled:
 #   - kube_service
 {{ end -}}
-{{ if .PrometheusScrape }}
+{{ if .CoreAgent }}
 ## @param prometheus_scrape - custom object - optional
 ## This section configures the Autodiscovery based on the Prometheus annotations
 #
@@ -3974,7 +3592,7 @@ api_key:
 #
 #   version: 1
 {{ end -}}
-{{ if .CloudFoundryBBS }}
+{{ if .CloudFoundry }}
 #######################################################
 ## Cloud Foundry BBS Configuration for Autodiscovery ##
 #######################################################
@@ -4026,8 +3644,7 @@ api_key:
 #   # List of regular expressions to forbid a set of environment variables to be included as container tags
 #
 #   env_exclude: []
-{{ end -}}
-{{ if .CloudFoundryCC }}
+
 ####################################################################
 ## Cloud Foundry Cloud Controller Configuration for Autodiscovery ##
 ####################################################################
@@ -4075,7 +3692,7 @@ api_key:
 #
 #   apps_batch_size: 5000
 {{ end -}}
-{{ if .SNMP }}
+{{ if .CoreAgent }}
 ###################################
 ## Network Devices Configuration ##
 ###################################
@@ -4651,8 +4268,7 @@ api_key:
 ## meaning that, one Agent within this group is designated as primary and others as standby.
 #
 # config_id:
-{{ end -}}
-{{ if .OTLP }}
+
 ###################################
 ## OpenTelemetry Configuration   ##
 ###################################
@@ -4952,4 +4568,40 @@ api_key:
 #     # Valid values are basic, normal, detailed, none.
 #
 #     verbosity: normal
+{{ end -}}
+{{ if .PrivateActionRunner }}
+#########################################
+## Private Action Runner Configuration ##
+#########################################
+
+## @param private_action_runner - custom object - optional
+## Configuration for the Private Action Runner.
+## The Private Action Runner allows executing actions within your infrastructure.
+## See https://docs.datadoghq.com/fr/actions/private_actions/ for more information.
+#
+# private_action_runner:
+
+  ## @param enabled - boolean - optional - default: false
+  ## @env DD_PRIVATE_ACTION_RUNNER_ENABLED - boolean - optional - default: false
+  ## Set to true to enable the Private Action Runner.
+  #
+  # enabled: true
+
+  ## @param self_enroll - boolean - optional - default: true
+  ## @env DD_PRIVATE_ACTION_RUNNER_SELF_ENROLL - boolean - optional - default: true
+  ## Automatically enroll the Private Action Runner on startup.
+  ## Requires an app_key with Actions API Enable and the following permissions:
+  ##   - Connection Write
+  ##   - Private Action Write
+  #
+  # self_enroll: true
+
+  ## @param actions_allowlist - list of strings - optional
+  ## @env DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST - comma separated list of strings - optional
+  ## List of actions that the Private Action Runner is allowed to execute.
+  ## See http://docs.datadoghq.com/fr/actions/private_actions/use_private_actions#change-the-allowlist-of-a-runner
+  ## for the list of available actions.
+  #
+  # actions_allowlist:
+  #   - com.datadoghq.script.runPredefinedScript
 {{ end -}}

@@ -89,6 +89,10 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 		return err
 	}
 
+	if gcpEnv.InitOnly() {
+		return nil
+	}
+
 	// Building Kubernetes provider for OpenShift
 	openshiftKubeProvider, err := kubernetesNewProvider.NewProvider(ctx, gcpEnv.Namer.ResourceName("openshift-k8s-provider"), &kubernetesNewProvider.ProviderArgs{
 		Kubeconfig:            openshiftCluster.KubeConfig,
@@ -133,7 +137,9 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 			kubernetesagentparams.WithNamespace("datadog"),
 			// OpenShift deployments need more time due to security context constraints and slower startup
 			kubernetesagentparams.WithTimeout(900), // 15 minutes
-			kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}),
+			// Use the cluster name (DisplayName(49)) for the stackid tag instead of ctx.Stack(),
+			// because the cluster name may be truncated
+			kubernetesagentparams.WithStackIDTag(openshiftCluster.ClusterName),
 		)
 
 		if fakeIntake != nil {

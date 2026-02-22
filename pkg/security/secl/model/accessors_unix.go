@@ -1923,6 +1923,18 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "dns.question.name.root_domain":
+		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp},
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return eval.GetPublicTLD(ev.DNS.Question.Name)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "dns.question.type":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -36744,6 +36756,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"dns.question.length",
 		"dns.question.name",
 		"dns.question.name.length",
+		"dns.question.name.root_domain",
 		"dns.question.type",
 		"dns.response.code",
 		"event.async",
@@ -39200,6 +39213,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "dns", reflect.String, "string", false, nil
 	case "dns.question.name.length":
 		return "dns", reflect.Int, "int", false, nil
+	case "dns.question.name.root_domain":
+		return "dns", reflect.String, "string", false, nil
 	case "dns.question.type":
 		return "dns", reflect.Int, "int", false, nil
 	case "dns.response.code":
@@ -43792,6 +43807,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("dns.question.name", &ev.DNS.Question.Name, value)
 	case "dns.question.name.length":
 		return &eval.ErrFieldReadOnly{Field: "dns.question.name.length"}
+	case "dns.question.name.root_domain":
+		return &eval.ErrFieldReadOnly{Field: "dns.question.name.root_domain"}
 	case "dns.question.type":
 		return ev.setUint16FieldValue("dns.question.type", &ev.DNS.Question.Type, value)
 	case "dns.response.code":

@@ -95,6 +95,10 @@ type PodAutoscalerInternal struct {
 	// verticalLastActionError is the last error encountered on vertical scaling
 	verticalLastActionError error
 
+	// verticalLastLimitReason is the reason vertical scaling was limited by min/max constraints.
+	// When non-nil, it carries a ConditionError so that both Reason and Message are preserved.
+	verticalLastLimitReason error
+
 	// currentReplicas is the current number of PODs for the targetRef
 	currentReplicas *int32
 
@@ -286,10 +290,21 @@ func (p *PodAutoscalerInternal) ClearHorizontalState() {
 	p.horizontalLastActionError = nil
 }
 
+// SetConstrainedVerticalScaling replaces the vertical scaling values and the limit error
+func (p *PodAutoscalerInternal) SetConstrainedVerticalScaling(v *VerticalScalingValues, limitErr error) {
+	if v == nil {
+		p.verticalLastLimitReason = nil
+		return
+	}
+	p.scalingValues.Vertical = v
+	p.verticalLastLimitReason = limitErr
+}
+
 // ClearVerticalState clears vertical scaling status data when vertical scaling is disabled.
 func (p *PodAutoscalerInternal) ClearVerticalState() {
 	p.verticalLastAction = nil
 	p.verticalLastActionError = nil
+	p.verticalLastLimitReason = nil
 	p.scaledReplicas = nil
 }
 
@@ -306,6 +321,11 @@ func (p *PodAutoscalerInternal) SetScaledReplicas(replicas int32) {
 // SetCurrentReplicas sets the current number of replicas for the targetRef
 func (p *PodAutoscalerInternal) SetCurrentReplicas(replicas int32) {
 	p.currentReplicas = &replicas
+}
+
+// ClearCurrentReplicas clears the tracked replica count (e.g. when the target no longer exists).
+func (p *PodAutoscalerInternal) ClearCurrentReplicas() {
+	p.currentReplicas = nil
 }
 
 // SetError sets an error encountered by the controller not specific to a scaling action
@@ -383,6 +403,8 @@ func (p *PodAutoscalerInternal) UpdateFromStatus(status *datadoghqcommon.Datadog
 			p.scalingValues.VerticalError = errorFromCondition(cond)
 		case cond.Type == datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply && cond.Status == corev1.ConditionFalse:
 			p.verticalLastActionError = errorFromCondition(cond)
+		case cond.Type == datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition && cond.Status == corev1.ConditionTrue:
+			p.verticalLastLimitReason = errorFromCondition(cond)
 		}
 	}
 }
@@ -609,6 +631,7 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 		datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition:  nil,
 		datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition:   nil,
 		datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply:                nil,
+		datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition:    nil,
 	}
 
 	if currentStatus != nil {
@@ -656,6 +679,13 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionTrue, "", p.horizontalLastLimitReason, currentTime, datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, existingConditions))
 	} else {
 		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionFalse, "", "", currentTime, datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, existingConditions))
+	}
+
+	// Vertical: handle scaling limited condition
+	if verticalEnabled && p.verticalLastLimitReason != nil {
+		status.Conditions = append(status.Conditions, newConditionFromError(true, currentTime, p.verticalLastLimitReason, datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition, existingConditions))
+	} else {
+		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionFalse, "", "", currentTime, datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition, existingConditions))
 	}
 
 	// Building rollout errors

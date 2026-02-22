@@ -27,6 +27,7 @@ type TracerMetadata struct {
 	ServiceVersion string `json:"service_version,omitempty"`
 	ProcessTags    string `json:"process_tags,omitempty"`
 	ContainerID    string `json:"container_id,omitempty"`
+	LogsCollected  bool   `json:"logs_collected,omitempty"`
 }
 
 // ShouldSkipServiceTagKV checks if a tracer service tag key-value pair should be

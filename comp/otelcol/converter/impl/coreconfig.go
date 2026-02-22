@@ -117,7 +117,7 @@ func addAPIKeySite(conf *confmap.Conf, coreCfg config.Component, compType string
 					// if site is nil or empty string, and core config site is unset, set default
 					// site. Site defaults to an empty string in helm chart:
 					// https://github.com/DataDog/helm-charts/blob/datadog-3.86.0/charts/datadog/templates/_otel_agent_config.yaml#L24.
-					apiMap["site"] = "datadoghq.com"
+					apiMap["site"] = defaultSite
 				}
 			}
 

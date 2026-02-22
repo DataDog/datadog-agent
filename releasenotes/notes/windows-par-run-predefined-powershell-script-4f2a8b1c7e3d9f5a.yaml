@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Add ``runPredefinedPowershellScript`` action to the Private Action Runner on Windows.
+    This action allows running predefined PowerShell scripts (inline or file-based) with
+    optional parameter templating, JSON schema parameter validation, environment variable
+    allowlisting, configurable timeouts, and a 10 MB output limit.
+

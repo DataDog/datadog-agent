@@ -1,7 +1,6 @@
 """Agent specific BUILD file for bzip2."""
 
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
@@ -150,23 +149,6 @@ pkg_files(
     prefix = "embedded/include",
 )
 
-expand_template(
-    name = "pc_file",
-    out = "bzip2.pc",
-    substitutions = {
-        # Prepare the .pc file for our own substitution later
-        "@PREFIX@": "##PREFIX##",
-        "@VERSION@": VERSION,
-    },
-    template = ":bzip2.pc.in",
-)
-
-pkg_files(
-    name = "pkg_pc_file",
-    srcs = [":pc_file"],
-    prefix = "embedded/lib/pkgconfig",
-)
-
 pkg_filegroup(
     name = "all_files",
     srcs = [
@@ -180,6 +162,5 @@ pkg_install(
     name = "install",
     srcs = [
         ":all_files",
-        ":pkg_pc_file",
     ],
 )

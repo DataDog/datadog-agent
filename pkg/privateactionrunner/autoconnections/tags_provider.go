@@ -21,6 +21,7 @@ var tagSet = map[string]struct{}{
 	tagNames.KubeClusterName:  {},
 	tagNames.OrchClusterID:    {},
 	tagNames.KubeDistribution: {},
+	tagNames.KubeNamespace:    {},
 }
 
 // TagsProvider builds connection tags

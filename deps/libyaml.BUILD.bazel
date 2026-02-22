@@ -1,7 +1,6 @@
 """BUILD file for libyaml."""
 
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
@@ -63,25 +62,6 @@ pkg_files(
     prefix = "include",
 )
 
-expand_template(
-    name = "gen_pkgconfig",
-    out = "yaml-0.1.pc",
-    substitutions = {
-        "@PACKAGE_VERSION@": VERSION,
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@includedir@": "${prefix}/include",
-        "@libdir@": "${prefix}/lib",
-    },
-    template = "yaml-0.1.pc.in",
-)
-
-pkg_files(
-    name = "pkgconfig",
-    srcs = [":gen_pkgconfig"],
-    prefix = "lib/pkgconfig",
-)
-
 pkg_filegroup(
     name = "all_files",
     srcs = [
@@ -95,6 +75,5 @@ pkg_install(
     name = "install",
     srcs = [
         ":all_files",
-        ":pkgconfig",
     ],
 )

@@ -3,16 +3,17 @@ Description=Datadog Distribution of OpenTelemetry Collector
 After=datadog-agent.service datadog-agent-exp.service
 BindsTo=datadog-agent.service
 Conflicts=datadog-agent-exp.service datadog-agent-ddot-exp.service
-ConditionPathExists=/opt/datadog-agent/embedded/bin/otel-agent
+ConditionPathExists=/opt/datadog-agent/ext/ddot/embedded/bin/otel-agent
 
 [Service]
 Type=simple
 PIDFile=/opt/datadog-agent/run/otel-agent.pid
 User=dd-agent
 Restart=on-failure
+RestartSec=2
 EnvironmentFile=-/etc/datadog-agent/environment
 Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent/managed/datadog-agent/stable"
-ExecStart=/opt/datadog-agent/embedded/bin/otel-agent run --config /etc/datadog-agent/otel-config.yaml --core-config /etc/datadog-agent/datadog.yaml --pidfile /opt/datadog-agent/run/otel-agent.pid
+ExecStart=/opt/datadog-agent/ext/ddot/embedded/bin/otel-agent run --config /etc/datadog-agent/otel-config.yaml --core-config /etc/datadog-agent/datadog.yaml --pidfile /opt/datadog-agent/run/otel-agent.pid
 StartLimitInterval=10
 StartLimitBurst=5
 

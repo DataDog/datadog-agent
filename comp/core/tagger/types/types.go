@@ -39,6 +39,7 @@ type TagInfo struct {
 	StandardTags         []string  // the discovered standard tags (env, version, service) for the entity
 	DeleteEntity         bool      // true if the entity is to be deleted from the store
 	ExpiryDate           time.Time // keep in cache until expiryDate
+	IsComplete           bool      // whether all expected collectors have reported data for this entity in wmeta
 }
 
 // CollectorPriority helps resolving dupe tags from collectors
@@ -74,6 +75,10 @@ type Entity struct {
 	OrchestratorCardinalityTags []string
 	LowCardinalityTags          []string
 	StandardTags                []string
+	// IsComplete indicates whether all expected collectors have reported data
+	// for this entity. For containers in Kubernetes, this also considers the
+	// completeness of the associated pod.
+	IsComplete bool
 }
 
 // GetTags flattens all tags from all cardinalities into a single slice of tag

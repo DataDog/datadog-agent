@@ -28,6 +28,16 @@ const (
 
 	// libraryPackagesDir is the path where language-specific library files are stored.
 	libraryPackagesDir = "opt/datadog/apm/library"
+
+	// etcMountPath is the mount path used by init containers to write /etc/ld.so.preload
+	// into the shared EmptyDir volume.
+	etcMountPath = "/datadog-etc"
+
+	// ldSoPreloadMountPath is where the generated preload file is mounted in app containers.
+	ldSoPreloadMountPath = "/etc/ld.so.preload"
+
+	// ldSoPreloadFileName is the filename used inside the shared EmptyDir volume.
+	ldSoPreloadFileName = "ld.so.preload"
 )
 
 // asAbsPath converts a relative path to an absolute path.
@@ -67,5 +77,25 @@ func newEmptyDirVolume(name string) corev1.Volume {
 		VolumeSource: corev1.VolumeSource{
 			EmptyDir: &corev1.EmptyDirVolumeSource{},
 		},
+	}
+}
+
+// addEtcLdSoPreloadVolumeAndMounts configures an EmptyDir volume that will provide
+// /etc/ld.so.preload to application containers via a SubPath mount.
+//
+// It returns the init-container mount where the file should be written.
+func addEtcLdSoPreloadVolumeAndMounts(patcher *PodPatcher) corev1.VolumeMount {
+	patcher.AddVolume(newEmptyDirVolume(EtcVolumeName))
+
+	patcher.AddVolumeMount(corev1.VolumeMount{
+		Name:      EtcVolumeName,
+		MountPath: ldSoPreloadMountPath,
+		SubPath:   ldSoPreloadFileName,
+		ReadOnly:  true,
+	})
+
+	return corev1.VolumeMount{
+		Name:      EtcVolumeName,
+		MountPath: etcMountPath,
 	}
 }

@@ -168,42 +168,10 @@ pkg_files(
     prefix = "include/libxml2/libxml",
 )
 
-expand_template(
-    name = "gen_pkgconfig",
-    template = "libxml-2.0.pc.in",
-    out = "libxml-2.0.pc",
-    substitutions = {
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@WITH_MODULES@": "1",
-        "@XML_PC_PRIVATE@": "",
-        "@XML_PC_REQUIRES@": "",
-        "@XML_LIBDIR@": "-L${libdir}",
-        "@XML_LIBS@": "-lxml2",
-        "@XML_PC_LIBS_PRIVATE@": "-lz",
-        "@XML_PC_LIBS@": "",
-        "@LIBS@": "",
-        "@VERSION@": VERSION,
-        "@XML_INCLUDEDIR@": "-I${includedir}",
-        "@XML_PC_CFLAGS_PRIVATE@": "",
-        "@XML_STATIC_CFLAGS@": "",
-    },
-    visibility = ["//visibility:public"],
-)
-
-pkg_files(
-    name = "pkgconfig",
-    srcs = [":gen_pkgconfig"],
-    prefix = "lib/pkgconfig",
-)
-
 pkg_install(
     name = "install",
     srcs = [
         ":headers",
-        ":pkgconfig",
         ":lib_files",
     ],
 )
