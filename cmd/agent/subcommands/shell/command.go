@@ -15,73 +15,51 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"go.uber.org/fx"
 	"golang.org/x/term"
 	"mvdan.cc/sh/v3/syntax"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/pkg/shell/interp"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// cliParams are the command-line arguments for this subcommand
-type cliParams struct {
-	*command.GlobalParams
-	commandStr string
-	args       []string
-}
-
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	cliParams := &cliParams{
-		GlobalParams: globalParams,
-	}
+func Commands(_ *command.GlobalParams) []*cobra.Command {
+	var (
+		commandFlag     string
+		allowedCommands string
+	)
 
 	shellCmd := &cobra.Command{
 		Use:   "shell [script-file ...]",
 		Short: "Run an embedded POSIX shell",
 		Long:  `Run an embedded POSIX shell interpreter. Supports interactive mode, command strings via -c, script files, and piped stdin.`,
 		RunE: func(_ *cobra.Command, args []string) error {
-			cliParams.args = args
-			return fxutil.OneShot(runShell,
-				fx.Supply(cliParams),
-				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle(),
-				secretsnoopfx.Module(),
-			)
+			opts := []interp.RunnerOption{
+				interp.Interactive(true),
+				interp.StdIO(os.Stdin, os.Stdout, os.Stderr),
+			}
+			if allowedCommands != "" {
+				cmds := strings.Split(allowedCommands, ",")
+				opts = append(opts, interp.AllowedCommands(cmds))
+			}
+
+			r, err := interp.New(opts...)
+			if err != nil {
+				return err
+			}
+
+			err = runAll(r, commandFlag, args)
+			var es interp.ExitStatus
+			if errors.As(err, &es) {
+				os.Exit(int(es))
+			}
+			return err
 		},
 	}
-	shellCmd.Flags().StringVar(&cliParams.commandStr, "command", "", "command string to execute")
+	shellCmd.Flags().StringVar(&commandFlag, "command", "", "command string to execute")
+	shellCmd.Flags().StringVar(&allowedCommands, "allowed-commands", "", "comma-separated list of allowed external commands")
 
 	return []*cobra.Command{shellCmd}
-}
-
-func runShell(_ log.Component, cfg config.Component, params *cliParams) error {
-	allowedCommands := cfg.GetStringSlice("shell.allowed_commands")
-
-	opts := []interp.RunnerOption{
-		interp.Interactive(true),
-		interp.StdIO(os.Stdin, os.Stdout, os.Stderr),
-	}
-	if len(allowedCommands) > 0 {
-		opts = append(opts, interp.AllowedCommands(allowedCommands))
-	}
-
-	r, err := interp.New(opts...)
-	if err != nil {
-		return err
-	}
-
-	err = runAll(r, params.commandStr, params.args)
-	var es interp.ExitStatus
-	if errors.As(err, &es) {
-		os.Exit(int(es))
-	}
-	return err
 }
 
 func runAll(r *interp.Runner, commandStr string, args []string) error {
