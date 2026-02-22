@@ -528,11 +528,25 @@ func batchConnections(
 			c.RemoteServiceTagsIdx = -1
 			if c.IntraHost {
 				if destPID, ok := portToPID[c.Raddr.Port]; ok && destPID != c.Pid {
+					var remoteTags []string
+
+					// process_context tags from service extractor
 					destServiceCtx := serviceExtractor.GetServiceContext(destPID)
-					if len(destServiceCtx) > 0 {
-						c.RemoteServiceTagsIdx = int32(tagsEncoder.Encode(destServiceCtx))
+					remoteTags = append(remoteTags, destServiceCtx...)
+
+					// tagger process tags (service, env, version, tracer metadata)
+					if processTagProvider != nil {
+						if destProcessTags, err := processTagProvider(destPID); err != nil {
+							log.Debugf("error getting process tags for remote pid %d: %v", destPID, err)
+						} else {
+							remoteTags = append(remoteTags, destProcessTags...)
+						}
+					}
+
+					if len(remoteTags) > 0 {
+						c.RemoteServiceTagsIdx = int32(tagsEncoder.Encode(remoteTags))
 						log.Debugf("remote service tags: pid=%d -> raddr.port=%d destPID=%d remoteServiceTagsIdx=%d tags=%v",
-							c.Pid, c.Raddr.Port, destPID, c.RemoteServiceTagsIdx, destServiceCtx)
+							c.Pid, c.Raddr.Port, destPID, c.RemoteServiceTagsIdx, remoteTags)
 					}
 				}
 			}
