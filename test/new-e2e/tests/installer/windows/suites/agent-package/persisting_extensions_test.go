@@ -19,7 +19,13 @@ import (
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
+	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
+
+// stableExtensionsPipelineID is the pipeline used as the "stable" base for extension persistence tests.
+// It must point to a build that already includes extension support (prerm/postinst hooks in the MSI).
+// TODO: replace with a staging/GA release once extension support ships.
+const stableExtensionsPipelineID = "98087596"
 
 type testExtensionsSuite struct {
 	installerwindows.BaseSuite
@@ -27,7 +33,26 @@ type testExtensionsSuite struct {
 
 // TestExtensionPersistence tests Agent extension persistence behaviour on Windows.
 func TestExtensionPersistence(t *testing.T) {
-	e2e.Run(t, &testExtensionsSuite{},
+	s := &testExtensionsSuite{}
+	s.CreateStableAgent = func() (*installerwindows.AgentVersionManager, error) {
+		oci, err := installerwindows.NewPackageConfig(
+			installerwindows.WithName(consts.AgentPackage),
+			installerwindows.WithPipeline(stableExtensionsPipelineID),
+		)
+		if err != nil {
+			return nil, err
+		}
+		msi, err := windowsagent.NewPackage(
+			windowsagent.WithURLFromPipeline(stableExtensionsPipelineID),
+		)
+		if err != nil {
+			return nil, err
+		}
+		// Version comes from the milestone at the time the pipeline was created.
+		// The exact git suffix is irrelevant for the Contains() check used in installPreviousAgentVersion.
+		return installerwindows.NewAgentVersionManager("7.77.0-devel", "7.77.0-devel.pipeline."+stableExtensionsPipelineID+"-1", oci, msi)
+	}
+	e2e.Run(t, s,
 		e2e.WithProvisioner(
 			winawshost.ProvisionerNoAgentNoFakeIntake(),
 		),
