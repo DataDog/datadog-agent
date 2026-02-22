@@ -19,12 +19,13 @@ import (
 	tracetestutil "github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
-// Windows ETW maps TRACE, CONNECT, PATCH and several other methods to MethodUnknown,
-// which causes them to be silently dropped by the statkeeper (see etw_http_service_defs.go).
-// Only include methods that ETW actually supports.
+// Windows tests use a Go net/http server which uses regular sockets, not HTTP.SYS.
+// ETW HttpService (which hooks HTTP.SYS) is not involved, so only the ddnpm driver captures traffic.
+// The driver correctly maps PATCH (value 7) unlike ETW which maps it to MethodUnknown.
+// TRACE and CONNECT are excluded because they are not supported by the Go net/http server.
 var (
-	httpMethods         = []string{nethttp.MethodGet, nethttp.MethodHead, nethttp.MethodPost, nethttp.MethodPut, nethttp.MethodDelete, nethttp.MethodOptions}
-	httpMethodsWithBody = []string{nethttp.MethodPost, nethttp.MethodPut, nethttp.MethodDelete}
+	httpMethods         = []string{nethttp.MethodGet, nethttp.MethodHead, nethttp.MethodPost, nethttp.MethodPut, nethttp.MethodPatch, nethttp.MethodDelete, nethttp.MethodOptions}
+	httpMethodsWithBody = []string{nethttp.MethodPost, nethttp.MethodPut, nethttp.MethodPatch, nethttp.MethodDelete}
 )
 
 // windowsMonitorAdapter wraps the Windows Monitor to implement TestMonitor interface.
