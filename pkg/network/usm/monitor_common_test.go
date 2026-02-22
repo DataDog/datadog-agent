@@ -126,9 +126,13 @@ type commonTestParams struct {
 	// setupMonitor is a platform-specific function to set up the monitor
 	setupMonitor func(t *testing.T) TestMonitor
 	// expectedOccurrences is the exact number of times each request should be captured.
-	// On Windows this should be 2: ETW captures the server-side direction and DDNPM adds the
-	// client-side direction, so DDNPM sees both sides of the transaction.
-	// On Linux this should be 1.
+	// On Windows this should be 2, on Linux this should be 1.
+	//ddnpm.sys hooks at the Application Layer Enforcement layer,
+	//which fires per-process, per-socket. For same-host traffic between Process A (client) and Process B (server):
+	//1. Process A's socket creates an outbound connection → ALE fires for Process A → ddnpm creates flow 1 and captures the HTTP transaction from A's perspective
+	//2. Process B's socket accepts an inbound connection → ALE fires for Process B → ddnpm creates flow 2 and captures the same HTTP transaction from B's perspective
+	//Two ALE events, two flows, two HTTP transactions — because the hook is at the application/socket boundary, not the packet level.
+	//That's the architectural reason: packet-level (Linux) = 1 capture, per-process-flow-level (Windows) = 2 captures.
 	expectedOccurrences int
 }
 
@@ -188,7 +192,7 @@ const (
 var (
 	// httpMethods and httpMethodsWithBody are defined in platform-specific files
 	// (monitor_common_linux_test.go and monitor_common_windows_test.go) because
-	// Windows ETW maps some HTTP methods (TRACE, PATCH, CONNECT) to MethodUnknown,
+	// Windows maps some HTTP methods (TRACE, PATCH, CONNECT) to MethodUnknown,
 	// which causes them to be silently dropped by the statkeeper.
 	statusCodes = []int{nethttp.StatusOK, nethttp.StatusMultipleChoices, nethttp.StatusBadRequest, nethttp.StatusInternalServerError}
 )
@@ -341,8 +345,6 @@ func runHTTPMonitorIntegrationWithResponseBodyTest(t *testing.T, params commonTe
 }
 
 // assertAllRequestsExist verifies that all requests are found in the monitor stats
-// exactly expectedOccurrences times. On Linux expectedOccurrences should be 1,
-// on Windows it should be 2 (DDNPM sees both sides: ETW captures server-side, DDNPM adds client-side).
 func assertAllRequestsExist(t *testing.T, monitor TestMonitor, requests []*nethttp.Request, expectedOccurrences int) {
 	t.Helper()
 	requestsExist := make([]bool, len(requests))
@@ -409,8 +411,7 @@ type httpLoadTestParams struct {
 	// setupMonitor is a platform-specific function to set up the monitor
 	setupMonitor func(t *testing.T) TestMonitor
 	// expectedOccurrences is the exact number of times the fast request should be captured.
-	// On Windows this should be 2: ETW captures the server-side direction and DDNPM adds the
-	// client-side direction, so DDNPM sees both sides. On Linux this should be 1.
+
 	expectedOccurrences int
 }
 

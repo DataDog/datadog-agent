@@ -60,7 +60,7 @@ func newWindowsCommonTestParams(t *testing.T) commonTestParams {
 		setupMonitor: func(t *testing.T) TestMonitor {
 			return setupWindowsTestMonitor(t, getHTTPCfg())
 		},
-		expectedOccurrences: 2, // ETW captures server-side, DDNPM adds client-side
+		expectedOccurrences: 2,
 	}
 }
 
@@ -79,7 +79,7 @@ func TestHTTPMonitorLoadWithIncompleteBuffersCommon(t *testing.T) {
 		setupMonitor: func(t *testing.T) TestMonitor {
 			return setupWindowsTestMonitor(t, getHTTPCfg())
 		},
-		expectedOccurrences: 2, // ETW captures server-side, DDNPM adds client-side
+		expectedOccurrences: 2,
 	})
 }
 
