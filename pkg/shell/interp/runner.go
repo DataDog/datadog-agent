@@ -1031,7 +1031,7 @@ func (r *Runner) call(ctx context.Context, pos syntax.Pos, args []string) {
 		r.exit = r.builtin(ctx, pos, name, args[1:])
 		return
 	}
-	if r.allowedCommands != nil && !r.allowedCommands[name] {
+	if !r.allowedCommands[name] {
 		r.errf("%s: command not allowed\n", name)
 		r.exit.code = 127
 		return
