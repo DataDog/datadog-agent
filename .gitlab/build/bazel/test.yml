@@ -7,12 +7,12 @@
 bazel:test:linux-amd64:
   extends: [ .bazel:test, .bazel:runner:linux-amd64 ]
   script:
-    - bazel test //... -- -//pkg/discovery/module/rust:dd_discovery_test
+    - bazel test //...
 
 bazel:test:linux-arm64:
   extends: [ .bazel:test, .bazel:runner:linux-arm64 ]
   script:
-    - bazel test //... -- -//pkg/discovery/module/rust:dd_discovery_test
+    - bazel test //...
 
 bazel:test:macos-amd64:
   extends: [ .bazel:test, .bazel:runner:macos-amd64 ]

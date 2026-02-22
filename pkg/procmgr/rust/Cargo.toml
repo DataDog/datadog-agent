@@ -1,0 +1,22 @@
+[package]
+name = "dd-procmgrd"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+rust-version = "1.91"
+
+[[bin]]
+name = "dd-procmgrd"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0.98"
+log = "0.4"
+simple_logger = { version = "5.0", features = ["timestamps"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+
+[profile.release]
+lto = "fat"
+opt-level = "z"
+strip = "symbols"
+panic = "abort"

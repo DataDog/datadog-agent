@@ -4,11 +4,33 @@ go_sdk.from_file(go_work = "//:go.work")
 
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 
-# TODO(agent-build): when all Go modules are migrated, use //:go.work instead of //bazel:go.work
-go_deps.from_file(go_work = "//bazel:go.work")
+# TODO(agent-build): when all Go modules are migrated, use //:go.work instead of @bazelify_go_work//:go.work
+use_repo_rule("//bazel/repo:bazelify_go_work.bzl", "bazelify_go_work")(name = "bazelify_go_work")
+
+go_deps.from_file(go_work = "@bazelify_go_work//:go.work")
 use_repo(
     go_deps,
+    "com_github_aarzilli_whydeadcode",
+    "com_github_bazelbuild_bazelisk",
+    "com_github_favadi_protoc_go_inject_tag",
+    "com_github_frapposelli_wwhrd",
+    "com_github_go_enry_go_license_detector_v4",
+    "com_github_golang_mock",
+    "com_github_golangci_golangci_lint_v2",
+    "com_github_goware_modvendor",
+    "com_github_planetscale_vtprotobuf",
+    "com_github_stormcat24_protodep",
     "com_github_stretchr_testify",
+    "com_github_tinylib_msgp",
+    "com_github_uber_go_gopatch",
+    "com_github_vektra_mockery_v3",
+    "com_github_wadey_gocovmerge",
     "in_gopkg_yaml_v3",
+    "org_golang_google_grpc",
+    "org_golang_google_grpc_cmd_protoc_gen_go_grpc",
+    "org_golang_google_protobuf",
+    "org_golang_x_mobile",
     "org_golang_x_mod",
+    "org_golang_x_perf",
+    "tools_gotest_gotestsum",
 )

@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/version"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -26,6 +27,13 @@ import (
 // Config is a struct to store the configuration for the autoinstrumentation logic. It can be populated using the
 // datadog config through NewConfig.
 type Config struct {
+	staticConfig
+	runtimeConfig
+}
+
+// staticConfig contains configuration derived exclusively from the Datadog Agent config.
+// It should not require any Kubernetes API calls to construct.
+type staticConfig struct {
 	// Webhook is the configuration for the autoinstrumentation webhook
 	Webhook *WebhookConfig
 
@@ -77,6 +85,15 @@ type Config struct {
 	podMetaAsTags podMetaAsTags
 }
 
+// runtimeConfig contains information derived from the runtime environment (e.g. cluster capabilities).
+// It's populated by outer wiring layers (webhook/controller constructors), not from static config.
+type runtimeConfig struct {
+	// kubeServerVersion is the Kubernetes API server version.
+	// It's populated by the webhook constructor (not from static config) and can be used
+	// to gate features that require a minimum Kubernetes version.
+	kubeServerVersion *version.Info
+}
+
 var excludedContainerNames = map[string]bool{
 	"istio-proxy": true, // https://datadoghq.atlassian.net/browse/INPLAT-454
 }
@@ -112,18 +129,20 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 	mutateUnlabelled := datadogConfig.GetBool("admission_controller.mutate_unlabelled")
 
 	return &Config{
-		Webhook:                       NewWebhookConfig(datadogConfig),
-		LanguageDetection:             NewLanguageDetectionConfig(datadogConfig),
-		Instrumentation:               instrumentationConfig,
-		containerRegistry:             containerRegistry,
-		mutateUnlabelled:              mutateUnlabelled,
-		initResources:                 initResources,
-		initSecurityContext:           initSecurityContext,
-		defaultResourceRequirements:   defaultResourceRequirements,
-		securityClientLibraryMutator:  securityClientLibraryConfigMutators(datadogConfig),
-		profilingClientLibraryMutator: profilingClientLibraryConfigMutators(datadogConfig),
-		containerFilter:               excludedContainerNamesContainerFilter,
-		podMetaAsTags:                 getPodMetaAsTags(datadogConfig),
+		staticConfig: staticConfig{
+			Webhook:                       NewWebhookConfig(datadogConfig),
+			LanguageDetection:             NewLanguageDetectionConfig(datadogConfig),
+			Instrumentation:               instrumentationConfig,
+			containerRegistry:             containerRegistry,
+			mutateUnlabelled:              mutateUnlabelled,
+			initResources:                 initResources,
+			initSecurityContext:           initSecurityContext,
+			defaultResourceRequirements:   defaultResourceRequirements,
+			securityClientLibraryMutator:  securityClientLibraryConfigMutators(datadogConfig),
+			profilingClientLibraryMutator: profilingClientLibraryConfigMutators(datadogConfig),
+			containerFilter:               excludedContainerNamesContainerFilter,
+			podMetaAsTags:                 getPodMetaAsTags(datadogConfig),
+		},
 	}, nil
 }
 
