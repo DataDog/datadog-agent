@@ -171,7 +171,18 @@ func (b *Backend) StartExperiment(pkg string, version string) error {
 // PromoteExperiment promotes an update experiment for the given package.
 func (b *Backend) PromoteExperiment(pkg string) error {
 	b.t().Logf("Promoting update experiment for package %s", pkg)
-	output, err := b.runDaemonCommandWithRestart("promote-experiment", pkg)
+	// On Windows the daemon does not restart after promote: the experiment binary
+	// is already running and simply becomes stable in-place. Only wait for a
+	// PID change on Linux where the stable service is restarted.
+	var (
+		output string
+		err    error
+	)
+	if b.host.RemoteHost.OSFamily == e2eos.WindowsFamily {
+		output, err = b.runDaemonCommand("promote-experiment", pkg)
+	} else {
+		output, err = b.runDaemonCommandWithRestart("promote-experiment", pkg)
+	}
 	if err != nil {
 		return fmt.Errorf("%w, output: %s", err, output)
 	}
