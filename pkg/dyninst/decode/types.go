@@ -1541,17 +1541,17 @@ func (s *goSliceHeaderType) encodeValueFields(
 		)
 	}
 	length := binary.NativeEndian.Uint64(data[8:16])
-	if length == 0 {
-		return writeTokens(enc,
-			jsontext.String("elements"),
-			jsontext.BeginArray,
-			jsontext.EndArray)
-	}
 	if err := writeTokens(enc,
 		jsontext.String("size"),
 		jsontext.String(strconv.FormatInt(int64(length), 10)),
 	); err != nil {
 		return err
+	}
+	if length == 0 {
+		return writeTokens(enc,
+			jsontext.String("elements"),
+			jsontext.BeginArray,
+			jsontext.EndArray)
 	}
 
 	elementSize := int(s.Data.Element.GetByteSize())

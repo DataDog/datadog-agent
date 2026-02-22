@@ -255,12 +255,14 @@ func TestReplace(t *testing.T) {
 
 		expectedEvents := []workloadmeta.Event{
 			{
-				Type:   workloadmeta.EventTypeSet,
-				Entity: &testNodeMetadata,
+				Type:       workloadmeta.EventTypeSet,
+				Entity:     &testNodeMetadata,
+				IsComplete: true,
 			},
 			{
-				Type:   workloadmeta.EventTypeUnset,
-				Entity: &testNodeMetadata,
+				Type:       workloadmeta.EventTypeUnset,
+				Entity:     &testNodeMetadata,
+				IsComplete: true,
 			},
 		}
 

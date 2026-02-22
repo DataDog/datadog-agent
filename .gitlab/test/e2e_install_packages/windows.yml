@@ -254,3 +254,5 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsAPMInject/TestEnableDisable$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsAPMInject/TestInstallFromMSIWithIIS$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsAPMInject/TestInstallFromMSIWithJava$"
+      - EXTRA_PARAMS: --run "TestInjectorStats/TestQueryStatsViaSystemProbe$"
+      - EXTRA_PARAMS: --run "TestInjectorStats/TestQueryStatsAfterInjection$"

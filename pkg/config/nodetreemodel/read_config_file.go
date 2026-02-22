@@ -47,6 +47,16 @@ func (c *ntmConfig) ReadInConfig() error {
 
 	c.findConfigFile()
 	if err := c.readInConfig(c.configFile); err != nil {
+		// For compatibility with Viper, we wrap the error with ErrConfigFileNotFound. Note
+		// that this case can be reached even if the config file *is* found. For example,
+		// if the config file at the default location (/opt/datadog-agent/etc/datadog.yaml)
+		// contains unparseable data, this branch is reached. This specific return value is
+		// checked during the config.Component constructor here:
+		// https://github.com/DataDog/datadog-agent/blob/31d06e70d70081d166b628efcf6c444b8aef5fbc/comp/core/config/setup.go#L53
+		// Meaning parser errors *won't* prevent the config.Component from initializing.
+		if !errors.Is(err, model.ErrConfigFileNotFound) {
+			return model.NewConfigFileNotFoundError(err) // nolint: forbidigo // needed for compatibility
+		}
 		return err
 	}
 

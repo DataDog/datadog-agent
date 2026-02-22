@@ -12,6 +12,7 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks import secret_generic_connector
 from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from tasks.cws_instrumentation import BIN_PATH as CWS_INSTRUMENTATION_BIN_PATH
@@ -71,6 +72,11 @@ def build(
     else:
         print(f"Reusing existing security-agent-policies at {policies_path}")
 
+    # Build secret-generic-connector so it is shipped with the cluster agent.
+    # Use same flavor as cluster-agent: FIPS when GOEXPERIMENT=boringcrypto (CI FIPS jobs).
+    sgc_fips = os.environ.get("GOEXPERIMENT") == "boringcrypto"
+    secret_generic_connector.build(ctx, fips_mode=sgc_fips)
+
 
 @task
 def refresh_assets(ctx, development=True):
@@ -118,10 +124,15 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
     latest_cws_instrumentation_file = max(cws_instrumentation_binary, key=os.path.getctime)
     ctx.run(f"chmod +x {latest_cws_instrumentation_file}")
 
+    # Add secret-generic-connector (build if not present).
+    if not os.path.isfile(secret_generic_connector.BIN_PATH):
+        secret_generic_connector.build(ctx)
+
     build_context = "Dockerfiles/cluster-agent"
     exec_path = f"{build_context}/datadog-cluster-agent"
     cws_instrumentation_base = f"{build_context}/cws-instrumentation"
     cws_instrumentation_exec_path = f"{cws_instrumentation_base}/cws-instrumentation.{arch}"
+    secret_connector_dest = f"{build_context}/secret-generic-connector"
 
     dockerfile_path = f"{build_context}/Dockerfile"
 
@@ -136,12 +147,19 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
 
     shutil.copy2(latest_file, exec_path)
     shutil.copy2(latest_cws_instrumentation_file, cws_instrumentation_exec_path)
+    shutil.copy2(secret_generic_connector.BIN_PATH, secret_connector_dest)
     shutil.copytree("Dockerfiles/agent/nosys-seccomp", f"{build_context}/nosys-seccomp", dirs_exist_ok=True)
+    par_config_src = "pkg/privateactionrunner/autoconnections/conf/script-config.yaml"
+    par_config_dest = f"{build_context}/private-action-runner"
+    os.makedirs(par_config_dest, exist_ok=True)
+    shutil.copy2(par_config_src, par_config_dest)
     ctx.run(
         f"docker build -t {tag} --platform linux/{arch} {build_context} -f {dockerfile_path} --build-context artifacts={build_context}"
     )
     ctx.run(f"rm {exec_path}")
     ctx.run(f"rm -rf {cws_instrumentation_base}")
+    ctx.run(f"rm -f {secret_connector_dest}")
+    ctx.run(f"rm -rf {par_config_dest}")
 
     if push:
         ctx.run(f"docker push {tag}")
