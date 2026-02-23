@@ -3,9 +3,8 @@ single_machine_performance-regression_detector-merge_base_check:
   timeout: 10m
   rules:
     - !reference [.except_coverage_pipeline]
-     # Only run SMP on dev branches when artifact-impacting files change.
-     # This skips SMP for doc-only, CI-only, or e2e test-only PRs.
-    - !reference [.on_dev_branches_with_artifact_changes]
+    - !reference [.on_main]  # Run on main to compare against parent commit
+    - !reference [.on_dev_branches_smp]  # Run on dev branches when forced or experiments change
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64", "specific:true"]
   artifacts:
@@ -21,14 +20,21 @@ single_machine_performance-regression_detector-merge_base_check:
     - git fetch origin
     # Get the base branch from release.json
     - SMP_BASE_BRANCH=$(dda inv release.get-release-json-value base_branch --no-worktree)
-    - echo "Looking for merge base for branch ${SMP_BASE_BRANCH}"
-    # Compute merge base of current commit and main
-    - SMP_MERGE_BASE=$(git merge-base ${CI_COMMIT_SHA} origin/${SMP_BASE_BRANCH})
-    - echo "Merge base is ${SMP_MERGE_BASE}"
     # Compute four days before now as UNIX timestamp
     - FOUR_DAYS_BEFORE_NOW=$(date --date="-4 days +1 hour" "+%s")
-    # Compute UNIX timestamp of potential baseline SHA
-    - BASELINE_SHA="${SMP_MERGE_BASE}"
+    # Determine baseline SHA based on whether we're on the base branch or a dev branch
+    - |
+      if [[ "$CI_COMMIT_BRANCH" == "$SMP_BASE_BRANCH" ]]; then
+          # On the base branch, use the parent commit as the baseline
+          BASELINE_SHA=$(git rev-parse "${CI_COMMIT_SHA}^")
+          echo "On base branch, using parent commit ${BASELINE_SHA} as initial baseline"
+      else
+          # On a dev branch, compute the merge base with the base branch
+          echo "Looking for merge base for branch ${SMP_BASE_BRANCH}"
+          SMP_MERGE_BASE=$(git merge-base ${CI_COMMIT_SHA} origin/${SMP_BASE_BRANCH})
+          echo "Merge base is ${SMP_MERGE_BASE}"
+          BASELINE_SHA="${SMP_MERGE_BASE}"
+      fi
     - BASELINE_COMMIT_TIME=$(git -c log.showSignature=false show --no-patch --format=%ct ${BASELINE_SHA})
     # Check if baseline SHA is too old
     - |
@@ -311,9 +317,8 @@ single-machine-performance-regression_detector:
       artifacts: false
   rules:
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a duplicate, specialized artifact that is not useful to run through SMP on every PR
-     # Only run SMP on dev branches when artifact-impacting files change.
-     # This skips SMP for doc-only, CI-only, or e2e test-only PRs.
-    - !reference [.on_dev_branches_with_artifact_changes]
+    - !reference [.on_main]  # Run on main
+    - !reference [.on_dev_branches_smp]  # Run on dev branches when forced or experiments change
   variables:
     SMP_TEAM_NAME: agent
     SMP_API_URL: api_url
@@ -349,9 +354,7 @@ single-machine-performance-regression_detector-pr-comment:
   stage: functional_test
   rules:
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a duplicate, specialized artifact that is not useful to run through SMP on every PR
-     # Only run SMP on dev branches when artifact-impacting files change.
-     # This skips SMP for doc-only, CI-only, or e2e test-only PRs.
-    - !reference [.on_dev_branches_with_artifact_changes]
+    - !reference [.on_dev_branches_smp]  # Only on dev branches when forced or experiments change, not on main
   image:
     name: "486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:3-jammy"
     entrypoint: [""] # disable entrypoint script for the pr-commenter image
