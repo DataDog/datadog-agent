@@ -1292,6 +1292,19 @@ func (b *packagesIterator) exploreInlinedInstance(
 		reader.SkipChildren()
 		return nil
 	}
+	// resetReader repositions the reader back to entry after parseAbstractFunction
+	// has moved it.
+	resetReader := func() error {
+		reader.Seek(entry.Offset)
+		e, err := reader.Next()
+		if err != nil {
+			return err
+		}
+		if e.Tag != dwarf.TagSubprogram && e.Tag != dwarf.TagInlinedSubroutine {
+			return fmt.Errorf("unexpected tag %v at 0x%x, expected TagSubprogram or TagInlinedSubroutine", e.Tag, entry.Offset)
+		}
+		return nil
+	}
 
 	// Lookup the abstract function definition referenced by this inlined
 	// instance.
@@ -1317,8 +1330,7 @@ func (b *packagesIterator) exploreInlinedInstance(
 			return err
 		}
 		b.abstractFunctions[originOffset] = af
-		reader.Seek(entry.Offset)
-		if _, err := reader.Next(); err != nil {
+		if err := resetReader(); err != nil {
 			return err
 		}
 	}
@@ -1533,6 +1545,9 @@ func (b *packagesIterator) parseFunctionName(entry *dwarf.Entry) (
 	return
 }
 
+// parseAbstractFunction parses the abstract function definition at the given
+// offset. It moves the reader; the caller is responsible for resetting it
+// afterwards.
 func (b *packagesIterator) parseAbstractFunction(offset dwarf.Offset, reader *dwarf.Reader) (*abstractFunction, error) {
 	reader.Seek(offset)
 	entry, err := reader.Next()
