@@ -196,17 +196,17 @@ func TestTrimMultiLine(t *testing.T) {
 	var output *message.Message
 
 	// All leading and trailing whitespace characters should be trimmed
-	h.process(getDummyMessageWithLF("1." + whitespace + "foo" + whitespace + "bar" + whitespace))
+	h.process(getDummyMessageWithLF(whitespace + "1." + whitespace + "foo" + whitespace + "bar" + whitespace))
 
 	assertNothingInChannel(t, outputChan)
 	h.flush()
 
 	output = <-outputChan
 	assert.Equal(t, "1."+whitespace+"foo"+whitespace+"bar", string(output.GetContent()))
-	assert.Equal(t, len("1."+whitespace+"foo"+whitespace+"bar"+whitespace)+1, output.RawDataLen)
+	assert.Equal(t, len(whitespace+"1."+whitespace+"foo"+whitespace+"bar"+whitespace)+1, output.RawDataLen)
 
 	// With line break
-	h.process(getDummyMessageWithLF("2." + whitespace + "foo" + whitespace))
+	h.process(getDummyMessageWithLF(whitespace + "2." + whitespace + "foo" + whitespace))
 	h.process(getDummyMessageWithLF("bar" + whitespace))
 
 	assertNothingInChannel(t, outputChan)
@@ -214,7 +214,7 @@ func TestTrimMultiLine(t *testing.T) {
 
 	output = <-outputChan
 	assert.Equal(t, "2."+whitespace+"foo"+whitespace+"\\n"+"bar", string(output.GetContent()))
-	assert.Equal(t, len("2."+whitespace+"foo"+whitespace)+1+len("bar"+whitespace)+1, output.RawDataLen)
+	assert.Equal(t, len(whitespace+"2."+whitespace+"foo"+whitespace)+1+len("bar"+whitespace)+1, output.RawDataLen)
 }
 
 func TestMultiLineHandlerDropsEmptyMessages(t *testing.T) {
