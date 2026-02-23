@@ -149,25 +149,28 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 	// Phase 3: Resolution
 	// =========================================================================
 	suite.T().Run("Resolution", func(t *testing.T) {
-		// Cleanup: restore the environment by removing dd-agent from docker group and restarting
-		// the agent. This ensures consecutive dev-mode runs start from the same initial state.
+		// Cleanup: restore the original socket permissions and restart the agent so the issue is
+		// re-detected on the next run (important for dev-mode where infra is kept alive).
 		t.Cleanup(func() {
-			host.Execute("sudo gpasswd -d dd-agent docker || true")
+			host.Execute("sudo chmod 660 /var/run/docker.sock")
 			host.Execute("sudo systemctl restart datadog-agent")
 		})
 
-		// Add dd-agent to the docker group so it can access the Docker socket
-		host.MustExecute("sudo usermod -aG docker dd-agent")
-		t.Log("Added dd-agent to docker group")
+		// Grant world-read/write on the Docker socket so dd-agent can connect.
+		// This is more reliable than group membership (which requires PAM session reload)
+		// and is sufficient for the check: socket.IsAvailable only reports an issue when
+		// the dial returns os.ErrPermission; with 666 any process can connect.
+		host.MustExecute("sudo chmod 666 /var/run/docker.sock")
+		t.Log("Granted world-accessible permissions to Docker socket")
 
-		groupOutput := host.MustExecute("groups dd-agent")
-		t.Logf("dd-agent groups: %s", groupOutput)
-		assert.Contains(t, groupOutput, "docker", "dd-agent should be in docker group")
+		permOutput := host.MustExecute("stat -c '%a' /var/run/docker.sock")
+		t.Logf("Docker socket permissions: %s", strings.TrimSpace(permOutput))
+		assert.Contains(t, permOutput, "666", "Docker socket should be world-accessible")
 
 		// Flush fakeintake to get fresh post-restart payloads only
 		require.NoError(t, fakeIntake.FlushServerAndResetAggregators(), "Failed to flush fakeintake before resolution restart")
 
-		// Restart agent so it picks up the new group membership and re-runs the check
+		// Restart agent so it re-runs the check with the updated socket permissions
 		host.MustExecute("sudo systemctl restart datadog-agent")
 		t.Log("Agent restarted after permission fix")
 
