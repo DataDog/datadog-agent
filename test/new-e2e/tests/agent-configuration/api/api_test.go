@@ -559,20 +559,26 @@ hostname: ENC[hostname]`
 	))
 
 	authTokenFilePath := "/etc/datadog-agent/auth_token"
+	ipcCertPath := "/etc/datadog-agent/ipc_cert.pem"
 	authtokenContent := v.Env().RemoteHost.MustExecute("sudo cat " + authTokenFilePath)
 	authtoken := strings.TrimSpace(authtokenContent)
 
 	req, err := e.httpRequest(authtoken)
 	assert.NoError(v.T(), err, "failed to create request")
-	host := v.Env().RemoteHost
-	hostHTTPClient := host.NewHTTPClient()
+	hostHTTPClient, err := v.Env().RemoteHost.NewHTTPClientWithIPCCert(ipcCertPath)
+	require.NoError(v.T(), err, "create HTTP client with IPC cert for agent API")
 
 	require.EventuallyWithT(v.T(), func(ct *assert.CollectT) {
 		resp, err := hostHTTPClient.Do(req)
-		assert.NoError(ct, err, "failed to send request")
+		if !assert.NoError(ct, err, "failed to send request") {
+			return
+		}
+		if resp == nil {
+			return
+		}
+		defer resp.Body.Close()
 
 		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
 		assert.NoError(ct, err, "failed to read body from request")
 
 		assert.Contains(ct, string(body), want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, body, want)
@@ -606,13 +612,14 @@ log_level: debug
 		)))
 
 	authTokenFilePath := "/etc/datadog-agent/auth_token"
+	ipcCertPath := "/etc/datadog-agent/ipc_cert.pem"
 	authtokenContent := v.Env().RemoteHost.MustExecute("sudo cat " + authTokenFilePath)
 	authtoken := strings.TrimSpace(authtokenContent)
 
 	req, err := e.httpRequest(authtoken)
 	assert.NoError(v.T(), err, "failed to create request")
-	host := v.Env().RemoteHost
-	hostHTTPClient := host.NewHTTPClient()
+	hostHTTPClient, err := v.Env().RemoteHost.NewHTTPClientWithIPCCert(ipcCertPath)
+	require.NoError(v.T(), err, "create HTTP client with IPC cert for agent API")
 
 	require.EventuallyWithT(v.T(), func(ct *assert.CollectT) {
 		type Workload struct {
@@ -621,10 +628,15 @@ log_level: debug
 
 		var have Workload
 		resp, err := hostHTTPClient.Do(req)
-		assert.NoError(ct, err, "failed to send request")
+		if !assert.NoError(ct, err, "failed to send request") {
+			return
+		}
+		if resp == nil {
+			return
+		}
+		defer resp.Body.Close()
 
 		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
 		assert.NoError(ct, err, "failed to read body from request")
 
 		err = json.Unmarshal(body, &have)
@@ -678,7 +690,9 @@ func (v *apiSuite) TestMetadataV5CanonicalCloudResourceID_IMDSVariants() {
 			req, err := e.httpRequest(authtoken)
 			require.NoError(t, err, "failed to create request")
 
-			hostHTTPClient := v.Env().RemoteHost.NewHTTPClient()
+			ipcCertPath := "/etc/datadog-agent/ipc_cert.pem"
+			hostHTTPClient, err := v.Env().RemoteHost.NewHTTPClientWithIPCCert(ipcCertPath)
+			require.NoError(t, err, "create HTTP client with IPC cert for agent API")
 
 			// Build expected ARN from metadata
 			ec2Client := client.NewEC2Metadata(t, v.Env().RemoteHost.Host, v.Env().RemoteHost.OSFamily)
@@ -705,10 +719,15 @@ func (v *apiSuite) TestMetadataV5CanonicalCloudResourceID_IMDSVariants() {
 
 				var have Metadata
 				resp, err := hostHTTPClient.Do(req)
-				assert.NoError(ct, err, "failed to send request")
+				if !assert.NoError(ct, err, "failed to send request") {
+					return
+				}
+				if resp == nil {
+					return
+				}
+				defer resp.Body.Close()
 
 				body, err := io.ReadAll(resp.Body)
-				resp.Body.Close()
 				assert.NoError(ct, err, "failed to read body from request")
 
 				err = json.Unmarshal(body, &have)
