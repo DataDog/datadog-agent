@@ -80,7 +80,12 @@ func (c *workloadselectionComponent) compileAndWriteConfig(rawConfig []byte) err
 		return err
 	}
 
-	tmpPath := configPath + ".tmp"
+	tmpFile, err := os.CreateTemp(filepath.Dir(configPath), "workload-policy-*.tmp")
+	if err != nil {
+		return fmt.Errorf("failed to create temporary file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	tmpFile.Close()
 	defer os.Remove(tmpPath)
 
 	cmd := exec.Command(getCompilePolicyBinaryPath(), "--input-string", string(rawConfig), "--output-file", tmpPath)
