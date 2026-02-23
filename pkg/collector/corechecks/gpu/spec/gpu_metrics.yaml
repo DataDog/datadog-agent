@@ -2,8 +2,7 @@ metric_prefix: gpu
 tagsets:
   container:
     tags:
-      - container_id
-      - container_name
+      - kube_container_name
   device:
     tags:
       - gpu_uuid
