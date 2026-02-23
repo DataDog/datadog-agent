@@ -17,7 +17,6 @@ import (
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
@@ -41,7 +40,7 @@ func (tf *testFactory) MakeTailer(source *sources.LogSource) (tailerfactory.Tail
 func TestStartStop(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
-	l := NewLauncher(nil, option.None[workloadmeta.Component](), fakeTagger, option.None[healthplatform.Component]())
+	l := NewLauncher(nil, option.None[workloadmeta.Component](), fakeTagger)
 
 	sp := launchers.NewMockSourceProvider()
 	pl := pipeline.NewMockProvider()
@@ -61,7 +60,7 @@ func TestStartStop(t *testing.T) {
 func TestAddsRemovesSource(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
-	l := NewLauncher(nil, option.None[workloadmeta.Component](), fakeTagger, option.None[healthplatform.Component]())
+	l := NewLauncher(nil, option.None[workloadmeta.Component](), fakeTagger)
 	l.tailerFactory = &testFactory{
 		makeTailer: func(source *sources.LogSource) (tailerfactory.Tailer, error) {
 			return &tailerfactory.TestTailer{Name: source.Name}, nil
@@ -92,7 +91,7 @@ func TestAddsRemovesSource(t *testing.T) {
 func TestCannotMakeTailer(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
-	l := NewLauncher(nil, option.None[workloadmeta.Component](), fakeTagger, option.None[healthplatform.Component]())
+	l := NewLauncher(nil, option.None[workloadmeta.Component](), fakeTagger)
 	l.tailerFactory = &testFactory{
 		makeTailer: func(_ *sources.LogSource) (tailerfactory.Tailer, error) {
 			return nil, errors.New("uhoh")
@@ -115,7 +114,7 @@ func TestCannotMakeTailer(t *testing.T) {
 func TestCannotStartTailer(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
-	l := NewLauncher(nil, option.None[workloadmeta.Component](), fakeTagger, option.None[healthplatform.Component]())
+	l := NewLauncher(nil, option.None[workloadmeta.Component](), fakeTagger)
 	l.tailerFactory = &testFactory{
 		makeTailer: func(source *sources.LogSource) (tailerfactory.Tailer, error) {
 			return &tailerfactory.TestTailer{Name: source.Name, StartError: true}, nil
