@@ -433,6 +433,7 @@ linters:
       - test/e2e-framework
       - pkg/proto/patches
       - pkg/security/utils/lru
+      - pkg/shell/interp
       - pkg/template
       - tasks/unit_tests/testdata/components_src
       - third_party$
@@ -454,6 +455,7 @@ formatters:
       - test/e2e-framework
       - pkg/proto/patches
       - pkg/security/utils/lru
+      - pkg/shell/interp
       - pkg/template
       - tasks/unit_tests/testdata/components_src
       - third_party$
