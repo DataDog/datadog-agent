@@ -2,7 +2,7 @@ version: '3'
 name: redis
 services:
   redis:
-    image: redis:7-alpine
+    image: ${REGISTRY:-docker.io}/redis:7.0.14-alpine
     entrypoint: /runner.sh
     command: --ignore-warnings ARM64-COW-BUG ${REDIS_ARGS}
     ports:

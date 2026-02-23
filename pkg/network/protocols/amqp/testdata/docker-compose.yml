@@ -2,7 +2,7 @@ version: '3'
 name: amqp
 services:
   rabbitmq:
-    image: rabbitmq:3-management-alpine
+    image: ${REGISTRY:-docker.io}/rabbitmq:3.12.7-management-alpine
     ports:
       - ${AMQP_ADDR:-127.0.0.1}:${AMQP_PORT:-5672}:${AMQP_PORT:-5672}
       - ${AMQP_ADDR:-127.0.0.1}:15672:15672

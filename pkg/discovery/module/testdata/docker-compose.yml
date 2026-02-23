@@ -4,7 +4,7 @@ services:
   one:
     # Just some image that has python.  mysql chosen since it is already used
     # from another test.
-    image: mysql:8.0.32
+    image: ${REGISTRY:-docker.io}/mysql:8.0.34
     # Symlink binary to allow easier identification of processes from test
     command: >
       sh -c "echo

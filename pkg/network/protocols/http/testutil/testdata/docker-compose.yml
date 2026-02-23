@@ -2,7 +2,7 @@ version: '3'
 name: python
 services:
   python:
-    image: python:3-alpine
+    image: ${REGISTRY:-docker.io}/python:3.13.9-alpine3.22
     command: ["python3", "-u", "/v/server.py", "true"]
     ports:
       - ${PORT}:4141

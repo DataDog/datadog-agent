@@ -9,6 +9,7 @@ package docker
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
@@ -20,10 +21,18 @@ const (
 
 	// DefaultRetries is the default number of retries for starting a container/s.
 	DefaultRetries = 3
-
-	// MinimalDockerImage is the minimal docker image, just used for running a binary
-	MinimalDockerImage = "alpine:3.20.3"
 )
+
+// MinimalDockerImage is the minimal docker image, just used for running a binary.
+// Uses the REGISTRY env var when set (e.g. in CI: registry.ddbuild.io/images/mirror),
+// falling back to docker.io for external contributors.
+var MinimalDockerImage = func() string {
+	registry := os.Getenv("REGISTRY")
+	if registry == "" {
+		return "alpine:3.20.3"
+	}
+	return registry + "/alpine:3.20.3"
+}()
 
 // EmptyEnv is a sugar syntax for empty environment variables
 var EmptyEnv []string

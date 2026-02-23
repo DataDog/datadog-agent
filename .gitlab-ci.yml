@@ -161,6 +161,7 @@ variables:
   # (https://github.com/DataDog/dd-source/tree/main/domains/seceng/sit/apps/artifact-security/vault-gpg-client/gpg-vault)
   GPG_TEST_KEY_ID: crypto/k8s/keys/k8s_gitlab-runner-datadog-agent_datadog-agent_testing_signing-key
   DOCKER_REGISTRY_URL: docker.io
+  REGISTRY: registry.ddbuild.io/images/mirror
   KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
   CLANG_LLVM_VER: 12.0.1
   CLANG_BUILD_VERSION: "v60409452-ee70de70"

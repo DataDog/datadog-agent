@@ -2,7 +2,7 @@ version: '3.1'
 name: postgres
 services:
   postgres:
-    image: postgres:15-alpine
+    image: ${REGISTRY:-docker.io}/postgres:15.4-alpine
     restart: always
     entrypoint: /v/runner.sh
     command: postgres -l -c ssl=${ENCRYPTION_MODE} -c ssl_cert_file=/postgres-test/server.crt -c ssl_key_file=/postgres-test/server.key -c config_file=/postgres-test/postgres.conf

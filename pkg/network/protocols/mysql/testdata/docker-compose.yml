@@ -2,7 +2,7 @@ version: '3'
 name: mysql
 services:
   mysql:
-    image: mysql:8.0.32
+    image: ${REGISTRY:-docker.io}/mysql:8.0.34
     entrypoint: /runner.sh
     command: --default-authentication-plugin=mysql_native_password ${MYSQL_TLS_ARGS}
     restart: always
