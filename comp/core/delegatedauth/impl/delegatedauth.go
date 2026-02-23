@@ -207,10 +207,11 @@ func (d *delegatedAuthComponent) AddInstance(params delegatedauth.InstanceParams
 	apiKeyConfigKey := params.APIKeyConfigKey
 
 	refreshInterval := time.Duration(params.RefreshInterval) * time.Minute
-	if refreshInterval == 0 {
-		// Default to 60 minutes if refresh interval was set incorrectly
+	if refreshInterval <= 0 {
+		// Default to 60 minutes if refresh interval was set to 0 or negative
+		// This prevents panics from time.NewTicker with non-positive duration
 		refreshInterval = 60 * time.Minute
-		log.Warnf("Refresh interval was set to 0 for '%s', defaulting to 60 minutes", apiKeyConfigKey)
+		log.Warnf("Refresh interval was set to %d for '%s', defaulting to 60 minutes", params.RefreshInterval, apiKeyConfigKey)
 	}
 
 	// Create the appropriate provider based on the provider config type
