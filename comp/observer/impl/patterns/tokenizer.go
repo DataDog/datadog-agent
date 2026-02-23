@@ -942,3 +942,32 @@ func hasOnlyDigits(s string) bool {
 	}
 	return len(s) > 0
 }
+
+const (
+	SEVERITY_UNKNOWN = iota
+	// Logs that should have ~ no impact on anomaly detection
+	SEVERITY_DEBUG
+	SEVERITY_INFO
+	// Logs that should have the most impact on anomaly detection and RCA (warning+ logs)
+	SEVERITY_ERROR
+)
+
+// GetSeverity returns the severity of a log
+// It is based on the first severity token found
+func GetSeverity(tokens []Token) int {
+	for _, token := range tokens {
+		if token.Type == TypeSeverity {
+			switch strings.ToUpper(token.Value) {
+			case "DEBUG", "D":
+				return SEVERITY_DEBUG
+			case "INFO", "I":
+				return SEVERITY_INFO
+			case "ERROR", "ERR", "E", "WARNING", "WARN", "W":
+				return SEVERITY_ERROR
+			default:
+				return SEVERITY_UNKNOWN
+			}
+		}
+	}
+	return SEVERITY_UNKNOWN
+}

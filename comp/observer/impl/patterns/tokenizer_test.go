@@ -7,6 +7,8 @@ package patterns
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func tok(tokens []Token) []TokenType {
@@ -574,4 +576,14 @@ func TestTokenizeGCStats(t *testing.T) {
 	if len(tokens) == 0 {
 		t.Fatal("expected non-empty token list for GC stats")
 	}
+}
+
+func TestGetSeverity(t *testing.T) {
+	tok := NewTokenizer()
+	assert.Equal(t, SEVERITY_INFO, GetSeverity(tok.Tokenize("INFO: 10.244.1.XXX:XXXX - * /*/* HTTP/1.1 200 OK")))
+	assert.Equal(t, SEVERITY_ERROR, GetSeverity(tok.Tokenize("ERROR: yyyy/MM/dd HH:mm:ss - * : status=[500-502]")))
+	assert.Equal(t, SEVERITY_ERROR, GetSeverity(tok.Tokenize("yyyy-MM-dd HH:mm:ss,SSS ERROR - Session creation failed: 500 {\"info\":\"failed to create session\"}")))
+	assert.Equal(t, SEVERITY_INFO, GetSeverity(tok.Tokenize("INFO: session write failed: dial tcp 10.96.103.154:6379: connect: connection refused")))
+	assert.Equal(t, SEVERITY_UNKNOWN, GetSeverity(tok.Tokenize("yyyy-MM-dd HH:mm:ss,SSS - Some log")))
+	assert.Equal(t, SEVERITY_DEBUG, GetSeverity(tok.Tokenize("yyyy-MM-dd HH:mm:ss,SSS [DEBUG] - Some log")))
 }
