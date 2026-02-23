@@ -1056,6 +1056,17 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
+.on_otel_components_changes:
+  - !reference [.except_mergequeue]
+  - !reference [.on_main]
+  - changes:
+      paths:
+        - cmd/otel-agent/**/*
+        - comp/otelcol/**/*
+        - test/otel/testdata/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
 .on_ssi_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
