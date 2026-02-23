@@ -287,15 +287,22 @@ type ConnectionStats struct {
 	Duration        time.Duration
 	RTT             uint32 // Stored in µs
 	RTTVar          uint32
-	// TCP congestion snapshot fields (CO-RE/runtime tracer only; 0 on prebuilt)
-	// Note: spurious_retrans (DSACK-detected spurious retransmits) is intentionally
-	// omitted — the field is absent from the BTF of the build kernel and requires
-	// further investigation across kernel versions before it can be added.
-	TCPPacketsOut uint32 // segments currently in-flight
-	TCPLostOut    uint32 // SACK/RACK estimated lost segments
-	TCPSackedOut  uint32 // segments SACKed by receiver
-	TCPDelivered  uint32 // total segments delivered (loss rate denominator)
-	TCPRetransOut uint32 // retransmitted segments still in-flight
+	// TCP congestion fields (CO-RE/runtime tracer only; 0 on prebuilt).
+	// Gauge fields (packets_out, lost_out, sacked_out, retrans_out) are point-in-time
+	// snapshots from the last sendmsg/recvmsg and don't aggregate well over 30s
+	// intervals or across connections.
+	// TODO: before productionizing, reassess the gauge fields — consider tracking
+	// max-over-interval, converting to booleans (e.g. lost_out > 0), or removing
+	// them in favor of the counter fields (delivered, delivered_ce, bytes_retrans,
+	// dsack_dups) which delta and aggregate cleanly.
+	TCPPacketsOut   uint32 // segments currently in-flight (gauge)
+	TCPLostOut      uint32 // SACK/RACK estimated lost segments (gauge)
+	TCPSackedOut    uint32 // segments SACKed by receiver (gauge)
+	TCPDelivered    uint32 // total segments delivered (counter)
+	TCPRetransOut   uint32 // retransmitted segments still in-flight (gauge)
+	TCPDeliveredCE  uint32 // segments delivered with ECN CE mark (counter)
+	TCPBytesRetrans uint64 // cumulative bytes retransmitted (counter, 4.19+)
+	TCPDSACKDups    uint32 // DSACK-detected spurious retransmits (counter)
 	// TODO: before productionizing, move TCPCAState to the trailing single-byte
 	// section (near SPortIsEphemeral) to avoid 3 bytes of alignment padding.
 	TCPCAState uint8 // inet_connection_sock CA state (0=Open,1=Disorder,2=CWR,3=Recovery,4=Loss)

@@ -166,6 +166,9 @@ func (c *ConnectionStats) FromTCPCongestionStats(cs *netebpf.TCPCongestionStats)
 	c.TCPSackedOut = cs.Sacked_out
 	c.TCPDelivered = cs.Delivered
 	c.TCPRetransOut = cs.Retrans_out
+	c.TCPDeliveredCE = cs.Delivered_ce
+	c.TCPBytesRetrans = cs.Bytes_retrans
+	c.TCPDSACKDups = cs.Dsack_dups
 	c.TCPCAState = cs.Ca_state
 }
 

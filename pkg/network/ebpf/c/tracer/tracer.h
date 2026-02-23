@@ -103,12 +103,12 @@ typedef struct {
     __u32 lost_out;     // SACK/RACK estimated lost segments
     __u32 sacked_out;   // segments SACKed by receiver
     __u32 delivered;    // total segments delivered (loss rate denominator)
-    __u32 retrans_out;  // retransmitted segments still in-flight
-    // Note: spurious_retrans (tcp_sock.spurious_retrans, DSACK-detected spurious
-    // retransmits) is intentionally omitted — the field is absent from the BTF of
-    // the build kernel and requires investigation across kernel versions.
-    __u8  ca_state;     // inet_connection_sock.icsk_ca_state (TCP_CA_Open=0..TCP_CA_Loss=4)
-    __u8  _pad[3];      // explicit padding to maintain 4-byte alignment
+    __u32 retrans_out;    // retransmitted segments still in-flight
+    __u32 delivered_ce;   // segments delivered with ECN CE mark (counter)
+    __u64 bytes_retrans;  // cumulative bytes retransmitted (counter, 4.19+)
+    __u32 dsack_dups;     // DSACK-detected spurious retransmits (counter)
+    __u8  ca_state;       // inet_connection_sock.icsk_ca_state (TCP_CA_Open=0..TCP_CA_Loss=4)
+    __u8  _pad[3];        // explicit padding to maintain 4-byte alignment
 } tcp_congestion_stats_t;
 
 // Per-connection RTO and fast-recovery event counters. Stored in a separate BPF map
