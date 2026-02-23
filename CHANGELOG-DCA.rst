@@ -48,7 +48,7 @@ Bug Fixes
 
 - When injection fails for Single Step Instrumentation due to constrained resources, we add an annotation to the pod
   with a reason for the error. This annotation now matches all other annotations the webhook writes to a pod spec
-  by prefixing the annotation with `internal`. The full annotation is now: `internal.apm.datadoghq.com/injection-error`
+  by prefixing the annotation with ``internal``. The full annotation is now: ``internal.apm.datadoghq.com/injection-error``
 
 
 .. _Release Notes_7.76.0_Other Notes:

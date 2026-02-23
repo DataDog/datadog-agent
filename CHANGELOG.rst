@@ -23,7 +23,7 @@ Upgrade Notes
 -------------
 
 - DDOT now submits Fleet Automation metadata through the upstream datadogextension, which is enabled by default. As a result, your DDOT configuration will now appear under the OTel Collector tab.
-  If you configured `otelcollector.converter.features`, you may need to add the `datadog` feature to enable Fleet Automation, as DDOT Fleet Automation metadata is no longer submitted through the `ddflareextension`.
+  If you configured ``otelcollector.converter.features``, you may need to add the ``datadog`` feature to enable Fleet Automation, as DDOT Fleet Automation metadata is no longer submitted through the ``ddflareextension``.
 
 
 .. _Release Notes_7.76.0_New Features:
@@ -49,15 +49,15 @@ New Features
 
 - The Agent Profiling check now supports automatic Agent termination after flare generation when memory or CPU thresholds are exceeded. This feature is useful in resource-constrained environments where the Agent needs to be restarted after generating diagnostic information.
   
-  Enable this feature by setting `terminate_agent_on_threshold: true` in the Agent Profiling check configuration. When enabled, the Agent uses its established shutdown mechanism to trigger graceful shutdown after successfully generating a flare, ensuring proper cleanup before exit.
+  Enable this feature by setting ``terminate_agent_on_threshold: true`` in the Agent Profiling check configuration. When enabled, the Agent uses its established shutdown mechanism to trigger graceful shutdown after successfully generating a flare, ensuring proper cleanup before exit.
   
   **Warning**: This feature will cause the Agent to exit. This feature is disabled by default and should be used with caution.
 
 - Experimental support the ConfigSync HTTP endpoints over unix sockets with
   ``agent_ipc.use_socket: true`` (defaults to false).
 
-- Implements the `flare` command for the otel-agent binary. 
-  Now you can run `otel-agent flare` directly in the otel-agent container to get OTel flares.
+- Implements the ``flare`` command for the otel-agent binary.
+  Now you can run ``otel-agent flare`` directly in the otel-agent container to get OTel flares.
 
 - Adds system info metadata collection for macOS end-user devices.
 
@@ -71,11 +71,11 @@ New Features
 
 - After falling back to TCP, the Logs Agent periodically retries to establish HTTP and upgrades the connection once HTTP connectivity is available.
 
-- Container logs now include a `LogSource` tag indicating whether each log
+- Container logs now include a ``LogSource`` tag indicating whether each log
   message originated from stdout or stderr. This applies to logs parsed via
   Docker and Kubernetes CRI runtimes.
 
-- Added paging file metrics to the Windows memory check for `pagefile.sys` usage.
+- Added paging file metrics to the Windows memory check for ``pagefile.sys`` usage.
 
 
 .. _Release Notes_7.76.0_Enhancement Notes:
@@ -83,15 +83,15 @@ New Features
 Enhancement Notes
 -----------------
 
-- Add a new `global_view_db` variable to AWS Autodisovery templates. By default this is the value of the `datadoghq.com/global_view_db` tag on the instance or cluster.
+- Add a new ``global_view_db`` variable to AWS Autodisovery templates. By default this is the value of the ``datadoghq.com/global_view_db`` tag on the instance or cluster.
 
 - Add NotReady endpoint processing to be on par with EndpointSlices processing.
 
 - The agentprofiling check now retries flare generation 2 times with exponential backoff (1 minute after first failure, 5 minutes after second failure) when flare creation or sending fails. This improves reliability when encountering transient failures during flare generation.
 
-- Adds a `kubernetes_kube_service_new_behavior` flag (default false) to alter `kube_service` tag behavior.
-  If the flag is set to true, `kube_service` tag is attached unconditionally.
-  Previously, the tag was only attached when the Kubernetes service has the status `Ready`.
+- Adds a ``kubernetes_kube_service_new_behavior`` flag (default false) to alter ``kube_service`` tag behavior.
+  If the flag is set to true, ``kube_service`` tag is attached unconditionally.
+  Previously, the tag was only attached when the Kubernetes service has the status ``Ready``.
 
 - APM: Add custom protobuf encoder for trace writer v1 with string compaction to reduce payload size.
 
@@ -99,7 +99,7 @@ Enhancement Notes
 
 - Agents are now built with Go ``1.25.7``.
 
-- The datadog-installer `setup` command now prints human-readable errors instead of mixing JSON and text.
+- The datadog-installer ``setup`` command now prints human-readable errors instead of mixing JSON and text.
 
 - Added ``GPUDeviceIDs`` field to the workloadmeta Container entity to store
   GPU device UUIDs. This field is populated by the Docker collector in ECS
@@ -110,14 +110,14 @@ Enhancement Notes
   source for GPU-to-container mapping in ECS, with fallback to procfs for
   regular Docker environments and PodResources API for Kubernetes.
 
-- GPU: add new tag `gpu_type` to the GPU metrics to identify the type of GPU (e.g., `a100`, `h100`).
+- GPU: add new tag ``gpu_type`` to the GPU metrics to identify the type of GPU (e.g., ``a100``, ``h100``).
 
 - Improve eBPF conntracker support by using alternate probes when the primary probe is unavailable, enabling compatibility with GKE Autopilot and other environments running Google COS.
 
-- The `logs.dropped` metric now tracks dropped logs for both TCP and HTTP 
-  log transports. Previously, this metric was only available when using TCP 
-  transport. Customers can now monitor dropped logs with a single unified 
-  metric regardless of which transport protocol is configured, making it 
+- The ``logs.dropped`` metric now tracks dropped logs for both TCP and HTTP
+  log transports. Previously, this metric was only available when using TCP
+  transport. Customers can now monitor dropped logs with a single unified
+  metric regardless of which transport protocol is configured, making it
   easier to detect and troubleshoot log delivery issues.
 
 - The logs agent now supports using ``start_position: beginning`` and
@@ -128,7 +128,7 @@ Enhancement Notes
 
 - Site config URLs are now lowercased for consistent handling.
 
-- APM: Add tags `databricks_job_id`, `databricks_job_run_id`, `databricks_task_run_id`, `config.spark_app_startTime`, `config.spark_databricks_job_parentRunId`
+- APM: Add tags ``databricks_job_id``, ``databricks_job_run_id``, ``databricks_task_run_id``, ``config.spark_app_startTime``, ``config.spark_databricks_job_parentRunId``
   to the default list of tags that are known to not be credit card numbers so they are skipped by the credit card obfuscator.
 
 - Add option to switch on/off Infra-Attribute-Processor for traces in the OTLP ingest pipeline.
@@ -146,14 +146,14 @@ Enhancement Notes
   Logs are tagged with the number of other logs they could
   potentially be aggregated with.
 
-- Update the histogram helpers API in the `pkg/opentelemetry-mapping-go/otlp/metrics` package. The API now accepts accept pointers to the OTLP data points, and returns blank DDSketches when the pointer is nil.
+- Update the histogram helpers API in the ``pkg/opentelemetry-mapping-go/otlp/metrics`` package. The API now accepts accept pointers to the OTLP data points, and returns blank DDSketches when the pointer is nil.
 
-- Update image resolution attempt telemetry to include the `tag` specified
-  in the configuration, and remove the `registry` and `digest_resolution` tags.
+- Update image resolution attempt telemetry to include the ``tag`` specified
+  in the configuration, and remove the ``registry`` and ``digest_resolution`` tags.
 
-- Windows: Add a new flare artifact `agent_loaded_modules.json` listing loaded DLLs with metadata
+- Windows: Add a new flare artifact ``agent_loaded_modules.json`` listing loaded DLLs with metadata
   (full path, timestamp, size, perms) and version info (CompanyName, ProductName, OriginalFilename,
-  FileVersion, ProductVersion, InternalName). Keeps `<flavor>_open_files.txt` for compatibility.
+  FileVersion, ProductVersion, InternalName). Keeps ``<flavor>_open_files.txt`` for compatibility.
 
 
 .. _Release Notes_7.76.0_Deprecation Notes:
@@ -161,7 +161,7 @@ Enhancement Notes
 Deprecation Notes
 -----------------
 
-- The command `agent diagnose show-metadata inventory-otel` has been removed. To display DDOT metadata, you can query the datadog extension endpoint: `http://localhost:9875/metadata`.
+- The command ``agent diagnose show-metadata inventory-otel`` has been removed. To display DDOT metadata, you can query the datadog extension endpoint: ``http://localhost:9875/metadata``.
 
 
 .. _Release Notes_7.76.0_Bug Fixes:
@@ -174,10 +174,10 @@ Bug Fixes
 
 - Fixed a bug where long Kubernetes event bundles were being truncated by dogweb. 
 
-- APM: Fix a bug where the Agent would log a warning when the `DD_APM_MODE` environment variable was unset.
+- APM: Fix a bug where the Agent would log a warning when the ``DD_APM_MODE`` environment variable was unset.
 
-- Properly parse the `image_tag` tag when defining a container spec
-  that uses both an image tag and a digest like `nginx:1.23@sha256:xxx`.
+- Properly parse the ``image_tag`` tag when defining a container spec
+  that uses both an image tag and a digest like ``nginx:1.23@sha256:xxx``.
 
 - Updates tag enrichment logic to retry on failed tag resolution attempts.
   This regression was introduced in #41587 on Agent v7.73+.
@@ -195,9 +195,9 @@ Bug Fixes
   errors are logged as warnings. Neither prevent partition metrics from
   being reported.
 
-- Fleet installer: ensure the `DD_LOGS_ENABLED` environment variable is honored again
+- Fleet installer: ensure the ``DD_LOGS_ENABLED`` environment variable is honored again
   when running setup scripts, so Windows installs using the new installer flow properly.
-  Sets `logs_enabled` in `datadog.yaml`.
+  Sets ``logs_enabled`` in ``datadog.yaml``.
 
 - Fixes a bug introduced in 7.73.0 that can cause a remote Agent update through Fleet Automation to fail to restore the previous version if the MSI fails and
   the ``C:\Windows\SystemTemp\datadog-installer\rollback\InstallOciPackages.json`` file is present.
@@ -221,7 +221,7 @@ Bug Fixes
 
 - Fix ``datadog.agent.check_ready`` to always include the ``check_name`` tag value for Python checks.
 
-- Rename `kubernetes_kube_service_new_behavior` to `kubernetes_kube_service_ignore_readiness` to
+- Rename ``kubernetes_kube_service_new_behavior`` to ``kubernetes_kube_service_ignore_readiness`` to
   better reflect the behavior.
 
 - Prevent a deadlock from occurring in the otel-agent when its internal telemetry Prometheus endpoint is scraped.
