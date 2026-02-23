@@ -11,6 +11,7 @@ package exec
 import (
 	"os"
 	"os/exec"
+	"time"
 )
 
 func (i *InstallerExec) newInstallerCmdPlatform(cmd *exec.Cmd) *exec.Cmd {
@@ -19,6 +20,10 @@ func (i *InstallerExec) newInstallerCmdPlatform(cmd *exec.Cmd) *exec.Cmd {
 	cmd.Cancel = func() error {
 		return cmd.Process.Signal(os.Interrupt)
 	}
+	// If the subprocess doesn't exit within WaitDelay after SIGINT (e.g. blocked in
+	// bbolt.Open waiting for an exclusive file lock held by another installer process),
+	// escalate to SIGKILL so the daemon can stop within systemd's TimeoutStopSec.
+	cmd.WaitDelay = 15 * time.Second
 
 	return cmd
 }
