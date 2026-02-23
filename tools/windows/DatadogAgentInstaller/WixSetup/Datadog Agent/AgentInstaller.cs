@@ -645,6 +645,24 @@ namespace WixSetup.Datadog_Agent
                 AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
             }
             );
+            if (_agentFlavor.FlavorName != Constants.FipsFlavor)
+            {
+                var privateActionRunnerService = GenerateDependentServiceInstaller(
+                    new Id("ddagentprivaterunnerservice"),
+                    Constants.PrivateActionRunnerServiceName,
+                    "Datadog Private Action Runner",
+                    "Execute private actions for Datadog",
+                    "[DDAGENTUSER_PROCESSED_FQ_NAME]",
+                    "[DDAGENTUSER_PROCESSED_PASSWORD]");
+                agentBinDir.AddFile(new WixSharp.File(_agentBinaries.PrivateActionRunner, privateActionRunnerService));
+                agentBinDir.Add(new EventSource
+                {
+                    Name = Constants.PrivateActionRunnerServiceName,
+                    Log = "Application",
+                    EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.PrivateActionRunner)}",
+                    AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
+                });
+            }
             var targetBinFolder = new Dir(new Id("BIN"), "bin",
                 new WixSharp.File(_agentBinaries.Agent, agentService),
                 // Temporary binary for extracting the embedded Python - will be deleted

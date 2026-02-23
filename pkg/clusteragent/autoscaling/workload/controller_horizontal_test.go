@@ -75,7 +75,18 @@ func (f *horizontalControllerFixture) runSync(fakePai *model.FakePodAutoscalerIn
 	}
 
 	autoscalerInternal := fakePai.Build()
-	res, err := f.controller.sync(context.Background(), fakeAutoscaler, &autoscalerInternal)
+
+	// Pre-fetch scale subresource, mirroring what handleScaling does in the parent controller.
+	var scale *autoscalingv1.Scale
+	var gr schema.GroupResource
+	var scaleErr error
+	if autoscalerInternal.Spec() != nil {
+		if gvk, err := autoscalerInternal.TargetGVK(); err == nil {
+			scale, gr, scaleErr = f.scaler.get(context.Background(), fakePai.Namespace, autoscalerInternal.Spec().TargetRef.Name, gvk)
+		}
+	}
+
+	res, err := f.controller.sync(context.Background(), fakeAutoscaler, &autoscalerInternal, scale, gr, scaleErr)
 	return autoscalerInternal, res, err
 }
 
@@ -158,18 +169,6 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 	assert.Nil(t, err)
 	model.AssertPodAutoscalersEqual(t, fakePai.Build(), autoscaler)
 
-	// Test case: Spec has been added, but no GVK
-	fakePai.Spec = &datadoghq.DatadogPodAutoscalerSpec{
-		TargetRef: v2.CrossVersionObjectReference{
-			Name: "test",
-		},
-	}
-	autoscaler, result, err = f.runSync(fakePai)
-	assert.Equal(t, result, autoscaling.NoRequeue)
-	assert.EqualError(t, err, "failed to parse API version '', err: %!w(<nil>)")
-	fakePai.Error = testutil.NewErrorString("failed to parse API version '', err: %!w(<nil>)")
-	model.AssertPodAutoscalersEqual(t, fakePai.Build(), autoscaler)
-
 	// Test case: Correct Spec and GVK, but no scaling values
 	// Should do nothing
 	expectedGVK := schema.GroupVersionKind{
@@ -196,7 +195,6 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 			},
 		},
 	}
-	fakePai.Error = nil
 	f.scaler.On("get", mock.Anything, autoscalerNamespace, autoscalerName, expectedGVK).Return(
 		&autoscalingv1.Scale{
 			Spec: autoscalingv1.ScaleSpec{
@@ -442,7 +440,7 @@ func TestHorizontalControllerSyncScaleDecisions(t *testing.T) {
 	f.clock.Step(defaultStepDuration)
 	fakePai.Spec.Constraints = &datadoghqcommon.DatadogPodAutoscalerConstraints{
 		MinReplicas: pointer.Ptr[int32](2),
-		MaxReplicas: 8,
+		MaxReplicas: pointer.Ptr[int32](8),
 	}
 	result, err = f.testScalingDecision(horizontalScalingTestArgs{
 		fakePai:          fakePai,
@@ -462,7 +460,7 @@ func TestHorizontalControllerSyncScaleDecisions(t *testing.T) {
 	f.clock.Step(defaultStepDuration)
 	fakePai.Spec.Constraints = &datadoghqcommon.DatadogPodAutoscalerConstraints{
 		MinReplicas: pointer.Ptr[int32](2),
-		MaxReplicas: 8,
+		MaxReplicas: pointer.Ptr[int32](8),
 	}
 	result, err = f.testScalingDecision(horizontalScalingTestArgs{
 		fakePai:          fakePai,
@@ -483,7 +481,7 @@ func TestHorizontalControllerSyncScaleDecisions(t *testing.T) {
 	f.clock.Step(defaultStepDuration)
 	fakePai.Spec.Constraints = &datadoghqcommon.DatadogPodAutoscalerConstraints{
 		MinReplicas: pointer.Ptr[int32](8),
-		MaxReplicas: 10,
+		MaxReplicas: pointer.Ptr[int32](10),
 	}
 	result, err = f.testScalingDecision(horizontalScalingTestArgs{
 		fakePai:          fakePai,
@@ -503,7 +501,7 @@ func TestHorizontalControllerSyncScaleDecisions(t *testing.T) {
 	f.clock.Step(defaultStepDuration)
 	fakePai.Spec.Constraints = &datadoghqcommon.DatadogPodAutoscalerConstraints{
 		MinReplicas: pointer.Ptr[int32](8),
-		MaxReplicas: 10,
+		MaxReplicas: pointer.Ptr[int32](10),
 	}
 	result, err = f.testScalingDecision(horizontalScalingTestArgs{
 		fakePai:          fakePai,
@@ -911,7 +909,7 @@ func TestHorizontalControllerSyncScaleDecisionsWithRules(t *testing.T) {
 			},
 			Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 				MinReplicas: pointer.Ptr[int32](90),
-				MaxReplicas: 120,
+				MaxReplicas: pointer.Ptr[int32](120),
 			},
 			ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
@@ -1192,7 +1190,7 @@ func TestHorizontalControllerSyncScaleDownWithStabilization(t *testing.T) {
 			},
 			Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 				MinReplicas: pointer.Ptr[int32](90),
-				MaxReplicas: 120,
+				MaxReplicas: pointer.Ptr[int32](120),
 			},
 			ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
@@ -1311,7 +1309,7 @@ func TestHorizontalControllerSyncScaleUpWithStabilization(t *testing.T) {
 			},
 			Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 				MinReplicas: pointer.Ptr[int32](90),
-				MaxReplicas: 120,
+				MaxReplicas: pointer.Ptr[int32](120),
 			},
 			ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{

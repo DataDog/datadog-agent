@@ -286,6 +286,11 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.PeerTags = core.GetStringSlice("apm_config.peer_tags")
 	}
 
+	if core.IsConfigured("apm_config.span_derived_primary_tags") {
+		c.SpanDerivedPrimaryTagKeys = core.GetStringSlice("apm_config.span_derived_primary_tags")
+		log.Infof("span_derived_primary_tags configured: %v", c.SpanDerivedPrimaryTagKeys)
+	}
+
 	if core.IsConfigured("apm_config.extra_sample_rate") {
 		c.ExtraSampleRate = core.GetFloat64("apm_config.extra_sample_rate")
 	}
