@@ -165,12 +165,22 @@ func TestGetCheckStartup(t *testing.T) {
 	// Test after grace period
 	client.startupChecker.startTime = time.Now().Add(-6 * time.Minute)
 
-	// The error should not be ErrNotStartedYet since we're past the grace period
+	// Past the grace period, system-probe still not started: should get ErrNotAvailable
 	_, err = GetCheck[testData](client, "test")
 	require.Error(t, err)
-	require.NotErrorIs(t, err, ErrNotStartedYet)
+	require.ErrorIs(t, err, ErrNotAvailable)
+
+	// ErrNotAvailable should be suppressed by IgnoreStartupError
+	require.NoError(t, IgnoreStartupError(err))
+
+	// Subsequent calls should also return ErrNotAvailable without retrying
+	_, err = GetCheck[testData](client, "test")
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrNotAvailable)
 
 	failRequest = false
+	// Reset neverStarted to simulate system-probe eventually coming up
+	client.startupChecker.neverStarted = false
 
 	// Test successful check after startup
 	resp, err := GetCheck[testData](client, "test")

@@ -26,6 +26,11 @@ var (
 	// accessed while it hasn't started yet (and could still be reasonably
 	// expected to)
 	ErrNotStartedYet = errors.New("system-probe not started yet")
+	// ErrNotAvailable is an error used when system-probe failed to start
+	// within the startup timeout and is considered permanently unavailable
+	// for this agent lifetime. Checks should use IgnoreStartupError() to
+	// suppress this error and avoid noisy error reporting in Fleet Automation.
+	ErrNotAvailable = errors.New("system-probe not available")
 )
 
 // Get returns a http client configured to talk to the system-probe

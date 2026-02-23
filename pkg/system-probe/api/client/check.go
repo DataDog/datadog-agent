@@ -51,6 +51,7 @@ type startChecker struct {
 	startTime      time.Time
 	startupTimeout time.Duration
 	started        bool
+	neverStarted   bool
 }
 
 // getStartChecker is a memoized function that returns the singleton startChecker.
@@ -73,6 +74,10 @@ func (c *startChecker) ensureStarted(client *http.Client) error {
 		return nil
 	}
 
+	if c.neverStarted {
+		return ErrNotAvailable
+	}
+
 	req, err := http.NewRequest("GET", "http://sysprobe/debug/stats", nil)
 	if err != nil {
 		return err
@@ -91,7 +96,11 @@ func (c *startChecker) ensureStarted(client *http.Client) error {
 			return ErrNotStartedYet
 		}
 
-		return err
+		// Past the startup timeout and system-probe never started.
+		// Mark as permanently unavailable to suppress future errors.
+		c.neverStarted = true
+		log.Warnf("system-probe did not start within the startup timeout, marking as unavailable: %v", err)
+		return ErrNotAvailable
 	}
 
 	c.started = true
@@ -262,9 +271,10 @@ func request[T any](client *CheckClient, method string, endpoint string, request
 }
 
 // IgnoreStartupError is used to avoid reporting errors from checks if
-// system-probe has not started yet and can reasonably be expected to.
+// system-probe has not started yet, or if it never started and is
+// considered permanently unavailable for this agent lifetime.
 func IgnoreStartupError(err error) error {
-	if errors.Is(err, ErrNotStartedYet) {
+	if errors.Is(err, ErrNotStartedYet) || errors.Is(err, ErrNotAvailable) {
 		return nil
 	}
 	return err
