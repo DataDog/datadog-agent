@@ -59,7 +59,7 @@ GUI_port: %d`, authTokenFilePath, agentAPIPort, guiPort)
 	var guiClient *http.Client
 	// and check that the agents are using the new key
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		guiClient = getGUIClient(t, v.Env().RemoteHost, authtoken)
+		guiClient = getGUIClient(t, v.Env().RemoteHost, authtoken, ipcCertPathLinux)
 	}, 30*time.Second, 5*time.Second)
 
 	v.T().Log("Testing GUI static file server")

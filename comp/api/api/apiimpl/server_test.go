@@ -26,6 +26,7 @@ func TestAuthTagGetter(t *testing.T) {
 		serverTLSConfig   *tls.Config
 		clientTLSConfig   *tls.Config
 		authTagShouldFail bool
+		expectTLSFailure  bool // with strict mTLS, no/wrong client cert fails at handshake
 		expectedTag       string
 	}{
 		{
@@ -36,11 +37,10 @@ func TestAuthTagGetter(t *testing.T) {
 			expectedTag:       "mTLS",
 		},
 		{
-			name:            "secure server & insecure client",
-			serverTLSConfig: ipcComp.GetTLSServerConfig(),
-			clientTLSConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
+			name:              "secure server & insecure client",
+			serverTLSConfig:   ipcComp.GetTLSServerConfig(),
+			clientTLSConfig:   &tls.Config{InsecureSkipVerify: true},
+			expectTLSFailure:  true, // server requires client cert
 			authTagShouldFail: false,
 			expectedTag:       "token",
 		},
@@ -52,11 +52,9 @@ func TestAuthTagGetter(t *testing.T) {
 			expectedTag:       "token",
 		},
 		{
-			name:            "insecure server & insecure client",
-			serverTLSConfig: nil,
-			clientTLSConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
+			name:              "insecure server & insecure client",
+			serverTLSConfig:   nil,
+			clientTLSConfig:   &tls.Config{InsecureSkipVerify: true},
 			authTagShouldFail: true,
 			expectedTag:       "token",
 		},
@@ -74,6 +72,7 @@ func TestAuthTagGetter(t *testing.T) {
 				}
 				return cfg
 			}(),
+			expectTLSFailure:  true, // server rejects cert from different CA
 			authTagShouldFail: false,
 			expectedTag:       "token",
 		},
@@ -109,6 +108,10 @@ func TestAuthTagGetter(t *testing.T) {
 			client.Transport.(*http.Transport).TLSClientConfig = tc.clientTLSConfig
 
 			resp, err := client.Do(req)
+			if tc.expectTLSFailure {
+				require.Error(t, err, "expected TLS handshake failure when client does not present valid cert")
+				return
+			}
 			require.NoError(t, err)
 			resp.Body.Close()
 		})

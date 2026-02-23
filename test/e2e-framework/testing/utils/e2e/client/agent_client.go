@@ -120,6 +120,8 @@ func NewK8sAgentClient(context common.Context, podSelector metav1.ListOptions, c
 // As of now this is only implemented for Linux.
 func waitForAgentsReady(tt *testing.T, host *Host, params *agentclientparams.Params) {
 	hostHTTPClient := host.NewHTTPClient()
+	ipcHTTPClient, err := host.NewHTTPClientWithIPCCert(params.IPCCertPath)
+	require.NoError(tt, err, "failed to create HTTP client with IPC cert for agent status checks")
 	require.EventuallyWithT(tt, func(t *assert.CollectT) {
 		agentReadyCmds := map[string]func(*agentclientparams.Params, *Host) (*http.Request, bool, error){
 			"process-agent":  processAgentRequest,
@@ -138,7 +140,11 @@ func waitForAgentsReady(tt *testing.T, host *Host, params *agentclientparams.Par
 			}
 
 			tt.Logf("Checking if %s is ready...", name)
-			resp, err := hostHTTPClient.Do(req)
+			client := hostHTTPClient
+			if req.URL.Scheme == "https" {
+				client = ipcHTTPClient
+			}
+			resp, err := client.Do(req)
 			if assert.NoErrorf(t, err, "%s did not become ready", name) {
 				assert.Less(t, resp.StatusCode, 400)
 				resp.Body.Close()

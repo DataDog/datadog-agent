@@ -29,11 +29,15 @@ const (
 	agentAPIPort   = 5001
 	guiPort        = 5002
 	guiAPIEndpoint = "/agent/gui/intent"
+	// Default IPC cert path on Linux (agent creates ipc_cert.pem next to auth_token).
+	ipcCertPathLinux = "/etc/datadog-agent/ipc_cert.pem"
+	ipcCertPathWin   = "C:\\ProgramData\\Datadog\\ipc_cert.pem"
 )
 
 // assertAgentsUseKey checks that all agents are using the given key.
-func getGUIIntentToken(t *assert.CollectT, host *components.RemoteHost, authtoken string) string {
-	hostHTTPClient := host.NewHTTPClient()
+func getGUIIntentToken(t *assert.CollectT, host *components.RemoteHost, authtoken string, ipcCertPath string) string {
+	client, err := host.NewHTTPClientWithIPCCert(ipcCertPath)
+	require.NoErrorf(t, err, "failed to create HTTP client with IPC cert")
 
 	apiEndpoint := &url.URL{
 		Scheme: "https",
@@ -46,7 +50,7 @@ func getGUIIntentToken(t *assert.CollectT, host *components.RemoteHost, authtoke
 
 	req.Header.Set("Authorization", "Bearer "+authtoken)
 
-	resp, err := hostHTTPClient.Do(req)
+	resp, err := client.Do(req)
 	require.NoErrorf(t, err, "failed to fetch intent token from %s", apiEndpoint.String())
 	defer resp.Body.Close()
 
@@ -59,8 +63,8 @@ func getGUIIntentToken(t *assert.CollectT, host *components.RemoteHost, authtoke
 }
 
 // assertGuiIsAvailable checks that the Agent GUI server is up and running.
-func getGUIClient(t *assert.CollectT, host *components.RemoteHost, authtoken string) *http.Client {
-	intentToken := getGUIIntentToken(t, host, authtoken)
+func getGUIClient(t *assert.CollectT, host *components.RemoteHost, authtoken string, ipcCertPath string) *http.Client {
+	intentToken := getGUIIntentToken(t, host, authtoken, ipcCertPath)
 
 	guiURL := url.URL{
 		Scheme: "http",

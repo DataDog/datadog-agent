@@ -9,6 +9,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -589,6 +591,62 @@ func (h *Host) NewHTTPClient() *http.Client {
 	return &http.Client{
 		Transport: h.httpTransport,
 	}
+}
+
+// NewHTTPClientWithIPCCert returns an *http.Client that uses the IPC client cert for mTLS
+// when connecting to agent HTTPS endpoints (e.g. process-agent, security-agent, core API).
+// The cert file is read from the remote host at ipcCertPath (e.g. /etc/datadog-agent/ipc_cert.pem).
+func (h *Host) NewHTTPClientWithIPCCert(ipcCertPath string) (*http.Client, error) {
+	cmd := h.ipcCertReadCommand(ipcCertPath)
+	content, err := h.Execute(cmd)
+	if err != nil {
+		return nil, fmt.Errorf("reading IPC cert from host: %w", err)
+	}
+	tlsConfig, err := buildTLSConfigFromIPCCertPEM([]byte(content))
+	if err != nil {
+		return nil, fmt.Errorf("building TLS config from IPC cert: %w", err)
+	}
+	transport := h.newHTTPTransportWithTLS(tlsConfig)
+	return &http.Client{Transport: transport}, nil
+}
+
+func (h *Host) ipcCertReadCommand(path string) string {
+	if h.osFamily == oscomp.WindowsFamily {
+		return "Get-Content -Raw -Path " + path
+	}
+	return "sudo cat " + path
+}
+
+// buildTLSConfigFromIPCCertPEM builds a client tls.Config from PEM bytes (cert block then key block).
+func buildTLSConfigFromIPCCertPEM(raw []byte) (*tls.Config, error) {
+	block, rest := pem.Decode(raw)
+	if block == nil || block.Type != "CERTIFICATE" {
+		return nil, errors.New("missing or invalid CERTIFICATE PEM block")
+	}
+	certPEM := pem.EncodeToMemory(block)
+	block, _ = pem.Decode(rest)
+	if block == nil || (block.Type != "EC PRIVATE KEY" && block.Type != "PRIVATE KEY") {
+		return nil, errors.New("missing or invalid private key PEM block")
+	}
+	keyPEM := pem.EncodeToMemory(block)
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(certPEM) {
+		return nil, errors.New("failed to append certificate to pool")
+	}
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return nil, err
+	}
+	return &tls.Config{
+		RootCAs:      pool,
+		Certificates: []tls.Certificate{cert},
+	}, nil
+}
+
+func (h *Host) newHTTPTransportWithTLS(tlsConfig *tls.Config) *http.Transport {
+	base := h.newHTTPTransport()
+	base.TLSClientConfig = tlsConfig.Clone()
+	return base
 }
 
 func (h *Host) newHTTPTransport() *http.Transport {

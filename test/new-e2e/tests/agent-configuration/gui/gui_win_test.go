@@ -68,7 +68,7 @@ func (v *guiWindowsSuite) TestGUI() {
 	var guiClient *http.Client
 	// and check that the agents are using the new key
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		guiClient = getGUIClient(t, v.Env().RemoteHost, authtoken)
+		guiClient = getGUIClient(t, v.Env().RemoteHost, authtoken, ipcCertPathWin)
 	}, 1*time.Minute, 10*time.Second)
 
 	v.T().Log("Testing GUI static file server")

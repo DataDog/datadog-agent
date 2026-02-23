@@ -37,6 +37,7 @@ type Params struct {
 
 	AuthToken         string
 	AuthTokenPath     string
+	IPCCertPath       string // path to IPC cert PEM on the remote host (for mTLS to agent APIs)
 	ProcessAgentPort  int
 	TraceAgentPort    int
 	SecurityAgentPort int
@@ -53,6 +54,7 @@ func NewParams(osfam osComp.Family, options ...Option) *Params {
 	p := &Params{
 		ShouldWaitForReady: true,
 		AuthTokenPath:      defaultAuthTokenPath(osfam),
+		IPCCertPath:        defaultIPCCertPath(osfam),
 		WaitForDuration:    1 * time.Minute,
 		WaitForTick:        5 * time.Second,
 	}
@@ -94,6 +96,14 @@ func WithAuthToken(authToken string) Option {
 func WithAuthTokenPath(path string) Option {
 	return func(p *Params) {
 		p.AuthTokenPath = path
+	}
+}
+
+// WithIPCCertPath sets the path to the IPC certificate file on the remote host.
+// Used for mTLS when connecting to agent HTTPS endpoints (process-agent, security-agent, core API).
+func WithIPCCertPath(path string) Option {
+	return func(p *Params) {
+		p.IPCCertPath = path
 	}
 }
 
@@ -155,6 +165,18 @@ func defaultAuthTokenPath(osfam osComp.Family) string {
 		return "C:\\ProgramData\\Datadog\\auth_token"
 	case osComp.MacOSFamily:
 		return "/opt/datadog-agent/etc/auth_token"
+	}
+	panic(fmt.Sprintf("unsupported OS family %d", osfam))
+}
+
+func defaultIPCCertPath(osfam osComp.Family) string {
+	switch osfam {
+	case osComp.LinuxFamily:
+		return "/etc/datadog-agent/ipc_cert.pem"
+	case osComp.WindowsFamily:
+		return "C:\\ProgramData\\Datadog\\ipc_cert.pem"
+	case osComp.MacOSFamily:
+		return "/opt/datadog-agent/etc/ipc_cert.pem"
 	}
 	panic(fmt.Sprintf("unsupported OS family %d", osfam))
 }
