@@ -26,8 +26,6 @@ const FILTER_ONLY_Q_LOG = false
 
 var tlmAnomalyCount = atomic.Int64{}
 
-// var tlm = atomic.Int64{}
-
 // PatternLogProcessor is a log processor that detects patterns in logs.
 type PatternLogProcessor struct {
 	ClustererPipeline *patterns.MultiThreadPipeline
