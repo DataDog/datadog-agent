@@ -166,7 +166,7 @@ func (r *Runner) builtin(ctx context.Context, pos syntax.Pos, name string, args 
 			r.out(arg)
 		}
 		if newline {
-			r.out("\n--\n")
+			r.out("\n")
 		}
 	case "printf":
 		if len(args) == 0 {
