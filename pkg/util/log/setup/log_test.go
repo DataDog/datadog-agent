@@ -6,7 +6,6 @@
 package logs
 
 import (
-	"log/slog"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -22,12 +21,10 @@ func BenchmarkSlogParallel(b *testing.B) {
 	b.StopTimer()
 
 	cfg := initConfig(b)
-	logger, levelVar, err := cfg.SlogLogger()
+	logger, err := cfg.SlogLogger()
 	require.NoError(b, err)
 	require.NotNil(b, logger)
-
-	levelVar.Set(slog.LevelDebug)
-	log.SetupLoggerWithLevelVar(logger, levelVar)
+	log.SetupLogger(logger, "debug")
 
 	runLogParallel(b)
 }
@@ -52,12 +49,10 @@ func BenchmarkSlogLogger(b *testing.B) {
 	b.StopTimer()
 
 	cfg := initConfig(b)
-	logger, levelVar, err := cfg.SlogLogger()
+	logger, err := cfg.SlogLogger()
 	require.NoError(b, err)
 	require.NotNil(b, logger)
-
-	levelVar.Set(slog.LevelDebug)
-	log.SetupLoggerWithLevelVar(logger, levelVar)
+	log.SetupLogger(logger, "debug")
 
 	runLog(b)
 }
