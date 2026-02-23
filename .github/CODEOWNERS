@@ -27,9 +27,8 @@
 /.bazel*                                @DataDog/agent-build
 /bazel/                                 @DataDog/agent-build
 /bazel/configs/sdagent.bazelrc               @DataDog/agent-discovery
+/bazel/configs/procmgrd.bazelrc              @DataDog/agent-runtimes
 /MODULE.bazel*                          @DataDog/agent-build
-# Temporary during Bazel migration
-/**/BUILD.bazel                         @DataDog/agent-build
 /deps/                                  @DataDog/agent-build
 
 # The owner should really be to a team that does not exist yet. It would cover supply chain in general.
@@ -125,10 +124,11 @@
 /.gitlab/build/source_test/kmt_tasks.yml                   @DataDog/ebpf-platform
 
 /.gitlab/build/binary_build/cluster_agent_cloudfoundry.yml @DataDog/agent-integrations @DataDog/agent-build
-/.gitlab/build/binary_build/cluster_agent.yml              @DataDog/container-integrations @DataDog/agent-build
+/.gitlab/build/binary_build/cluster_agent.yml              @DataDog/container-platform @DataDog/agent-build
 /.gitlab/build/binary_build/fakeintake.yml                 @DataDog/agent-devx
 /.gitlab/build/binary_build/host_profiler.yml              @DataDog/opentelemetry-agent @DataDog/profiling-full-host @DataDog/agent-build
 /.gitlab/build/binary_build/system_probe.yml               @DataDog/ebpf-platform @DataDog/agent-build
+/.gitlab/build/binary_build/dd_procmgrd.yml               @DataDog/agent-runtimes @DataDog/agent-build
 /.gitlab/build/binary_build/windows.yml                    @DataDog/agent-build @DataDog/windows-products
 
 /.gitlab/build/source_test/codeql_scan.yml                 @DataDog/sdlc-security
@@ -164,7 +164,7 @@
 /.gitlab/test/kernel_matrix_testing/security_agent.yml    @DataDog/agent-security
 
 /.gitlab/.pre/common/container_publish_job_templates.yml  @DataDog/container-integrations @DataDog/agent-delivery
-/.gitlab/deploy/container_build/                            @DataDog/container-integrations @DataDog/agent-build
+/.gitlab/deploy/container_build/                            @DataDog/container-platform @DataDog/agent-build
 /.gitlab/deploy/container_build/docker_windows*             @DataDog/agent-build @DataDog/windows-products
 
 /.gitlab/deploy/dev_container_deploy/                       @DataDog/container-integrations @DataDog/agent-delivery
@@ -255,6 +255,7 @@
 /cmd/system-probe/modules/ping*         @DataDog/ndm-core
 /cmd/system-probe/modules/language_detection* @DataDog/container-experiences @DataDog/agent-discovery
 /cmd/system-probe/modules/dynamic_instrumentation* @DataDog/debugger-go
+/cmd/system-probe/modules/noisy_neighbor* @DataDog/container-experiences
 /cmd/system-probe/windows/              @DataDog/windows-products
 /cmd/system-probe/windows_resources/    @DataDog/windows-products
 /cmd/system-probe/main_windows*.go      @DataDog/windows-products
@@ -268,7 +269,7 @@
 /cmd/security-agent/                    @DataDog/agent-security
 /cmd/security-agent/subcommands/compliance/ @DataDog/agent-cspm
 /cmd/installer/                         @DataDog/fleet @DataDog/windows-products
-/cmd/host-profiler/                     @DataDog/opentelemetry-agent
+/cmd/host-profiler/                     @DataDog/opentelemetry-agent @DataDog/profiling-full-host
 
 /dev/                                   @DataDog/agent-devx
 /devenv/                                @DataDog/agent-devx
@@ -302,7 +303,7 @@
 /omnibus/package-scripts/installer-deb/ @DataDog/agent-build @DataDog/fleet
 /omnibus/package-scripts/installer-rpm/ @DataDog/agent-build @DataDog/fleet
 /omnibus/python-scripts/                @DataDog/agent-integrations @DataDog/windows-products
-/omnibus/config/patches/openscap/                         @DataDog/agent-cspm
+/deps/openscap/patches                  @DataDog/agent-cspm
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
 /omnibus/config/software/datadog-security-agent*.rb       @DataDog/agent-security @DataDog/agent-build
 /omnibus/config/software/openscap.rb                      @DataDog/agent-build @DataDog/agent-cspm
@@ -460,6 +461,7 @@
 /comp/core/autodiscovery/providers/process_log*.go @DataDog/agent-discovery @DataDog/agent-log-pipelines
 /comp/core/autodiscovery/providers/remote_config*.go  @DataDog/fleet
 /comp/core/autodiscovery/providers/datastreams @DataDog/data-streams-monitoring
+/comp/core/gui/guiimpl/systray/ @DataDog/windows-products @DataDog/agent-configuration
 /pkg/cloudfoundry                       @DataDog/agent-integrations
 /pkg/clusteragent/                      @DataDog/container-platform
 /pkg/clusteragent/autoscaling/          @DataDog/container-autoscaling
@@ -482,8 +484,11 @@
 /pkg/collector/corechecks/discovery/ @DataDog/agent-discovery
 /pkg/collector/corechecks/ebpf/                       @DataDog/container-integrations
 /pkg/collector/corechecks/ebpf/ebpf*                  @DataDog/ebpf-platform
+/pkg/collector/corechecks/ebpf/noisyneighbor/         @DataDog/container-experiences
 /pkg/collector/corechecks/ebpf/probe/ebpfcheck/       @DataDog/ebpf-platform
+/pkg/collector/corechecks/ebpf/probe/noisyneighbor/   @DataDog/container-experiences
 /pkg/collector/corechecks/ebpf/c/runtime/ebpf*        @DataDog/ebpf-platform
+/pkg/collector/corechecks/ebpf/c/runtime/noisy-neighbor*    @DataDog/container-experiences
 /pkg/collector/corechecks/embed/                   @DataDog/agent-delivery
 /pkg/collector/corechecks/embed/apm/               @DataDog/agent-apm
 /pkg/collector/corechecks/embed/process/           @DataDog/container-experiences
@@ -544,8 +549,9 @@
 /pkg/opentelemetry-mapping-go           @DataDog/opentelemetry-agent
 /pkg/pidfile/                           @DataDog/agent-runtimes
 /pkg/persistentcache/                   @DataDog/agent-runtimes
+/pkg/procmgr/                           @DataDog/agent-runtimes
 /pkg/privateactionrunner/               @DataDog/action-platform
-/pkg/privateactionrunner/bundles/networkpath  @DataDog/action-platform @Datadog/network-path
+/pkg/privateactionrunner/bundles/ddagent/networkpath  @DataDog/action-platform @Datadog/network-path
 /pkg/proto/                             @DataDog/agent-runtimes
 /pkg/proto/datadog/languagedetection    @DataDog/container-experiences
 /pkg/proto/datadog/privateactionrunner  @DataDog/action-platform
@@ -693,8 +699,9 @@
 /pkg/networkpath/traceroute/            @DataDog/cloud-network-monitoring @DataDog/windows-products @DataDog/network-path
 /pkg/collector/corechecks/networkpath/  @DataDog/cloud-network-monitoring @DataDog/network-path
 
-/releasenotes/                          @DataDog/documentation
-/releasenotes-dca/                      @DataDog/documentation
+# release notes accompany code changes, so code owners will review anyway
+/releasenotes/                          # do not notify anyone
+/releasenotes-dca/                      # do not notify anyone
 
 /rtloader/                              @DataDog/agent-runtimes
 
@@ -773,6 +780,9 @@
 /test/fakeintake/aggregator/ndmAggregator_test.go @DataDog/ndm-core
 /test/fakeintake/aggregator/ndmflowAggregator.go @DataDog/ndm-integrations
 /test/fakeintake/aggregator/ndmflowAggregator_test.go @DataDog/ndm-integrations
+/test/fakeintake/aggregator/agenthealthAggregator.go @DataDog/agent-health
+/test/fakeintake/aggregator/agenthealthAggregator_test.go @DataDog/agent-health
+/test/fakeintake/client/fixtures/api_v2_agenthealth_response @DataDog/agent-health
 /test/new-e2e/                                 @DataDog/agent-devx
 /test/new-e2e/test-infra-definition           @DataDog/agent-devx
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform
@@ -782,6 +792,7 @@
 /test/new-e2e/tests/agent-platform/common/agent_integration.go @DataDog/agent-integrations
 /test/new-e2e/tests/agent-runtimes            @DataDog/agent-runtimes
 /test/new-e2e/tests/agent-configuration       @DataDog/agent-configuration
+/test/new-e2e/tests/agent-health              @DataDog/agent-health
 /test/new-e2e/tests/agent-metric-pipelines    @DataDog/agent-metric-pipelines
 /test/new-e2e/tests/agent-subcommands             @DataDog/agent-configuration
 /test/new-e2e/tests/agent-subcommands/check       @DataDog/agent-runtimes
@@ -831,7 +842,7 @@
 /test/new-e2e/examples/ecs_test.go           @DataDog/ecs-experiences
 /test/otel/                                   @DataDog/opentelemetry-agent
 /test/static/                                 @DataDog/agent-build
-/test/static/static_quality_gates.yml        @DataDog/agent-build @cmourot @dd-ddamien
+/test/static/static_quality_gates.yml        @DataDog/agent-build @DataDog/container-platform @cmourot @dd-ddamien
 /test/benchmarks/apm_scripts/                 @DataDog/agent-apm
 /test/regression/                             @DataDog/single-machine-performance
 /test/regression/cases/docker_containers*     @DataDog/single-machine-performance @DataDog/container-integrations
@@ -855,6 +866,10 @@
 /internal/third_party/kubernetes        @DataDog/container-integrations
 /internal/third_party/golang/           @DataDog/container-integrations
 
+# Temporary during Bazel migration
+# This needs to go after all other rules that may include BUILD.bazel files, it otherwise gets overridden
+/**/BUILD.bazel                         @DataDog/agent-build
+
 # With the introduction of go.work, dependencies bump modify go.mod and go.sum in a lot of file.
 # Which bring a lot of team in the review each time. To make it smoother we no longer consider go.mod and go.sum owned by teams.
 # Each team can individually decide to update CODEOWNERS to be requested for a review on each modification of their go.mod/sum
@@ -862,12 +877,6 @@
 /**/go.sum                              # do not notify anyone
 
 # Add here modules that need explicit review from the team owning them
-/internal/tools/**/go.mod                @DataDog/agent-devx
-/internal/tools/**/go.sum                @DataDog/agent-devx
-
-/pkg/fleet/installer/go.mod              @DataDog/fleet
-/pkg/fleet/installer/go.sum              @DataDog/fleet
-
 /pkg/util/scrubber/go.mod                @DataDog/agent-runtimes
 /pkg/util/scrubber/go.sum                @DataDog/agent-runtimes
 

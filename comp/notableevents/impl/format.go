@@ -191,3 +191,24 @@ func formatMsiInstaller1034Payload(payload *eventPayload, eventData map[string]i
 		payload.Message = fmt.Sprintf("Removal of %s failed with exit code %s", productName, formatMsiExitCode(exitCode))
 	}
 }
+
+// formatUnexpectedRebootPayload customizes the payload for unexpected reboot events
+// (Microsoft-Windows-Kernel-Power / Event ID 41).
+// Distinguishes between regular unexpected reboots (BugcheckCode=0) and
+// bugcheck-caused reboots (BugcheckCode!=0).
+func formatUnexpectedRebootPayload(payload *eventPayload, eventData map[string]interface{}) {
+	data := getEventDataMap(eventData)
+	if data == nil {
+		return
+	}
+
+	bugcheckCodeStr, _ := data["BugcheckCode"].(string)
+	bugcheckCode, _ := strconv.Atoi(bugcheckCodeStr)
+
+	if bugcheckCode != 0 {
+		payload.EventType = "System crash"
+		payload.Title = fmt.Sprintf("System crash (bugcheck code:0x%X)", bugcheckCode)
+		payload.Message = fmt.Sprintf("The system crashed with bugcheck code 0x%X", bugcheckCode)
+	}
+	// If BugcheckCode=0, keep the default "Unexpected reboot" values
+}

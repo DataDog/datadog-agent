@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	spath "github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -70,12 +71,13 @@ type EBPFResolver struct {
 	statsdClient statsd.ClientInterface
 	scrubber     *utils.Scrubber
 
-	mountResolver     mount.ResolverInterface
-	cgroupResolver    *cgroup.Resolver
-	userGroupResolver *usergroup.Resolver
-	timeResolver      *stime.Resolver
-	pathResolver      spath.ResolverInterface
-	envVarsResolver   *envvars.Resolver
+	mountResolver       mount.ResolverInterface
+	cgroupResolver      *cgroup.Resolver
+	userGroupResolver   *usergroup.Resolver
+	timeResolver        *stime.Resolver
+	pathResolver        spath.ResolverInterface
+	envVarsResolver     *envvars.Resolver
+	userSessionResolver *usersessions.Resolver
 
 	inodeFileMap ebpf.Map
 	procCacheMap ebpf.Map
@@ -1390,6 +1392,11 @@ func (p *EBPFResolver) newEntryFromProcfs(proc *process.Process, filledProc *uti
 		seclog.Debugf("unable to set the type of process, not pid 1, no parent in cache: %+v", entry)
 	}
 
+	// snapshot SSH session
+	if p.userSessionResolver != nil {
+		p.userSessionResolver.HandleSSHUserSessionFromPCE(entry)
+	}
+
 	// use an empty cgroup context to force the fallback to resolve the cgroup
 	// we don't want to use the cgroup of the entry has it can be inherited from the parent.
 	p.insertEntry(entry, model.CGroupContext{}, source)
@@ -1568,7 +1575,7 @@ func allInodeErrTags() []string {
 func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
 	scrubber *utils.Scrubber, mountResolver mount.ResolverInterface,
 	cgroupResolver *cgroup.Resolver, userGroupResolver *usergroup.Resolver, timeResolver *stime.Resolver,
-	pathResolver spath.ResolverInterface, envVarsResolver *envvars.Resolver, opts *ResolverOpts) (*EBPFResolver, error) {
+	pathResolver spath.ResolverInterface, envVarsResolver *envvars.Resolver, userSessionResolver *usersessions.Resolver, opts *ResolverOpts) (*EBPFResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint64, *argsEnvsCacheEntry](maxParallelArgsEnvs, nil)
 	if err != nil {
 		return nil, err
@@ -1603,6 +1610,7 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		timeResolver:              timeResolver,
 		pathResolver:              pathResolver,
 		envVarsResolver:           envVarsResolver,
+		userSessionResolver:       userSessionResolver,
 	}
 
 	for _, t := range metrics.AllTypesTags {
