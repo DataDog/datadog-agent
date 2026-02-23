@@ -23,7 +23,8 @@ import (
 )
 
 func FromDDConfig(config config.Component) (*Config, error) {
-	ddSite := getDatadogSite(config)
+	ddHost := configutils.GetMainEndpoint(config, "https://api.", "dd_url")
+	ddSite := configutils.ExtractSiteFromURL(ddHost)
 	encodedPrivateKey := config.GetString(setup.PARPrivateKey)
 	urn := config.GetString(setup.PARUrn)
 
@@ -82,8 +83,8 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		ActionsAllowlist:          makeActionsAllowlist(config),
 		Allowlist:                 config.GetStringSlice(setup.PARHttpAllowlist),
 		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
-		DDHost:                    strings.Join([]string{"api", ddSite}, "."),
-		DDApiHost:                 strings.Join([]string{"api", ddSite}, "."),
+		DDHost:                    ddHost,
+		DDApiHost:                 ddHost,
 		Modes:                     []modes.Mode{modes.ModePull},
 		OrgId:                     orgID,
 		PrivateKey:                privateKey,
@@ -111,12 +112,6 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 	}
 
 	return allowlist
-}
-
-func getDatadogSite(config config.Component) string {
-	// This handles dd_url, site, and default site in the correct precedence
-	endpoint := configutils.GetMainEndpoint(config, "https://api.", "dd_url")
-	return configutils.ExtractSiteFromURL(endpoint)
 }
 
 func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[string]) map[string]sets.Set[string] {

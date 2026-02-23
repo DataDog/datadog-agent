@@ -10,9 +10,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/util/sets"
-
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestGetBundleInheritedAllowedActions(t *testing.T) {
@@ -69,61 +66,6 @@ func TestGetBundleInheritedAllowedActions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := GetBundleInheritedAllowedActions(tt.actionsAllowlist)
 			assert.Equal(t, tt.expectedInheritedActions, result)
-		})
-	}
-}
-
-func TestGetDatadogSite(t *testing.T) {
-	tests := []struct {
-		name         string
-		ddURL        string
-		site         string
-		expectedSite string
-	}{
-		{
-			name:         "dd_url takes precedence and site is extracted",
-			ddURL:        "https://app.datadoghq.eu",
-			site:         "datadoghq.com",
-			expectedSite: "datadoghq.eu",
-		},
-		{
-			name:         "dd_url with US3 site",
-			ddURL:        "https://app.us3.datadoghq.com",
-			site:         "",
-			expectedSite: "us3.datadoghq.com",
-		},
-		{
-			name:         "site config used when dd_url not set",
-			ddURL:        "",
-			site:         "datadoghq.eu",
-			expectedSite: "datadoghq.eu",
-		},
-		{
-			name:         "default site used when neither dd_url nor site is set",
-			ddURL:        "",
-			site:         "",
-			expectedSite: setup.DefaultSite,
-		},
-		{
-			name:         "site config used when dd_url is empty string",
-			ddURL:        "",
-			site:         "us5.datadoghq.com",
-			expectedSite: "us5.datadoghq.com",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := configmock.New(t)
-			if tt.ddURL != "" {
-				cfg.SetWithoutSource("dd_url", tt.ddURL)
-			}
-			if tt.site != "" {
-				cfg.SetWithoutSource("site", tt.site)
-			}
-
-			result := getDatadogSite(cfg)
-			assert.Equal(t, tt.expectedSite, result)
 		})
 	}
 }
