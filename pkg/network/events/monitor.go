@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	chanSize = 100
+	chanSize = 10000
 )
 
 var (

@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	maxProcessQueueLen = 100
+	maxProcessQueueLen = 10000
 	// maxProcessListSize is the max size of a processList
 	maxProcessListSize     = 3
 	processCacheModuleName = "network_tracer__process_cache"
