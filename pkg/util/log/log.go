@@ -18,14 +18,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"strings"
 	"sync"
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -54,7 +52,7 @@ var (
 // DatadogLogger wrapper structure for seelog
 type DatadogLogger struct {
 	inner LoggerInterface
-	level *slog.LevelVar
+	level LogLevel
 	l     sync.RWMutex
 }
 
@@ -64,20 +62,7 @@ type DatadogLogger struct {
 
 // SetupLogger setup agent wide logger
 func SetupLogger(i LoggerInterface, level string) {
-	logLevel, err := ValidateLogLevel(level)
-	if err != nil {
-		logLevel = InfoLvl
-	}
-
-	levelVar := &slog.LevelVar{}
-	levelVar.Set(types.ToSlogLevel(logLevel))
-
-	SetupLoggerWithLevelVar(i, levelVar)
-}
-
-// SetupLoggerWithLevelVar setup agent wide logger with support for dynamic log level changes
-func SetupLoggerWithLevelVar(i LoggerInterface, level *slog.LevelVar) {
-	setupCommonLogger(i, level)
+	logger.Store(setupCommonLogger(i, level))
 
 	// Flush the log entries logged before initialization now that the logger is initialized
 	bufferMutex.Lock()
@@ -88,11 +73,16 @@ func SetupLoggerWithLevelVar(i LoggerInterface, level *slog.LevelVar) {
 	logsBuffer = []func(){}
 }
 
-func setupCommonLogger(i LoggerInterface, level *slog.LevelVar) {
+func setupCommonLogger(i LoggerInterface, level string) *DatadogLogger {
 	l := &DatadogLogger{
 		inner: i,
-		level: level,
 	}
+
+	lvl, err := ValidateLogLevel(level)
+	if err != nil {
+		lvl = InfoLvl
+	}
+	l.level = lvl
 
 	// We're not going to call DatadogLogger directly, but using the
 	// exported functions, that will give us two frames in the stack
@@ -103,16 +93,7 @@ func setupCommonLogger(i LoggerInterface, level *slog.LevelVar) {
 	// below cannot be performed.
 	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
 
-	oldLogger := logger.Load()
-	logger.Store(l)
-
-	if oldLogger != nil {
-		oldLogger.l.Lock()
-		if oldLogger.inner != nil {
-			oldLogger.inner.Close()
-		}
-		oldLogger.l.Unlock()
-	}
+	return l
 }
 
 func addLogToBuffer(logHandle func()) {
@@ -134,11 +115,23 @@ func (sw *DatadogLogger) scrub(s string) string {
  */
 
 // ChangeLogLevel changes the current log level, valid levels are trace, debug,
-// info, warn, error, critical and off.
-func ChangeLogLevel(level LogLevel) error {
-	return logger.changeLogLevel(level)
-}
+// info, warn, error, critical and off, it requires a new seelog logger because
+// an existing one cannot be updated
+func ChangeLogLevel(li LoggerInterface, level LogLevel) error {
+	if err := logger.changeLogLevel(level); err != nil {
+		return err
+	}
 
+	// See detailed explanation in SetupLogger(...)
+	if err := li.SetAdditionalStackDepth(defaultStackDepth); err != nil {
+		return err
+	}
+
+	logger.replaceInnerLogger(li)
+	return nil
+
+	// need to return something, just set to Info (expected default)
+}
 func (sw *loggerPointer) changeLogLevel(level LogLevel) error {
 	l := sw.Load()
 	if l == nil {
@@ -152,8 +145,7 @@ func (sw *loggerPointer) changeLogLevel(level LogLevel) error {
 		return errors.New("cannot change loglevel: logger is initialized however logger.inner is nil")
 	}
 
-	l.level.Set(types.ToSlogLevel(level))
-
+	l.level = level
 	return nil
 }
 
@@ -174,7 +166,7 @@ func (sw *loggerPointer) getLogLevel() (LogLevel, error) {
 		return InfoLvl, errors.New("cannot get loglevel: logger not initialized")
 	}
 
-	return types.FromSlogLevel(l.level.Level()), nil
+	return l.level, nil
 }
 
 // ShouldLog returns whether a given log level should be logged by the default logger
@@ -191,7 +183,7 @@ func ShouldLog(lvl LogLevel) bool {
 
 // This function should be called with `sw.l` held
 func (sw *DatadogLogger) shouldLog(level LogLevel) bool {
-	return level >= types.FromSlogLevel(sw.level.Level())
+	return level >= sw.level
 }
 
 // ValidateLogLevel validates the given log level and returns the corresponding Seelog log level.
@@ -213,6 +205,27 @@ func ValidateLogLevel(logLevel string) (LogLevel, error) {
 /*
 *	Operation on the **logger**
  */
+
+func (sw *loggerPointer) replaceInnerLogger(li LoggerInterface) {
+	l := sw.Load()
+	if l == nil {
+		return
+	}
+
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	if l.inner == nil {
+		return
+	}
+
+	old := l.inner
+	l.inner = li
+
+	old.Flush()
+	old.Close()
+
+}
 
 // Flush flushes the underlying inner log
 func Flush() {
