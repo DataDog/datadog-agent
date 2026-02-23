@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
-
 package rofspermissions
 
 import (
@@ -34,7 +32,7 @@ func (t *RofsPermissionIssue) BuildIssue(context map[string]string) (*healthplat
 	directories := strings.Split(directoriesStr, ",")
 
 	extra, err := structpb.NewStruct(map[string]any{
-		"directories": directories,
+		"directories": directoriesStr,
 		"impact":      "The Agent cannot start or function correctly without write access to these directories.",
 	})
 	if err != nil {
@@ -76,6 +74,6 @@ func (t *RofsPermissionIssue) BuildIssue(context map[string]string) (*healthplat
 		Source:      "agent",
 		Extra:       extra,
 		Remediation: remediation,
-		Tags:        []string{"permissions", "startup", "configuration"},
+		Tags:        []string{},
 	}, nil
 }

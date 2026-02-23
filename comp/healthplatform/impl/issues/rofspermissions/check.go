@@ -3,11 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
-
 package rofspermissions
 
 import (
+	"runtime"
 	"strings"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
@@ -18,8 +17,11 @@ import (
 
 // Check if all directories agent could write to are writable by the agent.
 func Check(cfg config.Component) (*healthplatform.IssueReport, error) {
+	if runtime.GOOS != "linux" {
+		return nil, nil
+	}
+
 	writeDirs := []string{
-		cfg.GetString("conf_path"),
 		cfg.GetString("run_path"),
 	}
 
@@ -46,7 +48,7 @@ func Check(cfg config.Component) (*healthplatform.IssueReport, error) {
 			"directories": strings.Join(nonWritableDirs, ","),
 		},
 	}
-	if len(nonWritableDirs) > 0 {
+	if len(nonWritableDirs) == 0 {
 		return nil, nil
 	}
 	return report, nil

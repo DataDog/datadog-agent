@@ -6,8 +6,10 @@
 package filesystem
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"syscall"
 )
 
 // IsWritable is used to verify if a directory is writable by the current process.
@@ -16,7 +18,7 @@ func IsWritable(dir string) (bool, error) {
 	if !FileExists(dir) {
 		err := os.Mkdir(dir, 0755)
 		// If we can't create the directory, it's not writable.
-		if os.IsPermission(err) {
+		if os.IsPermission(err) || errors.Is(err, syscall.EROFS) {
 			return false, nil
 		}
 
@@ -27,7 +29,7 @@ func IsWritable(dir string) (bool, error) {
 
 	tempFile, err := os.CreateTemp(dir, ".agent-write-test-*")
 	if err != nil {
-		if os.IsPermission(err) {
+		if os.IsPermission(err) || errors.Is(err, syscall.EROFS) {
 			return false, nil
 		}
 		return false, fmt.Errorf("failed to create temp file: %w", err)
