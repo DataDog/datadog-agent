@@ -3408,6 +3408,87 @@ func (s *TracerSuite) TestTCPCongestionSignals() {
 			conn.TCPReordSeen, conn.TCPCAState, conn.TCPRTOCount, conn.TCPRecoveryCount, conn.TCPProbe0Count)
 		assert.Greater(ct, conn.TCPDelivered, uint32(0), "delivered should be > 0 after successful send")
 		assert.Greater(ct, conn.TCPRTOCount, uint32(0), "rto_count should be > 0 after RTO")
+		assert.Greater(ct, conn.TCPBytesRetrans, uint64(0), "bytes_retrans should be > 0 after retransmits")
+	}, 5*time.Second, 100*time.Millisecond)
+}
+
+// TestTCPZeroWindowProbe validates the probe0_count signal by creating a
+// connection where the receiver stops reading, causing the receive buffer to
+// fill and the receiver to advertise window=0. The sender then sends
+// zero-window probes which are counted by the kprobe/tcp_send_probe0 handler.
+func (s *TracerSuite) TestTCPZeroWindowProbe() {
+	t := s.T()
+	cfg := testConfig()
+	if isPrebuilt(cfg) {
+		t.Skip("congestion signals not available on prebuilt")
+	}
+	skipOnEbpflessNotSupported(t, cfg)
+
+	tr := setupTracer(t, cfg)
+
+	// Server accepts but never reads — receive buffer will fill up.
+	acceptCh := make(chan net.Conn, 1)
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+		acceptCh <- c
+		// Block until test cleanup closes us.
+		select {}
+	})
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
+
+	c, err := server.Dial()
+	require.NoError(t, err)
+	defer c.Close()
+
+	// Wait for the server to accept so we can clamp the receive window.
+	serverConn := <-acceptCh
+	defer serverConn.Close()
+	tcpServerConn, ok := serverConn.(*net.TCPConn)
+	require.True(t, ok)
+
+	// TCP_WINDOW_CLAMP limits the advertised receive window directly,
+	// regardless of buffer size or auto-tuning. Setting it to 1 forces
+	// the receiver to quickly advertise window=0.
+	rawConn, err := tcpServerConn.SyscallConn()
+	require.NoError(t, err)
+	err = rawConn.Control(func(fd uintptr) {
+		// TCP_WINDOW_CLAMP = 10
+		if e := syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, 10, 1); e != nil {
+			t.Logf("TCP_WINDOW_CLAMP setsockopt failed: %v", e)
+		}
+	})
+	require.NoError(t, err)
+
+	// Write data until the send blocks (receiver window clamped → window=0).
+	// Use a short write deadline so we don't hang forever.
+	chunk := make([]byte, 1024)
+	c.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	for {
+		_, err = c.Write(chunk)
+		if err != nil {
+			break // write blocked or deadline exceeded — receiver window is 0
+		}
+	}
+
+	// Wait for zero-window probes to fire. The kernel sends probes with
+	// exponential backoff starting at RTO (~200ms).
+	time.Sleep(3 * time.Second)
+
+	// Read one byte on the server side to briefly open the window,
+	// which causes the sender to transmit (triggering a sendmsg snapshot).
+	buf := make([]byte, 1)
+	serverConn.Read(buf)
+
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		conn, found := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		if !assert.True(ct, found, "connection not found") {
+			return
+		}
+		t.Logf("Zero-window signals: probe0_count=%d packets_out=%d delivered=%d",
+			conn.TCPProbe0Count, conn.TCPPacketsOut, conn.TCPDelivered)
+		assert.Greater(ct, conn.TCPProbe0Count, uint32(0), "probe0_count should be > 0 after zero-window")
 	}, 5*time.Second, 100*time.Millisecond)
 }
 
