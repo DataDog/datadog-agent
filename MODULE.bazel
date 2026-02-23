@@ -42,6 +42,7 @@ bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "gazelle", version = "0.47.0")
 bazel_dep(name = "libarchive", version = "3.8.1")
 bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "re.bzl", version = "0.2.0")
 bazel_dep(name = "rules_go", version = "0.60.0")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
 bazel_dep(name = "rules_python", version = "1.8.4")
@@ -244,6 +245,9 @@ include("//deps/compile_policy:compile_policy.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/cpython:cpython.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/curl:curl.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/freetds:freetds.MODULE.bazel")
