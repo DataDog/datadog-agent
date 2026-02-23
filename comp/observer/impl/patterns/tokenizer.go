@@ -6,6 +6,8 @@
 package patterns
 
 import (
+	"fmt"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -956,18 +958,32 @@ const (
 // It is based on the first severity token found
 func GetSeverity(tokens []Token) int {
 	for _, token := range tokens {
-		if token.Type == TypeSeverity {
-			switch strings.ToUpper(token.Value) {
-			case "DEBUG", "D":
-				return SEVERITY_DEBUG
-			case "INFO", "I":
-				return SEVERITY_INFO
-			case "ERROR", "ERR", "E", "WARNING", "WARN", "W":
-				return SEVERITY_ERROR
-			default:
-				return SEVERITY_UNKNOWN
-			}
+		// We cannot use severity token type because it's not always parsed for that
+		switch strings.ToUpper(token.Value) {
+		case "DEBUG", "D":
+			return SEVERITY_DEBUG
+		case "INFO", "I":
+			return SEVERITY_INFO
+		case "ERROR", "ERR", "E", "WARNING", "WARN", "W":
+			return SEVERITY_ERROR
 		}
 	}
 	return SEVERITY_UNKNOWN
+}
+
+func GetSeverityString(severity int) string {
+	switch severity {
+	case SEVERITY_DEBUG:
+		return "DEBUG"
+	case SEVERITY_INFO:
+		return "INFO"
+	case SEVERITY_ERROR:
+		return "ERROR"
+	case SEVERITY_UNKNOWN:
+		return "UNKNOWN"
+	default:
+		fmt.Fprintf(os.Stderr, "warning: Invalid severity: %d\n", severity)
+
+		return "UNKNOWN"
+	}
 }

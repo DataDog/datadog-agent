@@ -586,4 +586,5 @@ func TestGetSeverity(t *testing.T) {
 	assert.Equal(t, SEVERITY_INFO, GetSeverity(tok.Tokenize("INFO: session write failed: dial tcp 10.96.103.154:6379: connect: connection refused")))
 	assert.Equal(t, SEVERITY_UNKNOWN, GetSeverity(tok.Tokenize("yyyy-MM-dd HH:mm:ss,SSS - Some log")))
 	assert.Equal(t, SEVERITY_DEBUG, GetSeverity(tok.Tokenize("yyyy-MM-dd HH:mm:ss,SSS [DEBUG] - Some log")))
+	assert.Equal(t, SEVERITY_INFO, GetSeverity(tok.Tokenize("[2026-02-23T17:15:20.385Z] Info : [us1-ddbuild-io] New rules in place")))
 }

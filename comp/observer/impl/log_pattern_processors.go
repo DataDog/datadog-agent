@@ -51,7 +51,8 @@ func NewPatternLogProcessor(anomalyDetectors []PatternLogAnomalyDetector) *Patte
 	go func() {
 		for result := range resultChannel {
 			if result.ClusterResult.IsNew {
-				fmt.Printf("[cc] Processor: New cluster: (ID: %d) %+v\n", result.ClusterResult.Cluster.ID, result.ClusterResult.Signature)
+				fmt.Printf("[cc] Processor: New cluster: (ID: %d, SEV: %s) %+v\n", result.ClusterResult.Cluster.ID, patterns.GetSeverityString(patterns.GetSeverity(result.ClusterResult.Cluster.Pattern)), result.ClusterResult.Signature)
+				fmt.Printf("[cc] Processor: New cluster sample: %s\n", result.ClusterResult.Cluster.Samples[0])
 			}
 			for _, anomalyDetector := range p.AnomalyDetectors {
 				anomalyDetector.Process(result.ClusterInput, result.ClusterResult)
