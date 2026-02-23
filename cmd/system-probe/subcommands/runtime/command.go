@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/clihelpers"
@@ -87,8 +86,7 @@ func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
-				core.Bundle(),
-				secretsnoopfx.Module(),
+				core.Bundle(false),
 			)
 		},
 	}
@@ -120,8 +118,7 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
-				core.Bundle(),
-				secretsnoopfx.Module(),
+				core.Bundle(false),
 			)
 		},
 	}
@@ -144,8 +141,7 @@ func commonReloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.C
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle(),
-				secretsnoopfx.Module(),
+				core.Bundle(false),
 			)
 		},
 	}
@@ -162,8 +158,7 @@ func selfTestCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle(),
-				secretsnoopfx.Module(),
+				core.Bundle(false),
 			)
 		},
 	}
@@ -193,8 +188,7 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
-				core.Bundle(),
-				secretsnoopfx.Module(),
+				core.Bundle(false),
 			)
 		},
 	}
@@ -229,8 +223,7 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle(),
-				secretsnoopfx.Module(),
+				core.Bundle(false),
 			)
 		},
 	}
@@ -268,8 +261,7 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle(),
-				secretsnoopfx.Module(),
+				core.Bundle(false),
 			)
 		},
 	}
@@ -295,8 +287,7 @@ func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle(),
-				secretsnoopfx.Module(),
+				core.Bundle(false),
 			)
 		},
 	}

@@ -36,7 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	extensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -84,11 +83,10 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 					"", // dogstatsDLogFilePath - not used for OTel Agent
 					"", // streamlogsLogFilePath - not used for OTel Agent
 				)),
-				core.Bundle(),
+				core.Bundle(true),
 				// Provide empty option for workloadmeta (optional dependency)
 				fx.Supply(option.None[workloadmeta.Component]()),
 				// Provide required modules
-				secretfx.Module(),
 				ipcfx.ModuleInsecure(),
 			)
 		},

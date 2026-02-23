@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -73,7 +72,7 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 
 	if cliParams.GlobalParams.CoreConfPath != "" {
 		opts = append(opts,
-			core.Bundle(),
+			core.Bundle(true),
 			remotehostnameimpl.Module(),
 			fx.Supply(core.BundleParams{
 				ConfigParams: config.NewAgentParams(cliParams.GlobalParams.CoreConfPath),
@@ -98,7 +97,6 @@ func run(collector collector.Component) error {
 func getRemoteTaggerOptions() []fx.Option {
 	return []fx.Option{
 		ipcfx.ModuleReadOnly(),
-		secretfx.Module(),
 		remoteTaggerFx.Module(tagger.NewRemoteParams()),
 	}
 }

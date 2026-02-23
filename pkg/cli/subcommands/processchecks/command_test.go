@@ -23,7 +23,6 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
-	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -62,9 +61,8 @@ func TestCommand(t *testing.T) {
 	getTestFxOptions := func(cliParams *CliParams, bundleParams core.BundleParams) []fx.Option {
 		return []fx.Option{
 			fx.Supply(cliParams, bundleParams),
-			core.Bundle(),
+			core.Bundle(true),
 			hostnameimpl.Module(),
-			secretsfx.Module(),
 
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			workloadfilterfxmock.MockModule(),

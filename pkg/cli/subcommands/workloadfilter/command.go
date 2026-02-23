@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -61,8 +60,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 						config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
 					),
 					LogParams: log.ForOneShot(globalParams.LoggerName, "off", true)}),
-				core.Bundle(),
-				secretsnoopfx.Module(),
+				core.Bundle(false),
 				workloadfilterfx.Module(),
 			)
 		},
