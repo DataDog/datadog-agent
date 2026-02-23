@@ -14,6 +14,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -28,6 +29,12 @@ const (
 	contentTypeHeader   = "Content-Type"
 	authorizationHeader = "Authorization"
 	applicationJSON     = "application/json"
+
+	// httpClientTimeout is the maximum time to wait for the HTTP request to complete
+	httpClientTimeout = 30 * time.Second
+
+	// maxResponseBodySize limits the response body to prevent memory exhaustion (1 MB should be more than enough for an API key response)
+	maxResponseBodySize = 1 * 1024 * 1024
 )
 
 // domainURLRegexp matches and captures known Datadog domains with optional protocol and trailing characters
@@ -37,10 +44,12 @@ var domainURLRegexp = regexp.MustCompile(`^(?:https?://)?[^./]+\.((?:[a-z]{2,}\d
 
 // getAPIDomain transforms intake/metrics endpoints (e.g., agent.datad0g.com) to API endpoints (e.g., app.datad0g.com)
 // for known Datadog domains. This ensures API operations use the correct subdomain.
+// If the endpoint doesn't match a known Datadog domain pattern, it is returned unchanged with a debug log.
 func getAPIDomain(endpoint string) string {
 	matches := domainURLRegexp.FindStringSubmatch(endpoint)
 	if matches == nil {
-		// Not a known Datadog domain, return unchanged
+		// Not a known Datadog domain pattern - this could be a custom endpoint or unexpected format
+		log.Debugf("Endpoint '%s' does not match known Datadog domain pattern, using unchanged", endpoint)
 		return endpoint
 	}
 
@@ -81,6 +90,7 @@ func GetAPIKey(cfg pkgconfigmodel.Reader, delegatedAuthProof string) (*string, e
 	transport := httputils.CreateHTTPTransport(cfg)
 	client := &http.Client{
 		Transport: transport,
+		Timeout:   httpClientTimeout,
 	}
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer([]byte("")))
 	if err != nil {
@@ -94,7 +104,9 @@ func GetAPIKey(cfg pkgconfigmodel.Reader, delegatedAuthProof string) (*string, e
 	}
 	defer resp.Body.Close()
 
-	tokenBytes, err := io.ReadAll(resp.Body)
+	// Limit response body size to prevent memory exhaustion from malicious/malformed responses
+	limitedReader := io.LimitReader(resp.Body, maxResponseBodySize)
+	tokenBytes, err := io.ReadAll(limitedReader)
 	if err != nil {
 		return nil, err
 	}

@@ -104,53 +104,76 @@ func newBackoff(refreshInterval time.Duration) *backoff.ExponentialBackOff {
 }
 
 // initializeIfNeeded performs lazy initialization on first AddInstance call.
-// Must be called with the write lock held.
-func (d *delegatedAuthComponent) initializeIfNeeded(params delegatedauth.InstanceParams) error {
+// Returns the provider config if initialized, or nil if not available.
+// This function performs cloud detection without holding locks to avoid blocking during network I/O.
+func (d *delegatedAuthComponent) initializeIfNeeded(ctx context.Context, params delegatedauth.InstanceParams) (common.ProviderConfig, error) {
+	// Quick check with read lock - if already initialized, return current config
+	d.mu.RLock()
 	if d.initialized {
-		return nil
+		providerConfig := d.providerConfig
+		storedConfig := d.config
+		d.mu.RUnlock()
+		// Warn if a different config is passed on subsequent calls
+		if storedConfig != params.Config {
+			log.Warnf("AddInstance called with different Config than the first call; the new Config will be ignored. Only the Config from the first AddInstance call is used.")
+		}
+		return providerConfig, nil
 	}
+	d.mu.RUnlock()
 
-	// Store the config
-	d.config = params.Config
+	// Need to initialize - first detect the cloud provider WITHOUT holding the lock
+	// to avoid blocking during IMDS network calls
+	var detectedConfig common.ProviderConfig
+	var resolvedProvider string
 
 	// If provider config is explicitly specified, use it
 	if params.ProviderConfig != nil {
-		d.providerConfig = params.ProviderConfig
-		d.resolvedProvider = params.ProviderConfig.ProviderName()
-		d.initialized = true
-		log.Infof("Using explicitly configured cloud provider '%s' for delegated auth", d.resolvedProvider)
-		return nil
+		detectedConfig = params.ProviderConfig
+		resolvedProvider = params.ProviderConfig.ProviderName()
+		log.Infof("Using explicitly configured cloud provider '%s' for delegated auth", resolvedProvider)
+	} else {
+		// Auto-detect cloud provider (network I/O happens here, outside any lock)
+		if creds.IsRunningOnAWS(ctx) {
+			log.Info("Auto-detected AWS as cloud provider for delegated auth")
+
+			// Auto-detect AWS region
+			awsRegion := ""
+			region, err := creds.GetAWSRegion(ctx)
+			if err != nil {
+				log.Warnf("Failed to auto-detect AWS region: %v. Will use default region.", err)
+			} else if region != "" {
+				awsRegion = region
+				log.Infof("Auto-detected AWS region: %s", awsRegion)
+			}
+
+			detectedConfig = &cloudauthconfig.AWSProviderConfig{
+				Region: awsRegion,
+			}
+			resolvedProvider = cloudauthconfig.ProviderAWS
+		} else {
+			// No supported cloud provider detected - delegated auth will be disabled
+			log.Debug("No supported cloud provider detected for delegated auth, feature will be disabled")
+			detectedConfig = nil
+			resolvedProvider = ""
+		}
 	}
 
-	// Auto-detect cloud provider
-	ctx := context.Background()
-	if creds.IsRunningOnAWS(ctx) {
-		log.Info("Auto-detected AWS as cloud provider for delegated auth")
+	// Now acquire write lock to update state
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
-		// Auto-detect AWS region
-		awsRegion := ""
-		region, err := creds.GetAWSRegion(ctx)
-		if err != nil {
-			log.Warnf("Failed to auto-detect AWS region: %v. Will use default region.", err)
-		} else if region != "" {
-			awsRegion = region
-			log.Infof("Auto-detected AWS region: %s", awsRegion)
-		}
-
-		d.providerConfig = &cloudauthconfig.AWSProviderConfig{
-			Region: awsRegion,
-		}
-		d.resolvedProvider = cloudauthconfig.ProviderAWS
-		d.initialized = true
-		return nil
+	// Double-check pattern - another goroutine might have initialized while we were detecting
+	if d.initialized {
+		return d.providerConfig, nil
 	}
 
-	// No supported cloud provider detected - delegated auth will be disabled
-	// This is not an error condition; the agent will use the traditional API key method
-	log.Debug("No supported cloud provider detected for delegated auth, feature will be disabled")
+	// Store the config and detected provider
+	d.config = params.Config
+	d.providerConfig = detectedConfig
+	d.resolvedProvider = resolvedProvider
 	d.initialized = true
-	d.providerConfig = nil
-	return nil
+
+	return d.providerConfig, nil
 }
 
 // AddInstance configures delegated auth for a specific API key.
@@ -167,14 +190,12 @@ func (d *delegatedAuthComponent) AddInstance(params delegatedauth.InstanceParams
 		return errors.New("api_key_config_key is required")
 	}
 
-	// Initialize on first call (with write lock)
-	d.mu.Lock()
-	if err := d.initializeIfNeeded(params); err != nil {
-		d.mu.Unlock()
+	// Initialize on first call - this detects cloud provider without holding locks
+	ctx := context.Background()
+	providerConfig, err := d.initializeIfNeeded(ctx, params)
+	if err != nil {
 		return err
 	}
-	providerConfig := d.providerConfig
-	d.mu.Unlock()
 
 	// If no provider is configured (unsupported cloud or not running in cloud),
 	// silently skip - the agent will use whatever API key is already configured
@@ -266,25 +287,29 @@ func (d *delegatedAuthComponent) refreshAndGetAPIKey(ctx context.Context, instan
 		}
 	}
 
-	// Need to fetch a new key - acquire write lock
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	// Double-check pattern - another goroutine might have refreshed while we were waiting for the write lock
+	// Double-check pattern with brief lock - another goroutine might be refreshing
+	d.mu.RLock()
 	if !forceRefresh && instance.apiKey != nil {
-		return instance.apiKey, false, nil
+		apiKey := instance.apiKey
+		d.mu.RUnlock()
+		return apiKey, false, nil
 	}
+	d.mu.RUnlock()
 
 	log.Infof("Fetching delegated API key for '%s'", instance.apiKeyConfigKey)
 
-	// Authenticate with the configured provider
+	// Authenticate with the configured provider - done WITHOUT holding the lock
+	// to avoid blocking other goroutines during network I/O
 	apiKey, err := d.authenticate(ctx, instance)
 	if err != nil {
 		log.Errorf("Failed to generate auth proof for '%s': %v", instance.apiKeyConfigKey, err)
 		return nil, false, err
 	}
 
+	// Now acquire write lock briefly to update state
+	d.mu.Lock()
 	instance.apiKey = apiKey
+	d.mu.Unlock()
 
 	return apiKey, true, nil
 }
@@ -308,6 +333,10 @@ func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) 
 				return
 			case <-ticker.C:
 				lCreds, updated, lErr := d.refreshAndGetAPIKey(instance.refreshCtx, instance, true)
+
+				// Variables to capture state updates
+				var shouldUpdateConfig bool
+				var apiKeyToUpdate string
 
 				d.mu.Lock()
 				if lErr != nil {
@@ -336,14 +365,21 @@ func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) 
 					instance.backoff.Reset()
 					nextInterval := instance.backoff.NextBackOff()
 
-					// Update the config with the new API key
-					if updated {
-						d.updateConfigWithAPIKey(instance, *lCreds)
+					// Capture the API key to update config outside the lock
+					if updated && lCreds != nil {
+						shouldUpdateConfig = true
+						apiKeyToUpdate = *lCreds
 					}
 
 					ticker.Reset(nextInterval)
 				}
 				d.mu.Unlock()
+
+				// Update the config OUTSIDE the lock to avoid potential deadlocks
+				// with config callbacks that might try to acquire locks
+				if shouldUpdateConfig {
+					d.updateConfigWithAPIKey(instance, apiKeyToUpdate)
+				}
 			}
 		}
 	}()

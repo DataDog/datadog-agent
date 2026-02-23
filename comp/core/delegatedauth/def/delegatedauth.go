@@ -19,8 +19,9 @@ import (
 // InstanceParams configures a single API key instance.
 type InstanceParams struct {
 	// Config is used to read settings and write API keys. Required.
-	// On the first AddInstance call, this is used to initialize the component.
-	// Subsequent calls should pass the same config instance.
+	// IMPORTANT: Only the Config from the FIRST AddInstance call is used.
+	// Subsequent calls must pass the same config instance; passing a different
+	// config will be ignored and a warning will be logged.
 	Config pkgconfigmodel.ReaderWriter
 
 	// OrgUUID is the Datadog organization UUID. Required.

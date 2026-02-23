@@ -6,6 +6,7 @@
 package aws
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"testing"
@@ -18,7 +19,7 @@ import (
 
 func TestGenerateAwsAuthData(t *testing.T) {
 	auth := &AWSAuth{
-		AwsRegion: "us-east-1",
+		region: "us-east-1",
 	}
 
 	awsCreds := &creds.SecurityCredentials{
@@ -29,18 +30,18 @@ func TestGenerateAwsAuthData(t *testing.T) {
 
 	orgUUID := "test-org-uuid-12345"
 
-	signingData, err := auth.generateAwsAuthData(orgUUID, awsCreds)
+	signingData, err := auth.generateAwsAuthData(context.Background(), orgUUID, awsCreds)
 	require.NoError(t, err)
 	require.NotNil(t, signingData)
 
 	// Verify the SigningData structure is populated
-	assert.NotEmpty(t, signingData.HeadersEncoded)
-	assert.NotEmpty(t, signingData.BodyEncoded)
-	assert.NotEmpty(t, signingData.URLEncoded)
-	assert.Equal(t, "POST", signingData.Method)
+	assert.NotEmpty(t, signingData.headersEncoded)
+	assert.NotEmpty(t, signingData.bodyEncoded)
+	assert.NotEmpty(t, signingData.urlEncoded)
+	assert.Equal(t, "POST", signingData.method)
 
 	// Decode and verify headers contain required fields
-	headersJSON, err := base64.StdEncoding.DecodeString(signingData.HeadersEncoded)
+	headersJSON, err := base64.StdEncoding.DecodeString(signingData.headersEncoded)
 	require.NoError(t, err)
 
 	var headers map[string][]string
@@ -71,20 +72,20 @@ func TestGenerateAwsAuthData(t *testing.T) {
 	assert.Contains(t, headers, "X-Amz-Date")
 
 	// Decode and verify body
-	bodyBytes, err := base64.StdEncoding.DecodeString(signingData.BodyEncoded)
+	bodyBytes, err := base64.StdEncoding.DecodeString(signingData.bodyEncoded)
 	require.NoError(t, err)
 	assert.Equal(t, getCallerIdentityBody, string(bodyBytes))
 
 	// Decode and verify URL
 	// Note: When region is specified (even as us-east-1), it uses regional endpoint
-	urlBytes, err := base64.StdEncoding.DecodeString(signingData.URLEncoded)
+	urlBytes, err := base64.StdEncoding.DecodeString(signingData.urlEncoded)
 	require.NoError(t, err)
 	assert.Equal(t, "https://sts.us-east-1.amazonaws.com", string(urlBytes))
 }
 
 func TestGenerateAwsAuthDataWithDefaultEndpoint(t *testing.T) {
 	auth := &AWSAuth{
-		AwsRegion: "", // Empty region should use global endpoint
+		region: "", // Empty region should use global endpoint
 	}
 
 	awsCreds := &creds.SecurityCredentials{
@@ -95,19 +96,19 @@ func TestGenerateAwsAuthDataWithDefaultEndpoint(t *testing.T) {
 
 	orgUUID := "test-org-uuid-12345"
 
-	signingData, err := auth.generateAwsAuthData(orgUUID, awsCreds)
+	signingData, err := auth.generateAwsAuthData(context.Background(), orgUUID, awsCreds)
 	require.NoError(t, err)
 	require.NotNil(t, signingData)
 
 	// Decode and verify URL uses global endpoint
-	urlBytes, err := base64.StdEncoding.DecodeString(signingData.URLEncoded)
+	urlBytes, err := base64.StdEncoding.DecodeString(signingData.urlEncoded)
 	require.NoError(t, err)
 	assert.Equal(t, "https://sts.amazonaws.com", string(urlBytes))
 }
 
 func TestGenerateAwsAuthDataWithRegionalEndpoint(t *testing.T) {
 	auth := &AWSAuth{
-		AwsRegion: "eu-west-1",
+		region: "eu-west-1",
 	}
 
 	awsCreds := &creds.SecurityCredentials{
@@ -118,19 +119,19 @@ func TestGenerateAwsAuthDataWithRegionalEndpoint(t *testing.T) {
 
 	orgUUID := "test-org-uuid-12345"
 
-	signingData, err := auth.generateAwsAuthData(orgUUID, awsCreds)
+	signingData, err := auth.generateAwsAuthData(context.Background(), orgUUID, awsCreds)
 	require.NoError(t, err)
 	require.NotNil(t, signingData)
 
 	// Decode and verify URL uses regional endpoint
-	urlBytes, err := base64.StdEncoding.DecodeString(signingData.URLEncoded)
+	urlBytes, err := base64.StdEncoding.DecodeString(signingData.urlEncoded)
 	require.NoError(t, err)
 	assert.Equal(t, "https://sts.eu-west-1.amazonaws.com", string(urlBytes))
 }
 
 func TestGenerateAwsAuthDataMissingOrgUUID(t *testing.T) {
 	auth := &AWSAuth{
-		AwsRegion: "us-east-1",
+		region: "us-east-1",
 	}
 
 	awsCreds := &creds.SecurityCredentials{
@@ -139,37 +140,37 @@ func TestGenerateAwsAuthDataMissingOrgUUID(t *testing.T) {
 		Token:           "test-session-token",
 	}
 
-	_, err := auth.generateAwsAuthData("", awsCreds)
+	_, err := auth.generateAwsAuthData(context.Background(), "", awsCreds)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "missing org UUID")
 }
 
 func TestGenerateAwsAuthDataMissingCredentials(t *testing.T) {
 	auth := &AWSAuth{
-		AwsRegion: "us-east-1",
+		region: "us-east-1",
 	}
 
 	orgUUID := "test-org-uuid-12345"
 
 	// Test with nil credentials
-	_, err := auth.generateAwsAuthData(orgUUID, nil)
+	_, err := auth.generateAwsAuthData(context.Background(), orgUUID, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "missing AWS credentials")
 
 	// Test with empty credentials
-	_, err = auth.generateAwsAuthData(orgUUID, &creds.SecurityCredentials{})
+	_, err = auth.generateAwsAuthData(context.Background(), orgUUID, &creds.SecurityCredentials{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "missing AWS credentials")
 
 	// Test with missing SecretAccessKey
-	_, err = auth.generateAwsAuthData(orgUUID, &creds.SecurityCredentials{
+	_, err = auth.generateAwsAuthData(context.Background(), orgUUID, &creds.SecurityCredentials{
 		AccessKeyID: "test-access-key",
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "missing AWS credentials")
 
 	// Test with missing AccessKeyID
-	_, err = auth.generateAwsAuthData(orgUUID, &creds.SecurityCredentials{
+	_, err = auth.generateAwsAuthData(context.Background(), orgUUID, &creds.SecurityCredentials{
 		SecretAccessKey: "test-secret-key",
 	})
 	assert.Error(t, err)
@@ -179,7 +180,7 @@ func TestGenerateAwsAuthDataMissingCredentials(t *testing.T) {
 func TestGenerateAwsAuthDataWithoutToken(t *testing.T) {
 	// Test that credentials without a Token (permanent IAM users) work correctly
 	auth := &AWSAuth{
-		AwsRegion: "us-east-1",
+		region: "us-east-1",
 	}
 
 	// Permanent IAM user credentials (no session token)
@@ -191,18 +192,18 @@ func TestGenerateAwsAuthDataWithoutToken(t *testing.T) {
 
 	orgUUID := "test-org-uuid-12345"
 
-	signingData, err := auth.generateAwsAuthData(orgUUID, awsCreds)
+	signingData, err := auth.generateAwsAuthData(context.Background(), orgUUID, awsCreds)
 	require.NoError(t, err)
 	require.NotNil(t, signingData)
 
 	// Verify the SigningData structure is populated
-	assert.NotEmpty(t, signingData.HeadersEncoded)
-	assert.NotEmpty(t, signingData.BodyEncoded)
-	assert.NotEmpty(t, signingData.URLEncoded)
-	assert.Equal(t, "POST", signingData.Method)
+	assert.NotEmpty(t, signingData.headersEncoded)
+	assert.NotEmpty(t, signingData.bodyEncoded)
+	assert.NotEmpty(t, signingData.urlEncoded)
+	assert.Equal(t, "POST", signingData.method)
 
 	// Decode and verify headers
-	headersJSON, err := base64.StdEncoding.DecodeString(signingData.HeadersEncoded)
+	headersJSON, err := base64.StdEncoding.DecodeString(signingData.headersEncoded)
 	require.NoError(t, err)
 
 	var headers map[string][]string
