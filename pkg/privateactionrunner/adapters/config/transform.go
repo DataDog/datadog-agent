@@ -114,21 +114,9 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 }
 
 func getDatadogSite(config config.Component) string {
-	ddSite := ""
-	ddURL := config.GetString("dd_url")
-	if ddURL != "" {
-		extractedSite := configutils.ExtractSiteFromURL(ddURL)
-		if extractedSite != "" {
-			ddSite = extractedSite
-		}
-	}
-	if ddSite == "" {
-		ddSite = config.GetString("site")
-	}
-	if ddSite == "" {
-		ddSite = setup.DefaultSite
-	}
-	return ddSite
+	// This handles dd_url, site, and default site in the correct precedence
+	endpoint := configutils.GetMainEndpoint(config, "https://api.", "dd_url")
+	return configutils.ExtractSiteFromURL(endpoint)
 }
 
 func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[string]) map[string]sets.Set[string] {
