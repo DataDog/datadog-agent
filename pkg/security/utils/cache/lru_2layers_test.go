@@ -94,3 +94,125 @@ func TestTwoLayersLRU(t *testing.T) {
 		assert.Equal(t, count, 1)
 	})
 }
+
+func TestTwoLayersLRURemoveKey1NotFound(t *testing.T) {
+	cache, err := NewTwoLayersLRU[string, int, int](10)
+	assert.NoError(t, err)
+
+	removed := cache.RemoveKey1("nonexistent")
+	assert.False(t, removed)
+}
+
+func TestTwoLayersLRURemoveKey2AllKeys(t *testing.T) {
+	cache, err := NewTwoLayersLRU[string, int, int](10)
+	assert.NoError(t, err)
+
+	// Add entries where k1="a" has both k2=1 and k2=2, so removing k2=1
+	// doesn't empty the layer (avoiding concurrent modification issues)
+	cache.Add("a", 1, 100)
+	cache.Add("a", 2, 150)
+	cache.Add("b", 1, 200)
+	cache.Add("b", 3, 250)
+
+	// Remove k2=1 from all k1 layers (no specific keys provided)
+	removed := cache.RemoveKey2(1)
+	assert.Equal(t, 2, removed)
+	assert.Equal(t, 2, cache.Len())
+
+	// k2=1 should be gone from both "a" and "b"
+	_, exists := cache.Get("a", 1)
+	assert.False(t, exists)
+	_, exists = cache.Get("b", 1)
+	assert.False(t, exists)
+
+	// Other entries should still be there
+	v, exists := cache.Get("a", 2)
+	assert.True(t, exists)
+	assert.Equal(t, 150, v)
+}
+
+func TestTwoLayersLRURemoveOldestEmpty(t *testing.T) {
+	cache, err := NewTwoLayersLRU[string, int, int](10)
+	assert.NoError(t, err)
+
+	_, _, _, evicted := cache.RemoveOldest()
+	assert.False(t, evicted)
+}
+
+func TestTwoLayersLRUUpdateExistingKey(t *testing.T) {
+	cache, err := NewTwoLayersLRU[string, int, int](10)
+	assert.NoError(t, err)
+
+	cache.Add("a", 1, 100)
+	assert.Equal(t, 1, cache.Len())
+
+	// Update existing key should not change length
+	cache.Add("a", 1, 200)
+	assert.Equal(t, 1, cache.Len())
+
+	v, exists := cache.Get("a", 1)
+	assert.True(t, exists)
+	assert.Equal(t, 200, v)
+}
+
+func TestTwoLayersLRUWalkInner(t *testing.T) {
+	cache, err := NewTwoLayersLRU[string, int, string](10)
+	assert.NoError(t, err)
+
+	cache.Add("group1", 1, "a")
+	cache.Add("group1", 2, "b")
+	cache.Add("group1", 3, "c")
+	cache.Add("group2", 10, "x")
+
+	// Walk inner for group1
+	collected := map[int]string{}
+	cache.WalkInner("group1", func(k2 int, v string) bool {
+		collected[k2] = v
+		return true
+	})
+	assert.Len(t, collected, 3)
+	assert.Equal(t, "a", collected[1])
+	assert.Equal(t, "b", collected[2])
+	assert.Equal(t, "c", collected[3])
+}
+
+func TestTwoLayersLRUWalkInnerEarlyStop(t *testing.T) {
+	cache, err := NewTwoLayersLRU[string, int, string](10)
+	assert.NoError(t, err)
+
+	cache.Add("g", 1, "a")
+	cache.Add("g", 2, "b")
+	cache.Add("g", 3, "c")
+
+	// Stop after first element
+	var count int
+	cache.WalkInner("g", func(_ int, _ string) bool {
+		count++
+		return false
+	})
+	assert.Equal(t, 1, count)
+}
+
+func TestTwoLayersLRUWalkInnerNonexistent(t *testing.T) {
+	cache, err := NewTwoLayersLRU[string, int, string](10)
+	assert.NoError(t, err)
+
+	// Walking a nonexistent key should be a no-op
+	var count int
+	cache.WalkInner("nonexistent", func(_ int, _ string) bool {
+		count++
+		return true
+	})
+	assert.Equal(t, 0, count)
+}
+
+func TestTwoLayersLRUGetMissingK2(t *testing.T) {
+	cache, err := NewTwoLayersLRU[string, int, int](10)
+	assert.NoError(t, err)
+
+	cache.Add("a", 1, 100)
+
+	// K1 exists but K2 doesn't
+	_, exists := cache.Get("a", 999)
+	assert.False(t, exists)
+}

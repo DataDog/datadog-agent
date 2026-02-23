@@ -52,3 +52,41 @@ func TestDetect(t *testing.T) {
 		})
 	}
 }
+
+func TestDetectUDPPorts(t *testing.T) {
+	// When no TCP port matches, UDP ports should be checked
+	serviceType := servicetype.Detect([]uint16{8080}, []uint16{5432})
+	if serviceType != servicetype.DB {
+		t.Errorf("expected %v from UDP port, got %v", servicetype.DB, serviceType)
+	}
+}
+
+func TestDetectUDPQueue(t *testing.T) {
+	serviceType := servicetype.Detect([]uint16{}, []uint16{9092})
+	if serviceType != servicetype.Queue {
+		t.Errorf("expected %v from UDP port, got %v", servicetype.Queue, serviceType)
+	}
+}
+
+func TestDetectNoPorts(t *testing.T) {
+	// No ports at all should default to WebService
+	serviceType := servicetype.Detect([]uint16{}, []uint16{})
+	if serviceType != servicetype.WebService {
+		t.Errorf("expected %v with no ports, got %v", servicetype.WebService, serviceType)
+	}
+}
+
+func TestDetectNilPorts(t *testing.T) {
+	serviceType := servicetype.Detect(nil, nil)
+	if serviceType != servicetype.WebService {
+		t.Errorf("expected %v with nil ports, got %v", servicetype.WebService, serviceType)
+	}
+}
+
+func TestDetectTCPTakesPrecedenceOverUDP(t *testing.T) {
+	// TCP port should be matched first even if UDP has a different match
+	serviceType := servicetype.Detect([]uint16{5432}, []uint16{9092})
+	if serviceType != servicetype.DB {
+		t.Errorf("expected %v (TCP match), got %v", servicetype.DB, serviceType)
+	}
+}

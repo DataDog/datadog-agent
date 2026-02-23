@@ -298,6 +298,138 @@ func TestEnvVarTemplateVarsAlwaysResolveAsStrings(t *testing.T) {
 	}
 }
 
+func TestGetHostNilResolver(t *testing.T) {
+	_, err := GetHost("", nil)
+	assert.Error(t, err)
+	var noResolver *NoResolverError
+	assert.True(t, errors.As(err, &noResolver))
+}
+
+func TestGetHostNoNetworks(t *testing.T) {
+	svc := &mockResolvable{
+		serviceID: "test-svc",
+		hosts:     map[string]string{},
+	}
+	_, err := GetHost("", svc)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no network found")
+}
+
+func TestGetHostError(t *testing.T) {
+	svc := &mockResolvable{
+		serviceID: "test-svc",
+		hosts:     nil, // will trigger error in GetHosts()
+	}
+	_, err := GetHost("", svc)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to extract IP address")
+}
+
+func TestGetPortNilResolver(t *testing.T) {
+	_, err := GetPort("", nil)
+	assert.Error(t, err)
+	var noResolver *NoResolverError
+	assert.True(t, errors.As(err, &noResolver))
+}
+
+func TestGetPortNoPorts(t *testing.T) {
+	svc := &mockResolvable{
+		serviceID: "test-svc",
+		ports:     []workloadmeta.ContainerPort{},
+	}
+	_, err := GetPort("", svc)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no port found")
+}
+
+func TestGetPortIndexOutOfRange(t *testing.T) {
+	svc := &mockResolvable{
+		serviceID: "test-svc",
+		ports:     []workloadmeta.ContainerPort{{Port: 8080}},
+	}
+	_, err := GetPort("5", svc)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "index given for the port template var is too big")
+}
+
+func TestGetPortNamedNotFound(t *testing.T) {
+	svc := &mockResolvable{
+		serviceID: "test-svc",
+		ports:     []workloadmeta.ContainerPort{{Port: 8080, Name: "http"}},
+	}
+	_, err := GetPort("nonexistent", svc)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "port nonexistent not found")
+}
+
+func TestGetPidNilResolver(t *testing.T) {
+	_, err := GetPid("", nil)
+	assert.Error(t, err)
+	var noResolver *NoResolverError
+	assert.True(t, errors.As(err, &noResolver))
+}
+
+func TestGetPidError(t *testing.T) {
+	svc := &mockResolvable{serviceID: "test-svc", pid: 0} // pid=0 triggers error
+	_, err := GetPid("", svc)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to get pid")
+}
+
+func TestGetHostnameNilResolver(t *testing.T) {
+	_, err := GetHostname("", nil)
+	assert.Error(t, err)
+	var noResolver *NoResolverError
+	assert.True(t, errors.As(err, &noResolver))
+}
+
+func TestGetAdditionalTplVariablesNilResolver(t *testing.T) {
+	_, err := GetAdditionalTplVariables("key", nil)
+	assert.Error(t, err)
+	var noResolver *NoResolverError
+	assert.True(t, errors.As(err, &noResolver))
+}
+
+func TestGetEnvvarEmptyName(t *testing.T) {
+	_, err := GetEnvvar("", nil)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "envvar name is missing")
+}
+
+func TestGetEnvvarEmptyNameWithResolver(t *testing.T) {
+	svc := &mockResolvable{serviceID: "test-svc"}
+	_, err := GetEnvvar("", svc)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "envvar name is missing")
+	assert.Contains(t, err.Error(), "test-svc")
+}
+
+func TestGetEnvvarNotFound(t *testing.T) {
+	_, err := GetEnvvar("NONEXISTENT_VAR_FOR_TESTS_12345", nil)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to retrieve envvar")
+}
+
+func TestResolveDataWithTemplateVarsEmptyData(t *testing.T) {
+	resolver := NewTemplateResolver(JSONParser, nil, false)
+	result, err := resolver.ResolveDataWithTemplateVars(nil, nil)
+	assert.NoError(t, err)
+	assert.Nil(t, result)
+}
+
+func TestResolveDataWithTemplateVarsInvalidVar(t *testing.T) {
+	resolver := NewTemplateResolver(JSONParser, nil, false)
+	svc := &mockResolvable{serviceID: "test-svc"}
+	_, err := resolver.ResolveDataWithTemplateVars([]byte(`{"v": "%%unknown_var%%"}`), svc)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid")
+}
+
+func TestNoResolverError(t *testing.T) {
+	err := noResolverError("test message")
+	assert.Equal(t, "test message", err.Error())
+}
+
 func TestGetFallbackHost(t *testing.T) {
 	ip, err := getFallbackHost(map[string]string{"bridge": "172.17.0.1"})
 	assert.Equal(t, "172.17.0.1", ip)
