@@ -420,10 +420,11 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, r *http.Reque
 	correlations := api.tb.GetCorrelations()
 
 	type anomalyOutput struct {
-		Source      string `json:"source"`
-		Title       string `json:"title"`
-		Description string `json:"description"`
-		Timestamp   int64  `json:"timestamp"`
+		Source      string   `json:"source"`
+		Title       string   `json:"title"`
+		Description string   `json:"description"`
+		Timestamp   int64    `json:"timestamp"`
+		Score       *float64 `json:"score,omitempty"`
 	}
 
 	type correlationResponse struct {
@@ -445,6 +446,7 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, r *http.Reque
 				Title:       a.Title,
 				Description: a.Description,
 				Timestamp:   a.Timestamp,
+				Score:       a.Score,
 			}
 		}
 		response[i] = correlationResponse{
