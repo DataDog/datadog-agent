@@ -89,7 +89,7 @@ func TestCheckOwner_Root(t *testing.T) {
 
 	// Only root can chown to root (uid 0)
 	if err := os.Chown(testFile, 0, 0); err != nil {
-		t.Skip("Cannot chown to root (run as root to test)")
+		t.Skip("Cannot chown to root")
 	}
 
 	// File owned by root should pass ownership check
