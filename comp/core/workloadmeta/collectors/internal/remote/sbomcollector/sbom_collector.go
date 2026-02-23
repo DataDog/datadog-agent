@@ -128,9 +128,9 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 		// Decompress existing image SBOM to get CycloneDXBOM
 		existingSBOM, err := sbomutil.UncompressSBOM(existingImage.SBOM)
 		if err == nil && existingSBOM != nil && existingSBOM.CycloneDXBOM != nil {
-			// Merge LastAccess properties from new BOM into existing image SBOM
-			finalBom = mergeLastAccessProperties(existingSBOM.CycloneDXBOM, &newBom)
-			log.Debugf("Merged LastAccess properties for image %s SBOM", imageID)
+			// Merge runtime properties from new BOM into existing image SBOM
+			finalBom = mergeRuntimeProperties(existingSBOM.CycloneDXBOM, &newBom)
+			log.Debugf("Merged runtime properties for image %s SBOM", imageID)
 		} else {
 			// Decompression failed or no CycloneDXBOM, use the new one directly
 			finalBom = &newBom
@@ -171,15 +171,19 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 	}, nil
 }
 
-// mergeLastAccessProperties merges LastAccess properties from newBom into existingBom
-// Returns a new BOM with components from existingBom updated with LastAccess from newBom
-func mergeLastAccessProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_v1_4.Bom {
+// mergeRuntimeProperties merges runtime properties from newBom into existingBom.
+// Returns a new BOM whose component list is deduplicated (by name+normalised version) and
+// enriched with runtime properties (LastSeenRunning / HasSetSuidBit / RunningAsRoot) taken
+// from newBom.  Deduplication is necessary because a previously-merged SBOM stored in the
+// image entity may already carry both an original Trivy entry and a runtime-enriched copy of
+// the same package; without it every merge round would re-emit both copies.
+func mergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_v1_4.Bom {
 	if newBom == nil || len(newBom.Components) == 0 {
 		return existingBom
 	}
 
-	// Create a map of new components by name+normalized_version for quick lookup
-	// We normalize versions to handle epoch differences (e.g., "1:4.4.36" vs "4.4.36")
+	// Build a lookup map from newBom (system-probe) components by name+normalised version.
+	// We normalise versions to handle epoch differences (e.g. "1:4.4.36" vs "4.4.36").
 	newComponentsMap := make(map[string]*cyclonedx_v1_4.Component)
 	for _, comp := range newBom.Components {
 		if comp != nil {
@@ -189,14 +193,12 @@ func mergeLastAccessProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclone
 		}
 	}
 
-	// Create a copy of existing BOM to avoid modifying the original
-	// IMPORTANT: Copy ALL fields from existing BOM to preserve metadata, dependencies, etc.
+	// Shallow-copy the BOM envelope; Components is rebuilt below.
 	mergedBom := &cyclonedx_v1_4.Bom{
 		SpecVersion:        existingBom.SpecVersion,
 		Version:            existingBom.Version,
 		SerialNumber:       existingBom.SerialNumber,
 		Metadata:           existingBom.Metadata,
-		Components:         make([]*cyclonedx_v1_4.Component, len(existingBom.Components)),
 		Services:           existingBom.Services,
 		ExternalReferences: existingBom.ExternalReferences,
 		Dependencies:       existingBom.Dependencies,
@@ -204,15 +206,25 @@ func mergeLastAccessProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclone
 		Vulnerabilities:    existingBom.Vulnerabilities,
 	}
 
-	// Merge LastAccess properties into existing components
-	for i, existingComp := range existingBom.Components {
+	// seen tracks which name@version keys have already been emitted so that duplicate
+	// entries for the same package (which can accumulate across merge rounds) are dropped.
+	seen := make(map[string]struct{}, len(existingBom.Components))
+
+	for _, existingComp := range existingBom.Components {
 		if existingComp == nil {
-			mergedBom.Components[i] = existingComp
 			continue
 		}
 
-		// Copy the existing component
-		// IMPORTANT: Copy ALL fields to preserve complete component metadata
+		normalizedVersion, _ := normalizeVersion(existingComp.Version)
+		key := existingComp.Name + "@" + normalizedVersion
+
+		// Emit only the first occurrence of each package.
+		if _, already := seen[key]; already {
+			continue
+		}
+		seen[key] = struct{}{}
+
+		// Copy all fields so we do not mutate the original BOM.
 		mergedComp := &cyclonedx_v1_4.Component{
 			Type:               existingComp.Type,
 			MimeType:           existingComp.MimeType,
@@ -240,62 +252,40 @@ func mergeLastAccessProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclone
 			ReleaseNotes:       existingComp.ReleaseNotes,
 		}
 
-		// Check if new BOM has this component with property
-		// Use normalized version for lookup to handle epoch differences
-		normalizedVersion, _ := normalizeVersion(existingComp.Version)
-		key := existingComp.Name + "@" + normalizedVersion
-
-		updateProperty := func(newComp *cyclonedx_v1_4.Component, propertyName string) {
-			// Find property in new component
-			var newProp *cyclonedx_v1_4.Property
-			for _, prop := range newComp.Properties {
-				if prop != nil && prop.Name == propertyName {
-					newProp = prop
-					break
-				}
-			}
-
-			// If found, add or update property in merged component
-			if newProp != nil {
-				// Initialize properties if nil
-				if mergedComp.Properties == nil {
-					mergedComp.Properties = []*cyclonedx_v1_4.Property{}
-				}
-
-				// Check if property already exists and update it, or add new one
-				propExists := false
-				for j, prop := range mergedComp.Properties {
+		// Add or update runtime properties from newBom.
+		if newComp, exists := newComponentsMap[key]; exists && newComp.Properties != nil {
+			updateProperty := func(propertyName string) {
+				var newProp *cyclonedx_v1_4.Property
+				for _, prop := range newComp.Properties {
 					if prop != nil && prop.Name == propertyName {
-						mergedComp.Properties[j] = newProp
-						propExists = true
+						newProp = prop
 						break
 					}
 				}
-
-				if !propExists {
-					mergedComp.Properties = append(mergedComp.Properties, newProp)
+				if newProp == nil {
+					return
 				}
-
-				log.Tracef("Updated %s for component %s@%s", propertyName, existingComp.Name, existingComp.Version)
+				if mergedComp.Properties == nil {
+					mergedComp.Properties = []*cyclonedx_v1_4.Property{}
+				}
+				for j, prop := range mergedComp.Properties {
+					if prop != nil && prop.Name == propertyName {
+						mergedComp.Properties[j] = newProp
+						log.Tracef("Updated %s for component %s@%s", propertyName, existingComp.Name, existingComp.Version)
+						return
+					}
+				}
+				mergedComp.Properties = append(mergedComp.Properties, newProp)
+				log.Tracef("Added %s for component %s@%s", propertyName, existingComp.Name, existingComp.Version)
 			}
+
+			updateProperty(LastAccessProperty)
+			updateProperty(HasSetSuidBitProperty)
+			updateProperty(RunningAsRootProperty)
 		}
 
-		if newComp, exists := newComponentsMap[key]; exists && newComp.Properties != nil {
-			updateProperty(newComp, LastAccessProperty)
-			updateProperty(newComp, HasSetSuidBitProperty)
-			updateProperty(newComp, RunningAsRootProperty)
-		}
-
-		mergedBom.Components[i] = mergedComp
+		mergedBom.Components = append(mergedBom.Components, mergedComp)
 	}
-
-	// NOTE: We do NOT add components from newBom (system-probe) that don't exist in existingBom (Trivy).
-	// System-probe components have minimal metadata (just name/version/purl + runtime properties),
-	// while Trivy components have rich metadata (supplier, hashes, licenses, etc.).
-	// The correct approach is to:
-	// 1. Keep all Trivy components (done above in the loop)
-	// 2. Enrich them with runtime properties from system-probe (done above via updateProperty)
-	// 3. Don't add system-probe-only components (they would be duplicates with less metadata)
 
 	return mergedBom
 }
