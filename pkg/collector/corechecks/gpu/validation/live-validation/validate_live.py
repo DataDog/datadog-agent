@@ -40,7 +40,8 @@ import yaml
 
 
 DEVICE_MODES = ("physical", "mig", "vgpu")
-SCALAR_QUERY_BATCH_SIZE = 80
+# Staging rejects scalar payloads above ~50 queries with HTTP 422.
+SCALAR_QUERY_BATCH_SIZE = 50
 ANSI_GREEN = "\033[32m"
 ANSI_RED = "\033[31m"
 ANSI_YELLOW = "\033[33m"
