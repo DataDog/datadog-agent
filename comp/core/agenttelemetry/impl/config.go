@@ -222,6 +222,9 @@ var defaultProfiles = `
         - name: dogstatsd.uds_packets_bytes
         - name: logs.bytes_missed
         - name: logs.bytes_sent
+          aggregate_tags:
+            - remote_agent
+          aggregate_total: true
         - name: logs.decoded
         - name: logs.dropped
         - name: logs.encoded_bytes_sent
@@ -458,6 +461,7 @@ var defaultProfiles = `
           aggregate_tags:
             - repository
             - tag
+            - bucket
             - outcome
     schedule:
       start_after: 30

@@ -18,16 +18,20 @@ import (
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
+
+	"k8s.io/apimachinery/pkg/version"
 )
 
 // NewAutoInstrumentation is a helper function to create a fully initialized webhook for SSI. Our webhook is made up of
 // several components, but consumers of this webhook should not need to care about how the webhook is wired together.
-func NewAutoInstrumentation(datadogConfig config.Component, wmeta workloadmeta.Component) (*Webhook, error) {
+func NewAutoInstrumentation(datadogConfig config.Component, wmeta workloadmeta.Component, serverVersion *version.Info) (*Webhook, error) {
 	config, err := NewConfig(datadogConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auto instrumentation config: %v", err)
 	}
 
+	// Populate Kubernetes server version for feature gating.
+	config.kubeServerVersion = serverVersion
 	imageResolver := imageresolver.New(imageresolver.NewConfig(datadogConfig))
 	apm, err := NewTargetMutator(config, wmeta, imageResolver)
 	if err != nil {

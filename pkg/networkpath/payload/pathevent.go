@@ -112,8 +112,8 @@ const (
 	TestRunTypeScheduled TestRunType = "scheduled"
 	// TestRunTypeDynamic is a dynamic test run.
 	TestRunTypeDynamic TestRunType = "dynamic"
-	// TestRunTypeOnDemand is a on-demand test run.
-	TestRunTypeOnDemand TestRunType = "on-demand"
+	// TestRunTypeTriggered is a triggered test run.
+	TestRunTypeTriggered TestRunType = "triggered"
 )
 
 // SourceProduct defines the product that originated the path

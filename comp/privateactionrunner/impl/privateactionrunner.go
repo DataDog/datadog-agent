@@ -10,6 +10,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
@@ -41,6 +43,8 @@ const (
 	parSelfEnroll = "private_action_runner.self_enroll"
 	parPrivateKey = "private_action_runner.private_key"
 	parUrn        = "private_action_runner.urn"
+
+	maxStartupWaitTimeout = 15 * time.Second
 )
 
 // isEnabled checks if the private action runner is enabled in the configuration
@@ -77,7 +81,10 @@ type PrivateActionRunner struct {
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
 
-	drain func()
+	started     bool
+	startOnce   sync.Once
+	startChan   chan struct{}
+	cancelStart context.CancelFunc
 }
 
 // NewComponent creates a new privateactionrunner component
@@ -117,6 +124,7 @@ func NewPrivateActionRunner(
 		tagger:         taggerComp,
 		traceroute:     tracerouteComp,
 		eventPlatform:  eventPlatform,
+		startChan:      make(chan struct{}),
 	}, nil
 }
 
@@ -152,6 +160,28 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 }
 
 func (p *PrivateActionRunner) Start(ctx context.Context) error {
+	var err error
+	p.started = true
+	p.startOnce.Do(func() {
+		defer close(p.startChan)
+		err = p.start(ctx)
+	})
+	return err
+}
+
+func (p *PrivateActionRunner) StartAsync(ctx context.Context) <-chan error {
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- p.Start(ctx)
+		close(errChan)
+	}()
+	return errChan
+}
+
+func (p *PrivateActionRunner) start(ctx context.Context) error {
+	// Any cancellation from the parent context will be propagated to the start process
+	// But we want to control cancellation in case Stop is called unexpectedly
+	ctx, p.cancelStart = context.WithCancel(ctx)
 	cfg, err := p.getRunnerConfig(ctx)
 	if err != nil {
 		return err
@@ -170,17 +200,27 @@ func (p *PrivateActionRunner) Start(ctx context.Context) error {
 		return err
 	}
 	p.commonRunner = runners.NewCommonRunner(cfg)
-	// Use background context to avoid inheriting any deadlines from component lifecycle which stop the PAR loop
-	ctx, mainCtxCancel := context.WithCancel(context.Background())
-	p.drain = mainCtxCancel
-	err = p.commonRunner.Start(ctx)
+	err = p.workflowRunner.Start(ctx)
 	if err != nil {
 		return err
 	}
-	return p.workflowRunner.Start(ctx)
+	return p.commonRunner.Start(ctx)
 }
 
 func (p *PrivateActionRunner) Stop(ctx context.Context) error {
+	if !p.started {
+		return nil // Never started, nothing to stop
+	}
+
+	p.cancelStart()
+	waitCtx, cancelWaitCtx := context.WithTimeout(ctx, maxStartupWaitTimeout)
+	defer cancelWaitCtx()
+	err := p.waitForStartup(waitCtx)
+	if err != nil {
+		p.logger.Warn("PAR startup did not complete in time, forcing cleanup")
+		// Don't return - continue to cleanup what we can
+	}
+
 	if p.workflowRunner != nil {
 		err := p.workflowRunner.Stop(ctx)
 		if err != nil {
@@ -193,7 +233,16 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 			return err
 		}
 	}
-	p.drain()
+	return nil
+}
+
+func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
+	select {
+	case <-p.startChan:
+		// Startup completed normally
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 	return nil
 }
 

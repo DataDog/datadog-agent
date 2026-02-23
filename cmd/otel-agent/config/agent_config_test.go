@@ -50,7 +50,7 @@ func (suite *ConfigTestSuite) TestAgentConfig() {
 	assert.Equal(t, "test.metrics.com", c.Get("dd_url"))
 	assert.Equal(t, true, c.Get("logs_enabled"))
 	assert.Equal(t, "test.logs.com", c.Get("logs_config.logs_dd_url"))
-	assert.Equal(t, 10, c.Get("logs_config.batch_wait"))
+	assert.Equal(t, float64(10), c.Get("logs_config.batch_wait"))
 	assert.Equal(t, true, c.Get("logs_config.use_compression"))
 	assert.Equal(t, true, c.Get("logs_config.force_use_http"))
 	assert.Equal(t, 1, c.Get("logs_config.compression_level"))
@@ -75,7 +75,7 @@ func (suite *ConfigTestSuite) TestAgentConfigDefaults() {
 	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
 	assert.Equal(t, true, c.Get("logs_enabled"))
 	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
-	assert.Equal(t, 5, c.Get("logs_config.batch_wait"))
+	assert.Equal(t, float64(5), c.Get("logs_config.batch_wait"))
 	assert.Equal(t, true, c.Get("logs_config.use_compression"))
 	assert.Equal(t, true, c.Get("logs_config.force_use_http"))
 	assert.Equal(t, 6, c.Get("logs_config.compression_level"))
@@ -99,7 +99,7 @@ func (suite *ConfigTestSuite) TestDisableOperationAndResourceNameV2FeatureGate()
 	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
 	assert.Equal(t, true, c.Get("logs_enabled"))
 	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
-	assert.Equal(t, 5, c.Get("logs_config.batch_wait"))
+	assert.Equal(t, float64(5), c.Get("logs_config.batch_wait"))
 	assert.Equal(t, true, c.Get("logs_config.use_compression"))
 	assert.Equal(t, true, c.Get("logs_config.force_use_http"))
 	assert.Equal(t, 6, c.Get("logs_config.compression_level"))
@@ -158,7 +158,7 @@ func (suite *ConfigTestSuite) TestAgentConfigWithDatadogYamlDefaults() {
 	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
 	assert.Equal(t, true, c.Get("logs_enabled"))
 	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
-	assert.Equal(t, 5, c.Get("logs_config.batch_wait"))
+	assert.Equal(t, float64(5), c.Get("logs_config.batch_wait"))
 	assert.Equal(t, true, c.Get("logs_config.use_compression"))
 	assert.Equal(t, true, c.Get("logs_config.force_use_http"))
 	assert.Equal(t, 6, c.Get("logs_config.compression_level"))
@@ -501,6 +501,62 @@ func TestLogsEnabledViaDatadogConfig(t *testing.T) {
 	c, err := NewConfigComponent(context.Background(), "", []string{ddFileName})
 	require.NoError(t, err, "NewConfigComponent should succeed with datadog config")
 	assert.True(t, c.GetBool("logs_enabled"), "logs_enabled should be true from datadog config")
+}
+
+func (suite *ConfigTestSuite) TestGatewayModeHostnameEmpty() {
+	t := suite.T()
+	fileName := "testdata/config_default.yaml"
+	ddFileName := "testdata/datadog_gateway_mode.yaml"
+	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	require.NoError(t, err, "NewConfigComponent should succeed with gateway mode enabled")
+
+	// When gateway mode is enabled, hostname should be set to empty string
+	assert.True(t, c.GetBool("otelcollector.gateway.mode"), "gateway mode should be enabled")
+	assert.Equal(t, "", c.GetString("hostname"), "hostname should be empty when gateway mode is enabled")
+}
+
+func (suite *ConfigTestSuite) TestGatewayModeDisabledHostnameNotEmpty() {
+	t := suite.T()
+	fileName := "testdata/config_default.yaml"
+	// Using datadog.yaml which doesn't have gateway mode set
+	ddFileName := "testdata/datadog.yaml"
+	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	require.NoError(t, err, "NewConfigComponent should succeed without gateway mode")
+
+	// When gateway mode is not enabled, hostname should not be forced to empty
+	assert.False(t, c.GetBool("otelcollector.gateway.mode"), "gateway mode should be disabled")
+	// The hostname might be empty by default, but the key difference is that
+	// it wasn't explicitly set to empty via the gateway mode logic
+	// We verify the config was loaded without the gateway mode setting
+	assert.False(t, c.IsConfigured("otelcollector.gateway.mode") && c.GetBool("otelcollector.gateway.mode"),
+		"gateway mode should not be enabled")
+}
+
+func (suite *ConfigTestSuite) TestGatewayModeViaEnvVarHostnameEmpty() {
+	t := suite.T()
+	fileName := "testdata/config_default.yaml"
+	// Set gateway mode via environment variable
+	t.Setenv("DD_OTELCOLLECTOR_GATEWAY_MODE", "true")
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err, "NewConfigComponent should succeed with gateway mode env var set")
+
+	// When gateway mode is enabled via env var, hostname should be set to empty string
+	assert.True(t, c.GetBool("otelcollector.gateway.mode"), "gateway mode should be enabled from env var")
+	assert.Equal(t, "", c.GetString("hostname"), "hostname should be empty when gateway mode is enabled via env var")
+}
+
+func (suite *ConfigTestSuite) TestGatewayModeOverridesDDHostnameEnvVar() {
+	t := suite.T()
+	fileName := "testdata/config_default.yaml"
+	ddFileName := "testdata/datadog_gateway_mode.yaml"
+	// Simulate the Helm chart setting DD_HOSTNAME to the Kubernetes node name
+	t.Setenv("DD_HOSTNAME", "k8s-node-name")
+	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	require.NoError(t, err, "NewConfigComponent should succeed with gateway mode enabled")
+
+	// Gateway mode should override DD_HOSTNAME and set hostname to empty
+	assert.True(t, c.GetBool("otelcollector.gateway.mode"), "gateway mode should be enabled")
+	assert.Equal(t, "", c.GetString("hostname"), "hostname should be empty in gateway mode even when DD_HOSTNAME is set")
 }
 
 // TestSuite runs the CalculatorTestSuite

@@ -2617,6 +2617,11 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "dns.question.name.root_domain",
+          "definition": "Root domain of the corresponding element",
+          "property_doc_link": "dns-question-name-root_domain-doc"
+        },
+        {
           "name": "dns.question.type",
           "definition": "a two octet code which specifies the DNS question type",
           "property_doc_link": "dns-question-type-doc"
@@ -15458,6 +15463,18 @@
       "definition": "the queried domain name",
       "prefixes": [
         "dns.question"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "dns.question.name.root_domain",
+      "link": "dns-question-name-root_domain-doc",
+      "type": "string",
+      "definition": "Root domain of the corresponding element",
+      "prefixes": [
+        "dns.question.name"
       ],
       "constants": "",
       "constants_link": "",
