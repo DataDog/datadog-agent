@@ -21,11 +21,19 @@ import (
 )
 
 // Permission handles permissions for Unix and Windows
-type Permission struct{}
+type Permission struct {
+	ddUserUID uint32
+}
 
 // NewPermission creates a new instance of `Permission`
 func NewPermission() (*Permission, error) {
-	return &Permission{}, nil
+	perms := &Permission{}
+
+	if ddUserUID, err := getDatadogUserUID(); err == nil {
+		perms.ddUserUID = ddUserUID
+	}
+
+	return perms, nil
 }
 
 // agentUsername returns the agent user name for the current platform.
@@ -97,14 +105,19 @@ func getDatadogUserUID() (uint32, error) {
 }
 
 func (p *Permission) isAllowedOwner(uid uint32) bool {
-	// check if its 'root' or the current user
-	if uid == 0 || uid == uint32(os.Getuid()) {
+	// check if its 'root'
+	if uid == 0 {
+		return true
+	}
+
+	// check if it's the current user
+	if uid == uint32(os.Getuid()) {
 		return true
 	}
 
 	// check if it's the dd user if it exists
-	if ddUserUID, err := getDatadogUserUID(); err == nil {
-		return uid == ddUserUID
+	if p.ddUserUID != 0 && uid == p.ddUserUID {
+		return true
 	}
 	return false
 }
