@@ -8,7 +8,6 @@ load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
 load("//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("//bazel/rules:so_symlink.bzl", "so_symlink")
-load("//rtloader:defs.bzl", "COMMON_CXXOPTS", "COMMON_DEFINES")
 
 package(
     default_package_metadata = [":license"],
@@ -24,6 +23,11 @@ license(
 
 VERSION = "0.1.0"
 
+COMMON_CXXOPTS = [
+    # This was ported from the equivalent original CMake `set(CMAKE_CXX_STANDARD 11)` et al.
+    "-std=c++11",
+]
+
 dd_agent_expand_template(
     name = "pc_gen",
     out = "datadog-agent-rtloader.pc",
@@ -32,7 +36,7 @@ dd_agent_expand_template(
         "@CMAKE_INSTALL_LIBDIR@": "lib",
         "@CMAKE_INSTALL_INCLUDEDIR@": "include",
         "@PROJECT_NAME@": "datadog-agent-rtloader",
-        "@PROJECT_VERSION@": "0.1.0",
+        "@PROJECT_VERSION@": VERSION,
         "@PROJECT_DESCRIPTION@": "CPython backend for the Datadog Agent",
     },
     template = "rtloader/datadog-agent-rtloader.pc.in",
@@ -111,15 +115,6 @@ ADD_CUSTOM_COMMAND(
 endif()
 """
 
-# opts and defines come from omnibus/config/software/datadog-agent.rb, in
-# the rtloader section. E.g.
-#   dda inv -- -e rtloader.make --install-prefix /opt/datadog-agent/embedded \
-#     --cmake-options '-DCMAKE_CXX_FLAGS:="-D_GLIBCXX_USE_CXX11_ABI=0" \
-#     -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER
-
-# TODO: Figure out what to do with this.
-# project(datadog-agent-three VERSION 0.1.0 DESCRIPTION "CPython backend for the Datadog Agent")
-
 dd_agent_expand_template(
     name = "constants_gen",
     out = "constants.h",
@@ -182,7 +177,7 @@ cc_library(
         "common/builtins",
         "include",
     ],
-    local_defines = COMMON_DEFINES + select({
+    local_defines = select({
         "@platforms//os:windows": [
             # TODO: only set if not MSVC. But it might be OK do to anyway.
             "_hypot=hypot",
@@ -190,6 +185,7 @@ cc_library(
         ],
         "//conditions:default": [
             "DATADOG_AGENT_THREE",
+            "_GLIBCXX_USE_CXX11_ABI=0",
         ],
     }),
     deps = [
