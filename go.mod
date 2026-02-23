@@ -169,7 +169,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/version v0.76.0-rc.4
 	github.com/DataDog/datadog-go/v5 v5.8.3
-	github.com/DataDog/datadog-operator/api v0.0.0-20260130110400-4fcb91d49671
+	github.com/DataDog/datadog-operator/api v0.0.0-20260218132256-6fb0dc76eec6
 	github.com/DataDog/datadog-traceroute v1.0.8
 	github.com/DataDog/ebpf-manager v0.7.15
 	github.com/DataDog/go-sqllexer v0.1.13
@@ -247,7 +247,7 @@ require (
 	github.com/golang/mock v1.7.0-rc.1
 	github.com/golang/protobuf v1.5.4
 	github.com/google/btree v1.1.3
-	github.com/google/cel-go v0.26.1
+	github.com/google/cel-go v0.27.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.20.7
 	github.com/google/gofuzz v1.2.0
@@ -262,7 +262,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-version v1.8.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
-	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb
+	github.com/hectane/go-acl v0.0.0-20230225031251-cdfc9e3acf94
 	github.com/iceber/iouring-go v0.0.0-20230403020409-002cfd2e2a90
 	github.com/imdario/mergo v0.3.16
 	github.com/invopop/jsonschema v0.12.0
@@ -800,7 +800,6 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/stackitcloud/stackit-sdk-go/core v0.20.1 // indirect
-	github.com/stoewer/go-strcase v1.3.1 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/swaggest/refl v1.3.0 // indirect
 	github.com/tchap/go-patricia/v2 v2.3.3 // indirect
@@ -999,7 +998,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.1.0
 	github.com/qri-io/jsonpointer v0.1.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
-	gitlab.com/gitlab-org/api/client-go v1.14.0
+	gitlab.com/gitlab-org/api/client-go v1.40.1
 	go.temporal.io/api v1.62.2
 	go.temporal.io/sdk v1.39.0
 )
@@ -1035,10 +1034,13 @@ require (
 	github.com/Azure/go-autorest/autorest/azure/cli v0.4.6 // indirect
 	github.com/Azure/go-autorest/autorest/to v0.4.0 // indirect
 	github.com/Azure/go-autorest/autorest/validation v0.3.1 // indirect
+	github.com/DataDog/appsec-internal-go v1.14.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs v0.74.0-devel.0.20251125141836-2ae7a968751c // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/otel v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
 	github.com/DataDog/datadog-go v3.2.0+incompatible // indirect
+	github.com/DataDog/go-libddwaf/v3 v3.5.4 // indirect
+	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20250721125240-fdf1ef85b633 // indirect
 	github.com/Jeffail/gabs/v2 v2.1.0 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/ProtonMail/gopenpgp/v3 v3.2.1 // indirect
@@ -1063,6 +1065,7 @@ require (
 	github.com/dgryski/go-minhash v0.0.0-20190315135803-ad340ca03076 // indirect
 	github.com/dimchansky/utfbom v1.1.1 // indirect
 	github.com/duosecurity/duo_api_golang v0.0.0-20190308151101-6c680f768e74 // indirect
+	github.com/eapache/queue/v2 v2.0.0-20230407133247-75960ed334e4 // indirect
 	github.com/ekzhu/minhash-lsh v0.0.0-20190924033628-faac2c6342f8 // indirect
 	github.com/emicklei/dot v0.15.0 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
@@ -1164,7 +1167,7 @@ require (
 	github.com/opentracing/opentracing-go v1.2.1-0.20220228012449-10b1cf09e00b // indirect
 	github.com/oracle/oci-go-sdk/v60 v60.0.0 // indirect
 	github.com/packethost/packngo v0.1.1-0.20180711074735-b9cb5096f54c // indirect
-	github.com/petermattis/goid v0.0.0-20250721140440-ea1c0173183e // indirect
+	github.com/petermattis/goid v0.0.0-20250813065127-a731cc31b4fe // indirect
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
 	github.com/pires/go-proxyproto v0.8.0 // indirect
 	github.com/pjbgf/sha1cd v0.3.2 // indirect
@@ -1252,6 +1255,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl => ./comp/core/agenttelemetry/impl
 	github.com/DataDog/datadog-agent/comp/core/config => ./comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ./comp/core/configsync
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth => ./comp/core/delegatedauth
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws => ./comp/core/delegatedauth/api/cloudauth/aws
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ./comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ./comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ./comp/core/hostname/hostnameinterface
@@ -1377,6 +1382,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/trace/otel => ./pkg/trace/otel
 	github.com/DataDog/datadog-agent/pkg/trace/stats => ./pkg/trace/stats
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil => ./pkg/trace/traceutil
+	github.com/DataDog/datadog-agent/pkg/util/aws/creds => ./pkg/util/aws/creds
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ./pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ./pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ./pkg/util/cache

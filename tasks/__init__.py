@@ -31,6 +31,7 @@ from tasks import (
     emacs,
     epforwarder,
     fakeintake,
+    files_inventory,
     fips,
     full_host_profiler,
     git,
@@ -266,6 +267,7 @@ ns.add_collection(worktree)
 ns.add_collection(sbomgen)
 ns.add_collection(pkg_template)
 ns.add_collection(virustotal)
+ns.add_collection(files_inventory)
 
 # e2e-framework collections (from test/e2e-framework)
 ns.add_collection(e2e_aws.collection, "aws")
