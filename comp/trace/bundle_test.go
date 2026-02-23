@@ -50,7 +50,6 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Supply(&traceagentimpl.Params{}),
 		payloadmodifierfx.NilModule(),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
-		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 	)
 }
 
