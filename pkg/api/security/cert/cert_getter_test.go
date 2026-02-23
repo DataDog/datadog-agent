@@ -8,6 +8,7 @@ package cert
 import (
 	"context"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/pem"
 	"net"
 	"os"
@@ -66,6 +67,7 @@ func setupTempConfig(t *testing.T) (model.Config, string) {
 	config.SetWithoutSource("ipc_cert_file_path", filepath.Join(tempDir, "test_cert.pem"))
 	config.SetWithoutSource("cluster_trust_chain.ca_cert_file_path", "")
 	config.SetWithoutSource("cluster_trust_chain.ca_key_file_path", "")
+	config.SetWithoutSource("cluster_trust_chain.ca_cert_pem", "")
 	config.SetWithoutSource("cluster_trust_chain.enable_tls_verification", false)
 	config.SetWithoutSource("clc_runner_host", "")
 	config.SetWithoutSource("auth_token_file_path", "")
@@ -439,7 +441,7 @@ func TestBuildClusterClientTLSConfig_ValidationError(t *testing.T) {
 	config, err := caData.buildClusterClientTLSConfig()
 	assert.Error(t, err)
 	assert.Nil(t, config)
-	assert.Contains(t, err.Error(), "cluster_trust_chain.enable_tls_verification cannot be true")
+	assert.Contains(t, err.Error(), "cluster_trust_chain.enable_tls_verification cannot be true if cluster_trust_chain.ca_cert_file_path or cluster_trust_chain.ca_cert_pem is not set")
 
 	// Test case: TLS verification disabled - should work fine without CA
 	caDataDisabled := &clusterCAData{
@@ -539,4 +541,20 @@ func TestFetchOrCreateIPCCert_ClusterAgentFlavor(t *testing.T) {
 	chains, err := cert.Verify(opts)
 	require.NoError(t, err, "Certificate should be verifiable against the provided CA")
 	require.Len(t, chains, 1)
+}
+
+// TestReadClusterCAConfig_FromPEM tests that readClusterCAConfig falls back to ca_cert_pem when file paths are empty
+func TestReadClusterCAConfig_FromPEM(t *testing.T) {
+	config := mock.New(t)
+	config.SetWithoutSource("cluster_trust_chain.enable_tls_verification", true)
+	config.SetWithoutSource("cluster_trust_chain.ca_cert_file_path", "")
+	config.SetWithoutSource("cluster_trust_chain.ca_key_file_path", "")
+	config.SetWithoutSource("cluster_trust_chain.ca_cert_pem", base64.StdEncoding.EncodeToString(clusterCAcert))
+
+	caData, err := readClusterCAConfig(config)
+	require.NoError(t, err)
+	require.NotNil(t, caData)
+	assert.True(t, caData.enableTLSVerification)
+	assert.NotNil(t, caData.caCert, "CA cert should be parsed from PEM config")
+	assert.Nil(t, caData.caPrivKey, "Private key should be nil when loaded from PEM")
 }

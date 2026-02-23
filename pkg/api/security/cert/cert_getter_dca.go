@@ -8,6 +8,7 @@ package cert
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -79,6 +80,24 @@ func readClusterCA(caCertPath, caKeyPath string) (*x509.Certificate, any, error)
 	return caCert, caPrivKey, nil
 }
 
+// parseClusterCACertPEM decodes a base64-encoded PEM certificate string and
+// returns the parsed x509 certificate.
+func parseClusterCACertPEM(base64PEM string) (*x509.Certificate, error) {
+	pemBytes, err := base64.StdEncoding.DecodeString(base64PEM)
+	if err != nil {
+		return nil, fmt.Errorf("unable to base64-decode cluster CA cert PEM: %w", err)
+	}
+	block, _ := pem.Decode(pemBytes)
+	if block == nil {
+		return nil, errors.New("unable to PEM-decode cluster CA cert")
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse cluster CA cert: %w", err)
+	}
+	return cert, nil
+}
+
 // readClusterCAConfig reads cluster CA configuration and files from disk once
 // Returns nil if no cluster CA is configured
 func readClusterCAConfig(config configModel.Reader) (*clusterCAData, error) {
@@ -86,23 +105,37 @@ func readClusterCAConfig(config configModel.Reader) (*clusterCAData, error) {
 	clusterCAPath := config.GetString("cluster_trust_chain.ca_cert_file_path")
 	clusterCAKeyPath := config.GetString("cluster_trust_chain.ca_key_file_path")
 
-	// If no cluster CA path is configured, return nil (not an error)
-	if clusterCAPath == "" || clusterCAKeyPath == "" {
+	// If file paths are configured, read from disk
+	if clusterCAPath != "" && clusterCAKeyPath != "" {
+		caCert, caPrivKey, err := readClusterCA(clusterCAPath, clusterCAKeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("unable to read cluster CA cert and key: %w", err)
+		}
+
 		return &clusterCAData{
 			enableTLSVerification: enableTLSVerification,
+			caCert:                caCert,
+			caPrivKey:             caPrivKey,
 		}, nil
 	}
 
-	// Read cluster CA certificate and private key from disk
-	caCert, caPrivKey, err := readClusterCA(clusterCAPath, clusterCAKeyPath)
-	if err != nil {
-		return nil, fmt.Errorf("unable to read cluster CA cert and key: %w", err)
+	// Fallback: check for base64-encoded PEM in config (e.g. injected via env var by sidecar webhook)
+	caCertPEM := config.GetString("cluster_trust_chain.ca_cert_pem")
+	if caCertPEM != "" {
+		cert, err := parseClusterCACertPEM(caCertPEM)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse cluster CA cert from PEM config: %w", err)
+		}
+		return &clusterCAData{
+			enableTLSVerification: enableTLSVerification,
+			caCert:                cert,
+			caPrivKey:             nil,
+		}, nil
 	}
 
+	// No cluster CA configured (not an error)
 	return &clusterCAData{
 		enableTLSVerification: enableTLSVerification,
-		caCert:                caCert,
-		caPrivKey:             caPrivKey,
 	}, nil
 }
 
@@ -118,8 +151,13 @@ func (c *clusterCAData) buildClusterClientTLSConfig() (*tls.Config, error) {
 
 	// If TLS verification is enabled, configure proper certificate validation
 	// It's not possible to have TLS verification enabled without a CA certificate
-	if c.caCert == nil || c.caPrivKey == nil {
-		return nil, errors.New("cluster_trust_chain.enable_tls_verification cannot be true if cluster_trust_chain.ca_cert_file_path or cluster_trust_chain.ca_key_file_path is not set")
+	if c.caCert == nil {
+		return nil, errors.New("cluster_trust_chain.enable_tls_verification cannot be true if cluster_trust_chain.ca_cert_file_path or cluster_trust_chain.ca_cert_pem is not set")
+	}
+
+	// If the cluster agent is running, it must have the private key to it's certificate
+	if c.caPrivKey == nil && flavor.GetFlavor() == flavor.ClusterAgent {
+		return nil, errors.New("cluster_trust_chain.enable_tls_verification cannot be true if cluster_trust_chain.ca_key_file_path is not set on the cluster agent")
 	}
 
 	clusterClientCertPool := x509.NewCertPool()

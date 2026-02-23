@@ -693,6 +693,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_trust_chain.ca_cert_file_path", "")
 	// Path to the cluster CA key file.
 	config.BindEnvAndSetDefault("cluster_trust_chain.ca_key_file_path", "")
+	// Base64-encoded PEM of the cluster CA certificate (used by sidecar agents).
+	config.BindEnvAndSetDefault("cluster_trust_chain.ca_cert_pem", "")
 
 	// the entity id, typically set by dca admisson controller config mutator, used for external origin detection
 	config.SetDefault("entity_id", "")

@@ -10,6 +10,7 @@ package agentsidecar
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"testing"
 
@@ -1040,4 +1041,101 @@ func sortEnv(envs []corev1.EnvVar) []corev1.EnvVar {
 		return envs[i].Name < envs[j].Name
 	})
 	return envs
+}
+
+func TestDefaultSidecarTemplateTLSEnvVars(t *testing.T) {
+	// Create a temporary CA cert file for tests that need it
+	caCertPEM := []byte(`-----BEGIN CERTIFICATE-----
+MIIBzTCCAXKgAwIBAgIUWTX/Wlc/ovPPsG5bhU5RzAUb7qYwCgYIKoZIzj0EAwIw
+GDEWMBQGA1UECgwNRGF0YWRvZywgSW5jLjAeFw0yNTA4MjIwOTAyNDRaFw0zNTA4
+MjAwOTAyNDRaMBgxFjAUBgNVBAoMDURhdGFkb2csIEluYy4wWTATBgcqhkjOPQIB
+BggqhkjOPQMBBwNCAAQ68kYT6H8kzjyqCiFHzwWolffAejhBmNbFDRNR694b9MAo
+ekrdHSAjlfwHAFxC7SBPfyEn723NvJA+9AWjkEpEo4GZMIGWMB0GA1UdDgQWBBTL
+OxLYXEuBE9eiNozfCNVkYw6szjAfBgNVHSMEGDAWgBTLOxLYXEuBE9eiNozfCNVk
+Yw6szjAaBgNVHREEEzARgglsb2NhbGhvc3SHBH8AAAEwCwYDVR0PBAQDAgEGMB0G
+A1UdJQQWMBQGCCsGAQUFBwMBBggrBgEFBQcDAjAMBgNVHRMEBTADAQH/MAoGCCqG
+SM49BAMCA0kAMEYCIQDl7HfsTM2NBJp5HGH2rpnxI6ULLG3GAf7PjOF6FJLYSgIh
+AO4uOH/M1w5tJcHFMxW9D6vmn4tTgLPkHjt57EUJWDYG-DummyCertificateVal
+-----END CERTIFICATE-----
+`)
+	tmpDir := t.TempDir()
+	caCertPath := tmpDir + "/ca_cert.pem"
+	err := os.WriteFile(caCertPath, caCertPEM, 0644)
+	assert.NoError(t, err)
+
+	tests := []struct {
+		name              string
+		setConfig         func() model.Config
+		expectedEnvVars   []corev1.EnvVar
+		unexpectedEnvVars []string
+	}{
+		{
+			name: "TLS verification enabled with CA cert file — injects TLS env vars",
+			setConfig: func() model.Config {
+				mockConfig := configmock.New(t)
+				mockConfig.SetWithoutSource("cluster_trust_chain.enable_tls_verification", true)
+				mockConfig.SetWithoutSource("cluster_trust_chain.ca_cert_file_path", caCertPath)
+				return mockConfig
+			},
+			expectedEnvVars: []corev1.EnvVar{
+				{
+					Name:  "DD_CLUSTER_TRUST_CHAIN_ENABLE_TLS_VERIFICATION",
+					Value: "true",
+				},
+			},
+		},
+		{
+			name: "TLS verification disabled — no TLS env vars",
+			setConfig: func() model.Config {
+				mockConfig := configmock.New(t)
+				mockConfig.SetWithoutSource("cluster_trust_chain.enable_tls_verification", false)
+				return mockConfig
+			},
+			unexpectedEnvVars: []string{
+				"DD_CLUSTER_TRUST_CHAIN_ENABLE_TLS_VERIFICATION",
+				"DD_CLUSTER_TRUST_CHAIN_CA_CERT_PEM",
+			},
+		},
+		{
+			name: "TLS verification enabled but no CA cert file — no TLS env vars",
+			setConfig: func() model.Config {
+				mockConfig := configmock.New(t)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.container_registry", commonRegistry)
+				mockConfig.SetWithoutSource("cluster_trust_chain.enable_tls_verification", true)
+				mockConfig.SetWithoutSource("cluster_trust_chain.ca_cert_file_path", "")
+				return mockConfig
+			},
+			unexpectedEnvVars: []string{
+				"DD_CLUSTER_TRUST_CHAIN_ENABLE_TLS_VERIFICATION",
+				"DD_CLUSTER_TRUST_CHAIN_CA_CERT_PEM",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			mockConfig := test.setConfig()
+			sidecar := NewWebhook(mockConfig).getDefaultSidecarTemplate()
+			envVarsMap := make(map[string]corev1.EnvVar)
+			for _, envVar := range sidecar.Env {
+				envVarsMap[envVar.Name] = envVar
+			}
+
+			for _, expectedVar := range test.expectedEnvVars {
+				actual, exist := envVarsMap[expectedVar.Name]
+				assert.True(tt, exist, "expected env var %s to be present", expectedVar.Name)
+				assert.Equal(tt, expectedVar.Value, actual.Value)
+			}
+
+			for _, unexpectedVar := range test.unexpectedEnvVars {
+				_, exist := envVarsMap[unexpectedVar]
+				assert.False(tt, exist, "expected env var %s to NOT be present", unexpectedVar)
+			}
+
+			// When TLS env vars are injected, verify the PEM value is non-empty
+			if pemVar, ok := envVarsMap["DD_CLUSTER_TRUST_CHAIN_CA_CERT_PEM"]; ok {
+				assert.NotEmpty(tt, pemVar.Value, "CA cert PEM should not be empty")
+			}
+		})
+	}
 }

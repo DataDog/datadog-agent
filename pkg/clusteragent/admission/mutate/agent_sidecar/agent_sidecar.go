@@ -10,6 +10,7 @@ package agentsidecar
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -56,6 +57,7 @@ type Webhook struct {
 	namespaceSelector *metav1.LabelSelector
 	objectSelector    *metav1.LabelSelector
 	containerRegistry string
+	clusterCACertPEM  string
 
 	// These fields store datadog agent config parameters
 	// to avoid calling the config resolution each time the webhook
@@ -83,6 +85,19 @@ func NewWebhook(datadogConfig config.Component) *Webhook {
 
 	containerRegistry := mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.agent_sidecar.container_registry")
 
+	var clusterCACertPEM string
+	if datadogConfig.GetBool("cluster_trust_chain.enable_tls_verification") {
+		caCertPath := datadogConfig.GetString("cluster_trust_chain.ca_cert_file_path")
+		if caCertPath != "" {
+			caCertBytes, err := os.ReadFile(caCertPath)
+			if err != nil {
+				log.Errorf("failed to read cluster CA cert file for sidecar injection: %s", err)
+			} else {
+				clusterCACertPEM = base64.StdEncoding.EncodeToString(caCertBytes)
+			}
+		}
+	}
+
 	return &Webhook{
 		name:              webhookName,
 		isEnabled:         datadogConfig.GetBool("admission_controller.agent_sidecar.enabled"),
@@ -93,6 +108,7 @@ func NewWebhook(datadogConfig config.Component) *Webhook {
 		namespaceSelector: nsSelector,
 		objectSelector:    objSelector,
 		containerRegistry: containerRegistry,
+		clusterCACertPEM:  clusterCACertPEM,
 		profileOverrides:  profileOverrides,
 
 		provider:                     datadogConfig.GetString("admission_controller.agent_sidecar.provider"),
@@ -402,6 +418,16 @@ func (w *Webhook) getDefaultSidecarTemplate() *corev1.Container {
 				"cpu":    resource.MustParse("200m"),
 			},
 		},
+	}
+
+	if w.clusterCACertPEM != "" {
+		_, _ = withEnvOverrides(agentContainer, corev1.EnvVar{
+			Name:  "DD_CLUSTER_TRUST_CHAIN_ENABLE_TLS_VERIFICATION",
+			Value: "true",
+		}, corev1.EnvVar{
+			Name:  "DD_CLUSTER_TRUST_CHAIN_CA_CERT_PEM",
+			Value: w.clusterCACertPEM,
+		})
 	}
 
 	if w.isClusterAgentEnabled {
