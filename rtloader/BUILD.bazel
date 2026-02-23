@@ -124,12 +124,10 @@ cc_library(
         "common/cgo_free.h",
         "common/log.c",
         "common/log.h",
-        "common/rtloader_mem.h",
         "common/stringutils.c",
         "common/stringutils.h",
         "constants.h",
         "include/rtloader.h",
-        "include/rtloader_types.h",
         "three/three.cpp",
         "three/three.h",
         "three/three_mem.cpp",
@@ -156,6 +154,10 @@ cc_library(
         "common/builtins",
         "include",
     ],
+    linkopts = [
+        # Make up for the fact that we may be using gcc and not g++
+        "-lstdc++",
+    ],
     local_defines = select({
         "@platforms//os:windows": [
             # TODO: only set if not MSVC. But it might be OK do to anyway.
@@ -167,16 +169,38 @@ cc_library(
             "_GLIBCXX_USE_CXX11_ABI=0",
         ],
     }),
-    deps = [
-        "@rules_python//python/cc:current_py_cc_headers",
-    ],
+    deps = [":rtloader"] + select({
+        "@platforms//os:windows": [],
+        "@platforms//os:linux": [
+            "@cpython//:python_unix_shared",
+        ],
+        "@platforms//os:macos": [
+            "@cpython//:python_unix_shared",
+        ],
+    }),
 )
 
 cc_shared_library(
     name = "datadog-agent-three",
-    dynamic_deps = [
-        # TODO: point to embedded/libpython
-    ],
+    dynamic_deps = [":datadog-agent-rtloader"] + select({
+        "@platforms//os:windows": [],
+        "@platforms//os:linux": [
+            "@cpython//:python_unix_shared",
+        ],
+        "@platforms//os:macos": [
+            "@cpython//:python_unix_shared",
+        ],
+    }),
+    user_link_flags = select({
+        "@platforms//os:windows": [],
+        "@platforms//os:linux": [
+            # Ensure symbols are resolved
+            "-Wl,--no-undefined",
+        ],
+        "@platforms//os:macos": [
+            "-Wl,-undefined,error",
+        ],
+    }),
     deps = [
         ":three",
     ],
@@ -199,12 +223,4 @@ elseif(APPLE)
 endif()
 
 add_compile_definitions(DATADOG_AGENT_THREE)
-target_include_directories(datadog-agent-three PRIVATE .)
-target_include_directories(datadog-agent-three PUBLIC
-    ${CMAKE_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/common
-    ${CMAKE_SOURCE_DIR}/common/builtins
-    ${Python3_INCLUDE_DIRS}
-)
-target_link_libraries(datadog-agent-three ${Python3_LIBRARIES} datadog-agent-rtloader)
 """
