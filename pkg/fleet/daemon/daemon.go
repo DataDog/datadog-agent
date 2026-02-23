@@ -387,7 +387,16 @@ func (d *daemonImpl) Start(_ context.Context) error {
 				d.refreshState(d.ctx)
 				d.m.Unlock()
 			case <-d.stopChan:
-				return
+				// Drain buffered requests and decrement WG for each so that
+				// requestsWG.Wait() in Stop() can return cleanly.
+				for {
+					select {
+					case <-d.requests:
+						d.requestsWG.Done()
+					default:
+						return
+					}
+				}
 			case request := <-d.requests:
 				err := d.handleRemoteAPIRequest(request)
 				if err != nil {
@@ -641,7 +650,12 @@ func (d *daemonImpl) handleCatalogUpdate(c catalog) error {
 
 func (d *daemonImpl) scheduleRemoteAPIRequest(request remoteAPIRequest) error {
 	d.requestsWG.Add(1)
-	d.requests <- request
+	select {
+	case d.requests <- request:
+	case <-d.stopChan:
+		// Goroutine already exited; undo the Add so requestsWG.Wait() can return.
+		d.requestsWG.Done()
+	}
 	return nil
 }
 
