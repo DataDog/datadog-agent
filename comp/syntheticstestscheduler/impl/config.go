@@ -6,10 +6,12 @@
 package syntheticstestschedulerimpl
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 type schedulerConfigs struct {
@@ -27,8 +29,9 @@ func newSchedulerConfigs(agentConfig config.Component) *schedulerConfigs {
 }
 
 type onDemandPollerConfig struct {
-	site   string
-	apiKey string
+	site          string
+	apiKey        string
+	httpTransport *http.Transport
 }
 
 func newOnDemandPollerConfig(agentConfig config.Component) *onDemandPollerConfig {
@@ -38,7 +41,8 @@ func newOnDemandPollerConfig(agentConfig config.Component) *onDemandPollerConfig
 	}
 
 	return &onDemandPollerConfig{
-		site:   site,
-		apiKey: agentConfig.GetString("api_key"),
+		site:          site,
+		apiKey:        agentConfig.GetString("api_key"),
+		httpTransport: httputils.CreateHTTPTransport(agentConfig),
 	}
 }

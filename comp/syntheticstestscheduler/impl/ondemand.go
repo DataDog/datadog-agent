@@ -35,7 +35,7 @@ type onDemandPoller struct {
 
 func newOnDemandPoller(config *onDemandPollerConfig, hostNameService hostname.Component, logger log.Component, timeNowFn func() time.Time) *onDemandPoller {
 	return &onDemandPoller{
-		httpClient:      &http.Client{Timeout: 10 * time.Second},
+		httpClient:      &http.Client{Transport: config.httpTransport, Timeout: 10 * time.Second},
 		endpoint:        "https://intake.synthetics." + config.site + "/api/unstable/synthetics/agents/tests",
 		apiKey:          config.apiKey,
 		hostNameService: hostNameService,
