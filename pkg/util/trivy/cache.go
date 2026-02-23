@@ -9,6 +9,7 @@
 package trivy
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -131,7 +132,7 @@ func (c *ScannerCache) setKeysForEntity(entity string, cachedKeys []string) {
 }
 
 // MissingBlobs implements cache.Cache#MissingBlobs
-func (c *ScannerCache) MissingBlobs(artifactID string, blobIDs []string) (bool, []string, error) {
+func (c *ScannerCache) MissingBlobs(_ context.Context, artifactID string, blobIDs []string) (bool, []string, error) {
 	var missingBlobIDs []string
 	for _, blobID := range blobIDs {
 		if ok := c.cache.Contains(blobID); !ok {
@@ -145,24 +146,24 @@ func (c *ScannerCache) MissingBlobs(artifactID string, blobIDs []string) (bool, 
 }
 
 // PutArtifact implements cache.Cache#PutArtifact
-func (c *ScannerCache) PutArtifact(artifactID string, artifactInfo types.ArtifactInfo) error {
+func (c *ScannerCache) PutArtifact(_ context.Context, artifactID string, artifactInfo types.ArtifactInfo) error {
 	return trivyCachePut(c, artifactID, artifactInfo)
 }
 
 // PutBlob implements cache.Cache#PutBlob
-func (c *ScannerCache) PutBlob(blobID string, blobInfo types.BlobInfo) error {
+func (c *ScannerCache) PutBlob(_ context.Context, blobID string, blobInfo types.BlobInfo) error {
 	return trivyCachePut(c, blobID, blobInfo)
 }
 
 // DeleteBlobs implements cache.Cache#DeleteBlobs does nothing because the cache cleaning logic is
 // managed by CacheCleaner
-func (c *ScannerCache) DeleteBlobs([]string) error {
+func (c *ScannerCache) DeleteBlobs(_ context.Context, _ []string) error {
 	return nil
 }
 
 // Clear implements cache.Cache#Clear
-func (c *ScannerCache) Clear() error {
-	return c.cache.Clear()
+func (c *ScannerCache) Clear(ctx context.Context) error {
+	return c.cache.Clear(ctx)
 }
 
 // Close implements cache.Cache#Close
@@ -171,12 +172,12 @@ func (c *ScannerCache) Close() error {
 }
 
 // GetArtifact implements cache.Cache#GetArtifact
-func (c *ScannerCache) GetArtifact(id string) (types.ArtifactInfo, error) {
+func (c *ScannerCache) GetArtifact(_ context.Context, id string) (types.ArtifactInfo, error) {
 	return trivyCacheGet[types.ArtifactInfo](c, id)
 }
 
 // GetBlob implements cache.Cache#GetBlob
-func (c *ScannerCache) GetBlob(id string) (types.BlobInfo, error) {
+func (c *ScannerCache) GetBlob(_ context.Context, id string) (types.BlobInfo, error) {
 	return trivyCacheGet[types.BlobInfo](c, id)
 }
 
@@ -268,7 +269,7 @@ func (c *persistentCache) Len() int {
 }
 
 // Clear deletes all the entries in the cache and closes the db.
-func (c *persistentCache) Clear() error {
+func (c *persistentCache) Clear(_ context.Context) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	if err := c.db.Clear(); err != nil {
@@ -467,39 +468,39 @@ type memoryCache struct {
 	lastBlobID string
 }
 
-func (c *memoryCache) MissingBlobs(artifactID string, blobIDs []string) (missingArtifact bool, missingBlobIDs []string, err error) {
+func (c *memoryCache) MissingBlobs(ctx context.Context, artifactID string, blobIDs []string) (missingArtifact bool, missingBlobIDs []string, err error) {
 	for _, blobID := range blobIDs {
-		if _, err := c.GetBlob(blobID); err != nil {
+		if _, err := c.GetBlob(ctx, blobID); err != nil {
 			missingBlobIDs = append(missingBlobIDs, blobID)
 		}
 	}
 
-	if _, err := c.GetArtifact(artifactID); err != nil {
+	if _, err := c.GetArtifact(ctx, artifactID); err != nil {
 		missingArtifact = true
 	}
 
 	return
 }
 
-func (c *memoryCache) PutArtifact(artifactID string, artifactInfo types.ArtifactInfo) error {
+func (c *memoryCache) PutArtifact(_ context.Context, artifactID string, artifactInfo types.ArtifactInfo) error {
 	c.artifacts[artifactID] = artifactInfo
 	return nil
 }
 
-func (c *memoryCache) PutBlob(blobID string, blobInfo types.BlobInfo) error {
+func (c *memoryCache) PutBlob(_ context.Context, blobID string, blobInfo types.BlobInfo) error {
 	c.blobs[blobID] = blobInfo
 	c.lastBlobID = blobID
 	return nil
 }
 
-func (c *memoryCache) DeleteBlobs(blobIDs []string) error {
+func (c *memoryCache) DeleteBlobs(_ context.Context, blobIDs []string) error {
 	for _, id := range blobIDs {
 		delete(c.blobs, id)
 	}
 	return nil
 }
 
-func (c *memoryCache) GetArtifact(artifactID string) (types.ArtifactInfo, error) {
+func (c *memoryCache) GetArtifact(_ context.Context, artifactID string) (types.ArtifactInfo, error) {
 	art, ok := c.artifacts[artifactID]
 	if !ok {
 		return types.ArtifactInfo{}, errors.New("not found")
@@ -507,7 +508,7 @@ func (c *memoryCache) GetArtifact(artifactID string) (types.ArtifactInfo, error)
 	return art, nil
 }
 
-func (c *memoryCache) GetBlob(blobID string) (types.BlobInfo, error) {
+func (c *memoryCache) GetBlob(_ context.Context, blobID string) (types.BlobInfo, error) {
 	b, ok := c.blobs[blobID]
 	if !ok {
 		return types.BlobInfo{}, errors.New("not found")
@@ -521,7 +522,7 @@ func (c *memoryCache) Close() (err error) {
 	return nil
 }
 
-func (c *memoryCache) Clear() (err error) {
+func (c *memoryCache) Clear(_ context.Context) (err error) {
 	return c.Close()
 }
 func (c *memoryCache) clean() error                      { return nil }
