@@ -16,7 +16,12 @@
   - mkdir -p /tmp/sd-agent
   - cp $CI_PROJECT_DIR/sd-agent-build-outputs/sd-agent /tmp/sd-agent/sd-agent
   - chmod 0755 /tmp/sd-agent/sd-agent
-  - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --sd-agent-bin=/tmp/sd-agent/sd-agent --flavor "$FLAVOR" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR"
+  # Extract dd-procmgrd pre-built binary
+  - tar -xf $CI_PROJECT_DIR/dd-procmgrd-build-outputs.tar.xz
+  - mkdir -p /tmp/dd-procmgrd
+  - cp $CI_PROJECT_DIR/dd-procmgrd-build-outputs/dd-procmgrd /tmp/dd-procmgrd/dd-procmgrd
+  - chmod 0755 /tmp/dd-procmgrd/dd-procmgrd
+  - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --sd-agent-bin=/tmp/sd-agent/sd-agent --dd-procmgrd-bin=/tmp/dd-procmgrd/dd-procmgrd --flavor "$FLAVOR" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR"
   - ls -la $OMNIBUS_PACKAGE_DIR
   - !reference [.upload_sbom_artifacts]
 
@@ -40,7 +45,7 @@
 .agent_build_x86:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
-  needs: ["build_system-probe-x64", "build_sd-agent-x64", "go_deps", "generate_minimized_btfs_x64"]
+  needs: ["build_system-probe-x64", "build_sd-agent-x64", "build_dd-procmgrd-x64", "go_deps", "generate_minimized_btfs_x64"]
   variables:
     PACKAGE_ARCH: amd64
     DD_CC: "x86_64-unknown-linux-gnu-gcc"
@@ -51,7 +56,7 @@
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64", "specific:true"]
   needs:
-    ["build_system-probe-arm64", "build_sd-agent-arm64", "go_deps", "generate_minimized_btfs_arm64"]
+    ["build_system-probe-arm64", "build_sd-agent-arm64", "build_dd-procmgrd-arm64", "go_deps", "generate_minimized_btfs_arm64"]
   variables:
     PACKAGE_ARCH: arm64
     DD_CC: "aarch64-unknown-linux-gnu-gcc"

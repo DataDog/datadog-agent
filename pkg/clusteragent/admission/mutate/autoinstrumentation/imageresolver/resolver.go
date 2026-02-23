@@ -37,9 +37,8 @@ func NewNoOpResolver() Resolver {
 }
 
 // ResolveImage returns the original image reference.
-func (r *noOpResolver) Resolve(registry string, repository string, tag string) (*ResolvedImage, bool) {
-	log.Debugf("Cannot resolve %s/%s:%s without remote config", registry, repository, tag)
-	metrics.ImageResolutionAttempts.Inc(repository, tag, tag)
+func (r *noOpResolver) Resolve(_ string, repository string, tag string) (*ResolvedImage, bool) {
+	metrics.ImageResolutionAttempts.Inc(repository, tag, "-", tag)
 	return nil, false
 }
 
@@ -65,20 +64,19 @@ func (r *bucketTagResolver) createBucketTag(tag string) string {
 }
 
 func (r *bucketTagResolver) Resolve(registry string, repository string, tag string) (*ResolvedImage, bool) {
-	var result = tag
-	var resolvedTag = tag
+	normalizedTag := strings.TrimPrefix(tag, "v")
+	var result = normalizedTag
 	defer func() {
-		metrics.ImageResolutionAttempts.Inc(repository, resolvedTag, result)
+		metrics.ImageResolutionAttempts.Inc(repository, normalizedTag, r.bucketID, result)
 	}()
 	if !isDatadoghqRegistry(registry, r.datadoghqRegistries) {
 		log.Debugf("%s is not a Datadoghq registry, not opting into gradual rollout", registry)
 		return nil, false
 	}
 
-	bucketTag := r.createBucketTag(tag)
+	bucketTag := r.createBucketTag(normalizedTag)
 
 	digest, err := r.cache.get(registry, repository, bucketTag)
-	resolvedTag = bucketTag
 	if err != nil {
 		log.Debugf("Failed to resolve %s/%s:%s for gradual rollout - %v", registry, repository, bucketTag, err)
 		return nil, false

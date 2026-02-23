@@ -143,6 +143,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
@@ -420,6 +422,32 @@ func start(log log.Component,
 
 	pkglog.Infof("Cluster ID: %s, Cluster Name: %s, Kube Distribution: %s", clusterID, clusterName, kubeDistro)
 
+	// Setup APM tracing
+	if config.GetBool("cluster_agent.tracing.enabled") {
+		sampleRate := config.GetFloat64("cluster_agent.tracing.sample_rate")
+		if sampleRate < 0.0 || sampleRate > 1.0 {
+			pkglog.Warnf("Invalid cluster_agent.tracing.sample_rate: %f (must be between 0.0 and 1.0), using default 0.1", sampleRate)
+			sampleRate = 0.1
+		}
+
+		opts := []tracer.StartOption{
+			tracer.WithService("datadog-cluster-agent"),
+			tracer.WithServiceVersion(version.AgentVersion),
+			tracer.WithSampler(tracer.NewRateSampler(sampleRate)),
+			tracer.WithGlobalTag("cluster_name", clusterName),
+			tracer.WithLogStartup(false),
+		}
+		if env := config.GetString("cluster_agent.tracing.env"); env != "" {
+			opts = append(opts, tracer.WithEnv(env))
+		}
+		if clusterID != "" {
+			opts = append(opts, tracer.WithGlobalTag("cluster_id", clusterID))
+		}
+		tracer.Start(opts...)
+		pkglog.Infof("APM tracing enabled for Cluster Agent (sample_rate=%.2f)", sampleRate)
+		defer tracer.Stop()
+	}
+
 	// Initialize and start remote configuration client
 	var rcClient *rcclient.Client
 	rcserv, isSet := rcService.Get()
@@ -544,7 +572,7 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("language_detection.enabled") && config.GetBool("cluster_agent.language_detection.patcher.enabled") {
-		if err = languagedetection.Start(mainCtx, wmeta, log, config); err != nil {
+		if err = languagedetection.Start(mainCtx, le.IsLeader, wmeta, log, config); err != nil {
 			log.Errorf("Cannot start language detection patcher: %v", err)
 		}
 	}
@@ -559,7 +587,7 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("private_action_runner.enabled") {
-		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, log, taggerComp, tracerouteComp, eventPlatform)
+		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform)
 		if err != nil {
 			log.Errorf("Cannot start private action runner: %v", err)
 		} else {
@@ -693,6 +721,7 @@ func startPrivateActionRunner(
 	config config.Component,
 	hostnameGetter hostnameinterface.Component,
 	rcClient *rcclient.Client,
+	le *leaderelection.LeaderEngine,
 	log log.Component,
 	tagger tagger.Component,
 	tracerouteComp traceroute.Component,
@@ -701,14 +730,23 @@ func startPrivateActionRunner(
 	if rcClient == nil {
 		return nil, errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for private action runner")
 	}
+	if !config.GetBool("leader_election") {
+		return nil, errors.New("leader election is not enabled on the Cluster Agent. The private action runner needs leader election for identity coordination across replicas")
+	}
+	le.StartLeaderElectionRun()
 	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform)
 	if err != nil {
 		return nil, err
 	}
-	err = app.Start(ctx)
-	if err != nil {
-		return nil, err
-	}
+	// Start the private action runner asynchronously
+	errChan := app.StartAsync(ctx)
+
+	go func() {
+		// We could ignore this error but it's better to log it for debugging purposes
+		if err := <-errChan; err != nil {
+			log.Errorf("Failed to start private action runner: %v", err)
+		}
+	}()
 	return func() {
 		if err := app.Stop(context.Background()); err != nil {
 			log.Errorf("Error stopping private action runner: %v", err)
