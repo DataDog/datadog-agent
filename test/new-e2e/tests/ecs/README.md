@@ -26,9 +26,8 @@ The ECS E2E test suite covers:
 
 This directory contains **7 test suites** with **61 total tests**:
 
-### 1. `apm_test.go` - APM/Tracing (8 tests)
+### 1. `apm_test.go` - APM/Tracing
 Tests APM trace collection and distributed tracing across ECS environments.
-Uses the standard testing workload which includes `tracegen` with `DD_LOGS_INJECTION=true` for trace-log correlation testing.
 
 **Tests**:
 - `Test00AgentAPMReady` - APM agent readiness check
@@ -36,7 +35,6 @@ Uses the standard testing workload which includes `tracegen` with `DD_LOGS_INJEC
 - `TestMultiServiceTracing` - Multi-service distributed tracing
 - `TestTraceSampling` - Trace sampling priority validation
 - `TestTraceTagEnrichment` - ECS metadata tag enrichment on traces
-- `TestTraceCorrelation` - Trace-log correlation (trace_id in logs)
 - `TestAPMFargate` - Fargate-specific APM (TCP transport, sidecar)
 - `TestAPMEC2` - EC2-specific APM (UDS transport, daemon mode)
 
@@ -49,9 +47,8 @@ Uses the standard testing workload which includes `tracegen` with `DD_LOGS_INJEC
 
 ---
 
-### 2. `logs_test.go` - Log Collection (9 tests)
+### 2. `logs_test.go` - Log Collection
 Tests log collection, processing, and enrichment from ECS containers.
-Uses the standard testing workload which includes `tracegen` with `DD_LOGS_INJECTION=true` for trace-log correlation testing.
 
 **Tests**:
 - `Test00AgentLogsReady` - Log agent readiness check
@@ -62,14 +59,12 @@ Uses the standard testing workload which includes `tracegen` with `DD_LOGS_INJEC
 - `TestLogFiltering` - Include/exclude pattern filtering
 - `TestLogSourceDetection` - Automatic source field detection
 - `TestLogStatusRemapping` - Error/warning status detection
-- `TestLogTraceCorrelation` - Trace ID injection into logs
 
 **Key Features Tested**:
 - Log metadata enrichment (cluster, task, container tags)
 - Multiline patterns (stack trace grouping)
 - JSON parsing and field extraction
 - Log status detection (error, warning, info)
-- Trace correlation (`dd.trace_id` tag)
 
 ---
 

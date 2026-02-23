@@ -6,6 +6,7 @@
 package ecs
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -311,6 +312,11 @@ func (suite *ecsManagedSuite) TestManagedInstanceLogCollection() {
 func (suite *ecsManagedSuite) TestManagedInstanceTraceCollection() {
 	// Test trace collection from managed instances
 	suite.Run("Managed instance trace collection", func() {
+		// ECS metadata on traces is bundled in _dd.tags.container within TracerPayload.Tags
+		clusterNamePattern := regexp.MustCompile(`ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName))
+		taskArnPattern := regexp.MustCompile(`task_arn:`)
+		containerNamePattern := regexp.MustCompile(`container_name:`)
+
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
 			traces, err := suite.Fakeintake.GetTraces()
 			if !assert.NoErrorf(c, err, "Failed to query traces") {
@@ -320,27 +326,27 @@ func (suite *ecsManagedSuite) TestManagedInstanceTraceCollection() {
 				return
 			}
 
-			// Check traces from managed instances
-			ecsTraces := 0
+			// Check traces from managed instances via bundled _dd.tags.container tag
+			found := false
 			for _, trace := range traces {
-				tags := trace.Tags
-				if clusterName, exists := tags["ecs_cluster_name"]; exists && clusterName == suite.ecsClusterName {
-					ecsTraces++
+				for _, tracerPayload := range trace.TracerPayloads {
+					containerTags, exists := tracerPayload.Tags["_dd.tags.container"]
+					if !exists {
+						continue
+					}
+					if clusterNamePattern.MatchString(containerTags) &&
+						taskArnPattern.MatchString(containerTags) &&
+						containerNamePattern.MatchString(containerTags) {
+						found = true
+						break
+					}
+				}
+				if found {
+					break
 				}
 			}
 
-			if !assert.GreaterOrEqualf(c, ecsTraces, 1, "No traces from managed instances found yet") {
-				return
-			}
-
-			// Verify trace has proper metadata
-			trace := traces[0]
-			tags := trace.Tags
-
-			assert.NotEmptyf(c, tags["ecs_cluster_name"],
-				"Trace should have cluster name")
-			assert.NotEmptyf(c, tags["task_arn"],
-				"Trace should have task ARN")
+			assert.Truef(c, found, "No traces with ECS metadata (cluster_name, task_arn, container_name) found in _dd.tags.container")
 		}, 3*time.Minute, 10*time.Second, "Managed instance trace collection validation failed")
 	})
 }

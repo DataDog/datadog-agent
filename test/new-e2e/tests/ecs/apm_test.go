@@ -300,66 +300,6 @@ func (suite *ecsAPMSuite) TestTraceTagEnrichment() {
 	})
 }
 
-func (suite *ecsAPMSuite) TestTraceCorrelation() {
-	// Test trace-log correlation
-	suite.Run("Trace-log correlation", func() {
-		// Get a trace with a trace ID
-		var traceID uint64
-		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			traces, err := suite.Fakeintake.GetTraces()
-			if !assert.NoErrorf(c, err, "Failed to query traces") {
-				return
-			}
-			if !assert.NotEmptyf(c, traces, "No traces found") {
-				return
-			}
-
-			// Get a trace ID from a recent trace
-			for _, trace := range traces {
-				for _, payload := range trace.TracerPayloads {
-					for _, chunk := range payload.Chunks {
-						if len(chunk.Spans) > 0 {
-							traceID = chunk.Spans[0].TraceID
-							if traceID != 0 {
-								return
-							}
-						}
-					}
-				}
-			}
-
-			assert.NotZerof(c, traceID, "No valid trace ID found")
-		}, 2*time.Minute, 10*time.Second, "Failed to get trace ID")
-
-		// If we found a trace ID, check if logs have the same trace ID
-		if traceID != 0 {
-			suite.EventuallyWithTf(func(c *assert.CollectT) {
-				logs, err := getAllLogs(suite.Fakeintake)
-				if !assert.NoErrorf(c, err, "Failed to query logs") {
-					return
-				}
-
-				// Look for logs with trace_id tag
-				foundCorrelatedLog := false
-				for _, log := range logs {
-					for _, tag := range log.GetTags() {
-						if regexp.MustCompile(`dd\.trace_id:[[:xdigit:]]+`).MatchString(tag) {
-							foundCorrelatedLog = true
-							break
-						}
-					}
-					if foundCorrelatedLog {
-						break
-					}
-				}
-
-				// Correlation may not always be present depending on app configuration.
-				assert.Truef(c, foundCorrelatedLog, "No logs with trace correlation found yet (checked %d logs)", len(logs))
-			}, 2*time.Minute, 10*time.Second, "Trace-log correlation check completed")
-		}
-	})
-}
-
 func (suite *ecsAPMSuite) TestAPMFargate() {
 	// Test Fargate-specific APM scenarios
 	suite.Run("APM on Fargate", func() {

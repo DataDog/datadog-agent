@@ -351,55 +351,6 @@ func (suite *ecsLogsSuite) TestLogStatusRemapping() {
 	})
 }
 
-func (suite *ecsLogsSuite) TestLogTraceCorrelation() {
-	// Test log-trace correlation
-	suite.Run("Log-trace correlation", func() {
-		// First get traces to find trace IDs
-		var traceID uint64
-		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			traces, err := suite.Fakeintake.GetTraces()
-			if !assert.NoErrorf(c, err, "Failed to query traces") {
-				return
-			}
-
-			// Get a trace ID from a recent trace
-			for _, trace := range traces {
-				for _, payload := range trace.TracerPayloads {
-					for _, chunk := range payload.Chunks {
-						if len(chunk.Spans) > 0 {
-							traceID = chunk.Spans[0].TraceID
-							if traceID != 0 {
-								return
-							}
-						}
-					}
-				}
-			}
-		}, 2*time.Minute, 10*time.Second, "Failed to get trace ID")
-
-		// Now check if logs have trace correlation
-		if traceID != 0 {
-			suite.EventuallyWithTf(func(c *assert.CollectT) {
-				logs, err := getAllLogs(suite.Fakeintake)
-				if !assert.NoErrorf(c, err, "Failed to query logs") {
-					return
-				}
-
-				// Look for logs with trace_id tag
-				logsWithTraceID := 0
-				for _, log := range logs {
-					tags := log.GetTags()
-					for _, tag := range tags {
-						if regexp.MustCompile(`dd\.trace_id:[[:xdigit:]]+`).MatchString(tag) {
-							logsWithTraceID++
-							break
-						}
-					}
-				}
-
-				assert.GreaterOrEqualf(c, logsWithTraceID, 1,
-					"No logs with trace correlation found yet (checked %d logs)", len(logs))
-			}, 2*time.Minute, 10*time.Second, "Trace-log correlation check completed")
-		}
-	})
-}
+// TODO: Add TestLogTraceCorrelation once a workload image with DD_LOGS_INJECTION
+// support is available (e.g., ecs-log-generator). The current tracegen image does
+// not produce logs with dd.trace_id tags. See test-infra-definitions for image builds.
