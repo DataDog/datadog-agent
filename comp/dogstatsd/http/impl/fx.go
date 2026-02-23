@@ -12,7 +12,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	comp "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/http/def"
+	def "github.com/DataDog/datadog-agent/comp/dogstatsd/http/def"
 )
 
 // Requires declares the inputs for NewComponent
