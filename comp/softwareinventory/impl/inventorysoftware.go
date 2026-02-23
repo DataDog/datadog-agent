@@ -10,7 +10,6 @@ package softwareinventoryimpl
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -52,32 +51,6 @@ type sysProbeClient interface {
 	GetCheck(module types.ModuleName) ([]software.Entry, error)
 }
 
-// sysProbeEntryResponse is used to unmarshal system-probe responses that include InstallPath.
-// This type matches the systemProbeEntry type used in system-probe modules to ensure
-// InstallPath is preserved through JSON serialization/deserialization.
-type sysProbeEntryResponse struct {
-	software.Entry
-	// InstallPathInternal is the JSON field name used by system-probe
-	InstallPathInternal string `json:"install_path,omitempty"`
-}
-
-// UnmarshalJSON customizes JSON unmarshaling to restore InstallPath from the JSON field
-func (e *sysProbeEntryResponse) UnmarshalJSON(data []byte) error {
-	type Alias software.Entry
-	aux := &struct {
-		*Alias
-		InstallPathInternal string `json:"install_path,omitempty"`
-	}{
-		Alias: (*Alias)(&e.Entry),
-	}
-	if err := json.Unmarshal(data, aux); err != nil {
-		return err
-	}
-	// Restore InstallPath from the JSON field
-	e.Entry.InstallPath = aux.InstallPathInternal
-	return nil
-}
-
 // sysProbeClientWrapper wraps the real sysprobeclient.CheckClient to implement mockSysProbeClient.
 // This wrapper provides a clean interface to the System Probe client while maintaining
 // compatibility with the existing client implementation.
@@ -88,22 +61,19 @@ type sysProbeClientWrapper struct {
 	clientFn func() *sysprobeclient.CheckClient
 }
 
-// GetCheck implements mockSysProbeClient.GetCheck by delegating to the wrapped client.
-// This method uses an intermediate type to preserve InstallPath through JSON serialization,
-// then converts back to []software.Entry.
+// GetCheck implements sysProbeClient.GetCheck by delegating to the wrapped client.
+// It unmarshals the wire format (SoftwareInventoryWireEntry) and converts to []software.Entry.
 func (w *sysProbeClientWrapper) GetCheck(module types.ModuleName) ([]software.Entry, error) {
 	if w.client == nil {
 		w.client = w.clientFn()
 	}
-	// Unmarshal into sysProbeEntryResponse to preserve InstallPath
-	responses, err := sysprobeclient.GetCheck[[]sysProbeEntryResponse](w.client, module)
+	responses, err := sysprobeclient.GetCheck[[]software.SoftwareInventoryWireEntry](w.client, module)
 	if err != nil {
 		return nil, err
 	}
-	// Convert back to []software.Entry
 	entries := make([]software.Entry, len(responses))
-	for i, resp := range responses {
-		entries[i] = resp.Entry
+	for i := range responses {
+		entries[i] = software.WireToEntry(&responses[i])
 	}
 	return entries, nil
 }
