@@ -65,7 +65,7 @@ type FSInterface interface {
 // Resolver defines a cgroup monitor
 type Resolver struct {
 	*utils.Notifier[Event, *cgroupModel.CacheEntry]
-	sync.RWMutex
+	sync.Mutex
 	cgroupFS              FSInterface
 	statsdClient          statsd.ClientInterface
 	cacheEntriesByPathKey *simplelru.LRU[uint64, *cgroupModel.CacheEntry]
@@ -351,8 +351,8 @@ func (cr *Resolver) iterateCacheEntries(cb func(*cgroupModel.CacheEntry) bool) {
 
 // IterateCacheEntries iterates over the cache entries
 func (cr *Resolver) IterateCacheEntries(cb func(*cgroupModel.CacheEntry) bool) {
-	cr.RLock()
-	defer cr.RUnlock()
+	cr.Lock()
+	defer cr.Unlock()
 
 	cr.iterateCacheEntries(cb)
 }
@@ -363,8 +363,10 @@ func (cr *Resolver) GetCacheEntryContainerID(id containerutils.ContainerID) *cgr
 		return nil
 	}
 
-	cr.RLock()
-	defer cr.RUnlock()
+	// simplelru.LRU.Get() is a mutating operation — it calls MoveToFront() to update the LRU ordering.
+	// So we need the take a write-lock to avoid concurrent modifications on the LRU.
+	cr.Lock()
+	defer cr.Unlock()
 
 	cacheEntry, ok := cr.containerCacheEntries.Get(id)
 	if !ok {
@@ -379,8 +381,10 @@ func (cr *Resolver) GetCacheEntryByCgroupID(cgroupID containerutils.CGroupID) *c
 		return nil
 	}
 
-	cr.RLock()
-	defer cr.RUnlock()
+	// simplelru.LRU.Get() is a mutating operation — it calls MoveToFront() to update the LRU ordering.
+	// So we need the take a write-lock to avoid concurrent modifications on the LRU.
+	cr.Lock()
+	defer cr.Unlock()
 
 	cacheEntry, ok := cr.hostCacheEntries.Get(cgroupID)
 	if !ok {
@@ -391,8 +395,10 @@ func (cr *Resolver) GetCacheEntryByCgroupID(cgroupID containerutils.CGroupID) *c
 
 // GetCacheEntryByInode returns the cache entry referenced by the provided cgroup inode
 func (cr *Resolver) GetCacheEntryByInode(inode uint64) *cgroupModel.CacheEntry {
-	cr.RLock()
-	defer cr.RUnlock()
+	// simplelru.LRU.Get() is a mutating operation — it calls MoveToFront() to update the LRU ordering.
+	// So we need the take a write-lock to avoid concurrent modifications on the LRU.
+	cr.Lock()
+	defer cr.Unlock()
 
 	cacheEntry, ok := cr.cacheEntriesByPathKey.Get(inode)
 	if !ok {

@@ -18,6 +18,7 @@ import (
 type StringCmpOpts struct {
 	CaseInsensitive        bool
 	PathSeparatorNormalize bool
+	TrimLeadingDot         bool
 }
 
 // DefaultStringCmpOpts defines the default comparison options
@@ -265,6 +266,10 @@ func (s *ScalarStringMatcher) Matches(value string) bool {
 
 // NewStringMatcher returns a new string matcher
 func NewStringMatcher(kind FieldValueType, pattern string, opts StringCmpOpts) (StringMatcher, error) {
+	if opts.TrimLeadingDot {
+		pattern = strings.TrimPrefix(pattern, ".")
+	}
+
 	switch kind {
 	case PatternValueType:
 		var matcher PatternStringMatcher

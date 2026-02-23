@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -185,11 +186,17 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	log.Debugf("Mutating pod in target mutator %q", mutatecommon.PodString(pod))
 
 	// The admission can be re-run for the same pod. Fast return if we injected the library already.
+	// Check for the init_container mode's per-language init containers.
 	for _, lang := range supportedLanguages {
 		if containsInitContainer(pod, initContainerName(lang)) {
 			log.Debugf("Init container %q already exists in pod %q", initContainerName(lang), mutatecommon.PodString(pod))
 			return false, nil
 		}
+	}
+	// Check for the image_volume mode's init container.
+	if containsInitContainer(pod, libraryinjection.InjectLDPreloadInitContainerName) {
+		log.Debugf("Init container %q already exists in pod %q", libraryinjection.InjectLDPreloadInitContainerName, mutatecommon.PodString(pod))
+		return false, nil
 	}
 
 	// Get the target to inject. If there is not target, we should not mutate the pod.

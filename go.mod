@@ -247,7 +247,7 @@ require (
 	github.com/golang/mock v1.7.0-rc.1
 	github.com/golang/protobuf v1.5.4
 	github.com/google/btree v1.1.3
-	github.com/google/cel-go v0.26.1
+	github.com/google/cel-go v0.27.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.20.7
 	github.com/google/gofuzz v1.2.0
@@ -800,7 +800,6 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/stackitcloud/stackit-sdk-go/core v0.20.1 // indirect
-	github.com/stoewer/go-strcase v1.3.1 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/swaggest/refl v1.3.0 // indirect
 	github.com/tchap/go-patricia/v2 v2.3.3 // indirect
@@ -999,7 +998,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.1.0
 	github.com/qri-io/jsonpointer v0.1.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
-	gitlab.com/gitlab-org/api/client-go v1.14.0
+	gitlab.com/gitlab-org/api/client-go v1.40.1
 	go.temporal.io/api v1.62.2
 	go.temporal.io/sdk v1.39.0
 )

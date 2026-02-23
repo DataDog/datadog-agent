@@ -7,6 +7,7 @@
 package runner
 
 import (
+	"context"
 	"fmt"
 
 	"sync"
@@ -55,11 +56,17 @@ type Runner struct {
 	schedulerLock       sync.RWMutex                  // Lock around operations on the scheduler
 	utilizationMonitor  *worker.UtilizationMonitor    // Monitor in charge of checking the worker utilization
 	utilizationLogLimit *log.Limit                    // Log limiter for utilization warnings
+	// ctx is cancelled when the runner stops, providing a cancellation signal
+	// to any context-aware operation inside workers (e.g. hostname resolution).
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
 func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component, healthPlatform healthplatform.Component) *Runner {
 	numWorkers := pkgconfigsetup.Datadog().GetInt("check_runners")
+
+	ctx, cancel := context.WithCancel(context.Background())
 
 	r := &Runner{
 		senderManager:       senderManager,
@@ -73,6 +80,8 @@ func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component, he
 		checksTracker:       tracker.NewRunningChecksTracker(),
 		utilizationMonitor:  worker.NewUtilizationMonitor(pkgconfigsetup.Datadog().GetFloat64("check_runner_utilization_threshold")),
 		utilizationLogLimit: log.NewLogLimit(1, pkgconfigsetup.Datadog().GetDuration("check_runner_utilization_warning_cooldown")),
+		ctx:                 ctx,
+		cancel:              cancel,
 	}
 
 	if !r.isStaticWorkerCount {
@@ -149,7 +158,7 @@ func (r *Runner) newWorker() (*worker.Worker, error) {
 	go func() {
 		defer r.removeWorker(worker.ID)
 
-		worker.Run()
+		worker.Run(r.ctx)
 	}()
 
 	return worker, nil
@@ -195,6 +204,10 @@ func (r *Runner) Stop() {
 		log.Debugf("Runner %d already stopped, nothing to do here...", r.id)
 		return
 	}
+
+	// Cancel the runner context to unblock any context-aware operations in workers
+	// (e.g. hostname resolution via EC2 IMDS) that may be waiting on I/O.
+	r.cancel()
 
 	log.Infof("Runner %d is shutting down...", r.id)
 	close(r.pendingChecksChan)

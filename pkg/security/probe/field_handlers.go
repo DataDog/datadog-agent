@@ -156,7 +156,7 @@ func (bfh *BaseFieldHandlers) ResolveService(ev *model.Event, e *model.BaseEvent
 func (bfh *BaseFieldHandlers) ResolveFileExtension(ev *model.Event, f *model.FileEvent) string {
 	if f.Extension == "" {
 		if baseName := ev.FieldHandlers.ResolveFileBasename(ev, f); baseName != "" {
-			f.Extension = filepath.Ext(baseName)
+			f.Extension = strings.TrimPrefix(filepath.Ext(baseName), ".")
 		}
 	}
 	return f.Extension
