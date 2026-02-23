@@ -5,13 +5,19 @@ package(default_visibility = ["//packages:__subpackages__"])
 
 pkg_files(
     name = "all_files",
-    srcs = ["script-config.yaml"],
+    srcs = select({
+        "@platforms//os:windows": ["powershell-script-config.yaml"],
+        "//conditions:default": ["script-config.yaml"],
+    }),
     attributes = pkg_attributes(
         group = "root",
         mode = "0644",
         owner = "root",
     ),
-    prefix = "etc/datadog-agent/private-action-runner",
+    prefix = select({
+        "@platforms//os:windows": "ProgramData/Datadog/private-action-runner",
+        "//conditions:default": "etc/datadog-agent/private-action-runner",
+    }),
 )
 
 pkg_install(

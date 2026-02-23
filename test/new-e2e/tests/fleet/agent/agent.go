@@ -922,8 +922,13 @@ type Status struct {
 	} `json:"metadata"`
 	NtpOffset float64 `json:"ntpOffset"`
 	OtelAgent struct {
-		Error string `json:"error"`
-		URL   string `json:"url"`
+		// Error state (when DDOT is disabled or not running)
+		Error string `json:"error,omitempty"`
+		URL   string `json:"url,omitempty"`
+
+		// Success state (when DDOT is running)
+		AgentVersion     string `json:"agentVersion,omitempty"`
+		CollectorVersion string `json:"collectorVersion,omitempty"`
 	} `json:"otelAgent"`
 	Otlp struct {
 		OtlpCollectorStatus    string `json:"otlpCollectorStatus"`

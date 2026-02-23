@@ -1,8 +1,11 @@
-crate = use_extension("@rules_rust//crate_universe:extension.bzl", "crate")
+crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
 crate.from_cargo(
     name = "sdagent_crates",
-    cargo_lockfile = "//pkg/discovery/module/rust:Cargo.lock",
-    lockfile = "//pkg/discovery/module/rust:Cargo.Bazel.lock",
-    manifests = ["//pkg/discovery/module/rust:Cargo.toml"],
+    cargo_lock = "//pkg/discovery/module/rust:Cargo.lock",
+    cargo_toml = "//pkg/discovery/module/rust:Cargo.toml",
+    platform_triples = [
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu",
+    ],
 )
 use_repo(crate, "sdagent_crates")

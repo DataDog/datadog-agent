@@ -52,6 +52,7 @@
             "arguments": {
               "u": {
                 "type": "[]uint",
+                "size": "0",
                 "elements": []
               }
             }

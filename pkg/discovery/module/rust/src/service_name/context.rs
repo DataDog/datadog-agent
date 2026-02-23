@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 /// DetectionContext provides context for service name detection
 pub struct DetectionContext<'a> {
-    pid: u32,
+    pid: i32,
     pub envs: HashMap<String, String>,
     pub fs: &'a SubDirFs,
     /// Cached candidate working directories to avoid repeated lookups
@@ -18,7 +18,7 @@ pub struct DetectionContext<'a> {
 }
 
 impl<'a> DetectionContext<'a> {
-    pub fn new(pid: u32, envs: HashMap<String, String>, fs: &'a SubDirFs) -> Self {
+    pub fn new(pid: i32, envs: HashMap<String, String>, fs: &'a SubDirFs) -> Self {
         Self {
             pid,
             envs,
@@ -149,7 +149,7 @@ mod tests {
             .current_dir(&cwd_dir)
             .spawn()
             .expect("failed to spawn child process");
-        let child_pid = child.id();
+        let child_pid = child.id().cast_signed();
         defer! {
             let _ = child.kill();
             let _ = child.wait();
@@ -158,7 +158,7 @@ mod tests {
         // Test cases
         struct TestCase {
             name: &'static str,
-            pid: u32,
+            pid: i32,
             envs: HashMap<String, String>,
             filename: &'static str,
             want_path: PathBuf,

@@ -6,16 +6,15 @@ http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_
 
 sqlite_ver = ("3", "50", "04")
 
-# TODO(agent-build): switch to "bare" `sqlite-amalgamation` when we drop the need for .pc files
-sqlite_amalgamation = "sqlite-autoconf-{}00".format("".join(sqlite_ver))
+sqlite_amalgamation = "sqlite-amalgamation-{}00".format("".join(sqlite_ver))
 
 http_archive(
     name = "sqlite3",
     build_file = "//deps:sqlite3.BUILD.bazel",
     files = {"LICENSE.md": "@sqlite3_license//file:LICENSE.md"},
-    sha256 = "a3db587a1b92ee5ddac2f66b3edb41b26f9c867275782d46c3a088977d6a5b18",
+    sha256 = "1d3049dd0f830a025a53105fc79fd2ab9431aea99e137809d064d8ee8356b032",
     strip_prefix = sqlite_amalgamation,
-    url = "https://www.sqlite.org/2025/{}.tar.gz".format(sqlite_amalgamation),
+    url = "https://www.sqlite.org/2025/{}.zip".format(sqlite_amalgamation),
 )
 
 http_file(
@@ -61,7 +60,6 @@ http_archive(
     name = "bzip2",
     files = {
         "BUILD.bazel": "//deps/bzip2:overlay.BUILD.bazel",
-        "bzip2.pc.in": "//deps/bzip2:bzip2.pc.in",
     },
     sha256 = "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269",
     strip_prefix = "bzip2-1.0.8",
@@ -391,5 +389,21 @@ http_archive(
     urls = [
         "https://dd-agent-omnibus.s3.amazonaws.com/bazel/krb5-1.21.3.tar.gz",
         "https://kerberos.org/dist/krb5/1.21/krb5-1.21.3.tar.gz",
+    ],
+)
+
+http_archive(
+    name = "openssl_fips",
+    files = {
+        "openssl.cnf.tmp": "//deps:openssl_fips/openssl.cnf.tmp",
+        "fipsinstall.sh": "//deps:openssl_fips/fipsinstall.sh",
+        "configure_fips.py": "//deps:openssl_fips/configure_fips.py",
+        "BUILD.bazel": "//deps:openssl_fips.BUILD.bazel",
+    },
+    sha256 = "eb1ab04781474360f77c318ab89d8c5a03abc38e63d65a603cabbf1b00a1dc90",
+    strip_prefix = "openssl-3.0.9",
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/openssl-3.0.9.tar.gz",
+        "https://www.openssl.org/source/openssl-3.0.9.tar.gz",
     ],
 )

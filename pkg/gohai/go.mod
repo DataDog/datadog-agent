@@ -2,14 +2,14 @@ module github.com/DataDog/datadog-agent/pkg/gohai
 
 // we don't want to just use the agent's go version because gohai might be used outside of it
 // eg. opentelemetry
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel
 	github.com/moby/sys/mountinfo v0.7.2
 	github.com/shirou/gopsutil/v4 v4.26.1
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/sys v0.40.0
+	golang.org/x/sys v0.41.0
 )
 
 require (

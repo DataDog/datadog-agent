@@ -153,3 +153,14 @@ func (v *ec2VMDirectSuite) TestFakeIntakeNPM_TCP_UDP_DNS_DockerRequests() {
 
 	test1HostFakeIntakeNPMTCPUDPDNS(&v.BaseSuite, v.Env().FakeIntake)
 }
+
+// TestFakeIntakeNPM_ResolvConf_DockerRequests validates that connections from Docker
+// containers include resolv.conf data.
+func (v *ec2VMDirectSuite) TestFakeIntakeNPM_ResolvConf_DockerRequests() {
+	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
+
+	// generate a connection from a Docker container
+	v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " curl " + testURL)
+
+	test1HostFakeIntakeNPMResolvConf(&v.BaseSuite, v.Env().FakeIntake)
+}

@@ -6,9 +6,6 @@ description "Enforce building dependencies as soon as possible so they can be ca
 if linux_target?
   dependency 'curl'
 end
-if fips_mode?
-  dependency 'openssl-fips-provider'
-end
 
 dependency 'datadog-agent-data-plane' if linux_target? && !heroku_target?
 

@@ -1,25 +1,34 @@
 exporters:
-  otlphttp:
-    headers:
-      dd-api-key: test-api-key
+    otlphttp:
+        headers:
+            dd-api-key: test-api-key
 processors:
-  infraattributes/default:
-    allow_hostname_override: true
+    infraattributes/default:
+        allow_hostname_override: true
+    resource/dd-profiler-internal-metadata:
+        attributes:
+            - action: upsert
+              key: profiler_name
+              value: full-host-profiler
+            - action: upsert
+              key: profiler_version
+              value: 7.0.0-test
 receivers:
-  hostprofiler:
-    symbol_uploader:
-      enabled: true
-      symbol_endpoints:
-      - api_key: custom-api-key-eu
-        site: datadoghq.eu
-      - api_key: custom-api-key-us
-        site: datadoghq.com
+    hostprofiler:
+        symbol_uploader:
+            enabled: true
+            symbol_endpoints:
+                - api_key: custom-api-key-eu
+                  site: datadoghq.eu
+                - api_key: custom-api-key-us
+                  site: datadoghq.com
 service:
-  pipelines:
-    profiles:
-      exporters:
-      - otlphttp
-      processors:
-      - infraattributes/default
-      receivers:
-      - hostprofiler
+    pipelines:
+        profiles:
+            exporters:
+                - otlphttp
+            processors:
+                - infraattributes/default
+                - resource/dd-profiler-internal-metadata
+            receivers:
+                - hostprofiler

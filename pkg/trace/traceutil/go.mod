@@ -1,10 +1,10 @@
 module github.com/DataDog/datadog-agent/pkg/trace/traceutil
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.71.0
-	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/stretchr/testify v1.11.1
 	github.com/tinylib/msgp v1.6.3
 )

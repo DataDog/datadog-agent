@@ -66,6 +66,13 @@ def deploy(
     if install_agent:
         flags["ddagent:apiKey"] = config.get_api_key(cfg)
 
+    # When using fakeintake, enable dual shipping to send data to both fakeintake and Datadog
+    # Otherwise pulumi will configure the agent to send data directly to fakeintake
+    # this is breakind UI/console related features that require communication with Datadog backend
+    # see go package agent.HelmValues.configureFakeintake for more details
+    if use_fakeintake is True:
+        flags["ddagent:dualshipping"] = True
+
     # add stack params values
     stackParams = cfg.get_stack_params()
     for namespace in stackParams:

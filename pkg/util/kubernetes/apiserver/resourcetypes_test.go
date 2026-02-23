@@ -192,12 +192,22 @@ func TestPrepopulateCache(t *testing.T) {
 				{Kind: "Deployment", Name: "deployments"},
 			},
 		},
+		{
+			GroupVersion: "v1",
+			APIResources: []v1.APIResource{
+				{Kind: "Node", Name: "nodes", Namespaced: false},
+				{Kind: "Namespace", Name: "namespaces", Namespaced: false},
+				{Kind: "CustomResource", Name: "customresources/status", Namespaced: false},
+				{Kind: "InvalidClusterSubresource", Name: "invalidclusterresource/notvalid", Namespaced: false},
+			},
+		},
 	}
 
 	resourceCache = &ResourceTypeCache{
-		kindGroupToType: make(map[string]string),
-		typeGroupToKind: make(map[string]string),
-		discoveryClient: fakeDiscoveryClient,
+		kindGroupToType:  make(map[string]string),
+		typeGroupToKind:  make(map[string]string),
+		clusterResources: make(map[string]ClusterResource),
+		discoveryClient:  fakeDiscoveryClient,
 	}
 
 	err := resourceCache.prepopulateCache()
@@ -212,6 +222,10 @@ func TestPrepopulateCache(t *testing.T) {
 	assert.Equal(t, "Secret", resourceCache.typeGroupToKind["secrets"])
 	assert.Equal(t, "ConfigMap", resourceCache.typeGroupToKind["configmaps"])
 	assert.Equal(t, "Deployment", resourceCache.typeGroupToKind["deployments/apps"])
+
+	assert.Equal(t, ClusterResource{Group: "", APIVersion: "v1", Kind: "Node"}, resourceCache.clusterResources["nodes"])
+	assert.Equal(t, ClusterResource{Group: "", APIVersion: "v1", Kind: "Namespace"}, resourceCache.clusterResources["namespaces"])
+	assert.Equal(t, ClusterResource{Group: "", APIVersion: "v1", Kind: "CustomResource"}, resourceCache.clusterResources["customresources"])
 }
 
 type blockingDiscovery struct {
