@@ -423,6 +423,7 @@ docker_build_agent7_fips_full_arm64:
   before_script:
     - mkdir -p ${ARTIFACTS_BUILD_CONTEXT}
     - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $ARTIFACTS_BUILD_CONTEXT/
+    - mv -vf $SECRET_GENERIC_CONNECTOR_BINARIES_DIR/secret-generic-connector $ARTIFACTS_BUILD_CONTEXT/
     - mv -vf $CWS_INSTRUMENTATION_BINARIES_DIR $ARTIFACTS_BUILD_CONTEXT/
     - mv -vf Dockerfiles/agent/nosys-seccomp $BUILD_CONTEXT/
     - mkdir -p ${BUILD_CONTEXT}/private-action-runner

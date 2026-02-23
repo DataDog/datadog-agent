@@ -81,6 +81,7 @@ variables:
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
   AGENT_BINARIES_DIR: bin/agent
   CLUSTER_AGENT_BINARIES_DIR: bin/datadog-cluster-agent
+  SECRET_GENERIC_CONNECTOR_BINARIES_DIR: bin/secret-generic-connector
   CWS_INSTRUMENTATION_BINARIES_DIR: bin/cws-instrumentation
   CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR: bin/datadog-cluster-agent-cloudfoundry
   SYSTEM_PROBE_BINARIES_DIR: bin/system-probe
@@ -645,8 +646,6 @@ workflow:
   - test/e2e-framework/testing/runner/**/*
   - test/e2e-framework/testing/utils/**/*
   - test/e2e-framework/scenarios/aws/microVMs/**/*
-  - test/new-e2e/go.mod
-  - go.mod
   - tasks/security_agent.py
   - tasks/kmt.py
   - tasks/kernel_matrix_testing/*
@@ -701,8 +700,6 @@ workflow:
   - test/e2e-framework/testing/runner/**/*
   - test/e2e-framework/testing/utils/**/*
   - test/e2e-framework/scenarios/aws/microVMs/**/*
-  - test/new-e2e/go.mod
-  - go.mod
   - tasks/system_probe.py
   - tasks/kmt.py
   - tasks/kernel_matrix_testing/*
