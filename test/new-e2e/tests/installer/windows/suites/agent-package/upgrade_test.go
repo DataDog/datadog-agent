@@ -145,6 +145,40 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageWithAltDir() {
 		WithValueEqual("InstallPath", altInstallPath+`\`)
 }
 
+// TestUpgradeAgentPackageFromExeWithAltDir tests that an Agent installed with the .exe
+// and custom paths maintains those paths when remotely upgraded
+func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageFromExeWithAltDir() {
+	// Arrange
+	altConfigRoot := `C:\ddconfig`
+	altInstallPath := `C:\ddinstall`
+	s.Installer().SetBinaryPath(altInstallPath + `\bin\` + consts.BinaryName)
+	s.setAgentConfigWithAltDir(altConfigRoot)
+	s.installPreviousExeVersion(
+		installerwindows.WithExtraEnvVars(map[string]string{
+			"DD_PROJECTLOCATION":          altInstallPath,
+			"DD_APPLICATIONDATADIRECTORY": altConfigRoot,
+		}),
+	)
+
+	// Act
+	s.MustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
+
+	// Assert
+	s.Require().Host(s.Env().RemoteHost).
+		NoDirExists(windowsagent.DefaultConfigRoot).
+		NoDirExists(windowsagent.DefaultInstallPath).
+		DirExists(altConfigRoot).
+		DirExists(altInstallPath).
+		HasARunningDatadogAgentService().
+		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("ConfigRoot", altConfigRoot+`\`).
+		WithValueEqual("InstallPath", altInstallPath+`\`)
+}
+
 // TestUpgradeAgentPackageAfterRollback tests that upgrade works after an initial upgrade failed.
 //
 // This is a regression test for WINA-1469, where the Agent account password and
@@ -695,6 +729,22 @@ func (s *testAgentUpgradeSuite) installCurrentAgentVersion(opts ...installerwind
 		// Don't check the binary signature because it could have been updated since the last stable was built
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, agentVersion)
+		})
+}
+
+func (s *testAgentUpgradeSuite) installPreviousExeVersion(opts ...installerwindows.Option) {
+	installExe := installerwindows.NewDatadogInstallExe(s.Env().RemoteHost,
+		installerwindows.WithInstallScriptDevEnvOverrides("STABLE_AGENT"),
+	)
+	output, err := installExe.Run(opts...)
+	s.Require().NoErrorf(err, "failed to install stable agent via exe: %s", output)
+	s.Require().NoError(s.WaitForInstallerService("Running"))
+	s.Require().NoError(s.WaitForAgentService("Running"))
+
+	s.Require().Host(s.Env().RemoteHost).
+		HasDatadogInstaller().
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, s.StableAgentVersion().Version())
 		})
 }
 
