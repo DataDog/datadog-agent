@@ -54,6 +54,11 @@ func NewPatternLogProcessor(anomalyDetectors []PatternLogAnomalyDetector) *Patte
 		}
 	}()
 
+	// Metrics
+	celiandebug.callbacks = append(celiandebug.callbacks, func(metrics map[string]float64) {
+		metrics["pattern_log_processor_count"] = float64(len(p.ResultChannel))
+	})
+
 	return p
 }
 
