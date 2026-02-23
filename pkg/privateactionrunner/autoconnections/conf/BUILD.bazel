@@ -10,9 +10,9 @@ pkg_files(
         "//conditions:default": ["script-config.yaml"],
     }),
     attributes = pkg_attributes(
-        group = "dd-agent",
+        group = "root",
         mode = "0400",
-        owner = "dd-agent",
+        owner = "root",
     ),
     prefix = select({
         "@platforms//os:windows": "ProgramData/Datadog/private-action-runner",
