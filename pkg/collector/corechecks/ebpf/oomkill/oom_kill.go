@@ -73,6 +73,10 @@ func (c *OOMKillConfig) Parse(data []byte) error {
 
 // Configure parses the check configuration and init the check
 func (m *OOMKillCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
+	if !pkgconfigsetup.SystemProbe().GetBool("system_probe_config.enable_oom_kill") {
+		return fmt.Errorf("oom_kill check requires system_probe_config.enable_oom_kill to be set to true")
+	}
+
 	err := m.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
 		return err

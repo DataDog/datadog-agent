@@ -9,6 +9,8 @@
 package tcpqueuelength
 
 import (
+	"fmt"
+
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -69,6 +71,10 @@ func (t *TCPQueueLengthConfig) Parse(data []byte) error {
 
 // Configure parses the check configuration and init the check
 func (t *TCPQueueLengthCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
+	if !pkgconfigsetup.SystemProbe().GetBool("system_probe_config.enable_tcp_queue_length") {
+		return fmt.Errorf("tcp_queue_length check requires system_probe_config.enable_tcp_queue_length to be set to true")
+	}
+
 	err := t.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
 		return err
