@@ -2,6 +2,64 @@
 Release Notes
 =============
 
+.. _Release Notes_7.76.0:
+
+7.76.0
+======
+
+.. _Release Notes_7.76.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-02-23
+Pinned to datadog-agent v7.76.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7760>`_.
+
+
+.. _Release Notes_7.76.0_New Features:
+
+New Features
+------------
+
+- APM: Add ``apm_config.instrumentation.injection_mode`` configuration option to control APM library injection method.
+  Possible values are ``auto`` (default), ``init_container``, and ``csi``.
+  The ``auto`` mode automatically selects the best injection mode (currently uses init containers).
+  The ``init_container`` mode is the legacy method that copies APM libraries into pods using init containers.
+  The ``csi`` mode mounts APM libraries directly into pods using the Datadog CSI driver. It is experimental and requires Cluster Agent 7.76+ and the Datadog CSI driver.
+
+- APM: Add CSI-based library injection as an alternative to init containers (experimental).
+  This provides faster pod startup and reduced storage overhead.
+
+- Reduced memory usage of compliance checks on large clusters
+
+
+.. _Release Notes_7.76.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Reduced memory usage when pod collection is enabled in the Cluster Agent.
+
+
+.. _Release Notes_7.76.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- When injection fails for Single Step Instrumentation due to constrained resources, we add an annotation to the pod
+  with a reason for the error. This annotation now matches all other annotations the webhook writes to a pod spec
+  by prefixing the annotation with `internal`. The full annotation is now: `internal.apm.datadoghq.com/injection-error`
+
+
+.. _Release Notes_7.76.0_Other Notes:
+
+Other Notes
+-----------
+
+- Refactor the auto-instrumentation webhook's ``injectTracers`` function to use a modular, explicit mutation pattern.
+  This improves code readability and maintainability. Edge case behavior may differ slightly, but overall functionality remains unchanged.
+
+
 .. _Release Notes_7.75.4:
 
 7.75.4
