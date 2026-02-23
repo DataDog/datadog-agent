@@ -30,7 +30,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	return value, nil
 }
 
-func (ev *Event) initProcess() {
+func (ev *Event) initPointerFields() {
 	if ev.BaseEvent.ProcessContext == nil {
 		ev.BaseEvent.ProcessContext = &ProcessContext{}
 	}
@@ -42,6 +42,9 @@ func (ev *Event) initProcess() {
 	}
 
 	ev.initProcessEventTypes()
+
+	// init platform specific pointer fields
+	ev.initPlatformPointerFields()
 }
 
 // nolint: unused

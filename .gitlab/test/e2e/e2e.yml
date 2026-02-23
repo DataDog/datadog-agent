@@ -52,7 +52,7 @@
     # Generate external links to CI VISIBILITY, used by artifacts:reports:annotations
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - export DD_ENV=nativetest # TODO: Remove after testing native instrumentation
-    # - export DD_CIVISIBILITY_ENABLED=true
+    - export DD_CIVISIBILITY_ENABLED=true
     - export DD_CIVISIBILITY_AGENTLESS_ENABLED=true
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     # set the environment variables for the windows test signing
@@ -101,7 +101,6 @@
     - |
       if [ -d "$E2E_COVERAGE_OUT_DIR" ]; then
         dda inv -- -e coverage.process-e2e-coverage-folders $E2E_COVERAGE_OUT_DIR
-        pip install boto3==1.38.8 # TODO: Remove this before merging, after dda is bumped in test-infra-definitions
         dda inv -- -e dyntest.compute-and-upload-job-index --bucket-uri $S3_PERMANENT_ARTIFACTS_URI --coverage-folder $E2E_COVERAGE_OUT_DIR --commit-sha $CI_COMMIT_SHA --job-id $CI_JOB_ID
       fi
   artifacts:
@@ -200,12 +199,14 @@ go_e2e_test_binaries:
     - agent_deb-x64-a7
     - agent_deb-x64-a7-fips
 
-.new_e2e_template_needs_deb_windows_x64:
+.new_e2e_template_needs_container_deploy_linux:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
-    - agent_deb-x64-a7
-    - windows_msi_and_bosh_zip_x64-a7
+    - qa_agent_linux
+    - qa_agent_linux_jmx
+    - qa_dca
+    - qa_dogstatsd
 
 .new_e2e_template_needs_container_deploy:
   extends: .new_e2e_template
@@ -229,7 +230,7 @@ new-e2e-containers-ecs:
 
 new-e2e-containers:
   extends:
-    - .new_e2e_template_needs_container_deploy
+    - .new_e2e_template_needs_container_deploy_linux
   # TODO once images are deployed to ECR for dev branches, update
   #.on_main_or_rc_and_no_skip_e2e adding on_dev_branch_manual rules
   # and move rules to template
@@ -253,11 +254,11 @@ new-e2e-containers:
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22-04"
       - EXTRA_PARAMS: --run TestDockerSuite
       - EXTRA_PARAMS: --run "TestK8S(CEL|Legacy)FilteringSuite"
-      - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS|Docker|K8SCELFiltering|K8SLegacyFiltering)Suite"
+      - EXTRA_PARAMS: --skip "Test(Kind|EKS|OpenShiftVM|ECS|Docker|K8SCELFiltering|K8SLegacyFiltering)Suite"
 
 new-e2e-containers-k8s-latest:
   extends:
-    - .new_e2e_template_needs_container_deploy
+    - .new_e2e_template_needs_container_deploy_linux
   rules:
     - !reference [.on_container_or_e2e_changes]
     - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
@@ -290,7 +291,6 @@ new-e2e-containers-eks-init:
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
-
 new-e2e-containers-eks:
   extends: .new_e2e_template_needs_container_deploy
   rules:
@@ -308,11 +308,64 @@ new-e2e-containers-eks:
     ON_NIGHTLY_FIPS: "true"
   retry: !reference [.retry_only_infra_failure, retry]
 
+new-e2e-containers-openshift-init:
+  stage: e2e_init
+  extends: .new_e2e_template
+  needs:
+    - go_e2e_deps
+    - go_tools_deps
+  rules:
+    - !reference [.on_e2e_main_release_or_rc]
+    - changes:
+        paths:
+          - test/new-e2e/tests/containers/**/*
+        compare_to: $COMPARE_TO_BRANCH
+    - !reference [.manual]
+  before_script:
+    # We need to also fetch the OpenShift CRC pull secret and write it to a temp file, so we reference the new_e2e_template before_script first
+    - !reference [.new_e2e_template, before_script]
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CRC_PULL_SECRET > /tmp/crc-pull-secret.json || exit $?
+  variables:
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+    EXTRA_PARAMS: "--run TestOpenShiftVMSuite -c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json"
+    E2E_INIT_ONLY: "true"
+    SHOULD_RUN_IN_FLAKES_FINDER: "false"
+    PRE_BUILT_BINARIES_FLAG: ""
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+  allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+
+new-e2e-containers-openshift:
+  extends: .new_e2e_template_needs_container_deploy_linux
+  rules:
+    - !reference [.on_e2e_main_release_or_rc]
+    - changes:
+        paths:
+          - test/new-e2e/tests/containers/**/*
+        compare_to: $COMPARE_TO_BRANCH
+    - !reference [.manual]
+  needs:
+    - !reference [.new_e2e_template_needs_container_deploy_linux, needs]
+    - new-e2e-containers-openshift-init
+  before_script:
+    # We need to also fetch the OpenShift CRC pull secret and write it to a temp file, so we reference the new_e2e_template before_script first
+    - !reference [.new_e2e_template, before_script]
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CRC_PULL_SECRET > /tmp/crc-pull-secret.json || exit $?
+  variables:
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+    EXTRA_PARAMS: "--run TestOpenShiftVMSuite -c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json"
+    E2E_PRE_INITIALIZED: "true"
+    ON_NIGHTLY_FIPS: "true"
+  allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+
 new-e2e-remote-config:
   extends: .new_e2e_template_needs_deb_x64
   rules:
     - !reference [.on_rc_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
     TARGETS: ./tests/remote-config
@@ -320,7 +373,7 @@ new-e2e-remote-config:
     # TODO: Re-enable on fips pipeline when fips is available with remote config using: ON_NIGHTLY_FIPS: "true"
 
 new-e2e-agent-configuration:
-  extends: .new_e2e_template_needs_deb_windows_x64
+  extends: .new_e2e_template_needs_deb_x64
   rules:
     - !reference [.on_acfg_or_e2e_changes]
     - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
@@ -328,19 +381,47 @@ new-e2e-agent-configuration:
   variables:
     TARGETS: ./tests/agent-configuration
     TEAM: agent-configuration
+    EXTRA_PARAMS: --skip "Windows"
+
+new-e2e-agent-configuration-windows:
+  extends: .new_e2e_template_needs_windows_x64
+  rules:
+    - !reference [.on_acfg_or_e2e_changes]
+    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-configuration
+    TEAM: agent-configuration
+    EXTRA_PARAMS: --run "Windows"
 
 new-e2e-agent-runtimes:
-  extends: .new_e2e_template_needs_deb_windows_x64
+  extends: .new_e2e_template_needs_deb_x64
   rules:
     - !reference [.on_arun_or_e2e_changes]
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-runtimes
     TEAM: agent-runtimes
+    EXTRA_PARAMS: --skip "Windows"
+    ON_NIGHTLY_FIPS: "true"
+
+new-e2e-agent-runtimes-windows:
+  extends: .new_e2e_template_needs_windows_x64
+  rules:
+    - !reference [.on_e2e_main_release_or_rc]
+    - changes:
+        paths:
+          - test/new-e2e/tests/agent-runtimes/**/*
+        compare_to: $COMPARE_TO_BRANCH
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-runtimes
+    TEAM: agent-runtimes
+    EXTRA_PARAMS: --run "Windows"
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-agent-subcommands:
-  extends: .new_e2e_template_needs_deb_windows_x64
+  extends: .new_e2e_template_needs_deb_x64
   rules:
     - !reference [.on_subcommands_or_e2e_changes]
     - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
@@ -349,26 +430,42 @@ new-e2e-agent-subcommands:
     TARGETS: ./tests/agent-subcommands
     TEAM: agent-configuration
     ON_NIGHTLY_FIPS: "true"
-  parallel:
-    matrix:
-      - EXTRA_PARAMS: --run "Test(Linux|Windows)StatusSuite"
-      - EXTRA_PARAMS: --run "Test(Linux|Windows)HealthSuite"
-      - EXTRA_PARAMS: --run "Test(Linux|Windows)ConfigSuite"
-      - EXTRA_PARAMS: --run "Test(Linux|Windows|LinuxAzure|LinuxGCP)HostnameSuite"
-      - EXTRA_PARAMS: --run "Test(Linux|Windows)DiagnoseSuite"
-      - EXTRA_PARAMS: --run "Test(Linux|Windows)ConfigCheckSuite"
-      - EXTRA_PARAMS: --run "Test(Linux|Windows)FlareSuite"
-      - EXTRA_PARAMS: --run "Test(Linux|Windows)SecretSuite"
-      - EXTRA_PARAMS: --run "Test(Linux|Windows)CheckSuite"
-      - EXTRA_PARAMS: --run "Test(Linux|Windows)RunSuite"
-      - EXTRA_PARAMS: --run "Test(Linux|Windows)DogstatsdReplaySuite"
+    EXTRA_PARAMS: --skip "Windows"
+
+new-e2e-agent-subcommands-windows:
+  extends: .new_e2e_template_needs_windows_x64
+  rules:
+    - !reference [.on_e2e_main_release_or_rc]
+    - changes:
+        paths:
+          - test/new-e2e/tests/agent-subcommands/**/*
+        compare_to: $COMPARE_TO_BRANCH
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-subcommands
+    TEAM: agent-configuration
+    ON_NIGHTLY_FIPS: "true"
+    EXTRA_PARAMS: --run "Windows"
+
+new-e2e-agent-health:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7
+  rules:
+    - !reference [.on_healthplatform_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-health
+    TEAM: agent-health
 
 new-e2e-fips-compliance-test:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7-fips
-    - qa_agent_fips
+    - qa_agent_fips_linux
+    - qa_dca_fips
   rules:
     - !reference [.on_arun_or_e2e_changes]
     - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
@@ -444,7 +541,6 @@ new-e2e-language-detection:
   extends: .new_e2e_template_needs_deb_x64
   rules:
     - !reference [.on_language-detection_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
     TARGETS: ./tests/language-detection
@@ -460,11 +556,24 @@ new-e2e-npm-packages:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
     - agent_rpm-x64-a7
+  variables:
+    TARGETS: ./tests/npm
+    TEAM: cloud-network-monitoring
+    EXTRA_PARAMS: --run "TestEC2(VM|VMSELinux|VMDirect)Suite"
+    ON_NIGHTLY_FIPS: "true"
+
+new-e2e-npm-packages-windows:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_npm_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
     - windows_msi_and_bosh_zip_x64-a7
   variables:
     TARGETS: ./tests/npm
     TEAM: cloud-network-monitoring
-    EXTRA_PARAMS: --run "TestEC2(VM|VMSELinux|VMWKit)Suite"
+    EXTRA_PARAMS: --run "TestEC2VMWKitSuite"
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-npm-docker:
@@ -475,7 +584,7 @@ new-e2e-npm-docker:
   needs:
     - !reference [.needs_new_e2e_template]
     - qa_dca
-    - qa_agent
+    - qa_agent_linux
   variables:
     TARGETS: ./tests/npm
     TEAM: cloud-network-monitoring
@@ -503,7 +612,6 @@ new-e2e-npm-eks-init:
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
-
 new-e2e-npm-eks:
   extends: .new_e2e_template
   rules:
@@ -512,7 +620,7 @@ new-e2e-npm-eks:
   needs:
     - !reference [.needs_new_e2e_template]
     - new-e2e-npm-eks-init
-    - qa_agent
+    - qa_agent_linux
     - qa_dca
   variables:
     TARGETS: ./tests/npm
@@ -522,7 +630,6 @@ new-e2e-npm-eks:
     ON_NIGHTLY_FIPS: "true"
   retry: !reference [.retry_only_infra_failure, retry]
 
-
 new-e2e-npm:
   extends: .new_e2e_template
   rules:
@@ -530,7 +637,7 @@ new-e2e-npm:
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
-    - qa_agent
+    - qa_agent_linux
     - qa_dca
   variables:
     TARGETS: ./tests/npm
@@ -542,10 +649,9 @@ new-e2e-amp:
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
-    - windows_msi_and_bosh_zip_x64-a7
-    - qa_agent
-    - qa_agent_jmx
-    - qa_agent_fips_jmx
+    - qa_agent_linux
+    - qa_agent_linux_jmx
+    - qa_agent_fips_linux_jmx
     - qa_dca
   rules:
     - !reference [.on_amp_or_e2e_changes]
@@ -561,10 +667,9 @@ new-e2e-alp:
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
-    - windows_msi_and_bosh_zip_x64-a7
-    - qa_agent
-    - qa_agent_jmx
-    - qa_agent_fips_jmx
+    - qa_agent_linux
+    - qa_agent_linux_jmx
+    - qa_agent_fips_linux_jmx
     - qa_dca
   rules:
     - !reference [.on_alp_or_e2e_changes]
@@ -573,10 +678,27 @@ new-e2e-alp:
   variables:
     TARGETS: ./tests/agent-log-pipelines
     TEAM: agent-log-pipelines
+    EXTRA_PARAMS: --skip "Windows"
   # Temporary for #incident-44744
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
+new-e2e-alp-windows:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - windows_msi_and_bosh_zip_x64-a7
+  rules:
+    - !reference [.on_alp_or_e2e_changes]
+    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-log-pipelines
+    TEAM: agent-log-pipelines
+    EXTRA_PARAMS: --run "Windows"
+  # Temporary for #incident-44744
+  allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-cws:
   extends: .new_e2e_template
@@ -586,30 +708,45 @@ new-e2e-cws:
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
-    - windows_msi_and_bosh_zip_x64-a7
     - qa_cws_instrumentation
-    - qa_agent
+    - qa_agent_linux
     - qa_dca
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
     # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
     # ON_NIGHTLY_FIPS: "true"
+  # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
+  # NOTE: Do not remove this from e2e fips pipeline before remote config is available with fips, you can re-enable on fips pipeline when this test does not rely on remote-configuration
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestAgentSuiteEC2
       - EXTRA_PARAMS: --run TestAgentSuiteGCP
       - EXTRA_PARAMS: --run TestECSFargate
       - EXTRA_PARAMS: --run TestKindSuite
-      - EXTRA_PARAMS: --run TestAgentWindowsSuite
+  allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+
+new-e2e-cws-windows:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_cws_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - windows_msi_and_bosh_zip_x64-a7
+  variables:
+    TARGETS: ./tests/cws
+    TEAM: csm-threats-agent
+    EXTRA_PARAMS: --run TestAgentWindowsSuite    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
+    # ON_NIGHTLY_FIPS: "true"
   # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
   # NOTE: Do not remove this from e2e fips pipeline before remote config is available with fips, you can re-enable on fips pipeline when this test does not rely on remote-configuration
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
-
 new-e2e-sbom:
-  extends: .new_e2e_template_needs_container_deploy
+  extends: .new_e2e_template_needs_container_deploy_linux
   rules:
     - !reference [.on_sbom_or_e2e_changes]
     - !reference [.manual]
@@ -621,16 +758,14 @@ new-e2e-sbom:
     matrix:
       - EXTRA_PARAMS: --run "TestSBOMKindSuite"
 
-
 new-e2e-discovery:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
-    - qa_agent
+    - qa_agent_linux
   rules:
     - !reference [.on_discovery_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
     TARGETS: ./tests/discovery
@@ -641,8 +776,7 @@ new-e2e-process-ecs:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
-    - windows_msi_and_bosh_zip_x64-a7
-    - qa_agent
+    - qa_agent_linux
     - qa_dca
   rules:
     - !reference [.on_process_or_e2e_changes]
@@ -658,21 +792,34 @@ new-e2e-process:
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
-    - windows_msi_and_bosh_zip_x64-a7
-    - qa_agent
+    - qa_agent_linux
     - qa_dca
+  rules:
+    - !reference [.on_process_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    EXTRA_PARAMS: --skip "TestECSFargateCoreAgentTestSuite|TestECSFargateTestSuite|TestECSEC2CoreAgentSuite|TestECSEC2TestSuite|Windows"
+    TARGETS: ./tests/process
+    TEAM: container-experiences
+    ON_NIGHTLY_FIPS: "true"
+
+new-e2e-process-windows:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - windows_msi_and_bosh_zip_x64-a7
   rules:
     - !reference [.on_process_or_e2e_changes]
     - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
-    EXTRA_PARAMS: --skip TestECSFargateCoreAgentTestSuite|TestECSFargateTestSuite|TestECSEC2CoreAgentSuite|TestECSEC2TestSuite
+    EXTRA_PARAMS: --run "Windows"
     TARGETS: ./tests/process
     TEAM: container-experiences
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-orchestrator-ecs:
-  extends: .new_e2e_template_needs_container_deploy
+  extends: .new_e2e_template_needs_container_deploy_linux
   rules:
     - !reference [.on_orchestrator_or_e2e_changes]
     - !reference [.manual]
@@ -684,10 +831,9 @@ new-e2e-orchestrator-ecs:
   timeout: 55m
 
 new-e2e-orchestrator:
-  extends: .new_e2e_template_needs_container_deploy
+  extends: .new_e2e_template_needs_container_deploy_linux
   rules:
     - !reference [.on_orchestrator_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
     EXTRA_PARAMS: --skip TestECSSuite
@@ -703,7 +849,7 @@ new-e2e-apm:
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
-    - qa_agent
+    - qa_agent_linux
     - agent_deb-x64-a7
   variables:
     TARGETS: ./tests/apm
@@ -751,6 +897,11 @@ new-e2e-fleet-upgrade:
   extends: .new_e2e_fleet_template
   variables:
     EXTRA_PARAMS: --run TestFleetUpgrade
+
+new-e2e-fleet-extensions:
+  extends: .new_e2e_fleet_template
+  variables:
+    EXTRA_PARAMS: --run TestFleetExtensions
 
 new-e2e-installer-script:
   extends: .new_e2e_template
@@ -834,7 +985,7 @@ new-e2e-ndm-netflow:
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
-    - qa_agent
+    - qa_agent_linux
   variables:
     TARGETS: ./tests/ndm/netflow
     TEAM: ndm-integrations
@@ -844,12 +995,11 @@ new-e2e-ndm-snmp:
   extends: .new_e2e_template
   rules:
     - !reference [.on_ndm_snmp_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
-    - qa_agent
+    - qa_agent_linux
   variables:
     TARGETS: ./tests/ndm/snmp
     TEAM: ndm-core
@@ -859,7 +1009,6 @@ new-e2e-ha-agent:
   extends: .new_e2e_template_needs_deb_x64
   rules:
     - !reference [.on_ha_agent_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
     TARGETS: ./tests/ha-agent
@@ -882,7 +1031,18 @@ new-e2e-ha-agent-failover:
   retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-netpath:
-  extends: .new_e2e_template_needs_deb_windows_x64
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_netpath_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/netpath
+    TEAM: cloud-network-monitoring
+    EXTRA_PARAMS: --skip "Windows"
+    ON_NIGHTLY_FIPS: "true"
+
+new-e2e-netpath-windows:
+  extends: .new_e2e_template_needs_windows_x64
   rules:
     - !reference [.on_netpath_or_e2e_changes]
     - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
@@ -890,6 +1050,7 @@ new-e2e-netpath:
   variables:
     TARGETS: ./tests/netpath
     TEAM: cloud-network-monitoring
+    EXTRA_PARAMS: --run "Windows"
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-windows-systemprobe:
@@ -944,7 +1105,6 @@ new-e2e-otel-eks-init:
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
-
 new-e2e-otel-eks:
   extends: .new_e2e_template
   rules:
@@ -953,7 +1113,6 @@ new-e2e-otel-eks:
   needs:
     - !reference [.needs_new_e2e_template]
     - qa_dca
-    - qa_agent
     - qa_agent_full
     - qa_ot_agent_standalone
     - new-e2e-otel-eks-init
@@ -964,7 +1123,6 @@ new-e2e-otel-eks:
     E2E_PRE_INITIALIZED: "true"
   retry: !reference [.retry_only_infra_failure, retry]
 
-
 new-e2e-otel:
   extends: .new_e2e_template
   rules:
@@ -973,7 +1131,6 @@ new-e2e-otel:
   needs:
     - !reference [.needs_new_e2e_template]
     - qa_dca
-    - qa_agent
     - qa_agent_full
     - qa_ot_agent_standalone
   variables:
@@ -986,13 +1143,11 @@ new-e2e-ssi:
   extends: .new_e2e_template
   rules:
     - !reference [.on_ssi_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
     - qa_dca
-    - qa_agent
-    - qa_agent_full
+    - qa_agent_linux
   variables:
     TARGETS: ./tests/ssi
     TEAM: injection-platform
@@ -1015,7 +1170,7 @@ new-e2e-package-signing-debian-a7-x86_64:
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
-  rules: !reference [.on_default_new_e2e_tests]
+  rules: !reference [.on_package_signing_tests]
 
 new-e2e-package-signing-suse-a7-x86_64:
   extends:
@@ -1028,17 +1183,16 @@ new-e2e-package-signing-suse-a7-x86_64:
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_suse-x64-a7
-  rules: !reference [.on_default_new_e2e_tests]
+  rules: !reference [.on_package_signing_tests]
 
 new-e2e-cspm:
   extends: .new_e2e_template
   rules:
     - !reference [.on_cspm_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
-    - qa_agent
+    - qa_agent_linux
     - qa_dca
   variables:
     TARGETS: ./tests/cspm
@@ -1047,10 +1201,9 @@ new-e2e-cspm:
   timeout: 35m
 
 new-e2e-gpu:
-  extends: .new_e2e_template_needs_container_deploy
+  extends: .new_e2e_template_needs_container_deploy_linux
   rules:
     - !reference [.on_gpu_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
     TARGETS: ./tests/gpu # the target path where tests are
@@ -1058,7 +1211,7 @@ new-e2e-gpu:
     E2E_PULUMI_LOG_LEVEL: 10 # incident-33572
     ON_NIGHTLY_FIPS: "true"
   needs: # list of required jobs. By default gitlab waits for any previous jobs.
-    - !reference [.new_e2e_template_needs_container_deploy, needs]
+    - !reference [.new_e2e_template_needs_container_deploy_linux, needs]
     - agent_deb-x64-a7 # agent 7 debian package
   parallel:
     matrix:
@@ -1117,6 +1270,8 @@ generate-flakes-finder-pipeline:
     - qa_agent
     - qa_agent_fips
     - qa_agent_fips_jmx
+    - qa_agent_fips_linux
+    - qa_agent_fips_linux_jmx
     - qa_agent_full
     - tests_windows_sysprobe_x64
   tags: ["arch:amd64", "specific:true"]
@@ -1176,6 +1331,8 @@ generate-fips-e2e-pipeline:
     - qa_agent_full
     - qa_agent_fips
     - qa_agent_fips_jmx
+    - qa_agent_fips_linux
+    - qa_agent_fips_linux_jmx
     - tests_windows_sysprobe_x64
   tags: ["arch:amd64", "specific:true"]
   script:

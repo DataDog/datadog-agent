@@ -23,6 +23,12 @@ modules:
   comp/core/config:
     used_by_otel: true
   comp/core/configsync: default
+  comp/core/delegatedauth:
+    independent: false
+    used_by_otel: true
+  comp/core/delegatedauth/api/cloudauth/aws:
+    independent: false
+    used_by_otel: true
   comp/core/flare/builder:
     used_by_otel: true
   comp/core/flare/types:
@@ -89,6 +95,7 @@ modules:
     used_by_otel: true
   comp/forwarder/orchestrator/orchestratorinterface:
     used_by_otel: true
+  comp/host-profiler/symboluploader/testdata: ignored
   comp/logs-library:
     used_by_otel: true
   comp/logs/agent/config:
@@ -290,6 +297,8 @@ modules:
   pkg/trace/stats:
     used_by_otel: true
   pkg/trace/traceutil:
+    used_by_otel: true
+  pkg/util/aws/creds:
     used_by_otel: true
   pkg/util/backoff:
     used_by_otel: true

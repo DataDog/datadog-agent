@@ -185,14 +185,14 @@ void __attribute__((always_inline)) handle_new_mount(void *ctx, struct syscall_c
     syscall->mount.root_key.mount_id = get_mount_mount_id(syscall->mount.newmnt);
     syscall->mount.mount_id_unique = get_mount_mount_id_unique(syscall->mount.newmnt);
     syscall->mount.root_key.ino = get_dentry_ino(root_dentry);
-    update_path_id(&syscall->mount.root_key, 0, 0);
+    update_path_id(&syscall->mount.root_key, 0, PATH_ID_INVALIDATE_TYPE_NONE);
 
     if(!detached) {
         // populate the mountpoint dentry key
         syscall->mount.mountpoint_key.mount_id = get_mount_mount_id(syscall->mount.parent);
         syscall->mount.parent_mount_id_unique = get_mount_mount_id_unique(syscall->mount.parent);
         syscall->mount.mountpoint_key.ino = get_dentry_ino(syscall->mount.mountpoint_dentry);
-        update_path_id(&syscall->mount.mountpoint_key, 0, 0);
+        update_path_id(&syscall->mount.mountpoint_key, 0, PATH_ID_INVALIDATE_TYPE_NONE);
     }
 
     // populate the device of the new mount
@@ -327,6 +327,30 @@ int hook_mnt_change_mountpoint(ctx_t *ctx)
      syscall->mount.mountpoint_dentry = get_mountpoint_dentry(mp);
 
      handle_new_mount(ctx, syscall, KPROBE_OR_FENTRY_TYPE, false);
+
+    return 0;
+}
+
+HOOK_ENTRY("make_visible")
+int hook_make_visible(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall_with(unshare_or_open_tree_or_move_mount);
+    if (!syscall) {
+        return 0;
+    }
+
+    struct mount *newmnt = (struct mount *)CTX_PARM1(ctx);
+    // check if this mount has already been processed
+    if (syscall->mount.newmnt == newmnt) {
+        return 0;
+    }
+
+    syscall->mount.ns_inum = get_mount_mount_ns_inum(newmnt);
+    syscall->mount.newmnt  = newmnt;
+    syscall->mount.parent  = get_mount_parent(newmnt);
+    struct mountpoint *mp  = get_mount_mountpoint(newmnt);
+    syscall->mount.mountpoint_dentry = get_mountpoint_dentry(mp);
+
+    handle_new_mount(ctx, syscall, KPROBE_OR_FENTRY_TYPE, false);
 
     return 0;
 }

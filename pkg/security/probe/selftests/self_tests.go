@@ -57,7 +57,7 @@ func NewSelfTestEvent(acc *events.AgentContainerContext, success []eval.RuleID, 
 	}
 	evt.FillCustomEventCommonFields(acc)
 
-	return events.NewCustomRule(events.SelfTestRuleID, events.SelfTestRuleDesc),
+	return events.NewCustomRule(events.SelfTestRuleID, events.SelfTestRuleDesc, nil),
 		events.NewCustomEvent(model.CustomEventType, evt)
 }
 

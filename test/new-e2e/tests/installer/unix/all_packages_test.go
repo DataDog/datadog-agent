@@ -348,6 +348,7 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
   vars:
     datadog_api_key: "abcdef"
     datadog_site: "datadoghq.com"
+    datadog_ssi_script_dir: "/tmp/datadog-installer"
 `)
 
 	aptDefaultKeysOverrideTemplate := `

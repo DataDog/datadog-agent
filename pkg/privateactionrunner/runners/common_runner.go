@@ -16,7 +16,7 @@ import (
 
 type CommonRunner struct {
 	opmsClient opms.Client
-	settings   *config.Config
+	config     *config.Config
 }
 
 func NewCommonRunner(
@@ -24,7 +24,7 @@ func NewCommonRunner(
 ) *CommonRunner {
 	return &CommonRunner{
 		opmsClient: opms.NewClient(configuration),
-		settings:   configuration,
+		config:     configuration,
 	}
 }
 
@@ -41,7 +41,7 @@ func (n *CommonRunner) Stop(ctx context.Context) error {
 }
 
 func (n *CommonRunner) healthCheckLoop(ctx context.Context) {
-	ticker := time.NewTicker(time.Millisecond * time.Duration(n.settings.HealthCheckInterval))
+	ticker := time.NewTicker(time.Millisecond * time.Duration(n.config.HealthCheckInterval))
 	defer ticker.Stop()
 
 	for {

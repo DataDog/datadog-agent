@@ -211,6 +211,16 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 		return
 	}
 
+	// convert the value to the type of the default
+	if declaredNode.IsLeafNode() {
+		if converted, err := convertToDefaultType(newValue, declaredNode.Get()); err == nil {
+			if reflect.TypeOf(converted) != reflect.TypeOf(newValue) {
+				log.Warnf("Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
+			}
+			newValue = converted
+		}
+	}
+
 	// convert the key to lower case for the logs line and the notification
 	key = strings.ToLower(key)
 
@@ -550,10 +560,14 @@ func (c *ntmConfig) buildEnvVars() {
 
 func (c *ntmConfig) insertNodeFromString(curr *nodeImpl, key string, envval string) error {
 	var actualValue interface{} = envval
-	// TODO: When nodetreemodel has a schema with type information, we should
-	// use this type to convert the value, instead of requiring a transformer
 	if transformer, found := c.envTransform[key]; found {
 		actualValue = transformer(envval)
+	}
+
+	if defaultNode := c.leafAtPathFromNode(key, c.defaults); defaultNode != missingLeaf {
+		if converted, err := convertToDefaultType(actualValue, defaultNode.Get()); err == nil {
+			actualValue = converted
+		}
 	}
 	parts := splitKeyFunc(key)
 	return curr.setAt(parts, actualValue, model.SourceEnvVar)

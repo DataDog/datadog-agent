@@ -11,11 +11,70 @@ package converters
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"slices"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"go.opentelemetry.io/collector/confmap"
 )
+
+type endpoint struct {
+	site    string
+	url     string
+	apiKeys []string
+}
+
+type configManager struct {
+	endpoints []endpoint
+	config    config.Component
+}
+
+func newConfigManager(config config.Component) configManager {
+	profilingDDURL := config.GetString("apm_config.profiling_dd_url")
+	ddSite := config.GetString("site")
+	apiKey := config.GetString(fieldAPIKey)
+
+	var usedURL, usedSite string
+	if profilingDDURL != "" {
+		usedSite = configutils.ExtractSiteFromURL(profilingDDURL)
+		if usedSite == "" {
+			slog.Warn("could not extract site from apm_config.profiling_dd_url, skipping endpoint", slog.String("url", profilingDDURL))
+		}
+		usedURL = profilingDDURL
+	} else if ddSite != "" {
+		usedSite = ddSite
+	}
+
+	profilingAdditionalEndpoints := config.GetStringMapStringSlice("apm_config.profiling_additional_endpoints")
+	var endpoints []endpoint
+	for endpointURL, keys := range profilingAdditionalEndpoints {
+		site := configutils.ExtractSiteFromURL(endpointURL)
+		if site == "" {
+			slog.Warn("could not extract site from URL, skipping endpoint", slog.String("url", endpointURL))
+			continue
+		}
+		endpoints = append(endpoints, endpoint{
+			site:    site,
+			url:     endpointURL,
+			apiKeys: keys,
+		})
+	}
+	slog.Info("main site inferred from core configuration", slog.String("site", usedSite))
+
+	// Add main endpoint if we have a valid site
+	if usedSite == "" {
+		slog.Warn("could not determine site from core configuration, no default endpoint will be configured")
+	} else {
+		endpoints = append(endpoints, endpoint{site: usedSite, url: usedURL, apiKeys: []string{apiKey}})
+	}
+
+	if len(endpoints) == 0 {
+		slog.Warn("no valid endpoints in core agent configured for inference")
+	}
+
+	return configManager{config: config, endpoints: endpoints}
+}
 
 // converterWithAgent ensures sane configuration that satisfies the following conditions:
 //   - At least one infraattributes processor declared and used with `allow_hostname_override: true`
@@ -25,10 +84,12 @@ import (
 //   - Check if used otlphttpexporter has dd-api-key as string, if not string convert it, if not at all notify user
 //   - If hostprofiler::symbol_uploader::enabled == true, convert api_key/app_key to strings in each endpoint
 //   - If no hostprofiler is used & configured, add minimal one with symbol_uploader: false
-type converterWithAgent struct{}
+type converterWithAgent struct {
+	configManager configManager
+}
 
-func newConverterWithAgent(_ confmap.ConverterSettings) confmap.Converter {
-	return &converterWithAgent{}
+func newConverterWithAgent(_ confmap.ConverterSettings, config config.Component) confmap.Converter {
+	return &converterWithAgent{configManager: newConfigManager(config)}
 }
 
 // Convert implements the confmap.Converter interface for converterWithAgent.
@@ -55,9 +116,8 @@ func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) erro
 		return err
 	}
 
-	// If there's no otlphttpexporter configured. We can't infer necessary configurations as it needs URLs and API keys
-	// so if nothing is found, notify user
-	if err := ensureOtlpHTTPExporterConfig(confStringMap, exporterNames); err != nil {
+	// See if there is any otlpHTTP exporter configured, if not, infer as many exporters as possible
+	if err := c.ensureOtlpHTTPExporterConfig(confStringMap, exporterNames); err != nil {
 		return err
 	}
 
@@ -67,11 +127,16 @@ func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) erro
 	if err != nil {
 		return err
 	}
+	newProcessorNames, err = addProfilerMetadataTags(confStringMap, newProcessorNames)
+	if err != nil {
+		return err
+	}
+
 	profilesPipeline["processors"] = newProcessorNames
 
 	// Ensures at least one hostprofiler is used & configured
 	// If not, create a minimal component with symbol uploading disabled
-	newReceiverNames, err := fixReceiversPipeline(confStringMap, receiverNames, func(v ...any) { log.Warn(v...) })
+	newReceiverNames, err := c.fixReceiversPipeline(confStringMap, receiverNames)
 	if err != nil {
 		return err
 	}
@@ -84,6 +149,157 @@ func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) erro
 	}
 
 	*conf = *confmap.NewFromStringMap(confStringMap)
+	return nil
+}
+
+// fixReceiversPipeline ensures at least one hostprofiler receiver is configured in the pipeline
+// If none exists, it adds a minimal hostprofiler receiver with symbol_uploader disabled
+func (c *converterWithAgent) fixReceiversPipeline(conf confMap, receiverNames []any) ([]any, error) {
+	// Check if hostprofiler is in the pipeline
+	hasHostProfiler := false
+	for _, nameAny := range receiverNames {
+		name, ok := nameAny.(string)
+		if !ok {
+			return nil, fmt.Errorf("receiver name must be a string, got %T", nameAny)
+		}
+
+		if !isComponentType(name, componentTypeHostProfiler) {
+			continue
+		}
+
+		hasHostProfiler = true
+
+		if hostProfilerConfig, ok := Get[confMap](conf, pathPrefixReceivers+name); ok {
+			if err := c.checkHostProfilerReceiverConfig(hostProfilerConfig); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if hasHostProfiler {
+		return receiverNames, nil
+	}
+
+	if err := Set(conf, pathPrefixReceivers+defaultHostProfilerName+"::symbol_uploader::enabled", true); err != nil {
+		return nil, err
+	}
+
+	defaultHostProfiler, _ := Get[confMap](conf, pathPrefixReceivers+defaultHostProfilerName)
+	if err := c.inferHostProfilerEndpointConfig(defaultHostProfiler); err != nil {
+		return nil, err
+	}
+
+	return append(receiverNames, defaultHostProfilerName), nil
+}
+
+// checkHostProfilerReceiverConfig validates and normalizes hostprofiler receiver configuration
+// It ensures that if symbol_uploader is enabled, symbol_endpoints is properly configured
+// and all api_key/app_key values are strings
+func (c *converterWithAgent) checkHostProfilerReceiverConfig(hostProfiler confMap) error {
+	if isEnabled, ok := Get[bool](hostProfiler, pathSymbolUploaderEnabled); !ok || !isEnabled {
+		return nil
+	}
+
+	endpoints, ok := Get[[]any](hostProfiler, pathSymbolEndpoints)
+
+	// If symbol_endpoints is missing, wrong type, or empty, infer from agent config
+	if !ok || len(endpoints) == 0 {
+		slog.Info("symbol uploader enabled but endpoints not configured, inferring from agent config")
+		if err := c.inferHostProfilerEndpointConfig(hostProfiler); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	// We have valid endpoints, just ensure keys are strings
+	for _, epAny := range endpoints {
+		if ep, ok := epAny.(confMap); ok {
+			ensureKeyStringValue(ep, fieldAPIKey)
+			ensureKeyStringValue(ep, fieldAppKey)
+		}
+	}
+	return nil
+}
+
+func (c *converterWithAgent) ensureOtlpHTTPExporterConfig(conf confMap, exporterNames []any) error {
+	hasOtlpHTTP := false
+	for _, nameAny := range exporterNames {
+		if name, ok := nameAny.(string); ok && isComponentType(name, componentTypeOtlpHTTP) {
+			hasOtlpHTTP = true
+
+			headers, ok := Get[confMap](conf, pathPrefixExporters+name+"::headers")
+			if !ok {
+				return fmt.Errorf("exporter %s is not configured", name)
+			}
+
+			if !ensureKeyStringValue(headers, fieldDDAPIKey) {
+				// should we try to infer those keys as well? we might have a key for the given site
+				return fmt.Errorf("%s exporter missing required dd-api-key header", name)
+			}
+		}
+	}
+
+	if !hasOtlpHTTP {
+		slog.Info("no otlphttp exporter configured, inferring from agent config")
+		if err := c.inferOtlpHTTPConfig(conf); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *converterWithAgent) inferHostProfilerEndpointConfig(hostProfiler confMap) error {
+	var symbolEndpoints []any
+	for _, endpoint := range c.configManager.endpoints {
+		for _, key := range endpoint.apiKeys {
+			symbolEndpoints = append(symbolEndpoints, confMap{
+				"site":      endpoint.site,
+				fieldAPIKey: key,
+			})
+		}
+	}
+
+	if err := Set(hostProfiler, "symbol_uploader::symbol_endpoints", symbolEndpoints); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *converterWithAgent) inferOtlpHTTPConfig(conf confMap) error {
+	const (
+		profilesEndpointFormat = "https://intake.profile.%s/v1development/profiles"
+		metricsEndpointFormat  = "https://otlp.%s/v1/metrics"
+		otlpHTTPNameFormat     = "otlphttp/%s_%d"
+	)
+
+	createOtlpHTTPFromEndpoint := func(site, key string) confMap {
+		return confMap{
+			"profiles_endpoint": fmt.Sprintf(profilesEndpointFormat, site),
+			"metrics_endpoint":  fmt.Sprintf(metricsEndpointFormat, site),
+			"headers": confMap{
+				fieldDDAPIKey: key,
+			},
+		}
+	}
+
+	const profilesExportersPath = "service::pipelines::profiles::exporters"
+	profilesExporters, _ := Get[[]any](conf, profilesExportersPath)
+	siteCounter := make(map[string]int)
+	for _, endpoint := range c.configManager.endpoints {
+		for _, key := range endpoint.apiKeys {
+			exporterName := fmt.Sprintf(otlpHTTPNameFormat, endpoint.site, siteCounter[endpoint.site])
+			siteCounter[endpoint.site]++
+			if err := Set(conf, pathPrefixExporters+exporterName, createOtlpHTTPFromEndpoint(endpoint.site, key)); err != nil {
+				return err
+			}
+			profilesExporters = append(profilesExporters, exporterName)
+		}
+	}
+
+	if err := Set(conf, profilesExportersPath, profilesExporters); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -125,9 +341,12 @@ func (c *converterWithAgent) fixProcessorsPipeline(conf confMap, processorNames 
 
 		// Track if we have infraattributes
 		if isComponentType(name, componentTypeInfraAttributes) {
-			// Make sure allow_hostname_override is true
-			if err := Set(processors, name+"::"+fieldAllowHostnameOverride, true); err != nil {
+			ddDefaultValue, err := SetDefault(processors, name+"::"+fieldAllowHostnameOverride, true)
+			if err != nil {
 				return nil, err
+			}
+			if !ddDefaultValue {
+				slog.Warn("allow_hostname_override is required but is disabled by user configuration; preserving user value.")
 			}
 			foundInfraattributes = true
 		}
@@ -138,7 +357,7 @@ func (c *converterWithAgent) fixProcessorsPipeline(conf confMap, processorNames 
 		if err := Set(processors, defaultInfraAttributesName+"::"+fieldAllowHostnameOverride, true); err != nil {
 			return nil, err
 		}
-		log.Warn("Added minimal infraattributes processor to user configuration")
+		slog.Warn("added minimal infraattributes processor to user configuration")
 		processorNames = append(processorNames, defaultInfraAttributesName)
 	}
 

@@ -36,7 +36,10 @@ func TestEKSSuite(t *testing.T) {
 			sceneks.WithFakeIntakeOptions(
 				fakeintake.WithRetentionPeriod("31m"),
 			),
-			sceneks.WithAgentOptions(kubernetesagentparams.WithDualShipping()),
+			sceneks.WithAgentOptions(
+				kubernetesagentparams.WithDualShipping(),
+				kubernetesagentparams.WithWindowsImage(),
+			),
 			sceneks.WithDeployArgoRollout(),
 		),
 	)))

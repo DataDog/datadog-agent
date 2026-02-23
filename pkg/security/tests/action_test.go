@@ -614,7 +614,7 @@ func TestActionHash(t *testing.T) {
 		},
 		{
 			ID:         "hash_action_exec",
-			Expression: `exec.file.path == "{{.Root}}/test-hash-action-exec_touch"`,
+			Expression: `exec.file.path == "{{.Root}}/test-hash-action-exec_tester"`,
 			Actions: []*rules.ActionDefinition{
 				{
 					Hash: &rules.HashDefinition{},
@@ -634,23 +634,20 @@ func TestActionHash(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// it's important that this ends with `touch` because for example ubuntu 25.10
-	// uses the suffix to know which "function/utility" is running
-	// https://github.com/uutils/coreutils/blob/909da503713f39f8e36b1ff077841c9cc13d920b/src/bin/coreutils.rs#L60
-	testExecutable, _, err := test.Path("test-hash-action-exec_touch")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err = copyFile(which(t, "touch"), testExecutable, 0755); err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(testExecutable)
-
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	testExecutable, _, err := test.Path("test-hash-action-exec_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = copyFile(syscallTester, testExecutable, 0755); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testExecutable)
 
 	done := make(chan bool, 10)
 
@@ -750,10 +747,9 @@ func TestActionHash(t *testing.T) {
 	})
 
 	t.Run("exec", func(t *testing.T) {
-		flake.MarkOnJobName(t, "ubuntu_25.10")
 		test.msgSender.flush()
 		test.WaitSignalFromRule(t, func() error {
-			cmd := exec.Command(testExecutable, "/tmp/aaa")
+			cmd := exec.Command(testExecutable, "sleep", "1")
 			out, err := cmd.CombinedOutput()
 			if err != nil {
 				t.Logf("output: %s", string(out))
@@ -764,6 +760,77 @@ func TestActionHash(t *testing.T) {
 		}, "hash_action_exec")
 		err = retry.Do(func() error {
 			msg := test.msgSender.getMsg("hash_action_exec")
+			if msg == nil {
+				return errors.New("not found")
+			}
+			validateMessageSchema(t, string(msg.Data))
+
+			jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.state == 'Done')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.trigger == 'timeout')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.file.hashes`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+			})
+
+			return nil
+		}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		assert.NoError(t, err)
+	})
+
+	t.Run("open-force-path", func(t *testing.T) {
+		// test that we correctly force a path resolution when we run the hash action
+		newRuleDefs := []*rules.RuleDefinition{
+			{
+				ID:         "hash_action_open_no_path",
+				Expression: `open.flags&O_CREAT == O_CREAT && process.file.name == "syscall_tester"`,
+				Actions: []*rules.ActionDefinition{
+					{
+						Hash: &rules.HashDefinition{
+							Field: "open.file",
+						},
+					},
+				},
+			},
+		}
+
+		// Set the new policy and reload (without closing/restarting the module)
+		// On reload, exec events are replayed for running processes, so the kill rule should trigger
+		if err := setTestPolicy(commonCfgDir, nil, newRuleDefs); err != nil {
+			t.Fatalf("failed to set new policy: %v", err)
+		}
+
+		err := test.reloadPolicies()
+		if err != nil {
+			t.Fatalf("failed to reload policies: %v", err)
+		}
+
+		test.msgSender.flush()
+		test.WaitSignalFromRule(t, func() error {
+			go func() {
+				timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+
+				if err := runSyscallTesterFunc(
+					timeoutCtx, t, syscallTester,
+					"slow-write", "2", testFile, "aaa",
+				); err != nil {
+					t.Error(err)
+				}
+
+				done <- true
+			}()
+			return nil
+		}, func(_ *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "hash_action_open_no_path")
+		}, "hash_action_open_no_path")
+
+		err = retry.Do(func() error {
+			msg := test.msgSender.getMsg("hash_action_open_no_path")
 			if msg == nil {
 				return errors.New("not found")
 			}
@@ -784,6 +851,8 @@ func TestActionHash(t *testing.T) {
 			return nil
 		}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
 		assert.NoError(t, err)
+
+		<-done
 	})
 }
 
@@ -958,13 +1027,13 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 		t.Skip("Skip test spawning docker containers on docker")
 	}
 
-	checkKernelCompatibility(t, "skip on CentOS7", func(kv *kernel.Version) bool {
-		return kv.IsRH7Kernel()
-	})
-
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
+
+	checkKernelCompatibility(t, "skip on CentOS7", func(kv *kernel.Version) bool {
+		return kv.IsRH7Kernel()
+	})
 
 	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
 		return kv.IsSuse12Kernel()
@@ -1063,9 +1132,8 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 		if err != nil {
 			return fmt.Errorf("failed to reload policies: %w", err)
 		}
-		// Trigger a small event to force the replay of cached events.
-		// The replay only happens in handleEvent when a new eBPF event arrives.
-		exec.Command("true").Run()
+		// sleep to let the replay events trigger the rule
+		time.Sleep(time.Second)
 		return nil
 	}, func(rule *rules.Rule, event *model.Event) bool {
 		assertTriggeredRule(t, rule, "test_kill_container_with_signature")
@@ -1077,7 +1145,8 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 			if killReport, ok := report.(*sprobe.KillActionReport); ok {
 				assert.Equal(t, "SIGKILL", killReport.Signal, "unexpected signal")
 				assert.Equal(t, "cgroup", killReport.Scope, "unexpected scope")
-				assert.Equal(t, sprobe.KillActionStatusPerformed, killReport.Status, "unexpected status")
+				// we might get "partially kill" status if like we start by killing the container entrypoint and we're not able to kill the tail because it's already stopped
+				assert.Contains(t, []sprobe.KillActionStatus{sprobe.KillActionStatusPerformed, sprobe.KillActionStatusPartiallyPerformed}, killReport.Status, "unexpected status")
 			}
 		}
 		return true

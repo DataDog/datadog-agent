@@ -1,0 +1,14 @@
+service:
+  pipelines:
+    profiles:
+      receivers: [hostprofiler]
+      processors: [resource/dd-profiler-internal-metadata]
+      exporters: [otlphttp]
+receivers:
+  hostprofiler:
+    symbol_uploader:
+      enabled: false
+exporters:
+  otlphttp:
+    headers:
+      dd-api-key: test-key

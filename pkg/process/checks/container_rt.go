@@ -23,10 +23,11 @@ const (
 )
 
 // NewRTContainerCheck returns an instance of the RTContainerCheck.
-func NewRTContainerCheck(config pkgconfigmodel.Reader, wmeta workloadmeta.Component) *RTContainerCheck {
+func NewRTContainerCheck(config pkgconfigmodel.Reader, sysConfig pkgconfigmodel.Reader, wmeta workloadmeta.Component) *RTContainerCheck {
 	return &RTContainerCheck{
-		config: config,
-		wmeta:  wmeta,
+		config:    config,
+		sysConfig: sysConfig,
+		wmeta:     wmeta,
 	}
 }
 
@@ -37,6 +38,7 @@ type RTContainerCheck struct {
 	containerProvider proccontainers.ContainerProvider
 	lastRates         map[string]*proccontainers.ContainerRateMetrics
 	config            pkgconfigmodel.Reader
+	sysConfig         pkgconfigmodel.Reader
 	wmeta             workloadmeta.Component
 }
 
@@ -59,7 +61,7 @@ func (r *RTContainerCheck) IsEnabled() bool {
 	}
 
 	rtChecksEnabled := !r.config.GetBool("process_config.disable_realtime_checks")
-	return canEnableContainerChecks(r.config, false) && rtChecksEnabled
+	return canEnableContainerChecks(r.config, r.sysConfig, false) && rtChecksEnabled
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions

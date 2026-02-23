@@ -16,6 +16,7 @@ package metrics
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -1415,6 +1416,78 @@ func TestMapRuntimeMetricsNoMapping(t *testing.T) {
 		},
 	)
 	assert.Empty(t, rmt.Languages)
+}
+
+func TestWithRuntimeMetricMappings(t *testing.T) {
+	tests := []struct {
+		name         string
+		mappedName   string
+		withMappings bool
+		expectedLang string
+	}{
+		{
+			name:         "process.runtime.go.goroutines",
+			withMappings: true,
+			mappedName:   "runtime.go.num_goroutine",
+			expectedLang: "go",
+		},
+		{
+			name: "process.runtime.go.goroutines",
+		},
+		{
+			name:         "process.runtime.dotnet.exceptions.count",
+			withMappings: true,
+			mappedName:   "runtime.dotnet.exceptions.count",
+			expectedLang: "dotnet",
+		},
+		{
+			name: "process.runtime.dotnet.exceptions.count",
+		},
+		{
+			name:         "jvm.thread.count",
+			withMappings: true,
+			mappedName:   "jvm.thread_count",
+			expectedLang: "jvm",
+		},
+		{
+			name: "jvm.thread.count",
+		},
+		{
+			name:         "process.runtime.jvm.threads.count",
+			withMappings: true,
+			mappedName:   "jvm.thread_count",
+			expectedLang: "jvm",
+		},
+		{
+			name: "process.runtime.jvm.threads.count",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%s/%v", tt.name, tt.withMappings), func(t *testing.T) {
+			var opts []TranslatorOption
+			if !tt.withMappings {
+				opts = append(opts, WithoutRuntimeMetricMappings())
+			}
+			tr := NewTestTranslator(t, opts...)
+			consumer := &mockTimeSeriesConsumer{}
+			metric := createTestMetricWithAttributes(tt.name, pmetric.MetricTypeGauge, nil, 1)
+
+			rmt, err := tr.MapMetrics(t.Context(), metric, consumer, nil)
+			require.NoError(t, err)
+
+			if tt.withMappings {
+				require.Len(t, consumer.metrics, 2)
+				assert.Equal(t, tt.name, consumer.metrics[0].name)
+				assert.Equal(t, tt.mappedName, consumer.metrics[1].name)
+				assert.Equal(t, []string{tt.expectedLang}, rmt.Languages)
+			} else {
+				require.Len(t, consumer.metrics, 1)
+				assert.Equal(t, tt.name, consumer.metrics[0].name)
+				assert.Empty(t, rmt.Languages)
+			}
+		})
+	}
 }
 
 func TestMapSystemMetrics(t *testing.T) {

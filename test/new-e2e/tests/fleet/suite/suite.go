@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/agent"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/backend"
 	fleethost "github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/installer"
 )
 
 var (
@@ -47,9 +48,10 @@ var (
 type FleetSuite struct {
 	e2e.BaseSuite[environments.Host]
 
-	Agent   *agent.Agent
-	Backend *backend.Backend
-	Host    *fleethost.Host
+	Agent     *agent.Agent
+	Backend   *backend.Backend
+	Host      *fleethost.Host
+	Installer *installer.Installer
 }
 
 // SetupSuite sets up the fleet suite.
@@ -61,6 +63,7 @@ func (s *FleetSuite) SetupSuite() {
 	s.Agent = agent.New(s.T, s.Env())
 	s.Backend = backend.New(s.T, s.Env())
 	s.Host = fleethost.New(s.Env())
+	s.Installer = installer.New(s.T, s.Env())
 }
 
 // Run runs the fleet suite for the given platforms.

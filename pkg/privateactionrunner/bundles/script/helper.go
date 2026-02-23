@@ -3,30 +3,46 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build !local
+//go:build !local && !windows
 
 package com_datadoghq_script
 
 import (
 	"context"
+	"os"
 	"os/exec"
-	"strings"
 )
 
-func NewShellScriptCommand(ctx context.Context, scriptFile string, args []string) *exec.Cmd {
-	sudoArgs := []string{"-u", "scriptuser", "sh", scriptFile}
-	sudoArgs = append(sudoArgs, args...)
-	return exec.CommandContext(ctx, "sudo", sudoArgs...)
+var (
+	ScriptUserName = "dd-scriptuser"
+)
+
+func buildEnv(allowedEnvVars []string) []string {
+	env := []string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"}
+	for _, name := range allowedEnvVars {
+		if val, ok := os.LookupEnv(name); ok {
+			env = append(env, name+"="+val)
+		}
+	}
+	return env
 }
 
-func NewPredefinedScriptCommand(ctx context.Context, command []string, envVarNames []string) *exec.Cmd {
-	sudoArgs := []string{"-u", "scriptuser"}
-	if len(envVarNames) > 0 {
-		preserveEnvArg := "--preserve-env=" + strings.Join(envVarNames, ",")
-		sudoArgs = append(sudoArgs, preserveEnvArg)
+func NewShellScriptCommand(ctx context.Context, scriptFile string, args []string) (*exec.Cmd, error) {
+	shellCmd, err := shellQuoteArgs(append([]string{"sh", scriptFile}, args...))
+	if err != nil {
+		return nil, err
 	}
-	sudoArgs = append(sudoArgs, command...)
+	cmd := exec.CommandContext(ctx, "su", ScriptUserName, "-s", "/bin/sh", "-c", shellCmd)
+	cmd.Env = buildEnv(nil)
+	return cmd, nil
+}
 
-	cmd := exec.CommandContext(ctx, "sudo", sudoArgs...)
-	return cmd
+func NewPredefinedScriptCommand(ctx context.Context, command []string, envVarNames []string) (*exec.Cmd, error) {
+	shellCmd, err := shellQuoteArgs(command)
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.CommandContext(ctx, "su", ScriptUserName, "-s", "/bin/sh", "-c", shellCmd)
+	cmd.Env = buildEnv(envVarNames)
+	return cmd, nil
 }

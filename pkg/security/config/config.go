@@ -278,8 +278,6 @@ type RuntimeSecurityConfig struct {
 	ActivityDumpSilentWorkloadsDelay time.Duration
 	// ActivityDumpSilentWorkloadsTicker configures ticker that will check if a workload is silent and should be traced
 	ActivityDumpSilentWorkloadsTicker time.Duration
-	// ActivityDumpAutoSuppressionEnabled bool do not send event if part of a dump
-	ActivityDumpAutoSuppressionEnabled bool
 
 	// # Dynamic configuration fields:
 	// ActivityDumpMaxDumpSize defines the maximum size of a dump
@@ -287,6 +285,8 @@ type RuntimeSecurityConfig struct {
 
 	// SecurityProfileEnabled defines if the Security Profile manager should be enabled
 	SecurityProfileEnabled bool
+	// SecurityProfileManagerV2Enabled defines if the v2 Security Profile manager should be used
+	SecurityProfileV2Enabled bool
 	// SecurityProfileMaxImageTags defines the maximum number of profile versions to maintain
 	SecurityProfileMaxImageTags int
 	// SecurityProfileDir defines the directory in which Security Profiles are stored
@@ -301,11 +301,10 @@ type RuntimeSecurityConfig struct {
 	SecurityProfileDNSMatchMaxDepth int
 	// SecurityProfileNodeEvictionTimeout defines the timeout after which non-touched nodes are evicted from profiles
 	SecurityProfileNodeEvictionTimeout time.Duration
-
-	// SecurityProfileAutoSuppressionEnabled do not send event if part of a profile
-	SecurityProfileAutoSuppressionEnabled bool
-	// SecurityProfileAutoSuppressionEventTypes defines the list of event types the can be auto suppressed using security profiles
-	SecurityProfileAutoSuppressionEventTypes []model.EventType
+	// SecurityProfileCleanupDelay defines the delay before removing a profile after all its cgroups are deleted
+	SecurityProfileCleanupDelay time.Duration
+	// SecurityProfileV2EventTypes defines the list of event types that should be captured by the V2 security profile manager
+	SecurityProfileV2EventTypes []model.EventType
 
 	// AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
 	AnomalyDetectionEventTypes []model.EventType
@@ -566,7 +565,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		ActivityDumpSilentWorkloadsDelay:      pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.silent_workloads.delay"),
 		ActivityDumpSilentWorkloadsTicker:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.silent_workloads.ticker"),
 		ActivityDumpWorkloadDenyList:          pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.activity_dump.workload_deny_list"),
-		ActivityDumpAutoSuppressionEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.auto_suppression.enabled"),
 		// activity dump dynamic fields
 		ActivityDumpMaxDumpSize: func() int {
 			mds := max(pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.max_dump_size"), ADMinMaxDumSize)
@@ -597,6 +595,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// security profiles
 		SecurityProfileEnabled:             pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),
+		SecurityProfileV2Enabled:           pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.enabled"),
 		SecurityProfileMaxImageTags:        pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.max_image_tags"),
 		SecurityProfileDir:                 pkgconfigsetup.SystemProbe().GetString("runtime_security_config.security_profile.dir"),
 		SecurityProfileWatchDir:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.watch_dir"),
@@ -604,10 +603,8 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SecurityProfileMaxCount:            pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.max_count"),
 		SecurityProfileDNSMatchMaxDepth:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.dns_match_max_depth"),
 		SecurityProfileNodeEvictionTimeout: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.node_eviction_timeout"),
-
-		// auto suppression
-		SecurityProfileAutoSuppressionEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.auto_suppression.enabled"),
-		SecurityProfileAutoSuppressionEventTypes: parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.auto_suppression.event_types")),
+		SecurityProfileCleanupDelay:        pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.profile_cleanup_delay"),
+		SecurityProfileV2EventTypes:        parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.v2.event_types")),
 
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),

@@ -43,6 +43,9 @@ type translatorConfig struct {
 	// Agent from computing metrics with the same names.
 	withOTelPrefix bool
 
+	// withRuntimeRemapping reports whether runtime metrics should be mapped to Datadog counterparts.
+	withRuntimeRemapping bool
+
 	// cache configuration
 	sweepInterval int64
 	deltaTTL      int64
@@ -243,6 +246,14 @@ func WithInitialCumulMonoValueMode(mode InitialCumulMonoValueMode) TranslatorOpt
 func WithInferDeltaInterval() TranslatorOption {
 	return func(t *translatorConfig) error {
 		t.InferDeltaInterval = true
+		return nil
+	}
+}
+
+// WithoutRuntimeMetricMappings enables mapping of runtime metrics.
+func WithoutRuntimeMetricMappings() TranslatorOption {
+	return func(t *translatorConfig) error {
+		t.withRuntimeRemapping = false
 		return nil
 	}
 }

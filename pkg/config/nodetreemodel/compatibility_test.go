@@ -73,6 +73,21 @@ func TestCompareGetInt(t *testing.T) {
 	assert.Equal(t, 345, ntmConf.GetInt("port"))
 }
 
+func TestCompareGetTypesLikeDefault(t *testing.T) {
+	t.Setenv("DD_MY_FEATURE_ENABLED", "true")
+	t.Setenv("DD_PORT", "345")
+	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("my_feature.enabled", false)
+		cfg.BindEnvAndSetDefault("port", 0)
+	})
+
+	assert.Equal(t, true, viperConf.Get("my_feature.enabled"))
+	assert.Equal(t, 345, viperConf.Get("port"))
+
+	assert.Equal(t, true, ntmConf.Get("my_feature.enabled"))
+	assert.Equal(t, 345, ntmConf.Get("port"))
+}
+
 func TestCompareIsSet(t *testing.T) {
 	dataYaml := `port: 345`
 	viperConf, ntmConf := constructBothConfigs(dataYaml, true, nil)
@@ -140,6 +155,25 @@ func TestCompareAllSettingsWithoutDefault(t *testing.T) {
 	assert.NoError(t, err)
 	yamlText = string(yamlConf)
 	assert.Equal(t, expectedYaml, yamlText)
+}
+
+func TestCompareAllFlattenedSettingsWithSequenceID(t *testing.T) {
+	t.Setenv("DD_MY_FEATURE_ENABLED", "true")
+	t.Setenv("DD_PORT", "345")
+	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("my_feature.enabled", false)
+		cfg.BindEnvAndSetDefault("port", 0)
+	})
+
+	vipermap, _ := viperConf.AllFlattenedSettingsWithSequenceID()
+	ntmmap, _ := ntmConf.AllFlattenedSettingsWithSequenceID()
+
+	expectmap := map[string]interface{}{
+		"my_feature.enabled": true,
+		"port":               345,
+	}
+	assert.Equal(t, expectmap, vipermap)
+	assert.Equal(t, expectmap, ntmmap)
 }
 
 func TestCompareGetEnvVars(t *testing.T) {
@@ -699,7 +733,7 @@ c: 1234
 	assert.Equal(t, 1234, cvalue)
 
 	dvalue = ntmConf.Get("c.d")
-	assert.Equal(t, false, dvalue)
+	assert.Equal(t, nil, dvalue)
 }
 
 func TestCompareTimeDuration(t *testing.T) {
