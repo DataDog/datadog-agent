@@ -61,7 +61,8 @@ func TestLoad_WithoutLibrary(t *testing.T) {
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
-	sharedLibraryLoader := ffi.NewSharedLibraryLoader("/library/folder/path/")
+	sharedLibraryLoader, err := ffi.NewSharedLibraryLoader("/library/folder/path/")
+	require.NoError(t, err)
 
 	loader, err := newCheckLoader(senderManager, logReceiver, tagger, filterStore, sharedLibraryLoader)
 	require.NoError(t, err)
