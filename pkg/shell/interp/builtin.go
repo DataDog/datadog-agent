@@ -33,7 +33,7 @@ func IsBuiltin(name string) bool {
 		"dirs", "pushd", "popd", "umask", "alias", "unalias",
 		"fg", "bg", "getopts", "eval", "test", "[", "exec",
 		"return", "read", "mapfile", "readarray", "shopt",
-		"ls", "tail":
+		"ls", "tail", "ping":
 		return true
 	}
 	return false
@@ -902,6 +902,8 @@ func (r *Runner) builtin(ctx context.Context, pos syntax.Pos, name string, args 
 		exit = r.builtinLs(ctx, args)
 	case "tail":
 		exit = r.builtinTail(ctx, args)
+	case "ping":
+		exit = r.builtinPing(ctx, args)
 	default:
 		// "umask", "fg", "bg",
 		return failf(2, "%s: unimplemented builtin\n", name)
