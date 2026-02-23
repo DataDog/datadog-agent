@@ -38,6 +38,7 @@ func (v *configRefreshLinuxSuite) TestConfigRefresh() {
 	v.Env().RemoteHost.MkdirAll(rootDir)
 
 	authTokenFilePath := "/etc/datadog-agent/auth_token"
+	ipcCertPath := "/etc/datadog-agent/ipc_cert.pem"
 	secretResolverPath := filepath.Join(rootDir, "secret-resolver.py")
 
 	v.T().Log("Setting up the secret resolver and the initial api key file")
@@ -83,7 +84,7 @@ func (v *configRefreshLinuxSuite) TestConfigRefresh() {
 
 	// check that the agents are using the first key
 	// initially they all resolve it using the secret resolver
-	assertAgentsUseKey(v.T(), v.Env().RemoteHost, authtoken, apiKey1)
+	assertAgentsUseKey(v.T(), v.Env().RemoteHost, ipcCertPath, authtoken, apiKey1)
 
 	// update api_key
 	v.T().Log("Updating the api key")
@@ -97,7 +98,7 @@ func (v *configRefreshLinuxSuite) TestConfigRefresh() {
 
 	// and check that the agents are using the new key
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		assertAgentsUseKey(t, v.Env().RemoteHost, authtoken, apiKey2)
+		assertAgentsUseKey(t, v.Env().RemoteHost, ipcCertPath, authtoken, apiKey2)
 	}, 2*configRefreshIntervalSec*time.Second, 1*time.Second)
 }
 
@@ -106,6 +107,7 @@ func (v *configRefreshLinuxSuite) TestConfigRefreshOverSocket() {
 	v.Env().RemoteHost.MkdirAll(rootDir)
 
 	authTokenFilePath := "/etc/datadog-agent/auth_token"
+	ipcCertPath := "/etc/datadog-agent/ipc_cert.pem"
 	secretResolverPath := filepath.Join(rootDir, "secret-resolver.py")
 
 	v.T().Log("Setting up the secret resolver and the initial api key file")
@@ -151,7 +153,7 @@ func (v *configRefreshLinuxSuite) TestConfigRefreshOverSocket() {
 
 	// check that the agents are using the first key
 	// initially they all resolve it using the secret resolver
-	assertAgentsUseKey(v.T(), v.Env().RemoteHost, authtoken, apiKey1)
+	assertAgentsUseKey(v.T(), v.Env().RemoteHost, ipcCertPath, authtoken, apiKey1)
 
 	// update api_key
 	v.T().Log("Updating the api key")
@@ -165,6 +167,6 @@ func (v *configRefreshLinuxSuite) TestConfigRefreshOverSocket() {
 
 	// and check that the agents are using the new key
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		assertAgentsUseKey(t, v.Env().RemoteHost, authtoken, apiKey2)
+		assertAgentsUseKey(t, v.Env().RemoteHost, ipcCertPath, authtoken, apiKey2)
 	}, 2*configRefreshIntervalSec*time.Second, 1*time.Second)
 }

@@ -67,9 +67,8 @@ func NewHostAgentClientWithParams(context common.Context, hostOutput remote.Host
 		if err := waitForReadyTimeout(commandRunner, agentReadyTimeout); err != nil {
 			return nil, err
 		}
+		waitForAgentsReady(context.T(), host, params)
 	}
-
-	waitForAgentsReady(context.T(), host, params)
 
 	return commandRunner, nil
 }

@@ -493,10 +493,13 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 	}
 
 	authTokenFilePath := "/etc/datadog-agent/auth_token"
+	ipcCertPath := "/etc/datadog-agent/ipc_cert.pem"
 	authtokenContent := v.Env().RemoteHost.MustExecute("sudo cat " + authTokenFilePath)
 	authtoken := strings.TrimSpace(authtokenContent)
 
-	hostHTTPClient := v.Env().RemoteHost.NewHTTPClient()
+	hostHTTPClient, err := v.Env().RemoteHost.NewHTTPClientWithIPCCert(ipcCertPath)
+	require.NoError(v.T(), err, "create HTTP client with IPC cert for agent API")
+
 	for _, testcase := range testcases {
 		v.T().Run(fmt.Sprintf("API - %s test", testcase.name), func(t *testing.T) {
 			req, err := testcase.httpRequest(authtoken)
@@ -504,7 +507,12 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 
 			require.EventuallyWithT(t, func(ct *assert.CollectT) {
 				resp, err := hostHTTPClient.Do(req)
-				assert.NoError(ct, err, "failed to send request")
+				if !assert.NoError(ct, err, "failed to send request") {
+					return
+				}
+				if resp == nil {
+					return
+				}
 				defer resp.Body.Close()
 
 				endpoint := testcase.agentEndpointInfo

@@ -87,10 +87,11 @@ func (v *configRefreshWindowsSuite) TestConfigRefresh() {
 	require.NoError(v.T(), err)
 
 	authtoken := strings.TrimSpace(string(authtokenContent))
+	ipcCertPath := "C:\\ProgramData\\Datadog\\ipc_cert.pem"
 
 	// check that the agents are using the first key
 	// initially they all resolve it using the secret resolver
-	assertAgentsUseKey(v.T(), v.Env().RemoteHost, authtoken, apiKey1)
+	assertAgentsUseKey(v.T(), v.Env().RemoteHost, ipcCertPath, authtoken, apiKey1)
 
 	// update api_key
 	v.T().Log("Updating the api key")
@@ -104,6 +105,6 @@ func (v *configRefreshWindowsSuite) TestConfigRefresh() {
 
 	// and check that the agents are using the new key
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		assertAgentsUseKey(t, v.Env().RemoteHost, authtoken, apiKey2)
+		assertAgentsUseKey(t, v.Env().RemoteHost, ipcCertPath, authtoken, apiKey2)
 	}, 2*configRefreshIntervalSec*time.Second, 1*time.Second)
 }

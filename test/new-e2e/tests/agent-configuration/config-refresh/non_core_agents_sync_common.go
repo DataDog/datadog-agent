@@ -43,12 +43,16 @@ var (
 )
 
 // assertAgentsUseKey checks that all agents are using the given key.
-func assertAgentsUseKey(t assert.TestingT, host *components.RemoteHost, authtoken, key string) {
+// ipcCertPath is the path to the IPC cert PEM on the remote host (e.g. /etc/datadog-agent/ipc_cert.pem) for mTLS to agent HTTPS endpoints.
+func assertAgentsUseKey(t assert.TestingT, host *components.RemoteHost, ipcCertPath, authtoken, key string) {
 	if h, ok := t.(testing.TB); ok {
 		h.Helper()
 	}
 
-	hostHTTPClient := host.NewHTTPClient()
+	hostHTTPClient, err := host.NewHTTPClientWithIPCCert(ipcCertPath)
+	if !assert.NoErrorf(t, err, "create HTTP client with IPC cert") {
+		return
+	}
 	for _, endpoint := range []agentConfigEndpointInfo{
 		traceConfigEndpoint(apmCmdPort),
 		processConfigEndpoint(processCmdPort),

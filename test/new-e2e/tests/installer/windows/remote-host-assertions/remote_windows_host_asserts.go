@@ -115,8 +115,13 @@ func (r *RemoteWindowsHostAssertions) HasARunningDatadogAgentService() *RemoteWi
 
 	r.HasAService("datadogagent").WithStatus("Running")
 
+	configRoot, err := windowsagent.GetConfigRootFromRegistry(r.remoteHost)
+	r.require.NoError(err)
+	ipcCertPath := filepath.Join(configRoot, "ipc_cert.pem")
+
 	agentClient, err := client.NewHostAgentClientWithParams(r.context, r.remoteHost.HostOutput,
 		agentclientparams.WithAgentInstallPath(installPath),
+		agentclientparams.WithIPCCertPath(ipcCertPath),
 		agentclientparams.WithSkipWaitForAgentReady(),
 	)
 	r.require.NoError(err)
