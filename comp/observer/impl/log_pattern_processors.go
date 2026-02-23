@@ -26,6 +26,8 @@ const FILTER_ONLY_Q_LOG = false
 
 var tlmAnomalyCount = atomic.Int64{}
 
+// var tlm = atomic.Int64{}
+
 // PatternLogProcessor is a log processor that detects patterns in logs.
 type PatternLogProcessor struct {
 	ClustererPipeline *patterns.MultiThreadPipeline
@@ -63,12 +65,18 @@ func NewPatternLogProcessor(anomalyDetectors []PatternLogAnomalyDetector) *Patte
 	celiandebug.callbacks = append(celiandebug.callbacks, func(metrics map[string]float64) {
 		metrics["anomaly_count"] = float64(tlmAnomalyCount.Swap(0))
 
-		// Count number of patterns
+		// Number of patterns
 		nPatterns := 0
 		for _, clusterer := range p.ClustererPipeline.PatternClusterers {
 			nPatterns += clusterer.PatternClusterer.NumClusters()
 		}
 		metrics["pattern_count"] = float64(nPatterns)
+
+		// Memory
+		var m runtime.MemStats
+		runtime.ReadMemStats(&m)
+		metrics["mem_total_alloc"] = float64(m.TotalAlloc / 1024 / 1024)
+		metrics["mem_sys"] = float64(m.Sys / 1024 / 1024)
 	})
 
 	return p
