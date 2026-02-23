@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/DataDog/datadog-go/v5 v5.8.3
-	github.com/DataDog/go-sqllexer v0.1.13
+	github.com/DataDog/go-sqllexer v0.2.0
 	github.com/outcaste-io/ristretto v0.2.3
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/atomic v1.11.0
