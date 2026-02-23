@@ -657,7 +657,7 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 
 		// Update LastAccess timestamp, SuidBit and AccessedByRoot fields
 		pkg.LastAccess = time.Now()
-		pkg.SuidBit = fs.FileMode(file.Mode)&0400 != 0
+		pkg.SuidBit = fs.FileMode(file.Mode)&04000 != 0
 		pkg.AccessedByRoot = pkg.AccessedByRoot || pc.UID == 0
 
 		// Trigger forwarding debouncer to send updated SBOM to remote collector
