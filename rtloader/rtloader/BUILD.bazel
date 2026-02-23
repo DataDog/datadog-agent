@@ -2,7 +2,7 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("//bazel/rules:so_symlink.bzl", "so_symlink")
-load("//rtloader:defs.bzl", "COMMON_CXXOPTS", "COMMON_DEFINES")
+load("//rtloader:defs.bzl", "COMMON_CXXOPTS")
 
 package(default_visibility = ["//rtloader:__pkg__"])
 
@@ -38,12 +38,14 @@ cc_library(
         # Make up for the fact that we may be using gcc and not g++
         "-lstdc++",
     ],
-    local_defines = COMMON_DEFINES + select({
+    local_defines = select({
         "@platforms//os:linux": [
+            "_GLIBCXX_USE_CXX11_ABI=0",
             # backtrace / execinfo.h is provided by glibc 2.1+ so we know it to be available
             "HAS_BACKTRACE_LIB",
         ],
         "@platforms//os:macos": [
+            "_GLIBCXX_USE_CXX11_ABI=0",
             # backtrace / execinfo.h is provided by the macOS libc since Mac OS X 10.5
             # https://manp.gs/mac/3/backtrace#HISTORY
             "HAS_BACKTRACE_LIB",
