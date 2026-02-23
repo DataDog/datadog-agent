@@ -1,8 +1,14 @@
-# rtloader
+load("@pythons_hub//:versions.bzl", "DEFAULT_PYTHON_VERSION")
 
+# rtloader
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
+load("//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
+load("//bazel/rules:so_symlink.bzl", "so_symlink")
+load("//rtloader:defs.bzl", "COMMON_CXXOPTS", "COMMON_DEFINES")
 
 package(
     default_package_metadata = [":license"],
@@ -16,17 +22,214 @@ license(
     visibility = ["//visibility:public"],
 )
 
-pkg_filegroup(
-    name = "all_files",
+VERSION = "0.1.0"
+
+dd_agent_expand_template(
+    name = "pc_gen",
+    out = "datadog-agent-rtloader.pc",
+    substitutions = {
+        "@CMAKE_INSTALL_PREFIX@": "{install_dir}/embedded",
+        "@CMAKE_INSTALL_LIBDIR@": "lib",
+        "@CMAKE_INSTALL_INCLUDEDIR@": "include",
+        "@PROJECT_NAME@": "datadog-agent-rtloader",
+        "@PROJECT_VERSION@": "0.1.0",
+        "@PROJECT_DESCRIPTION@": "CPython backend for the Datadog Agent",
+    },
+    template = "rtloader/datadog-agent-rtloader.pc.in",
+)
+
+cc_library(
+    name = "rtloader",
     srcs = [
-        "//rtloader/common:all_files",
-        "//rtloader/include:all_files",
-        "//rtloader/rtloader:lib_files",
-        "//rtloader/three:lib_files",
+        "common/rtloader_mem.c",
+        "include/rtloader.h",
+        "rtloader/api.cpp",
+        "rtloader/rtloader.cpp",
+    ],
+    hdrs = [
+        "common/rtloader_mem.h",
+        "include/datadog_agent_rtloader.h",
+        "include/rtloader_types.h",
+    ],
+    cxxopts = COMMON_CXXOPTS,
+    includes = [
+        ".",
+        "common",
+        "include",
+    ],
+    linkopts = [
+        # Make up for the fact that we may be using gcc and not g++
+        "-lstdc++",
+    ],
+    local_defines = select({
+        "@platforms//os:linux": [
+            "_GLIBCXX_USE_CXX11_ABI=0",
+            # backtrace / execinfo.h is provided by glibc 2.1+ so we know it to be available
+            "HAS_BACKTRACE_LIB",
+        ],
+        "@platforms//os:macos": [
+            "_GLIBCXX_USE_CXX11_ABI=0",
+            # backtrace / execinfo.h is provided by the macOS libc since Mac OS X 10.5
+            # https://manp.gs/mac/3/backtrace#HISTORY
+            "HAS_BACKTRACE_LIB",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+cc_shared_library(
+    name = "datadog-agent-rtloader",
+    deps = [":rtloader"],
+)
+
+so_symlink(
+    name = "rtloader_lib_files",
+    src = ":datadog-agent-rtloader",
+    libname = "libdatadog-agent-rtloader",
+    prefix = "embedded",
+    version = VERSION,
+)
+
+# buildifier: disable=no-effect
+"""
+Remaining work (rtloader/rtloader):
+
+install(TARGETS datadog-agent-rtloader
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    PUBLIC_HEADER DESTINATION include
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+
+# Windows builder assumes libdatadog-agent-rtloader.a is located in rtloader/rtloader folder.
+if (WIN32)
+ADD_CUSTOM_COMMAND(
+    TARGET datadog-agent-rtloader
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_BINARY_DIR}/libdatadog-agent-rtloader.a ${PROJECT_SOURCE_DIR}/libdatadog-agent-rtloader.a
+)
+endif()
+"""
+
+# opts and defines come from omnibus/config/software/datadog-agent.rb, in
+# the rtloader section. E.g.
+#   dda inv -- -e rtloader.make --install-prefix /opt/datadog-agent/embedded \
+#     --cmake-options '-DCMAKE_CXX_FLAGS:="-D_GLIBCXX_USE_CXX11_ABI=0" \
+#     -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER
+
+# TODO: Figure out what to do with this.
+# project(datadog-agent-three VERSION 0.1.0 DESCRIPTION "CPython backend for the Datadog Agent")
+
+dd_agent_expand_template(
+    name = "constants_gen",
+    out = "constants.h",
+    substitutions = {
+        "@Python3_STDLIB@": "{install_dir}/embedded/lib/python%s" % DEFAULT_PYTHON_VERSION,
+    },
+    template = "three/constants.h.in",
+)
+
+cc_library(
+    name = "three",
+    srcs = [
+        "common/builtins/_util.c",
+        "common/builtins/_util.h",
+        "common/builtins/aggregator.c",
+        "common/builtins/aggregator.h",
+        "common/builtins/containers.c",
+        "common/builtins/containers.h",
+        "common/builtins/datadog_agent.c",
+        "common/builtins/datadog_agent.h",
+        "common/builtins/kubeutil.c",
+        "common/builtins/kubeutil.h",
+        "common/builtins/tagger.c",
+        "common/builtins/tagger.h",
+        "common/builtins/util.c",
+        "common/builtins/util.h",
+        "common/cgo_free.c",
+        "common/cgo_free.h",
+        "common/log.c",
+        "common/log.h",
+        "common/rtloader_mem.h",
+        "common/stringutils.c",
+        "common/stringutils.h",
+        "constants.h",
+        "include/rtloader.h",
+        "include/rtloader_types.h",
+        "three/three.cpp",
+        "three/three.h",
+        "three/three_mem.cpp",
+    ],
+    copts = [
+        "-Wno-unused-function",
+        "-O2",
+    ] + select({
+        "@platforms//os:linux": [
+            "-Wsign-compare",
+        ],
+        "@platforms//os:macos": [
+            "-Wno-implicit-function-declaration",
+            "-Wno-int-conversion",
+        ],
+        "@platforms//os:windows": [
+            # TODO: only set if MSVC
+            "/MT",
+        ],
+    }),
+    includes = [
+        ".",
+        "common",
+        "common/builtins",
+        "include",
+    ],
+    local_defines = COMMON_DEFINES + select({
+        "@platforms//os:windows": [
+            # TODO: only set if not MSVC. But it might be OK do to anyway.
+            "_hypot=hypot",
+            "DATADOG_AGENT_THREE",
+        ],
+        "//conditions:default": [
+            "DATADOG_AGENT_THREE",
+        ],
+    }),
+    deps = [
+        "@rules_python//python/cc:current_py_cc_headers",
     ],
 )
 
-pkg_install(
-    name = "install",
-    srcs = ["all_files"],
+cc_shared_library(
+    name = "datadog-agent-three",
+    dynamic_deps = [
+        # TODO: point to embedded/libpython
+    ],
+    deps = [
+        ":three",
+    ],
 )
+
+# buildifier: disable=no-effect
+"""
+
+Remaining  work:
+
+if(WIN32)
+else()
+  target_compile_options(datadog-agent-three PRIVATE "-Wno-deprecated-register")
+endif()
+
+if(WIN32)
+  set_target_properties(datadog-agent-three PROPERTIES LINK_FLAGS -static)
+elseif(APPLE)
+  set_target_properties(datadog-agent-three PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
+endif()
+
+add_compile_definitions(DATADOG_AGENT_THREE)
+target_include_directories(datadog-agent-three PRIVATE .)
+target_include_directories(datadog-agent-three PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/common
+    ${CMAKE_SOURCE_DIR}/common/builtins
+    ${Python3_INCLUDE_DIRS}
+)
+target_link_libraries(datadog-agent-three ${Python3_LIBRARIES} datadog-agent-rtloader)
+"""
