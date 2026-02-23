@@ -7,7 +7,7 @@
 .installer_release_management_trigger:
   stage: trigger_release
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   # We don't directly depend/need the package deploy jobs, because
   # that would make us deploy even when there are e2e tests failures etc
   # We only want to allow automatically triggering agent-release-manangement

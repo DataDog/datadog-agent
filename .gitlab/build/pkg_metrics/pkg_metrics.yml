@@ -5,7 +5,7 @@
 send_pkg_size:
   stage: pkg_metrics
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   rules:
     - !reference [.except_mergequeue]
     - when: always
@@ -79,7 +79,7 @@ send_pkg_size:
 check_pkg_size:
   stage: pkg_metrics
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
       when: on_success

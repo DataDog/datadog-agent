@@ -1,7 +1,7 @@
 unit_tests_notify:
   stage: source_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   rules:
     - !reference [.except_main_release_or_mq]
     - !reference [.except_disable_unit_tests]

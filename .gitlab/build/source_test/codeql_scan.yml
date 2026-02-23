@@ -4,7 +4,7 @@
 
 run_codeql_scan:
   image: registry.ddbuild.io/code-scanning:v89505840-d7f7832-datadog-agent
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts

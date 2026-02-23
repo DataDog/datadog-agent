@@ -42,7 +42,7 @@
 .deploy_deb_testing-a7:
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
@@ -105,7 +105,7 @@ deploy_deb_testing-a7_arm64:
 .deploy_rpm_testing-a7:
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
@@ -159,7 +159,7 @@ deploy_suse_rpm_testing_x64-a7:
     - when: on_success
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   needs:
     [
       "installer_suse_rpm-amd64",
@@ -189,7 +189,7 @@ deploy_suse_rpm_testing_arm64-a7:
     - !reference [.manual]
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   needs: ["installer_suse_rpm-arm64", "agent_suse-arm64-a7", "agent_suse-arm64-a7-fips", "lint_linux-arm64", "ddot_suse_rpm-arm64"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
@@ -210,7 +210,7 @@ deploy_windows_testing-a7:
     - when: on_success
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   retry: 2
   needs:
     ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7"]
@@ -234,7 +234,7 @@ deploy_windows_testing-a7-fips:
     - when: on_success
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   retry: 2
   needs:
     ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7-fips"]
@@ -256,7 +256,7 @@ export_testing_public_key:
   needs: []
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   script:
     - *setup_signing
     - /usr/bin/gpg-vault export-public-key $GPG_TEST_KEY_ID > gpg-testing-public-key.asc
@@ -274,7 +274,7 @@ export_testing_public_key:
      - !reference [.manual]
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:

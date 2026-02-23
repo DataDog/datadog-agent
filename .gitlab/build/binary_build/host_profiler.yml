@@ -19,8 +19,8 @@
 
 build_host_profiler_binary_x64:
   extends: [.build_host_profiler_binary_common]
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
 
 build_host_profiler_binary_arm64:
   extends: [.build_host_profiler_binary_common]
-  tags: ["arch:arm64", "specific:true"]
+  tags: ["arch:arm64-cidc"]
