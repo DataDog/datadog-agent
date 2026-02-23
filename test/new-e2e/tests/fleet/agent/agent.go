@@ -16,7 +16,7 @@ import (
 
 	"github.com/avast/retry-go/v4"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
