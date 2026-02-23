@@ -303,12 +303,14 @@ type ConnectionStats struct {
 	TCPDeliveredCE  uint32 // segments delivered with ECN CE mark (counter)
 	TCPBytesRetrans uint64 // cumulative bytes retransmitted (counter, 4.19+)
 	TCPDSACKDups    uint32 // DSACK-detected spurious retransmits (counter)
+	TCPReordSeen    uint32 // reordering events detected (counter, 4.19+)
 	// TODO: before productionizing, move TCPCAState to the trailing single-byte
 	// section (near SPortIsEphemeral) to avoid 3 bytes of alignment padding.
 	TCPCAState uint8 // inet_connection_sock CA state (0=Open,1=Disorder,2=CWR,3=Recovery,4=Loss)
 	// TCP RTO/recovery event counters (CO-RE/runtime tracer only; 0 on prebuilt)
 	TCPRTOCount      uint32 // number of RTO loss events (tcp_enter_loss invocations)
 	TCPRecoveryCount uint32 // number of fast-recovery events (tcp_enter_recovery invocations)
+	TCPProbe0Count   uint32 // number of zero-window probe events (tcp_send_probe0 invocations)
 	StaticTags       uint64
 	ProtocolStack    protocols.Stack
 	TLSTags          tls.Tags

@@ -171,6 +171,9 @@ const (
 	// TCPEnterRecovery traces tcp_enter_recovery() to count fast-recovery events per connection.
 	// Supported by the runtime-compiled and CO-RE fentry tracers; not available on prebuilt.
 	TCPEnterRecovery ProbeFuncName = "kprobe__tcp_enter_recovery"
+	// TCPSendProbe0 traces tcp_send_probe0() to count zero-window probe events per connection.
+	// Supported by the runtime-compiled and CO-RE fentry tracers; not available on prebuilt.
+	TCPSendProbe0 ProbeFuncName = "kprobe__tcp_send_probe0"
 
 	// InetCskAcceptReturn traces the return value for the inet_csk_accept syscall
 	InetCskAcceptReturn ProbeFuncName = "kretprobe__inet_csk_accept"

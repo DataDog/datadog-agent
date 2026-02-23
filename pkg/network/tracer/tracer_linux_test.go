@@ -3402,10 +3402,10 @@ func (s *TracerSuite) TestTCPCongestionSignals() {
 		if !assert.True(ct, ok, "connection not found") {
 			return
 		}
-		t.Logf("Congestion signals: delivered=%d packets_out=%d lost_out=%d sacked_out=%d retrans_out=%d delivered_ce=%d bytes_retrans=%d dsack_dups=%d ca_state=%d rto_count=%d recovery_count=%d",
+		t.Logf("Congestion signals: delivered=%d packets_out=%d lost_out=%d sacked_out=%d retrans_out=%d delivered_ce=%d bytes_retrans=%d dsack_dups=%d reord_seen=%d ca_state=%d rto_count=%d recovery_count=%d probe0_count=%d",
 			conn.TCPDelivered, conn.TCPPacketsOut, conn.TCPLostOut, conn.TCPSackedOut,
 			conn.TCPRetransOut, conn.TCPDeliveredCE, conn.TCPBytesRetrans, conn.TCPDSACKDups,
-			conn.TCPCAState, conn.TCPRTOCount, conn.TCPRecoveryCount)
+			conn.TCPReordSeen, conn.TCPCAState, conn.TCPRTOCount, conn.TCPRecoveryCount, conn.TCPProbe0Count)
 		assert.Greater(ct, conn.TCPDelivered, uint32(0), "delivered should be > 0 after successful send")
 		assert.Greater(ct, conn.TCPRTOCount, uint32(0), "rto_count should be > 0 after RTO")
 	}, 5*time.Second, 100*time.Millisecond)

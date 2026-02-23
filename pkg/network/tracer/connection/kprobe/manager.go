@@ -131,6 +131,7 @@ func initManager(mgr *ddebpf.Manager, runtimeTracer bool) error {
 	mgr.Probes = append(mgr.Probes, slices.Map([]probes.ProbeFuncName{
 		probes.TCPEnterLoss,
 		probes.TCPEnterRecovery,
+		probes.TCPSendProbe0,
 	}, funcNameToProbe)...)
 
 	if !runtimeTracer {

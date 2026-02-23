@@ -30,12 +30,15 @@ type TCPCongestionStats struct {
 	Delivered_ce  uint32
 	Bytes_retrans uint64
 	Dsack_dups    uint32
+	Reord_seen    uint32
 	Ca_state      uint8
 	X_pad         [3]uint8
+	Pad_cgo_0     [4]byte
 }
 type TCPRTORecoveryStats struct {
 	Rto_count      uint32
 	Recovery_count uint32
+	Probe0_count   uint32
 }
 type ConnStats struct {
 	Sent_bytes     uint64

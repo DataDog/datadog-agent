@@ -110,6 +110,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[manage
 			// CO-RE kprobe ELFs. Not available on prebuilt.
 			enableProbe(enabled, probes.TCPEnterLoss)
 			enableProbe(enabled, probes.TCPEnterRecovery)
+			enableProbe(enabled, probes.TCPSendProbe0)
 		}
 	}
 

@@ -169,6 +169,7 @@ func (c *ConnectionStats) FromTCPCongestionStats(cs *netebpf.TCPCongestionStats)
 	c.TCPDeliveredCE = cs.Delivered_ce
 	c.TCPBytesRetrans = cs.Bytes_retrans
 	c.TCPDSACKDups = cs.Dsack_dups
+	c.TCPReordSeen = cs.Reord_seen
 	c.TCPCAState = cs.Ca_state
 }
 
@@ -180,6 +181,7 @@ func (c *ConnectionStats) FromTCPRTORecoveryStats(rs *netebpf.TCPRTORecoveryStat
 
 	c.TCPRTOCount = rs.Rto_count
 	c.TCPRecoveryCount = rs.Recovery_count
+	c.TCPProbe0Count = rs.Probe0_count
 }
 
 // FromTCPStats populates relevant fields on ConnectionStats from the arguments

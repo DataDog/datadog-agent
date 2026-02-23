@@ -107,6 +107,7 @@ typedef struct {
     __u32 delivered_ce;   // segments delivered with ECN CE mark (counter)
     __u64 bytes_retrans;  // cumulative bytes retransmitted (counter, 4.19+)
     __u32 dsack_dups;     // DSACK-detected spurious retransmits (counter)
+    __u32 reord_seen;     // reordering events detected (counter, 4.19+)
     __u8  ca_state;       // inet_connection_sock.icsk_ca_state (TCP_CA_Open=0..TCP_CA_Loss=4)
     __u8  _pad[3];        // explicit padding to maintain 4-byte alignment
 } tcp_congestion_stats_t;
@@ -119,6 +120,7 @@ typedef struct {
 typedef struct {
     __u32 rto_count;       // number of tcp_enter_loss() invocations
     __u32 recovery_count;  // number of tcp_enter_recovery() invocations
+    __u32 probe0_count;    // number of tcp_send_probe0() invocations (zero-window probes)
 } tcp_rto_recovery_stats_t;
 
 // Full data for a tcp connection
