@@ -407,14 +407,15 @@ func (d *daemonImpl) Stop(_ context.Context) error {
 	d.cancel()
 
 	d.m.Lock()
-	defer d.m.Unlock()
 
 	// Always close the remote config client as it was initialized in NewDaemon; avoid unknown side effects in the RC client
 	d.rc.Close()
 
 	// If remote updates are disabled, we don't need to stop the updater daemon background goroutine as it was never started, we return early
 	if !d.env.RemoteUpdates {
-		return d.taskDB.Close()
+		err := d.taskDB.Close()
+		d.m.Unlock()
+		return err
 	}
 
 	// Same, if FIPS is enabled, the updater daemon background goroutine was never started, we return early
@@ -423,11 +424,17 @@ func (d *daemonImpl) Stop(_ context.Context) error {
 		log.Warnf("Could not determine FIPS status: %v", err)
 	}
 	if fipsEnabled {
-		return d.taskDB.Close()
+		err = d.taskDB.Close()
+		d.m.Unlock()
+		return err
 	}
 
 	// Stop the background goroutine
 	close(d.stopChan)
+	// Release the lock before waiting: handleRemoteAPIRequest acquires the lock before
+	// calling requestsWG.Done(), so holding the lock here would deadlock.
+	d.m.Unlock()
+
 	d.requestsWG.Wait()
 	return d.taskDB.Close()
 }

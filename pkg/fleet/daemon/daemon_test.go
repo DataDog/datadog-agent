@@ -566,6 +566,39 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 	pm.AssertExpectations(t)
 }
 
+func TestStopDoesNotDeadlockWithConcurrentRequest(t *testing.T) {
+	i := newTestInstaller(t)
+
+	// Simulate a request that has been scheduled (requestsWG.Add called) but whose
+	// handler has not yet acquired the mutex. handleRemoteAPIRequest defers both
+	// d.m.Unlock() and d.requestsWG.Done(), so Done() can only be called once the
+	// mutex is acquired. If Stop() holds the mutex while calling requestsWG.Wait(),
+	// both goroutines deadlock.
+	i.daemonImpl.requestsWG.Add(1)
+
+	stopDone := make(chan error, 1)
+	go func() {
+		stopDone <- i.daemonImpl.Stop(context.Background())
+	}()
+
+	// Simulate handleRemoteAPIRequest competing for the mutex to call Done().
+	// A small sleep increases the likelihood that Stop() acquires the mutex first,
+	// which is the scenario that deadlocks in the old code.
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		i.daemonImpl.m.Lock()
+		i.daemonImpl.requestsWG.Done()
+		i.daemonImpl.m.Unlock()
+	}()
+
+	select {
+	case err := <-stopDone:
+		assert.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop() deadlocked: timed out after 5 seconds")
+	}
+}
+
 func TestDecryptSecrets(t *testing.T) {
 	// Generate test encryption keys
 	pubKey, privKey, err := box.GenerateKey(rand.Reader)
