@@ -28,8 +28,22 @@ import (
 
 // team: agent-runtimes
 
+type bundleOptions struct {
+	secretsModule fx.Option
+}
+
+// Option changes some module implementations included in the bundle
+type Option func(params *bundleOptions)
+
 // Bundle defines the fx options for this bundle.
-func Bundle(resolveSecrets bool) fxutil.BundleOptions {
+func Bundle(options ...Option) fxutil.BundleOptions {
+	params := &bundleOptions{
+		secretsModule: secretsnoopfx.Module(),
+	}
+	for _, option := range options {
+		option(params)
+	}
+
 	opts := []fx.Option{
 		// As `config.Module` expects `config.Params` as a parameter, it is require to define how to get `config.Params` from `BundleParams`.
 		fx.Provide(func(params BundleParams) config.Params { return params.ConfigParams }),
@@ -40,15 +54,17 @@ func Bundle(resolveSecrets bool) fxutil.BundleOptions {
 		sysprobeconfigimpl.Module(),
 		telemetryimpl.Module(),
 		pidimpl.Module(), // You must supply pidimpl.NewParams in order to use it
-	}
-
-	if resolveSecrets {
-		opts = append(opts, secretsfx.Module())
-	} else {
-		opts = append(opts, secretsnoopfx.Module())
+		params.secretsModule,
 	}
 
 	return fxutil.Bundle(
 		opts...,
 	)
+}
+
+// WithSecrets adds the secrets module to the bundle
+func WithSecrets() Option {
+	return func(params *bundleOptions) {
+		params.secretsModule = secretsfx.Module()
+	}
 }

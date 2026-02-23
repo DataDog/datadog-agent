@@ -116,7 +116,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		return fxutil.OneShot(callback,
 			fx.Supply(cliParams),
 			fx.Supply(params),
-			core.Bundle(true),
+			core.Bundle(core.WithSecrets()),
 			// workloadmeta setup
 			wmcatalog.GetCatalog(),
 			workloadmetafx.Module(defaults.DefaultParams()),

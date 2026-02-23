@@ -63,7 +63,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(bundleParams(globalParams)),
-				core.Bundle(true),
+				core.Bundle(core.WithSecrets()),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -81,7 +81,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			return fxutil.OneShot(rebalance,
 				fx.Supply(cliParams),
 				fx.Supply(bundleParams(globalParams)),
-				core.Bundle(false),
+				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -101,7 +101,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			return fxutil.OneShot(isolate,
 				fx.Supply(cliParams),
 				fx.Supply(bundleParams(globalParams)),
-				core.Bundle(false),
+				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},

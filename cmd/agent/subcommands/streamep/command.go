@@ -46,7 +46,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(streamEventPlatform,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle(false),
+				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},

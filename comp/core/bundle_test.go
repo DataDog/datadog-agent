@@ -16,10 +16,13 @@ import (
 )
 
 func TestBundleDependencies(t *testing.T) {
-	for _, resolveSecrets := range []bool{true, false} {
+	for resolveSecrets, options := range map[bool][]Option{
+		true:  {WithSecrets()},
+		false: {},
+	} {
 		t.Run(fmt.Sprintf("resolveSecrets=%t", resolveSecrets), func(t *testing.T) {
 			fxutil.TestBundle(t,
-				Bundle(resolveSecrets),
+				Bundle(options...),
 				fx.Supply(BundleParams{}),
 				fx.Supply(pidimpl.NewParams("")),
 			)

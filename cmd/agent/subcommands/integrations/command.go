@@ -112,7 +112,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 				LogParams:    log.ForOneShot(command.LoggerName, cliParams.logLevelDefaultOff.Value(), true),
 			}),
-			core.Bundle(true),
+			core.Bundle(core.WithSecrets()),
 		)
 	}
 

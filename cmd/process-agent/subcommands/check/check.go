@@ -39,7 +39,7 @@ import (
 func getProcessAgentFxOptions(cliParams *processchecks.CliParams, bundleParams core.BundleParams) []fx.Option {
 	return []fx.Option{
 		fx.Supply(cliParams, bundleParams),
-		core.Bundle(true),
+		core.Bundle(core.WithSecrets()),
 		hostnameimpl.Module(),
 
 		// Provide eventplatformimpl module

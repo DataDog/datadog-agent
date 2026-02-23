@@ -47,7 +47,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
 					LogParams:    log.ForOneShot(command.LoggerName, command.DefaultLogLevel, true)}), // never output anything but hostname
-				core.Bundle(false),
+				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},

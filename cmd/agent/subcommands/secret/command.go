@@ -41,7 +41,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(showSecretInfo,
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle(false),
+				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -53,7 +53,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(secretRefresh,
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle(false),
+				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},

@@ -39,7 +39,7 @@ func makeOneShotCommand(
 						sysconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams: log.ForOneShot(command.LoggerName, "off", false),
 				}),
-				core.Bundle(false),
+				core.Bundle(),
 			)
 		},
 		SilenceUsage: true,

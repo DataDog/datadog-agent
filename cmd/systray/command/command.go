@@ -97,7 +97,7 @@ func MakeCommand() *cobra.Command {
 					ConfigParams: config.NewParams(defaultpaths.ConfPath),
 					LogParams:    logParams,
 				}),
-				core.Bundle(false),
+				core.Bundle(),
 				hostnameimpl.Module(),
 				// flare
 				flare.Module(flare.NewParams(

@@ -110,7 +110,7 @@ import (
 // [...]
     return fxutil.OneShot(
         myTestCallback, // The function to call from fxutil.OneShot
-        core.Bundle(true),  // This will tell FX how to create the all the components included in the bundle
+        core.Bundle(core.WithSecrets()),  // This will tell FX how to create the all the components included in the bundle
     )
 // [...]
 

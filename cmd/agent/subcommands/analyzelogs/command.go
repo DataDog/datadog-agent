@@ -79,7 +79,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			}
 			cliParams.LogConfigPath = args[0]
 			return fxutil.OneShot(runAnalyzeLogs,
-				core.Bundle(false),
+				core.Bundle(),
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),

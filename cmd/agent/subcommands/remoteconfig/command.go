@@ -52,7 +52,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot(command.LoggerName, "OFF", false),
 				}),
-				core.Bundle(false),
+				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -71,7 +71,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 						LogParams:    log.ForOneShot(command.LoggerName, "OFF", false),
 					}),
-					core.Bundle(false),
+					core.Bundle(),
 					ipcfx.ModuleReadOnly(),
 				)
 			},

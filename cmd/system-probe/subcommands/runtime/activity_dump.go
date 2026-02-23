@@ -70,7 +70,7 @@ func listCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle(false),
+				core.Bundle(),
 			)
 		},
 	}
@@ -92,7 +92,7 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle(false),
+				core.Bundle(),
 			)
 		},
 	}
@@ -144,7 +144,7 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle(false),
+				core.Bundle(),
 			)
 		},
 	}
@@ -221,7 +221,7 @@ func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Comma
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle(false),
+				core.Bundle(),
 			)
 		},
 	}
@@ -281,7 +281,7 @@ func diffCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle(false),
+				core.Bundle(),
 			)
 		},
 	}

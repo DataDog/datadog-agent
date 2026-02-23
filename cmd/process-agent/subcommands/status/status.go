@@ -83,7 +83,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						PythonVersionGetFunc: python.GetPythonVersion,
 					},
 				),
-				core.Bundle(false),
+				core.Bundle(),
 				process.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)

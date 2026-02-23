@@ -46,7 +46,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(requestCoverage,
 				fx.Supply(cliParams, command.GetCoreBundleParamsForOneShot(globalParams)),
-				core.Bundle(false),
+				core.Bundle(),
 				process.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)

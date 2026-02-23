@@ -72,7 +72,7 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 
 	if cliParams.GlobalParams.CoreConfPath != "" {
 		opts = append(opts,
-			core.Bundle(true),
+			core.Bundle(core.WithSecrets()),
 			remotehostnameimpl.Module(),
 			fx.Supply(core.BundleParams{
 				ConfigParams: config.NewAgentParams(cliParams.GlobalParams.CoreConfPath),

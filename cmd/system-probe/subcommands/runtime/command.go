@@ -86,7 +86,7 @@ func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
-				core.Bundle(false),
+				core.Bundle(),
 			)
 		},
 	}
@@ -118,7 +118,7 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
-				core.Bundle(false),
+				core.Bundle(),
 			)
 		},
 	}
@@ -141,7 +141,7 @@ func commonReloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.C
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle(false),
+				core.Bundle(),
 			)
 		},
 	}
@@ -158,7 +158,7 @@ func selfTestCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle(false),
+				core.Bundle(),
 			)
 		},
 	}
@@ -188,7 +188,7 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
-				core.Bundle(false),
+				core.Bundle(),
 			)
 		},
 	}
@@ -223,7 +223,7 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle(false),
+				core.Bundle(),
 			)
 		},
 	}
@@ -261,7 +261,7 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle(false),
+				core.Bundle(),
 			)
 		},
 	}
@@ -287,7 +287,7 @@ func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle(false),
+				core.Bundle(),
 			)
 		},
 	}

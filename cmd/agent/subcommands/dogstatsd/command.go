@@ -55,7 +55,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath, cconfig.WithExtraConfFiles(globalParams.ExtraConfFilePath), cconfig.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot(command.LoggerName, topFlags.logLevelDefaultOff.Value(), true)}),
-				core.Bundle(false),
+				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -75,7 +75,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath, cconfig.WithExtraConfFiles(globalParams.ExtraConfFilePath), cconfig.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot(command.LoggerName, topFlags.logLevelDefaultOff.Value(), true)}),
-				core.Bundle(false),
+				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},

@@ -44,7 +44,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(workloadList,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetCoreBundleParamsForOneShot(globalParams)),
-				core.Bundle(false),
+				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},

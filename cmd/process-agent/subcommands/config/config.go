@@ -53,7 +53,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(showRuntimeConfiguration,
 				fx.Supply(globalParams, command.GetCoreBundleParamsForOneShot(globalParams)),
-				core.Bundle(false),
+				core.Bundle(),
 				process.Bundle(),
 				fx.Supply(params),
 				ipcfx.ModuleReadOnly(),
@@ -70,7 +70,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			RunE: func(_ *cobra.Command, _ []string) error {
 				return fxutil.OneShot(listRuntimeConfigurableValue,
 					fx.Supply(globalParams, command.GetCoreBundleParamsForOneShot(globalParams)),
-					core.Bundle(false),
+					core.Bundle(),
 					process.Bundle(),
 					ipcfx.ModuleReadOnly(),
 				)
@@ -86,7 +86,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			RunE: func(_ *cobra.Command, args []string) error {
 				return fxutil.OneShot(setConfigValue,
 					fx.Supply(globalParams, args, command.GetCoreBundleParamsForOneShot(globalParams)),
-					core.Bundle(false),
+					core.Bundle(),
 					process.Bundle(),
 					ipcfx.ModuleReadOnly(),
 				)
@@ -101,7 +101,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			RunE: func(_ *cobra.Command, args []string) error {
 				return fxutil.OneShot(getConfigValue,
 					fx.Supply(globalParams, args, command.GetCoreBundleParamsForOneShot(globalParams)),
-					core.Bundle(false),
+					core.Bundle(),
 					process.Bundle(),
 					ipcfx.ModuleReadOnly(),
 				)

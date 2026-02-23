@@ -49,7 +49,7 @@ as well as which services are serving the pods. Or the deployment name for the p
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
 					LogParams:    log.ForOneShot(command.LoggerName, command.DefaultLogLevel, true),
 				}),
-				core.Bundle(false),
+				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},

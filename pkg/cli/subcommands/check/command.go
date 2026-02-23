@@ -171,7 +171,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:            log.ForOneShot(globalParams.LoggerName, "off", true),
 				}),
-				core.Bundle(true),
+				core.Bundle(core.WithSecrets()),
 				hostnameimpl.Module(),
 
 				// workloadmeta setup

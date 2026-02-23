@@ -61,7 +61,7 @@ func CheckCommand(globalParams *command.GlobalParams) *cobra.Command {
 			return fxutil.OneShot(cli.RunCheck,
 				fx.Supply(checkArgs),
 				fx.Supply(bundleParams),
-				core.Bundle(true),
+				core.Bundle(core.WithSecrets()),
 				logscompressionfx.Module(),
 				statsd.Module(),
 				ipcfx.ModuleInsecure(),
@@ -90,7 +90,7 @@ func complianceLoadCommand(globalParams *command.GlobalParams) *cobra.Command {
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true),
 				}),
-				core.Bundle(false),
+				core.Bundle(),
 			)
 		},
 	}

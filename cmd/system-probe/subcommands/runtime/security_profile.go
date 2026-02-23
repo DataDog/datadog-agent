@@ -62,7 +62,7 @@ func securityProfileShowCommands(globalParams *command.GlobalParams) []*cobra.Co
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle(false),
+				core.Bundle(),
 			)
 		},
 	}
@@ -107,7 +107,7 @@ func listSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle(false),
+				core.Bundle(),
 			)
 		},
 	}
@@ -220,7 +220,7 @@ func saveSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle(false),
+				core.Bundle(),
 			)
 		},
 	}
