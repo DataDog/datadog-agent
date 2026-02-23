@@ -153,17 +153,32 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageFromExeWithAltDir() {
 	altInstallPath := `C:\ddinstall`
 	s.Installer().SetBinaryPath(altInstallPath + `\bin\` + consts.BinaryName)
 	s.setAgentConfigWithAltDir(altConfigRoot)
-	s.installPreviousExeVersion(
+	// TODO: build into AgentVersionManager?
+	url := fmt.Sprintf("https://s3.amazonaws.com/dd-agent/datadog-installer-%s-x86_64.exe", s.StableAgentVersion().PackageVersion())
+	installExe := installerwindows.NewDatadogInstallExe(s.Env().RemoteHost)
+	output, err := installExe.Run(
+		installerwindows.WithInstallerURL(url),
 		installerwindows.WithExtraEnvVars(map[string]string{
 			"DD_PROJECTLOCATION":          altInstallPath,
 			"DD_APPLICATIONDATADIRECTORY": altConfigRoot,
+			// TODO: these need to be overridden here so they're not overriden by installer.InstallScriptEnv
+			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT": "",
+			"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":        s.StableAgentVersion().OCIPackage().Registry,
 		}),
+		installerwindows.WithInstallScriptDevEnvOverrides("STABLE_AGENT"),
 	)
+	s.Require().NoErrorf(err, "failed to install stable agent via exe: %s", output)
+	s.Require().NoError(s.WaitForInstallerService("Running"))
+	s.Require().Host(s.Env().RemoteHost).
+		HasDatadogInstaller().
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, s.StableAgentVersion().Version())
+		})
 
 	// Act
 	s.MustStartExperimentCurrentVersion()
 	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
-	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
+	_, err = s.Installer().PromoteExperiment(consts.AgentPackage)
 	s.Require().NoError(err, "daemon should respond to request")
 	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 
@@ -729,22 +744,6 @@ func (s *testAgentUpgradeSuite) installCurrentAgentVersion(opts ...installerwind
 		// Don't check the binary signature because it could have been updated since the last stable was built
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, agentVersion)
-		})
-}
-
-func (s *testAgentUpgradeSuite) installPreviousExeVersion(opts ...installerwindows.Option) {
-	installExe := installerwindows.NewDatadogInstallExe(s.Env().RemoteHost,
-		installerwindows.WithInstallScriptDevEnvOverrides("STABLE_AGENT"),
-	)
-	output, err := installExe.Run(opts...)
-	s.Require().NoErrorf(err, "failed to install stable agent via exe: %s", output)
-	s.Require().NoError(s.WaitForInstallerService("Running"))
-	s.Require().NoError(s.WaitForAgentService("Running"))
-
-	s.Require().Host(s.Env().RemoteHost).
-		HasDatadogInstaller().
-		WithVersionMatchPredicate(func(version string) {
-			s.Require().Contains(version, s.StableAgentVersion().Version())
 		})
 }
 
