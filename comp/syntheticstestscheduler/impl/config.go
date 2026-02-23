@@ -10,9 +10,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
+
+const defaultSite = "datadoghq.com"
 
 type schedulerConfigs struct {
 	workers                    int
@@ -37,7 +38,7 @@ type onDemandPollerConfig struct {
 func newOnDemandPollerConfig(agentConfig config.Component) *onDemandPollerConfig {
 	site := agentConfig.GetString("site")
 	if site == "" {
-		site = pkgconfigsetup.DefaultSite
+		site = defaultSite
 	}
 
 	return &onDemandPollerConfig{
