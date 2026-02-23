@@ -95,6 +95,9 @@ const (
 	IssueStateNew      = healthplatform.IssueState_ISSUE_STATE_NEW
 	IssueStateOngoing  = healthplatform.IssueState_ISSUE_STATE_ONGOING
 	IssueStateResolved = healthplatform.IssueState_ISSUE_STATE_RESOLVED
+
+	// resolvedIssueTTL is the time after which resolved issues are pruned from the persistence file.
+	resolvedIssueTTL = 24 * time.Hour
 )
 
 var issueStateToString = map[IssueState]string{
@@ -110,6 +113,24 @@ func issueStateFromString(s string) IssueState {
 		}
 	}
 	return 0
+}
+
+// pruneOldResolvedIssues removes resolved issues older than resolvedIssueTTL from the given map.
+// It modifies the map in place.
+func pruneOldResolvedIssues(issues map[string]*PersistedIssue) {
+	now := time.Now()
+	for checkID, persisted := range issues {
+		if persisted == nil || persisted.State != IssueStateResolved || persisted.ResolvedAt == "" {
+			continue
+		}
+		resolvedAt, err := time.Parse(time.RFC3339, persisted.ResolvedAt)
+		if err != nil {
+			continue
+		}
+		if now.Sub(resolvedAt) > resolvedIssueTTL {
+			delete(issues, checkID)
+		}
+	}
 }
 
 // PersistedIssue tracks issue state for disk persistence.
@@ -520,8 +541,18 @@ func (h *healthPlatformImpl) storeIssue(checkID string, issue *healthplatform.Is
 			FirstSeen: now,
 			LastSeen:  now,
 		}
-	} else if existing.State == IssueStateResolved || existing.IssueID != issue.Id {
-		// Previously resolved OR different issue ID - treat as new occurrence
+	} else if existing.State == IssueStateResolved {
+		// Previously resolved - treat as a new occurrence
+		existing.IssueID = issue.Id
+		existing.State = IssueStateNew
+		existing.FirstSeen = now
+		existing.LastSeen = now
+		existing.ResolvedAt = ""
+	} else if existing.IssueID != issue.Id {
+		// The check is reporting a different issue ID than what was previously stored.
+		// This is an internal agent bug: a given check should always report the same issue type.
+		_ = h.log.Errorf("health platform: check %s changed issue ID from %q to %q; this is an agent bug",
+			checkID, existing.IssueID, issue.Id)
 		existing.IssueID = issue.Id
 		existing.State = IssueStateNew
 		existing.FirstSeen = now
@@ -581,8 +612,9 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 	h.issuesMux.Lock()
 	defer h.issuesMux.Unlock()
 
-	// Restore persisted issues and rebuild active issues from registry
+	// Restore persisted issues and prune any resolved issues older than the TTL
 	h.persistedIssues = state.Issues
+	pruneOldResolvedIssues(h.persistedIssues)
 	activeCount := 0
 	for checkID, persisted := range state.Issues {
 		// Only restore active issues (not resolved ones)
@@ -615,6 +647,9 @@ func (h *healthPlatformImpl) saveToDisk() error {
 		}
 	}
 	h.issuesMux.RUnlock()
+
+	// Prune resolved issues older than the TTL before writing to disk
+	pruneOldResolvedIssues(issuesCopy)
 
 	state := PersistedState{
 		UpdatedAt: time.Now().Format(time.RFC3339),
