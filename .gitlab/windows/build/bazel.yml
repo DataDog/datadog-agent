@@ -9,8 +9,8 @@ bazel:build-deps:windows-amd64:
       bazel build '@zlib//...' '@libffi//:ffi' '@xz//...' '@cpython//...' '@openssl//...' --platforms=//bazel/platforms:windows_x86_64
       # bazel build @bzip2//...
 
-bazel:tests:windows-amd64:
-  extends: [ .bazel:tests, .bazel:runner:windows-amd64 ]
+bazel:test:windows-amd64:
+  extends: [ .bazel:test, .bazel:runner:windows-amd64 ]
   variables:
     POWERSHELL_SCRIPT: |-
       bazel test //bazel/tests/...
