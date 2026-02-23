@@ -31,9 +31,7 @@ func NewRunShellHandler() *RunShellHandler {
 
 // RunShellInputs defines the inputs for the shell action.
 type RunShellInputs struct {
-	// Command is a single command string to execute (mutually exclusive with Script).
-	Command string `json:"command"`
-	// Script is a multi-line shell script to execute (mutually exclusive with Command).
+	// Script is the shell script to execute.
 	Script string `json:"script"`
 	// AllowedCommands is an optional list of external commands the shell is allowed to execute.
 	// By default, all external commands are blocked; only built-in commands are available.
@@ -61,9 +59,8 @@ func (h *RunShellHandler) Run(
 		return nil, util.DefaultActionError(err)
 	}
 
-	source, err := resolveSource(inputs)
-	if err != nil {
-		return nil, util.DefaultActionError(err)
+	if inputs.Script == "" {
+		return nil, util.DefaultActionError(errors.New("script must be provided"))
 	}
 
 	if inputs.Timeout > 0 {
@@ -86,7 +83,7 @@ func (h *RunShellHandler) Run(
 		return nil, util.DefaultActionError(fmt.Errorf("failed to create shell runner: %w", err))
 	}
 
-	prog, err := syntax.NewParser().Parse(strings.NewReader(source), "")
+	prog, err := syntax.NewParser().Parse(strings.NewReader(inputs.Script), "")
 	if err != nil {
 		return nil, util.DefaultActionError(fmt.Errorf("failed to parse shell input: %w", err))
 	}
@@ -114,21 +111,4 @@ func (h *RunShellHandler) Run(
 		Stderr:         strings.TrimSuffix(stderrBuf.String(), "\n"),
 		DurationMillis: int(duration.Milliseconds()),
 	}, nil
-}
-
-// resolveSource returns the shell source to execute from the inputs.
-func resolveSource(inputs RunShellInputs) (string, error) {
-	hasCommand := inputs.Command != ""
-	hasScript := inputs.Script != ""
-
-	if !hasCommand && !hasScript {
-		return "", errors.New("either command or script must be provided")
-	}
-	if hasCommand && hasScript {
-		return "", errors.New("command and script are mutually exclusive")
-	}
-	if hasCommand {
-		return inputs.Command, nil
-	}
-	return inputs.Script, nil
 }

@@ -26,7 +26,7 @@ func makeTask(inputs map[string]interface{}) *types.Task {
 func TestRunShellCommand(t *testing.T) {
 	handler := NewRunShellHandler()
 	task := makeTask(map[string]interface{}{
-		"command": "echo hello world",
+		"script": "echo hello world",
 	})
 
 	output, err := handler.Run(context.Background(), task, nil)
@@ -56,7 +56,7 @@ func TestRunShellScript(t *testing.T) {
 func TestRunShellExitCode(t *testing.T) {
 	handler := NewRunShellHandler()
 	task := makeTask(map[string]interface{}{
-		"command": "exit 42",
+		"script": "exit 42",
 	})
 
 	output, err := handler.Run(context.Background(), task, nil)
@@ -69,7 +69,7 @@ func TestRunShellExitCode(t *testing.T) {
 func TestRunShellStderr(t *testing.T) {
 	handler := NewRunShellHandler()
 	task := makeTask(map[string]interface{}{
-		"command": "echo error message >&2",
+		"script": "echo error message >&2",
 	})
 
 	output, err := handler.Run(context.Background(), task, nil)
@@ -84,7 +84,7 @@ func TestRunShellStderr(t *testing.T) {
 func TestRunShellPipeline(t *testing.T) {
 	handler := NewRunShellHandler()
 	task := makeTask(map[string]interface{}{
-		"command": "echo 'a b c' | echo ok",
+		"script": "echo 'a b c' | echo ok",
 	})
 
 	output, err := handler.Run(context.Background(), task, nil)
@@ -101,25 +101,13 @@ func TestRunShellNoInput(t *testing.T) {
 
 	_, err := handler.Run(context.Background(), task, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "either command or script must be provided")
-}
-
-func TestRunShellBothCommandAndScript(t *testing.T) {
-	handler := NewRunShellHandler()
-	task := makeTask(map[string]interface{}{
-		"command": "echo hi",
-		"script":  "echo hi",
-	})
-
-	_, err := handler.Run(context.Background(), task, nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "command and script are mutually exclusive")
+	assert.Contains(t, err.Error(), "script must be provided")
 }
 
 func TestRunShellSyntaxError(t *testing.T) {
 	handler := NewRunShellHandler()
 	task := makeTask(map[string]interface{}{
-		"command": "if then",
+		"script": "if then",
 	})
 
 	_, err := handler.Run(context.Background(), task, nil)
@@ -130,7 +118,7 @@ func TestRunShellSyntaxError(t *testing.T) {
 func TestRunShellTimeout(t *testing.T) {
 	handler := NewRunShellHandler()
 	task := makeTask(map[string]interface{}{
-		"command": "while true; do :; done",
+		"script":  "while true; do :; done",
 		"timeout": 1,
 	})
 
@@ -142,7 +130,7 @@ func TestRunShellTimeout(t *testing.T) {
 func TestRunShellBlockedExternalCommand(t *testing.T) {
 	handler := NewRunShellHandler()
 	task := makeTask(map[string]interface{}{
-		"command": "cat /etc/hostname",
+		"script": "cat /etc/hostname",
 	})
 
 	output, err := handler.Run(context.Background(), task, nil)
@@ -156,7 +144,7 @@ func TestRunShellBlockedExternalCommand(t *testing.T) {
 func TestRunShellBuiltinAlwaysAllowed(t *testing.T) {
 	handler := NewRunShellHandler()
 	task := makeTask(map[string]interface{}{
-		"command": "echo builtin-works && pwd",
+		"script": "echo builtin-works && pwd",
 	})
 
 	output, err := handler.Run(context.Background(), task, nil)
@@ -184,7 +172,7 @@ func TestRunShellMultiLineScript(t *testing.T) {
 func TestRunShellCancelledContext(t *testing.T) {
 	handler := NewRunShellHandler()
 	task := makeTask(map[string]interface{}{
-		"command": "while true; do :; done",
+		"script": "while true; do :; done",
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
