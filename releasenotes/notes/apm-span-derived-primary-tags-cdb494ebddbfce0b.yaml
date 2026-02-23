@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    APM: Add support for span-derived primary tags in APM stats aggregation.
+    This allows configuring tag keys via ``apm_config.span_derived_primary_tags``
+    that will be extracted from span tags and used as additional aggregation
+    dimensions for APM statistics.

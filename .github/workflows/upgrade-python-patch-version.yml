@@ -36,9 +36,6 @@ jobs:
         uses: ./.github/actions/install-dda
         with:
           features: legacy-tasks
-      - name: Install Python dependencies
-        run: pip install packaging httpx orjson
-
       - name: Update Python version
         id: update
         run: |
@@ -46,8 +43,8 @@ jobs:
           CURRENT_VERSION=$(dda inv python-version.get)
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
           
-          # Run update task (exits gracefully if no update available)
-          dda inv python-version.update || true
+          # Run update task (exits cleanly if already up-to-date)
+          dda inv python-version.update
           
           # Check if files were modified
           if git diff --quiet; then

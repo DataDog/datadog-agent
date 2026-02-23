@@ -446,18 +446,19 @@ mod tests {
 
         #[test]
         fn returns_empty_when_fdinfo_not_accessible() {
+            let nonexistent_pid = i32::MAX;
             let candidates = vec![
                 FdPath {
-                    fd: "/proc/1234/fd/3".to_string(),
+                    fd: format!("/proc/{}/fd/3", nonexistent_pid),
                     path: PathBuf::from("/var/log/app.log"),
                 },
                 FdPath {
-                    fd: "/proc/1234/fd/5".to_string(),
+                    fd: format!("/proc/{}/fd/5", nonexistent_pid),
                     path: PathBuf::from("/var/log/app.log"),
                 },
             ];
 
-            let result = get_log_files(1234, &candidates);
+            let result = get_log_files(nonexistent_pid, &candidates);
             assert!(result.is_empty());
         }
 

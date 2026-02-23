@@ -32,7 +32,6 @@ alias(
     actual = "@rules_go//go",
 )
 
-# bazel run //:gen_go_work
 run_binary(
     name = "gen_go_work",
     srcs = [

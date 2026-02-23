@@ -88,8 +88,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// secrets backend
 	cfg.BindEnvAndSetDefault("secret_backend_command", "")
 	cfg.BindEnvAndSetDefault("secret_backend_arguments", []string{})
-	cfg.BindEnvAndSetDefault("secret_backend_output_max_size", 0)
-	cfg.BindEnvAndSetDefault("secret_backend_timeout", 0)
+	cfg.BindEnvAndSetDefault("secret_backend_output_max_size", 1024*1024)
+	cfg.BindEnvAndSetDefault("secret_backend_timeout", 30)
 	cfg.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
 	cfg.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 
@@ -264,6 +264,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// ebpf module
 	cfg.BindEnvAndSetDefault("ebpf_check.enabled", false)
 	cfg.BindEnvAndSetDefault("ebpf_check.kernel_bpf_stats", false)
+	// noisy neighbor module
+	cfg.BindEnvAndSetDefault("noisy_neighbor.enabled", false)
 
 	// settings for the entry count of the ebpfcheck
 	// control the size of the buffers used for the batch lookups of the ebpf maps

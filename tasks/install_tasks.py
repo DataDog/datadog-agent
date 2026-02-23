@@ -20,7 +20,7 @@ TOOL_LIST = [
     'github.com/goware/modvendor',
     'github.com/stormcat24/protodep',
     'gotest.tools/gotestsum',
-    'github.com/vektra/mockery/v2',
+    'github.com/vektra/mockery/v3',
     'github.com/wadey/gocovmerge',
     'github.com/uber-go/gopatch',
     'github.com/aarzilli/whydeadcode',
