@@ -699,8 +699,9 @@
 /pkg/networkpath/traceroute/            @DataDog/cloud-network-monitoring @DataDog/windows-products @DataDog/network-path
 /pkg/collector/corechecks/networkpath/  @DataDog/cloud-network-monitoring @DataDog/network-path
 
-/releasenotes/                          @DataDog/documentation
-/releasenotes-dca/                      @DataDog/documentation
+# release notes accompany code changes, so code owners will review anyway
+/releasenotes/                          # do not notify anyone
+/releasenotes-dca/                      # do not notify anyone
 
 /rtloader/                              @DataDog/agent-runtimes
 

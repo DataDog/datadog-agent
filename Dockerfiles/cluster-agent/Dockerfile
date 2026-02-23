@@ -75,11 +75,13 @@ ENV \
 COPY --from=artifacts datadog-cluster-agent /opt/datadog-agent/bin/datadog-cluster-agent
 # CWS Instrumentation
 COPY --from=artifacts --chmod=0755 ./cws-instrumentation/ /opt/datadog-agent/bin/datadog-cws-instrumentation/
+# secret-generic-connector for secret_backend_type / secret_backend_command
+COPY --from=artifacts secret-generic-connector /opt/datadog-agent/bin/secret-generic-connector
 
 RUN addgroup --system secret-manager \
     && chmod 755 entrypoint.sh \
-    && chown root:secret-manager readsecret.sh readsecret_multiple_providers.sh \
-    && chmod 550 readsecret.sh readsecret_multiple_providers.sh \
+    && chown root:secret-manager readsecret.sh readsecret_multiple_providers.sh /opt/datadog-agent/bin/secret-generic-connector \
+    && chmod 550 readsecret.sh readsecret_multiple_providers.sh /opt/datadog-agent/bin/secret-generic-connector \
     && chmod g+r,g+w,g+X -R /etc/datadog-agent/ \
     && chmod +x /opt/datadog-agent/bin/datadog-cluster-agent \
     && ln -s /opt/datadog-agent/bin/datadog-cluster-agent /opt/datadog-agent/bin/agent

@@ -7,6 +7,9 @@ integration_tests_otel:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   needs: ["go_deps"]
+  variables:
+    KUBERNETES_MEMORY_REQUEST: 16Gi
+    KUBERNETES_MEMORY_LIMIT: 16Gi
   script:
     - !reference [.retrieve_linux_go_deps]
     - dda inv -- check-otel-build
