@@ -367,7 +367,7 @@ func Save(ctx context.Context, pkg string, saveDir string, isExperiment bool) (e
 	if err != nil && !errors.Is(err, errPackageNotFound) {
 		return fmt.Errorf("could not get package %s from db: %w", pkg, err)
 	} else if err != nil && errors.Is(err, errPackageNotFound) {
-		return fmt.Errorf("package %s is not installed, cannot save extensions", pkg)
+		return fmt.Errorf("package %s is not installed, cannot save extensions: %w", pkg, errPackageNotFound)
 	}
 
 	if len(dbPkg.Extensions) == 0 {
@@ -408,6 +408,14 @@ func Restore(ctx context.Context, downloader *oci.Downloader, pkg string, downlo
 	err = Install(ctx, downloader, downloadURL, extensions, isExperiment, hooks)
 	if err != nil {
 		return fmt.Errorf("could not install extensions: %w", err)
+	}
+
+	// On non-Windows platforms the save file lives in a transient tmp directory and should
+	// be cleaned up after a successful restore to avoid phantom-restoring stale extensions
+	// on the next upgrade. On Windows, the save file is kept in ProtectedDir so that it
+	// survives the MSI upgrade process (it is only written once, before prerm).
+	if runtime.GOOS != "windows" {
+		_ = os.Remove(savePath)
 	}
 
 	return nil

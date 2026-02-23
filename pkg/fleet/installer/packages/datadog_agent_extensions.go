@@ -63,7 +63,9 @@ func setRegistryConfig(env *env.Env) {
 	configPath := filepath.Join(paths.AgentConfigDir, "datadog.yaml")
 	rawConfig, err := os.ReadFile(configPath)
 	if err != nil {
-		log.Debugf("could not read agent config at %s: %v", configPath, err)
+		if !os.IsNotExist(err) {
+			log.Debugf("could not read agent config at %s: %v", configPath, err)
+		}
 		return
 	}
 	var config datadogAgentConfig

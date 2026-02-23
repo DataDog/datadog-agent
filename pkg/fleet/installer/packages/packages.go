@@ -203,6 +203,15 @@ func (h *hooksCLI) getPath(pkg string, pkgType PackageType, experiment bool) str
 		case true:
 			return h.packages.Get(pkg).ExperimentPath()
 		}
+	case PackageTypeMSI:
+		// MSI-installed agent: use the OCI stable/experiment path just like PackageTypeOCI,
+		// since extensions are stored under the OCI packages directory on Windows too.
+		switch experiment {
+		case false:
+			return h.packages.Get(pkg).StablePath()
+		case true:
+			return h.packages.Get(pkg).ExperimentPath()
+		}
 	case PackageTypeDEB, PackageTypeRPM:
 		if pkg == agentPackage {
 			return "/opt/datadog-agent"
@@ -214,6 +223,8 @@ func (h *hooksCLI) getPath(pkg string, pkgType PackageType, experiment bool) str
 // extensionPackageType detects whether the agent is OCI- or DEB/RPM-installed by checking
 // the location of the running installer binary. Extension hooks must use this rather than
 // assuming PackageTypeOCI so that the hook receives the correct PackagePath.
+// Note: on Windows this always returns PackageTypeOCI (not PackageTypeMSI). PackageTypeMSI
+// is only used for direct hook dispatch from the MSI custom actions, not for CLI-driven hooks.
 func (h *hooksCLI) extensionPackageType(pkg string) PackageType {
 	if pkg != agentPackage {
 		return PackageTypeOCI

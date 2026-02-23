@@ -41,11 +41,8 @@ const (
 )
 
 // preInstallDatadogAgentDDOT performs pre-installation steps for DDOT on Windows
-func preInstallDatadogAgentDDOT(_ HookContext) error {
-	// Best effort stop and delete existing service
-	_ = stopServiceIfExists(otelServiceName)
-	_ = deleteServiceIfExists(otelServiceName)
-	return nil
+func preInstallDatadogAgentDDOT(ctx HookContext) error {
+	return preInstallDDOTExtension(ctx)
 }
 
 // postInstallDatadogAgentDdot performs post-installation steps for the DDOT package on Windows
@@ -387,8 +384,11 @@ func deleteServiceIfExists(name string) error {
 //////////////////////////////
 
 // preInstallDDOTExtension stops the existing DDOT service before extension installation
-func preInstallDDOTExtension(ctx HookContext) error {
-	return preInstallDatadogAgentDDOT(ctx)
+func preInstallDDOTExtension(_ HookContext) error {
+	// Best effort stop and delete existing service
+	_ = stopServiceIfExists(otelServiceName)
+	_ = deleteServiceIfExists(otelServiceName)
+	return nil
 }
 
 // postInstallDDOTExtension sets up the DDOT extension after files are extracted

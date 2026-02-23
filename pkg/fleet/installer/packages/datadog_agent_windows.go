@@ -108,13 +108,20 @@ func postInstallDatadogAgent(ctx HookContext) error {
 		}
 	}
 
-	// Common for both OCI and MSI: Restore extensions
+	// Common for both OCI and MSI: Restore extensions.
+	// For OCI fleet installs the MSI custom action fires RunPostInstallHook (PackageTypeMSI)
+	// AND the OCI hook chain also calls restoreAgentExtensions. The Install() call inside
+	// Restore is idempotent (extensions already marked in the DB are skipped), so the
+	// double-restore is harmless.
 	// Call SetPackage separately (not inside restoreAgentExtensions)
 	agentVersion := getCurrentAgentVersion()
 	// Detect whether this install is an experiment so hooks use the correct package path.
 	// When the experiment MSI runs postInstall, isExperiment=true ensures PostInstallExtension
 	// uses ExperimentPath() (resolved to the versioned dir) rather than StablePath().
-	state, _ := getAgentPackageState()
+	state, err := getAgentPackageState()
+	if err != nil {
+		log.Warnf("failed to get agent package state: %s", err)
+	}
 	isExperiment := state.Experiment == agentVersion
 	if err := extensionsPkg.SetPackage(ctx, agentPackage, agentVersion, isExperiment); err != nil {
 		return fmt.Errorf("failed to set package version in extensions db: %w", err)
@@ -143,7 +150,10 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 	}
 
 	if ctx.PackageType == PackageTypeMSI {
-		// MSI custom action calling hook - done
+		// MSI custom action calling hook - done.
+		// Note: the save file written above lives in ProtectedDir which intentionally persists
+		// across MSI upgrades. It is not cleaned up on full uninstall so that a subsequent
+		// reinstall can potentially re-use it, which is an acceptable trade-off.
 		return nil
 	}
 
