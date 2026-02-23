@@ -375,7 +375,7 @@ metrics:
     support:
       unsupported_architectures: []
       device_features:
-        mig: unknown
+        mig: "false"
         physical: "true"
         vgpu: unknown
       process_data: false
@@ -399,7 +399,7 @@ metrics:
     support:
       unsupported_architectures: []
       device_features:
-        mig: unknown
+        mig: "false"
         physical: "true"
         vgpu: unknown
       process_data: false
@@ -698,7 +698,6 @@ metrics:
         - fermi
         - kepler
         - maxwell
-        - ada
       device_features:
         mig: "false"
         physical: "true"
@@ -717,7 +716,6 @@ metrics:
         - fermi
         - kepler
         - maxwell
-        - ada
       device_features:
         mig: "false"
         physical: "true"
@@ -736,7 +734,6 @@ metrics:
         - fermi
         - kepler
         - maxwell
-        - ada
       device_features:
         mig: "false"
         physical: "true"
@@ -1322,7 +1319,7 @@ metrics:
     support:
       unsupported_architectures: []
       device_features:
-        mig: unknown
+        mig: "false"
         physical: "true"
         vgpu: "false"
       process_data: false
