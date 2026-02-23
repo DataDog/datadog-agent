@@ -6,23 +6,7 @@ load("//rtloader:defs.bzl", "COMMON_DEFINES")
 
 package(default_visibility = ["//rtloader:__pkg__"])
 
-# This package uses a distinct compatibility level. On linux we see:
-#  ./opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so -> libdatadog-agent-rtloader.so.2
-#  ./opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
-#  ./opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.2 -> libdatadog-agent-rtloader.so.0.1.0
-# On mac
-# $ otool -L /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.0.1.0.dylib
-# /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.0.1.0.dylib:
-#	@rpath/libdatadog-agent-rtloader.2.dylib (compatibility version 2.0.0, current version 0.1.0)
-#	/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 1800.105.0)
-#	/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)
-
-# This may take changes to so_symlink. That should be a distint PR.
 VERSION = "0.1.0"
-
-# SO version is ahead of the actual version because we bumped SO
-# when we dropped python 2 support.
-COMPATIBILITY_VERSION = "2"
 
 dd_agent_expand_template(
     name = "pc_gen",
@@ -69,33 +53,21 @@ cc_library(
 cc_shared_library(
     name = "datadog-agent-rtloader",
     user_link_flags = select({
-        "@platforms//os:linux": [
-            "-Wl,-soname,datadog-agent-rtloader.so.%s" % VERSION,
-        ],
-        "@platforms//os:macos": [
-            "-Wl,-install_name,datadog-agent-rtloader.%s.dylib" % VERSION,
-            "-Wl,-current_version,%s" % VERSION,
-            "-Wl,-compatibility_version,%s" % COMPATIBILITY_VERSION,
-        ],
         "@platforms//os:windows": [
             # Static library on windows so we don't have to distribute CRT.
             "/MT",
         ],
+        "//conditions:default": [],
     }),
     deps = [":static"],
 )
-
-# TODO: Need to get the linux ones right
-#  ./opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so -> libdatadog-agent-rtloader.so.2
-#  ./opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
-#  ./opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.2 -> libdatadog-agent-rtloader.so.0.1.0
 
 so_symlink(
     name = "lib_files",
     src = ":datadog-agent-rtloader",
     libname = "libdatadog-agent-rtloader",
     prefix = "embedded",
-    version = COMPATIBILITY_VERSION,
+    version = VERSION,
 )
 
 # buildifier: disable=no-effect
@@ -121,10 +93,6 @@ endif()
 -- probably not needed, -m32 comes from the toolchain
 if(ARCH_I386)
     set_target_properties(datadog-agent-rtloader PROPERTIES COMPILE_FLAGS "-m32" LINK_FLAGS "-m32")
-endif()
-
-if(NOT WIN32)
-find_library( LIBdl dl )
 endif()
 
 install(TARGETS datadog-agent-rtloader

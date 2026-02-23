@@ -54,6 +54,7 @@ COPY ./datadog-cluster.yaml /etc/datadog-agent/datadog-cluster.yaml
 COPY ./security-agent-policies/compliance/containers/cis-kubernetes*.yaml /etc/datadog-agent/compliance.d/
 COPY ./security-agent-policies/compliance/containers/*.rego /etc/datadog-agent/compliance.d/
 COPY ./install_info etc/datadog-agent/install_info
+COPY ./private-action-runner /etc/datadog-agent/private-action-runner
 COPY entrypoint.sh .
 COPY readsecret.sh readsecret_multiple_providers.sh ./
 
@@ -74,11 +75,13 @@ ENV \
 COPY --from=artifacts datadog-cluster-agent /opt/datadog-agent/bin/datadog-cluster-agent
 # CWS Instrumentation
 COPY --from=artifacts --chmod=0755 ./cws-instrumentation/ /opt/datadog-agent/bin/datadog-cws-instrumentation/
+# secret-generic-connector for secret_backend_type / secret_backend_command
+COPY --from=artifacts secret-generic-connector /opt/datadog-agent/bin/secret-generic-connector
 
 RUN addgroup --system secret-manager \
     && chmod 755 entrypoint.sh \
-    && chown root:secret-manager readsecret.sh readsecret_multiple_providers.sh \
-    && chmod 550 readsecret.sh readsecret_multiple_providers.sh \
+    && chown root:secret-manager readsecret.sh readsecret_multiple_providers.sh /opt/datadog-agent/bin/secret-generic-connector \
+    && chmod 550 readsecret.sh readsecret_multiple_providers.sh /opt/datadog-agent/bin/secret-generic-connector \
     && chmod g+r,g+w,g+X -R /etc/datadog-agent/ \
     && chmod +x /opt/datadog-agent/bin/datadog-cluster-agent \
     && ln -s /opt/datadog-agent/bin/datadog-cluster-agent /opt/datadog-agent/bin/agent
