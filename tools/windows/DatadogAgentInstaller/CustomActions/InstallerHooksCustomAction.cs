@@ -65,12 +65,8 @@ namespace Datadog.CustomActions
         {
             if (!File.Exists(_installerExecutable))
             {
-                // The installer binary is expected to exist whenever this hook runs
-                // (prerm and postinst conditions guard against the no-previous-install case),
-                // but if it is somehow missing, treat it as a no-op rather than a hard failure
-                // so the MSI operation can still complete.
-                _session.Log($"Installer executable not found at {_installerExecutable}, skipping hook");
-                return ActionResult.Success;
+                _session.Log($"Installer executable not found at {_installerExecutable}");
+                return ActionResult.Failure;
             }
 
             try

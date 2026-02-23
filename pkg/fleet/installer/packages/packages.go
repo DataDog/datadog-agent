@@ -196,16 +196,8 @@ func (c HookContext) StartSpan(operationName string) (*telemetry.Span, HookConte
 
 func (h *hooksCLI) getPath(pkg string, pkgType PackageType, experiment bool) string {
 	switch pkgType {
-	case PackageTypeOCI:
-		switch experiment {
-		case false:
-			return h.packages.Get(pkg).StablePath()
-		case true:
-			return h.packages.Get(pkg).ExperimentPath()
-		}
-	case PackageTypeMSI:
-		// MSI-installed agent: use the OCI stable/experiment path just like PackageTypeOCI,
-		// since extensions are stored under the OCI packages directory on Windows too.
+	case PackageTypeOCI, PackageTypeMSI:
+		// MSI-installed agent uses the same OCI packages directory for extensions.
 		switch experiment {
 		case false:
 			return h.packages.Get(pkg).StablePath()

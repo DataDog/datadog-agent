@@ -415,7 +415,9 @@ func Restore(ctx context.Context, downloader *oci.Downloader, pkg string, downlo
 	// on the next upgrade. On Windows, the save file is kept in ProtectedDir so that it
 	// survives the MSI upgrade process (it is only written once, before prerm).
 	if runtime.GOOS != "windows" {
-		_ = os.Remove(savePath)
+		if err := os.Remove(savePath); err != nil && !os.IsNotExist(err) {
+			log.Warnf("could not remove extension save file %s: %v", savePath, err)
+		}
 	}
 
 	return nil
