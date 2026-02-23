@@ -132,8 +132,8 @@ fn get_service(pid: i32, context: &mut ParsingContext) -> Option<Service> {
         tracer_metadata.is_some() || apm::detect(&language, pid, &cmdline, &envs);
 
     // Detect GPU usage: Fast path (devices) already checked, fallback to libraries
-    let has_nvidia_gpu = open_files_info.has_gpu_device
-        || procfs::maps::has_gpu_nvidia_libraries(pid);
+    let has_nvidia_gpu =
+        open_files_info.has_gpu_device || procfs::maps::has_gpu_nvidia_libraries(pid);
 
     Some(Service {
         pid,

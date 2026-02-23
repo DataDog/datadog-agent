@@ -5,6 +5,9 @@
 
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read, Take};
+use std::sync::LazyLock;
+
+use memchr::memmem::Finder;
 
 use super::root_path;
 
@@ -16,28 +19,25 @@ pub fn get_reader_for_pid(pid: i32) -> Result<BufReader<Take<File>>, std::io::Er
     Ok(BufReader::new(file.take(MAPS_READ_LIMIT)))
 }
 
-// List of NVIDIA-specific GPU libraries to detect as raw bytes
-const GPU_LIBS: &[&[u8]] = &[
-    b"libcuda.so",
-    b"libcudart.so",
-    b"libnvidia-ml.so",
-    b"libnvrtc.so",
-    b"libcudnn.so",
-    b"libcublas.so",
-    b"libnccl.so",
-];
+// Pre-built finders for NVIDIA-specific GPU libraries using memchr for fast substring search
+static GPU_LIB_FINDERS: LazyLock<[Finder<'static>; 7]> = LazyLock::new(|| {
+    [
+        Finder::new(b"libcuda.so"),
+        Finder::new(b"libcudart.so"),
+        Finder::new(b"libnvidia-ml.so"),
+        Finder::new(b"libnvrtc.so"),
+        Finder::new(b"libcudnn.so"),
+        Finder::new(b"libcublas.so"),
+        Finder::new(b"libnccl.so"),
+    ]
+});
 
 /// Internal function to check for GPU libraries given a reader
 fn check_for_gpu_libraries<R: BufRead>(reader: R) -> bool {
-    // Read the maps file line by line and check for any of the GPU libraries
     reader
         .split(b'\n')
         .filter_map(|line_result| line_result.ok())
-        .any(|line| {
-            GPU_LIBS
-                .iter()
-                .any(|&lib| line.windows(lib.len()).any(|window| window == lib))
-        })
+        .any(|line| GPU_LIB_FINDERS.iter().any(|f| f.find(&line).is_some()))
 }
 
 /// Detects if a process is using NVIDIA GPU libraries by checking /proc/[pid]/maps

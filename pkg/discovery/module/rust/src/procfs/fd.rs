@@ -57,6 +57,7 @@ pub fn get_open_files_info(pid: i32) -> Result<OpenFilesInfo, std::io::Error> {
             // Check for GPU device first (before link is moved)
             if !result.has_gpu_device && is_gpu_device(link.as_path()) {
                 result.has_gpu_device = true;
+                return;
             }
 
             if let Some(socket) = is_socket(link.as_path()) {
