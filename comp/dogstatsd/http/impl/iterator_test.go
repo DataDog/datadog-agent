@@ -78,7 +78,7 @@ func TestIterator(t *testing.T) {
 		MType:    metrics.APIRateType,
 		Interval: 10,
 		Source:   metrics.MetricSourceDogstatsd,
-		Points:   []metrics.Point{{Ts: 1000, Value: 6}, { Ts: 1010, Value: 7 }},
+		Points:   []metrics.Point{{Ts: 1000, Value: 6}, {Ts: 1010, Value: 7}},
 	}, it.Current())
 
 	require.True(t, it.MoveNext())
@@ -89,6 +89,6 @@ func TestIterator(t *testing.T) {
 		MType:    metrics.APIGaugeType,
 		Interval: 10,
 		Source:   metrics.MetricSourceDogstatsd,
-		Points:   []metrics.Point{{Ts: 1000, Value: 8}, { Ts: 1010, Value: 9 }},
+		Points:   []metrics.Point{{Ts: 1000, Value: 8}, {Ts: 1010, Value: 9}},
 	}, it.Current())
 }
