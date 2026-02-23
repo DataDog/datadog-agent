@@ -443,8 +443,7 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode testu
 			nil,
 			nil,
 			[]string{
-				"container_id:" + containerID,
-				"container_name:" + fmt.Sprintf("name-%s", containerID),
+				"kube_container_name:" + fmt.Sprintf("name-%s", containerID),
 			},
 			nil,
 		)
