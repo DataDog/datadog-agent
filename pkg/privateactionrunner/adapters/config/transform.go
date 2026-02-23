@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
@@ -22,7 +23,7 @@ import (
 )
 
 func FromDDConfig(config config.Component) (*Config, error) {
-	ddSite := config.GetString("site")
+	ddSite := getDatadogSite(config)
 	encodedPrivateKey := config.GetString(setup.PARPrivateKey)
 	urn := config.GetString(setup.PARUrn)
 
@@ -110,6 +111,24 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 	}
 
 	return allowlist
+}
+
+func getDatadogSite(config config.Component) string {
+	ddSite := ""
+	ddURL := config.GetString("dd_url")
+	if ddURL != "" {
+		extractedSite := configutils.ExtractSiteFromURL(ddURL)
+		if extractedSite != "" {
+			ddSite = extractedSite
+		}
+	}
+	if ddSite == "" {
+		ddSite = config.GetString("site")
+	}
+	if ddSite == "" {
+		ddSite = setup.DefaultSite
+	}
+	return ddSite
 }
 
 func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[string]) map[string]sets.Set[string] {
