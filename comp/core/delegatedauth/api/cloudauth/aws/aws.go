@@ -30,12 +30,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-// SigningData is the data structure that represents the Data used to generate and AWS Proof
-type SigningData struct {
-	HeadersEncoded string `json:"iam_headers_encoded"`
-	BodyEncoded    string `json:"iam_body_encoded"`
-	URLEncoded     string `json:"iam_url_encoded"`
-	Method         string `json:"iam_method"`
+// signingData is the data structure that represents the Data used to generate an AWS Proof
+type signingData struct {
+	headersEncoded string
+	bodyEncoded    string
+	urlEncoded     string
+	method         string
 }
 
 const (
@@ -58,7 +58,7 @@ const (
 
 // AWSAuth contains the implementation for the AWS cloud auth
 type AWSAuth struct {
-	AwsRegion string
+	region string
 }
 
 // NewAWSAuth creates a new AWSAuth from an AWSProviderConfig.
@@ -68,7 +68,7 @@ func NewAWSAuth(config *cloudauthconfig.AWSProviderConfig) *AWSAuth {
 		region = config.Region
 	}
 	return &AWSAuth{
-		AwsRegion: region,
+		region: region,
 	}
 }
 
@@ -82,26 +82,36 @@ func (a *AWSAuth) GenerateAuthProof(ctx context.Context, _ pkgconfigmodel.Reader
 	}
 
 	// Get local AWS Credentials
-	credentials := a.getCredentials()
+	credentials := a.getCredentials(ctx)
 
 	if config == nil || config.OrgUUID == "" {
 		return "", errors.New("missing org UUID in config")
 	}
 
 	// Use the credentials to generate the signing data
-	data, err := a.generateAwsAuthData(config.OrgUUID, credentials)
+	data, err := a.generateAwsAuthData(ctx, config.OrgUUID, credentials)
 	if err != nil {
 		return "", err
 	}
 
 	// Generate the auth string that will be passed to the Datadog API
-	authProof := data.BodyEncoded + "|" + data.HeadersEncoded + "|" + data.Method + "|" + data.URLEncoded
+	// Format: "<base64-body>|<base64-headers>|<method>|<base64-url>"
+	// - body: Base64-encoded request body (GetCallerIdentity action)
+	// - headers: Base64-encoded JSON map of HTTP headers (includes Authorization with SigV4 signature)
+	// - method: HTTP method (POST)
+	// - url: Base64-encoded STS endpoint URL
+	authProof := data.bodyEncoded + "|" + data.headersEncoded + "|" + data.method + "|" + data.urlEncoded
 	return authProof, nil
 }
 
 // getCredentials retrieves AWS credentials using the same approach as EC2 tags fetching.
 // It first tries environment variables, then falls back to EC2 instance metadata service.
-func (a *AWSAuth) getCredentials() *creds.SecurityCredentials {
+//
+// Note: This function fetches credentials on every call rather than caching them.
+// Since GenerateAuthProof is called at the refresh interval (typically 60 minutes),
+// and IMDS credentials are valid for several hours, this is acceptable. Future
+// optimization could add credential caching with expiration handling if needed.
+func (a *AWSAuth) getCredentials(ctx context.Context) *creds.SecurityCredentials {
 	awsCredentials := &creds.SecurityCredentials{}
 
 	// Try to get credentials from environment variables
@@ -116,7 +126,6 @@ func (a *AWSAuth) getCredentials() *creds.SecurityCredentials {
 
 	// Fall back to EC2 instance metadata service (same as ec2_tags.go does)
 	log.Debugf("No explicit AWS credentials found in config or environment, trying EC2 instance metadata service")
-	ctx := context.Background()
 	ec2Creds, err := creds.GetSecurityCredentials(ctx)
 	if err != nil {
 		log.Warnf("Failed to get credentials from EC2 instance metadata: %v", err)
@@ -128,7 +137,7 @@ func (a *AWSAuth) getCredentials() *creds.SecurityCredentials {
 }
 
 func (a *AWSAuth) getConnectionParameters() (string, string, string) {
-	region := a.AwsRegion
+	region := a.region
 	var host string
 	// Default to the default global STS Host (see here: https://docs.aws.amazon.com/general/latest/gr/sts.html)
 	if region == "" {
@@ -146,7 +155,7 @@ func (a *AWSAuth) getUserAgent() string {
 	return "datadog-agent/" + version.AgentVersion
 }
 
-func (a *AWSAuth) generateAwsAuthData(orgUUID string, awsCredentials *creds.SecurityCredentials) (*SigningData, error) {
+func (a *AWSAuth) generateAwsAuthData(ctx context.Context, orgUUID string, awsCredentials *creds.SecurityCredentials) (*signingData, error) {
 	if orgUUID == "" {
 		return nil, errors.New("missing org UUID")
 	}
@@ -192,7 +201,7 @@ func (a *AWSAuth) generateAwsAuthData(orgUUID string, awsCredentials *creds.Secu
 	// Sign the request
 	// The orgIDHeader is already set on the request, so it will be included in the signature
 	now := time.Now().UTC()
-	err = signer.SignHTTP(context.Background(), awsCreds, req, payloadHash, service, region, now)
+	err = signer.SignHTTP(ctx, awsCreds, req, payloadHash, service, region, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign request: %w", err)
 	}
@@ -210,10 +219,10 @@ func (a *AWSAuth) generateAwsAuthData(orgUUID string, awsCredentials *creds.Secu
 		return nil, fmt.Errorf("failed to marshal headers: %w", err)
 	}
 
-	return &SigningData{
-		HeadersEncoded: base64.StdEncoding.EncodeToString(headersJSON),
-		BodyEncoded:    base64.StdEncoding.EncodeToString(bodyBytes),
-		Method:         http.MethodPost,
-		URLEncoded:     base64.StdEncoding.EncodeToString([]byte(stsFullURL)),
+	return &signingData{
+		headersEncoded: base64.StdEncoding.EncodeToString(headersJSON),
+		bodyEncoded:    base64.StdEncoding.EncodeToString(bodyBytes),
+		method:         http.MethodPost,
+		urlEncoded:     base64.StdEncoding.EncodeToString([]byte(stsFullURL)),
 	}, nil
 }

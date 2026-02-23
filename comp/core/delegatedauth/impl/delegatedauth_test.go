@@ -17,6 +17,12 @@ import (
 )
 
 func TestContextCancellationStopsRefresh(t *testing.T) {
+	// NOTE: This test uses a simplified goroutine that simulates the context cancellation
+	// behavior of startBackgroundRefresh. Testing the actual startBackgroundRefresh function
+	// would require extensive mocking of the provider, API client, and config, which is
+	// covered by integration tests. This unit test verifies the core goroutine pattern
+	// (select on ctx.Done and ticker) works correctly for context cancellation.
+
 	// Create a cancellable context
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -24,7 +30,7 @@ func TestContextCancellationStopsRefresh(t *testing.T) {
 	done := make(chan bool, 1)
 
 	// Create a test version of the background refresh goroutine
-	// This simulates the actual implementation in startBackgroundRefresh
+	// This simulates the select/case pattern used in startBackgroundRefresh
 	go func() {
 		ticker := time.NewTicker(100 * time.Millisecond)
 		defer ticker.Stop()
@@ -57,6 +63,10 @@ func TestContextCancellationStopsRefresh(t *testing.T) {
 }
 
 func TestBackgroundRefreshContextHandling(t *testing.T) {
+	// NOTE: Like TestContextCancellationStopsRefresh, this test uses a simplified goroutine
+	// that simulates the context cancellation behavior at different lifecycle points.
+	// See the note in TestContextCancellationStopsRefresh for rationale.
+	//
 	// This test verifies that the background refresh goroutine properly
 	// handles context cancellation at different points in its lifecycle
 
