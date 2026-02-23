@@ -7,7 +7,7 @@
 package suite
 
 import (
-	"os"
+	"fmt"
 	"regexp"
 	"slices"
 	"testing"
@@ -18,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/agent"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/backend"
 	fleethost "github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/host"
@@ -46,9 +48,13 @@ var (
 )
 
 // Platforms returns the list of platforms to test, excluding Windows platforms
-// when the SKIP_WINDOWS environment variable is set to "true".
+// when the E2E_SKIP_WINDOWS parameter is set to "true".
 func Platforms() []e2eos.Descriptor {
-	if os.Getenv("SKIP_WINDOWS") == "true" {
+	skipWindows, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipWindows, false)
+	if err != nil {
+		fmt.Printf("failed to get %s parameter, defaulting to false: %v\n", parameters.SkipWindows, err)
+	}
+	if skipWindows {
 		return LinuxPlatforms
 	}
 	return AllPlatforms

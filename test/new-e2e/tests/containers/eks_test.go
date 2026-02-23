@@ -6,7 +6,7 @@
 package containers
 
 import (
-	"os"
+	"fmt"
 	"regexp"
 	"testing"
 
@@ -17,6 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	proveks "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/eks"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 )
 
 type eksSuite struct {
@@ -36,7 +38,11 @@ func TestEKSSuite(t *testing.T) {
 		kubernetesagentparams.WithDualShipping(),
 	}
 
-	if os.Getenv("SKIP_WINDOWS") != "true" {
+	skipWindows, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipWindows, false)
+	if err != nil {
+		fmt.Printf("failed to get %s parameter, defaulting to false: %v\n", parameters.SkipWindows, err)
+	}
+	if !skipWindows {
 		eksOptions = append(eksOptions, sceneks.WithWindowsNodeGroup())
 		agentOptions = append(agentOptions, kubernetesagentparams.WithWindowsImage())
 		suite.windowsEnabled = true

@@ -7,7 +7,7 @@ package containers
 
 import (
 	"context"
-	"os"
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -31,6 +31,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 
 	provecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 )
 
 const (
@@ -63,7 +65,11 @@ func TestECSSuite(t *testing.T) {
 		scenecs.WithTestingWorkload(),
 	}
 
-	if os.Getenv("SKIP_WINDOWS") != "true" {
+	skipWindows, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipWindows, false)
+	if err != nil {
+		fmt.Printf("failed to get %s parameter, defaulting to false: %v\n", parameters.SkipWindows, err)
+	}
+	if !skipWindows {
 		// WithWindowsNodeGroup is the dedicated ECS option to opt-in to Windows
 		// infrastructure and workloads (Windows EC2 nodes + Windows Fargate apps).
 		ecsOptions = append(ecsOptions, scenecs.WithWindowsNodeGroup())
