@@ -104,7 +104,6 @@ class MetricModel(BaseModel):
 class TagsetModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
     tags: list[str]
-    fallback_tags: list[str]
 
 
 class SpecModel(BaseModel):
