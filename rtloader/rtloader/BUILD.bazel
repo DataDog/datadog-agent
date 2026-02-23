@@ -30,13 +30,7 @@ cc_library(
         "//rtloader/common:rtloader_mem.c",
     ],
     cxxopts = COMMON_CXXOPTS,
-    copts = COMMON_COPTS + select({
-        "@platforms//os:windows": [
-            # Static library on windows so we don't have to distribute CRT.
-            "/MT",
-        ],
-        "//conditions:default": []
-    }),
+    copts = COMMON_COPTS,
     hdrs = [
         "//rtloader/include",
     ],
@@ -69,13 +63,6 @@ cc_library(
 
 cc_shared_library(
     name = "datadog-agent-rtloader",
-    user_link_flags = select({
-        "@platforms//os:windows": [
-            # Static library on windows so we don't have to distribute CRT.
-            "/MT",
-        ],
-        "//conditions:default": [],
-    }),
     deps = [":rtloader"],
     visibility = ["//rtloader:__subpackages__"],
 )
