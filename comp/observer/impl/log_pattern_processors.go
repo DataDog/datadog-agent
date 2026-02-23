@@ -14,12 +14,17 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/DataDog/datadog-agent/comp/observer/impl/patterns"
 	"github.com/DataDog/datadog-agent/comp/observer/impl/queue"
 )
+
+const FILTER_ONLY_Q_LOG = false
+
+var tlmAnomalyCount = atomic.Int64{}
 
 // PatternLogProcessor is a log processor that detects patterns in logs.
 type PatternLogProcessor struct {
@@ -56,7 +61,14 @@ func NewPatternLogProcessor(anomalyDetectors []PatternLogAnomalyDetector) *Patte
 
 	// Metrics
 	celiandebug.callbacks = append(celiandebug.callbacks, func(metrics map[string]float64) {
-		metrics["pattern_log_processor_count"] = float64(len(p.ResultChannel))
+		metrics["anomaly_count"] = float64(tlmAnomalyCount.Swap(0))
+
+		// Count number of patterns
+		nPatterns := 0
+		for _, clusterer := range p.ClustererPipeline.PatternClusterers {
+			nPatterns += clusterer.PatternClusterer.NumClusters()
+		}
+		metrics["pattern_count"] = float64(nPatterns)
 	})
 
 	return p
@@ -67,8 +79,8 @@ func (p *PatternLogProcessor) Name() string {
 }
 
 func (p *PatternLogProcessor) Process(log observer.LogView) observer.LogProcessorResult {
-	// TODO A:
-	if !strings.Contains(string(log.GetContent()), "q-log") {
+	// Process only q test logs
+	if FILTER_ONLY_Q_LOG && !strings.Contains(string(log.GetContent()), "q-log") {
 		return observer.LogProcessorResult{}
 	}
 	fmt.Printf("Processing log: %s\n", string(log.GetContent()))
@@ -315,6 +327,7 @@ func (w *WatchdogLogAnomalyDetector) DetectAnomalies() {
 		}
 		baselineStddev /= float64(len(baselineSlice))
 		baselineStddev = math.Sqrt(baselineStddev)
+		baselineStddev = math.Max(baselineStddev, 1e-6)
 
 		// TODO: What to do with the eval part? Not useful for this method
 		// TODO: Directly send the rates to metrics AD?
@@ -326,6 +339,7 @@ func (w *WatchdogLogAnomalyDetector) DetectAnomalies() {
 		evalMean /= float64(len(evalSlice))
 
 		zScore := (evalMean - baselineMean) / baselineStddev
+		// TODO: Could be +Inf on some cases
 		if math.Abs(zScore) > zThreshold {
 			// TODO: Lock...
 			alertInfo := AlertInfo{ClusterID: clusterID, ZScore: zScore}
@@ -335,6 +349,7 @@ func (w *WatchdogLogAnomalyDetector) DetectAnomalies() {
 }
 
 func (w *WatchdogLogAnomalyDetector) OnAnomalyDetected(alert AlertInfo) {
+	tlmAnomalyCount.Add(1)
 	if _, ok := w.LastAlerts[alert.ClusterID]; !ok || time.Since(w.LastAlerts[alert.ClusterID]) >= w.AlertCooldown {
 		w.LastAlerts[alert.ClusterID] = time.Now()
 

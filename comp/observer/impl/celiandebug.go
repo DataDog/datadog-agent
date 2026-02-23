@@ -32,7 +32,7 @@ func NewCelianDebug(interval time.Duration) *CelianDebug {
 	return &CelianDebug{
 		interval: interval,
 		metrics:  make(map[string]float64),
-		logPath:  "/tmp/cc.log",
+		logPath:  "/tmp/celiandebug.log",
 	}
 }
 

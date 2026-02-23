@@ -181,6 +181,10 @@ func NewPatternClusterer(idComputeInfo IDComputeInfo) *PatternClusterer {
 	}
 }
 
+func (pc *PatternClusterer) NumClusters() int {
+	return len(pc.allClusters)
+}
+
 func (pc *PatternClusterer) Process(message string) *ClusterResult {
 	if pc.IgnoreEmpty && strings.TrimSpace(message) == "" {
 		return nil
