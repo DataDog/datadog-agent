@@ -73,7 +73,7 @@ type onDiskGoTypeToOffsetIndexBuilder struct {
 // AddType implements typeIndexBuilder.
 func (o *onDiskGoTypeToOffsetIndexBuilder) addType(typeID gotype.TypeID, dwarfOffset dwarf.Offset) error {
 	if o.w == nil {
-		return fmt.Errorf("builder is closed")
+		return errors.New("builder is closed")
 	}
 	o.entryBuf = goTypeOffsetEntry{typeID: typeID, dwarfOffset: dwarfOffset}
 	buf := unsafe.Slice((*uint8)(unsafe.Pointer(&o.entryBuf)), unsafe.Sizeof(o.entryBuf))
@@ -86,7 +86,7 @@ func (o *onDiskGoTypeToOffsetIndexBuilder) addType(typeID gotype.TypeID, dwarfOf
 // Build implements typeIndexBuilder.
 func (o *onDiskGoTypeToOffsetIndexBuilder) build() (_ goTypeToOffsetIndex, retErr error) {
 	if o.w == nil {
-		return nil, fmt.Errorf("builder is closed")
+		return nil, errors.New("builder is closed")
 	}
 	defer func() {
 		if retErr != nil {
@@ -160,7 +160,7 @@ var _ methodToGoTypeIndexBuilder = (*onDiskMethodToGoTypeIndexBuilder)(nil)
 
 func (o *onDiskMethodToGoTypeIndexBuilder) addMethod(method gotype.Method, receiver gotype.TypeID) error {
 	if o.w == nil {
-		return fmt.Errorf("builder is closed")
+		return errors.New("builder is closed")
 	}
 	o.entryBuf = [3]uint32{uint32(method.Name), uint32(method.Mtyp), uint32(receiver)}
 	buf := unsafe.Slice((*uint8)(unsafe.Pointer(&o.entryBuf)), unsafe.Sizeof(o.entryBuf))
@@ -171,7 +171,7 @@ func (o *onDiskMethodToGoTypeIndexBuilder) addMethod(method gotype.Method, recei
 }
 func (o *onDiskMethodToGoTypeIndexBuilder) build() (_ methodToGoTypeIndex, retErr error) {
 	if o.w == nil {
-		return nil, fmt.Errorf("builder is closed")
+		return nil, errors.New("builder is closed")
 	}
 	defer func() { o.w = nil }()
 	if err := o.w.Flush(); err != nil {

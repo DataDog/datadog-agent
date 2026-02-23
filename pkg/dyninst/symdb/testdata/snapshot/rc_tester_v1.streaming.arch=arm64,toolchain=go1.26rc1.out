@@ -1,0 +1,50 @@
+Main module: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs
+Package: main
+	Function: HandleHTTP (main.HandleHTTP) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/rc_tester_v1/main.go [79:88] injectible: [79-88]
+		Arg: w: net/http.ResponseWriter (declared at line 79, available: [79-88])
+		Arg: r: *net/http.Request (declared at line 79, available: [79-88])
+		Var: &buf: *bytes.Buffer (declared at line 85, available: [79-88])
+		Var: span: gopkg.in/DataDog/dd-trace-go.v1/ddtrace.Span (declared at line 80, available: [81-82])
+	Function: HandleHTTP.Printf.func1 (main.HandleHTTP.Printf.func1) in log/log.go [408:409] injectible: [408-409]
+		Arg: b: []uint8 (declared at line 408, available: [408-409])
+		Arg: ~r0: []uint8 (declared at line 408, available: )
+		Var: format: string (declared at line 409, available: [409-409])
+		Var: v: []interface {} (declared at line 409, available: [409-409])
+	Function: LookAtTheRequest (main.LookAtTheRequest) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/rc_tester_v1/main.go [91:93] injectible: [91-93]
+		Arg: path: string (declared at line 91, available: [91-92])
+	Function: LookAtTheRequest.Printf.func1 (main.LookAtTheRequest.Printf.func1) in log/log.go [408:409] injectible: [408-409]
+		Arg: b: []uint8 (declared at line 408, available: [408-409])
+		Arg: ~r0: []uint8 (declared at line 408, available: )
+		Var: format: string (declared at line 409, available: [409-409])
+		Var: v: []interface {} (declared at line 409, available: [409-409])
+	Function: main (main.main) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/rc_tester_v1/main.go [26:77] injectible: [26-29], [33-35], [37-37], [39-41], [44-45], [48-50], [53-54], [57-59], [61-61], [63-64], [66-70], [72-72], [74-77]
+		Var: mux: *gopkg.in/DataDog/dd-trace-go.v1/contrib/net/http/internal/wrap.ServeMux (declared at line 66, available: [63-77])
+		Var: port: int (declared at line 63, available: [64-64])
+		Var: stop: context.CancelFunc (declared at line 27, available: [28-33])
+		Var: tracerEnabled: bool (declared at line 33, available: [26-77])
+		Var: s: *net/http.Server (declared at line 68, available: [63-77])
+		Var: ctx: context.Context (declared at line 27, available: [26-77])
+		Var: ln: net.Listener (declared at line 57, available: [26-77])
+		Var: err: error (declared at line 57, available: [58-59])
+		Var: ~r0.ptr: *uint8 (declared at line 236, available: )
+		Var: ~r0.len: int (declared at line 236, available: )
+		Scope: 40-57
+			Var: ddAgentHost: string (declared at line 40, available: [41-57])
+			Var: ddAgentPort: string (declared at line 44, available: [41-53])
+			Var: opts: []gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.StartOption (declared at line 48, available: )
+	Function: main.Println.func2 (main.main.Println.func2) in log/log.go [416:417] injectible: [416-417]
+		Arg: b: []uint8 (declared at line 416, available: [416-417])
+		Arg: ~r0: []uint8 (declared at line 416, available: )
+		Var: v: []interface {} (declared at line 417, available: [417-417])
+	Function: main.Println.func4 (main.main.Println.func4) in log/log.go [416:417] injectible: [416-417]
+		Arg: b: []uint8 (declared at line 416, available: [416-417])
+		Arg: ~r0: []uint8 (declared at line 416, available: )
+		Var: v: []interface {} (declared at line 417, available: [417-417])
+	Function: main.WithAgentAddr.func3 (main.main.WithAgentAddr.func3) in gopkg.in/DataDog/dd-trace-go.v1@v1.73.1/ddtrace/tracer/option.go [1009:1014] injectible: [1009-1012], [1014-1014]
+		Arg: c: *gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.config (declared at line 1009, available: [1009-1014])
+		Var: addr: string (declared at line 1012, available: [1009-1014])
+	Function: main.func1 (main.main.func1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/rc_tester_v1/main.go [29:31] injectible: [29-31]
+	Function: main.func1.Println.1 (main.main.func1.Println.1) in log/log.go [416:417] injectible: [416-417]
+		Arg: b: []uint8 (declared at line 416, available: [416-417])
+		Arg: ~r0: []uint8 (declared at line 416, available: )
+		Var: v: []interface {} (declared at line 417, available: [417-417])

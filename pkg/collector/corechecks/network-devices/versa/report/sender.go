@@ -7,6 +7,7 @@
 package report
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -148,11 +149,11 @@ func (s *Sender) SendUptimeMetrics(uptimes map[string]float64) {
 func (s *Sender) SendSLAMetrics(slaMetrics []client.SLAMetrics, deviceNameToIDMap map[string]string) {
 	for _, slaMetricsResponse := range slaMetrics {
 		var tags = []string{
-			fmt.Sprintf("local_site:%s", slaMetricsResponse.LocalSite),
-			fmt.Sprintf("remote_site:%s", slaMetricsResponse.RemoteSite),
-			fmt.Sprintf("local_access_circuit:%s", slaMetricsResponse.LocalAccessCircuit),
-			fmt.Sprintf("remote_access_circuit:%s", slaMetricsResponse.RemoteAccessCircuit),
-			fmt.Sprintf("forwarding_class:%s", slaMetricsResponse.ForwardingClass),
+			"local_site:" + slaMetricsResponse.LocalSite,
+			"remote_site:" + slaMetricsResponse.RemoteSite,
+			"local_access_circuit:" + slaMetricsResponse.LocalAccessCircuit,
+			"remote_access_circuit:" + slaMetricsResponse.RemoteAccessCircuit,
+			"forwarding_class:" + slaMetricsResponse.ForwardingClass,
 		}
 		if deviceIP, ok := deviceNameToIDMap[slaMetricsResponse.LocalSite]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
@@ -696,7 +697,7 @@ func parseDiskUsage(diskUsage string) ([]partition, error) {
 // parseMetricValue parses a string metric value to float64
 func parseMetricValue(value string) (float64, error) {
 	if value == "" {
-		return 0, fmt.Errorf("empty metric value")
+		return 0, errors.New("empty metric value")
 	}
 	return strconv.ParseFloat(value, 64)
 }

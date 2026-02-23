@@ -8,11 +8,13 @@ package apiimpl
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	stdLog "log"
 	"net"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/listener"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
@@ -43,7 +45,7 @@ func stopServer(listener net.Listener, name string) {
 
 // StartServers creates certificates and starts API + IPC servers
 func (server *apiServer) startServers() error {
-	apiAddr, err := getIPCAddressPort()
+	apiAddr, err := listener.GetIPCAddressPort()
 	if err != nil {
 		return fmt.Errorf("unable to get IPC address and port: %v", err)
 	}
@@ -65,8 +67,8 @@ func (server *apiServer) startServers() error {
 	}
 
 	// start the IPC server
-	if _, ipcServerHostPort, enabled := getIPCServerAddressPort(); enabled {
-		if err := server.startIPCServer(ipcServerHostPort, tmf); err != nil {
+	if ipcServerPath, enabled := listener.GetIPCServerPath(); enabled {
+		if err := server.startIPCServer(ipcServerPath, tmf); err != nil {
 			// if we fail to start the IPC server, we should stop the CMD server
 			server.stopServers()
 			return fmt.Errorf("unable to start IPC API server: %v", err)
@@ -87,7 +89,7 @@ func (server *apiServer) stopServers() {
 func authTagGetter(serverTLSConfig *tls.Config) (func(r *http.Request) string, error) {
 	// Read the IPC certificate from the server TLS config
 	if serverTLSConfig == nil || len(serverTLSConfig.Certificates) == 0 || len(serverTLSConfig.Certificates[0].Certificate) == 0 {
-		return nil, fmt.Errorf("no certificates found in server TLS config")
+		return nil, errors.New("no certificates found in server TLS config")
 	}
 
 	cert, err := x509.ParseCertificate(serverTLSConfig.Certificates[0].Certificate[0])

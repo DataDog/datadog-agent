@@ -45,14 +45,14 @@ func TestBPFEventLoad(t *testing.T) {
 	}
 
 	t.Run("prog_load", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "-load-bpf")
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "bpf", event.GetType(), "wrong event type")
 			assert.Equal(t, uint32(model.BpfProgTypeKprobe), event.BPF.Program.Type, "wrong program type")
 
 			test.validateBPFSchema(t, event)
-		})
+		}, "test_prog_load")
 	})
 }
 
@@ -82,14 +82,14 @@ func TestBPFEventMap(t *testing.T) {
 	}
 
 	t.Run("map_lookup", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "-load-bpf", "-clone-bpf")
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "bpf", event.GetType(), "wrong event type")
 			assert.Equal(t, uint32(model.BpfMapTypeHash), event.BPF.Map.Type, "wrong map type")
 
 			test.validateBPFSchema(t, event)
-		})
+		}, "test_map_create")
 	})
 }
 
@@ -119,13 +119,13 @@ func TestBPFCwsMapConstant(t *testing.T) {
 	}
 
 	t.Run("map_lookup", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "-load-bpf")
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "bpf", event.GetType(), "wrong event type")
 			assert.Equal(t, uint32(model.BpfMapTypeArray), event.BPF.Map.Type, "wrong map type")
 
 			test.validateBPFSchema(t, event)
-		})
+		}, "test_map_create")
 	})
 }

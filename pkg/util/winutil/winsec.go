@@ -86,14 +86,14 @@ const (
 //revive:disable-next-line:var-naming Name is intended to match the Windows API name
 func GetAclInformation(acl *ACL, info *ACL_SIZE_INFORMATION, class uint32) error {
 	length := unsafe.Sizeof(*info)
-	ret, _, _ := procGetAclInformation.Call(
+	ret, _, e := procGetAclInformation.Call(
 		uintptr(unsafe.Pointer(acl)),
 		uintptr(unsafe.Pointer(info)),
 		uintptr(length),
 		uintptr(class))
 
 	if int(ret) == 0 {
-		return windows.GetLastError()
+		return e
 	}
 	return nil
 }
@@ -128,9 +128,9 @@ func GetNamedSecurityInfo(objectName string, objectType int32, secInfo uint32, o
 //
 //revive:disable-next-line:var-naming Name is intended to match the Windows API name
 func GetAce(acl *ACL, index uint32, ace **ACCESS_ALLOWED_ACE) error {
-	ret, _, _ := procGetAce.Call(uintptr(unsafe.Pointer(acl)), uintptr(index), uintptr(unsafe.Pointer(ace)))
-	if int(ret) != 0 {
-		return windows.GetLastError()
+	ret, _, e := procGetAce.Call(uintptr(unsafe.Pointer(acl)), uintptr(index), uintptr(unsafe.Pointer(ace)))
+	if int(ret) == 0 {
+		return e
 	}
 	return nil
 }
@@ -143,13 +143,13 @@ func GetAce(acl *ACL, index uint32, ace **ACCESS_ALLOWED_ACE) error {
 //revive:disable-next-line:var-naming Name is intended to match the Windows API name
 func CheckTokenMembership(token windows.Token, sid *windows.SID, isMember *bool) error {
 	var isMemberInt int32
-	ret, _, _ := procCheckTokenMembership.Call(
+	ret, _, e := procCheckTokenMembership.Call(
 		uintptr(token),
 		uintptr(unsafe.Pointer(sid)),
 		uintptr(unsafe.Pointer(&isMemberInt)),
 	)
 	if int(ret) == 0 {
-		return windows.GetLastError()
+		return e
 	}
 	*isMember = isMemberInt != 0
 	return nil

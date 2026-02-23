@@ -2,17 +2,27 @@
 # The failed program should be cleaned up and the next program should start.
 - !processes-updated
   updated:
-    - process_id: {pid: 1001}
-      executable: {path: /usr/bin/app1}
+    - process_id: { pid: 1001 }
+      executable: { path: /usr/bin/app1 }
       probes:
-        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
-    - process_id: {pid: 1002}
-      executable: {path: /usr/bin/app2}
+        - {
+            type: LOG_PROBE,
+            id: probe1,
+            where: { methodName: main },
+            captureSnapshot: true,
+          }
+    - process_id: { pid: 1002 }
+      executable: { path: /usr/bin/app2 }
       probes:
-        - {type: LOG_PROBE, id: probe2, where: {methodName: main}, captureSnapshot: true}
-- !loading-failed {program_id: 1, error: "boom"}
-- !loaded {program_id: 2}
-- !attached {program_id: 2, process_id: 1002} 
+        - {
+            type: LOG_PROBE,
+            id: probe2,
+            where: { methodName: main },
+            captureSnapshot: true,
+          }
+- !loading-failed { program_id: 1, error: "boom" }
+- !loaded { program_id: 2 }
+- !attached { program_id: 2, process_id: 1002 }
 ---
 event: !processes-updated
   updated:
@@ -47,14 +57,14 @@ state:
   currently_loading: 1 -> 2
   queued_programs: '[2] -> []'
   processes:
-    1001: WaitingForProgram (prog 1) -> LoadingFailed
+    1001: WaitingForProgram (prog 1) -> Failed
     1002: WaitingForProgram (prog 2)
   programs:
     1: Loading (proc 1001) -> <nil>
     2: Queued (proc 1002) -> Loading (proc 1002)
   stats:
     loadFailed: 0 -> 1
-    numLoadingFailed: 0 -> 1
+    numFailed: 0 -> 1
     numPrograms: 2 -> 1
     numWaitingForProgram: 2 -> 1
 ---
@@ -65,7 +75,7 @@ state:
   currently_loading: 2 -> <nil>
   queued_programs: '[]'
   processes:
-    1001: LoadingFailed
+    1001: Failed
     1002: WaitingForProgram (prog 2) -> Attaching (prog 2)
   programs:
     2: Loading (proc 1002) -> Loaded (proc 1002)
@@ -79,7 +89,7 @@ state:
   currently_loading: <nil>
   queued_programs: '[]'
   processes:
-    1001: LoadingFailed
+    1001: Failed
     1002: Attaching (prog 2) -> Attached (prog 2)
   programs:
     2: Loaded (proc 1002)

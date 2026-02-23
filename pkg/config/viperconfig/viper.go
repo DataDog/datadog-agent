@@ -26,9 +26,9 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/viper"
-	mapstructure "github.com/go-viper/mapstructure/v2"
 	"github.com/mohae/deepcopy"
 
+	"github.com/DataDog/datadog-agent/pkg/config/basic"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -71,6 +71,9 @@ type safeConfig struct {
 
 	existingTransformers map[string]bool
 }
+
+// GetLibType return "viper"
+func (c *safeConfig) GetLibType() string { return "viper" }
 
 // OnUpdate adds a callback to the list receivers to be called each time a value is changed in the configuration
 // by a call to the 'Set' method.
@@ -137,7 +140,7 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 // SetWithoutSource sets the given value using source Unknown, may only be called from tests
 func (c *safeConfig) SetWithoutSource(key string, value interface{}) {
 	c.assertIsTest("SetWithoutSource")
-	if !ValidateBasicTypes(value) {
+	if !basic.ValidateBasicTypes(value) {
 		panic(fmt.Errorf("SetWithoutSource can only be called with basic types (int, string, slice, map, etc), got %v", value))
 	}
 	c.Set(key, value, model.SourceUnknown)
@@ -156,16 +159,18 @@ func (c *safeConfig) UnsetForSource(key string, source model.Source) {
 	// modify the config then release the lock to avoid deadlocks while notifying
 	var receivers []model.NotificationReceiver
 	c.Lock()
-	defer c.Unlock()
+
 	previousValue := c.Viper.Get(key)
 	c.configSources[source].Set(key, nil)
 	c.mergeViperInstances(key)
 	newValue := c.Viper.Get(key) // Can't use nil, so we get the newly computed value
+
 	if previousValue != nil && !reflect.DeepEqual(previousValue, newValue) {
 		// if the value has not changed, do not duplicate the slice so that no callback is called
 		receivers = slices.Clone(c.notificationReceivers)
 		c.sequenceID++
 	}
+	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
@@ -296,6 +301,66 @@ func (c *safeConfig) IsConfigured(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
 	return c.Viper.IsConfigured(key)
+}
+
+func (c *safeConfig) HasSection(key string) bool {
+	c.RLock()
+	defer c.RUnlock()
+
+	for _, src := range model.Sources {
+		if src == model.SourceDefault {
+			continue
+		}
+		if src == model.SourceEnvVar {
+			if c.hasEnvVarSection(key) {
+				return true
+			}
+		} else if c.configSources[src].HasSection(key) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *safeConfig) hasEnvVarSection(key string) bool {
+	// Env var layer doesn't work the same because Viper doesn't store them
+	// Instead use our own cache in envVarTree
+	currTree := c.envVarTree
+	parts := strings.SplitSeq(key, ".")
+	for part := range parts {
+		if elem, found := currTree[part].(map[string]interface{}); found {
+			currTree = elem
+		} else {
+			currTree = nil
+			break
+		}
+	}
+	if currTree != nil {
+		// If the env var corresponds to a non-nil leaf setting, it is configured, not a section
+		fromEnvVar := c.configSources[model.SourceEnvVar].Get(key)
+		if fromEnvVar != nil && fromEnvVar != "" {
+			return false
+		}
+		return c.anyEnvVarsDefined(key, currTree)
+	}
+	return false
+}
+
+func (c *safeConfig) anyEnvVarsDefined(key string, tree interface{}) bool {
+	fromEnvVar := c.configSources[model.SourceEnvVar].Get(key)
+	if fromEnvVar != nil && fromEnvVar != "" {
+		return true
+	}
+	m, ok := tree.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	for k, v := range m {
+		if c.anyEnvVarsDefined(strings.Join([]string{key, ".", k}, ""), v) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *safeConfig) AllKeysLowercased() []string {
@@ -572,8 +637,8 @@ func (c *safeConfig) BindEnv(key string, envvars ...string) {
 
 	// Add the env var into a tree, so we know which setting has children that use env vars
 	currTree := c.envVarTree
-	parts := strings.Split(key, ".")
-	for _, part := range parts {
+	parts := strings.SplitSeq(key, ".")
+	for part := range parts {
 		if elem, found := currTree[part].(map[string]interface{}); found {
 			currTree = elem
 		} else {
@@ -598,21 +663,6 @@ func (c *safeConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 	c.configSources[model.SourceEnvVar].SetEnvKeyReplacer(r)
 	c.Viper.SetEnvKeyReplacer(r)
 	c.envKeyReplacer = r
-}
-
-// UnmarshalKey wraps Viper for concurrent access
-// DEPRECATED: use pkg/config/structure.UnmarshalKey instead
-func (c *safeConfig) UnmarshalKey(key string, rawVal interface{}, opts ...func(*mapstructure.DecoderConfig)) error {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-
-	decodeOptions := []viper.DecoderConfigOption{}
-	for _, opt := range opts {
-		decodeOptions = append(decodeOptions, viper.DecoderConfigOption(opt))
-	}
-
-	return c.Viper.UnmarshalKey(key, rawVal, decodeOptions...)
 }
 
 // ReadInConfig wraps Viper for concurrent access
@@ -740,11 +790,20 @@ func (c *safeConfig) AllSettingsBySource() map[model.Source]interface{} {
 	return res
 }
 
-// AllSettingsWithSequenceID returns the settings and the sequence ID.
-func (c *safeConfig) AllSettingsWithSequenceID() (map[string]interface{}, uint64) {
+// AllFlattenedSettingsWithSequenceID returns all settings as a flattened map along with the sequence ID.
+// Keys are flattened (e.g., "logs_config.enabled" instead of nested {"logs_config": {"enabled": ...}}).
+// This provides atomic access to flattened keys, values, and sequence ID under a single lock.
+func (c *safeConfig) AllFlattenedSettingsWithSequenceID() (map[string]interface{}, uint64) {
 	c.RLock()
 	defer c.RUnlock()
-	return c.Viper.AllSettings(), c.sequenceID
+
+	keys := c.Viper.AllKeys()
+	settings := make(map[string]interface{}, len(keys))
+	for _, key := range keys {
+		val, _ := c.Viper.GetE(key)
+		settings[key] = val
+	}
+	return settings, c.sequenceID
 }
 
 // AddConfigPath wraps Viper for concurrent access
@@ -820,14 +879,14 @@ func (c *safeConfig) GetSubfields(key string) []string {
 	c.Lock()
 	defer c.Unlock()
 
-	res := []string{}
+	var res []string
 	for _, s := range model.Sources {
 		if s == model.SourceEnvVar {
 			// Viper doesn't store env vars in the actual configSource layer, instead
 			// use the envVarTree built by this wrapper to lookup which env vars exist
 			currTree := c.envVarTree
-			parts := strings.Split(key, ".")
-			for _, part := range parts {
+			parts := strings.SplitSeq(key, ".")
+			for part := range parts {
 				if elem, found := currTree[part].(map[string]interface{}); found {
 					currTree = elem
 				} else {

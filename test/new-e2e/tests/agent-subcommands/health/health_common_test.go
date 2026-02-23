@@ -6,19 +6,20 @@
 package health
 
 import (
+	"context"
 	"net/http"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,19 +35,27 @@ func (v *baseHealthSuite) TestDefaultInstallHealthy() {
 
 	var output string
 	var err error
-	err = backoff.Retry(func() error {
-		output, err = v.Env().Agent.Client.Health()
+	output, err = backoff.Retry(context.Background(), func() (string, error) {
+		out, err := v.Env().Agent.Client.Health()
 		if err != nil {
-			return err
+			return "", err
 		}
-		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), uint64(15)))
+		return out, nil
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(interval)), backoff.WithMaxTries(15))
 
 	assert.NoError(v.T(), err)
 	assert.Contains(v.T(), output, "Agent health: PASS")
 }
 
 func (v *baseHealthSuite) TestDefaultInstallUnhealthy() {
+	// restart the agent, which validates the key using the fakeintake at startup
+	v.UpdateEnv(awshost.Provisioner(
+		awshost.WithRunOptions(
+			ec2.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
+			ec2.WithAgentOptions(agentparams.WithAgentConfig("log_level: info\nforwarder_apikey_validation_interval: 1")),
+		),
+	))
+
 	// the fakeintake says that any API key is invalid by sending a 403 code
 	override := api.ResponseOverride{
 		Endpoint:   "/api/v1/validate",
@@ -54,21 +63,16 @@ func (v *baseHealthSuite) TestDefaultInstallUnhealthy() {
 		Method:     http.MethodGet,
 		Body:       []byte("invalid API key"),
 	}
+
 	err := v.Env().FakeIntake.Client().ConfigureOverride(override)
 	require.NoError(v.T(), err)
 
-	// restart the agent, which validates the key using the fakeintake at startup
-	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
-		awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: info\nforwarder_apikey_validation_interval: 1")),
-	))
-
 	require.EventuallyWithT(v.T(), func(collect *assert.CollectT) {
-		// forwarder should be unhealthy because the key is invalid
+		// forwarder should become unhealthy when next checking because the fakeintake will return 403
 		_, err = v.Env().Agent.Client.Health()
 		assert.ErrorContains(collect, err, "Agent health: FAIL")
 		assert.ErrorContains(collect, err, "=== 1 unhealthy components ===\nforwarder")
-	}, time.Second*30, time.Second)
+	}, 2*time.Minute, 10*time.Second)
 
 	// the fakeintake now says that the api key is valid
 	override.StatusCode = 200

@@ -1,15 +1,17 @@
 ARG BASE_IMAGE_UBUNTU_VERSION=24.04
 ARG BASE_IMAGE_UBUNTU_NAME=noble
+ARG BASE_IMAGE_REGISTRY=docker.io
 ARG AGENT_BASE_IMAGE_TAG
 
 # ------------------------------
 # Build the OTel agent
 # ------------------------------
-FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS builder
+FROM ${BASE_IMAGE_REGISTRY}/ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS builder
 ARG BASE_IMAGE_UBUNTU_VERSION
 ARG BASE_IMAGE_UBUNTU_NAME
 
 # Set environment variables
+ARG CI
 ARG DD_GIT_COMMIT_SHA
 ENV DEBIAN_FRONTEND=noninteractive
 

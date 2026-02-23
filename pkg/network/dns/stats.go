@@ -190,9 +190,10 @@ func (d *dnsStatKeeper) WaitForDomain(domain string) error {
 
 	tick := time.NewTicker(10 * time.Millisecond)
 	defer tick.Stop()
+	timeout := time.After(waitForDomainTimeout)
 	for {
 		select {
-		case <-time.After(waitForDomainTimeout):
+		case <-timeout:
 			return fmt.Errorf("domain %v did not appear within %v", domain, waitForDomainTimeout)
 		case <-tick.C:
 			if d.hasDomain(domain) {

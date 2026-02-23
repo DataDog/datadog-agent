@@ -6,10 +6,13 @@
 package defaultforwarder
 
 import (
+	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	pkgresolver "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
@@ -65,20 +69,25 @@ type Forwarder interface {
 	SubmitV1Series(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitV1Intake(payload transaction.BytesPayloads, kind transaction.Kind, extra http.Header) error
 	SubmitV1CheckRuns(payload transaction.BytesPayloads, extra http.Header) error
-	SubmitSeries(payload transaction.BytesPayloads, extra http.Header) error
-	SubmitSketchSeries(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitHostMetadata(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitAgentChecksMetadata(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitMetadata(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitProcessChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
 	SubmitProcessDiscoveryChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
-	SubmitProcessEventChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
 	SubmitRTProcessChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
 	SubmitContainerChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
 	SubmitRTContainerChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
 	SubmitConnectionChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
 	SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, payloadType int) error
 	SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) error
+
+	ForwarderV2
+}
+
+// ForwarderV2 is a minimalist forwarder interface that is product agnostic.
+type ForwarderV2 interface {
+	GetDomainResolvers() []pkgresolver.DomainResolver
+	SubmitTransaction(*transaction.HTTPTransaction) error
 }
 
 // Compile-time check to ensure that DefaultForwarder implements the Forwarder interface
@@ -107,6 +116,7 @@ type Options struct {
 	APIKeyValidationInterval       time.Duration
 	DomainResolvers                map[string]pkgresolver.DomainResolver
 	ConnectionResetInterval        time.Duration
+	Secrets                        secrets.Component
 }
 
 // SetFeature sets forwarder features in a feature set
@@ -206,10 +216,7 @@ func NewOptionsWithResolvers(config config.Component, log log.Component, domainR
 	const forwarderRetryQueueMaxSizeKey = "forwarder_retry_queue_max_size"
 	const forwarderRetryQueuePayloadsMaxSizeKey = "forwarder_retry_queue_payloads_max_size"
 
-	retryQueuePayloadsTotalMaxSize := 15 * 1024 * 1024
-	if config.IsSet(forwarderRetryQueuePayloadsMaxSizeKey) {
-		retryQueuePayloadsTotalMaxSize = config.GetInt(forwarderRetryQueuePayloadsMaxSizeKey)
-	}
+	retryQueuePayloadsTotalMaxSize := config.GetInt(forwarderRetryQueuePayloadsMaxSizeKey)
 
 	option := &Options{
 		NumberOfWorkers:                config.GetInt("forwarder_num_workers"),
@@ -220,8 +227,8 @@ func NewOptionsWithResolvers(config config.Component, log log.Component, domainR
 		ConnectionResetInterval:        time.Duration(config.GetInt("forwarder_connection_reset_interval")) * time.Second,
 	}
 
-	if config.IsSet(forwarderRetryQueueMaxSizeKey) {
-		if config.IsSet(forwarderRetryQueuePayloadsMaxSizeKey) {
+	if config.IsConfigured(forwarderRetryQueueMaxSizeKey) {
+		if config.IsConfigured(forwarderRetryQueuePayloadsMaxSizeKey) {
 			log.Warnf("'%v' is set, but as this setting is deprecated, '%v' is used instead.", forwarderRetryQueueMaxSizeKey, forwarderRetryQueuePayloadsMaxSizeKey)
 		} else {
 			forwarderRetryQueueMaxSize := config.GetInt(forwarderRetryQueueMaxSizeKey)
@@ -298,6 +305,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 		healthChecker: &forwarderHealth{
 			log:                   log,
 			config:                config,
+			secrets:               options.Secrets,
 			domainResolvers:       options.DomainResolvers,
 			disableAPIKeyChecking: options.DisableAPIKeyChecking,
 			validationInterval:    options.APIKeyValidationInterval,
@@ -377,6 +385,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 			fwd := newDomainForwarder(
 				config,
 				log,
+				options.Secrets,
 				domain,
 				resolver.IsMRF(),
 				resolver.IsLocal(),
@@ -430,7 +439,7 @@ func (f *DefaultForwarder) Start() error {
 	defer f.m.Unlock()
 
 	if f.internalState.Load() == Started {
-		return fmt.Errorf("the forwarder is already started")
+		return errors.New("the forwarder is already started")
 	}
 
 	for _, df := range f.domainForwarders {
@@ -519,56 +528,42 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 
 	for _, payload := range payloads {
 		for domain, dr := range f.domainResolvers {
-			drDomain, destinationType := dr.Resolve(endpoint) // drDomain is the domain with agent version if not local
+			drDomain := dr.Resolve(endpoint) // drDomain is the domain with agent version if not local
 
-			if payload.Destination == transaction.LocalOnly {
-				// if it is local payload, we should not send it to the remote endpoint
-				if destinationType == pkgresolver.Local && endpoint == endpoints.SeriesEndpoint {
-					t := transaction.NewHTTPTransaction()
-					t.Domain = drDomain
-					t.Endpoint = endpoint
-					t.Payload = payload
-					t.Priority = priority
-					t.Kind = kind
-					t.StorableOnDisk = storableOnDisk
-					t.Destination = payload.Destination
-					t.Headers.Set("Authorization", fmt.Sprintf("Bearer %s", dr.GetBearerAuthToken()))
-					for key := range extra {
-						t.Headers.Set(key, extra.Get(key))
-					}
-					tlmTxInputCount.Inc(drDomain, endpoint.Name)
-					tlmTxInputBytes.Add(float64(t.GetPayloadSize()), domain, endpoint.Name)
-					transactionsInputCountByEndpoint.Add(endpoint.Name, 1)
-					transactionsInputBytesByEndpoint.Add(endpoint.Name, int64(t.GetPayloadSize()))
-					transactions = append(transactions, t)
+			// Autoscaling failover payloads, and only them, should go to the local resolver.
+			if (payload.Destination == transaction.LocalOnly) != dr.IsLocal() {
+				continue
+			}
+			// Autoscaling failover endpoint can only receive series payloads.
+			if dr.IsLocal() && endpoint != endpoints.SeriesEndpoint {
+				continue
+			}
+
+			for _, auth := range dr.GetAuthorizers() {
+				t := transaction.NewHTTPTransaction()
+				t.Domain = drDomain
+				t.Endpoint = endpoint
+				t.Payload = payload
+				t.Priority = priority
+				t.Kind = kind
+				t.StorableOnDisk = storableOnDisk
+				t.Destination = payload.Destination
+				auth.Authorize(t)
+				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
+				t.Headers.Set(useragentHTTPHeaderKey, "datadog-agent/"+version.AgentVersion)
+				if allowArbitraryTags {
+					t.Headers.Set(arbitraryTagHTTPHeaderKey, "true")
 				}
-			} else {
-				for _, apiKey := range dr.GetAPIKeys() {
-					t := transaction.NewHTTPTransaction()
-					t.Domain = drDomain
-					t.Endpoint = endpoint
-					t.Payload = payload
-					t.Priority = priority
-					t.Kind = kind
-					t.StorableOnDisk = storableOnDisk
-					t.Destination = payload.Destination
-					t.Headers.Set(apiHTTPHeaderKey, apiKey)
-					t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
-					t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
-					if allowArbitraryTags {
-						t.Headers.Set(arbitraryTagHTTPHeaderKey, "true")
-					}
 
-					tlmTxInputCount.Inc(domain, endpoint.Name)
-					tlmTxInputBytes.Add(float64(t.GetPayloadSize()), domain, endpoint.Name)
-					transactionsInputCountByEndpoint.Add(endpoint.Name, 1)
-					transactionsInputBytesByEndpoint.Add(endpoint.Name, int64(t.GetPayloadSize()))
+				tlmTxInputCount.Inc(domain, endpoint.Name)
+				tlmTxInputBytes.Add(float64(t.GetPayloadSize()), domain, endpoint.Name)
+				transactionsInputCountByEndpoint.Add(endpoint.Name, 1)
+				transactionsInputBytesByEndpoint.Add(endpoint.Name, int64(t.GetPayloadSize()))
 
-					for key := range extra {
-						t.Headers.Set(key, extra.Get(key))
-					}
-					transactions = append(transactions, t)
+				for key := range extra {
+					t.Headers.Set(key, extra.Get(key))
 				}
+				transactions = append(transactions, t)
 			}
 		}
 	}
@@ -577,7 +572,7 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 
 func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTransaction) error {
 	if f.internalState.Load() == Stopped {
-		return fmt.Errorf("the forwarder is not started")
+		return errors.New("the forwarder is not started")
 	}
 
 	f.retryQueueDurationCapacityMutex.Lock()
@@ -700,11 +695,6 @@ func (f *DefaultForwarder) SubmitProcessDiscoveryChecks(payload transaction.Byte
 	return f.submitProcessLikePayload(endpoints.ProcessDiscoveryEndpoint, payload, extra, true)
 }
 
-// SubmitProcessEventChecks sends process events checks
-func (f *DefaultForwarder) SubmitProcessEventChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
-	return f.submitProcessLikePayload(endpoints.ProcessLifecycleEndpoint, payload, extra, true)
-}
-
 // SubmitRTProcessChecks sends real time process checks
 func (f *DefaultForwarder) SubmitRTProcessChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
 	return f.submitProcessLikePayload(endpoints.RtProcessesEndpoint, payload, extra, false)
@@ -791,4 +781,26 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, pay
 	}()
 
 	return results, f.sendHTTPTransactions(transactions)
+}
+
+// GetDomainResolvers returns the list of resolvers used by this forwarder.
+func (f *DefaultForwarder) GetDomainResolvers() []pkgresolver.DomainResolver {
+	return slices.Collect(maps.Values(f.domainResolvers))
+}
+
+// SubmitTransaction adds a transaction to the queue for sending.
+func (f *DefaultForwarder) SubmitTransaction(t *transaction.HTTPTransaction) error {
+	t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
+	t.Headers.Set(useragentHTTPHeaderKey, "datadog-agent/"+version.AgentVersion)
+
+	if f.config.GetBool("allow_arbitrary_tags") {
+		t.Headers.Set(arbitraryTagHTTPHeaderKey, "true")
+	}
+
+	tlmTxInputCount.Inc(t.Domain, t.Endpoint.Name)
+	tlmTxInputBytes.Add(float64(t.GetPayloadSize()), t.Domain, t.Endpoint.Name)
+	transactionsInputCountByEndpoint.Add(t.Endpoint.Name, 1)
+	transactionsInputBytesByEndpoint.Add(t.Endpoint.Name, int64(t.GetPayloadSize()))
+
+	return f.sendHTTPTransactions([]*transaction.HTTPTransaction{t})
 }

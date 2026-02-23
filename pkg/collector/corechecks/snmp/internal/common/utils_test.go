@@ -6,7 +6,7 @@
 package common
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -80,14 +80,14 @@ func Test_makeStringBatches(t *testing.T) {
 			[]string{"aa", "bb", "cc", "dd", "ee"},
 			0,
 			nil,
-			fmt.Errorf("batch size must be positive. invalid size: 0"),
+			errors.New("batch size must be positive. invalid size: 0"),
 		},
 		{
 			"negative batch size",
 			[]string{"aa", "bb", "cc", "dd", "ee"},
 			-1,
 			nil,
-			fmt.Errorf("batch size must be positive. invalid size: -1"),
+			errors.New("batch size must be positive. invalid size: -1"),
 		},
 	}
 	for _, tt := range tests {

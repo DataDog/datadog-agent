@@ -15,7 +15,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
@@ -66,7 +66,7 @@ type Tailer struct {
 	evtapi     evtapi.API
 	source     *sources.LogSource
 	config     *Config
-	decoder    *decoder.Decoder
+	decoder    decoder.Decoder
 	outputChan chan *message.Message
 
 	cancelTail context.CancelFunc
@@ -148,7 +148,7 @@ func (t *Tailer) forwardMessages() {
 		close(t.done)
 	}()
 
-	for decodedMessage := range t.decoder.OutputChan {
+	for decodedMessage := range t.decoder.OutputChan() {
 		if len(decodedMessage.GetContent()) > 0 {
 			// Leverage the existing message instead of creating a new one
 			// This preserves all bookmark information and is more efficient
@@ -223,14 +223,16 @@ func (t *Tailer) tail(ctx context.Context, bookmark string) {
 	t.eventLoop(ctx)
 }
 
-func retryForeverWithCancel(ctx context.Context, operation backoff.Operation) error {
+func retryForeverWithCancel(ctx context.Context, operation func() error) error {
 	resetBackoff := backoff.NewExponentialBackOff()
 	resetBackoff.InitialInterval = 1 * time.Second
 	resetBackoff.MaxInterval = 1 * time.Minute
-	// retry never stops if MaxElapsedTime == 0
-	resetBackoff.MaxElapsedTime = 0
 
-	return backoff.Retry(operation, backoff.WithContext(resetBackoff, ctx))
+	// retry never stops if MaxElapsedTime == 0
+	_, err := backoff.Retry(ctx, func() (any, error) {
+		return nil, operation()
+	}, backoff.WithBackOff(resetBackoff), backoff.WithMaxElapsedTime(0))
+	return err
 }
 
 func (t *Tailer) eventLoop(ctx context.Context) {
@@ -325,7 +327,7 @@ func (t *Tailer) handleEvent(eventRecordHandle evtapi.EventRecordHandle) {
 	}
 
 	t.source.RecordBytes(int64(len(msg.GetContent())))
-	t.decoder.InputChan <- msg
+	t.decoder.InputChan() <- msg
 }
 
 // enrichEvent renders event record fields using EvtFormatMessage and adds them to the map.

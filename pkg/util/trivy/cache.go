@@ -12,8 +12,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -33,21 +31,9 @@ const cacheSize = 1600
 // telemetryTick is the frequency at which the cache usage metrics are collected.
 var telemetryTick = 1 * time.Minute
 
-// defaultCacheDir returns/creates the default cache-dir to be used for trivy operations
-func defaultCacheDir() string {
-	tmpDir, err := os.UserCacheDir()
-	if err != nil {
-		tmpDir = os.TempDir()
-	}
-	return filepath.Join(tmpDir, "trivy")
-}
-
 // NewCustomBoltCache returns a BoltDB cache using an LRU algorithm with a
 // maximum disk size and garbage collection of unused images with its custom cleaner.
 func NewCustomBoltCache(wmeta option.Option[workloadmeta.Component], cacheDir string, maxDiskSize int) (CacheWithCleaner, error) {
-	if cacheDir == "" {
-		cacheDir = defaultCacheDir()
-	}
 	db, err := NewBoltDB(cacheDir)
 	if err != nil {
 		return nil, err
@@ -297,7 +283,7 @@ func (c *persistentCache) Clear() error {
 func (c *persistentCache) removeOldest() error {
 	key, ok := c.removeOldestKeyFromMemory()
 	if !ok {
-		return fmt.Errorf("in-memory cache is empty")
+		return errors.New("in-memory cache is empty")
 	}
 
 	evicted := 0
@@ -331,7 +317,7 @@ func (c *persistentCache) reduceSize(target int) error {
 		}
 		if prev == c.currentCachedObjectTotalSize {
 			// if c.currentCachedObjectTotalSize is not updated by removeOldest then an item is stored in the lrucache without being stored in the local storage
-			return fmt.Errorf("cache and db are out of sync")
+			return errors.New("cache and db are out of sync")
 		}
 	}
 	return nil
@@ -388,7 +374,7 @@ func (c *persistentCache) Set(key string, value []byte) error {
 func (c *persistentCache) Get(key string) ([]byte, error) {
 	ok := c.Contains(key)
 	if !ok {
-		return nil, fmt.Errorf("key not found")
+		return nil, errors.New("key not found")
 	}
 
 	res, err := c.db.Get(key)

@@ -2,7 +2,7 @@
 # syntax=docker/dockerfile:1
 
 ## Build
-FROM golang:1.24.9-alpine3.22 AS build
+FROM golang:1.25.7-alpine3.22 AS build
 
 # need gcc to build with CGO_ENABLED=1
 # need musl-dev to get stdlib.h
@@ -28,6 +28,7 @@ COPY test/fakeintake .
 
 # need to explicitely run with CGO enabled
 ENV CGO_ENABLED=1
+ARG CI
 RUN go build -o /fakeintake cmd/server/main.go
 
 ## Deploy

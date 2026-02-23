@@ -58,7 +58,7 @@ func FuzzParseKubernetes(f *testing.F) {
 
 	// Very long content
 	longContent := strings.Repeat("A", 10000)
-	f.Add([]byte(fmt.Sprintf("2018-09-20T11:54:11.753589172Z stdout F %s", longContent)))
+	f.Add([]byte("2018-09-20T11:54:11.753589172Z stdout F " + longContent))
 
 	// Unknown stream types
 	f.Add([]byte("2018-09-20T11:54:11.753589172Z unknown F message"))

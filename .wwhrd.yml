@@ -26,9 +26,6 @@ overrides:
   # https://github.com/aquasecurity/trivy-policies/blob/main/LICENSE
   "github.com/aquasecurity/trivy-policies/pkg/spec": MIT
   "github.com/aquasecurity/trivy-policies/rules/specs": MIT
-  # https://github.com/csaf-poc/csaf_distribution/blob/main/LICENSES/MIT.txt
-  "github.com/csaf-poc/csaf_distribution/v3/csaf": MIT
-  "github.com/csaf-poc/csaf_distribution/v3/util": MIT
   # https://bitbucket.org/atlassian/go-asap/src/master/LICENSE.txt
   "bitbucket.org/atlassian/go-asap/v2": Apache-2.0
   # https://github.com/JohnCGriffin/overflow/blob/master/README.md
@@ -44,7 +41,11 @@ exceptions:
   - "golang.org/x/mod/..."
   - "golang.org/x/xerrors/..."
   - "github.com/stretchr/testify"
+  # Build tools, not embedded in the software
+  - "github.com/goware/modvendor"
+  - "github.com/go-enry/go-license-detector/..."
+
 
 additional:
   # list here paths to additional licenses
-  golang/go: "raw.githubusercontent.com/golang/go/go1.24.9/LICENSE"
+  golang/go: "raw.githubusercontent.com/golang/go/go1.25.7/LICENSE"

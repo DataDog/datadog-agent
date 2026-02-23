@@ -9,6 +9,7 @@ package gotype
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"iter"
@@ -44,7 +45,7 @@ func NewTable(obj object.File) (*Table, error) {
 		return s.Addr <= moduleData.Types && moduleData.Types < s.Addr+s.Size
 	})
 	if idx == -1 {
-		return nil, fmt.Errorf("section containing types not found")
+		return nil, errors.New("section containing types not found")
 	}
 	const rodataName = ".rodata"
 	rodata := sections[idx]

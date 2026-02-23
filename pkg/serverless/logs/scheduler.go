@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package logs provides log collection and scheduling for serverless environments.
 package logs
 
 import (
@@ -42,12 +43,4 @@ func SetLogsTags(tags []string) {
 	if logsScheduler != nil {
 		logsScheduler.SetLogsTags(tags)
 	}
-}
-
-//nolint:revive // TODO(SERV) Fix revive linter
-func GetLogsTags() []string {
-	if logsScheduler != nil {
-		return logsScheduler.GetLogsTags()
-	}
-	return nil
 }

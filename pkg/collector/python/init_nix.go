@@ -20,6 +20,10 @@ import (
 
 #include <datadog_agent_rtloader.h>
 #include <rtloader_mem.h>
+
+static inline void call_free(void* ptr) {
+    _free(ptr);
+}
 */
 import "C"
 
@@ -41,7 +45,7 @@ func initializePlatform() error {
 	if C.handle_crashes(C.int(cCoreDump), C.int(cStacktraceCollection), &handlerErr) == 0 {
 		log.Errorf("Unable to install crash handler, C-land stacktraces and dumps will be unavailable: %s", C.GoString(handlerErr))
 		if handlerErr != nil {
-			C._free(unsafe.Pointer(handlerErr))
+			C.call_free(unsafe.Pointer(handlerErr))
 		}
 	}
 

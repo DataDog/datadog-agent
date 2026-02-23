@@ -10,8 +10,10 @@ package marshal
 import (
 	"bytes"
 	"io"
+	"slices"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
@@ -35,7 +37,20 @@ func newHTTPEncoder(httpPayloads map[http.Key]*http.RequestStats) *httpEncoder {
 	}
 }
 
-func (e *httpEncoder) EncodeConnection(c network.ConnectionStats, builder *model.ConnectionBuilder) (uint64, map[string]struct{}) {
+func (e *httpEncoder) EncodeConnectionDirect(c network.ConnectionStats, conn *model.Connection, buf *bytes.Buffer) (staticTags uint64, dynamicTags map[string]struct{}) {
+	staticTags, dynamicTags = e.encodeData(c, buf)
+	conn.HttpAggregations = slices.Clone(buf.Bytes())
+	return
+}
+
+func (e *httpEncoder) EncodeConnection(c network.ConnectionStats, builder *model.ConnectionBuilder) (staticTags uint64, dynamicTags map[string]struct{}) {
+	builder.SetHttpAggregations(func(b *bytes.Buffer) {
+		staticTags, dynamicTags = e.encodeData(c, b)
+	})
+	return
+}
+
+func (e *httpEncoder) encodeData(c network.ConnectionStats, w io.Writer) (uint64, map[string]struct{}) {
 	if e == nil {
 		return 0, nil
 	}
@@ -45,18 +60,6 @@ func (e *httpEncoder) EncodeConnection(c network.ConnectionStats, builder *model
 		return 0, nil
 	}
 
-	var (
-		staticTags  uint64
-		dynamicTags map[string]struct{}
-	)
-
-	builder.SetHttpAggregations(func(b *bytes.Buffer) {
-		staticTags, dynamicTags = e.encodeData(connectionData, b)
-	})
-	return staticTags, dynamicTags
-}
-
-func (e *httpEncoder) encodeData(connectionData *USMConnectionData[http.Key, *http.RequestStats], w io.Writer) (uint64, map[string]struct{}) {
 	var staticTags uint64
 	dynamicTags := make(map[string]struct{})
 	e.httpAggregationsBuilder.Reset(w)

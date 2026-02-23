@@ -1,0 +1,41 @@
+---
+.integration_tests_windows_base:
+  stage: integration_test
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs: ["go_deps", "go_tools_deps"]
+  extends: .windows_docker_default
+  before_script:
+    - $tmpfile = [System.IO.Path]::GetTempFileName()
+    - (& "$CI_PROJECT_DIR\tools\ci\fetch_secret.ps1" -parameterName "$Env:VCPKG_BLOB_SAS_URL" -tempFile "$tmpfile")
+    - If ($lastExitCode -ne "0") { exit "$lastExitCode" }
+    - $vcpkgBlobSaSUrl=$(cat "$tmpfile")
+    - Remove-Item "$tmpfile"
+  script:
+    - $ErrorActionPreference = "Stop"
+    # we pass in CI_JOB_URL and CI_JOB_NAME so that they can be added to additional tags
+    # inside JUNIT_TAR and then later used by datadog-ci
+    - >
+      docker run --rm
+      -m 16384M
+      -v "$(Get-Location):c:\mnt"
+      -e CI
+      -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS="${DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS}"
+      -e CI_JOB_URL
+      -e CI_JOB_NAME
+      -e CI_PIPELINE_ID
+      -e CI_PROJECT_NAME
+      -e CI_IDENTITIES_GITLAB_ID_TOKEN
+      -e AWS_NETWORKING=true
+      -e GOMODCACHE="c:\modcache"
+      -e VCPKG_BINARY_SOURCES="clear;x-azblob,${vcpkgBlobSaSUrl}"
+      -e PIP_INDEX_URL
+      ${WINBUILDIMAGE}
+      powershell.exe -c "c:\mnt\tasks\winbuildscripts\Invoke-IntegrationTests.ps1 -BuildOutOfSource 1 -CheckGoVersion 1 -InstallDeps 1"
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+
+integration_tests_windows-x64:
+  extends: .integration_tests_windows_base
+  variables:
+    ARCH: "x64"

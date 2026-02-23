@@ -1,0 +1,6 @@
+---
+upgrade:
+  - |
+    system-probe will now attempt to read `datadog.yaml` from the same directory as `system-probe.yaml`.
+    Previously, system-probe would always use the default configuration directory to read `datadog.yaml`.
+    If you need to specify a different directory for `datadog.yaml`, you may use the `--datadogcfgpath` CLI argument to system-probe.

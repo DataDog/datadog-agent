@@ -38,6 +38,11 @@ func TestSysinfoCommand(t *testing.T) {
 	maxNameFlag := cmd.Flags().Lookup("max-name-length")
 	require.NotNil(t, maxNameFlag, "--max-name-length flag should exist")
 	require.Equal(t, "25", maxNameFlag.DefValue, "--max-name-length should default to 25")
+
+	// Verify --max-service-length flag exists
+	maxServiceFlag := cmd.Flags().Lookup("max-service-length")
+	require.NotNil(t, maxServiceFlag, "--max-service-length flag should exist")
+	require.Equal(t, "20", maxServiceFlag.DefValue, "--max-service-length should default to 20")
 }
 
 func TestLanguageDetectionGo(t *testing.T) {

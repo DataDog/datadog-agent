@@ -1,0 +1,173 @@
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "strip_prefix")
+
+package(default_package_metadata = [":package_metadata"])
+
+VERSION = "1.10.5"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        package = "libpcap",
+        version = VERSION,
+        download_url = "https://www.tcpdump.org/release/libpcap-{version}.tar.xz",
+    ),
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:BSD-3-Clause"],
+    license_text = "LICENSE",
+    visibility = ["//visibility:public"],
+)
+
+PUBLIC_HEADERS = [
+    "pcap.h",
+    "pcap/bluetooth.h",
+    "pcap/bpf.h",
+    "pcap/can_socketcan.h",
+    "pcap/compiler-tests.h",
+    "pcap/dlt.h",
+    "pcap/funcattrs.h",
+    "pcap/ipnet.h",
+    "pcap/namedb.h",
+    "pcap/nflog.h",
+    "pcap/pcap-inttypes.h",
+    "pcap/pcap.h",
+    "pcap/sll.h",
+    "pcap/socket.h",
+    "pcap/usb.h",
+    "pcap/vlan.h",
+]
+
+cc_library(
+    name = "pcap",
+    # This may over include .h files
+    srcs = [
+        "arcnet.h",
+        "atmuni31.h",
+        "bpf_dump.c",
+        "bpf_filter.c",
+        "bpf_image.c",
+        "charconv.h",
+        "config.h",
+        "diag-control.h",
+        "dlpisubs.h",
+        "etherent.c",
+        "ethertype.h",
+        "extract.h",
+        "fad-getad.c",
+        "fmtutils.c",
+        "fmtutils.h",
+        "ftmacros.h",
+        "gencode.c",
+        "gencode.h",
+        "grammar.c",
+        "grammar.h",
+        "ieee80211.h",
+        "llc.h",
+        "nametoaddr.c",
+        "nametoaddr.h",
+        "nlpid.h",
+        "optimize.c",
+        "optimize.h",
+        "pcap-airpcap.h",
+        "pcap-bpf.h",
+        "pcap-bt-linux.h",
+        "pcap-bt-monitor-linux.h",
+        "pcap-common.c",
+        "pcap-common.h",
+        "pcap-dag.h",
+        "pcap-dbus.h",
+        "pcap-dos.h",
+        "pcap-dpdk.h",
+        "pcap-int.h",
+        "pcap-linux.c",
+        "pcap-namedb.h",
+        "pcap-netfilter-linux.c",
+        "pcap-netfilter-linux.h",
+        "pcap-netmap.h",
+        "pcap-rdmasniff.h",
+        "pcap-rpcap.h",
+        "pcap-septel.h",
+        "pcap-sita.h",
+        "pcap-snf.h",
+        "pcap-tc.h",
+        "pcap-types.h",
+        "pcap-usb-linux-common.h",
+        "pcap-usb-linux.h",
+        "pcap-util.c",
+        "pcap-util.h",
+        "pcap.c",
+        "pcap.h",
+        "pflog.h",
+        "portability.h",
+        "ppp.h",
+        "rpcap-protocol.h",
+        "savefile.c",
+        "scanner.c",
+        "scanner.h",
+        "sf-pcap.c",
+        "sf-pcap.h",
+        "sf-pcapng.c",
+        "sf-pcapng.h",
+        "sockutils.h",
+        "sslutils.h",
+        "sunatmpos.h",
+        "thread-local.h",
+        "varattrs.h",
+        "missing/strlcpy.c",
+    ],
+    hdrs = PUBLIC_HEADERS,
+    includes = [
+        ".",
+        "pcap",
+    ],
+    copts = [
+        "-Wno-implicit-function-declaration",
+        "-O2",
+    ],
+    linkstatic = True,
+    local_defines = [
+        # Tricky stuff. pcap.h changes behavior if you are bulding or using it.
+        "BUILDING_PCAP",
+        "pcap_EXPORTS",
+        "HAVE_CONFIG_H",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+pkg_files(
+    name = "lib_files",
+    srcs = [":pcap"],
+    prefix = "lib",
+)
+
+pkg_files(
+    name = "hdr_files",
+    srcs = PUBLIC_HEADERS,
+    prefix = "include",
+    strip_prefix = strip_prefix.from_pkg(),
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":hdr_files",
+        ":lib_files",
+    ],
+    visibility = ["@@//packages:__subpackages__"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
+)

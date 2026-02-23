@@ -110,6 +110,7 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "{arr: [71, 72], x: 73}"
   }
 ]

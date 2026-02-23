@@ -8,15 +8,11 @@
 package workload
 
 import (
-	"context"
-	"time"
-
 	corev1 "k8s.io/api/core/v1"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
@@ -25,14 +21,21 @@ import (
 )
 
 const (
-	subsystem              = "autoscaling_workload"
-	aliveTelemetryInterval = 5 * time.Minute
+	subsystem = "autoscaling_workload"
 )
 
 var (
 	autoscalingQueueMetricsProvider = workqueuetelemetry.NewQueueMetricsProvider()
 	commonOpts                      = telemetry.Options{NoDoubleUnderscoreSep: true}
 
+	// telemetryReceivedRecommendationsVersion tracks the version of the received recommendations by the config retriever
+	telemetryReceivedRecommendationsVersion = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"received_recommendations_version",
+		[]string{"namespace", "target_name", "autoscaler_name", le.JoinLeaderLabel},
+		"Tracks the version of the received recommendations by the config retriever",
+		commonOpts,
+	)
 	// telemetryHorizontalScaleActions tracks the number of horizontal scaling attempts
 	telemetryHorizontalScaleActions = telemetry.NewCounterWithOpts(
 		subsystem,
@@ -45,7 +48,7 @@ var (
 	telemetryHorizontalScaleReceivedRecommendations = telemetry.NewGaugeWithOpts(
 		subsystem,
 		"horizontal_scaling_received_replicas",
-		[]string{"namespace", "target_name", "autoscaler_name", "source", "version", le.JoinLeaderLabel},
+		[]string{"namespace", "target_name", "autoscaler_name", "source", le.JoinLeaderLabel},
 		"Tracks the value of replicas applied by the horizontal scaling recommendation",
 		commonOpts,
 	)
@@ -70,16 +73,16 @@ var (
 	telemetryVerticalScaleReceivedRecommendationsRequests = telemetry.NewGaugeWithOpts(
 		subsystem,
 		"vertical_scaling_received_requests",
-		[]string{"namespace", "target_name", "autoscaler_name", "source", "version", "container_name", "resource_name", le.JoinLeaderLabel},
-		"Tracks the value of requests received by the vertical scaling recommendation",
+		[]string{"namespace", "target_name", "autoscaler_name", "source", "container_name", "resource_name", le.JoinLeaderLabel},
+		"Tracks the value of requests received by the config retriever",
 		commonOpts,
 	)
 	// telemetryVerticalScaleReceivedRecommendationsLimits tracks the vertical scaling recommendation limits received
 	telemetryVerticalScaleReceivedRecommendationsLimits = telemetry.NewGaugeWithOpts(
 		subsystem,
 		"vertical_scaling_received_limits",
-		[]string{"namespace", "target_name", "autoscaler_name", "source", "version", "container_name", "resource_name", le.JoinLeaderLabel},
-		"Tracks the value of limits received by the vertical scaling controller",
+		[]string{"namespace", "target_name", "autoscaler_name", "source", "container_name", "resource_name", le.JoinLeaderLabel},
+		"Tracks the value of limits received by the config retriever",
 		commonOpts,
 	)
 
@@ -103,6 +106,7 @@ var (
 
 	// telemetryMetricsForDeletion contains all gauge metrics that need to be cleaned up when deleting pod autoscaler telemetry
 	telemetryMetricsForDeletion = []telemetry.Gauge{
+		telemetryReceivedRecommendationsVersion,
 		telemetryHorizontalScaleAppliedRecommendations,
 		telemetryHorizontalScaleReceivedRecommendations,
 		telemetryVerticalScaleReceivedRecommendationsLimits,
@@ -111,7 +115,7 @@ var (
 	}
 )
 
-func trackPodAutoscalerReceivedValues(podAutoscaler model.PodAutoscalerInternal, version string) {
+func trackPodAutoscalerReceivedValues(podAutoscaler model.PodAutoscalerInternal, version uint64) {
 	// Emit telemetry for received values
 	// Target name cannot normally be empty, but we handle it just in case
 	var targetName string
@@ -121,6 +125,15 @@ func trackPodAutoscalerReceivedValues(podAutoscaler model.PodAutoscalerInternal,
 
 	scalingValues := podAutoscaler.MainScalingValues()
 
+	// Track received recommendations version
+	telemetryReceivedRecommendationsVersion.Set(
+		float64(version),
+		podAutoscaler.Namespace(),
+		targetName,
+		podAutoscaler.Name(),
+		le.JoinLeaderValue,
+	)
+
 	// Horizontal value
 	if podAutoscaler.MainScalingValues().Horizontal != nil {
 		telemetryHorizontalScaleReceivedRecommendations.Set(
@@ -129,7 +142,6 @@ func trackPodAutoscalerReceivedValues(podAutoscaler model.PodAutoscalerInternal,
 			targetName,
 			podAutoscaler.Name(),
 			string(scalingValues.Horizontal.Source),
-			version,
 			le.JoinLeaderValue,
 		)
 	}
@@ -146,7 +158,6 @@ func trackPodAutoscalerReceivedValues(podAutoscaler model.PodAutoscalerInternal,
 					string(scalingValues.Vertical.Source),
 					containerResources.Name,
 					string(resource),
-					version,
 					le.JoinLeaderValue,
 				)
 			}
@@ -160,7 +171,6 @@ func trackPodAutoscalerReceivedValues(podAutoscaler model.PodAutoscalerInternal,
 					string(scalingValues.Vertical.Source),
 					containerResources.Name,
 					string(resource),
-					version,
 					le.JoinLeaderValue,
 				)
 			}
@@ -224,27 +234,4 @@ func unsetHorizontalScaleAppliedRecommendations(ns, targetName, autoscalerName s
 	}
 
 	telemetryHorizontalScaleAppliedRecommendations.DeletePartialMatch(tags)
-}
-
-func startLocalTelemetry(ctx context.Context, sender sender.Sender, tags []string) {
-	submit := func() {
-		sender.Gauge("datadog.cluster_agent.autoscaling.workload.running", 1, "", tags)
-		sender.Commit()
-	}
-
-	go func() {
-		ticker := time.NewTicker(aliveTelemetryInterval)
-		defer ticker.Stop()
-
-		// Submit once immediately and then every ticker
-		submit()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				submit()
-			}
-		}
-	}()
 }

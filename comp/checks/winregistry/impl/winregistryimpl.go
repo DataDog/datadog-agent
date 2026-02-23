@@ -157,7 +157,7 @@ func (c *WindowsRegistryCheck) Configure(senderManager sender.SenderManager, int
 				agentLog.Errorf("configuration error: %s (%v)", err, err.Value())
 			}
 		}
-		return fmt.Errorf("configuration validation failed")
+		return errors.New("configuration validation failed")
 	}
 
 	var initCfg checkInitCfg

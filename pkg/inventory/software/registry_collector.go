@@ -10,14 +10,15 @@ package software
 import (
 	"errors"
 	"fmt"
-	"golang.org/x/sys/windows"
-	"golang.org/x/sys/windows/registry"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"syscall"
 	"time"
+
+	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 )
 
 // Registry value names from Windows Registry
@@ -60,7 +61,9 @@ type registryCollector struct{}
 func (rc *registryCollector) Collect() ([]*Entry, []*Warning, error) {
 	var results []*Entry
 	var warnings []*Warning
-	paths := []struct {
+
+	// For HKLM, 32-bit software is in Wow6432Node
+	hklmPaths := []struct {
 		root   registry.Key
 		subkey string
 		view   uint32
@@ -69,8 +72,17 @@ func (rc *registryCollector) Collect() ([]*Entry, []*Warning, error) {
 		{registry.LOCAL_MACHINE, `SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall`, registry.WOW64_32KEY},
 	}
 
+	// For HKCU/HKU, there's no Wow6432Node - use the same path with different views
+	hkuPaths := []struct {
+		subkey string
+		view   uint32
+	}{
+		{`SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall`, registry.WOW64_64KEY},
+		{`SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall`, registry.WOW64_32KEY},
+	}
+
 	// 1. Global (HKLM)
-	for _, p := range paths {
+	for _, p := range hklmPaths {
 		entries, warns := collectFromKey(p.root, p.subkey, p.view)
 		warnings = append(warnings, warns...)
 		results = append(results, entries...)
@@ -89,7 +101,7 @@ func (rc *registryCollector) Collect() ([]*Entry, []*Warning, error) {
 			if !strings.HasPrefix(sid, "S-1-5-21-") {
 				continue
 			}
-			for _, p := range paths {
+			for _, p := range hkuPaths {
 				entries, warns := collectFromKey(registry.USERS, sid+`\`+p.subkey, p.view)
 				warnings = append(warnings, warns...)
 				for _, entry := range entries {
@@ -120,7 +132,7 @@ func (rc *registryCollector) Collect() ([]*Entry, []*Warning, error) {
 		ntuser := filepath.Join(profile.ProfilePath, "NTUSER.DAT")
 		if _, err = os.Stat(ntuser); err == nil {
 			if err = mountHive(ntuser); err == nil {
-				for _, p := range paths {
+				for _, p := range hkuPaths {
 					entries, warns := collectFromKey(registry.USERS, `temp\`+p.subkey, p.view)
 					warnings = append(warnings, warns...)
 					for _, entry := range entries {

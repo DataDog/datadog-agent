@@ -85,7 +85,7 @@ func dogstatsdCapture(_ log.Component, config config.Component, cliParams *cliPa
 	defer cancel()
 
 	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", ipc.GetAuthToken())}, // TODO IPC: replace with GRPC Client
+		"authorization": []string{"Bearer " + ipc.GetAuthToken()}, // TODO IPC: replace with GRPC Client
 	}
 	ctx = metadata.NewOutgoingContext(ctx, md)
 

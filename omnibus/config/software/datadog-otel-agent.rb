@@ -4,6 +4,7 @@
 # Copyright 2016-present Datadog, Inc.
 
 require './lib/ostools.rb'
+require './lib/fips.rb'
 require './lib/project_helpers.rb'
 require 'pathname'
 
@@ -12,6 +13,7 @@ name 'datadog-otel-agent'
 source path: '..',
        options: {
          exclude: [
+           "**/.cache/**/*",
            "**/testdata/**/*",
          ],
        }
@@ -24,6 +26,7 @@ build do
 
     # set GOPATH on the omnibus source dir for this software
     gopath = Pathname.new(project_dir) + '../../../..'
+    flavor_arg = ENV['AGENT_FLAVOR']
 
     # include embedded path (mostly for `pkg-config` binary)
     #
@@ -33,7 +36,7 @@ build do
     env = with_embedded_path()
     env = {
         'GOPATH' => gopath.to_path,
-        'PATH' => ["#{gopath.to_path}/bin", env['PATH']].join(File::PATH_SEPARATOR),
+        'PATH' => [gopath / 'bin', env['PATH']].join(File::PATH_SEPARATOR),
         "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
         "CGO_CFLAGS" => "-I. -I#{install_dir}/embedded/include",
         "CGO_LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
@@ -46,23 +49,30 @@ build do
 
     env = with_standard_compiler_flags(env)
 
+    if fips_mode?
+      add_msgo_to_env(env)
+    end
+
     if windows_target?
-      conf_dir = "#{install_dir}/etc/datadog-agent"
+      conf_dir = File.join(install_dir, 'etc', 'datadog-agent')
+      binary_name = 'otel-agent.exe'
     else
       conf_dir = "/etc/datadog-agent"
+      binary_name = 'otel-agent'
     end
-    embedded_bin_dir = "#{install_dir}/embedded/bin"
+    embedded_bin_dir = File.join(install_dir, 'embedded', 'bin')
 
     mkdir conf_dir
     mkdir embedded_bin_dir
 
-    command "dda inv -- -e otel-agent.build", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e otel-agent.build --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
 
-    if windows_target?
-      copy 'bin/otel-agent/otel-agent.exe', embedded_bin_dir
-    else
-      copy 'bin/otel-agent/otel-agent', embedded_bin_dir
+    copy File.join('bin', 'otel-agent', binary_name), embedded_bin_dir
+    move 'bin/otel-agent/dist/otel-config.yaml', File.join(conf_dir, 'otel-config.yaml.example')
+
+    if fips_mode?
+      block do
+        fips_check_binary_for_expected_symbol(File.join(embedded_bin_dir, binary_name))
+      end
     end
-
-    move 'bin/otel-agent/dist/otel-config.yaml', "#{conf_dir}/otel-config.yaml.example"
 end

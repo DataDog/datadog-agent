@@ -65,11 +65,7 @@
             "locals": {
               "~r0": {
                 "type": "main.behavior",
-                "fields": {
-                  "data": {
-                    "isNull": true
-                  }
-                }
+                "isNull": true
               }
             }
           }
@@ -77,7 +73,8 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "42"
   },
   {
     "service": "sample",
@@ -168,7 +165,8 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "{s: foo}"
   },
   {
     "service": "sample",
@@ -260,6 +258,7 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "{s: foo}"
   }
 ]

@@ -1,6 +1,8 @@
 ARG BASE_IMAGE_UBUNTU_VERSION=24.04
 ARG BASE_IMAGE_UBUNTU_NAME=noble
-FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS baseimage
+ARG BASE_IMAGE_REGISTRY=docker.io
+
+FROM ${BASE_IMAGE_REGISTRY}/ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS baseimage
 ARG BASE_IMAGE_UBUNTU_VERSION
 ARG BASE_IMAGE_UBUNTU_NAME
 LABEL baseimage.os="ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
@@ -8,14 +10,14 @@ LABEL baseimage.name="ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
 LABEL org.opencontainers.image.base.name="ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
 LABEL org.opencontainers.image.title="Datadog Agent"
 
-ARG CIBUILD
+ARG CI
 # NOTE about APT mirrorlists:
 # It seems that this feature could use some improvement. If you just get mirrorlist
 # from mirrors.ubuntu.com/mirrors.txt, it might contain faulty mirrors that either
 # cause `apt update` to fail with exit code 100 or make it hang on `0% [Working]`
 # indefinitely. Therefore we create a mirrorlist with the 2 mirrors that we know
 # should be reliable enough in combination and also well maintained.
-RUN if [ "$CIBUILD" = "true" ]; then \
+RUN if [ "$CI" = "true" ]; then \
   echo "http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu" > /etc/apt/mirrorlist.main && \
   echo "http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports" > /etc/apt/mirrorlist.ports && \
   sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
@@ -84,7 +86,7 @@ RUN apt full-upgrade -y \
   # When the network check will have switched from using ss to directly parsing /proc/net/tcp,
   # this can be removed
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
-  && apt install -y iproute2 libseccomp2 tzdata adduser
+  && apt install --no-install-recommends -y iproute2 libseccomp2 tzdata adduser
 
 ARG WITH_JMX
 ARG WITH_JMX_FIPS
@@ -136,8 +138,6 @@ ARG TARGETARCH
 ARG WITH_JMX
 
 ARG DD_AGENT_ARTIFACT=datadog-agent*-$TARGETARCH.tar.xz
-# copy everything - globbing with args wont work
-COPY ${DD_AGENT_ARTIFACT} /
 WORKDIR /output
 
 # Configuration:
@@ -156,8 +156,7 @@ COPY install_info etc/datadog-agent/
 #   - jmxfetch on nojmx build
 
 RUN --mount=from=artifacts,target=/artifacts \
- find /artifacts -maxdepth 1 -type f -name "datadog-*-$TARGETARCH.tar.xz" ! -name "$DD_AGENT_ARTIFACT" -exec rm {} \; \
- && find /artifacts -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec tar xvf {} -C . \; \
+ find /artifacts -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec tar xvf {} -C . \; \
  && rm -rf usr etc/init lib \
     go/ \
     opt/datadog-agent/embedded/bin/installer \
@@ -192,14 +191,17 @@ COPY --from=extract /output/ /
 
 # Prepare for running without root
 # - Create a dd-agent:root user and give it permissions on relevant folders
+# - Create a dd-scriptuser for the script action of the private action runner and give access from dd-agent
 # - Remove the /var/run -> /run symlink and create a legit /var/run folder
 # as some docker versions re-create /run from zero at container start
 RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agent \
   && addgroup --system secret-manager \
   && usermod -a -G secret-manager dd-agent \
-  && rm /var/run && mkdir -p /var/run/s6 && mkdir -p /var/run/datadog \
-  && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ \
-  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ \
+  && adduser --system --no-create-home --disabled-password dd-scriptuser --shell /bin/sh \
+  && sed -i '/@include common-auth/i auth sufficient pam_succeed_if.so user = dd-scriptuser ruser = dd-agent' /etc/pam.d/su \
+  && rm /var/run && mkdir -p /var/run/s6 && mkdir -p /var/run/datadog && mkdir -p /opt/datadog-agent/run \
+  && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
+  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
   && chmod 755 /probe.sh /initlog.sh \
   && chown root:secret-manager /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh \
   && chmod 550 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh

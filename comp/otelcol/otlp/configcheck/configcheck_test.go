@@ -370,3 +370,162 @@ otlp_config:
 		})
 	}
 }
+
+func TestReadConfigSection(t *testing.T) {
+	cfg := configmock.New(t)
+	pkgconfigsetup.OTLP(cfg)
+
+	tmpFile, err := os.CreateTemp("", "test-config-*.yaml")
+	require.NoError(t, err, "Failed to create temp file")
+	defer os.Remove(tmpFile.Name())
+
+	yamlData := `
+otlp_config:
+  traces:
+    enabled: true
+    infra_attributes:
+      enabled: false
+  logs:
+    enabled: true
+  receiver:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+`
+	_, err = tmpFile.WriteString(yamlData)
+	require.NoError(t, err, "Failed to write YAML to temp file")
+	tmpFile.Close()
+
+	cfg.SetConfigFile(tmpFile.Name())
+	err = cfg.ReadInConfig()
+	require.NoError(t, err, "Failed to read YAML config")
+
+	// IsEnabled should return true if ReadConfigSection can find the receiver key
+	//isEnabled := IsEnabled(cfg)
+	configSection := readConfigSection(cfg, "otlp_config")
+
+	expectMap := map[string]interface{}{
+		"logs::enabled":                                      true,
+		"logs::batch::flush_timeout":                         "200ms",
+		"logs::batch::max_size":                              0,
+		"logs::batch::min_size":                              8192,
+		"metrics::enabled":                                   true,
+		"metrics::batch::flush_timeout":                      "200ms",
+		"metrics::batch::max_size":                           0,
+		"metrics::batch::min_size":                           8192,
+		"metrics::instrumentation_scope_metadata_as_tags":    true,
+		"metrics::tag_cardinality":                           "low",
+		"receiver::protocols::grpc::endpoint":                "0.0.0.0:4317",
+		"traces::enabled":                                    true,
+		"traces::infra_attributes::enabled":                  false,
+		"traces::internal_port":                              5003,
+		"traces::probabilistic_sampler::sampling_percentage": float64(100),
+		"traces::span_name_as_resource_name":                 false,
+		"traces::span_name_remappings":                       map[string]string{},
+	}
+
+	assert.Equal(t, expectMap, configSection)
+}
+
+func TestReadConfigEmptySection(t *testing.T) {
+	cfg := configmock.New(t)
+	pkgconfigsetup.OTLP(cfg)
+
+	tmpFile, err := os.CreateTemp("", "test-config-*.yaml")
+	require.NoError(t, err, "Failed to create temp file")
+	defer os.Remove(tmpFile.Name())
+
+	yamlData := `
+otlp_config:
+  traces:
+    enabled: true
+  logs:
+    enabled: true
+  receiver:
+`
+	_, err = tmpFile.WriteString(yamlData)
+	require.NoError(t, err, "Failed to write YAML to temp file")
+	tmpFile.Close()
+
+	cfg.SetConfigFile(tmpFile.Name())
+	err = cfg.ReadInConfig()
+	require.NoError(t, err, "Failed to read YAML config")
+
+	// IsEnabled should return true if ReadConfigSection can find the receiver key
+	//isEnabled := IsEnabled(cfg)
+	configSection := readConfigSection(cfg, "otlp_config")
+
+	expectMap := map[string]interface{}{
+		"logs::enabled":                                      true,
+		"logs::batch::flush_timeout":                         "200ms",
+		"logs::batch::max_size":                              0,
+		"logs::batch::min_size":                              8192,
+		"metrics::enabled":                                   true,
+		"metrics::batch::flush_timeout":                      "200ms",
+		"metrics::batch::max_size":                           0,
+		"metrics::batch::min_size":                           8192,
+		"metrics::instrumentation_scope_metadata_as_tags":    true,
+		"metrics::tag_cardinality":                           "low",
+		"receiver":                                           nil,
+		"traces::enabled":                                    true,
+		"traces::infra_attributes::enabled":                  true,
+		"traces::internal_port":                              5003,
+		"traces::probabilistic_sampler::sampling_percentage": float64(100),
+		"traces::span_name_as_resource_name":                 false,
+		"traces::span_name_remappings":                       map[string]string{},
+	}
+
+	assert.Equal(t, expectMap, configSection)
+}
+
+func TestReadConfigSectionEnvVars(t *testing.T) {
+	t.Setenv("TEST_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT", "0.0.0.0:9999")
+	t.Setenv("TEST_OTLP_CONFIG_DEBUG_VERBOSITY", "normal")
+
+	cfg := configmock.New(t)
+	pkgconfigsetup.OTLP(cfg)
+
+	tmpFile, err := os.CreateTemp("", "test-config-*.yaml")
+	require.NoError(t, err, "Failed to create temp file")
+	defer os.Remove(tmpFile.Name())
+
+	yamlData := `
+otlp_config:
+  traces:
+    enabled: true
+  logs:
+    enabled: true
+`
+	_, err = tmpFile.WriteString(yamlData)
+	require.NoError(t, err, "Failed to write YAML to temp file")
+	tmpFile.Close()
+
+	cfg.SetConfigFile(tmpFile.Name())
+	err = cfg.ReadInConfig()
+	require.NoError(t, err, "Failed to read YAML config")
+
+	// IsEnabled should return true if ReadConfigSection can find the receiver key
+	//isEnabled := IsEnabled(cfg)
+	configSection := readConfigSection(cfg, "otlp_config")
+
+	expectMap := map[string]interface{}{
+		"logs::enabled":                                      true,
+		"logs::batch::flush_timeout":                         "200ms",
+		"logs::batch::max_size":                              0,
+		"logs::batch::min_size":                              8192,
+		"metrics::enabled":                                   true,
+		"metrics::batch::flush_timeout":                      "200ms",
+		"metrics::batch::max_size":                           0,
+		"metrics::batch::min_size":                           8192,
+		"metrics::instrumentation_scope_metadata_as_tags":    true,
+		"metrics::tag_cardinality":                           "low",
+		"traces::enabled":                                    true,
+		"traces::infra_attributes::enabled":                  true,
+		"traces::internal_port":                              5003,
+		"traces::probabilistic_sampler::sampling_percentage": float64(100),
+		"traces::span_name_as_resource_name":                 false,
+		"traces::span_name_remappings":                       map[string]string{},
+	}
+
+	assert.Equal(t, expectMap, configSection)
+}

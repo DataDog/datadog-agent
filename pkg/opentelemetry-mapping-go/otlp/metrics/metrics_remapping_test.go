@@ -15,7 +15,7 @@
 package metrics
 
 import (
-	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -1027,7 +1027,7 @@ func TestHasAny(t *testing.T) {
 			out:   true,
 		},
 	} {
-		require.Equal(t, hasAny(p(tt.attrs), tt.tags...), tt.out, fmt.Sprint(i))
+		require.Equal(t, hasAny(p(tt.attrs), tt.tags...), tt.out, strconv.Itoa(i))
 	}
 }
 

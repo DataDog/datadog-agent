@@ -90,12 +90,12 @@ func startTimeTicksFromProcStat(
 	buf = buf[len(pidBytes):]
 	commStart := bytes.IndexByte(buf, '(')
 	if commStart == -1 {
-		return 0, fmt.Errorf("comm not found in stat file")
+		return 0, errors.New("comm not found in stat file")
 	}
 	buf = buf[commStart+1:]
 	commEnd := bytes.LastIndexByte(buf, ')')
 	if commEnd == -1 {
-		return 0, fmt.Errorf("comm not found in stat file")
+		return 0, errors.New("comm not found in stat file")
 	}
 	buf = buf[commEnd+1:]
 	fieldIdx := 2                // we've read the pid and comm
@@ -108,7 +108,7 @@ func startTimeTicksFromProcStat(
 		}
 	}
 	if len(fieldData) == 0 {
-		return 0, fmt.Errorf("starttime not found in stat file")
+		return 0, errors.New("starttime not found in stat file")
 	}
 
 	starttime := unsafe.String(unsafe.SliceData(fieldData), len(fieldData))

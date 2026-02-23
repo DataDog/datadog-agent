@@ -12,7 +12,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"strconv"
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -21,15 +20,26 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
-	"github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	secutils "github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 var logLimiter = log.NewLogLimit(20, 10*time.Minute)
 
-const nsPidCacheSize = 1024
+var eccErrorTypeToName = map[nvml.MemoryErrorType]string{
+	nvml.MEMORY_ERROR_TYPE_CORRECTED:   "corrected",
+	nvml.MEMORY_ERROR_TYPE_UNCORRECTED: "uncorrected",
+}
+
+var memoryLocationToName = map[nvml.MemoryLocation]string{
+	nvml.MEMORY_LOCATION_L1_CACHE:       "l1_cache",
+	nvml.MEMORY_LOCATION_L2_CACHE:       "l2_cache",
+	nvml.MEMORY_LOCATION_DEVICE_MEMORY:  "device_memory",
+	nvml.MEMORY_LOCATION_REGISTER_FILE:  "register_file",
+	nvml.MEMORY_LOCATION_TEXTURE_MEMORY: "texture_memory",
+	nvml.MEMORY_LOCATION_TEXTURE_SHM:    "texture_shm",
+	nvml.MEMORY_LOCATION_CBU:            "cbu",
+	nvml.MEMORY_LOCATION_SRAM:           "sram",
+}
 
 // boolToFloat converts a boolean value to float64 (1.0 for true, 0.0 for false)
 func boolToFloat(val bool) float64 {
@@ -75,11 +85,10 @@ func fieldValueToNumber[V number](valueType nvml.ValueType, value [8]byte) (V, e
 // filterSupportedAPIs tests each API call against the device and returns only the supported ones
 func filterSupportedAPIs(device ddnvml.Device, apiCalls []apiCallInfo) []apiCallInfo {
 	var supportedAPIs []apiCallInfo
-
 	for _, apiCall := range apiCalls {
 		// Test API support by calling the handler with timestamp=0 and ignoring results
 		_, _, err := apiCall.Handler(device, 0)
-		if err == nil || !ddnvml.IsUnsupported(err) {
+		if err == nil || !ddnvml.IsAPIUnsupportedOnDevice(err, device) {
 			supportedAPIs = append(supportedAPIs, apiCall)
 		}
 	}
@@ -102,14 +111,14 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 
 	tagsMapping := make(map[string][]string, devCount)
 
-	allPhysicalDevices, err := deviceCache.AllPhysicalDevices()
+	allDevices, err := deviceCache.All()
 	if err != nil {
 		if logLimiter.ShouldLog() {
 			log.Warnf("Error getting all physical devices: %s", err)
 		}
 		return nil
 	}
-	for _, dev := range allPhysicalDevices {
+	for _, dev := range allDevices {
 		uuid := dev.GetDeviceInfo().UUID
 		entityID := taggertypes.NewEntityID(taggertypes.GPU, uuid)
 		tags, err := tagger.Tag(entityID, taggertypes.ChecksConfigCardinality)
@@ -120,7 +129,7 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 		if len(tags) == 0 {
 			// If we get no tags (either WMS hasn't collected GPUs yet, or we are running the check standalone with 'agent check')
 			// add at least the UUID as a tag to distinguish the values.
-			tags = []string{fmt.Sprintf("gpu_uuid:%s", uuid)}
+			tags = []string{"gpu_uuid:" + uuid}
 		}
 
 		tagsMapping[uuid] = tags
@@ -160,14 +169,17 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 // ]
 func RemoveDuplicateMetrics(allMetrics map[CollectorName][]Metric) []Metric {
 	// Map metric name -> collector ID -> []Metric (with that name)
-	nameToCollectorMetrics := make(map[string]map[CollectorName][]Metric)
+	nameToCollectorMetrics := make(map[string]map[CollectorName]map[MetricPriority][]Metric)
 
 	for collectorID, metrics := range allMetrics {
 		for _, m := range metrics {
 			if _, ok := nameToCollectorMetrics[m.Name]; !ok {
-				nameToCollectorMetrics[m.Name] = make(map[CollectorName][]Metric)
+				nameToCollectorMetrics[m.Name] = make(map[CollectorName]map[MetricPriority][]Metric)
 			}
-			nameToCollectorMetrics[m.Name][collectorID] = append(nameToCollectorMetrics[m.Name][collectorID], m)
+			if _, ok := nameToCollectorMetrics[m.Name][collectorID]; !ok {
+				nameToCollectorMetrics[m.Name][collectorID] = make(map[MetricPriority][]Metric)
+			}
+			nameToCollectorMetrics[m.Name][collectorID][m.Priority] = append(nameToCollectorMetrics[m.Name][collectorID][m.Priority], m)
 		}
 	}
 
@@ -176,103 +188,18 @@ func RemoveDuplicateMetrics(allMetrics map[CollectorName][]Metric) []Metric {
 	// For each metric name, pick all matching metrics from the collector with the highest-priority metric of that name
 	for _, collectorMetrics := range nameToCollectorMetrics {
 		maxPriority := Low
-		var winningCollectorID CollectorName
-		for collectorID, metrics := range collectorMetrics {
-			for _, m := range metrics {
-				if m.Priority >= maxPriority {
-					maxPriority = m.Priority
-					winningCollectorID = collectorID
+		var winningMetrics []Metric
+		for _, priorityMetrics := range collectorMetrics {
+			for priority, metrics := range priorityMetrics {
+				if priority >= maxPriority {
+					maxPriority = priority
+					winningMetrics = metrics
 				}
 			}
 		}
 		// Add all metrics for that name from the winning collector
-		result = append(result, collectorMetrics[winningCollectorID]...)
+		result = append(result, winningMetrics...)
 	}
 
 	return result
-}
-
-type nsPidCacheEntry struct {
-	nspid uint32
-	valid bool
-}
-
-// NsPidCache obtains the pid relative to the innermost namespace of a process given its host pid.
-type NsPidCache struct {
-	pidToNsPid *simplelru.LRU[uint32, *nsPidCacheEntry]
-}
-
-// Invalidate invalidates all cache entries. They might still be used through GetNsPid
-// by using the useInvalidCacheOnProcfsFail flag.
-func (c *NsPidCache) Invalidate() {
-	if c.pidToNsPid == nil {
-		return
-	}
-	for entry := range c.pidToNsPid.ValuesIter() {
-		entry.valid = false
-	}
-}
-
-// GetNsPid returns the innermost namespaced pid for the process with the given host pid.
-// Returns a cached value is available and valid. Otherwise, it attempts reading from procs
-// and store the result in cache. If that fails, and useInvalidCacheOnProcfsFail is true,
-// an invalidated cached value is stil returned if available. Otherwise, returns an error.
-func (c *NsPidCache) GetNsPid(hostPid uint32, useInvalidCacheOnProcfsFail bool) (uint32, error) {
-	if c.pidToNsPid == nil {
-		var err error
-		c.pidToNsPid, err = simplelru.NewLRU[uint32, *nsPidCacheEntry](nsPidCacheSize, nil)
-		if err != nil {
-			return 0, fmt.Errorf("failed creating pidToNsPid cache: %w", err)
-		}
-	}
-
-	entry, ok := c.pidToNsPid.Get(hostPid)
-	if ok && entry.valid {
-		return entry.nspid, nil
-	}
-
-	nsPid, err := c.readProcFs(hostPid)
-	if err == nil {
-		c.pidToNsPid.Add(hostPid, &nsPidCacheEntry{nspid: nsPid, valid: true})
-		return nsPid, nil
-	}
-
-	if ok && !entry.valid && useInvalidCacheOnProcfsFail {
-		return entry.nspid, nil
-	}
-
-	return 0, err
-}
-
-// GetNsPidOrHostPid is the same as GetNsPid, but returns the host pid in case of error.
-// This makes it impossible to determine whether or not the process really runs in the host,
-// however since this is used mostly for tags and allow us to always have non-empty values.
-func (c *NsPidCache) GetNsPidOrHostPid(hostPid uint32, useInvalidCacheOnProcfsFail bool) uint32 {
-	nsPid, err := c.GetNsPid(hostPid, useInvalidCacheOnProcfsFail)
-	if err == nil {
-		return nsPid
-	}
-
-	if logLimiter.ShouldLog() {
-		log.Debugf("failed getting nspid for %d, fallback to host pid: %v", hostPid, err)
-	}
-	return hostPid
-
-}
-
-// note: given /proc/X/task/Y/status, we have no guarantee that tasks Y will all
-// have the same NSpid values, specially in case of unusual pid namespace setups.
-// As such, we attempt reading the nspid for only on the main thread (group leader)
-// in /proc/X/task/X/status, or fail otherwise
-func (c *NsPidCache) readProcFs(hostPid uint32) (nsPid uint32, err error) {
-	nspids, err := secutils.GetNsPids(hostPid, strconv.FormatUint(uint64(hostPid), 10))
-	if err != nil {
-		return 0, fmt.Errorf("failed reading nspids for host pid %d: %w", hostPid, err)
-	}
-	if len(nspids) == 0 {
-		return 0, fmt.Errorf("found no nspids for host pid %d", hostPid)
-	}
-
-	// we look only at the last one, as it the most inner one and corresponding to its /proc/pid/ns/pid
-	return nspids[len(nspids)-1], nil
 }

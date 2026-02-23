@@ -39,6 +39,7 @@ type Module struct {
 	BuildTags           []string
 	Fields              map[string]*StructField // Fields only contains fields that are exposed in SECL
 	AllFields           map[string]*StructField
+	AllStructFields     interface{} // used for event deep copy generation
 	Iterators           map[string]*StructField
 	EventTypes          map[string]*EventTypeMetadata
 	FileFields          []FileField
@@ -62,6 +63,7 @@ type StructField struct {
 	ReturnType       string
 	IsArray          bool
 	IsLength         bool
+	IsRootDomain     bool
 	Event            string
 	Handler          string
 	Helper           bool // specify the handler as just a helper and not a real resolver. It means that this handler won't be called by the ResolveFields function

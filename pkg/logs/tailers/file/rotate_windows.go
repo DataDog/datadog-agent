@@ -10,7 +10,6 @@ package file
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -19,7 +18,7 @@ import (
 // On Windows, log rotation is identified by the file size being smaller
 // than the last offset read.
 func (t *Tailer) DidRotate() (bool, error) {
-	f, err := filesystem.OpenShared(t.fullpath)
+	f, err := t.fileOpener.OpenLogFile(t.fullpath)
 	if err != nil {
 		return false, fmt.Errorf("open %q: %w", t.fullpath, err)
 	}

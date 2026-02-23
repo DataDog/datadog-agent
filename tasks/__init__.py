@@ -41,6 +41,8 @@ from tasks import (
     installer,
     invoke_unit_tests,
     issue,
+    k8s_versions,
+    kind_node_image,
     kmt,
     linter,
     loader,
@@ -58,13 +60,15 @@ from tasks import (
     pipeline,
     pkg_template,
     pre_commit,
+    privateactionrunner,
     process_agent,
     protobuf,
+    python_version,
     quality_gates,
     release,
     rtloader,
     sbomgen,
-    sds,
+    secret_generic_connector,
     security_agent,
     selinux,
     setup,
@@ -83,6 +87,14 @@ from tasks import (
 from tasks.build_tags import audit_tag_impact, print_default_build_tags
 from tasks.components import lint_components, lint_fxutil_oneshot_test
 from tasks.custom_task.custom_task import custom__call__
+
+# e2e-framework tasks
+from tasks.e2e_framework import aws as e2e_aws
+from tasks.e2e_framework import azure as e2e_azure
+from tasks.e2e_framework import gcp as e2e_gcp
+from tasks.e2e_framework import localpodman as e2e_localpodman
+from tasks.e2e_framework import test as e2e_test
+from tasks.e2e_framework.setup import setup as e2e_setup
 from tasks.fuzz import fuzz
 from tasks.fuzz_infra import build_and_upload_fuzz
 from tasks.go import (
@@ -116,10 +128,15 @@ from tasks.install_tasks import (
     download_tools,
     install_devcontainer_cli,
     install_protoc,
+    install_rust_license_tool,
     install_shellcheck,
     install_tools,
 )
 from tasks.junit_tasks import junit_upload
+from tasks.licenses import (
+    generate_rust_licenses,
+    lint_rust_licenses,
+)
 from tasks.show_linters_issues.show_linters_issues import show_linters_issues
 from tasks.update_go import go_version, update_go
 from tasks.windows_resources import build_messagetable
@@ -136,6 +153,8 @@ ns.add_task(deps)
 ns.add_task(deps_vendored)
 ns.add_task(lint_licenses)
 ns.add_task(generate_licenses)
+ns.add_task(lint_rust_licenses)
+ns.add_task(generate_rust_licenses)
 ns.add_task(lint_components)
 ns.add_task(lint_fxutil_oneshot_test)
 ns.add_task(reset)
@@ -147,6 +166,7 @@ ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)
 ns.add_task(install_shellcheck)
 ns.add_task(install_protoc)
+ns.add_task(install_rust_license_tool)
 ns.add_task(install_devcontainer_cli)
 ns.add_task(download_tools)
 ns.add_task(install_tools)
@@ -170,7 +190,6 @@ ns.add_task(mod_diffs)
 ns.add_task(build_and_upload_fuzz)
 # To deprecate
 ns.add_task(lint_go)
-
 # add namespaced tasks to the root
 ns.add_collection(auth)
 ns.add_collection(agent)
@@ -206,12 +225,12 @@ ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(quality_gates)
 ns.add_collection(protobuf)
+ns.add_collection(python_version, "python-version")
 ns.add_collection(notes)
 ns.add_collection(notify)
 ns.add_collection(oracle)
 ns.add_collection(otel_agent)
 ns.add_collection(full_host_profiler)
-ns.add_collection(sds)
 ns.add_collection(selinux)
 ns.add_collection(setup)
 ns.add_collection(systray)
@@ -219,13 +238,17 @@ ns.add_collection(release)
 ns.add_collection(rtloader)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)
+ns.add_collection(privateactionrunner)
 ns.add_collection(testwasher)
+ns.add_collection(secret_generic_connector)
 ns.add_collection(security_agent)
 ns.add_collection(cws_instrumentation)
 ns.add_collection(vscode)
 ns.add_collection(new_e2e_tests)
 ns.add_collection(fakeintake)
 ns.add_collection(kmt)
+ns.add_collection(k8s_versions)
+ns.add_collection(kind_node_image)
 ns.add_collection(diff)
 ns.add_collection(installer)
 ns.add_collection(owners)
@@ -243,6 +266,19 @@ ns.add_collection(worktree)
 ns.add_collection(sbomgen)
 ns.add_collection(pkg_template)
 ns.add_collection(virustotal)
+
+# e2e-framework collections (from test/e2e-framework)
+ns.add_collection(e2e_aws.collection, "aws")
+ns.add_collection(e2e_azure.collection, "az")
+ns.add_collection(e2e_gcp.collection, "gcp")
+ns.add_collection(e2e_localpodman.collection, "localpodman")
+
+# e2e namespace with setup, ci, and test
+e2e_ns = Collection("e2e")
+e2e_ns.add_collection(e2e_setup)
+e2e_ns.add_collection(e2e_test)
+ns.add_collection(e2e_ns)
+
 ns.configure(
     {
         "run": {

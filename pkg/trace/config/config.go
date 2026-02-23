@@ -81,16 +81,14 @@ type OTLP struct {
 	// AttributesTranslator specifies an OTLP to Datadog attributes translator.
 	AttributesTranslator *ddattributes.Translator `mapstructure:"-"`
 
-	// IgnoreMissingDatadogFields specifies whether we should recompute DD span fields if the corresponding "datadog."
-	// namespaced span attributes are missing. If it is false (default), we will use the incoming "datadog." namespaced
-	// OTLP span attributes to construct the DD span, and if they are missing, we will recompute them from the other
-	// OTLP semantic convention attributes. If it is true, we will only populate a field if its associated "datadog."
-	// OTLP span attribute exists, otherwise we will leave it empty.
-	IgnoreMissingDatadogFields bool `mapstructure:"ignore_missing_datadog_fields"`
-
 	// GrpcMaxRecvMsgSizeMib specifies the max receive message size (in Mib) in OTLP receiver gRPC server in the trace agent binary.
 	// This config only applies to Agent OTLP ingestion. It does not apply to OSS Datadog exporter/connector or DDOT.
 	GrpcMaxRecvMsgSizeMib int `mapstructure:"-"`
+
+	// IgnoreMissingDatadogFields is deprecated and no longer used.
+	// It is kept for backwards compatibility with external packages.
+	// Deprecated: This field is ignored - the Agent now always uses standard OTel semantic conventions.
+	IgnoreMissingDatadogFields bool `mapstructure:"-"`
 }
 
 // ObfuscationConfig holds the configuration for obfuscating sensitive data
@@ -360,11 +358,12 @@ type AgentConfig struct {
 	Endpoints []*Endpoint
 
 	// Concentrator
-	BucketInterval         time.Duration // the size of our pre-aggregation per bucket
-	ExtraAggregators       []string      // DEPRECATED
-	PeerTagsAggregation    bool          // enables/disables stats aggregation for peer entity tags, used by Concentrator and ClientStatsAggregator
-	ComputeStatsBySpanKind bool          // enables/disables the computing of stats based on a span's `span.kind` field
-	PeerTags               []string      // additional tags to use for peer entity stats aggregation
+	BucketInterval            time.Duration // the size of our pre-aggregation per bucket
+	ExtraAggregators          []string      // DEPRECATED
+	PeerTagsAggregation       bool          // enables/disables stats aggregation for peer entity tags, used by Concentrator and ClientStatsAggregator
+	ComputeStatsBySpanKind    bool          // enables/disables the computing of stats based on a span's `span.kind` field
+	PeerTags                  []string      // additional tags to use for peer entity stats aggregation
+	SpanDerivedPrimaryTagKeys []string      // tag keys to use for span-derived primary tag stats aggregation
 
 	// Sampler configuration
 	ExtraSampleRate float64
@@ -518,6 +517,8 @@ type AgentConfig struct {
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
+	// ContainerTagsBuffer enables buffering of payloads until full container tags extraction
+	ContainerTagsBuffer bool
 
 	// ContainerIDFromOriginInfo ...
 	ContainerIDFromOriginInfo func(originInfo origindetection.OriginInfo) (string, error) `json:"-"`
@@ -531,12 +532,8 @@ type AgentConfig struct {
 	// Install Signature
 	InstallSignature InstallSignatureConfig
 
-	// Lambda function name
-	LambdaFunctionName string
-
-	// Azure serverless apps tags, in the form of a comma-separated list of
-	// key-value pairs, starting with a comma
-	AzureServerlessTags string
+	// Additional profile tags are statically defined tags to attach to proxied profiles, this is primarily used by serverless
+	AdditionalProfileTags map[string]string
 
 	// AuthToken is the auth token for the agent
 	AuthToken string `json:"-"`
@@ -553,11 +550,11 @@ type AgentConfig struct {
 	// DebugV1Payloads enables debug logging for V1 payloads when they fail to decode
 	DebugV1Payloads bool
 
-	// EnableV1TraceEndpoint enables the V1 trace endpoint, it is hidden by default
-	EnableV1TraceEndpoint bool
-
 	// SendAllInternalStats enables all internal stats to be published, otherwise some less-frequently-used stats will be omitted when zero to save costs
 	SendAllInternalStats bool
+
+	// APMMode specifies whether using "edge" APM mode. May support other modes in the future. If unset, it has no impact.
+	APMMode string
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -623,8 +620,6 @@ func New() *AgentConfig {
 		StatsdPort:    8125,
 		StatsdEnabled: true,
 
-		LambdaFunctionName: os.Getenv("AWS_LAMBDA_FUNCTION_NAME"),
-
 		MaxMemory:        5e8, // 500 Mb, should rarely go above 50 Mb
 		MaxCPU:           0.5, // 50%, well behaving agents keep below 5%
 		WatchdogInterval: 10 * time.Second,
@@ -641,13 +636,14 @@ func New() *AgentConfig {
 		Proxy:                     http.ProxyFromEnvironment,
 		OTLPReceiver:              &OTLP{},
 		ContainerTags:             noopContainerTagsFunc,
+		ContainerTagsBuffer:       false, // disabled here for otlp collector exporter, enabled in comp/trace-agent
 		ContainerIDFromOriginInfo: NoopContainerIDFromOriginInfoFunc,
 		TelemetryConfig: &TelemetryConfig{
 			Endpoints: []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
 		},
 		EVPProxy: EVPProxy{
 			Enabled:        true,
-			MaxPayloadSize: 5 * 1024 * 1024,
+			MaxPayloadSize: 10 * 1024 * 1024,
 		},
 		OpenLineageProxy: OpenLineageProxy{
 			Enabled:    true,
@@ -667,7 +663,7 @@ func computeGlobalTags() map[string]string {
 
 	tags := make(map[string]string)
 	if inECSManagedInstancesSidecar() {
-		tags["origin"] = "ecs_managed_instances"
+		tags["_dd.origin"] = "ecs_managed_instances"
 	}
 	return tags
 }
@@ -767,6 +763,16 @@ func (c *AgentConfig) ConfiguredPeerTags() []string {
 		return nil
 	}
 	return preparePeerTags(append(basePeerTags, c.PeerTags...))
+}
+
+// ConfiguredSpanDerivedPrimaryTagKeys returns the set of span-derived primary tag keys that should be used
+// for stats aggregation. These tag keys will be used to extract tags from spans
+// for use in aggregation keys, similar to peer tags.
+func (c *AgentConfig) ConfiguredSpanDerivedPrimaryTagKeys() []string {
+	if len(c.SpanDerivedPrimaryTagKeys) == 0 {
+		return nil
+	}
+	return preparePeerTags(c.SpanDerivedPrimaryTagKeys)
 }
 
 func inAzureAppServices() bool {

@@ -10,7 +10,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 )
@@ -26,18 +26,18 @@ func (s *baseSuite) SetupSuite() {
 
 	s.currentAPMInjectVersion = installerwindows.NewVersionFromPackageVersion(os.Getenv("CURRENT_APM_INJECT_VERSION"))
 	if s.currentAPMInjectVersion.PackageVersion() == "" {
-		s.currentAPMInjectVersion = installerwindows.NewVersionFromPackageVersion("0.50.0-dev.ba30ecb.glci1208428525.g594e53fe-1")
+		s.currentAPMInjectVersion = installerwindows.NewVersionFromPackageVersion("0.52.0-dev.b282e14.glci1291404213.g7ff18a26-1")
 	}
 	s.previousAPMInjectVersion = installerwindows.NewVersionFromPackageVersion(os.Getenv("PREVIOUS_APM_INJECT_VERSION"))
 	if s.previousAPMInjectVersion.PackageVersion() == "" {
-		s.previousAPMInjectVersion = installerwindows.NewVersionFromPackageVersion("0.50.0-dev.beb48a5.glci1208433719.g08c01dc4-1")
+		s.previousAPMInjectVersion = installerwindows.NewVersionFromPackageVersion("0.50.0-dev.ba30ecb.glci1208428525.g594e53fe-1")
 	}
 }
 func (s *baseSuite) assertSuccessfulPromoteExperiment() {
 	s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller().Status().
 		HasPackage("datadog-apm-inject")
 	// verify the driver is running by checking the service status
-	s.Require().NoError(s.WaitForServicesWithBackoff("Running", backoff.NewConstantBackOff(30*time.Second), "ddinjector"))
+	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"ddinjector"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 }
 
 func (s *baseSuite) assertDriverInjections(enabled bool) {
@@ -55,8 +55,8 @@ $env:DD_INJECT_LOG_LEVEL = "debug"
 	output, err := host.Execute(script)
 	s.Require().NoError(err)
 	if enabled {
-		s.Require().Contains(output, "Instrumenting Java")
+		s.Require().Contains(output, "main executable path")
 	} else {
-		s.Require().NotContains(output, "Instrumenting Java")
+		s.Require().NotContains(output, "main executable path")
 	}
 }

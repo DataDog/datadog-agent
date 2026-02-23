@@ -9,11 +9,11 @@
 package systemprobe
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/infra"
 	"github.com/DataDog/datadog-agent/test/new-e2e/system-probe/connector/metric"
 )
 
@@ -131,7 +131,7 @@ type retryHandler struct {
 
 func errorMetric(errType string) datadogV2.MetricPayload {
 	tags := []string{
-		fmt.Sprintf("error:%s", errType),
+		"error:" + errType,
 	}
 	return datadogV2.MetricPayload{
 		Series: []datadogV2.MetricSeries{
@@ -219,7 +219,7 @@ func storeNumberOfRetriesForCITags(retries int) error {
 	}
 	defer f.Close()
 
-	_, err = f.WriteString(fmt.Sprintf("%d", retries))
+	_, err = f.WriteString(strconv.Itoa(retries))
 	return err
 }
 

@@ -74,7 +74,7 @@ func TestBTFMapDumping(t *testing.T) {
 
 		// Dump the map
 		var buf bytes.Buffer
-		err = dumpMapJSON(m, info, &buf)
+		err = dumpMapJSON(m, info, &buf, false)
 		require.NoError(t, err, "failed to dump int_map")
 		output := buf.String()
 
@@ -123,7 +123,7 @@ func TestBTFMapDumping(t *testing.T) {
 
 		// Dump the map
 		var buf bytes.Buffer
-		err = dumpMapJSON(m, info, &buf)
+		err = dumpMapJSON(m, info, &buf, false)
 		require.NoError(t, err, "failed to dump struct_map")
 		output := buf.String()
 
@@ -170,7 +170,7 @@ func TestBTFMapDumping(t *testing.T) {
 
 		// Dump the map
 		var buf bytes.Buffer
-		err = dumpMapJSON(m, info, &buf)
+		err = dumpMapJSON(m, info, &buf, false)
 		require.NoError(t, err, "failed to dump array_map")
 		output := buf.String()
 
@@ -209,7 +209,7 @@ func TestBTFMapDumping(t *testing.T) {
 
 		// Dump the map
 		var buf bytes.Buffer
-		err = dumpMapJSON(m, info, &buf)
+		err = dumpMapJSON(m, info, &buf, false)
 		require.NoError(t, err, "failed to dump enum_map")
 		output := buf.String()
 
@@ -267,7 +267,7 @@ func TestBTFMapDumping(t *testing.T) {
 
 		// Dump the map
 		var buf bytes.Buffer
-		err = dumpMapJSON(m, info, &buf)
+		err = dumpMapJSON(m, info, &buf, false)
 		require.NoError(t, err, "failed to dump percpu_hash_map")
 		output := buf.String()
 
@@ -317,7 +317,7 @@ func TestBTFMapDumping(t *testing.T) {
 
 		// Dump the map
 		var buf bytes.Buffer
-		err = dumpMapJSON(m, info, &buf)
+		err = dumpMapJSON(m, info, &buf, false)
 		require.NoError(t, err, "failed to dump percpu_array_map")
 		output := buf.String()
 

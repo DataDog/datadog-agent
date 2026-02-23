@@ -5,11 +5,10 @@
 
 //go:build windows
 
-package olreader
-
-// the olreader (OverlappedReader) provides a generic interface for
-// doing overlapped reads from a particular handle.  The handle is assumed
+// Package olreader (OverlappedReader) provides a generic interface for
+// doing overlapped reads from a particular handle. The handle is assumed
 // to be a DataDog driver handle.
+package olreader
 
 /*
 #include <stdlib.h>
@@ -17,6 +16,7 @@ package olreader
 */
 import "C"
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"syscall"
@@ -104,7 +104,7 @@ func (olr *OverlappedReader) Open(name string) error {
 //nolint:revive // TODO(WKIT) Fix revive linter
 func (olr *OverlappedReader) Read() error {
 	if err := olr.createBuffers(); err != nil {
-		return fmt.Errorf("Failed to create overlapped read buffers")
+		return errors.New("Failed to create overlapped read buffers")
 	}
 	if err := olr.initiateReads(); err != nil {
 		return err
@@ -185,7 +185,7 @@ func (olr *OverlappedReader) initiateReads() error {
 		if buf == nil {
 			// would only happen if `createbuffers` not called, or
 			// cleanbuffers was called.  But ensure pointer is valid
-			return fmt.Errorf("Invalid buffer for read")
+			return errors.New("Invalid buffer for read")
 		}
 		/*
 		 * because this is an overlapped read, this will return ERROR_IO_PENDING

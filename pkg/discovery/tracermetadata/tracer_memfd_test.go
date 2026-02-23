@@ -49,9 +49,9 @@ func TestGetTracerMetadata(t *testing.T) {
 
 		tags := trm.GetTags()
 		assert.Equal(t, []string{
-			"service:my-service",
-			"env:my-env",
-			"version:my-version",
+			"tracer_service_name:my-service",
+			"tracer_service_env:my-env",
+			"tracer_service_version:my-version",
 		}, tags)
 	})
 
@@ -74,9 +74,9 @@ func TestGetTracerMetadata(t *testing.T) {
 
 		tags := trm.GetTags()
 		assert.Equal(t, []string{
-			"service:test-go",
-			"env:prod",
-			"version:abc123",
+			"tracer_service_name:test-go",
+			"tracer_service_env:prod",
+			"tracer_service_version:abc123",
 			"entrypoint.basedir:exe",
 			"entrypoint.name:gotrace",
 			"entrypoint.type:executable",

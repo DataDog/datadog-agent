@@ -9,7 +9,6 @@ import (
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -43,13 +42,12 @@ const (
 
 var (
 	defaultIntervals = map[string]time.Duration{
-		ProcessCheckName:       ProcessCheckDefaultInterval,
-		RTProcessCheckName:     RTProcessCheckDefaultInterval,
-		ContainerCheckName:     ContainerCheckDefaultInterval,
-		RTContainerCheckName:   RTContainerCheckDefaultInterval,
-		ConnectionsCheckName:   ConnectionsCheckDefaultInterval,
-		DiscoveryCheckName:     ProcessDiscoveryCheckDefaultInterval,
-		ProcessEventsCheckName: pkgconfigsetup.DefaultProcessEventsCheckInterval,
+		ProcessCheckName:     ProcessCheckDefaultInterval,
+		RTProcessCheckName:   RTProcessCheckDefaultInterval,
+		ContainerCheckName:   ContainerCheckDefaultInterval,
+		RTContainerCheckName: RTContainerCheckDefaultInterval,
+		ConnectionsCheckName: ConnectionsCheckDefaultInterval,
+		DiscoveryCheckName:   ProcessDiscoveryCheckDefaultInterval,
 	}
 
 	configKeys = map[string]string{
@@ -78,15 +76,6 @@ func GetInterval(cfg pkgconfigmodel.Reader, checkName string) time.Duration {
 			_ = log.Warnf("Invalid interval for process discovery (< %s) using minimum value of %[1]s", discoveryMinInterval.String())
 		}
 		return discoveryInterval
-
-	case ProcessEventsCheckName:
-		eventsInterval := cfg.GetDuration("process_config.event_collection.interval")
-		if eventsInterval < pkgconfigsetup.DefaultProcessEventsMinCheckInterval {
-			eventsInterval = pkgconfigsetup.DefaultProcessEventsCheckInterval
-			_ = log.Warnf("Invalid interval for process_events check (< %s) using default value of %s",
-				pkgconfigsetup.DefaultProcessEventsMinCheckInterval.String(), pkgconfigsetup.DefaultProcessEventsCheckInterval.String())
-		}
-		return eventsInterval
 
 	default:
 		defaultInterval := defaultIntervals[checkName]

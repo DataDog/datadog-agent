@@ -16,7 +16,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -48,6 +47,7 @@ import (
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 // team: agent-apm
@@ -380,7 +380,7 @@ func TestConfigHostname(t *testing.T) {
 			}
 			srcpath := filepath.Join(os.TempDir(), stat.Name())
 			binpath := strings.TrimSuffix(srcpath, ".go")
-			if err := exec.Command("go", "build", "-o", binpath, srcpath).Run(); err != nil {
+			if err := testutil.IsolatedGoBuildCmd(t.TempDir(), binpath, srcpath).Run(); err != nil {
 				t.Fatal(err)
 			}
 			os.Remove(srcpath)
@@ -500,6 +500,8 @@ func TestDefaultConfig(t *testing.T) {
 	assert.False(t, cfg.InstallSignature.Found)
 
 	assert.True(t, cfg.ReceiverEnabled)
+
+	assert.Empty(t, cfg.APMMode)
 }
 
 func TestNoAPMConfig(t *testing.T) {
@@ -553,7 +555,6 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.EqualValues(t, 123.4, cfg.MaxMemory)
 	assert.Equal(t, "0.0.0.0", cfg.ReceiverHost)
 	assert.True(t, cfg.OTLPReceiver.SpanNameAsResourceName)
-	assert.False(t, cfg.OTLPReceiver.IgnoreMissingDatadogFields)
 	assert.Equal(t, map[string]string{"a": "b", "and:colons": "in:values", "c": "d", "with.dots": "in.side"}, cfg.OTLPReceiver.SpanNameRemappings)
 
 	assert.ElementsMatch(t, []*traceconfig.Endpoint{
@@ -623,6 +624,13 @@ func TestFullYamlConfig(t *testing.T) {
 		InstallType: "manual",
 		InstallTime: 1699623821,
 	}, cfg.InstallSignature)
+
+	assert.Equal(t, "edge", cfg.APMMode)
+
+	assert.Equal(t, map[string]string{
+		"_dd.origin": "appservice",
+		"env":        "staging",
+	}, cfg.AdditionalProfileTags)
 }
 
 func TestFileLoggingDisabled(t *testing.T) {
@@ -1748,6 +1756,18 @@ func TestLoadEnv(t *testing.T) {
 		assert.Equal(t, 30, cfg.ProfilingProxy.ReceiverTimeout)
 		assert.Equal(t, 30, pkgconfigsetup.Datadog().GetInt("apm_config.profiling_receiver_timeout"))
 	})
+
+	env = "DD_APM_MODE"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "edge")
+
+		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.Equal(t, "edge", cfg.APMMode)
+	})
+
 }
 
 func TestFargateConfig(t *testing.T) {
@@ -2191,6 +2211,12 @@ func buildConfigComponentFromOverrides(t *testing.T, setHostnameInConfig bool, s
 }
 
 func buildComponent(t *testing.T, setHostnameInConfig bool, coreConfig configcomp.Component) Component {
+	t.Helper()
+	return buildComponentWithLoggerComponent(t, setHostnameInConfig, coreConfig, logmock.New(t))
+}
+
+func buildComponentWithLoggerComponent(t *testing.T, setHostnameInConfig bool, coreConfig configcomp.Component, loggerComponent logdef.Component) Component {
+	t.Helper()
 	// set the hostname in the config to avoid trying to create a connection to the core agent
 	// (This can be slow and flaky in tests that don't need to run this logic)
 	if setHostnameInConfig {
@@ -2200,7 +2226,7 @@ func buildComponent(t *testing.T, setHostnameInConfig bool, coreConfig configcom
 	pkgconfigsetup.LoadProxyFromEnv(coreConfig)
 	taggerComponent := fxutil.Test[taggermock.Mock](t,
 		fx.Provide(func() configcomp.Component { return coreConfig }),
-		fx.Provide(func() logdef.Component { return logmock.New(t) }),
+		fx.Provide(func() logdef.Component { return loggerComponent }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		noopTelemetry.Module(),
 		taggerfxmock.MockModule(),
@@ -2319,4 +2345,86 @@ func TestMultiRegionFailoverConfig(t *testing.T) {
 		assert.True(t, cfg.Endpoints[1].IsMRF)
 		assert.Equal(t, "https://custom.mrf.site", cfg.Endpoints[1].Host)
 	})
+}
+
+// buildComponentWithBufferLogger builds a component using a logger that writes to a buffer
+func buildComponentWithBufferLogger(t *testing.T, setHostnameInConfig bool, coreConfig configcomp.Component, logBuffer *bytes.Buffer) Component {
+	// Create a logger component that writes to the buffer instead of t.Log()
+	var loggerComponent logdef.Component
+	if logBuffer != nil {
+		logger, err := log.LoggerFromWriterWithMinLevelAndFullFormat(logBuffer, log.DebugLvl)
+		require.NoError(t, err)
+		log.SetupLogger(logger, "debug")
+		loggerComponent = log.NewWrapper(2)
+	} else {
+		loggerComponent = logmock.New(t)
+	}
+
+	return buildComponentWithLoggerComponent(t, setHostnameInConfig, coreConfig, loggerComponent)
+}
+
+func TestNormalizeAPMMode(t *testing.T) {
+	const unsetRepresentation = "unset"
+	tests := []struct {
+		name          string
+		envValue      string
+		expected      string
+		shouldHaveLog bool
+	}{
+		{
+			name:          "valid_edge",
+			envValue:      "edge",
+			expected:      "edge",
+			shouldHaveLog: false,
+		},
+		{
+			name:          "empty_defaults_to_empty",
+			envValue:      "",
+			expected:      "",
+			shouldHaveLog: false,
+		},
+		{
+			name:          "invalid_defaults_to_empty",
+			envValue:      "invalid_mode",
+			expected:      "",
+			shouldHaveLog: true,
+		},
+		{
+			name:          "case_sensitive",
+			envValue:      "Edge",
+			expected:      "edge",
+			shouldHaveLog: false,
+		},
+		{
+			name:          "unset_no_log",
+			envValue:      unsetRepresentation,
+			expected:      "",
+			shouldHaveLog: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var logBuffer bytes.Buffer
+			if tt.envValue != unsetRepresentation {
+				t.Setenv("DD_APM_MODE", tt.envValue)
+			}
+
+			coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/no_apm_config.yaml")
+			config := buildComponentWithBufferLogger(t, true, coreConfig, &logBuffer)
+			cfg := config.Object()
+
+			log.Flush()
+			logOutput := logBuffer.String()
+
+			assert.NotNil(t, cfg)
+			assert.Equal(t, tt.expected, cfg.APMMode)
+
+			if tt.shouldHaveLog {
+				assert.Contains(t, logOutput, "invalid value for 'DD_APM_MODE'")
+			} else {
+				assert.NotContains(t, logOutput, "invalid value for 'DD_APM_MODE'")
+			}
+		})
+	}
 }

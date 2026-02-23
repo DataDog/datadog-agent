@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix process collection to detect command line changes for processes with the 
+    same PID and creation time by hashing the command line.

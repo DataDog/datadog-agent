@@ -1,0 +1,6 @@
+enhancements:
+  - |
+    Single Step Instrumentation now uses the Python tracer major version 4 by default. Customers instrumenting Python
+    applications through SSI should review the [4.0.0](https://github.com/DataDog/dd-trace-py/releases/tag/v4.0.0)
+    release notes and the [compatibility guide](https://docs.datadoghq.com/tracing/trace_collection/compatibility/python/)
+    to ensure their Python applications are compatible.

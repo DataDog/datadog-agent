@@ -79,7 +79,7 @@ func TestDNSResponse(t *testing.T) {
 	defer justBind().Close()
 
 	t.Run("catch-dns-rcode-zero", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			hexDump := "00000000000000000000000008004500004ef53c40000111862c7f0000357f00000115b18bb0003a96af5ac281800001000100000000037777770964617461646f6768710265750000010001c00c000100010000003c00042295739e"
 			err = injectHexDump("lo", hexDump)
 
@@ -91,7 +91,7 @@ func TestDNSResponse(t *testing.T) {
 			assert.Equal(t, uint8(model.DNSResponseCodeConstants["NOERROR"]), event.DNS.Response.ResponseCode, "wrong response code")
 
 			test.validateDNSSchema(t, event)
-		})
+		}, "dns_response_ok")
 	})
 	test.Close()
 
@@ -103,7 +103,7 @@ func TestDNSResponse(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Run("catch-dns-rcode-nxdomain", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			hexDump := "0000000000000000000000000800450000732e9d400001114ca77f0000357f00000115b1d778005fba5b2a7281830001000000010000037777770864617461646177670265750000010001c0190006000100000258002a02736903646e73c0190474656368056575726964c019423b7e6500000e10000007080036ee8000000258"
 			err = injectHexDump("lo", hexDump)
 			if err != nil {
@@ -116,7 +116,7 @@ func TestDNSResponse(t *testing.T) {
 			assert.Equal(t, "www.datadawg.eu", event.DNS.Question.Name, "wrong domain name")
 			assert.Equal(t, uint8(model.DNSResponseCodeConstants["NXDOMAIN"]), event.DNS.Response.ResponseCode, "wrong response code")
 			test.validateDNSSchema(t, event)
-		})
+		}, "dns_response_nok")
 	})
 	test.Close()
 }

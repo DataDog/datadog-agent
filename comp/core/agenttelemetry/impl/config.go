@@ -206,6 +206,9 @@ var defaultProfiles = `
             - check_name
             - state
         - name: pymem.inuse
+        - name: health_platform.issues_detected
+          aggregate_tags:
+            - health_check_id
     schedule:
       start_after: 30
       iterations: 0
@@ -219,11 +222,24 @@ var defaultProfiles = `
         - name: dogstatsd.uds_packets_bytes
         - name: logs.bytes_missed
         - name: logs.bytes_sent
+          aggregate_tags:
+            - remote_agent
+          aggregate_total: true
         - name: logs.decoded
         - name: logs.dropped
         - name: logs.encoded_bytes_sent
           aggregate_tags:
             - compression_kind
+        - name: logs.http_connectivity_check
+          aggregate_tags:
+            - status
+        - name: logs.http_connectivity_retry_attempt
+          aggregate_tags:
+            - status
+        - name: logs.restart_attempt
+          aggregate_tags:
+            - status
+            - transport
         - name: logs.sender_latency
         - name: logs.truncated
           aggregate_tags:
@@ -271,6 +287,25 @@ var defaultProfiles = `
       start_after: 30
       iterations: 0
       period: 900
+  - name: synthetics
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: synthetics_agent.checks_received
+        - name: synthetics_agent.checks_processed
+          aggregate_tags:
+            - status
+            - subtype
+        - name: synthetics_agent.error_test_config
+          aggregate_tags:
+            - subtype
+        - name: synthetics_agent.traceroute_error
+          aggregate_tags:
+            - subtype
+        - name: synthetics_agent.evp_send_result_failure
+          aggregate_tags:
+            - subtype
   - name: connectivity
     metric:
       exclude:
@@ -376,7 +411,22 @@ var defaultProfiles = `
           aggregate_tags:
             - version
             - command
-            - host
+        - name: runtime.datadog_agent_ddot_gateway_configured
+          aggregate_tags:
+            - version
+            - command
+        - name: runtime.datadog_agent_otlp_logs_requests
+        - name: runtime.datadog_agent_otlp_logs_events
+        - name: runtime.datadog_agent_otlp_metrics_requests
+        - name: runtime.datadog_agent_otlp_metrics_events
+        - name: runtime.datadog_agent_otlp_traces_requests
+        - name: runtime.datadog_agent_otlp_traces_events
+        - name: runtime.ddot_otlp_logs_requests
+        - name: runtime.ddot_otlp_logs_events
+        - name: runtime.ddot_otlp_metrics_requests
+        - name: runtime.ddot_otlp_metrics_events
+        - name: runtime.ddot_otlp_traces_requests
+        - name: runtime.ddot_otlp_traces_events
     schedule:
       start_after: 30
       iterations: 0
@@ -386,9 +436,8 @@ var defaultProfiles = `
       exclude:
         zero_metric: true
       metrics:
-        - name: trace.running
-          aggregate_tags:
-            - state
+        - name: trace.enabled
+        - name: trace.working
     schedule:
       start_after: 60
       iterations: 0
@@ -401,6 +450,47 @@ var defaultProfiles = `
         - name: gpu.device_total
     schedule:
       start_after: 60
+      iterations: 0
+      period: 900
+  - name: cluster-agent
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: admission_webhooks.image_resolution_attempts
+          aggregate_tags:
+            - repository
+            - tag
+            - bucket
+            - outcome
+    schedule:
+      start_after: 30
+      iterations: 0
+      period: 900
+  - name: injector
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: injector.processes_added_to_injection_tracker
+        - name: injector.processes_removed_from_injection_tracker
+        - name: injector.processes_skipped_subsystem
+        - name: injector.processes_skipped_container
+        - name: injector.processes_skipped_protected
+        - name: injector.processes_skipped_system
+        - name: injector.processes_skipped_excluded
+        - name: injector.injection_attempts
+        - name: injector.injection_attempt_failures
+        - name: injector.injection_max_time_us
+        - name: injector.injection_successes
+        - name: injector.injection_failures
+        - name: injector.pe_caching_failures
+        - name: injector.import_directory_restoration_failures
+        - name: injector.pe_memory_allocation_failures
+        - name: injector.pe_injection_context_allocated
+        - name: injector.pe_injection_context_cleanedup
+    schedule:
+      start_after: 30
       iterations: 0
       period: 900
 `

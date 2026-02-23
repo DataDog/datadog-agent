@@ -8,6 +8,7 @@ package systrayimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"time"
@@ -42,7 +43,7 @@ func doConfigure(s *systrayImpl) error {
 
 	guiPort := s.config.GetString("GUI_port")
 	if guiPort == "-1" {
-		return fmt.Errorf("GUI not enabled: to enable, please set an appropriate port in your datadog.yaml file")
+		return errors.New("GUI not enabled: to enable, please set an appropriate port in your datadog.yaml file")
 	}
 
 	// 'http://localhost' is preferred over 'http://127.0.0.1' due to Internet Explorer behavior.

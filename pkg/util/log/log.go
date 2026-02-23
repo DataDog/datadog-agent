@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package log implements logging for the datadog agent.  It wraps seelog, and
-// supports logging to multiple destinations, buffering messages logged before
-// setup, and scrubbing secrets from log messages.
+// Package log implements logging for the datadog agent. It supports logging to
+// multiple destinations, buffering messages logged before setup, and scrubbing
+// secrets from log messages.
 //
 // # Compatibility
 //
@@ -206,23 +206,25 @@ func ValidateLogLevel(logLevel string) (LogLevel, error) {
 *	Operation on the **logger**
  */
 
-func (sw *loggerPointer) replaceInnerLogger(li LoggerInterface) LoggerInterface {
+func (sw *loggerPointer) replaceInnerLogger(li LoggerInterface) {
 	l := sw.Load()
 	if l == nil {
-		return nil // Return nil if logger is not initialized
+		return
 	}
 
 	l.l.Lock()
 	defer l.l.Unlock()
 
 	if l.inner == nil {
-		return nil // Return nil if logger.inner is not initialized
+		return
 	}
 
 	old := l.inner
 	l.inner = li
 
-	return old
+	old.Flush()
+	old.Close()
+
 }
 
 // Flush flushes the underlying inner log

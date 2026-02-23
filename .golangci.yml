@@ -1,43 +1,401 @@
+version: "2"
+
 issues:
-  exclude-use-default: false
   # Do not limit the number of issues per linter.
   max-issues-per-linter: 0
 
   # Do not limit the number of times a same issue is reported.
   max-same-issues: 0
 
-  exclude-files:
-    - pkg/util/cloudproviders/cloudfoundry/bbscache_test.go # implements interface from imported package whose method names fail linting
-    - pkg/util/intern/string.go # TODO: fix govet 'unsafeptr' error
-    - pkg/serverless/trace/inferredspan/constants.go # TODO: fox revive exported const error
+linters:
+  default: none
 
-  exclude-dirs:
-    - pkg/proto/patches
-    - pkg/security/utils/lru
-    - pkg/template
-    - tasks/unit_tests/testdata/components_src
+  enable:
+    - bodyclose                 # checks whether HTTP response body is closed successfully
+    - depguard                  # Depguard is useful for preventing specific packages from being used
+    - errcheck                  # errcheck is a program for checking for unchecked errors in go programs.
+    - forbidigo                 # prevent usage of unwanted/deprecated symbol in the code base
+    - gocheckcompilerdirectives # Checks Go compiler directives syntax
+    - govet                     # Vet examines Go source code and reports suspicious constructs, such as Printf calls whose arguments do not align with the format string
+    - ineffassign               # Detects when assignments to existing variables are not used
+    - misspell                  # Finds commonly misspelled English words in comments
+    - perfsprint                # replace uses of fmt.Sprintf and fmt.Errorf with better (both in CPU and memory) alternatives
+    - revive                    # Revive is a replacement for golint, a coding style checker
+    - staticcheck               # staticcheck is a go vet on steroids, applying a ton of static analysis checks
+    - unconvert                 # Remove unnecessary type conversions
+    - unused                    # Checks Go code for unused constants, variables, functions and types
+  settings:
+    depguard:
+      rules:
+        main:
+          files:
+            - $all
+          deny:
+            - pkg: "io/ioutil"
+              desc: "Deprecated since Go 1.16. Use package io or os instead."
+            - pkg: "github.com/golang/glog"
+              desc: "Crashes Windows nanoserver and significantly delays Agent startup on Windows Domain Controllers."
+              # IDE auto-imports often import `gotest.tools/assert` instead of `testify/assert` by default
+              # feel free to remove the following line if you really need it in several files as opposed to testify/assert
+              # note that if it's just for a single file, you can just add `//nolint:depguard` before the import
+              # the goal is just to limit the risk of accidental imports
+            - pkg: "gotest.tools/assert"
+              desc: "Not really forbidden to use, but it is usually imported by mistake instead of github.com/stretchr/testify/assert"
+            - pkg: "github.com/tj/assert"
+              desc: "Not really forbidden to use, but it is usually imported by mistake instead of github.com/stretchr/testify/assert, and confusing since it actually has the behavior of github.com/stretchr/testify/require"
+            - pkg: "debug/elf"
+              desc: "prefer pkg/util/safeelf to prevent panics during parsing"
+            - pkg: "golang.org/x/exp/slices"
+              desc: "use the std slices package instead"
+            - pkg: "github.com/aws/aws-sdk-go/"
+              desc: "use the v2 sdk instead"
+        logger:
+          files:
+            - $all
+          deny:
+            - pkg: "github.com/cihub/seelog"
+              desc: "seelog should not be used. Use `pkg/util/log` instead."
+        pkgconfigusage:
+          files:
+            - "**/comp/**"
+            # Treat this list as a TODO for fixing issues with pkgconfigusage rule
+            # DO NOT ADD NEW ENTRIES
+            - "!**/comp/api/api/apiimpl/listener/common.go"
+            - "!**/comp/api/api/apiimpl/server_ipc.go"
+            - "!**/comp/core/autodiscovery/autodiscoveryimpl/autoconfig.go"
+            - "!**/comp/core/autodiscovery/autodiscoveryimpl/autoconfig_test.go"
+            - "!**/comp/core/autodiscovery/autodiscoveryimpl/secrets.go"
+            - "!**/comp/core/autodiscovery/common/utils/container_collect_all.go"
+            - "!**/comp/core/autodiscovery/common/utils/prometheus.go"
+            - "!**/comp/core/autodiscovery/component.go"
+            - "!**/comp/core/autodiscovery/configresolver/configresolver.go"
+            - "!**/comp/core/autodiscovery/listeners/common.go"
+            - "!**/comp/core/autodiscovery/listeners/container.go"
+            - "!**/comp/core/autodiscovery/listeners/kubelet.go"
+            - "!**/comp/core/autodiscovery/listeners/service.go"
+            - "!**/comp/core/autodiscovery/listeners/staticconfig.go"
+            - "!**/comp/core/autodiscovery/noopimpl/autoconfig.go"
+            - "!**/comp/core/autodiscovery/providers/cloudfoundry.go"
+            - "!**/comp/core/autodiscovery/providers/cloudfoundry_nop.go"
+            - "!**/comp/core/autodiscovery/providers/clusterchecks.go"
+            - "!**/comp/core/autodiscovery/providers/config_reader.go"
+            - "!**/comp/core/autodiscovery/providers/consul.go"
+            - "!**/comp/core/autodiscovery/providers/consul_nop.go"
+            - "!**/comp/core/autodiscovery/providers/container.go"
+            - "!**/comp/core/autodiscovery/providers/endpointschecks.go"
+            - "!**/comp/core/autodiscovery/providers/endpointschecks_nop.go"
+            - "!**/comp/core/autodiscovery/providers/etcd.go"
+            - "!**/comp/core/autodiscovery/providers/etcd_nop.go"
+            - "!**/comp/core/autodiscovery/providers/kube_endpoints.go"
+            - "!**/comp/core/autodiscovery/providers/kube_endpoints_file.go"
+            - "!**/comp/core/autodiscovery/providers/kube_endpoints_file_nop.go"
+            - "!**/comp/core/autodiscovery/providers/kube_endpointslices.go"
+            - "!**/comp/core/autodiscovery/providers/kube_endpointslices_nop.go"
+            - "!**/comp/core/autodiscovery/providers/kube_endpointslices_file.go"
+            - "!**/comp/core/autodiscovery/providers/kube_endpointslices_file_nop.go"
+            - "!**/comp/core/autodiscovery/providers/kube_endpoints_nop.go"
+            - "!**/comp/core/autodiscovery/providers/kube_services.go"
+            - "!**/comp/core/autodiscovery/providers/kube_services_file.go"
+            - "!**/comp/core/autodiscovery/providers/kube_services_file_nop.go"
+            - "!**/comp/core/autodiscovery/providers/kube_services_nop.go"
+            - "!**/comp/core/autodiscovery/providers/process_log.go"
+            - "!**/comp/core/autodiscovery/providers/prometheus_common.go"
+            - "!**/comp/core/autodiscovery/providers/prometheus_pods.go"
+            - "!**/comp/core/autodiscovery/providers/prometheus_pods_nop.go"
+            - "!**/comp/core/autodiscovery/providers/prometheus_services.go"
+            - "!**/comp/core/autodiscovery/providers/prometheus_services_nop.go"
+            - "!**/comp/core/autodiscovery/providers/prometheus_services_eps.go"
+            - "!**/comp/core/autodiscovery/providers/prometheus_services_eps_nop.go"
+            - "!**/comp/core/autodiscovery/providers/providers.go"
+            - "!**/comp/core/autodiscovery/providers/remote_config.go"
+            - "!**/comp/core/autodiscovery/providers/types/types.go"
+            - "!**/comp/core/autodiscovery/providers/utils.go"
+            - "!**/comp/core/autodiscovery/providers/utils_test.go"
+            - "!**/comp/core/autodiscovery/providers/zookeeper.go"
+            - "!**/comp/core/autodiscovery/providers/zookeeper_nop.go"
+            - "!**/comp/core/config/config.go"
+            - "!**/comp/core/config/params.go"
+            - "!**/comp/core/config/setup.go"
+            - "!**/comp/core/gui/guiimpl/checks.go"
+            - "!**/comp/core/hostname/remotehostnameimpl/hostname.go"
+            - "!**/comp/core/status/statusimpl/common_header_provider.go"
+            - "!**/comp/core/status/statusimpl/common_header_provider_test.go"
+            - "!**/comp/core/status/statusimpl/status_api_endpoints_test.go"
+            - "!**/comp/core/status/statusimpl/status_test.go"
+            - "!**/comp/core/sysprobeconfig/sysprobeconfigimpl/config.go"
+            - "!**/comp/core/sysprobeconfig/sysprobeconfigimpl/config_mock.go"
+            - "!**/comp/core/tagger/collectors/ecs_common.go"
+            - "!**/comp/core/tagger/collectors/workloadmeta_extract.go"
+            - "!**/comp/core/tagger/taglist/taglist.go"
+            - "!**/comp/core/workloadfilter/baseimpl/filter_utils.go"
+            - "!**/comp/core/workloadfilter/catalog/filter_config.go"
+            - "!**/comp/core/workloadmeta/collectors/internal/cloudfoundry/container/cf_container.go"
+            - "!**/comp/core/workloadmeta/collectors/internal/cloudfoundry/vm/cf_vm.go"
+            - "!**/comp/core/workloadmeta/collectors/internal/containerd/containerd.go"
+            - "!**/comp/core/workloadmeta/collectors/internal/containerd/image_sbom_trivy.go"
+            - "!**/comp/core/workloadmeta/collectors/internal/containerd/network_linux.go"
+            - "!**/comp/core/workloadmeta/collectors/internal/crio/crio.go"
+            - "!**/comp/core/workloadmeta/collectors/internal/docker/image_sbom_trivy.go"
+            - "!**/comp/core/workloadmeta/collectors/internal/kubemetadata/kubemetadata.go"
+            - "!**/comp/core/workloadmeta/collectors/internal/podman/podman.go"
+            - "!**/comp/core/workloadmeta/collectors/internal/remote/generic.go"
+            - "!**/comp/core/workloadmeta/collectors/internal/remote/processcollector/process_collector.go"
+            - "!**/comp/core/workloadmeta/collectors/internal/remote/workloadmeta/workloadmeta.go"
+            - "!**/comp/dogstatsd/packets/pool.go"
+            - "!**/comp/dogstatsd/server/float64_list_pool.go"
+            - "!**/comp/dogstatsd/server/serverless.go"
+            - "!**/comp/dogstatsd/serverDebug/serverdebugimpl/debug.go"
+            - "!**/comp/forwarder/connectionsforwarder/impl/connectionsforwarder.go"
+            - "!**/comp/forwarder/defaultforwarder/blocked_endpoints.go"
+            - "!**/comp/forwarder/defaultforwarder/default_forwarder.go"
+            - "!**/comp/forwarder/eventplatform/eventplatformimpl/epforwarder.go"
+            - "!**/comp/logs/agent/agentimpl/agent_test.go"
+            - "!**/comp/logs/agent/agentimpl/analyze_logs_init.go"
+            - "!**/comp/logs/agent/agentimpl/serverless.go"
+            - "!**/comp/logs/agent/config/config_keys.go"
+            - "!**/comp/logs/agent/config/config_test.go"
+            - "!**/comp/logs/agent/config/endpoints.go"
+            - "!**/comp/logs/agent/config/endpoints_test.go"
+            - "!**/comp/metadata/clusteragent/impl/cluster_agent.go"
+            - "!**/comp/metadata/inventoryagent/inventoryagentimpl/inventoryagent.go"
+            - "!**/comp/metadata/inventoryagent/inventoryagentimpl/inventoryagent_test.go"
+            - "!**/comp/otelcol/otlp/components/exporter/serializerexporter/serializer.go"
+            - "!**/comp/otelcol/otlp/components/processor/infraattributesprocessor/factory.go"
+            - "!**/comp/otelcol/otlp/config.go"
+            - "!**/comp/otelcol/otlp/configcheck/configcheck_common.go"
+            - "!**/comp/otelcol/otlp/configcheck/configcheck_test.go"
+            - "!**/comp/otelcol/otlp/integrationtest/integration_test.go"
+            - "!**/comp/otelcol/otlp/testutil/testutil.go"
+            - "!**/comp/process/agent/agent_linux.go"
+            - "!**/comp/process/agent/status.go"
+            - "!**/comp/process/apiserver/apiserver.go"
+            - "!**/comp/process/expvars/expvarsimpl/expvars.go"
+            - "!**/comp/process/forwarders/forwardersimpl/forwarders.go"
+            - "!**/comp/process/profiler/profilerimpl/profiler.go"
+            - "!**/comp/process/status/statusimpl/status.go"
+            - "!**/comp/remote-config/rcclient/rcclientimpl/rcclient.go"
+            - "!**/comp/remote-config/rcclient/rcclientimpl/rcclient_test.go"
+            - "!**/comp/systray/systray/systrayimpl/doflare.go"
+            - "!**/comp/trace/agent/impl/run.go"
+            - "!**/comp/trace/config/config.go"
+            - "!**/comp/trace/config/config_nix.go"
+            - "!**/comp/trace/config/config_test.go"
+            - "!**/comp/trace/config/hostname.go"
+            - "!**/comp/trace/config/remote.go"
+            - "!**/comp/trace/config/setup.go"
+          deny:
+            - pkg: "github.com/DataDog/datadog-agent/pkg/config/setup"
+              desc: "github.com/DataDog/datadog-agent/pkg/config/setup should not be used inside comp folder. Use the config component instead, by declaring it as part of your component's dependencies."
+        templates:
+          deny:
+            # see https://github.com/golang/go/issues/72895 for details
+            - pkg: "text/template"
+              desc: "Use \"github.com/DataDog/datadog-agent/pkg/template/text\" instead to avoid disabling dead code elimination."
+            - pkg: "html/template"
+              desc: "Use \"github.com/DataDog/datadog-agent/pkg/template/html\" instead to avoid disabling dead code elimination."
+          files:
+            - "**/cmd/**"
+            - "**/comp/**"
+            - "**/pkg/**"
+            - "!**/pkg/template/**"
+            - "!**/pkg/security/generators/**"
+            - "!**/pkg/network/go/lutgen/**"
+            - "!$test"
+            - "!**/tests/**"
 
-  exclude:
-    - "Error return value of `io.WriteString` is not checked" # 'errcheck' errors in tools/dep_tree_resolver/go_deps.go
-    - "Error return value of `pem.Encode` is not checked" # 'errcheck' errors in test/integration/utils/certificates.go
-    - "exported: exported const Exec should have comment \\(or a comment on this block\\) or be unexported" # 'revive' errors in pkg/process/events/model/model_common.go
-    - "exported: exported const APIName should have comment \\(or a comment on this block\\) or be unexported" # 'revive' errors in pkg/serverless/trace/inferredspan/constants.go
-    - "unnecessary conversion" # 'unconvert' errors in test/integration/utils/certificates_test.go
-    - "Error return value of .((os\\.)?std(out|err)\\..*|.*Close|.*Flush|os\\.Remove(All)?|.*print(f|ln)?|os\\.(Un)?Setenv). is not checked"
-    - "`eventContext` is unused"
-    - "`\\(\\*DatadogLogger\\).changeLogLevel` is unused"
-    - "`defaultRetryDuration` is unused" # used by APM and Process
-    - "`defaultRetries` is unused"       # used by APM and Process
-    - "python._Ctype_char, which can be annoying to use" # ignore warning about returning unexported field from CGO
+    errcheck:
+      exclude-functions:
+        - (*github.com/DataDog/datadog-agent/pkg/collector/corechecks.CheckBase).Warn
+        - (*github.com/DataDog/datadog-agent/pkg/collector/corechecks.CheckBase).Warnf
+        - (*github.com/lxn/walk.NotifyIcon).Dispose
+        - (*golang.org/x/sys/windows/svc/mgr.Mgr).Disconnect
+        - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).AddFile
+        - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).AddFileFromFunc
+        - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).AddFileWithoutScrubbing
+        - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).CopyDir
+        - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).CopyDirTo
+        - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).CopyDirToWithoutScrubbing
+        - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).CopyFile
+        - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).CopyFileTo
+        - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).ChangeLogLevel
+        - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Critical
+        - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Criticalf
+        - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Error
+        - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Errorf
+        - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Warn
+        - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Warnf
+        - (net/http.ResponseWriter).Write
+        - fmt.Sscanf
+        - github.com/DataDog/datadog-agent/pkg/util/log.ChangeLogLevel
+        - github.com/DataDog/datadog-agent/pkg/util/log.Critical
+        - github.com/DataDog/datadog-agent/pkg/util/log.Criticalc
+        - github.com/DataDog/datadog-agent/pkg/util/log.Criticalf
+        - github.com/DataDog/datadog-agent/pkg/util/log.CriticalStackDepth
+        - github.com/DataDog/datadog-agent/pkg/util/log.Error
+        - github.com/DataDog/datadog-agent/pkg/util/log.Errorc
+        - github.com/DataDog/datadog-agent/pkg/util/log.Errorf
+        - github.com/DataDog/datadog-agent/pkg/util/log.ErrorStackDepth
+        - github.com/DataDog/datadog-agent/pkg/util/log.JMXError
+        - github.com/DataDog/datadog-agent/pkg/util/log.logContextWithError
+        - github.com/DataDog/datadog-agent/pkg/util/log.logFormatWithError
+        - github.com/DataDog/datadog-agent/pkg/util/log.Warn
+        - github.com/DataDog/datadog-agent/pkg/util/log.Warnc
+        - github.com/DataDog/datadog-agent/pkg/util/log.Warnf
+        - github.com/DataDog/datadog-agent/pkg/util/log.WarnStackDepth
+        - github.com/DataDog/datadog-agent/pkg/util/log.WarnfStackDepth
+        - golang.org/x/sys/windows.CloseHandle
+        - golang.org/x/sys/windows.FreeLibrary
+        - golang.org/x/sys/windows.FreeSid
+        - golang.org/x/sys/windows.LocalFree
+        - golang.org/x/sys/windows.RegCloseKey
+        - golang.org/x/sys/windows.SetEvent
+        - golang.org/x/sys/windows/registry.Close
+        - golang.org/x/sys/windows/svc/debug.Close
+        - golang.org/x/sys/windows/svc/debug.Error
+        - golang.org/x/sys/windows/svc/debug.Info
+        - golang.org/x/sys/windows/svc/debug.Warning
+        - pkg/util/log.JMXError
+        - syscall.CloseHandle
+    staticcheck:
+      checks: ["all",
+              "-ST1000", "-ST1003", "-ST1005", "-ST1016", "-ST1020", "-ST1021", "-ST1022", # These ones are disabled by default on staticcheck
+              "-ST1013", # Use HTTP code enums instead of integers
+              # Actual issues that should be fixed eventually
+              "-SA6002", # TODO: Fix sync.Pools
+              "-SA4025", # TODO: Fix trace unit test
+              "-SA4011", "-SA4031", # Disabling these to re-enable golanci-lint default tests
+              "-SA4023",  # Fix the lint_macos_gitlab_amd64 linter discrepancy while we find the issue (see https://github.com/dominikh/go-tools/issues/847)
+              "-QF1001", "-QF1002", "-QF1003", "-QF1004", "-QF1005","-QF1006","-QF1007","-QF1008","-QF1009", "-QF1010", "-QF1011", "-QF1012"] # Exclude this rule for the golangci-lint v2 migrations
+    govet:
+      settings:
+        printf:
+          funcs:
+            - github.com/DataDog/datadog-agent/pkg/util/log.Tracef
+            - github.com/DataDog/datadog-agent/pkg/util/log.Debugf
+            - github.com/DataDog/datadog-agent/pkg/util/log.Infof
+            - github.com/DataDog/datadog-agent/pkg/util/log.Printf
+            - github.com/DataDog/datadog-agent/pkg/util/log.Warnf
+            - github.com/DataDog/datadog-agent/pkg/util/log.Errorf
+            - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Tracef
+            - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Debugf
+            - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Infof
+            - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Warnf
+            - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Errorf
+            - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Criticalf
+    revive:
+      # in order to change revive config, the default configuration must be explicitly defined
+      # https://github.com/mgechev/revive/blob/master/defaults.toml
+      #
+      # see https://github.com/golangci/golangci-lint/blob/master/.golangci.reference.yml for the golangci-lint config syntax
+      confidence: 0.8
+      severity: warning
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: empty-block
+        - name: error-naming
+        - name: error-return
+        - name: error-strings
+        - name: errorf
+        - name: exported
+          disabled: true
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: redefines-builtin-id
+          disabled: true
+        - name: superfluous-else
+        - name: time-naming
+        - name: unexported-return
+        - name: unreachable-code
+        - name: unused-parameter
+          arguments:
+            - allowRegex: ^_
+        - name: var-declaration
+        - name: var-naming
+          # disable package name lint
+          arguments:
+            - []
+            - []
+            - [skipPackageNameChecks: true]
+        - name: duplicated-imports
+    forbidigo:
+      forbid:
+        - pattern: ^.*\.GetLastError$
+          msg: "GetLastError always returns nil in Go because the syscall implementation resets the last error before calling the DLL function (see https://github.com/golang/go/issues/41220). Use the error returned directly from the syscall (third return value) instead."
+        - pattern: ^model.NewConfig.*$
+          pkg: ^github.com/DataDog/datadog-agent/pkg/config/model$
+          msg: use pkg/config/mock instead in tests or the config component
+        - pattern: ^setup.SetDatadog.*$
+          pkg: ^github.com/DataDog/datadog-agent/pkg/config/setup$
+          msg: use pkg/config/mock instead for tests or the config component
+        - pattern: ^setup.SetSystemProbe.*$
+          pkg: ^github.com/DataDog/datadog-agent/pkg/config/setup$
+          msg: use pkg/config/mock instead for tests or the config component
+        - pattern: ^.*\.BindEnv$
+          pkg: ^github.com/DataDog/datadog-agent/pkg/config/model$
+          msg: use BindEnvAndSetDefault instead of BindEnv to ensure proper defaults are set
+        - pattern: ^.*\.SetKnown$
+          pkg: ^github.com/DataDog/datadog-agent/pkg/config/model$
+          msg: usage of SetKnown is discouraged
+        - pattern: RevertFinishedBackToBuilder
+          msg: RevertFinishedBackToBuilder is typically not needed, so using it is discouraged. Only existing OTel usage is allowed.
+      analyze-types: true
 
+  exclusions:
+    generated: lax
+    rules:
+    # 'errcheck' errors in tools/dep_tree_resolver/go_deps.go
+    - path: (.+)\.go$
+      text: Error return value of `io.WriteString` is not checked
+    # 'errcheck' errors in test/integration/utils/certificates.go
+    - path: (.+)\.go$
+      text: Error return value of `pem.Encode` is not checked
+    - linters:
+      - revive
+      path: (.+)\.go$
+      text: 'var-naming: avoid meaningless package names'
+    # 'revive' errors in pkg/serverless/trace/inferredspan/constants.go
+    - path: (.+)\.go$
+      text: 'exported: exported const APIName should have comment \(or a comment on this block\) or be unexported'
+    # 'unconvert' errors in test/integration/utils/certificates_test.go
+    - path: (.+)\.go$
+      text: unnecessary conversion
+    - path: (.+)\.go$
+      text: Error return value of .((os\.)?std(out|err)\..*|.*Close|.*Flush|os\.Remove(All)?|.*print(f|ln)?|os\.(Un)?Setenv). is not checked
+    - path: (.+)\.go$
+      text: '`eventContext` is unused'
+    - path: (.+)\.go$
+      text: '`\(\*DatadogLogger\).changeLogLevel` is unused'
+    # used by APM and Process
+    - path: (.+)\.go$
+      text: '`defaultRetryDuration` is unused'
+    # used by APM and Process
+    - path: (.+)\.go$
+      text: '`defaultRetries` is unused'
+    # ignore warning about returning unexported field from CGO
+    - path: (.+)\.go$
+      text: python._Ctype_char, which can be annoying to use
     # ignore warning on linux about fields used only on windows
-    - "`context` is unused"
-    - "`id` is unused"
-  exclude-rules:
+    - path: (.+)\.go$
+      text: '`context` is unused'
+    - path: (.+)\.go$
+      text: '`id` is unused'
+    # 'unconvert' errors in test/integration/utils/certificates_test.go
+    - path: (.+)\.go$
+      text: unnecessary conversion
     # Exclude some linters from running on tests files.
     - path: _test\.go
       linters:
         - errcheck
+    # Disable revive for the privateactionrunner package since its mostly source code copied over from the existing PAR
+    - path: "pkg/privateactionrunner/"
+      linters:
+        - revive
     # disable typecheck in folder where it breaks because of build tags
     - path: "pkg/security/"
       linters: [typecheck]
@@ -63,582 +421,41 @@ issues:
       linters: [staticcheck]
     - text: ".IsSet is deprecated: this method will be removed once all settings have a default, use 'IsConfigured' instead"
       linters: [staticcheck]
-    # Treat this list as a TODO for fixing issues with pkgconfigusage custom linter
-    # DO NOT ADD NEW ENTRIES
-    - path: comp/aggregator/demultiplexer/demultiplexerimpl/test_agent_demultiplexer.go
-      linters:
-        - pkgconfigusage
-    - path: comp/api/api/apiimpl/listener.go
-      linters:
-        - pkgconfigusage
-    - path: comp/api/api/apiimpl/server_ipc.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/agenttelemetry/impl/config.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/autodiscoveryimpl/autoconfig.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/autodiscoveryimpl/autoconfig_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/autodiscoveryimpl/secrets.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/common/utils/container_collect_all.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/common/utils/prometheus.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/component.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/configresolver/configresolver.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/listeners/common.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/listeners/container.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/listeners/kubelet.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/listeners/service.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/listeners/staticconfig.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/noopimpl/autoconfig.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/cloudfoundry.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/cloudfoundry_nop.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/clusterchecks.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/config_reader.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/consul.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/consul_nop.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/container.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/endpointschecks.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/endpointschecks_nop.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/etcd.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/etcd_nop.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/kube_endpoints.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/kube_endpoints_file.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/kube_endpoints_file_nop.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/kube_endpoints_nop.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/kube_services.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/kube_services_file.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/kube_services_file_nop.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/kube_services_nop.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/process_log.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/prometheus_common.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/prometheus_pods.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/prometheus_pods_nop.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/prometheus_services.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/prometheus_services_nop.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/providers.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/remote_config.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/types/types.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/utils.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/utils_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/zookeeper.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/zookeeper_nop.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/config/config.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/config/config_mock.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/config/setup.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/gui/guiimpl/checks.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/hostname/remotehostnameimpl/hostname.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/status/statusimpl/common_header_provider.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/status/statusimpl/common_header_provider_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/status/statusimpl/status_api_endpoints_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/status/statusimpl/status_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/sysprobeconfig/sysprobeconfigimpl/config.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/sysprobeconfig/sysprobeconfigimpl/config_mock.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/tagger/collectors/ecs_common.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/tagger/collectors/workloadmeta_extract.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/tagger/taglist/taglist.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadfilter/def/utils.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/cloudfoundry/container/cf_container.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/cloudfoundry/vm/cf_vm.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/containerd/containerd.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/containerd/network_linux.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/containerd/image_sbom_trivy.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/crio/crio.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/docker/image_sbom_trivy.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/kubemetadata/kubemetadata.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/podman/podman.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/process/process_collector.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/remote/generic.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/remote/processcollector/process_collector.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/remote/workloadmeta/workloadmeta.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/util/process_util_linux.go
-      linters:
-        - pkgconfigusage
-    - path: comp/dogstatsd/listeners/udp.go
-      linters:
-        - pkgconfigusage
-    - path: comp/dogstatsd/packets/pool.go
-      linters:
-        - pkgconfigusage
-    - path: comp/dogstatsd/server/float64_list_pool.go
-      linters:
-        - pkgconfigusage
-    - path: comp/dogstatsd/server/serverless.go
-      linters:
-        - pkgconfigusage
-    - path: comp/dogstatsd/serverDebug/serverdebugimpl/debug.go
-      linters:
-        - pkgconfigusage
-    - path: comp/forwarder/defaultforwarder/blocked_endpoints.go
-      linters:
-        - pkgconfigusage
-    - path: comp/forwarder/defaultforwarder/default_forwarder.go
-      linters:
-        - pkgconfigusage
-    - path: comp/forwarder/eventplatform/eventplatformimpl/epforwarder.go
-      linters:
-        - pkgconfigusage
-    - path: comp/logs/agent/agentimpl/agent_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/logs/agent/agentimpl/analyze_logs_init.go
-      linters:
-        - pkgconfigusage
-    - path: comp/logs/agent/agentimpl/serverless.go
-      linters:
-        - pkgconfigusage
-    - path: comp/logs/agent/config/config_keys.go
-      linters:
-        - pkgconfigusage
-    - path: comp/logs/agent/config/config_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/logs/agent/config/endpoints.go
-      linters:
-        - pkgconfigusage
-    - path: comp/logs/agent/config/endpoints_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/metadata/clusteragent/impl/cluster_agent.go
-      linters:
-        - pkgconfigusage
-    - path: comp/metadata/inventoryagent/inventoryagentimpl/inventoryagent.go
-      linters:
-        - pkgconfigusage
-    - path: comp/metadata/inventoryagent/inventoryagentimpl/inventoryagent_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/otelcol/otlp/components/exporter/serializerexporter/serializer.go
-      linters:
-        - pkgconfigusage
-    - path: comp/otelcol/otlp/components/processor/infraattributesprocessor/factory.go
-      linters:
-        - pkgconfigusage
-    - path: comp/otelcol/otlp/config.go
-      linters:
-        - pkgconfigusage
-    - path: comp/otelcol/otlp/configcheck/configcheck_common.go
-      linters:
-        - pkgconfigusage
-    - path: comp/otelcol/otlp/configcheck/configcheck_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/otelcol/otlp/integrationtest/integration_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/otelcol/otlp/testutil/testutil.go
-      linters:
-        - pkgconfigusage
-    - path: comp/process/agent/agent_linux.go
-      linters:
-        - pkgconfigusage
-    - path: comp/process/agent/status.go
-      linters:
-        - pkgconfigusage
-    - path: comp/process/apiserver/apiserver.go
-      linters:
-        - pkgconfigusage
-    - path: comp/process/expvars/expvarsimpl/expvars.go
-      linters:
-        - pkgconfigusage
-    - path: comp/process/forwarders/forwardersimpl/forwarders.go
-      linters:
-        - pkgconfigusage
-    - path: comp/process/profiler/profilerimpl/profiler.go
-      linters:
-        - pkgconfigusage
-    - path: comp/process/status/statusimpl/status.go
-      linters:
-        - pkgconfigusage
-    - path: comp/remote-config/rcclient/rcclientimpl/rcclient.go
-      linters:
-        - pkgconfigusage
-    - path: comp/remote-config/rcclient/rcclientimpl/rcclient_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/remote-config/rcservice/rcserviceimpl/rcservice.go
-      linters:
-        - pkgconfigusage
-    - path: comp/remote-config/rcservicemrf/rcservicemrfimpl/rcservicemrf.go
-      linters:
-        - pkgconfigusage
-    - path: comp/trace/agent/impl/run.go
-      linters:
-        - pkgconfigusage
-    - path: comp/trace/config/config.go
-      linters:
-        - pkgconfigusage
-    - path: comp/trace/config/config_nix.go
-      linters:
-        - pkgconfigusage
-    - path: comp/trace/config/config_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/trace/config/hostname.go
-      linters:
-        - pkgconfigusage
-    - path: comp/trace/config/remote.go
-      linters:
-        - pkgconfigusage
-    - path: comp/trace/config/setup.go
-      linters:
-        - pkgconfigusage
-    - path: comp/systray/systray/systrayimpl/doflare.go
-      linters:
-        - pkgconfigusage
-
-linters:
-  disable-all: true
-  enable:
-    - unconvert                 # Remove unnecessary type conversions
-    - unused                    # Checks Go code for unused constants, variables, functions and types
-    - ineffassign               # Detects when assignments to existing variables are not used
-    - misspell                  # Finds commonly misspelled English words in comments
-    - gofmt                     # Gofmt checks whether code was gofmt-ed
-    - revive                    # Revive is a replacement for golint, a coding style checker
-    - errcheck                  # errcheck is a program for checking for unchecked errors in go programs.
-    - staticcheck               # staticcheck is a go vet on steroids, applying a ton of static analysis checks
-    - govet                     # Vet examines Go source code and reports suspicious constructs, such as Printf calls whose arguments do not align with the format string
-    - depguard                  # Depguard is useful for preventing specific packages from being used
-    - bodyclose                 # checks whether HTTP response body is closed successfully
-    - gosimple                  # Linter for Go source code that specializes in simplifying code.
-    - gocheckcompilerdirectives # Checks Go compiler directives syntax
-    - pkgconfigusage            # Linter for checking usage of pkgconfig inside components folder
-    - forbidigo                 # prevent usage of unwanted/deprecated symbol in the code base
-
-linters-settings:
-  depguard:
-    rules:
-      main:
-        files:
-          - $all
-        deny:
-          - pkg: "io/ioutil"
-            desc: "Deprecated since Go 1.16. Use package io or os instead."
-          - pkg: "github.com/golang/glog"
-            desc: "Crashes Windows nanoserver and significantly delays Agent startup on Windows Domain Controllers."
-            # IDE auto-imports often import `gotest.tools/assert` instead of `testify/assert` by default
-            # feel free to remove the following line if you really need it in several files as opposed to testify/assert
-            # note that if it's just for a single file, you can just add `//nolint:depguard` before the import
-            # the goal is just to limit the risk of accidental imports
-          - pkg: "gotest.tools/assert"
-            desc: "Not really forbidden to use, but it is usually imported by mistake instead of github.com/stretchr/testify/assert"
-          - pkg: "github.com/tj/assert"
-            desc: "Not really forbidden to use, but it is usually imported by mistake instead of github.com/stretchr/testify/assert, and confusing since it actually has the behavior of github.com/stretchr/testify/require"
-          - pkg: "debug/elf"
-            desc: "prefer pkg/util/safeelf to prevent panics during parsing"
-          - pkg: "golang.org/x/exp/slices"
-            desc: "use the std slices package instead"
-          - pkg: "github.com/aws/aws-sdk-go/"
-            desc: "use the v2 sdk instead"
-      logger:
-        files:
-          - "!**/pkg/util/log/**"
-        deny:
-          - pkg: "github.com/cihub/seelog"
-            desc: "seelog should not be used directly. Use `pkg/util/log` instead."
-      templates:
-        deny:
-          # see https://github.com/golang/go/issues/72895 for details
-          - pkg: "text/template"
-            desc: "Use \"github.com/DataDog/datadog-agent/pkg/template/text\" instead to avoid disabling dead code elimination."
-          - pkg: "html/template"
-            desc: "Use \"github.com/DataDog/datadog-agent/pkg/template/html\" instead to avoid disabling dead code elimination."
-        files:
-          - "**/cmd/**"
-          - "**/comp/**"
-          - "**/pkg/**"
-          - "!**/pkg/template/**"
-          - "!**/pkg/security/generators/**"
-          - "!**/pkg/network/go/lutgen/**"
-          - "!$test"
-          - "!**/tests/**"
-
-  errcheck:
-    exclude-functions:
-      - (*github.com/DataDog/datadog-agent/pkg/collector/corechecks.CheckBase).Warn
-      - (*github.com/DataDog/datadog-agent/pkg/collector/corechecks.CheckBase).Warnf
-      - (*github.com/lxn/walk.NotifyIcon).Dispose
-      - (*golang.org/x/sys/windows/svc/mgr.Mgr).Disconnect
-      - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).AddFile
-      - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).AddFileFromFunc
-      - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).AddFileWithoutScrubbing
-      - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).CopyDir
-      - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).CopyDirTo
-      - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).CopyDirToWithoutScrubbing
-      - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).CopyFile
-      - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).CopyFileTo
-      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).ChangeLogLevel
-      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Critical
-      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Criticalf
-      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Error
-      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Errorf
-      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Warn
-      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Warnf
-      - (net/http.ResponseWriter).Write
-      - fmt.Sscanf
-      - github.com/cihub/seelog.Warnf
-      - github.com/DataDog/datadog-agent/pkg/util/log.ChangeLogLevel
-      - github.com/DataDog/datadog-agent/pkg/util/log.Critical
-      - github.com/DataDog/datadog-agent/pkg/util/log.Criticalc
-      - github.com/DataDog/datadog-agent/pkg/util/log.Criticalf
-      - github.com/DataDog/datadog-agent/pkg/util/log.CriticalStackDepth
-      - github.com/DataDog/datadog-agent/pkg/util/log.Error
-      - github.com/DataDog/datadog-agent/pkg/util/log.Errorc
-      - github.com/DataDog/datadog-agent/pkg/util/log.Errorf
-      - github.com/DataDog/datadog-agent/pkg/util/log.ErrorStackDepth
-      - github.com/DataDog/datadog-agent/pkg/util/log.JMXError
-      - github.com/DataDog/datadog-agent/pkg/util/log.logContextWithError
-      - github.com/DataDog/datadog-agent/pkg/util/log.logFormatWithError
-      - github.com/DataDog/datadog-agent/pkg/util/log.Warn
-      - github.com/DataDog/datadog-agent/pkg/util/log.Warnc
-      - github.com/DataDog/datadog-agent/pkg/util/log.Warnf
-      - github.com/DataDog/datadog-agent/pkg/util/log.WarnStackDepth
-      - github.com/DataDog/datadog-agent/pkg/util/log.WarnfStackDepth
-      - golang.org/x/sys/windows.CloseHandle
-      - golang.org/x/sys/windows.FreeLibrary
-      - golang.org/x/sys/windows.FreeSid
-      - golang.org/x/sys/windows.LocalFree
-      - golang.org/x/sys/windows.RegCloseKey
-      - golang.org/x/sys/windows.SetEvent
-      - golang.org/x/sys/windows/registry.Close
-      - golang.org/x/sys/windows/svc/debug.Close
-      - golang.org/x/sys/windows/svc/debug.Error
-      - golang.org/x/sys/windows/svc/debug.Info
-      - golang.org/x/sys/windows/svc/debug.Warning
-      - pkg/util/log.JMXError
-      - syscall.CloseHandle
-  staticcheck:
-    checks: ["all",
-             "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022", # These ones are disabled by default on staticcheck
-             "-ST1013", # Use HTTP code enums instead of integers
-             # Actual issues that should be fixed eventually
-             "-SA6002", # TODO: Fix sync.Pools
-             "-SA4025", # TODO: Fix trace unit test
-             "-SA4011", "-SA4031", # Disabling these to re-enable golanci-lint default tests
-             "-SA4023"  # Fix the lint_macos_gitlab_amd64 linter discrepancy while we find the issue (see https://github.com/dominikh/go-tools/issues/847)
-            ]
-  govet:
-    settings:
-      printf:
-        funcs:
-          - github.com/DataDog/datadog-agent/pkg/util/log.Tracef
-          - github.com/DataDog/datadog-agent/pkg/util/log.Debugf
-          - github.com/DataDog/datadog-agent/pkg/util/log.Infof
-          - github.com/DataDog/datadog-agent/pkg/util/log.Printf
-          - github.com/DataDog/datadog-agent/pkg/util/log.Warnf
-          - github.com/DataDog/datadog-agent/pkg/util/log.Errorf
-          - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Tracef
-          - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Debugf
-          - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Infof
-          - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Warnf
-          - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Errorf
-          - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Criticalf
-  revive:
-    # in order to change revive config, the default configuration must be explicitly defined
-    # https://github.com/mgechev/revive/blob/master/defaults.toml
-    #
-    # see https://github.com/golangci/golangci-lint/blob/master/.golangci.reference.yml for the golangci-lint config syntax
-    ignore-generated-header: false
-    severity: "warning"
-    confidence: 0.8
-    rules:
-      - name: blank-imports
-      - name: context-as-argument
-      - name: context-keys-type
-      - name: dot-imports
-      - name: empty-block
-      - name: error-naming
-      - name: error-return
-      - name: error-strings
-      - name: errorf
-      - name: exported
-      - name: increment-decrement
-      - name: indent-error-flow
-      - name: package-comments
-      - name: range
-      - name: receiver-naming
-      - name: redefines-builtin-id
-      - name: superfluous-else
-      - name: time-naming
-      - name: unexported-return
-      - name: unreachable-code
-      - name: unused-parameter
-        arguments:
-          - allowRegex: "^_"
-      - name: var-declaration
-      - name: var-naming
-      # non-default rules:
-      - name: duplicated-imports
-  forbidigo:
-    forbid:
-      - p: ^model.NewConfig.*$
-        pkg: ^github.com/DataDog/datadog-agent/pkg/config/model$
-        msg: use pkg/config/mock instead in tests or the config component
-      - p: ^setup.SetDatadog.*$
-        pkg: ^github.com/DataDog/datadog-agent/pkg/config/setup$
-        msg: use pkg/config/mock instead for tests or the config component
-      - p: ^setup.SetSystemProbe.*$
-        pkg: ^github.com/DataDog/datadog-agent/pkg/config/setup$
-        msg: use pkg/config/mock instead for tests or the config component
-      - p: ^.*\.BindEnv$
-        pkg: ^github.com/DataDog/datadog-agent/pkg/config/model$
-        msg: use BindEnvAndSetDefault instead of BindEnv to ensure proper defaults are set
-      - p: ^.*\.SetKnown$
-        pkg: ^github.com/DataDog/datadog-agent/pkg/config/model$
-        msg: usage of SetKnown is discouraged
-      - p: RevertFinishedBackToBuilder
-        msg: RevertFinishedBackToBuilder is typically not needed, so using it is discouraged. Only existing OTel usage is allowed.
-    analyze-types: true
-  custom:
-    pkgconfigusage:
-      type: "module"
-      description: "Check usage of pkgconfig in components folder"
+    # Endpoints and EndpointSubsets are deprecated in Kubernetes v1.33+. We need to work on a migration path.
+    - text: "Endpoints is deprecated: This API is deprecated in v1.33+"
+      linters: [staticcheck]
+    - text: "EndpointSubset is deprecated: This API is deprecated in v1.33+"
+      linters: [staticcheck]
+    paths:
+      - pkg/util/cloudproviders/cloudfoundry/bbscache_test.go
+      - pkg/util/intern/string.go
+      - pkg/serverless/trace/inferredspan/constants.go
+      - test/e2e-framework
+      - pkg/proto/patches
+      - pkg/security/utils/lru
+      - pkg/template
+      - tasks/unit_tests/testdata/components_src
+      - third_party$
+      - builtin$
+      - examples$
 
 run:
   allow-parallel-runners: true
+
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    generated: lax
+    paths:
+      - pkg/util/cloudproviders/cloudfoundry/bbscache_test.go
+      - pkg/util/intern/string.go
+      - pkg/serverless/trace/inferredspan/constants.go
+      - test/e2e-framework
+      - pkg/proto/patches
+      - pkg/security/utils/lru
+      - pkg/template
+      - tasks/unit_tests/testdata/components_src
+      - third_party$
+      - builtin$
+      - examples$

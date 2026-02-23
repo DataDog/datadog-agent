@@ -1,0 +1,40 @@
+version: '3'
+name: dnsworkload
+services:
+  coredns:
+    image: coredns/coredns:1.13.1
+    command: -conf /etc/coredns/Corefile
+    ports:
+      - 127.0.0.1:53:53/udp
+      - 127.0.0.1:53:53/tcp
+    volumes:
+      - type: bind
+        source: ${TESTDIR}/testdata/dnsworkload/Corefile
+        target: /etc/coredns/Corefile
+    networks:
+      dns_test:
+        ipv4_address: 172.25.0.2
+
+  python-client:
+    image: python:3-alpine
+    command: python3 -u /dnsworkload.py
+    depends_on:
+      - coredns
+    volumes:
+      - type: bind
+        source: ${TESTDIR}/testdata/dnsworkload/dnsworkload.py
+        target: /dnsworkload.py
+      - type: bind
+        source: ${TESTDIR}/testdata/dnsworkload/resolv.conf
+        target: /etc/resolv.conf
+    networks:
+      dns_test:
+        ipv4_address: 172.25.0.3
+
+networks:
+  dns_test:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+

@@ -338,6 +338,8 @@ const (
 	MetricSourceHuggingFaceTgi
 	MetricSourceIbmSpectrumLsf
 	MetricSourceDatadogOperator
+	MetricSourceBattery
+	MetricSourcePinot
 
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
@@ -386,9 +388,6 @@ const (
 
 	// Serverless
 	MetricSourceServerless
-	MetricSourceAwsLambdaCustom
-	MetricSourceAwsLambdaEnhanced
-	MetricSourceAwsLambdaRuntime
 	MetricSourceAzureContainerAppCustom
 	MetricSourceAzureContainerAppEnhanced
 	MetricSourceAzureContainerAppRuntime
@@ -1107,12 +1106,6 @@ func (ms MetricSource) String() string {
 		return "opentelemetry_collector_couchdbreceiver"
 	case MetricSourceServerless:
 		return "serverless"
-	case MetricSourceAwsLambdaCustom:
-		return "aws_lambda_custom"
-	case MetricSourceAwsLambdaEnhanced:
-		return "aws_lambda_enhanced"
-	case MetricSourceAwsLambdaRuntime:
-		return "aws_lambda_runtime"
 	case MetricSourceAzureContainerAppCustom:
 		return "azure_container_app_custom"
 	case MetricSourceAzureContainerAppEnhanced:
@@ -1135,6 +1128,10 @@ func (ms MetricSource) String() string {
 		return "wlan"
 	case MetricSourceWindowsCertificateStore:
 		return "windows_certificate"
+	case MetricSourceBattery:
+		return "battery"
+	case MetricSourcePinot:
+		return "pinot"
 	default:
 		return "<unknown>"
 	}
@@ -1819,6 +1816,10 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceWlan
 	case "windows_certificate":
 		return MetricSourceWindowsCertificateStore
+	case "battery":
+		return MetricSourceBattery
+	case "pinot":
+		return MetricSourcePinot
 	default:
 		return MetricSourceUnknown
 	}

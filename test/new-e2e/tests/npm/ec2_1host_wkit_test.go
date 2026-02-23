@@ -8,17 +8,17 @@ package npm
 import (
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/docker"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
-	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
+	ec2windows "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 )
 
 type hostHttpbinEnvWindows struct {
@@ -42,20 +42,22 @@ func TestEC2VMWKitSuite(t *testing.T) {
 	e2e.Run(t, s, e2eParams...)
 }
 
-func hostDockerHttpbinEnvProvisionerWindows(opt ...awsHostWindows.ProvisionerOption) provisioners.PulumiEnvRunFunc[hostHttpbinEnvWindows] {
+func hostDockerHttpbinEnvProvisionerWindows(opt ...ec2windows.RunOption) provisioners.PulumiEnvRunFunc[hostHttpbinEnvWindows] {
 	return func(ctx *pulumi.Context, env *hostHttpbinEnvWindows) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
 			return err
 		}
-		opts := []awsHostWindows.ProvisionerOption{
-			awsHostWindows.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)),
+		opts := []ec2windows.RunOption{
+			ec2windows.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)),
 		}
 		if len(opt) > 0 {
 			opts = append(opts, opt...)
 		}
-		params := awsHostWindows.GetProvisionerParams(opts...)
-		awsHostWindows.Run(ctx, &env.WindowsHost, awsEnv, params)
+		params := ec2windows.GetRunParams(opts...)
+		if err := ec2windows.RunWithEnv(ctx, awsEnv, &env.WindowsHost, params); err != nil {
+			return err
+		}
 
 		vmName := "httpbinvm"
 
@@ -133,7 +135,7 @@ func (v *ec2VMWKitSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate connections
-	v.Env().RemoteHost.MustExecute("C:\\Users\\Administrator\\httpd\\Apache24\\bin\\ab.exe -n 600 -c 600 " + testURL)
+	v.Env().RemoteHost.MustExecute("C:\\Users\\Administrator\\httpd\\Apache24\\bin\\ab.exe -n 1500 -c 600 " + testURL)
 
 	test1HostFakeIntakeNPM600cnxBucket(&v.BaseSuite, v.Env().FakeIntake)
 }

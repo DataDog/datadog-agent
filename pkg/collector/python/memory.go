@@ -8,20 +8,37 @@
 package python
 
 import (
-	"expvar"
 	// "log"
-	"runtime/debug"
+
 	"sync"
+	"time"
 	"unsafe"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 /*
 #cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
 #cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
+
+#if defined(__linux__) || defined(_WIN32)
+#    include <malloc.h>
+#elif defined(__APPLE__) || defined(__FreeBSD__)
+#    include <malloc/malloc.h>
+#endif
+
+// Used in TrackedCString to get the size of C memory allocated by C.CString
+static inline size_t get_alloc_size(void *ptr) {
+#if defined(__linux__)
+    return malloc_usable_size(ptr);
+#elif defined(_WIN32)
+    return _msize(ptr);
+#elif defined(__APPLE__) || defined(__FreeBSD__)
+    return malloc_size(ptr);
+#else
+    return 0;
+#endif
+}
 
 #include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
@@ -29,96 +46,53 @@ import (
 import "C"
 
 var (
-	pointerCache = sync.Map{}
-
-	// TODO(remy): if they're not exposed in the status page we may
-	// remove all these expvars
-	rtLoaderExpvars = expvar.NewMap("rtloader")
-	inuseBytes      = expvar.Int{}
-	allocatedBytes  = expvar.Int{}
-	freedBytes      = expvar.Int{}
-	allocations     = expvar.Int{}
-	frees           = expvar.Int{}
-	untrackedFrees  = expvar.Int{}
-
+	tlmAllocations = telemetry.NewCounter("rtloader", "allocations",
+		nil, "Allocations count")
+	tlmAllocatedBytes = telemetry.NewCounter("rtloader", "allocated_bytes",
+		nil, "Allocated bytes amount")
+	tlmFrees = telemetry.NewCounter("rtloader", "frees",
+		nil, "Frees count")
 	tlmFreedBytes = telemetry.NewCounter("rtloader", "freed_bytes",
 		nil, "Freed memory amount")
 	tlmInuseBytes = telemetry.NewGauge("rtloader", "inuse_bytes",
 		nil, "In-use memory")
-	tlmAllocatedBytes = telemetry.NewCounter("rtloader", "allocated_bytes",
-		nil, "Allocated bytes amount")
-	tlmAllocations = telemetry.NewCounter("rtloader", "allocations",
-		nil, "Allocations count")
-	tlmFrees = telemetry.NewCounter("rtloader", "frees",
-		nil, "Frees count")
-	tlmUntrackedFrees = telemetry.NewCounter("rtloader", "untracked_frees",
-		nil, "Untracked frees count")
 )
 
-func init() {
-	rtLoaderExpvars.Set("InuseBytes", &inuseBytes)
-	rtLoaderExpvars.Set("AllocatedBytes", &allocatedBytes)
-	rtLoaderExpvars.Set("FreedBytes", &freedBytes)
-	rtLoaderExpvars.Set("Allocations", &allocations)
-	rtLoaderExpvars.Set("Frees", &frees)
-	rtLoaderExpvars.Set("UntrackedFrees", &untrackedFrees)
-}
-
-// MemoryTracker is the method exposed to the RTLoader for memory tracking
-//
-//export MemoryTracker
-func MemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
-	// run sync for reliability reasons
-
-	// This check looks redundant since the log level is also checked in pkg/util/log,
-	// but from profiling, even passing these vars through as arguments allocates to the heap.
-	// This is an optimization to avoid even evaluating the `Tracef` call if the trace log
-	// level is not enabled.
-	if log.ShouldLog(log.TraceLvl) {
-		log.Tracef("Memory Tracker - ptr: %v, sz: %v, op: %v", ptr, sz, op)
-	}
-	switch op {
-	case C.DATADOG_AGENT_RTLOADER_ALLOCATION:
-		pointerCache.Store(ptr, sz)
-		allocations.Add(1)
-		tlmAllocations.Inc()
-		allocatedBytes.Add(int64(sz))
-		tlmAllocatedBytes.Add(float64(sz))
-		inuseBytes.Add(int64(sz))
-		tlmInuseBytes.Set(float64(inuseBytes.Value()))
-
-	case C.DATADOG_AGENT_RTLOADER_FREE:
-		bytes, ok := pointerCache.Load(ptr)
-		if !ok {
-			log.Debugf("untracked memory was attempted to be freed - set trace level for details")
-			lvl, err := log.GetLogLevel()
-			if err == nil && lvl == log.TraceLvl {
-				stack := string(debug.Stack())
-				log.Tracef("Memory Tracker - stacktrace: \n%s", stack)
-			}
-			untrackedFrees.Add(1)
-			tlmUntrackedFrees.Inc()
-			return
-		}
-		defer pointerCache.Delete(ptr)
-
-		frees.Add(1)
-		tlmFrees.Inc()
-		freedBytes.Add(int64(bytes.(C.size_t)))
-		tlmFreedBytes.Add(float64(bytes.(C.size_t)))
-		inuseBytes.Add(-1 * int64(bytes.(C.size_t)))
-		tlmInuseBytes.Set(float64(inuseBytes.Value()))
-	}
-}
-
 // TrackedCString returns a C string that will be tracked by the memory tracker
-func TrackedCString(str string) *C.char {
-	cstr := C.CString(str)
+var TrackedCString = func(str string) *C.char {
+	return C.CString(str)
+}
 
-	// TODO(memory-tracking): track the origin of the string (for example check name)
-	if pkgconfigsetup.Datadog().GetBool("memtrack_enabled") {
-		MemoryTracker(unsafe.Pointer(cstr), C.size_t(len(str)+1), C.DATADOG_AGENT_RTLOADER_ALLOCATION)
-	}
+var memoryTrackerInitializer sync.Once
 
-	return cstr
+func InitMemoryTracker() {
+	memoryTrackerInitializer.Do(func() {
+		C.enable_memory_tracker()
+
+		TrackedCString = func(str string) *C.char {
+			cstr := C.CString(str)
+
+			sz := C.get_alloc_size(unsafe.Pointer(cstr))
+			tlmAllocations.Inc()
+			tlmAllocatedBytes.Add(float64(sz))
+			tlmInuseBytes.Add(float64(sz))
+
+			return cstr
+		}
+
+		go func() {
+			ticker := time.NewTicker(time.Second)
+			defer ticker.Stop()
+
+			for {
+				<-ticker.C
+				memoryStats := C.get_and_reset_memory_stats()
+				tlmAllocations.Add(float64(memoryStats.allocations))
+				tlmAllocatedBytes.Add(float64(memoryStats.allocated_bytes))
+				tlmFrees.Add(float64(memoryStats.frees))
+				tlmFreedBytes.Add(float64(memoryStats.freed_bytes))
+				tlmInuseBytes.Add(float64(memoryStats.inuse_bytes))
+			}
+		}()
+	})
 }

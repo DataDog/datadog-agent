@@ -10,7 +10,6 @@ package run
 
 import (
 	"context"
-	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -19,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/host-profiler/globalparams"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secretfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
@@ -46,9 +45,7 @@ import (
 
 type cliParams struct {
 	*globalparams.GlobalParams
-	SyncTimeout       time.Duration
-	SyncOnInitTimeout time.Duration
-	GoRuntimeMetrics  bool
+	GoRuntimeMetrics bool
 }
 
 // MakeCommand creates the `run` command
@@ -64,14 +61,12 @@ func MakeCommand(globalConfGetter func() *globalparams.GlobalParams) []*cobra.Co
 			return runHostProfilerCommand(context.Background(), params)
 		},
 	}
-	cmd.Flags().DurationVar(&params.SyncTimeout, "sync-timeout", 3*time.Second, "Timeout for config sync requests.")
-	cmd.Flags().DurationVar(&params.SyncOnInitTimeout, "sync-on-init-timeout", 0, "How long should config sync retry at initialization before failing.")
 	cmd.Flags().BoolVar(&params.GoRuntimeMetrics, "go-runtime-metrics", false, "Enable Go runtime metrics collection.")
 	return []*cobra.Command{cmd}
 }
 
 func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
-	var opts []fx.Option = []fx.Option{
+	var opts = []fx.Option{
 		hostprofiler.Bundle(collectorimpl.NewParams(cliParams.GlobalParams.ConfFilePath, cliParams.GoRuntimeMetrics)),
 		logging.DefaultFxLoggingOption(),
 	}
@@ -79,13 +74,14 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 	if cliParams.GlobalParams.CoreConfPath != "" {
 		opts = append(opts,
 			core.Bundle(),
+			remotehostnameimpl.Module(),
 			fx.Supply(core.BundleParams{
 				ConfigParams: config.NewAgentParams(cliParams.GlobalParams.CoreConfPath),
 				LogParams:    log.ForDaemon(command.LoggerName, "log_file", setup.DefaultHostProfilerLogFile),
 			}),
 			fx.Provide(collectorimpl.NewExtraFactoriesWithAgentCore),
 		)
-		opts = append(opts, getRemoteTaggerOptions(cliParams)...)
+		opts = append(opts, getRemoteTaggerOptions()...)
 		opts = append(opts, getTraceAgentOptions(ctx)...)
 
 	} else {
@@ -99,12 +95,11 @@ func run(collector collector.Component) error {
 	return collector.Run()
 }
 
-func getRemoteTaggerOptions(cliParams *cliParams) []fx.Option {
+func getRemoteTaggerOptions() []fx.Option {
 	return []fx.Option{
 		ipcfx.ModuleReadOnly(),
 		secretfx.Module(),
 		remoteTaggerFx.Module(tagger.NewRemoteParams()),
-		configsyncimpl.Module(configsyncimpl.NewParams(cliParams.SyncTimeout, true, cliParams.SyncOnInitTimeout)),
 	}
 }
 

@@ -1,0 +1,4 @@
+string_value: "test-string"
+int_value: 42
+bool_value: true
+float_value: 3.14

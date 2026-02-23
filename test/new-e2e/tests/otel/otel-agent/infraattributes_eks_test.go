@@ -10,13 +10,13 @@ import (
 	_ "embed"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	proveks "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/eks"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/otel/utils"
 )
 
@@ -40,17 +40,20 @@ agents:
           value: 'disable_operation_and_resource_name_logic_v2'
 `
 	t.Parallel()
-	e2e.Run(t, &iaEKSTestSuite{}, e2e.WithProvisioner(awskubernetes.EKSProvisioner(
-		awskubernetes.WithEKSOptions(
-			eks.WithLinuxNodeGroup(),
-			eks.WithUseAL2023Nodes(),
-		),
-		awskubernetes.WithAgentOptions(
-			kubernetesagentparams.WithHelmValues(values),
-			kubernetesagentparams.WithOTelAgent(),
-			kubernetesagentparams.WithOTelConfig(iaConfig),
-		),
-	)))
+	e2e.Run(t, &iaEKSTestSuite{},
+		e2e.WithProvisioner(
+			proveks.Provisioner(
+				proveks.WithRunOptions(
+					eks.WithEKSOptions(
+						eks.WithLinuxNodeGroup(),
+					),
+					eks.WithAgentOptions(
+						kubernetesagentparams.WithHelmValues(values),
+						kubernetesagentparams.WithOTelAgent(),
+						kubernetesagentparams.WithOTelConfig(iaConfig),
+					),
+				))),
+	)
 }
 
 var eksParams = utils.IAParams{
@@ -107,17 +110,19 @@ agents:
           value: 'disable_operation_and_resource_name_logic_v2'
 `
 	t.Parallel()
-	e2e.Run(t, &iaUSTEKSTestSuite{}, e2e.WithProvisioner(awskubernetes.EKSProvisioner(
-		awskubernetes.WithEKSOptions(
-			eks.WithLinuxNodeGroup(),
-			eks.WithUseAL2023Nodes(),
-		),
-		awskubernetes.WithAgentOptions(
-			kubernetesagentparams.WithHelmValues(values),
-			kubernetesagentparams.WithOTelAgent(),
-			kubernetesagentparams.WithOTelConfig(iaConfig),
-		),
-	)))
+	e2e.Run(t, &iaUSTEKSTestSuite{}, e2e.WithProvisioner(
+		proveks.Provisioner(
+			proveks.WithRunOptions(
+				eks.WithEKSOptions(
+					eks.WithLinuxNodeGroup(),
+				),
+				eks.WithAgentOptions(
+					kubernetesagentparams.WithHelmValues(values),
+					kubernetesagentparams.WithOTelAgent(),
+					kubernetesagentparams.WithOTelConfig(iaConfig),
+				),
+			))),
+	)
 }
 
 func (s *iaUSTEKSTestSuite) SetupSuite() {

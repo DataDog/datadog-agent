@@ -136,7 +136,7 @@ func initConn(probeAddr string, nbAttempts uint) (net.Conn, error) {
 	err = retry.Do(func() error {
 		client, err = net.DialTCP("tcp", nil, tcpAddr)
 		return err
-	}, retry.Delay(time.Second), retry.Attempts(nbAttempts))
+	}, retry.Delay(time.Second), retry.Attempts(nbAttempts), retry.DelayType(retry.FixedDelay))
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +212,7 @@ func (ctx *CWSPtracerCtx) waitClientToBeReady() error {
 	for {
 		select {
 		case <-ctx.cancel.Done():
-			return fmt.Errorf("Exiting")
+			return errors.New("Exiting")
 		case ready := <-ctx.clientReady:
 			if !ready {
 				time.Sleep(time.Second)
@@ -244,7 +244,7 @@ func (ctx *CWSPtracerCtx) sendMessagesLoop() error {
 	for {
 		select {
 		case <-ctx.cancel.Done():
-			return fmt.Errorf("Exiting")
+			return errors.New("Exiting")
 		case data := <-ctx.msgDataChan:
 			if err := ctx.sendMsgData(data); err != nil {
 				logger.Debugf("error sending msg: %v", err)
@@ -333,7 +333,7 @@ func (ctx *CWSPtracerCtx) initCtxCommon() error {
 
 func initCWSPtracerWrapp(args []string, envs []string, probeAddr string, opts Opts) (*CWSPtracerCtx, error) {
 	if len(args) == 0 {
-		return nil, fmt.Errorf("an executable is required")
+		return nil, errors.New("an executable is required")
 	}
 	entry, err := checkEntryPoint(args[0])
 	if err != nil {

@@ -38,7 +38,7 @@ func DiagnoseMetadataAutodiscoveryConnectivity() []diagnose.Diagnosis {
 		if err == nil {
 			diagnosisString = fmt.Sprintf("Successfully connected to %s environment", name)
 		} else {
-			diagnosisString = fmt.Sprintf("[Ignore if not applied] %s", err.Error())
+			diagnosisString = "[Ignore if not applied] " + err.Error()
 		}
 
 		diagnoses = append(diagnoses, diagnose.Diagnosis{

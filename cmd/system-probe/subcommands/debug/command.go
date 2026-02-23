@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
@@ -49,12 +50,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(debugRuntime,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams:         config.NewAgentParams(""),
+					ConfigParams:         config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams:            log.ForOneShot("SYS-PROBE", "off", false),
+					LogParams:            log.ForOneShot(command.LoggerName, "off", false),
 				}),
 				// no need to provide sysprobe logger since ForOneShot ignores config values
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -68,7 +70,7 @@ func debugRuntime(sysprobeconfig sysprobeconfig.Component, cliParams *cliParams)
 
 	var path string
 	if len(cliParams.args) == 1 {
-		path = fmt.Sprintf("http://localhost/debug/%s", cliParams.args[0])
+		path = "http://localhost/debug/" + cliParams.args[0]
 	} else {
 		path = fmt.Sprintf("http://localhost/%s/debug/%s", cliParams.args[0], cliParams.args[1])
 	}

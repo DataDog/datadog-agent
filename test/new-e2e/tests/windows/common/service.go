@@ -7,11 +7,12 @@ package common
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 // Service API constants
@@ -78,7 +79,7 @@ func (s *ServiceConfig) UnmarshalJSON(b []byte) error {
 // FetchUserSID fetches the SID for the service user
 func (s *ServiceConfig) FetchUserSID(host *components.RemoteHost) error {
 	if s.UserName == "" {
-		return fmt.Errorf("UserName is not set")
+		return errors.New("UserName is not set")
 	}
 	var err error
 	sid, err := GetServiceAliasSID(s.UserName)
@@ -223,9 +224,24 @@ func GetServicePID(host *components.RemoteHost, service string) (int, error) {
 	return strconv.Atoi(out)
 }
 
+// GetProcessStartTimeAsFileTimeUtc returns the start time of the process as a FileTimeUtc
+//
+// A Windows file time is a 64-bit value that represents the number of 100-nanosecond intervals that have elapsed since 12:00 midnight, January 1, 1601 A.D. (C.E.) Coordinated Universal Time (UTC).
+//
+// https://learn.microsoft.com/en-us/dotnet/api/system.datetime.tofiletimeutc
+func GetProcessStartTimeAsFileTimeUtc(host *components.RemoteHost, pid int) (int64, error) {
+	cmd := fmt.Sprintf("(Get-Process -Id %d).StartTime.ToFileTimeUtc()", pid)
+	out, err := host.Execute(cmd)
+	if err != nil {
+		return 0, err
+	}
+	out = strings.TrimSpace(out)
+	return strconv.ParseInt(out, 10, 64)
+}
+
 // GetServiceImagePath returns the image path (command line) of the service
 func GetServiceImagePath(host *components.RemoteHost, service string) (string, error) {
-	return GetRegistryValue(host, fmt.Sprintf("HKLM:\\SYSTEM\\CurrentControlSet\\Services\\%s", service), "ImagePath")
+	return GetRegistryValue(host, "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\"+service, "ImagePath")
 }
 
 // IsUserModeServiceType returns true if the service is a user mode service

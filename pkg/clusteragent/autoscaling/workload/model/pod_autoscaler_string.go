@@ -160,7 +160,9 @@ func formatConstraints(constraints *datadoghqcommon.DatadogPodAutoscalerConstrai
 	if constraints.MinReplicas != nil {
 		_, _ = fmt.Fprintln(&sb, "Min Replicas:", *constraints.MinReplicas)
 	}
-	_, _ = fmt.Fprintln(&sb, "Max Replicas:", constraints.MaxReplicas)
+	if constraints.MaxReplicas != nil {
+		_, _ = fmt.Fprintln(&sb, "Max Replicas:", *constraints.MaxReplicas)
+	}
 
 	for _, container := range constraints.Containers {
 		_, _ = fmt.Fprintln(&sb, "Container:", container.Name)
@@ -196,8 +198,8 @@ func formatObjective(objective *datadoghqcommon.DatadogPodAutoscalerObjective) s
 		_, _ = fmt.Fprintln(&sb, "Container Name:", objective.ContainerResource.Container)
 		formatObjectiveValue(&sb, &objective.ContainerResource.Value)
 	}
-	if objective.CustomQueryObjective != nil {
-		formatObjectiveValue(&sb, &objective.CustomQueryObjective.Value)
+	if objective.CustomQuery != nil {
+		formatObjectiveValue(&sb, &objective.CustomQuery.Value)
 	}
 	return sb.String()
 }

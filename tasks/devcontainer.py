@@ -191,6 +191,9 @@ def configure_skaffold(devcontainer: dict, profile: SkaffoldProfile):
                 "cloudcode.updateAdcOnLogin": False,
                 "cloudcode.useGcloudAuthSkaffold": False,
                 "cloudcode.yaml.validate": False,
+                # TODO: for now we need to keep it else the cloudrun plugin is broken
+                # "geminicodeassist.enable": False,
+                "geminicodeassist.enableTelemetry": False,
             }
             devcontainer["customizations"]["vscode"]["settings"].update(additional_settings)
 

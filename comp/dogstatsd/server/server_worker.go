@@ -18,7 +18,7 @@ var (
 	// defaultSampleSize is the default allocation size used to store
 	// samples when a message contains multiple values. This will
 	// automatically be extended if needed when we append to it.
-	defaultSampleSize = 1024
+	defaultSampleSize = 128
 )
 
 type worker struct {

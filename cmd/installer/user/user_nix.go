@@ -9,13 +9,16 @@
 package user
 
 import (
+	"context"
+	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
 	"syscall"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
 )
 
 // ErrRootRequired is the error returned when an operation requires root privileges.
-var ErrRootRequired = fmt.Errorf("operation requires root privileges")
+var ErrRootRequired = errors.New("operation requires root privileges")
 
 // IsRoot returns true if the process is running as root.
 func IsRoot() bool {
@@ -26,7 +29,7 @@ func IsRoot() bool {
 // Note that we actually only set dd-agent as the effective user, not the real user, in oder to
 // escalate privileges back when needed.
 func RootToDatadogAgent() error {
-	gid, err := user.GetGroupID("dd-agent")
+	gid, err := user.GetGroupID(context.Background(), "dd-agent")
 	if err != nil {
 		return fmt.Errorf("failed to lookup dd-agent group: %s", err)
 	}
@@ -34,7 +37,7 @@ func RootToDatadogAgent() error {
 	if err != nil {
 		return fmt.Errorf("failed to setegid: %s", err)
 	}
-	uid, err := user.GetUserID("dd-agent")
+	uid, err := user.GetUserID(context.Background(), "dd-agent")
 	if err != nil {
 		return fmt.Errorf("failed to lookup dd-agent user: %s", err)
 	}

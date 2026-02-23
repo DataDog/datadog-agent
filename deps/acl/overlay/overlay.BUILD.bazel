@@ -1,0 +1,209 @@
+"""libacl"""
+
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
+load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "strip_prefix")
+
+package(default_package_metadata = [":package_metadata", ":ship_source_offer"])
+
+VERSION = "2.3.1"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+        ":ship_source_offer",
+    ],
+    purl = purl_for_generic(
+        package = "acl",
+        version = VERSION,
+        download_url = "https://download.savannah.nongnu.org/releases/acl/acl-{version}.tar.xz",
+    ),
+)
+
+ship_source_offer(name = "ship_source_offer")
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:LGPL-2.1"],
+    license_text = "doc/COPYING.LGPL",
+    visibility = ["//visibility:public"],
+)
+
+# TODO: We will have to adjust this when we put a dependency on it.
+# It is possible that some of the other files in include are public.
+PUBLIC_HEADERS = [
+    ":fixed/include/sys/acl.h",
+    ":fixed/include/acl/libacl.h",
+]
+
+# There are two things going on here
+# 1. The public headers in the source are not in their installed locations.
+#    src = "include/acl.h" => "include/sys/acl.h"
+#    src = "include/libacl.h",  => "include/acl/libacl.h"
+# 2. In the (internal) source headers, external methods are marked EXPORT.
+#    However, the public version should use extern instead. Configure/make
+#    did the rename while copying, so we do the same.
+
+genrule(
+    name = "fixed_headers",
+    srcs = [
+        ":include/acl.h",
+        ":include/libacl.h",
+    ],
+    outs = [
+        "fixed/include/sys/acl.h",
+        "fixed/include/acl/libacl.h",
+    ],
+    cmd = ";".join([
+        "sed 's/EXPORT/extern/g' $(location :include/acl.h) > $(location fixed/include/sys/acl.h)",
+        "sed 's/EXPORT/extern/g' $(location :include/libacl.h) > $(location fixed/include/acl/libacl.h)",
+    ]),
+)
+
+cc_library(
+    name = "libacl",
+    srcs = [
+        ":fixed_headers",
+        "include/acl_ea.h",
+        "include/acl.h",
+        "include/config.h",
+        "include/libacl.h",
+        "include/misc.h",
+        "include/walk_tree.h",
+        "libacl/__acl_extended_file.c",
+        "libacl/__acl_extended_file.h",
+        "libacl/__acl_from_xattr.c",
+        "libacl/__acl_from_xattr.h",
+        "libacl/__acl_reorder_obj_p.c",
+        "libacl/__acl_to_any_text.c",
+        "libacl/__acl_to_xattr.c",
+        "libacl/__acl_to_xattr.h",
+        "libacl/__apply_mask_to_mode.c",
+        "libacl/__libobj.c",
+        "libacl/acl_add_perm.c",
+        "libacl/acl_calc_mask.c",
+        "libacl/acl_check.c",
+        "libacl/acl_clear_perms.c",
+        "libacl/acl_cmp.c",
+        "libacl/acl_copy_entry.c",
+        "libacl/acl_copy_ext.c",
+        "libacl/acl_copy_int.c",
+        "libacl/acl_create_entry.c",
+        "libacl/acl_delete_def_file.c",
+        "libacl/acl_delete_entry.c",
+        "libacl/acl_delete_perm.c",
+        "libacl/acl_dup.c",
+        "libacl/acl_entries.c",
+        "libacl/acl_equiv_mode.c",
+        "libacl/acl_error.c",
+        "libacl/acl_extended_fd.c",
+        "libacl/acl_extended_file_nofollow.c",
+        "libacl/acl_extended_file.c",
+        "libacl/acl_free.c",
+        "libacl/acl_from_mode.c",
+        "libacl/acl_from_text.c",
+        "libacl/acl_get_entry.c",
+        "libacl/acl_get_fd.c",
+        "libacl/acl_get_file.c",
+        "libacl/acl_get_perm.c",
+        "libacl/acl_get_permset.c",
+        "libacl/acl_get_qualifier.c",
+        "libacl/acl_get_tag_type.c",
+        "libacl/acl_init.c",
+        "libacl/acl_set_fd.c",
+        "libacl/acl_set_file.c",
+        "libacl/acl_set_permset.c",
+        "libacl/acl_set_qualifier.c",
+        "libacl/acl_set_tag_type.c",
+        "libacl/acl_size.c",
+        "libacl/acl_to_any_text.c",
+        "libacl/acl_to_text.c",
+        "libacl/acl_valid.c",
+        "libacl/byteorder.h",
+        "libacl/libacl.h",
+        "libacl/libobj.h",
+        "libacl/perm_copy_fd.c",
+        "libacl/perm_copy_file.c",
+        "libacl/perm_copy.h",
+        "libmisc/high_water_alloc.c",
+        "libmisc/next_line.c",
+        "libmisc/quote.c",
+        "libmisc/unquote.c",
+        "libmisc/walk_tree.c",
+    ],
+    hdrs = PUBLIC_HEADERS,
+    includes = [
+        "include",
+        "fixed/include",
+    ],
+    copts = [
+        "-fPIC",
+        "-O2",
+        "-g",
+        "-Ilibacl",
+    ],
+    local_defines = [
+        "HAVE_CONFIG_H",
+        "HAVE_ACL_ENTRIES",
+        "HAVE_ACL_FREE",
+        "HAVE_LIBACL_LIBACL_H",
+        'SYSCONFDIR=\\"/opt/datadog-agent/embedded/etc\\"',
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@attr//:libattr",
+    ],
+)
+
+cc_shared_library(
+    name = "acl",
+    deps = [":libacl"],
+    dynamic_deps = [
+        "@attr//:attr",
+    ],
+    additional_linker_inputs = [
+        "exports",
+    ],
+    user_link_flags = [
+        "-Wl,--version-script=$(location exports)",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+so_symlink(
+    name = "lib_files",
+    src = ":acl",
+    libname = "libacl",
+    version = "1.1.2301",
+    prefix = "embedded",
+)
+
+pkg_files(
+    name = "hdr_files",
+    srcs = [":fixed_headers"],
+    strip_prefix = strip_prefix.from_pkg("fixed"),
+    prefix = "embedded",
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":hdr_files",
+        ":lib_files",
+    ],
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
+)

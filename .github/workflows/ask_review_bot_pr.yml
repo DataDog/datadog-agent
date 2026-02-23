@@ -8,7 +8,6 @@ on:
       - completed
     branches:
       - dependabot/*
-      - renovate/*
 
 jobs:
   automatic-ask-review:

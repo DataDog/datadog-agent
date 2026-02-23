@@ -9,10 +9,13 @@ package compliance
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	rbacv1 "k8s.io/api/rbac/v1"
 	kubemetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeunstructured "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	kuberuntime "k8s.io/apimachinery/pkg/runtime"
 	kubeschema "k8s.io/apimachinery/pkg/runtime/schema"
 	kubedynamic "k8s.io/client-go/dynamic"
 )
@@ -33,10 +36,14 @@ type k8sapiserverResolver struct {
 
 	kubernetesCl                    kubedynamic.Interface
 	kubernetesGroupAndResourcesFunc KubernetesGroupsAndResourcesProvider
+
+	reflectorStore *ReflectorStore
 }
 
 func newK8sapiserverResolver(ctx context.Context, opts ResolverOptions) *k8sapiserverResolver {
-	r := &k8sapiserverResolver{}
+	r := &k8sapiserverResolver{
+		reflectorStore: opts.ReflectorStore,
+	}
 
 	if opts.KubernetesProvider != nil {
 		r.kubernetesCl, r.kubernetesGroupAndResourcesFunc, _ = opts.KubernetesProvider(ctx)
@@ -76,18 +83,18 @@ func (r *k8sapiserverResolver) resolveKubeClusterID(ctx context.Context) string 
 	return r.kubeClusterIDCache
 }
 
-func (r *k8sapiserverResolver) resolveKubeApiserver(ctx context.Context, spec InputSpecKubeapiserver) (interface{}, error) {
+func (r *k8sapiserverResolver) resolveKubeApiserver(ctx context.Context, ruleID string, spec InputSpecKubeapiserver) (interface{}, error) {
 	cl := r.kubernetesCl
 	if cl == nil {
 		return nil, ErrIncompatibleEnvironment
 	}
 
 	if len(spec.Kind) == 0 {
-		return nil, fmt.Errorf("cannot run Kubeapiserver check, resource kind is empty")
+		return nil, errors.New("cannot run Kubeapiserver check, resource kind is empty")
 	}
 
 	if len(spec.APIRequest.Verb) == 0 {
-		return nil, fmt.Errorf("cannot run Kubeapiserver check, action verb is empty")
+		return nil, errors.New("cannot run Kubeapiserver check, action verb is empty")
 	}
 
 	if len(spec.Version) == 0 {
@@ -124,7 +131,7 @@ func (r *k8sapiserverResolver) resolveKubeApiserver(ctx context.Context, spec In
 	switch api.Verb {
 	case "get":
 		if len(api.ResourceName) == 0 {
-			return nil, fmt.Errorf("unable to use 'get' apirequest without resource name")
+			return nil, errors.New("unable to use 'get' apirequest without resource name")
 		}
 		resource, err := resourceAPI.Get(ctx, spec.APIRequest.ResourceName, kubemetav1.GetOptions{})
 		if err != nil {
@@ -133,6 +140,11 @@ func (r *k8sapiserverResolver) resolveKubeApiserver(ctx context.Context, spec In
 		}
 		items = []kubeunstructured.Unstructured{*resource}
 	case "list":
+		// Try using data from reflectors instead of calling "list" when it could return many objects and cause memory spikes
+		if objects, ok := r.getFromReflectorStore(ruleID, spec); ok {
+			return objects, nil
+		}
+
 		list, err := resourceAPI.List(ctx, kubemetav1.ListOptions{
 			LabelSelector: spec.LabelSelector,
 			FieldSelector: spec.FieldSelector,
@@ -182,4 +194,65 @@ func (r *k8sapiserverResolver) checkKubeServerResourceSupport(resourceSchema kub
 		}
 	}
 	return false, nil
+}
+
+// getFromReflectorStore tries to get Kubernetes objects from the ReflectorStore
+// instead of calling the Kubernetes API. This optimization only applies to
+// rule cis-kubernetes-1.5.1-5.1.5.
+func (r *k8sapiserverResolver) getFromReflectorStore(ruleID string, spec InputSpecKubeapiserver) (interface{}, bool) {
+	if ruleID != "cis-kubernetes-1.5.1-5.1.5" {
+		return nil, false
+	}
+
+	store := r.reflectorStore
+	if store == nil || !store.HasSynced() {
+		return nil, false
+	}
+
+	if spec.Group != rbacv1.SchemeGroupVersion.Group {
+		return nil, false
+	}
+
+	var resolved []interface{}
+
+	switch spec.Kind {
+	case "rolebindings":
+		for _, rb := range store.GetRoleBindings() {
+			if spec.Namespace != "" && rb.GetNamespace() != spec.Namespace {
+				continue
+			}
+			unstructuredContent, err := kuberuntime.DefaultUnstructuredConverter.ToUnstructured(rb)
+			if err != nil {
+				continue
+			}
+			resolved = append(resolved, map[string]interface{}{
+				"kind":      "RoleBinding",
+				"group":     rbacv1.SchemeGroupVersion.Group,
+				"version":   rbacv1.SchemeGroupVersion.Version,
+				"namespace": rb.GetNamespace(),
+				"name":      rb.GetName(),
+				"resource":  kubeunstructured.Unstructured{Object: unstructuredContent},
+			})
+		}
+		return resolved, true
+
+	case "clusterrolebindings":
+		for _, crb := range store.GetClusterRoleBindings() {
+			unstructuredContent, err := kuberuntime.DefaultUnstructuredConverter.ToUnstructured(crb)
+			if err != nil {
+				continue
+			}
+			resolved = append(resolved, map[string]interface{}{
+				"kind":      "ClusterRoleBinding",
+				"group":     rbacv1.SchemeGroupVersion.Group,
+				"version":   rbacv1.SchemeGroupVersion.Version,
+				"namespace": crb.GetNamespace(),
+				"name":      crb.GetName(),
+				"resource":  kubeunstructured.Unstructured{Object: unstructuredContent},
+			})
+		}
+		return resolved, true
+	}
+
+	return nil, false
 }

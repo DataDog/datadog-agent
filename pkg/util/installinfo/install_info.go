@@ -12,7 +12,7 @@ package installinfo
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -92,11 +92,11 @@ func Get(conf model.Reader) (*InstallInfo, error) {
 // setRuntimeInstallInfo sets the install info at runtime, overriding file and env var values
 func setRuntimeInstallInfo(info *InstallInfo) error {
 	if info == nil {
-		return fmt.Errorf("install info cannot be nil")
+		return errors.New("install info cannot be nil")
 	}
 
 	if info.Tool == "" || info.ToolVersion == "" || info.InstallerVersion == "" {
-		return fmt.Errorf("install info must have tool, tool_version, and installer_version set")
+		return errors.New("install info must have tool, tool_version, and installer_version set")
 	}
 
 	runtimeInfoMutex.Lock()

@@ -1,0 +1,142 @@
+{
+  "commands": [
+    {
+      "type": "running",
+      "values": [
+        "show running-config"
+      ],
+      "processing_rules": {
+        "metadata": [
+          {
+            "type": "timestamp",
+            "regex": "(?m)^!Running configuration last done at: (.*?)(?:\\s+by \\S+)?$",
+            "format": "Mon Jan _2 15:04:05 2006"
+          }
+        ],
+        "validation": [
+          {
+            "type": "valid_output",
+            "pattern": "!Command: show running-config"
+          }
+        ],
+        "redaction": [
+          {
+            "regex": "^(snmp-server community).*",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(snmp-server user (\\S+) (\\S+) auth (\\S+)) (.*) (priv) (.*)",
+            "replacement": "$1 <secret hidden> "
+          },
+          {
+            "regex": "^(snmp-server host.*? )\\S+( udp-port \\d+)?$",
+            "replacement": "$1<secret hidden>$2"
+          },
+          {
+            "regex": "^(snmp-server mib community-map) \\S+ ?(.*)",
+            "replacement": "$1 <secret hidden> $2"
+          },
+          {
+            "regex": "(password \\d+) (\\S+)",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(radius-server .*key(?: \\d+)?) \\S+",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(tacacs-server .*key(?: \\d+)?) \\S+",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "!Command: show running-config\\s*",
+            "replacement": "",
+            "multiline": true
+          },
+          {
+            "regex": "(?m)^!Running configuration last done at:.*?$\\s*(?:^!\\s*$\\s*)?",
+            "replacement": "",
+            "multiline": true
+          },
+          {
+            "regex": "(?m)^!Time: .*?$\\s*(?:^!\\s*$\\s*)?",
+            "replacement": "",
+            "multiline": true
+          }
+        ]
+      }
+    },
+    {
+      "type": "startup",
+      "values": [
+        "show startup-config"
+      ],
+      "processing_rules": {
+        "metadata": [
+          {
+            "type": "timestamp",
+            "regex": "(?m)^!Startup config saved at: (.*?)(?:\\s+by \\S+)?$",
+            "format": "Mon Jan _2 15:04:05 2006"
+          }
+        ],
+        "validation": [
+          {
+            "type": "valid_output",
+            "pattern": "!Command: show startup-config"
+          }
+        ],
+        "redaction": [
+          {
+            "regex": "^(snmp-server community).*",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(snmp-server user \\S+ \\S+ auth \\S+) \\S+( priv \\S+) \\S+(.*)",
+            "replacement": "$1 <secret hidden>$2 <secret hidden>$3"
+          },
+          {
+            "regex": "^(snmp-server host.*? )\\S+( udp-port \\d+)?$",
+            "replacement": "$1<secret hidden>$2"
+          },
+          {
+            "regex": "^(snmp-server mib community-map) \\S+ ?(.*)",
+            "replacement": "$1 <secret hidden> $2"
+          },
+          {
+            "regex": "(password \\d+) (\\S+)",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(radius-server .*key(?: \\d+)?) \\S+",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(tacacs-server .*key(?: \\d+)?) \\S+",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "!Command: show startup-config\\s*",
+            "replacement": "",
+            "multiline": true
+          },
+          {
+            "regex": "(?m)^!Startup config saved at: .*?$\\s*(?:^!\\s*$\\s*)?",
+            "replacement": "",
+            "multiline": true
+          },
+          {
+            "regex": "(?m)^!Time: .*?$\\s*(?:^!\\s*$\\s*)?",
+            "replacement": "",
+            "multiline": true
+          }
+        ]
+      }
+    },
+    {
+      "type": "version",
+      "values": [
+        "show version"
+      ]
+    }
+  ]
+}

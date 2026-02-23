@@ -20,27 +20,8 @@
 name "bzip2"
 default_version "1.0.8"
 
-license "BSD-2-Clause"
-license_file "LICENSE"
 skip_transitive_dependency_licensing true
 
-dependency "zlib"
-
-# version_list: url=https://sourceware.org/pub/bzip2/ filter=*.tar.gz
-version("1.0.8") { source sha256: "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269" }
-
-source url: "https://fossies.org/linux/misc/#{name}-#{version}.tar.gz"
-
 build do
-  command_on_repo_root "bazelisk run -- @bzip2//:install --destdir='#{install_dir}/embedded'"
-
-  # The version of bzip2 we use doesn't create a pkgconfig file,
-  # we add it here manually (needed at least by the Python build)
-  erb source: "bzip2.pc.erb",
-      dest: "#{install_dir}/embedded/lib/pkgconfig/bzip2.pc",
-      vars: {
-        prefix: File.join(install_dir, "embedded"),
-        version: version,
-      }
-
+  command_on_repo_root "bazelisk run -- @bzip2//:install --destdir=#{install_dir}"
 end

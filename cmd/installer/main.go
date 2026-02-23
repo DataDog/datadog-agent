@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/dig"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/commands"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 )
 
@@ -22,16 +23,28 @@ func main() {
 	os.Exit(runCmd(command.MakeCommand(subcommands.InstallerSubcommands())))
 }
 
+// formatError returns the error formatted as human-readable text or JSON
+// based on the command's annotations.
+//
+// Most commands are internal and will use JSON errors to communicate result to the parent process.
+// The setup command is a special case and will print human-readable errors.
+func formatError(cmd *cobra.Command, err error) string {
+	if cmd != nil && cmd.Annotations[commands.AnnotationHumanReadableErrors] == "true" {
+		return err.Error()
+	}
+	return installerErrors.ToJSON(err)
+}
+
 func runCmd(cmd *cobra.Command) int {
 	// always silence errors, since they are handled here
 	cmd.SilenceErrors = true
 
-	err := cmd.Execute()
+	executedCmd, err := cmd.ExecuteC()
 	if err != nil {
 		if rootCauseErr := dig.RootCause(err); rootCauseErr != err {
-			fmt.Fprintln(cmd.ErrOrStderr(), installerErrors.ToJSON(rootCauseErr))
+			fmt.Fprintln(cmd.ErrOrStderr(), formatError(executedCmd, rootCauseErr))
 		} else {
-			fmt.Fprintln(cmd.ErrOrStderr(), installerErrors.ToJSON(err))
+			fmt.Fprintln(cmd.ErrOrStderr(), formatError(executedCmd, err))
 		}
 		return -1
 	}

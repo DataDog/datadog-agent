@@ -24,6 +24,7 @@ import (
 // TerminatedResourceBundle buffers terminated resources
 type TerminatedResourceBundle struct {
 	mu                  sync.Mutex
+	enabled             bool
 	runCfg              *collectors.CollectorRunConfig
 	check               *OrchestratorCheck
 	terminatedResources map[collectors.K8sCollector][]interface{}
@@ -46,8 +47,13 @@ func (tb *TerminatedResourceBundle) Add(k8sCollector collectors.K8sCollector, ob
 	tb.mu.Lock()
 	defer tb.mu.Unlock()
 
+	// do not buffer terminated resources if the bundle is not enabled
+	if !tb.enabled {
+		return
+	}
+
 	if _, ok := tb.terminatedResources[k8sCollector]; !ok {
-		tb.terminatedResources[k8sCollector] = []interface{}{}
+		tb.terminatedResources[k8sCollector] = make([]interface{}, 0, tb.runCfg.Config.MaxPerMessage)
 	}
 
 	resource, err := getResource(obj)
@@ -63,6 +69,11 @@ func (tb *TerminatedResourceBundle) Add(k8sCollector collectors.K8sCollector, ob
 func (tb *TerminatedResourceBundle) Run() {
 	tb.mu.Lock()
 	defer tb.mu.Unlock()
+
+	// do not send terminated resources if the bundle is not enabled
+	if !tb.enabled {
+		return
+	}
 
 	orchSender, err := tb.check.GetSender()
 	if err != nil {
@@ -96,14 +107,26 @@ func (tb *TerminatedResourceBundle) Run() {
 			orchSender.OrchestratorManifest(result.Result.ManifestMessages, tb.runCfg.ClusterID)
 		}
 
-		tb.terminatedResources[collector] = tb.terminatedResources[collector][:0]
+		tb.terminatedResources[collector] = make([]interface{}, 0, tb.runCfg.Config.MaxPerMessage)
 	}
 }
 
-// Stop stops TerminatedResourceBundle
-func (tb *TerminatedResourceBundle) Stop() {
+// Enable enables the TerminatedResourceBundle to start buffering terminated resources.
+func (tb *TerminatedResourceBundle) Enable() {
+	tb.mu.Lock()
+	defer tb.mu.Unlock()
+	tb.enabled = true
+}
+
+// Disable flushes any buffered terminated resources and then disables the bundle
+// from accepting new terminated resources.
+func (tb *TerminatedResourceBundle) Disable() {
 	// send all buffered terminated resources
 	tb.Run()
+
+	tb.mu.Lock()
+	defer tb.mu.Unlock()
+	tb.enabled = false
 }
 
 func toTypedSlice(k8sCollector collectors.K8sCollector, list []interface{}) interface{} {

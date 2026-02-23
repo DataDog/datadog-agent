@@ -653,7 +653,7 @@ func (c *Consumer) throttle(numMessages int) error {
 		// we cannot recreate the socket and set a bpf filter on
 		// kernels before 3.15, so we bail here
 		log.Errorf("conntrack sampling not supported on kernel versions < 3.15. Please adjust system_probe_config.conntrack_rate_limit (currently set to %d) to accommodate higher conntrack update rate detected", c.targetRateLimit)
-		return fmt.Errorf("conntrack sampling rate not supported")
+		return errors.New("conntrack sampling rate not supported")
 	}
 
 	// Create new socket with the desired sampling rate

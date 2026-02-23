@@ -39,6 +39,10 @@ func (w *workloadmeta) Dump(verbose bool) wmdef.WorkloadDumpResponse {
 			info = e.String(verbose)
 		case *wmdef.Kubelet:
 			info = e.String(verbose)
+		case *wmdef.CRD:
+			info = e.String(verbose)
+		case *wmdef.KubeCapabilities:
+			info = e.String(verbose)
 		default:
 			return "", fmt.Errorf("unsupported type %T", e)
 		}
@@ -52,6 +56,7 @@ func (w *workloadmeta) Dump(verbose bool) wmdef.WorkloadDumpResponse {
 	for kind, store := range w.store {
 		entities := wmdef.WorkloadEntity{Infos: make(map[string]string)}
 		for id, cachedEntity := range store {
+
 			if verbose && len(cachedEntity.sources) > 1 {
 				for source, entity := range cachedEntity.sources {
 					info, err := entityToString(entity)
@@ -72,6 +77,31 @@ func (w *workloadmeta) Dump(verbose bool) wmdef.WorkloadDumpResponse {
 			}
 
 			entities.Infos[fmt.Sprintf("sources(merged):%v", cachedEntity.sortedSources)+" id: "+id] = info
+		}
+
+		workloadList.Entities[string(kind)] = entities
+	}
+
+	return workloadList
+}
+
+// DumpStructured implements Store#DumpStructured.
+// Always returns only merged entities to avoid unlabeled duplicates in JSON output.
+// The merged entity contains all data from all sources.
+// Use Dump(verbose=true) for per-source breakdowns in text format.
+func (w *workloadmeta) DumpStructured() wmdef.WorkloadDumpStructuredResponse {
+	workloadList := wmdef.WorkloadDumpStructuredResponse{
+		Entities: make(map[string][]wmdef.Entity),
+	}
+
+	w.storeMut.RLock()
+	defer w.storeMut.RUnlock()
+
+	for kind, store := range w.store {
+		entities := make([]wmdef.Entity, 0, len(store))
+		for _, cachedEntity := range store {
+			// Always return only the merged entity
+			entities = append(entities, cachedEntity.cached)
 		}
 
 		workloadList.Entities[string(kind)] = entities

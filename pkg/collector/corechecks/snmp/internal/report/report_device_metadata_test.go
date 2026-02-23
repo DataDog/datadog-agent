@@ -1131,7 +1131,48 @@ func TestComputeInterfaceStatus(t *testing.T) {
 	}
 }
 
-func Test_getRemManIPAddrByLLDPRemIndex(t *testing.T) {
+func Test_buildLLDPRemoteKey(t *testing.T) {
+	tests := []struct {
+		name         string
+		localPortNum string
+		lldpRemIndex string
+		expectedKey  string
+	}{
+		{
+			name:         "basic case",
+			localPortNum: "102",
+			lldpRemIndex: "2",
+			expectedKey:  "102.2",
+		},
+		{
+			name:         "different values",
+			localPortNum: "99",
+			lldpRemIndex: "5",
+			expectedKey:  "99.5",
+		},
+		{
+			name:         "single digit values",
+			localPortNum: "1",
+			lldpRemIndex: "1",
+			expectedKey:  "1.1",
+		},
+		{
+			name:         "large values",
+			localPortNum: "10000",
+			lldpRemIndex: "99999",
+			expectedKey:  "10000.99999",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := buildLLDPRemoteKey(tt.localPortNum, tt.lldpRemIndex)
+			assert.Equal(t, tt.expectedKey, result)
+		})
+	}
+}
+
+func Test_getRemManIPAddrByLLDPRemIndexAndLLDPRemLocalPortNum(t *testing.T) {
 	indexes := []string{
 		// IPv4
 		"0.102.2.1.4.10.250.0.7",
@@ -1143,10 +1184,10 @@ func Test_getRemManIPAddrByLLDPRemIndex(t *testing.T) {
 		// Invalid
 		"0.102.2.1.4.10.250", // too short, ignored
 	}
-	remManIPAddrByLLDPRemIndex := getRemManIPAddrByLLDPRemIndex(indexes)
+	remManIPAddrByLLDPRemIndex := getRemManIPAddrByLLDPRemIndexAndLLDPRemLocalPortNum(indexes)
 	expectedResult := map[string]string{
-		"2":  "10.250.0.7",
-		"99": "10.250.0.8",
+		"102.2":  "10.250.0.7",
+		"102.99": "10.250.0.8",
 	}
 	assert.Equal(t, expectedResult, remManIPAddrByLLDPRemIndex)
 }
@@ -1315,4 +1356,318 @@ func Test_buildInterfaceIndexByIDType(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expectedInterfaceIndexByIDType, interfaceIndexByIDType)
+}
+
+func Test_metricSender_reportNetworkDeviceMetadata_withInterfaceTypeAndIsPhysical(t *testing.T) {
+	// Test various ifType values and their corresponding is_physical values
+	// Physical types: 6 (ethernetCsmacd), 62 (fastEther), 69 (fastEtherFX), 117 (gigabitEthernet)
+	// Non-physical type: 24 (softwareLoopback)
+	// Type 0 (not collected) should have is_physical = nil
+	var storeWithIfType = &valuestore.ResultValueStore{
+		ColumnValues: valuestore.ColumnResultValuesType{
+			"1.3.6.1.2.1.31.1.1.1.1": { // ifName
+				"1": valuestore.ResultValue{Value: "eth0"},
+				"2": valuestore.ResultValue{Value: "eth1"},
+				"3": valuestore.ResultValue{Value: "lo"},
+				"4": valuestore.ResultValue{Value: "eth2"},
+			},
+			"1.3.6.1.2.1.2.2.1.3": { // ifType
+				"1": valuestore.ResultValue{Value: float64(6)},   // ethernetCsmacd - physical
+				"2": valuestore.ResultValue{Value: float64(62)},  // fastEther - physical
+				"3": valuestore.ResultValue{Value: float64(24)},  // softwareLoopback - not physical
+				"4": valuestore.ResultValue{Value: float64(117)}, // gigabitEthernet - physical
+			},
+			"1.3.6.1.2.1.2.2.1.7": { // ifAdminStatus
+				"1": valuestore.ResultValue{Value: float64(1)},
+				"2": valuestore.ResultValue{Value: float64(1)},
+				"3": valuestore.ResultValue{Value: float64(1)},
+				"4": valuestore.ResultValue{Value: float64(1)},
+			},
+			"1.3.6.1.2.1.2.2.1.8": { // ifOperStatus
+				"1": valuestore.ResultValue{Value: float64(1)},
+				"2": valuestore.ResultValue{Value: float64(1)},
+				"3": valuestore.ResultValue{Value: float64(1)},
+				"4": valuestore.ResultValue{Value: float64(1)},
+			},
+		},
+	}
+	sender := mocksender.NewMockSender("testID")
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	ms := &MetricSender{
+		hostname: "test",
+		sender:   sender,
+	}
+
+	config := &checkconfig.CheckConfig{
+		IPAddress:          "1.2.3.4",
+		DeviceID:           "1234",
+		DeviceIDTags:       []string{"device_name:127.0.0.1"},
+		ResolvedSubnetName: "127.0.0.0/29",
+		Namespace:          "my-ns",
+	}
+	profile := profiledefinition.ProfileDefinition{
+		Metadata: profiledefinition.MetadataConfig{
+			"device": {
+				Fields: map[string]profiledefinition.MetadataField{
+					"type": {
+						Value: "switch",
+					},
+				},
+			},
+			"interface": {
+				Fields: map[string]profiledefinition.MetadataField{
+					"name": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.2.1.31.1.1.1.1",
+							Name: "ifName",
+						},
+					},
+					"type": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.2.1.2.2.1.3",
+							Name: "ifType",
+						},
+					},
+					"admin_status": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.2.1.2.2.1.7",
+							Name: "ifAdminStatus",
+						},
+					},
+					"oper_status": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.2.1.2.2.1.8",
+							Name: "ifOperStatus",
+						},
+					},
+				},
+				IDTags: profiledefinition.MetricTagConfigList{
+					profiledefinition.MetricTagConfig{
+						Symbol: profiledefinition.SymbolConfigCompat{
+							OID:  "1.3.6.1.2.1.31.1.1.1.1",
+							Name: "interface",
+						},
+						Tag: "interface",
+					},
+				},
+			},
+		},
+	}
+
+	layout := "2006-01-02 15:04:05"
+	str := "2014-11-12 11:45:26"
+	collectTime, err := time.Parse(layout, str)
+	assert.NoError(t, err)
+	ms.ReportNetworkDeviceMetadata(config, profile, storeWithIfType, []string{"tag1", "tag2"}, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusReachable, nil)
+
+	// language=json
+	event := []byte(`
+{
+    "subnet": "127.0.0.0/29",
+    "namespace": "my-ns",
+	"integration": "snmp",
+    "devices": [
+        {
+            "id": "1234",
+            "id_tags": [
+                "device_name:127.0.0.1"
+            ],
+            "tags": [
+                "tag1",
+                "tag2"
+            ],
+            "ip_address": "1.2.3.4",
+            "status":1,
+			"ping_status":1,
+            "subnet": "127.0.0.0/29",
+			"integration": "snmp",
+			"device_type": "switch"
+        }
+    ],
+    "interfaces": [
+        {
+            "device_id": "1234",
+            "id_tags": [
+                "interface:eth0"
+            ],
+            "index": 1,
+			"name": "eth0",
+			"admin_status": 1,
+			"oper_status": 1,
+			"type": 6,
+			"is_physical": true
+        },
+        {
+            "device_id": "1234",
+            "id_tags": [
+                "interface:eth1"
+            ],
+            "index": 2,
+            "name": "eth1",
+			"admin_status": 1,
+			"oper_status": 1,
+			"type": 62,
+			"is_physical": true
+        },
+        {
+            "device_id": "1234",
+            "id_tags": [
+                "interface:lo"
+            ],
+            "index": 3,
+            "name": "lo",
+			"admin_status": 1,
+			"oper_status": 1,
+			"type": 24,
+			"is_physical": false
+        },
+        {
+            "device_id": "1234",
+            "id_tags": [
+                "interface:eth2"
+            ],
+            "index": 4,
+            "name": "eth2",
+			"admin_status": 1,
+			"oper_status": 1,
+			"type": 117,
+			"is_physical": true
+        }
+    ],
+    "collect_timestamp":1415792726
+}
+`)
+	compactEvent := new(bytes.Buffer)
+	err = json.Compact(compactEvent, event)
+	assert.NoError(t, err)
+
+	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
+}
+
+func Test_metricSender_reportNetworkDeviceMetadata_withInterfaceTypeZero(t *testing.T) {
+	// Test case when ifType is not collected (0) - is_physical should be nil (omitted from JSON)
+	var storeWithoutIfType = &valuestore.ResultValueStore{
+		ColumnValues: valuestore.ColumnResultValuesType{
+			"1.3.6.1.2.1.31.1.1.1.1": { // ifName
+				"1": valuestore.ResultValue{Value: "eth0"},
+			},
+			// No ifType values - simulating when type is not collected
+			"1.3.6.1.2.1.2.2.1.7": { // ifAdminStatus
+				"1": valuestore.ResultValue{Value: float64(1)},
+			},
+			"1.3.6.1.2.1.2.2.1.8": { // ifOperStatus
+				"1": valuestore.ResultValue{Value: float64(1)},
+			},
+		},
+	}
+	sender := mocksender.NewMockSender("testID")
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	ms := &MetricSender{
+		hostname: "test",
+		sender:   sender,
+	}
+
+	config := &checkconfig.CheckConfig{
+		IPAddress:          "1.2.3.4",
+		DeviceID:           "1234",
+		DeviceIDTags:       []string{"device_name:127.0.0.1"},
+		ResolvedSubnetName: "127.0.0.0/29",
+		Namespace:          "my-ns",
+	}
+	profile := profiledefinition.ProfileDefinition{
+		Metadata: profiledefinition.MetadataConfig{
+			"device": {
+				Fields: map[string]profiledefinition.MetadataField{
+					"type": {
+						Value: "switch",
+					},
+				},
+			},
+			"interface": {
+				Fields: map[string]profiledefinition.MetadataField{
+					"name": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.2.1.31.1.1.1.1",
+							Name: "ifName",
+						},
+					},
+					"admin_status": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.2.1.2.2.1.7",
+							Name: "ifAdminStatus",
+						},
+					},
+					"oper_status": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.2.1.2.2.1.8",
+							Name: "ifOperStatus",
+						},
+					},
+				},
+				IDTags: profiledefinition.MetricTagConfigList{
+					profiledefinition.MetricTagConfig{
+						Symbol: profiledefinition.SymbolConfigCompat{
+							OID:  "1.3.6.1.2.1.31.1.1.1.1",
+							Name: "interface",
+						},
+						Tag: "interface",
+					},
+				},
+			},
+		},
+	}
+
+	layout := "2006-01-02 15:04:05"
+	str := "2014-11-12 11:45:26"
+	collectTime, err := time.Parse(layout, str)
+	assert.NoError(t, err)
+	ms.ReportNetworkDeviceMetadata(config, profile, storeWithoutIfType, []string{"tag1", "tag2"}, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusReachable, nil)
+
+	// language=json
+	// Note: type and is_physical should be omitted when ifType is 0
+	event := []byte(`
+{
+    "subnet": "127.0.0.0/29",
+    "namespace": "my-ns",
+	"integration": "snmp",
+    "devices": [
+        {
+            "id": "1234",
+            "id_tags": [
+                "device_name:127.0.0.1"
+            ],
+            "tags": [
+                "tag1",
+                "tag2"
+            ],
+            "ip_address": "1.2.3.4",
+            "status":1,
+			"ping_status":1,
+            "subnet": "127.0.0.0/29",
+			"integration": "snmp",
+			"device_type": "switch"
+        }
+    ],
+    "interfaces": [
+        {
+            "device_id": "1234",
+            "id_tags": [
+                "interface:eth0"
+            ],
+            "index": 1,
+			"name": "eth0",
+			"admin_status": 1,
+			"oper_status": 1
+        }
+    ],
+    "collect_timestamp":1415792726
+}
+`)
+	compactEvent := new(bytes.Buffer)
+	err = json.Compact(compactEvent, event)
+	assert.NoError(t, err)
+
+	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 }

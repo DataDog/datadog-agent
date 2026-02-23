@@ -8,6 +8,7 @@ package state
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -96,7 +97,7 @@ func (trc *tufRootsClient) validateTargets(rawTargets []byte) (*data.Targets, er
 	}
 	targetsRole, hasRoleTargets := root.Roles["targets"]
 	if !hasRoleTargets {
-		return nil, fmt.Errorf("root is missing a targets role")
+		return nil, errors.New("root is missing a targets role")
 	}
 	role := &data.Role{Threshold: targetsRole.Threshold, KeyIDs: targetsRole.KeyIDs}
 	if err := db.AddRole("targets", role); err != nil {
@@ -182,7 +183,7 @@ func parseMetaPath(rawMetaPath string) (metaPath, error) {
 
 func validateTargetFileHash(targetMeta data.TargetFileMeta, targetFile []byte) error {
 	if len(targetMeta.HashAlgorithms()) == 0 {
-		return fmt.Errorf("target file has no hash")
+		return errors.New("target file has no hash")
 	}
 	generatedMeta, err := util.GenerateFileMeta(bytes.NewBuffer(targetFile), targetMeta.HashAlgorithms()...)
 	if err != nil {

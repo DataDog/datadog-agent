@@ -43,7 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils/k8sutils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	apiserverUtils "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	apiServerCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -351,7 +351,7 @@ func NewCWSInstrumentation(wmeta workloadmeta.Component, datadogConfig config.Co
 	cwsInjectorContainerRegistry := mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.cws_instrumentation.container_registry")
 
 	if len(cwsInjectorImageName) == 0 {
-		return nil, fmt.Errorf("can't initialize CWS Instrumentation without an image_name")
+		return nil, errors.New("can't initialize CWS Instrumentation without an image_name")
 	}
 	if len(cwsInjectorImageTag) == 0 {
 		cwsInjectorImageTag = "latest"
@@ -376,7 +376,7 @@ func NewCWSInstrumentation(wmeta workloadmeta.Component, datadogConfig config.Co
 		if len(serviceAccountName) == 0 {
 			return nil, fmt.Errorf("can't initialize CWS Instrumentation in %s mode without providing a service account name in config (cluster_agent.service_account_name)", RemoteCopy)
 		}
-		ns := apiServerCommon.GetMyNamespace()
+		ns := namespace.GetMyNamespace()
 		ci.clusterAgentServiceAccount = fmt.Sprintf("system:serviceaccount:%s:%s", ns, serviceAccountName)
 	}
 

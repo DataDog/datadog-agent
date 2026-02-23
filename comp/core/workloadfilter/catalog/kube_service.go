@@ -7,21 +7,16 @@
 package catalog
 
 import (
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 )
 
 // ServiceCELMetricsProgram creates a program for filtering services metrics via CEL rules
-func ServiceCELMetricsProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
-	programName := "ServiceCELMetricsProgram"
-	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductMetrics, workloadfilter.ServiceType)
-	return createCELExcludeProgram(programName, rule, workloadfilter.ServiceType, logger)
+func ServiceCELMetricsProgram(b *ProgramBuilder) program.FilterProgram {
+	return b.CreateCELProgram(workloadfilter.KubeServiceCELMetrics, workloadfilter.ProductMetrics)
 }
 
 // ServiceCELGlobalProgram creates a program for filtering services globally via CEL rules
-func ServiceCELGlobalProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
-	programName := "ServiceCELGlobalProgram"
-	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductGlobal, workloadfilter.ServiceType)
-	return createCELExcludeProgram(programName, rule, workloadfilter.ServiceType, logger)
+func ServiceCELGlobalProgram(b *ProgramBuilder) program.FilterProgram {
+	return b.CreateCELProgram(workloadfilter.KubeServiceCELGlobal, workloadfilter.ProductGlobal)
 }

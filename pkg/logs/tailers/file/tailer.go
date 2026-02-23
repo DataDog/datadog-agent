@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -18,6 +17,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/benbjohnson/clock"
+	"github.com/spf13/afero"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	logstypes "github.com/DataDog/datadog-agent/pkg/logs/types"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -59,9 +60,9 @@ type Tailer struct {
 	// fullpath is the absolute path to file.Path.
 	fullpath string
 
-	// osFile is the os.File object from which log data is read.  The read implementation
+	// osFile is the afero.File object from which log data is read.  The read implementation
 	// is platform-specific, and not every platform will have a non-nil value here.
-	osFile *os.File
+	osFile afero.File
 
 	// tags are the tags to be attached to each log message, excluding tags provided
 	// by the tag provider.
@@ -75,7 +76,7 @@ type Tailer struct {
 	outputChan chan *message.Message
 
 	// decoder handles decoding the raw bytes read from the file into log messages.
-	decoder *decoder.Decoder
+	decoder decoder.Decoder
 
 	// sleepDuration is the time between polls of the underlying file.
 	sleepDuration time.Duration
@@ -128,8 +129,10 @@ type Tailer struct {
 	bytesRead       *status.CountInfo
 	movingSum       *util.MovingSum
 	fingerprint     *logstypes.Fingerprint
+	fingerprinter   Fingerprinter
 	registry        auditor.Registry
 	CapacityMonitor *metrics.CapacityMonitor
+	fileOpener      opener.FileOpener
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
@@ -137,13 +140,15 @@ type TailerOptions struct {
 	OutputChan      chan *message.Message    // Required
 	File            *File                    // Required
 	SleepDuration   time.Duration            // Required
-	Decoder         *decoder.Decoder         // Required
+	Decoder         decoder.Decoder          // Required
 	Info            *status.InfoRegistry     // Required
 	Rotated         bool                     // Optional
 	TagAdder        tag.EntityTagAdder       // Required
-	Fingerprint     *logstypes.Fingerprint   //Optional
-	Registry        auditor.Registry         //Required
+	Fingerprint     *logstypes.Fingerprint   // Optional
+	Fingerprinter   Fingerprinter            // Required
+	Registry        auditor.Registry         // Required
 	CapacityMonitor *metrics.CapacityMonitor // Required
+	FileOpener      opener.FileOpener        // Required
 }
 
 // NewTailer returns an initialized Tailer, read to be started.
@@ -200,8 +205,10 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		bytesRead:                    bytesRead,
 		movingSum:                    movingSum,
 		fingerprint:                  opts.Fingerprint,
+		fingerprinter:                opts.Fingerprinter,
 		CapacityMonitor:              opts.CapacityMonitor,
 		registry:                     opts.Registry,
+		fileOpener:                   opts.FileOpener,
 	}
 
 	if fileRotated {
@@ -223,10 +230,11 @@ func (t *Tailer) NewRotatedTailer(
 	file *File,
 	outputChan chan *message.Message,
 	capacityMonitor *metrics.CapacityMonitor,
-	decoder *decoder.Decoder,
+	decoder decoder.Decoder,
 	info *status.InfoRegistry,
 	tagAdder tag.EntityTagAdder,
 	fingerprint *logstypes.Fingerprint,
+	fingerprinter Fingerprinter,
 	registry auditor.Registry,
 ) *Tailer {
 	options := &TailerOptions{
@@ -239,7 +247,9 @@ func (t *Tailer) NewRotatedTailer(
 		TagAdder:        tagAdder,
 		CapacityMonitor: capacityMonitor,
 		Fingerprint:     fingerprint,
+		Fingerprinter:   fingerprinter,
 		Registry:        registry,
+		FileOpener:      t.fileOpener,
 	}
 
 	return NewTailer(options)
@@ -306,10 +316,16 @@ func (t *Tailer) StopAfterFileRotation() {
 				fileStat, err := t.osFile.Stat()
 				if err != nil {
 					log.Warnf("During rotation close, unable to determine total file size for %q, err: %v", t.file.Path, err)
-				} else if remainingBytes := fileStat.Size() - t.lastReadOffset.Load(); remainingBytes > 0 {
-					metrics.BytesMissed.Add(remainingBytes)
-					metrics.TlmBytesMissed.Add(float64(remainingBytes))
-					log.Warnf("After rotation close timeout (%s), there were %d bytes remaining unread for file %q. These unread logs are now lost. Consider increasing DD_LOGS_CONFIG_CLOSE_TIMEOUT", t.closeTimeout, remainingBytes, t.file.Path)
+				} else {
+					fileSize := fileStat.Size()
+					lastOffset := t.lastReadOffset.Load()
+					remainingBytes := fileSize - lastOffset
+
+					if remainingBytes > 0 {
+						metrics.BytesMissed.Add(remainingBytes)
+						metrics.TlmBytesMissed.Add(float64(remainingBytes))
+						log.Warnf("After rotation close timeout (%s), there were %d bytes remaining unread for file %q. These unread logs are now lost. Consider increasing DD_LOGS_CONFIG_CLOSE_TIMEOUT", t.closeTimeout, remainingBytes, t.file.Path)
+					}
 				}
 			}
 		}
@@ -359,8 +375,8 @@ func (t *Tailer) readForever() {
 // buildTailerTags groups the file tag, directory (if wildcard path) and user tags
 func (t *Tailer) buildTailerTags() []string {
 	tags := []string{
-		fmt.Sprintf("filename:%s", filepath.Base(t.file.Path)),
-		fmt.Sprintf("dirname:%s", filepath.Dir(t.file.Path)),
+		"filename:" + filepath.Base(t.file.Path),
+		"dirname:" + filepath.Dir(t.file.Path),
 	}
 	return tags
 }
@@ -379,7 +395,7 @@ func (t *Tailer) forwardMessages() {
 		t.isFinished.Store(true)
 		close(t.done)
 	}()
-	for output := range t.decoder.OutputChan {
+	for output := range t.decoder.OutputChan() {
 		offset := t.decodedOffset.Load() + int64(output.RawDataLen)
 		// Track post-framer log line sizes
 		metrics.TlmLogLineSizes.Observe(float64(output.RawDataLen))
@@ -466,4 +482,9 @@ func (t *Tailer) GetType() string {
 // GetInfo returns the tailer's status info registry
 func (t *Tailer) GetInfo() *status.InfoRegistry {
 	return t.info
+}
+
+// GetFingerprint returns the tailer's fingerprint
+func (t *Tailer) GetFingerprint() *logstypes.Fingerprint {
+	return t.fingerprint
 }

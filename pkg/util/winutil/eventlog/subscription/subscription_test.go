@@ -8,6 +8,7 @@
 package evtsubscribe
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"strings"
@@ -43,7 +44,7 @@ func TestInvalidChannel(t *testing.T) {
 	testerNames := eventlog_test.GetEnabledAPITesters()
 
 	for _, tiName := range testerNames {
-		t.Run(fmt.Sprintf("%sAPI", tiName), func(t *testing.T) {
+		t.Run(tiName+"API", func(t *testing.T) {
 			ti := eventlog_test.GetAPITesterByName(tiName, t)
 			sub := NewPullSubscription(
 				"nonexistentchannel",
@@ -103,7 +104,7 @@ func getEventHandles(t testing.TB, ti eventlog_test.APITester, sub PullSubscript
 	}
 	count := uint(len(eventRecords))
 	if !assert.Equal(t, numEvents, count, fmt.Sprintf("Missing events, collected %d/%d events", count, numEvents)) {
-		return eventRecords, fmt.Errorf("Missing events")
+		return eventRecords, errors.New("Missing events")
 	}
 	return eventRecords, nil
 }
@@ -112,7 +113,7 @@ func assertNoMoreEvents(t testing.TB, sub PullSubscription) error {
 	select {
 	case <-sub.GetEvents():
 		assert.Fail(t, "GetEvents should block when there are no more events!")
-		return fmt.Errorf("GetEvents did not block")
+		return errors.New("GetEvents did not block")
 	default:
 		return nil
 	}
@@ -974,7 +975,7 @@ func (s *GetEventsTestSuite) TestInitializeBookmark_LoadFailureFallbackToNow() {
 
 	mockSaver := new(evtbookmark.MockSaver)
 	// Simulate load error
-	mockSaver.On("Load").Return("", fmt.Errorf("simulated load error")).Once()
+	mockSaver.On("Load").Return("", errors.New("simulated load error")).Once()
 	// After load fails, should fall back to creating bookmark from latest event
 	mockSaver.On("Save", mock.MatchedBy(func(xml string) bool {
 		return strings.Contains(xml, "RecordId=")
@@ -1042,6 +1043,7 @@ func (s *GetEventsTestSuite) TestStartStopRestart_RetainsBookmarkWithSaver() {
 	// Start subscription
 	err = sub.Start()
 	require.NoError(s.T(), err)
+	defer sub.Stop()
 
 	// Verify initial Load was called
 	mockSaver.AssertExpectations(s.T())
@@ -1133,6 +1135,7 @@ func (s *GetEventsTestSuite) TestStartStopRestart_NoSaver() {
 	// Start subscription
 	err = sub.Start()
 	require.NoError(s.T(), err)
+	defer sub.Stop()
 
 	// Read all events
 	_, err = getEventHandles(s.T(), s.ti, sub, s.numEvents)
@@ -1160,7 +1163,7 @@ func TestLaunchGetEventsTestSuite(t *testing.T) {
 	testerNames := eventlog_test.GetEnabledAPITesters()
 
 	for _, tiName := range testerNames {
-		t.Run(fmt.Sprintf("%sAPI", tiName), func(t *testing.T) {
+		t.Run(tiName+"API", func(t *testing.T) {
 			var s GetEventsTestSuite
 			s.channelPath = "dd-test-channel-subscription"
 			s.eventSource = "dd-test-source-subscription"

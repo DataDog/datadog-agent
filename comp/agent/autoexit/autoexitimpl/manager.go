@@ -7,6 +7,7 @@ package autoexitimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -26,7 +27,7 @@ type processes map[int32]string
 var (
 	defaultRegexps = []*regexp.Regexp{
 		regexp.MustCompile("pause|s6-svscan|s6-supervise"),
-		regexp.MustCompile("agent|process-agent|trace-agent|security-agent|system-probe"),
+		regexp.MustCompile("agent|process-agent|trace-agent|security-agent|system-probe|privateactionrunner"),
 	}
 	processFetcher = fetchProcesses
 )
@@ -59,7 +60,7 @@ func configureAutoExit(ctx context.Context, cfg config.Component, log log.Compon
 
 func startAutoExit(ctx context.Context, sd exitDetector, log log.Component, tickerPeriod, validationPeriod time.Duration) error {
 	if sd == nil {
-		return fmt.Errorf("a shutdown detector must be provided")
+		return errors.New("a shutdown detector must be provided")
 	}
 
 	selfProcess, err := os.FindProcess(os.Getpid())

@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed a bug where log lines exactly at the ``logs_config.max_message_size_bytes``
+    limit (default 900KB) were incorrectly marked as truncated. This caused the
+    ``...TRUNCATED...`` marker to appear in logs that fit within the size limit,
+    and incorrectly marked the subsequent log line as a truncated remainder.
+    Additionally, improved truncation detection by extending the FrameMatcher interface
+    to explicitly signal when content is truncated, ensuring consistent truncation state
+    across the framer and handler components.

@@ -7,7 +7,7 @@ package hostname
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"os"
 	"testing"
 
@@ -88,14 +88,14 @@ func TestFromHostnameFileInvalid(t *testing.T) {
 // fromFargate
 
 func TestFromFargate(t *testing.T) {
-	defer func() { isFargateInstance = fargate.IsFargateInstance }()
+	defer func() { isSidecar = fargate.IsSidecar }()
 
-	isFargateInstance = func() bool { return true }
+	isSidecar = func() bool { return true }
 	hostname, err := fromFargate(context.TODO(), "")
 	require.NoError(t, err)
 	assert.Equal(t, "", hostname)
 
-	isFargateInstance = func() bool { return false }
+	isSidecar = func() bool { return false }
 	_, err = fromFargate(context.TODO(), "")
 	assert.Error(t, err)
 }
@@ -149,7 +149,7 @@ func TestFromEc2DefaultHostname(t *testing.T) {
 	defer func() { ec2GetInstanceID = ec2.GetInstanceID }()
 
 	// make AWS provider return an error
-	ec2GetInstanceID = func(context.Context) (string, error) { return "", fmt.Errorf("some error") }
+	ec2GetInstanceID = func(context.Context) (string, error) { return "", errors.New("some error") }
 
 	_, err := fromEC2(context.Background(), "ip-hostname")
 	assert.Error(t, err)
@@ -169,7 +169,7 @@ func TestFromEc2Prioritize(t *testing.T) {
 	cfg.SetWithoutSource("ec2_prioritize_instance_id_as_hostname", true)
 
 	// make AWS provider return an error
-	ec2GetInstanceID = func(context.Context) (string, error) { return "", fmt.Errorf("some error") }
+	ec2GetInstanceID = func(context.Context) (string, error) { return "", errors.New("some error") }
 
 	_, err := fromEC2(context.Background(), "non-default-hostname")
 	assert.Error(t, err)

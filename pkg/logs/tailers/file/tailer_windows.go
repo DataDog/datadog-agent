@@ -10,17 +10,17 @@ package file
 import (
 	"io"
 	"os"
-	"path/filepath"
 	"time"
 
+	"github.com/spf13/afero"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // setup sets up the file tailer
 func (t *Tailer) setup(offset int64, whence int) error {
-	fullpath, err := filepath.Abs(t.file.Path)
+	fullpath, err := t.fileOpener.Abs(t.file.Path)
 	if err != nil {
 		return err
 	}
@@ -30,7 +30,7 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	t.tags = t.buildTailerTags()
 
 	log.Info("Opening ", t.fullpath)
-	f, err := filesystem.OpenShared(t.fullpath)
+	f, err := t.fileOpener.OpenLogFile(t.fullpath)
 	if err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func (t *Tailer) readAvailable() (int, error) {
 		return 0, io.EOF
 	}
 
-	var f *os.File
+	var f afero.File
 	defer func() {
 		if f != nil {
 			f.Close()
@@ -66,7 +66,7 @@ func (t *Tailer) readAvailable() (int, error) {
 	for {
 		if f == nil {
 			var err error
-			f, err = filesystem.OpenShared(t.fullpath)
+			f, err = t.fileOpener.OpenLogFile(t.fullpath)
 			if err != nil {
 				return bytes, err
 			}
@@ -80,7 +80,21 @@ func (t *Tailer) readAvailable() (int, error) {
 			offset := t.lastReadOffset.Load()
 			if sz < offset {
 				log.Debugf("File size of %s is shorter than last read offset; returning EOF", t.fullpath)
+				t.didFileRotate.Store(true)
 				return bytes, io.EOF
+			}
+
+			// Only perform fingerprint checks when fingerprinting is enabled and a valid fingerprint exists.
+			if t.fingerprint != nil && t.fingerprint.ValidFingerprint() {
+				currentFingerprint, err := t.fingerprinter.ComputeFingerprintFromHandle(f, t.fingerprint.Config)
+				if err != nil {
+					return bytes, err
+				}
+				if !currentFingerprint.Equals(t.fingerprint) {
+					log.Infof("Fingerprint mismatch detected mid read, file %s has rotated", t.fullpath)
+					t.didFileRotate.Store(true)
+					return bytes, io.EOF
+				}
 			}
 
 			_, err = f.Seek(offset, io.SeekStart)
@@ -106,7 +120,7 @@ func (t *Tailer) readAvailable() (int, error) {
 		// logs pipeline.
 		timer := time.NewTimer(t.windowsOpenFileTimeout)
 		select {
-		case t.decoder.InputChan <- decoder.NewInput(inBuf[:n]):
+		case t.decoder.InputChan() <- decoder.NewInput(inBuf[:n]):
 			timer.Stop()
 		case <-timer.C:
 			// The windowsOpenFileTimeout expired, and we want to avoid
@@ -119,7 +133,7 @@ func (t *Tailer) readAvailable() (int, error) {
 			f = nil
 
 			// blocking send to the decoder
-			t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
+			t.decoder.InputChan() <- decoder.NewInput(inBuf[:n])
 		}
 	}
 }

@@ -22,11 +22,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	secretsfxnoop "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	connectionsforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/fx"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders/forwardersimpl"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -77,7 +80,7 @@ func TestNewCollectorQueueSize(t *testing.T) {
 			deps := getSubmitterDeps(t, tc.configOverrides, nil)
 			c, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
 			assert.NoError(t, err)
-			assert.Equal(t, tc.expectedQueueSize, c.processResults.MaxSize())
+			assert.Equal(t, tc.expectedQueueSize, c.resultsQueue[checks.ProcessCheckName].MaxSize())
 		})
 	}
 }
@@ -126,7 +129,7 @@ func TestNewCollectorRTQueueSize(t *testing.T) {
 			deps := getSubmitterDeps(t, tc.configOverrides, nil)
 			c, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
 			assert.NoError(t, err)
-			assert.Equal(t, tc.expectedQueueSize, c.rtProcessResults.MaxSize())
+			assert.Equal(t, tc.expectedQueueSize, c.resultsQueue[checks.RTProcessCheckName].MaxSize())
 		})
 	}
 }
@@ -175,8 +178,8 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 			deps := getSubmitterDeps(t, tc.configOverrides, nil)
 			s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
 			assert.NoError(t, err)
-			assert.Equal(t, int64(tc.expectedQueueSize), s.processResults.MaxWeight())
-			assert.Equal(t, int64(tc.expectedQueueSize), s.rtProcessResults.MaxWeight())
+			assert.Equal(t, int64(tc.expectedQueueSize), s.resultsQueue[checks.ProcessCheckName].MaxWeight())
+			assert.Equal(t, int64(tc.expectedQueueSize), s.resultsQueue[checks.RTProcessCheckName].MaxWeight())
 			assert.Equal(t, tc.expectedQueueSize, s.forwarderRetryMaxQueueBytes)
 		})
 	}
@@ -293,23 +296,6 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				headers.ProcessVersionHeader:    agentVersion.GetNumber(),
 				headers.ContainerCountHeader:    "0",
 				headers.ContentTypeHeader:       headers.ProtobufContentType,
-				headers.AgentStartTime:          strconv.Itoa(int(submitter.agentStartTime)),
-				headers.PayloadSource:           "process_agent",
-				headers.ProcessesEnabled:        "false",
-				headers.ServiceDiscoveryEnabled: "false",
-			},
-		},
-		{
-			name:    "process_events",
-			message: &model.CollectorProcEvent{},
-			expectHeaders: map[string]string{
-				headers.TimestampHeader:         strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:              testHostName,
-				headers.ProcessVersionHeader:    agentVersion.GetNumber(),
-				headers.ContainerCountHeader:    "0",
-				headers.ContentTypeHeader:       headers.ProtobufContentType,
-				headers.EVPOriginHeader:         "process-agent",
-				headers.EVPOriginVersionHeader:  version.AgentVersion,
 				headers.AgentStartTime:          strconv.Itoa(int(submitter.agentStartTime)),
 				headers.PayloadSource:           "process_agent",
 				headers.ProcessesEnabled:        "false",
@@ -482,7 +468,9 @@ func getSubmitterDeps(t *testing.T, configOverrides map[string]interface{}, sysp
 		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, configOverrides) }),
 		sysprobeconfigimpl.MockModule(),
 		fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeconfigOverrides}),
-		forwardersimpl.MockModule(),
+		connectionsforwarderfx.Module(),
+		secretsfxnoop.Module(),
+		forwardersimpl.Module(),
 		fx.Provide(func() log.Component {
 			return logmock.New(t)
 		}),
@@ -498,7 +486,9 @@ func getSubmitterDepsWithConfig(t *testing.T, configObj config.Component) submit
 			return configObj
 		}),
 		sysprobeconfigimpl.MockModule(),
-		forwardersimpl.MockModule(),
+		connectionsforwarderfx.Module(),
+		secretsfxnoop.Module(),
+		forwardersimpl.Module(),
 		fx.Provide(func() log.Component {
 			return logmock.New(t)
 		}),

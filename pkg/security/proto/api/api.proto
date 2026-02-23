@@ -13,6 +13,7 @@ message SecurityEventMessage {
     string Service = 4;
     google.protobuf.Timestamp Timestamp = 5;
     string OriginalRuleID = 6;
+    string Track = 7;
 }
 
 message DumpProcessCacheParams {

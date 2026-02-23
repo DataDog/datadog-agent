@@ -1,0 +1,7 @@
+# sd-agent build config ---------------------------------------------------------------------------------------------------
+# Matches sd-agent Cargo.toml [profile.release] settings
+build:sd-agent-release --@rules_rust//rust/settings:lto=fat # Enable fat LTO
+build:sd-agent-release --@rules_rust//rust/settings:extra_rustc_flag=-Copt-level=z # Optimize for size
+build:sd-agent-release --@rules_rust//rust/settings:extra_rustc_flag=-Ccodegen-units=1 # Single codegen unit for maximum optimization
+build:sd-agent-release --@rules_rust//rust/settings:extra_rustc_flag=-Cstrip=symbols # Strip debug symbols
+build:sd-agent-release --@rules_rust//rust/settings:extra_rustc_flag=-Cpanic=abort # Remove stack unwinding

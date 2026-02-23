@@ -36,30 +36,124 @@ const (
 // BoolEvalFnc describe a eval function return a boolean
 type BoolEvalFnc = func(ctx *Context) bool
 
-func extractField(field string, state *State) (Field, Field, RegisterID, error) {
-	if state.regexpCache.arraySubscriptFindRE == nil {
-		state.regexpCache.arraySubscriptFindRE = regexp.MustCompile(`\[([^\]]*)\]`)
-	}
-	if state.regexpCache.arraySubscriptReplaceRE == nil {
-		state.regexpCache.arraySubscriptReplaceRE = regexp.MustCompile(`(.+)\[[^\]]+\](.*)`)
+var (
+	arraySubscriptFindRE    = regexp.MustCompile(`\[([^\]]*)\]`)
+	arraySubscriptReplaceRE = regexp.MustCompile(`(.+)\[[^\]]+\](.*)`)
+	arrayIndexRE            = regexp.MustCompile(`^(.+)\[(\d+)\]$`)
+)
+
+// extractField extracts field information and handles different subscript notations
+// Returns:
+//   - resField: the resolved field name (base field without subscript)
+//   - itField: the iterator field name (for iterator syntax only)
+//   - regID: the register ID for iterator syntax (e.g., "x" in field[x])
+//   - arrayIndex: the numeric index for array access (e.g., 0 in field[0])
+//   - isArrayAccess: true if this is a numeric array index access (field[0])
+//   - error: any parsing error
+//
+// Supported syntaxes:
+//   - field[0], field[1], etc. → numeric array index access
+//   - field[x], field[y], etc. → iterator with register variable
+//   - field → plain field access
+func extractField(field string) (Field, Field, RegisterID, int, bool, error) {
+	// First check if this is a numeric array index access like field[0]
+	if matches := arrayIndexRE.FindStringSubmatch(field); len(matches) == 3 {
+		baseField := matches[1]
+		index, err := strconv.Atoi(matches[2])
+		if err != nil {
+			return "", "", "", 0, false, fmt.Errorf("invalid array index in field: %s", field)
+		}
+		// Return base field with index information
+		return baseField, baseField, "", index, true, nil
 	}
 
+	// Otherwise, check for iterator register syntax like field[x]
 	var regID RegisterID
-	ids := state.regexpCache.arraySubscriptFindRE.FindStringSubmatch(field)
+	ids := arraySubscriptFindRE.FindStringSubmatch(field)
 
 	switch len(ids) {
 	case 0:
-		return field, "", "", nil
+		return field, "", "", 0, false, nil
 	case 2:
 		regID = ids[1]
 	default:
-		return "", "", "", fmt.Errorf("wrong register format for fields: %s", field)
+		return "", "", "", 0, false, fmt.Errorf("wrong register format for fields: %s", field)
 	}
 
-	resField := state.regexpCache.arraySubscriptReplaceRE.ReplaceAllString(field, `$1$2`)
-	itField := state.regexpCache.arraySubscriptReplaceRE.ReplaceAllString(field, `$1`)
+	resField := arraySubscriptReplaceRE.ReplaceAllString(field, `$1$2`)
+	itField := arraySubscriptReplaceRE.ReplaceAllString(field, `$1`)
 
-	return resField, itField, regID, nil
+	return resField, itField, regID, 0, false, nil
+}
+
+// ExtractArrayIndexAccess extracts array index information from a field like "field[0]"
+// Returns: baseField, index, isArrayAccess, error
+func ExtractArrayIndexAccess(field string) (string, int, bool, error) {
+	if matches := arrayIndexRE.FindStringSubmatch(field); len(matches) == 3 {
+		baseField := matches[1]
+		index, err := strconv.Atoi(matches[2])
+		if err != nil {
+			return "", 0, false, fmt.Errorf("invalid array index in field: %s", field)
+		}
+		return baseField, index, true, nil
+	}
+	return field, 0, false, nil
+}
+
+// WrapEvaluatorWithArrayIndex wraps an array evaluator to return a specific index
+func WrapEvaluatorWithArrayIndex(evaluator interface{}, index int, field Field) (Evaluator, error) {
+	switch arrayEval := evaluator.(type) {
+	case *StringArrayEvaluator:
+		return &StringEvaluator{
+			EvalFnc: func(ctx *Context) string {
+				array := arrayEval.Eval(ctx).([]string)
+				if index < 0 || index >= len(array) {
+					return ""
+				}
+				return array[index]
+			},
+			Field:  field,
+			Weight: arrayEval.Weight,
+		}, nil
+	case *IntArrayEvaluator:
+		return &IntEvaluator{
+			EvalFnc: func(ctx *Context) int {
+				array := arrayEval.Eval(ctx).([]int)
+				if index < 0 || index >= len(array) {
+					return 0
+				}
+				return array[index]
+			},
+			Field:  field,
+			Weight: arrayEval.Weight,
+		}, nil
+	case *BoolArrayEvaluator:
+		return &BoolEvaluator{
+			EvalFnc: func(ctx *Context) bool {
+				array := arrayEval.Eval(ctx).([]bool)
+				if index < 0 || index >= len(array) {
+					return false
+				}
+				return array[index]
+			},
+			Field:  field,
+			Weight: arrayEval.Weight,
+		}, nil
+	case *CIDRArrayEvaluator:
+		return &CIDREvaluator{
+			EvalFnc: func(ctx *Context) net.IPNet {
+				array := arrayEval.Eval(ctx).([]net.IPNet)
+				if index < 0 || index >= len(array) {
+					return net.IPNet{}
+				}
+				return array[index]
+			},
+			Field:  field,
+			Weight: arrayEval.Weight,
+		}, nil
+	default:
+		return nil, fmt.Errorf("field '%s' is not an array type or array type is not supported for index access", field)
+	}
 }
 
 type ident struct {
@@ -78,7 +172,7 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 		}
 	}
 
-	field, itField, regID, err := extractField(*obj.Ident, state)
+	field, itField, regID, arrayIndex, isArrayAccess, err := extractField(*obj.Ident)
 	if err != nil {
 		return nil, obj.Pos, err
 	}
@@ -96,6 +190,15 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 	}
 
 	state.UpdateFields(field)
+
+	// Handle numeric array index access (e.g., field[0])
+	if isArrayAccess {
+		wrappedEvaluator, err := WrapEvaluatorWithArrayIndex(evaluator, arrayIndex, field)
+		if err != nil {
+			return nil, obj.Pos, NewError(obj.Pos, "failed to create array index accessor: %v", err)
+		}
+		return wrappedEvaluator, obj.Pos, nil
+	}
 
 	if regID != "" {
 		// avoid wildcard register for the moment
@@ -180,6 +283,12 @@ func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, 
 			return nil, array.Pos, NewError(array.Pos, "invalid variable name '%s'", *array.Variable)
 		}
 		return evaluatorFromVariable(varName, array.Pos, opts)
+	} else if array.FieldReference != nil {
+		fieldName, ok := isFieldReferenceName(*array.FieldReference)
+		if !ok {
+			return nil, array.Pos, NewError(array.Pos, "invalid field reference '%s'", *array.FieldReference)
+		}
+		return evaluatorFromFieldReference(fieldName, array.Pos, state)
 	} else if array.CIDR != nil {
 		var values CIDRValues
 		if err := values.AppendCIDR(*array.CIDR); err != nil {
@@ -224,15 +333,80 @@ func isVariableName(str string) (string, bool) {
 	return "", false
 }
 
-func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
-	variableEvaluator, err := opts.VariableStore.GetEvaluator(VariableName(varname))
-	if err == nil {
-		return variableEvaluator, pos, nil
+// isFieldReferenceName checks if a string is a valid field reference (%{...})
+func isFieldReferenceName(str string) (string, bool) {
+	if strings.HasPrefix(str, "%{") && strings.HasSuffix(str, "}") {
+		return strings.TrimSuffix(strings.TrimPrefix(str, "%{"), "}"), true
+	}
+	return "", false
+}
+
+func evaluatorFromLengthHanlder(fieldname string, pos lexer.Position, state *State) (interface{}, lexer.Position, error) {
+	evaluator, err := state.model.GetEvaluator(fieldname, "", 0)
+	if err != nil {
+		return nil, pos, NewError(pos, "field '%s' doesn't exist", fieldname)
 	}
 
-	if strings.HasSuffix(varname, ".length") {
-		trimmedVariable := strings.TrimSuffix(varname, ".length")
-		if variableEvaluator, _ := opts.VariableStore.GetEvaluator(VariableName(trimmedVariable)); variableEvaluator != nil {
+	// Return length evaluator based on field type
+	switch fieldEval := evaluator.(type) {
+	case *StringArrayEvaluator:
+		return &IntEvaluator{
+			EvalFnc: func(ctx *Context) int {
+				v := fieldEval.Eval(ctx)
+				return len(v.([]string))
+			},
+		}, pos, nil
+	case *StringEvaluator:
+		return &IntEvaluator{
+			EvalFnc: func(ctx *Context) int {
+				v := fieldEval.Eval(ctx)
+				return len(v.(string))
+			},
+		}, pos, nil
+	case *IntArrayEvaluator:
+		return &IntEvaluator{
+			EvalFnc: func(ctx *Context) int {
+				v := fieldEval.Eval(ctx)
+				return len(v.([]int))
+			},
+		}, pos, nil
+	default:
+		return nil, pos, NewError(pos, "'length' cannot be used on field '%s'", fieldname)
+	}
+}
+
+// evaluatorFromFieldReference resolves a field reference (%{field})
+// This ONLY checks fields, never variables - providing explicit field access syntax
+func evaluatorFromFieldReference(fieldname string, pos lexer.Position, state *State) (interface{}, lexer.Position, error) {
+	// Handle .length suffix for fields
+	if before, ok := strings.CutSuffix(fieldname, ".length"); ok {
+		return evaluatorFromLengthHanlder(before, pos, state)
+	}
+
+	if before, ok := strings.CutSuffix(fieldname, ".root_domain"); ok {
+		return evaluatorFromRootDomainHandler(before, pos, state)
+	}
+
+	// Only try to resolve as a field (no variable lookup)
+	evaluator, err := state.model.GetEvaluator(fieldname, "", 0)
+	if err != nil {
+		return nil, pos, NewError(pos, "field '%s' doesn't exist", fieldname)
+	}
+
+	return evaluator, pos, nil
+}
+
+func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
+	var variableEvaluator interface{}
+	variable := opts.VariableStore.Get(varname)
+	if variable != nil {
+		return variable.GetEvaluator(), pos, nil
+	}
+
+	if before, ok := strings.CutSuffix(varname, ".length"); ok {
+		trimmedVariable := before
+		if variable = opts.VariableStore.Get(trimmedVariable); variable != nil {
+			variableEvaluator = variable.GetEvaluator()
 			switch evaluator := variableEvaluator.(type) {
 			case *StringArrayEvaluator:
 				return &IntEvaluator{
@@ -266,12 +440,15 @@ func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts) (inte
 				return nil, pos, NewError(pos, "'length' cannot be used on '%s'", trimmedVariable)
 			}
 		}
+
 	}
 
+	// No fallback to field - variables and fields are explicitly separated
+	// Use %{field} syntax for fields
 	return nil, pos, NewError(pos, "variable '%s' doesn't exist", varname)
 }
 
-func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
+func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts, state *State) (interface{}, lexer.Position, error) {
 	var evaluators []*StringEvaluator
 
 	doLoc := func(sub string) error {
@@ -290,14 +467,14 @@ func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (in
 			case *IntArrayEvaluator:
 				evaluators = append(evaluators, &StringEvaluator{
 					EvalFnc: func(ctx *Context) string {
-						var result string
+						var builder strings.Builder
 						for i, number := range evaluator.EvalFnc(ctx) {
 							if i != 0 {
-								result += ","
+								builder.WriteString(",")
 							}
-							result += strconv.FormatInt(int64(number), 10)
+							builder.WriteString(strconv.FormatInt(int64(number), 10))
 						}
-						return result
+						return builder.String()
 					}})
 			case *StringEvaluator:
 				evaluators = append(evaluators, evaluator)
@@ -309,6 +486,40 @@ func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (in
 			default:
 				return NewError(pos, "variable type not supported '%s'", varname)
 			}
+		} else if fieldname, ok := isFieldReferenceName(sub); ok {
+			evaluator, pos, err := evaluatorFromFieldReference(fieldname, pos, state)
+			if err != nil {
+				return err
+			}
+
+			switch evaluator := evaluator.(type) {
+			case *StringArrayEvaluator:
+				evaluators = append(evaluators, &StringEvaluator{
+					EvalFnc: func(ctx *Context) string {
+						return strings.Join(evaluator.EvalFnc(ctx), ",")
+					}})
+			case *IntArrayEvaluator:
+				evaluators = append(evaluators, &StringEvaluator{
+					EvalFnc: func(ctx *Context) string {
+						var builder strings.Builder
+						for i, number := range evaluator.EvalFnc(ctx) {
+							if i != 0 {
+								builder.WriteString(",")
+							}
+							builder.WriteString(strconv.FormatInt(int64(number), 10))
+						}
+						return builder.String()
+					}})
+			case *StringEvaluator:
+				evaluators = append(evaluators, evaluator)
+			case *IntEvaluator:
+				evaluators = append(evaluators, &StringEvaluator{
+					EvalFnc: func(ctx *Context) string {
+						return strconv.FormatInt(int64(evaluator.EvalFnc(ctx)), 10)
+					}})
+			default:
+				return NewError(pos, "field type not supported '%s'", fieldname)
+			}
 		} else {
 			evaluators = append(evaluators, &StringEvaluator{Value: sub})
 		}
@@ -316,8 +527,18 @@ func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (in
 		return nil
 	}
 
+	// Find all ${...} and %{...} matches and process them in order
+	varMatches := variableRegex.FindAllIndex([]byte(str), -1)
+	fieldMatches := fieldReferenceRegex.FindAllIndex([]byte(str), -1)
+
+	// Merge and sort all matches by position
+	allMatches := append(varMatches, fieldMatches...)
+	slices.SortFunc(allMatches, func(a, b []int) int {
+		return a[0] - b[0]
+	})
+
 	var last int
-	for _, loc := range variableRegex.FindAllIndex([]byte(str), -1) {
+	for _, loc := range allMatches {
 		if loc[0] > 0 {
 			if err := doLoc(str[last:loc[0]]); err != nil {
 				return nil, pos, err
@@ -338,15 +559,15 @@ func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (in
 		Value:     str,
 		ValueType: VariableValueType,
 		EvalFnc: func(ctx *Context) string {
-			var result string
+			var builder strings.Builder
 			for _, evaluator := range evaluators {
 				if evaluator.EvalFnc != nil {
-					result += evaluator.EvalFnc(ctx)
+					builder.WriteString(evaluator.EvalFnc(ctx))
 				} else {
-					result += evaluator.Value
+					builder.WriteString(evaluator.Value)
 				}
 			}
-			return result
+			return builder.String()
 		},
 	}, pos, nil
 }
@@ -1397,6 +1618,13 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			}
 
 			return evaluatorFromVariable(varname, obj.Pos, opts)
+		case obj.FieldReference != nil:
+			fieldname, ok := isFieldReferenceName(*obj.FieldReference)
+			if !ok {
+				return nil, obj.Pos, NewError(obj.Pos, "internal field reference error '%s'", fieldname)
+			}
+
+			return evaluatorFromFieldReference(fieldname, obj.Pos, state)
 		case obj.Duration != nil:
 			return &IntEvaluator{
 				Value:      *obj.Duration,
@@ -1406,9 +1634,11 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 		case obj.String != nil:
 			str := *obj.String
 
-			// contains variables
-			if len(variableRegex.FindAllIndex([]byte(str), -1)) > 0 {
-				return stringEvaluatorFromVariable(str, obj.Pos, opts)
+			// contains variables or field references
+			hasVariables := len(variableRegex.FindAllIndex([]byte(str), -1)) > 0
+			hasFieldReferences := len(fieldReferenceRegex.FindAllIndex([]byte(str), -1)) > 0
+			if hasVariables || hasFieldReferences {
+				return stringEvaluatorFromVariable(str, obj.Pos, opts, state)
 			}
 
 			return &StringEvaluator{

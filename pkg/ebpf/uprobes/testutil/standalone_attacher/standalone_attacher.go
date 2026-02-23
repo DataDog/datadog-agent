@@ -24,6 +24,7 @@ import (
 )
 
 var configName = flag.String("config", "", "config name")
+var useEventStream = flag.Bool("use-event-stream", false, "use event stream")
 
 func main() {
 	// use testing.Main so that we have a testing.T to pass to the runners.
@@ -38,7 +39,7 @@ func main() {
 }
 
 func run(t *testing.T) {
-	runner := uprobes.NewSameProcessAttacherRunner()
+	runner := uprobes.NewSameProcessAttacherRunner(*useEventStream)
 
 	if *configName == "" {
 		t.Fatal("config name is required")

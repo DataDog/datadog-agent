@@ -13,8 +13,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -58,7 +60,7 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 
 	operations.FileOperations = append(buildOperationsFromLegacyInstaller(d.StablePath), operations.FileOperations...)
 
-	err = operations.Apply(d.ExperimentPath)
+	err = operations.Apply(ctx, d.ExperimentPath)
 	if err != nil {
 		return err
 	}
@@ -116,7 +118,12 @@ func isSameFile(file1, file2 string) bool {
 
 // replaceConfigDirectory replaces the contents of two directories.
 func replaceConfigDirectory(oldDir, newDir string) (err error) {
-	backupPath := filepath.Clean(oldDir) + ".bak"
+	backupDir, err := os.MkdirTemp(filepath.Dir(oldDir), "datadog-backup")
+	if err != nil {
+		return fmt.Errorf("could not create backup directory: %w", err)
+	}
+	defer os.RemoveAll(backupDir)
+	backupPath := filepath.Join(backupDir, filepath.Base(oldDir))
 	err = os.Rename(oldDir, backupPath)
 	if err != nil {
 		return fmt.Errorf("could not rename old directory: %w", err)
@@ -133,9 +140,25 @@ func replaceConfigDirectory(oldDir, newDir string) (err error) {
 	if err != nil {
 		return fmt.Errorf("could not rename new directory: %w", err)
 	}
-	err = os.RemoveAll(backupPath)
-	if err != nil {
-		return fmt.Errorf("could not remove old directory: %w", err)
+	return nil
+}
+
+// setFileOwnershipAndPermissions sets the ownership and permissions for a file based on its configFileSpec.
+// If the user doesn't exist (e.g., in tests) or if we don't have permission
+// to change ownership, the function logs a warning and continues without failing.
+func setFileOwnershipAndPermissions(ctx context.Context, filePath string, spec *configFileSpec) error {
+	// Set file permissions
+	if spec.mode != 0 {
+		if err := os.Chmod(filePath, spec.mode); err != nil {
+			return fmt.Errorf("error setting file permissions for %s: %w", filePath, err)
+		}
 	}
+
+	// Set file ownership
+	err := file.Chown(ctx, filePath, spec.owner, spec.group)
+	if err != nil {
+		log.Warnf("error setting file ownership for %s: %v", filePath, err)
+	}
+
 	return nil
 }

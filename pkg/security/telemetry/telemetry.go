@@ -7,29 +7,30 @@
 package telemetry
 
 import (
+	"errors"
 	"strings"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/security/common"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // ContainersTelemetry represents the objects necessary to send metrics listing containers
 type ContainersTelemetry struct {
 	TelemetrySender SimpleTelemetrySender
 	MetadataStore   workloadmeta.Component
-	containerFilter *containers.Filter
+	containerFilter workloadfilter.FilterBundle
 }
 
 // NewContainersTelemetry returns a new ContainersTelemetry based on default/global objects
-func NewContainersTelemetry(telemetrySender SimpleTelemetrySender, wmeta workloadmeta.Component, cfg model.Config, prefix string) (*ContainersTelemetry, error) {
-	containerFilter, err := common.NewContainerFilter(cfg, prefix)
-	if err != nil {
-		return nil, err
+func NewContainersTelemetry(telemetrySender SimpleTelemetrySender, wmeta workloadmeta.Component, containerFilter workloadfilter.FilterBundle) (*ContainersTelemetry, error) {
+	errs := containerFilter.GetErrors()
+	if errs != nil {
+		return nil, errors.Join(errs...)
 	}
 
 	return &ContainersTelemetry{
@@ -54,15 +55,12 @@ func (c *ContainersTelemetry) ReportContainers(metricName string) {
 		value := container.EnvVars["DOCKER_DD_AGENT"]
 		value = strings.ToLower(value)
 
-		var podNamespace string
-		var podAnnotations map[string]string
-		if pod, err := c.MetadataStore.GetKubernetesPodForContainer(container.ID); err == nil {
-			podNamespace = pod.Namespace
-			podAnnotations = pod.Annotations
-		}
+		pod, _ := c.MetadataStore.GetKubernetesPodForContainer(container.ID)
+		filterablePod := workloadmetafilter.CreatePod(pod)
+		filterableContainer := workloadmetafilter.CreateContainer(container, filterablePod)
 
 		if (value == "yes" || value == "true") ||
-			c.containerFilter.IsExcluded(podAnnotations, container.Name, container.Image.Name, podNamespace) {
+			c.containerFilter.IsExcluded(filterableContainer) {
 			log.Debugf("ignoring container: name=%s id=%s image_id=%s", container.Name, container.ID, container.Image.ID)
 			continue
 		}

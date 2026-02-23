@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    Refactor the auto-instrumentation webhook's ``injectTracers`` function to use a modular, explicit mutation pattern.
+    This improves code readability and maintainability. Edge case behavior may differ slightly, but overall functionality remains unchanged.

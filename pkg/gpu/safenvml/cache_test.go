@@ -210,7 +210,7 @@ func TestDeviceCacheAllPhysicalDevices(t *testing.T) {
 
 	for i, device := range physicalDevices {
 		require.Equal(t, testutil.GPUUUIDs[i], device.GetDeviceInfo().UUID)
-		require.Equal(t, testutil.GPUCores[i], device.GetDeviceInfo().CoreCount)
+		require.Equal(t, testutil.GPUCores[i], device.GetDeviceInfo().CoreCount, "device %d core count incorrect", i)
 		require.Equal(t, i, device.GetDeviceInfo().Index)
 	}
 }

@@ -23,7 +23,7 @@ type PathtestMetadata struct {
 	ReverseDNSHostname string
 }
 
-// Pathtest details of information necessary to run a traceroute (pathtrace)
+// Pathtest details of information necessary to run a traceroute
 type Pathtest struct {
 	Hostname          string
 	Port              uint16
@@ -35,9 +35,9 @@ type Pathtest struct {
 // GetHash returns the hash of the Pathtest
 func (p Pathtest) GetHash() uint64 {
 	h := fnv.New64()
-	h.Write([]byte(p.Hostname))                  //nolint:errcheck
-	binary.Write(h, binary.LittleEndian, p.Port) //nolint:errcheck
-	h.Write([]byte(p.Protocol))                  //nolint:errcheck
-	h.Write([]byte(p.SourceContainerID))         //nolint:errcheck
+	_, _ = h.Write([]byte(p.Hostname))
+	_ = binary.Write(h, binary.LittleEndian, p.Port)
+	_, _ = h.Write([]byte(p.Protocol))
+	_, _ = h.Write([]byte(p.SourceContainerID))
 	return h.Sum64()
 }

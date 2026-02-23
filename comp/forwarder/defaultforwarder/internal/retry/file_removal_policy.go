@@ -7,7 +7,7 @@ package retry
 
 import (
 	"crypto/md5"
-	"fmt"
+	"encoding/hex"
 	"io"
 	"os"
 	"path"
@@ -113,7 +113,7 @@ func (p *FileRemovalPolicy) getFolderPathForDomain(domainName string) (string, e
 	if _, err := io.WriteString(h, domainName); err != nil {
 		return "", err
 	}
-	folder := fmt.Sprintf("%x", h.Sum(nil))
+	folder := hex.EncodeToString(h.Sum(nil))
 
 	return path.Join(p.rootPath, folder), nil
 }

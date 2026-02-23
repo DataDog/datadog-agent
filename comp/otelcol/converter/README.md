@@ -18,6 +18,7 @@ The converter supports selective enabling and disabling of features through the 
 - **`zpages`**: Adds the zpages extension for debugging information
 - **`health_check`**: Adds the health check extension for health monitoring
 - **`ddflare`**: Adds the Datadog flare extension for diagnostic information
+- **`datadog`**: Adds the OSS Datadog extension to send Fleet Automation data
 
 ### Configuration Examples
 
@@ -49,7 +50,7 @@ export DD_OTELCOLLECTOR_CONVERTER_FEATURES="infraattributes,prometheus,pprof"
 
 ### Extensions
 
-The converter looks for the `pprof`, `health_check`, `zpages` and `datadog` extensions. If these are already defined in the service pipeline, it makes no changes. If any of these extensions are not defined, it will add the extensions config (name: `<extension_name>/dd-autoconfigured`) and add the component in the services extension pipeline.
+The converter looks for the `pprof`, `health_check`, `zpages`, `ddflare` and `datadog` extensions. If these are already defined in the service pipeline, it makes no changes. If any of these extensions are not defined, it will add the extensions config (name: `<extension_name>/dd-autoconfigured`) and add the component in the services extension pipeline.
 
 ### Infra Attributes Processor
 
@@ -77,7 +78,8 @@ Please refer to the following example in order to manually set the `pprof`, `hea
 - [pprof](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/extension/pprofextension/README.md): Enables collecting collector profiles at a defined endpoint.
 - [health_check](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/healthcheckextension/README.md): Enables an HTTP url that can be probed to check the status of the OpenTelemetry Collector.
 - [zpages](https://github.com/open-telemetry/opentelemetry-collector/blob/main/extension/zpagesextension/README.md): Enables an extension that serves zPages, an HTTP endpoint that provides live data for debugging different components
-- [datadog](../extension/README.md): Enables otel-agent information to be collected in the datadog-agent flare.
+- [ddflare](../extension/README.md): Enables otel-agent information to be collected in the datadog-agent flare.
+- [datadog](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/datadogextension): Enables collector configuration and build info to be viewed in both Datadog Infrastructure Monitoring and Fleet Automation.
 
 ### Prometheus Receiver
 

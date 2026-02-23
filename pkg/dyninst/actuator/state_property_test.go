@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"cmp"
 	"fmt"
+	"maps"
 	"math/rand"
 	"os"
 	"slices"
@@ -93,7 +94,9 @@ func runStateMachinePropertyTest(t *testing.T, seed int64) []byte {
 	rng := rand.New(rand.NewSource(seed))
 
 	pts := &propertyTestState{
-		sm:               newState(),
+		sm: newState(Config{
+			DiscoveredTypesLimit: 10,
+		}),
 		processIDCounter: 1000,
 		rng:              rng,
 	}
@@ -196,11 +199,16 @@ func (pts *propertyTestState) generateRandomEvent() (event, bool) {
 		pts.shuttingDown = true
 		return eventShutdown{}, true
 	case choice < 0.5 || len(pts.unresolvedEffects) == 0:
+		if ev := pts.maybeGenerateMissingTypes(); ev != nil {
+			return ev, true
+		}
 		return pts.generateProcessUpdate(), true
 	default:
 		return pts.completeRandomEffect(), true
 	}
 }
+
+var serviceNames = []string{"svc-a", "svc-b", "svc-c"}
 
 func (pts *propertyTestState) generateProcessUpdate() event {
 	numUpdates := pts.rng.Intn(3) + 1 // 1-3 process updates
@@ -237,9 +245,11 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 				probes = append(probes, probe)
 			}
 
+			service := serviceNames[pts.rng.Intn(len(serviceNames))]
 			updates = append(updates, ProcessUpdate{
 				Info: procinfo.Info{
 					ProcessID: processID,
+					Service:   service,
 					Executable: Executable{
 						Path: fmt.Sprintf("/usr/bin/app_%d", pts.processIDCounter),
 					},
@@ -278,7 +288,7 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 
 				updates = append(updates, ProcessUpdate{
 					Info: procinfo.Info{
-						ProcessID:  processID.ProcessID,
+						ProcessID:  processID,
 						Executable: existingProcess.executable,
 					},
 					Probes: probes,
@@ -290,7 +300,7 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 			existingProcesses := pts.existingProcesses()
 			if len(existingProcesses) > 0 {
 				toRemove := existingProcesses[pts.rng.Intn(len(existingProcesses))]
-				removals = append(removals, toRemove.ProcessID)
+				removals = append(removals, toRemove)
 			}
 		}
 	}
@@ -301,18 +311,44 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 	}
 }
 
-func (pts *propertyTestState) existingProcesses() []processKey {
-	existingProcesses := make([]processKey, 0, len(pts.sm.processes))
-	for key := range pts.sm.processes {
-		existingProcesses = append(existingProcesses, key)
-	}
-	slices.SortFunc(existingProcesses, func(a, b processKey) int {
-		return cmp.Or(
-			cmp.Compare(a.tenantID, b.tenantID),
-			cmp.Compare(a.PID, b.PID),
-		)
+func (pts *propertyTestState) existingProcesses() []ProcessID {
+	existing := slices.AppendSeq(
+		make([]ProcessID, 0, len(pts.sm.processes)),
+		maps.Keys(pts.sm.processes),
+	)
+	slices.SortFunc(existing, func(a, b ProcessID) int {
+		return cmp.Compare(a.PID, b.PID)
 	})
-	return existingProcesses
+	return existing
+}
+
+var missingTypeNames = []string{"TypeA", "TypeB", "TypeC", "TypeD", "TypeE"}
+
+// maybeGenerateMissingTypes generates an eventMissingTypesReported for a
+// random existing process with ~10% probability. Returns nil if no event
+// should be generated.
+func (pts *propertyTestState) maybeGenerateMissingTypes() event {
+	if pts.rng.Float64() > 0.1 {
+		return nil
+	}
+	existing := pts.existingProcesses()
+	if len(existing) == 0 {
+		return nil
+	}
+	pid := existing[pts.rng.Intn(len(existing))]
+	proc := pts.sm.processes[pid]
+	if proc.service == "" {
+		return nil
+	}
+	numTypes := pts.rng.Intn(3) + 1
+	var types []string
+	for i := 0; i < numTypes; i++ {
+		types = append(types, missingTypeNames[pts.rng.Intn(len(missingTypeNames))])
+	}
+	return eventMissingTypesReported{
+		processID: pid,
+		typeNames: types,
+	}
 }
 
 func (pts *propertyTestState) completeRandomEffect() event {
@@ -340,11 +376,9 @@ func (pts *propertyTestState) completeRandomEffect() event {
 					programID: eff.programID,
 				},
 			}
-		} else {
-			return eventProgramLoadingFailed{
-				programID: eff.programID,
-				err:       fmt.Errorf("mock loading failure"),
-			}
+		}
+		return eventProgramLoadingFailed{
+			programID: eff.programID,
 		}
 
 	case effectAttachToProcess:
@@ -357,12 +391,10 @@ func (pts *propertyTestState) completeRandomEffect() event {
 					processID: eff.processID,
 				},
 			}
-		} else {
-			return eventProgramAttachingFailed{
-				programID: eff.programID,
-				processID: eff.processID,
-				err:       fmt.Errorf("mock attaching failure"),
-			}
+		}
+		return eventProgramAttachingFailed{
+			programID: eff.programID,
+			processID: eff.processID,
 		}
 
 	case effectDetachFromProcess:

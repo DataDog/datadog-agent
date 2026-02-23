@@ -75,7 +75,7 @@ func getLineReader(dwarfData *dwarf.Data) (*dwarf.LineReader, error) {
 			return lineReader, nil
 		}
 	}
-	return nil, fmt.Errorf("no line reader found in DWARF data")
+	return nil, errors.New("no line reader found in DWARF data")
 }
 
 // progStartPoint defines a possible start point for a program: section index + address
@@ -90,7 +90,7 @@ func buildProgStartMap(dwarfData *dwarf.Data, symToSeq map[string]int) (map[prog
 	progStartLines := make(map[progStartPoint]string)
 	entryReader := dwarfData.Reader()
 	if entryReader == nil {
-		return nil, fmt.Errorf("cannot get dwarf reader")
+		return nil, errors.New("cannot get dwarf reader")
 	}
 
 	for {

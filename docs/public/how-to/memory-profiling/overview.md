@@ -6,9 +6,9 @@ different runtimes, can make identifying memory issues tricky.
 
 The Agent has three distinct memory spaces, each handled independently:
 
-- Go
-- C/C++
-- Python
+- [Go](go.md)
+- [C/C++](c++.md)
+- [Python](python.md)
 
 There is tooling to dive deeper into each of these environments,
 but having logic flow through the boundaries defined by these runtimes and

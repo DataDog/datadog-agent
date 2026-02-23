@@ -15,15 +15,14 @@ import (
 	"sync"
 	"time"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/common"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // syntheticsTestScheduler is responsible for scheduling and executing synthetics tests.
@@ -39,11 +38,10 @@ type syntheticsTestScheduler struct {
 	flushInterval                time.Duration
 	flushLoopDone                chan struct{}
 	epForwarder                  eventplatform.Forwarder
-	telemetry                    telemetry.Component
+	traceroute                   traceroute.Component
 	generateTestResultID         func(func(rand io.Reader, max *big.Int) (n *big.Int, err error)) (string, error)
 	ticker                       *time.Ticker
 	tickerC                      <-chan time.Time
-	runTraceroute                func(ctx context.Context, cfg config.Config, telemetry telemetry.Component) (payload.NetworkPath, error)
 	sendResult                   func(w *workerResult) (string, error)
 	hostNameService              hostname.Component
 	statsdClient                 ddgostatsd.ClientInterface
@@ -51,12 +49,12 @@ type syntheticsTestScheduler struct {
 }
 
 // newSyntheticsTestScheduler creates a scheduler and initializes its state.
-func newSyntheticsTestScheduler(configs *schedulerConfigs, forwarder eventplatform.Forwarder, logger log.Component, hostNameService hostname.Component, timeFunc func() time.Time, statsd ddgostatsd.ClientInterface, telemetryComp telemetry.Component, poller *onDemandPoller) *syntheticsTestScheduler {
+func newSyntheticsTestScheduler(configs *schedulerConfigs, forwarder eventplatform.Forwarder, logger log.Component, hostNameService hostname.Component, timeFunc func() time.Time, statsd ddgostatsd.ClientInterface, traceroute traceroute.Component, poller *onDemandPoller) *syntheticsTestScheduler {
 	scheduler := &syntheticsTestScheduler{
 		epForwarder:                  forwarder,
 		log:                          logger,
 		hostNameService:              hostNameService,
-		telemetry:                    telemetryComp,
+		traceroute:                   traceroute,
 		state:                        runningState{tests: map[string]*runningTestState{}},
 		workersDone:                  make(chan struct{}),
 		flushLoopDone:                make(chan struct{}),
@@ -65,7 +63,6 @@ func newSyntheticsTestScheduler(configs *schedulerConfigs, forwarder eventplatfo
 		workers:                      configs.workers,
 		flushInterval:                configs.flushInterval,
 		generateTestResultID:         generateRandomStringUInt63,
-		runTraceroute:                runTraceroute,
 		statsdClient:                 statsd,
 		onDemandPoller:               poller,
 	}
@@ -126,7 +123,7 @@ func (s *syntheticsTestScheduler) updateRunningState(newConfig map[string]common
 		pubID := newTestConfig.PublicID
 		seen[pubID] = true
 		current, exists := s.state.tests[pubID]
-
+		ChecksReceived.Inc()
 		s.statsdClient.Incr(syntheticsMetricPrefix+"checks_received", []string{fmt.Sprintf("org_id:%d", newTestConfig.OrgID)}, 1) //nolint:errcheck
 
 		if !exists {

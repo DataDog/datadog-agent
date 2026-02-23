@@ -531,10 +531,10 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 
 func getAssetName(module string, debug bool) string {
 	if debug {
-		return fmt.Sprintf("%s-debug.o", module)
+		return module + "-debug.o"
 	}
 
-	return fmt.Sprintf("%s.o", module)
+	return module + ".o"
 }
 
 func (e *ebpfProgram) dumpMapsHandler(w io.Writer, _ *manager.Manager, mapName string, currentMap *ebpf.Map) {

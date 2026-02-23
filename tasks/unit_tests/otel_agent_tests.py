@@ -25,20 +25,16 @@ class TestOTelAgentTasks(unittest.TestCase):
         return True
 
     def test_byoc_release(self):
-        image = "foo"
-        branch = "x.y.z"
-        repo = "bar"
+        version = "x.y.z"
 
         c = Context()
         m = mock_open(read_data=self.dockerfile)
         with patch("builtins.open", m):
-            otel_agent.byoc_release(c, image=image, branch=branch, repo=repo)
+            otel_agent.byoc_release(c, version=version)
 
         expected_calls = [
             call(otel_agent.DDOT_BYOC_DOCKERFILE, "w"),
-            call().write(f"ARG AGENT_REPO={repo}\n"),
-            call().write(f"ARG AGENT_VERSION={image}\n"),
-            call().write(f"ARG AGENT_BRANCH={branch}\n"),
+            call().write(f"ARG AGENT_VERSION={version}\n"),
         ]
 
         self.assertEqual(self.assert_mock_with_calls(m, expected_calls), True)

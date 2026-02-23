@@ -1,0 +1,12 @@
+# Redis check configuration using process-based autodiscovery
+# This check will be scheduled when a redis-server process is detected
+cel_selector:
+  processes:
+    - process.cmdline.contains('redis-server')
+
+init_config:
+
+instances:
+  - host: "%%host%%"
+    port: 6379
+

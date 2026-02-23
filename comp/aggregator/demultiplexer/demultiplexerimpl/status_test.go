@@ -14,9 +14,13 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
@@ -61,12 +65,15 @@ func TestStatusOutPut(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		core.MockBundle(),
+		hostnameimpl.MockModule(),
+		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		defaultforwarder.MockModule(),
 		haagentmock.Module(),
 		orchestratorimpl.MockModule(),
 		eventplatformimpl.MockModule(),
 		logscompression.MockModule(),
 		metricscompression.MockModule(),
+		filterlistfx.MockModule(),
 		fx.Provide(func() tagger.Component {
 			return mockTagger
 		}),

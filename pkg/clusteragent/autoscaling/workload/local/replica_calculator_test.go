@@ -9,7 +9,7 @@ package local
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 	"time"
 
@@ -46,7 +46,7 @@ func TestProcessAverageContainerMetricValue(t *testing.T) {
 			series:        []loadstore.EntityValue{},
 			averageMetric: 0.0,
 			lastTimestamp: time.Time{},
-			err:           fmt.Errorf("Missing usage metrics"),
+			err:           errors.New("Missing usage metrics"),
 		},
 		{
 			name: "Series with valid values (non-stale)",
@@ -104,7 +104,7 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 			queryResult: loadstore.QueryResult{},
 			currentTime: time.Time{},
 			want:        utilizationResult{},
-			err:         fmt.Errorf("No pods found"),
+			err:         errors.New("No pods found"),
 		},
 		{
 			name: "Pods with empty query results",
@@ -132,7 +132,7 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 			queryResult: loadstore.QueryResult{},
 			currentTime: testTime,
 			want:        utilizationResult{},
-			err:         fmt.Errorf("Issue fetching metrics data"),
+			err:         errors.New("Issue fetching metrics data"),
 		},
 		{
 			name: "Pods with no corresponding metrics data",
@@ -172,7 +172,7 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 			},
 			currentTime: testTime,
 			want:        utilizationResult{},
-			err:         fmt.Errorf("Issue calculating pod utilization"),
+			err:         errors.New("Issue calculating pod utilization"),
 		},
 		{
 			name: "Single pod and container",
@@ -471,7 +471,7 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 			queryResult: loadstore.QueryResult{},
 			currentTime: time.Time{},
 			want:        utilizationResult{},
-			err:         fmt.Errorf("No pods found"),
+			err:         errors.New("No pods found"),
 		},
 		{
 			name: "Pods with empty query results",
@@ -499,7 +499,7 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 			queryResult: loadstore.QueryResult{},
 			currentTime: testTime,
 			want:        utilizationResult{},
-			err:         fmt.Errorf("Issue fetching metrics data"),
+			err:         errors.New("Issue fetching metrics data"),
 		},
 		{
 			name: "Pods with no corresponding metrics data",
@@ -539,7 +539,7 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 			},
 			currentTime: testTime,
 			want:        utilizationResult{},
-			err:         fmt.Errorf("Issue calculating pod utilization"),
+			err:         errors.New("Issue calculating pod utilization"),
 		},
 		{
 			name: "Single pod and container",
@@ -919,7 +919,7 @@ func TestRecommend(t *testing.T) {
 			currentTime:         testTime,
 			recommendedReplicas: 0,
 			utilizationRes:      utilizationResult{},
-			err:                 fmt.Errorf("Issue fetching metrics data"),
+			err:                 errors.New("Issue fetching metrics data"),
 		},
 		{
 			name: "Pods with no corresponding metrics data",
@@ -960,7 +960,7 @@ func TestRecommend(t *testing.T) {
 			currentTime:         testTime,
 			recommendedReplicas: 0,
 			utilizationRes:      utilizationResult{},
-			err:                 fmt.Errorf("Issue calculating pod utilization"),
+			err:                 errors.New("Issue calculating pod utilization"),
 		},
 		{
 			name: "Scale down expected",
@@ -1550,11 +1550,9 @@ func TestCalculateHorizontalRecommendations(t *testing.T) {
 	}
 	customQueryObjective := datadoghqcommon.DatadogPodAutoscalerObjective{
 		Type: datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType,
-		CustomQueryObjective: &datadoghqcommon.DatadogPodAutoscalerCustomQueryObjective{
-			Query: datadoghqcommon.DatadogPodAutoscalerTimeseriesFormulaRequest{
-				Formulas: []datadoghqcommon.DatadogPodAutoscalerQueryFormula{{
-					Formula: "query1",
-				}},
+		CustomQuery: &datadoghqcommon.DatadogPodAutoscalerCustomQueryObjective{
+			Request: datadoghqcommon.DatadogPodAutoscalerTimeseriesFormulaRequest{
+				Formula: "query1",
 				Queries: []datadoghqcommon.DatadogPodAutoscalerTimeseriesQuery{{
 					Source: datadoghqcommon.DatadogPodAutoscalerMetricsDataSourceMetrics,
 					Name:   "a",

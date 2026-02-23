@@ -41,7 +41,9 @@ type tracetelemetryImpl struct {
 	config config.Component
 	client ipc.HTTPClient
 	log    log.Component
-	metric telemetry.Gauge
+
+	enabled telemetry.Gauge
+	working telemetry.Gauge
 
 	// whether the trace-agent is running
 	running atomic.Bool
@@ -54,13 +56,15 @@ type tracetelemetryImpl struct {
 
 // NewComponent creates a new trace-telemetry component
 func NewComponent(reqs Requires) (Provides, error) {
-	metric := reqs.Telemetry.NewGauge("trace", "running", []string{"state"}, "Whether the trace-agent is running and sending data")
+	enabled := reqs.Telemetry.NewGauge("trace", "enabled", []string{}, "Whether the trace-agent is running")
+	working := reqs.Telemetry.NewGauge("trace", "working", []string{}, "Whether the trace-agent is sending data")
 
 	t := &tracetelemetryImpl{
-		config: reqs.Config,
-		client: reqs.Client,
-		log:    reqs.Log,
-		metric: metric,
+		config:  reqs.Config,
+		client:  reqs.Client,
+		log:     reqs.Log,
+		enabled: enabled,
+		working: working,
 	}
 	provides := Provides{
 		Comp: t,
@@ -107,17 +111,16 @@ func (t *tracetelemetryImpl) Start() {
 			case <-ticker.C:
 				t.updateState()
 
-				var state string
+				enabled := 0.
+				working := 0.
 				if t.running.Load() {
+					enabled = 1.0
 					if t.sending.Load() {
-						state = "working"
-					} else {
-						state = "idle"
+						working = 1.0
 					}
-				} else {
-					state = "off"
 				}
-				t.metric.Set(1, state)
+				t.enabled.Set(enabled)
+				t.working.Set(working)
 			case <-t.ctx.Done():
 				return
 			}

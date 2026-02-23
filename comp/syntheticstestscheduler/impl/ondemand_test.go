@@ -19,7 +19,6 @@ import (
 	"time"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/common"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
@@ -235,9 +234,9 @@ func TestWorker_OnDemandPriority(t *testing.T) {
 		log:                          l,
 		hostNameService:              &mockHostname{},
 		statsdClient:                 &teststatsd.Client{},
-	}
-	scheduler.runTraceroute = func(_ context.Context, _ config.Config, _ telemetry.Component) (payload.NetworkPath, error) {
-		return payload.NetworkPath{}, nil
+		traceroute:                   &tracerouteRunner{fn: func(_ context.Context, _ config.Config) (payload.NetworkPath, error) {
+			return payload.NetworkPath{}, nil
+		}},
 	}
 	scheduler.sendResult = func(w *workerResult) (string, error) {
 		mu.Lock()

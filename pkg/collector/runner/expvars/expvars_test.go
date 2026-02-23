@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
@@ -164,6 +165,9 @@ func TestExpvarsReset(t *testing.T) {
 	numCheckInstances := 5
 	numCheckRuns := 7
 
+	// Create a single shared mock health platform for the entire test
+	mockHealthPlatform := healthplatformmock.Mock(t)
+
 	// Add some data to the check stats
 	for checkNameIdx := 0; checkNameIdx < numCheckNames; checkNameIdx++ {
 		for checkIDIdx := 0; checkIDIdx < numCheckInstances; checkIDIdx++ {
@@ -172,7 +176,7 @@ func TestExpvarsReset(t *testing.T) {
 			testCheck := newTestCheck(checkID)
 
 			for runIdx := 0; runIdx < numCheckRuns; runIdx++ {
-				AddCheckStats(testCheck, 12345, nil, []error{}, stats.SenderStats{}, haagentmock.NewMockHaAgent())
+				AddCheckStats(testCheck, 12345, nil, []error{}, stats.SenderStats{}, haagentmock.NewMockHaAgent(), mockHealthPlatform)
 			}
 		}
 	}
@@ -209,6 +213,10 @@ func TestExpvarsCheckStats(t *testing.T) {
 	numCheckInstances := 5
 	numCheckRuns := 7
 
+	// Create a single shared mock health platform for the entire test
+	// to avoid race conditions when multiple goroutines create stats
+	mockHealthPlatform := healthplatformmock.Mock(t)
+
 	var wg sync.WaitGroup
 	start := make(chan struct{})
 
@@ -244,7 +252,7 @@ func TestExpvarsCheckStats(t *testing.T) {
 
 					<-start
 
-					AddCheckStats(testCheck, duration, err, warnings, expectedStats, haagentmock.NewMockHaAgent())
+					AddCheckStats(testCheck, duration, err, warnings, expectedStats, haagentmock.NewMockHaAgent(), mockHealthPlatform)
 
 					actualStats, found := CheckStats(testCheck.ID())
 					require.True(t, found)
@@ -278,9 +286,22 @@ func TestExpvarsCheckStats(t *testing.T) {
 		for checkIDIdx := 0; checkIDIdx < numCheckInstances; checkIDIdx++ {
 			checkID := checkid.ID(fmt.Sprintf("%s:%d", checkName, checkIDIdx))
 			actualStats, _ := CheckStats(checkID)
+			expvarStats := getCheckStatsExpvarMap(t)[checkName][checkID]
 
 			// Assert that the published expvars use the same values as internal ones
-			assert.Equal(t, actualStats, getCheckStatsExpvarMap(t)[checkName][checkID])
+			// Note: healthPlatform field is excluded from comparison as deepcopy doesn't preserve interface fields
+			assert.Equal(t, actualStats.CheckID, expvarStats.CheckID)
+			assert.Equal(t, actualStats.CheckName, expvarStats.CheckName)
+			assert.Equal(t, actualStats.CheckLoader, expvarStats.CheckLoader)
+			assert.Equal(t, actualStats.CheckVersion, expvarStats.CheckVersion)
+			assert.Equal(t, actualStats.CheckConfigSource, expvarStats.CheckConfigSource)
+			assert.Equal(t, actualStats.TotalRuns, expvarStats.TotalRuns)
+			assert.Equal(t, actualStats.TotalErrors, expvarStats.TotalErrors)
+			assert.Equal(t, actualStats.TotalWarnings, expvarStats.TotalWarnings)
+			assert.Equal(t, actualStats.AverageExecutionTime, expvarStats.AverageExecutionTime)
+			assert.Equal(t, actualStats.LastExecutionTime, expvarStats.LastExecutionTime)
+			assert.Equal(t, actualStats.LastError, expvarStats.LastError)
+			assert.Equal(t, actualStats.LastWarnings, expvarStats.LastWarnings)
 
 			assert.Equal(t, numCheckRuns, int(actualStats.TotalRuns))
 			assert.Equal(t, numCheckRuns*2, int(actualStats.TotalWarnings))
@@ -312,6 +333,9 @@ func TestExpvarsGetChecksStatsClone(t *testing.T) {
 	numCheckInstances := 5
 	numCheckRuns := 7
 
+	// Create a single shared mock health platform for the entire test
+	mockHealthPlatform := healthplatformmock.Mock(t)
+
 	// Add some data to the check stats
 	for checkNameIdx := 0; checkNameIdx < numCheckNames; checkNameIdx++ {
 		for checkIDIdx := 0; checkIDIdx < numCheckInstances; checkIDIdx++ {
@@ -320,7 +344,7 @@ func TestExpvarsGetChecksStatsClone(t *testing.T) {
 			testCheck := newTestCheck(checkID)
 
 			for runIdx := 0; runIdx < numCheckRuns; runIdx++ {
-				AddCheckStats(testCheck, 12345, nil, []error{}, stats.SenderStats{}, haagentmock.NewMockHaAgent())
+				AddCheckStats(testCheck, 12345, nil, []error{}, stats.SenderStats{}, haagentmock.NewMockHaAgent(), mockHealthPlatform)
 			}
 		}
 	}
@@ -410,6 +434,9 @@ func TestGetCheckStatsRace(t *testing.T) {
 	numCheckInstances := 5
 	numCheckRuns := 7
 
+	// Create a single shared mock health platform for the entire test
+	mockHealthPlatform := healthplatformmock.Mock(t)
+
 	var wg sync.WaitGroup
 
 	for i := 0; i < 10; i++ {
@@ -425,7 +452,7 @@ func TestGetCheckStatsRace(t *testing.T) {
 
 					warnings := []error{errors.New("error1"), errors.New("error2"), errors.New("error3")}
 					for runIdx := 0; runIdx < numCheckRuns; runIdx++ {
-						AddCheckStats(testCheck, 12345, nil, warnings, stats.SenderStats{}, haagentmock.NewMockHaAgent())
+						AddCheckStats(testCheck, 12345, nil, warnings, stats.SenderStats{}, haagentmock.NewMockHaAgent(), mockHealthPlatform)
 					}
 				}
 			}

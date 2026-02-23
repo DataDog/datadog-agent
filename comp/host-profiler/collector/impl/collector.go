@@ -10,9 +10,13 @@ package collectorimpl
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collector "github.com/DataDog/datadog-agent/comp/host-profiler/collector/def"
+	"github.com/DataDog/datadog-agent/pkg/version"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
@@ -89,6 +93,11 @@ func (c *collectorImpl) Run() error {
 
 func newCollectorSettings(uri string, extraFactories ExtraFactories) (otelcol.CollectorSettings, error) {
 	return otelcol.CollectorSettings{
+		BuildInfo: component.BuildInfo{
+			Command:     filepath.Base(os.Args[0]),
+			Description: "Full Host Profiler: eBPF-based continuous profiling on OpenTelemetry Collector",
+			Version:     version.AgentVersion,
+		},
 		Factories: createFactories(extraFactories),
 		ConfigProviderSettings: otelcol.ConfigProviderSettings{
 			ResolverSettings: confmap.ResolverSettings{
@@ -100,6 +109,7 @@ func newCollectorSettings(uri string, extraFactories ExtraFactories) (otelcol.Co
 				ConverterFactories: extraFactories.GetConverters(),
 			},
 		},
+		LoggingOptions: extraFactories.GetLoggingOptions(),
 	}, nil
 }
 

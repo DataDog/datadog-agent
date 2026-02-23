@@ -9,6 +9,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -41,7 +42,7 @@ func StartWorkloadAutoscaling(
 	senderManager sender.SenderManager,
 ) (workload.PodPatcher, error) {
 	if apiCl == nil {
-		return nil, fmt.Errorf("Impossible to start workload autoscaling without valid APIClient")
+		return nil, errors.New("Impossible to start workload autoscaling without valid APIClient")
 	}
 
 	eventBroadcaster := record.NewBroadcaster()
@@ -68,7 +69,7 @@ func StartWorkloadAutoscaling(
 	}
 
 	maxDatadogPodAutoscalerObjects := pkgconfigsetup.Datadog().GetInt("autoscaling.workload.limit")
-	limitHeap := autoscaling.NewHashHeap(maxDatadogPodAutoscalerObjects, store)
+	limitHeap := autoscaling.NewHashHeap(maxDatadogPodAutoscalerObjects, store, (*model.PodAutoscalerInternal).CreationTimestamp)
 
 	controller, err := workload.NewController(clock, clusterID, eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, isLeaderFunc, store, podWatcher, sender, limitHeap)
 	if err != nil {

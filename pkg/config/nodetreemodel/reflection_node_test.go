@@ -12,35 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type Object struct {
-	Name string
-	Num  int
-}
-
 func TestNewReflectionNode(t *testing.T) {
-	node, err := asReflectionNode(Object{
-		Name: "test",
-		Num:  7,
-	})
+	node, err := asReflectionNode([]string{"name", "test"})
 	assert.NoError(t, err)
+	require.True(t, node.IsLeafNode())
 
-	n, ok := node.(InnerNode)
-	require.True(t, ok)
-
-	keys := n.ChildrenKeys()
-	assert.Equal(t, keys, []string{"name", "num"})
-
-	first, err := n.GetChild("name")
-	assert.NoError(t, err)
-
-	firstLeaf := first.(LeafNode)
-	str := firstLeaf.Get()
-	assert.Equal(t, str, "test")
-
-	second, err := n.GetChild("num")
-	assert.NoError(t, err)
-
-	secondLeaf := second.(LeafNode)
-	num := secondLeaf.Get()
-	assert.Equal(t, num, 7)
+	txts := node.Get()
+	assert.Equal(t, []interface{}{"name", "test"}, txts)
 }

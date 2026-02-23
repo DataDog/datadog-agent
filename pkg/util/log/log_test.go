@@ -15,7 +15,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
@@ -27,28 +26,10 @@ func changeLogLevel(level LogLevel) error {
 	return logger.changeLogLevel(level)
 }
 
-// createExtraTextContext defines custom formatter for context logging on tests.
-func createExtraTextContext(string) seelog.FormatterFunc {
-	return func(_ string, _ seelog.LogLevel, context seelog.LogContextInterface) interface{} {
-		contextList, _ := context.CustomContext().([]interface{})
-		builder := strings.Builder{}
-		for i := 0; i < len(contextList); i += 2 {
-			builder.WriteString(fmt.Sprintf("%s:%v", contextList[i], contextList[i+1]))
-			if i != len(contextList)-2 {
-				builder.WriteString(", ")
-			} else {
-				builder.WriteString(" | ")
-			}
-		}
-		return builder.String()
-	}
-}
-
 func TestBasicLogging(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 
-	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
 	l, err := LoggerFromWriterWithMinLevelAndLvlFuncCtxMsgFormat(w, DebugLvl)
 	assert.NoError(t, err)
 
@@ -92,11 +73,11 @@ func TestBasicLogging(t *testing.T) {
 
 	// Trace will not be logged
 	assert.Subset(t, strings.Split(b.String(), "\n"), []string{
-		"[DEBUG] TestBasicLogging: number:1, str:hello | baz",
-		"[INFO] TestBasicLogging: number:1, str:hello | baz",
-		"[WARN] TestBasicLogging: number:1, str:hello | baz",
-		"[ERROR] TestBasicLogging: number:1, str:hello | baz",
-		"[CRITICAL] TestBasicLogging: number:1, str:hello | baz",
+		"[DEBUG] TestBasicLogging: number:1,str:hello | baz",
+		"[INFO] TestBasicLogging: number:1,str:hello | baz",
+		"[WARN] TestBasicLogging: number:1,str:hello | baz",
+		"[ERROR] TestBasicLogging: number:1,str:hello | baz",
+		"[CRITICAL] TestBasicLogging: number:1,str:hello | baz",
 	})
 }
 
@@ -247,7 +228,6 @@ func TestWarncNotNil(t *testing.T) {
 
 	assert.NotNil(t, Warnc("test", "key", "val"))
 
-	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
 	l, _ := LoggerFromWriterWithMinLevelAndLvlFuncCtxMsgFormat(w, CriticalLvl)
 	SetupLogger(l, "critical")
 
@@ -296,7 +276,6 @@ func TestErrorcNotNil(t *testing.T) {
 
 	assert.NotNil(t, Errorc("test", "key", "val"))
 
-	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
 	l, _ := LoggerFromWriterWithMinLevelAndLvlFuncCtxMsgFormat(w, CriticalLvl)
 	SetupLogger(l, "critical")
 
@@ -337,7 +316,6 @@ func TestCriticalcNotNil(t *testing.T) {
 
 	assert.NotNil(t, Criticalc("test", "key", "val"))
 
-	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
 	l, _ := LoggerFromWriterWithMinLevelAndLvlFuncCtxMsgFormat(w, InfoLvl)
 	SetupLogger(l, "info")
 
@@ -451,7 +429,7 @@ func TestStackDepthfLogging(t *testing.T) {
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
 
-			l, err := loggerFromWriterWithMinLevelAndFormat(w, tc.seelogLevel, "[%LEVEL] %Func: %Msg%n")
+			l, err := loggerFromWriterWithMinLevelAndFormat(w, tc.seelogLevel, "[{{LEVEL}}] {{.func}}: {{.msg}}\n")
 			assert.NoError(t, err)
 
 			SetupLogger(l, tc.strLogLevel)

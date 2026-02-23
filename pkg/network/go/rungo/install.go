@@ -62,13 +62,13 @@ type GoInstallation struct {
 // value as `i.InstallLocation` (if a custom value was given).
 func (i *GoInstallation) Install(ctx context.Context) (string, []byte, error) {
 	if i.Version == "" {
-		return "", nil, fmt.Errorf("i.Version is required")
+		return "", nil, errors.New("i.Version is required")
 	}
 	if i.InstallGopath == "" {
-		return "", nil, fmt.Errorf("i.InstallGopath is required")
+		return "", nil, errors.New("i.InstallGopath is required")
 	}
 	if i.InstallGocache == "" {
-		return "", nil, fmt.Errorf("i.InstallGocache is required")
+		return "", nil, errors.New("i.InstallGocache is required")
 	}
 
 	// Run the `go install` command to compile/install the wrapper binary
@@ -83,7 +83,7 @@ func (i *GoInstallation) Install(ctx context.Context) (string, []byte, error) {
 	}
 
 	// Build the path to the wrapper binary, and make sure it exists
-	wrapperPath := path.Join(i.InstallGopath, "bin", fmt.Sprintf("go%s", i.Version))
+	wrapperPath := path.Join(i.InstallGopath, "bin", "go"+i.Version)
 	absWrapperPath, err := filepath.Abs(wrapperPath)
 	if err != nil {
 		return "", nil, fmt.Errorf("error while resolving path to install wrapper binary (expected at %q): %w", wrapperPath, err)

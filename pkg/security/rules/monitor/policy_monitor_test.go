@@ -12,7 +12,6 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	gocmp "github.com/google/go-cmp/cmp"
-	gocmpopts "github.com/google/go-cmp/cmp/cmpopts"
 
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
@@ -518,6 +517,13 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 							AgentVersionConstraint: "~7.x",
 						},
 						{
+							ID:                     "rule_c",
+							Expression:             `exec.file.path == "/etc/foo/qwak"`,
+							Status:                 "loaded",
+							AgentVersionConstraint: ">= 7.42.0",
+						},
+						// this rule in error will be reported at the end of the policies list
+						{
 							ID:                     "rule_b",
 							Expression:             `exec.file.path == "/etc/foo/baz"`,
 							Status:                 "filtered",
@@ -525,11 +531,609 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 							FilterType:             string(rules.FilterTypeAgentVersion),
 							AgentVersionConstraint: "< 0.0.2",
 						},
+					},
+				},
+			},
+		},
+		{
+			name: "multiple policies with rules with different priorities",
+			policies: []*testPolicy{
+				{
+					info: rules.PolicyInfo{
+						Name:         "Policy A",
+						Source:       "test",
+						InternalType: rules.CustomPolicyType,
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Priority:   500,
+							},
+							{
+								ID:         "rule_b",
+								Expression: `exec.file.path == "/etc/foo/baz"`,
+								Priority:   999,
+							},
+						},
+					},
+				},
+				{
+					info: rules.PolicyInfo{
+						Name:         "Policy B",
+						Source:       "test",
+						InternalType: rules.DefaultPolicyType,
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_c",
+								Expression: `exec.file.path == "/etc/foo/bar" && exec.pid == 42`,
+								Priority:   500,
+							},
+							{
+								ID:         "rule_e",
+								Expression: `exec.file.path == "/etc/foo/baz"`,
+								Priority:   999,
+							},
+							{
+								ID:         "rule_f",
+								Expression: `exec.file.path == "/etc/foo/qwak"`,
+								Priority:   100,
+							},
+						},
+					},
+				},
+			},
+			expectedPolicyStates: []*PolicyState{
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
 						{
-							ID:                     "rule_c",
-							Expression:             `exec.file.path == "/etc/foo/qwak"`,
-							Status:                 "loaded",
-							AgentVersionConstraint: ">= 7.42.0",
+							ID:         "rule_b",
+							Expression: `exec.file.path == "/etc/foo/baz"`,
+							Status:     "loaded",
+							Priority:   999,
+						},
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+							Priority:   500,
+						},
+					},
+				},
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:   "Policy B",
+						Source: "test",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_e",
+							Expression: `exec.file.path == "/etc/foo/baz"`,
+							Status:     "loaded",
+							Priority:   999,
+						},
+						{
+							ID:         "rule_c",
+							Expression: `exec.file.path == "/etc/foo/bar" && exec.pid == 42`,
+							Status:     "loaded",
+							Priority:   500,
+						},
+						{
+							ID:         "rule_f",
+							Expression: `exec.file.path == "/etc/foo/qwak"`,
+							Status:     "loaded",
+							Priority:   100,
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "multiple policies with the same rule",
+			policies: []*testPolicy{
+				{
+					info: rules.PolicyInfo{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+							},
+						},
+					},
+				},
+				{
+					info: rules.PolicyInfo{
+						Name:   "Policy B",
+						Source: "test",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+							},
+						},
+					},
+				},
+			},
+			expectedPolicyStates: []*PolicyState{
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+						},
+					},
+				},
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:   "Policy B",
+						Source: "test",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "rule disabled in default policy and enabled by a custom one",
+			policies: []*testPolicy{
+				{
+					info: rules.PolicyInfo{
+						Name:         "Policy A",
+						Source:       "test",
+						InternalType: rules.DefaultPolicyType,
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Disabled:   true,
+							},
+						},
+					},
+				},
+				{
+					info: rules.PolicyInfo{
+						Name:         "Policy B",
+						Source:       "test",
+						InternalType: rules.CustomPolicyType,
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Disabled:   false,
+							},
+						},
+					},
+				},
+			},
+			expectedPolicyStates: []*PolicyState{
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+							ModifiedBy: []*PolicyMetadata{
+								{
+									Name:   "Policy B",
+									Source: "test",
+								},
+							},
+						},
+					},
+				},
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:   "Policy B",
+						Source: "test",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "rule enabled in default policy and disabled by a custom one",
+			policies: []*testPolicy{
+				{
+					info: rules.PolicyInfo{
+						Name:         "Policy A",
+						Source:       "test",
+						InternalType: rules.DefaultPolicyType,
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+							},
+							{
+								ID:         "other_rule", // this rule should be untouched by the custom policy
+								Expression: `exec.file.path == "/etc/foo/baz"`,
+							},
+						},
+					},
+				},
+				{
+					info: rules.PolicyInfo{
+						Name:         "Policy B",
+						Source:       "test",
+						InternalType: rules.CustomPolicyType,
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Disabled:   true,
+							},
+						},
+					},
+				},
+			},
+			expectedPolicyStates: []*PolicyState{
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "other_rule",
+							Expression: `exec.file.path == "/etc/foo/baz"`,
+							Status:     "loaded",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "default rule with custom override adding kill action",
+			policies: []*testPolicy{
+				{
+					info: rules.PolicyInfo{
+						Name:         "Policy A",
+						Source:       "test",
+						InternalType: rules.DefaultPolicyType,
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+							},
+						},
+					},
+				},
+				{
+					info: rules.PolicyInfo{
+						Name:         "Policy B",
+						Source:       "test",
+						InternalType: rules.CustomPolicyType,
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Combine:    rules.OverridePolicy,
+								OverrideOptions: rules.OverrideOptions{
+									Fields: []rules.OverrideField{rules.OverrideActionFields},
+								},
+								Actions: []*rules.ActionDefinition{
+									{
+										Kill: &rules.KillDefinition{
+											Signal: "SIGKILL",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedPolicyStates: []*PolicyState{
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+							Actions: []RuleAction{
+								{
+									Kill: &RuleKillAction{
+										Signal: "SIGKILL",
+									},
+								},
+							},
+							ModifiedBy: []*PolicyMetadata{
+								{
+									Name:   "Policy B",
+									Source: "test",
+								},
+							},
+						},
+					},
+				},
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:   "Policy B",
+						Source: "test",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+							Actions: []RuleAction{
+								{
+									Kill: &RuleKillAction{
+										Signal: "SIGKILL",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "default rule modified by two custom policies",
+			policies: []*testPolicy{
+				{
+					info: rules.PolicyInfo{
+						Name:         "Policy A",
+						Source:       "test",
+						InternalType: rules.DefaultPolicyType,
+						Version:      "0.0.1",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+							},
+						},
+					},
+				},
+				{
+					info: rules.PolicyInfo{
+						Name:         "Policy B",
+						Source:       "test",
+						InternalType: rules.CustomPolicyType,
+						Version:      "0.0.2",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Combine:    rules.OverridePolicy,
+								OverrideOptions: rules.OverrideOptions{
+									Fields: []rules.OverrideField{rules.OverrideActionFields},
+								},
+								Actions: []*rules.ActionDefinition{
+									{
+										Kill: &rules.KillDefinition{
+											Signal: "SIGKILL",
+											Scope:  "container",
+										},
+									},
+								},
+							},
+							{
+								ID:         "other_rule_in_policy_b",
+								Expression: `exec.file.path == "/etc/foo/baz"`,
+							},
+						},
+					},
+				},
+				{
+					info: rules.PolicyInfo{
+						Name:         "Policy C",
+						Source:       "test",
+						InternalType: rules.CustomPolicyType,
+						Version:      "0.0.3",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Combine:    rules.OverridePolicy,
+								OverrideOptions: rules.OverrideOptions{
+									Fields: []rules.OverrideField{rules.OverrideActionFields},
+								},
+								Actions: []*rules.ActionDefinition{
+									{
+										Hash: &rules.HashDefinition{
+											Field: "exec.file",
+										},
+									},
+								},
+							},
+							{
+								ID:         "other_rule_in_policy_c",
+								Expression: `exec.file.path == "/etc/foo/baz"`,
+							},
+						},
+					},
+				},
+			},
+			expectedPolicyStates: []*PolicyState{
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:    "Policy A",
+						Source:  "test",
+						Version: "0.0.1",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+							Version:    "0.0.3",
+							Actions: []RuleAction{
+								{
+									Kill: &RuleKillAction{
+										Signal: "SIGKILL",
+										Scope:  "container",
+									},
+								},
+								{
+									Hash: &HashAction{
+										Enabled: true,
+										Field:   "exec.file",
+									},
+								},
+							},
+							ModifiedBy: []*PolicyMetadata{
+								{
+									Name:    "Policy B",
+									Source:  "test",
+									Version: "0.0.2",
+								},
+								{
+									Name:    "Policy C",
+									Source:  "test",
+									Version: "0.0.3",
+								},
+							},
+						},
+					},
+				},
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:    "Policy B",
+						Source:  "test",
+						Version: "0.0.2",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+							Version:    "0.0.3",
+							Actions: []RuleAction{
+								{
+									Kill: &RuleKillAction{
+										Signal: "SIGKILL",
+										Scope:  "container",
+									},
+								},
+								{
+									Hash: &HashAction{
+										Enabled: true,
+										Field:   "exec.file",
+									},
+								},
+							},
+							ModifiedBy: []*PolicyMetadata{
+								{
+									Name:    "Policy C",
+									Source:  "test",
+									Version: "0.0.3",
+								},
+							},
+						},
+						{
+							ID:         "other_rule_in_policy_b",
+							Version:    "0.0.2",
+							Expression: `exec.file.path == "/etc/foo/baz"`,
+							Status:     "loaded",
+						},
+					},
+				},
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:    "Policy C",
+						Source:  "test",
+						Version: "0.0.3",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+							Version:    "0.0.3",
+							Actions: []RuleAction{
+								{
+									Kill: &RuleKillAction{
+										Signal: "SIGKILL",
+										Scope:  "container",
+									},
+								},
+								{
+									Hash: &HashAction{
+										Enabled: true,
+										Field:   "exec.file",
+									},
+								},
+							},
+							ModifiedBy: []*PolicyMetadata{
+								{
+									Name:    "Policy B",
+									Source:  "test",
+									Version: "0.0.2",
+								},
+							},
+						},
+						{
+							ID:         "other_rule_in_policy_c",
+							Expression: `exec.file.path == "/etc/foo/baz"`,
+							Version:    "0.0.3",
+							Status:     "loaded",
 						},
 					},
 				},
@@ -625,18 +1229,18 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 						Status: PolicyStatusPartiallyFiltered,
 						Rules: []*RuleState{
 							{
+								ID:         "rule_b",
+								Expression: `exec.file.path == "/etc/foo/baz"`,
+								Status:     "loaded",
+								Filters:    []string{"os == \"windows\""},
+							},
+							{
 								ID:         "rule_a",
 								Expression: `exec.file.path == "/etc/foo/bar"`,
 								Status:     "filtered",
 								Message:    "none of the rule filters matched the host or configuration of this agent",
 								FilterType: string(rules.FilterTypeRuleFilter),
 								Filters:    []string{"os == \"linux\""},
-							},
-							{
-								ID:         "rule_b",
-								Expression: `exec.file.path == "/etc/foo/baz"`,
-								Status:     "loaded",
-								Filters:    []string{"os == \"windows\""},
 							},
 						},
 					},
@@ -666,16 +1270,6 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 	}
 	ruleOpts, evalOpts := rules.NewBothOpts(map[eval.EventType]bool{"*": true})
 
-	// Sort options for gocmp to ensure consistent ordering of slices
-	goCmpOpts := []gocmp.Option{
-		gocmpopts.SortSlices(func(a, b *PolicyState) bool {
-			return a.PolicyMetadata.Name < b.PolicyMetadata.Name
-		}),
-		gocmpopts.SortSlices(func(a, b *RuleState) bool {
-			return a.ID < b.ID
-		}),
-	}
-
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			rs := rules.NewRuleSet(&model.Model{}, eventCtor, ruleOpts, evalOpts)
@@ -683,7 +1277,7 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 			filteredRules, errs := rs.LoadPolicies(loader, rules.PolicyLoaderOpts{MacroFilters: macroFilters, RuleFilters: ruleFilters})
 			policyStates := NewPoliciesState(rs, filteredRules, errs, false)
 
-			assert.True(t, gocmp.Equal(tc.expectedPolicyStates, policyStates, goCmpOpts...), gocmp.Diff(tc.expectedPolicyStates, policyStates, goCmpOpts...))
+			assert.True(t, gocmp.Equal(tc.expectedPolicyStates, policyStates), gocmp.Diff(tc.expectedPolicyStates, policyStates))
 		})
 	}
 }

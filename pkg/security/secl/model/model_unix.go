@@ -6,16 +6,17 @@
 //go:build unix
 
 //go:generate accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl_linux.json -field-accessors-output field_accessors_unix.go
+//go:generate event_deep_copy -tags unix -types-file model.go -output event_deep_copy_unix.go
 
 // Package model holds model related files
 package model
 
 import (
-	"fmt"
 	"net"
 	"net/netip"
 	"runtime"
 	"time"
+	"unsafe"
 
 	"github.com/google/gopacket"
 
@@ -42,7 +43,9 @@ func (m *Model) NewEvent() eval.Event {
 func NewFakeEvent() *Event {
 	return &Event{
 		BaseEvent: BaseEvent{
-			FieldHandlers:  &FakeFieldHandlers{},
+			FieldHandlers: &FakeFieldHandlers{
+				PCEs: make(map[uint32]*ProcessCacheEntry),
+			},
 			ProcessContext: &ProcessContext{},
 			Os:             runtime.GOOS,
 		},
@@ -51,6 +54,9 @@ func NewFakeEvent() *Event {
 
 // ResolveProcessCacheEntryFromPID stub implementation
 func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *ProcessCacheEntry {
+	if fh.PCEs[pid] != nil {
+		return fh.PCEs[pid]
+	}
 	return GetPlaceholderProcessCacheEntry(pid, pid, false)
 }
 
@@ -58,7 +64,6 @@ func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *Proces
 // genaccessors
 // gengetter: GetExecCmdargv
 // gengetter: GetExecFilePath
-// gengetter: GetExecFilePath)
 // gengetter: GetExitCode
 // gengetter: GetMountMountpointPath
 // gengetter: GetMountRootPath
@@ -76,6 +81,7 @@ func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *Proces
 // gengetter: GetEventService
 type Event struct {
 	BaseEvent
+	Signature string `field:"event.signature,handler:ResolveSignature,weight:500,opts:skip_ad"` // SECLDoc[event.signature] Definition:`Signature of the process pid and its cgroup with agent secret key`
 
 	// globals
 	Async bool `field:"event.async,handler:ResolveAsync"` // SECLDoc[event.async] Definition:`True if the syscall was asynchronous`
@@ -157,7 +163,39 @@ func NewEventZeroer() func(*Event) {
 	var eventZero = Event{BaseEvent: BaseEvent{Os: runtime.GOOS}}
 
 	return func(e *Event) {
-		*e = eventZero
+		switch e.GetEventType() {
+		case PrCtlEventType:
+
+			e.PrCtl = eventZero.PrCtl
+			e.BaseEvent = eventZero.BaseEvent
+		case FileOpenEventType:
+			e.Open = eventZero.Open
+			e.BaseEvent = eventZero.BaseEvent
+		case SetSockOptEventType:
+			e.SetSockOpt = eventZero.SetSockOpt
+			e.BaseEvent = eventZero.BaseEvent
+		case ArgsEnvsEventType:
+			e.ArgsEnvs = eventZero.ArgsEnvs
+			e.BaseEvent = eventZero.BaseEvent
+		case ConnectEventType:
+			e.Connect = eventZero.Connect
+			e.BaseEvent = eventZero.BaseEvent
+		case MMapEventType:
+			e.MMap = eventZero.MMap
+			e.BaseEvent = eventZero.BaseEvent
+		case DNSEventType:
+			e.DNS = eventZero.DNS
+			e.BaseEvent = eventZero.BaseEvent
+		case FileUnlinkEventType:
+			e.Unlink = eventZero.Unlink
+			e.BaseEvent = eventZero.BaseEvent
+		case AcceptEventType:
+			e.Accept = eventZero.Accept
+			e.BaseEvent = eventZero.BaseEvent
+		default:
+			*e = eventZero
+		}
+
 	}
 }
 
@@ -171,29 +209,32 @@ func (e *Event) GetContainerID() string {
 
 // CGroupContext holds the cgroup context of an event
 type CGroupContext struct {
-	Releasable
-	CGroupID      containerutils.CGroupID `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
-	CGroupFile    PathKey                 `field:"file"`
+	*Releasable
+	CGroupID      containerutils.CGroupID `field:"id"` // SECLDoc[id] Definition:`ID of the cgroup`
+	CGroupPathKey PathKey                 `field:"file"`
 	CGroupVersion int                     `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`[Experimental] Version of the cgroup API`
 }
 
-// Merge two cgroup context
-func (cg *CGroupContext) Merge(cg2 *CGroupContext) {
-	if cg.CGroupID == "" {
-		cg.CGroupID = cg2.CGroupID
-	}
-	if cg.CGroupFile.Inode == 0 {
-		cg.CGroupFile.Inode = cg2.CGroupFile.Inode
-	}
-	if cg.CGroupFile.MountID == 0 {
-		cg.CGroupFile.MountID = cg2.CGroupFile.MountID
-	}
+// IsNull returns true if the cgroup context is null
+func (cg *CGroupContext) IsNull() bool {
+	return cg.CGroupPathKey.IsNull()
 }
 
-// Key returns a unique key for the entity
-func (cg *CGroupContext) Key() (string, bool) {
-	cgrpID := string(cg.CGroupID)
-	return cgrpID, cgrpID != ""
+// IsResolved returns true if the cgroup context is resolved & not null
+func (cg *CGroupContext) IsResolved() bool {
+	return cg.CGroupID != "" && !cg.CGroupPathKey.IsNull()
+}
+
+// Equals returns true if the two cgroup contexts are equal
+func (cg *CGroupContext) Equals(cg2 *CGroupContext) bool {
+	return cg.CGroupPathKey.Inode == cg2.CGroupPathKey.Inode
+}
+
+// Hash returns a unique key for the entity
+func (cg *CGroupContext) Hash() eval.ScopeHashKey {
+	return eval.ScopeHashKey{
+		String: string(cg.CGroupID),
+	}
 }
 
 // ParentScope returns the parent entity scope
@@ -373,9 +414,6 @@ type Process struct {
 	SymlinkPathnameStr [MaxSymlinks]string `field:"-"`
 	SymlinkBasenameStr string              `field:"-"`
 
-	// cache version
-	ScrubbedArgvResolved bool `field:"-"`
-
 	// IsThread is the negation of IsExec and should be manipulated directly
 	IsThread        bool `field:"is_thread,handler:ResolveProcessIsThread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
 	IsExec          bool `field:"is_exec"`                                  // SECLDoc[is_exec] Definition:`Indicates whether the process entry is from a new binary execution`
@@ -385,10 +423,14 @@ type Process struct {
 	Source uint64 `field:"-"`
 
 	// lineage
-	hasValidLineage *bool `field:"-"`
-	lineageError    error `field:"-"`
+	validLineageResult *validLineageResult `field:"-"`
 
 	IsThroughSymLink bool `field:"-"` // Indicates whether the process is through a symlink
+}
+
+type validLineageResult struct {
+	valid bool
+	err   error
 }
 
 // SetAncestorFields force the process cache entry to be valid
@@ -399,9 +441,11 @@ func SetAncestorFields(pce *ProcessCacheEntry, subField string, _ interface{}) (
 	return true, nil
 }
 
-// Key returns a unique key for the entity
-func (pc *ProcessCacheEntry) Key() (string, bool) {
-	return fmt.Sprintf("%d/%s", pc.Pid, pc.Comm), true
+// Hash returns a unique key for the entity
+func (pc *ProcessCacheEntry) Hash() eval.ScopeHashKey {
+	return eval.ScopeHashKey{
+		Uintptr: uintptr(unsafe.Pointer(pc)),
+	}
 }
 
 // ParentScope returns the parent entity scope
@@ -480,7 +524,8 @@ type InvalidateDentryEvent struct {
 
 // MountReleasedEvent defines a mount released event
 type MountReleasedEvent struct {
-	MountID uint32
+	MountID       uint32
+	MountIDUnique uint64
 }
 
 // LinkEvent represents a link event
@@ -514,20 +559,23 @@ type ArgsEnvsEvent struct {
 
 // Mount represents a mountpoint (used by MountEvent, FsmountEvent and UnshareMountNSEvent)
 type Mount struct {
-	MountID        uint32   `field:"-"`
-	MountIDUnique  uint64   `field:"-"`
-	Device         uint32   `field:"-"`
-	ParentPathKey  PathKey  `field:"-"`
-	Children       []uint32 `field:"-"`
-	RootPathKey    PathKey  `field:"-"`
-	BindSrcMountID uint32   `field:"-"`
-	FSType         string   `field:"fs_type"` // SECLDoc[fs_type] Definition:`Type of the mounted file system`
-	MountPointStr  string   `field:"-"`
-	RootStr        string   `field:"-"`
-	Path           string   `field:"-"`
-	Origin         uint32   `field:"-"`
-	Detached       bool     `field:"detached"` // SECLDoc[detached] Definition:`Mount is detached from the VFS`
-	Visible        bool     `field:"visible"`  // SECLDoc[visible] Definition:`Mount is not visible in the VFS`
+	MountID              uint32   `field:"-"`
+	MountIDUnique        uint64   `field:"-"`
+	Device               uint32   `field:"-"`
+	ParentPathKey        PathKey  `field:"-"`
+	Children             []uint32 `field:"-"`
+	RootPathKey          PathKey  `field:"-"`
+	BindSrcMountID       uint32   `field:"-"`
+	BindSrcMountIDUnique uint64   `field:"-"`
+	ParentMountIDUnique  uint64   `field:"-"`
+	FSType               string   `field:"fs_type"` // SECLDoc[fs_type] Definition:`Type of the mounted file system`
+	MountPointStr        string   `field:"-"`
+	RootStr              string   `field:"-"`
+	Path                 string   `field:"-"`
+	Origin               uint32   `field:"-"`
+	Detached             bool     `field:"detached"` // SECLDoc[detached] Definition:`Mount is detached from the VFS`
+	Visible              bool     `field:"visible"`  // SECLDoc[visible] Definition:`Mount is not visible in the VFS`
+	NamespaceInode       uint32   `field:"-"`
 }
 
 // MountEvent represents a mount event
@@ -589,11 +637,13 @@ type SELinuxEvent struct {
 
 // PIDContext holds the process context of a kernel event
 type PIDContext struct {
-	Pid       uint32 `field:"pid"` // SECLDoc[pid] Definition:`Process ID of the process (also called thread group ID)`
-	Tid       uint32 `field:"tid"` // SECLDoc[tid] Definition:`Thread ID of the thread`
-	NetNS     uint32 `field:"-"`
-	IsKworker bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker`
-	ExecInode uint64 `field:"-"`          // used to track exec and event loss
+	Pid           uint32 `field:"pid"`        // SECLDoc[pid] Definition:`Process ID of the process (also called thread group ID)`
+	Tid           uint32 `field:"tid"`        // SECLDoc[tid] Definition:`Thread ID of the thread`
+	NetNS         uint32 `field:"netns"`      // SECLDoc[netns] Definition:`NetNS ID of the process`
+	MntNS         uint32 `field:"mntns"`      // SECLDoc[mntns] Definition:`MNTNS ID of the process`
+	IsKworker     bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker`
+	ExecInode     uint64 `field:"-"`          // used to track exec and event loss
+	UserSessionID uint64 `field:"-"`          // used to track user sessions from kernel space
 	// used for ebpfless
 	NSID uint64 `field:"-"`
 }
@@ -785,7 +835,7 @@ type ActivityDumpLoadConfig struct {
 
 // NetworkDeviceContext represents the network device context of a network event
 type NetworkDeviceContext struct {
-	NetNS   uint32 `field:"-"`
+	NetNS   uint32 `field:"netns"` // SECLDoc[netns] Definition:`Interface NetNS ID`
 	IfIndex uint32 `field:"-"`
 	IfName  string `field:"ifname,handler:ResolveNetworkDeviceIfName"` // SECLDoc[ifname] Definition:`Interface ifname`
 }
@@ -1024,16 +1074,16 @@ type SetSockOptEvent struct {
 	SyscallEvent
 	SocketType         uint16 `field:"socket_type"`                                                         // SECLDoc[socket_type] Definition:`Socket type`
 	SocketFamily       uint16 `field:"socket_family"`                                                       // SECLDoc[socket_family] Definition:`Socket family`
-	FilterLen          uint16 `field:"filter_len"`                                                          // SECLDoc[filter_len] Definition:`Length of the filter`
+	FilterLen          uint16 `field:"filter_len"`                                                          // SECLDoc[filter_len] Definition:`Length of the currently attached filter. Only available if the optname is \`SO_ATTACH_FILTER\``
 	SocketProtocol     uint16 `field:"socket_protocol"`                                                     // SECLDoc[socket_protocol] Definition:`Socket protocol`
 	Level              uint32 `field:"level"`                                                               // SECLDoc[level] Definition:`Socket level`
 	OptName            uint32 `field:"optname"`                                                             // SECLDoc[optname] Definition:`Socket option name`
 	SizeToRead         uint32 `field:"-"`                                                                   // Internal field, not exposed to users
-	IsFilterTruncated  bool   `field:"is_filter_truncated"`                                                 // SECLDoc[is_filter_truncated] Definition:`Indicates that the filter is truncated`
+	IsFilterTruncated  bool   `field:"is_filter_truncated"`                                                 // SECLDoc[is_filter_truncated] Definition:`Indicates that the currently attached filter is truncated. Only available if the optname is \`SO_ATTACH_FILTER\``
 	RawFilter          []byte `field:"-"`                                                                   // Internal field, not exposed to users
-	FilterInstructions string `field:"filter_instructions,handler:ResolveSetSockOptFilterInstructions"`     // SECLDoc[filter_instructions] Definition:`Filter instructions`
-	FilterHash         string `field:"filter_hash,handler:ResolveSetSockOptFilterHash:"`                    // SECLDoc[filter_hash] Definition:`Hash of the socket filter using sha256`
-	UsedImmediates     []int  `field:"used_immediates,handler:ResolveSetSockOptUsedImmediates, weight:999"` // SECLDoc[used_immediates] Definition:`List of immediate values used in the filter`
+	FilterInstructions string `field:"filter_instructions,handler:ResolveSetSockOptFilterInstructions"`     // SECLDoc[filter_instructions] Definition:`Instructions of the currently attached filter. Only available if the optname is \`SO_ATTACH_FILTER\``
+	FilterHash         string `field:"filter_hash,handler:ResolveSetSockOptFilterHash:"`                    // SECLDoc[filter_hash] Definition:`Hash of the currently attached filter using sha256. Only available if the optname is \`SO_ATTACH_FILTER\``
+	UsedImmediates     []int  `field:"used_immediates,handler:ResolveSetSockOptUsedImmediates, weight:999"` // SECLDoc[used_immediates] Definition:`List of immediate values used in the currently attached filter. Only available if the optname is \`SO_ATTACH_FILTER\``
 }
 
 // CapabilitiesEvent is used to report capabilities usage
@@ -1054,4 +1104,18 @@ type PrCtlEvent struct {
 type TracerMemfdSealEvent struct {
 	SyscallEvent
 	Fd uint32
+}
+
+func (e *Event) initPlatformPointerFields() {
+	if e.GetEventType() == PTraceEventType {
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		if e.PTrace.Tracee.Ancestor == nil {
+			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if e.PTrace.Tracee.Parent == nil {
+			e.PTrace.Tracee.Parent = &e.PTrace.Tracee.Ancestor.ProcessContext.Process
+		}
+	}
 }

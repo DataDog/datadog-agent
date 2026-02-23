@@ -25,10 +25,11 @@ type effect interface {
 // Effect implementations
 
 type effectSpawnBpfLoading struct {
-	processID  ProcessID
-	programID  ir.ProgramID
-	executable Executable
-	probes     []ir.ProbeDefinition
+	processID       ProcessID
+	programID       ir.ProgramID
+	executable      Executable
+	probes          []ir.ProbeDefinition
+	additionalTypes []string
 }
 
 func (e effectSpawnBpfLoading) yamlTag() string {
@@ -41,12 +42,16 @@ func (e effectSpawnBpfLoading) yamlData() map[string]any {
 		probeKeys = append(probeKeys, probe.GetID())
 	}
 	slices.Sort(probeKeys)
-	return map[string]any{
+	data := map[string]any{
 		"process_id": int(e.processID.PID),
 		"program_id": int(e.programID),
 		"executable": e.executable.String(),
 		"probes":     probeKeys,
 	}
+	if len(e.additionalTypes) > 0 {
+		data["additional_types"] = e.additionalTypes
+	}
+	return data
 }
 
 type effectAttachToProcess struct {
@@ -70,6 +75,7 @@ func (e effectAttachToProcess) yamlData() map[string]any {
 type effectDetachFromProcess struct {
 	programID ir.ProgramID
 	processID ProcessID
+	failure   error
 }
 
 func (e effectDetachFromProcess) yamlTag() string {
@@ -77,9 +83,14 @@ func (e effectDetachFromProcess) yamlTag() string {
 }
 
 func (e effectDetachFromProcess) yamlData() map[string]any {
+	failureStr := "no"
+	if e.failure != nil {
+		failureStr = "yes"
+	}
 	return map[string]any{
 		"program_id": int(e.programID),
 		"process_id": int(e.processID.PID),
+		"failure":    failureStr,
 	}
 }
 
@@ -125,17 +136,18 @@ func (er *effectRecorder) yamlNodes() ([]*yaml.Node, error) {
 // Implementation of effectHandler interface using the unified system
 
 func (er *effectRecorder) loadProgram(
-	_ tenantID,
 	programID ir.ProgramID,
 	executable Executable,
 	processID ProcessID,
 	probes []ir.ProbeDefinition,
+	opts LoadOptions,
 ) {
 	er.recordEffect(effectSpawnBpfLoading{
-		processID:  processID,
-		programID:  programID,
-		executable: executable,
-		probes:     probes,
+		processID:       processID,
+		programID:       programID,
+		executable:      executable,
+		probes:          probes,
+		additionalTypes: opts.AdditionalTypes,
 	})
 }
 
@@ -151,10 +163,11 @@ func (er *effectRecorder) attachToProcess(
 	})
 }
 
-func (er *effectRecorder) detachFromProcess(attached *attachedProgram) {
+func (er *effectRecorder) detachFromProcess(attached *attachedProgram, failure error) {
 	er.recordEffect(effectDetachFromProcess{
 		programID: attached.programID,
 		processID: attached.processID,
+		failure:   failure,
 	})
 }
 

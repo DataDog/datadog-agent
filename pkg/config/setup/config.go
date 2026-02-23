@@ -44,8 +44,10 @@ const (
 	// Whether we skip lines or bytes is dependent on whether we choose to compute the fingerprint by lines or by bytes.
 	DefaultLinesOrBytesToSkip = 0
 
-	// DefaultFingerprintingMaxLines is the default maximum number of lines to read before computing the fingerprint.
-	DefaultFingerprintingMaxLines = 1
+	// DefaultFingerprintingCount refers to the number of lines or bytes to use for fingerprinting.
+	// This option's default is an invalid value(0), and if not configured will be fixed to the appropriate default
+	// value based on the configured fingerprint_strategy.
+	DefaultFingerprintingCount = 0
 
 	// DefaultFingerprintStrategy is the default strategy for computing the checksum fingerprint.
 	// Options are:
@@ -174,16 +176,18 @@ func SetSystemProbe(cfg pkgconfigmodel.BuildableConfig) {
 	systemProbe = cfg
 }
 
+func init() {
+	osinit()
+
+	// init default for code that access the config before it initialized
+	InitConfigObjects("", "")
+}
+
 // Variables to initialize at start time
 var (
 	// StartTime is the agent startup time
 	StartTime = time.Now()
 )
-
-// GetDefaultSecurityProfilesDir is the default directory used to store Security Profiles by the runtime security module
-func GetDefaultSecurityProfilesDir() string {
-	return filepath.Join(defaultRunPath, "runtime-security", "profiles")
-}
 
 // List of integrations allowed to be configured by RC by default
 var defaultAllowedRCIntegrations = []string{}
@@ -261,17 +265,55 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 	autoscaling,
 }
 
-func init() {
-	osinit()
+type configLibBackend struct {
+	ConfNodeTreeModel string `yaml:"conf_nodetreemodel"`
+}
 
-	datadog = create.NewConfig("datadog")
-	systemProbe = create.NewConfig("system-probe")
+func resolveConfigLibType(cliPath string, defaultDir string) string {
+	configPath := ""
+	for _, path := range []string{cliPath, defaultDir} {
+		if !strings.HasSuffix(path, ".yaml") && !strings.HasSuffix(path, ".yml") {
+			path = filepath.Join(path, "datadog.yaml")
+		}
+
+		if _, err := os.Stat(path); err == nil {
+			configPath = path
+		}
+	}
+
+	if configPath == "" {
+		return ""
+	}
+
+	yamlFile, err := os.ReadFile(configPath)
+	if err != nil {
+		return ""
+	}
+
+	conf := configLibBackend{}
+	err = yaml.Unmarshal(yamlFile, &conf)
+	if err != nil {
+		return ""
+	}
+	return conf.ConfNodeTreeModel
+}
+
+// InitConfigObjects initializes the global config objects use across the code. This should never be called anywhere
+// but from the main.
+func InitConfigObjects(cliPath string, defaultDir string) {
+	// We first load the configuration to see which config library should be used.
+	configLib := resolveConfigLibType(cliPath, defaultDir)
+
+	datadog = create.NewConfig("datadog", configLib)
+	systemProbe = create.NewConfig("system-probe", configLib)
 
 	// Configuration defaults
 	initConfig()
 
 	datadog.(pkgconfigmodel.BuildableConfig).BuildSchema()
 	systemProbe.(pkgconfigmodel.BuildableConfig).BuildSchema()
+
+	log.Infof("config lib used: %s", datadog.GetLibType())
 }
 
 // initCommonWithServerless initializes configs that are common to all agents, in particular serverless.
@@ -301,6 +343,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("check_sampler_stateful_metric_expiration_time", 25*time.Hour)
 	config.BindEnvAndSetDefault("check_sampler_expire_metrics", true)
 	config.BindEnvAndSetDefault("check_sampler_context_metrics", false)
+	config.BindEnvAndSetDefault("check_sampler_allow_sketch_bucket_reset", true)
 	config.BindEnvAndSetDefault("host_aliases", []string{})
 	config.BindEnvAndSetDefault("collect_ccrid", true)
 
@@ -375,17 +418,18 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("secret_backend_config", map[string]interface{}{})
 	config.BindEnvAndSetDefault("secret_backend_command", "")
 	config.BindEnvAndSetDefault("secret_backend_arguments", []string{})
-	config.BindEnvAndSetDefault("secret_backend_output_max_size", 0)
-	config.BindEnvAndSetDefault("secret_backend_timeout", 0)
+	config.BindEnvAndSetDefault("secret_backend_output_max_size", 1024*1024)
+	config.BindEnvAndSetDefault("secret_backend_timeout", 30)
 	config.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
 	config.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 	config.BindEnvAndSetDefault("secret_backend_remove_trailing_line_break", false)
 	config.BindEnvAndSetDefault("secret_refresh_interval", 0)
+	config.BindEnvAndSetDefault("secret_refresh_on_api_key_failure_interval", 0)
 	config.BindEnvAndSetDefault("secret_refresh_scatter", true)
 	config.BindEnvAndSetDefault("secret_scope_integration_to_their_k8s_namespace", false)
 	config.BindEnvAndSetDefault("secret_allowed_k8s_namespace", []string{})
 	config.BindEnvAndSetDefault("secret_image_to_handle", map[string][]string{})
-	config.SetDefault("secret_audit_file_max_size", 0)
+	config.BindEnvAndSetDefault("secret_audit_file_max_size", 1024*1024)
 
 	// IPC API server timeout
 	config.BindEnvAndSetDefault("server_timeout", 30)
@@ -433,7 +477,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// 	- `nodes`
 	config.BindEnvAndSetDefault("kubernetes_resources_labels_as_tags", "{}")
 	config.BindEnvAndSetDefault("kubernetes_persistent_volume_claims_as_tags", true)
-	config.BindEnvAndSetDefault("container_cgroup_prefix", "")
 
 	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)           // Enables the prometheus config provider
 	config.BindEnvAndSetDefault("prometheus_scrape.service_endpoints", false) // Enables Service Endpoints checks in the prometheus config provider
@@ -444,42 +487,51 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")
 	config.BindEnvAndSetDefault("network_devices.namespace", "default")
 
-	config.SetKnown("snmp_listener.discovery_interval")         //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.allowed_failures")           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.discovery_allowed_failures") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.collect_device_metadata")    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.collect_topology")           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.workers")                    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.configs")                    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.loader")                     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.min_collection_interval")    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.namespace")                  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.use_device_id_as_hostname")  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.ping.enabled")               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.ping.count")                 //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.ping.interval")              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.ping.timeout")               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.ping.linux.use_raw_socket")  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("snmp_listener.discovery_interval", 3600)
+	config.BindEnvAndSetDefault("snmp_listener.allowed_failures", 3)
+	config.BindEnvAndSetDefault("snmp_listener.discovery_allowed_failures", 3)
+	config.BindEnvAndSetDefault("snmp_listener.collect_device_metadata", true)
+	config.BindEnvAndSetDefault("snmp_listener.collect_topology", true)
+	config.BindEnvAndSetDefault("snmp_listener.workers", 2)
+	config.BindEnvAndSetDefault("snmp_listener.configs", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("snmp_listener.loader", "core")
+	config.BindEnvAndSetDefault("snmp_listener.min_collection_interval", 15)
+	config.BindEnvAndSetDefault("snmp_listener.namespace", "default")
+	config.BindEnvAndSetDefault("snmp_listener.use_device_id_as_hostname", false)
+	config.BindEnvAndSetDefault("snmp_listener.ping.enabled", false)
+	config.BindEnvAndSetDefault("snmp_listener.ping.count", 2)
+	config.BindEnvAndSetDefault("snmp_listener.ping.interval", 10)
+	config.BindEnvAndSetDefault("snmp_listener.ping.timeout", 3000)
+	config.BindEnvAndSetDefault("snmp_listener.ping.linux.use_raw_socket", false)
+	config.BindEnvAndSetDefault("snmp_listener.oid_batch_size", 5)
+	config.BindEnvAndSetDefault("snmp_listener.timeout", 5)
+	config.BindEnvAndSetDefault("snmp_listener.retries", 3)
 
 	// network_devices.autodiscovery has precedence over snmp_listener config
 	// snmp_listener config is still here for legacy reasons
-	config.SetKnown("network_devices.autodiscovery.discovery_interval")         //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.allowed_failures")           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.discovery_allowed_failures") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.collect_device_metadata")    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.collect_topology")           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.workers")                    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.configs")                    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.loader")                     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.min_collection_interval")    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.namespace")                  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.use_device_id_as_hostname")  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.ping.enabled")               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.ping.count")                 //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.ping.interval")              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.ping.timeout")               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.ping.linux.use_raw_socket")  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.use_deduplication")          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.discovery_interval", 3600)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.allowed_failures", 3)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.discovery_allowed_failures", 3)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.collect_device_metadata", true)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.collect_topology", true)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.workers", 2)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.configs", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.loader", "core")
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.min_collection_interval", 15)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.namespace", "default")
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.use_device_id_as_hostname", false)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.enabled", false)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.count", 2)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.interval", 10)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.timeout", 5)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.linux.use_raw_socket", false)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.use_deduplication", false)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.collect_vpn", false)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.oid_batch_size", 5)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.timeout", 5)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.retries", 3)
+
+	config.BindEnvAndSetDefault("network_devices.default_scan.enabled", false)
 
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.enabled", false)
@@ -487,7 +539,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.community_strings", []string{})
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.bind_host", "0.0.0.0")
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.stop_timeout", 5) // in seconds
-	config.SetKnown("network_devices.snmp_traps.users")                       //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.users", []map[string]string{})
 
 	// NetFlow
 	config.SetKnown("network_devices.netflow.listeners")                                  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
@@ -497,7 +549,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.SetKnown("network_devices.netflow.aggregator_flow_context_ttl")                //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.SetKnown("network_devices.netflow.aggregator_port_rollup_threshold")           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.SetKnown("network_devices.netflow.aggregator_rollup_tracker_refresh_interval") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnvAndSetDefault("network_devices.netflow.enabled", "false")
+	config.BindEnvAndSetDefault("network_devices.netflow.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.netflow.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.netflow.reverse_dns_enrichment_enabled", false)
 
@@ -508,9 +560,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.max_ttl", DefaultNetworkPathMaxTTL)
 	config.BindEnvAndSetDefault("network_path.collector.input_chan_size", 1000)
 	config.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 1000)
-	config.BindEnvAndSetDefault("network_path.collector.pathtest_contexts_limit", 5000)
-	config.BindEnvAndSetDefault("network_path.collector.pathtest_ttl", "16m") // with 5min interval, 16m will allow running a test 3 times (15min + 1min margin)
-	config.BindEnvAndSetDefault("network_path.collector.pathtest_interval", "5m")
+	config.BindEnvAndSetDefault("network_path.collector.pathtest_contexts_limit", 1000)
+	config.BindEnvAndSetDefault("network_path.collector.pathtest_ttl", "70m") // with 30min interval, 70m will allow running a test 3 times (t0, t30, t60)
+	config.BindEnvAndSetDefault("network_path.collector.pathtest_interval", "30m")
 	config.BindEnvAndSetDefault("network_path.collector.flush_interval", "10s")
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_max_per_minute", 150)
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_max_burst_duration", "30s")
@@ -526,8 +578,12 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.e2e_queries", DefaultNetworkPathStaticPathE2eQueries)
 	config.BindEnvAndSetDefault("network_path.collector.disable_windows_driver", false)
 	config.BindEnvAndSetDefault("network_path.collector.monitor_ip_without_domain", false)
-	config.BindEnv("network_path.collector.filters") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("network_path.collector.filters", []map[string]string{})
+
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
+
+	// Network Config Management
+	bindEnvAndSetLogsConfigKeys(config, "network_config_management.forwarder.")
 
 	// HA Agent
 	config.BindEnvAndSetDefault("ha_agent.enabled", false)
@@ -548,6 +604,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Datadog cluster agent
 	config.BindEnvAndSetDefault("cluster_agent.enabled", false)
 	config.BindEnvAndSetDefault("cluster_agent.cmd_port", 5005)
+	config.BindEnvAndSetDefault("cluster_agent.mcp.enabled", false)
+	config.BindEnvAndSetDefault("cluster_agent.mcp.endpoint", "/mcp")
 	config.BindEnvAndSetDefault("cluster_agent.allow_legacy_tls", false)
 	config.BindEnvAndSetDefault("cluster_agent.auth_token", "")
 	config.BindEnvAndSetDefault("cluster_agent.url", "")
@@ -573,7 +631,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 		`^kubectl\.kubernetes\.io\/last-applied-configuration$`,
 		`^ad\.datadoghq\.com\/([[:alnum:]]+\.)?(checks|check_names|init_configs|instances)$`,
 	})
-	config.BindEnvAndSetDefault("metrics_port", "5000")
+	config.BindEnvAndSetDefault("metrics_port", 5000)
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.patcher.enabled", true)
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.patcher.base_backoff", "5m")
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.patcher.max_backoff", "1h")
@@ -582,7 +640,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// language annotation cleanup period
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.period", "10m")
 
-	// AppSec Injector in the cluster agent ( Experimental )
+	// AppSec Injector in the cluster agent ( Preview )
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.enabled", false)
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.base_backoff", "5m")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.max_backoff", "1h")
@@ -591,6 +649,23 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.name", "")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.namespace", "")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.istio.namespace", "istio-system")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.mode", "sidecar")
+
+	// APM tracing for the cluster agent itself (currently covers cluster check dispatching)
+	config.BindEnvAndSetDefault("cluster_agent.tracing.enabled", false)
+	config.BindEnvAndSetDefault("cluster_agent.tracing.env", "")
+	config.BindEnvAndSetDefault("cluster_agent.tracing.sample_rate", 0.1)
+
+	// Processor mode and sidecar configuration
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.image", "ghcr.io/datadog/dd-trace-go/service-extensions-callout")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.image_tag", "latest")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.port", 8080)
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.health_port", 8081)
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.resources.requests.cpu", "10m")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.resources.requests.memory", "128Mi")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.resources.limits.cpu", "")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.resources.limits.memory", "")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.body_parsing_size_limit", "")
 
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.enabled", false)
 	// list of kubernetes resources for which we collect metadata
@@ -620,7 +695,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_trust_chain.ca_key_file_path", "")
 
 	// the entity id, typically set by dca admisson controller config mutator, used for external origin detection
-	config.SetKnown("entity_id") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.SetDefault("entity_id", "")
 
 	// Metadata endpoints
 
@@ -675,6 +750,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("gpu.nvml_lib_path", "")
 	config.BindEnvAndSetDefault("gpu.use_sp_process_metrics", false)
 	config.BindEnvAndSetDefault("gpu.sp_process_metrics_request_timeout", 3*time.Second)
+	config.BindEnvAndSetDefault("gpu.integrate_with_workloadmeta_processes", true)
+	config.BindEnvAndSetDefault("gpu.workload_tag_cache_size", 1024)
+	config.BindEnvAndSetDefault("gpu.disabled_collectors", []string{})
 
 	// Cloud Foundry BBS
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
@@ -705,6 +783,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Azure
 	config.BindEnvAndSetDefault("azure_hostname_style", "os")
 	config.BindEnvAndSetDefault("azure_metadata_timeout", 300)
+	config.BindEnvAndSetDefault("azure_metadata_api_version", "2021-02-01")
 
 	// IBM cloud
 	// We use a long timeout here since the metadata and token API can be very slow sometimes.
@@ -735,7 +814,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("jmx_statsd_client_socket_timeout", 0)
 
 	// Go_expvar server port
-	config.BindEnvAndSetDefault("expvar_port", "5000")
+	config.BindEnvAndSetDefault("expvar_port", 5000)
 
 	// internal profiling
 	config.BindEnvAndSetDefault("internal_profiling.enabled", false)
@@ -770,7 +849,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("external_metrics_provider.endpoint", "")                       // Override the Datadog API endpoint to query external metrics from
 	config.BindEnvAndSetDefault("external_metrics_provider.api_key", "")                        // Override the Datadog API Key for external metrics endpoint
 	config.BindEnvAndSetDefault("external_metrics_provider.app_key", "")                        // Override the Datadog APP Key for external metrics endpoint
-	config.SetKnown("external_metrics_provider.endpoints")                                      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // List of redundant endpoints to query external metrics from
+	config.SetDefault("external_metrics_provider.endpoints", []interface{}{})                   // List of redundant endpoints to query external metrics from
 	config.BindEnvAndSetDefault("external_metrics_provider.refresh_period", 30)                 // value in seconds. Frequency of calls to Datadog to refresh metric values
 	config.BindEnvAndSetDefault("external_metrics_provider.batch_window", 10)                   // value in seconds. Batch the events from the Autoscalers informer to push updates to the ConfigMap (GlobalStore)
 	config.BindEnvAndSetDefault("external_metrics_provider.max_age", 120)                       // value in seconds. 4 cycles from the Autoscaler controller (up to Kubernetes 1.11) is enough to consider a metric stale
@@ -806,6 +885,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks", []string{})
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks_from_dispatching", []string{})
 	config.BindEnvAndSetDefault("cluster_checks.rebalance_period", 10*time.Minute)
+	config.BindEnvAndSetDefault("cluster_checks.ksm_sharding_enabled", false) // KSM resource sharding: splits KSM check by resource type (pods, nodes, others)
+	config.BindEnvAndSetDefault("cluster_checks.crd_collection", false)
 
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)
@@ -876,11 +957,13 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.endpoint", "/injectlib")
 	config.BindEnv("admission_controller.auto_instrumentation.container_registry") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.default_dd_registries", map[string]any{
-		"gcr.io/datadoghq":       struct{}{},
-		"docker.io/datadog":      struct{}{},
-		"public.ecr.aws/datadog": struct{}{},
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.default_dd_registries", []string{
+		"gcr.io/datadoghq",
+		"docker.io/datadog",
+		"public.ecr.aws/datadog",
 	})
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.gradual_rollout.enabled", true)
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.gradual_rollout.cache_ttl", "1h")
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false)                                // to be enabled only in e2e tests
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.file_provider_path", "/etc/datadog-agent/patch/auto-instru.json") // to be used only in e2e tests
@@ -924,10 +1007,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Declare other keys that don't have a default/env var.
 	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.
-	config.SetKnown("metadata_providers") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("config_providers")   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("cluster_name")       //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("listeners")          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.SetDefault("metadata_providers", []map[string]interface{}{})
+	config.SetDefault("config_providers", []map[string]interface{}{})
+	config.SetDefault("listeners", []map[string]interface{}{})
 
 	config.BindEnv("provider_kind") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
@@ -940,18 +1022,20 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_sensitive_words", []string{})
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_sensitive_annotations_labels", []string{})
 	config.BindEnvAndSetDefault("orchestrator_explorer.collector_discovery.enabled", true)
-	config.BindEnv("orchestrator_explorer.max_per_message")                                                                                                                         //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("orchestrator_explorer.max_message_bytes")                                                                                                                       //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("orchestrator_explorer.orchestrator_dd_url", "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL", "DD_ORCHESTRATOR_URL")                                              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("orchestrator_explorer.orchestrator_additional_endpoints", "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_ADDITIONAL_ENDPOINTS", "DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("orchestrator_explorer.use_legacy_endpoint")                                                                                                                     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnv("orchestrator_explorer.max_per_message")                                                                            //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnv("orchestrator_explorer.max_message_bytes")                                                                          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnv("orchestrator_explorer.orchestrator_dd_url", "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL", "DD_ORCHESTRATOR_URL") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("orchestrator_explorer.orchestrator_additional_endpoints", map[string][]string{}, "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_ADDITIONAL_ENDPOINTS", "DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS")
+	config.BindEnv("orchestrator_explorer.use_legacy_endpoint") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_manifest", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_resources.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods.enabled", true)
+	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods_improved.enabled", false)
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.ootb.enabled", true)
-	config.BindEnvAndSetDefault("orchestrator_explorer.kubelet_config_check.enabled", false, "DD_ORCHESTRATOR_EXPLORER_KUBELET_CONFIG_CHECK_ENABLED")
+	config.BindEnvAndSetDefault("orchestrator_explorer.kubelet_config_check.enabled", true, "DD_ORCHESTRATOR_EXPLORER_KUBELET_CONFIG_CHECK_ENABLED")
+	config.BindEnvAndSetDefault("auto_team_tag_collection", true)
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
@@ -975,7 +1059,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	bindEnvAndSetLogsConfigKeys(config, "synthetics.forwarder.")
 
 	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-agent"))
-	config.BindEnvAndSetDefault("sbom.compute_dependencies", false)
+	config.BindEnvAndSetDefault("sbom.compute_dependencies", true)
+	config.BindEnvAndSetDefault("sbom.simplify_bom_refs", true)
 	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
 	config.BindEnvAndSetDefault("sbom.cache.max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
 	config.BindEnvAndSetDefault("sbom.cache.clean_interval", "1h")         // used by custom cache.
@@ -1014,7 +1099,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
 	config.BindEnv("process_config.orchestrator_dd_url", "DD_PROCESS_CONFIG_ORCHESTRATOR_DD_URL", "DD_PROCESS_AGENT_ORCHESTRATOR_DD_URL") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_additional_endpoints` setting. If both are set `orchestrator_explorer.orchestrator_additional_endpoints` will take precedence.
-	config.SetKnown("process_config.orchestrator_additional_endpoints") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.SetDefault("process_config.orchestrator_additional_endpoints", map[string][]string{})
 	config.BindEnvAndSetDefault("orchestrator_explorer.extra_tags", []string{})
 
 	// Network
@@ -1027,13 +1112,14 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("otelcollector.submit_dummy_metadata", false) // dev flag - to be removed
 	config.BindEnvAndSetDefault("otelcollector.converter.enabled", true)
 	config.BindEnvAndSetDefault("otelcollector.flare.timeout", 60)
-	config.BindEnvAndSetDefault("otelcollector.converter.features", []string{"infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare"})
+	config.BindEnvAndSetDefault("otelcollector.converter.features", []string{"infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare", "datadog"})
 	config.ParseEnvAsStringSlice("otelcollector.converter.features", func(s string) []string {
 		// Support both comma and space separators
 		return strings.FieldsFunc(s, func(r rune) bool {
 			return r == ',' || r == ' '
 		})
 	})
+	config.BindEnvAndSetDefault("otelcollector.gateway.mode", false)
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
@@ -1074,6 +1160,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
+	config.BindEnvAndSetDefault("compliance_config.run_in_system_probe", false)
 	config.BindEnvAndSetDefault("compliance_config.xccdf.enabled", false) // deprecated, use host_benchmarks instead
 	config.BindEnvAndSetDefault("compliance_config.host_benchmarks.enabled", true)
 	config.BindEnvAndSetDefault("compliance_config.database_benchmarks.enabled", false)
@@ -1100,7 +1187,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 	config.BindEnvAndSetDefault("runtime_security_config.direct_send_from_system_probe", false)
-	config.BindEnvAndSetDefault("runtime_security_config.event_gprc_server", "")
+	config.BindEnvAndSetDefault("runtime_security_config.event_grpc_server", "")
 
 	// trace-agent's evp_proxy
 	config.BindEnv("evp_proxy_config.enabled")              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
@@ -1118,7 +1205,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("ol_proxy_config.api_version", 2)
 
 	// command line options
-	config.SetKnown("cmd.check.fullsketches") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.SetDefault("cmd.check.fullsketches", false)
 
 	// Windows Performance Counter refresh interval in seconds (introduced in 7.40, narrowed down
 	// in 7.42). Additional information can be found where it is used (refreshPdhObjectCache())
@@ -1159,12 +1246,15 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Appsec Proxy Config Injection (Experimental)
 	config.BindEnvAndSetDefault("appsec.proxy.enabled", false)
-	config.BindEnvAndSetDefault("appsec.proxy.processor.port", "443")
+	config.BindEnvAndSetDefault("appsec.proxy.processor.port", 443)
 	config.BindEnvAndSetDefault("appsec.proxy.processor.address", "")
 	config.BindEnvAndSetDefault("appsec.proxy.auto_detect", true)
 	config.BindEnvAndSetDefault("appsec.proxy.proxies", []string{})
 
 	setupProcesses(config)
+
+	// Private Action Runner configuration
+	setupPrivateActionRunner(config)
 
 	// Installer configuration
 	config.BindEnvAndSetDefault("remote_updates", true)
@@ -1173,8 +1263,11 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("installer.registry.auth", "")
 	config.BindEnvAndSetDefault("installer.registry.username", "")
 	config.BindEnvAndSetDefault("installer.registry.password", "")
+	config.BindEnvAndSetDefault("installer.refresh_interval", time.Duration(30*time.Second))
+	config.BindEnvAndSetDefault("installer.gc_interval", time.Duration(time.Hour))
+
 	// Legacy installer configuration
-	config.SetKnown("remote_policies") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.SetDefault("remote_policies", false)
 
 	// Data Jobs Monitoring config
 	config.BindEnvAndSetDefault("djm_config.enabled", false)
@@ -1207,9 +1300,27 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Data Plane
 	config.BindEnvAndSetDefault("data_plane.enabled", false)
 	config.BindEnvAndSetDefault("data_plane.dogstatsd.enabled", false)
+	config.BindEnvAndSetDefault("data_plane.otlp.enabled", false)
+	config.BindEnvAndSetDefault("data_plane.otlp.proxy.enabled", false)
+	// When the ADP OTLP proxy is enabled, ADP owns the gRPC endpoint configured for the receiver (default :4317) and the core agent uses the endpoint below
+	config.BindEnvAndSetDefault("data_plane.otlp.proxy.receiver.protocols.grpc.endpoint", "127.0.0.1:4319")
 
 	// Agent Workload Filtering config
 	config.BindEnvAndSetDefault("cel_workload_exclude", []interface{}{})
+
+	// Shared library check
+	config.BindEnvAndSetDefault("shared_library_check.enabled", false)
+	config.BindEnvAndSetDefault("shared_library_check.library_folder_path", defaultAdditionalChecksPath)
+
+	// Vsock
+	config.BindEnvAndSetDefault("vsock_addr", "")
+
+	// Filterlist
+	config.BindEnvAndSetDefault("metric_filterlist", []string{})
+	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
+	config.BindEnvAndSetDefault("metric_filterlist_match_prefix", false)
+	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
+	config.BindEnvAndSetDefault("metric_tag_filterlist", []interface{}{})
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1260,6 +1371,8 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnv("ipc_address") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // deprecated: use `cmd_host` instead
 	config.BindEnvAndSetDefault("cmd_host", "localhost")
 	config.BindEnvAndSetDefault("cmd_port", 5001)
+	config.BindEnvAndSetDefault("agent_ipc.socket_path", filepath.Join(defaultRunPath, "agent_ipc.socket"))
+	config.BindEnvAndSetDefault("agent_ipc.use_socket", false)
 	config.BindEnvAndSetDefault("agent_ipc.host", "localhost")
 	config.BindEnvAndSetDefault("agent_ipc.port", 0)
 	config.BindEnvAndSetDefault("agent_ipc.config_refresh_interval", 0)
@@ -1281,6 +1394,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("check_runner_utilization_warning_cooldown", 10*time.Minute)
 	config.BindEnvAndSetDefault("check_system_probe_startup_time", 5*time.Minute)
 	config.BindEnvAndSetDefault("check_system_probe_timeout", 60*time.Second)
+	config.BindEnvAndSetDefault("check_watchdog_warning_timeout", 0*time.Second) // If not zero, the agent will log a warning if a check is running for longer than this timeout
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
 	// used to override the path where the IPC cert/key files are stored/retrieved
 	config.BindEnvAndSetDefault("ipc_cert_file_path", "")
@@ -1288,19 +1402,41 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("auth_init_timeout", 30*time.Second)
 	config.BindEnv("bind_host") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnvAndSetDefault("health_port", int64(0))
+	config.BindEnvAndSetDefault("health_platform.enabled", false)
+	config.BindEnvAndSetDefault("health_platform.forwarder.interval", 0)
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("win_skip_com_init", false)
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 
+	// Legacy alias for backward compatibility
+	// This applies to the current infrastructure_mode
+	config.BindEnvAndSetDefault("allowed_additional_checks", []string{})
+
+	config.BindEnvAndSetDefault("integration.enabled", true)
+
+	// integration.additional: additional checks to allow beyond the default set (user configured)
+	config.BindEnvAndSetDefault("integration.additional", []string{})
+	// integration.excluded: checks to exclude (user configured)
+	config.BindEnvAndSetDefault("integration.excluded", []string{})
+
 	// Infrastructure mode
 	// The infrastructure mode is used to determine the features that are available to the agent.
-	// The possible values are: full, basic.
+	// The possible values are: full, basic, end_user_device, none.
 	config.BindEnvAndSetDefault("infrastructure_mode", "full")
 
-	// Infrastructure basic mode - allowed checks (UNDOCUMENTED)
+	// Infrastructure full mode section (default mode, allows all checks)
+	// integration.full.allowed: empty means all checks are allowed
+	config.BindEnvAndSetDefault("integration.full.allowed", []string{})
+
+	// Infrastructure end_user_device mode section
+	// integration.end_user_device.allowed: empty means all checks are allowed
+	config.BindEnvAndSetDefault("integration.end_user_device.allowed", []string{})
+
+	// Infrastructure basic mode section [UNDOCUMENTED]
 	// Note: All checks starting with "custom_" are always allowed.
-	config.BindEnvAndSetDefault("allowed_checks", []string{
+	// integration.basic.allowed: default allowed checks (internal, should not need user configuration)
+	config.BindEnvAndSetDefault("integration.basic.allowed", []string{
 		"cpu",
 		"agent_telemetry",
 		"agentcrashdetect",
@@ -1325,11 +1461,10 @@ func agent(config pkgconfigmodel.Setup) {
 		"winkmem",
 		"winproc",
 	})
-
-	// Infrastructure basic mode - additional checks
-	// When infrastructure_mode is set to "basic", only a limited set of checks are allowed to run.
-	// This setting allows customers to add additional checks to the allowlist beyond the default set.
-	config.BindEnvAndSetDefault("allowed_additional_checks", []string{})
+	// integration.basic.excluded: checks to exclude (user configured)
+	config.BindEnvAndSetDefault("integration.basic.excluded", []string{})
+	// integration.basic.additional: additional checks to allow beyond the default set (user configured)
+	config.BindEnvAndSetDefault("integration.basic.additional", []string{})
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")
@@ -1370,6 +1505,7 @@ func agent(config pkgconfigmodel.Setup) {
 	bindEnvAndSetLogsConfigKeys(config, "event_management.forwarder.")
 
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
+	pkgconfigmodel.AddOverrideFunc(applyInfrastructureModeOverrides)
 }
 
 func fleet(config pkgconfigmodel.Setup) {
@@ -1380,7 +1516,7 @@ func fleet(config pkgconfigmodel.Setup) {
 }
 
 func autoscaling(config pkgconfigmodel.Setup) {
-	// Autoscaling product
+	// Workload autoscaling product
 	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.workload.limit", 1000)
@@ -1388,6 +1524,9 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.cert_file", "")
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.key_file", "")
 	config.BindEnvAndSetDefault("autoscaling.failover.metrics", []string{"container.memory.usage", "container.cpu.usage"})
+
+	// Cluster autoscaling product
+	config.BindEnvAndSetDefault("autoscaling.cluster.enabled", false)
 }
 
 func fips(config pkgconfigmodel.Setup) {
@@ -1512,7 +1651,7 @@ func debugging(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("tracemalloc_whitelist", "") // deprecated
 	config.BindEnvAndSetDefault("tracemalloc_blacklist", "") // deprecated
 	config.BindEnvAndSetDefault("run_path", defaultRunPath)
-	config.BindEnv("no_proxy_nonexact_match") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("no_proxy_nonexact_match", false)
 }
 
 func telemetry(config pkgconfigmodel.Setup) {
@@ -1554,6 +1693,11 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_max_series_uncompressed_payload_size", 5242880)
 	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
 	config.BindEnvAndSetDefault("serializer_zstd_compressor_level", DefaultZstdCompressionLevel)
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.endpoints", []string{})
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.sketches.endpoints", []string{})
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.validate", false)
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.sketches.validate", false)
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.compression_level", 0)
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent
@@ -1578,19 +1722,39 @@ func serverless(config pkgconfigmodel.Setup) {
 	config.SetDefault("serverless.enabled", false)
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
 	config.BindEnvAndSetDefault("enhanced_metrics", true)
-	config.BindEnvAndSetDefault("capture_lambda_payload", false)
-	config.BindEnvAndSetDefault("capture_lambda_payload_max_depth", 10)
 	config.BindEnvAndSetDefault("serverless.trace_enabled", true, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
 	config.BindEnvAndSetDefault("serverless.service_mapping", "", "DD_SERVICE_MAPPING")
+
+	// Set defaults for config keys that may be accessed but aren't relevant in serverless environments
+	// to avoid "config key is unknown" and "unable to cast nil" warnings
+	config.SetDefault("checks_tag_cardinality", "low")
+	config.SetDefault("dogstatsd_tag_cardinality", "low")
+	config.SetDefault("cel_workload_exclude", "")
+	config.SetDefault("sbom.container_image.exclude_pause_container", false)
+	config.SetDefault("sbom.container_image.container_include", []string{})
+	config.SetDefault("sbom.container_image.container_exclude", []string{})
+	config.SetDefault("ecs_collect_resource_tags_ec2", false)
+	config.SetDefault("kubernetes_persistent_volume_claims_as_tags", false)
+	config.SetDefault("docker_labels_as_tags", map[string]string{})
+	config.SetDefault("docker_env_as_tags", map[string]string{})
+	config.SetDefault("kubernetes_node_labels_as_tags", map[string]string{})
+	config.SetDefault("kubernetes_node_annotations_as_tags", map[string]string{})
+	config.SetDefault("kubernetes_namespace_labels_as_tags", map[string]string{})
+	config.SetDefault("kubernetes_namespace_annotations_as_tags", map[string]string{})
+	config.SetDefault("kubernetes_pod_labels_as_tags", map[string]string{})
+	config.SetDefault("kubernetes_pod_annotations_as_tags", map[string]string{})
+	config.SetDefault("kubernetes_resources_labels_as_tags", "{}")
+	config.SetDefault("kubernetes_resources_annotations_as_tags", "{}")
+	config.SetDefault("provider_kind", "")
 }
 
 func forwarder(config pkgconfigmodel.Setup) {
 	// Forwarder
 	config.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
 	config.BindEnvAndSetDefault("forwarder_timeout", 20)
-	config.BindEnv("forwarder_retry_queue_max_size")                                                     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // Deprecated in favor of `forwarder_retry_queue_payloads_max_size`
-	config.BindEnv("forwarder_retry_queue_payloads_max_size")                                            //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // Default value is defined inside `NewOptions` in pkg/forwarder/forwarder.go
+	config.BindEnvAndSetDefault("forwarder_retry_queue_max_size", 0) // Deprecated in favor of `forwarder_retry_queue_payloads_max_size`
+	config.BindEnvAndSetDefault("forwarder_retry_queue_payloads_max_size", 15*1024*1024)
 	config.BindEnvAndSetDefault("forwarder_connection_reset_interval", 0)                                // in seconds, 0 means disabled
 	config.BindEnvAndSetDefault("forwarder_apikey_validation_interval", DefaultAPIKeyValidationInterval) // in minutes
 	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
@@ -1621,9 +1785,22 @@ func forwarder(config pkgconfigmodel.Setup) {
 func dogstatsd(config pkgconfigmodel.Setup) {
 	// Dogstatsd
 	config.BindEnvAndSetDefault("use_dogstatsd", true)
-	config.BindEnvAndSetDefault("dogstatsd_port", 8125)    // Notice: 0 means UDP port closed
-	config.BindEnvAndSetDefault("dogstatsd_pipe_name", "") // experimental and not officially supported for now.
-	// Experimental and not officially supported for now.
+	config.BindEnvAndSetDefault("dogstatsd_port", 8125) // Notice: 0 means UDP port closed
+	config.BindEnvAndSetDefault("dogstatsd_pipe_name", "")
+	// https://learn.microsoft.com/en-us/windows/win32/secauthz/security-descriptor-string-format
+	// https://learn.microsoft.com/en-us/windows/win32/secauthz/ace-strings
+	// https://learn.microsoft.com/en-us/windows/win32/secauthz/sid-strings
+	//
+	// D:dacl_flags(ace_type;ace_flags;rights;object_guid;inherit_object_guid;account_sid;(resource_attribute))
+	// 	dacl_flags:
+	//		"AI": SDDL_AUTO_INHERITED
+	//	ace_type:
+	//		"A": SDDL_ACCESS_ALLOWED
+	// rights:
+	//		"GA": SDDL_GENERIC_ALL
+	// account_sid:
+	//		"WD": Everyone
+	config.BindEnvAndSetDefault("dogstatsd_windows_pipe_security_descriptor", "D:AI(A;;GA;;;WD)")
 	// Options are: udp, uds, named_pipe
 	config.BindEnvAndSetDefault("dogstatsd_eol_required", []string{})
 
@@ -1640,6 +1817,7 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
 	config.BindEnvAndSetDefault("dogstatsd_socket", defaultStatsdSocket) // Only enabled on unix systems
 	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "")           // Experimental || Notice: empty means feature disabled
+	config.BindEnvAndSetDefault("dogstatsd_stream_log_too_big", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_count", 1)
 	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
@@ -1707,8 +1885,6 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("statsd_forward_port", 0)
 	config.BindEnvAndSetDefault("statsd_metric_namespace", "")
 	config.BindEnvAndSetDefault("statsd_metric_namespace_blacklist", StandardStatsdPrefixes)
-	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
-	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
 
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution", false)
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution_prefix", "")
@@ -1730,7 +1906,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// disable distributed senders
 	config.BindEnvAndSetDefault("logs_config.disable_distributed_senders", false)
 	// default fingerprint configuration
-	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count", DefaultFingerprintingMaxLines)
+	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count", DefaultFingerprintingCount)
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.max_bytes", DefaultFingerprintingMaxBytes)
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count_to_skip", DefaultLinesOrBytesToSkip)
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.fingerprint_strategy", DefaultFingerprintStrategy)
@@ -1790,6 +1966,10 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// DEPRECATED in favor of `logs_config.force_use_tcp`.
 	config.BindEnvAndSetDefault("logs_config.use_tcp", false)
 	config.BindEnvAndSetDefault("logs_config.force_use_tcp", false)
+	// Maximum interval for HTTP connectivity retry checks with exponential backoff (in seconds)
+	// When TCP fallback occurs, the agent will retry HTTP connectivity at increasing intervals
+	// up to this ceiling, then continue checking at this interval. Default: 1 hour
+	config.BindEnvAndSetDefault("logs_config.http_connectivity_retry_interval_max", "1h")
 
 	// Transport protocol for log payloads
 	config.BindEnvAndSetDefault("logs_config.http_protocol", "auto")
@@ -1805,12 +1985,17 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.query_timeout", 10)
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.tags", []string{"datadoghq.com/scrape:true"})
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.dbm_tag", "datadoghq.com/dbm:true")
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.global_view_db_tag", "datadoghq.com/global_view_db")
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.enabled", false)
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.discovery_interval", 300)
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.region", "")
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.query_timeout", 10)
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.tags", []string{"datadoghq.com/scrape:true"})
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.dbm_tag", "datadoghq.com/dbm:true")
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.global_view_db_tag", "datadoghq.com/global_view_db")
+
+	bindEnvAndSetLogsConfigKeys(config, "data_streams.forwarder.")
+	config.BindEnvAndSetDefault("data_streams.forwarder.batch_wait", 0.1) // 100ms for low-latency forwarding
 
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
@@ -1827,8 +2012,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// Auto multiline detection settings
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection", false)
-	config.BindEnv("logs_config.auto_multi_line_detection_custom_samples")  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("logs_config.auto_multi_line_detection_custom_samples") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection_custom_samples", []map[string]interface{}{})
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_json_detection", true)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_datetime_detection", true)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.timestamp_detector_match_threshold", 0.5)
@@ -1851,6 +2035,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.tag_multi_line_logs", false)
 	// Add a tag to logs that are truncated by the agent
 	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", false)
+	// Tag logs with their auto multiline detection label without aggregating them
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection_tagging", true)
 
 	// Number of logs pipeline instances. Defaults to number of logical CPU cores as defined by GOMAXPROCS or 4, whichever is lower.
 	logsPipelines := min(4, runtime.GOMAXPROCS(0))
@@ -1863,6 +2049,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// If true, then a source_host tag (IP Address) will be added to TCP/UDP logs.
 	config.BindEnvAndSetDefault("logs_config.use_sourcehost_tag", true)
+	// Add per-line logsource:{stdout,stderr} tag to container logs (disabled by default)
+	config.BindEnvAndSetDefault("logs_config.add_logsource_tag", false)
 
 	// If set, the agent will look in this path for docker container log files.  Use this option if
 	// docker's `data-root` has been set to a custom path and you wish to ingest docker logs from files. In
@@ -1896,19 +2084,15 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// more disk I/O at the wildcard log paths
 	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "by_name")
 
+	// Opt-in recursive glob for file log paths (supports **). Default false to preserve current behavior.
+	config.BindEnvAndSetDefault("logs_config.enable_recursive_glob", false)
+
 	// Max size in MB an integration logs file can use
-	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 10)
+	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 100)
 	// Max disk usage in MB all integrations logs files are allowed to use in total
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_total_usage", 100)
 	// Do not store logs on disk when the disk usage exceeds 80% of the disk capacity.
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_disk_ratio", 0.80)
-
-	// SDS logs blocking mechanism
-	config.BindEnvAndSetDefault("logs_config.sds.wait_for_configuration", "")
-	config.BindEnvAndSetDefault("logs_config.sds.buffer_max_size", 0)
-
-	// Max size in MB to allow for integrations logs files
-	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 100)
 
 	// Control how the stream-logs log file is managed
 	config.BindEnvAndSetDefault("logs_config.streaming.streamlogs_log_file", DefaultStreamlogsLogFile)
@@ -1918,6 +2102,10 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// If true, exclude agent processes from process log collection
 	config.BindEnvAndSetDefault("logs_config.process_exclude_agent", false)
+
+	// Pipeline failover configuration
+	config.BindEnvAndSetDefault("logs_config.pipeline_failover.enabled", false)
+	config.BindEnvAndSetDefault("logs_config.pipeline_failover.router_channel_size", 5)
 }
 
 // vector integration
@@ -1978,8 +2166,10 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubelet_client_key", "")
 
 	config.BindEnvAndSetDefault("kubernetes_pod_expiration_duration", 15*60) // in seconds, default 15 minutes
-	config.BindEnvAndSetDefault("kubelet_cache_pods_duration", 5)            // Polling frequency in seconds of the agent to the kubelet "/pods" endpoint
-	config.BindEnvAndSetDefault("kubelet_listener_polling_interval", 5)      // Polling frequency in seconds of the pod watcher to detect new pods/containers (affected by kubelet_cache_pods_duration setting)
+	// Cache TTL for pod lists in the kubelet client. Set to 0 because it's only
+	// used by workloadmeta that already defines its own pull frequency and has
+	// its own storage, so no need for an extra cache.
+	config.BindEnvAndSetDefault("kubelet_cache_pods_duration", 0)
 	config.BindEnvAndSetDefault("kubernetes_collect_metadata_tags", true)
 	config.BindEnvAndSetDefault("kubernetes_use_endpoint_slices", false)
 	config.BindEnvAndSetDefault("kubernetes_metadata_tag_update_freq", 60) // Polling frequency of the Agent to the DCA in seconds (gets the local cache if the DCA is disabled)
@@ -1988,12 +2178,17 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubernetes_map_services_on_ip", false) // temporary opt-out of the new mapping logic
 	config.BindEnvAndSetDefault("kubernetes_apiserver_use_protobuf", false)
 	config.BindEnvAndSetDefault("kubernetes_ad_tags_disabled", []string{})
+	config.BindEnvAndSetDefault("kubernetes_kube_service_ignore_readiness", false)
 
-	defaultPodresourcesSocket := "/var/lib/kubelet/pod-resources/kubelet.sock"
 	if runtime.GOOS == "windows" {
-		defaultPodresourcesSocket = `\\.\pipe\kubelet-pod-resources`
+		config.BindEnvAndSetDefault("kubernetes_kubelet_podresources_socket", `\\.\pipe\kubelet-pod-resources`)
+		config.BindEnvAndSetDefault("kubernetes_kubelet_deviceplugins_socketdir", `\\.\pipe\kubelet-device-plugins`)
+	} else {
+		config.BindEnvAndSetDefault("kubernetes_kubelet_podresources_socket", "/var/lib/kubelet/pod-resources/kubelet.sock")
+		config.BindEnvAndSetDefault("kubernetes_kubelet_deviceplugins_socketdir", "/var/lib/kubelet/device-plugins")
 	}
-	config.BindEnvAndSetDefault("kubernetes_kubelet_podresources_socket", defaultPodresourcesSocket)
+
+	config.BindEnvAndSetDefault("kubernetes_kubelet_deviceplugins_cache_duration", 5*time.Second)
 }
 
 func podman(config pkgconfigmodel.Setup) {
@@ -2203,7 +2398,6 @@ func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, addition
 		"DD_INTEGRATIONS":                          {},
 		"DD_INTERNAL_NATIVE_LOADER_PATH":           {},
 		"DD_INTERNAL_PROFILING_NATIVE_ENGINE_PATH": {},
-		"DD_LAMBDA_HANDLER":                        {},
 		"DD_LOGS_INJECTION":                        {},
 		"DD_MERGE_XRAY_TRACES":                     {},
 		"DD_PROFILER_EXCLUDE_PROCESSES":            {},
@@ -2228,7 +2422,7 @@ func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, addition
 		// these variables are used by source code integration
 		"DD_GIT_COMMIT_SHA":     {},
 		"DD_GIT_REPOSITORY_URL": {},
-		// signals whether or not ADP is enabled
+		// signals whether or not ADP is enabled (deprecated)
 		"DD_ADP_ENABLED": {},
 		// trace-loader socket file descriptors
 		"DD_APM_NET_RECEIVER_FD":  {},
@@ -2346,11 +2540,6 @@ func LoadSystemProbe(config pkgconfigmodel.Config, additionalKnownEnvVars []stri
 func loadCustom(config pkgconfigmodel.Config, additionalKnownEnvVars []string) error {
 	log.Info("Starting to load the configuration")
 	if err := config.ReadInConfig(); err != nil {
-		if pkgconfigenv.IsLambda() {
-			log.Debug("No config file detected, using environment variable based configuration only")
-			// The remaining code in loadCustom is not run to keep a low cold start time
-			return nil
-		}
 		return err
 	}
 
@@ -2441,8 +2630,8 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 	log.Warnf("FIPS mode is enabled! All communication to DataDog will be routed to the local FIPS proxy on '%s' starting from port %d", localAddress, portRangeStart)
 
 	// Disabling proxy to make sure all data goes directly to the FIPS proxy
-	os.Unsetenv("HTTP_PROXY")
-	os.Unsetenv("HTTPS_PROXY")
+	_ = os.Unsetenv("HTTP_PROXY")
+	_ = os.Unsetenv("HTTPS_PROXY")
 
 	// HTTP for now, will soon be updated to HTTPS
 	protocol := "http://"
@@ -2506,21 +2695,22 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
 	secretResolver.Configure(secrets.ConfigParams{
-		Type:                        config.GetString("secret_backend_type"),
-		Config:                      config.GetStringMap("secret_backend_config"),
-		Command:                     config.GetString("secret_backend_command"),
-		Arguments:                   config.GetStringSlice("secret_backend_arguments"),
-		Timeout:                     config.GetInt("secret_backend_timeout"),
-		MaxSize:                     config.GetInt("secret_backend_output_max_size"),
-		RefreshInterval:             config.GetInt("secret_refresh_interval"),
-		RefreshIntervalScatter:      config.GetBool("secret_refresh_scatter"),
-		GroupExecPerm:               config.GetBool("secret_backend_command_allow_group_exec_perm"),
-		RemoveLinebreak:             config.GetBool("secret_backend_remove_trailing_line_break"),
-		RunPath:                     config.GetString("run_path"),
-		AuditFileMaxSize:            config.GetInt("secret_audit_file_max_size"),
-		ScopeIntegrationToNamespace: config.GetBool("secret_scope_integration_to_their_k8s_namespace"),
-		AllowedNamespace:            config.GetStringSlice("secret_allowed_k8s_namespace"),
-		ImageToHandle:               config.GetStringMapStringSlice("secret_image_to_handle"),
+		Type:                         config.GetString("secret_backend_type"),
+		Config:                       config.GetStringMap("secret_backend_config"),
+		Command:                      config.GetString("secret_backend_command"),
+		Arguments:                    config.GetStringSlice("secret_backend_arguments"),
+		Timeout:                      config.GetInt("secret_backend_timeout"),
+		MaxSize:                      config.GetInt("secret_backend_output_max_size"),
+		RefreshInterval:              config.GetInt("secret_refresh_interval"),
+		RefreshIntervalScatter:       config.GetBool("secret_refresh_scatter"),
+		GroupExecPerm:                config.GetBool("secret_backend_command_allow_group_exec_perm"),
+		RemoveLinebreak:              config.GetBool("secret_backend_remove_trailing_line_break"),
+		RunPath:                      config.GetString("run_path"),
+		AuditFileMaxSize:             config.GetInt("secret_audit_file_max_size"),
+		ScopeIntegrationToNamespace:  config.GetBool("secret_scope_integration_to_their_k8s_namespace"),
+		AllowedNamespace:             config.GetStringSlice("secret_allowed_k8s_namespace"),
+		ImageToHandle:                config.GetStringMapStringSlice("secret_image_to_handle"),
+		APIKeyFailureRefreshInterval: config.GetInt("secret_refresh_on_api_key_failure_interval"),
 	})
 
 	if config.GetString("secret_backend_command") != "" || config.GetString("secret_backend_type") != "" {
@@ -2541,7 +2731,7 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 				log.Errorf("Could not assign new value of secret %s (%+q) to config: %s", handle, settingPath, err)
 			}
 		})
-		if _, err = secretResolver.Resolve(yamlConf, origin, "", ""); err != nil {
+		if _, err = secretResolver.Resolve(yamlConf, origin, "", "", true); err != nil {
 			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
 		}
 	}
@@ -2628,6 +2818,13 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 			}
 		case map[interface{}]interface{}:
 			if k == len(trailingElements)-1 {
+				// use integer key when it exists in map to avoid mixing string and integer keys (e.g., "2" and 2)
+				if index, err := strconv.Atoi(elem); err == nil {
+					if _, exists := modifyValue[index]; exists {
+						modifyValue[index] = newValue
+						continue
+					}
+				}
 				modifyValue[elem] = newValue
 			} else {
 				iterateValue = modifyValue[elem]
@@ -2677,10 +2874,15 @@ func envVarAreSetAndNotEqual(lhsName string, rhsName string) bool {
 
 // sanitizeAPIKeyConfig strips newlines and other control characters from a given key.
 func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
-	if !config.IsKnown(key) || !config.IsSet(key) {
+	if !config.IsKnown(key) || !config.IsConfigured(key) {
 		return
 	}
-	config.Set(key, strings.TrimSpace(config.GetString(key)), config.GetSource(key))
+	original := config.GetString(key)
+	trimmed := strings.TrimSpace(original)
+	if original == trimmed {
+		return
+	}
+	config.Set(key, trimmed, pkgconfigmodel.SourceAgentRuntime)
 }
 
 // sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range
@@ -2711,6 +2913,247 @@ func toggleDefaultPayloads(config pkgconfigmodel.Config) {
 	}
 }
 
+func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
+	infraMode := config.GetString("infrastructure_mode")
+
+	// Apply legacy alias: copy values from legacy key to integration.additional
+	// Legacy `allowed_additional_checks` -> `integration.additional`
+	if legacyAdditional := config.GetStringSlice("allowed_additional_checks"); len(legacyAdditional) > 0 {
+		combined := append(config.GetStringSlice("integration.additional"), legacyAdditional...)
+		config.Set("integration.additional", combined, pkgconfigmodel.SourceAgentRuntime)
+	}
+
+	if infraMode == "end_user_device" {
+		defaultNetworkPathCollectorFilters := []map[string]string{
+			// Exclude everything by default
+			{"match_domain": "*", "type": "exclude"},
+
+			// 1. Microsoft 365 (without IP addresses)
+			// https://tinyurl.com/4a3ydsrs
+			{"match_domain": "*.aadrm.com", "type": "include"},
+			{"match_domain": "*.aka.ms", "type": "include"},
+			{"match_domain": "*.amp.azure.net", "type": "include"},
+			{"match_domain": "*.apps.mil", "type": "include"},
+			{"match_domain": "*.aspnetcdn.com", "type": "include"},
+			{"match_domain": "*.azure.com", "type": "include"},
+			{"match_domain": "*.azure.net", "type": "include"},
+			{"match_domain": "*.azure.us", "type": "include"},
+			{"match_domain": "*.azurerms.com", "type": "include"},
+			{"match_domain": "*.bing.com", "type": "include"},
+			{"match_domain": "*.bing.net", "type": "include"},
+			{"match_domain": "*.cloudappsecurity.com", "type": "include"},
+			{"match_domain": "*.cortana.ai", "type": "include"},
+			{"match_domain": "*.digicert.com", "type": "include"},
+			{"match_domain": "*.dps.mil", "type": "include"},
+			{"match_domain": "*.entrust.net", "type": "include"},
+			{"match_domain": "*.geotrust.com", "type": "include"},
+			{"match_domain": "*.globalsign.com", "type": "include"},
+			{"match_domain": "*.globalsign.net", "type": "include"},
+			{"match_domain": "*.identrust.com", "type": "include"},
+			{"match_domain": "*.letsencrypt.org", "type": "include"},
+			{"match_domain": "*.linkedin.com", "type": "include"},
+			{"match_domain": "*.live.com", "type": "include"},
+			{"match_domain": "*.live.net", "type": "include"},
+			{"match_domain": "*.microsoft.us", "type": "include"},
+			{"match_domain": "*.microsoftazure.us", "type": "include"},
+			{"match_domain": "*.microsoftonline.com", "type": "include"},
+			{"match_domain": "*.microsoftonline.us", "type": "include"},
+			{"match_domain": "*.microsoft", "type": "include"},
+			{"match_domain": "*.msecnd.net", "type": "include"},
+			{"match_domain": "*.msauth.net", "type": "include"},
+			{"match_domain": "*.msauthimages.net", "type": "include"},
+			{"match_domain": "*.msedge.net", "type": "include"},
+			{"match_domain": "*.msftauth.net", "type": "include"},
+			{"match_domain": "*.msocdn.com", "type": "include"},
+			{"match_domain": "*.o365weve.com", "type": "include"},
+			{"match_domain": "*.office.com", "type": "include"},
+			{"match_domain": "*.office.net", "type": "include"},
+			{"match_domain": "*.office365.com", "type": "include"},
+			{"match_domain": "*.office365.us", "type": "include"},
+			{"match_domain": "*.onestore.ms", "type": "include"},
+			{"match_domain": "*.onedrive.com", "type": "include"},
+			{"match_domain": "*.onenote.com", "type": "include"},
+			{"match_domain": "*.onmicrosoft.com", "type": "include"},
+			{"match_domain": "*.powerapps.com", "type": "include"},
+			{"match_domain": "*.powerautomate.com", "type": "include"},
+			{"match_domain": "*.powerplatform.com", "type": "include"},
+			{"match_domain": "*.public-trust.com", "type": "include"},
+			{"match_domain": "*.sfx.ms", "type": "include"},
+			{"match_domain": "*.sharepoint.com", "type": "include"},
+			{"match_domain": "*.sharepoint-mil.us", "type": "include"},
+
+			// 2. Google Workspace
+			// https://tinyurl.com/tvdmkrpy
+			{"match_domain": "*.google.com", "type": "include"},
+			{"match_domain": "*.googleapis.com", "type": "include"},
+			{"match_domain": "*.googledrive.com", "type": "include"},
+			{"match_domain": "*.googleusercontent.com", "type": "include"},
+			{"match_domain": "*.gstatic.com", "type": "include"},
+			{"match_domain": "*.youtube.com", "type": "include"},
+
+			// 3. Zoom
+			// https://tinyurl.com/594954h7
+			{"match_domain": "*.zoom.us", "type": "include"},
+			{"match_domain": "*.zoom.com", "type": "include"},
+
+			// 4. Slack
+			// https://docs.slack.dev/faq
+			{"match_domain": "*.slack-core.com", "type": "include"},
+			{"match_domain": "*.slack-edge.com", "type": "include"},
+			{"match_domain": "*.slack-files.com", "type": "include"},
+			{"match_domain": "*.slack-imgs.com", "type": "include"},
+			{"match_domain": "*.slack-msgs.com", "type": "include"},
+			{"match_domain": "*.slack.com", "type": "include"},
+			{"match_domain": "*.slackb.com", "type": "include"},
+
+			// 5. Salesforce
+			// https://tinyurl.com/y5jet7cn
+			{"match_domain": "*.documentforce.com", "type": "include"},
+			{"match_domain": "*.force-user-content.com", "type": "include"},
+			{"match_domain": "*.force.com", "type": "include"},
+			{"match_domain": "*.forceusercontent.com", "type": "include"},
+			{"match_domain": "*.lightning.com", "type": "include"},
+			{"match_domain": "*.salesforce-communities.com", "type": "include"},
+			{"match_domain": "*.salesforce-experience.com", "type": "include"},
+			{"match_domain": "*.salesforce-hub.com", "type": "include"},
+			{"match_domain": "*.salesforce-scrt.com", "type": "include"},
+			{"match_domain": "*.salesforce-setup.com", "type": "include"},
+			{"match_domain": "*.salesforce-sites.com", "type": "include"},
+			{"match_domain": "*.salesforce.com", "type": "include"},
+			{"match_domain": "*.salesforceiq.com", "type": "include"},
+			{"match_domain": "*.salesforceliveagent.com", "type": "include"},
+			{"match_domain": "*.sfdc.sh", "type": "include"},
+			{"match_domain": "*.sfdcfc.net", "type": "include"},
+			{"match_domain": "*.sfdcopens.com", "type": "include"},
+			{"match_domain": "*.site.com", "type": "include"},
+			{"match_domain": "*.trailblazer.me", "type": "include"},
+			{"match_domain": "*.trailhead.com", "type": "include"},
+
+			// 6. ServiceNow
+			{"match_domain": "*.service-now.com", "type": "include"},
+			{"match_domain": "*.servicenow.com", "type": "include"},
+			{"match_domain": "*.servicenowservices.com", "type": "include"},
+			{"match_domain": "*.sncustomer.com", "type": "include"},
+			{"match_domain": "*.sncustomertest.com", "type": "include"},
+			{"match_domain": "*.snhosting.com", "type": "include"},
+
+			// 7. Workday
+			{"match_domain": "*.myworkday.com", "type": "include"},
+			{"match_domain": "*.myworkdaygadgets.com", "type": "include"},
+			{"match_domain": "*.myworkdayjobs.com", "type": "include"},
+			{"match_domain": "*.myworkdaysite.com", "type": "include"},
+			{"match_domain": "*.workday.com", "type": "include"},
+
+			// 8. Atlassian
+			// https://tinyurl.com/2fxexx5h
+			{"match_domain": "*.atl-paas.net", "type": "include"},
+			{"match_domain": "*.atlassian-dev-us-gov-mod.net", "type": "include"},
+			{"match_domain": "*.atlassian-dev.net", "type": "include"},
+			{"match_domain": "*.atlassian-us-gov-mod.com", "type": "include"},
+			{"match_domain": "*.atlassian-us-gov-mod.net", "type": "include"},
+			{"match_domain": "*.atlassian.com", "type": "include"},
+			{"match_domain": "*.atlassian.net", "type": "include"},
+			{"match_domain": "*.bitbucket.org", "type": "include"},
+			{"match_domain": "*.jira.com", "type": "include"},
+			{"match_domain": "*.ss-inf.net", "type": "include"},
+
+			// 9. GitHub
+			{"match_domain": "*.github.com", "type": "include"},
+
+			// 10. Okta
+			// https://tinyurl.com/54rddask
+			{"match_domain": "*.okta.com", "type": "include"},
+			{"match_domain": "*.okta-emea.com", "type": "include"},
+			{"match_domain": "*.okta-gov.com", "type": "include"},
+			{"match_domain": "*.okta.mil", "type": "include"},
+			{"match_domain": "*.okta-preview.com", "type": "include"},
+			{"match_domain": "*.oktapreview.com", "type": "include"},
+			{"match_domain": "*.oktacdn.com", "type": "include"},
+
+			// 11. Cisco WebEx
+			// https://tinyurl.com/ye9bawcc
+			{"match_domain": "*.wbx2.com", "type": "include"},
+			{"match_domain": "*.webex.com", "type": "include"},
+
+			// 12. Box
+			// https://tinyurl.com/2eyv6wr4
+			{"match_domain": "*.box.com", "type": "include"},
+			{"match_domain": "*.box.net", "type": "include"},
+			{"match_domain": "*.boxcdn.net", "type": "include"},
+			{"match_domain": "*.boxcloud.com", "type": "include"},
+
+			// 13. Dropbox
+			// https://tinyurl.com/pmne8a73
+			{"match_domain": "*.addtodropbox.com", "type": "include"},
+			{"match_domain": "*.dash.ai", "type": "include"},
+			{"match_domain": "*.db.tt", "type": "include"},
+			{"match_domain": "*.docsend.com", "type": "include"},
+			{"match_domain": "*.dropbox.com", "type": "include"},
+			{"match_domain": "*.dropbox.tech", "type": "include"},
+			{"match_domain": "*.dropbox.zendesk.com", "type": "include"},
+			{"match_domain": "*.dropboxapi.com", "type": "include"},
+			{"match_domain": "*.dropboxbusiness.com", "type": "include"},
+			{"match_domain": "*.dropboxcaptcha.com", "type": "include"},
+			{"match_domain": "*.dropboxexperiment.com", "type": "include"},
+			{"match_domain": "*.dropboxforum.com", "type": "include"},
+			{"match_domain": "*.dropboxforums.com", "type": "include"},
+			{"match_domain": "*.dropboxinsiders.com", "type": "include"},
+			{"match_domain": "*.dropboxlegal.com", "type": "include"},
+			{"match_domain": "*.dropboxmail.com", "type": "include"},
+			{"match_domain": "*.dropboxpartners.com", "type": "include"},
+			{"match_domain": "*.dropboxstatic.com", "type": "include"},
+			{"match_domain": "*.dropboxteam.com", "type": "include"},
+			{"match_domain": "*.getdropbox.com", "type": "include"},
+			{"match_domain": "*.hellofax.com", "type": "include"},
+			{"match_domain": "*.hellosign.com", "type": "include"},
+
+			// 14. Monday.com
+			{"match_domain": "*.monday.com", "type": "include"},
+
+			// 15. OpenAI/ChatGPT
+			// https://tinyurl.com/3ye2uwfj
+			{"match_domain": "*.openai.com", "type": "include"},
+			{"match_domain": "*.chatgpt.com", "type": "include"},
+
+			// 16. Cursor
+			// https://tinyurl.com/y6f85d6d
+			{"match_domain": "*.cursor.sh", "type": "include"},
+			{"match_domain": "*.cursor-cdn.com", "type": "include"},
+
+			// 17. Anthropic/Claude
+			{"match_domain": "anthropic.com", "type": "include"},
+			{"match_domain": "claude.ai", "type": "include"},
+		}
+
+		// Append user-defined filters to the defaults
+		if userFilters := config.Get("network_path.collector.filters"); userFilters != nil {
+			if userFiltersList, ok := userFilters.([]interface{}); ok {
+				for _, f := range userFiltersList {
+					if filterMap, ok := f.(map[string]interface{}); ok {
+						converted := make(map[string]string)
+						for k, v := range filterMap {
+							if strVal, ok := v.(string); ok {
+								converted[k] = strVal
+							}
+						}
+						// Always append the user defined filters to the defaults at the end of the list to get the higher priority than the default configuration
+						defaultNetworkPathCollectorFilters = append(defaultNetworkPathCollectorFilters, converted)
+					}
+				}
+			}
+		}
+		config.Set("network_path.collector.filters", defaultNetworkPathCollectorFilters, pkgconfigmodel.SourceAgentRuntime) // Agent runtime source is required to override customer defined filters with default configuration
+
+		// Enable features for end_user_device mode
+		config.Set("process_config.process_collection.enabled", true, pkgconfigmodel.SourceInfraMode)
+		config.Set("software_inventory.enabled", true, pkgconfigmodel.SourceInfraMode)
+		config.Set("notable_events.enabled", true, pkgconfigmodel.SourceInfraMode)
+	} else if infraMode == "none" {
+		// Disable integrations (no host metrics collection)
+		config.Set("integration.enabled", false, pkgconfigmodel.SourceInfraMode)
+	}
+}
+
 func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnv(prefix + "logs_dd_url")          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
 	config.BindEnv(prefix + "dd_url")               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
@@ -2732,7 +3175,7 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_interval", DefaultForwarderRecoveryInterval)
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_reset", false)
 	config.BindEnvAndSetDefault(prefix+"use_v2_api", true)
-	config.SetKnown(prefix + "dev_mode_no_ssl") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.SetDefault(prefix+"dev_mode_no_ssl", false)
 }
 
 // pathExists returns true if the given path exists

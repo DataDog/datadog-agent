@@ -10,13 +10,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
-	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awsdocker "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/docker"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/otel/utils"
 )
 
@@ -33,16 +34,20 @@ func TestOTLPIngestDocker(t *testing.T) {
 		&otlpIngestDockerTestSuite{},
 		e2e.WithProvisioner(
 			awsdocker.Provisioner(
-				awsdocker.WithAgentOptions(
-					dockeragentparams.WithLogs(),
-					dockeragentparams.WithAgentServiceEnvVariable("DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT", pulumi.StringPtr("0.0.0.0:4317")),
-					dockeragentparams.WithAgentServiceEnvVariable("DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT", pulumi.StringPtr("0.0.0.0:4318")),
-					dockeragentparams.WithAgentServiceEnvVariable("DD_LOGS_ENABLED", pulumi.StringPtr("true")),
-					dockeragentparams.WithAgentServiceEnvVariable("DD_OTLP_CONFIG_LOGS_ENABLED", pulumi.StringPtr("true")),
-					dockeragentparams.WithAgentServiceEnvVariable("DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL", pulumi.StringPtr("false")),
-					dockeragentparams.WithAgentServiceEnvVariable("DD_OTLP_CONFIG_METRICS_RESOURCE_ATTRIBUTES_AS_TAGS", pulumi.StringPtr("true")),
-					dockeragentparams.WithExtraComposeManifest("calendar-rest-go", pulumi.String(strings.ReplaceAll(otlpIngestCompose, "{APPS_VERSION}", apps.Version))),
-				))),
+				awsdocker.WithRunOptions(
+					ec2docker.WithAgentOptions(
+						dockeragentparams.WithLogs(),
+						dockeragentparams.WithAgentServiceEnvVariable("DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT", pulumi.StringPtr("0.0.0.0:4317")),
+						dockeragentparams.WithAgentServiceEnvVariable("DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT", pulumi.StringPtr("0.0.0.0:4318")),
+						dockeragentparams.WithAgentServiceEnvVariable("DD_LOGS_ENABLED", pulumi.StringPtr("true")),
+						dockeragentparams.WithAgentServiceEnvVariable("DD_OTLP_CONFIG_LOGS_ENABLED", pulumi.StringPtr("true")),
+						dockeragentparams.WithAgentServiceEnvVariable("DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL", pulumi.StringPtr("false")),
+						dockeragentparams.WithAgentServiceEnvVariable("DD_OTLP_CONFIG_METRICS_RESOURCE_ATTRIBUTES_AS_TAGS", pulumi.StringPtr("true")),
+						dockeragentparams.WithExtraComposeManifest("calendar-rest-go", pulumi.String(strings.ReplaceAll(otlpIngestCompose, "{APPS_VERSION}", apps.Version))),
+					),
+				),
+			),
+		),
 	)
 }
 

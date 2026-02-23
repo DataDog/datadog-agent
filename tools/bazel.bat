@@ -8,9 +8,18 @@ if defined BAZEL_REAL if "%BAZELISK_SKIP_WRAPPER%"=="true" goto :bazelisk_ok
 exit /b 2
 :bazelisk_ok
 
+:: Ensure `XDG_CACHE_HOME` denotes a directory
+if defined CI (
+  if not exist "!XDG_CACHE_HOME!" (
+    >&2 echo 🔴 XDG_CACHE_HOME ^(!XDG_CACHE_HOME!^) must denote a directory in CI!
+    exit /b 2
+  )
+) else if not defined XDG_CACHE_HOME (
+  set "XDG_CACHE_HOME=%~dp0..\.cache"
+)
+
 :: Check legacy max path length of 260 characters got lifted, or fail with instructions
-if defined XDG_CACHE_HOME (set "cache_home=%XDG_CACHE_HOME%") else (set "cache_home=%~dp0..\.cache")
-set "more_than_260_chars=!cache_home!\more-than-260-chars"
+set "more_than_260_chars=!XDG_CACHE_HOME!\more-than-260-chars"
 for /l %%i in (1,1,26) do set "more_than_260_chars=!more_than_260_chars!\123456789"
 if not exist "!more_than_260_chars!" (
   2>nul mkdir "!more_than_260_chars!"
@@ -23,41 +32,20 @@ if not exist "!more_than_260_chars!" (
 )
 
 :: Not in CI: simply execute `bazel` - done
-if not defined CI_PROJECT_DIR (
+if not defined CI (
   "%BAZEL_REAL%" %*
   exit /b !errorlevel!
 )
 
-:: In CI: first, verify directory environment variables are set and normalize their paths
-for %%v in (BAZEL_DISK_CACHE BAZEL_OUTPUT_USER_ROOT BAZEL_REPO_CONTENTS_CACHE RUNNER_TEMP_PROJECT_DIR VSTUDIO_ROOT) do (
-  if not defined %%v (
-    >&2 echo %~nx0: %%v: unbound variable
-    exit /b 2
-  )
-  :: Path separators: `bazel` is fine with both `/` and `\\` but fails with `\`, so the simplest is to favor `/`
-  set "%%v=!%%v:\=/!"
-)
-:: TODO(regis, if later needed): set "BAZEL_SH=C:/tools/msys64/usr/bin/bash.exe"
-set "BAZEL_VS=!VSTUDIO_ROOT!"
-set "ext_repo_contents_cache=!RUNNER_TEMP_PROJECT_DIR!/bazel-repo-contents-cache"
-
-:: Externalize `--repo_contents_cache` to the job's sibling temporary directory created alongside $CI_PROJECT_DIR
-:: - https://github.com/bazelbuild/bazel/issues/26384 for why
-:: - https://docs.gitlab.com/runner/configuration/advanced-configuration/ for `RUNNER_TEMP_PROJECT_DIR`
-:: - https://sissource.ethz.ch/sispub/gitlab-ci-euler-image/-/blob/main/entrypoint.sh#L43 for inspiration
-if exist "!BAZEL_REPO_CONTENTS_CACHE!" (
-  call :robomove "!BAZEL_REPO_CONTENTS_CACHE!" "!ext_repo_contents_cache!"
-  if !errorlevel! neq 0 exit /b !errorlevel!
-)
+:: In CI: make `bazel` honor $XDG_CACHE_HOME as it does on POSIX OSes: https://github.com/bazelbuild/bazel/issues/27808
+set "bazel_home=!XDG_CACHE_HOME!\bazel"
 
 :: Pass CI-specific options through `.user.bazelrc` so any nested `bazel run` and next `bazel shutdown` also honor them
 (
   echo startup --connect_timeout_secs=5  # instead of 30s, for quicker iterations in diagnostics
   echo startup --local_startup_timeout_secs=30  # instead of 120s, to fail faster for diagnostics
-  echo startup --output_user_root=!BAZEL_OUTPUT_USER_ROOT!
+  echo startup --output_user_root=!bazel_home:\=/!  # forward slashes: https://github.com/bazelbuild/bazel/issues/3275
   echo common --config=ci
-  echo common --repo_contents_cache=!ext_repo_contents_cache!
-  echo build --disk_cache=!BAZEL_DISK_CACHE!
 ) >"%~dp0..\user.bazelrc"
 
 :: Diagnostics: print any stalled client/server before `bazel` execution
@@ -69,11 +57,13 @@ set "bazel_exit=!errorlevel!"
 
 :: Diagnostics: dump logs on non-trivial failures (https://bazel.build/run/scripts#exit-codes)
 :: TODO(regis): adjust (probably `== 37`) next time a `cannot connect to Bazel server` error happens (#incident-42947)
-if !bazel_exit! geq 2 (
-  >&2 echo 🟡 Bazel failed [!bazel_exit!], dumping available info in !BAZEL_OUTPUT_USER_ROOT! ^(excluding junctions^):
-  for /f "delims=" %%d in ('dir /a:d-l /b "!BAZEL_OUTPUT_USER_ROOT!"') do (
+set "should_diagnose=1"
+for %%c in (0 1 3 34 36 48) do if !bazel_exit!==%%c set "should_diagnose=0"
+if !should_diagnose!==1 (
+  >&2 echo 🔴 Bazel failed [!bazel_exit!], dumping available info in !bazel_home! ^(excluding junctions^):
+  for /f "delims=" %%d in ('dir /a:d-l /b "!bazel_home!"') do (
     >&2 echo 🟡 [%%d]
-    for %%f in ("!BAZEL_OUTPUT_USER_ROOT!\%%d\java.log.*" "!BAZEL_OUTPUT_USER_ROOT!\%%d\server\*") do (
+    for %%f in ("!bazel_home!\%%d\java.log.*" "!bazel_home!\%%d\server\*") do (
       if exist "%%f" (
         >&2 echo 🟡 %%f:
         >&2 type "%%f"
@@ -84,29 +74,10 @@ if !bazel_exit! geq 2 (
     )
   )
 )
-if !bazel_exit! neq 0 exit /b !bazel_exit!
 
 :: Stop `bazel` (if still running) to close files and proceed with cleanup
 >&2 "%BAZEL_REAL%" shutdown --ui_event_filters=-info
 >&2 del /f /q "%~dp0..\user.bazelrc"
 
-:: Reintegrate `--repo_contents_cache` to original directory
-if exist "!ext_repo_contents_cache!" (
-  call :robomove "!ext_repo_contents_cache!" "!BAZEL_REPO_CONTENTS_CACHE!"
-  if !errorlevel! neq 0 exit /b !errorlevel!
-)
-
 :: Done
-exit /b 0
-
-:robomove
-:: Contrarily to `copy`, `move` and `xcopy`, `robocopy` avoids messing up with recursive symlinks, thanks to `/xj`
->&2 robocopy "%~1" "%~2" /b /copyall /dcopy:dat /mir /move /ndl /nfl /njh /njs /np /secfix /sl /timfix /w:0 /xj
-:: See: https://ss64.com/nt/robocopy-exit.html
-set /a rc=!errorlevel! ^& (8 ^| 16)
-if exist "%~1" (
-  >&2 echo 🟡 Purging leftovers, most likely due to recursive symbolic links/junction points:
-  >&2 dir /a /b /s "%~1"
-  >&2 rmdir /q /s "%~1"
-)
-exit /b !rc!
+exit /b !bazel_exit!

@@ -1,0 +1,222 @@
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+
+XSLT_VERSION = "1.1.43"
+EXSLT_VERSION = "0.8.25"
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:MIT"],
+    license_text = "Copyright",
+    visibility = ["//visibility:public"],
+)
+
+copy_file(
+    name = "copy_config_h",
+    src = select({
+        "@@//:linux_x86_64": "config-linux-x86_64.h",
+        "@@//:linux_arm64": "config-linux-arm64.h",
+    }),
+    out = "config.h",
+)
+
+expand_template(
+    name = "xsltconfig_h",
+    template = "libxslt/xsltconfig.h.in",
+    out = "libxslt/xsltconfig.h",
+    substitutions = {
+        "@VERSION@": XSLT_VERSION,
+        "@LIBXSLT_VERSION_NUMBER@": "10143",
+        "@LIBXSLT_VERSION_EXTRA@": "",
+        "@WITH_XSLT_DEBUG@": "0",
+        "@WITH_TRIO@": "0",
+        "@WITH_DEBUGGER@": "0",
+        "@WITH_PROFILER@": "0",
+        "@WITH_MODULES@": "0",
+    },
+)
+
+_PUBLIC_XSLT_HDRS = [
+    "libxslt/attributes.h",
+    "libxslt/documents.h",
+    "libxslt/extensions.h",
+    "libxslt/extra.h",
+    "libxslt/functions.h",
+    "libxslt/imports.h",
+    "libxslt/keys.h",
+    "libxslt/namespaces.h",
+    "libxslt/numbersInternals.h",
+    "libxslt/pattern.h",
+    "libxslt/preproc.h",
+    "libxslt/security.h",
+    "libxslt/templates.h",
+    "libxslt/transform.h",
+    "libxslt/variables.h",
+    "libxslt/xslt.h",
+    "libxslt/xsltexports.h",
+    "libxslt/xsltInternals.h",
+    "libxslt/xsltlocale.h",
+    "libxslt/xsltutils.h",
+    ":xsltconfig_h",
+]
+
+cc_library(
+    name = "libxslt",
+    hdrs = _PUBLIC_XSLT_HDRS,
+    srcs = [
+        "libxslt/attributes.c",
+        "libxslt/attrvt.c",
+        "libxslt/documents.c",
+        "libxslt/extensions.c",
+        "libxslt/extra.c",
+        "libxslt/functions.c",
+        "libxslt/imports.c",
+        "libxslt/keys.c",
+        "libxslt/namespaces.c",
+        "libxslt/numbers.c",
+        "libxslt/pattern.c",
+        "libxslt/preproc.c",
+        "libxslt/security.c",
+        "libxslt/templates.c",
+        "libxslt/transform.c",
+        "libxslt/variables.c",
+        "libxslt/xslt.c",
+        "libxslt/xsltlocale.c",
+        "libxslt/xsltutils.c",
+        "libxslt/libxslt.h",
+        ":copy_config_h",
+    ],
+    includes = [
+        ".",
+    ],
+    deps = [
+        "@libxml2",
+    ],
+    copts = [
+        "-O2",
+    ],
+    local_defines = [
+        "HAVE_CONFIG_H",
+        "NDEBUG",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_shared_library(
+    name = "xslt",
+    deps = [":libxslt"],
+    # Ensure we don't statically link with libxml2
+    dynamic_deps = ["@libxml2//:xml2"],
+    additional_linker_inputs = ["libxslt/libxslt.syms"],
+    user_link_flags = [
+        "-Wl,--version-script=$(location libxslt/libxslt.syms)",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+so_symlink(
+    name = "xslt_lib_files",
+    src = ":xslt",
+    libname = "libxslt",
+    version = "1.1.43",
+)
+
+pkg_files(
+    name = "xslt_headers",
+    srcs = _PUBLIC_XSLT_HDRS,
+    prefix = "include/libxslt",
+)
+
+expand_template(
+    name = "exsltconfig_h",
+    template = "libexslt/exsltconfig.h.in",
+    out = "libexslt/exsltconfig.h",
+    substitutions = {
+        "@VERSION@": EXSLT_VERSION,
+        "@LIBEXSLT_VERSION_NUMBER@": "825",
+        "@LIBEXSLT_VERSION_EXTRA@": "",
+        "@WITH_CRYPTO@": "0",
+    },
+)
+
+_PUBLIC_EXSLT_HDRS = [
+    "libexslt/exslt.h",
+    "libexslt/exsltexports.h",
+    ":exsltconfig_h",
+]
+
+cc_library(
+    name = "libexslt",
+    hdrs = _PUBLIC_EXSLT_HDRS,
+    srcs = [
+        "libexslt/common.c",
+        "libexslt/crypto.c",
+        "libexslt/date.c",
+        "libexslt/dynamic.c",
+        "libexslt/exslt.c",
+        "libexslt/functions.c",
+        "libexslt/libexslt.h",
+        "libexslt/math.c",
+        "libexslt/saxon.c",
+        "libexslt/sets.c",
+        "libexslt/strings.c",
+    ],
+    includes = [
+        ".",
+    ],
+    deps = [
+        "@libxml2",
+        ":libxslt",
+    ],
+    copts = [
+        "-O2",
+    ],
+    local_defines = [
+        "HAVE_CONFIG_H",
+        "NDEBUG",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_shared_library(
+    name = "exslt",
+    deps = [":libexslt"],
+    dynamic_deps = ["@libxml2//:xml2", ":xslt"],
+    visibility = ["//visibility:public"],
+)
+
+so_symlink(
+    name = "exslt_lib_files",
+    src = ":exslt",
+    libname = "libexslt",
+    version = "0.8.24",
+)
+
+pkg_files(
+    name = "exslt_headers",
+    srcs = _PUBLIC_EXSLT_HDRS,
+    prefix = "include/libexslt",
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":xslt_headers",
+        ":exslt_headers",
+        ":xslt_lib_files",
+        ":exslt_lib_files",
+    ],
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
+)

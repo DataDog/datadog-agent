@@ -11,13 +11,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 )
 
 type authArtifactWindows struct {
@@ -40,12 +40,14 @@ func TestIPCSecurityWindowsSuite(t *testing.T) {
 			},
 		},
 		e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
-			awshost.WithName("authArtifactWindows"),
-			awshost.WithEC2InstanceOptions(ec2.WithOS(e2eos.WindowsServerDefault)),
-			awshost.WithAgentOptions(agentparams.WithAgentConfig(agentConfig)),
-			awshost.WithAgentClientOptions(agentclientparams.WithSkipWaitForAgentReady()),
+			awshost.WithRunOptions(
+				ec2.WithName("authArtifactWindows"),
+				ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.WindowsServerDefault)),
+				ec2.WithAgentOptions(agentparams.WithAgentConfig(agentConfig)),
+				ec2.WithAgentClientOptions(agentclientparams.WithSkipWaitForAgentReady()),
+			),
 		)),
-		e2e.WithSkipCoverage(), // Test Suite is not compatible with built-in coverage computation, because auth tokens are removed at the end of the test
+		e2e.WithSkipCoverage(), // Test Suite is not compatible with coverage computation, because auth tokens are removed at the end of the test
 	)
 }
 

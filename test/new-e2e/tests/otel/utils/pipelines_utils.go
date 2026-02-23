@@ -24,10 +24,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
 )
 
 const (
@@ -630,12 +630,10 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite, ust bool, service s
 			Type: corev1.ServiceTypeClusterIP,
 			Ports: []corev1.ServicePort{
 				{
-					Port: 9090,
-					TargetPort: intstr.IntOrString{
-						StrVal: "http",
-					},
-					Protocol: "TCP",
-					Name:     "http",
+					Port:       9090,
+					TargetPort: intstr.FromString("http"),
+					Protocol:   "TCP",
+					Name:       "http",
 				},
 			},
 			Selector: map[string]string{

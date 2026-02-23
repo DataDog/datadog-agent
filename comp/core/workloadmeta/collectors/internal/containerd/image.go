@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strings"
 
 	"github.com/containerd/containerd"
@@ -514,13 +515,9 @@ func getImageLabels(img containerd.Image, ocispecImage ocispec.Image) map[string
 	// labels.
 	labels := map[string]string{}
 
-	for labelName, labelValue := range img.Labels() {
-		labels[labelName] = labelValue
-	}
+	maps.Copy(labels, img.Labels())
 
-	for labelName, labelValue := range ocispecImage.Config.Labels {
-		labels[labelName] = labelValue
-	}
+	maps.Copy(labels, ocispecImage.Config.Labels)
 
 	return labels
 }

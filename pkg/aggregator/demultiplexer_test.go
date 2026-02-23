@@ -14,9 +14,14 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
+	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -59,6 +64,8 @@ func TestDemuxForwardersCreated(t *testing.T) {
 
 	// default options should have created all forwarders except for the orchestrator
 	// forwarders since we're not in a cluster-agent environment
+	// we need to unset the KUBERNETES_SERVICE_PORT env var to simulate a non-k8s environment
+	t.Setenv("KUBERNETES_SERVICE_PORT", "")
 
 	opts := demuxTestOptions()
 
@@ -69,7 +76,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	_, found := deps.EventPlatformFwd.Get()
 	require.True(found)
 	_, found = deps.OrchestratorFwd.Get()
-	require.Equal(orchestratorForwarderSupport, found)
+	require.False(found)
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
@@ -82,7 +89,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	_, found = deps.EventPlatformFwd.Get()
 	require.False(found)
 	_, found = deps.OrchestratorFwd.Get()
-	require.Equal(orchestratorForwarderSupport, found)
+	require.False(found)
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
@@ -95,7 +102,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	_, found = deps.EventPlatformFwd.Get()
 	require.True(found)
 	_, found = deps.OrchestratorFwd.Get()
-	require.Equal(orchestratorForwarderSupport, found)
+	require.False(found)
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
@@ -103,8 +110,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("orchestrator_explorer.enabled", true)
-	cfg.SetWithoutSource("clc_runner_enabled", true)
-	cfg.SetWithoutSource("extra_config_providers", []string{"clusterchecks"})
+	t.Setenv("KUBERNETES_SERVICE_PORT", "443")
 
 	// since we're running the tests with -tags orchestrator and we've enabled the
 	// needed feature above, we should have an orchestrator forwarder instantiated now
@@ -115,6 +121,8 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	require.NotNil(demux)
 	_, found = deps.EventPlatformFwd.Get()
 	require.True(found)
+	_, found = deps.OrchestratorFwd.Get()
+	require.Equal(orchestratorForwarderSupport, found)
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
@@ -170,7 +178,7 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 	opts := demuxTestOptions()
 	opts.FlushInterval = time.Hour
 	deps := createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
-	demux := initAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorFwd, opts, deps.EventPlatformFwd, deps.HaAgent, deps.Compressor, deps.Tagger, "")
+	demux := initAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorFwd, opts, deps.EventPlatformFwd, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
 	demux.Aggregator().tlmContainerTagsEnabled = false
 	require.NotNil(demux)
 	require.NotNil(demux.aggregator)
@@ -274,6 +282,7 @@ type internalDemutiplexerDeps struct {
 	Eventplatform         eventplatform.Component
 	Compressor            compression.Component
 	Tagger                tagger.Component
+	FilterList            filterlist.Component
 }
 
 func createDemuxDepsWithOrchestratorFwd(
@@ -282,13 +291,16 @@ func createDemuxDepsWithOrchestratorFwd(
 	orchestratorParams orchestratorForwarderImpl.Params,
 	eventPlatformParams eventplatformimpl.Params) aggregatorDeps {
 	modules := fx.Options(
+		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		defaultforwarder.MockModule(),
 		core.MockBundle(),
+		hostnameimpl.MockModule(),
 		orchestratorForwarderImpl.Module(orchestratorParams),
 		eventplatformimpl.Module(eventPlatformParams),
 		eventplatformreceiverimpl.Module(),
 		logscompressionmock.MockModule(),
 		metricscompressionmock.MockModule(),
+		filterlistfx.Module(),
 		haagentmock.Module(),
 		fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 	)
@@ -296,7 +308,7 @@ func createDemuxDepsWithOrchestratorFwd(
 
 	return aggregatorDeps{
 		TestDeps:         deps.TestDeps,
-		Demultiplexer:    InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorForwarder, opts, deps.Eventplatform, deps.HaAgent, deps.Compressor, nooptagger.NewComponent(), ""),
+		Demultiplexer:    InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorForwarder, opts, deps.Eventplatform, deps.HaAgent, deps.Compressor, nooptagger.NewComponent(), deps.FilterList, ""),
 		OrchestratorFwd:  deps.OrchestratorForwarder,
 		Compressor:       deps.Compressor,
 		EventPlatformFwd: deps.Eventplatform,

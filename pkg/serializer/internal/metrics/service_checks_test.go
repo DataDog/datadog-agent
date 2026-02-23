@@ -8,7 +8,7 @@
 package metrics
 
 import (
-	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -118,7 +118,7 @@ func createServiceChecks(numberOfItem int) ServiceChecks {
 	var serviceCheckCollections []*servicecheck.ServiceCheck
 
 	for i := 0; i < numberOfItem; i++ {
-		serviceCheckCollections = append(serviceCheckCollections, createServiceCheck(fmt.Sprint(i)))
+		serviceCheckCollections = append(serviceCheckCollections, createServiceCheck(strconv.Itoa(i)))
 	}
 	return ServiceChecks(serviceCheckCollections)
 }

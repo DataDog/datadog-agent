@@ -6,7 +6,7 @@
 package common
 
 import (
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 // setFIPSAlgorithmPolicy configures local security policy to enable or disable FIPS mode.

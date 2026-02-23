@@ -10,8 +10,8 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
-	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	configsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
@@ -47,25 +47,25 @@ var cloudProviderDetectors = []cloudProviderDetector{
 }
 
 // DetectCloudProvider detects the cloud provider where the agent is running in order:
-func DetectCloudProvider(ctx context.Context, collectAccountID bool, l logcomp.Component) (string, string) {
+func DetectCloudProvider(ctx context.Context, collectAccountID bool) (string, string) {
 	for _, cloudDetector := range cloudProviderDetectors {
 		if cloudDetector.callback(ctx) {
-			l.Infof("Cloud provider %s detected", cloudDetector.name)
+			log.Infof("Cloud provider %s detected", cloudDetector.name)
 
 			// fetch the account ID for this cloud provider
 			if collectAccountID && cloudDetector.accountIDCallback != nil {
 				accountID, err := cloudDetector.accountIDCallback(ctx)
 				if err != nil {
-					l.Debugf("Could not detect cloud provider account ID: %v", err)
+					log.Debugf("Could not detect cloud provider account ID: %v", err)
 				} else if accountID != "" {
-					l.Infof("Detecting cloud provider account ID from %s: %+q", cloudDetector.name, accountID)
+					log.Infof("Detecting cloud provider account ID from %s: %+q", cloudDetector.name, accountID)
 					return cloudDetector.name, accountID
 				}
 			}
 			return cloudDetector.name, ""
 		}
 	}
-	l.Info("No cloud provider detected")
+	log.Info("No cloud provider detected")
 	return "", ""
 }
 
@@ -129,8 +129,10 @@ var hostAliasesDetectors = []cloudProviderAliasesDetector{
 	{name: kubernetes.CloudProviderName, callback: kubernetes.GetHostAliases},
 }
 
-var hostAliasMutex = sync.Mutex{}
-var hostAliasLogOnce = true
+var (
+	hostAliasMutex   = sync.Mutex{}
+	hostAliasLogOnce = true
+)
 
 // GetHostAliases returns the hostname aliases and the name of the possible cloud providers
 func GetHostAliases(ctx context.Context) ([]string, string) {
@@ -223,6 +225,35 @@ func GetHostCCRID(ctx context.Context, detectedCloud string) string {
 	return hostCCRID
 }
 
+type cloudProviderInstanceTypeDetector func(context.Context) (string, error)
+
+var hostInstanceTypeDetectors = map[string]cloudProviderInstanceTypeDetector{
+	ec2.CloudProviderName:    ec2.GetInstanceType,
+	gce.CloudProviderName:    gce.GetInstanceType,
+	oracle.CloudProviderName: oracle.GetInstanceType,
+	azure.CloudProviderName:  azure.GetInstanceType,
+}
+
+// GetInstanceType returns the instance type from the first cloud provider that works.
+func GetInstanceType(ctx context.Context, detectedCloud string) string {
+	if detectedCloud == "" {
+		log.Infof("No instance type detected, no cloud provider detected")
+		return ""
+	}
+
+	if callback, found := hostInstanceTypeDetectors[detectedCloud]; found {
+		instanceType, err := callback(ctx)
+		if err != nil {
+			log.Infof("Could not fetch instance type for %s: %s", detectedCloud, err)
+			return ""
+		}
+		return instanceType
+	}
+
+	log.Debugf("getting instance type from cloud provider %q is not supported", detectedCloud)
+	return ""
+}
+
 // GetPublicIPv4 returns the public IPv4 from different providers
 func GetPublicIPv4(ctx context.Context) (string, error) {
 	publicIPProvider := map[string]func(context.Context) (string, error){
@@ -266,4 +297,41 @@ func GetHostID(ctx context.Context, cloudProviderName string) string {
 		return callback(ctx)
 	}
 	return ""
+}
+
+type cloudProviderPreemptionDetector func(context.Context) (time.Time, error)
+
+var preemptionDetectors = map[string]cloudProviderPreemptionDetector{
+	ec2.CloudProviderName: ec2.GetSpotTerminationTime,
+}
+
+// ErrNotPreemptible is returned when the instance is not a preemptible instance
+// (e.g., not an AWS Spot instance, not a GCE Preemptible instance).
+// When this error is returned, callers should stop polling for preemption events.
+var ErrNotPreemptible = errors.New("instance is not preemptible")
+
+// ErrPreemptionUnsupported is returned when preemption detection is not supported
+// for the given cloud provider.
+var ErrPreemptionUnsupported = errors.New("preemption detection not supported for this cloud provider")
+
+// GetPreemptionTerminationTime returns the scheduled termination time for a preemptible instance
+// (e.g., AWS Spot, GCE Preemptible, Azure Spot).
+// Returns ErrNotPreemptible if the instance is not preemptible.
+// Returns ErrPreemptionUnsupported if the cloud provider doesn't support preemption detection.
+// For now only EC2 is supported.
+func GetPreemptionTerminationTime(ctx context.Context, cloudProviderName string) (time.Time, error) {
+	callback, found := preemptionDetectors[cloudProviderName]
+	if !found {
+		return time.Time{}, ErrPreemptionUnsupported
+	}
+
+	terminationTime, err := callback(ctx)
+	if err != nil {
+		// Map cloud-provider-specific errors to generic errors
+		if errors.Is(err, ec2.ErrNotSpotInstance) {
+			return time.Time{}, ErrNotPreemptible
+		}
+		return time.Time{}, err
+	}
+	return terminationTime, nil
 }

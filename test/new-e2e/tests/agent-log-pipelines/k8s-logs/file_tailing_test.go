@@ -9,9 +9,10 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
-	kindfilelogger "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/kindfilelogging"
 	"testing"
 	"time"
+
+	kindfilelogger "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/kindfilelogging"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,8 +20,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 )
 
 type k8sSuite struct {
@@ -48,9 +49,11 @@ func (v *k8sSuite) TestSingleLogAndMetadata() {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:    "query-job-1",
-							Image:   "ubuntu",
-							Command: []string{"echo", testLogMessage},
+							Name:  "query-job-1",
+							Image: "ubuntu",
+							// Sleep is added here so k8s doesn't kill the container before
+							// the agent container can detect it.
+							Command: []string{"sh", "-c", "echo '" + testLogMessage + "' && sleep 10"},
 						},
 					},
 					RestartPolicy: corev1.RestartPolicyNever,
@@ -106,9 +109,11 @@ func (v *k8sSuite) TestLongLogLine() {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:    "long-line-job",
-							Image:   "ubuntu",
-							Command: []string{"echo", longLineLog},
+							Name:  "long-line-job",
+							Image: "ubuntu",
+							// Sleep is added here so k8s doesn't kill the container before
+							// the agent container can detect it.
+							Command: []string{"sh", "-c", "echo '" + longLineLog + "' && sleep 10"},
 						},
 					},
 					RestartPolicy: corev1.RestartPolicyNever,
@@ -169,9 +174,11 @@ func (v *k8sSuite) TestContainerExclude() {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:    "exclude-job",
-							Image:   "alpine",
-							Command: []string{"echo", testLogMessage},
+							Name:  "exclude-job",
+							Image: "alpine",
+							// Sleep is added here so k8s doesn't kill the container before
+							// the agent container can detect it.
+							Command: []string{"sh", "-c", "echo '" + testLogMessage + "' && sleep 10"},
 						},
 					},
 					RestartPolicy: corev1.RestartPolicyNever,

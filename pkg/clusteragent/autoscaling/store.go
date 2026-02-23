@@ -164,7 +164,7 @@ func (s *Store[T]) LockRead(id string, lockOnMissing bool) (T, bool) {
 	return res, ok
 }
 
-// Unlock allows to unlock after a read that do not require any modification to the internal object
+// Unlock allows to unlock after a read that does not require any modification to the internal object
 func (s *Store[T]) Unlock(string) {
 	s.lock.Unlock()
 }
