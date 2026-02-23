@@ -8,6 +8,7 @@
 package rofspermissions
 
 import (
+	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
@@ -16,10 +17,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	tmpDir = "/tmp"
+)
+
 // Check if all directories agent could write to are writable by the agent.
 func Check(cfg config.Component) (*healthplatform.IssueReport, error) {
 	writeDirs := []string{
 		cfg.GetString("run_path"),
+		cfg.GetString("log_file"),
+		cfg.GetString("logs_config.run_path"),
+		filepath.Dir(cfg.GetString("dogstatsd_socket")),
+		filepath.Dir(cfg.GetString("apm_config.receiver_socket")),
+		tmpDir,
 	}
 
 	var nonWritableDirs []string
