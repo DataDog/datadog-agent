@@ -59,9 +59,10 @@ func TestSetTaskCollectionParserForDaemon(t *testing.T) {
 			expectParserSet:       true,
 		},
 		{
+			// Use 1.54.0+ so the test passes on both Linux (min 1.39.0) and Windows (min 1.54.0)
 			name:                  "task collection enabled with V4-capable version uses V4",
 			taskCollectionEnabled: true,
-			version:               "Amazon ECS Agent - v1.39.0 (abc1234)",
+			version:               "Amazon ECS Agent - v1.54.0 (abc1234)",
 			expectV4Parser:        true,
 			expectParserSet:       true,
 		},
