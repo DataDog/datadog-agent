@@ -52,7 +52,6 @@ type BootTimeline struct {
 	UserinitStart     time.Time // Kernel-Process Event 1 (userinit.exe)
 	ExplorerStart     time.Time // Kernel-Process Event 1 (explorer.exe)
 	DesktopReady      time.Time // Shell-Core Event 62171
-	BootToIdle        time.Time // Computed: first moment CPU ≥80% idle for 10 consecutive seconds (from PPM events)
 
 	// Winlogon sub-events for detailed component timing
 	WinlogonInit      time.Time // Winlogon Event 101
@@ -82,12 +81,8 @@ type collector struct {
 	smssCount      int
 	winlogonCount  int
 	subscribers    []SubscriberInfo
-	currentSubs    map[string]time.Time // subscriber name -> start time
+	currentSubs    map[string]time.Time
 	parseFunctions map[etw.GUID]eventHandlerFunc
-
-	// Group Policy CSE tracking
-	machineGPActivity string // ActivityID from event 4000
-	userGPActivity    string // ActivityID from event 4001
 }
 
 // initParseFunctions populates the GUID → parse function dispatch map.
@@ -109,14 +104,17 @@ type AnalysisResult struct {
 }
 
 // analyzeETL opens an ETL file, processes events, and returns a structured
-// boot timeline analysis. The caller is responsible for submitting the results.
-func analyzeETL(etlPath string) (*AnalysisResult, error) {
+// boot timeline analysis.
+func analyzeETL(ctx context.Context, etlPath string) (*AnalysisResult, error) {
 	absPath, err := filepath.Abs(etlPath)
 	if err != nil {
 		return nil, fmt.Errorf("resolving path: %w", err)
 	}
-	if _, err := os.Stat(absPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("ETL file not found: %s", absPath)
+	if _, err := os.Stat(absPath); err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("ETL file not found: %s", absPath)
+		}
+		return nil, fmt.Errorf("error accessing ETL file: %w", err)
 	}
 
 	log.Debugf("Analyzing ETL file: %s", absPath)
@@ -128,18 +126,17 @@ func analyzeETL(etlPath string) (*AnalysisResult, error) {
 
 	var totalEvents atomic.Int64
 
-	c := etw.NewConsumer(context.Background())
-	defer c.Stop()
+	c := etw.NewConsumer(ctx)
+	defer func() {
+		if err := c.Stop(); err != nil {
+			log.Errorf("error stopping ETL consumer: %v", err)
+		}
+	}()
 
 	c.FromTraceNames(absPath)
 
 	// EventRecordCallback: fast filter on provider GUID + Event ID.
 	// Returns true only for events we care about; the rest are skipped entirely
-	// (no property parsing, no Event creation). This is critical for performance
-	// since we only need ~100 events out of potentially hundreds of thousands.
-	//
-	// IMPORTANT: This runs in the processing goroutine. Only the atomic counter
-	// is written here — all data collection happens in ProcessEvents (main goroutine).
 	c.EventRecordCallback = func(er *etw.EventRecord) bool {
 		totalEvents.Add(1)
 		id := er.EventHeader.EventDescriptor.Id
@@ -175,7 +172,7 @@ func analyzeETL(etlPath string) (*AnalysisResult, error) {
 		// GroupPolicy events
 		if er.EventHeader.ProviderId.Equals(guidGroupPolicy) {
 			switch id {
-			case 4000, 4001, 8000, 8001: // GP session start/end
+			case 4000, 4001, 8000, 8001:
 				return true
 			}
 			return false
@@ -186,19 +183,14 @@ func analyzeETL(etlPath string) (*AnalysisResult, error) {
 			return true
 		}
 
-		return false // Skip all other events
+		return false
 	}
-
-	// Don't set a custom EventCallback — let the default send events to the
-	// internal channel. ProcessEvents below drains the channel and handles
-	// all data collection in a single goroutine (no race conditions).
 
 	startTime := time.Now()
 
-	// Start() is non-blocking for ETL files: it opens the trace and begins
-	// feeding events through the pipeline in background goroutines.
+	log.Debugf("Starting ETL consumer")
 	if err := c.Start(); err != nil {
-		return nil, fmt.Errorf("opening ETL file: %w", err)
+		return nil, fmt.Errorf("starting ETL consumer: %w", err)
 	}
 
 	// When the trace processing goroutine finishes (file fully read), close the
@@ -210,14 +202,20 @@ func analyzeETL(etlPath string) (*AnalysisResult, error) {
 		c.CloseEventsChannel() // unblock ProcessEvents
 	}()
 
-	// ProcessEvents blocks until the events channel is closed.
-	// All data collection happens here in the main goroutine.
-	c.ProcessEvents(func(e *etw.Event) {
+	log.Debugf("Processing ETL events")
+	err = c.ProcessEvents(func(e *etw.Event) {
 		processEvent(coll, e)
 	})
+	if err != nil {
+		return nil, fmt.Errorf("processing ETL events: %w", err)
+	}
 
 	elapsed := time.Since(startTime)
 	log.Debugf("Processed %d events in %v", totalEvents.Load(), elapsed.Round(time.Millisecond))
+
+	if coll.timeline.BootStart.IsZero() {
+		return nil, fmt.Errorf("ETL file contained no boot start event (Kernel-General 12); timeline would be invalid")
+	}
 
 	return &AnalysisResult{
 		Timeline:    coll.timeline,
@@ -357,15 +355,10 @@ func (coll *collector) parseUserProfile(_ *etw.Event, id uint16, ts time.Time) {
 
 // parseGroupPolicy processes Group Policy events (4000/4001: start, 8000/8001: end).
 func (coll *collector) parseGroupPolicy(e *etw.Event, id uint16, ts time.Time) {
-	activityID := e.System.Correlation.ActivityID
-
 	switch id {
 	case 4000:
 		if coll.timeline.MachineGPStart.IsZero() {
 			coll.timeline.MachineGPStart = ts
-		}
-		if activityID != "" {
-			coll.machineGPActivity = activityID
 		}
 	case 8000:
 		if coll.timeline.MachineGPEnd.IsZero() {
@@ -375,11 +368,10 @@ func (coll *collector) parseGroupPolicy(e *etw.Event, id uint16, ts time.Time) {
 		if coll.timeline.UserGPStart.IsZero() {
 			coll.timeline.UserGPStart = ts
 		}
-		if activityID != "" {
-			coll.userGPActivity = activityID
-		}
 	case 8001:
-		coll.timeline.UserGPEnd = ts
+		if coll.timeline.UserGPEnd.IsZero() {
+			coll.timeline.UserGPEnd = ts
+		}
 	}
 }
 
@@ -392,13 +384,11 @@ func (coll *collector) parseShellCore(_ *etw.Event, _ uint16, ts time.Time) {
 
 // getEventPropString finds a named property in the Event and returns its string value.
 func getEventPropString(e *etw.Event, name string) string {
-	// Check EventData first
 	for _, prop := range e.EventData {
 		if prop.Name == name {
 			return fmt.Sprintf("%v", prop.Value)
 		}
 	}
-	// Then UserData
 	for _, prop := range e.UserData {
 		if prop.Name == name {
 			return fmt.Sprintf("%v", prop.Value)
@@ -409,15 +399,15 @@ func getEventPropString(e *etw.Event, name string) string {
 
 // findSubscriberName extracts the subscriber name from a Winlogon 805/806 event.
 func findSubscriberName(e *etw.Event) string {
-	// Try known property names for subscriber identification
 	for _, key := range []string{"SubscriberName", "subscriberName", "Name", "name", "Description"} {
 		if v := getEventPropString(e, key); v != "" {
 			return v
 		}
 	}
-	// Fallback: search all property values for known subscriber names
 	knownSubs := []string{"SessionEnv", "Profiles", "GPClient", "TermSrv", "Sens", "TrustedInstaller"}
-	allProps := append(e.EventData, e.UserData...)
+	allProps := make([]etw.EventProperty, 0, len(e.EventData)+len(e.UserData))
+	allProps = append(allProps, e.EventData...)
+	allProps = append(allProps, e.UserData...)
 	for _, prop := range allProps {
 		val := fmt.Sprintf("%v", prop.Value)
 		for _, sub := range knownSubs {

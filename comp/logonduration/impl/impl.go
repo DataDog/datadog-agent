@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/DataDog/gopsutil/host"
@@ -49,6 +50,8 @@ type logonDurationComponent struct {
 	config                 configcomp.Component
 	hostname               hostname.Component
 	eventPlatformForwarder eventplatform.Forwarder
+	wg                     sync.WaitGroup
+	ctxCancel              context.CancelFunc
 }
 
 // NewComponent creates a new logon duration component
@@ -103,7 +106,10 @@ func NewComponent(reqs Requires) Provides {
 
 	reqs.Lc.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {
-			return comp.run()
+			return comp.start()
+		},
+		OnStop: func(_ context.Context) error {
+			return comp.stop()
 		},
 	})
 
@@ -114,11 +120,30 @@ func NewComponent(reqs Requires) Provides {
 	}
 }
 
+func (c *logonDurationComponent) start() error {
+	ctx, cancel := context.WithCancel(context.Background())
+	c.ctxCancel = cancel
+	c.wg.Add(1)
+	go func() {
+		defer c.wg.Done()
+		c.run(ctx)
+	}()
+	return nil
+}
+
+func (c *logonDurationComponent) stop() error {
+	if c.ctxCancel != nil {
+		c.ctxCancel()
+	}
+	c.wg.Wait()
+	return nil
+}
+
 // run executes the one-shot logon duration analysis:
 //  1. Detect if a reboot occurred since last run (via persistent cache).
 //  2. If no reboot, update cache and return.
 //  3. If reboot, parse the ETL file, build a payload, and submit a notable event.
-func (c *logonDurationComponent) run() error {
+func (c *logonDurationComponent) run(ctx context.Context) {
 
 	// Stop the active trace session
 	if err := stopAutologger(autologgerSessionName); err != nil {
@@ -133,28 +158,28 @@ func (c *logonDurationComponent) run() error {
 	rebooted, currentBootTime, err := detectReboot()
 	if err != nil {
 		log.Warnf("Logon duration: failed to detect reboot: %v", err)
-		return nil
+		return
 	}
 
 	if !rebooted {
 		log.Debug("Logon duration: no reboot detected since last run, skipping")
-		return nil
+		return
 	}
 
 	log.Info("Logon duration: reboot detected, analyzing boot trace")
-	etlPath := getETLPath()
-	if etlPath == "" {
-		log.Warn("Logon duration: no ETL path found, skipping analysis")
-		return nil
+	etlPath, err := getETLPath()
+	if err != nil {
+		log.Warnf("Logon duration: failed to get ETL path: %v", err)
+		return
 	}
-	result, err := analyzeETL(etlPath)
+	result, err := analyzeETL(ctx, etlPath)
 	if err != nil {
 		log.Errorf("Logon duration: failed to analyze ETL file: %v", err)
 		// Update cache even on parse failure to avoid retrying the same boot
 		if cacheErr := persistentcache.Write(persistentCacheKey, currentBootTime); cacheErr != nil {
 			log.Warnf("Logon duration: failed to update persistent cache: %v", cacheErr)
 		}
-		return nil
+		return
 	}
 
 	if err := c.submitEvent(result); err != nil {
@@ -166,7 +191,6 @@ func (c *logonDurationComponent) run() error {
 	}
 
 	log.Info("Logon duration: boot analysis complete")
-	return nil
 }
 
 // detectReboot checks whether the system has rebooted since the last agent run
@@ -242,14 +266,20 @@ func buildTimelineMilestones(tl BootTimeline) []Milestone {
 		{"User GP Complete", tl.UserGPEnd},
 	}
 
+	hasBootRef := !boot.IsZero()
+
 	var milestones []Milestone
 	for _, c := range candidates {
 		if c.ts.IsZero() {
 			continue
 		}
+		var offset float64
+		if hasBootRef {
+			offset = c.ts.Sub(boot).Seconds()
+		}
 		milestones = append(milestones, Milestone{
 			Name:      c.name,
-			OffsetS:   c.ts.Sub(boot).Seconds(),
+			OffsetS:   offset,
 			Timestamp: c.ts.UTC().Format(tsFmt),
 		})
 	}
@@ -277,10 +307,10 @@ func buildCustomPayload(tl BootTimeline) map[string]interface{} {
 	if !tl.UserGPStart.IsZero() && !tl.UserGPEnd.IsZero() {
 		durations["User GP Duration (ms)"] = getDurationMilliseconds(tl.UserGPStart, tl.UserGPEnd)
 	}
-	if !tl.ShellStart.IsZero() && !tl.DesktopReady.IsZero() {
+	if !tl.ShellStart.IsZero() && !tl.ShellStarted.IsZero() {
 		durations["Shell Startup Duration (ms)"] = getDurationMilliseconds(tl.ShellStart, tl.ShellStarted)
 	}
-	if !tl.ShellStarted.IsZero() && !tl.DesktopReady.IsZero() {
+	if !tl.ShellStarted.IsZero() && !tl.ExplorerStart.IsZero() {
 		durations["Shell Launch Duration (ms)"] = getDurationMilliseconds(tl.ShellStarted, tl.ExplorerStart)
 	}
 	if !tl.ExplorerStart.IsZero() && !tl.DesktopReady.IsZero() {

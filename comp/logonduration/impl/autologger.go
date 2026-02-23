@@ -9,6 +9,7 @@
 package logondurationimpl
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -33,12 +34,13 @@ func stopAutologger(sessionName string) error {
 	return nil
 }
 
-func getETLPath() string {
+func getETLPath() (string, error) {
 	pd, err := winutil.GetProgramDataDir()
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("getting program data directory: %w", err)
 	}
-	return filepath.Join(pd, "logonduration", etlFileName)
+	fp := filepath.Join(pd, "logonduration", etlFileName)
+	return fp, nil
 }
 
 // toggleAutologger enables or disables the AutoLogger by setting the Start registry value.
@@ -74,10 +76,10 @@ func checkAutologgerExists(sessionName string) (bool, error) {
 	key, err := registry.OpenKey(
 		registry.LOCAL_MACHINE, sessionPath, registry.QUERY_VALUE,
 	)
-	if err == registry.ErrNotExist {
+	if errors.Is(err, registry.ErrNotExist) {
 		return false, nil
 	} else if err != nil {
-		return false, fmt.Errorf("Error opening autologger key '%s': %w", sessionName, err)
+		return false, fmt.Errorf("opening autologger key '%s': %w", sessionName, err)
 	}
 	defer key.Close()
 	return true, nil

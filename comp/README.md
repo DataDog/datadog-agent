@@ -789,6 +789,12 @@ and a list of issues.
 
 Package client implements a component to send process metadata to the Cluster-Agent
 
+### [comp/logonduration](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logonduration)
+
+*Datadog Team*: windows-products
+
+Package logonduration provides a component that monitors the duration of a user logon after boot and forwards them to the Datadog Event Management v2 API.
+
 ### [comp/networkdeviceconfig](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkdeviceconfig)
 
 *Datadog Team*: ndm-integrations

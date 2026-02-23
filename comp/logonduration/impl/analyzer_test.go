@@ -27,12 +27,6 @@ func makeEvent(providerGUID etw.GUID, eventID uint16, ts time.Time, eventData ..
 	return e
 }
 
-func makeEventWithCorrelation(providerGUID etw.GUID, eventID uint16, ts time.Time, activityID string, eventData ...etw.EventProperty) *etw.Event {
-	e := makeEvent(providerGUID, eventID, ts, eventData...)
-	e.System.Correlation.ActivityID = activityID
-	return e
-}
-
 func newCollector() *collector {
 	c := &collector{
 		currentSubs: make(map[string]time.Time),
@@ -452,14 +446,10 @@ func TestParseUserProfile(t *testing.T) {
 func TestParseGroupPolicy(t *testing.T) {
 	ts := time.Date(2026, 1, 15, 8, 0, 12, 0, time.UTC)
 
-	t.Run("event 4000 sets MachineGPStart and tracks activity ID", func(t *testing.T) {
+	t.Run("event 4000 sets MachineGPStart", func(t *testing.T) {
 		coll := newCollector()
-		e := makeEventWithCorrelation(*guidGroupPolicy, 4000, ts, "{abc-123}")
-
-		coll.parseGroupPolicy(e, 4000, ts)
-
+		coll.parseGroupPolicy(makeEvent(*guidGroupPolicy, 4000, ts), 4000, ts)
 		assert.Equal(t, ts, coll.timeline.MachineGPStart)
-		assert.Equal(t, "{abc-123}", coll.machineGPActivity)
 	})
 
 	t.Run("event 8000 sets MachineGPEnd", func(t *testing.T) {
@@ -468,22 +458,18 @@ func TestParseGroupPolicy(t *testing.T) {
 		assert.Equal(t, ts, coll.timeline.MachineGPEnd)
 	})
 
-	t.Run("event 4001 sets UserGPStart and tracks activity ID", func(t *testing.T) {
+	t.Run("event 4001 sets UserGPStart", func(t *testing.T) {
 		coll := newCollector()
-		e := makeEventWithCorrelation(*guidGroupPolicy, 4001, ts, "{def-456}")
-
-		coll.parseGroupPolicy(e, 4001, ts)
-
+		coll.parseGroupPolicy(makeEvent(*guidGroupPolicy, 4001, ts), 4001, ts)
 		assert.Equal(t, ts, coll.timeline.UserGPStart)
-		assert.Equal(t, "{def-456}", coll.userGPActivity)
 	})
 
-	t.Run("event 8001 sets UserGPEnd (last-write-wins)", func(t *testing.T) {
+	t.Run("event 8001 sets UserGPEnd (first-write-wins)", func(t *testing.T) {
 		coll := newCollector()
 		ts2 := ts.Add(5 * time.Second)
 		coll.parseGroupPolicy(makeEvent(*guidGroupPolicy, 8001, ts), 8001, ts)
 		coll.parseGroupPolicy(makeEvent(*guidGroupPolicy, 8001, ts2), 8001, ts2)
-		assert.Equal(t, ts2, coll.timeline.UserGPEnd)
+		assert.Equal(t, ts, coll.timeline.UserGPEnd)
 	})
 
 	t.Run("event 4000 first-write-wins for MachineGPStart", func(t *testing.T) {

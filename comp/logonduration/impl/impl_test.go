@@ -75,6 +75,21 @@ func TestBuildTimelineMilestones(t *testing.T) {
 		assert.Empty(t, milestones)
 	})
 
+	t.Run("zero BootStart produces zero offsets", func(t *testing.T) {
+		tl := BootTimeline{
+			SmssStart:    boot.Add(1 * time.Second),
+			DesktopReady: boot.Add(90 * time.Second),
+		}
+
+		milestones := buildTimelineMilestones(tl)
+
+		require.Len(t, milestones, 2)
+		assert.InDelta(t, 0.0, milestones[0].OffsetS, 0.001)
+		assert.InDelta(t, 0.0, milestones[1].OffsetS, 0.001)
+		assert.NotEmpty(t, milestones[0].Timestamp)
+		assert.NotEmpty(t, milestones[1].Timestamp)
+	})
+
 	t.Run("full timeline includes all milestones in order", func(t *testing.T) {
 		tl := BootTimeline{
 			BootStart:         boot,
