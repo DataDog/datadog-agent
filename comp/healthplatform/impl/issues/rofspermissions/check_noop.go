@@ -13,6 +13,6 @@ import (
 )
 
 // Check if all directories agent could write to are writable by the agent.
-func Check(cfg config.Component) (*healthplatform.IssueReport, error) {
+func Check(config.Component) (*healthplatform.IssueReport, error) {
 	return nil, nil
 }
