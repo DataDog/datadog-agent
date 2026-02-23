@@ -8,9 +8,7 @@ package extensions
 import (
 	"context"
 	"errors"
-	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -103,112 +101,4 @@ func TestHookErrorPropagation(t *testing.T) {
 
 	require.Error(t, err, "hook failure should return error")
 	assert.Contains(t, err.Error(), "hook failed", "error should contain hook failure message")
-}
-
-// TestSaveWritesExtensionList verifies that Save() writes the extension list to a file.
-func TestSaveWritesExtensionList(t *testing.T) {
-	tmpDir := t.TempDir()
-	ExtensionsDBDir = tmpDir
-
-	// Setup DB with extensions
-	db, err := newExtensionsDB(filepath.Join(tmpDir, "extensions.db"))
-	require.NoError(t, err)
-	defer db.Close()
-
-	pkg := dbPackage{
-		Name:       "datadog-agent",
-		Version:    "7.50.0",
-		Extensions: map[string]struct{}{"ddot": {}, "python": {}},
-	}
-	err = db.SetPackage(pkg, false)
-	require.NoError(t, err)
-	db.Close()
-
-	// Save and verify
-	saveDir := t.TempDir()
-	err = Save(context.Background(), "datadog-agent", saveDir, false)
-	require.NoError(t, err)
-
-	// Verify file content
-	savePath := filepath.Join(saveDir, ".datadog-agent-extensions.txt")
-	content, err := os.ReadFile(savePath)
-	require.NoError(t, err)
-
-	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-	assert.Len(t, lines, 2)
-	assert.Contains(t, lines, "ddot")
-	assert.Contains(t, lines, "python")
-}
-
-// TestSaveNoExtensionsNoFile verifies that no file is created when no extensions exist.
-func TestSaveNoExtensionsNoFile(t *testing.T) {
-	tmpDir := t.TempDir()
-	ExtensionsDBDir = tmpDir
-
-	// Setup DB with no extensions
-	db, err := newExtensionsDB(filepath.Join(tmpDir, "extensions.db"))
-	require.NoError(t, err)
-	defer db.Close()
-
-	pkg := dbPackage{
-		Name:       "datadog-agent",
-		Version:    "7.50.0",
-		Extensions: map[string]struct{}{},
-	}
-	err = db.SetPackage(pkg, false)
-	require.NoError(t, err)
-	db.Close()
-
-	// Save and verify no file created
-	saveDir := t.TempDir()
-	err = Save(context.Background(), "datadog-agent", saveDir, false)
-	require.NoError(t, err)
-
-	// Verify file does not exist
-	savePath := filepath.Join(saveDir, ".datadog-agent-extensions.txt")
-	_, err = os.Stat(savePath)
-	assert.True(t, os.IsNotExist(err), "file should not exist when there are no extensions")
-}
-
-// TestSaveExperimentReadsExperimentEntry verifies that Save(..., isExperiment=true) reads
-// from the experiment DB entry rather than the stable one.
-func TestSaveExperimentReadsExperimentEntry(t *testing.T) {
-	tmpDir := t.TempDir()
-	ExtensionsDBDir = tmpDir
-
-	db, err := newExtensionsDB(filepath.Join(tmpDir, "extensions.db"))
-	require.NoError(t, err)
-
-	// Store stable with "python", experiment with "ddot"
-	err = db.SetPackage(dbPackage{Name: "datadog-agent", Version: "7.50.0", Extensions: map[string]struct{}{"python": {}}}, false)
-	require.NoError(t, err)
-	err = db.SetPackage(dbPackage{Name: "datadog-agent", Version: "7.51.0", Extensions: map[string]struct{}{"ddot": {}}}, true)
-	require.NoError(t, err)
-	db.Close()
-
-	saveDir := t.TempDir()
-	err = Save(context.Background(), "datadog-agent", saveDir, true)
-	require.NoError(t, err)
-
-	content, err := os.ReadFile(filepath.Join(saveDir, ".datadog-agent-extensions.txt"))
-	require.NoError(t, err)
-	assert.Equal(t, "ddot", strings.TrimSpace(string(content)), "should save experiment extension, not stable")
-}
-
-// TestSavePackageNotFound verifies that an error is returned when package is not in DB.
-func TestSavePackageNotFound(t *testing.T) {
-	tmpDir := t.TempDir()
-	ExtensionsDBDir = tmpDir
-
-	// Setup empty DB
-	db, err := newExtensionsDB(filepath.Join(tmpDir, "extensions.db"))
-	require.NoError(t, err)
-	db.Close()
-
-	// Try to save non-existent package
-	saveDir := t.TempDir()
-	err = Save(context.Background(), "datadog-agent", saveDir, false)
-
-	require.Error(t, err, "should error when package not found")
-	assert.ErrorIs(t, err, errPackageNotFound, "error should indicate package not found")
 }

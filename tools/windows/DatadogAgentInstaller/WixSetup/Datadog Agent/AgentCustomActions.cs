@@ -724,15 +724,6 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }.SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
-            // Installer package hooks (prerm / postinst)
-            // These call datadog-installer.exe prerm/postinst, mirroring the deb/rpm maintainer
-            // scripts so that the installer can perform install/uninstall work in Go.
-            // Currently used for agent extension save/restore; will be extended for other
-            // installer-managed tasks in the future.
-            // Skipped when FLEET_INSTALL=1 (fleet automation runs its own hooks).
-
-            // Pre-remove hook: runs before the agent is uninstalled or upgraded.
-            // Uses UPGRADINGPRODUCTCODE to determine if this is an upgrade or a full uninstall.
             RunPreRemoveHook = new CustomAction<CustomActions>(
                     new Id(nameof(RunPreRemoveHook)),
                     CustomActions.RunPreRemoveHook,
@@ -754,7 +745,6 @@ namespace WixSetup.Datadog_Agent
                                "DD_INSTALLER_REGISTRY_PASSWORD=[DD_INSTALLER_REGISTRY_PASSWORD]")
                 .HideTarget(true);
 
-            // Post-install hook: runs after the new agent is installed or upgraded
             RunPostInstallHook = new CustomAction<CustomActions>(
                     new Id(nameof(RunPostInstallHook)),
                     CustomActions.RunPostInstallHook,
