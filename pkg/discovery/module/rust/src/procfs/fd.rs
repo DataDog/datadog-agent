@@ -446,18 +446,19 @@ mod tests {
 
         #[test]
         fn returns_empty_when_fdinfo_not_accessible() {
+            let nonexistent_pid = i32::MAX;
             let candidates = vec![
                 FdPath {
-                    fd: "/proc/1234/fd/3".to_string(),
+                    fd: format!("/proc/{}/fd/3", nonexistent_pid),
                     path: PathBuf::from("/var/log/app.log"),
                 },
                 FdPath {
-                    fd: "/proc/1234/fd/5".to_string(),
+                    fd: format!("/proc/{}/fd/5", nonexistent_pid),
                     path: PathBuf::from("/var/log/app.log"),
                 },
             ];
 
-            let result = get_log_files(1234, &candidates);
+            let result = get_log_files(nonexistent_pid, &candidates);
             assert!(result.is_empty());
         }
 
@@ -537,7 +538,7 @@ mod tests {
                 .open(&valid_log)
                 .expect("Failed to reopen valid log");
 
-            let pid = std::process::id() as i32;
+            let pid = std::process::id().cast_signed();
 
             let open_files_info = get_open_files_info(pid).expect("Failed to collect open files");
 

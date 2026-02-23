@@ -42,6 +42,7 @@ type FakePodAutoscalerInternal struct {
 	HorizontalRecommendationsRetention time.Duration
 	VerticalLastAction                 *datadoghqcommon.DatadogPodAutoscalerVerticalAction
 	VerticalLastActionError            error
+	VerticalLastLimitReason            error
 	CurrentReplicas                    *int32
 	ScaledReplicas                     *int32
 	Error                              error
@@ -70,6 +71,7 @@ func (f FakePodAutoscalerInternal) Build() PodAutoscalerInternal {
 		horizontalRecommendationsRetention: f.HorizontalRecommendationsRetention,
 		verticalLastAction:                 f.VerticalLastAction,
 		verticalLastActionError:            f.VerticalLastActionError,
+		verticalLastLimitReason:            f.VerticalLastLimitReason,
 		currentReplicas:                    f.CurrentReplicas,
 		scaledReplicas:                     f.ScaledReplicas,
 		error:                              f.Error,

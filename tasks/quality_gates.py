@@ -3,21 +3,21 @@ import random
 import re
 import traceback
 import typing
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks.git import get_ancestor
 from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import query_metrics
 from tasks.libs.common.git import (
     create_tree,
-    get_ancestor_base_branch,
     get_commit_sha,
-    get_common_ancestor,
     is_a_release_branch,
 )
 from tasks.libs.common.utils import running_in_ci
@@ -745,33 +745,27 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     # Calculate relative sizes (delta from ancestor) before sending metrics
     # This is done for all branches to include delta metrics in Datadog
     # Use get_ancestor_base_branch to correctly handle PRs targeting release branches
-    base_branch = get_ancestor_base_branch(branch)
-    # get_common_ancestor is supposed to fetch this but it doesn't, so we do it here explicitly
-    ctx.run(f"git fetch origin {branch.removeprefix('origin/')}", hide=True)
-    ctx.run(f"git fetch origin {base_branch.removeprefix('origin/')}", hide=True)
-    ancestor = get_common_ancestor(ctx, "HEAD", base_branch)
+    ancestor = get_ancestor(ctx, branch)
     current_commit = get_commit_sha(ctx)
-    # When on main/release branch, get_common_ancestor returns HEAD itself since merge-base of HEAD and origin/<branch>
-    # is the current commit. In this case, use the parent commit as the ancestor instead.
-    if ancestor == current_commit:
-        ancestor = get_commit_sha(ctx, commit="HEAD~1")
-        print(color_message(f"On main branch, using parent commit {ancestor} as ancestor", "cyan"))
+    is_on_main_branch = ancestor == current_commit
     metric_handler.generate_relative_size(ancestor=ancestor)
 
     # Post-process gate failures: mark as non-blocking if delta <= 0
-    # This means the size issue existed before this PR and wasn't introduced by current changes
-    for gate_state in gate_states:
-        if gate_state["state"] is False and gate_state.get("blocking", True):
-            # Only StaticQualityGateFailed errors are eligible for bypass (not StackTrace errors)
-            if gate_state["error_type"] == "StaticQualityGateFailed":
-                if should_bypass_failure(gate_state["name"], metric_handler):
-                    gate_state["blocking"] = False
-                    print(
-                        color_message(
-                            f"Gate {gate_state['name']} failure is non-blocking (size unchanged from ancestor)",
-                            "orange",
+    # This tolerance only applies to PRs - on main branch, failures should always block unconditionally
+    # This means on PRs, the size issue existed before this PR and wasn't introduced by current changes
+    if not is_on_main_branch:
+        for gate_state in gate_states:
+            if gate_state["state"] is False and gate_state.get("blocking", True):
+                # Only StaticQualityGateFailed errors are eligible for bypass (not StackTrace errors)
+                if gate_state["error_type"] == "StaticQualityGateFailed":
+                    if should_bypass_failure(gate_state["name"], metric_handler):
+                        gate_state["blocking"] = False
+                        print(
+                            color_message(
+                                f"Gate {gate_state['name']} failure is non-blocking (size unchanged from ancestor)",
+                                "orange",
+                            )
                         )
-                    )
 
     # Reporting part
     # Send metrics to Datadog (now includes delta metrics)
@@ -1027,6 +1021,7 @@ def measure_package_local(
     output_path=None,
     build_job_name="local_test",
     debug=False,
+    filter: Callable[[str], bool] = None,
 ):
     """
     Run the in-place package measurer locally for testing and development.
@@ -1053,6 +1048,7 @@ def measure_package_local(
         output_path=output_path,
         build_job_name=build_job_name,
         debug=debug,
+        filter=filter,
     )
 
 

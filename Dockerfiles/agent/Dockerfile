@@ -191,11 +191,14 @@ COPY --from=extract /output/ /
 
 # Prepare for running without root
 # - Create a dd-agent:root user and give it permissions on relevant folders
+# - Create a dd-scriptuser for the script action of the private action runner and give access from dd-agent
 # - Remove the /var/run -> /run symlink and create a legit /var/run folder
 # as some docker versions re-create /run from zero at container start
 RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agent \
   && addgroup --system secret-manager \
   && usermod -a -G secret-manager dd-agent \
+  && adduser --system --no-create-home --disabled-password dd-scriptuser --shell /bin/sh \
+  && sed -i '/@include common-auth/i auth sufficient pam_succeed_if.so user = dd-scriptuser ruser = dd-agent' /etc/pam.d/su \
   && rm /var/run && mkdir -p /var/run/s6 && mkdir -p /var/run/datadog && mkdir -p /opt/datadog-agent/run \
   && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
   && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \

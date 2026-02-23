@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 )
 
 func (pc *ProcessCacheEntry) setAncestor(parent *ProcessCacheEntry) {
@@ -96,8 +95,8 @@ func (pc *ProcessCacheEntry) copyAUIDFrom(parent *ProcessCacheEntry) {
 }
 
 func (pc *ProcessCacheEntry) copySSHUserSessionFrom(parent *ProcessCacheEntry) {
-	if parent.UserSession.SSHSessionID != 0 && parent.UserSession.SessionType == int(usersession.UserSessionTypeSSH) {
-		pc.UserSession = parent.UserSession
+	if parent.ProcessContext.UserSession.SSHSessionID != 0 {
+		pc.UserSession.SSHSessionContext = parent.UserSession.SSHSessionContext
 	}
 }
 

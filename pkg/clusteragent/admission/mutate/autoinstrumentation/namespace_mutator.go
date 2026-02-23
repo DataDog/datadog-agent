@@ -107,6 +107,7 @@ func (m *mutatorCore) apmInjectionMutator(config extractedPodLibInfo, autoDetect
 			InitSecurityContext:         m.config.initSecurityContext,
 			ContainerFilter:             m.config.containerFilter,
 			Wmeta:                       m.wmeta,
+			KubeServerVersion:           m.config.kubeServerVersion,
 			Debug:                       m.isDebugEnabled(pod),
 			AutoDetected:                autoDetected,
 			InjectionType:               injectionType,

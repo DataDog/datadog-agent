@@ -14,16 +14,17 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
@@ -38,7 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type pendingProfile struct {
@@ -355,7 +355,7 @@ func (m *ManagerV2) sendPersistenceMetrics(request config.StorageRequest, dataSi
 	tags := []string{
 		"format:" + request.Format.String(),
 		"storage_type:" + request.Type.String(),
-		fmt.Sprintf("compression:%v", request.Compression),
+		"compression:" + strconv.FormatBool(request.Compression),
 	}
 
 	if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2SizeInBytes, int64(dataSize), tags, 1.0); err != nil {
