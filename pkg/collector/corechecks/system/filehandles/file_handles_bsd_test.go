@@ -7,7 +7,11 @@
 package filehandles
 
 import (
+	"fmt"
 	"testing"
+
+	"github.com/blabber/go-freebsd-sysctl/sysctl"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -42,4 +46,45 @@ func TestFhCheckFreeBSD(t *testing.T) {
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Gauge", 2)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
+}
+
+func TestFhCheckOpenFilesError(t *testing.T) {
+	callCount := 0
+	getInt64 = func(oid string) (int64, error) {
+		callCount++
+		if oid == openfilesOID {
+			return 0, fmt.Errorf("sysctl error")
+		}
+		return 100, nil
+	}
+	defer func() { getInt64 = sysctl.GetInt64 }()
+
+	fileHandleCheck := new(fhCheck)
+	mock := mocksender.NewMockSender(fileHandleCheck.ID())
+	fileHandleCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	mocksender.SetSender(mock, fileHandleCheck.ID())
+
+	err := fileHandleCheck.Run()
+	assert.Error(t, err)
+	mock.AssertNotCalled(t, "Gauge")
+	mock.AssertNotCalled(t, "Commit")
+}
+
+func TestFhCheckMaxFilesError(t *testing.T) {
+	getInt64 = func(oid string) (int64, error) {
+		if oid == "kern.maxfiles" {
+			return 0, fmt.Errorf("sysctl error")
+		}
+		return 65534, nil
+	}
+	defer func() { getInt64 = sysctl.GetInt64 }()
+
+	fileHandleCheck := new(fhCheck)
+	mock := mocksender.NewMockSender(fileHandleCheck.ID())
+	fileHandleCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	mocksender.SetSender(mock, fileHandleCheck.ID())
+
+	err := fileHandleCheck.Run()
+	assert.Error(t, err)
+	mock.AssertNotCalled(t, "Commit")
 }

@@ -6,10 +6,12 @@
 package util
 
 import (
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
-	"github.com/stretchr/testify/assert"
 	"reflect"
 	"testing"
+
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetNamespacedBaseOwnerReference(t *testing.T) {
@@ -56,4 +58,53 @@ func TestGetNamespacedBaseOwnerReference(t *testing.T) {
 		})
 	}
 
+}
+
+func TestGetGVR(t *testing.T) {
+	t.Run("valid deployment", func(t *testing.T) {
+		ref := &NamespacedOwnerReference{
+			APIVersion: "apps/v1",
+			Kind:       "Deployment",
+			Name:       "my-deploy",
+			Namespace:  "default",
+		}
+		gvr, err := GetGVR(ref)
+		require.NoError(t, err)
+		assert.Equal(t, "apps", gvr.Group)
+		assert.Equal(t, "v1", gvr.Version)
+		assert.Equal(t, "deployments", gvr.Resource)
+	})
+
+	t.Run("valid statefulset", func(t *testing.T) {
+		ref := &NamespacedOwnerReference{
+			APIVersion: "apps/v1",
+			Kind:       "StatefulSet",
+			Name:       "my-sts",
+			Namespace:  "default",
+		}
+		gvr, err := GetGVR(ref)
+		require.NoError(t, err)
+		assert.Equal(t, "apps", gvr.Group)
+		assert.Equal(t, "v1", gvr.Version)
+		assert.Equal(t, "statefulsets", gvr.Resource)
+	})
+
+	t.Run("invalid api version", func(t *testing.T) {
+		ref := &NamespacedOwnerReference{
+			APIVersion: "///invalid",
+			Kind:       "Deployment",
+			Name:       "my-deploy",
+			Namespace:  "default",
+		}
+		_, err := GetGVR(ref)
+		assert.Error(t, err)
+	})
+}
+
+func TestNewNamespacedOwnerReference(t *testing.T) {
+	ref := NewNamespacedOwnerReference("apps/v1", "Deployment", "my-deploy", "prod")
+	assert.Equal(t, "apps/v1", ref.APIVersion)
+	assert.Equal(t, "Deployment", ref.Kind)
+	assert.Equal(t, "my-deploy", ref.Name)
+	assert.Equal(t, "prod", ref.Namespace)
 }

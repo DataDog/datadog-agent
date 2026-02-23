@@ -8,14 +8,33 @@ package collector
 import (
 	"bytes"
 	"encoding/json"
+	"expvar"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestPopulateStatus(t *testing.T) {
+	// Ensure CheckScheduler expvar exists so PopulateStatus doesn't panic
+	expvar.NewString("CheckScheduler")
+
+	stats := make(map[string]interface{})
+	PopulateStatus(stats)
+
+	// Should always set pyLoaderStats (nil or map)
+	assert.Contains(t, stats, "pyLoaderStats")
+	// Should always set pythonInit (nil or map)
+	assert.Contains(t, stats, "pythonInit")
+	// Should always set inventories
+	assert.Contains(t, stats, "inventories")
+	// Should always set checkSchedulerStats
+	assert.Contains(t, stats, "checkSchedulerStats")
+}
 
 func TestRender(t *testing.T) {
 	// We're checking that some dates are correctly formatted in the HTML

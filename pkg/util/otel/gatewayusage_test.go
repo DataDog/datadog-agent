@@ -31,3 +31,27 @@ func TestGatewayUsage_EnvVar(t *testing.T) {
 	require.EqualValuesf(t, 1.0, gaude, "Exected 1 value")
 	require.True(t, enable)
 }
+
+func TestDisabledGatewayUsage(t *testing.T) {
+	g := NewDisabledGatewayUsage()
+	gauge, enabled := g.Gauge()
+	require.EqualValues(t, 0, gauge)
+	require.False(t, enabled)
+
+	require.Nil(t, g.GetHostFromAttributesHandler())
+	require.EqualValues(t, 0, g.EnvVarValue())
+}
+
+func TestGetHostFromAttributesHandler(t *testing.T) {
+	g := NewGatewayUsage(false)
+	handler := g.GetHostFromAttributesHandler()
+	require.NotNil(t, handler)
+}
+
+func TestEnvVarValue(t *testing.T) {
+	g := NewGatewayUsage(false)
+	require.EqualValues(t, 0, g.EnvVarValue())
+
+	g = NewGatewayUsage(true)
+	require.EqualValues(t, 1, g.EnvVarValue())
+}

@@ -6,10 +6,14 @@
 package uptime
 
 import (
+	"fmt"
+	"testing"
+
+	"github.com/shirou/gopsutil/v4/host"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/shirou/gopsutil/v4/host"
-	"testing"
 )
 
 func uptimeSampler() (uint64, error) {
@@ -40,4 +44,24 @@ func TestUptimeCheckLinux(t *testing.T) {
 	mockSender.AssertExpectations(t)
 	mockSender.AssertNumberOfCalls(t, "Gauge", 1)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
+}
+
+func TestUptimeCheckErrorPath(t *testing.T) {
+	uptime = func() (uint64, error) {
+		return 0, fmt.Errorf("uptime unavailable")
+	}
+	defer func() { uptime = host.Uptime }()
+
+	uptimeCheck := new(Check)
+	mock := mocksender.NewMockSender(uptimeCheck.ID())
+	mock.On("FinalizeCheckServiceTag").Return()
+	uptimeCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	mocksender.SetSender(mock, uptimeCheck.ID())
+
+	err := uptimeCheck.Run()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "uptime unavailable")
+	// Gauge should NOT be called when uptime retrieval fails
+	mock.AssertNotCalled(t, "Gauge")
+	mock.AssertNotCalled(t, "Commit")
 }
