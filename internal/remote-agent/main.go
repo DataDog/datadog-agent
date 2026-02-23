@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
@@ -120,10 +121,10 @@ func newRemoteAgentServer() *remoteAgentServer {
 }
 
 // registerWithAgent handles the registration logic with the Core Agent
-func registerWithAgent(agentIpcAddress, agentAuthToken, agentFlavor, displayName, listenAddr string, refreshTicker *time.Ticker) (string, pbcore.AgentSecureClient, error) {
+func registerWithAgent(agentIpcAddress, agentAuthToken, agentFlavor, displayName, listenAddr string, clientTLSConfig *tls.Config, refreshTicker *time.Ticker) (string, pbcore.AgentSecureClient, error) {
 	log.Println("Session ID is empty, entering registration loop")
 
-	agentClient, err := newAgentSecureClient(agentIpcAddress, agentAuthToken)
+	agentClient, err := newAgentSecureClient(agentIpcAddress, agentAuthToken, clientTLSConfig)
 	if err != nil {
 		log.Printf("failed to create agent client: %v", err)
 		return "", nil, err
@@ -198,10 +199,14 @@ func main() {
 
 	agentAuthToken := string(rawAgentAuthToken)
 
-	// Read the IPC certificate from the agent
+	// Read the IPC certificate from the agent (for our gRPC server and for client connection to agent IPC)
 	tlsCert, err := getAgentCert(agentIPCCertFilePath)
 	if err != nil {
 		log.Fatalf("failed to get agent IPC cert: %v", err)
+	}
+	clientTLSConfig, err := cert.LoadIPCClientTLSConfigFromFile(agentIPCCertFilePath)
+	if err != nil {
+		log.Fatalf("failed to load IPC client TLS config: %v", err)
 	}
 
 	// Build and spawn our gRPC server.
@@ -217,7 +222,7 @@ func main() {
 	for range refreshTicker.C {
 		if sessionID == "" {
 			var err error
-			sessionID, agentClient, err = registerWithAgent(agentIpcAddress, agentAuthToken, agentFlavor, displayName, listenAddr, refreshTicker)
+			sessionID, agentClient, err = registerWithAgent(agentIpcAddress, agentAuthToken, agentFlavor, displayName, listenAddr, clientTLSConfig, refreshTicker)
 			if err != nil {
 				continue
 			}
@@ -299,10 +304,8 @@ func buildAndSpawnGrpcServer(listenAddr string, server *remoteAgentServer, authT
 	return nil
 }
 
-func newAgentSecureClient(ipcAddress string, agentAuthToken string) (pbcore.AgentSecureClient, error) {
-	tlsCreds := credentials.NewTLS(&tls.Config{
-		InsecureSkipVerify: true,
-	})
+func newAgentSecureClient(ipcAddress string, agentAuthToken string, tlsConfig *tls.Config) (pbcore.AgentSecureClient, error) {
+	tlsCreds := credentials.NewTLS(tlsConfig)
 
 	conn, err := grpc.NewClient(ipcAddress,
 		grpc.WithTransportCredentials(tlsCreds),

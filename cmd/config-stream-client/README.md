@@ -34,31 +34,41 @@ go build -o bin/config-stream-client ./cmd/config-stream-client
 
 1. **Running core-agent** with config stream enabled (enabled by default)
 2. **Auth token** from the agent's runtime directory
+3. **IPC certificate file** – PEM file containing the agent's IPC cert and private key (used for mTLS). The agent creates this on first run; use the same path as the agent (e.g. next to `auth_token` or as set by `ipc_cert_file_path` in `datadog.yaml`).
 
 ```bash
+# Example: copy auth token and IPC cert from agent dist (after agent has run at least once)
 chmod 777 bin/agent/dist/auth_token
 cp bin/agent/dist/auth_token /etc/datadog-agent/auth_token
+cp bin/agent/dist/ipc_cert.pem /etc/datadog-agent/ipc_cert.pem
 ```
 
 ### Running the Client
 
 ```bash
-# Basic usage (reads auth_token from current directory)
+# Basic usage (reads auth_token and ipc_cert.pem from current directory)
 ./bin/config-stream-client
 
-# Specify options explicitly
+# From repo root with agent dist (after agent has run at least once):
 ./bin/config-stream-client \
   --ipc-address localhost:5001 \
-  --auth-token $(cat /etc/datadog-agent/auth_token) \
+  --ipc-cert bin/agent/dist/ipc_cert.pem \
+  --auth-token $(cat bin/agent/dist/auth_token) \
   --name my-test-client \
   --duration 60s
+
+# Or run from bin/agent/dist so defaults work:
+# cd bin/agent/dist && ../../config-stream-client
 ```
+
+For a production-style path (e.g. `/etc/datadog-agent/`), use `--ipc-cert` and `--auth-token` with those paths after copying the files as in Prerequisites.
 
 ### Command-Line Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--ipc-address` | `localhost:5001` | IPC server address |
+| `--ipc-cert` | `./ipc_cert.pem` | Path to IPC certificate file (PEM with cert and key) for mTLS |
 | `--auth-token` | (from file) | Auth token for authentication |
 | `--name` | `test-client` | Client name for subscription |
 | `--duration` | `30s` | How long to listen for events |
@@ -141,6 +151,7 @@ When a config update is successfully triggered, you should see output in your st
 - **"Setting not found"**: The setting name might not be registered for runtime changes. Use `agent config list-runtime` to see available settings
 - **"No update received"**: Verify the setting change was successful and that the configstream component is enabled
 - **"Connection refused"**: Make sure the agent is running and the IPC server is accessible
+- **"Failed to load IPC client cert"**: Provide a valid IPC cert file via `--ipc-cert`; use the same PEM file the agent uses (see Prerequisites)
 
 The test client should immediately receive an update event.
 
@@ -157,6 +168,19 @@ Failed to subscribe: rpc error: code = Unavailable desc = connection error
 1. Verify core-agent is running
 2. Check IPC server is listening: `netstat -an | grep 5001`
 3. Verify address matches: `--ipc-address localhost:5001`
+
+### IPC Certificate / mTLS
+
+**Symptoms:**
+```
+Failed to load IPC client cert from ...: reading IPC cert file: no such file or directory
+```
+or handshake / certificate errors when connecting.
+
+**Solution:**
+1. Use the same IPC cert file the core-agent uses (created on first agent run).
+2. Default path is `./ipc_cert.pem`; copy from agent dist, e.g. `bin/agent/dist/ipc_cert.pem`, or set `--ipc-cert` to the path from the agent's `ipc_cert_file_path` (or next to `auth_token`).
+3. The file must be PEM with a CERTIFICATE block followed by an EC PRIVATE KEY or PRIVATE KEY block.
 
 ### Authentication Failed
 

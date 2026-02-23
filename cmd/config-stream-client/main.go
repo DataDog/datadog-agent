@@ -8,7 +8,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"flag"
 	"fmt"
 	"os"
@@ -20,12 +19,14 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/structpb"
 
+	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
 func main() {
 	ipcAddress := flag.String("ipc-address", "localhost:5001", "IPC server address")
+	ipcCertPath := flag.String("ipc-cert", "./ipc_cert.pem", "Path to IPC certificate file (PEM with cert and key) for mTLS")
 	authToken := flag.String("auth-token", "", "Auth token (reads from auth_token file if not provided)")
 	clientName := flag.String("name", "test-client", "Client name for subscription")
 	duration := flag.Duration("duration", 30*time.Second, "How long to listen for config events")
@@ -44,15 +45,19 @@ func main() {
 		token = string(tokenBytes)
 	}
 
+	tlsConfig, err := cert.LoadIPCClientTLSConfigFromFile(*ipcCertPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load IPC client cert from %s: %v\n", *ipcCertPath, err)
+		os.Exit(1)
+	}
+
 	fmt.Printf("Config Stream Test Client\n")
 	fmt.Printf("=========================\n")
 	fmt.Printf("IPC Address: %s\n", *ipcAddress)
 	fmt.Printf("Client Name: %s\n", *clientName)
 	fmt.Printf("Duration: %v\n\n", *duration)
 
-	tlsCreds := credentials.NewTLS(&tls.Config{
-		InsecureSkipVerify: true, // For testing only
-	})
+	tlsCreds := credentials.NewTLS(tlsConfig)
 
 	conn, err := grpc.NewClient(*ipcAddress,
 		grpc.WithTransportCredentials(tlsCreds),

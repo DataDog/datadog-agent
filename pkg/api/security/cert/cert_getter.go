@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"path/filepath"
 
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -150,11 +151,37 @@ func GetTLSConfigFromCert(ipccert, ipckey []byte) (*tls.Config, *tls.Config, err
 
 	serverTLSConfig := &tls.Config{
 		Certificates: []tls.Certificate{tlsCert},
-		// The server parses the client certificate but does not make any verification, this is useful for telemetry
-		ClientAuth: tls.RequestClientCert,
-		// The server will accept any client certificate signed by the IPC CA
+		// Strict mTLS: require and verify client certificate (e.g. for RAR, config stream).
+		ClientAuth: tls.RequireAndVerifyClientCert,
+		// The server accepts only client certificates signed by the IPC CA.
 		ClientCAs: certPool,
 	}
 
 	return clientTLSConfig, serverTLSConfig, nil
+}
+
+// LoadIPCClientTLSConfigFromFile reads an IPC cert file (PEM with certificate and private key)
+// and returns a TLS config suitable for use as an mTLS client (e.g. config-stream-client,
+// remote-agent) connecting to the agent IPC. The file must contain a CERTIFICATE block
+// followed by an EC PRIVATE KEY or PRIVATE KEY block.
+func LoadIPCClientTLSConfigFromFile(filePath string) (*tls.Config, error) {
+	raw, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("reading IPC cert file: %w", err)
+	}
+	block, rest := pem.Decode(raw)
+	if block == nil || block.Type != "CERTIFICATE" {
+		return nil, errors.New("IPC cert file: missing or invalid CERTIFICATE PEM block")
+	}
+	certPEM := pem.EncodeToMemory(block)
+	block, _ = pem.Decode(rest)
+	if block == nil || (block.Type != "EC PRIVATE KEY" && block.Type != "PRIVATE KEY") {
+		return nil, errors.New("IPC cert file: missing or invalid private key PEM block")
+	}
+	keyPEM := pem.EncodeToMemory(block)
+	clientConfig, _, err := GetTLSConfigFromCert(certPEM, keyPEM)
+	if err != nil {
+		return nil, err
+	}
+	return clientConfig, nil
 }

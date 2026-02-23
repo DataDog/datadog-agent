@@ -540,3 +540,48 @@ func TestFetchOrCreateIPCCert_ClusterAgentFlavor(t *testing.T) {
 	require.NoError(t, err, "Certificate should be verifiable against the provided CA")
 	require.Len(t, chains, 1)
 }
+
+func TestLoadIPCClientTLSConfigFromFile(t *testing.T) {
+	tempDir := t.TempDir()
+	certPath := filepath.Join(tempDir, "ipc.pem")
+
+	// Use existing test PEM (cert then key) as valid IPC cert file
+	content := append(append([]byte(nil), clusterCAcert...), clusterCAkey...)
+	err := os.WriteFile(certPath, content, 0600)
+	require.NoError(t, err)
+
+	cfg, err := LoadIPCClientTLSConfigFromFile(certPath)
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	require.NotNil(t, cfg.RootCAs, "client config should have RootCAs for server verification")
+	require.Len(t, cfg.Certificates, 1, "client config should have one client certificate")
+}
+
+func TestLoadIPCClientTLSConfigFromFile_Errors(t *testing.T) {
+	tempDir := t.TempDir()
+
+	t.Run("missing file", func(t *testing.T) {
+		cfg, err := LoadIPCClientTLSConfigFromFile(filepath.Join(tempDir, "nonexistent.pem"))
+		require.Error(t, err)
+		assert.Nil(t, cfg)
+		assert.Contains(t, err.Error(), "reading IPC cert file")
+	})
+
+	t.Run("invalid PEM no certificate", func(t *testing.T) {
+		path := filepath.Join(tempDir, "bad.pem")
+		require.NoError(t, os.WriteFile(path, []byte("not a cert"), 0600))
+		cfg, err := LoadIPCClientTLSConfigFromFile(path)
+		require.Error(t, err)
+		assert.Nil(t, cfg)
+		assert.Contains(t, err.Error(), "CERTIFICATE")
+	})
+
+	t.Run("invalid PEM cert only no key", func(t *testing.T) {
+		path := filepath.Join(tempDir, "cert_only.pem")
+		require.NoError(t, os.WriteFile(path, clusterCAcert, 0600))
+		cfg, err := LoadIPCClientTLSConfigFromFile(path)
+		require.Error(t, err)
+		assert.Nil(t, cfg)
+		assert.Contains(t, err.Error(), "private key")
+	})
+}
