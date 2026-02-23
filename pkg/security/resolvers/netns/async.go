@@ -43,48 +43,15 @@ type TcClassifierRequest struct {
 	Device      model.NetDevice
 }
 
-type tcDeviceKey struct {
-	NetNS   uint32
-	IfIndex uint32
-}
-
-func tcDeviceKeyFromDevice(device model.NetDevice) tcDeviceKey {
-	return tcDeviceKey{
-		NetNS:   device.NetNS,
-		IfIndex: device.IfIndex,
-	}
-}
-
-// CancelTCClassifierRequestsForDevice marks pending TC classifier requests for the given device as inactive.
-// The async worker will skip any queued requests whose device key is not active anymore.
-func (tcr *Resolver) CancelTCClassifierRequestsForDevice(device model.NetDevice) {
-	key := tcDeviceKeyFromDevice(device)
-
-	tcr.tcRequestsMu.Lock()
-	delete(tcr.tcRequestsActive, key)
-	tcr.tcRequestsMu.Unlock()
-}
-
+// PushNewTCClassifierRequest queues a TC classifier setup request for async processing.
 func (tcr *Resolver) PushNewTCClassifierRequest(request TcClassifierRequest) {
-	key := tcDeviceKeyFromDevice(request.Device)
-
-	tcr.tcRequestsMu.Lock()
-	tcr.tcRequestsActive[key] = true
-	tcr.tcRequestsMu.Unlock()
-
 	select {
 	case <-tcr.ctx.Done():
 		// the probe is stopping, do not push the new tc classifier request
-		tcr.tcRequestsMu.Lock()
-		delete(tcr.tcRequestsActive, key)
-		tcr.tcRequestsMu.Unlock()
 		return
 	case tcr.tcRequests <- request:
 		// do nothing
 	default:
-		tcr.tcRequestsMu.Lock()
-		delete(tcr.tcRequestsActive, key)
-		tcr.tcRequestsMu.Unlock()
 		seclog.Errorf("failed to slot new tc classifier request: %+v", request)
 	}
 }
@@ -97,17 +64,6 @@ func (tcr *Resolver) startSetupNewTCClassifierLoop() {
 		case request, ok := <-tcr.tcRequests:
 			if !ok {
 				return
-			}
-
-			key := tcDeviceKeyFromDevice(request.Device)
-
-			tcr.tcRequestsMu.Lock()
-			active := tcr.tcRequestsActive[key]
-			tcr.tcRequestsMu.Unlock()
-
-			if !active {
-				// request was canceled while it was waiting in the queue
-				continue
 			}
 
 			if err := tcr.setupNewTCClassifier(request.Device); err != nil {
@@ -127,18 +83,6 @@ func (tcr *Resolver) startSetupNewTCClassifierLoop() {
 				} else {
 					seclog.Errorf("error setting up new tc classifier on %+v: %v", request.Device, err)
 				}
-
-				// clean up the active tracking entry on non-queued errors
-				if !errors.As(err, &qnde) {
-					tcr.tcRequestsMu.Lock()
-					delete(tcr.tcRequestsActive, key)
-					tcr.tcRequestsMu.Unlock()
-				}
-			} else {
-				// clean up the active tracking entry on success
-				tcr.tcRequestsMu.Lock()
-				delete(tcr.tcRequestsActive, key)
-				tcr.tcRequestsMu.Unlock()
 			}
 		}
 	}

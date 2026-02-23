@@ -47,8 +47,6 @@ type Resolver struct {
 
 	networkNamespaces *simplelru.LRU[uint32, *NetworkNamespace]
 	tcRequests        chan TcClassifierRequest
-	tcRequestsMu      sync.Mutex
-	tcRequestsActive  map[tcDeviceKey]bool
 	ctx               context.Context
 	wg                sync.WaitGroup
 }
@@ -56,13 +54,12 @@ type Resolver struct {
 // NewResolver returns a new instance of Resolver
 func NewResolver(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, tcResolver *tc.Resolver) (*Resolver, error) {
 	nr := &Resolver{
-		client:           statsdClient,
-		config:           config,
-		manager:          manager,
-		tcResolver:       tcResolver,
-		tcRequests:       make(chan TcClassifierRequest, 16),
-		tcRequestsActive: make(map[tcDeviceKey]bool),
-		ctx:              context.Background(),
+		client:     statsdClient,
+		config:     config,
+		manager:    manager,
+		tcResolver: tcResolver,
+		tcRequests: make(chan TcClassifierRequest, 16),
+		ctx:        context.Background(),
 	}
 
 	lru, err := simplelru.NewLRU(1024, func(_ uint32, value *NetworkNamespace) {
