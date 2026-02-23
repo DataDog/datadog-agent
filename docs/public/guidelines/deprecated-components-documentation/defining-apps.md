@@ -121,7 +121,7 @@ cmd := cobra.Command{
     RunE: func(cmd *cobra.Command, args []string) error {
         return fxutil.OneShot(run,
             fx.Supply(core.BundleParams{}),
-            core.Bundle(core.WithSecrets()),
+            core.Bundle(),
             ..., // any other bundles needed for this app
         )
     },
