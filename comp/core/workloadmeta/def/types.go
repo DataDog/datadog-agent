@@ -1574,7 +1574,31 @@ func (i *ContainerImageMetadata) Merge(e Entity) error {
 		return fmt.Errorf("cannot merge ContainerImageMetadata with different kind %T", e)
 	}
 
-	return merge(i, otherImage)
+	// Save SBOM pointers before the generic merge to prevent mergo from
+	// concatenating the compressed Bom []byte fields across sources. Two
+	// gzip-encoded protobufs appended byte-for-byte form a valid multistream
+	// gzip that decodes to a concatenated protobuf, which duplicates all
+	// repeated Components.  We apply our own "prefer dst if non-nil" rule
+	// instead: the remote SBOM collector (alphabetically first) always
+	// produces an already-enriched SBOM that supersedes the raw Trivy SBOM.
+	dstSBOM := i.SBOM
+	srcSBOM := otherImage.SBOM
+
+	// Shallow-copy src with SBOM cleared so the generic merge skips it.
+	otherImageCopy := *otherImage
+	otherImageCopy.SBOM = nil
+	i.SBOM = nil
+
+	err := merge(i, &otherImageCopy)
+
+	// Restore SBOM: keep dst's enriched SBOM when available, else fall back to src.
+	if dstSBOM != nil {
+		i.SBOM = dstSBOM
+	} else {
+		i.SBOM = srcSBOM
+	}
+
+	return err
 }
 
 // DeepCopy implements Entity#DeepCopy.

@@ -107,8 +107,8 @@ func TestParseAPKDatabaseEmpty(t *testing.T) {
 
 func TestParseAPKVersion(t *testing.T) {
 	tests := []struct {
-		input          string
-		expectedEpoch  int
+		input           string
+		expectedEpoch   int
 		expectedVersion string
 		expectedRelease string
 	}{

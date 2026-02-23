@@ -651,12 +651,12 @@ func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportP
 }
 
 type policyDump struct {
-	Name         string                    `json:"name"`
-	Source       string                    `json:"source"`
-	Version      string                    `json:"version,omitempty"`
-	InternalType string                    `json:"internal_type,omitempty"`
-	Macros       []*rules.MacroDefinition  `json:"macros,omitempty"`
-	Rules        []*rules.RuleDefinition   `json:"rules,omitempty"`
+	Name         string                   `json:"name"`
+	Source       string                   `json:"source"`
+	Version      string                   `json:"version,omitempty"`
+	InternalType string                   `json:"internal_type,omitempty"`
+	Macros       []*rules.MacroDefinition `json:"macros,omitempty"`
+	Rules        []*rules.RuleDefinition  `json:"rules,omitempty"`
 }
 
 // GetLoadedPolicies returns the currently loaded policies as JSON
@@ -684,12 +684,8 @@ func (a *APIServer) GetLoadedPolicies(_ context.Context, params *api.GetLoadedPo
 		}
 
 		if policy.Def != nil {
-			for _, macro := range policy.Def.Macros {
-				dump.Macros = append(dump.Macros, macro)
-			}
-			for _, rule := range policy.Def.Rules {
-				dump.Rules = append(dump.Rules, rule)
-			}
+			dump.Macros = append(dump.Macros, policy.Def.Macros...)
+			dump.Rules = append(dump.Rules, policy.Def.Rules...)
 		}
 
 		dumps = append(dumps, dump)
