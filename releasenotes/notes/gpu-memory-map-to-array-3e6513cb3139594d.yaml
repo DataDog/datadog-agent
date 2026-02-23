@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    GPU monitoring: Replace map with fixed-size array for GPU memory usage
+    tracking, reducing CPU overhead when monitoring CUDA kernels.
