@@ -124,7 +124,7 @@
 /.gitlab/build/source_test/kmt_tasks.yml                   @DataDog/ebpf-platform
 
 /.gitlab/build/binary_build/cluster_agent_cloudfoundry.yml @DataDog/agent-integrations @DataDog/agent-build
-/.gitlab/build/binary_build/cluster_agent.yml              @DataDog/container-integrations @DataDog/agent-build
+/.gitlab/build/binary_build/cluster_agent.yml              @DataDog/container-platform @DataDog/agent-build
 /.gitlab/build/binary_build/fakeintake.yml                 @DataDog/agent-devx
 /.gitlab/build/binary_build/host_profiler.yml              @DataDog/opentelemetry-agent @DataDog/profiling-full-host @DataDog/agent-build
 /.gitlab/build/binary_build/system_probe.yml               @DataDog/ebpf-platform @DataDog/agent-build
@@ -164,7 +164,7 @@
 /.gitlab/test/kernel_matrix_testing/security_agent.yml    @DataDog/agent-security
 
 /.gitlab/.pre/common/container_publish_job_templates.yml  @DataDog/container-integrations @DataDog/agent-delivery
-/.gitlab/deploy/container_build/                            @DataDog/container-integrations @DataDog/agent-build
+/.gitlab/deploy/container_build/                            @DataDog/container-platform @DataDog/agent-build
 /.gitlab/deploy/container_build/docker_windows*             @DataDog/agent-build @DataDog/windows-products
 
 /.gitlab/deploy/dev_container_deploy/                       @DataDog/container-integrations @DataDog/agent-delivery
@@ -699,8 +699,9 @@
 /pkg/networkpath/traceroute/            @DataDog/cloud-network-monitoring @DataDog/windows-products @DataDog/network-path
 /pkg/collector/corechecks/networkpath/  @DataDog/cloud-network-monitoring @DataDog/network-path
 
-/releasenotes/                          @DataDog/documentation
-/releasenotes-dca/                      @DataDog/documentation
+# release notes accompany code changes, so code owners will review anyway
+/releasenotes/                          # do not notify anyone
+/releasenotes-dca/                      # do not notify anyone
 
 /rtloader/                              @DataDog/agent-runtimes
 
