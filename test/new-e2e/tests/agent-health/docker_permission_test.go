@@ -125,7 +125,7 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 		// Flush fakeintake to distinguish pre/post restart payloads
 		require.NoError(t, fakeIntake.FlushServerAndResetAggregators(), "Failed to flush fakeintake")
 
-		host.MustExecute("sudo systemctl restart datadog-agent")
+		require.NoError(t, agent.Client.Restart(), "Failed to restart agent")
 		t.Log("Agent restarted")
 
 		require.EventuallyWithT(t, func(ct *assert.CollectT) {
@@ -161,7 +161,7 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 		// re-detected on the next run (important for dev-mode where infra is kept alive).
 		t.Cleanup(func() {
 			host.Execute("sudo chmod 660 /var/run/docker.sock")
-			host.Execute("sudo systemctl restart datadog-agent")
+			_ = agent.Client.Restart()
 		})
 
 		// Grant world-read/write on the Docker socket so dd-agent can connect.
@@ -179,7 +179,7 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 		require.NoError(t, fakeIntake.FlushServerAndResetAggregators(), "Failed to flush fakeintake before resolution restart")
 
 		// Restart agent so it re-runs the check with the updated socket permissions
-		host.MustExecute("sudo systemctl restart datadog-agent")
+		require.NoError(t, agent.Client.Restart(), "Failed to restart agent after permission fix")
 		t.Log("Agent restarted after permission fix")
 
 		require.EventuallyWithT(t, func(ct *assert.CollectT) {
@@ -187,7 +187,9 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 		}, 2*time.Minute, 10*time.Second, "Agent not ready after permission fix")
 
 		// Verify that the docker permission issue NEVER appears in any health report after the fix.
-		// No payload at all is also acceptable — it means there are no issues to report.
+		// The health platform does not send a final "resolved" payload: once an issue is cleared
+		// it is simply absent from subsequent reports (the forwarder skips sending when there are
+		// no active issues). No payload at all is therefore also acceptable.
 		require.Never(t, func() bool {
 			payloads, err := fakeIntake.GetAgentHealth()
 			if err != nil {
