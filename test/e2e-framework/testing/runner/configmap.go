@@ -44,6 +44,13 @@ const (
 	//InfraInitOnly pulumi config parameter name
 	InfraInitOnly = commonconfig.DDInfraConfigNamespace + ":" + commonconfig.DDInfraInitOnly
 
+	// ImagePullRegistry pulumi config parameter name
+	ImagePullRegistry = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDImagePullRegistryParamName
+	// ImagePullUsername pulumi config parameter name
+	ImagePullUsername = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDImagePullUsernameParamName
+	// ImagePullPassword pulumi config parameter name
+	ImagePullPassword = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDImagePullPasswordParamName
+
 	// AWSKeyPairName pulumi config parameter name
 	AWSKeyPairName = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultKeyPairParamName
 	// AWSPublicKeyPath pulumi config parameter name
@@ -135,6 +142,9 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 		parameters.AWSPrivateKeyPath:   {AWSPrivateKeyPath},
 		parameters.AzurePrivateKeyPath: {AzurePrivateKeyPath},
 		parameters.GCPPrivateKeyPath:   {GCPPrivateKeyPath},
+		parameters.ImagePullRegistry:   {ImagePullRegistry},
+		parameters.ImagePullUsername:   {ImagePullUsername},
+		parameters.ImagePullPassword:   {ImagePullPassword},
 		parameters.LocalPublicKeyPath:  {LocalPublicKeyPath},
 		parameters.ExtraResourcesTags:  {InfraExtraResourcesTags},
 		parameters.PipelineID:          {AgentPipelineID},

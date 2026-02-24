@@ -84,6 +84,8 @@
     E2E_RESULT_JSON: $CI_PROJECT_DIR/e2e_test_output.json
     E2E_USE_AWS_PROFILE: "true"
     E2E_COVERAGE_OUT_DIR: $CI_PROJECT_DIR/coverage
+    E2E_IMAGE_PULL_REGISTRY: 669783387624.dkr.ecr.us-east-1.amazonaws.com
+    E2E_IMAGE_PULL_USERNAME: AWS
     PRE_BUILT_BINARIES_FLAG: "--use-prebuilt-binaries"
     MAX_RETRIES_FLAG: "" # Empty by default, can be set to `--max-retries=3` for example to retry failed tests
     REMOTE_STACK_CLEANING: "true"
@@ -94,7 +96,8 @@
       if [ "$DYNAMIC_TESTS_BREAKGLASS" == "true" ] || [ "$IS_DEV_BRANCH" == "false" ] || [ "$RUN_E2E_TESTS" == "on" ]; then
         export DYNAMIC_TESTS_FLAG=""
       fi
-    - dda inv -- -e new-e2e-tests.run $DYNAMIC_TESTS_FLAG $PRE_BUILT_BINARIES_FLAG $MAX_RETRIES_FLAG --local-package $CI_PROJECT_DIR/$OMNIBUS_BASE_DIR --result-json $E2E_RESULT_JSON --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
+    - export E2E_IMAGE_PULL_PASSWORD=$(aws ecr get-login-password)
+    - dda inv -- -e new-e2e-tests.run $DYNAMIC_TESTS_FLAG $PRE_BUILT_BINARIES_FLAG $MAX_RETRIES_FLAG --local-package $CI_PROJECT_DIR/$OMNIBUS_BASE_DIR --result-json $E2E_RESULT_JSON --targets $TARGETS --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
   after_script:
     - CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CODECOV token) || exit $?; export CODECOV_TOKEN
     - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "junit-${CI_JOB_ID}.tgz" "$E2E_RESULT_JSON"
