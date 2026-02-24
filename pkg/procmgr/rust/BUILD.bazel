@@ -11,10 +11,10 @@ rust_binary(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        "@dd_agent_crates//:anyhow",
-        "@dd_agent_crates//:log",
-        "@dd_agent_crates//:simple_logger",
-        "@dd_agent_crates//:tokio",
+        "@crates//:anyhow",
+        "@crates//:log",
+        "@crates//:simple_logger",
+        "@crates//:tokio",
     ],
 )
 

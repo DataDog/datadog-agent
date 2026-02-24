@@ -1,6 +1,6 @@
 crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
 crate.from_cargo(
-    name = "dd_agent_crates",
+    name = "crates",
     cargo_lock = "//:Cargo.lock",
     cargo_toml = "//:Cargo.toml",
     platform_triples = [
@@ -9,4 +9,4 @@ crate.from_cargo(
     ],
     validate_lockfile = True,
 )
-use_repo(crate, "dd_agent_crates")
+use_repo(crate, "crates")

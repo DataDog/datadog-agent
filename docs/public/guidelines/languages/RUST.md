@@ -54,7 +54,7 @@ A component's `Cargo.toml` then references workspace dependencies rather than sp
 ```toml
 # Component Cargo.toml — NO version numbers here
 [package]
-name = "my-component"
+name = "my_component"
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
@@ -76,7 +76,7 @@ The workspace is registered once in [deps/crates.MODULE.bazel](/deps/crates.MODU
 ```starlark
 crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
 crate.from_cargo(
-    name = "dd_agent_crates",
+    name = "crates",
     cargo_lock = "//:Cargo.lock",
     cargo_toml = "//:Cargo.toml",
     platform_triples = [
@@ -85,10 +85,10 @@ crate.from_cargo(
     ],
     validate_lockfile = True,
 )
-use_repo(crate, "dd_agent_crates")
+use_repo(crate, "crates")
 ```
 
-All components reference crates from this single repository: `@dd_agent_crates//:<crate_name>`. There is intentionally only one `crate.from_cargo` entry — do not add per-component entries.
+All components reference crates from this single repository: `@crates//:<crate_name>`. There is intentionally only one `crate.from_cargo` entry — do not add per-component entries.
 
 ### Adding Dependencies to an Existing Component
 
@@ -110,7 +110,7 @@ All components reference crates from this single repository: `@dd_agent_crates//
        name = "my_lib",
        # ...
        deps = [
-           "@dd_agent_crates//:serde",
+           "@crates//:serde",
        ],
    )
    ```
@@ -158,7 +158,7 @@ Edit the root [Cargo.toml](/Cargo.toml):
    ```toml
    [workspace.dependencies]
    # ... existing deps ...
-   my-new-dep = "1.0"
+   my_new_dep = "1.0"
    ```
 
 ### Step 3: Create Your Component's `Cargo.toml`
@@ -167,7 +167,7 @@ The component `Cargo.toml` must **not** contain any dependency version numbers. 
 
 ```toml
 [package]
-name = "my-component"
+name = "my_component"
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
@@ -178,7 +178,7 @@ name = "my_component"
 crate-type = ["rlib"]  # Add "cdylib" if you need FFI
 
 [[bin]]
-name = "my-binary"
+name = "my_binary"
 path = "src/main.rs"
 
 [dependencies]
@@ -206,7 +206,7 @@ cargo generate-lockfile
 
 ### Step 5: Create BUILD.bazel
 
-All components share the single `@dd_agent_crates` repository for external dependencies:
+All components share the single `@crates` repository for external dependencies:
 
 ```starlark
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
@@ -218,19 +218,19 @@ rust_library(
     edition = "2024",
     visibility = ["//visibility:public"],
     deps = [
-        "@dd_agent_crates//:anyhow",
-        "@dd_agent_crates//:serde",
+        "@crates//:anyhow",
+        "@crates//:serde",
     ],
 )
 
 rust_binary(
-    name = "my-binary",
+    name = "my_binary",
     srcs = ["src/main.rs"],
     edition = "2024",
     visibility = ["//visibility:public"],
     deps = [
         ":my_component",
-        "@dd_agent_crates//:anyhow",
+        "@crates//:anyhow",
     ],
 )
 
@@ -239,7 +239,7 @@ rust_test(
     crate = ":my_component",
     edition = "2024",
     deps = [
-        "@dd_agent_crates//:tempfile",
+        "@crates//:tempfile",
     ],
 )
 ```
@@ -249,7 +249,7 @@ rust_test(
 ```bash
 # Build
 bazel build //pkg/your/component/rust:my_component
-bazel build //pkg/your/component/rust:my-binary
+bazel build //pkg/your/component/rust:my_binary
 
 # Test
 bazel test //pkg/your/component/rust:my_component_test
@@ -267,7 +267,7 @@ rust_library(
     srcs = glob(["src/**/*.rs"]),
     crate_name = "my_lib",
     edition = "2024",
-    deps = ["@dd_agent_crates//:serde"],
+    deps = ["@crates//:serde"],
 )
 ```
 
@@ -282,7 +282,7 @@ rust_shared_library(
     crate_name = "my_lib",
     crate_root = "src/lib.rs",
     edition = "2024",
-    deps = ["@dd_agent_crates//:serde"],
+    deps = ["@crates//:serde"],
 )
 ```
 
@@ -292,7 +292,7 @@ For executable binaries:
 
 ```starlark
 rust_binary(
-    name = "my-tool",
+    name = "my_tool",
     srcs = ["src/main.rs"],
     edition = "2024",
     deps = [":my_lib"],
@@ -309,7 +309,7 @@ rust_test(
     name = "my_lib_test",
     crate = ":my_lib",
     edition = "2024",
-    deps = ["@dd_agent_crates//:tempfile"],  # dev-dependencies
+    deps = ["@crates//:tempfile"],  # dev-dependencies
 )
 
 # Integration tests (standalone test files)
@@ -317,12 +317,12 @@ rust_test(
     name = "integration_test",
     srcs = ["tests/integration_test.rs"],
     edition = "2024",
-    data = [":my-tool"],  # Binary needed at runtime
+    data = [":my_tool"],  # Binary needed at runtime
     rustc_env = {
-        "CARGO_BIN_EXE_my-tool": "$(rootpath :my-tool)",
+        "CARGO_BIN_EXE_my_tool": "$(rootpath :my_tool)",
     },
     deps = [
-        "@dd_agent_crates//:tempfile",
+        "@crates//:tempfile",
     ],
 )
 ```
@@ -346,7 +346,7 @@ rust_library(
 For optimized release builds with size optimization, use the `sd-agent-release` config:
 
 ```bash
-bazel build --config=sd-agent-release //pkg/your/component/rust:my-binary
+bazel build --config=sd-agent-release //pkg/your/component/rust:my_binary
 ```
 
 This enables:
@@ -406,7 +406,7 @@ bazel build --verbose_failures //pkg/your/component/rust:...
 bazel query "deps(//pkg/your/component/rust:my_lib)"
 
 # Check crate resolution
-bazel query "@dd_agent_crates//..."
+bazel query "@crates//..."
 ```
 
 ### Updating Dependencies
@@ -427,8 +427,8 @@ ERROR: Cargo.lock out of sync: sd-agent requires clap ^4.5.58 but Cargo.lock has
 
 | Component | Path | Crate Repository |
 |-----------|------|------------------|
-| sd-agent (discovery) | `pkg/discovery/module/rust/` | `@dd_agent_crates` |
-| dd-procmgrd | `pkg/procmgr/rust/` | `@dd_agent_crates` |
+| sd-agent (discovery) | `pkg/discovery/module/rust/` | `@crates` |
+| dd-procmgrd | `pkg/procmgr/rust/` | `@crates` |
 
 ## Further Reading
 
