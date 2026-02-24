@@ -59,9 +59,9 @@ type specMetric struct {
 }
 
 type metricSupportSpec struct {
-	UnsupportedArchitectures []string          `yaml:"unsupported_architectures"`
-	DeviceFeatures           map[string]string `yaml:"device_features"`
-	ProcessData              bool              `yaml:"process_data"`
+	UnsupportedArchitectures []string        `yaml:"unsupported_architectures"`
+	DeviceFeatures           map[string]bool `yaml:"device_features"`
+	ProcessData              bool            `yaml:"process_data"`
 }
 
 type architecturesFile struct {
@@ -88,13 +88,13 @@ func (m specMetric) supportsArchitecture(arch string) bool {
 }
 
 // supportsDeviceFeature returns true if the metric's device_features explicitly allows the mode.
-// "true" = supported, "false" = not supported, "unknown" or missing = treat as not required for assertion.
+// device_features values are expected to be booleans; missing means unsupported.
 func (m specMetric) supportsDeviceFeature(mode string) bool {
 	if m.Support.DeviceFeatures == nil {
 		return false
 	}
 	v, ok := m.Support.DeviceFeatures[mode]
-	return ok && v == "true"
+	return ok && v
 }
 
 func (m specMetric) isDeviceFeatureExplicitlyUnsupported(mode string) bool {
@@ -102,7 +102,7 @@ func (m specMetric) isDeviceFeatureExplicitlyUnsupported(mode string) bool {
 		return false
 	}
 	v, ok := m.Support.DeviceFeatures[mode]
-	return ok && v == "false"
+	return ok && !v
 }
 
 var nvmlFieldNameToFieldID = map[string]uint32{
@@ -210,6 +210,12 @@ func TestLoadSpecNotEmpty(t *testing.T) {
 	require.NotEmpty(t, spec.Metrics, "metrics should not be empty")
 	for name := range spec.Metrics {
 		require.NotEmpty(t, name, "metric name should not be empty")
+	}
+
+	for metricName, metricSpec := range spec.Metrics {
+		for featureMode := range metricSpec.Support.DeviceFeatures {
+			require.Containsf(t, []string{"physical", "mig", "vgpu"}, featureMode, "metric %s has invalid device feature mode key %q", metricName, featureMode)
+		}
 	}
 }
 
@@ -464,34 +470,41 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode testu
 	require.NoError(t, check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test"))
 	t.Cleanup(func() { checkGeneric.Cancel() })
 
-	// process.core.usage comes from system-probe/eBPF collector. Provide deterministic
-	// cache data so spec tests can assert those metrics on physical mode.
+	// process.core.usage/core.limit come from system-probe/eBPF collector. Provide deterministic
+	// cache data for every device shape used by the mode.
+	cacheDeviceUUIDs := []string{testutil.DefaultGpuUUID}
+	if mode == testutil.DeviceFeatureMIG {
+		parentIdx := testutil.DevicesWithMIGChildren[0]
+		cacheDeviceUUIDs = append([]string{testutil.GPUUUIDs[parentIdx]}, testutil.MIGChildrenUUIDs[parentIdx]...)
+	}
+	processMetrics := make([]model.ProcessStatsTuple, 0, len(cacheDeviceUUIDs))
+	deviceMetrics := make([]model.DeviceStatsTuple, 0, len(cacheDeviceUUIDs))
+	for _, uuid := range cacheDeviceUUIDs {
+		processMetrics = append(processMetrics, model.ProcessStatsTuple{
+			Key: model.ProcessStatsKey{
+				PID:        1234,
+				DeviceUUID: uuid,
+			},
+			UtilizationMetrics: model.UtilizationMetrics{
+				UsedCores: 42,
+				Memory: model.MemoryMetrics{
+					CurrentBytes: 100,
+					MaxBytes:     200,
+				},
+				ActiveTimePct: 50,
+			},
+		})
+		deviceMetrics = append(deviceMetrics, model.DeviceStatsTuple{
+			DeviceUUID: uuid,
+			Metrics: model.DeviceUtilizationMetrics{
+				ActiveTimePct: 50,
+			},
+		})
+	}
 	spCache := &nvidia.SystemProbeCache{}
 	spCache.SetStatsForTest(&model.GPUStats{
-		ProcessMetrics: []model.ProcessStatsTuple{
-			{
-				Key: model.ProcessStatsKey{
-					PID:        1234,
-					DeviceUUID: testutil.DefaultGpuUUID,
-				},
-				UtilizationMetrics: model.UtilizationMetrics{
-					UsedCores: 42,
-					Memory: model.MemoryMetrics{
-						CurrentBytes: 100,
-						MaxBytes:     200,
-					},
-					ActiveTimePct: 50,
-				},
-			},
-		},
-		DeviceMetrics: []model.DeviceStatsTuple{
-			{
-				DeviceUUID: testutil.DefaultGpuUUID,
-				Metrics: model.DeviceUtilizationMetrics{
-					ActiveTimePct: 50,
-				},
-			},
-		},
+		ProcessMetrics: processMetrics,
+		DeviceMetrics:  deviceMetrics,
 	})
 	check.spCache = spCache
 
