@@ -28,6 +28,15 @@ func TestGetBundleInheritedAllowedActions(t *testing.T) {
 			},
 		},
 		{
+			name: "returns special actions for sibling bundles",
+			actionsAllowlist: map[string]sets.Set[string]{
+				"com.datadoghq.kubernetes.apps": sets.New[string]("action3"),
+			},
+			expectedInheritedActions: map[string]sets.Set[string]{
+				"com.datadoghq.kubernetes.core": sets.New[string]("testConnection"),
+			},
+		},
+		{
 			name: "returns empty when bundle not in allowlist",
 			actionsAllowlist: map[string]sets.Set[string]{
 				"com.other.bundle": sets.New[string]("action1"),
@@ -53,6 +62,7 @@ func TestGetBundleInheritedAllowedActions(t *testing.T) {
 				"com.datadoghq.script":          sets.New[string]("action1"),
 				"com.datadoghq.gitlab.users":    sets.New[string]("action2"),
 				"com.datadoghq.kubernetes.core": sets.New[string]("action3"),
+				"com.datadoghq.kubernetes.apps": sets.New[string]("action4"),
 			},
 			expectedInheritedActions: map[string]sets.Set[string]{
 				"com.datadoghq.script":          sets.New[string]("testConnection", "enrichScript"),
