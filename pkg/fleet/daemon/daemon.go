@@ -190,7 +190,6 @@ func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installe
 		ctx:             ctx,
 		cancel:          cancel,
 	}
-	i.refreshState(ctx)
 	return i
 }
 
@@ -369,6 +368,15 @@ func (d *daemonImpl) Start(_ context.Context) error {
 	}
 
 	go func() {
+		// Run the initial state refresh inside the goroutine so that FX init
+		// completes quickly even when packages.db is locked by a concurrent
+		// installer process.  This ensures signal handlers are registered
+		// before any blocking subprocess is spawned, preventing orphaned
+		// subprocesses that would linger in the systemd cgroup.
+		// refreshState only reads external state (installer subprocess, taskDB,
+		// immutable daemon fields) so it is safe to call without d.m.
+		d.refreshState(d.ctx)
+
 		gcTicker := time.NewTicker(d.gcInterval)
 		defer gcTicker.Stop()
 		refreshStateTicker := time.NewTicker(d.refreshInterval)
