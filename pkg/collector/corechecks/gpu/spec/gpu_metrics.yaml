@@ -604,9 +604,6 @@ metrics:
         - fermi
         - kepler
         - maxwell
-        - pascal
-        - volta
-        - turing
       device_features:
         mig: unknown
         physical: "true"
@@ -642,9 +639,6 @@ metrics:
         - fermi
         - kepler
         - maxwell
-        - pascal
-        - volta
-        - turing
       device_features:
         mig: unknown
         physical: "true"
@@ -752,7 +746,6 @@ metrics:
         - fermi
         - kepler
         - maxwell
-        - ada
       device_features:
         mig: "false"
         physical: "true"
@@ -771,7 +764,6 @@ metrics:
         - fermi
         - kepler
         - maxwell
-        - ada
       device_features:
         mig: "false"
         physical: "true"
@@ -790,7 +782,6 @@ metrics:
         - fermi
         - kepler
         - maxwell
-        - ada
       device_features:
         mig: "false"
         physical: "true"
@@ -809,7 +800,6 @@ metrics:
         - fermi
         - kepler
         - maxwell
-        - ada
       device_features:
         mig: "false"
         physical: "true"
@@ -828,7 +818,6 @@ metrics:
         - fermi
         - kepler
         - maxwell
-        - ada
       device_features:
         mig: "false"
         physical: "true"
@@ -848,7 +837,6 @@ metrics:
         - kepler
         - maxwell
         - pascal
-        - ada
       device_features:
         mig: "false"
         physical: "true"
@@ -867,7 +855,6 @@ metrics:
         - fermi
         - kepler
         - maxwell
-        - ada
       device_features:
         mig: "false"
         physical: "true"
@@ -886,7 +873,6 @@ metrics:
         - fermi
         - kepler
         - maxwell
-        - ada
       device_features:
         mig: "false"
         physical: "true"
@@ -905,7 +891,6 @@ metrics:
         - fermi
         - kepler
         - maxwell
-        - ada
       device_features:
         mig: "false"
         physical: "true"
@@ -924,7 +909,6 @@ metrics:
         - fermi
         - kepler
         - maxwell
-        - ada
       device_features:
         mig: "false"
         physical: "true"
@@ -943,7 +927,6 @@ metrics:
         - fermi
         - kepler
         - maxwell
-        - ada
       device_features:
         mig: "false"
         physical: "true"
