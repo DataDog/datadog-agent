@@ -86,6 +86,10 @@ impl ManagedProcess {
         self.child.is_some()
     }
 
+    /// Send a signal to the child process. The caller must still call `wait()`
+    /// afterward to reap the child and avoid zombie processes. This is kept
+    /// separate from `wait()` so `shutdown_all()` can fan out SIGTERM to all
+    /// processes before blocking on each.
     pub fn send_signal(&self, sig: Signal) {
         if let Some(ref child) = self.child
             && let Some(pid) = child.id()

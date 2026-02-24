@@ -4,7 +4,7 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::{Context, Result};
-use log::warn;
+use log::{debug, warn};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -67,9 +67,14 @@ pub fn load_configs(dir: &Path) -> Result<Vec<(String, ProcessConfig)>> {
             }
         })
         .filter(|e| {
-            e.path()
+            let is_yaml = e
+                .path()
                 .extension()
-                .is_some_and(|ext| ext == "yaml" || ext == "yml")
+                .is_some_and(|ext| ext == "yaml" || ext == "yml");
+            if !is_yaml {
+                debug!("skipping non-YAML file: {}", e.path().display());
+            }
+            is_yaml
         })
         .collect();
 
