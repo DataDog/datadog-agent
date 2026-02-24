@@ -7,19 +7,23 @@
 package statusimpl
 
 import (
+	"context"
 	"embed"
 	"encoding/json"
-	"fmt"
 	"io"
+	"runtime"
+	"time"
 
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	processStatus "github.com/DataDog/datadog-agent/pkg/process/util/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type dependencies struct {
@@ -27,6 +31,7 @@ type dependencies struct {
 
 	Config   config.Component
 	Hostname hostnameinterface.Component
+	RAR      remoteagentregistry.Component `optional:"true"`
 }
 
 type provides struct {
@@ -42,9 +47,9 @@ func Module() fxutil.Module {
 }
 
 type statusProvider struct {
-	testServerURL string
-	config        config.Component
-	hostname      hostnameinterface.Component
+	config   config.Component
+	hostname hostnameinterface.Component
+	rar      remoteagentregistry.Component
 }
 
 func newStatus(deps dependencies) provides {
@@ -52,6 +57,7 @@ func newStatus(deps dependencies) provides {
 		StatusProvider: status.NewInformationProvider(statusProvider{
 			config:   deps.Config,
 			hostname: deps.Hostname,
+			rar:      deps.RAR,
 		}),
 	}
 }
@@ -80,48 +86,50 @@ func (s statusProvider) getStatusInfo() map[string]interface{} {
 }
 
 func (s statusProvider) populateStatus() map[string]interface{} {
-	status := make(map[string]interface{})
+	result := make(map[string]interface{})
 
-	var url string
-	if s.testServerURL != "" {
-		url = s.testServerURL
-	} else {
+	if s.rar != nil {
+		for _, agentStatus := range s.rar.GetRegisteredAgentStatuses() {
+			if agentStatus.Flavor != "process_agent" {
+				continue
+			}
+			if agentStatus.FailureReason != "" {
+				result["error"] = agentStatus.FailureReason
+				return result
+			}
 
-		// Get expVar server address
-		ipcAddr, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
-		if err != nil {
-			status["error"] = err.Error()
-			return status
+			var expvarsMap processStatus.ExpvarsMap
+			if raw, ok := agentStatus.MainSection["process_agent"]; ok {
+				_ = json.Unmarshal([]byte(raw), &expvarsMap)
+			}
+
+			core := processStatus.CoreStatus{
+				AgentVersion: version.AgentVersion,
+				GoVersion:    runtime.Version(),
+				Arch:         runtime.GOARCH,
+				Config:       processStatus.ConfigStatus{LogLevel: s.config.GetString("log_level")},
+				Metadata:     *hostMetadataUtils.GetFromCache(context.Background(), s.config, s.hostname),
+			}
+			st := processStatus.Status{
+				Date:    float64(time.Now().UnixNano()),
+				Core:    core,
+				Expvars: processStatus.ProcessExpvars{ExpvarsMap: expvarsMap},
+			}
+
+			bytes, err := json.Marshal(st)
+			if err != nil {
+				result["error"] = err.Error()
+				return result
+			}
+			if err := json.Unmarshal(bytes, &result); err != nil {
+				result["error"] = err.Error()
+			}
+			return result
 		}
-
-		port := s.config.GetInt("process_config.expvar_port")
-		if port <= 0 {
-			port = pkgconfigsetup.DefaultProcessExpVarPort
-		}
-		url = fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, port)
 	}
 
-	agentStatus, err := processStatus.GetStatus(s.config, url, s.hostname)
-	if err != nil {
-		status["error"] = err.Error()
-		return status
-	}
-
-	bytes, err := json.Marshal(agentStatus)
-	if err != nil {
-		return map[string]interface{}{
-			"error": err.Error(),
-		}
-	}
-
-	err = json.Unmarshal(bytes, &status)
-	if err != nil {
-		return map[string]interface{}{
-			"error": err.Error(),
-		}
-	}
-
-	return status
+	result["error"] = "not running or unreachable"
+	return result
 }
 
 // JSON populates the status map

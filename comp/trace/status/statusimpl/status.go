@@ -14,7 +14,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -24,7 +23,6 @@ type dependencies struct {
 	fx.In
 
 	Config config.Component
-	Client ipc.HTTPClient
 	RAR    remoteagentregistry.Component `optional:"true"`
 }
 
@@ -42,7 +40,6 @@ func Module() fxutil.Module {
 
 type statusProvider struct {
 	Config config.Component
-	Client ipc.HTTPClient
 	RAR    remoteagentregistry.Component
 }
 
@@ -50,7 +47,6 @@ func newStatus(deps dependencies) provides {
 	return provides{
 		StatusProvider: status.NewInformationProvider(statusProvider{
 			Config: deps.Config,
-			Client: deps.Client,
 			RAR:    deps.RAR,
 		}),
 	}
