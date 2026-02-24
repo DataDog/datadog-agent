@@ -400,7 +400,9 @@ func (fh *EBPFFieldHandlers) ResolveSELinuxBoolName(_ *model.Event, e *model.SEL
 func (fh *EBPFFieldHandlers) ResolveFileFieldsGroup(ev *model.Event, e *model.FileFields) string {
 	if len(e.Group) == 0 {
 		ev.RecordCheckpoint("resolve_group")
+		ev.RecordCheckpoint("resolve_group_lookup_start")
 		e.Group, _ = fh.resolvers.UserGroupResolver.ResolveGroup(int(e.GID), ev.ProcessContext.ContainerContext.ContainerID)
+		ev.RecordCheckpoint("resolve_group_lookup_done")
 	}
 	return e.Group
 }
@@ -421,7 +423,9 @@ func (fh *EBPFFieldHandlers) ResolveNetworkDeviceIfName(_ *model.Event, device *
 func (fh *EBPFFieldHandlers) ResolveFileFieldsUser(ev *model.Event, e *model.FileFields) string {
 	if len(e.User) == 0 {
 		ev.RecordCheckpoint("resolve_user")
+		ev.RecordCheckpoint("resolve_user_lookup_start")
 		e.User, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.UID), ev.ProcessContext.ContainerContext.ContainerID)
+		ev.RecordCheckpoint("resolve_user_lookup_done")
 	}
 	return e.User
 }
@@ -460,6 +464,7 @@ func (fh *EBPFFieldHandlers) resolveSBOMFields(ev *model.Event, f *model.FileEve
 		return
 	}
 
+	ev.RecordCheckpoint("resolve_sbom_start")
 	if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessContext.ContainerContext.ContainerID, f); pkg != nil {
 		f.PkgName = pkg.Name
 		f.PkgVersion = pkg.Version
@@ -469,6 +474,7 @@ func (fh *EBPFFieldHandlers) resolveSBOMFields(ev *model.Event, f *model.FileEve
 		f.PkgSrcEpoch = pkg.SrcEpoch
 		f.PkgSrcRelease = pkg.SrcRelease
 	}
+	ev.RecordCheckpoint("resolve_sbom_done")
 }
 
 // ResolvePackageName resolves the name of the package providing this file
@@ -554,7 +560,10 @@ func (fh *EBPFFieldHandlers) ResolveModuleArgs(_ *model.Event, module *model.Loa
 
 // ResolveHashesFromEvent resolves the hashes of the requested event
 func (fh *EBPFFieldHandlers) ResolveHashesFromEvent(ev *model.Event, f *model.FileEvent) []string {
-	return fh.resolvers.HashResolver.ComputeHashesFromEvent(ev, f, 0)
+	ev.RecordCheckpoint("resolve_hashes_start")
+	hashes := fh.resolvers.HashResolver.ComputeHashesFromEvent(ev, f, 0)
+	ev.RecordCheckpoint("resolve_hashes_done")
+	return hashes
 }
 
 // ResolveHashes resolves the hashes of the requested file event
