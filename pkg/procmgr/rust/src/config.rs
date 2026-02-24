@@ -29,6 +29,7 @@ pub struct ProcessConfig {
     pub args: Vec<String>,
     #[serde(default)]
     pub env: HashMap<String, String>,
+    pub environment_file: Option<String>,
     pub working_dir: Option<String>,
     #[allow(dead_code)]
     pub pidfile: Option<String>,

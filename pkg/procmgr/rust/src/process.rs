@@ -48,6 +48,20 @@ impl ManagedProcess {
         let mut cmd = Command::new(&self.config.command);
         cmd.args(&self.config.args);
 
+        cmd.env_clear();
+        if let Some(ref path) = self.config.environment_file {
+            match parse_environment_file(path) {
+                Ok(vars) => {
+                    for (k, v) in &vars {
+                        cmd.env(k, v);
+                    }
+                }
+                Err(e) => warn!(
+                    "[{}] failed to read environment file {path}: {e}",
+                    self.name
+                ),
+            }
+        }
         for (k, v) in &self.config.env {
             cmd.env(k, v);
         }
@@ -93,6 +107,29 @@ impl ManagedProcess {
         self.child = None;
         Ok(status)
     }
+}
+
+/// Parse a systemd-style environment file into key-value pairs.
+/// Supports `KEY=VALUE`, `KEY="VALUE"`, `KEY='VALUE'`, comments (#), and blank lines.
+fn parse_environment_file(path: &str) -> Result<Vec<(String, String)>> {
+    let contents = std::fs::read_to_string(path)
+        .with_context(|| format!("reading environment file: {path}"))?;
+    let mut vars = Vec::new();
+    for line in contents.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        if let Some((key, raw_val)) = trimmed.split_once('=') {
+            let val = raw_val
+                .trim()
+                .trim_matches('"')
+                .trim_matches('\'')
+                .to_string();
+            vars.push((key.trim().to_string(), val));
+        }
+    }
+    Ok(vars)
 }
 
 fn stdio_from_str(s: &str) -> Stdio {
@@ -150,6 +187,7 @@ mod tests {
             command: command.to_string(),
             args: args.into_iter().map(String::from).collect(),
             env: HashMap::new(),
+            environment_file: None,
             working_dir: None,
             pidfile: None,
             stdout: "null".to_string(),
@@ -292,5 +330,115 @@ mod tests {
         shutdown_all(&mut procs, Duration::from_secs(1)).await;
 
         assert!(!procs[0].is_running());
+    }
+
+    #[tokio::test]
+    async fn test_spawn_does_not_inherit_parent_env() {
+        // SAFETY: single-threaded test runtime; no concurrent env access.
+        unsafe { std::env::set_var("PROCMGRD_TEST_SECRET", "leaked") };
+        let cfg = make_config(
+            "/bin/sh",
+            vec![
+                "-c",
+                "test -z \"$PROCMGRD_TEST_SECRET\" && exit 0 || exit 1",
+            ],
+        );
+        let mut proc = ManagedProcess::new("clean-env".into(), cfg);
+        proc.spawn().unwrap();
+        let status = proc.wait().await.unwrap();
+        assert_eq!(
+            status.code(),
+            Some(0),
+            "child should NOT see PROCMGRD_TEST_SECRET"
+        );
+        unsafe { std::env::remove_var("PROCMGRD_TEST_SECRET") };
+    }
+
+    #[tokio::test]
+    async fn test_spawn_with_environment_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let env_file = dir.path().join("env");
+        std::fs::write(&env_file, "# comment\nFROM_FILE=hello\nPATH=/usr/bin\n\n").unwrap();
+
+        let mut cfg = make_config(
+            "/bin/sh",
+            vec!["-c", "test \"$FROM_FILE\" = 'hello' && echo $PATH"],
+        );
+        cfg.environment_file = Some(env_file.to_str().unwrap().to_string());
+        cfg.stdout = "null".to_string();
+        cfg.stderr = "null".to_string();
+
+        let mut proc = ManagedProcess::new("envfile".into(), cfg);
+        proc.spawn().unwrap();
+        let status = proc.wait().await.unwrap();
+        assert_eq!(
+            status.code(),
+            Some(0),
+            "child should see vars from env file"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_env_overrides_environment_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let env_file = dir.path().join("env");
+        std::fs::write(&env_file, "MY_VAR=from_file\n").unwrap();
+
+        let mut cfg = make_config(
+            "/bin/sh",
+            vec![
+                "-c",
+                "exit $(test \"$MY_VAR\" = 'overridden' && echo 0 || echo 1)",
+            ],
+        );
+        cfg.environment_file = Some(env_file.to_str().unwrap().to_string());
+        cfg.env
+            .insert("MY_VAR".to_string(), "overridden".to_string());
+        cfg.stdout = "null".to_string();
+        cfg.stderr = "null".to_string();
+
+        let mut proc = ManagedProcess::new("override".into(), cfg);
+        proc.spawn().unwrap();
+        let status = proc.wait().await.unwrap();
+        assert_eq!(
+            status.code(),
+            Some(0),
+            "config env should override environment_file"
+        );
+    }
+
+    #[test]
+    fn test_parse_environment_file_full() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("env");
+        std::fs::write(
+            &path,
+            r#"# Datadog env
+DD_API_KEY=abc123
+PATH="/usr/local/bin:/usr/bin"
+QUOTED='single'
+malformed line without equals
+   
+# blank lines above are skipped
+LANG=en_US.UTF-8
+"#,
+        )
+        .unwrap();
+
+        let vars: HashMap<String, String> = parse_environment_file(path.to_str().unwrap())
+            .unwrap()
+            .into_iter()
+            .collect();
+
+        assert_eq!(vars["DD_API_KEY"], "abc123");
+        assert_eq!(vars["PATH"], "/usr/local/bin:/usr/bin");
+        assert_eq!(vars["QUOTED"], "single");
+        assert_eq!(vars["LANG"], "en_US.UTF-8");
+        assert_eq!(vars.len(), 4, "malformed line should be silently skipped");
+    }
+
+    #[test]
+    fn test_parse_environment_file_missing() {
+        assert!(parse_environment_file("/nonexistent/env").is_err());
     }
 }
