@@ -67,6 +67,9 @@ type ebpfLessTracer struct {
 	conns        map[ebpfless.PCAPTuple]*network.ConnectionStats
 	boundPorts   *ebpfless.BoundPorts
 	cookieHasher *cookieHasher
+	// dnsServerPorts is the set of ports to treat as DNS server ports
+	// (from network_config.dns_monitoring_ports)
+	dnsServerPorts map[uint16]struct{}
 
 	connPool *syncutil.TypedPool[network.ConnectionStats]
 
@@ -82,17 +85,23 @@ func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
 		return nil, fmt.Errorf("error creating packet source: %w", err)
 	}
 
+	dnsServerPorts := make(map[uint16]struct{}, len(cfg.DNSMonitoringPortList))
+	for _, port := range cfg.DNSMonitoringPortList {
+		dnsServerPorts[uint16(port)] = struct{}{}
+	}
+
 	tr := &ebpfLessTracer{
-		config:        cfg,
-		packetSrc:     packetSrc,
-		packetSrcBusy: sync.WaitGroup{},
-		exit:          make(chan struct{}),
-		udp:           &udpProcessor{},
-		tcp:           ebpfless.NewTCPProcessor(cfg),
-		conns:         make(map[ebpfless.PCAPTuple]*network.ConnectionStats, cfg.MaxTrackedConnections),
-		boundPorts:    ebpfless.NewBoundPorts(cfg),
-		cookieHasher:  newCookieHasher(),
-		connPool:      syncutil.NewDefaultTypedPool[network.ConnectionStats](),
+		config:         cfg,
+		packetSrc:      packetSrc,
+		packetSrcBusy:  sync.WaitGroup{},
+		exit:           make(chan struct{}),
+		udp:            &udpProcessor{},
+		tcp:            ebpfless.NewTCPProcessor(cfg),
+		conns:          make(map[ebpfless.PCAPTuple]*network.ConnectionStats, cfg.MaxTrackedConnections),
+		boundPorts:     ebpfless.NewBoundPorts(cfg),
+		cookieHasher:   newCookieHasher(),
+		dnsServerPorts: dnsServerPorts,
+		connPool:       syncutil.NewDefaultTypedPool[network.ConnectionStats](),
 	}
 
 	tr.ns, err = netns.Get()
@@ -203,7 +212,7 @@ func (t *ebpfLessTracer) processConnection(
 
 		// guess direction before calling the processors; for TCP, the processor
 		// may also set direction from the SYN packet
-		direction, err := guessConnectionDirection(conn, pktType, t.boundPorts)
+		direction, err := guessConnectionDirection(conn, pktType, t.boundPorts, t.dnsServerPorts)
 		if err != nil {
 			t.putConn(conn)
 			return err
@@ -325,7 +334,7 @@ type boundPortLookup interface {
 }
 
 // guessConnectionDirection attempts to guess the connection direction based off bound ports
-func guessConnectionDirection(conn *network.ConnectionStats, pktType uint8, ports boundPortLookup) (network.ConnectionDirection, error) {
+func guessConnectionDirection(conn *network.ConnectionStats, pktType uint8, ports boundPortLookup, dnsServerPorts map[uint16]struct{}) (network.ConnectionDirection, error) {
 	// if we already have a direction, return that
 	if conn.Direction != network.UNKNOWN {
 		return conn.Direction, nil
@@ -340,6 +349,18 @@ func guessConnectionDirection(conn *network.ConnectionStats, pktType uint8, port
 	if conn.Dest.Addr.IsLoopback() {
 		ok := ports.Find(conn.Type, conn.DPort)
 		if ok {
+			return network.OUTGOING, nil
+		}
+	}
+
+	// for UDP, check if either port is a known DNS server port
+	if conn.Type == network.UDP {
+		_, srcIsDNS := dnsServerPorts[conn.SPort]
+		_, dstIsDNS := dnsServerPorts[conn.DPort]
+		if srcIsDNS && !dstIsDNS {
+			return network.INCOMING, nil
+		}
+		if dstIsDNS && !srcIsDNS {
 			return network.OUTGOING, nil
 		}
 	}

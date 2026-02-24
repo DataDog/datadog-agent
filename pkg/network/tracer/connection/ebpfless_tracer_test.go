@@ -29,13 +29,16 @@ func TestGuessConnectionDirection(t *testing.T) {
 	remoteAddr := util.AddressFromString("8.8.8.8")
 	loopbackAddr := util.AddressFromString("127.0.0.1")
 
+	defaultDNSPorts := map[uint16]struct{}{53: {}, 5353: {}}
+
 	tests := []struct {
-		name        string
-		conn        *network.ConnectionStats
-		pktType     uint8
-		ports       mockBoundPortLookup
-		expectedDir network.ConnectionDirection
-		expectedErr bool
+		name           string
+		conn           *network.ConnectionStats
+		pktType        uint8
+		ports          mockBoundPortLookup
+		dnsServerPorts map[uint16]struct{}
+		expectedDir    network.ConnectionDirection
+		expectedErr    bool
 	}{
 		{
 			name: "already has direction",
@@ -249,11 +252,75 @@ func TestGuessConnectionDirection(t *testing.T) {
 			ports:       mockBoundPortLookup{8080: network.TCP},
 			expectedDir: network.INCOMING,
 		},
+		{
+			name: "UDP source is DNS server port",
+			conn: &network.ConnectionStats{
+				ConnectionTuple: network.ConnectionTuple{
+					Source: remoteAddr,
+					Dest:   remoteAddr,
+					SPort:  5353,
+					DPort:  12345,
+					Type:   network.UDP,
+				},
+			},
+			pktType:     unix.PACKET_HOST,
+			ports:       mockBoundPortLookup{},
+			expectedDir: network.INCOMING,
+		},
+		{
+			name: "UDP dest is DNS server port",
+			conn: &network.ConnectionStats{
+				ConnectionTuple: network.ConnectionTuple{
+					Source: remoteAddr,
+					Dest:   remoteAddr,
+					SPort:  12345,
+					DPort:  5353,
+					Type:   network.UDP,
+				},
+			},
+			pktType:     unix.PACKET_HOST,
+			ports:       mockBoundPortLookup{},
+			expectedDir: network.OUTGOING,
+		},
+		{
+			name: "UDP both ports are DNS server ports falls through",
+			conn: &network.ConnectionStats{
+				ConnectionTuple: network.ConnectionTuple{
+					Source: remoteAddr,
+					Dest:   remoteAddr,
+					SPort:  53,
+					DPort:  5353,
+					Type:   network.UDP,
+				},
+			},
+			pktType:     unix.PACKET_HOST,
+			ports:       mockBoundPortLookup{},
+			expectedDir: network.INCOMING,
+		},
+		{
+			name: "TCP ignores DNS server ports",
+			conn: &network.ConnectionStats{
+				ConnectionTuple: network.ConnectionTuple{
+					Source: remoteAddr,
+					Dest:   remoteAddr,
+					SPort:  5353,
+					DPort:  12345,
+					Type:   network.TCP,
+				},
+			},
+			pktType:     unix.PACKET_HOST,
+			ports:       mockBoundPortLookup{},
+			expectedDir: network.UNKNOWN,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dir, err := guessConnectionDirection(tt.conn, tt.pktType, tt.ports)
+			dnsServerPorts := tt.dnsServerPorts
+			if dnsServerPorts == nil {
+				dnsServerPorts = defaultDNSPorts
+			}
+			dir, err := guessConnectionDirection(tt.conn, tt.pktType, tt.ports, dnsServerPorts)
 			if tt.expectedErr {
 				require.Error(t, err)
 			} else {
