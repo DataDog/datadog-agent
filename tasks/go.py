@@ -94,10 +94,16 @@ def run_golangci_lint(
                     cc = cc_clang
                     cxx = cxx_clang
                 else:
+                    if goos == "darwin":
+                        instr = "cloning https://github.com/tpoechtrager/osxcross.git, pulling the macos SDK from https://github.com/joseluisq/macosx-sdks/releases, building OSXcross and adding it to your PATH"
+                    elif goos == "windows":
+                        instr = "the mingw-w64 toolchain (eg. `apt install gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64`)"
+                    else:
+                        instr = "the appropriate cross-compilation toolchain"
                     print(
                         color_message(
                             f"Error: Cross-compiler '{prefix}-gcc' (or '{prefix}-clang') not found. "
-                            f"Cross-linting for GOOS={goos} requires the appropriate cross-compilation toolchain.",
+                            f"Cross-linting for GOOS={goos} requires {instr}.",
                             "red",
                         )
                     )
