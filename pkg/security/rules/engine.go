@@ -654,6 +654,40 @@ func (e *RuleEngine) SetRulesetLoadedCallback(cb func(es *rules.RuleSet, err *mu
 	e.rulesLoaded = cb
 }
 
+type slowProcessingEvent struct {
+	EventType       string                        `json:"event_type"`
+	DurationUs      int64                         `json:"duration_us"`
+	ProcessingTrace []model.ProcessingCheckpoint `json:"processing_trace,omitempty"`
+}
+
+func (e *slowProcessingEvent) GetWorkloadID() string {
+	return ""
+}
+
+func (e *slowProcessingEvent) GetTags() []string {
+	return []string{"type:slow_event_processing"}
+}
+
+func (e *slowProcessingEvent) GetType() string {
+	return "slow_event_processing"
+}
+
+func (e *slowProcessingEvent) GetActionReports() []model.ActionReport {
+	return nil
+}
+
+func (e *slowProcessingEvent) GetFieldValue(_ eval.Field) (interface{}, error) {
+	return "", eval.ErrFieldNotFound{}
+}
+
+func newSlowProcessingEvent(event *model.Event) *slowProcessingEvent {
+	return &slowProcessingEvent{
+		EventType:       event.GetEventType().String(),
+		DurationUs:      time.Since(event.StartTime).Microseconds(),
+		ProcessingTrace: append([]model.ProcessingCheckpoint(nil), event.ProcessingTrace...),
+	}
+}
+
 // HandleEvent is called by the probe when an event arrives from the kernel
 func (e *RuleEngine) HandleEvent(event *model.Event) {
 	if event.StartTime.IsZero() {
@@ -697,7 +731,8 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 
 		originalRuleID := fmt.Sprintf("event_%s", event.GetEventType())
 		slowRule := events.NewSlowEventProcessingRule(originalRuleID, "")
-		e.eventSender.SendEvent(slowRule, event, nil, "")
+		slowEvent := newSlowProcessingEvent(event)
+		e.eventSender.SendEvent(slowRule, slowEvent, nil, "")
 	}
 }
 
