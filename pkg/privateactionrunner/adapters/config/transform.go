@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
@@ -22,7 +23,8 @@ import (
 )
 
 func FromDDConfig(config config.Component) (*Config, error) {
-	ddSite := config.GetString("site")
+	ddHost := strings.TrimSuffix(configutils.GetMainEndpoint(config, "https://api.", "dd_url"), ".")
+	ddSite := configutils.ExtractSiteFromURL(ddHost)
 	encodedPrivateKey := config.GetString(setup.PARPrivateKey)
 	urn := config.GetString(setup.PARUrn)
 
@@ -81,8 +83,8 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		ActionsAllowlist:          makeActionsAllowlist(config),
 		Allowlist:                 config.GetStringSlice(setup.PARHttpAllowlist),
 		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
-		DDHost:                    strings.Join([]string{"api", ddSite}, "."),
-		DDApiHost:                 strings.Join([]string{"api", ddSite}, "."),
+		DDHost:                    ddHost,
+		DDApiHost:                 ddHost,
 		Modes:                     []modes.Mode{modes.ModePull},
 		OrgId:                     orgID,
 		PrivateKey:                privateKey,
