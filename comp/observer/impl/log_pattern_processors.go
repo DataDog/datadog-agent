@@ -36,18 +36,16 @@ var tlmAnomalyCount = atomic.Int64{}
 // - pod_name
 // - dirname
 type PatternLogProcessor struct {
-	Observer          *observerImpl
 	ClustererPipeline *patterns.MultiThreadPipeline[*LogADTags]
 	ResultChannel     chan *patterns.MultiThreadResult[*LogADTags]
 	AnomalyDetectors  []LogAnomalyDetector
 }
 
-func NewPatternLogProcessor(observer *observerImpl, anomalyDetectors []LogAnomalyDetector) *PatternLogProcessor {
+func NewPatternLogProcessor(anomalyDetectors []LogAnomalyDetector) *PatternLogProcessor {
 	resultChannel := make(chan *patterns.MultiThreadResult[*LogADTags], 4096)
 	clustererPipeline := patterns.NewMultiThreadPipeline(runtime.NumCPU(), resultChannel, false)
 
 	p := &PatternLogProcessor{
-		Observer:          observer,
 		ClustererPipeline: clustererPipeline,
 		ResultChannel:     resultChannel,
 		AnomalyDetectors:  anomalyDetectors,

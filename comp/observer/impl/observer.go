@@ -76,6 +76,7 @@ func NewComponent(deps Requires) Provides {
 	// Connect the reporter to the correlator's state
 	reporter.SetCorrelationState(correlator)
 
+	obsCh := make(chan observation, 1000)
 	obs := &observerImpl{
 		logProcessors: []observerdef.LogProcessor{
 			&LogTimeSeriesAnalysis{
@@ -93,6 +94,10 @@ func NewComponent(deps Requires) Provides {
 				},
 			},
 			&ConnectionErrorExtractor{},
+			NewPatternLogProcessor([]LogAnomalyDetector{
+				// TODO: The result channel is useless now, this should be a channel for the aggregator
+				NewWatchdogLogAnomalyDetector(make(chan *observerdef.LogProcessorResult, 1024), obsCh),
+			}),
 		},
 		tsAnalyses: []observerdef.TimeSeriesAnalysis{
 			NewCUSUMDetector(),
@@ -104,15 +109,9 @@ func NewComponent(deps Requires) Provides {
 			reporter,
 		},
 		storage:   newTimeSeriesStorage(),
-		obsCh:     make(chan observation, 1000),
+		obsCh:     obsCh,
 		maxEvents: 1000, // Keep last 1000 events for debugging
 	}
-
-	logPatternProcessor := NewPatternLogProcessor(obs, []LogAnomalyDetector{
-		// TODO: The result channel is useless
-		NewWatchdogLogAnomalyDetector(make(chan *observerdef.LogProcessorResult, 1024), obs.obsCh),
-	})
-	obs.logProcessors = append(obs.logProcessors, logPatternProcessor)
 
 	// Set up handle function with optional recorder wrapping.
 	// If recorder is provided, wrap handles to enable transparent metric recording.
