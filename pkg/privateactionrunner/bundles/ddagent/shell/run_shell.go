@@ -15,6 +15,7 @@ import (
 
 	"mvdan.cc/sh/v3/syntax"
 
+	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
@@ -89,6 +90,7 @@ func (h *RunShellHandler) Run(
 	}
 
 	runner.Reset()
+	log.Debugf("Executing shell script:\n%s", inputs.Script)
 	start := time.Now()
 	runErr := runner.Run(ctx, prog)
 	duration := time.Since(start)
@@ -105,10 +107,15 @@ func (h *RunShellHandler) Run(
 		}
 	}
 
+	stdout := strings.TrimSuffix(stdoutBuf.String(), "\n")
+	stderr := strings.TrimSuffix(stderrBuf.String(), "\n")
+	log.Debugf("Shell script completed: exitCode=%d, durationMs=%d, stdout=%q, stderr=%q",
+		exitCode, int(duration.Milliseconds()), stdout, stderr)
+
 	return &RunShellOutputs{
 		ExitCode:       exitCode,
-		Stdout:         strings.TrimSuffix(stdoutBuf.String(), "\n"),
-		Stderr:         strings.TrimSuffix(stderrBuf.String(), "\n"),
+		Stdout:         stdout,
+		Stderr:         stderr,
 		DurationMillis: int(duration.Milliseconds()),
 	}, nil
 }
