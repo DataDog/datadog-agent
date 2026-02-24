@@ -37,75 +37,90 @@ that all `rust` components are still working.
 
 ## Crate Management
 
-External crates are managed via [rules_rs](https://github.com/dzbarsky/rules_rs), which generates Bazel targets from `Cargo.toml` and `Cargo.lock` files.
+All external Rust crates are managed **centrally** through a single [Cargo workspace](https://doc.rust-lang.org/cargo/reference/workspaces.html) defined in the root [Cargo.toml](../../../../Cargo.toml). Individual components **must not** declare their own dependency versions — all versions live in the root `[workspace.dependencies]` section, and component `Cargo.toml` files reference them with `.workspace = true`.
 
-### Central Crate Registry
+> **Important:** Do not add crate versions directly in a component's `Cargo.toml`. Every external dependency must be declared in the root [Cargo.toml](../../../../Cargo.toml) under `[workspace.dependencies]`. This ensures consistent versions across all Rust components, a single `Cargo.lock`, and a single source of truth for Bazel crate resolution.
 
-All Rust component crates are registered in [deps/crates.MODULE.bazel](../../../../deps/crates.MODULE.bazel). Each component should have its own `crate.from_cargo` entry:
+### How It Works
+
+The root [Cargo.toml](../../../../Cargo.toml) defines three things:
+
+1. **`[workspace]`** — lists all Rust component directories as `members`
+2. **`[workspace.dependencies]`** — the single place where all external crate versions are pinned
+3. **`[workspace.package]`** — shared metadata (`edition`, `license`, `rust-version`) inherited by all members
+
+A component's `Cargo.toml` then references workspace dependencies rather than specifying versions:
+
+```toml
+# Component Cargo.toml — NO version numbers here
+[package]
+name = "my-component"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+# When a component needs specific features, add them on top of the workspace version:
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
+```
+
+This produces a single `Cargo.lock` at the repository root — all components share the same resolved dependency graph.
+
+### Bazel Integration
+
+The workspace is registered once in [deps/crates.MODULE.bazel](/deps/crates.MODULE.bazel), pointing to the root `Cargo.toml` and `Cargo.lock`:
 
 ```starlark
 crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
-
-# Service discovery component
 crate.from_cargo(
-    name = "sdagent_crates",
-    cargo_lock = "//pkg/discovery/module/rust:Cargo.lock",
-    cargo_toml = "//pkg/discovery/module/rust:Cargo.toml",
+    name = "dd_agent_crates",
+    cargo_lock = "//:Cargo.lock",
+    cargo_toml = "//:Cargo.toml",
     platform_triples = [
         "aarch64-unknown-linux-gnu",
         "x86_64-unknown-linux-gnu",
     ],
     validate_lockfile = True,
 )
-use_repo(crate, "sdagent_crates")
-
-# Example: Another component would add its own entry
-# crate.from_cargo(
-#     name = "my_component_crates",
-#     cargo_lock = "//pkg/my/component/rust:Cargo.lock",
-#     cargo_toml = "//pkg/my/component/rust:Cargo.toml",
-#     platform_triples = [
-#         "aarch64-unknown-linux-gnu",
-#         "x86_64-unknown-linux-gnu",
-#     ],
-#     validate_lockfile = True,
-# )
-# use_repo(crate, "my_component_crates")
+use_repo(crate, "dd_agent_crates")
 ```
 
-Crates are then referenced in BUILD files using the component's crate repository name: `@<repository_name>//:<crate_name>`.
-
-> **Note:** `<repository_name>` in bazel context is part of the name on the left side from `//`. In case of `sd-agent` it is
-`sdagent_crates` (value of the `name` attribute seen above in `crate.from_cargo` definition).
+All components reference crates from this single repository: `@dd_agent_crates//:<crate_name>`. There is intentionally only one `crate.from_cargo` entry — do not add per-component entries.
 
 ### Adding Dependencies to an Existing Component
 
-1. **Add the dependency to your component's `Cargo.toml`:**
+1. **Add the dependency version to the root [Cargo.toml](/Cargo.toml)** under `[workspace.dependencies]` (skip if the crate is already listed):
    ```toml
-   [dependencies]
+   [workspace.dependencies]
    serde = { version = "1.0", features = ["derive"] }
    ```
 
-2. **Add the dependency to your `BUILD.bazel`:**
+2. **Reference it in your component's `Cargo.toml`** using `.workspace = true` (never a version number):
+   ```toml
+   [dependencies]
+   serde.workspace = true
+   ```
+
+3. **Add the dependency to your `BUILD.bazel`:**
    ```starlark
    rust_library(
        name = "my_lib",
        # ...
        deps = [
-           "@my_component_crates//:serde",
+           "@dd_agent_crates//:serde",
        ],
    )
    ```
-3. **Invoke cargo build command to trigger cargo synchronization:**
+
+4. **Regenerate `Cargo.lock`:**
     ```bash
-        # This will trigger the build of your component
-        cd <path_to_your_component> && cargo build
-        # Additionally, you can only trigger a sync
-        # if you don't want to build yet.
-        bazel build //<your_component_target>
+    cargo generate-lockfile
     ```
 
-3. **Don't forget to commit updated `Cargo.toml` and `Cargo.lock`**
+5. **Commit both the root `Cargo.toml` and `Cargo.lock`**
 
 ## Adding a New Rust Component
 
@@ -123,17 +138,40 @@ Follow these steps to add a new Rust component to the repository.
 └── tests/       # optional integration tests
 ```
 
-### Step 2: Create Cargo.toml
+> **Note:** The component directory does **not** contain a `Cargo.lock` — the single lock file lives at the repository root.
 
-There is nothing bazel specific about this.
+### Step 2: Add Your Component to the Cargo Workspace
+
+Edit the root [Cargo.toml](/Cargo.toml):
+
+1. **Register your component as a workspace member:**
+   ```toml
+   [workspace]
+   members = [
+       "pkg/discovery/module/rust",
+       "pkg/procmgr/rust",
+       "pkg/your/component/rust",  # Add your component here
+   ]
+   ```
+
+2. **Add any new crate versions** to `[workspace.dependencies]` (all external crate versions must be declared here):
+   ```toml
+   [workspace.dependencies]
+   # ... existing deps ...
+   my-new-dep = "1.0"
+   ```
+
+### Step 3: Create Your Component's `Cargo.toml`
+
+The component `Cargo.toml` must **not** contain any dependency version numbers. Use `.workspace = true` to inherit versions from the root:
 
 ```toml
 [package]
 name = "my-component"
 version = "0.1.0"
-edition = "2024"
-license = "Apache-2.0"
-rust-version = "1.91"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
 
 [lib]
 name = "my_component"
@@ -144,60 +182,31 @@ name = "my-binary"
 path = "src/main.rs"
 
 [dependencies]
-anyhow = "1.0"
-serde = { version = "1.0", features = ["derive"] }
-# ... your dependencies
+anyhow.workspace = true
+serde.workspace = true
+# When you need specific features on top of the workspace-declared version:
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [dev-dependencies]
-tempfile = "3.0"
-# ... test-only dependencies
+tempfile.workspace = true
 ```
 
-### Step 3: Register Your Crates in the Module Configuration
+> **Do not** add `version = "..."` to dependencies in component `Cargo.toml` files. If the crate you need is not yet in the root `[workspace.dependencies]`, add it there first.
 
-Edit [deps/crates.MODULE.bazel](../../../../deps/crates.MODULE.bazel) to add a new `crate.from_cargo` entry for your component:
-
-```starlark
-crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
-
-# Existing component
-crate.from_cargo(
-    name = "sdagent_crates",
-    cargo_lock = "//pkg/discovery/module/rust:Cargo.lock",
-    cargo_toml = "//pkg/discovery/module/rust:Cargo.toml",
-    platform_triples = [
-        "aarch64-unknown-linux-gnu",
-        "x86_64-unknown-linux-gnu",
-    ],
-)
-use_repo(crate, "sdagent_crates")
-
-# Your new component - add this block
-crate.from_cargo(
-    name = "my_component_crates",
-    cargo_lock = "//pkg/your/component/rust:Cargo.lock",
-    cargo_toml = "//pkg/your/component/rust:Cargo.toml",
-    platform_triples = [
-        "aarch64-unknown-linux-gnu",
-        "x86_64-unknown-linux-gnu",
-    ],
-)
-use_repo(crate, "my_component_crates")
-```
-
-### Step 4: Generate the Lock File
+### Step 4: Regenerate the Lock File
 
 ```bash
-    cd <path_to_component> && cargo build
+cargo generate-lockfile
 ```
 
-This generates `Cargo.lock`.
->**Note:** you will have to run `cargo build` each time you change `Cargo.toml`. If you bump a version in `Cargo.toml` without re-running `cargo` you will see an error that files are out of sync:
-```
-ERROR: Cargo.lock out of sync: sd-agent requires clap ^4.5.58 but Cargo.lock has 4.5.51.
-```
+> **Note:** You must run `cargo generate-lockfile` (or `cargo build`) whenever you change any `Cargo.toml`. If `Cargo.lock` is out of sync, Bazel will report an error:
+> ```
+> ERROR: Cargo.lock out of sync: sd-agent requires clap ^4.5.58 but Cargo.lock has 4.5.51.
+> ```
 
 ### Step 5: Create BUILD.bazel
+
+All components share the single `@dd_agent_crates` repository for external dependencies:
 
 ```starlark
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
@@ -209,8 +218,8 @@ rust_library(
     edition = "2024",
     visibility = ["//visibility:public"],
     deps = [
-        "@my_component_crates//:anyhow",
-        "@my_component_crates//:serde",
+        "@dd_agent_crates//:anyhow",
+        "@dd_agent_crates//:serde",
     ],
 )
 
@@ -221,7 +230,7 @@ rust_binary(
     visibility = ["//visibility:public"],
     deps = [
         ":my_component",
-        "@my_component_crates//:anyhow",
+        "@dd_agent_crates//:anyhow",
     ],
 )
 
@@ -230,7 +239,7 @@ rust_test(
     crate = ":my_component",
     edition = "2024",
     deps = [
-        "@my_component_crates//:tempfile",
+        "@dd_agent_crates//:tempfile",
     ],
 )
 ```
@@ -258,7 +267,7 @@ rust_library(
     srcs = glob(["src/**/*.rs"]),
     crate_name = "my_lib",
     edition = "2024",
-    deps = ["@my_component_crates//:serde"],
+    deps = ["@dd_agent_crates//:serde"],
 )
 ```
 
@@ -273,7 +282,7 @@ rust_shared_library(
     crate_name = "my_lib",
     crate_root = "src/lib.rs",
     edition = "2024",
-    deps = ["@my_component_crates//:serde"],
+    deps = ["@dd_agent_crates//:serde"],
 )
 ```
 
@@ -300,7 +309,7 @@ rust_test(
     name = "my_lib_test",
     crate = ":my_lib",
     edition = "2024",
-    deps = ["@my_component_crates//:tempfile"],  # dev-dependencies
+    deps = ["@dd_agent_crates//:tempfile"],  # dev-dependencies
 )
 
 # Integration tests (standalone test files)
@@ -313,7 +322,7 @@ rust_test(
         "CARGO_BIN_EXE_my-tool": "$(rootpath :my-tool)",
     },
     deps = [
-        "@my_component_crates//:tempfile",
+        "@dd_agent_crates//:tempfile",
     ],
 )
 ```
@@ -351,8 +360,8 @@ For custom release profiles, add to `bazel/configs/` and import in `.bazelrc`.
 >**Note:** right now we only have a release configuration that is sd-agent specific.
 However, if we identify that future components want to utilize the same configuration
 it can be promoted to the global `datadog-agent-release` configuration. For now, please,
-introduce your own `my_component.bazelrc` in [bazel/configs/](../../../../bazel/configs/) and
-add `import %workspace%/bazel/configs/my_component.bazelrc` to [.bazelrc](../../../../.bazelrc) under
+introduce your own `my_component.bazelrc` in [bazel/configs/](/bazel/configs/) and
+add `import %workspace%/bazel/configs/my_component.bazelrc` to [.bazelrc](/.bazelrc) under
 `Project configs` section.
 
 ## CI Integration
@@ -397,19 +406,19 @@ bazel build --verbose_failures //pkg/your/component/rust:...
 bazel query "deps(//pkg/your/component/rust:my_lib)"
 
 # Check crate resolution
-bazel query "@my_component_crates//..."
+bazel query "@dd_agent_crates//..."
 ```
 
 ### Updating Dependencies
 
-After modifying `Cargo.toml`, regenerate the lock file:
+After modifying any `Cargo.toml`, regenerate the lock file from the repository root:
 
 ```bash
-cd <path_to_you_component> && cargo build
+# Alternatively, you can use cargo build command to do the same
+cargo generate-lockfile
 ```
 
-bazel will fail if you forget to sync `Cargo.toml` and `Cargo.lock` with
-an error pointing to a mismatch:
+Bazel will fail if `Cargo.toml` and `Cargo.lock` are out of sync:
 ```
 ERROR: Cargo.lock out of sync: sd-agent requires clap ^4.5.58 but Cargo.lock has 4.5.51.
 ```
@@ -418,7 +427,8 @@ ERROR: Cargo.lock out of sync: sd-agent requires clap ^4.5.58 but Cargo.lock has
 
 | Component | Path | Crate Repository |
 |-----------|------|------------------|
-| sd-agent (discovery) | `pkg/discovery/module/rust/` | `@sdagent_crates` |
+| sd-agent (discovery) | `pkg/discovery/module/rust/` | `@dd_agent_crates` |
+| dd-procmgrd | `pkg/procmgr/rust/` | `@dd_agent_crates` |
 
 ## Further Reading
 
