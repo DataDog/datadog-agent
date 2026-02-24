@@ -298,7 +298,8 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 
 func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 	// note: bump this when we'll add new collectors in nvidia.BuildCollectors
-	const numSupportedCollectorTypes = 5
+	const parentCollectorTypes = 5
+	const migCollectorTypes = 4 // MIG devices currently skip fields collector
 
 	// Use device index 5 which has MIG support in testutil
 	deviceIdx := 5
@@ -347,18 +348,10 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 	// Assert function to check collectors match current device state
 	assertCollectors := func(collectors []nvidia.Collector) {
 		migCount := int(curMIGChildCount.Load())
-		var expectedDeviceCount int
-		if migCount > 0 {
-			// When MIG is enabled, we have the parent + MIG children
-			expectedDeviceCount = 1 + migCount
-		} else {
-			// When MIG is disabled, we only have the parent device
-			expectedDeviceCount = 1
-		}
-
-		assert.Len(t, collectors, expectedDeviceCount*numSupportedCollectorTypes,
-			"Expected %d collectors (%d devices * %d collector types), got %d",
-			expectedDeviceCount*numSupportedCollectorTypes, expectedDeviceCount, numSupportedCollectorTypes, len(collectors))
+		expectedCollectorCount := parentCollectorTypes + (migCount * migCollectorTypes)
+		assert.Len(t, collectors, expectedCollectorCount,
+			"Expected %d collectors (1 parent*%d + %d mig*%d), got %d",
+			expectedCollectorCount, parentCollectorTypes, migCount, migCollectorTypes, len(collectors))
 
 		// Count collectors by UUID
 		actualUUIDs := map[string]int{}
@@ -368,11 +361,11 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 
 		// Build expected UUIDs
 		expectedUUIDs := map[string]int{
-			parentUUID: numSupportedCollectorTypes,
+			parentUUID: parentCollectorTypes,
 		}
 		for i := 0; i < migCount; i++ {
 			migUUID := testutil.MIGChildrenUUIDs[deviceIdx][i]
-			expectedUUIDs[migUUID] = numSupportedCollectorTypes
+			expectedUUIDs[migUUID] = migCollectorTypes
 		}
 
 		assert.Equal(t, expectedUUIDs, actualUUIDs)
