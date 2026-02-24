@@ -32,6 +32,7 @@ The evaluation framework enables systematic testing of algorithm configurations 
     --output /tmp/output.json \
     --<detector-flag> \
     --<correlator-flag> \
+    --rca \
     --all
 
 # Generate LLM diagnosis
@@ -58,6 +59,8 @@ python3 comp/observer/eval/harness.py \
 | `analyze_with_llm.py` | Sends observer output to GPT-4 for root cause diagnosis |
 | `evaluate_diagnosis.py` | Grades diagnosis against ground truth (0-100 score) |
 | `harness.py` | Optuna-based Bayesian optimization for parameter tuning |
+
+`output.json` keeps existing fields (`sample_anomalies`, `correlations`, `edges`) and may include additive `rca` evidence when `--rca` is enabled.
 
 ### Documentation
 

@@ -1,0 +1,94 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1) **What do the correlations tell you?**  
+A single large time-synchronous incident: **66 distinct metric families** in the same container/pod anomalied together within ~1s, spanning **CPU usage + CPU pressure/throttling + memory growth (RSS/anon/private_dirty) + PID/threads growth + I/O/dirty-page activity**—i.e., a broad resource disruption localized to `pod crash-loop-2ad3b6ae / container crasher`.
+
+2) **Is there a problem? (yes/no/unclear)**  
+**Yes.**
+
+3) **If yes, what is it? (one sentence)**  
+The `crasher` container shows a **runaway workload** (likely crash-loop/fork-bomb/leak-like behavior) driving **rapid PID/thread expansion plus rising memory (anon/RSS) and elevated CPU pressure/throttling with increased I/O/dirty memory**.
+
+4) **Confidence level (high/medium/low)**  
+**Medium** (incident is clear; exact root mechanism is not).
+
+5) **Alternative possibilities + why uncertain (if not high confidence)**  
+- **Fork/exec storm vs. thread explosion**: both `pids` and `threads` jump; without per-process context we can’t distinguish fork-bomb from a highly-threaded app.  
+- **Memory leak vs. repeated restarts allocating memory**: CUSUM indicates a sustained shift, but smaps/cgroup memory rising could be leak inside one run or repeated allocations across crash loops.  
+- **I/O-heavy behavior vs. memory pressure causing writeback**: `file_dirty`/I/O pressure could be application writes or kernel writeback under memory stress; causal order is unclear.  
+Uncertainty is explicitly flagged by the correlator digest: **RCA confidence ~0.50, weak_directionality, ambiguous_roots**, and **no onset_chain**.
+
+6) **Supporting evidence (from the data)**  
+- **Correlation breadth:** `TimeCluster: 66 anomalies` in `time_cluster_1380` (single cluster, many families).  
+- **CPU contention:** anomalies in `cgroup.v2.cpu.pressure.* (some/full, avg10/60/300, total)` plus `cgroup.v2.cpu.stat.*throttled*` and `total_cpu_percentage/system_cpu/kernel_cpu` families.  
+- **Memory surge:** `smaps_rollup.rss` shifted ~2.35M → ~12.42M; `cgroup.v2.memory.current` ~1.51M → ~7.99M; `cgroup.v2.memory.stat.anon` ~1.37M → ~7.26M; `smaps_rollup.private_dirty` is a key family in the digest.  
+- **PID/thread growth:** `cgroup.v2.cgroup.threads` ~2476 → ~13085; `container.pid_count` and `cgroup.v2.pids.current/max/peak` families are in the cluster.  
+- **I/O / dirtying:** `cgroup.v2.memory.stat.file_dirty` shifted up; `cgroup.v2.io.stat.{rbytes/rios/wbytes/wios}` and `cgroup.v2.io.pressure.full.total` anomalied.  
+- **Localized target:** tags consistently point to `container_name:crasher`, `pod_name:crash-loop-2ad3b6ae`, `namespace:default`.
+
+7) **Do the key sources and onset chain support the conclusion?**  
+- **Key sources:** Yes—key families highlighted in the digest (RSS/private_dirty/anon memory, pid_count, CPU usage/pressure, I/O weight/pressure) all align with a **runaway resource-consumption event** in one container.  
+- **Onset chain:** **No**—the digest shows `onset_chain: null` and flags weak directionality/ambiguous roots, so it does **not** support a specific causal ordering (e.g., “file_dirty caused pid_count”); it only supports the **simultaneous multi-resource incident** conclusion.

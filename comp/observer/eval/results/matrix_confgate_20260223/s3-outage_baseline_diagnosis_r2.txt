@@ -1,0 +1,92 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What do the correlations tell you?**  
+   There is **one dominant time-based cluster** where a very large number of metrics across **many different containers/pods** anomalied **at the same time (within 1s)**—especially **CPU pressure/stall/throttling and CPU usage/system**, indicating a **node-wide, synchronized event** rather than an issue isolated to a single workload.
+
+2. **Is there a problem? (yes/no/unclear)**  
+   **Unclear.**
+
+3. **If yes, what is it? (one sentence)**  
+   N/A.
+
+4. **Confidence level (high/medium/low)**  
+   **Low.**
+
+5. **Alternative possibilities & why uncertain (if not high confidence)**  
+   - **Benign synchronized step/change in metric collection or baseline window artifact:** CUSUM flags *sustained shifts*, and the samples show many **“below baseline”** shifts of small magnitude; this can happen if the “normal” first 25% differs from the rest (workload mix changes, rollout, warmup).  
+   - **Node-level CPU pressure incident (real):** the cluster contains many `container.cpu.partial_stall` / `container.cpu.throttled*` anomalies across system and app pods, which could reflect **actual contention**—but we don’t see clear impact indicators (errors/latency) and the sample anomalies are mostly small downward shifts.  
+   - **Container restarts / rescheduling wave:** `uptime` anomalies appear, which can accompany restarts; however the shifts are minor and not clearly showing resets to near-zero in the sample.  
+   Uncertain because the correlator used is **TimeCluster only (no learned relationships)** and the sample anomalies do not show a single strong “smoking gun” metric spike—mostly modest shifts.
+
+6. **Supporting evidence (from the data)**  
+   - **Single correlation cluster:** `"total_correlations": 1` and `TimeCluster: 2545 anomalies` with many sources.  
+   - **Broad cross-pod involvement:** cluster lists `kube-proxy`, `kindnet-cni`, `etcd`, `postgres`, multiple python services, and `datadog-agent` containers all co-anomalizing.  
+   - **CPU pressure/throttling signals in the cluster:** sources include `container.cpu.partial_stall`, `container.cpu.throttled`, `container.cpu.throttled.periods`, plus `container.cpu.system` and `container.cpu.usage`.  
+   - **CUSUM sample anomalies mostly “shifted below baseline”:** e.g., `containerd.mem.current.usage` ~2.1σ below baseline, `containerd.proc.open_fds` below baseline, multiple `cri.cpu.usage` below baseline.  
+   - **Extremely high anomaly volume with heavy dedup:** `total_anomalies: 449143`, `dedup_skipped: 439004` suggests repetitive/structural shifts rather than a few isolated spikes.
+
+7. **RCA/digest support check**  
+   **No RCA/digest is present** in the provided JSON, so there is **no onset chain or ranked key sources** to confirm or refute the conclusion.

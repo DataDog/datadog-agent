@@ -1,0 +1,16 @@
+============================================================
+EVALUATION
+============================================================
+Diagnosis file: results/matrix_confgate_20260223/cpu-starvation_baseline_diagnosis.txt
+Problem type: CPU starvation
+Model: gpt-5.2-2025-12-11
+============================================================
+
+Checking if diagnosis identified: CPU starvation...
+
+============================================================
+EVALUATION RESULT:
+============================================================
+1. **Identified Issue**: partial  
+2. **What it said**: It attributed the incident to a runaway/crash-looping container causing broad resource contention, mentioning CPU pressure/throttling among other blow-ups rather than clearly stating CPU starvation from insufficient CPU limits.  
+3. **Score**: 78

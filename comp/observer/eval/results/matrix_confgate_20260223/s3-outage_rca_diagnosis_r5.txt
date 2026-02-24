@@ -1,0 +1,95 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What do the correlations tell you?**  
+   A single large incident window (~24s) where **hundreds of metrics across many families** anomalied together: kubelet runtime operation metrics (especially `runtime.operations.duration.count`), **node disk capacity/utilization** metrics (`system.disk.free/used/in_use/utilized` across many devices), plus widespread **container CPU, memory, page-fault, I/O-stall, network, and uptime** anomalies.
+
+2. **Is there a problem? (yes/no/unclear)**  
+   **Unclear.**
+
+3. **If yes, what is it? (one sentence)**  
+   N/A.
+
+4. **Confidence level (high/medium/low)**  
+   **Low** (digest RCA confidence 0.53 and “ambiguous_roots”).
+
+5. **Alternative possibilities and why uncertain**  
+   - **Real node-level resource event (disk pressure / I/O contention / ephemeral storage churn)** causing kubelet/container runtime slowdowns and broad secondary effects; plausible because disk + kubelet runtime families dominate, but the data doesn’t show a clear causal ordering.  
+   - **Container runtime / kubelet hiccup or restart / control-plane jitter** producing synchronized anomalies in many derived metrics (including uptime shifts), but the cluster is so broad it could also be a monitoring/collection artifact.  
+   - **Monitoring artifact / baseline reset / scrape disruption**: CUSUM “shift” detections across many unrelated series in the same seconds can happen when collection changes or a systemic measurement discontinuity occurs.  
+   Uncertainty is high because the correlator is **TimeCluster (no learned causality)** and the digest explicitly flags **ambiguous roots** with **no onset chain**.
+
+6. **Supporting evidence (from the data)**  
+   - **One correlation only**: `time_cluster_1` with **897 anomalous series**; `first_seen=1771417694`, `last_updated=1771417718`.  
+   - **Breadth of affected families** (digest):  
+     - `kubernetes.kubelet.runtime.operations.duration.count:avg` **87 series** (largest family)  
+     - `system.disk.free/in_use/used/utilized:avg` **29 series each** (many devices)  
+     - Many container runtime/CPU/mem families: `container.cpu.*` (17–18), `containerd.cpu.*` (17–18), `container.memory.*` (multiple), `container.memory.page_faults` **21**, `container.uptime` **21**, `cri.uptime` **21**  
+     - System I/O latency/queue metrics present (`system.io.*`), plus load and network stacks.  
+   - Sample anomalies show **CUSUM sustained shifts** in multiple containers: CPU usage/user/system up, memory usage/kernel up, page faults up, partial stalls up.
+
+7. **Do RCA/digest key sources and onset chain support the conclusion?**  
+   - **Key sources (digest)**: emphasize **kubelet runtime operation counts** and **system disk capacity/utilization** series. This **supports** the hypothesis that the cluster is centered on **node storage/kubelet-runtime behavior**, but it does not prove causation.  
+   - **Onset chain**: **null** in the digest, and the RCA confidence is **low/ambiguous**. Therefore the **ranked RCA series are not strong support** for a specific root cause; they only indicate some early-onset candidates, not a reliable causal chain.

@@ -1,0 +1,97 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1) **What do the correlations tell you?**  
+- There are **two distinct time-correlated anomaly bursts**.  
+- **TimeCluster 1 (236 anomalies, 1769636399–1769636485)**: a broad, near-simultaneous shift across **many metrics and multiple containers** (todo-frontend, todo-backend, todo-redis, cleanup) covering **CPU usage/pressure/throttling, memory current/peak/stat, I/O pressure/stat, pids, and even config-like weights**. This looks like a **system-wide/container-lifecycle or instrumentation/normalization change** rather than a single-component fault.  
+- **TimeCluster 2 (10 anomalies at 1769636511)**: a **focused CPU spike/shift only on todo-backend** (CPU % and millicores, user/system/kernel), suggesting a **brief backend-specific load event** after the broader burst.
+
+2) **Is there a problem?**  
+**Unclear.**
+
+3) **If yes, what is it? (one sentence)**  
+N/A (unclear).
+
+4) **Confidence level**  
+**Low** (leaning toward “likely non-application incident / baseline-reset or lifecycle-driven shifts”).
+
+5) **Alternative possibilities + why uncertain**  
+- **Baseline/training artifact or metric semantics change**: CUSUM learns from first 25% and then flags sustained “shifts”; a deployment/startup phase, scrape interval change, unit change, or exporter update could make *many* metrics jump together without a real incident. The cluster includes **weights/limits-like fields** (e.g., `cpu.weight`, `io.weight.default`) shifting, which often indicates config/reporting change rather than resource contention.  
+- **Coordinated rollout/restart across pods**: `cgroup.events.populated` and many memory/cgroup stats shifting across multiple containers in the same window fits pods being created/populated and settling.  
+- **Real node-level resource contention** (CPU+IO pressure increasing across pods): presence of **pressure metrics** anomalies could indicate contention, but without seeing actual magnitudes/durations and with config-like fields also “anomalous,” it’s hard to treat as confirmed performance degradation.  
+- **Backend had a real short CPU event** (Cluster 2): could be legitimate, but it’s isolated and small compared to the broad Cluster 1.
+
+6) **Supporting evidence (from the data)**  
+- **Mass simultaneous multi-container cluster:** `TimeCluster: 236 anomalies` spanning **4 containers** (`todo-frontend`, `todo-backend`, `todo-redis`, `cleanup`) with `first_seen: 1769636399` and `last_updated: 1769636485`.  
+- **Cross-domain anomalies at once:** includes `cgroup.v2.cpu.*` (usage, nr_periods, throttled), `cgroup.v2.*.pressure*` (cpu/io/cgroup pressure), `cgroup.v2.memory.*` (current/max/peak, anon/file/slab breakdown), `cgroup.v2.io.stat.*` (rbytes/wbytes/rios/wios), and `pids.*`.  
+- **Example sustained shifts flagged by CUSUM:**  
+  - `cgroup.v2.io.stat.rbytes` for `cleanup` shifted **~4.4σ** (4028 → 81920).  
+  - `cgroup.v2.cpu.stat.usage_usec` for `cleanup` shifted **~4.4σ** (1353 → 27513).  
+  - `smaps_rollup.rss/pss/private_dirty` for `todo-frontend` shifted materially upward (e.g., rss ~9.9M → ~44.6M).  
+- **Config-like metrics also “shifted”:** `cgroup.v2.cpu.weight`, `cgroup.v2.cpu.weight.nice`, `cgroup.v2.io.weight.default` appearing in the same cluster across containers.  
+- **Separate backend-only burst later:** `TimeCluster: 10 anomalies` at `1769636511` only for `todo-backend`, all CPU-related plus `memory.stat.sock`.
+
+7) **RCA/digest present? Do key sources/onset chain support the conclusion?**  
+- **No RCA section is present** in the JSON, so there is **no explicit onset chain** to confirm or refute. The **correlation patterns themselves** (broad multi-container + inclusion of weights/limits-like fields) are what primarily support the “unclear/possibly lifecycle or baseline shift” interpretation.

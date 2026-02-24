@@ -1,0 +1,98 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What do the correlations tell you?**  
+   - **time_cluster_1:** A large, near-simultaneous event affecting **many containers/series (236)** across **CPU pressure/throttling, memory growth/pressure (anon/rss/pss, slab), I/O pressure and I/O stats, and pids/cgroup state**—i.e., a broad **system-wide contention / resource pressure episode**, not a single-metric blip.  
+   - **time_cluster_2:** A smaller, later micro-burst (**10 series**) isolated to **todo-backend**, combining **CPU usage spike** with **memory sock** anomaly.
+
+2. **Is there a problem? (yes/no/unclear)**  
+   **Yes.**
+
+3. **If yes, what is it? (one sentence)**  
+   A short incident of **cluster/node resource contention (CPU + memory + I/O pressure) impacting multiple containers at once**, consistent with a heavy workload or disruptive background job.
+
+4. **Confidence level (high/medium/low)**  
+   **Medium** (pattern is strong, but causal direction/root is unclear).
+
+5. **Alternative possibilities & why uncertain (if not high confidence)**  
+   - **Instrumentation/config change** (e.g., changes to cgroup weights/limits/collection) could create many “shifts” at once; uncertainty because CUSUM flags sustained baseline shifts and we see anomalies in “weight” metrics too.  
+   - **Coordinated workload step/change** (deployment/traffic surge/load test) rather than “fault”; uncertainty because we lack external context (events, rollouts, node-level saturation).  
+   - **Single noisy container causing node-level contention** (e.g., cleanup job) vs **shared-node issue**; uncertainty because TimeCluster groups by time, not causality, and RCA confidence flags *weak_directionality/ambiguous_roots*.
+
+6. **Supporting evidence (from the data)**  
+   - **236 anomalous series** in **time_cluster_1** with very broad metric-family coverage:  
+     - CPU pressure: `cgroup.v2.cpu.pressure.full.total`, `...some.total`, plus `nr_periods/nr_throttled/throttled_usec/usage_usec` families.  
+     - I/O pressure + I/O activity: `cgroup.v2.io.pressure.*.total`, `cgroup.v2.io.stat.rbytes/rios/wbytes/wios`.  
+     - Memory pressure/growth: `cgroup.v2.memory.current/peak`, `memory.stat.anon/active_anon/file/slab_*`, plus smaps `rss/pss/private_dirty`.  
+     - Process/cgroup activity: `cgroup.v2.cgroup.events.populated`, `pids.current/peak`, `container.pid_count`.  
+   - Sample anomalies show **large sustained shifts** (CUSUM):  
+     - `smaps_rollup.private_dirty` ~**17.9M** vs baseline **2.94M** (todo-frontend).  
+     - `cgroup.v2.io.pressure.some.total` **32613** vs **7119** (todo-backend).  
+     - `cgroup.v2.io.stat.rbytes` **81920** vs **4028** and `rios` **5** vs **0.25** (cleanup).  
+   - **time_cluster_2** is localized to one container (`todo-backend`) and is mostly CPU metrics + `memory.stat.sock`.
+
+7. **Do RCA/digest key sources and onset chain support the conclusion?**  
+   - **Digest supports** the conclusion: the **metric family breadth** in **time_cluster_1** clearly indicates **multi-resource pressure** across multiple containers at the same time.  
+   - **RCA series rankings do not strongly support a specific root cause** (digest explicitly says **RCA confidence low**, flags **weak_directionality/ambiguous_roots**, and **onset_chain is null**), so they **do not justify attributing causation** to the “cleanup” container—only that it was involved early in the cluster.

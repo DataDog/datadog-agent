@@ -1,0 +1,16 @@
+============================================================
+EVALUATION
+============================================================
+Diagnosis file: /Users/ella.taira/.codex/worktrees/f07e/datadog-agent/comp/observer/eval/results/matrix_digest_20260223/cpu-starvation_rca_diagnosis.txt
+Problem type: CPU starvation
+Model: gpt-5.2-2025-12-11
+============================================================
+
+Checking if diagnosis identified: CPU starvation...
+
+============================================================
+EVALUATION RESULT:
+============================================================
+1. **Identified Issue**: partial  
+2. **What it said**: It attributed the incident mainly to a runaway process/fork and memory/dirty-page growth driving I/O, while only secondarily noting CPU pressure/throttling among many symptoms.  
+3. **Score**: 65

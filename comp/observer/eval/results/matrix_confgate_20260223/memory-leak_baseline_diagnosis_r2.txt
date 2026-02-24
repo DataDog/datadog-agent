@@ -1,0 +1,72 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What do the correlations tell you?**  
+   - There’s one dominant incident window where **67 different metrics** in the same container/pod anomalied together over ~77 seconds (time_cluster_1), plus a later **single-timestamp CPU-only blip** (time_cluster_2). This indicates a **container-wide state change** rather than an isolated metric glitch.
+
+2. **Is there a problem?**  
+   - **Yes.**
+
+3. **If yes, what is it? (one sentence)**  
+   - The `leaky-app` container appears to undergo a **sustained memory growth/event (leak or rapid memory expansion) with accompanying CPU and I/O pressure/activity**, consistent with a resource-spiral incident.
+
+4. **Confidence level**  
+   - **Medium.**
+
+5. **If not high confidence: alternative possibilities + why uncertain**  
+   - **Pod/container start or restart / workload phase change:** many metrics shift together (including limits/weights), which can happen on lifecycle transitions; uncertainty because we don’t see explicit “restart/OOM kill” signals here, only populated/procs/threads/limits shifting.  
+   - **Resource limit/weight reconfiguration (K8s update / QoS change):** anomalies include `memory.max`, `cpu.weight`, `io.weight.default`, which could reflect configuration changes rather than pathological behavior.  
+   - **Metric artifact or aggregation bug (notably procs/threads):** `cgroup.v2.cgroup.procs` and `threads` jumping to **32327** is suspiciously large for a single container and could indicate a collection/parsing issue, reducing confidence.
+
+6. **Supporting evidence (from the data)**  
+   - **Large, sustained correlated cluster:** `TimeCluster: 67 anomalies`, `first_seen: 1769636279`, `last_updated: 1769636356` all for the same container/pod.  
+   - **Memory footprint jumps:** `smaps_rollup.pss` to **13,344,768** vs baseline **3,082,082**; `pss_dirty` to **8,421,376** vs **1,876,632**; `memory.stat.anon/active_anon` similarly elevated.  
+   - **Kernel/slab/pagetables increase:** `memory.stat.slab` **218,888** vs **44,641**; `slab_reclaimable` **160,640** vs **32,762**; `pagetables` **71,680** vs **13,899**; `kernel_stack` **16,384** vs **3,341**.  
+   - **I/O activity surge:** `io.stat.rbytes` **1,662,976** vs **81,785** and `io.stat.rios` **20** vs **0.98** (~4.4σ).  
+   - **CPU pressure/usage involved:** cluster includes `cpu.stat.usage_usec`, throttling, and PSI (`cpu.pressure.*`, `io.pressure.*`), plus a later CPU-only cluster (`time_cluster_2`).
+
+7. **RCA/digest present? do key sources/onset chain support conclusion?**  
+   - **No RCA/digest is present** in the JSON, so there’s **no explicit onset chain** to confirm; the conclusion is based on the **time-clustered co-anomaly pattern** and the **memory/IO/CPU metric shifts**.

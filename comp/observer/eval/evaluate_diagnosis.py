@@ -32,6 +32,7 @@ PROBLEM_TYPES = {
     "slow-serialization": "slow serialization",
     "memory-exhaustion": "memory exhaustion",
     "traffic-spike": "traffic spike",
+    "s3-outage": "etcd quorum loss from capacity removal causing S3 outage",
 }
 
 # Built-in ground truths for common scenarios
@@ -177,6 +178,16 @@ The injected fault is an 18x sudden increase in requests per second.
 **Root cause:** 18x RPS spike overwhelming system - backend and Redis at 100% CPU, 48% success, 42% overload errors (503), 10% timeout.
 
 **Key indicators:** Request rate spike, CPU saturation across services, high error rate, mixed error types (overload + timeout).
+""",
+
+    "s3-outage": """
+## Ground Truth: AWS S3 Service Disruption (Capacity Removal -> etcd Quorum Loss)
+
+An S3 team member was debugging slow billing system performance and executed a capacity removal command with an incorrect input parameter. Instead of removing a small subset of servers from the billing subsystem, the command removed a significant portion of servers supporting the s3-index-subsystem. The index subsystem uses etcd for distributed coordination - when too many servers were removed, the etcd cluster lost quorum (etcd.server.has_leader dropped to 0). Without leader election, the index subsystem could not serve any metadata queries, causing all operations (index.lookup, index.list, index.delete, index.update) to fail with gRPC errors. The s3-placement-subsystem depends on s3-index-subsystem for metadata lookups before allocating storage - it also failed immediately. With both core subsystems down, s3-api-gateway could not service any S3 API requests (GET, PUT, LIST, DELETE), returning 503 errors. The blast radius extended to all dependent AWS services: ec2-instance-launch failed because it could not fetch AMI data from S3, ebs-volume-service failed because it could not restore snapshots from S3, aws-lambda failed because it could not fetch function code from S3, and service-health-dashboard could not display accurate status because its admin console depends on S3.
+
+**Root cause chain:** operator capacity removal command -> s3-index-subsystem etcd quorum loss (has_leader=0) -> s3-index-subsystem gRPC errors -> s3-placement-subsystem failures -> s3-api-gateway 503 errors -> downstream service failures (EC2, EBS, Lambda, Dashboard).
+
+**Key indicators:** etcd.server.has_leader=0, index subsystem gRPC errors, placement subsystem failures, S3 API 503 errors, cascading downstream service failures.
 """
 }
 

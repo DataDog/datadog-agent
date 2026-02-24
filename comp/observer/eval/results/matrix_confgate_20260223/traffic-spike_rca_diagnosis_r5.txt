@@ -1,0 +1,99 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What the correlations tell you**
+- **time_cluster_1:** A large, simultaneous, cross-metric disturbance (236 anomalous series) spanning **memory (smaps + cgroup memory), CPU pressure/throttling, and I/O pressure/stat**, across multiple containers (not just one). This looks like a **node-level contention or systemic shift** rather than a single isolated metric glitch.
+- **time_cluster_2:** A small, isolated cluster (10 series) confined to **todo-backend** showing **CPU usage anomalies plus `memory.stat.sock`**, suggesting a brief backend-local event (or measurement artifact) after the big systemic cluster.
+
+2. **Is there a problem?**
+- **Yes** (but root cause is not uniquely determined).
+
+3. **If yes, what is it? (one sentence)**
+- A **system-wide resource contention event** (memory growth/pressure with accompanying CPU and I/O pressure) affecting multiple containers nearly simultaneously.
+
+4. **Confidence level**
+- **Low–Medium** (digest RCA confidence is low; pattern is clear but causation is not).
+
+5. **Alternative possibilities & why uncertain**
+- **Host/node-wide I/O stall or storage throttling** causing broad **I/O pressure** and knock-on effects in CPU/memory metrics; uncertain because the correlator is only time-based here and directionality is flagged weak.
+- **Memory pressure / reclaim / near-OOM behavior** (e.g., cache growth, slab growth, leak, or page churn) driving CPU+I/O pressure; uncertain because we see many memory components move together but no clear onset chain and RCA flags **ambiguous_roots**.
+- **Workload phase change / coordinated activity** (e.g., cleanup job plus application activity) causing legitimate step-changes; uncertain because CUSUM detects sustained shifts and the cluster spans multiple pods including a **cleanup** container, which could coincide with a planned heavy operation.
+- **Instrumentation/collection artifact** (e.g., cgroup files read intermittently wrong) is possible but less likely given consistent multi-family movement; still uncertain due to extremely high anomaly volume and lack of learned correlation edges (no GraphSketch here).
+
+6. **Supporting evidence (from the data)**
+- **Massive correlated cluster:** `time_cluster_1` has **236 anomalous series** and **very broad metric family coverage** (CPU pressure, I/O pressure, memory current/peak/stats, smaps RSS/PSS/dirty, pids, etc.).
+- **Systemic resource-pressure signals present together:**
+  - `cgroup.v2.cpu.pressure.full.total:*`, `cgroup.v2.cpu.pressure.some.total:*`
+  - `cgroup.v2.io.pressure.some.total:*`, `cgroup.v2.io.pressure.full.total:*`
+  - `cgroup.v2.memory.current:*`, `cgroup.v2.memory.peak:*`, many `cgroup.v2.memory.stat.*`
+- **Concrete example sustained shifts (CUSUM):**
+  - `smaps_rollup.private_dirty` and `smaps_rollup.rss/pss` for **todo-frontend** jump multiple σ above baseline.
+  - `cgroup.v2.memory.stat.anon`, `memory.peak`, `memory.stat.active_file` for **todo-backend** jump ~2σ above baseline.
+  - **cleanup** container shows early large step in `cgroup.v2.cpu.stat.usage_usec` and `cgroup.v2.io.stat.rbytes/rios` (big deltas vs baseline).
+- **Secondary localized event:** `time_cluster_2` is only **todo-backend**, coupling `cpu_percentage/*cpu_usage*` with `cgroup.v2.memory.stat.sock`.
+
+7. **Do RCA/digest key sources and onset chain support the conclusion?**
+- **Key sources:** Yes for the *systemic contention* conclusion—key sources are dominated by **CPU/I/O pressure and memory/oom-related families** across containers, matching a broad resource event.
+- **Onset chain:** **No (not available)**—`onset_chain: null` and digest flags `weak_directionality` / `ambiguous_roots`, so it **does not support a specific causal ordering** (e.g., “cleanup caused everything”). The low RCA confidence means the ranked root candidates should be treated as suggestive, not definitive.

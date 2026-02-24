@@ -1,0 +1,73 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What do the correlations tell you?**  
+   There is **one single time cluster** where **~66 different metrics** from the **same container/pod (`crasher` / `crash-loop-2ad3b6ae`, Burstable, default ns)** anomalied **simultaneously**, indicating a **coordinated event affecting CPU, memory, PIDs/threads, and I/O at once**, not isolated metric noise.
+
+2. **Is there a problem? (yes/no/unclear)**  
+   **Yes.**
+
+3. **If yes, what is it? (one sentence)**  
+   The `crasher` container shows a **sustained resource blow-up (rapid growth in processes/threads, memory, CPU pressure/throttling, and I/O)** consistent with a **runaway/crash-looping workload causing resource contention**.
+
+4. **Confidence level (high/medium/low)**  
+   **Medium.**
+
+5. **If not high confidence: alternative possibilities and why uncertain**  
+   - **Container restart / lifecycle artifact**: `cgroup.events.populated` shifting toward 1 can happen when the cgroup becomes populated after being idle; a restart could cause many metrics to shift together. Uncertain because we don’t see explicit restart counters or kube events here.  
+   - **Metric baseline/learning issue**: CUSUM learns from first 25%—if that period was unusually idle, later “normal” load could look anomalous across many metrics. Uncertain without seeing the full time series and baseline stability.  
+   - **Host-level contention spilling into container signals**: elevated pressure metrics could reflect node saturation rather than purely this container, but the anomalies are tightly tagged to this container; still uncertain without node-wide metrics.
+
+6. **Supporting evidence (from the data)**  
+   - **Single simultaneous cluster:** `total_correlations: 1`, “**TimeCluster: 66 anomalies**”, `first_seen: 1769630443` to `last_updated: 1769630485`.  
+   - **Process/thread explosion signals:** `cgroup.v2.cgroup.threads:avg` shifted **2475 → 13085**; `cgroup.v2.pids.max:avg` **404 → 2135**; correlator includes `pids.current`, `pids.peak`, `cgroup.procs`, and `container.pid_count`.  
+   - **Memory jump (anon + RSS):** `smaps_rollup.rss:avg` **2.35MB → 12.42MB**; `cgroup.v2.memory.current:avg` **1.51MB → 7.99MB**; `memory.stat.anon` **1.37MB → 7.26MB**; `smaps_rollup.pss_anon` matches the anon increase.  
+   - **CPU contention/throttling:** `cgroup.v2.cpu.pressure.full.total:avg` **30131 → 159266**; `cgroup.v2.cpu.stat.local.throttled_usec:avg` **60357 → 319029**; correlator includes `nr_throttled`, `throttled_usec`, and multiple `cpu.pressure.*` windows.  
+   - **I/O increase and I/O pressure:** sample shows `io.stat.rios` **0.30 → 6.00**, `io.stat.rbytes` **4230 → 86016**, and `io.pressure.full.total` **7.57 → 40.00**; cluster includes write metrics too (`wbytes`, `wios`).  
+   - **Cgroup becomes active:** `cgroup.v2.cgroup.events.populated:avg` **0.19 → 1.00** (consistent with “container became active/ran again”).
+
+7. **RCA/digest present? Do key sources and onset chain support the conclusion?**  
+   **No RCA/digest is present** in the JSON, so there is **no explicit onset chain** to confirm; however, the **key sources in the time cluster (threads/pids + memory current/anon + CPU pressure/throttling + I/O stats/pressure)** are consistent with the conclusion of a **runaway/crash-looping container driving broad resource contention.**

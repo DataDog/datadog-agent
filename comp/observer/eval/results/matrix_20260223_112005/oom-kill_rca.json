@@ -1,0 +1,345 @@
+{
+  "detector": "CUSUM",
+  "correlator": "Dedup+TimeClusterCorrelator",
+  "timestamp": "2026-02-23T11:28:14-05:00",
+  "total_anomalies": 79531,
+  "unique_sources_in_anomalies": 74,
+  "total_correlations": 1,
+  "dedup_skipped": 77484,
+  "sample_anomalies": [
+    {
+      "source": "cgroup.v2.io.stat.rbytes:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.io.stat.rbytes:avg shifted to 1589248.00 (7.6σ above baseline of 26936.41)",
+      "timestamp": 1769633202,
+      "tags": [
+        "container_name:oom-victim",
+        "pod_name:oom-kill-7f36e710",
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:84facaba48b1"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.stat.user_usec:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.cpu.stat.user_usec:avg shifted to 19501.00 (7.6σ above baseline of 330.53)",
+      "timestamp": 1769633202,
+      "tags": [
+        "container_name:oom-victim",
+        "pod_name:oom-kill-7f36e710",
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:84facaba48b1"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.stat.system_usec:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.cpu.stat.system_usec:avg shifted to 15786.00 (7.6σ above baseline of 267.56)",
+      "timestamp": 1769633202,
+      "tags": [
+        "qos_class:Burstable",
+        "container_id:84facaba48b1",
+        "container_name:oom-victim",
+        "pod_name:oom-kill-7f36e710",
+        "namespace:default"
+      ]
+    },
+    {
+      "source": "cgroup.v2.io.stat.rios:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.io.stat.rios:avg shifted to 18.00 (7.6σ above baseline of 0.31)",
+      "timestamp": 1769633202,
+      "tags": [
+        "qos_class:Burstable",
+        "container_id:84facaba48b1",
+        "container_name:oom-victim",
+        "pod_name:oom-kill-7f36e710",
+        "namespace:default"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.stat.usage_usec:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.cpu.stat.usage_usec:avg shifted to 35288.00 (7.6σ above baseline of 598.10)",
+      "timestamp": 1769633202,
+      "tags": [
+        "container_id:84facaba48b1",
+        "container_name:oom-victim",
+        "pod_name:oom-kill-7f36e710",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.active_anon:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.active_anon:avg shifted to 20353024.00 (1.6σ above baseline of 5320451.16)",
+      "timestamp": 1769633212,
+      "tags": [
+        "container_id:84facaba48b1",
+        "container_name:oom-victim",
+        "pod_name:oom-kill-7f36e710",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.io.pressure.some.total:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.io.pressure.some.total:avg shifted to 97.00 (1.8σ above baseline of 22.68)",
+      "timestamp": 1769633205,
+      "tags": [
+        "pod_name:oom-kill-7f36e710",
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:84facaba48b1",
+        "container_name:oom-victim"
+      ]
+    },
+    {
+      "source": "smaps_rollup.pss:avg",
+      "analyzer": "cusum_detector",
+      "description": "smaps_rollup.pss:avg shifted to 18763776.00 (1.3σ above baseline of 5539217.82)",
+      "timestamp": 1769633208,
+      "tags": [
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:84facaba48b1",
+        "container_name:oom-victim",
+        "pod_name:oom-kill-7f36e710"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.file:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.file:avg shifted to 1646592.00 (1.8σ above baseline of 384917.61)",
+      "timestamp": 1769633205,
+      "tags": [
+        "container_id:84facaba48b1",
+        "container_name:oom-victim",
+        "pod_name:oom-kill-7f36e710",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.stat.local.throttled_usec:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.cpu.stat.local.throttled_usec:avg shifted to 233025.00 (1.8σ above baseline of 54473.38)",
+      "timestamp": 1769633205,
+      "tags": [
+        "container_id:84facaba48b1",
+        "container_name:oom-victim",
+        "pod_name:oom-kill-7f36e710",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.stat.nr_periods:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.cpu.stat.nr_periods:avg shifted to 9.00 (1.6σ above baseline of 2.23)",
+      "timestamp": 1769633207,
+      "tags": [
+        "pod_name:oom-kill-7f36e710",
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:84facaba48b1",
+        "container_name:oom-victim"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.current:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.current:avg shifted to 20226048.00 (1.5σ above baseline of 5519872.00)",
+      "timestamp": 1769633211,
+      "tags": [
+        "container_id:84facaba48b1",
+        "container_name:oom-victim",
+        "pod_name:oom-kill-7f36e710",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.slab_reclaimable:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.slab_reclaimable:avg shifted to 145080.00 (1.8σ above baseline of 33914.81)",
+      "timestamp": 1769633205,
+      "tags": [
+        "container_id:84facaba48b1",
+        "container_name:oom-victim",
+        "pod_name:oom-kill-7f36e710",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.pressure.full.avg10:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.cpu.pressure.full.avg10:avg shifted to 0.74 (4.2σ above baseline of 0.04)",
+      "timestamp": 1769633203,
+      "tags": [
+        "container_id:84facaba48b1",
+        "container_name:oom-victim",
+        "pod_name:oom-kill-7f36e710",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "smaps_rollup.pss_file:avg",
+      "analyzer": "cusum_detector",
+      "description": "smaps_rollup.pss_file:avg shifted to 4714496.00 (2.5σ above baseline of 697214.20)",
+      "timestamp": 1769633204,
+      "tags": [
+        "container_id:84facaba48b1",
+        "container_name:oom-victim",
+        "pod_name:oom-kill-7f36e710",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.pressure.some.avg10:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.cpu.pressure.some.avg10:avg shifted to 0.74 (4.2σ above baseline of 0.04)",
+      "timestamp": 1769633203,
+      "tags": [
+        "container_id:84facaba48b1",
+        "container_name:oom-victim",
+        "pod_name:oom-kill-7f36e710",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.io.pressure.full.total:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.io.pressure.full.total:avg shifted to 97.00 (1.8σ above baseline of 22.68)",
+      "timestamp": 1769633205,
+      "tags": [
+        "container_id:84facaba48b1",
+        "container_name:oom-victim",
+        "pod_name:oom-kill-7f36e710",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.pressure.some.total:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.cpu.pressure.some.total:avg shifted to 122734.00 (1.8σ above baseline of 28691.06)",
+      "timestamp": 1769633205,
+      "tags": [
+        "container_id:84facaba48b1",
+        "container_name:oom-victim",
+        "pod_name:oom-kill-7f36e710",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.inactive_file:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.inactive_file:avg shifted to 57344.00 (1.8σ above baseline of 13405.09)",
+      "timestamp": 1769633205,
+      "tags": [
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:84facaba48b1",
+        "container_name:oom-victim",
+        "pod_name:oom-kill-7f36e710"
+      ]
+    },
+    {
+      "source": "cgroup.v2.pids.peak:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.pids.peak:avg shifted to 8.00 (1.8σ above baseline of 1.87)",
+      "timestamp": 1769633205,
+      "tags": [
+        "container_id:84facaba48b1",
+        "container_name:oom-victim",
+        "pod_name:oom-kill-7f36e710",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    }
+  ],
+  "correlations": [
+    {
+      "pattern": "time_cluster_379",
+      "title": "TimeCluster: 63 anomalies",
+      "source_count": 63,
+      "sources": [
+        "demo|cgroup.v2.cgroup.events.populated:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.cgroup.pressure:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.cgroup.procs:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.cgroup.threads:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.pressure.full.avg10:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.pressure.full.avg300:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.pressure.full.avg60:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.pressure.full.total:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.pressure.some.avg10:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.pressure.some.avg300:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.pressure.some.avg60:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.pressure.some.total:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.stat.local.throttled_usec:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.stat.nr_periods:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.stat.nr_throttled:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.stat.system_usec:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.stat.throttled_usec:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.stat.usage_usec:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.stat.user_usec:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.weight.nice:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.weight:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.io.pressure.full.total:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.io.pressure.some.total:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.io.stat.rbytes:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.io.stat.rios:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.io.stat.wbytes:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.io.stat.wios:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.io.weight.default:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.memory.current:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.memory.max:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.memory.oom.group:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.memory.peak:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.active_anon:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.active_file:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.anon:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.file:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.inactive_file:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.kernel:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.kernel_stack:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.pagetables:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.percpu:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.pgfault:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.pgmajfault:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.slab:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.slab_reclaimable:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.slab_unreclaimable:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.workingset_refault_file:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.memory.zswap.writeback:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.pids.current:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.pids.max:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cgroup.v2.pids.peak:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|container.pid_count:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|cpu_limit_millicores:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|smaps_rollup.anonymous:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|smaps_rollup.private_clean:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|smaps_rollup.private_dirty:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|smaps_rollup.pss:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|smaps_rollup.pss_anon:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|smaps_rollup.pss_dirty:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|smaps_rollup.pss_file:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|smaps_rollup.referenced:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|smaps_rollup.rss:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable",
+        "demo|smaps_rollup.shared_clean:avg|container_id:7fb6e4aa2189,container_name:oom-victim,namespace:default,pod_name:oom-kill-7f36e710,qos_class:Burstable"
+      ],
+      "first_seen": 1769633613,
+      "last_updated": 1769633613
+    }
+  ]
+}

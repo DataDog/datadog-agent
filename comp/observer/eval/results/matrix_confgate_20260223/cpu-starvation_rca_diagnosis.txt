@@ -1,0 +1,75 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What do the correlations tell you?**  
+   A single tight time cluster (`time_cluster_1380`) contains **66 different metrics** anomalizing within ~1s for the same container/pod (`crasher` / `crash-loop-2ad3b6ae`), spanning **memory (smaps + cgroup memory), CPU usage + CPU pressure/throttling, pids/threads/procs, and I/O/IO pressure**—i.e., a multi-resource event rather than an isolated metric blip.
+
+2. **Is there a problem?**  
+   **Yes.**
+
+3. **If yes, what is it? (one sentence)**  
+   The container appears to enter a **runaway/crash-loop burst** that rapidly increases **process/thread count, memory (anon/rss/private dirty), CPU contention/throttling, and disk I/O/dirty pages**.
+
+4. **Confidence level**  
+   **Medium** (event is real and multi-metric; exact “root” is unclear).
+
+5. **Alternative possibilities & why uncertain (not high confidence)**  
+   - **Intentional stress test / crasher workload behavior** (name `crasher`, pod `crash-loop-*`): the pattern could be expected rather than an incident.  
+   - **Simultaneous restarts / repopulation effects**: `cgroup.events.populated` and large swings in pids/threads could reflect a restart wave rather than a leak.  
+   - **Memory + writeback/dirty-page spike due to buffered I/O**: elevated `file_dirty` + I/O stats could be a write-heavy phase causing secondary CPU pressure.  
+   Uncertain because the digest flags **`weak_directionality`** and **`ambiguous_roots`** and the correlator is purely temporal (no causal modeling).
+
+6. **Supporting evidence (from the data)**  
+   - **Breadth:** digest shows anomalies across **66 sources / 70 unique sources overall**, many metric families (CPU pressure, CPU stat throttling, memory.current/max/anon, smaps RSS/private_dirty, pids, I/O stats/pressure).  
+   - **Memory jump:** `smaps_rollup.rss` **2.35MB → 12.42MB**, `memory.current` **1.51MB → 7.99MB**, `memory.stat.anon` **1.37MB → 7.26MB**, `smaps_rollup.private_dirty` present in key sources.  
+   - **PID/thread explosion:** `cgroup.threads` **2475 → 13085**, `pids.max` **404 → 2135**, plus `container.pid_count` is a key source.  
+   - **CPU contention/throttling:** `cpu.pressure.full.total` **30131 → 159266** and `cpu.stat.*throttled_usec` increased (e.g., local throttled usec **60356 → 319029**).  
+   - **I/O + dirty pages:** `io.stat.rbytes` **4230 → 86016**, `io.stat.rios` **0.30 → 6.00**, `memory.stat.file_dirty` **54KB → 287KB**, and `io.pressure.full.total` **7.57 → 40.00**.  
+   - **Timing:** cluster window `first_seen` **1769630443** to `last_updated` **1769630485**, i.e., concentrated incident window.
+
+7. **Do key sources and onset chain support the conclusion?**  
+   - **Key sources:** **Yes**, they support a multi-resource runaway/crash-loop hypothesis (memory: `smaps_rollup.private_dirty/rss`, CPU: `*_cpu_usage_*` + `cpu.pressure.full.total`, I/O: `io.weight.default`, plus `container.pid_count`).  
+   - **Onset chain:** **No**—the digest has `onset_chain: null`, and RCA confidence is ~0.50 with flags `weak_directionality, ambiguous_roots`, so it does **not** reliably support a specific causal root (e.g., `file_dirty` vs `pid_count`), only that many things shifted together.

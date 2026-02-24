@@ -1,0 +1,79 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What do the correlations tell you?**  
+   - There’s one dominant incident window (**time_cluster_1**) where **67 different metrics** across memory, CPU, IO, pressure (PSI), and cgroup counters all shifted together for the same container, indicating a **systemic state change** rather than a single-metric blip.  
+   - A second, later micro-cluster (**time_cluster_2**) shows a **brief CPU-only** anomaly at a single timestamp, likely a short follow-on spike after the main event.
+
+2. **Is there a problem? (yes/no/unclear)**  
+   - **Yes.**
+
+3. **If yes, what is it? (one sentence)**  
+   - The container **leaky-app** experienced a **sustained workload/state shift consistent with rapid memory growth (leak-like) accompanied by increased IO and CPU pressure/usage**, approaching/altering its memory limit.
+
+4. **Confidence level (high/medium/low)**  
+   - **Medium.**
+
+5. **If not high confidence: alternative possibilities and why uncertain**  
+   - **Legitimate load/test ramp or deployment/config change** (not a leak): many “control” metrics shift too (e.g., `memory.max`, `cpu.weight`, `io.weight.default`), which can reflect a **resource limit/weight reconfiguration** rather than purely application behavior.  
+   - **Instrumentation/collection artifact or unit/aggregation issue**: extremely large jumps in `cgroup.procs`/`cgroup.threads` (to ~32k) are unusual for a single container and could indicate **mis-parsing or metric semantics** (e.g., not actually threads/procs, or a counter/gauge mix-up).  
+   - **IO-driven cache/page activity** rather than a true leak: `active_file` and `pss_file` rise along with reads; memory growth could be **file cache / mapped file growth** tied to IO.
+
+6. **Supporting evidence (from the data)**  
+   - **Broad simultaneous anomaly cluster:** `TimeCluster: 67 anomalies` for the same container (`container_id:fc108741ec27`, `container_name:leaky-app`, pod `memory-leak-ef48ae3f`).  
+   - **Memory footprint increases (smaps + cgroup memory stats):**  
+     - `smaps_rollup.pss` to **13,344,768** vs baseline **3,082,082**  
+     - `smaps_rollup.pss_dirty` to **8,421,376** vs baseline **1,876,632**  
+     - `cgroup.v2.memory.stat.anon/active_anon` to **8,421,376** vs baseline **1,876,632**  
+     - Kernel memory components rise: `memory.stat.slab`, `slab_reclaimable`, `kernel_stack`, `pagetables`, `kernel` all shift upward.  
+   - **IO increases:**  
+     - `io.stat.rbytes` to **1,662,976** vs baseline **81,785** (4.4σ)  
+     - `io.stat.rios` to **20** vs baseline **0.98** (4.4σ)  
+   - **CPU/pressure involvement:** cluster includes `cpu_percentage`, `total_cpu_usage_millicores`, and multiple `cpu.pressure.*` metrics (some/full, avg10/60/300, totals).  
+   - **Resource limit/weight metrics also shift:** `cgroup.v2.memory.max`, `cgroup.v2.cpu.weight`, `cgroup.v2.io.weight.default`.
+
+7. **RCA/digest present? Do key sources and onset chain support the conclusion?**  
+   - **No RCA field is present**, so there is **no explicit ranked root-cause chain** to confirm; the **key sources and timing clusters** nevertheless support a “container-wide sustained shift (memory + IO + CPU/pressure)” conclusion, but do not uniquely prove “memory leak” vs “config/load change.”

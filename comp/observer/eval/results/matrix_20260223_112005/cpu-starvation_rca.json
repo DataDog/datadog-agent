@@ -1,0 +1,348 @@
+{
+  "detector": "CUSUM",
+  "correlator": "Dedup+TimeClusterCorrelator",
+  "timestamp": "2026-02-23T11:33:08-05:00",
+  "total_anomalies": 193855,
+  "unique_sources_in_anomalies": 70,
+  "total_correlations": 1,
+  "dedup_skipped": 190030,
+  "sample_anomalies": [
+    {
+      "source": "cgroup.v2.io.stat.rios:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.io.stat.rios:avg shifted to 6.00 (4.4σ above baseline of 0.30)",
+      "timestamp": 1769630264,
+      "tags": [
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:f084b0252be4",
+        "container_name:crasher",
+        "pod_name:crash-loop-2ad3b6ae"
+      ]
+    },
+    {
+      "source": "cgroup.v2.io.stat.rbytes:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.io.stat.rbytes:avg shifted to 86016.00 (4.4σ above baseline of 4230.30)",
+      "timestamp": 1769630264,
+      "tags": [
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:f084b0252be4",
+        "container_name:crasher",
+        "pod_name:crash-loop-2ad3b6ae"
+      ]
+    },
+    {
+      "source": "smaps_rollup.rss:avg",
+      "analyzer": "cusum_detector",
+      "description": "smaps_rollup.rss:avg shifted to 12423168.00 (2.1σ above baseline of 2350329.08)",
+      "timestamp": 1769630267,
+      "tags": [
+        "container_id:f084b0252be4",
+        "container_name:crasher",
+        "pod_name:crash-loop-2ad3b6ae",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cgroup.events.populated:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.cgroup.events.populated:avg shifted to 1.00 (2.1σ above baseline of 0.19)",
+      "timestamp": 1769630267,
+      "tags": [
+        "pod_name:crash-loop-2ad3b6ae",
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:f084b0252be4",
+        "container_name:crasher"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.file_dirty:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.file_dirty:avg shifted to 286720.00 (2.1σ above baseline of 54244.32)",
+      "timestamp": 1769630267,
+      "tags": [
+        "container_id:f084b0252be4",
+        "container_name:crasher",
+        "pod_name:crash-loop-2ad3b6ae",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cgroup.threads:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.cgroup.threads:avg shifted to 13085.00 (2.1σ above baseline of 2475.54)",
+      "timestamp": 1769630267,
+      "tags": [
+        "container_id:f084b0252be4",
+        "container_name:crasher",
+        "pod_name:crash-loop-2ad3b6ae",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.anon:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.anon:avg shifted to 7262208.00 (2.1σ above baseline of 1373931.24)",
+      "timestamp": 1769630267,
+      "tags": [
+        "container_id:f084b0252be4",
+        "container_name:crasher",
+        "pod_name:crash-loop-2ad3b6ae",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.inactive_file:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.inactive_file:avg shifted to 372736.00 (2.1σ above baseline of 70517.62)",
+      "timestamp": 1769630267,
+      "tags": [
+        "container_id:f084b0252be4",
+        "container_name:crasher",
+        "pod_name:crash-loop-2ad3b6ae",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.pids.max:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.pids.max:avg shifted to 2135.00 (2.1σ above baseline of 403.92)",
+      "timestamp": 1769630267,
+      "tags": [
+        "container_id:f084b0252be4",
+        "container_name:crasher",
+        "pod_name:crash-loop-2ad3b6ae",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.zswap.writeback:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.zswap.writeback:avg shifted to 1.00 (2.1σ above baseline of 0.19)",
+      "timestamp": 1769630267,
+      "tags": [
+        "qos_class:Burstable",
+        "container_id:f084b0252be4",
+        "container_name:crasher",
+        "pod_name:crash-loop-2ad3b6ae",
+        "namespace:default"
+      ]
+    },
+    {
+      "source": "cgroup.v2.io.pressure.full.total:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.io.pressure.full.total:avg shifted to 40.00 (2.1σ above baseline of 7.57)",
+      "timestamp": 1769630267,
+      "tags": [
+        "container_id:f084b0252be4",
+        "container_name:crasher",
+        "pod_name:crash-loop-2ad3b6ae",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.pressure.full.total:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.cpu.pressure.full.total:avg shifted to 159266.00 (2.1σ above baseline of 30131.41)",
+      "timestamp": 1769630267,
+      "tags": [
+        "container_id:f084b0252be4",
+        "container_name:crasher",
+        "pod_name:crash-loop-2ad3b6ae",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "smaps_rollup.pss_anon:avg",
+      "analyzer": "cusum_detector",
+      "description": "smaps_rollup.pss_anon:avg shifted to 7262208.00 (2.1σ above baseline of 1373931.24)",
+      "timestamp": 1769630267,
+      "tags": [
+        "container_id:f084b0252be4",
+        "container_name:crasher",
+        "pod_name:crash-loop-2ad3b6ae",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.current:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.current:avg shifted to 7991296.00 (2.1σ above baseline of 1511866.81)",
+      "timestamp": 1769630267,
+      "tags": [
+        "container_id:f084b0252be4",
+        "container_name:crasher",
+        "pod_name:crash-loop-2ad3b6ae",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.stat.local.throttled_usec:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.cpu.stat.local.throttled_usec:avg shifted to 319029.00 (2.1σ above baseline of 60356.84)",
+      "timestamp": 1769630267,
+      "tags": [
+        "container_id:f084b0252be4",
+        "container_name:crasher",
+        "pod_name:crash-loop-2ad3b6ae",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "smaps_rollup.pss_file:avg",
+      "analyzer": "cusum_detector",
+      "description": "smaps_rollup.pss_file:avg shifted to 5156864.00 (2.1σ above baseline of 975622.92)",
+      "timestamp": 1769630267,
+      "tags": [
+        "container_id:f084b0252be4",
+        "container_name:crasher",
+        "pod_name:crash-loop-2ad3b6ae",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.slab_reclaimable:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.slab_reclaimable:avg shifted to 200648.00 (2.1σ above baseline of 37960.43)",
+      "timestamp": 1769630267,
+      "tags": [
+        "container_id:f084b0252be4",
+        "container_name:crasher",
+        "pod_name:crash-loop-2ad3b6ae",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.slab:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.slab:avg shifted to 262320.00 (2.1σ above baseline of 49628.11)",
+      "timestamp": 1769630267,
+      "tags": [
+        "container_name:crasher",
+        "pod_name:crash-loop-2ad3b6ae",
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:f084b0252be4"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.weight:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.cpu.weight:avg shifted to 1.00 (2.1σ above baseline of 0.19)",
+      "timestamp": 1769630267,
+      "tags": [
+        "container_id:f084b0252be4",
+        "container_name:crasher",
+        "pod_name:crash-loop-2ad3b6ae",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.percpu:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.percpu:avg shifted to 128.00 (2.1σ above baseline of 24.22)",
+      "timestamp": 1769630267,
+      "tags": [
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:f084b0252be4",
+        "container_name:crasher",
+        "pod_name:crash-loop-2ad3b6ae"
+      ]
+    }
+  ],
+  "correlations": [
+    {
+      "pattern": "time_cluster_1380",
+      "title": "TimeCluster: 66 anomalies",
+      "source_count": 66,
+      "sources": [
+        "demo|cgroup.v2.cgroup.events.populated:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.cgroup.pressure:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.cgroup.procs:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.cgroup.threads:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.pressure.full.avg10:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.pressure.full.avg300:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.pressure.full.avg60:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.pressure.full.total:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.pressure.some.avg10:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.pressure.some.avg300:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.pressure.some.avg60:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.pressure.some.total:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.stat.local.throttled_usec:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.stat.nr_periods:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.stat.nr_throttled:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.stat.system_usec:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.stat.throttled_usec:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.stat.usage_usec:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.stat.user_usec:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.weight.nice:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.weight:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.io.stat.wbytes:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.io.stat.wios:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.io.weight.default:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.memory.current:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.memory.max:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.memory.oom.group:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.memory.peak:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.active_anon:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.anon:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.file:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.file_dirty:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.inactive_file:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.kernel:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.kernel_stack:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.pagetables:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.percpu:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.pgfault:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.slab:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.slab_reclaimable:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.slab_unreclaimable:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.memory.zswap.writeback:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.pids.current:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.pids.max:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cgroup.v2.pids.peak:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|container.pid_count:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cpu_limit_millicores:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|cpu_percentage:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|kernel_cpu_percentage:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|kernel_cpu_usage_millicores:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|smaps_rollup.anonymous:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|smaps_rollup.private_clean:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|smaps_rollup.private_dirty:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|smaps_rollup.pss:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|smaps_rollup.pss_anon:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|smaps_rollup.pss_dirty:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|smaps_rollup.pss_file:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|smaps_rollup.referenced:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|smaps_rollup.rss:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|smaps_rollup.shared_clean:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|system_cpu_percentage:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|system_cpu_usage_millicores:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|total_cpu_percentage:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|total_cpu_usage_millicores:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|user_cpu_percentage:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable",
+        "demo|user_cpu_usage_millicores:avg|container_id:937516d1809f,container_name:crasher,namespace:default,pod_name:crash-loop-2ad3b6ae,qos_class:Burstable"
+      ],
+      "first_seen": 1769630443,
+      "last_updated": 1769630485
+    }
+  ]
+}

@@ -1,0 +1,101 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1) **What do the correlations tell you?**  
+A single tight time cluster (`time_cluster_379`) shows **63 different container metrics anomalied essentially simultaneously**, spanning CPU usage/pressure/throttling, memory growth/peaks/page-faults, and I/O activity/pressure—i.e., a **whole-container resource event** rather than one isolated metric glitch.
+
+2) **Is there a problem? (yes/no/unclear)**  
+**Yes.**
+
+3) **If yes, what is it? (one sentence)**  
+The container experienced a **sustained resource surge (CPU + I/O) accompanied by sharp memory growth and major faults/pressure**, consistent with a workload spike that likely drove the pod toward memory stress/oom conditions.
+
+4) **Confidence level (high/medium/low)**  
+**Medium** (incident is clear; precise root cause is not).
+
+5) **Alternative possibilities & why uncertain (since not high confidence)**  
+- **OOM/restart lifecycle effects rather than a “natural” workload spike:** `cgroup.events.populated`, `procs/threads/pids.*` anomalies could reflect a container being created/recreated; lifecycle transitions can coincide with bursts of CPU/I/O and memory reallocation.  
+- **Disk-thrash / cache-miss driven slowdown:** elevated `io.stat.*`, `io.pressure.*`, and `workingset_refault_file` could indicate heavy paging/cache churn causing secondary CPU pressure.  
+- **CPU quota throttling as primary limiter:** throttling metrics are anomalous; CPU starvation can amplify latency and queueing (pressure), but it’s unclear if throttling triggered the rest or was a consequence of load.  
+Uncertain because the digest explicitly flags **low RCA confidence (0.25)** with **weak directionality** and **ambiguous roots**, and there is **no onset_chain** to establish ordering.
+
+6) **Supporting evidence (from the data)**  
+- **Broad simultaneous anomaly breadth:** `TimeCluster: 63 anomalies`, spanning **CPU, memory, I/O, pids, smaps**, etc.  
+- **CPU spike + pressure:**  
+  - `cpu.stat.usage_usec` shifted to **35288** (from **598**) and user/system both **~7.6σ** above baseline.  
+  - `cpu.pressure.full.avg10` and `cpu.pressure.some.avg10` shifted to **0.74** (from **0.04**, **4.2σ**).  
+  - Throttling signals: `cpu.stat.local.throttled_usec` elevated; `nr_periods` increased.  
+- **I/O burst + I/O pressure:**  
+  - `io.stat.rbytes` to **1,589,248** (from **26,936**, **7.6σ**) and `io.stat.rios` to **18** (from **0.31**, **7.6σ**).  
+  - `io.pressure.*.total` elevated (e.g., **97 vs 22.68**).  
+- **Memory jump / stress indicators:**  
+  - `memory.current` to **~20.2MB** (from **~5.5MB**) and `smaps_rollup.pss` to **~18.8MB** (from **~5.5MB**).  
+  - `memory.stat.pgmajfault` anomalous (major faults imply disk-backed page-ins).  
+  - `memory.peak` and multiple `memory.stat.*` components anomalous; `workingset_refault_file` anomalous (cache refault churn).  
+- **Context clues:** container/pod names include `oom-victim` / `oom-kill-*`, and `memory.oom.group` is included in the correlated set (not proof of an OOM kill by itself, but consistent with memory-incident context).
+
+7) **Do the RCA/digest key sources and onset chain support the conclusion?**  
+- **Key sources:** Yes for *incident characterization*—they show breadth across core subsystems (CPU usage, memory peak/current/anon, I/O bytes, majfault/refault), supporting “whole-container resource event.”  
+- **Onset chain:** **Not available (`onset_chain: null`)**, so it **does not support** any specific causal ordering (and the digest’s low RCA confidence means we should not treat the top-ranked “root” series as causal).

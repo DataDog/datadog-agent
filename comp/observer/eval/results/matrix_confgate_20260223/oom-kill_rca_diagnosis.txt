@@ -1,0 +1,76 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1) **What do the correlations tell you?**  
+- There is **one incident window** (`time_cluster_379`) where **many different metric families (63 series across CPU, memory, IO, pids, smaps, and cgroup state/pressure)** anomalied essentially **simultaneously (within ~1s)** for the same container/pod. This looks like a **coordinated resource event** rather than an isolated metric blip.
+
+2) **Is there a problem? (yes/no/unclear)**  
+- **Yes.**
+
+3) **If yes, what is it? (one sentence)**  
+- The container experienced a **sustained resource surge with contention (CPU pressure/throttling + elevated memory footprint/fault activity + increased IO/IO pressure)** consistent with a **memory-growth/working-set blow-up that drives CPU/IO stress and may precede OOM behavior**.
+
+4) **Confidence level (high/medium/low)**  
+- **Low** (digest RCA confidence is 0.25; directionality ambiguous).
+
+5) **Alternative possibilities & why uncertain**  
+- **CPU-bound burst with throttling** causing secondary memory/IO effects (uncertain because CPU usage/pressure/throttling all spike strongly, and timing is simultaneous so cause vs effect is unclear).  
+- **IO-driven stall / paging activity** causing CPU pressure and major faults (uncertain because IO rbytes/rios and IO pressure metrics are also anomalous; without ordering we can’t tell if IO started it).  
+- **Container lifecycle event (start/stop/restart) or workload phase change** (uncertain because `cgroup.events.populated`, `procs/threads/pids` are anomalous—could reflect process churn rather than purely resource exhaustion).  
+- **OOM event itself vs “approaching OOM”** (uncertain because `memory.oom.group` is present as anomalous, but the data shown doesn’t include explicit kill count/events, and the correlator only guarantees simultaneity, not causality).
+
+6) **Supporting evidence (from the data)**  
+- **Breadth of correlated anomalies:** 63 anomalous series in one time cluster spanning CPU, memory, IO, pids, and smaps (system-wide within the container).  
+- **CPU stress/contension:** `cpu.pressure.some/full (avg10/60/300/total)` anomalous; `cpu.stat.usage_usec`, `user_usec`, `system_usec` shifted ~7.6σ; throttling metrics anomalous (`cpu.stat.*throttled_usec`, `nr_throttled`, `nr_periods`, `local.throttled_usec`).  
+- **Memory footprint increase:** `memory.current` shifted (~5.5MB baseline to ~20MB), `memory.peak` anomalous, `memory.stat.anon/active_anon/file/slab/*` anomalous; smaps rollup anomalies (`pss`, `rss`, `pss_anon`, `pss_file`, private_dirty/clean, etc.).  
+- **Fault / working set churn:** `memory.stat.pgmajfault` anomalous; `workingset_refault_file` anomalous.  
+- **IO activity & pressure:** `io.stat.rbytes/rios/wbytes/wios` anomalous (e.g., `rbytes` jumped ~26KB baseline to ~1.6MB); `io.pressure.some/full.total` anomalous.  
+- **Process/cgroup state changes:** `cgroup.procs`, `threads`, `pids.current/peak`, `events.populated` all anomalous.  
+- **Context tags point to an OOM-themed workload:** `container_name:oom-victim`, `pod_name:oom-kill-7f36e710`.
+
+7) **Do the key sources and onset chain support the conclusion?**  
+- **Key sources:** Yes for the *overall hypothesis* (they cover `cpu.usage`, `memory.peak/current/anon`, `pgmajfault`, `io.wbytes`, `workingset_refault_file`, `procs`, `oom.group`), which matches a multi-resource stress episode.  
+- **Onset chain:** **Not available (`onset_chain: null`)**, so it **does not support** a specific causal ordering (and the digest explicitly flags **weak_directionality / ambiguous_roots**), which is why confidence remains low.

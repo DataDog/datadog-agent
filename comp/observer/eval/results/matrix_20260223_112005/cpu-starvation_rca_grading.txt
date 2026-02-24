@@ -1,0 +1,16 @@
+============================================================
+EVALUATION
+============================================================
+Diagnosis file: /Users/ella.taira/.codex/worktrees/f07e/datadog-agent/comp/observer/eval/results/matrix_20260223_112005/cpu-starvation_rca_diagnosis.txt
+Problem type: CPU starvation
+Model: gpt-5.2-2025-12-11
+============================================================
+
+Checking if diagnosis identified: CPU starvation...
+
+============================================================
+EVALUATION RESULT:
+============================================================
+1. **Identified Issue**: partial  
+2. **What it said**: It attributed the incident to a coordinated resource surge in the container including CPU contention/throttling (plus memory/thread/I/O pressure), consistent with a runaway/crash-looping process.  
+3. **Score**: 78

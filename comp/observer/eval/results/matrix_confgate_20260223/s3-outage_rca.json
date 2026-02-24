@@ -1,0 +1,920 @@
+{
+  "detector": "CUSUM",
+  "correlator": "Dedup+TimeClusterCorrelator",
+  "timestamp": "2026-02-23T15:34:48-05:00",
+  "total_anomalies": 14351,
+  "unique_sources_in_anomalies": 132,
+  "total_correlations": 1,
+  "dedup_skipped": 12962,
+  "sample_anomalies": [
+    {
+      "source": "container.memory.kernel:avg",
+      "analyzer": "cusum_detector",
+      "description": "container.memory.kernel:avg shifted to 921600.00 (22.8σ above baseline of 879820.80)",
+      "timestamp": 1771417702,
+      "tags": [
+        "container_id:1dc4ed8ec4a95584e7a5fd62405ea958e776321a26eb4325c08dbdca120cc40c",
+        "kube_ownerref_kind:daemonset",
+        "kube_app_instance:datadog-agent-agent",
+        "kube_namespace:default",
+        "kube_container_name:trace-agent",
+        "image_name:observer-agent",
+        "git.repository_url:https://github.com/DataDog/datadog-agent",
+        "container_name:trace-agent",
+        "kube_app_component:agent",
+        "kube_daemon_set:datadog-agent",
+        "kube_app_managed_by:Helm",
+        "image_id:sha256:06a2646f8dec29b4ad56971e4a8b3a3d1353a63bb152dd8cdc450f868f841d2f",
+        "kube_ownerref_name:datadog-agent",
+        "runtime:containerd",
+        "kube_qos:BestEffort",
+        "kube_app_name:datadog-agent",
+        "display_container_name:trace-agent_datadog-agent-9whxn",
+        "short_image:observer-agent",
+        "pod_phase:running",
+        "kube_app_part_of:default-datadog--agent",
+        "image_tag:latest",
+        "git.commit.sha:0093026b4829ada27409dde2176604c38b575d38",
+        "pod_name:datadog-agent-9whxn"
+      ]
+    },
+    {
+      "source": "container.memory.usage:avg",
+      "analyzer": "cusum_detector",
+      "description": "container.memory.usage:avg shifted to 19755008.00 (13.9σ above baseline of 17326080.00)",
+      "timestamp": 1771417702,
+      "tags": [
+        "kube_app_name:datadog-agent",
+        "image_id:sha256:06a2646f8dec29b4ad56971e4a8b3a3d1353a63bb152dd8cdc450f868f841d2f",
+        "container_id:1dc4ed8ec4a95584e7a5fd62405ea958e776321a26eb4325c08dbdca120cc40c",
+        "kube_app_instance:datadog-agent-agent",
+        "short_image:observer-agent",
+        "pod_phase:running",
+        "git.commit.sha:0093026b4829ada27409dde2176604c38b575d38",
+        "git.repository_url:https://github.com/DataDog/datadog-agent",
+        "display_container_name:trace-agent_datadog-agent-9whxn",
+        "container_name:trace-agent",
+        "kube_daemon_set:datadog-agent",
+        "kube_container_name:trace-agent",
+        "kube_app_part_of:default-datadog--agent",
+        "image_name:observer-agent",
+        "image_tag:latest",
+        "pod_name:datadog-agent-9whxn",
+        "kube_app_component:agent",
+        "kube_qos:BestEffort",
+        "kube_namespace:default",
+        "kube_app_managed_by:Helm",
+        "kube_ownerref_name:datadog-agent",
+        "runtime:containerd",
+        "kube_ownerref_kind:daemonset"
+      ]
+    },
+    {
+      "source": "container.cpu.partial_stall:avg",
+      "analyzer": "cusum_detector",
+      "description": "container.cpu.partial_stall:avg shifted to 33110000.00 (1.5σ above baseline of 27773833.33)",
+      "timestamp": 1771417704,
+      "tags": [
+        "kube_app_instance:datadog-agent-agent",
+        "kube_namespace:default",
+        "short_image:observer-agent",
+        "git.commit.sha:0093026b4829ada27409dde2176604c38b575d38",
+        "git.repository_url:https://github.com/DataDog/datadog-agent",
+        "pod_name:datadog-agent-9whxn",
+        "runtime:containerd",
+        "kube_app_component:agent",
+        "kube_container_name:trace-agent",
+        "kube_app_managed_by:Helm",
+        "image_name:observer-agent",
+        "kube_ownerref_name:datadog-agent",
+        "container_id:1dc4ed8ec4a95584e7a5fd62405ea958e776321a26eb4325c08dbdca120cc40c",
+        "display_container_name:trace-agent_datadog-agent-9whxn",
+        "pod_phase:running",
+        "image_tag:latest",
+        "kube_ownerref_kind:daemonset",
+        "kube_daemon_set:datadog-agent",
+        "kube_app_part_of:default-datadog--agent",
+        "kube_app_name:datadog-agent",
+        "image_id:sha256:06a2646f8dec29b4ad56971e4a8b3a3d1353a63bb152dd8cdc450f868f841d2f",
+        "container_name:trace-agent",
+        "kube_qos:BestEffort"
+      ]
+    },
+    {
+      "source": "container.cpu.system:avg",
+      "analyzer": "cusum_detector",
+      "description": "container.cpu.system:avg shifted to 76901000.00 (2.9σ above baseline of 70986800.00)",
+      "timestamp": 1771417703,
+      "tags": [
+        "short_image:observer-agent",
+        "image_name:observer-agent",
+        "runtime:containerd",
+        "kube_ownerref_kind:daemonset",
+        "kube_app_name:datadog-agent",
+        "image_id:sha256:06a2646f8dec29b4ad56971e4a8b3a3d1353a63bb152dd8cdc450f868f841d2f",
+        "pod_name:datadog-agent-9whxn",
+        "kube_app_component:agent",
+        "kube_namespace:default",
+        "pod_phase:running",
+        "git.repository_url:https://github.com/DataDog/datadog-agent",
+        "kube_ownerref_name:datadog-agent",
+        "container_id:1dc4ed8ec4a95584e7a5fd62405ea958e776321a26eb4325c08dbdca120cc40c",
+        "kube_daemon_set:datadog-agent",
+        "kube_qos:BestEffort",
+        "kube_app_part_of:default-datadog--agent",
+        "kube_app_managed_by:Helm",
+        "image_tag:latest",
+        "git.commit.sha:0093026b4829ada27409dde2176604c38b575d38",
+        "display_container_name:trace-agent_datadog-agent-9whxn",
+        "container_name:trace-agent",
+        "kube_app_instance:datadog-agent-agent",
+        "kube_container_name:trace-agent"
+      ]
+    },
+    {
+      "source": "container.cpu.user:avg",
+      "analyzer": "cusum_detector",
+      "description": "container.cpu.user:avg shifted to 224206000.00 (15.0σ above baseline of 158169200.00)",
+      "timestamp": 1771417702,
+      "tags": [
+        "display_container_name:trace-agent_datadog-agent-9whxn",
+        "kube_ownerref_kind:daemonset",
+        "kube_daemon_set:datadog-agent",
+        "image_tag:latest",
+        "kube_container_name:trace-agent",
+        "kube_app_managed_by:Helm",
+        "image_id:sha256:06a2646f8dec29b4ad56971e4a8b3a3d1353a63bb152dd8cdc450f868f841d2f",
+        "git.commit.sha:0093026b4829ada27409dde2176604c38b575d38",
+        "git.repository_url:https://github.com/DataDog/datadog-agent",
+        "container_id:1dc4ed8ec4a95584e7a5fd62405ea958e776321a26eb4325c08dbdca120cc40c",
+        "runtime:containerd",
+        "kube_app_component:agent",
+        "kube_namespace:default",
+        "short_image:observer-agent",
+        "image_name:observer-agent",
+        "kube_app_name:datadog-agent",
+        "kube_ownerref_name:datadog-agent",
+        "container_name:trace-agent",
+        "kube_qos:BestEffort",
+        "kube_app_instance:datadog-agent-agent",
+        "pod_phase:running",
+        "kube_app_part_of:default-datadog--agent",
+        "pod_name:datadog-agent-9whxn"
+      ]
+    },
+    {
+      "source": "container.cpu.usage:avg",
+      "analyzer": "cusum_detector",
+      "description": "container.cpu.usage:avg shifted to 301108000.00 (11.2σ above baseline of 229157000.00)",
+      "timestamp": 1771417702,
+      "tags": [
+        "kube_daemon_set:datadog-agent",
+        "image_name:observer-agent",
+        "kube_app_name:datadog-agent",
+        "image_id:sha256:06a2646f8dec29b4ad56971e4a8b3a3d1353a63bb152dd8cdc450f868f841d2f",
+        "runtime:containerd",
+        "short_image:observer-agent",
+        "image_tag:latest",
+        "kube_qos:BestEffort",
+        "kube_namespace:default",
+        "kube_container_name:trace-agent",
+        "pod_phase:running",
+        "git.repository_url:https://github.com/DataDog/datadog-agent",
+        "pod_name:datadog-agent-9whxn",
+        "kube_ownerref_name:datadog-agent",
+        "kube_ownerref_kind:daemonset",
+        "kube_app_instance:datadog-agent-agent",
+        "kube_app_part_of:default-datadog--agent",
+        "kube_app_managed_by:Helm",
+        "git.commit.sha:0093026b4829ada27409dde2176604c38b575d38",
+        "container_id:1dc4ed8ec4a95584e7a5fd62405ea958e776321a26eb4325c08dbdca120cc40c",
+        "display_container_name:trace-agent_datadog-agent-9whxn",
+        "container_name:trace-agent",
+        "kube_app_component:agent"
+      ]
+    },
+    {
+      "source": "container.uptime:avg",
+      "analyzer": "cusum_detector",
+      "description": "container.uptime:avg shifted to 13.13 (2.4σ above baseline of 8.63)",
+      "timestamp": 1771417703,
+      "tags": [
+        "image_tag:latest",
+        "git.repository_url:https://github.com/DataDog/datadog-agent",
+        "container_id:1dc4ed8ec4a95584e7a5fd62405ea958e776321a26eb4325c08dbdca120cc40c",
+        "runtime:containerd",
+        "kube_app_name:datadog-agent",
+        "pod_name:datadog-agent-9whxn",
+        "display_container_name:trace-agent_datadog-agent-9whxn",
+        "kube_app_component:agent",
+        "kube_daemon_set:datadog-agent",
+        "kube_container_name:trace-agent",
+        "short_image:observer-agent",
+        "kube_app_part_of:default-datadog--agent",
+        "image_name:observer-agent",
+        "git.commit.sha:0093026b4829ada27409dde2176604c38b575d38",
+        "kube_ownerref_name:datadog-agent",
+        "kube_ownerref_kind:daemonset",
+        "kube_app_instance:datadog-agent-agent",
+        "kube_namespace:default",
+        "kube_app_managed_by:Helm",
+        "image_id:sha256:06a2646f8dec29b4ad56971e4a8b3a3d1353a63bb152dd8cdc450f868f841d2f",
+        "container_name:trace-agent",
+        "kube_qos:BestEffort",
+        "pod_phase:running"
+      ]
+    },
+    {
+      "source": "container.pid.open_files:avg",
+      "analyzer": "cusum_detector",
+      "description": "container.pid.open_files:avg shifted to 38.00 (2.7σ above baseline of 36.57)",
+      "timestamp": 1771417701,
+      "tags": [
+        "service:s3-placement-subsystem",
+        "short_image:python",
+        "image_tag:3.11-slim",
+        "pod_phase:running",
+        "container_id:880c607c9a7dfd9229e7e8802b6da69c9cc681eb8d5cb10ab52265866d66933b",
+        "image_name:python",
+        "env:qbranch_gensim",
+        "kube_container_name:s3-placement-subsystem",
+        "kube_namespace:default",
+        "kube_qos:Burstable",
+        "kube_ownerref_name:s3-placement-subsystem-67fcfdfc74",
+        "container_name:s3-placement-subsystem",
+        "kube_ownerref_kind:replicaset",
+        "kube_deployment:s3-placement-subsystem",
+        "display_container_name:s3-placement-subsystem_s3-placement-subsystem-67fcfdfc74-s8p5m",
+        "runtime:containerd",
+        "kube_replica_set:s3-placement-subsystem-67fcfdfc74",
+        "image_id:docker.io/library/python@sha256:0b23cfb7425d065008b778022a17b1551c82f8b4866ee5a7a200084b7e2eafbf",
+        "pod_name:s3-placement-subsystem-67fcfdfc74-s8p5m"
+      ]
+    },
+    {
+      "source": "container.memory.major_page_faults:avg",
+      "analyzer": "cusum_detector",
+      "description": "container.memory.major_page_faults:avg shifted to 17.00 (75.0σ above baseline of 2.00)",
+      "timestamp": 1771417707,
+      "tags": [
+        "kube_ownerref_name:s3-placement-subsystem-67fcfdfc74",
+        "image_name:python",
+        "short_image:python",
+        "image_tag:3.11-slim",
+        "kube_deployment:s3-placement-subsystem",
+        "image_id:docker.io/library/python@sha256:0b23cfb7425d065008b778022a17b1551c82f8b4866ee5a7a200084b7e2eafbf",
+        "kube_namespace:default",
+        "kube_replica_set:s3-placement-subsystem-67fcfdfc74",
+        "pod_phase:running",
+        "kube_ownerref_kind:replicaset",
+        "kube_qos:Burstable",
+        "pod_name:s3-placement-subsystem-67fcfdfc74-s8p5m",
+        "container_id:880c607c9a7dfd9229e7e8802b6da69c9cc681eb8d5cb10ab52265866d66933b",
+        "service:s3-placement-subsystem",
+        "kube_container_name:s3-placement-subsystem",
+        "container_name:s3-placement-subsystem",
+        "runtime:containerd",
+        "env:qbranch_gensim",
+        "display_container_name:s3-placement-subsystem_s3-placement-subsystem-67fcfdfc74-s8p5m"
+      ]
+    },
+    {
+      "source": "container.memory.page_faults:avg",
+      "analyzer": "cusum_detector",
+      "description": "container.memory.page_faults:avg shifted to 1095505.50 (75.0σ above baseline of 128883.00)",
+      "timestamp": 1771417707,
+      "tags": [
+        "service:s3-placement-subsystem",
+        "short_image:python",
+        "kube_ownerref_kind:replicaset",
+        "kube_namespace:default",
+        "kube_ownerref_name:s3-placement-subsystem-67fcfdfc74",
+        "image_name:python",
+        "env:qbranch_gensim",
+        "kube_deployment:s3-placement-subsystem",
+        "kube_qos:Burstable",
+        "pod_name:s3-placement-subsystem-67fcfdfc74-s8p5m",
+        "container_id:880c607c9a7dfd9229e7e8802b6da69c9cc681eb8d5cb10ab52265866d66933b",
+        "image_tag:3.11-slim",
+        "pod_phase:running",
+        "image_id:docker.io/library/python@sha256:0b23cfb7425d065008b778022a17b1551c82f8b4866ee5a7a200084b7e2eafbf",
+        "display_container_name:s3-placement-subsystem_s3-placement-subsystem-67fcfdfc74-s8p5m",
+        "runtime:containerd",
+        "kube_replica_set:s3-placement-subsystem-67fcfdfc74",
+        "kube_container_name:s3-placement-subsystem",
+        "container_name:s3-placement-subsystem"
+      ]
+    },
+    {
+      "source": "container.memory.working_set:avg",
+      "analyzer": "cusum_detector",
+      "description": "container.memory.working_set:avg shifted to 86540288.00 (3.0σ above baseline of 86530925.71)",
+      "timestamp": 1771417700,
+      "tags": [
+        "service:s3-placement-subsystem",
+        "image_tag:3.11-slim",
+        "env:qbranch_gensim",
+        "kube_qos:Burstable",
+        "pod_name:s3-placement-subsystem-67fcfdfc74-s8p5m",
+        "container_name:s3-placement-subsystem",
+        "pod_phase:running",
+        "kube_deployment:s3-placement-subsystem",
+        "kube_container_name:s3-placement-subsystem",
+        "image_id:docker.io/library/python@sha256:0b23cfb7425d065008b778022a17b1551c82f8b4866ee5a7a200084b7e2eafbf",
+        "kube_ownerref_name:s3-placement-subsystem-67fcfdfc74",
+        "container_id:880c607c9a7dfd9229e7e8802b6da69c9cc681eb8d5cb10ab52265866d66933b",
+        "display_container_name:s3-placement-subsystem_s3-placement-subsystem-67fcfdfc74-s8p5m",
+        "image_name:python",
+        "kube_replica_set:s3-placement-subsystem-67fcfdfc74",
+        "kube_ownerref_kind:replicaset",
+        "kube_namespace:default",
+        "short_image:python",
+        "runtime:containerd"
+      ]
+    },
+    {
+      "source": "container.memory.usage:avg",
+      "analyzer": "cusum_detector",
+      "description": "container.memory.usage:avg shifted to 189829120.00 (3.0σ above baseline of 189819757.71)",
+      "timestamp": 1771417700,
+      "tags": [
+        "short_image:python",
+        "kube_container_name:s3-placement-subsystem",
+        "kube_ownerref_name:s3-placement-subsystem-67fcfdfc74",
+        "display_container_name:s3-placement-subsystem_s3-placement-subsystem-67fcfdfc74-s8p5m",
+        "service:s3-placement-subsystem",
+        "kube_deployment:s3-placement-subsystem",
+        "pod_name:s3-placement-subsystem-67fcfdfc74-s8p5m",
+        "image_name:python",
+        "image_tag:3.11-slim",
+        "pod_phase:running",
+        "kube_qos:Burstable",
+        "container_name:s3-placement-subsystem",
+        "runtime:containerd",
+        "kube_replica_set:s3-placement-subsystem-67fcfdfc74",
+        "env:qbranch_gensim",
+        "kube_ownerref_kind:replicaset",
+        "image_id:docker.io/library/python@sha256:0b23cfb7425d065008b778022a17b1551c82f8b4866ee5a7a200084b7e2eafbf",
+        "kube_namespace:default",
+        "container_id:880c607c9a7dfd9229e7e8802b6da69c9cc681eb8d5cb10ab52265866d66933b"
+      ]
+    },
+    {
+      "source": "container.cpu.partial_stall:avg",
+      "analyzer": "cusum_detector",
+      "description": "container.cpu.partial_stall:avg shifted to 4679513000.00 (38.2σ above baseline of 4677002285.71)",
+      "timestamp": 1771417700,
+      "tags": [
+        "display_container_name:s3-placement-subsystem_s3-placement-subsystem-67fcfdfc74-s8p5m",
+        "container_name:s3-placement-subsystem",
+        "image_id:docker.io/library/python@sha256:0b23cfb7425d065008b778022a17b1551c82f8b4866ee5a7a200084b7e2eafbf",
+        "kube_qos:Burstable",
+        "pod_name:s3-placement-subsystem-67fcfdfc74-s8p5m",
+        "container_id:880c607c9a7dfd9229e7e8802b6da69c9cc681eb8d5cb10ab52265866d66933b",
+        "kube_replica_set:s3-placement-subsystem-67fcfdfc74",
+        "short_image:python",
+        "image_tag:3.11-slim",
+        "pod_phase:running",
+        "env:qbranch_gensim",
+        "kube_ownerref_name:s3-placement-subsystem-67fcfdfc74",
+        "runtime:containerd",
+        "service:s3-placement-subsystem",
+        "image_name:python",
+        "kube_ownerref_kind:replicaset",
+        "kube_deployment:s3-placement-subsystem",
+        "kube_container_name:s3-placement-subsystem",
+        "kube_namespace:default"
+      ]
+    },
+    {
+      "source": "container.cpu.system:avg",
+      "analyzer": "cusum_detector",
+      "description": "container.cpu.system:avg shifted to 2933338000.00 (2.5σ above baseline of 2927891428.57)",
+      "timestamp": 1771417700,
+      "tags": [
+        "service:s3-placement-subsystem",
+        "image_tag:3.11-slim",
+        "pod_phase:running",
+        "env:qbranch_gensim",
+        "kube_replica_set:s3-placement-subsystem-67fcfdfc74",
+        "kube_namespace:default",
+        "image_name:python",
+        "short_image:python",
+        "kube_ownerref_kind:replicaset",
+        "kube_deployment:s3-placement-subsystem",
+        "runtime:containerd",
+        "image_id:docker.io/library/python@sha256:0b23cfb7425d065008b778022a17b1551c82f8b4866ee5a7a200084b7e2eafbf",
+        "pod_name:s3-placement-subsystem-67fcfdfc74-s8p5m",
+        "container_id:880c607c9a7dfd9229e7e8802b6da69c9cc681eb8d5cb10ab52265866d66933b",
+        "display_container_name:s3-placement-subsystem_s3-placement-subsystem-67fcfdfc74-s8p5m",
+        "container_name:s3-placement-subsystem",
+        "kube_container_name:s3-placement-subsystem",
+        "kube_qos:Burstable",
+        "kube_ownerref_name:s3-placement-subsystem-67fcfdfc74"
+      ]
+    },
+    {
+      "source": "container.cpu.user:avg",
+      "analyzer": "cusum_detector",
+      "description": "container.cpu.user:avg shifted to 17012531000.00 (1.9σ above baseline of 17003703142.86)",
+      "timestamp": 1771417701,
+      "tags": [
+        "env:qbranch_gensim",
+        "kube_ownerref_name:s3-placement-subsystem-67fcfdfc74",
+        "pod_name:s3-placement-subsystem-67fcfdfc74-s8p5m",
+        "runtime:containerd",
+        "kube_container_name:s3-placement-subsystem",
+        "kube_qos:Burstable",
+        "service:s3-placement-subsystem",
+        "image_name:python",
+        "short_image:python",
+        "image_tag:3.11-slim",
+        "kube_ownerref_kind:replicaset",
+        "kube_deployment:s3-placement-subsystem",
+        "pod_phase:running",
+        "kube_namespace:default",
+        "container_id:880c607c9a7dfd9229e7e8802b6da69c9cc681eb8d5cb10ab52265866d66933b",
+        "display_container_name:s3-placement-subsystem_s3-placement-subsystem-67fcfdfc74-s8p5m",
+        "container_name:s3-placement-subsystem",
+        "image_id:docker.io/library/python@sha256:0b23cfb7425d065008b778022a17b1551c82f8b4866ee5a7a200084b7e2eafbf",
+        "kube_replica_set:s3-placement-subsystem-67fcfdfc74"
+      ]
+    },
+    {
+      "source": "container.cpu.usage:avg",
+      "analyzer": "cusum_detector",
+      "description": "container.cpu.usage:avg shifted to 19945870000.00 (2.1σ above baseline of 19931595571.43)",
+      "timestamp": 1771417700,
+      "tags": [
+        "image_name:python",
+        "short_image:python",
+        "image_tag:3.11-slim",
+        "kube_replica_set:s3-placement-subsystem-67fcfdfc74",
+        "env:qbranch_gensim",
+        "kube_deployment:s3-placement-subsystem",
+        "display_container_name:s3-placement-subsystem_s3-placement-subsystem-67fcfdfc74-s8p5m",
+        "runtime:containerd",
+        "service:s3-placement-subsystem",
+        "kube_ownerref_kind:replicaset",
+        "kube_container_name:s3-placement-subsystem",
+        "kube_namespace:default",
+        "kube_qos:Burstable",
+        "container_id:880c607c9a7dfd9229e7e8802b6da69c9cc681eb8d5cb10ab52265866d66933b",
+        "container_name:s3-placement-subsystem",
+        "pod_phase:running",
+        "image_id:docker.io/library/python@sha256:0b23cfb7425d065008b778022a17b1551c82f8b4866ee5a7a200084b7e2eafbf",
+        "kube_ownerref_name:s3-placement-subsystem-67fcfdfc74",
+        "pod_name:s3-placement-subsystem-67fcfdfc74-s8p5m"
+      ]
+    },
+    {
+      "source": "container.uptime:avg",
+      "analyzer": "cusum_detector",
+      "description": "container.uptime:avg shifted to 2572.02 (2.3σ above baseline of 2566.99)",
+      "timestamp": 1771417700,
+      "tags": [
+        "kube_replica_set:s3-placement-subsystem-67fcfdfc74",
+        "kube_ownerref_kind:replicaset",
+        "kube_namespace:default",
+        "pod_name:s3-placement-subsystem-67fcfdfc74-s8p5m",
+        "kube_qos:Burstable",
+        "kube_ownerref_name:s3-placement-subsystem-67fcfdfc74",
+        "container_id:880c607c9a7dfd9229e7e8802b6da69c9cc681eb8d5cb10ab52265866d66933b",
+        "display_container_name:s3-placement-subsystem_s3-placement-subsystem-67fcfdfc74-s8p5m",
+        "container_name:s3-placement-subsystem",
+        "image_name:python",
+        "short_image:python",
+        "image_id:docker.io/library/python@sha256:0b23cfb7425d065008b778022a17b1551c82f8b4866ee5a7a200084b7e2eafbf",
+        "service:s3-placement-subsystem",
+        "pod_phase:running",
+        "env:qbranch_gensim",
+        "kube_deployment:s3-placement-subsystem",
+        "kube_container_name:s3-placement-subsystem",
+        "runtime:containerd",
+        "image_tag:3.11-slim"
+      ]
+    },
+    {
+      "source": "cri.cpu.usage:avg",
+      "analyzer": "cusum_detector",
+      "description": "cri.cpu.usage:avg shifted to 14258154000.00 (10.9σ above baseline of 14248688000.00)",
+      "timestamp": 1771417698,
+      "tags": [
+        "image_id:docker.io/library/python@sha256:0b23cfb7425d065008b778022a17b1551c82f8b4866ee5a7a200084b7e2eafbf",
+        "env:qbranch_gensim",
+        "service:ebs-volume-service",
+        "pod_name:ebs-volume-service-55498c9b6c-r8h6b",
+        "kube_qos:Burstable",
+        "kube_ownerref_name:ebs-volume-service-55498c9b6c",
+        "display_container_name:ebs-volume-service_ebs-volume-service-55498c9b6c-r8h6b",
+        "kube_namespace:default",
+        "pod_phase:running",
+        "kube_container_name:ebs-volume-service",
+        "container_id:55fa684b8f3cdad3bc808b3f3c13361f2b57bd701c3a9e53c7212bbbdfe44d46",
+        "container_name:ebs-volume-service",
+        "runtime:containerd",
+        "image_name:python",
+        "short_image:python",
+        "kube_ownerref_kind:replicaset",
+        "kube_replica_set:ebs-volume-service-55498c9b6c",
+        "kube_deployment:ebs-volume-service",
+        "image_tag:3.11-slim"
+      ]
+    },
+    {
+      "source": "cri.uptime:avg",
+      "analyzer": "cusum_detector",
+      "description": "cri.uptime:avg shifted to 2571.00 (2.4σ above baseline of 2566.51)",
+      "timestamp": 1771417699,
+      "tags": [
+        "kube_ownerref_name:ebs-volume-service-55498c9b6c",
+        "pod_phase:running",
+        "image_name:python",
+        "short_image:python",
+        "image_tag:3.11-slim",
+        "container_id:55fa684b8f3cdad3bc808b3f3c13361f2b57bd701c3a9e53c7212bbbdfe44d46",
+        "kube_ownerref_kind:replicaset",
+        "pod_name:ebs-volume-service-55498c9b6c-r8h6b",
+        "container_name:ebs-volume-service",
+        "image_id:docker.io/library/python@sha256:0b23cfb7425d065008b778022a17b1551c82f8b4866ee5a7a200084b7e2eafbf",
+        "env:qbranch_gensim",
+        "kube_namespace:default",
+        "kube_replica_set:ebs-volume-service-55498c9b6c",
+        "kube_deployment:ebs-volume-service",
+        "kube_container_name:ebs-volume-service",
+        "display_container_name:ebs-volume-service_ebs-volume-service-55498c9b6c-r8h6b",
+        "kube_qos:Burstable",
+        "service:ebs-volume-service",
+        "runtime:containerd"
+      ]
+    },
+    {
+      "source": "containerd.cpu.system:avg",
+      "analyzer": "cusum_detector",
+      "description": "containerd.cpu.system:avg shifted to 1980887000.00 (3.6σ above baseline of 1978800666.67)",
+      "timestamp": 1771417700,
+      "tags": [
+        "image_id:docker.io/library/python@sha256:0b23cfb7425d065008b778022a17b1551c82f8b4866ee5a7a200084b7e2eafbf",
+        "kube_replica_set:service-health-dashboard-6559864b7c",
+        "pod_name:service-health-dashboard-6559864b7c-ksdzg",
+        "kube_ownerref_kind:replicaset",
+        "pod_phase:running",
+        "display_container_name:service-health-dashboard_service-health-dashboard-6559864b7c-ksdzg",
+        "image_name:python",
+        "short_image:python",
+        "env:qbranch_gensim",
+        "kube_deployment:service-health-dashboard",
+        "image_tag:3.11-slim",
+        "runtime:containerd",
+        "kube_qos:Burstable",
+        "kube_namespace:default",
+        "service:service-health-dashboard",
+        "kube_container_name:service-health-dashboard",
+        "kube_ownerref_name:service-health-dashboard-6559864b7c",
+        "container_id:3c5ad08319d2f635d2f131c68a2f205e8065619e7129799ae40cd0e1bcf04bc7",
+        "container_name:service-health-dashboard"
+      ]
+    }
+  ],
+  "correlations": [
+    {
+      "pattern": "time_cluster_1",
+      "title": "TimeCluster: 897 anomalies",
+      "source_count": 897,
+      "sources": [
+        "demo|kubernetes.kubelet.runtime.operations.duration.count:avg|operation_type:container_status,upper_bound:119209289.550781",
+        "demo|kubernetes.kubelet.runtime.operations.duration.count:avg|operation_type:container_status,upper_bound:1220703.125000",
+        "demo|system.disk.in_use:avg|device:/,device_name:/",
+        "demo|system.disk.in_use:avg|device:/dev/termination-log,device_name:termination-log",
+        "demo|system.disk.utilized:avg|device:/,device_name:/",
+        "demo|system.disk.utilized:avg|device:/dev/termination-log,device_name:termination-log",
+        "demo|system.disk.free:avg|device:/,device_name:/",
+        "demo|system.disk.free:avg|device:/dev/termination-log,device_name:termination-log",
+        "demo|system.disk.used:avg|device:/,device_name:/",
+        "demo|system.disk.used:avg|device:/dev/termination-log,device_name:termination-log"
+      ],
+      "first_seen": 1771417694,
+      "last_updated": 1771417718,
+      "digest": {
+        "key_sources": [
+          {
+            "series_id": "demo|kubernetes.kubelet.runtime.operations.duration.count:avg|operation_type:container_status,upper_bound:119209289.550781",
+            "metric_name": "kubernetes.kubelet.runtime.operations.duration.count:avg",
+            "score": 0,
+            "why": [
+              "representative of 87 kubernetes.kubelet.runtime.operations.duration.count:avg series"
+            ]
+          },
+          {
+            "series_id": "demo|kubernetes.kubelet.runtime.operations.duration.count:avg|operation_type:container_status,upper_bound:1220703.125000",
+            "metric_name": "kubernetes.kubelet.runtime.operations.duration.count:avg",
+            "score": 0,
+            "why": [
+              "representative of 87 kubernetes.kubelet.runtime.operations.duration.count:avg series"
+            ]
+          },
+          {
+            "series_id": "demo|system.disk.in_use:avg|device:/,device_name:/",
+            "metric_name": "system.disk.in_use:avg",
+            "score": 0,
+            "why": [
+              "representative of 29 system.disk.in_use:avg series"
+            ]
+          },
+          {
+            "series_id": "demo|system.disk.in_use:avg|device:/dev/termination-log,device_name:termination-log",
+            "metric_name": "system.disk.in_use:avg",
+            "score": 0,
+            "why": [
+              "representative of 29 system.disk.in_use:avg series"
+            ]
+          },
+          {
+            "series_id": "demo|system.disk.utilized:avg|device:/,device_name:/",
+            "metric_name": "system.disk.utilized:avg",
+            "score": 0,
+            "why": [
+              "representative of 29 system.disk.utilized:avg series"
+            ]
+          },
+          {
+            "series_id": "demo|system.disk.utilized:avg|device:/dev/termination-log,device_name:termination-log",
+            "metric_name": "system.disk.utilized:avg",
+            "score": 0,
+            "why": [
+              "representative of 29 system.disk.utilized:avg series"
+            ]
+          },
+          {
+            "series_id": "demo|system.disk.free:avg|device:/,device_name:/",
+            "metric_name": "system.disk.free:avg",
+            "score": 0,
+            "why": [
+              "representative of 29 system.disk.free:avg series"
+            ]
+          },
+          {
+            "series_id": "demo|system.disk.free:avg|device:/dev/termination-log,device_name:termination-log",
+            "metric_name": "system.disk.free:avg",
+            "score": 0,
+            "why": [
+              "representative of 29 system.disk.free:avg series"
+            ]
+          },
+          {
+            "series_id": "demo|system.disk.used:avg|device:/,device_name:/",
+            "metric_name": "system.disk.used:avg",
+            "score": 0,
+            "why": [
+              "representative of 29 system.disk.used:avg series"
+            ]
+          },
+          {
+            "series_id": "demo|system.disk.used:avg|device:/dev/termination-log,device_name:termination-log",
+            "metric_name": "system.disk.used:avg",
+            "score": 0,
+            "why": [
+              "representative of 29 system.disk.used:avg series"
+            ]
+          }
+        ],
+        "metric_family_counts": {
+          "container.cpu.partial_stall:avg": 17,
+          "container.cpu.system:avg": 18,
+          "container.cpu.usage:avg": 17,
+          "container.cpu.user:avg": 17,
+          "container.io.partial_stall:avg": 2,
+          "container.io.write.operations:avg": 5,
+          "container.io.write:avg": 6,
+          "container.memory.cache:avg": 2,
+          "container.memory.kernel:avg": 12,
+          "container.memory.major_page_faults:avg": 11,
+          "container.memory.page_faults:avg": 21,
+          "container.memory.rss:avg": 8,
+          "container.memory.usage.peak:avg": 6,
+          "container.memory.usage:avg": 14,
+          "container.memory.working_set:avg": 14,
+          "container.net.rcvd.packets:avg": 14,
+          "container.net.rcvd:avg": 14,
+          "container.net.sent.packets:avg": 14,
+          "container.net.sent:avg": 14,
+          "container.pid.open_files:avg": 7,
+          "container.pid.thread_count:avg": 3,
+          "container.uptime:avg": 21,
+          "containerd.blkio.service_recursive_bytes:avg": 6,
+          "containerd.blkio.serviced_recursive:avg": 6,
+          "containerd.cpu.system:avg": 18,
+          "containerd.cpu.total:avg": 17,
+          "containerd.cpu.user:avg": 17,
+          "containerd.mem.cache:avg": 3,
+          "containerd.mem.current.usage:avg": 13,
+          "containerd.mem.kernel.usage:avg": 10,
+          "containerd.mem.rss:avg": 8,
+          "containerd.mem.working_set:avg": 13,
+          "containerd.proc.open_fds:avg": 6,
+          "containerd.uptime:avg": 21,
+          "cri.cpu.usage:avg": 17,
+          "cri.mem.rss:avg": 14,
+          "cri.uptime:avg": 21,
+          "kubernetes.cpu.cfs.periods:avg": 7,
+          "kubernetes.cpu.system.total:avg": 12,
+          "kubernetes.cpu.usage.total:avg": 13,
+          "kubernetes.cpu.user.total:avg": 12,
+          "kubernetes.ephemeral_storage.usage:avg": 5,
+          "kubernetes.go_goroutines:avg": 1,
+          "kubernetes.io.write_bytes:avg": 3,
+          "kubernetes.kubelet.container.log_filesystem.used_bytes:avg": 5,
+          "kubernetes.kubelet.cpu.usage:avg": 1,
+          "kubernetes.kubelet.pleg.last_seen:avg": 1,
+          "kubernetes.kubelet.pleg.relist_duration.count:avg": 12,
+          "kubernetes.kubelet.pleg.relist_duration.sum:avg": 1,
+          "kubernetes.kubelet.pleg.relist_interval.count:avg": 4,
+          "kubernetes.kubelet.pleg.relist_interval.sum:avg": 1,
+          "kubernetes.kubelet.pod.worker.duration.sum:avg": 1,
+          "kubernetes.kubelet.runtime.operations.duration.count:avg": 87,
+          "kubernetes.kubelet.runtime.operations.duration.sum:avg": 5,
+          "kubernetes.kubelet.runtime.operations:avg": 6,
+          "kubernetes.liveness_probe.success.total:avg": 1,
+          "kubernetes.memory.cache:avg": 5,
+          "kubernetes.memory.rss:avg": 10,
+          "kubernetes.memory.usage:avg": 10,
+          "kubernetes.memory.usage_pct:avg": 4,
+          "kubernetes.memory.working_set:avg": 9,
+          "kubernetes.network.rx_bytes:avg": 7,
+          "kubernetes.network.tx_bytes:avg": 7,
+          "kubernetes.node.filesystem.usage:avg": 1,
+          "kubernetes.node.filesystem.usage_pct:avg": 1,
+          "kubernetes.readiness_probe.success.total:avg": 4,
+          "kubernetes.rest.client.latency.count:avg": 13,
+          "kubernetes.rest.client.latency.sum:avg": 1,
+          "kubernetes.rest.client.requests:avg": 1,
+          "kubernetes.runtime.cpu.usage:avg": 1,
+          "kubernetes.runtime.memory.rss:avg": 1,
+          "kubernetes.slis.kubernetes_healthchecks_total:avg": 4,
+          "system.cpu.context_switches:avg": 1,
+          "system.cpu.idle.total:avg": 1,
+          "system.cpu.interrupt:avg": 1,
+          "system.cpu.iowait.total:avg": 1,
+          "system.cpu.softirq.total:avg": 1,
+          "system.cpu.system.total:avg": 1,
+          "system.cpu.system:avg": 1,
+          "system.cpu.user.total:avg": 1,
+          "system.disk.free:avg": 29,
+          "system.disk.in_use:avg": 29,
+          "system.disk.read_time:avg": 6,
+          "system.disk.used:avg": 29,
+          "system.disk.utilized:avg": 29,
+          "system.disk.write_time:avg": 4,
+          "system.disk.write_time_pct:avg": 2,
+          "system.fs.file_handles.allocated:avg": 1,
+          "system.fs.file_handles.used:avg": 1,
+          "system.io.avg_q_sz:avg": 2,
+          "system.io.avg_rq_sz:avg": 2,
+          "system.io.await:avg": 2,
+          "system.io.block_out:avg": 1,
+          "system.io.util:avg": 2,
+          "system.io.w_await:avg": 2,
+          "system.io.w_s:avg": 2,
+          "system.io.wkb_s:avg": 2,
+          "system.io.wrqm_s:avg": 2,
+          "system.load.15:avg": 1,
+          "system.load.1:avg": 1,
+          "system.load.5:avg": 1,
+          "system.load.norm.15:avg": 1,
+          "system.load.norm.1:avg": 1,
+          "system.load.norm.5:avg": 1,
+          "system.mem.buffered:avg": 1,
+          "system.mem.cached:avg": 1,
+          "system.mem.committed_as:avg": 1,
+          "system.mem.free:avg": 1,
+          "system.mem.page_tables:avg": 1,
+          "system.mem.pct_usable:avg": 1,
+          "system.mem.slab:avg": 1,
+          "system.mem.slab_reclaimable:avg": 1,
+          "system.mem.usable:avg": 1,
+          "system.mem.used:avg": 1,
+          "system.net.bytes_rcvd:avg": 2,
+          "system.net.bytes_sent:avg": 2,
+          "system.net.ip.in_delivers:avg": 1,
+          "system.net.ip.in_receives:avg": 1,
+          "system.net.ip.out_requests:avg": 1,
+          "system.net.packets_in.count:avg": 2,
+          "system.net.packets_out.count:avg": 2,
+          "system.net.tcp.active_opens:avg": 1,
+          "system.net.tcp.attempt_fails:avg": 1,
+          "system.net.tcp.current_established:avg": 1,
+          "system.net.tcp.in_segs:avg": 1,
+          "system.net.tcp.out_segs:avg": 1,
+          "system.net.tcp.passive_opens:avg": 1,
+          "system.net.tcp.retrans_segs:avg": 1,
+          "system.net.tcp.syn_retrans:avg": 1,
+          "system.net.udp.in_datagrams:avg": 1,
+          "system.net.udp.out_datagrams:avg": 1,
+          "system.uptime:avg": 1
+        },
+        "onset_chain": null,
+        "total_source_count": 897,
+        "rca_confidence": 0.527,
+        "confidence_flags": [
+          "ambiguous_roots"
+        ]
+      }
+    }
+  ],
+  "rca": [
+    {
+      "correlation_pattern": "time_cluster_1",
+      "root_candidates_series": [
+        {
+          "id": "demo|containerd.blkio.service_recursive_bytes:avg|container_id:4259d007c3267ee926423880539b8a873fda626c38ad16939905d43f68e52d3a,device:vda,device_name:vda,git.commit.sha:0093026b4829ada27409dde2176604c38b575d38,git.repository_url:https://github.com/DataDog/datadog-agent,image_id:sha256:06a2646f8dec29b4ad56971e4a8b3a3d1353a63bb152dd8cdc450f868f841d2f,image_name:docker.io/library/observer-agent,image_tag:latest,operation:write,runtime:containerd,short_image:observer-agent",
+          "score": 0.727,
+          "onset_time": 1771417694,
+          "why": [
+            "early onset compared with peer anomalies",
+            "downstream temporal coverage 0.91",
+            "persistence 1.00"
+          ]
+        },
+        {
+          "id": "demo|containerd.cpu.user:avg|container_id:4259d007c3267ee926423880539b8a873fda626c38ad16939905d43f68e52d3a,git.commit.sha:0093026b4829ada27409dde2176604c38b575d38,git.repository_url:https://github.com/DataDog/datadog-agent,image_id:sha256:06a2646f8dec29b4ad56971e4a8b3a3d1353a63bb152dd8cdc450f868f841d2f,image_name:docker.io/library/observer-agent,image_tag:latest,runtime:containerd,short_image:observer-agent",
+          "score": 0.727,
+          "onset_time": 1771417694,
+          "why": [
+            "early onset compared with peer anomalies",
+            "downstream temporal coverage 0.91",
+            "persistence 1.00"
+          ]
+        },
+        {
+          "id": "demo|containerd.mem.kernel.usage:avg|container_id:4259d007c3267ee926423880539b8a873fda626c38ad16939905d43f68e52d3a,git.commit.sha:0093026b4829ada27409dde2176604c38b575d38,git.repository_url:https://github.com/DataDog/datadog-agent,image_id:sha256:06a2646f8dec29b4ad56971e4a8b3a3d1353a63bb152dd8cdc450f868f841d2f,image_name:docker.io/library/observer-agent,image_tag:latest,runtime:containerd,short_image:observer-agent",
+          "score": 0.727,
+          "onset_time": 1771417694,
+          "why": [
+            "early onset compared with peer anomalies",
+            "downstream temporal coverage 0.91",
+            "persistence 1.00"
+          ]
+        }
+      ],
+      "root_candidates_metric": [
+        {
+          "id": "containerd.blkio.service_recursive_bytes:avg",
+          "score": 0.727,
+          "onset_time": 1771417694,
+          "why": [
+            "probabilistic rollup of top series candidates"
+          ]
+        },
+        {
+          "id": "containerd.cpu.user:avg",
+          "score": 0.727,
+          "onset_time": 1771417694,
+          "why": [
+            "probabilistic rollup of top series candidates"
+          ]
+        },
+        {
+          "id": "containerd.mem.kernel.usage:avg",
+          "score": 0.727,
+          "onset_time": 1771417694,
+          "why": [
+            "probabilistic rollup of top series candidates"
+          ]
+        }
+      ],
+      "evidence_paths": [
+        {
+          "nodes": [
+            "demo|containerd.blkio.service_recursive_bytes:avg|container_id:4259d007c3267ee926423880539b8a873fda626c38ad16939905d43f68e52d3a,device:vda,device_name:vda,git.commit.sha:0093026b4829ada27409dde2176604c38b575d38,git.repository_url:https://github.com/DataDog/datadog-agent,image_id:sha256:06a2646f8dec29b4ad56971e4a8b3a3d1353a63bb152dd8cdc450f868f841d2f,image_name:docker.io/library/observer-agent,image_tag:latest,operation:write,runtime:containerd,short_image:observer-agent",
+            "demo|kubernetes.cpu.usage.total:avg|container_id:2b22c357b0ab195efa2b02bf70b77d98a95579ac52a9e8516a9bc49740250857,container_name:ec2-instance-launch,display_container_name:ec2-instance-launch_ec2-instance-launch-698945cdf4-wrtqj,env:qbranch_gensim,image_id:docker.io/library/python@sha256:0b23cfb7425d065008b778022a17b1551c82f8b4866ee5a7a200084b7e2eafbf,image_name:python,image_tag:3.11-slim,kube_container_name:ec2-instance-launch,kube_deployment:ec2-instance-launch,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:ec2-instance-launch-698945cdf4,kube_qos:Burstable,kube_replica_set:ec2-instance-launch-698945cdf4,kube_static_cpus:false,pod_name:ec2-instance-launch-698945cdf4-wrtqj,pod_phase:running,service:ec2-instance-launch,short_image:python"
+          ],
+          "score": 0.836,
+          "why": "temporal path from likely root to symptom across 1 hop(s)"
+        },
+        {
+          "nodes": [
+            "demo|containerd.cpu.user:avg|container_id:4259d007c3267ee926423880539b8a873fda626c38ad16939905d43f68e52d3a,git.commit.sha:0093026b4829ada27409dde2176604c38b575d38,git.repository_url:https://github.com/DataDog/datadog-agent,image_id:sha256:06a2646f8dec29b4ad56971e4a8b3a3d1353a63bb152dd8cdc450f868f841d2f,image_name:docker.io/library/observer-agent,image_tag:latest,runtime:containerd,short_image:observer-agent",
+            "demo|kubernetes.cpu.usage.total:avg|container_id:2b22c357b0ab195efa2b02bf70b77d98a95579ac52a9e8516a9bc49740250857,container_name:ec2-instance-launch,display_container_name:ec2-instance-launch_ec2-instance-launch-698945cdf4-wrtqj,env:qbranch_gensim,image_id:docker.io/library/python@sha256:0b23cfb7425d065008b778022a17b1551c82f8b4866ee5a7a200084b7e2eafbf,image_name:python,image_tag:3.11-slim,kube_container_name:ec2-instance-launch,kube_deployment:ec2-instance-launch,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:ec2-instance-launch-698945cdf4,kube_qos:Burstable,kube_replica_set:ec2-instance-launch-698945cdf4,kube_static_cpus:false,pod_name:ec2-instance-launch-698945cdf4-wrtqj,pod_phase:running,service:ec2-instance-launch,short_image:python"
+          ],
+          "score": 0.836,
+          "why": "temporal path from likely root to symptom across 1 hop(s)"
+        },
+        {
+          "nodes": [
+            "demo|containerd.mem.kernel.usage:avg|container_id:4259d007c3267ee926423880539b8a873fda626c38ad16939905d43f68e52d3a,git.commit.sha:0093026b4829ada27409dde2176604c38b575d38,git.repository_url:https://github.com/DataDog/datadog-agent,image_id:sha256:06a2646f8dec29b4ad56971e4a8b3a3d1353a63bb152dd8cdc450f868f841d2f,image_name:docker.io/library/observer-agent,image_tag:latest,runtime:containerd,short_image:observer-agent",
+            "demo|kubernetes.cpu.usage.total:avg|container_id:2b22c357b0ab195efa2b02bf70b77d98a95579ac52a9e8516a9bc49740250857,container_name:ec2-instance-launch,display_container_name:ec2-instance-launch_ec2-instance-launch-698945cdf4-wrtqj,env:qbranch_gensim,image_id:docker.io/library/python@sha256:0b23cfb7425d065008b778022a17b1551c82f8b4866ee5a7a200084b7e2eafbf,image_name:python,image_tag:3.11-slim,kube_container_name:ec2-instance-launch,kube_deployment:ec2-instance-launch,kube_namespace:default,kube_ownerref_kind:replicaset,kube_ownerref_name:ec2-instance-launch-698945cdf4,kube_qos:Burstable,kube_replica_set:ec2-instance-launch-698945cdf4,kube_static_cpus:false,pod_name:ec2-instance-launch-698945cdf4-wrtqj,pod_phase:running,service:ec2-instance-launch,short_image:python"
+          ],
+          "score": 0.836,
+          "why": "temporal path from likely root to symptom across 1 hop(s)"
+        }
+      ],
+      "confidence": {
+        "score": 0.527,
+        "data_limited": false,
+        "weak_directionality": false,
+        "ambiguous_roots": true
+      },
+      "summary": "demo|containerd.blkio.service_recursive_bytes:avg|container_id:4259d007c3267ee926423880539b8a873fda626c38ad16939905d43f68e52d3a,device:vda,device_name:vda,git.commit.sha:0093026b4829ada27409dde2176604c38b575d38,git.repository_url:https://github.com/DataDog/datadog-agent,image_id:sha256:06a2646f8dec29b4ad56971e4a8b3a3d1353a63bb152dd8cdc450f868f841d2f,image_name:docker.io/library/observer-agent,image_tag:latest,operation:write,runtime:containerd,short_image:observer-agent (metric containerd.blkio.service_recursive_bytes:avg) is the top likely root for time_cluster_1 (confidence 0.53)"
+    }
+  ]
+}

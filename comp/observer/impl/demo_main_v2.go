@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
@@ -50,6 +51,18 @@ type DemoV2Config struct {
 	// Deduplication
 	// EnableDedup enables anomaly deduplication before correlation
 	EnableDedup bool
+
+	// RCA settings
+	// EnableRCA enables root-cause ranking/explanations on top of active correlations.
+	EnableRCA bool
+	// RCAMaxRootCandidates overrides max ranked roots to emit.
+	RCAMaxRootCandidates int
+	// RCAMaxEvidencePaths overrides max path-style evidence snippets to emit.
+	RCAMaxEvidencePaths int
+	// RCAOnsetEpsilonSeconds overrides onset tie tolerance for direction inference.
+	RCAOnsetEpsilonSeconds int64
+	// RCAMaxEdgeLagSeconds overrides max lag included as temporal edges.
+	RCAMaxEdgeLagSeconds int64
 
 	// OutputFile is the path to write JSON results (anomalies + correlations)
 	// If empty, no file is written
@@ -282,6 +295,26 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 	// Build signal processors list based on config
 	var processors []observerdef.SignalProcessor
 
+	// Optional RCA service (feature-gated, correlator-state based).
+	var rcaService *RCAService
+	if config.EnableRCA && correlationState != nil {
+		rcaConfig := DefaultRCAConfig()
+		rcaConfig.Enabled = true
+		if config.RCAMaxRootCandidates > 0 {
+			rcaConfig.MaxRootCandidates = config.RCAMaxRootCandidates
+		}
+		if config.RCAMaxEvidencePaths > 0 {
+			rcaConfig.MaxEvidencePaths = config.RCAMaxEvidencePaths
+		}
+		if config.RCAOnsetEpsilonSeconds > 0 {
+			rcaConfig.OnsetEpsilonSeconds = config.RCAOnsetEpsilonSeconds
+		}
+		if config.RCAMaxEdgeLagSeconds > 0 {
+			rcaConfig.MaxEdgeLagSeconds = config.RCAMaxEdgeLagSeconds
+		}
+		rcaService = NewRCAService(rcaConfig)
+	}
+
 	fmt.Println("---")
 	fmt.Println("Enabled algorithms:")
 	if len(emitterNames) > 0 {
@@ -303,6 +336,13 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 		fmt.Println("  Correlator: TimeClusterCorrelator (time proximity)")
 	} else {
 		fmt.Println("  Correlator: None (individual anomalies)")
+	}
+	if config.EnableRCA {
+		if rcaService != nil {
+			fmt.Println("  RCA: Enabled (temporal root ranking)")
+		} else {
+			fmt.Println("  RCA: Enabled but inactive (no correlation state)")
+		}
 	}
 	fmt.Println("---")
 
@@ -326,12 +366,15 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 		signalProcessors: processors,
 		// Deduplication layer (optional)
 		deduplicator:     deduplicator,
+		correlationState: correlationState,
+		rcaService:       rcaService,
 		reporters:        reporters,
 		storage:          storage,
 		obsCh:            make(chan observation, 10000000), // Very large buffer (10M) to prevent drops during demo with large datasets
 		rawAnomalyWindow: 0,                                // 0 = unlimited - keep all anomalies during demo
 		maxRawAnomalies:  500,                              // keep up to 500 raw anomalies
 	}
+	obs.handleFunc = obs.innerHandle
 	go obs.run()
 
 	// Wire raw anomaly state to reporters for test bench display
@@ -401,6 +444,11 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 	if correlator != nil {
 		fmt.Println("[demo] Flushing correlator...")
 		correlator.Flush()
+		if rcaService != nil && correlationState != nil {
+			if err := rcaService.Update(correlationState.ActiveCorrelations()); err != nil {
+				fmt.Printf("[demo] RCA update failed: %v\n", err)
+			}
+		}
 	}
 
 	// Another small wait for any final processing
@@ -458,6 +506,9 @@ type DemoResults struct {
 
 	// GraphSketch edges (if using GraphSketchCorrelator) - all edges
 	Edges []EdgeResult `json:"edges,omitempty"`
+
+	// RCA results (additive field; omitted when RCA is disabled or empty).
+	RCA []RCAResult `json:"rca,omitempty"`
 }
 
 // AnomalySample is a simplified anomaly for the sample output.
@@ -474,9 +525,176 @@ type CorrelationResult struct {
 	Pattern     string   `json:"pattern"`
 	Title       string   `json:"title"`
 	SourceCount int      `json:"source_count"`
-	Sources     []string `json:"sources"` // top 20 sources only
+	Sources     []string `json:"sources"`                // raw sources (replaced by KeySources when digest present)
 	FirstSeen   int64    `json:"first_seen"`
 	LastUpdated int64    `json:"last_updated"`
+	Digest      *CorrelationDigest `json:"digest,omitempty"`
+}
+
+// CorrelationDigest is a compressed, LLM-friendly summary of a correlation's
+// sources. Built from RCA structural analysis regardless of RCA confidence.
+type CorrelationDigest struct {
+	// KeySources are the top-ranked series IDs (by RCA score/severity).
+	KeySources []DigestSource `json:"key_sources"`
+	// MetricFamilyCounts groups all sources by metric name → count of distinct series.
+	MetricFamilyCounts map[string]int `json:"metric_family_counts"`
+	// OnsetChain shows the temporal ordering of the earliest anomalous series.
+	OnsetChain []DigestOnset `json:"onset_chain"`
+	// TotalSourceCount is the original number of sources before compression.
+	TotalSourceCount int `json:"total_source_count"`
+	// RCAConfidence from the RCA engine (lets LLM calibrate trust in causal ordering).
+	RCAConfidence float64 `json:"rca_confidence"`
+	// ConfidenceFlags surfaces specific RCA uncertainty reasons.
+	ConfidenceFlags []string `json:"confidence_flags,omitempty"`
+}
+
+// DigestSource is a key source entry in the digest.
+type DigestSource struct {
+	SeriesID   string  `json:"series_id"`
+	MetricName string  `json:"metric_name"`
+	Score      float64 `json:"score"`
+	Why        []string `json:"why,omitempty"`
+}
+
+// DigestOnset is one entry in the temporal onset chain.
+type DigestOnset struct {
+	SeriesID   string `json:"series_id"`
+	MetricName string `json:"metric_name"`
+	OnsetTime  int64  `json:"onset_time"`
+}
+
+// digestHighConfidenceThreshold gates causal detail in the digest. Above this
+// value, key sources come from RCA ranking and onset chain is included. Below,
+// key sources are representative samples from the top metric families and
+// the onset chain is omitted to avoid misleading the LLM with uncertain
+// causal assertions.
+const digestHighConfidenceThreshold = 0.6
+
+// buildCorrelationDigest compresses a correlation's raw sources into an
+// LLM-friendly digest using RCA structural analysis.
+//
+// The digest always includes metric family counts, total source count, and
+// confidence metadata. When RCA confidence is high (>= 0.6), it also includes
+// RCA-ranked key sources and a temporal onset chain. When confidence is low,
+// key sources are representative samples from the most impacted metric
+// families and the onset chain is omitted — this preserves compression while
+// avoiding misleading causal assertions.
+func buildCorrelationDigest(sources []string, rca RCAResult) *CorrelationDigest {
+	const maxKeySources = 10
+	const maxOnsetChain = 8
+	const maxFamilySamples = 15
+
+	// Build metric family counts and collect sample series per family.
+	metricCounts := make(map[string]int)
+	familySamples := make(map[string][]string) // family → up to 2 example series
+	for _, src := range sources {
+		_, name, _, ok := parseSeriesKey(src)
+		if ok && name != "" {
+			metricCounts[name]++
+			if len(familySamples[name]) < 2 {
+				familySamples[name] = append(familySamples[name], src)
+			}
+		}
+	}
+
+	// Confidence flags.
+	var flags []string
+	if rca.Confidence.DataLimited {
+		flags = append(flags, "data_limited")
+	}
+	if rca.Confidence.WeakDirectionality {
+		flags = append(flags, "weak_directionality")
+	}
+	if rca.Confidence.AmbiguousRoots {
+		flags = append(flags, "ambiguous_roots")
+	}
+
+	digest := &CorrelationDigest{
+		MetricFamilyCounts: metricCounts,
+		TotalSourceCount:   len(sources),
+		RCAConfidence:      rca.Confidence.Score,
+		ConfidenceFlags:    flags,
+	}
+
+	if rca.Confidence.Score >= digestHighConfidenceThreshold {
+		// High confidence: use RCA-ranked key sources and onset chain.
+		keySources := make([]DigestSource, 0, maxKeySources)
+		for i, c := range rca.RootCandidatesSeries {
+			if i >= maxKeySources {
+				break
+			}
+			metricName := ""
+			if _, name, _, ok := parseSeriesKey(c.ID); ok {
+				metricName = name
+			}
+			keySources = append(keySources, DigestSource{
+				SeriesID:   c.ID,
+				MetricName: metricName,
+				Score:      c.Score,
+				Why:        c.Why,
+			})
+		}
+		digest.KeySources = keySources
+
+		onsetSorted := make([]RCARootCandidate, len(rca.RootCandidatesSeries))
+		copy(onsetSorted, rca.RootCandidatesSeries)
+		sort.Slice(onsetSorted, func(i, j int) bool {
+			return onsetSorted[i].OnsetTime < onsetSorted[j].OnsetTime
+		})
+		onsetChain := make([]DigestOnset, 0, maxOnsetChain)
+		for i, c := range onsetSorted {
+			if i >= maxOnsetChain {
+				break
+			}
+			metricName := ""
+			if _, name, _, ok := parseSeriesKey(c.ID); ok {
+				metricName = name
+			}
+			onsetChain = append(onsetChain, DigestOnset{
+				SeriesID:   c.ID,
+				MetricName: metricName,
+				OnsetTime:  c.OnsetTime,
+			})
+		}
+		digest.OnsetChain = onsetChain
+	} else {
+		// Low confidence: representative samples from top metric families.
+		// This gives the LLM breadth without asserting causality.
+		type familyEntry struct {
+			name  string
+			count int
+		}
+		families := make([]familyEntry, 0, len(metricCounts))
+		for name, count := range metricCounts {
+			families = append(families, familyEntry{name, count})
+		}
+		sort.Slice(families, func(i, j int) bool {
+			return families[i].count > families[j].count
+		})
+
+		keySources := make([]DigestSource, 0, maxKeySources)
+		for i, fam := range families {
+			if i >= maxFamilySamples || len(keySources) >= maxKeySources {
+				break
+			}
+			samples := familySamples[fam.name]
+			for _, s := range samples {
+				if len(keySources) >= maxKeySources {
+					break
+				}
+				keySources = append(keySources, DigestSource{
+					SeriesID:   s,
+					MetricName: fam.name,
+					Score:      0,
+					Why:        []string{fmt.Sprintf("representative of %d %s series", fam.count, fam.name)},
+				})
+			}
+		}
+		digest.KeySources = keySources
+		// No onset chain — don't assert temporal ordering when uncertain.
+	}
+
+	return digest
 }
 
 // EdgeResult represents a GraphSketch edge.
@@ -546,18 +764,41 @@ func exportResults(config DemoV2Config, obs *observerImpl, correlationState obse
 		})
 	}
 
-	// Export correlations (with all sources)
+	// Fetch RCA results (keyed by pattern) for digest building.
+	rcaResults := obs.RCAResults()
+	rcaByPattern := make(map[string]RCAResult, len(rcaResults))
+	for _, r := range rcaResults {
+		rcaByPattern[r.CorrelationPattern] = r
+	}
+	results.RCA = rcaResults
+
+	// Export correlations. When RCA is available for a correlation,
+	// replace the raw source list with a compressed digest.
 	if correlationState != nil {
 		activeCorrs := correlationState.ActiveCorrelations()
 		for _, c := range activeCorrs {
-			results.Correlations = append(results.Correlations, CorrelationResult{
+			allSources := seriesIDsToStringsForResults(c.MemberSeriesIDs)
+			cr := CorrelationResult{
 				Pattern:     c.Pattern,
 				Title:       c.Title,
 				SourceCount: len(c.MemberSeriesIDs),
-				Sources:     seriesIDsToStringsForResults(c.MemberSeriesIDs), // All sources, not truncated
 				FirstSeen:   c.FirstSeen,
 				LastUpdated: c.LastUpdated,
-			})
+			}
+
+			if rca, ok := rcaByPattern[c.Pattern]; ok {
+				cr.Digest = buildCorrelationDigest(allSources, rca)
+				// Replace raw sources with just the key source IDs to stay compact.
+				keySrcIDs := make([]string, len(cr.Digest.KeySources))
+				for i, ks := range cr.Digest.KeySources {
+					keySrcIDs[i] = ks.SeriesID
+				}
+				cr.Sources = keySrcIDs
+			} else {
+				cr.Sources = allSources
+			}
+
+			results.Correlations = append(results.Correlations, cr)
 		}
 	}
 	results.TotalCorrelations = len(results.Correlations)
@@ -598,6 +839,9 @@ func exportResults(config DemoV2Config, obs *observerImpl, correlationState obse
 	fmt.Printf("  - %d correlations\n", results.TotalCorrelations)
 	if results.TotalEdges > 0 {
 		fmt.Printf("  - %d edges\n", results.TotalEdges)
+	}
+	if len(results.RCA) > 0 {
+		fmt.Printf("  - %d rca result(s)\n", len(results.RCA))
 	}
 }
 

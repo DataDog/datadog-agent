@@ -1,0 +1,97 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1) **What the correlations tell you**
+- **time_cluster_1 (236 series, confidence 0.49):** A broad, near-simultaneous shift across many **CPU, I/O, memory, PSI/pressure, pids** metrics spanning multiple containers, with the **earliest onsets** on the **cleanup** container’s CPU usage and read I/O; effects appear to spread to other pods (e.g., todo-backend).
+- **time_cluster_2 (10 series, confidence 0.25):** A smaller, single-timestamp cluster isolated to **todo-backend**, tying **socket memory (sock)** and **CPU utilization** anomalies together.
+
+2) **Is there a problem?**  
+**Yes.**
+
+3) **If yes, what is it? (one sentence)**  
+A **cluster-wide resource contention event** (CPU + disk read I/O surge) likely initiated by the **cleanup** container, coinciding with widespread pressure/usage shifts across other containers, plus a secondary **todo-backend CPU + socket-memory spike**.
+
+4) **Confidence level**  
+**Medium** (bordering low for precise causality).
+
+5) **Alternative possibilities / why uncertain**
+- **Common external trigger rather than cleanup “causing” others:** Many metric families across multiple pods shift together; TimeCluster groups by simultaneity and the flags say directionality is weak, so the “root” may just be an early indicator.
+- **Instrumentation / baseline artifact:** CUSUM learns baseline from first 25%—if workload changed phase, it can label the new steady state as anomalous en masse (explains the huge anomaly count and many families moving together).
+- **Node-level throttling / cgroup config change:** Anomalies include **cpu.weight / io.weight.default / pids.max** families across containers; if these are derived/collected oddly or changed at once, they could reflect policy updates rather than true saturation.
+- **Cleanup doing heavy disk scanning/reads while other pods naturally scale at same time:** The evidence path is only temporal (1 hop), not a learned dependency (no GraphSketch edges here), so causation remains ambiguous.
+
+6) **Supporting evidence (from the data)**
+- **time_cluster_1 key sources all on cleanup container (BestEffort) and earliest onset (T=1769636452):**
+  - `cgroup.v2.cpu.stat.usage_usec` shifted to **27513** (**4.4σ** above **1353** baseline).
+  - `cgroup.v2.io.stat.rbytes` shifted to **81920** (**4.4σ** above **4028** baseline).
+  - `cgroup.v2.io.stat.rios` shifted to **5.00** (**4.4σ** above **0.25** baseline).
+- **Breadth of affected families in time_cluster_1 (236 series):** CPU pressure (some/full totals), IO pressure (some/full totals), memory current/peak/stat anon/file, smaps rss/pss/private_dirty, pids metrics, etc. → consistent with “system under load/phase shift.”
+- **Cross-container temporal linkage in RCA evidence paths:** cleanup (`cpu.usage_usec` / `io.rbytes` / `io.rios`) → todo-backend `io.rbytes` (temporal path score ~0.895).
+- **time_cluster_2 (todo-backend only, T=1769636511):**
+  - `cgroup.v2.memory.stat.sock` is top candidate (peak sigma **1.00**) along with `cpu_percentage` / `total_cpu_percentage` (peak sigma **0.88**).
+
+7) **Do the RCA/digest key sources and onset chain support the conclusion?**
+- **Partially yes.** The digest/RCA **do support** that the event’s **earliest anomalous signals** are **cleanup CPU usage + read I/O** (the onset chain is exactly those three at the same onset time), aligning with “resource surge starts there.”
+- **But not fully for strict causality.** The confidence flags (**weak_directionality, ambiguous_roots**) and modest RCA scores (0.49 / 0.25) mean the onset ordering could be coincidental or driven by a shared upstream factor, so the conclusion is “contention/phase shift occurred,” with the cleanup container as a plausible trigger/indicator rather than proven root cause.

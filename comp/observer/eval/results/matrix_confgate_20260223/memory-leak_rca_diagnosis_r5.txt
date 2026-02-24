@@ -1,0 +1,95 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1) **What do the correlations tell you?**  
+- **time_cluster_1:** A single incident window where **many subsystems in the same container** anomalied together (67 metric families): memory (smaps + cgroup memory stats), CPU usage/pressure/throttling, I/O stats/pressure, and process/thread counts. This looks like a **sustained state change** affecting the container broadly, not an isolated metric blip.  
+- **time_cluster_2:** A later, smaller cluster (7 series) that is **CPU-only** (total/system/kernel CPU), consistent with a **secondary CPU burst/shift** after the broader event.
+
+2) **Is there a problem?**  
+**Yes.**
+
+3) **If yes, what is it? (one sentence)**  
+The container likely entered a **runaway resource-consumption state** (memory growth/pressure with accompanying CPU and I/O pressure), consistent with a leak or pathological workload behavior.
+
+4) **Confidence level**  
+**Medium** (RCA confidence is low, but the breadth and coherence of anomalies is strong).
+
+5) **Alternative possibilities + why uncertain (since not high confidence)**  
+- **Container restart / reconfiguration / limits changed**: shifts in `cgroup.v2.memory.max`, `cgroup.v2.cpu.weight`, `cgroup.v2.io.weight.default`, and large step-changes across many metrics can also happen when a container is recreated or its cgroup parameters change.  
+- **Workload phase change (legitimate heavy job)**: a batch job starting could simultaneously increase RSS/PSS, CPU, and I/O without being a “bug.”  
+- **Instrumentation / baseline artifact**: CUSUM learns “normal” from the first 25%—if that period was unusually idle, a later normal load can look like a sustained shift.  
+Uncertainty is high on *causal ordering* because the digest explicitly flags **weak_directionality** and **ambiguous_roots** and provides **no onset chain**.
+
+6) **Supporting evidence (from the data)**  
+- **Very broad simultaneous anomaly cluster:** `time_cluster_1` has **67 anomalous series** across CPU, memory, I/O, and pids/threads.  
+- **Memory growth signals:** `smaps_rollup.pss` shifted from ~3.1M to ~13.3M; multiple smaps and cgroup memory stats anomalous (anon, active_anon, pagetables, kernel, slab).  
+- **CPU contention/pressure present:** numerous `cgroup.v2.cpu.pressure.*` metrics in the cluster plus `cgroup.v2.cpu.stat.usage_usec`.  
+- **I/O increase:** `cgroup.v2.io.stat.rbytes` shifted to ~1,662,976 (4.4σ above baseline); `rios` jumped to 20 (4.4σ above baseline ~0.98).  
+- **Process/thread signals:** `cgroup.v2.cgroup.threads` and `cgroup.v2.cgroup.procs` shifted to 32,327 (from ~6,593 baseline); `container.pid_count` and `cgroup.v2.pids.current` also shifted.  
+- **Follow-on CPU-only cluster:** `time_cluster_2` shows only CPU metrics anomalous at a later timestamp, suggesting continued/secondary CPU impact.
+
+7) **Do RCA/digest key sources and onset chain support the conclusion?**  
+- **Key sources:** Yes, *in aggregate*. The digest’s representative/key sources span **memory (smaps_rollup.rss, slab_reclaimable, pgmajfault), CPU (cpu_percentage, kernel_cpu_percentage, CPU pressure), and pids**, which matches the conclusion of a broad resource-consumption event.  
+- **Onset chain:** **Not available (`onset_chain: null`)**, so it does **not** support any specific causal story. Also, because **RCA confidence is low**, the ranked “root candidates” (e.g., `file_dirty`, `cpu.stat.usage_usec`, `io.stat.rbytes`) should be treated as *correlated early signals*, not definitive causes.

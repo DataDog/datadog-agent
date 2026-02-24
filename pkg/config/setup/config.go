@@ -346,6 +346,23 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Debug: dump all observer metrics to a file periodically
 	config.BindEnvAndSetDefault("observer.debug_dump_path", "")
 	config.BindEnvAndSetDefault("observer.debug_dump_interval", 0)
+	// RCA (root-cause analysis) layer for observer correlations.
+	config.BindEnvAndSetDefault("observer.rca.enabled", false)
+	config.BindEnvAndSetDefault("observer.rca.correlator", "time_cluster")
+	config.BindEnvAndSetDefault("observer.rca.max_root_candidates", 3)
+	config.BindEnvAndSetDefault("observer.rca.max_evidence_paths", 3)
+	config.BindEnvAndSetDefault("observer.rca.onset_epsilon_seconds", 1)
+	config.BindEnvAndSetDefault("observer.rca.max_edge_lag_seconds", 10)
+	config.BindEnvAndSetDefault("observer.rca.min_data_nodes", 3)
+	config.BindEnvAndSetDefault("observer.rca.weak_directionality_threshold", 0.45)
+	config.BindEnvAndSetDefault("observer.rca.ambiguous_root_margin", 0.08)
+	config.BindEnvAndSetDefault("observer.rca.min_confidence", 0.5)
+	config.BindEnvAndSetDefault("observer.rca.weights.onset", 0.35)
+	config.BindEnvAndSetDefault("observer.rca.weights.downstream_coverage", 0.25)
+	config.BindEnvAndSetDefault("observer.rca.weights.persistence", 0.15)
+	config.BindEnvAndSetDefault("observer.rca.weights.severity", 0.15)
+	config.BindEnvAndSetDefault("observer.rca.weights.incoming_penalty", 0.25)
+	config.BindEnvAndSetDefault("observer.rca.weights.spread_penalty", 0.15)
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)

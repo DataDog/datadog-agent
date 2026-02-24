@@ -1,0 +1,77 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1) **What do the correlations tell you?**  
+- **TimeCluster 1 (236 sources, 1769636399–1769636485):** A large, simultaneous shift across many **CPU, memory, IO, PSI/pressure, pids, and even “config/limit” type metrics** for multiple containers (todo-frontend, todo-backend, todo-redis, cleanup) in the same namespace—suggesting a **global/container lifecycle or monitoring/reset event** more than a single app issue.  
+- **TimeCluster 2 (10 sources, single timestamp 1769636511):** A short, container-specific co-anomaly for **todo-backend** focused on CPU (and sock memory stat), consistent with a **brief workload burst** or a **measurement artifact**.
+
+2) **Is there a problem?**  
+**Unclear.**
+
+3) **If yes, what is it? (one sentence)**  
+N/A.
+
+4) **Confidence level**  
+**Low** (leaning toward “instrumentation/baseline/reset or container lifecycle event” rather than a true incident).
+
+5) **Alternative possibilities & why uncertain (since not high confidence)**  
+- **Monitoring artifact / baseline break / counter reset / dedup behavior:** CUSUM learned baseline from first 25%; if containers started after that or metrics reset/changed semantics, many metrics would “shift” together without a real problem. The cluster includes metrics that normally don’t “behave” like workloads (e.g., **cpu_limit_millicores, memory.max, cpu.weight, io.weight**), which hints at configuration/reporting changes rather than resource stress.  
+- **Real node-level contention event:** PSI (“pressure”) anomalies across multiple containers could reflect actual CPU/IO contention. Uncertain because the correlator is purely temporal and we don’t see external node metrics or a clear single root metric leading the chain.  
+- **Legitimate workload phase change (scenario start/cleanup):** Presence of a **cleanup** container and broad shifts could be a test phase transition. Uncertain because the data doesn’t show the workload timeline, only anomaly timestamps.
+
+6) **Supporting evidence (from the data)**  
+- Massive simultaneous cluster: **“TimeCluster: 236 anomalies”** spanning **multiple pods/containers** (todo-frontend, todo-backend, todo-redis, cleanup) and many metric families.  
+- Includes “static/config-like” metrics anomalizing:  
+  - **cpu_limit_millicores:avg**, **cgroup.v2.memory.max:avg**, **cgroup.v2.cpu.weight:avg**, **cgroup.v2.io.weight.default:avg** (these shouldn’t usually drift like workload signals).  
+- Pressure/PSI and throttling signals appear, but without a clear primary driver:  
+  - **cgroup.v2.cpu.pressure.* and io.pressure.* and cgroup.pressure** included in cluster 1.  
+- Example workload-like shifts exist but are mixed across different containers:  
+  - cleanup IO/CPU at **1769636453**: **io.stat.rbytes**, **io.stat.rios**, **cpu.stat.usage_usec** with ~4.4σ shifts.  
+  - todo-frontend smaps at **1769636457–6458**: **private_dirty/rss/pss** increases.  
+- Scale indicates noisy/redundant triggering: **total_anomalies 213,627**, **dedup_skipped 211,055**.
+
+7) **RCA/digest presence and whether it supports conclusion**  
+- **No RCA/digest section is present** in the JSON, so there is **no ranked root candidate or onset chain** to confirm/refute the conclusion.

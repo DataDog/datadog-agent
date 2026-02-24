@@ -1,0 +1,73 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What do the correlations tell you?**  
+   There is **one** time cluster where **63 different metrics** from the same container/pod anomalied **simultaneously (within 1s)**, indicating a single incident affecting CPU, memory, and I/O at once rather than isolated metric noise.
+
+2. **Is there a problem? (yes/no/unclear)**  
+   **Yes.**
+
+3. **If yes, what is it? (one sentence)**  
+   The container `oom-victim` in pod `oom-kill-7f36e710` experienced a sharp, sustained resource event consistent with an **OOM-driven memory blow-up accompanied by CPU/I/O contention**.
+
+4. **Confidence level (high/medium/low)**  
+   **Medium.**
+
+5. **If not high confidence: alternative possibilities and why uncertain**  
+   - **Load test / intentional stressor:** The pod name suggests an OOM test, and without explicit `oom_kill` counters or Kubernetes events in the JSON, it could be an expected experiment rather than an unexpected failure.  
+   - **CPU throttling incident without actual OOM:** CPU pressure and throttled time increased; memory rose but the sample shows only ~1.3–1.8σ for several memory stats (not extreme), so the “OOM” part isn’t conclusively proven from these fields alone.  
+   - **I/O burst driving pressure:** Large jump in read bytes/IOPS plus IO pressure could be the primary driver, with memory growth secondary (page cache / file-backed growth), but we don’t have enough timing detail beyond “same second”.
+
+6. **Supporting evidence (from the data)**  
+   - **Single correlated incident:** `TimeCluster: 63 anomalies`, `first_seen == last_updated == 1769633613` (one simultaneous burst).  
+   - **Container identity consistent across anomalies:** all tagged to `container_name:oom-victim`, `pod_name:oom-kill-7f36e710`, `qos_class:Burstable`.  
+   - **CPU surge:** `cpu.stat.usage_usec` shifted to **35288** (~**7.6σ**), with `user_usec` **19501** (~7.6σ) and `system_usec` **15786** (~7.6σ).  
+   - **CPU contention/throttling:** `cpu.pressure.some/full.avg10` to **0.74** (~**4.2σ**), and `cpu.stat.local.throttled_usec` increased (1.8σ).  
+   - **I/O burst + pressure:** `io.stat.rbytes` to **1,589,248** (~**7.6σ**), `io.stat.rios` to **18** (~**7.6σ**), and `io.pressure.*.total` increased (1.8σ).  
+   - **Memory jump:** `memory.current` to **20,226,048** (1.5σ), `memory.stat.active_anon` to **20,353,024** (1.6σ), `smaps_rollup.pss` to **18,763,776** (1.3σ).
+
+7. **RCA/digest present? Do key sources/onset chain support conclusion?**  
+   **No RCA section is present** in the JSON, so there is **no explicit ranked root candidate or onset chain** to validate; the conclusion is based solely on the **time-clustered co-anomalies** across CPU/memory/I/O and the pod/container context.

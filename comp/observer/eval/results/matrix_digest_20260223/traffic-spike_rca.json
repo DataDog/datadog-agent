@@ -1,0 +1,699 @@
+{
+  "detector": "CUSUM",
+  "correlator": "Dedup+TimeClusterCorrelator",
+  "timestamp": "2026-02-23T14:22:07-05:00",
+  "total_anomalies": 213627,
+  "unique_sources_in_anomalies": 79,
+  "total_correlations": 2,
+  "dedup_skipped": 211055,
+  "sample_anomalies": [
+    {
+      "source": "cgroup.v2.io.stat.rbytes:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.io.stat.rbytes:avg shifted to 81920.00 (4.4σ above baseline of 4028.85)",
+      "timestamp": 1769636453,
+      "tags": [
+        "container_id:371ce3855be6",
+        "container_name:cleanup",
+        "pod_name:scenario-cleanup-cfh7r",
+        "namespace:fgm-run-acd2e508",
+        "qos_class:BestEffort"
+      ]
+    },
+    {
+      "source": "cgroup.v2.io.stat.rios:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.io.stat.rios:avg shifted to 5.00 (4.4σ above baseline of 0.25)",
+      "timestamp": 1769636453,
+      "tags": [
+        "qos_class:BestEffort",
+        "container_id:371ce3855be6",
+        "container_name:cleanup",
+        "pod_name:scenario-cleanup-cfh7r",
+        "namespace:fgm-run-acd2e508"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.stat.usage_usec:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.cpu.stat.usage_usec:avg shifted to 27513.00 (4.4σ above baseline of 1353.10)",
+      "timestamp": 1769636453,
+      "tags": [
+        "namespace:fgm-run-acd2e508",
+        "qos_class:BestEffort",
+        "container_id:371ce3855be6",
+        "container_name:cleanup",
+        "pod_name:scenario-cleanup-cfh7r"
+      ]
+    },
+    {
+      "source": "smaps_rollup.private_dirty:avg",
+      "analyzer": "cusum_detector",
+      "description": "smaps_rollup.private_dirty:avg shifted to 17921365.33 (2.5σ above baseline of 2939488.86)",
+      "timestamp": 1769636457,
+      "tags": [
+        "pod_name:todo-frontend-75dbb86bb4-4cqfd",
+        "namespace:fgm-run-acd2e508",
+        "qos_class:Burstable",
+        "container_id:0bb620add758",
+        "container_name:todo-frontend"
+      ]
+    },
+    {
+      "source": "smaps_rollup.rss:avg",
+      "analyzer": "cusum_detector",
+      "description": "smaps_rollup.rss:avg shifted to 44569941.33 (2.0σ above baseline of 9881470.38)",
+      "timestamp": 1769636458,
+      "tags": [
+        "pod_name:todo-frontend-75dbb86bb4-4cqfd",
+        "namespace:fgm-run-acd2e508",
+        "qos_class:Burstable",
+        "container_id:0bb620add758",
+        "container_name:todo-frontend"
+      ]
+    },
+    {
+      "source": "smaps_rollup.pss:avg",
+      "analyzer": "cusum_detector",
+      "description": "smaps_rollup.pss:avg shifted to 32035498.67 (2.0σ above baseline of 7017640.51)",
+      "timestamp": 1769636458,
+      "tags": [
+        "pod_name:todo-frontend-75dbb86bb4-4cqfd",
+        "namespace:fgm-run-acd2e508",
+        "qos_class:Burstable",
+        "container_id:0bb620add758",
+        "container_name:todo-frontend"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.inactive_file:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.inactive_file:avg shifted to 36864.00 (2.0σ above baseline of 8034.46)",
+      "timestamp": 1769636458,
+      "tags": [
+        "container_id:93a9688f5525",
+        "container_name:todo-redis",
+        "pod_name:todo-redis-cc4f7d9f7-jm655",
+        "namespace:fgm-run-acd2e508",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cgroup.pressure:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.cgroup.pressure:avg shifted to 1.00 (2.0σ above baseline of 0.22)",
+      "timestamp": 1769636458,
+      "tags": [
+        "container_id:93a9688f5525",
+        "container_name:todo-redis",
+        "pod_name:todo-redis-cc4f7d9f7-jm655",
+        "namespace:fgm-run-acd2e508",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.stat.nr_periods:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.cpu.stat.nr_periods:avg shifted to 18.00 (1.9σ above baseline of 3.94)",
+      "timestamp": 1769636462,
+      "tags": [
+        "container_id:0bb620add758",
+        "container_name:todo-frontend",
+        "pod_name:todo-frontend-75dbb86bb4-4cqfd",
+        "namespace:fgm-run-acd2e508",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.io.pressure.some.total:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.io.pressure.some.total:avg shifted to 32613.00 (2.0σ above baseline of 7119.88)",
+      "timestamp": 1769636458,
+      "tags": [
+        "pod_name:todo-backend-6dcd556646-6224w",
+        "namespace:fgm-run-acd2e508",
+        "qos_class:Burstable",
+        "container_id:bb25298414f5",
+        "container_name:todo-backend"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.weight:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.cpu.weight:avg shifted to 4.00 (2.0σ above baseline of 0.87)",
+      "timestamp": 1769636458,
+      "tags": [
+        "container_name:todo-redis",
+        "pod_name:todo-redis-cc4f7d9f7-jm655",
+        "namespace:fgm-run-acd2e508",
+        "qos_class:Burstable",
+        "container_id:93a9688f5525"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.oom.group:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.oom.group:avg shifted to 1.00 (2.0σ above baseline of 0.22)",
+      "timestamp": 1769636458,
+      "tags": [
+        "container_name:todo-redis",
+        "pod_name:todo-redis-cc4f7d9f7-jm655",
+        "namespace:fgm-run-acd2e508",
+        "qos_class:Burstable",
+        "container_id:93a9688f5525"
+      ]
+    },
+    {
+      "source": "cgroup.v2.io.weight.default:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.io.weight.default:avg shifted to 100.00 (2.0σ above baseline of 21.79)",
+      "timestamp": 1769636458,
+      "tags": [
+        "container_id:93a9688f5525",
+        "container_name:todo-redis",
+        "pod_name:todo-redis-cc4f7d9f7-jm655",
+        "namespace:fgm-run-acd2e508",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.anon:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.anon:avg shifted to 20881408.00 (2.0σ above baseline of 4343409.04)",
+      "timestamp": 1769636458,
+      "tags": [
+        "pod_name:todo-backend-6dcd556646-6224w",
+        "namespace:fgm-run-acd2e508",
+        "qos_class:Burstable",
+        "container_id:bb25298414f5",
+        "container_name:todo-backend"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.peak:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.peak:avg shifted to 56983552.00 (2.0σ above baseline of 12427789.13)",
+      "timestamp": 1769636458,
+      "tags": [
+        "container_id:bb25298414f5",
+        "container_name:todo-backend",
+        "pod_name:todo-backend-6dcd556646-6224w",
+        "namespace:fgm-run-acd2e508",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.io.weight.default:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.io.weight.default:avg shifted to 100.00 (2.0σ above baseline of 21.79)",
+      "timestamp": 1769636458,
+      "tags": [
+        "namespace:fgm-run-acd2e508",
+        "qos_class:Burstable",
+        "container_id:0bb620add758",
+        "container_name:todo-frontend",
+        "pod_name:todo-frontend-75dbb86bb4-4cqfd"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.weight.nice:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.cpu.weight.nice:avg shifted to 14.00 (2.0σ above baseline of 3.05)",
+      "timestamp": 1769636458,
+      "tags": [
+        "container_id:93a9688f5525",
+        "container_name:todo-redis",
+        "pod_name:todo-redis-cc4f7d9f7-jm655",
+        "namespace:fgm-run-acd2e508",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.active_file:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.active_file:avg shifted to 32157696.00 (2.0σ above baseline of 7013717.33)",
+      "timestamp": 1769636458,
+      "tags": [
+        "container_name:todo-backend",
+        "pod_name:todo-backend-6dcd556646-6224w",
+        "namespace:fgm-run-acd2e508",
+        "qos_class:Burstable",
+        "container_id:bb25298414f5"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cgroup.events.populated:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.cgroup.events.populated:avg shifted to 1.00 (2.0σ above baseline of 0.22)",
+      "timestamp": 1769636458,
+      "tags": [
+        "namespace:fgm-run-acd2e508",
+        "qos_class:Burstable",
+        "container_id:93a9688f5525",
+        "container_name:todo-redis",
+        "pod_name:todo-redis-cc4f7d9f7-jm655"
+      ]
+    },
+    {
+      "source": "smaps_rollup.referenced:avg",
+      "analyzer": "cusum_detector",
+      "description": "smaps_rollup.referenced:avg shifted to 50530304.00 (2.0σ above baseline of 10508048.62)",
+      "timestamp": 1769636458,
+      "tags": [
+        "container_id:bb25298414f5",
+        "container_name:todo-backend",
+        "pod_name:todo-backend-6dcd556646-6224w",
+        "namespace:fgm-run-acd2e508",
+        "qos_class:Burstable"
+      ]
+    }
+  ],
+  "correlations": [
+    {
+      "pattern": "time_cluster_1",
+      "title": "TimeCluster: 236 anomalies",
+      "source_count": 236,
+      "sources": [
+        "demo|cgroup.v2.cpu.stat.usage_usec:avg|container_id:371ce3855be6,container_name:cleanup,namespace:fgm-run-acd2e508,pod_name:scenario-cleanup-cfh7r,qos_class:BestEffort",
+        "demo|cgroup.v2.io.stat.rbytes:avg|container_id:371ce3855be6,container_name:cleanup,namespace:fgm-run-acd2e508,pod_name:scenario-cleanup-cfh7r,qos_class:BestEffort",
+        "demo|cgroup.v2.io.stat.rios:avg|container_id:371ce3855be6,container_name:cleanup,namespace:fgm-run-acd2e508,pod_name:scenario-cleanup-cfh7r,qos_class:BestEffort"
+      ],
+      "first_seen": 1769636399,
+      "last_updated": 1769636485,
+      "digest": {
+        "key_sources": [
+          {
+            "series_id": "demo|cgroup.v2.cpu.stat.usage_usec:avg|container_id:371ce3855be6,container_name:cleanup,namespace:fgm-run-acd2e508,pod_name:scenario-cleanup-cfh7r,qos_class:BestEffort",
+            "metric_name": "cgroup.v2.cpu.stat.usage_usec:avg",
+            "score": 0.891,
+            "why": [
+              "early onset compared with peer anomalies",
+              "downstream temporal coverage 0.99",
+              "persistence 1.00",
+              "high severity (peak sigma 0.95)"
+            ]
+          },
+          {
+            "series_id": "demo|cgroup.v2.io.stat.rbytes:avg|container_id:371ce3855be6,container_name:cleanup,namespace:fgm-run-acd2e508,pod_name:scenario-cleanup-cfh7r,qos_class:BestEffort",
+            "metric_name": "cgroup.v2.io.stat.rbytes:avg",
+            "score": 0.891,
+            "why": [
+              "early onset compared with peer anomalies",
+              "downstream temporal coverage 0.99",
+              "persistence 1.00",
+              "high severity (peak sigma 0.95)"
+            ]
+          },
+          {
+            "series_id": "demo|cgroup.v2.io.stat.rios:avg|container_id:371ce3855be6,container_name:cleanup,namespace:fgm-run-acd2e508,pod_name:scenario-cleanup-cfh7r,qos_class:BestEffort",
+            "metric_name": "cgroup.v2.io.stat.rios:avg",
+            "score": 0.891,
+            "why": [
+              "early onset compared with peer anomalies",
+              "downstream temporal coverage 0.99",
+              "persistence 1.00",
+              "high severity (peak sigma 0.95)"
+            ]
+          }
+        ],
+        "metric_family_counts": {
+          "cgroup.v2.cgroup.events.populated:avg": 4,
+          "cgroup.v2.cgroup.pressure:avg": 4,
+          "cgroup.v2.cgroup.procs:avg": 2,
+          "cgroup.v2.cpu.pressure.full.avg10:avg": 1,
+          "cgroup.v2.cpu.pressure.full.avg300:avg": 1,
+          "cgroup.v2.cpu.pressure.full.avg60:avg": 1,
+          "cgroup.v2.cpu.pressure.full.total:avg": 4,
+          "cgroup.v2.cpu.pressure.some.avg10:avg": 1,
+          "cgroup.v2.cpu.pressure.some.avg300:avg": 1,
+          "cgroup.v2.cpu.pressure.some.avg60:avg": 1,
+          "cgroup.v2.cpu.pressure.some.total:avg": 4,
+          "cgroup.v2.cpu.stat.local.throttled_usec:avg": 1,
+          "cgroup.v2.cpu.stat.nr_periods:avg": 3,
+          "cgroup.v2.cpu.stat.nr_throttled:avg": 1,
+          "cgroup.v2.cpu.stat.system_usec:avg": 2,
+          "cgroup.v2.cpu.stat.throttled_usec:avg": 1,
+          "cgroup.v2.cpu.stat.usage_usec:avg": 3,
+          "cgroup.v2.cpu.stat.user_usec:avg": 2,
+          "cgroup.v2.cpu.weight.nice:avg": 4,
+          "cgroup.v2.cpu.weight:avg": 4,
+          "cgroup.v2.io.pressure.full.avg10:avg": 1,
+          "cgroup.v2.io.pressure.full.avg60:avg": 1,
+          "cgroup.v2.io.pressure.full.total:avg": 4,
+          "cgroup.v2.io.pressure.some.avg10:avg": 1,
+          "cgroup.v2.io.pressure.some.avg60:avg": 1,
+          "cgroup.v2.io.pressure.some.total:avg": 4,
+          "cgroup.v2.io.stat.rbytes:avg": 2,
+          "cgroup.v2.io.stat.rios:avg": 2,
+          "cgroup.v2.io.stat.wbytes:avg": 2,
+          "cgroup.v2.io.stat.wios:avg": 3,
+          "cgroup.v2.io.weight.default:avg": 4,
+          "cgroup.v2.memory.current:avg": 4,
+          "cgroup.v2.memory.max:avg": 3,
+          "cgroup.v2.memory.oom.group:avg": 4,
+          "cgroup.v2.memory.peak:avg": 4,
+          "cgroup.v2.memory.stat.active_anon:avg": 4,
+          "cgroup.v2.memory.stat.active_file:avg": 2,
+          "cgroup.v2.memory.stat.anon:avg": 4,
+          "cgroup.v2.memory.stat.file:avg": 4,
+          "cgroup.v2.memory.stat.file_dirty:avg": 4,
+          "cgroup.v2.memory.stat.file_mapped:avg": 2,
+          "cgroup.v2.memory.stat.inactive_file:avg": 4,
+          "cgroup.v2.memory.stat.kernel:avg": 4,
+          "cgroup.v2.memory.stat.kernel_stack:avg": 4,
+          "cgroup.v2.memory.stat.pagetables:avg": 4,
+          "cgroup.v2.memory.stat.percpu:avg": 4,
+          "cgroup.v2.memory.stat.pgfault:avg": 4,
+          "cgroup.v2.memory.stat.pglazyfree:avg": 1,
+          "cgroup.v2.memory.stat.pgmajfault:avg": 2,
+          "cgroup.v2.memory.stat.shmem:avg": 1,
+          "cgroup.v2.memory.stat.slab:avg": 4,
+          "cgroup.v2.memory.stat.slab_reclaimable:avg": 4,
+          "cgroup.v2.memory.stat.slab_unreclaimable:avg": 4,
+          "cgroup.v2.memory.zswap.writeback:avg": 4,
+          "cgroup.v2.pids.current:avg": 4,
+          "cgroup.v2.pids.max:avg": 4,
+          "cgroup.v2.pids.peak:avg": 4,
+          "container.pid_count:avg": 4,
+          "cpu_limit_millicores:avg": 4,
+          "cpu_percentage:avg": 3,
+          "kernel_cpu_percentage:avg": 3,
+          "kernel_cpu_usage_millicores:avg": 3,
+          "smaps_rollup.anonymous:avg": 4,
+          "smaps_rollup.private_clean:avg": 4,
+          "smaps_rollup.private_dirty:avg": 4,
+          "smaps_rollup.pss:avg": 4,
+          "smaps_rollup.pss_anon:avg": 4,
+          "smaps_rollup.pss_dirty:avg": 4,
+          "smaps_rollup.pss_file:avg": 4,
+          "smaps_rollup.referenced:avg": 4,
+          "smaps_rollup.rss:avg": 4,
+          "smaps_rollup.shared_clean:avg": 4,
+          "system_cpu_percentage:avg": 3,
+          "system_cpu_usage_millicores:avg": 3,
+          "total_cpu_percentage:avg": 3,
+          "total_cpu_usage_millicores:avg": 3,
+          "user_cpu_percentage:avg": 3,
+          "user_cpu_usage_millicores:avg": 3
+        },
+        "onset_chain": [
+          {
+            "series_id": "demo|cgroup.v2.cpu.stat.usage_usec:avg|container_id:371ce3855be6,container_name:cleanup,namespace:fgm-run-acd2e508,pod_name:scenario-cleanup-cfh7r,qos_class:BestEffort",
+            "metric_name": "cgroup.v2.cpu.stat.usage_usec:avg",
+            "onset_time": 1769636452
+          },
+          {
+            "series_id": "demo|cgroup.v2.io.stat.rbytes:avg|container_id:371ce3855be6,container_name:cleanup,namespace:fgm-run-acd2e508,pod_name:scenario-cleanup-cfh7r,qos_class:BestEffort",
+            "metric_name": "cgroup.v2.io.stat.rbytes:avg",
+            "onset_time": 1769636452
+          },
+          {
+            "series_id": "demo|cgroup.v2.io.stat.rios:avg|container_id:371ce3855be6,container_name:cleanup,namespace:fgm-run-acd2e508,pod_name:scenario-cleanup-cfh7r,qos_class:BestEffort",
+            "metric_name": "cgroup.v2.io.stat.rios:avg",
+            "onset_time": 1769636452
+          }
+        ],
+        "total_source_count": 236,
+        "rca_confidence": 0.491,
+        "confidence_flags": [
+          "weak_directionality",
+          "ambiguous_roots"
+        ]
+      }
+    },
+    {
+      "pattern": "time_cluster_2",
+      "title": "TimeCluster: 10 anomalies",
+      "source_count": 10,
+      "sources": [
+        "demo|cgroup.v2.memory.stat.sock:avg|container_id:bb25298414f5,container_name:todo-backend,namespace:fgm-run-acd2e508,pod_name:todo-backend-6dcd556646-6224w,qos_class:Burstable",
+        "demo|cpu_percentage:avg|container_id:bb25298414f5,container_name:todo-backend,namespace:fgm-run-acd2e508,pod_name:todo-backend-6dcd556646-6224w,qos_class:Burstable",
+        "demo|total_cpu_percentage:avg|container_id:bb25298414f5,container_name:todo-backend,namespace:fgm-run-acd2e508,pod_name:todo-backend-6dcd556646-6224w,qos_class:Burstable"
+      ],
+      "first_seen": 1769636511,
+      "last_updated": 1769636511,
+      "digest": {
+        "key_sources": [
+          {
+            "series_id": "demo|cgroup.v2.memory.stat.sock:avg|container_id:bb25298414f5,container_name:todo-backend,namespace:fgm-run-acd2e508,pod_name:todo-backend-6dcd556646-6224w,qos_class:Burstable",
+            "metric_name": "cgroup.v2.memory.stat.sock:avg",
+            "score": 0.65,
+            "why": [
+              "early onset compared with peer anomalies",
+              "persistence 1.00",
+              "high severity (peak sigma 1.00)"
+            ]
+          },
+          {
+            "series_id": "demo|cpu_percentage:avg|container_id:bb25298414f5,container_name:todo-backend,namespace:fgm-run-acd2e508,pod_name:todo-backend-6dcd556646-6224w,qos_class:Burstable",
+            "metric_name": "cpu_percentage:avg",
+            "score": 0.632,
+            "why": [
+              "early onset compared with peer anomalies",
+              "persistence 1.00",
+              "high severity (peak sigma 0.88)"
+            ]
+          },
+          {
+            "series_id": "demo|total_cpu_percentage:avg|container_id:bb25298414f5,container_name:todo-backend,namespace:fgm-run-acd2e508,pod_name:todo-backend-6dcd556646-6224w,qos_class:Burstable",
+            "metric_name": "total_cpu_percentage:avg",
+            "score": 0.632,
+            "why": [
+              "early onset compared with peer anomalies",
+              "persistence 1.00",
+              "high severity (peak sigma 0.88)"
+            ]
+          }
+        ],
+        "metric_family_counts": {
+          "cgroup.v2.memory.stat.sock:avg": 1,
+          "cpu_percentage:avg": 1,
+          "kernel_cpu_percentage:avg": 1,
+          "kernel_cpu_usage_millicores:avg": 1,
+          "system_cpu_percentage:avg": 1,
+          "system_cpu_usage_millicores:avg": 1,
+          "total_cpu_percentage:avg": 1,
+          "total_cpu_usage_millicores:avg": 1,
+          "user_cpu_percentage:avg": 1,
+          "user_cpu_usage_millicores:avg": 1
+        },
+        "onset_chain": [
+          {
+            "series_id": "demo|cgroup.v2.memory.stat.sock:avg|container_id:bb25298414f5,container_name:todo-backend,namespace:fgm-run-acd2e508,pod_name:todo-backend-6dcd556646-6224w,qos_class:Burstable",
+            "metric_name": "cgroup.v2.memory.stat.sock:avg",
+            "onset_time": 1769636511
+          },
+          {
+            "series_id": "demo|cpu_percentage:avg|container_id:bb25298414f5,container_name:todo-backend,namespace:fgm-run-acd2e508,pod_name:todo-backend-6dcd556646-6224w,qos_class:Burstable",
+            "metric_name": "cpu_percentage:avg",
+            "onset_time": 1769636511
+          },
+          {
+            "series_id": "demo|total_cpu_percentage:avg|container_id:bb25298414f5,container_name:todo-backend,namespace:fgm-run-acd2e508,pod_name:todo-backend-6dcd556646-6224w,qos_class:Burstable",
+            "metric_name": "total_cpu_percentage:avg",
+            "onset_time": 1769636511
+          }
+        ],
+        "total_source_count": 10,
+        "rca_confidence": 0.25,
+        "confidence_flags": [
+          "weak_directionality",
+          "ambiguous_roots"
+        ]
+      }
+    }
+  ],
+  "rca": [
+    {
+      "correlation_pattern": "time_cluster_1",
+      "root_candidates_series": [
+        {
+          "id": "demo|cgroup.v2.cpu.stat.usage_usec:avg|container_id:371ce3855be6,container_name:cleanup,namespace:fgm-run-acd2e508,pod_name:scenario-cleanup-cfh7r,qos_class:BestEffort",
+          "score": 0.891,
+          "onset_time": 1769636452,
+          "why": [
+            "early onset compared with peer anomalies",
+            "downstream temporal coverage 0.99",
+            "persistence 1.00",
+            "high severity (peak sigma 0.95)"
+          ]
+        },
+        {
+          "id": "demo|cgroup.v2.io.stat.rbytes:avg|container_id:371ce3855be6,container_name:cleanup,namespace:fgm-run-acd2e508,pod_name:scenario-cleanup-cfh7r,qos_class:BestEffort",
+          "score": 0.891,
+          "onset_time": 1769636452,
+          "why": [
+            "early onset compared with peer anomalies",
+            "downstream temporal coverage 0.99",
+            "persistence 1.00",
+            "high severity (peak sigma 0.95)"
+          ]
+        },
+        {
+          "id": "demo|cgroup.v2.io.stat.rios:avg|container_id:371ce3855be6,container_name:cleanup,namespace:fgm-run-acd2e508,pod_name:scenario-cleanup-cfh7r,qos_class:BestEffort",
+          "score": 0.891,
+          "onset_time": 1769636452,
+          "why": [
+            "early onset compared with peer anomalies",
+            "downstream temporal coverage 0.99",
+            "persistence 1.00",
+            "high severity (peak sigma 0.95)"
+          ]
+        }
+      ],
+      "root_candidates_metric": [
+        {
+          "id": "cgroup.v2.cpu.stat.usage_usec:avg",
+          "score": 0.891,
+          "onset_time": 1769636452,
+          "why": [
+            "probabilistic rollup of top series candidates"
+          ]
+        },
+        {
+          "id": "cgroup.v2.io.stat.rbytes:avg",
+          "score": 0.891,
+          "onset_time": 1769636452,
+          "why": [
+            "probabilistic rollup of top series candidates"
+          ]
+        },
+        {
+          "id": "cgroup.v2.io.stat.rios:avg",
+          "score": 0.891,
+          "onset_time": 1769636452,
+          "why": [
+            "probabilistic rollup of top series candidates"
+          ]
+        }
+      ],
+      "evidence_paths": [
+        {
+          "nodes": [
+            "demo|cgroup.v2.cpu.stat.usage_usec:avg|container_id:371ce3855be6,container_name:cleanup,namespace:fgm-run-acd2e508,pod_name:scenario-cleanup-cfh7r,qos_class:BestEffort",
+            "demo|cgroup.v2.io.stat.rbytes:avg|container_id:bb25298414f5,container_name:todo-backend,namespace:fgm-run-acd2e508,pod_name:todo-backend-6dcd556646-6224w,qos_class:Burstable"
+          ],
+          "score": 0.895,
+          "why": "temporal path from likely root to symptom across 1 hop(s)"
+        },
+        {
+          "nodes": [
+            "demo|cgroup.v2.io.stat.rbytes:avg|container_id:371ce3855be6,container_name:cleanup,namespace:fgm-run-acd2e508,pod_name:scenario-cleanup-cfh7r,qos_class:BestEffort",
+            "demo|cgroup.v2.io.stat.rbytes:avg|container_id:bb25298414f5,container_name:todo-backend,namespace:fgm-run-acd2e508,pod_name:todo-backend-6dcd556646-6224w,qos_class:Burstable"
+          ],
+          "score": 0.895,
+          "why": "temporal path from likely root to symptom across 1 hop(s)"
+        },
+        {
+          "nodes": [
+            "demo|cgroup.v2.io.stat.rios:avg|container_id:371ce3855be6,container_name:cleanup,namespace:fgm-run-acd2e508,pod_name:scenario-cleanup-cfh7r,qos_class:BestEffort",
+            "demo|cgroup.v2.io.stat.rbytes:avg|container_id:bb25298414f5,container_name:todo-backend,namespace:fgm-run-acd2e508,pod_name:todo-backend-6dcd556646-6224w,qos_class:Burstable"
+          ],
+          "score": 0.895,
+          "why": "temporal path from likely root to symptom across 1 hop(s)"
+        }
+      ],
+      "confidence": {
+        "score": 0.491,
+        "data_limited": false,
+        "weak_directionality": true,
+        "ambiguous_roots": true
+      },
+      "summary": "demo|cgroup.v2.cpu.stat.usage_usec:avg|container_id:371ce3855be6,container_name:cleanup,namespace:fgm-run-acd2e508,pod_name:scenario-cleanup-cfh7r,qos_class:BestEffort (metric cgroup.v2.cpu.stat.usage_usec:avg) is the top likely root for time_cluster_1 (confidence 0.49)"
+    },
+    {
+      "correlation_pattern": "time_cluster_2",
+      "root_candidates_series": [
+        {
+          "id": "demo|cgroup.v2.memory.stat.sock:avg|container_id:bb25298414f5,container_name:todo-backend,namespace:fgm-run-acd2e508,pod_name:todo-backend-6dcd556646-6224w,qos_class:Burstable",
+          "score": 0.65,
+          "onset_time": 1769636511,
+          "why": [
+            "early onset compared with peer anomalies",
+            "persistence 1.00",
+            "high severity (peak sigma 1.00)"
+          ]
+        },
+        {
+          "id": "demo|cpu_percentage:avg|container_id:bb25298414f5,container_name:todo-backend,namespace:fgm-run-acd2e508,pod_name:todo-backend-6dcd556646-6224w,qos_class:Burstable",
+          "score": 0.632,
+          "onset_time": 1769636511,
+          "why": [
+            "early onset compared with peer anomalies",
+            "persistence 1.00",
+            "high severity (peak sigma 0.88)"
+          ]
+        },
+        {
+          "id": "demo|total_cpu_percentage:avg|container_id:bb25298414f5,container_name:todo-backend,namespace:fgm-run-acd2e508,pod_name:todo-backend-6dcd556646-6224w,qos_class:Burstable",
+          "score": 0.632,
+          "onset_time": 1769636511,
+          "why": [
+            "early onset compared with peer anomalies",
+            "persistence 1.00",
+            "high severity (peak sigma 0.88)"
+          ]
+        }
+      ],
+      "root_candidates_metric": [
+        {
+          "id": "cgroup.v2.memory.stat.sock:avg",
+          "score": 0.65,
+          "onset_time": 1769636511,
+          "why": [
+            "probabilistic rollup of top series candidates"
+          ]
+        },
+        {
+          "id": "cpu_percentage:avg",
+          "score": 0.632,
+          "onset_time": 1769636511,
+          "why": [
+            "probabilistic rollup of top series candidates"
+          ]
+        },
+        {
+          "id": "total_cpu_percentage:avg",
+          "score": 0.632,
+          "onset_time": 1769636511,
+          "why": [
+            "probabilistic rollup of top series candidates"
+          ]
+        }
+      ],
+      "evidence_paths": [
+        {
+          "nodes": [
+            "demo|cgroup.v2.memory.stat.sock:avg|container_id:bb25298414f5,container_name:todo-backend,namespace:fgm-run-acd2e508,pod_name:todo-backend-6dcd556646-6224w,qos_class:Burstable",
+            "demo|cpu_percentage:avg|container_id:bb25298414f5,container_name:todo-backend,namespace:fgm-run-acd2e508,pod_name:todo-backend-6dcd556646-6224w,qos_class:Burstable"
+          ],
+          "score": 0.756,
+          "why": "temporal path from likely root to symptom across 1 hop(s)"
+        },
+        {
+          "nodes": [
+            "demo|cpu_percentage:avg|container_id:bb25298414f5,container_name:todo-backend,namespace:fgm-run-acd2e508,pod_name:todo-backend-6dcd556646-6224w,qos_class:Burstable",
+            "demo|cgroup.v2.memory.stat.sock:avg|container_id:bb25298414f5,container_name:todo-backend,namespace:fgm-run-acd2e508,pod_name:todo-backend-6dcd556646-6224w,qos_class:Burstable"
+          ],
+          "score": 0.748,
+          "why": "temporal path from likely root to symptom across 1 hop(s)"
+        },
+        {
+          "nodes": [
+            "demo|total_cpu_percentage:avg|container_id:bb25298414f5,container_name:todo-backend,namespace:fgm-run-acd2e508,pod_name:todo-backend-6dcd556646-6224w,qos_class:Burstable",
+            "demo|cgroup.v2.memory.stat.sock:avg|container_id:bb25298414f5,container_name:todo-backend,namespace:fgm-run-acd2e508,pod_name:todo-backend-6dcd556646-6224w,qos_class:Burstable"
+          ],
+          "score": 0.748,
+          "why": "temporal path from likely root to symptom across 1 hop(s)"
+        }
+      ],
+      "confidence": {
+        "score": 0.25,
+        "data_limited": false,
+        "weak_directionality": true,
+        "ambiguous_roots": true
+      },
+      "summary": "demo|cgroup.v2.memory.stat.sock:avg|container_id:bb25298414f5,container_name:todo-backend,namespace:fgm-run-acd2e508,pod_name:todo-backend-6dcd556646-6224w,qos_class:Burstable (metric cgroup.v2.memory.stat.sock:avg) is the top likely root for time_cluster_2 (confidence 0.25)"
+    }
+  ]
+}

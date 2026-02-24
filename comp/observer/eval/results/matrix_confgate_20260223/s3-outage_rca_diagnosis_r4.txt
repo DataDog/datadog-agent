@@ -1,0 +1,94 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1) **What do the correlations tell you?**  
+A single large time-cluster incident occurred (~24s window) where a very broad set of metrics anomalied together: kubelet runtime operation metrics (especially `container_status`), node filesystem/disk capacity metrics, and widespread container CPU/memory/IO stall + network anomalies—suggesting a node-level disturbance rather than one isolated workload.
+
+2) **Is there a problem?**  
+**Yes** (but root cause is **unclear**).
+
+3) **If yes, what is it? (one sentence)**  
+A short node-level resource disruption—most consistent with **storage/filesystem pressure or I/O contention affecting kubelet/container runtime responsiveness**, causing cascading anomalies across many containers and kubelet runtime operations.
+
+4) **Confidence level**  
+**Low–medium**.
+
+5) **Alternative possibilities + why uncertain**  
+- **Container runtime/kubelet hiccup or restart / transient control-plane stress**: the cluster is dominated by `kubernetes.kubelet.runtime.operations.duration.*` and many `*.uptime` anomalies, which can appear during restarts or responsiveness drops.  
+- **Monitoring/collection artifact**: extremely large anomaly volume (14,351) with heavy dedup (12,962 skipped) and many metrics shifting slightly could reflect a scrape/aggregation discontinuity.  
+- **CPU scheduling pressure/noisy neighbor**: many CPU usage and `container.cpu.partial_stall` anomalies across containers could be primary, with disk metrics secondary.  
+Uncertainty is driven by the digest flag **`ambiguous_roots`** and lack of a trustworthy causal ordering/onset chain.
+
+6) **Supporting evidence (from the data)**  
+- **One correlation only, huge breadth:** `TimeCluster: 897 anomalies` within `first_seen=1771417694` to `last_updated=1771417718`.  
+- **Kubelet runtime operations heavily impacted:** `kubernetes.kubelet.runtime.operations.duration.count:avg` appears in **87 series** (digest top family).  
+- **Node disk/filesystem capacity metrics anomalous across many devices:** `system.disk.free/in_use/used/utilized:avg` each in **29 series**.  
+- **Widespread resource stress signals across containers:** multiple families: CPU (`container.cpu.usage/user/system`, `partial_stall`), memory (`page_faults`, `major_page_faults`, `kernel`, `working_set`), and I/O (`system.io.*`, `containerd.blkio.*`).  
+- **Example symptoms in sample anomalies:** large jumps in `container.memory.page_faults` / `major_page_faults` and increases in CPU usage/user for multiple pods.
+
+7) **Do RCA/digest key sources and onset chain support the conclusion?**  
+- **Digest:** It explicitly says **RCA confidence is low (0.53) and `ambiguous_roots`**, and the **onset_chain is null**—so it does **not** strongly support any specific “root” series.  
+- **Key sources:** They are mostly *representatives* of broad families (kubelet runtime ops + disk metrics). That **does support** the *node-level / kubelet+storage-related* incident hypothesis in a general sense (breadth + presence of disk + kubelet runtime ops), but **does not support** a precise causal claim.  
+- **RCA ranked candidates:** Present, but given the low confidence/ambiguous roots, they should **not** be treated as definitive causation.

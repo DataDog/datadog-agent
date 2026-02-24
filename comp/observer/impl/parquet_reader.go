@@ -15,6 +15,7 @@ import (
 
 	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/apache/arrow-go/v18/arrow/array"
+	"github.com/apache/arrow-go/v18/arrow/memory"
 	"github.com/apache/arrow-go/v18/parquet/file"
 	"github.com/apache/arrow-go/v18/parquet/pqarrow"
 )
@@ -124,6 +125,7 @@ func findParquetFiles(dirPath string) ([]string, error) {
 }
 
 // readParquetFile reads a single parquet file and extracts FGM metrics.
+// Uses GetRecordReader instead of ReadTable for proper nested type handling (list<string>).
 func readParquetFile(filePath string) ([]FGMMetric, error) {
 	// Open the parquet file
 	f, err := os.Open(filePath)
@@ -139,80 +141,185 @@ func readParquetFile(filePath string) ([]FGMMetric, error) {
 	}
 	defer parquetReader.Close()
 
-	// Create arrow file reader from parquet reader
-	reader, err := pqarrow.NewFileReader(parquetReader, pqarrow.ArrowReadProperties{}, nil)
+	// Create arrow file reader with proper allocator for nested types
+	arrowReadProps := pqarrow.ArrowReadProperties{BatchSize: 1024}
+	arrowReader, err := pqarrow.NewFileReader(parquetReader, arrowReadProps, memory.DefaultAllocator)
 	if err != nil {
 		return nil, fmt.Errorf("creating arrow reader: %w", err)
 	}
 
-	// Read the entire table
+	// Use GetRecordReader for proper nested type handling (list<string>)
 	ctx := context.Background()
-	table, err := reader.ReadTable(ctx)
+	recordReader, err := arrowReader.GetRecordReader(ctx, nil, nil)
 	if err != nil {
-		return nil, fmt.Errorf("reading table: %w", err)
+		return nil, fmt.Errorf("getting record reader: %w", err)
 	}
-	defer table.Release()
+	defer recordReader.Release()
 
-	// Extract metrics from the table
-	return extractMetricsFromTable(table)
+	// Extract metrics from record batches
+	var allMetrics []FGMMetric
+	for recordReader.Next() {
+		record := recordReader.Record()
+		metrics, err := extractMetricsFromRecord(record)
+		if err != nil {
+			return nil, fmt.Errorf("extracting metrics: %w", err)
+		}
+		allMetrics = append(allMetrics, metrics...)
+	}
+
+	// EOF is expected, other errors are not
+	if err := recordReader.Err(); err != nil && err.Error() != "EOF" {
+		return nil, fmt.Errorf("reading records: %w", err)
+	}
+
+	return allMetrics, nil
 }
 
-// extractMetricsFromTable extracts FGMMetric structs from an Arrow table.
-func extractMetricsFromTable(table arrow.Table) ([]FGMMetric, error) {
-	schema := table.Schema()
-	numRows := int(table.NumRows())
-
+// extractMetricsFromRecord extracts FGMMetric structs from an Arrow record batch.
+func extractMetricsFromRecord(record arrow.Record) ([]FGMMetric, error) {
+	numRows := int(record.NumRows())
 	if numRows == 0 {
 		return nil, nil
 	}
 
-	// Find column indices
-	runIDIdx := findColumnIndex(schema, "run_id")
-	timeIdx := findColumnIndex(schema, "time")
-	metricNameIdx := findColumnIndex(schema, "metric_name")
-	valueIntIdx := findColumnIndex(schema, "value_int")
-	valueFloatIdx := findColumnIndex(schema, "value_float")
+	schema := record.Schema()
 
-	// Find label columns (all columns starting with "l_")
-	labelIndices := make(map[string]int)
-	for i := 0; i < len(schema.Fields()); i++ {
-		name := schema.Field(i).Name
-		if strings.HasPrefix(name, "l_") {
-			labelIndices[name] = i
+	// Find column indices (case-insensitive, underscore-stripping)
+	runIDIdx := findColumnIndex(schema, "runid")
+	timeIdx := findColumnIndex(schema, "time")
+	metricNameIdx := findColumnIndex(schema, "metricname")
+	valueIntIdx := findColumnIndex(schema, "valueint")
+	valueFloatIdx := findColumnIndex(schema, "valuefloat")
+	tagsIdx := findColumnIndex(schema, "tags")
+
+	// Helper to read int64 values from either Int64 or Timestamp columns
+	readTimeValue := func(col arrow.Array, i int) int64 {
+		if col.IsNull(i) {
+			return 0
+		}
+		switch c := col.(type) {
+		case *array.Int64:
+			return c.Value(i)
+		case *array.Timestamp:
+			return int64(c.Value(i))
+		default:
+			return 0
 		}
 	}
 
-	// Extract column data
-	runIDs := getStringColumn(table, runIDIdx)
-	times := getTimestampColumn(table, timeIdx)
-	metricNames := getStringColumn(table, metricNameIdx)
-	valueInts := getUInt64Column(table, valueIntIdx)
-	valueFloats := getFloat64Column(table, valueFloatIdx)
+	// Get typed column references
+	var runIDCol *array.String
+	var metricNameCol *array.String
+	var valueIntCol *array.Uint64
+	var valueFloatCol *array.Float64
+	var tagsCol *array.List
+	var timeColRaw arrow.Array
 
-	// Extract label columns
-	labels := make(map[string][]string)
-	for name, idx := range labelIndices {
-		labels[name] = getStringColumn(table, idx)
+	if runIDIdx >= 0 {
+		if c, ok := record.Column(runIDIdx).(*array.String); ok {
+			runIDCol = c
+		}
+	}
+	if timeIdx >= 0 {
+		timeColRaw = record.Column(timeIdx)
+	}
+	if metricNameIdx >= 0 {
+		if c, ok := record.Column(metricNameIdx).(*array.String); ok {
+			metricNameCol = c
+		}
+	}
+	if valueIntIdx >= 0 {
+		if c, ok := record.Column(valueIntIdx).(*array.Uint64); ok {
+			valueIntCol = c
+		}
+	}
+	if valueFloatIdx >= 0 {
+		if c, ok := record.Column(valueFloatIdx).(*array.Float64); ok {
+			valueFloatCol = c
+		}
+	}
+	if tagsIdx >= 0 {
+		if c, ok := record.Column(tagsIdx).(*array.List); ok {
+			tagsCol = c
+		}
+	}
+
+	// Discover l_* tag columns (FGM format: flat string columns prefixed with "l_")
+	type labelCol struct {
+		key string
+		col *array.String
+	}
+	var labelCols []labelCol
+	for i, field := range schema.Fields() {
+		if strings.HasPrefix(field.Name, "l_") {
+			if c, ok := record.Column(i).(*array.String); ok {
+				labelCols = append(labelCols, labelCol{
+					key: strings.TrimPrefix(field.Name, "l_"),
+					col: c,
+				})
+			}
+		}
 	}
 
 	// Build metrics
 	metrics := make([]FGMMetric, numRows)
 	for i := 0; i < numRows; i++ {
+		var runID, metricName string
+		var timestamp int64
+		var valueInt *uint64
+		var valueFloat *float64
 		tags := make(map[string]string)
-		for name, values := range labels {
-			if i < len(values) && values[i] != "" {
-				// Remove "l_" prefix from tag name
-				tagName := strings.TrimPrefix(name, "l_")
-				tags[tagName] = values[i]
+
+		if runIDCol != nil && !runIDCol.IsNull(i) {
+			runID = runIDCol.Value(i)
+		}
+		if timeColRaw != nil {
+			timestamp = readTimeValue(timeColRaw, i)
+		}
+		if metricNameCol != nil && !metricNameCol.IsNull(i) {
+			metricName = metricNameCol.Value(i)
+		}
+		if valueIntCol != nil && !valueIntCol.IsNull(i) {
+			v := valueIntCol.Value(i)
+			valueInt = &v
+		}
+		if valueFloatCol != nil && !valueFloatCol.IsNull(i) {
+			v := valueFloatCol.Value(i)
+			valueFloat = &v
+		}
+
+		// Extract tags from list column (recorder format: Tags list<string>)
+		if tagsCol != nil && !tagsCol.IsNull(i) {
+			start, end := tagsCol.ValueOffsets(i)
+			tagsValues := tagsCol.ListValues().(*array.String)
+			for j := start; j < end; j++ {
+				if !tagsValues.IsNull(int(j)) {
+					tag := tagsValues.Value(int(j))
+					parts := strings.SplitN(tag, ":", 2)
+					if len(parts) == 2 {
+						tags[parts[0]] = parts[1]
+					} else if len(parts) == 1 && parts[0] != "" {
+						tags[parts[0]] = ""
+					}
+				}
+			}
+		}
+
+		// Extract tags from l_* columns (FGM format)
+		for _, lc := range labelCols {
+			if !lc.col.IsNull(i) {
+				if v := lc.col.Value(i); v != "" {
+					tags[lc.key] = v
+				}
 			}
 		}
 
 		metrics[i] = FGMMetric{
-			RunID:      getAt(runIDs, i),
-			Time:       times[i],
-			MetricName: getAt(metricNames, i),
-			ValueInt:   getUInt64PtrAt(valueInts, i),
-			ValueFloat: getFloat64PtrAt(valueFloats, i),
+			RunID:      runID,
+			Time:       timestamp,
+			MetricName: metricName,
+			ValueInt:   valueInt,
+			ValueFloat: valueFloat,
 			Tags:       tags,
 		}
 	}
@@ -220,178 +327,26 @@ func extractMetricsFromTable(table arrow.Table) ([]FGMMetric, error) {
 	return metrics, nil
 }
 
-// findColumnIndex finds the index of a column by name, returns -1 if not found.
+// normalizeColumnName lowercases and strips underscores for flexible matching.
+func normalizeColumnName(name string) string {
+	return strings.ToLower(strings.ReplaceAll(name, "_", ""))
+}
+
+// findColumnIndex finds the index of a column by name (case-insensitive, underscore-stripping).
 func findColumnIndex(schema *arrow.Schema, name string) int {
+	normalized := normalizeColumnName(name)
 	for i, field := range schema.Fields() {
-		if field.Name == name {
+		if normalizeColumnName(field.Name) == normalized {
 			return i
 		}
 	}
 	return -1
 }
 
-// getStringColumn extracts a string column from an Arrow table.
-func getStringColumn(table arrow.Table, colIdx int) []string {
-	if colIdx < 0 || int64(colIdx) >= table.NumCols() {
-		return nil
-	}
-
-	col := table.Column(colIdx)
-	numRows := int(col.Len())
-	result := make([]string, numRows)
-
-	// Iterate through all chunks
-	offset := 0
-	for _, chunk := range col.Data().Chunks() {
-		strArr, ok := chunk.(*array.String)
-		if !ok {
-			binaryArr, ok := chunk.(*array.Binary)
-			if ok {
-				// Handle binary arrays (ByteArray in Parquet)
-				for i := 0; i < binaryArr.Len(); i++ {
-					if !binaryArr.IsNull(i) {
-						result[offset+i] = string(binaryArr.Value(i))
-					}
-				}
-				offset += binaryArr.Len()
-				continue
-			}
-			offset += chunk.Len()
-			continue
-		}
-
-		for i := 0; i < strArr.Len(); i++ {
-			if !strArr.IsNull(i) {
-				result[offset+i] = strArr.Value(i)
-			}
-		}
-		offset += strArr.Len()
-	}
-
-	return result
-}
-
-// getTimestampColumn extracts a timestamp column (as milliseconds) from an Arrow table.
-func getTimestampColumn(table arrow.Table, colIdx int) []int64 {
-	if colIdx < 0 || int64(colIdx) >= table.NumCols() {
-		return nil
-	}
-
-	col := table.Column(colIdx)
-	numRows := int(col.Len())
-	result := make([]int64, numRows)
-
-	// Iterate through all chunks
-	offset := 0
-	for _, chunk := range col.Data().Chunks() {
-		tsArr, ok := chunk.(*array.Timestamp)
-		if !ok {
-			offset += chunk.Len()
-			continue
-		}
-
-		for i := 0; i < tsArr.Len(); i++ {
-			if !tsArr.IsNull(i) {
-				result[offset+i] = int64(tsArr.Value(i))
-			}
-		}
-		offset += tsArr.Len()
-	}
-
-	return result
-}
-
-// getUInt64Column extracts a uint64 column from an Arrow table.
-func getUInt64Column(table arrow.Table, colIdx int) []uint64 {
-	if colIdx < 0 || int64(colIdx) >= table.NumCols() {
-		return nil
-	}
-
-	col := table.Column(colIdx)
-	numRows := int(col.Len())
-	result := make([]uint64, numRows)
-
-	// Iterate through all chunks
-	offset := 0
-	for _, chunk := range col.Data().Chunks() {
-		u64Arr, ok := chunk.(*array.Uint64)
-		if !ok {
-			// Try as Int64 and convert
-			i64Arr, ok := chunk.(*array.Int64)
-			if ok {
-				for i := 0; i < i64Arr.Len(); i++ {
-					if !i64Arr.IsNull(i) {
-						result[offset+i] = uint64(i64Arr.Value(i))
-					}
-				}
-				offset += i64Arr.Len()
-				continue
-			}
-			offset += chunk.Len()
-			continue
-		}
-
-		for i := 0; i < u64Arr.Len(); i++ {
-			if !u64Arr.IsNull(i) {
-				result[offset+i] = u64Arr.Value(i)
-			}
-		}
-		offset += u64Arr.Len()
-	}
-
-	return result
-}
-
-// getFloat64Column extracts a float64 column from an Arrow table.
-func getFloat64Column(table arrow.Table, colIdx int) []float64 {
-	if colIdx < 0 || int64(colIdx) >= table.NumCols() {
-		return nil
-	}
-
-	col := table.Column(colIdx)
-	numRows := int(col.Len())
-	result := make([]float64, numRows)
-
-	// Iterate through all chunks
-	offset := 0
-	for _, chunk := range col.Data().Chunks() {
-		f64Arr, ok := chunk.(*array.Float64)
-		if !ok {
-			offset += chunk.Len()
-			continue
-		}
-
-		for i := 0; i < f64Arr.Len(); i++ {
-			if !f64Arr.IsNull(i) {
-				result[offset+i] = f64Arr.Value(i)
-			}
-		}
-		offset += f64Arr.Len()
-	}
-
-	return result
-}
-
-// Helper functions to safely get values from slices
+// getAt safely gets a string from a slice by index.
 func getAt(slice []string, idx int) string {
 	if idx < len(slice) {
 		return slice[idx]
 	}
 	return ""
-}
-
-func getUInt64PtrAt(slice []uint64, idx int) *uint64 {
-	if idx < len(slice) {
-		v := slice[idx]
-		return &v
-	}
-	return nil
-}
-
-func getFloat64PtrAt(slice []float64, idx int) *float64 {
-	if idx < len(slice) {
-		v := slice[idx]
-		return &v
-	}
-	return nil
 }

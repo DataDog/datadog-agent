@@ -1,0 +1,95 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1) **What do the correlations tell you?**  
+- **time_cluster_1:** A broad, simultaneous anomaly involving **67 metric families** across **memory (smaps + cgroup memory.stat), CPU (usage + pressure + throttling), I/O (rbytes/rios/wbytes + IO pressure), and pids/threads/procs** in the same container. This looks like a **major container state change / workload shift** rather than an isolated metric blip.  
+- **time_cluster_2:** A later, smaller cluster of **7 CPU-only metrics** (total/system/kernel CPU %) at a single moment, consistent with a **CPU surge** (possibly as part of the same event or a follow-on effect).
+
+2) **Is there a problem?**  
+**Yes.**
+
+3) **If yes, what is it? (one sentence)**  
+The container likely experienced a **sustained resource event dominated by sharp memory growth/pressure with accompanying CPU and I/O activity** (consistent with a memory-leak / memory-driven thrash pattern in `leaky-app`).
+
+4) **Confidence level**  
+**Medium** (RCA confidence in digest is low, but the multi-subsystem breadth is strong).
+
+5) **Alternative possibilities & why uncertain (since not high confidence)**  
+- **Container start/restart or configuration change** (many “limit/weight/max” and cgroup-related metrics shifting together can happen at lifecycle transitions); uncertainty because **TimeCluster** only groups by simultaneity and the digest flags **weak_directionality / ambiguous_roots**.  
+- **Traffic/load step change** causing higher working set, more file cache/dirty pages, and more I/O; uncertainty because we don’t see app-level request metrics and **CUSUM** will fire on sustained shifts regardless of cause.  
+- **Kernel reclaim / writeback episode** (file_dirty + I/O changes could be writeback-driven); uncertainty because we lack direct writeback/flush timing and the onset chain is null.
+
+6) **Supporting evidence (from the data)**  
+- **Very large anomaly breadth:** `time_cluster_1` has **67 anomalous series** spanning memory, CPU, I/O, and pids/threads.  
+- **Memory footprint jump (smaps):** `smaps_rollup.pss` shifted to **13.3MB vs 3.08MB baseline**, plus `pss_dirty`, `pss_file`, `rss` also anomalous.  
+- **Kernel/cgroup memory growth:** `cgroup.v2.memory.current`, `memory.stat.anon/active_anon`, `slab`, `slab_reclaimable`, `pagetables`, `kernel_stack` all shifted upward together.  
+- **I/O activity spike:** `cgroup.v2.io.stat.rbytes` **1,662,976 vs 81,786 baseline (4.4σ)** and `rios` **20 vs 0.98 (4.4σ)**; also `wbytes` is implicated by RCA evidence paths.  
+- **CPU involvement + pressure:** multiple `cpu_percentage`, `kernel_cpu_percentage`, plus `cgroup.v2.cpu.pressure.*` and `cpu.stat.*` present in the cluster; separate `time_cluster_2` is CPU-only at a later timestamp.  
+- **Process/thread count anomalies:** `cgroup.v2.cgroup.threads` and `cgroup.v2.cgroup.procs` shifted to **32327 vs 6593 baseline** (as reported).
+
+7) **Do RCA/digest key sources and onset chain support the conclusion?**  
+- **Key sources:** Yes **in the sense of breadth**—the digest’s representative families include **smaps rss/pss, cpu %, CPU pressure, pgmajfault, slab_reclaimable, pid_count**, matching the “memory + CPU + I/O + pids” hypothesis.  
+- **Onset chain:** **Not available (null)**, so it **does not** support a specific causal ordering.  
+- **RCA rankings:** Digest explicitly notes **low RCA confidence (0.47 / 0.25)** with **weak_directionality/ambiguous_roots**, so the specific “top root” series (e.g., `file_dirty`, `cpu.usage_usec`, `rbytes`) should be treated as **symptoms/early indicators**, not proven causes—this is why confidence is **medium**, not high.

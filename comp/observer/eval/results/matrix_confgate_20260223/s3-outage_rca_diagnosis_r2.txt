@@ -1,0 +1,97 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What do the correlations tell you?**  
+   There is one large, tightly time-aligned incident window (~24s) where **hundreds of metrics across many families** anomalied together: kubelet runtime operation metrics, **node/filesystem disk space metrics**, and broad **container CPU/memory/IO/network** signals—suggesting a **node-level event** affecting many containers at once rather than a single app-only issue.
+
+2. **Is there a problem? (yes/no/unclear)**  
+   **Yes.**
+
+3. **If yes, what is it? (one sentence)**  
+   A short node-wide disruption consistent with **storage/filesystem pressure or I/O disturbance** that coincided with widespread kubelet runtime-operation anomalies and broad container resource anomalies.
+
+4. **Confidence level (high/medium/low)**  
+   **Medium.**
+
+5. **Alternative possibilities & why uncertain (since not high confidence)**  
+   - **Kubelet/container-runtime hiccup or control-plane/agent instrumentation artifact**: many kubelet runtime operation metrics (87 series) moved together, and the digest flags **ambiguous_roots** with low RCA confidence, so causality direction is unclear.  
+   - **System-wide CPU contention / scheduling stalls**: many `container.cpu.*` and `partial_stall` series co-occur; could drive downstream kubelet/runtime delays without disk being the primary cause.  
+   - **Ephemeral storage accounting/mount changes (not real disk pressure)**: simultaneous anomalies in `system.disk.free/used/in_use/utilized` across devices (including `/dev/termination-log`) can happen due to mount/metrics collection changes.  
+   Uncertainty is mainly because the correlator is **TimeCluster (no learned causation)** and the digest explicitly says **RCA confidence is low (0.53) and causal ordering is uncertain**.
+
+6. **Supporting evidence (from the data)**  
+   - **Single huge cluster:** `TimeCluster: 897 anomalies`, spanning **132 unique metric sources** overall.  
+   - **Disk space metrics heavily represented:** `system.disk.free/in_use/used/utilized: 29 series each` in the cluster.  
+   - **Kubelet runtime ops breadth:** `kubernetes.kubelet.runtime.operations.duration.count:avg: 87 series` (dominant family in digest).  
+   - **Broad container stress signals:** multiple families present simultaneously (examples from digest counts):  
+     - CPU: `container.cpu.usage/user/system` and `container.cpu.partial_stall` (17–18 series each)  
+     - Memory faults: `container.memory.page_faults` (21), `major_page_faults` (11)  
+     - Container/runtime uptimes: `container.uptime` (21), `containerd.uptime` (21), `cri.uptime` (21)  
+   - **Time window:** correlation `first_seen=1771417694`, `last_updated=1771417718` (~24 seconds).
+
+7. **Do RCA/digest key sources and onset chain support the conclusion?**  
+   - **Key sources (digest):** They emphasize **kubelet runtime operation duration count** and **system.disk.* metrics** as the most impacted families, which **supports** a node-level event involving kubelet/runtime plus filesystem signals.  
+   - **Onset chain:** `onset_chain: null`, so there is **no directional sequence** to validate causality.  
+   - **RCA ranked roots:** present but **not reliable for causation here** because the digest flags **ambiguous_roots** and `rca_confidence ~0.53`; the specific “containerd.blkio… as root” suggestion is **compatible** with an I/O disturbance hypothesis but **does not strongly support it** given the low-confidence/ambiguous directionality.

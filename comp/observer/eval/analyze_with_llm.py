@@ -75,8 +75,201 @@ JSON_CONTEXT = """
 - unique_sources_in_anomalies: How many different metrics had anomalies
 - correlations: Groups of metrics that anomalied together
 - edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
 - sample_anomalies: A few example anomalies for context
 """
+
+def build_digest_hint(parsed):
+    """Build a structured hint from correlation digests and RCA results.
+
+    The hint varies based on RCA confidence:
+    - High confidence (>= 0.6): Includes RCA-ranked key sources, onset chain,
+      and causal framing to guide the LLM toward likely root causes.
+    - Low confidence (< 0.6): Includes only metric family breadth and
+      representative samples. No causal assertions — lets the LLM reason from
+      the structural summary without being misled by uncertain rankings.
+    """
+    if not isinstance(parsed, dict):
+        return ""
+
+    HIGH_CONF_THRESHOLD = 0.6
+    lines = []
+
+    # Check for digests on correlations.
+    correlations = parsed.get("correlations", [])
+    has_digest = False
+    for corr in correlations:
+        if not isinstance(corr, dict):
+            continue
+        digest = corr.get("digest")
+        if not isinstance(digest, dict):
+            continue
+        has_digest = True
+        pattern = corr.get("pattern", "unknown")
+        total = digest.get("total_source_count", 0)
+        conf = digest.get("rca_confidence", 0)
+        flags = digest.get("confidence_flags", [])
+        flags_str = ", ".join(flags) if flags else "none"
+        high_confidence = conf >= HIGH_CONF_THRESHOLD
+
+        lines.append(f"**Correlation {pattern}** ({total} anomalous series, RCA confidence: {conf:.2f}, flags: {flags_str})")
+
+        # Metric family summary (sorted by count, top 15) — always included.
+        families = digest.get("metric_family_counts", {})
+        if families:
+            sorted_fam = sorted(families.items(), key=lambda x: -x[1])[:15]
+            fam_strs = [f"{name}: {count}" for name, count in sorted_fam]
+            remaining = len(families) - len(sorted_fam)
+            lines.append(f"  Metric families: {', '.join(fam_strs)}")
+            if remaining > 0:
+                lines.append(f"  ...and {remaining} more metric families")
+
+        if high_confidence:
+            # --- High-confidence mode: causal detail ---
+            # Temporal onset chain.
+            onset_chain = digest.get("onset_chain", [])
+            if onset_chain:
+                chain_parts = []
+                for entry in onset_chain:
+                    if isinstance(entry, dict):
+                        metric = entry.get("metric_name", "?")
+                        t = entry.get("onset_time", 0)
+                        chain_parts.append(f"{metric} (T={t})")
+                if chain_parts:
+                    lines.append(f"  Onset chain: {' -> '.join(chain_parts)}")
+
+            # Key sources (top-ranked by RCA).
+            key_sources = digest.get("key_sources", [])
+            if key_sources:
+                lines.append(f"  Top {len(key_sources)} ranked root-cause candidates:")
+                for ks in key_sources:
+                    if not isinstance(ks, dict):
+                        continue
+                    metric = ks.get("metric_name", "?")
+                    score = ks.get("score", 0)
+                    why = ks.get("why", [])
+                    why_str = "; ".join(why) if why else ""
+                    line = f"    - {metric} (score={score:.3f})"
+                    if why_str:
+                        line += f" — {why_str}"
+                    lines.append(line)
+        else:
+            # --- Low-confidence mode: structural summary only ---
+            lines.append(f"  NOTE: RCA confidence is low ({conf:.2f}). The causal ordering is uncertain.")
+            lines.append(f"  Focus on the metric family breadth and overall anomaly pattern rather than specific root-cause rankings.")
+
+            # Representative samples (no scores, no causal framing).
+            key_sources = digest.get("key_sources", [])
+            if key_sources:
+                lines.append(f"  Representative series from most impacted families:")
+                for ks in key_sources:
+                    if not isinstance(ks, dict):
+                        continue
+                    metric = ks.get("metric_name", "?")
+                    why = ks.get("why", [])
+                    why_str = "; ".join(why) if why else ""
+                    line = f"    - {metric}"
+                    if why_str:
+                        line += f" ({why_str})"
+                    lines.append(line)
+
+        lines.append("")
+
+    # Include RCA root candidates/evidence paths only when high-confidence.
+    rca_results = parsed.get("rca", [])
+    if isinstance(rca_results, list) and rca_results:
+        for result in rca_results[:3]:
+            if not isinstance(result, dict):
+                continue
+            conf_obj = result.get("confidence", {})
+            conf_score = conf_obj.get("score", 0) if isinstance(conf_obj, dict) else 0
+            if conf_score < HIGH_CONF_THRESHOLD:
+                continue  # Skip low-confidence RCA detail
+
+            pattern = result.get("correlation_pattern", "unknown")
+
+            top_metric = "none"
+            roots_metric = result.get("root_candidates_metric")
+            if isinstance(roots_metric, list) and roots_metric:
+                root = roots_metric[0]
+                if isinstance(root, dict):
+                    top_metric = f"{root.get('id', 'unknown')} (score={root.get('score', 'n/a')})"
+
+            evidence_path = ""
+            paths = result.get("evidence_paths")
+            if isinstance(paths, list) and paths:
+                first = paths[0]
+                if isinstance(first, dict) and isinstance(first.get("nodes"), list):
+                    evidence_path = " -> ".join(str(x) for x in first["nodes"][:6])
+
+            lines.append(f"  RCA {pattern}: top_metric={top_metric}")
+            if evidence_path:
+                lines.append(f"    evidence path: {evidence_path}")
+
+    if not lines:
+        return ""
+
+    header = "**Correlation Digest** (compressed from raw sources using structural analysis):"
+    return header + "\n" + "\n".join(lines)
+
+
+def build_rca_hint(parsed):
+    """Build a compact RCA summary for the prompt when available.
+
+    Kept as fallback for outputs without digests (e.g. non-RCA runs).
+    """
+    if not isinstance(parsed, dict):
+        return ""
+    rca_results = parsed.get("rca")
+    if not isinstance(rca_results, list) or not rca_results:
+        return ""
+
+    lines = ["RCA evidence (present in data):"]
+    for result in rca_results[:3]:
+        if not isinstance(result, dict):
+            continue
+        pattern = result.get("correlation_pattern", "unknown")
+
+        top_series = "none"
+        roots_series = result.get("root_candidates_series")
+        if isinstance(roots_series, list) and roots_series:
+            root = roots_series[0]
+            if isinstance(root, dict):
+                top_series = f"{root.get('id', 'unknown')} (score={root.get('score', 'n/a')})"
+
+        top_metric = "none"
+        roots_metric = result.get("root_candidates_metric")
+        if isinstance(roots_metric, list) and roots_metric:
+            root = roots_metric[0]
+            if isinstance(root, dict):
+                top_metric = f"{root.get('id', 'unknown')} (score={root.get('score', 'n/a')})"
+
+        conf = result.get("confidence", {})
+        conf_score = conf.get("score", "n/a") if isinstance(conf, dict) else "n/a"
+        flags = []
+        if isinstance(conf, dict):
+            if conf.get("data_limited"):
+                flags.append("data_limited")
+            if conf.get("weak_directionality"):
+                flags.append("weak_directionality")
+            if conf.get("ambiguous_roots"):
+                flags.append("ambiguous_roots")
+        flags_str = ",".join(flags) if flags else "none"
+
+        evidence_path = ""
+        paths = result.get("evidence_paths")
+        if isinstance(paths, list) and paths:
+            first = paths[0]
+            if isinstance(first, dict) and isinstance(first.get("nodes"), list):
+                evidence_path = " -> ".join(str(x) for x in first["nodes"][:6])
+
+        lines.append(
+            f"- {pattern}: top_series={top_series}; top_metric={top_metric}; conf={conf_score}; flags={flags_str}"
+        )
+        if evidence_path:
+            lines.append(f"  path: {evidence_path}")
+
+    return "\n".join(lines)
 
 def build_context(args):
     """Build context string based on flags."""
@@ -133,8 +326,24 @@ def analyze(filepath, context, model):
     
     with open(filepath, 'r') as f:
         data = f.read()
-    
+
+    parsed = None
+    try:
+        parsed = json.loads(data)
+    except json.JSONDecodeError:
+        parsed = None
+
+    # Prefer digest hint (structured summary) over raw RCA hint.
+    analysis_hint = build_digest_hint(parsed)
+    if not analysis_hint:
+        analysis_hint = build_rca_hint(parsed)
+
+    rca_instruction = ""
+    if analysis_hint:
+        rca_instruction = "Use the correlation digest to focus your analysis. When RCA confidence is high, trust the ranked root-cause candidates and onset chain. When RCA confidence is low (noted in the digest), do NOT rely on specific series rankings for causation — instead focus on the overall metric family breadth, anomaly counts, and system-wide patterns to form your own hypothesis."
+
     prompt = f"""{context}
+{analysis_hint}
 
 Here is the data:
 
@@ -146,7 +355,9 @@ Be concise. Answer:
 3. If yes, what is it? (one sentence)
 4. Confidence level (high/medium/low)
 5. If not high confidence: what are the alternative possibilities and why are you uncertain?
-6. Supporting evidence (bullet points from the data)"""
+6. Supporting evidence (bullet points from the data)
+7. If RCA/digest is present: explicitly state whether the key sources and onset chain support your conclusion.
+{rca_instruction}"""
     
     print("="*60)
     print("PROMPT (context only, JSON data omitted):")

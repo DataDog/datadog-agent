@@ -1,0 +1,737 @@
+{
+  "detector": "CUSUM",
+  "correlator": "Dedup+TimeClusterCorrelator",
+  "timestamp": "2026-02-24T14:34:32-05:00",
+  "total_anomalies": 53766,
+  "unique_sources_in_anomalies": 67,
+  "total_correlations": 2,
+  "dedup_skipped": 53069,
+  "sample_anomalies": [
+    {
+      "source": "cgroup.v2.io.stat.rbytes:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.io.stat.rbytes:avg shifted to 1662976.00 (4.4σ above baseline of 81785.70)",
+      "timestamp": 1769636331,
+      "tags": [
+        "container_name:leaky-app",
+        "pod_name:memory-leak-ef48ae3f",
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:fc108741ec27"
+      ]
+    },
+    {
+      "source": "cgroup.v2.io.stat.rios:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.io.stat.rios:avg shifted to 20.00 (4.4σ above baseline of 0.98)",
+      "timestamp": 1769636331,
+      "tags": [
+        "qos_class:Burstable",
+        "container_id:fc108741ec27",
+        "container_name:leaky-app",
+        "pod_name:memory-leak-ef48ae3f",
+        "namespace:default"
+      ]
+    },
+    {
+      "source": "cgroup.v2.pids.current:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.pids.current:avg shifted to 1.00 (2.0σ above baseline of 0.20)",
+      "timestamp": 1769636335,
+      "tags": [
+        "container_id:fc108741ec27",
+        "container_name:leaky-app",
+        "pod_name:memory-leak-ef48ae3f",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "smaps_rollup.pss:avg",
+      "analyzer": "cusum_detector",
+      "description": "smaps_rollup.pss:avg shifted to 13344768.00 (1.8σ above baseline of 3082082.46)",
+      "timestamp": 1769636336,
+      "tags": [
+        "container_id:fc108741ec27",
+        "container_name:leaky-app",
+        "pod_name:memory-leak-ef48ae3f",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cgroup.threads:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.cgroup.threads:avg shifted to 32327.00 (2.0σ above baseline of 6593.01)",
+      "timestamp": 1769636335,
+      "tags": [
+        "container_name:leaky-app",
+        "pod_name:memory-leak-ef48ae3f",
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:fc108741ec27"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.slab:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.slab:avg shifted to 218888.00 (2.0σ above baseline of 44641.63)",
+      "timestamp": 1769636335,
+      "tags": [
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:fc108741ec27",
+        "container_name:leaky-app",
+        "pod_name:memory-leak-ef48ae3f"
+      ]
+    },
+    {
+      "source": "cgroup.v2.io.weight.default:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.io.weight.default:avg shifted to 100.00 (2.0σ above baseline of 20.39)",
+      "timestamp": 1769636335,
+      "tags": [
+        "container_id:fc108741ec27",
+        "container_name:leaky-app",
+        "pod_name:memory-leak-ef48ae3f",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cgroup.procs:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.cgroup.procs:avg shifted to 32327.00 (2.0σ above baseline of 6593.01)",
+      "timestamp": 1769636335,
+      "tags": [
+        "container_id:fc108741ec27",
+        "container_name:leaky-app",
+        "pod_name:memory-leak-ef48ae3f",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "smaps_rollup.pss_dirty:avg",
+      "analyzer": "cusum_detector",
+      "description": "smaps_rollup.pss_dirty:avg shifted to 8421376.00 (1.8σ above baseline of 1876632.94)",
+      "timestamp": 1769636336,
+      "tags": [
+        "container_id:fc108741ec27",
+        "container_name:leaky-app",
+        "pod_name:memory-leak-ef48ae3f",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.kernel_stack:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.kernel_stack:avg shifted to 16384.00 (2.0σ above baseline of 3341.47)",
+      "timestamp": 1769636335,
+      "tags": [
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:fc108741ec27",
+        "container_name:leaky-app",
+        "pod_name:memory-leak-ef48ae3f"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.weight:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.cpu.weight:avg shifted to 1.00 (2.0σ above baseline of 0.20)",
+      "timestamp": 1769636335,
+      "tags": [
+        "container_id:fc108741ec27",
+        "container_name:leaky-app",
+        "pod_name:memory-leak-ef48ae3f",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.max:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.max:avg shifted to 268435456.00 (2.0σ above baseline of 54746704.84)",
+      "timestamp": 1769636335,
+      "tags": [
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:fc108741ec27",
+        "container_name:leaky-app",
+        "pod_name:memory-leak-ef48ae3f"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.active_anon:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.active_anon:avg shifted to 8421376.00 (1.8σ above baseline of 1876632.94)",
+      "timestamp": 1769636336,
+      "tags": [
+        "qos_class:Burstable",
+        "container_id:fc108741ec27",
+        "container_name:leaky-app",
+        "pod_name:memory-leak-ef48ae3f",
+        "namespace:default"
+      ]
+    },
+    {
+      "source": "container.pid_count:avg",
+      "analyzer": "cusum_detector",
+      "description": "container.pid_count:avg shifted to 1.00 (2.0σ above baseline of 0.20)",
+      "timestamp": 1769636335,
+      "tags": [
+        "qos_class:Burstable",
+        "container_id:fc108741ec27",
+        "container_name:leaky-app",
+        "pod_name:memory-leak-ef48ae3f",
+        "namespace:default"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.active_file:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.active_file:avg shifted to 1662976.00 (2.0σ above baseline of 339159.58)",
+      "timestamp": 1769636335,
+      "tags": [
+        "container_name:leaky-app",
+        "pod_name:memory-leak-ef48ae3f",
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:fc108741ec27"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.slab_reclaimable:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.slab_reclaimable:avg shifted to 160640.00 (2.0σ above baseline of 32762.11)",
+      "timestamp": 1769636335,
+      "tags": [
+        "container_id:fc108741ec27",
+        "container_name:leaky-app",
+        "pod_name:memory-leak-ef48ae3f",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "smaps_rollup.pss_file:avg",
+      "analyzer": "cusum_detector",
+      "description": "smaps_rollup.pss_file:avg shifted to 4923392.00 (2.0σ above baseline of 1004112.84)",
+      "timestamp": 1769636335,
+      "tags": [
+        "container_id:fc108741ec27",
+        "container_name:leaky-app",
+        "pod_name:memory-leak-ef48ae3f",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.kernel:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.kernel:avg shifted to 317440.00 (2.0σ above baseline of 64808.42)",
+      "timestamp": 1769636335,
+      "tags": [
+        "container_id:fc108741ec27",
+        "container_name:leaky-app",
+        "pod_name:memory-leak-ef48ae3f",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.pagetables:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.pagetables:avg shifted to 71680.00 (2.1σ above baseline of 13899.09)",
+      "timestamp": 1769636335,
+      "tags": [
+        "container_id:fc108741ec27",
+        "container_name:leaky-app",
+        "pod_name:memory-leak-ef48ae3f",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.anon:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.anon:avg shifted to 8421376.00 (1.8σ above baseline of 1876632.94)",
+      "timestamp": 1769636336,
+      "tags": [
+        "container_name:leaky-app",
+        "pod_name:memory-leak-ef48ae3f",
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:fc108741ec27"
+      ]
+    }
+  ],
+  "correlations": [
+    {
+      "pattern": "time_cluster_1",
+      "title": "TimeCluster: 67 anomalies",
+      "source_count": 67,
+      "sources": [
+        "demo|cgroup.v2.memory.stat.slab_reclaimable:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+        "demo|cgroup.v2.pids.max:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+        "demo|kernel_cpu_percentage:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+        "demo|cpu_percentage:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+        "demo|smaps_rollup.rss:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.pressure.some.avg300:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+        "demo|cgroup.v2.cpu.weight.nice:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.inactive_file:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+        "demo|cgroup.v2.memory.stat.pgmajfault:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+        "demo|container.pid_count:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable"
+      ],
+      "first_seen": 1769636279,
+      "last_updated": 1769636356,
+      "digest": {
+        "key_sources": [
+          {
+            "series_id": "demo|cgroup.v2.memory.stat.slab_reclaimable:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+            "metric_name": "cgroup.v2.memory.stat.slab_reclaimable:avg",
+            "score": 0,
+            "why": [
+              "representative of 1 cgroup.v2.memory.stat.slab_reclaimable:avg series"
+            ]
+          },
+          {
+            "series_id": "demo|cgroup.v2.pids.max:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+            "metric_name": "cgroup.v2.pids.max:avg",
+            "score": 0,
+            "why": [
+              "representative of 1 cgroup.v2.pids.max:avg series"
+            ]
+          },
+          {
+            "series_id": "demo|kernel_cpu_percentage:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+            "metric_name": "kernel_cpu_percentage:avg",
+            "score": 0,
+            "why": [
+              "representative of 1 kernel_cpu_percentage:avg series"
+            ]
+          },
+          {
+            "series_id": "demo|cpu_percentage:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+            "metric_name": "cpu_percentage:avg",
+            "score": 0,
+            "why": [
+              "representative of 1 cpu_percentage:avg series"
+            ]
+          },
+          {
+            "series_id": "demo|smaps_rollup.rss:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+            "metric_name": "smaps_rollup.rss:avg",
+            "score": 0,
+            "why": [
+              "representative of 1 smaps_rollup.rss:avg series"
+            ]
+          },
+          {
+            "series_id": "demo|cgroup.v2.cpu.pressure.some.avg300:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+            "metric_name": "cgroup.v2.cpu.pressure.some.avg300:avg",
+            "score": 0,
+            "why": [
+              "representative of 1 cgroup.v2.cpu.pressure.some.avg300:avg series"
+            ]
+          },
+          {
+            "series_id": "demo|cgroup.v2.cpu.weight.nice:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+            "metric_name": "cgroup.v2.cpu.weight.nice:avg",
+            "score": 0,
+            "why": [
+              "representative of 1 cgroup.v2.cpu.weight.nice:avg series"
+            ]
+          },
+          {
+            "series_id": "demo|cgroup.v2.memory.stat.inactive_file:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+            "metric_name": "cgroup.v2.memory.stat.inactive_file:avg",
+            "score": 0,
+            "why": [
+              "representative of 1 cgroup.v2.memory.stat.inactive_file:avg series"
+            ]
+          },
+          {
+            "series_id": "demo|cgroup.v2.memory.stat.pgmajfault:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+            "metric_name": "cgroup.v2.memory.stat.pgmajfault:avg",
+            "score": 0,
+            "why": [
+              "representative of 1 cgroup.v2.memory.stat.pgmajfault:avg series"
+            ]
+          },
+          {
+            "series_id": "demo|container.pid_count:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+            "metric_name": "container.pid_count:avg",
+            "score": 0,
+            "why": [
+              "representative of 1 container.pid_count:avg series"
+            ]
+          }
+        ],
+        "metric_family_counts": {
+          "cgroup.v2.cgroup.events.populated:avg": 1,
+          "cgroup.v2.cgroup.pressure:avg": 1,
+          "cgroup.v2.cgroup.procs:avg": 1,
+          "cgroup.v2.cgroup.threads:avg": 1,
+          "cgroup.v2.cpu.pressure.full.avg10:avg": 1,
+          "cgroup.v2.cpu.pressure.full.avg300:avg": 1,
+          "cgroup.v2.cpu.pressure.full.avg60:avg": 1,
+          "cgroup.v2.cpu.pressure.full.total:avg": 1,
+          "cgroup.v2.cpu.pressure.some.avg10:avg": 1,
+          "cgroup.v2.cpu.pressure.some.avg300:avg": 1,
+          "cgroup.v2.cpu.pressure.some.avg60:avg": 1,
+          "cgroup.v2.cpu.pressure.some.total:avg": 1,
+          "cgroup.v2.cpu.stat.local.throttled_usec:avg": 1,
+          "cgroup.v2.cpu.stat.nr_periods:avg": 1,
+          "cgroup.v2.cpu.stat.usage_usec:avg": 1,
+          "cgroup.v2.cpu.weight.nice:avg": 1,
+          "cgroup.v2.cpu.weight:avg": 1,
+          "cgroup.v2.io.pressure.full.total:avg": 1,
+          "cgroup.v2.io.pressure.some.total:avg": 1,
+          "cgroup.v2.io.stat.rbytes:avg": 1,
+          "cgroup.v2.io.stat.rios:avg": 1,
+          "cgroup.v2.io.stat.wbytes:avg": 1,
+          "cgroup.v2.io.weight.default:avg": 1,
+          "cgroup.v2.memory.current:avg": 1,
+          "cgroup.v2.memory.max:avg": 1,
+          "cgroup.v2.memory.oom.group:avg": 1,
+          "cgroup.v2.memory.peak:avg": 1,
+          "cgroup.v2.memory.stat.active_anon:avg": 1,
+          "cgroup.v2.memory.stat.active_file:avg": 1,
+          "cgroup.v2.memory.stat.anon:avg": 1,
+          "cgroup.v2.memory.stat.file:avg": 1,
+          "cgroup.v2.memory.stat.file_dirty:avg": 1,
+          "cgroup.v2.memory.stat.inactive_file:avg": 1,
+          "cgroup.v2.memory.stat.kernel:avg": 1,
+          "cgroup.v2.memory.stat.kernel_stack:avg": 1,
+          "cgroup.v2.memory.stat.pagetables:avg": 1,
+          "cgroup.v2.memory.stat.percpu:avg": 1,
+          "cgroup.v2.memory.stat.pgfault:avg": 1,
+          "cgroup.v2.memory.stat.pgmajfault:avg": 1,
+          "cgroup.v2.memory.stat.slab:avg": 1,
+          "cgroup.v2.memory.stat.slab_reclaimable:avg": 1,
+          "cgroup.v2.memory.stat.slab_unreclaimable:avg": 1,
+          "cgroup.v2.memory.zswap.writeback:avg": 1,
+          "cgroup.v2.pids.current:avg": 1,
+          "cgroup.v2.pids.max:avg": 1,
+          "cgroup.v2.pids.peak:avg": 1,
+          "container.pid_count:avg": 1,
+          "cpu_limit_millicores:avg": 1,
+          "cpu_percentage:avg": 1,
+          "kernel_cpu_percentage:avg": 1,
+          "kernel_cpu_usage_millicores:avg": 1,
+          "smaps_rollup.anonymous:avg": 1,
+          "smaps_rollup.private_clean:avg": 1,
+          "smaps_rollup.private_dirty:avg": 1,
+          "smaps_rollup.pss:avg": 1,
+          "smaps_rollup.pss_anon:avg": 1,
+          "smaps_rollup.pss_dirty:avg": 1,
+          "smaps_rollup.pss_file:avg": 1,
+          "smaps_rollup.referenced:avg": 1,
+          "smaps_rollup.rss:avg": 1,
+          "smaps_rollup.shared_clean:avg": 1,
+          "system_cpu_percentage:avg": 1,
+          "system_cpu_usage_millicores:avg": 1,
+          "total_cpu_percentage:avg": 1,
+          "total_cpu_usage_millicores:avg": 1,
+          "user_cpu_percentage:avg": 1,
+          "user_cpu_usage_millicores:avg": 1
+        },
+        "onset_chain": null,
+        "total_source_count": 67,
+        "rca_confidence": 0.469,
+        "confidence_flags": [
+          "weak_directionality",
+          "ambiguous_roots"
+        ]
+      }
+    },
+    {
+      "pattern": "time_cluster_2",
+      "title": "TimeCluster: 7 anomalies",
+      "source_count": 7,
+      "sources": [
+        "demo|total_cpu_percentage:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+        "demo|total_cpu_usage_millicores:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+        "demo|cpu_percentage:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+        "demo|kernel_cpu_percentage:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+        "demo|kernel_cpu_usage_millicores:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+        "demo|system_cpu_percentage:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+        "demo|system_cpu_usage_millicores:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable"
+      ],
+      "first_seen": 1769636372,
+      "last_updated": 1769636372,
+      "digest": {
+        "key_sources": [
+          {
+            "series_id": "demo|total_cpu_percentage:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+            "metric_name": "total_cpu_percentage:avg",
+            "score": 0,
+            "why": [
+              "representative of 1 total_cpu_percentage:avg series"
+            ]
+          },
+          {
+            "series_id": "demo|total_cpu_usage_millicores:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+            "metric_name": "total_cpu_usage_millicores:avg",
+            "score": 0,
+            "why": [
+              "representative of 1 total_cpu_usage_millicores:avg series"
+            ]
+          },
+          {
+            "series_id": "demo|cpu_percentage:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+            "metric_name": "cpu_percentage:avg",
+            "score": 0,
+            "why": [
+              "representative of 1 cpu_percentage:avg series"
+            ]
+          },
+          {
+            "series_id": "demo|kernel_cpu_percentage:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+            "metric_name": "kernel_cpu_percentage:avg",
+            "score": 0,
+            "why": [
+              "representative of 1 kernel_cpu_percentage:avg series"
+            ]
+          },
+          {
+            "series_id": "demo|kernel_cpu_usage_millicores:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+            "metric_name": "kernel_cpu_usage_millicores:avg",
+            "score": 0,
+            "why": [
+              "representative of 1 kernel_cpu_usage_millicores:avg series"
+            ]
+          },
+          {
+            "series_id": "demo|system_cpu_percentage:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+            "metric_name": "system_cpu_percentage:avg",
+            "score": 0,
+            "why": [
+              "representative of 1 system_cpu_percentage:avg series"
+            ]
+          },
+          {
+            "series_id": "demo|system_cpu_usage_millicores:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+            "metric_name": "system_cpu_usage_millicores:avg",
+            "score": 0,
+            "why": [
+              "representative of 1 system_cpu_usage_millicores:avg series"
+            ]
+          }
+        ],
+        "metric_family_counts": {
+          "cpu_percentage:avg": 1,
+          "kernel_cpu_percentage:avg": 1,
+          "kernel_cpu_usage_millicores:avg": 1,
+          "system_cpu_percentage:avg": 1,
+          "system_cpu_usage_millicores:avg": 1,
+          "total_cpu_percentage:avg": 1,
+          "total_cpu_usage_millicores:avg": 1
+        },
+        "onset_chain": null,
+        "total_source_count": 7,
+        "rca_confidence": 0.25,
+        "confidence_flags": [
+          "weak_directionality",
+          "ambiguous_roots"
+        ]
+      }
+    }
+  ],
+  "rca": [
+    {
+      "correlation_pattern": "time_cluster_1",
+      "root_candidates_series": [
+        {
+          "id": "demo|cgroup.v2.memory.stat.file_dirty:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+          "score": 0.869,
+          "onset_time": 1769636330,
+          "why": [
+            "early onset compared with peer anomalies",
+            "downstream temporal coverage 0.89",
+            "persistence 1.00",
+            "high severity (peak sigma 0.97)"
+          ]
+        },
+        {
+          "id": "demo|cgroup.v2.cpu.stat.usage_usec:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+          "score": 0.867,
+          "onset_time": 1769636330,
+          "why": [
+            "early onset compared with peer anomalies",
+            "downstream temporal coverage 0.89",
+            "persistence 1.00",
+            "high severity (peak sigma 0.96)"
+          ]
+        },
+        {
+          "id": "demo|cgroup.v2.io.stat.rbytes:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+          "score": 0.867,
+          "onset_time": 1769636330,
+          "why": [
+            "early onset compared with peer anomalies",
+            "downstream temporal coverage 0.89",
+            "persistence 1.00",
+            "high severity (peak sigma 0.96)"
+          ]
+        }
+      ],
+      "root_candidates_metric": [
+        {
+          "id": "cgroup.v2.memory.stat.file_dirty:avg",
+          "score": 0.869,
+          "onset_time": 1769636330,
+          "why": [
+            "probabilistic rollup of top series candidates"
+          ]
+        },
+        {
+          "id": "cgroup.v2.cpu.stat.usage_usec:avg",
+          "score": 0.867,
+          "onset_time": 1769636330,
+          "why": [
+            "probabilistic rollup of top series candidates"
+          ]
+        },
+        {
+          "id": "cgroup.v2.io.stat.rbytes:avg",
+          "score": 0.867,
+          "onset_time": 1769636330,
+          "why": [
+            "probabilistic rollup of top series candidates"
+          ]
+        }
+      ],
+      "evidence_paths": [
+        {
+          "nodes": [
+            "demo|cgroup.v2.memory.stat.file_dirty:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+            "demo|cgroup.v2.io.stat.wbytes:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable"
+          ],
+          "score": 0.882,
+          "why": "temporal path from likely root to symptom across 1 hop(s)"
+        },
+        {
+          "nodes": [
+            "demo|cgroup.v2.cpu.stat.usage_usec:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+            "demo|cgroup.v2.io.stat.wbytes:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable"
+          ],
+          "score": 0.88,
+          "why": "temporal path from likely root to symptom across 1 hop(s)"
+        },
+        {
+          "nodes": [
+            "demo|cgroup.v2.io.stat.rbytes:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+            "demo|cgroup.v2.io.stat.wbytes:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable"
+          ],
+          "score": 0.88,
+          "why": "temporal path from likely root to symptom across 1 hop(s)"
+        }
+      ],
+      "confidence": {
+        "score": 0.469,
+        "data_limited": false,
+        "weak_directionality": true,
+        "ambiguous_roots": true
+      },
+      "summary": "demo|cgroup.v2.memory.stat.file_dirty:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable (metric cgroup.v2.memory.stat.file_dirty:avg) is the top likely root for time_cluster_1 (confidence 0.47)"
+    },
+    {
+      "correlation_pattern": "time_cluster_2",
+      "root_candidates_series": [
+        {
+          "id": "demo|kernel_cpu_percentage:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+          "score": 0.65,
+          "onset_time": 1769636372,
+          "why": [
+            "early onset compared with peer anomalies",
+            "persistence 1.00",
+            "high severity (peak sigma 1.00)"
+          ]
+        },
+        {
+          "id": "demo|kernel_cpu_usage_millicores:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+          "score": 0.65,
+          "onset_time": 1769636372,
+          "why": [
+            "early onset compared with peer anomalies",
+            "persistence 1.00",
+            "high severity (peak sigma 1.00)"
+          ]
+        },
+        {
+          "id": "demo|system_cpu_percentage:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+          "score": 0.65,
+          "onset_time": 1769636372,
+          "why": [
+            "early onset compared with peer anomalies",
+            "persistence 1.00",
+            "high severity (peak sigma 1.00)"
+          ]
+        }
+      ],
+      "root_candidates_metric": [
+        {
+          "id": "kernel_cpu_percentage:avg",
+          "score": 0.65,
+          "onset_time": 1769636372,
+          "why": [
+            "probabilistic rollup of top series candidates"
+          ]
+        },
+        {
+          "id": "kernel_cpu_usage_millicores:avg",
+          "score": 0.65,
+          "onset_time": 1769636372,
+          "why": [
+            "probabilistic rollup of top series candidates"
+          ]
+        },
+        {
+          "id": "system_cpu_percentage:avg",
+          "score": 0.65,
+          "onset_time": 1769636372,
+          "why": [
+            "probabilistic rollup of top series candidates"
+          ]
+        }
+      ],
+      "evidence_paths": [
+        {
+          "nodes": [
+            "demo|kernel_cpu_percentage:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+            "demo|kernel_cpu_usage_millicores:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable"
+          ],
+          "score": 0.756,
+          "why": "temporal path from likely root to symptom across 1 hop(s)"
+        },
+        {
+          "nodes": [
+            "demo|kernel_cpu_usage_millicores:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+            "demo|kernel_cpu_percentage:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable"
+          ],
+          "score": 0.756,
+          "why": "temporal path from likely root to symptom across 1 hop(s)"
+        },
+        {
+          "nodes": [
+            "demo|system_cpu_percentage:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable",
+            "demo|kernel_cpu_percentage:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable"
+          ],
+          "score": 0.756,
+          "why": "temporal path from likely root to symptom across 1 hop(s)"
+        }
+      ],
+      "confidence": {
+        "score": 0.25,
+        "data_limited": false,
+        "weak_directionality": true,
+        "ambiguous_roots": true
+      },
+      "summary": "demo|kernel_cpu_percentage:avg|container_id:fc108741ec27,container_name:leaky-app,namespace:default,pod_name:memory-leak-ef48ae3f,qos_class:Burstable (metric kernel_cpu_percentage:avg) is the top likely root for time_cluster_2 (confidence 0.25)"
+    }
+  ]
+}

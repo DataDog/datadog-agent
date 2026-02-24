@@ -1,0 +1,93 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What do the correlations tell you?**  
+   There is **one big incident-like time cluster** (“time_cluster_1”) where **hundreds of container + node metrics anomalied simultaneously** over ~21 seconds, spanning CPU usage, CPU/IO stall signals, memory metrics, disk/blkio writes, and kubelet/runtime telemetry—i.e., a **shared underlying resource disturbance** rather than a single isolated container metric.
+
+2. **Is there a problem? (yes/no/unclear)**  
+   **Unclear.**
+
+3. **If yes, what is it? (one sentence)**  
+   N/A
+
+4. **Confidence level (high/medium/low)**  
+   **Low** (leans “something transient happened”, but not enough to assert a concrete failure/root cause).
+
+5. **If not high confidence: what are the alternative possibilities and why are you uncertain?**  
+   - **Host-wide transient I/O contention / storage burst** (e.g., heavy writes, log flush, image unpack, checkpointing): fits the blkio/write anomalies + IO stalls, but we don’t see actual values/peaks, just that they “shifted” under CUSUM.  
+   - **CPU scheduling pressure / node contention** causing widespread **cpu.partial_stall** and broad CPU anomalies across many containers: plausible, but CPU anomalies could be secondary to I/O wait or normal workload step-change.  
+   - **Telemetry/collection artifact or baseline reset**: the cluster includes many “system.disk.*” series across lots of mountpoints and many kubelet histogram buckets simultaneously—patterns that can occur when instrumentation state changes or baselines are learned poorly; CUSUM is sensitive to small sustained shifts and can flood.  
+   Uncertainty is driven by: **CUSUM shift magnitudes are small (often ~1.6–2.7σ in samples), incident duration is short, and RCA flags “ambiguous_roots” with only ~0.52 confidence**.
+
+6. **Supporting evidence (from the data)**  
+   - **TimeCluster: 876 anomalies** in a tight window: `first_seen=1771417694`, `last_updated=1771417715`.  
+   - **Widespread CPU stall signals** across many containers: many `container.cpu.partial_stall:avg` sources listed.  
+   - **I/O involvement**: `container.io.partial_stall:avg`, `container.io.write:avg`, `container.io.write.operations:avg`, and `containerd.blkio.service_recursive_bytes:avg (operation:write, device:vda)` appear in the cluster.  
+   - **Broad CPU metrics anomalous across many workloads**: `kubernetes.cpu.usage.total:avg`, `containerd.cpu.total/user/system:avg`, `cri.cpu.usage:avg`.  
+   - **Node/kernel/runtime signals also anomalous**: `system.io.*` (await/util/w_await/etc), `system.load.*`, numerous kubelet runtime/PLEG histogram bucket series.  
+   - **RCA confidence flags**: `confidence.score=0.519` with `flags=ambiguous_roots`.
+
+7. **Does the RCA root candidates support your conclusion?**  
+   **Partially.** The RCA’s top candidates point to the **datadog-agent “observer-agent” container** (`container_id:4259d...`) showing **early-onset anomalies in write-bytes (blkio), CPU user, and mem kernel usage**, which supports the idea of a **shared node disturbance starting around the agent / its disk writes**. However, RCA also marks **ambiguous_roots** and only ~0.52 confidence, which aligns with my **“unclear”** verdict rather than a definitive “yes, root cause is X.”

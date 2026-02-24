@@ -1,0 +1,74 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What do the correlations tell you?**  
+   - **time_cluster_1:** A large, near-simultaneous multi-metric anomaly burst (236 series across many families) spanning **CPU pressure/throttling, IO pressure, and broad memory/smaps changes** across multiple containers → looks like a **node-level / shared-resource contention event** rather than a single app-only metric glitch.  
+   - **time_cluster_2:** A small, single-timestamp cluster (10 series) confined to **todo-backend** showing **CPU usage jump** plus **socket memory (sock) change** → a brief, workload-local event.
+
+2. **Is there a problem? (yes/no/unclear)**  
+   **Yes.**
+
+3. **If yes, what is it? (one sentence)**  
+   A short incident of **shared resource contention** (CPU/IO pressure with widespread memory activity) affecting multiple containers at the same time, consistent with a node-wide contention spike or disruptive background job.
+
+4. **Confidence level (high/medium/low)**  
+   **Medium.**
+
+5. **Alternative possibilities + why uncertain (if not high confidence)**  
+   - **Coordinated rollout/restart or orchestration event** (pods/containers starting together) causing simultaneous shifts in cgroup “events/populated”, memory peaks, and smaps metrics; uncertainty because TimeCluster only groups by time and the digest flags **weak_directionality/ambiguous_roots** with **no onset chain**.  
+   - **Metrics/baseline artifact** from CUSUM learning only the first 25%: if the “baseline” is from a quieter period, later normal load could appear as a sustained shift; uncertainty because we don’t see raw time series context beyond samples.  
+   - **Disk-heavy cleanup job triggering IO + CPU + memory churn** (e.g., filesystem cache, slab growth) that then impacts neighbors; plausible given the “cleanup” container has early high IO/CPU in samples, but causality is uncertain due to low RCA confidence.
+
+6. **Supporting evidence (from the data)**  
+   - **time_cluster_1 breadth:** 236 anomalous series across **63+ metric families** including CPU pressure (`cgroup.v2.cpu.pressure.*`), IO pressure (`cgroup.v2.io.pressure.*`), and many memory stats (`cgroup.v2.memory.current/peak/stat.*`, `smaps_rollup.*`).  
+   - **Simultaneity:** cluster window **first_seen 1769636399, last_updated 1769636485** with many anomalies around **1769636458**.  
+   - **Resource contention signals:** presence of **CPU pressure full/some totals**, **IO pressure some/full totals**, and CPU throttling/period metrics (`cgroup.v2.cpu.stat.nr_periods`, `nr_throttled/throttled_usec` in family counts).  
+   - **Memory activity spike:** smaps rollup anomalies like `private_dirty`, `rss`, `pss`, `referenced`; cgroup memory stats like `anon`, `slab_unreclaimable`, `pgfault`, `inactive_file`.  
+   - **Secondary localized event:** time_cluster_2 is only **todo-backend** and includes `cpu_percentage`, `user/system/kernel_cpu_*`, plus `cgroup.v2.memory.stat.sock`.
+
+7. **Do the RCA/digest key sources and onset chain support the conclusion?**  
+   - **Key sources:** Yes **in a general sense**—they emphasize CPU/IO pressure and memory/kernel metrics across multiple containers, which supports a **shared-resource contention** hypothesis.  
+   - **Onset chain:** **Not available (null)**, and digest explicitly flags **low RCA confidence** with **weak_directionality/ambiguous_roots**, so the specific ranked “root candidates” (e.g., cleanup CPU/IO) **do not reliably establish causation**, only that those metrics were among the earliest/severe in the cluster.

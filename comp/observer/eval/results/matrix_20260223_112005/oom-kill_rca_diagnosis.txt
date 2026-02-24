@@ -1,0 +1,92 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What do the correlations tell you?**  
+   There is **one TimeCluster** where **~63 different metrics** across CPU, memory, I/O, and pids all anomalied **at essentially the same moment** for the same container/pod, indicating a single incident affecting many subsystems simultaneously (not isolated metric noise).
+
+2. **Is there a problem? (yes/no/unclear)**  
+   **Yes.**
+
+3. **If yes, what is it? (one sentence)**  
+   The container/pod experienced a **major workload/state change consistent with an OOM-related event**, with simultaneous CPU surge/throttling, sharp memory growth, and increased I/O activity.
+
+4. **Confidence level (high/medium/low)**  
+   **Medium.**
+
+5. **If not high confidence: alternatives + why uncertain**  
+   - **Legitimate workload spike / batch job start**: the same pattern (CPU+I/O+memory jump) can occur when a job begins or traffic suddenly increases; the data shown doesn’t include an explicit OOM kill counter or restart event.  
+   - **Container restart / repopulation causing metric resets**: the cluster includes `cgroup.events.populated`, `cgroup.procs`, and `threads`, which can shift during lifecycle changes; without restart timestamps/events, it’s ambiguous.  
+   Uncertainty is because the output shows **metric shifts** but not a direct “OOM kill occurred” signal (e.g., `oom_kill`, restart count, dmesg).
+
+6. **Supporting evidence (from the data)**  
+   - Single correlation: **“TimeCluster: 63 anomalies”** all tied to `container_name:oom-victim`, `pod_name:oom-kill-7f36e710`, `namespace:default`, `qos_class:Burstable`.  
+   - **CPU surge**: `cpu.stat.usage_usec` shifted to **35288** (from **598**), `user_usec` to **19501** (from **330**), `system_usec` to **15786** (from **267**) (~**7.6σ**).  
+   - **CPU contention/throttling**: `cpu.pressure some/full avg10` to **0.74** (from **0.04**, **4.2σ**) and `cpu.stat.local.throttled_usec` increased.  
+   - **I/O spike + I/O pressure**: `io.stat.rbytes` to **1,589,248** (from **26,936**, **7.6σ**), `io.stat.rios` to **18** (from **0.31**, **7.6σ**), plus `io.pressure some/full.total` increased.  
+   - **Memory jump**: `memory.current` to **20,226,048** (from **5,519,872**), `active_anon` to **20,353,024** (from **5,320,451**), `smaps_rollup.pss` to **18,763,776** (from **5,539,217**).  
+   - **Process activity change**: `pids.peak` shifted to **8** (from **1.87**); cluster also includes `pids.current/max` and `cgroup.procs/threads`.
+
+7. **RCA support?**  
+   **No RCA section is present**, so there are **no RCA root candidates** to confirm or contradict the conclusion.

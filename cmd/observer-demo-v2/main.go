@@ -30,6 +30,7 @@ func main() {
 
 	// Deduplication
 	enableDedup := flag.Bool("dedup", false, "enable anomaly deduplication before correlation")
+	enableRCA := flag.Bool("rca", false, "enable RCA ranking/explanations for supported correlators")
 
 	// Output
 	outputFile := flag.String("output", "", "path to write JSON results (anomalies + correlations)")
@@ -72,6 +73,12 @@ func main() {
 	// Dedup tuning
 	dedupBucket := flag.Int64("dedup-bucket", 0, "Dedup: bucket size seconds (default: 5)")
 
+	// RCA tuning
+	rcaTopK := flag.Int("rca-top-k", 0, "RCA: max root candidates to emit (default: 3)")
+	rcaMaxPaths := flag.Int("rca-max-paths", 0, "RCA: max evidence paths to emit (default: 3)")
+	rcaOnsetEpsilon := flag.Int64("rca-onset-epsilon", 0, "RCA: onset epsilon seconds for direction ties (default: 1)")
+	rcaMaxEdgeLag := flag.Int64("rca-max-edge-lag", 0, "RCA: max lag seconds used for temporal edges (default: 10)")
+
 	flag.Parse()
 
 	// If no emitters specified, default to CUSUM
@@ -94,6 +101,7 @@ func main() {
 		EnableLeadLagCorrelator:     *leadLagCorrelator,
 		EnableSurpriseCorrelator:    *surpriseCorrelator,
 		EnableDedup:                 *enableDedup,
+		EnableRCA:                   *enableRCA,
 		OutputFile:                  *outputFile,
 		ProcessAllData:              *processAll,
 
@@ -118,5 +126,9 @@ func main() {
 		SurpriseMinLift:                 *surpriseMinLift,
 		SurpriseMinSupport:              *surpriseMinSupport,
 		DedupBucketSeconds:              *dedupBucket,
+		RCAMaxRootCandidates:            *rcaTopK,
+		RCAMaxEvidencePaths:             *rcaMaxPaths,
+		RCAOnsetEpsilonSeconds:          *rcaOnsetEpsilon,
+		RCAMaxEdgeLagSeconds:            *rcaMaxEdgeLag,
 	})
 }

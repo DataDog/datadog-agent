@@ -1,0 +1,29 @@
+{
+  "episode": "capacity-removal-outage",
+  "scenario": {
+    "app_name": "aws-s3-outage",
+    "description": "Operator capacity removal command causes etcd quorum loss and S3 service outage",
+    "long_description": "An S3 team member was debugging slow billing system performance and executed a capacity removal command with an incorrect input parameter. Instead of removing a small subset of servers from the billing subsystem, the command removed a significant portion of servers supporting the s3-index-subsystem. The index subsystem uses etcd for distributed coordination - when too many servers were removed, the etcd cluster lost quorum (etcd.server.has_leader dropped to 0). Without leader election, the index subsystem could not serve any metadata queries, causing all operations (index.lookup, index.list, index.delete, index.update) to fail with gRPC errors. The s3-placement-subsystem depends on s3-index-subsystem for metadata lookups before allocating storage - it also failed immediately. With both core subsystems down, s3-api-gateway could not service any S3 API requests (GET, PUT, LIST, DELETE), returning 503 errors. The blast radius extended to all dependent AWS services: ec2-instance-launch failed because it could not fetch AMI data from S3, ebs-volume-service failed because it could not restore snapshots from S3, aws-lambda failed because it could not fetch function code from S3, and service-health-dashboard could not display accurate status because its admin console depends on S3. The root cause chain is: operator capacity removal command -> s3-index-subsystem etcd quorum loss (has_leader=0) -> s3-index-subsystem gRPC errors -> s3-placement-subsystem failures -> s3-api-gateway 503 errors -> downstream service failures (EC2, EBS, Lambda, Dashboard)."
+  },
+  "environment": "qbranch_gensim",
+  "execution_id": "qbranch_gensim",
+  "success": true,
+  "start_time": "2026-02-18T12:36:05Z",
+  "end_time": "2026-02-18T13:06:52Z",
+  "baseline": {
+    "start": "2026-02-18T12:46:18Z",
+    "end": "2026-02-18T12:56:32Z"
+  },
+  "disruption": {
+    "start": "2026-02-18T12:56:32Z",
+    "end": "2026-02-18T13:06:49Z"
+  },
+  "alert": {
+    "monitor_id": 0,
+    "monitor_name": "s3_api_error_rate",
+    "timestamp": "2026-02-18T12:58:02Z"
+  },
+  "monitors": {
+    "s3_api_error_rate": 0
+  }
+}

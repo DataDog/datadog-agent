@@ -1,0 +1,93 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1) **What do the correlations tell you?**  
+- There’s one dominant incident window (**time_cluster_1**) where **almost every container metric (67 sources)** in `leaky-app` shifts together over ~77 seconds, indicating a broad, sustained state change rather than isolated noise.  
+- A second, later micro-cluster (**time_cluster_2**) shows **CPU-only anomalies at a single timestamp**, likely a follow-on/aftershock or a separate short CPU burst.
+
+2) **Is there a problem?**  
+- **Yes.**
+
+3) **If yes, what is it? (one sentence)**  
+- `leaky-app` experienced a **sustained workload shift** consistent with a **memory-growth/leak-like behavior accompanied by increased I/O and CPU pressure**.
+
+4) **Confidence level**  
+- **Medium.**
+
+5) **If not high confidence: alternatives + why uncertain**  
+- **Intentional load/behavior change (not a leak):** Many “config/limit” metrics (e.g., `memory.max`, `cpu.weight`, `io.weight`) also “shift,” which can happen if the container was recreated or reconfigured, not necessarily due to pathological resource growth.  
+- **Container lifecycle / measurement artifact:** The baseline is learned from the first 25% of data; if the container started “idle” and then began normal work, CUSUM will flag a sustained “shift” even if it’s expected.  
+- **Unit/collection anomalies for procs/threads:** `cgroup.procs` and `cgroup.threads` jumping to **32327** is suspiciously high for a single container and could reflect parsing/aggregation issues or a mis-mapped metric.
+
+6) **Supporting evidence (from the data)**  
+- **Sustained I/O read increase:** `io.stat.rbytes` shifted to **1,662,976** (4.4σ above **81,785**), `io.stat.rios` to **20** (4.4σ above **0.98**) at `1769636331`.  
+- **Memory footprint increase (process memory):** `smaps_rollup.pss` to **13,344,768** (baseline **3,082,082**), `pss_dirty` to **8,421,376** (baseline **1,876,632**) at `1769636336`.  
+- **Anonymous memory growth signals:** `memory.stat.anon` / `active_anon` both shifted to **8,421,376** (baseline **1,876,632**) at `1769636336`.  
+- **Kernel/slab growth:** `memory.stat.slab` to **218,888** (baseline **44,641**), `kernel` to **317,440** (baseline **64,808**), `pagetables` to **71,680** (baseline **13,899**) at `1769636335`.  
+- **CPU involvement:** correlations include CPU usage and CPU pressure metrics in the big cluster; plus a later **CPU-only** cluster at `1769636372`.  
+- **Correlated, container-scoped:** all anomalies share the same tags (`container_id:fc108741ec27`, `container_name:leaky-app`, `pod_name:memory-leak-ef48ae3f`).
+
+7) **RCA/digest presence + whether it supports conclusion**  
+- **No RCA/digest is present** in the JSON, so there’s **no explicit onset chain** to confirm causality; conclusions rely on the time clusters and the shifted metrics shown.

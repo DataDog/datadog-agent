@@ -1,0 +1,94 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1) **What do the correlations tell you?**  
+A single tight **time cluster** (63 anomalous series within ~1s) hit one container/pod, spanning **CPU usage + CPU throttling/pressure + memory growth/peaks + major faults + I/O throughput/pressure + PID/proc/thread changes**—i.e., a coordinated resource stress event rather than an isolated metric glitch.
+
+2) **Is there a problem? (yes/no/unclear)**  
+**Yes.**
+
+3) **If yes, what is it? (one sentence)**  
+The container experienced an acute **resource-saturation episode** consistent with a burst in workload and/or memory pressure (possible OOM scenario) causing simultaneous CPU contention/throttling, paging/major faults, and elevated disk I/O/IO pressure.
+
+4) **Confidence level (high/medium/low)**  
+**Medium** (RCA confidence reported as low, but the multi-family co-occurrence pattern is strong).
+
+5) **Alternative possibilities & why uncertain (since not high confidence)**  
+- **Workload burst / batch job inside container**: could explain simultaneous CPU+I/O+memory increases without a “fault.” Uncertain because we don’t see app-level intent, only cgroup signals.  
+- **Memory limit too low leading to reclaim/thrash (and possibly OOM kill/restart)**: supported by memory peak/current + pgmajfault + workingset refault + IO pressure, but uncertain because we don’t see explicit `oom_kill` counter or restart events here.  
+- **Node-level contention affecting the container** (noisy neighbor): CPU pressure/throttling and IO pressure can be driven externally; uncertain because we only have this container’s metrics, not node-wide PSI/IO saturation context.  
+- **Container lifecycle event (start/stop/recreate)**: changes in `cgroup.events.populated`, procs, threads could be lifecycle-related; uncertain because onset chain is null and the detector is CUSUM (sustained shift) rather than explicit lifecycle markers.
+
+6) **Supporting evidence (from the data)**  
+- **Breadth of correlated families:** 63 series across CPU PSI, CPU stat, memory current/peak and many memory.stat fields, IO stat and IO PSI, pids/procs/threads, smaps_rollup.  
+- **CPU contention + throttling:** `cgroup.v2.cpu.pressure.full.avg10` and `...some.avg10` shifted to **0.74 (4.2σ)**; `cpu.stat.local.throttled_usec` increased; `nr_periods` increased.  
+- **CPU usage jump:** `cpu.stat.usage_usec` **35288 vs 598 baseline (7.6σ)**; `user_usec` and `system_usec` also **7.6σ**.  
+- **I/O surge + pressure:** `io.stat.rbytes` **1,589,248 vs 26,936 baseline (7.6σ)**; `rios` **18 vs 0.31 (7.6σ)**; `io.pressure...total` elevated.  
+- **Memory expansion / pressure signals:** `memory.current` **~20.2MB vs 5.5MB (1.5σ)**; `memory.peak` anomalous; `smaps_rollup.pss` **~18.8MB vs 5.5MB**; `memory.stat.active_anon` ~20.3MB vs 5.3MB; plus correlated `pgmajfault` and `workingset_refault_file` families in the digest (indicative of paging/refault activity).  
+- **Process/pid changes:** `pids.peak` shifted to **8 vs 1.87**, and digest includes `cgroup.procs`, `threads`, `pids.current`.
+
+7) **Do the RCA/digest key sources and onset chain support the conclusion?**  
+- **Key sources:** Yes for the *general* conclusion of “coordinated container stress” (they show broad representative families: CPU usage, IO writes, memory peak/current/anon, pgmajfault, workingset refault, procs/populated).  
+- **Onset chain:** **No—there is no onset_chain (null)**, and the digest explicitly flags **low RCA confidence (0.25), weak_directionality, ambiguous_roots**, so the ranked “root” series (e.g., `cgroup.events.populated`) should not be treated as causal; only the simultaneous multi-resource anomaly pattern is reliable.

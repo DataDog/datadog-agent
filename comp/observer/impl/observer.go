@@ -70,6 +70,8 @@ type logObs struct {
 
 // NewComponent creates an observer.Component.
 func NewComponent(deps Requires) Provides {
+	cfg := pkgconfigsetup.Datadog()
+
 	correlator := NewCorrelator(CorrelatorConfig{})
 	reporter := &StdoutReporter{}
 
@@ -103,9 +105,15 @@ func NewComponent(deps Requires) Provides {
 		reporters: []observerdef.Reporter{
 			reporter,
 		},
-		storage:   newTimeSeriesStorage(),
-		obsCh:     make(chan observation, 1000),
-		maxEvents: 1000, // Keep last 1000 events for debugging
+		storage:          newTimeSeriesStorage(),
+		obsCh:            make(chan observation, 1000),
+		maxEvents:        1000, // Keep last 1000 events for debugging
+		correlationState: correlator,
+	}
+
+	rcaConfig := loadRCAConfig(cfg)
+	if rcaConfig.Enabled && obs.correlationState != nil {
+		obs.rcaService = NewRCAService(rcaConfig)
 	}
 
 	// Set up handle function with optional recorder wrapping.
@@ -118,8 +126,6 @@ func NewComponent(deps Requires) Provides {
 	}
 
 	go obs.run()
-
-	cfg := pkgconfigsetup.Datadog()
 
 	// Start periodic metric dump if configured
 	dumpPath := cfg.GetString("observer.debug_dump_path")
@@ -251,9 +257,12 @@ type observerImpl struct {
 	// NEW path: Signal-based processing (V2 architecture)
 	signalEmitters   []observerdef.SignalEmitter   // Layer 1: Point-based anomaly detection
 	signalProcessors []observerdef.SignalProcessor // Layer 2: Signal correlation/filtering
+	correlationState observerdef.CorrelationState
+	rcaService       *RCAService
 
 	// Deduplication layer (optional) - filters anomalies before correlation
-	deduplicator *AnomalyDeduplicator
+	deduplicator     *AnomalyDeduplicator
+	correlationDirty bool // set when anomalies are fed to correlators; cleared after RCA runs
 
 	// eventBuffer stores recent event signals (as unified Signals) for debugging/dumping.
 	// Ring buffer with maxEvents capacity.
@@ -485,6 +494,7 @@ func (o *observerImpl) processAnomaly(anomaly observerdef.AnomalyOutput) {
 	for _, processor := range o.anomalyProcessors {
 		processor.Process(anomaly)
 	}
+	o.correlationDirty = true
 }
 
 // captureRawAnomaly stores a raw anomaly for test bench display.
@@ -573,6 +583,14 @@ func (o *observerImpl) DedupSkippedCount() int {
 	return o.dedupSkipped
 }
 
+// RCAResults returns the latest RCA snapshot, if RCA is enabled.
+func (o *observerImpl) RCAResults() []RCAResult {
+	if o.rcaService == nil {
+		return nil
+	}
+	return o.rcaService.Results()
+}
+
 // flushAndReport flushes all anomaly processors and notifies all reporters.
 // Reporters are called with an empty report to trigger state-based reporting.
 func (o *observerImpl) flushAndReport() {
@@ -583,6 +601,13 @@ func (o *observerImpl) flushAndReport() {
 	// Flush signal processors (Layer 2)
 	for _, processor := range o.signalProcessors {
 		processor.Flush()
+	}
+	// Update RCA only when correlations have changed (new anomalies were fed to correlators).
+	if o.rcaService != nil && o.correlationState != nil && o.correlationDirty {
+		o.correlationDirty = false
+		if err := o.rcaService.Update(o.correlationState.ActiveCorrelations()); err != nil {
+			pkglog.Warnf("observer: RCA update failed: %v", err)
+		}
 	}
 	// Always notify reporters so they can check correlation state
 	for _, reporter := range o.reporters {

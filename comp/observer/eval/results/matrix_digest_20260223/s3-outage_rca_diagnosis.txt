@@ -1,0 +1,96 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1) **What do the correlations tell you?**  
+- There is **one large incident window** (`time_cluster_1`) where **888 metric series** across **CPU, memory, disk I/O, network, kubelet/runtime metrics** all anomalied essentially together, indicating a **system-wide/container-runtime-wide disturbance** rather than a single isolated metric glitch.  
+- The correlator’s earliest/most persistent anomalies point to **one containerd container (observer-agent)** with **write I/O + CPU user + kernel memory usage** shifting first, with many downstream anomalies following.
+
+2) **Is there a problem? (yes/no/unclear)**  
+- **Yes.**
+
+3) **If yes, what is it? (one sentence)**  
+- A **containerd workload (observer-agent container) likely triggered heavy sustained disk writes and CPU usage, causing broad node/kubelet/runtime performance side-effects** (I/O/CPU pressure reflected across many metrics).
+
+4) **Confidence level (high/medium/low)**  
+- **Medium.**
+
+5) **If not high confidence: alternatives and why uncertain**  
+- **Node-level disk pressure / storage contention (vda)** unrelated to the observer-agent being the true initiator: the “root” is inferred from **temporal onset**, but many things can shift nearly simultaneously during a node event.  
+- **Kubelet/runtime operations storm** (e.g., container lifecycle churn) driving I/O and CPU, with observer-agent just co-anomalous: the digest shows a huge count of `kubernetes.kubelet.runtime.operations.duration.count`.  
+- **Measurement/baseline artifact** from CUSUM learning the first 25%: large σ values on some metrics (e.g., network tx baseline ~90) suggest some baselines may be brittle, inflating anomaly counts.  
+- Uncertainty is explicitly flagged by the RCA: **`ambiguous_roots`** and confidence only **~0.53**, meaning multiple candidates look equally plausible.
+
+6) **Supporting evidence (from the data)**  
+- **Single dominant correlation:** `total_correlations: 1` with `source_count: 888` over `first_seen: 1771417694` to `last_updated: 1771417718`.  
+- **Top key sources / likely roots (same onset time, same score):**  
+  - `containerd.blkio.service_recursive_bytes:avg` (operation:write, device:vda) for container `4259d0...` (observer-agent)  
+  - `containerd.cpu.user:avg` for the same container  
+  - `containerd.mem.kernel.usage:avg` for the same container  
+- **Breadth of impacted families** inside the cluster: CPU (`containerd.cpu.*`, `cri.cpu.usage`, `kubernetes.cpu.*`), memory (`containerd.mem.*`, `container.memory.*` incl page faults), disk (`system.disk.*`, `system.io.*`), kubelet/runtime (`kubernetes.kubelet.runtime.operations.duration.count:avg` appears **87** times), plus network metrics present.  
+- **Evidence paths** connect each of the three top candidates to a downstream symptom metric (`kubernetes.cpu.usage.total` on a workload container), implying a plausible propagation chain (even if direction is uncertain).
+
+7) **Do the key sources and onset chain support the conclusion?**  
+- **Yes, partially.** The **onset chain** explicitly starts at `containerd.blkio.service_recursive_bytes` → `containerd.cpu.user` → `containerd.mem.kernel.usage` (all at T=1771417694) for the **observer-agent container**, which supports “I/O + CPU + kernel memory pressure began there.”  
+- **However**, because the confidence flags include **`ambiguous_roots`** and the top three candidates are **tied**, the digest/RCA supports the *general* conclusion (“containerd + I/O/CPU/kernel memory event”) more strongly than the *unique* attribution to one definitive root metric.

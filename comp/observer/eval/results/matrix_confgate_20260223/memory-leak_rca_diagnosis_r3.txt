@@ -1,0 +1,76 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1) **What do the correlations tell you?**  
+- **time_cluster_1:** A broad, simultaneous shift across **67 metric families** (memory/smaps, CPU usage & CPU pressure, I/O stats & I/O pressure, pids/threads/procs, and even cgroup “max/weight” settings) over ~**77s** (first_seen 1769636279 → last_updated 1769636356), suggesting a **major container state/behavior change** rather than a single noisy metric.  
+- **time_cluster_2:** A later, isolated **CPU-only** simultaneous anomaly across **7 CPU metrics** at a single timestamp (1769636372), consistent with a **brief CPU event** (spike or step) without the same breadth as cluster_1.
+
+2) **Is there a problem?**  
+**Yes.**
+
+3) **If yes, what is it? (one sentence)**  
+A container (“leaky-app”) underwent a sustained resource event consistent with **rapid memory growth and accompanying kernel/IO activity leading to system pressure (CPU/IO/memory) and very abnormal process/thread counts**.
+
+4) **Confidence level**  
+**Medium** (RCA confidence is low, but the multi-subsystem breadth is strong evidence of a real incident).
+
+5) **Alternative possibilities / why uncertain (not high confidence)**  
+- **Container restart/recreation or metrics attribution artifact:** simultaneous shifts in many “max/weight” style metrics (e.g., `memory.max`, `cpu.weight`, `io.weight`) can happen when a cgroup is recreated or limits are changed, and CUSUM will flag step changes; uncertainty because TimeCluster groups by time only and digest flags **weak_directionality/ambiguous_roots**.  
+- **Workload mode change (new traffic batch) instead of “leak”:** the concurrent rise in I/O reads (`rbytes`, `rios`) + dirty/file memory could reflect a legitimate workload phase (cache warmup / bulk processing).  
+- **Instrumentation/collection issue:** extremely large `cgroup.procs`/`threads` values are suspicious for a single container; could be parsing/aggregation bug or mixing levels (pod vs container).
+
+6) **Supporting evidence (from the data)**  
+- **Breadth & simultaneity:** time_cluster_1 has **67 anomalous series** spanning CPU, memory (cgroup + smaps), I/O, PSI pressure, and pids/threads/procs.  
+- **Memory growth indicators:** `smaps_rollup.pss` ~13.3M vs baseline ~3.1M; `smaps_rollup.rss` present; `memory.stat.anon/active_anon` shifted up; `memory.current/peak` included in cluster family list.  
+- **Kernel/page pressure signals:** `memory.stat.pgmajfault` anomalous; `memory.stat.pagetables`, `kernel_stack`, `slab*` increased (kernel memory activity).  
+- **I/O activity:** `io.stat.rbytes` 1,662,976 vs baseline 81,785 (4.4σ); `io.stat.rios` 20 vs 0.98 (4.4σ); `io.pressure.*.total` also in cluster.  
+- **CPU/pressure involvement:** `cpu.stat.usage_usec`, `cpu.pressure.some/full avg* and total` included; later CPU-only cluster_2 hits all CPU %/millicores metrics simultaneously.  
+- **Process/thread anomaly:** `cgroup.threads` and `cgroup.procs` shifted to **32327** vs baseline **6593** (very large), plus `pids.current` and `container.pid_count` shifted.
+
+7) **Do RCA/digest key sources and onset chain support the conclusion?**  
+- **Key sources:** The digest’s representative families (memory slab reclaimable, smaps rss, cpu pressure, pgmajfault, pid_count) **do support** the general conclusion of a **multi-resource incident** (memory + pressure + IO/CPU involvement).  
+- **Onset chain:** **Not available** (`onset_chain: null`), so it **does not support** a specific causal ordering.  
+- **RCA rankings:** Digest explicitly marks **low confidence** (0.47 / 0.25, flags weak_directionality, ambiguous_roots), so the specific “root” picks (e.g., `file_dirty`, `cpu.usage_usec`, `io.rbytes`) **should not be treated as proven causes**—only as coincident early signals.

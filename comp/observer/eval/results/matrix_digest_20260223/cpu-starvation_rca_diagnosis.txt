@@ -1,0 +1,96 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- rca (optional): ranked root candidates + evidence paths + confidence flags
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1) **What do the correlations tell you?**  
+All (deduped) anomalies collapse into a single incident window (**time_cluster_1380**) where **66 different container metrics** for the same pod/container (“crasher” in `crash-loop-2ad3b6ae`) became abnormal essentially together, spanning **memory, pids/threads, CPU pressure/throttling, and I/O**—i.e., a container-wide disturbance rather than an isolated metric.
+
+2) **Is there a problem?**  
+**Yes.**
+
+3) **If yes, what is it? (one sentence)**  
+The container likely experienced a **runaway process/fork + memory growth that dirtied file-backed pages and then drove write I/O and CPU pressure/throttling**.
+
+4) **Confidence level**  
+**Medium** (RCA confidence ~0.50 with ambiguity flags).
+
+5) **Alternative possibilities + why uncertain (since not high confidence)**  
+- **Crashloop / rapid process churn** as primary driver: `container.pid_count`, `pids`, and `threads` anomalies are strong and simultaneous with memory dirtying, so directionality (which caused which) is unclear.  
+- **Write-heavy workload first**: elevated `io.stat.wbytes` and I/O pressure could have caused `file_dirty` to rise (buffer/page cache dirtying) rather than the other way around; onset ordering is only a few seconds and flagged **weak_directionality**.  
+- **Resource limit/CPU contention event**: widespread CPU pressure + throttling could be the initial issue, with memory/I/O symptoms secondary; the TimeCluster correlator groups by simultaneity and doesn’t truly infer causality.
+
+6) **Supporting evidence (from the data)**  
+- Single correlation: **TimeCluster: 66 anomalies** (`time_cluster_1380`), indicating many subsystems moved together.  
+- **Top key sources** (highest scores):  
+  - `cgroup.v2.memory.stat.file_dirty:avg` (score **0.896**, early onset, persistent, high severity)  
+  - `container.pid_count:avg` (score **0.896**, early onset, persistent, high severity)  
+- **Onset chain (temporal ordering)**: `file_dirty` @ **1769630480** → `pid_count` @ **1769630480** → `io.stat.wbytes` @ **1769630485**.  
+- Metric families involved include:  
+  - **PID/thread expansion**: `cgroup.v2.cgroup.threads`, `cgroup.v2.pids.current/peak/max`, `container.pid_count`  
+  - **Memory growth + dirtying**: `memory.current`, `smaps_rollup.rss/pss_*`, `memory.stat.anon`, `memory.stat.file_dirty`, slab growth  
+  - **CPU contention/throttling**: `cpu.pressure.*`, `cpu.stat.*throttled*`  
+  - **I/O activity/pressure**: `io.stat.wbytes/wios`, `io.pressure.*`
+
+7) **Do the RCA key sources and onset chain support the conclusion?**  
+**Mostly yes, but not decisively.** The RCA’s **key sources (`file_dirty`, `pid_count`) and onset chain (dirty+pid first, writes a few seconds later)** are consistent with “process/memory activity leading to dirty pages then write I/O,” but the digest explicitly flags **weak_directionality** and **ambiguous_roots**, so the causal order between `file_dirty` and `pid_count` (same onset time) remains uncertain.

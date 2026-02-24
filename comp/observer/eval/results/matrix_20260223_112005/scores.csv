@@ -1,0 +1,9 @@
+scenario,variant,score,identified,rca_present,rca_confidence,rca_ambiguous
+oom-kill,baseline,78,partial,no,,
+oom-kill,rca,78,partial,no,,
+cpu-starvation,baseline,75,partial,no,,
+cpu-starvation,rca,78,partial,no,,
+traffic-spike,baseline,15,no,no,,
+traffic-spike,rca,15,no,no,,
+s3-outage,baseline,15,no,no,,
+s3-outage,rca,5,no,yes,0.519,true

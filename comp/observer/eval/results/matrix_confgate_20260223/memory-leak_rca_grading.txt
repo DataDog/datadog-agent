@@ -1,0 +1,16 @@
+============================================================
+EVALUATION
+============================================================
+Diagnosis file: results/matrix_confgate_20260223/memory-leak_rca_diagnosis.txt
+Problem type: memory leak
+Model: gpt-5.2-2025-12-11
+============================================================
+
+Checking if diagnosis identified: memory leak...
+
+============================================================
+EVALUATION RESULT:
+============================================================
+1. **Identified Issue**: partial  
+2. **What it said**: It described a sustained, system-wide resource shift “consistent with rapidly increasing memory footprint” and explicitly framed it as a “memory-leak / memory-growth leading to contention” style incident, but with only medium confidence and alternatives.  
+3. **Score**: 82
