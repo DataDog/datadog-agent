@@ -59,6 +59,9 @@ func (m *Manager) LookupEventInProfiles(event *model.Event) {
 		return
 	}
 
+	event.RecordCheckpoint("secprof_lookup_start")
+	defer event.RecordCheckpoint("secprof_lookup_done")
+
 	var profile *profile.Profile
 	var imageTag string
 	var tags []string
@@ -167,7 +170,9 @@ func (m *Manager) LookupEventInProfiles(event *model.Event) {
 				insertMissingProcesses = true
 			}
 		}
+		event.RecordCheckpoint("secprof_profile_contains_start")
 		found, err := profile.Contains(event, insertMissingProcesses, imageTag, activity_tree.ProfileDrift, m.resolvers)
+		event.RecordCheckpoint("secprof_profile_contains_done")
 		if err != nil {
 			// ignore, evaluation failed
 			m.incrementEventFilteringStat(event.GetEventType(), model.NoProfile, NA)
@@ -196,6 +201,9 @@ func (m *Manager) LookupEventInProfiles(event *model.Event) {
 
 // tryAutolearn tries to autolearn the input event. It returns the profile state: stable, unstable, autolearning or workloadwarmup
 func (m *Manager) tryAutolearn(profile *profile.Profile, ctx *profile.VersionContext, event *model.Event, imageTag string) model.EventFilteringProfileState {
+	event.RecordCheckpoint("secprof_autolearn_start")
+	defer event.RecordCheckpoint("secprof_autolearn_done")
+
 	profileState := m.getEventTypeState(profile, ctx, event, event.GetEventType(), imageTag)
 	var nodeType activity_tree.NodeGenerationType
 	if profileState == model.AutoLearning {
@@ -217,7 +225,9 @@ func (m *Manager) tryAutolearn(profile *profile.Profile, ctx *profile.VersionCon
 		insertMissingProcesses = true
 	}
 
+	event.RecordCheckpoint("secprof_profile_insert_start")
 	newEntry, err := profile.Insert(event, insertMissingProcesses, imageTag, nodeType, m.resolvers)
+	event.RecordCheckpoint("secprof_profile_insert_done")
 	if err != nil {
 		m.incrementEventFilteringStat(event.GetEventType(), model.NoProfile, NA)
 		return model.NoProfile
@@ -663,7 +673,9 @@ func (m *Manager) getEventTypeState(p *profile.Profile, pctx *profile.VersionCon
 		// for each event type we want to reach either the StableEventType or UnstableEventType states, even
 		// if we already reach the AnomalyDetectionUnstableProfileSizeThreshold. That's why we have to keep
 		// rearming the lastAnomalyNano timer based on if it's something new or not.
+		event.RecordCheckpoint("secprof_profile_contains_size_limit_start")
 		found, err := p.Contains(event, false /*insertMissingProcesses*/, imageTag, nodeType, m.resolvers)
+		event.RecordCheckpoint("secprof_profile_contains_size_limit_done")
 		if err != nil {
 			m.incrementEventFilteringStat(eventType, model.NoProfile, NA)
 			return model.NoProfile
