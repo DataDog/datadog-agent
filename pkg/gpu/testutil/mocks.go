@@ -280,22 +280,16 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			return DefaultProcessInfo, nvml.SUCCESS
 		},
 		GetMemoryInfoFunc: func() (nvml.Memory, nvml.Return) {
-			if isMIGUnsupported {
-				return nvml.Memory{}, nvml.ERROR_NOT_SUPPORTED
-			}
 			return nvml.Memory{Total: DefaultTotalMemory, Free: 500}, nvml.SUCCESS
 		},
 		GetMemoryInfo_v2Func: func() (nvml.Memory_v2, nvml.Return) {
-			if isMIGUnsupported {
-				return nvml.Memory_v2{}, nvml.ERROR_NOT_SUPPORTED
-			}
 			return nvml.Memory_v2{}, nvml.SUCCESS
 		},
 		GetMemoryBusWidthFunc: func() (uint32, nvml.Return) {
 			return DefaultMemoryBusWidth, nvml.SUCCESS
 		},
 		GetMaxClockInfoFunc: func(clockType nvml.ClockType) (uint32, nvml.Return) {
-			if isMIGOrVGPUUnsupported {
+			if isMIGUnsupported {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			rate, ok := DefaultMaxClockRates[clockType]
@@ -305,7 +299,7 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			return rate, nvml.SUCCESS
 		},
 		GetClockInfoFunc: func(clockType nvml.ClockType) (uint32, nvml.Return) {
-			if isMIGOrVGPUUnsupported {
+			if isMIGUnsupported {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			rate, ok := DefaultMaxClockRates[clockType]
@@ -381,7 +375,7 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			return 0, 0, false, false, nvml.SUCCESS
 		},
 		GetNvLinkStateFunc: func(_ int) (nvml.EnableState, nvml.Return) {
-			if isMIGOrVGPUUnsupported || opts.hasUnsupportedNVLinkFields() {
+			if isMIGUnsupported || opts.hasUnsupportedNVLinkFields() {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return nvml.FEATURE_ENABLED, nvml.SUCCESS
@@ -399,9 +393,6 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			return 0, nvml.SUCCESS
 		},
 		GetBAR1MemoryInfoFunc: func() (nvml.BAR1Memory, nvml.Return) {
-			if isMIGUnsupported {
-				return nvml.BAR1Memory{}, nvml.ERROR_NOT_SUPPORTED
-			}
 			return nvml.BAR1Memory{}, nvml.SUCCESS
 		},
 		GetMemoryErrorCounterFunc: func(_ nvml.MemoryErrorType, _ nvml.EccCounterType, _ nvml.MemoryLocation) (uint64, nvml.Return) {
@@ -423,9 +414,6 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			return *opts.migChildIndex, nvml.SUCCESS
 		},
 		GetProcessUtilizationFunc: func(lastSeenTimestamp uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
-			if isMIGOrVGPUUnsupported {
-				return nil, nvml.ERROR_NOT_FOUND
-			}
 			if opts.processInfoCB != nil {
 				uuid := GPUUUIDs[deviceIdx]
 				if opts.isMIGChild() {
@@ -446,9 +434,6 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			}, nvml.SUCCESS
 		},
 		GetSamplesFunc: func(_ nvml.SamplingType, lastSeenTimestamp uint64) (nvml.ValueType, []nvml.Sample, nvml.Return) {
-			if opts.isVGPU() {
-				return nvml.VALUE_TYPE_UNSIGNED_INT, nil, nvml.ERROR_NOT_FOUND
-			}
 			if isMIGUnsupported {
 				return nvml.VALUE_TYPE_UNSIGNED_INT, nil, nvml.ERROR_NOT_FOUND
 			}
@@ -461,7 +446,7 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			return nvml.VALUE_TYPE_UNSIGNED_INT, samples, nvml.SUCCESS
 		},
 		GetFieldValuesFunc: func(values []nvml.FieldValue) nvml.Return {
-			if isMIGOrVGPUUnsupported {
+			if isMIGUnsupported {
 				return nvml.ERROR_NOT_SUPPORTED
 			}
 			// Emulate monotonically increasing counters for field-based throughput metrics.
