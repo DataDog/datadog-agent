@@ -14,7 +14,8 @@ jobs:
           TITLE: ${{ github.event.pull_request.title }}
           DESCRIPTION: ${{ github.event.pull_request.body }}
         run: |
-          SKIP_CI_PATTERN='\[(ci skip|skip ci|actions skip|skip actions|no ci)\]|skip-checks:\s*true'
+          shopt -s nocasematch
+          SKIP_CI_PATTERN='\[(ci skip|skip ci|actions skip|skip actions|no ci)\]|skip-checks:[[:space:]]*true'
           if [[ "$TITLE" =~ $SKIP_CI_PATTERN ]]; then
             echo "error: The PR title contains ci skip tags." >&2
             exit 1
