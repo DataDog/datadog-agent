@@ -64,4 +64,3 @@ func TestWithTelemetryWrapper_5xxSetsErrorTag(t *testing.T) {
 	assert.Equal(t, 500, spans[0].Tag("http.status_code"))
 	assert.Equal(t, true, spans[0].Tag("error"))
 }
-

@@ -111,4 +111,3 @@ func TestHandlerWarmupSpan(t *testing.T) {
 		assert.Fail(t, "timeout waiting for Run to return")
 	}
 }
-
