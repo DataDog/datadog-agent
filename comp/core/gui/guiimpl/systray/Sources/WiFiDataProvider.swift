@@ -48,6 +48,9 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
     private var permissionAttemptCount: Int = 0  // Track number of permission prompt attempts (max 2), persisted per-user
     private let initializationTime: Date = Date()  // Track when WiFiDataProvider was initialized
 
+    /// Cached value of request_location_permission from datadog.yaml (nil = not yet read).
+    private static var cachedRequestLocationPermissionEnabled: Bool? = nil
+
     override init() {
         self.locationManager = CLLocationManager()
         super.init()
@@ -56,7 +59,7 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
 
         // Load persisted attempt count (per-user, per-installation); clamp to 0...2 (negative/corrupt → 0)
         permissionAttemptCount = min(max(UserDefaults.standard.integer(forKey: Self.userDefaultsPromptCountKey), 0), 2)
-        
+
         Logger.info("WiFiDataProvider initialized", context: "WiFiDataProvider")
     }
 
@@ -67,7 +70,7 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
         let task = Process()
         task.launchPath = "/bin/launchctl"
         task.arguments = ["managername"]
-        
+
         let pipe = Pipe()
         task.standardOutput = pipe
         task.standardError = Pipe() // discard errors, keep stderr silent (for cleaner logs)
@@ -94,6 +97,60 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
             Logger.error("Failed to check session type: \(error)", context: "WiFiDataProvider")
             return false
         }
+    }
+
+    /// Resolves the path to datadog.yaml (install path + "/etc/datadog.yaml").
+    /// Tries: system-wide plist, per-user plist, process env DD_INSTALL_PATH, then hardcoded fallback.
+    private static func resolveDatadogConfigPath() -> String {
+        let systemPlist = "/Library/LaunchAgents/com.datadoghq.gui.plist"
+        let perUserPlist = (FileManager.default.homeDirectoryForCurrentUser.path as NSString).appendingPathComponent("Library/LaunchAgents/com.datadoghq.gui.plist")
+        let plistPaths = [systemPlist, perUserPlist]
+
+        for plistPath in plistPaths {
+            guard FileManager.default.isReadableFile(atPath: plistPath) else { continue }
+            let url = URL(fileURLWithPath: plistPath)
+            guard let plist = NSDictionary(contentsOf: url) as? [String: Any],
+                  let env = plist["EnvironmentVariables"] as? [String: Any],
+                  let installPath = env["DD_INSTALL_PATH"] as? String,
+                  !installPath.isEmpty else { continue }
+            let configPath = (installPath as NSString).appendingPathComponent("etc/datadog.yaml")
+            return configPath
+        }
+
+        if let envPath = ProcessInfo.processInfo.environment["DD_INSTALL_PATH"], !envPath.isEmpty {
+            return (envPath as NSString).appendingPathComponent("etc/datadog.yaml")
+        }
+        return "/opt/datadog-agent/etc/datadog.yaml"
+    }
+
+    /// Returns true if the location permission prompt is allowed (request_location_permission in datadog.yaml).
+    /// Returns true when file/key is missing or unreadable (default allow). Cached for process lifetime.
+    private func requestLocationPermissionEnabled() -> Bool {
+        if let cached = Self.cachedRequestLocationPermissionEnabled {
+            return cached
+        }
+        let path = Self.resolveDatadogConfigPath()
+        guard FileManager.default.isReadableFile(atPath: path),
+              let content = try? String(contentsOfFile: path, encoding: .utf8) else {
+            Self.cachedRequestLocationPermissionEnabled = true
+            return true
+        }
+        // Match request_location_permission: true or false (optional comment # before key)
+        let pattern = #"^#?\s*request_location_permission\s*:\s*(true|false)\s*($|#)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.anchorsMatchLines, .caseInsensitive]) else {
+            Self.cachedRequestLocationPermissionEnabled = true
+            return true
+        }
+        let range = NSRange(content.startIndex..., in: content)
+        guard let match = regex.firstMatch(in: content, options: [], range: range),
+              let valueRange = Range(match.range(at: 1), in: content) else {
+            Self.cachedRequestLocationPermissionEnabled = true
+            return true
+        }
+        let value = String(content[valueRange]).lowercased()
+        let enabled = (value != "false")
+        Self.cachedRequestLocationPermissionEnabled = enabled
+        return enabled
     }
 
     /// Attempt to prompt for location permission via detached process
@@ -141,14 +198,14 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
         with title "Enable Location Permission" ¬
         with icon caution
         """
-        
+
         // Run osascript in background (detached from current process)
         let task = Process()
         task.launchPath = "/usr/bin/osascript"
         task.arguments = ["-e", script]
         task.standardOutput = nil
         task.standardError = nil
-        
+
         do {
             try task.run()
             // Don't wait for completion - let it run detached
@@ -176,9 +233,11 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
         // Allow up to 2 attempts to give users a second chance if they make a wrong choice
         let timeSinceInit = Date().timeIntervalSince(initializationTime)
         if !isAuthorized && permissionAttemptCount < 2 && timeSinceInit >= 10.0 {
-            if isGUIAvailable() {
+            if requestLocationPermissionEnabled() && isGUIAvailable() {
                 Logger.info("WiFi data request without permission (after 10s delay), attempting prompt (attempt \(permissionAttemptCount + 1)/2)...", context: "WiFiDataProvider")
                 attemptPermissionPrompt(authStatus: authStatus)
+            } else if !requestLocationPermissionEnabled() {
+                Logger.info("Location permission prompt disabled by request_location_permission in config - skipping prompt", context: "WiFiDataProvider")
             } else {
                 Logger.info("WiFi data request without permission in headless environment - skipping prompt", context: "WiFiDataProvider")
             }
@@ -252,7 +311,7 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = getAuthorizationStatus()
         Logger.info("Location authorization changed to: \(authorizationStatusString())", context: "WiFiDataProvider")
-        
+
         // Clean up prompt process when authorization status changes
         // Do not reset permissionAttemptCount so we respect user's manual choice:
         // if they denied twice or later manually disable in Settings, we do not prompt again

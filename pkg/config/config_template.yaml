@@ -787,6 +787,14 @@ api_key:
 #
 # GUI_session_expiration: <SESSION_EXPIRATION_DURATION>
 
+## @param request_location_permission - boolean - optional - default: true
+## @env DD_REQUEST_LOCATION_PERMISSION - boolean - optional - default: true
+## Controls whether the macOS GUI app may show the location permission prompt for WiFi (SSID/BSSID).
+## Set to false to disable the prompt. Default is true (prompt when appropriate).
+## The macOS install script can set this from DD_REQUEST_LOCATION_PERMISSION at install time.
+#
+# request_location_permission: true
+
 ## @param health_port - integer - optional - default: 0
 ## @env DD_HEALTH_PORT - integer - optional - default: 0
 ## The Agent can expose its health check on a dedicated http port.
