@@ -187,8 +187,9 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 
 	getContainersCB := c.getContainerTagsCallback(c.getContainersForExplicitTagging(conns.Conns))
 	getProcessTagsCB := c.getProcessTagsCallback()
+	iisTags := fetchIISTagsCache(c.sysprobeClient)
 	groupID := nextGroupID()
-	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
+	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor, iisTags)
 	return StandardRunResult(messages), nil
 }
 
@@ -452,6 +453,7 @@ func batchConnections(
 	tags []string,
 	agentCfg *model.AgentConfiguration,
 	serviceExtractor *parser.ServiceExtractor,
+	iisTags map[string][]string,
 ) []model.MessageBody {
 	groupSize := groupSize(len(cxs), maxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
@@ -527,8 +529,11 @@ func batchConnections(
 			// For same-host connections, resolve and attach the remote service tags
 			c.RemoteServiceTagsIdx = -1
 			if c.IntraHost {
-				if destPID, ok := portToPID[c.Raddr.Port]; ok && destPID != c.Pid {
-					var remoteTags []string
+				var remoteTags []string
+				var destPID int32
+
+				if pid, ok := portToPID[c.Raddr.Port]; ok && pid != c.Pid {
+					destPID = pid
 
 					// process_context tags from service extractor
 					destServiceCtx := serviceExtractor.GetServiceContext(destPID)
@@ -542,12 +547,20 @@ func batchConnections(
 							remoteTags = append(remoteTags, destProcessTags...)
 						}
 					}
+				}
 
-					if len(remoteTags) > 0 {
-						c.RemoteServiceTagsIdx = int32(tagsEncoder.Encode(remoteTags))
-						log.Debugf("remote service tags: pid=%d -> raddr.port=%d destPID=%d remoteServiceTagsIdx=%d tags=%v",
-							c.Pid, c.Raddr.Port, destPID, c.RemoteServiceTagsIdx, remoteTags)
+				// Append IIS-specific tags from system-probe ETW cache
+				if iisTags != nil {
+					iisKey := fmt.Sprintf("%d-%d", c.Raddr.Port, c.Laddr.Port)
+					if iisCachedTags, ok := iisTags[iisKey]; ok {
+						remoteTags = append(remoteTags, iisCachedTags...)
 					}
+				}
+
+				if len(remoteTags) > 0 {
+					c.RemoteServiceTagsIdx = int32(tagsEncoder.Encode(remoteTags))
+					log.Debugf("remote service tags: pid=%d -> raddr.port=%d destPID=%d remoteServiceTagsIdx=%d tags=%v",
+						c.Pid, c.Raddr.Port, destPID, c.RemoteServiceTagsIdx, remoteTags)
 				}
 			}
 

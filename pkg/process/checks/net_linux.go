@@ -35,6 +35,11 @@ func getListeningPortToPIDMap() map[int32]int32 {
 	return result
 }
 
+// fetchIISTagsCache is not applicable on Linux; returns nil.
+func fetchIISTagsCache(_ *http.Client) map[string][]string {
+	return nil
+}
+
 // getNetworkID fetches network_id from the current netNS or from the system probe if necessary, where the root netNS is used
 func getNetworkID(sysProbeClient *http.Client) (string, error) {
 	networkID, err := network.GetNetworkID(context.Background())
