@@ -3,14 +3,14 @@ module github.com/DataDog/datadog-agent/pkg/telemetry
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.77.0-rc.1
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.77.0-rc.2
 	go.uber.org/atomic v1.11.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/def v0.77.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.77.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.77.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.77.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.77.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.77.0-rc.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
