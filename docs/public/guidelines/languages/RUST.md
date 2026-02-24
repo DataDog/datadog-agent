@@ -12,7 +12,7 @@ The Datadog Agent uses [rules_rust](https://github.com/bazelbuild/rules_rust) fo
 
 ### Bazel Module Configuration
 
-The Rust toolchain is configured in [MODULE.bazel](../../../../MODULE.bazel):
+The Rust toolchain is configured in [MODULE.bazel](/MODULE.bazel):
 
 ```starlark
 bazel_dep(name = "rules_rust", version = "0.68.1")
@@ -32,18 +32,18 @@ This configuration:
 - Pins to **Rust 1.92.0** for reproducible builds
 - Registers toolchains for all supported platforms
 
-> **Important:** This is a global toolchain configuration that is used across the entire codebase of `datadog-agent`. The configuration in [MODULE.bazel](../../../../MODULE.bazel) **should not be changed** without proper testing to ensure
+> **Important:** This is a global toolchain configuration that is used across the entire codebase of `datadog-agent`. The configuration in [MODULE.bazel](/MODULE.bazel) **should not be changed** without proper testing to ensure
 that all `rust` components are still working.
 
 ## Crate Management
 
-All external Rust crates are managed **centrally** through a single [Cargo workspace](https://doc.rust-lang.org/cargo/reference/workspaces.html) defined in the root [Cargo.toml](../../../../Cargo.toml). Individual components **must not** declare their own dependency versions — all versions live in the root `[workspace.dependencies]` section, and component `Cargo.toml` files reference them with `.workspace = true`.
+All external Rust crates are managed **centrally** through a single [Cargo workspace](https://doc.rust-lang.org/cargo/reference/workspaces.html) defined in the root [Cargo.toml](/Cargo.toml). Individual components **must not** declare their own dependency versions — all versions live in the root `[workspace.dependencies]` section, and component `Cargo.toml` files reference them with `.workspace = true`.
 
-> **Important:** Do not add crate versions directly in a component's `Cargo.toml`. Every external dependency must be declared in the root [Cargo.toml](../../../../Cargo.toml) under `[workspace.dependencies]`. This ensures consistent versions across all Rust components, a single `Cargo.lock`, and a single source of truth for Bazel crate resolution.
+> **Important:** Do not add crate versions directly in a component's `Cargo.toml`. Every external dependency must be declared in the root [Cargo.toml](/Cargo.toml) under `[workspace.dependencies]`. This ensures consistent versions across all Rust components, a single `Cargo.lock`, and a single source of truth for Bazel crate resolution.
 
 ### How It Works
 
-The root [Cargo.toml](../../../../Cargo.toml) defines three things:
+The root [Cargo.toml](/Cargo.toml) defines three things:
 
 1. **`[workspace]`** — lists all Rust component directories as `members`
 2. **`[workspace.dependencies]`** — the single place where all external crate versions are pinned
