@@ -660,6 +660,7 @@ metrics:
         - pascal
         - volta
         - turing
+        - ada
       device_features:
         mig: false
         physical: true
