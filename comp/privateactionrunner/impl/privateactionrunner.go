@@ -248,7 +248,7 @@ func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
 
 // performSelfEnrollment handles the self-registration of a private action runner
 func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *parconfig.Config) (*parconfig.Config, error) {
-	ddSite := p.coreConfig.GetString("site")
+	ddSite := cfg.DatadogSite
 	apiKey := p.coreConfig.GetString("api_key")
 	appKey := p.coreConfig.GetString("app_key")
 
