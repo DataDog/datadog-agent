@@ -42,6 +42,8 @@ const (
 	ProductDataStreamsLiveMessages = "DSM_LIVE_MESSAGES"
 	// ProductDataStreamsKafkaActions is to execute Kafka actions remotely
 	ProductDataStreamsKafkaActions = "DSM_KAFKA_ACTIONS"
+	// ProductDebug is used for debugging and testing remote config
+	ProductDebug Product = "DEBUG"
 )
 
 // ProductListToString converts a product list to string list

@@ -53,6 +53,7 @@ const (
 	eventTypeDBMMetadata        = "dbm-metadata"
 	eventTypeDBMHealth          = "dbm-health"
 	eventTypeDataStreamsMessage = "data-streams-message"
+	eventTypeDoQueryResults     = "do-query-results"
 )
 
 func getPassthroughPipelines() []passthroughPipelineDesc {
@@ -277,6 +278,18 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
 			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+		},
+		{
+			eventType:                     eventTypeDoQueryResults,
+			category:                      "DO",
+			contentType:                   logshttp.JSONContentType,
+			endpointsConfigPrefix:         "data_observability.forwarder.",
+			hostnameEndpointPrefix:        "data-observability-intake.",
+			intakeTrackType:               "doqueryactions",
+			defaultBatchMaxConcurrentSend: 10,
+			defaultBatchMaxContentSize:    20e6,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultInputChanSize:          500,
 		},
 	}
 
