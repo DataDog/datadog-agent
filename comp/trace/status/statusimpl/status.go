@@ -9,14 +9,13 @@ package statusimpl
 import (
 	"embed"
 	"encoding/json"
-	"fmt"
 	"io"
 
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -26,6 +25,7 @@ type dependencies struct {
 
 	Config config.Component
 	Client ipc.HTTPClient
+	RAR    remoteagentregistry.Component `optional:"true"`
 }
 
 type provides struct {
@@ -43,6 +43,7 @@ func Module() fxutil.Module {
 type statusProvider struct {
 	Config config.Component
 	Client ipc.HTTPClient
+	RAR    remoteagentregistry.Component
 }
 
 func newStatus(deps dependencies) provides {
@@ -50,6 +51,7 @@ func newStatus(deps dependencies) provides {
 		StatusProvider: status.NewInformationProvider(statusProvider{
 			Config: deps.Config,
 			Client: deps.Client,
+			RAR:    deps.RAR,
 		}),
 	}
 }
@@ -80,23 +82,35 @@ func (s statusProvider) getStatusInfo() map[string]interface{} {
 func (s statusProvider) populateStatus() map[string]interface{} {
 	port := s.Config.GetInt("apm_config.debug.port")
 
-	url := fmt.Sprintf("https://localhost:%d/debug/vars", port)
-	resp, err := s.Client.Get(url, ipchttp.WithCloseConnection)
-	if err != nil {
-		return map[string]interface{}{
-			"port":  port,
-			"error": err.Error(),
+	if s.RAR != nil {
+		for _, agentStatus := range s.RAR.GetRegisteredAgentStatuses() {
+			if agentStatus.Flavor != "trace_agent" {
+				continue
+			}
+			if agentStatus.FailureReason != "" {
+				return map[string]interface{}{
+					"port":  port,
+					"error": agentStatus.FailureReason,
+				}
+			}
+
+			result := make(map[string]interface{}, len(agentStatus.MainSection))
+			for k, v := range agentStatus.MainSection {
+				var parsed interface{}
+				if err := json.Unmarshal([]byte(v), &parsed); err == nil {
+					result[k] = parsed
+				} else {
+					result[k] = v
+				}
+			}
+			return result
 		}
 	}
 
-	status := make(map[string]interface{})
-	if err := json.Unmarshal(resp, &status); err != nil {
-		return map[string]interface{}{
-			"port":  port,
-			"error": err.Error(),
-		}
+	return map[string]interface{}{
+		"port":  port,
+		"error": "not running or unreachable",
 	}
-	return status
 }
 
 // JSON populates the status map
