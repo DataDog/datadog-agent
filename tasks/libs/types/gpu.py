@@ -116,7 +116,7 @@ class GPUConfigValidationResult:
 
     @property
     def has_failures(self) -> bool:
-        return len(self.missing_metrics) + len(self.unknown_metrics) + len(self.tag_failures) > 0
+        return self.device_count > 0 and (len(self.missing_metrics) + len(self.unknown_metrics) + len(self.tag_failures) > 0)
 
     def update(self, other: "GPUConfigValidationResult") -> None:
         status_precedence = {
@@ -133,6 +133,7 @@ class GPUConfigValidationResult:
         self.present_metrics.update(other.present_metrics)
         self.unknown_metrics.update(other.unknown_metrics)
         self.tag_failures.update(other.tag_failures)
+        self.device_count += other.device_count
 
     @property
     def index_key(self) -> tuple[str, str]:
