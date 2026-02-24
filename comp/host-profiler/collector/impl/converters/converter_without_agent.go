@@ -16,8 +16,8 @@ import (
 	"slices"
 
 	"go.opentelemetry.io/collector/confmap"
-	"go.uber.org/zap/exp/zapslog"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
+	"go.uber.org/zap/exp/zapslog"
 )
 
 var resourceDetectionDefaultConfig = confMap{
