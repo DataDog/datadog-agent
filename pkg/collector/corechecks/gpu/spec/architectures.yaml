@@ -47,6 +47,7 @@ architectures:
         - FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL
         - FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL
         - FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL
+        - FI_DEV_MEMORY_TEMP
     unsupported_device_features:
       - mig
   blackwell:
