@@ -39,10 +39,10 @@ type PatternLogProcessor struct {
 	Observer          *observerImpl
 	ClustererPipeline *patterns.MultiThreadPipeline[*LogADTags]
 	ResultChannel     chan *patterns.MultiThreadResult[*LogADTags]
-	AnomalyDetectors  []PatternLogAnomalyDetector
+	AnomalyDetectors  []LogAnomalyDetector
 }
 
-func NewPatternLogProcessor(observer *observerImpl, anomalyDetectors []PatternLogAnomalyDetector) *PatternLogProcessor {
+func NewPatternLogProcessor(observer *observerImpl, anomalyDetectors []LogAnomalyDetector) *PatternLogProcessor {
 	resultChannel := make(chan *patterns.MultiThreadResult[*LogADTags], 4096)
 	clustererPipeline := patterns.NewMultiThreadPipeline(runtime.NumCPU(), resultChannel, false)
 
@@ -120,7 +120,7 @@ func (p *PatternLogProcessor) Process(log observer.LogView) observer.LogProcesso
 }
 
 // What we plug after the log processor
-type PatternLogAnomalyDetector interface {
+type LogAnomalyDetector interface {
 	SetProcessor(processor *PatternLogProcessor)
 	Run()
 	Name() string
@@ -137,6 +137,8 @@ type LogAnomalyDetectionProcessInput struct {
 // AD algorithm similar to Watchdog
 type WatchdogLogAnomalyDetector struct {
 	Processor *PatternLogProcessor
+	// Like Observer.obsCh, will create virtual metrics here
+	ObservationsChannel chan observation
 	// TODO
 	ResultChannel   chan *observer.LogProcessorResult
 	Period          time.Duration
@@ -222,22 +224,45 @@ func ParseTags(tags []string) LogADTags {
 	return result
 }
 
-func NewWatchdogLogAnomalyDetector(resultChannel chan *observer.LogProcessorResult) *WatchdogLogAnomalyDetector {
+func (tags *LogADTags) FullTags() []string {
+	res := make([]string, 0, 10)
+
+	if tags.Env != "" {
+		res = append(res, "env:"+tags.Env)
+	}
+	if tags.PodName != "" {
+		res = append(res, "pod_name:"+tags.PodName)
+	}
+	if tags.Service != "" {
+		res = append(res, "service:"+tags.Service)
+	}
+	if tags.Source != "" {
+		res = append(res, "source:"+tags.Source)
+	}
+	if tags.DirName != "" {
+		res = append(res, "dirname:"+tags.DirName)
+	}
+
+	return res
+}
+
+func NewWatchdogLogAnomalyDetector(resultChannel chan *observer.LogProcessorResult, observationsChannel chan observation) *WatchdogLogAnomalyDetector {
 	// TODO: Increase delay / sizes
 	return &WatchdogLogAnomalyDetector{
-		ResultChannel:     resultChannel,
-		Period:            100 * time.Millisecond,
-		Alpha:             0.95,
-		EvictionThreshold: 0.1,
-		PatternRate:       make(map[int64]float64),
-		PreprocessLen:     10,
-		EvalLen:           5,
-		BaselineLen:       20,
-		History:           make(map[int64]TimeSeriesHistory),
-		SnapshotIndex:     0,
-		AlertCooldown:     15 * time.Second,
-		LastAlerts:        make(map[int64]time.Time),
-		GroupByKeys:       make(map[int64]*LogADGroupByKey),
+		ResultChannel:       resultChannel,
+		ObservationsChannel: observationsChannel,
+		Period:              100 * time.Millisecond,
+		Alpha:               0.95,
+		EvictionThreshold:   0.1,
+		PatternRate:         make(map[int64]float64),
+		PreprocessLen:       10,
+		EvalLen:             5,
+		BaselineLen:         20,
+		History:             make(map[int64]TimeSeriesHistory),
+		SnapshotIndex:       0,
+		AlertCooldown:       15 * time.Second,
+		LastAlerts:          make(map[int64]time.Time),
+		GroupByKeys:         make(map[int64]*LogADGroupByKey),
 	}
 }
 
@@ -337,21 +362,18 @@ func (w *WatchdogLogAnomalyDetector) ProcessBatch(batch []*LogAnomalyDetectionPr
 		*/
 
 		// Send back to the observer creating virtual metrics
-		// TODO A
-		/*
-			for clusterID, rate := range w.PatternRate {
-				virtualMetricName := fmt.Sprintf("_.watchdog_log_ad.cluster.%d", clusterID)
-				w.Processor.Observer.obsCh <- observation{
-					source: "watchdog_log_ad",
-					metric: &metricObs{
-						name:  virtualMetricName,
-						value: rate,
-						// TODO: [partitionate] Tags
-						tags: []string{},
-					},
-				}
+		for hash, rate := range w.PatternRate {
+			groupByKey := w.GroupByKeys[hash]
+			virtualMetricName := fmt.Sprintf("_.watchdog_log_ad.cluster.%d", hash)
+			w.ObservationsChannel <- observation{
+				source: "watchdog_log_ad",
+				metric: &metricObs{
+					name:  virtualMetricName,
+					value: rate,
+					tags:  groupByKey.Tags.FullTags(),
+				},
 			}
-		*/
+		}
 
 		// TODO
 		// Test anomaly detection

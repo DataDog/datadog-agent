@@ -108,8 +108,9 @@ func NewComponent(deps Requires) Provides {
 		maxEvents: 1000, // Keep last 1000 events for debugging
 	}
 
-	logPatternProcessor := NewPatternLogProcessor(obs, []PatternLogAnomalyDetector{
-		NewWatchdogLogAnomalyDetector(make(chan *observerdef.LogProcessorResult, 1024)),
+	logPatternProcessor := NewPatternLogProcessor(obs, []LogAnomalyDetector{
+		// TODO: The result channel is useless
+		NewWatchdogLogAnomalyDetector(make(chan *observerdef.LogProcessorResult, 1024), obs.obsCh),
 	})
 	obs.logProcessors = append(obs.logProcessors, logPatternProcessor)
 
