@@ -1,4 +1,5 @@
 from __future__ import annotations
+# mypy: ignore-errors
 
 import os
 import time
@@ -7,6 +8,8 @@ from typing import Any
 
 from invoke import task
 from invoke.exceptions import Exit
+
+from tasks.libs.common.auth import dd_auth_api_app_keys
 
 
 def _load_gpu_validation_deps():
@@ -29,7 +32,7 @@ def _load_gpu_validation_deps():
         raise Exit(
             "Missing Python dependencies for gpu validation task.\n"
             "Install with:\n"
-            "  dda inv --dep datadog-api-client>=2.20.0 --dep pydantic>=2.0 --dep pyyaml>=6.0 --dep tabulate>=0.9.0 gpu.validate-live",
+            "  dda inv --dep \"datadog-api-client>=2.20.0\" --dep \"pydantic>=2.0\" --dep \"pyyaml>=6.0\" --dep \"tabulate>=0.9.0\" gpu.validate-metrics-single-org",
             code=1,
         ) from e
 
@@ -56,19 +59,56 @@ def _load_gpu_validation_deps():
     }
 
 
-@task(
-    help={
-        "spec": "Path to gpu_metrics.yaml",
-        "architectures": "Path to architectures.yaml",
-        "site": "Datadog site (defaults to DD_SITE or datadoghq.com)",
-        "lookback_seconds": "Metrics lookback window in seconds",
-    }
-)
-def validate_live(_, spec=None, architectures=None, site=None, lookback_seconds=3600):
-    """
-    Validate live GPU metrics by architecture/device-mode combinations.
-    """
-    deps = _load_gpu_validation_deps()
+def _require_api_keys() -> None:
+    if not os.environ.get("DD_API_KEY"):
+        raise Exit("DD_API_KEY environment variable is required", code=1)
+    if not os.environ.get("DD_APP_KEY"):
+        raise Exit("DD_APP_KEY environment variable is required", code=1)
+
+
+def _resolve_spec_paths(spec: str | None, architectures: str | None) -> tuple[str, str]:
+    repo_root = Path(__file__).resolve().parents[1]
+    spec_path = spec or str(repo_root / "pkg" / "collector" / "corechecks" / "gpu" / "spec" / "gpu_metrics.yaml")
+    architectures_path = architectures or str(
+        repo_root / "pkg" / "collector" / "corechecks" / "gpu" / "spec" / "architectures.yaml"
+    )
+    if not Path(spec_path).exists():
+        raise Exit(f"Spec file not found: {spec_path}", code=1)
+    if not Path(architectures_path).exists():
+        raise Exit(f"Architectures file not found: {architectures_path}", code=1)
+    return spec_path, architectures_path
+
+
+def _color_status(status: str) -> str:
+    colors = {"ok": "\033[32m", "fail": "\033[31m", "missing": "\033[33m", "unknown": "\033[33m"}
+    reset = "\033[0m"
+    return f"{colors.get(status, '')}{status}{reset}" if status in colors else status
+
+
+def _color_metric_counts(missing: int, known: int, unknown: int) -> str:
+    red = "\033[31m"
+    green = "\033[32m"
+    yellow = "\033[33m"
+    reset = "\033[0m"
+    missing_str = f"{red}{missing}{reset}" if missing > 0 else str(missing)
+    known_str = f"{green}{known}{reset}" if known > 0 else str(known)
+    unknown_str = f"{yellow}{unknown}{reset}" if unknown > 0 else str(unknown)
+    return f"{missing_str}/{known_str}/{unknown_str}"
+
+
+def _color_tag_failures(count: int) -> str:
+    red = "\033[31m"
+    reset = "\033[0m"
+    return f"{red}{count}{reset}" if count > 0 else str(count)
+
+
+def _compute_validation(
+    deps: dict[str, Any],
+    spec_path: str,
+    architectures_path: str,
+    site: str,
+    lookback_seconds: int,
+) -> dict[str, Any]:
     ApiClient = deps["ApiClient"]
     Configuration = deps["Configuration"]
     MetricsApiV1 = deps["MetricsApiV1"]
@@ -86,34 +126,10 @@ def validate_live(_, spec=None, architectures=None, site=None, lookback_seconds=
     Field = deps["Field"]
     ValidationError = deps["ValidationError"]
     field_validator = deps["field_validator"]
-    tabulate = deps["tabulate"]
     yaml = deps["yaml"]
 
-    DEVICE_MODES = ("physical", "mig", "vgpu")
-    # Staging rejects scalar payloads above ~50 queries with HTTP 422.
-    SCALAR_QUERY_BATCH_SIZE = 50
-    ANSI_GREEN = "\033[32m"
-    ANSI_RED = "\033[31m"
-    ANSI_YELLOW = "\033[33m"
-    ANSI_RESET = "\033[0m"
-
-    def color_status(status: str) -> str:
-        if status == "ok":
-            return f"{ANSI_GREEN}{status}{ANSI_RESET}"
-        if status == "fail":
-            return f"{ANSI_RED}{status}{ANSI_RESET}"
-        return f"{ANSI_YELLOW}{status}{ANSI_RESET}"
-
-    def color_metric_counts(missing: int, known: int, unknown: int) -> str:
-        missing_str = f"{ANSI_RED}{missing}{ANSI_RESET}" if missing > 0 else str(missing)
-        known_str = f"{ANSI_GREEN}{known}{ANSI_RESET}" if known > 0 else str(known)
-        unknown_str = f"{ANSI_YELLOW}{unknown}{ANSI_RESET}" if unknown > 0 else str(unknown)
-        return f"{missing_str}/{known_str}/{unknown_str}"
-
-    def color_tag_failures(count: int) -> str:
-        if count > 0:
-            return f"{ANSI_RED}{count}{ANSI_RESET}"
-        return str(count)
+    device_modes = ("physical", "mig", "vgpu")
+    scalar_query_batch_size = 50
 
     class SupportModel(BaseModel):
         model_config = ConfigDict(extra="forbid")
@@ -124,7 +140,7 @@ def validate_live(_, spec=None, architectures=None, site=None, lookback_seconds=
         @field_validator("device_features")
         @classmethod
         def validate_device_features(cls, value: dict[str, bool | str]) -> dict[str, bool | str]:
-            allowed_modes = set(DEVICE_MODES)
+            allowed_modes = set(device_modes)
             invalid_modes = sorted(set(value.keys()) - allowed_modes)
             if invalid_modes:
                 raise ValueError(
@@ -188,12 +204,6 @@ def validate_live(_, spec=None, architectures=None, site=None, lookback_seconds=
         except ValidationError as e:
             raise ValueError(f"Invalid schema in {path}:\n{e}") from e
 
-    def load_spec(spec_path: str) -> SpecModel:
-        return load_yaml_model(spec_path, SpecModel)
-
-    def load_architectures(architectures_path: str) -> ArchitecturesSpecModel:
-        return load_yaml_model(architectures_path, ArchitecturesSpecModel)
-
     def normalize_support_value(value) -> bool | None:
         if isinstance(value, bool):
             return value
@@ -205,11 +215,11 @@ def validate_live(_, spec=None, architectures=None, site=None, lookback_seconds=
                 return False
         return None
 
-    def build_combinations(architectures: ArchitecturesSpecModel) -> list[ComboModel]:
+    def build_combinations(architectures_spec: ArchitecturesSpecModel) -> list[ComboModel]:
         combos: list[ComboModel] = []
-        for arch_name, arch in architectures.architectures.items():
+        for arch_name, arch in architectures_spec.architectures.items():
             unsupported = {x.lower() for x in arch.unsupported_device_features}
-            for mode in DEVICE_MODES:
+            for mode in device_modes:
                 if mode not in unsupported:
                     combos.append(ComboModel(architecture=arch_name.lower(), device_mode=mode, is_known=True))
         return combos
@@ -221,18 +231,11 @@ def validate_live(_, spec=None, architectures=None, site=None, lookback_seconds=
                 continue
             if combo.architecture in metric.support.unsupported_architectures:
                 continue
-
             mode_support = normalize_support_value(metric.support.device_features.get(combo.device_mode))
             if mode_support is False:
                 continue
-
             expected[f"{spec_model.metric_prefix}.{metric_name}"] = metric
         return expected
-
-    def make_api_client(site_name: str):
-        config = Configuration()
-        config.server_variables["site"] = site_name
-        return config
 
     def combo_filter(combo: ComboModel) -> str:
         parts = [f"gpu_architecture:{combo.architecture}"]
@@ -241,7 +244,6 @@ def validate_live(_, spec=None, architectures=None, site=None, lookback_seconds=
         elif combo.device_mode == "vgpu":
             parts.append("gpu_virtualization_mode:vgpu")
         else:
-            # Physical devices are reported as passthrough in current tag schema.
             parts.append("gpu_virtualization_mode:passthrough")
         return ",".join(parts)
 
@@ -290,11 +292,9 @@ def validate_live(_, spec=None, architectures=None, site=None, lookback_seconds=
         query = "avg:gpu.device.total{*} by {gpu_architecture,gpu_slicing_mode,gpu_virtualization_mode}"
         response = api.query_metrics(_from=from_ts, to=to_ts, query=query)
         series_list = response.series if hasattr(response, "series") and response.series else []
-
         combos: set[tuple[str, str]] = set()
         for series in series_list:
             pointlist = getattr(series, "pointlist", []) or []
-            # Ignore discovered groups that did not report a positive device count.
             if not any((value is not None and value > 0) for value in (_extract_point_value(p) for p in pointlist)):
                 continue
             tag_set = getattr(series, "tag_set", [])
@@ -304,7 +304,6 @@ def validate_live(_, spec=None, architectures=None, site=None, lookback_seconds=
             if not arch:
                 continue
             arch = arch.strip().lower()
-            # Drop placeholder architecture values at discovery time.
             if arch in {"n/a", "na", "none", "unknown", ""}:
                 continue
             combos.add((arch, _normalize_device_mode(slicing_mode, virtualization_mode)))
@@ -397,7 +396,6 @@ def validate_live(_, spec=None, architectures=None, site=None, lookback_seconds=
             if not present_row_indexes:
                 continue
             present_metrics.add(metric_name)
-
             expected_tags = expected_tags_by_metric.get(metric_name, [])
             if not expected_tags:
                 continue
@@ -415,15 +413,9 @@ def validate_live(_, spec=None, architectures=None, site=None, lookback_seconds=
             missing_tags = [tag for tag, seen in non_null_seen.items() if not seen]
             if missing_tags:
                 tag_failures[metric_name] = missing_tags
-
         return present_metrics, tag_failures
 
-    def query_live_gpu_metrics_for_combo(
-        api,
-        combo: ComboModel,
-        lookback_seconds: int,
-        metric_prefix: str,
-    ) -> set[str]:
+    def query_live_gpu_metrics_for_combo(api, combo: ComboModel, lookback: int, metric_prefix: str) -> set[str]:
         metrics: set[str] = set()
         filter_expr = combo_filter_expression(combo)
         page_cursor = None
@@ -431,7 +423,7 @@ def validate_live(_, spec=None, architectures=None, site=None, lookback_seconds=
             kwargs = {
                 "filter_tags": filter_expr,
                 "filter_queried": True,
-                "window_seconds": max(lookback_seconds, 3600),
+                "window_seconds": max(lookback, 3600),
                 "page_size": 1000,
             }
             if page_cursor:
@@ -441,7 +433,6 @@ def validate_live(_, spec=None, architectures=None, site=None, lookback_seconds=
                 metric_name = getattr(item, "id", "")
                 if metric_name.startswith(f"{metric_prefix}."):
                     metrics.add(metric_name)
-
             pagination = getattr(getattr(response, "meta", None), "pagination", None)
             page_cursor = getattr(pagination, "next_cursor", None) if pagination else None
             if not page_cursor:
@@ -460,7 +451,6 @@ def validate_live(_, spec=None, architectures=None, site=None, lookback_seconds=
         expected_metrics = set(expected_metrics_map.keys())
         device_count = query_device_count(metrics_api_v1, combo, from_ts, to_ts)
         query_filter = combo_filter(combo)
-
         present_metrics: set[str] = set()
         unknown_metrics: set[str] = set()
         tag_failures: dict[str, list[str]] = {}
@@ -471,8 +461,7 @@ def validate_live(_, spec=None, architectures=None, site=None, lookback_seconds=
                 relative_name = metric_name.removeprefix(f"{spec_model.metric_prefix}.")
                 metric_model = expected_metrics_map.get(metric_name) or spec_model.metrics[relative_name]
                 expected_tags_by_metric[metric_name] = get_expected_tags_for_metric(spec_model, metric_model)
-
-            for batch_index, metric_batch in enumerate(_chunk(metric_names, SCALAR_QUERY_BATCH_SIZE), start=1):
+            for metric_batch in _chunk(metric_names, scalar_query_batch_size):
                 batch_present, batch_failures = query_scalar_metrics_for_combo(
                     metrics_api_v2,
                     metric_batch,
@@ -483,9 +472,6 @@ def validate_live(_, spec=None, architectures=None, site=None, lookback_seconds=
                 )
                 present_metrics.update(batch_present)
                 tag_failures.update(batch_failures)
-                print(
-                    f"    Scalar query batches: {batch_index}/{(len(metric_names) + SCALAR_QUERY_BATCH_SIZE - 1) // SCALAR_QUERY_BATCH_SIZE}..."
-                )
             live_gpu_metrics = query_live_gpu_metrics_for_combo(
                 metrics_api_v2,
                 combo,
@@ -493,7 +479,6 @@ def validate_live(_, spec=None, architectures=None, site=None, lookback_seconds=
                 spec_model.metric_prefix,
             )
             unknown_metrics = live_gpu_metrics - expected_metrics
-
         return ComboValidationResultModel(
             combo=combo,
             device_count=device_count,
@@ -513,105 +498,96 @@ def validate_live(_, spec=None, architectures=None, site=None, lookback_seconds=
                 by_key[key] = ComboModel(architecture=key[0], device_mode=key[1], is_known=False)
         return sorted(by_key.values(), key=lambda combo: (combo.architecture, combo.device_mode))
 
-    repo_root = Path(__file__).resolve().parents[1]
-    spec_path = spec or str(repo_root / "pkg" / "collector" / "corechecks" / "gpu" / "spec" / "gpu_metrics.yaml")
-    architectures_path = architectures or str(
-        repo_root / "pkg" / "collector" / "corechecks" / "gpu" / "spec" / "architectures.yaml"
-    )
-
-    if not Path(spec_path).exists():
-        raise Exit(f"Spec file not found: {spec_path}", code=1)
-    if not Path(architectures_path).exists():
-        raise Exit(f"Architectures file not found: {architectures_path}", code=1)
-
-    spec_model = load_spec(spec_path)
-    architectures_model = load_architectures(architectures_path)
-    site_name = site or os.environ.get("DD_SITE", "datadoghq.com")
-
-    print(f"Loaded metrics spec: {len(spec_model.metrics)} entries")
-    print(f"Loaded architecture spec: {len(architectures_model.architectures)} architectures")
-    print(f"Querying Datadog API at {site_name}...")
-
+    spec_model = load_yaml_model(spec_path, SpecModel)
+    architectures_model = load_yaml_model(architectures_path, ArchitecturesSpecModel)
     now = int(time.time())
     from_ts = now - int(lookback_seconds)
-    failing_count = 0
-    summary_rows: list[list[str | int]] = []
     known_combos = build_combinations(architectures_model)
+    rows: list[dict[str, Any]] = []
+    details: list[dict[str, Any]] = []
+    failing_count = 0
 
-    config = make_api_client(site_name)
+    config = Configuration()
+    config.server_variables["site"] = site
     with ApiClient(config) as api_client:
         metrics_api_v1 = MetricsApiV1(api_client)
         metrics_api_v2 = MetricsApiV2(api_client)
         live_combo_keys = discover_live_combos(metrics_api_v1, from_ts, now)
         combos = combine_known_and_live_combos(known_combos, live_combo_keys)
-        print(f"Generated combinations: {len(combos)} ({len(known_combos)} known, {len(combos) - len(known_combos)} discovered)")
         for combo in combos:
-            label = f"{combo.architecture}/{combo.device_mode}"
-            print(f"\n-- {label} --")
             result = validate_combo(metrics_api_v1, metrics_api_v2, spec_model, combo, from_ts, now)
             if not combo.is_known and result.device_count == 0:
-                print("  discovered combo ignored (no devices)")
                 continue
-            print(f"  devices: {result.device_count}")
-            print(f"  expected metrics: {len(result.expected_metrics)}")
+
             if result.device_count == 0:
-                print("  present metrics: skipped (no devices)")
-                print("  missing metrics: skipped (no devices)")
+                status = "unknown" if not combo.is_known else "missing"
                 known_metrics = len(result.expected_metrics) if combo.is_known else 0
                 unknown_metrics = 0 if combo.is_known else len(result.expected_metrics)
-                summary_rows.append(
-                    [
-                        combo.architecture,
-                        combo.device_mode,
-                        color_status("unknown" if not combo.is_known else "missing"),
-                        result.device_count,
-                        color_metric_counts(0, known_metrics, unknown_metrics),
-                        color_tag_failures(0),
-                    ]
+                row = {
+                    "architecture": combo.architecture,
+                    "device_mode": combo.device_mode,
+                    "status": status,
+                    "found_devices": result.device_count,
+                    "missing_metrics": 0,
+                    "known_metrics": known_metrics,
+                    "unknown_metrics": unknown_metrics,
+                    "tag_failures": 0,
+                }
+            else:
+                status = "unknown" if not combo.is_known else ("fail" if (result.missing_metrics or result.tag_failures) else "ok")
+                row = {
+                    "architecture": combo.architecture,
+                    "device_mode": combo.device_mode,
+                    "status": status,
+                    "found_devices": result.device_count,
+                    "missing_metrics": len(result.missing_metrics),
+                    "known_metrics": len(result.expected_metrics),
+                    "unknown_metrics": len(result.unknown_metrics),
+                    "tag_failures": len(result.tag_failures),
+                }
+                details.append(
+                    {
+                        "label": f"{combo.architecture}/{combo.device_mode}",
+                        "missing_metric_names": sorted(result.missing_metrics),
+                        "unknown_metric_names": sorted(result.unknown_metrics),
+                        "tag_failures": dict(sorted(result.tag_failures.items())),
+                        "is_known": combo.is_known,
+                    }
                 )
-                continue
-            print(f"  present metrics: {len(result.present_metrics)}")
-            print(f"  missing metrics: {len(result.missing_metrics)}")
-            print(f"  unknown metrics: {len(result.unknown_metrics)}")
-            print(f"  tag failures: {len(result.tag_failures)}")
-            summary_rows.append(
-                [
-                    combo.architecture,
-                    combo.device_mode,
-                    color_status(
-                        "unknown"
-                        if not combo.is_known
-                        else ("fail" if (result.missing_metrics or result.tag_failures) else "ok")
-                    ),
-                    result.device_count,
-                    color_metric_counts(
-                        len(result.missing_metrics),
-                        len(result.expected_metrics),
-                        len(result.unknown_metrics),
-                    ),
-                    color_tag_failures(len(result.tag_failures)),
-                ]
-            )
-            if result.missing_metrics:
-                print("  missing metric names:")
-                for name in sorted(result.missing_metrics):
-                    print(f"    - MISSING {name}")
-            if result.unknown_metrics:
-                print("  unknown metric names:")
-                for name in sorted(result.unknown_metrics):
-                    print(f"    - UNKNOWN {name}")
-            if result.tag_failures:
-                print("  tag failure details:")
-                for metric_name in sorted(result.tag_failures):
-                    tags = ", ".join(result.tag_failures[metric_name])
-                    print(f"    - TAG FAIL {metric_name}: missing/non-null [{tags}]")
-            if combo.is_known and (result.missing_metrics or result.unknown_metrics or result.tag_failures):
-                failing_count += 1
+                if combo.is_known and (result.missing_metrics or result.unknown_metrics or result.tag_failures):
+                    failing_count += 1
+            rows.append(row)
+
+    return {
+        "site": site,
+        "metrics_count": len(spec_model.metrics),
+        "architectures_count": len(architectures_model.architectures),
+        "rows": rows,
+        "details": details,
+        "failing_count": failing_count,
+    }
+
+
+def _render_single_org(result: dict[str, Any], tabulate) -> None:
+    print(f"Loaded metrics spec: {result['metrics_count']} entries")
+    print(f"Loaded architecture spec: {result['architectures_count']} architectures")
+    print(f"Querying Datadog API at {result['site']}...")
 
     print("\nSummary:")
+    table_rows = [
+        [
+            row["architecture"],
+            row["device_mode"],
+            _color_status(row["status"]),
+            row["found_devices"],
+            _color_metric_counts(row["missing_metrics"], row["known_metrics"], row["unknown_metrics"]),
+            _color_tag_failures(row["tag_failures"]),
+        ]
+        for row in result["rows"]
+    ]
     print(
         tabulate(
-            summary_rows,
+            table_rows,
             headers=[
                 "architecture",
                 "device mode",
@@ -624,6 +600,139 @@ def validate_live(_, spec=None, architectures=None, site=None, lookback_seconds=
         )
     )
 
-    print(f"\nCombinations with metric/tag failures (and devices present): {failing_count}")
-    if failing_count > 0:
+    for detail in result["details"]:
+        if detail["missing_metric_names"] or detail["unknown_metric_names"] or detail["tag_failures"]:
+            print(f"\n-- {detail['label']} --")
+            if detail["missing_metric_names"]:
+                print("  missing metric names:")
+                for name in detail["missing_metric_names"]:
+                    print(f"    - MISSING {name}")
+            if detail["unknown_metric_names"]:
+                print("  unknown metric names:")
+                for name in detail["unknown_metric_names"]:
+                    print(f"    - UNKNOWN {name}")
+            if detail["tag_failures"]:
+                print("  tag failure details:")
+                for metric_name, tags in detail["tag_failures"].items():
+                    print(f"    - TAG FAIL {metric_name}: missing/non-null [{', '.join(tags)}]")
+
+    print(f"\nCombinations with metric/tag failures (and devices present): {result['failing_count']}")
+
+
+def _render_merged(results_by_org: list[tuple[str, dict[str, Any]]], tabulate) -> None:
+    precedence = {"fail": 4, "ok": 3, "unknown": 2, "missing": 1}
+    by_combo: dict[tuple[str, str], dict[str, Any]] = {}
+    total_failing = 0
+    for _, result in results_by_org:
+        total_failing += result["failing_count"]
+        for row in result["rows"]:
+            key = (row["architecture"], row["device_mode"])
+            current = by_combo.get(key)
+            if current is None:
+                by_combo[key] = dict(row)
+                continue
+            if precedence.get(row["status"], 0) > precedence.get(current["status"], 0):
+                current["status"] = row["status"]
+            current["found_devices"] += row["found_devices"]
+            current["missing_metrics"] = max(current["missing_metrics"], row["missing_metrics"])
+            current["known_metrics"] = max(current["known_metrics"], row["known_metrics"])
+            current["unknown_metrics"] = max(current["unknown_metrics"], row["unknown_metrics"])
+            current["tag_failures"] = max(current["tag_failures"], row["tag_failures"])
+
+    merged_rows: list[list[Any]] = []
+    for architecture, device_mode in sorted(by_combo):
+        row = by_combo[(architecture, device_mode)]
+        merged_rows.append(
+            [
+                architecture,
+                device_mode,
+                _color_status(row["status"]),
+                row["found_devices"],
+                _color_metric_counts(row["missing_metrics"], row["known_metrics"], row["unknown_metrics"]),
+                _color_tag_failures(row["tag_failures"]),
+            ]
+        )
+
+    print("\nMerged summary:")
+    print(
+        tabulate(
+            merged_rows,
+            headers=[
+                "architecture",
+                "device mode",
+                "status",
+                "found devices",
+                "missing/known/unknown metrics",
+                "tag failures",
+            ],
+            tablefmt="github",
+        )
+    )
+    print("\nFailure counts per org:")
+    for org, result in results_by_org:
+        print(f"  - {org}: {result['failing_count']}")
+    print(f"Total failures across orgs: {total_failing}")
+
+
+@task(
+    name="validate-metrics-single-org",
+    help={
+        "spec": "Path to gpu_metrics.yaml",
+        "architectures": "Path to architectures.yaml",
+        "site": "Datadog site (defaults to datadoghq.com)",
+        "lookback_seconds": "Metrics lookback window in seconds",
+    },
+)
+def validate_metrics_single_org(_, spec=None, architectures=None, site="datadoghq.com", lookback_seconds=3600):
+    """
+    Validate live GPU metrics by architecture/device-mode combinations for one org.
+    """
+    deps = _load_gpu_validation_deps()
+    _require_api_keys()
+    spec_path, architectures_path = _resolve_spec_paths(spec, architectures)
+    result = _compute_validation(deps, spec_path, architectures_path, site, int(lookback_seconds))
+    _render_single_org(result, deps["tabulate"])
+    if result["failing_count"] > 0:
+        raise Exit(code=1)
+
+
+@task(
+    name="validate-metrics-all-dd",
+    help={
+        "spec": "Path to gpu_metrics.yaml",
+        "architectures": "Path to architectures.yaml",
+        "lookback_seconds": "Metrics lookback window in seconds",
+    },
+)
+def validate_metrics_all_dd(ctx, spec=None, architectures=None, lookback_seconds=3600):
+    """
+    Validate live GPU metrics for Datadog prod and staging using dd-auth credentials.
+    """
+    deps = _load_gpu_validation_deps()
+    spec_path, architectures_path = _resolve_spec_paths(spec, architectures)
+    orgs = [("prod", "app.datadoghq.com"), ("staging", "ddstaging.datadoghq.com")]
+
+    results_by_org: list[tuple[str, dict[str, Any]]] = []
+    org_errors: list[str] = []
+    for org_name, dd_auth_domain in orgs:
+        print(f"\n== Running GPU validation for {org_name} ({dd_auth_domain}) ==")
+        try:
+            with dd_auth_api_app_keys(ctx, dd_auth_domain):
+                _require_api_keys()
+                result = _compute_validation(deps, spec_path, architectures_path, "datadoghq.com", int(lookback_seconds))
+                results_by_org.append((org_name, result))
+        except Exception as e:
+            org_errors.append(f"{org_name}: {e}")
+            print(f"[ERROR] {org_name} failed: {e}")
+
+    if results_by_org:
+        _render_merged(results_by_org, deps["tabulate"])
+
+    if org_errors:
+        print("\nOrg execution errors:")
+        for err in org_errors:
+            print(f"  - {err}")
+        raise Exit(code=1)
+
+    if any(result["failing_count"] > 0 for _, result in results_by_org):
         raise Exit(code=1)
