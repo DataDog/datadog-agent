@@ -7,6 +7,7 @@
 package reporter
 
 import (
+	"sync"
 	"time"
 
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -27,6 +28,8 @@ type RuntimeReporter struct {
 	hostname  string
 	logSource *sources.LogSource
 	logChan   chan *message.Message
+	done      chan struct{}
+	once      sync.Once
 }
 
 // ReportRaw reports raw (bytes) events to the intake
@@ -36,7 +39,17 @@ func (r *RuntimeReporter) ReportRaw(content []byte, service string, timestamp ti
 	origin.SetService(service)
 	msg := message.NewMessage(content, origin, message.StatusInfo, timestamp.UnixNano())
 	msg.Hostname = r.hostname
-	r.logChan <- msg
+
+	select {
+	case r.logChan <- msg:
+	case <-r.done:
+	}
+}
+
+// Stop signals the reporter to stop accepting new messages.
+// Must be called before the underlying pipeline is stopped.
+func (r *RuntimeReporter) Stop() {
+	r.once.Do(func() { close(r.done) })
 }
 
 // NewCWSReporter returns a new CWS reported based on the fields necessary to communicate with the intake
@@ -62,7 +75,6 @@ func newReporter(hostname string, stopper startstop.Stopper, sourceName, sourceT
 		false, // serverless
 	)
 	pipelineProvider.Start()
-	stopper.Add(pipelineProvider)
 
 	logSource := sources.NewLogSource(
 		sourceName,
@@ -72,9 +84,17 @@ func newReporter(hostname string, stopper startstop.Stopper, sourceName, sourceT
 		},
 	)
 	logChan := pipelineProvider.NextPipelineChan()
-	return &RuntimeReporter{
+	r := &RuntimeReporter{
 		hostname:  hostname,
 		logSource: logSource,
 		logChan:   logChan,
-	}, nil
+		done:      make(chan struct{}),
+	}
+
+	// Stop the reporter before the pipeline to ensure no sends happen on the
+	// closed pipeline channel.
+	stopper.Add(r)
+	stopper.Add(pipelineProvider)
+
+	return r, nil
 }
