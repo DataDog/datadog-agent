@@ -6,6 +6,8 @@
 package setup
 
 import (
+	"strings"
+
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -52,9 +54,16 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault(PARTaskConcurrency, 5)
 	config.BindEnvAndSetDefault(PARTaskTimeoutSeconds, 60)
 	config.BindEnvAndSetDefault(PARActionsAllowlist, []string{})
+	config.ParseEnvAsStringSlice(PARActionsAllowlist, func(s string) []string {
+		return strings.Split(s, ",")
+	})
 
 	// HTTP action
 	config.BindEnvAndSetDefault(PARHttpTimeoutSeconds, 30)
 	config.BindEnvAndSetDefault(PARHttpAllowlist, []string{})
+	config.ParseEnvAsStringSlice(PARHttpAllowlist, func(s string) []string {
+		return strings.Split(s, ",")
+	})
 	config.BindEnvAndSetDefault(PARHttpAllowImdsEndpoint, false)
+
 }

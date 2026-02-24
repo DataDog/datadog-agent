@@ -79,3 +79,7 @@ func (ae agentK8sexecutor) execute(arguments []string) (string, error) {
 	// Return joined stdout and stderr, same as Docker.ExecuteCommandWithErr
 	return stdout + " " + stderr, nil
 }
+
+func (ae agentK8sexecutor) restart() error {
+	return ae.clusterClient.K8sClient.CoreV1().Pods(agentNamespace).Delete(context.Background(), ae.pod.Name, metav1.DeleteOptions{})
+}

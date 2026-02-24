@@ -11,7 +11,7 @@ pkg_files(
     }),
     attributes = pkg_attributes(
         group = "root",
-        mode = "0644",
+        mode = "0400",
         owner = "root",
     ),
     prefix = select({

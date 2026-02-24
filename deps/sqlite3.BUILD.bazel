@@ -57,6 +57,7 @@ pkg_filegroup(
     srcs = [
         ":lib_files",
     ],
+    prefix = "embedded",
 )
 
 pkg_install(

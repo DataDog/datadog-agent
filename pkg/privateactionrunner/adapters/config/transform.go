@@ -126,19 +126,27 @@ func getDatadogHost(endpoint string) string {
 func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[string]) map[string]sets.Set[string] {
 	result := make(map[string]sets.Set[string])
 
-	for _, specialAction := range BundleInheritedAllowedActions {
-		specialBundleID, specialActionName := actions.SplitFQN(specialAction)
-		specialBundleID = strings.ToLower(specialBundleID)
+	for _, inheritedAction := range BundleInheritedAllowedActions {
+		actionBundleID, actionName := actions.SplitFQN(inheritedAction.ActionFQN)
+		actionBundleID = strings.ToLower(actionBundleID)
+		prefix := strings.ToLower(inheritedAction.ExpectedPrefix)
 
-		actionsSet, ok := actionsAllowlist[specialBundleID]
-		if !ok || actionsSet.Len() == 0 {
+		matched := false
+		for bundleID, actionsSet := range actionsAllowlist {
+			if actionsSet.Len() > 0 && strings.HasPrefix(bundleID, prefix) {
+				matched = true
+				break
+			}
+		}
+
+		if !matched {
 			continue
 		}
 
-		if _, exists := result[specialBundleID]; !exists {
-			result[specialBundleID] = sets.New[string]()
+		if _, exists := result[actionBundleID]; !exists {
+			result[actionBundleID] = sets.New[string]()
 		}
-		result[specialBundleID].Insert(specialActionName)
+		result[actionBundleID].Insert(actionName)
 	}
 
 	return result

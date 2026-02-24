@@ -716,7 +716,7 @@ func TestClient(t *testing.T) {
 
 		payload := healthPayloads[0]
 		assert.Equal(t, "test-hostname", payload.Host.Hostname)
-		assert.Equal(t, "7.50.0", payload.Host.AgentVersion)
+		assert.Equal(t, "7.50.0", payload.Host.GetAgentVersion())
 		assert.Equal(t, "agent-health-issues", payload.EventType)
 		assert.Len(t, payload.Issues, 1)
 
