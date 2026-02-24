@@ -34,6 +34,9 @@ var envVariablesByStoreKey = map[StoreKey]string{
 	PulumiLogToStdErr:            "E2E_PULUMI_LOG_TO_STDERR",
 	PulumiVerboseProgressStreams: "E2E_PULUMI_VERBOSE_PROGRESS_STREAMS",
 	DevMode:                      "E2E_DEV_MODE",
+	InitOnly:                     "E2E_INIT_ONLY",
+	MajorVersion:                 "E2E_MAJOR_VERSION",
+	PreInitialized:               "E2E_PRE_INITIALIZED",
 }
 
 type envValueStore struct {
