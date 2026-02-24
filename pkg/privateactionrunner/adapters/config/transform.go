@@ -23,8 +23,9 @@ import (
 )
 
 func FromDDConfig(config config.Component) (*Config, error) {
-	ddHost := strings.TrimSuffix(configutils.GetMainEndpoint(config, "https://api.", "dd_url"), ".")
-	ddSite := configutils.ExtractSiteFromURL(ddHost)
+	mainEndpoint := configutils.GetMainEndpoint(config, "https://api.", "dd_url")
+	ddHost := getDatadogHost(mainEndpoint)
+	ddSite := configutils.ExtractSiteFromURL(mainEndpoint)
 	encodedPrivateKey := config.GetString(setup.PARPrivateKey)
 	urn := config.GetString(setup.PARUrn)
 
@@ -112,6 +113,14 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 	}
 
 	return allowlist
+}
+
+// getDatadogHost extracts and normalizes the Datadog host from the main endpoint.
+// It removes the "https://" prefix and any trailing "." from the endpoint URL.
+func getDatadogHost(endpoint string) string {
+	host := strings.TrimSuffix(endpoint, ".")
+	host = strings.TrimPrefix(host, "https://")
+	return host
 }
 
 func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[string]) map[string]sets.Set[string] {
