@@ -85,7 +85,7 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		Allowlist:                 config.GetStringSlice(setup.PARHttpAllowlist),
 		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
 		DDHost:                    ddHost,
-		DDApiHost:                 ddHost,
+		DDApiHost:                 strings.TrimPrefix(ddHost, "https://"),
 		Modes:                     []modes.Mode{modes.ModePull},
 		OrgId:                     orgID,
 		PrivateKey:                privateKey,
