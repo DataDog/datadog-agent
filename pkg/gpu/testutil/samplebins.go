@@ -56,7 +56,7 @@ type dockerImage string
 
 var (
 	// MinimalDockerImage is the minimal docker image, just used for running a binary
-	MinimalDockerImage dockerImage = dockerutils.MinimalDockerImage
+	MinimalDockerImage dockerImage = dockerImage(dockerutils.MinimalDockerImage)
 )
 
 // SampleArgs is an interface that represents the arguments for the sample binary
