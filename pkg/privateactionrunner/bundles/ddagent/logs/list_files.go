@@ -8,42 +8,40 @@ package com_datadoghq_ddagent_logs
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
-	"strings"
+	"time"
 
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-// ListFilesInputs are the optional inputs for the listFiles action.
+// ListFilesInputs are the inputs for the listFiles action.
 type ListFilesInputs struct {
-	AdditionalDirs []string `json:"additionalDirs,omitempty"`
+	Path string `json:"path"`
 }
 
-// FileEntry represents a single file discovered by the action.
+// FileEntry represents a single entry returned by the listFiles action.
 type FileEntry struct {
-	Path        string `json:"path"`                  // host-relative path
-	Source      string `json:"source"`                // "process", "kubernetes", or "filesystem"
-	ProcessName string `json:"processName,omitempty"` // set when source is "process"
-	PID         int32  `json:"pid,omitempty"`         // set when source is "process"
-	ServiceName string `json:"serviceName,omitempty"` // set when source is "process"
+	Name    string `json:"name"`
+	Path    string `json:"path"`
+	IsDir   bool   `json:"isDir"`
+	Size    int64  `json:"size"`
+	ModTime string `json:"modTime"` // RFC3339
 }
 
 // ListFilesOutputs is the output returned by the listFiles action.
 type ListFilesOutputs struct {
-	Files  []FileEntry `json:"files"`
-	Errors []string    `json:"errors,omitempty"`
+	Entries []FileEntry `json:"entries"`
+	Error   string      `json:"error,omitempty"`
 }
 
 // ListFilesHandler implements the listFiles action.
-type ListFilesHandler struct {
-	wmeta workloadmeta.Component
-}
+type ListFilesHandler struct{}
 
 // NewListFilesHandler creates a new ListFilesHandler.
-func NewListFilesHandler(wmeta workloadmeta.Component) *ListFilesHandler {
-	return &ListFilesHandler{wmeta: wmeta}
+func NewListFilesHandler() *ListFilesHandler {
+	return &ListFilesHandler{}
 }
 
 // Run executes the listFiles action.
@@ -57,70 +55,35 @@ func (h *ListFilesHandler) Run(
 		return nil, err
 	}
 
-	if err := validateAdditionalDirs(inputs.AdditionalDirs); err != nil {
-		return nil, err
+	if !filepath.IsAbs(inputs.Path) {
+		return nil, fmt.Errorf("path must be absolute: %s", inputs.Path)
 	}
 
 	hostPrefix := getHostPrefix()
-	seen := make(map[string]struct{})
-	var allEntries []FileEntry
-	var allErrors []string
+	hostPath := toHostPath(hostPrefix, inputs.Path)
 
-	// 1. Process logs from workloadmeta
-	for _, entry := range collectProcessLogs(h.wmeta) {
-		if _, ok := seen[entry.Path]; ok {
+	dirEntries, err := os.ReadDir(hostPath)
+	if err != nil {
+		return &ListFilesOutputs{
+			Entries: []FileEntry{},
+			Error:   err.Error(),
+		}, nil
+	}
+
+	entries := make([]FileEntry, 0, len(dirEntries))
+	for _, d := range dirEntries {
+		info, err := d.Info()
+		if err != nil {
 			continue
 		}
-		seen[entry.Path] = struct{}{}
-		allEntries = append(allEntries, entry)
+		entries = append(entries, FileEntry{
+			Name:    d.Name(),
+			Path:    toOutputPath(hostPrefix, filepath.Join(hostPath, d.Name())),
+			IsDir:   d.IsDir(),
+			Size:    info.Size(),
+			ModTime: info.ModTime().UTC().Format(time.RFC3339),
+		})
 	}
 
-	// 2. Kubernetes logs
-	k8sEntries, k8sErrs := collectK8sLogs(hostPrefix)
-	allErrors = append(allErrors, k8sErrs...)
-	for _, entry := range k8sEntries {
-		if _, ok := seen[entry.Path]; ok {
-			continue
-		}
-		seen[entry.Path] = struct{}{}
-		allEntries = append(allEntries, entry)
-	}
-
-	// 3. Filesystem logs
-	fsEntries, fsErrs := collectFilesystemLogs(hostPrefix, inputs.AdditionalDirs)
-	allErrors = append(allErrors, fsErrs...)
-	for _, entry := range fsEntries {
-		if _, ok := seen[entry.Path]; ok {
-			continue
-		}
-		seen[entry.Path] = struct{}{}
-		allEntries = append(allEntries, entry)
-	}
-
-	if allEntries == nil {
-		allEntries = []FileEntry{}
-	}
-
-	return &ListFilesOutputs{
-		Files:  allEntries,
-		Errors: allErrors,
-	}, nil
-}
-
-// validateAdditionalDirs checks that all additional directories are absolute
-// paths and do not contain path traversal components.
-func validateAdditionalDirs(dirs []string) error {
-	for _, dir := range dirs {
-		if !filepath.IsAbs(dir) {
-			return fmt.Errorf("additional directory must be absolute: %s", dir)
-		}
-		// Check the raw input for ".." path components before filepath.Clean
-		// resolves them away.
-		for _, part := range strings.Split(filepath.ToSlash(dir), "/") {
-			if part == ".." {
-				return fmt.Errorf("additional directory must not contain '..': %s", dir)
-			}
-		}
-	}
-	return nil
+	return &ListFilesOutputs{Entries: entries}, nil
 }
