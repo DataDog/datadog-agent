@@ -461,7 +461,7 @@ func TestPatcherApplySubresource(t *testing.T) {
 	actions := client.Actions()
 	require.NotEmpty(t, actions)
 	lastAction := actions[len(actions)-1]
-	patchAction, ok := lastAction.(k8stesting.PatchActionImpl)
+	patchAction, ok := lastAction.(k8stesting.PatchAction)
 	require.True(t, ok)
 	assert.Equal(t, "resize", patchAction.GetSubresource())
 }
@@ -480,7 +480,7 @@ func TestPatcherApplyNoSubresource(t *testing.T) {
 	actions := client.Actions()
 	require.NotEmpty(t, actions)
 	lastAction := actions[len(actions)-1]
-	patchAction, ok := lastAction.(k8stesting.PatchActionImpl)
+	patchAction, ok := lastAction.(k8stesting.PatchAction)
 	require.True(t, ok)
 	assert.Equal(t, "", patchAction.GetSubresource(), "no subresource should be set when Subresource is empty")
 }

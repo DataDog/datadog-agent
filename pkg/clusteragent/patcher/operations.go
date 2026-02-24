@@ -137,8 +137,9 @@ func (o *deletePodTemplateAnnotations) build() map[string]interface{} {
 // --- Pod container operations ---
 
 // ContainerResourcePatch describes the resource changes for a single container.
+// Name is required — it is the strategic merge key for spec.containers.
 type ContainerResourcePatch struct {
-	// Name is the container name
+	// Name is the container name (required).
 	Name string
 	// Requests is the desired resource requests (e.g. {"cpu": "250m", "memory": "512Mi"}).
 	Requests map[string]string
@@ -151,8 +152,11 @@ type setContainerResources struct {
 	containers []ContainerResourcePatch
 }
 
-// SetContainerResources creates an operation that sets resource requests and limits
-// for the named containers via a strategic merge patch on spec.containers
+// SetContainerResources creates an operation that patches spec.containers[*].resources
+// for the listed containers.
+//
+// Callers targeting the "pods/resize" resource should use types.StrategicMergePatchType, 
+// as using the default types.MergePatchType fails if not all containers are included.
 func SetContainerResources(containers []ContainerResourcePatch) PatchOperation {
 	return &setContainerResources{containers: containers}
 }

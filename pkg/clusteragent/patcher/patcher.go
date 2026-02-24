@@ -93,7 +93,7 @@ func (p *Patcher) Apply(ctx context.Context, intent *PatchIntent, opts PatchOpti
 			patchOpts.DryRun = []string{metav1.DryRunAll}
 		}
 
-		subresources := []string{}
+		var subresources []string
 		if opts.Subresource != "" {
 			subresources = append(subresources, opts.Subresource)
 		}

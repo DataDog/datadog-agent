@@ -121,7 +121,17 @@ func TestSetContainerResources(t *testing.T) {
 		result := op.build()
 		spec := result["spec"].(map[string]interface{})
 		containers := spec["containers"].([]interface{})
-		assert.Len(t, containers, 2)
+		require.Len(t, containers, 2)
+
+		c0 := containers[0].(map[string]interface{})
+		assert.Equal(t, "app", c0["name"])
+		c0Requests := c0["resources"].(map[string]interface{})["requests"].(map[string]interface{})
+		assert.Equal(t, "100m", c0Requests["cpu"])
+
+		c1 := containers[1].(map[string]interface{})
+		assert.Equal(t, "sidecar", c1["name"])
+		c1Requests := c1["resources"].(map[string]interface{})["requests"].(map[string]interface{})
+		assert.Equal(t, "50m", c1Requests["cpu"])
 	})
 
 	t.Run("requests only, no limits", func(t *testing.T) {
@@ -141,12 +151,44 @@ func TestSetContainerResources(t *testing.T) {
 		assert.False(t, hasLimits)
 	})
 
+	t.Run("limits only, no requests", func(t *testing.T) {
+		op := SetContainerResources([]ContainerResourcePatch{
+			{Name: "app", Limits: map[string]string{"cpu": "500m"}},
+		})
+
+		result := op.build()
+		spec := result["spec"].(map[string]interface{})
+		containers := spec["containers"].([]interface{})
+		container := containers[0].(map[string]interface{})
+		resources := container["resources"].(map[string]interface{})
+
+		_, hasRequests := resources["requests"]
+		_, hasLimits := resources["limits"]
+		assert.False(t, hasRequests)
+		assert.True(t, hasLimits)
+		assert.Equal(t, "500m", resources["limits"].(map[string]interface{})["cpu"])
+	})
+
 	t.Run("empty container list", func(t *testing.T) {
 		op := SetContainerResources([]ContainerResourcePatch{})
 		result := op.build()
 		spec := result["spec"].(map[string]interface{})
 		containers := spec["containers"].([]interface{})
 		assert.Empty(t, containers)
+	})
+
+	t.Run("empty Name is passed through without guard", func(t *testing.T) {
+		// Name == "" is not rejected at construction time; the empty string becomes
+		// the strategic-merge-patch key and will fail to match any real container.
+		// Callers are responsible for providing a non-empty Name.
+		op := SetContainerResources([]ContainerResourcePatch{
+			{Name: "", Requests: map[string]string{"cpu": "100m"}},
+		})
+		result := op.build()
+		spec := result["spec"].(map[string]interface{})
+		containers := spec["containers"].([]interface{})
+		require.Len(t, containers, 1)
+		assert.Equal(t, "", containers[0].(map[string]interface{})["name"])
 	})
 }
 
