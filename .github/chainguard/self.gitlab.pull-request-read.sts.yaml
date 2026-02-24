@@ -1,6 +1,6 @@
 issuer: https://gitlab.ddbuild.io
 
-subject_pattern: "project_path:DataDog/.*"
+subject_pattern: "project_path:DataDog/datadog-agent:.*"
 
 claim_pattern:
   project_path: "DataDog/datadog-agent"
