@@ -9,7 +9,9 @@ package observerimpl
 // Patterns will be sent to various pattern based anomaly detectors.
 
 import (
+	"encoding/binary"
 	"fmt"
+	"hash/fnv"
 	"math"
 	"runtime"
 	"strings"
@@ -27,15 +29,20 @@ const FILTER_ONLY_Q_LOG = false
 var tlmAnomalyCount = atomic.Int64{}
 
 // PatternLogProcessor is a log processor that detects patterns in logs.
+// Pattern clusterers are distinct based on the tags logs have (https://datadoghq.atlassian.net/wiki/x/CQB6Ng):
+// - env
+// - service
+// - source
+// - pod_name
 type PatternLogProcessor struct {
 	Observer          *observerImpl
-	ClustererPipeline *patterns.MultiThreadPipeline
-	ResultChannel     chan *patterns.MultiThreadResult
+	ClustererPipeline *patterns.MultiThreadPipeline[*LogADTags]
+	ResultChannel     chan *patterns.MultiThreadResult[*LogADTags]
 	AnomalyDetectors  []PatternLogAnomalyDetector
 }
 
 func NewPatternLogProcessor(observer *observerImpl, anomalyDetectors []PatternLogAnomalyDetector) *PatternLogProcessor {
-	resultChannel := make(chan *patterns.MultiThreadResult, 4096)
+	resultChannel := make(chan *patterns.MultiThreadResult[*LogADTags], 4096)
 	clustererPipeline := patterns.NewMultiThreadPipeline(runtime.NumCPU(), resultChannel, false)
 
 	p := &PatternLogProcessor{
@@ -92,9 +99,19 @@ func (p *PatternLogProcessor) Process(log observer.LogView) observer.LogProcesso
 	if FILTER_ONLY_Q_LOG && !strings.Contains(string(log.GetContent()), "q-log") {
 		return observer.LogProcessorResult{}
 	}
-	fmt.Printf("Processing log: %s\n", string(log.GetContent()))
 
-	p.ClustererPipeline.Process(string(log.GetContent()))
+	tags := ParseTags(log.GetTags())
+	// fmt.Printf("Processing log[%+v]: %s\n", tags, string(log.GetContent()))
+	t := strings.Builder{}
+	for _, tag := range log.GetTags() {
+		t.WriteString(string(tag))
+		t.WriteString(",")
+	}
+	t.WriteString(string(log.GetContent()))
+
+	fmt.Printf("Processing log[%s]: %s\n", t.String(), string(log.GetContent()))
+
+	p.ClustererPipeline.Process(&patterns.TokenizerInput[*LogADTags]{Message: string(log.GetContent()), UserData: &tags})
 
 	// Results arrive asynchronously via ResultChannel
 	return observer.LogProcessorResult{}
@@ -106,18 +123,19 @@ type PatternLogAnomalyDetector interface {
 	Run()
 	Name() string
 	// TODO: Pattern id not pattern to avoid multi threading issues
-	Process(clustererInput *patterns.ClustererInput, clustererResult *patterns.ClusterResult)
+	Process(clustererInput *patterns.ClustererInput[*LogADTags], clustererResult *patterns.ClusterResult)
 }
 
 type LogAnomalyDetectionProcessInput struct {
-	ClustererInput  *patterns.ClustererInput
+	ClustererInput  *patterns.ClustererInput[*LogADTags]
 	ClustererResult *patterns.ClusterResult
 }
 
 // --- Watchdog Anomaly Detector ---
 // AD algorithm similar to Watchdog
 type WatchdogLogAnomalyDetector struct {
-	Processor       *PatternLogProcessor
+	Processor *PatternLogProcessor
+	// TODO
 	ResultChannel   chan *observer.LogProcessorResult
 	Period          time.Duration
 	InputBatchMutex sync.Mutex
@@ -126,7 +144,7 @@ type WatchdogLogAnomalyDetector struct {
 	Alpha             float64
 	EvictionThreshold float64
 	// "Rate" corresponds to the new patterns count with decay applied
-	PatternRate map[int]float64
+	PatternRate map[int64]float64
 	// TODO: We might optimize this in log N using segment trees
 	// TODO: We should compress the baseline + the smooth part
 	// Here is the structure of the history:
@@ -138,10 +156,63 @@ type WatchdogLogAnomalyDetector struct {
 	EvalLen       int
 	BaselineLen   int
 	// TODO: How to do eviction with that?
-	History       map[int]TimeSeriesHistory
+	History       map[int64]TimeSeriesHistory
 	SnapshotIndex int
 	AlertCooldown time.Duration
-	LastAlerts    map[int]time.Time
+	LastAlerts    map[int64]time.Time
+	GroupByKeys   map[int64]*LogADGroupByKey
+}
+
+// We group anomalies by cluster ID and some tags
+type LogADGroupByKey struct {
+	ClusterID    int
+	Tags         *LogADTags
+	computedHash int64
+}
+
+func (key *LogADGroupByKey) Hash() int64 {
+	if key.computedHash != 0 {
+		return key.computedHash
+	}
+
+	clusterIDBytes := make([]byte, 4)
+	binary.LittleEndian.PutUint32(clusterIDBytes, uint32(key.ClusterID))
+
+	hash := fnv.New64a()
+	hash.Write(clusterIDBytes)
+	hash.Write([]byte(key.Tags.Env))
+	hash.Write([]byte(key.Tags.PodName))
+	hash.Write([]byte(key.Tags.Service))
+	hash.Write([]byte(key.Tags.Source))
+	key.computedHash = int64(hash.Sum64())
+
+	return key.computedHash
+}
+
+// Tags that are used to group anomalies
+// Tags could be empty
+type LogADTags struct {
+	Env     string
+	PodName string
+	Service string
+	Source  string
+}
+
+func ParseTags(tags []string) LogADTags {
+	result := LogADTags{}
+	for _, tag := range tags {
+		if strings.HasPrefix(tag, "env:") {
+			result.Env = strings.TrimPrefix(tag, "env:")
+		} else if strings.HasPrefix(tag, "pod_name:") {
+			result.PodName = strings.TrimPrefix(tag, "pod_name:")
+		} else if strings.HasPrefix(tag, "service:") {
+			result.Service = strings.TrimPrefix(tag, "service:")
+		} else if strings.HasPrefix(tag, "source:") {
+			result.Source = strings.TrimPrefix(tag, "source:")
+		}
+	}
+
+	return result
 }
 
 func NewWatchdogLogAnomalyDetector(resultChannel chan *observer.LogProcessorResult) *WatchdogLogAnomalyDetector {
@@ -151,29 +222,30 @@ func NewWatchdogLogAnomalyDetector(resultChannel chan *observer.LogProcessorResu
 		Period:            100 * time.Millisecond,
 		Alpha:             0.95,
 		EvictionThreshold: 0.1,
-		PatternRate:       make(map[int]float64),
+		PatternRate:       make(map[int64]float64),
 		PreprocessLen:     10,
 		EvalLen:           5,
 		BaselineLen:       20,
-		History:           make(map[int]TimeSeriesHistory),
+		History:           make(map[int64]TimeSeriesHistory),
 		SnapshotIndex:     0,
 		AlertCooldown:     15 * time.Second,
-		LastAlerts:        make(map[int]time.Time),
+		LastAlerts:        make(map[int64]time.Time),
+		GroupByKeys:       make(map[int64]*LogADGroupByKey),
 	}
 }
 
 // TODO: We need to wait for the history to be (fully?) filled before we can start comparing it
 // Represents the history of pattern rate metrics
 type TimeSeriesHistory struct {
-	ClusterID  int
+	GroupByKey *LogADGroupByKey
 	Preprocess *queue.Queue
 	Eval       *queue.Queue
 	Baseline   *queue.Queue
 }
 
 type AlertInfo struct {
-	ClusterID int
-	ZScore    float64
+	GroupByKey *LogADGroupByKey
+	ZScore     float64
 }
 
 // TODO: Is it better to have this in the processor and not each anomaly detector?
@@ -203,7 +275,7 @@ func (w *WatchdogLogAnomalyDetector) Name() string {
 	return "watchdog_log_anomaly_detector"
 }
 
-func (w *WatchdogLogAnomalyDetector) Process(clustererInput *patterns.ClustererInput, clustererResult *patterns.ClusterResult) {
+func (w *WatchdogLogAnomalyDetector) Process(clustererInput *patterns.ClustererInput[*LogADTags], clustererResult *patterns.ClusterResult) {
 	w.InputBatchMutex.Lock()
 	defer w.InputBatchMutex.Unlock()
 	w.InputBatch = append(w.InputBatch, &LogAnomalyDetectionProcessInput{ClustererInput: clustererInput, ClustererResult: clustererResult})
@@ -216,10 +288,14 @@ func (w *WatchdogLogAnomalyDetector) SetProcessor(processor *PatternLogProcessor
 func (w *WatchdogLogAnomalyDetector) ProcessBatch(batch []*LogAnomalyDetectionProcessInput) {
 	// fmt.Printf("[cc] WatchdogLogAnomalyDetector: Processing batch: %d\n", len(batch))
 	for _, input := range batch {
-		if _, ok := w.PatternRate[input.ClustererResult.Cluster.ID]; !ok {
-			w.PatternRate[input.ClustererResult.Cluster.ID] = 0
+		patternRateKey := &LogADGroupByKey{ClusterID: input.ClustererResult.Cluster.ID, Tags: input.ClustererInput.UserData}
+		hash := patternRateKey.Hash()
+		if _, ok := w.PatternRate[hash]; !ok {
+			w.PatternRate[hash] = 0
+			w.GroupByKeys[hash] = patternRateKey
+			fmt.Printf("[cc] WatchdogLogAnomalyDetector: New pattern rate key: %+v\n", patternRateKey)
 		}
-		w.PatternRate[input.ClustererResult.Cluster.ID] += 1
+		w.PatternRate[hash]++
 	}
 
 	// We can do anomaly detection
@@ -254,33 +330,36 @@ func (w *WatchdogLogAnomalyDetector) ProcessBatch(batch []*LogAnomalyDetectionPr
 		*/
 
 		// Send back to the observer creating virtual metrics
-		for clusterID, rate := range w.PatternRate {
-			virtualMetricName := fmt.Sprintf("_.watchdog_log_ad.cluster.%d", clusterID)
-			w.Processor.Observer.obsCh <- observation{
-				source: "watchdog_log_ad",
-				metric: &metricObs{
-					name:  virtualMetricName,
-					value: rate,
-					// TODO: [partitionate] Tags
-					tags: []string{},
-				},
+		// TODO A
+		/*
+			for clusterID, rate := range w.PatternRate {
+				virtualMetricName := fmt.Sprintf("_.watchdog_log_ad.cluster.%d", clusterID)
+				w.Processor.Observer.obsCh <- observation{
+					source: "watchdog_log_ad",
+					metric: &metricObs{
+						name:  virtualMetricName,
+						value: rate,
+						// TODO: [partitionate] Tags
+						tags: []string{},
+					},
+				}
 			}
-		}
+		*/
 
 		// TODO
 		// Test anomaly detection
-		// w.DetectAnomalies()
+		w.DetectAnomalies()
 	}
 }
 
 // Will update the history with the current pattern rate metrics
 // Returns whether we updated the eval / baseline part of the history (=> preprocess buffer is full)
 func (w *WatchdogLogAnomalyDetector) Snapshot() bool {
-	for clusterID, rate := range w.PatternRate {
-		if _, ok := w.History[clusterID]; !ok {
-			w.History[clusterID] = TimeSeriesHistory{ClusterID: clusterID, Preprocess: queue.NewQueue(), Eval: queue.NewQueue(), Baseline: queue.NewQueue()}
+	for hash, rate := range w.PatternRate {
+		if _, ok := w.History[hash]; !ok {
+			w.History[hash] = TimeSeriesHistory{GroupByKey: w.GroupByKeys[hash], Preprocess: queue.NewQueue(), Eval: queue.NewQueue(), Baseline: queue.NewQueue()}
 		}
-		w.History[clusterID].Preprocess.Enqueue(rate)
+		w.History[hash].Preprocess.Enqueue(rate)
 	}
 	w.SnapshotIndex++
 	if w.SnapshotIndex >= w.PreprocessLen {
@@ -331,7 +410,7 @@ func (w *WatchdogLogAnomalyDetector) DetectAnomalies() {
 	// TODO
 	zThreshold := 3.0
 
-	for clusterID, history := range w.History {
+	for _, history := range w.History {
 		// TODO: Is half filled enough?
 		if history.Baseline.Len() < w.BaselineLen/2 || history.Eval.Len() < w.EvalLen {
 			continue
@@ -367,7 +446,7 @@ func (w *WatchdogLogAnomalyDetector) DetectAnomalies() {
 		// TODO: Could be +Inf on some cases
 		if math.Abs(zScore) > zThreshold {
 			// TODO: Lock...
-			alertInfo := AlertInfo{ClusterID: clusterID, ZScore: zScore}
+			alertInfo := AlertInfo{GroupByKey: history.GroupByKey, ZScore: zScore}
 			w.OnAnomalyDetected(alertInfo)
 		}
 	}
@@ -375,15 +454,15 @@ func (w *WatchdogLogAnomalyDetector) DetectAnomalies() {
 
 func (w *WatchdogLogAnomalyDetector) OnAnomalyDetected(alert AlertInfo) {
 	tlmAnomalyCount.Add(1)
-	if _, ok := w.LastAlerts[alert.ClusterID]; !ok || time.Since(w.LastAlerts[alert.ClusterID]) >= w.AlertCooldown {
-		w.LastAlerts[alert.ClusterID] = time.Now()
+	if _, ok := w.LastAlerts[alert.GroupByKey.Hash()]; !ok || time.Since(w.LastAlerts[alert.GroupByKey.Hash()]) >= w.AlertCooldown {
+		w.LastAlerts[alert.GroupByKey.Hash()] = time.Now()
 
-		clusterInfo, err := w.Processor.ClustererPipeline.GetClusterInfo(alert.ClusterID)
+		clusterInfo, err := w.Processor.ClustererPipeline.GetClusterInfo(alert.GroupByKey.ClusterID)
 		if err != nil {
 			fmt.Printf("[cc] WatchdogLogAnomalyDetector: Error getting cluster info: %v\n", err)
 			return
 		}
 
-		fmt.Printf("[cc] WatchdogLogAnomalyDetector: ALERT: Cluster: %d, Z-Score: %f, Pattern: %s\n", alert.ClusterID, alert.ZScore, clusterInfo.PatternString)
+		fmt.Printf("[cc] WatchdogLogAnomalyDetector: ALERT: Cluster: %d, Z-Score: %f, Pattern: %s, Tags: %+v\n", alert.GroupByKey.ClusterID, alert.ZScore, clusterInfo.PatternString, alert.GroupByKey.Tags)
 	}
 }
