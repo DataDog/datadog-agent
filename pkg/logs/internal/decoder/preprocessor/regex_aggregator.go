@@ -19,10 +19,10 @@ import (
 
 const regexLinesCombinedTelemetryMetricName = "datadog.logs_agent.auto_multi_line_lines_combined"
 
-// RegexCombiner aggregates log lines into multiline messages using a regular expression
-// to identify the start of a new log entry. It is the pull-model equivalent of the
-// decoder's MultiLineHandler. The flush timer is managed externally by the Pipeline.
-type RegexCombiner struct {
+// RegexAggregator aggregates log lines into multiline messages using a regular expression
+// to identify the start of a new log entry. It is the equivalent of the decoder's MultiLineHandler.
+// The flush timer is managed externally by the Preprocessor.
+type RegexAggregator struct {
 	newContentRe      *regexp.Regexp
 	buffer            *bytes.Buffer
 	lineLimit         int
@@ -38,13 +38,13 @@ type RegexCombiner struct {
 	collected         []*message.Message
 }
 
-// NewRegexCombiner returns a new RegexCombiner.
-func NewRegexCombiner(newContentRe *regexp.Regexp, lineLimit int, telemetryEnabled bool, tailerInfo *status.InfoRegistry, multiLineTagValue string) *RegexCombiner {
+// NewRegexAggregator returns a new RegexAggregator.
+func NewRegexAggregator(newContentRe *regexp.Regexp, lineLimit int, telemetryEnabled bool, tailerInfo *status.InfoRegistry, multiLineTagValue string) *RegexAggregator {
 	i := status.NewMappedInfo("Multi-Line Pattern")
 	i.SetMessage("Pattern", newContentRe.String())
 	tailerInfo.Register(i)
 
-	return &RegexCombiner{
+	return &RegexAggregator{
 		newContentRe:      newContentRe,
 		buffer:            bytes.NewBuffer(nil),
 		lineLimit:         lineLimit,
@@ -58,120 +58,120 @@ func NewRegexCombiner(newContentRe *regexp.Regexp, lineLimit int, telemetryEnabl
 
 // CountInfo returns the counter tracking multiline pattern matches.
 // Used by the decoder to sync shared counters across multiple tailers for the same source.
-func (c *RegexCombiner) CountInfo() *status.CountInfo {
-	return c.countInfo
+func (a *RegexAggregator) CountInfo() *status.CountInfo {
+	return a.countInfo
 }
 
 // LinesCombinedInfo returns the counter tracking lines combined into multiline messages.
 // Used by the decoder to sync shared counters across multiple tailers for the same source.
-func (c *RegexCombiner) LinesCombinedInfo() *status.CountInfo {
-	return c.linesCombinedInfo
+func (a *RegexAggregator) LinesCombinedInfo() *status.CountInfo {
+	return a.linesCombinedInfo
 }
 
 // SetCountInfo replaces the multiline match counter (used by decoder.syncSourceInfo).
-func (c *RegexCombiner) SetCountInfo(info *status.CountInfo) {
-	c.countInfo = info
+func (a *RegexAggregator) SetCountInfo(info *status.CountInfo) {
+	a.countInfo = info
 }
 
 // SetLinesCombinedInfo replaces the lines-combined counter (used by decoder.syncSourceInfo).
-func (c *RegexCombiner) SetLinesCombinedInfo(info *status.CountInfo) {
-	c.linesCombinedInfo = info
+func (a *RegexAggregator) SetLinesCombinedInfo(info *status.CountInfo) {
+	a.linesCombinedInfo = info
 }
 
 // Process aggregates log lines using the regex to detect new log entry boundaries.
 // Returns any completed messages (may be empty if the current line is buffered). label is unused.
-func (c *RegexCombiner) Process(msg *message.Message, _ Label) []*message.Message {
-	c.collected = c.collected[:0]
+func (a *RegexAggregator) Process(msg *message.Message, _ Label) []*message.Message {
+	a.collected = a.collected[:0]
 
-	if c.newContentRe.Match(msg.GetContent()) {
-		c.countInfo.Add(1)
-		c.sendBuffer()
+	if a.newContentRe.Match(msg.GetContent()) {
+		a.countInfo.Add(1)
+		a.sendBuffer()
 	}
 
-	isTruncated := c.shouldTruncate
-	c.shouldTruncate = false
+	isTruncated := a.shouldTruncate
+	a.shouldTruncate = false
 
-	c.linesLen += msg.RawDataLen
-	c.msg = msg
-	c.linesCombined++
+	a.linesLen += msg.RawDataLen
+	a.msg = msg
+	a.linesCombined++
 
-	if c.buffer.Len() > 0 {
-		c.buffer.Write(message.EscapedLineFeed)
+	if a.buffer.Len() > 0 {
+		a.buffer.Write(message.EscapedLineFeed)
 	}
 
 	if isTruncated {
-		c.buffer.Write(message.TruncatedFlag)
-		c.isBufferTruncated = true
+		a.buffer.Write(message.TruncatedFlag)
+		a.isBufferTruncated = true
 	}
 
-	c.buffer.Write(msg.GetContent())
+	a.buffer.Write(msg.GetContent())
 
-	if c.buffer.Len() >= c.lineLimit {
-		c.buffer.Write(message.TruncatedFlag)
-		c.isBufferTruncated = true
-		c.sendBuffer()
-		c.shouldTruncate = true
+	if a.buffer.Len() >= a.lineLimit {
+		a.buffer.Write(message.TruncatedFlag)
+		a.isBufferTruncated = true
+		a.sendBuffer()
+		a.shouldTruncate = true
 		metrics.LogsTruncated.Add(1)
 	}
 
-	return c.collected
+	return a.collected
 }
 
 // Flush returns any buffered content as a completed message and resets state.
-func (c *RegexCombiner) Flush() []*message.Message {
-	c.collected = c.collected[:0]
-	c.sendBuffer()
-	return c.collected
+func (a *RegexAggregator) Flush() []*message.Message {
+	a.collected = a.collected[:0]
+	a.sendBuffer()
+	return a.collected
 }
 
-// IsEmpty returns true if the combiner has no buffered data.
-func (c *RegexCombiner) IsEmpty() bool {
-	return c.buffer.Len() == 0
+// IsEmpty returns true if the aggregator has no buffered data.
+func (a *RegexAggregator) IsEmpty() bool {
+	return a.buffer.Len() == 0
 }
 
-func (c *RegexCombiner) sendBuffer() {
+func (a *RegexAggregator) sendBuffer() {
 	defer func() {
-		c.buffer.Reset()
-		c.linesLen = 0
-		c.linesCombined = 0
-		c.shouldTruncate = false
-		c.isBufferTruncated = false
+		a.buffer.Reset()
+		a.linesLen = 0
+		a.linesCombined = 0
+		a.shouldTruncate = false
+		a.isBufferTruncated = false
 	}()
 
-	data := bytes.TrimSpace(c.buffer.Bytes())
+	data := bytes.TrimSpace(a.buffer.Bytes())
 	content := make([]byte, len(data))
 	copy(content, data)
 
-	if len(content) == 0 && c.linesLen == 0 {
+	if len(content) == 0 && a.linesLen == 0 {
 		return
 	}
 
-	if c.linesCombined > 0 {
-		linesCombined := int64(c.linesCombined - 1)
-		c.linesCombinedInfo.Add(linesCombined)
-		if c.telemetryEnabled {
+	if a.linesCombined > 0 {
+		linesCombined := int64(a.linesCombined - 1)
+		a.linesCombinedInfo.Add(linesCombined)
+		if a.telemetryEnabled {
 			telemetry.GetStatsTelemetryProvider().Count(regexLinesCombinedTelemetryMetricName, float64(linesCombined), []string{})
 		}
 	}
 
-	msg := c.msg
+	msg := a.msg
 	msg.SetContent(content)
-	msg.RawDataLen = c.linesLen
-	msg.ParsingExtra.IsTruncated = c.isBufferTruncated
+	msg.RawDataLen = a.linesLen
+	msg.ParsingExtra.IsTruncated = a.isBufferTruncated
 
 	tlmTags := []string{"false", "single_line"}
-	if c.isBufferTruncated {
+	if a.isBufferTruncated {
 		tlmTags[0] = "true"
 		if pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs") {
 			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.TruncatedReasonTag("multiline_regex"))
 		}
 	}
-	if c.linesCombined > 1 {
-		tlmTags[1] = c.multiLineTagValue
+	if a.linesCombined > 1 {
+		tlmTags[1] = a.multiLineTagValue
 		if pkgconfigsetup.Datadog().GetBool("logs_config.tag_multi_line_logs") {
-			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.MultiLineSourceTag(c.multiLineTagValue))
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.MultiLineSourceTag(a.multiLineTagValue))
 		}
 	}
 	metrics.TlmAutoMultilineAggregatorFlush.Inc(tlmTags...)
-	c.collected = append(c.collected, msg)
+	a.collected = append(a.collected, msg)
 }

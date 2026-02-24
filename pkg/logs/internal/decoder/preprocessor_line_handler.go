@@ -16,35 +16,35 @@ import (
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
-// newPipelineHandler is the single constructor for all pipeline-based line handlers.
-// The caller picks the Combiner that determines the combining strategy; everything else
+// newPreprocessorHandler is the single constructor for all preprocessor-based line handlers.
+// The caller picks the Aggregator that determines the combining strategy; everything else
 // (tokenization, labeling, JSON aggregation, sampling) is wired identically.
 // Pass nil for labeler on paths that don't use auto multiline detection (regex, pass-through).
-func newPipelineHandler(combiner preprocessor.Combiner, tok *preprocessor.Tokenizer, labeler *preprocessor.Labeler, sampler preprocessor.Sampler, jsonAggregator *preprocessor.JSONAggregator, enableJSONAggregation bool, flushTimeout time.Duration) LineHandler {
-	pipeline := preprocessor.NewPipeline(combiner, tok, labeler, sampler, jsonAggregator, enableJSONAggregation, flushTimeout)
-	return &pipelineLineHandler{pipeline: pipeline}
+func newPreprocessorHandler(aggregator preprocessor.Aggregator, tok *preprocessor.Tokenizer, labeler *preprocessor.Labeler, sampler preprocessor.Sampler, jsonAggregator *preprocessor.JSONAggregator, enableJSONAggregation bool, flushTimeout time.Duration) LineHandler {
+	pp := preprocessor.NewPreprocessor(aggregator, tok, labeler, sampler, jsonAggregator, enableJSONAggregation, flushTimeout)
+	return &preprocessorLineHandler{preprocessor: pp}
 }
 
-// pipelineLineHandler is a thin adapter that satisfies the LineHandler interface
-// by delegating all processing to a preprocessor.Pipeline.
-type pipelineLineHandler struct {
-	pipeline *preprocessor.Pipeline
+// preprocessorLineHandler is a thin adapter that satisfies the LineHandler interface
+// by delegating all processing to a preprocessor.Preprocessor.
+type preprocessorLineHandler struct {
+	preprocessor *preprocessor.Preprocessor
 }
 
-func (h *pipelineLineHandler) process(msg *message.Message) {
-	h.pipeline.Process(msg)
+func (h *preprocessorLineHandler) process(msg *message.Message) {
+	h.preprocessor.Process(msg)
 }
 
-func (h *pipelineLineHandler) flushChan() <-chan time.Time {
-	return h.pipeline.FlushChan()
+func (h *preprocessorLineHandler) flushChan() <-chan time.Time {
+	return h.preprocessor.FlushChan()
 }
 
-func (h *pipelineLineHandler) flush() {
-	h.pipeline.Flush()
+func (h *preprocessorLineHandler) flush() {
+	h.preprocessor.Flush()
 }
 
 // buildAutoMultilineLabeler constructs a Labeler configured from global settings and any
-// per-source overrides. It is shared by both aggregating and detecting pipeline modes.
+// per-source overrides. It is shared by both aggregating and detecting preprocessor modes.
 func buildAutoMultilineLabeler(sourceSettings *config.SourceAutoMultiLineOptions, sourceSamples []*config.AutoMultilineSample, tailerInfo *status.InfoRegistry) *preprocessor.Labeler {
 	heuristics := []preprocessor.Heuristic{}
 	sourceHasSettings := sourceSettings != nil

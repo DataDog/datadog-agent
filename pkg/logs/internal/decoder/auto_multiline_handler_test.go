@@ -28,12 +28,9 @@ func newCombiningHandler(outputChan chan *message.Message, maxContentSize int, f
 	tailerInfo := status.NewInfoRegistry()
 	sampler := preprocessor.NewNoopSampler(outputChan)
 	labeler := buildAutoMultilineLabeler(nil, nil, tailerInfo)
-	aggregatorFactory := func(outputFn func(*message.Message)) preprocessor.Aggregator {
-		return preprocessor.NewCombiningAggregator(outputFn, maxContentSize, false, false, tailerInfo)
-	}
-	combiner := preprocessor.NewAutoMultilineCombiner(aggregatorFactory)
+	aggregator := preprocessor.NewCombiningAggregator(maxContentSize, false, false, tailerInfo)
 	jsonAgg := preprocessor.NewJSONAggregator(false, maxContentSize)
-	return newPipelineHandler(combiner, preprocessor.NewTokenizer(1000), labeler, sampler, jsonAgg, true, flushTimeout)
+	return newPreprocessorHandler(aggregator, preprocessor.NewTokenizer(1000), labeler, sampler, jsonAgg, true, flushTimeout)
 }
 
 // newDetectingHandler creates an auto multiline handler in detection-only mode.
@@ -42,11 +39,8 @@ func newDetectingHandler(outputChan chan *message.Message, _ int, flushTimeout t
 	tailerInfo := status.NewInfoRegistry()
 	sampler := preprocessor.NewNoopSampler(outputChan)
 	labeler := buildAutoMultilineLabeler(nil, nil, tailerInfo)
-	aggregatorFactory := func(outputFn func(*message.Message)) preprocessor.Aggregator {
-		return preprocessor.NewDetectingAggregator(outputFn, tailerInfo)
-	}
-	combiner := preprocessor.NewAutoMultilineCombiner(aggregatorFactory)
-	return newPipelineHandler(combiner, preprocessor.NewTokenizer(1000), labeler, sampler, nil, false, flushTimeout)
+	aggregator := preprocessor.NewDetectingAggregator(tailerInfo)
+	return newPreprocessorHandler(aggregator, preprocessor.NewTokenizer(1000), labeler, sampler, nil, false, flushTimeout)
 }
 
 func TestAutoMultilineHandler_ManualFlush(t *testing.T) {
@@ -184,11 +178,8 @@ func TestAutoMultilineHandler_JSONAggregationDisabled(t *testing.T) {
 	tailerInfo := status.NewInfoRegistry()
 	sampler := preprocessor.NewNoopSampler(outputChan)
 	labeler := buildAutoMultilineLabeler(nil, nil, tailerInfo)
-	aggregatorFactory := func(outputFn func(*message.Message)) preprocessor.Aggregator {
-		return preprocessor.NewCombiningAggregator(outputFn, 1000, false, false, tailerInfo)
-	}
-	combiner := preprocessor.NewAutoMultilineCombiner(aggregatorFactory)
-	handler := newPipelineHandler(combiner, preprocessor.NewTokenizer(1000), labeler, sampler, nil, false, 10*time.Second)
+	aggregator := preprocessor.NewCombiningAggregator(1000, false, false, tailerInfo)
+	handler := newPreprocessorHandler(aggregator, preprocessor.NewTokenizer(1000), labeler, sampler, nil, false, 10*time.Second)
 
 	// Process multi-part JSON
 	handler.process(newTestMessage(`{"key":`))

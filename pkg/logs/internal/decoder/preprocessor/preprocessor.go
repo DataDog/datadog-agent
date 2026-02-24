@@ -12,37 +12,37 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// Pipeline owns all preprocessor stages and wires them in the correct order:
-// JSON aggregation (optional) → tokenization → labeling → combining → sampling
-type Pipeline struct {
+// Preprocessor owns all preprocessor stages and wires them in the correct order:
+// JSON aggregation (optional) → tokenization → labeling → aggregation → sampling
+type Preprocessor struct {
 	jsonAggregator        *JSONAggregator
 	tokenizer             *Tokenizer
 	labeler               *Labeler
-	combiner              Combiner
+	aggregator            Aggregator
 	sampler               Sampler
 	enableJSONAggregation bool
 	flushTimeout          time.Duration
 	flushTimer            *time.Timer
 }
 
-// NewPipeline creates a new Pipeline.
+// NewPreprocessor creates a new Preprocessor.
 // Pass nil for jsonAggregator when JSON aggregation is not needed.
 // Pass nil for labeler when labeling is not needed (regex and pass-through paths).
-func NewPipeline(combiner Combiner, tokenizer *Tokenizer, labeler *Labeler, sampler Sampler,
-	jsonAggregator *JSONAggregator, enableJSONAggregation bool, flushTimeout time.Duration) *Pipeline {
-	return &Pipeline{
+func NewPreprocessor(aggregator Aggregator, tokenizer *Tokenizer, labeler *Labeler, sampler Sampler,
+	jsonAggregator *JSONAggregator, enableJSONAggregation bool, flushTimeout time.Duration) *Preprocessor {
+	return &Preprocessor{
 		jsonAggregator:        jsonAggregator,
 		tokenizer:             tokenizer,
 		labeler:               labeler,
-		combiner:              combiner,
+		aggregator:            aggregator,
 		sampler:               sampler,
 		enableJSONAggregation: enableJSONAggregation,
 		flushTimeout:          flushTimeout,
 	}
 }
 
-// Process processes a message through the pipeline.
-func (p *Pipeline) Process(msg *message.Message) {
+// Process processes a message through the preprocessor.
+func (p *Preprocessor) Process(msg *message.Message) {
 	p.stopFlushTimerIfNeeded()
 	defer p.startFlushTimerIfNeeded()
 
@@ -55,7 +55,7 @@ func (p *Pipeline) Process(msg *message.Message) {
 	}
 }
 
-func (p *Pipeline) processOne(msg *message.Message) {
+func (p *Preprocessor) processOne(msg *message.Message) {
 	// Step 1: Tokenize and label — only when a labeler is present (auto multiline paths).
 	// Tokens stay local; they are never stored on the message.
 	var label Label
@@ -65,41 +65,41 @@ func (p *Pipeline) processOne(msg *message.Message) {
 		tokens, tokenIndices = p.tokenizer.Tokenize(msg.GetContent())
 		label = p.labeler.Label(msg.GetContent(), tokens, tokenIndices)
 	}
-	// Step 2: Combine (may buffer; returns zero or more completed messages)
-	for _, completed := range p.combiner.Process(msg, label) {
+	// Step 2: Aggregate (may buffer; returns zero or more completed messages)
+	for _, completed := range p.aggregator.Process(msg, label) {
 		// Step 3: Sample/emit
 		p.sampler.Process(completed)
 	}
 }
 
 // FlushChan returns a channel that signals when a flush should occur.
-func (p *Pipeline) FlushChan() <-chan time.Time {
+func (p *Preprocessor) FlushChan() <-chan time.Time {
 	if p.flushTimer != nil {
 		return p.flushTimer.C
 	}
 	return nil
 }
 
-// Flush flushes all pipeline stages in order.
-func (p *Pipeline) Flush() {
+// Flush flushes all preprocessor stages in order.
+func (p *Preprocessor) Flush() {
 	if p.enableJSONAggregation && p.jsonAggregator != nil {
 		for _, m := range p.jsonAggregator.Flush() {
 			p.processOne(m)
 		}
 	}
-	for _, completed := range p.combiner.Flush() {
+	for _, completed := range p.aggregator.Flush() {
 		p.sampler.Process(completed)
 	}
 	p.sampler.Flush()
 	p.stopFlushTimerIfNeeded()
 }
 
-func (p *Pipeline) isEmpty() bool {
+func (p *Preprocessor) isEmpty() bool {
 	jsonEmpty := p.jsonAggregator == nil || p.jsonAggregator.IsEmpty()
-	return p.combiner.IsEmpty() && jsonEmpty
+	return p.aggregator.IsEmpty() && jsonEmpty
 }
 
-func (p *Pipeline) stopFlushTimerIfNeeded() {
+func (p *Preprocessor) stopFlushTimerIfNeeded() {
 	if p.flushTimer == nil || p.isEmpty() {
 		return
 	}
@@ -108,7 +108,7 @@ func (p *Pipeline) stopFlushTimerIfNeeded() {
 	}
 }
 
-func (p *Pipeline) startFlushTimerIfNeeded() {
+func (p *Preprocessor) startFlushTimerIfNeeded() {
 	if p.isEmpty() {
 		return
 	}

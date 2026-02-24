@@ -67,6 +67,14 @@ func NewMultiLineHandler(outputFn func(*message.Message), newContentRe *regexp.R
 	return h
 }
 
+// Satisfy the multiLineCountable interface to use syncSourceInfo function
+func (h *MultiLineHandler) CountInfo() *status.CountInfo         { return h.countInfo }
+func (h *MultiLineHandler) SetCountInfo(info *status.CountInfo)  { h.countInfo = info }
+func (h *MultiLineHandler) LinesCombinedInfo() *status.CountInfo { return h.linesCombinedInfo }
+func (h *MultiLineHandler) SetLinesCombinedInfo(info *status.CountInfo) {
+	h.linesCombinedInfo = info
+}
+
 func (h *MultiLineHandler) flushChan() <-chan time.Time {
 	if h.flushTimer != nil && h.buffer.Len() > 0 {
 		return h.flushTimer.C

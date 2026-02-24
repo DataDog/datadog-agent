@@ -80,27 +80,18 @@ func InitializeDecoder(source *sources.ReplaceableSource, parser parsers.Parser,
 	return NewDecoderWithFraming(source, parser, framer.UTF8Newline, nil, tailerInfo)
 }
 
-// Since a single source can have multiple file tailers - each with their own decoder instance:
-// make sure we sync info providers from all of the decoders so the status page displays it correctly.
-func syncSourceInfo(source *sources.ReplaceableSource, lh *MultiLineHandler) {
-	if existingInfo, ok := source.GetInfo(lh.countInfo.InfoKey()).(*status.CountInfo); ok {
-		// override the new decoders info to the instance we are already using
-		lh.countInfo = existingInfo
-	} else {
-		// this is the first decoder we have seen for this source - use it's count info
-		source.RegisterInfo(lh.countInfo)
-	}
-	// Same as above for linesCombinedInfo
-	if existingInfo, ok := source.GetInfo(lh.linesCombinedInfo.InfoKey()).(*status.CountInfo); ok {
-		lh.linesCombinedInfo = existingInfo
-	} else {
-		source.RegisterInfo(lh.linesCombinedInfo)
-	}
+// multiLineCountable is implemented by any handler or aggregator that tracks multiline match
+// and lines-combined counters, allowing them to be shared across multiple tailers for the same source.
+type multiLineCountable interface {
+	CountInfo() *status.CountInfo
+	SetCountInfo(*status.CountInfo)
+	LinesCombinedInfo() *status.CountInfo
+	SetLinesCombinedInfo(*status.CountInfo)
 }
 
-// syncSourceInfoForRegexCombiner syncs the RegexCombiner's counters with the source's info
-// registry so that multiple tailers for the same source share the same count displays.
-func syncSourceInfoForRegexCombiner(source *sources.ReplaceableSource, c *preprocessor.RegexCombiner) {
+// syncSourceInfo ensures that multiple decoders for the same source share the same status counters,
+// so the status page displays a single combined count rather than per-tailer counts.
+func syncSourceInfo(source *sources.ReplaceableSource, c multiLineCountable) {
 	if existingInfo, ok := source.GetInfo(c.CountInfo().InfoKey()).(*status.CountInfo); ok {
 		c.SetCountInfo(existingInfo)
 	} else {
@@ -134,13 +125,13 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 	outputChan := make(chan *message.Message)
 	detectedPattern := &DetectedPattern{}
 
-	// Sampler is the final step of the Pipeline — emits completed messages to outputChan.
+	// Sampler is the final step of the Preprocessor — emits completed messages to outputChan.
 	sampler := preprocessor.NewNoopSampler(outputChan)
 
-	// TODO: AGNTLOG-553 Respect source-specific tokenizer settings
-	//       (source.Config().AutoMultiLineOptions.TokenizerMaxInputBytes) to
-	//       avoid breaking change for sources with custom tokenizer config
 	tokenizerMaxInputBytes := pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
+	if opts := source.Config().AutoMultiLineOptions; opts != nil && opts.TokenizerMaxInputBytes != nil {
+		tokenizerMaxInputBytes = *opts.TokenizerMaxInputBytes
+	}
 	tok := preprocessor.NewTokenizer(tokenizerMaxInputBytes)
 	lineHandler := buildLineHandler(source, multiLinePattern, tailerInfo, outputChan, detectedPattern, tok, sampler)
 
@@ -160,7 +151,7 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 	maxContentSize := config.MaxMessageSizeBytes(pkgconfigsetup.Datadog())
 	flushTimeout := config.AggregationTimeout(pkgconfigsetup.Datadog())
 
-	// directOutputFn is used by legacy handlers that bypass the Pipeline.
+	// directOutputFn is used by legacy handlers that bypass the Preprocessor.
 	directOutputFn := func(msg *message.Message) { outputChan <- msg }
 
 	// User-configured multiline regex — each line is matched against the regex to detect group
@@ -168,9 +159,9 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 	var lineHandler LineHandler
 	for _, rule := range source.Config().ProcessingRules {
 		if rule.Type == config.MultiLine {
-			regexCombiner := preprocessor.NewRegexCombiner(rule.Regex, maxContentSize, false, tailerInfo, "multi_line")
-			syncSourceInfoForRegexCombiner(source, regexCombiner)
-			lineHandler = newPipelineHandler(regexCombiner, tok, nil, sampler, nil, false, flushTimeout)
+			regexAggregator := preprocessor.NewRegexAggregator(rule.Regex, maxContentSize, false, tailerInfo, "multi_line")
+			syncSourceInfo(source, regexAggregator)
+			lineHandler = newPreprocessorHandler(regexAggregator, tok, nil, sampler, nil, false, flushTimeout)
 		}
 	}
 
@@ -179,7 +170,7 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 	}
 
 	// Priority order when no user-configured regex rule was set:
-	// 1. Legacy auto multiline (bypasses Pipeline; outputs directly to outputChan)
+	// 1. Legacy auto multiline (bypasses Preprocessor; outputs directly to outputChan)
 	// 2. Auto multiline with aggregation — combines detected groups into one message
 	// 3. Auto multiline detection-only — tags group starts without combining, this is the default
 	// 4. Pass-through — tokenizes and samples every line individually
@@ -187,30 +178,24 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 		return getLegacyAutoMultilineHandler(directOutputFn, multiLinePattern, maxContentSize, source, detectedPattern, tailerInfo)
 	} else if source.Config().AutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
 		labeler := buildAutoMultilineLabeler(source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, tailerInfo)
-		aggregatorFactory := func(outputFn func(*message.Message)) preprocessor.Aggregator {
-			return preprocessor.NewCombiningAggregator(outputFn, maxContentSize,
-				pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs"),
-				pkgconfigsetup.Datadog().GetBool("logs_config.tag_multi_line_logs"),
-				tailerInfo)
-		}
-		combiner := preprocessor.NewAutoMultilineCombiner(aggregatorFactory)
+		combiningAggregator := preprocessor.NewCombiningAggregator(maxContentSize,
+			pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs"),
+			pkgconfigsetup.Datadog().GetBool("logs_config.tag_multi_line_logs"),
+			tailerInfo)
 		enableJSON := pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_json_aggregation")
 		if source.Config().AutoMultiLineOptions != nil && source.Config().AutoMultiLineOptions.EnableJSONAggregation != nil {
 			enableJSON = *source.Config().AutoMultiLineOptions.EnableJSONAggregation
 		}
 		jsonAgg := preprocessor.NewJSONAggregator(pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.tag_aggregated_json"), maxContentSize)
-		return newPipelineHandler(combiner, tok, labeler, sampler, jsonAgg, enableJSON, flushTimeout)
+		return newPreprocessorHandler(combiningAggregator, tok, labeler, sampler, jsonAgg, enableJSON, flushTimeout)
 	} else if pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line_detection_tagging") {
 		labeler := buildAutoMultilineLabeler(source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, tailerInfo)
-		aggregatorFactory := func(outputFn func(*message.Message)) preprocessor.Aggregator {
-			// JSON aggregation is disabled in detection mode — we don't want to combine JSON
-			// while only tagging everything else.
-			return preprocessor.NewDetectingAggregator(outputFn, tailerInfo)
-		}
-		combiner := preprocessor.NewAutoMultilineCombiner(aggregatorFactory)
-		return newPipelineHandler(combiner, tok, labeler, sampler, nil, false, flushTimeout)
+		// JSON aggregation is disabled in detection mode — we don't want to combine JSON
+		// while only tagging everything else.
+		detectingAggregator := preprocessor.NewDetectingAggregator(tailerInfo)
+		return newPreprocessorHandler(detectingAggregator, tok, labeler, sampler, nil, false, flushTimeout)
 	}
-	return newPipelineHandler(preprocessor.NewPassThroughCombiner(maxContentSize), tok, nil, sampler, nil, false, flushTimeout)
+	return newPreprocessorHandler(preprocessor.NewPassThroughAggregator(maxContentSize), tok, nil, sampler, nil, false, flushTimeout)
 }
 
 func getLegacyAutoMultilineHandler(outputFn func(*message.Message), multiLinePattern *regexp.Regexp, maxContentSize int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) LineHandler {

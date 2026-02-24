@@ -105,7 +105,7 @@ func (b *bucket) flush() *message.Message {
 
 // combiningAggregator aggregates multiline logs with a given label.
 type combiningAggregator struct {
-	outputFn           func(m *message.Message)
+	collected          []*message.Message
 	bucket             *bucket
 	maxContentSize     int
 	multiLineMatchInfo *status.CountInfo
@@ -113,14 +113,13 @@ type combiningAggregator struct {
 }
 
 // NewCombiningAggregator creates a new combining aggregator.
-func NewCombiningAggregator(outputFn func(m *message.Message), maxContentSize int, tagTruncatedLogs bool, tagMultiLineLogs bool, tailerInfo *status.InfoRegistry) Aggregator {
+func NewCombiningAggregator(maxContentSize int, tagTruncatedLogs bool, tagMultiLineLogs bool, tailerInfo *status.InfoRegistry) Aggregator {
 	multiLineMatchInfo := status.NewCountInfo("MultiLine matches")
 	linesCombinedInfo := status.NewCountInfo("Lines Combined")
 	tailerInfo.Register(multiLineMatchInfo)
 	tailerInfo.Register(linesCombinedInfo)
 
 	return &combiningAggregator{
-		outputFn: outputFn,
 		bucket: &bucket{
 			buffer:           bytes.NewBuffer(nil),
 			tagTruncatedLogs: tagTruncatedLogs,
@@ -136,35 +135,45 @@ func NewCombiningAggregator(outputFn func(m *message.Message), maxContentSize in
 	}
 }
 
-// Process processes a multiline log using a label.
-func (a *combiningAggregator) Process(msg *message.Message, label Label) {
+// flushToCollected appends the flushed bucket message (if any) to a.collected.
+func (a *combiningAggregator) flushToCollected() {
+	if a.bucket.isEmpty() {
+		a.bucket.reset()
+		return
+	}
+	a.collected = append(a.collected, a.bucket.flush())
+}
+
+// Process processes a multiline log using a label and returns any completed messages.
+func (a *combiningAggregator) Process(msg *message.Message, label Label) []*message.Message {
+	a.collected = a.collected[:0]
+
 	// If `noAggregate` - flush the bucket immediately and then flush the next message.
 	if label == noAggregate {
-		a.Flush()
+		a.flushToCollected()
 		a.bucket.shouldTruncate = false // noAggregate messages should never be truncated at the beginning (Could break JSON formatted messages)
 		a.bucket.add(msg)
-		a.Flush()
-		return
+		a.flushToCollected()
+		return a.collected
 	}
 
 	// If `aggregate` and the bucket is empty - flush the next message.
 	if label == aggregate && a.bucket.isEmpty() {
 		a.bucket.add(msg)
-		a.Flush()
-		return
+		a.flushToCollected()
+		return a.collected
 	}
 
 	// If `startGroup` - flush the old bucket to form a new group.
 	if label == startGroup {
-		a.Flush()
+		a.flushToCollected()
 		a.multiLineMatchInfo.Add(1)
 		a.bucket.add(msg)
 		if msg.RawDataLen >= a.maxContentSize {
 			// Start group is too big to append anything to, flush it and reset.
-			a.Flush()
+			a.flushToCollected()
 		}
-		return
-
+		return a.collected
 	}
 
 	// Check for a total buffer size larger than the limit. This should only be reachable by an aggregate label
@@ -174,26 +183,25 @@ func (a *combiningAggregator) Process(msg *message.Message, label Label) {
 	if msg.RawDataLen+a.bucket.buffer.Len() >= a.maxContentSize {
 		a.bucket.needsTruncation = true
 		a.bucket.lineCount++ // Account for the current (not yet processed) message being part of the same log
-		a.Flush()
+		a.flushToCollected()
 
 		a.bucket.lineCount++ // Account for the previous (now flushed) message being part of the same log
 		a.bucket.add(msg)
-		a.Flush()
-		return
+		a.flushToCollected()
+		return a.collected
 	}
 
 	// We're an aggregate label within a startGroup and within the maxContentSize. Append new multiline
 	a.linesCombinedInfo.Add(1)
 	a.bucket.add(msg)
+	return a.collected
 }
 
-// Flush flushes the aggregator.
-func (a *combiningAggregator) Flush() {
-	if a.bucket.isEmpty() {
-		a.bucket.reset()
-		return
-	}
-	a.outputFn(a.bucket.flush())
+// Flush flushes the aggregator and returns any pending messages.
+func (a *combiningAggregator) Flush() []*message.Message {
+	a.collected = a.collected[:0]
+	a.flushToCollected()
+	return a.collected
 }
 
 // IsEmpty returns true if the bucket is empty.
