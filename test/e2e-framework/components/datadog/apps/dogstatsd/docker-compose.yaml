@@ -13,17 +13,17 @@ services:
     image: ghcr.io/datadog/apps-dogstatsd:{APPS_VERSION}
     container_name: metric-sender-uds
     volumes:
-      - /var/run/datadog:/var/run/datadog:ro
+      - /opt/datadog-agent/run:/opt/datadog-agent/run:ro
     network_mode: host
     pid: "host"
     environment:
-      STATSD_URL:  "unix:///var/run/datadog/dsd.socket"
+      STATSD_URL:  "unix:///opt/datadog-agent/run/dsd.socket"
     depends_on:
       - agent
   agent:
     environment:
       DD_DOGSTATSD_ORIGIN_DETECTION: "true"
       DD_DOGSTATSD_TAG_CARDINALITY: "high"
-      DD_DOGSTATSD_SOCKET: "/var/run/datadog/dsd.socket"
+      DD_DOGSTATSD_SOCKET: "/opt/datadog-agent/run/dsd.socket"
       DD_DOGSTATSD_ORIGIN_DETECTION_CLIENT: "true"
       DD_DOGSTATSD_NON_LOCAL_TRAFFIC: "true"

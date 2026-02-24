@@ -21,6 +21,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+// K8sAppDefinition creates the Kubernetes resources for the DogStatsD test application.
 func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace string, statsdPort int, statsdSocket string, opts ...pulumi.ResourceOption) (*componentskube.Workload, error) {
 	opts = append(opts, pulumi.Provider(kubeProvider), pulumi.Parent(kubeProvider), pulumi.DeletedWith(kubeProvider))
 
