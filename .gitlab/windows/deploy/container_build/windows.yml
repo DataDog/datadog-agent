@@ -83,4 +83,4 @@
   retry: 2
 
 include:
-  - .gitlab/windows/deploy/container_build_agent7.yml
+  - .gitlab/windows/deploy/container_build/agent7.yml
