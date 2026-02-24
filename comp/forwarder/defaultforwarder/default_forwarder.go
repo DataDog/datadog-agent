@@ -288,7 +288,6 @@ type DefaultForwarder struct {
 
 	agentName                       string
 	queueDurationCapacity           *retry.QueueDurationCapacity
-	retryQueueDurationCapacityMutex sync.Mutex
 }
 
 // NewDefaultForwarder returns a new DefaultForwarder.
@@ -577,9 +576,6 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 	if f.internalState.Load() == Stopped {
 		return errors.New("the forwarder is not started")
 	}
-
-	f.retryQueueDurationCapacityMutex.Lock()
-	defer f.retryQueueDurationCapacityMutex.Unlock()
 
 	now := time.Now()
 	for _, t := range transactions {
