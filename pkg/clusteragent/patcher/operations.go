@@ -133,3 +133,58 @@ func (o *deletePodTemplateAnnotations) build() map[string]interface{} {
 		},
 	}
 }
+
+// --- Pod container operations ---
+
+// ContainerResourcePatch describes the resource changes for a single container.
+type ContainerResourcePatch struct {
+	// Name is the container name
+	Name string
+	// Requests is the desired resource requests (e.g. {"cpu": "250m", "memory": "512Mi"}).
+	Requests map[string]string
+	// Limits is the desired resource limits (e.g. {"cpu": "500m", "memory": "1Gi"}).
+	Limits map[string]string
+}
+
+// setContainerResources sets spec.containers[*].resources for the listed containers
+type setContainerResources struct {
+	containers []ContainerResourcePatch
+}
+
+// SetContainerResources creates an operation that sets resource requests and limits
+// for the named containers via a strategic merge patch on spec.containers
+func SetContainerResources(containers []ContainerResourcePatch) PatchOperation {
+	return &setContainerResources{containers: containers}
+}
+
+func (o *setContainerResources) build() map[string]interface{} {
+	containerList := make([]interface{}, 0, len(o.containers))
+	for _, c := range o.containers {
+		resources := map[string]interface{}{}
+		if len(c.Requests) > 0 {
+			requests := make(map[string]interface{}, len(c.Requests))
+			for k, v := range c.Requests {
+				requests[k] = v
+			}
+			resources["requests"] = requests
+		}
+
+		if len(c.Limits) > 0 {
+			limits := make(map[string]interface{}, len(c.Limits))
+			for k, v := range c.Limits {
+				limits[k] = v
+			}
+			resources["limits"] = limits
+		}
+
+		containerList = append(containerList, map[string]interface{}{
+			"name":      c.Name,
+			"resources": resources,
+		})
+	}
+	return map[string]interface{}{
+		"spec": map[string]interface{}{
+			"containers": containerList,
+		},
+	}
+}

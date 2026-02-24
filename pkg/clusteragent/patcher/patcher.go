@@ -35,6 +35,10 @@ type PatchOptions struct {
 	// Caller identifies the subsystem making the patch, used for logging
 	// (e.g. "language_detection", "rc_patcher", "vpa").
 	Caller string
+
+	// Subresource, if non-empty, routes the patch to the named subresource
+	// (e.g. "resize" for in-place pod resource updates).
+	Subresource string
 }
 
 // Patcher applies PatchIntents to Kubernetes resources via the dynamic client.
@@ -89,9 +93,14 @@ func (p *Patcher) Apply(ctx context.Context, intent *PatchIntent, opts PatchOpti
 			patchOpts.DryRun = []string{metav1.DryRunAll}
 		}
 
+		subresources := []string{}
+		if opts.Subresource != "" {
+			subresources = append(subresources, opts.Subresource)
+		}
+
 		_, err := p.client.Resource(target.GVR).
 			Namespace(target.Namespace).
-			Patch(ctx, target.Name, patchType, patchData, patchOpts)
+			Patch(ctx, target.Name, patchType, patchData, patchOpts, subresources...)
 		return err
 	}
 
