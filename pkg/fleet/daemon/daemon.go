@@ -378,6 +378,16 @@ func (d *daemonImpl) Start(_ context.Context) error {
 		// immutable daemon fields) so it is safe to call without d.m.
 		d.refreshState(d.ctx)
 
+		// Start the RC client only after the initial state refresh so that the
+		// first RC payload sent to the backend contains the actual package state
+		// instead of an empty state.  The mutex guards against a race with
+		// rc.Close() in Stop().
+		d.m.Lock()
+		if d.ctx.Err() == nil {
+			d.rc.Start(d.handleConfigsUpdate, d.handleCatalogUpdate, d.scheduleRemoteAPIRequest)
+		}
+		d.m.Unlock()
+
 		gcTicker := time.NewTicker(d.gcInterval)
 		defer gcTicker.Stop()
 		refreshStateTicker := time.NewTicker(d.refreshInterval)
@@ -405,7 +415,6 @@ func (d *daemonImpl) Start(_ context.Context) error {
 			}
 		}
 	})
-	d.rc.Start(d.handleConfigsUpdate, d.handleCatalogUpdate, d.scheduleRemoteAPIRequest)
 	return nil
 }
 
