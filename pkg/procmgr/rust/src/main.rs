@@ -47,7 +47,16 @@ fn start_processes() -> Result<Vec<ManagedProcess>> {
         return Ok(processes);
     }
 
-    let configs = config::load_configs(&config_dir)?;
+    let configs = match config::load_configs(&config_dir) {
+        Ok(c) => c,
+        Err(e) => {
+            warn!(
+                "cannot read config directory {}: {e:#}",
+                config_dir.display()
+            );
+            return Ok(processes);
+        }
+    };
     info!(
         "loaded {} process config(s) from {}",
         configs.len(),

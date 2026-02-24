@@ -214,6 +214,27 @@ condition_path_exists: /usr/bin/sleep
     }
 
     #[test]
+    fn test_load_configs_nonexistent_directory() {
+        let result = load_configs(Path::new("/nonexistent/processes.d"));
+        assert!(result.is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_load_configs_unreadable_directory() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("proc.yaml"), "command: /a\n").unwrap();
+        fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o000)).unwrap();
+
+        let result = load_configs(dir.path());
+        // Restore permissions so tempdir cleanup succeeds.
+        fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn test_ddot_example_config() {
         let dir = tempfile::tempdir().unwrap();
         let yaml = r#"
