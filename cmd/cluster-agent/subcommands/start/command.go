@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"sync"
 	"syscall"
 	"time"
@@ -411,6 +412,11 @@ func start(log log.Component,
 	rcserv, isSet := rcService.Get()
 	if configUtils.IsRemoteConfigEnabled(config) && isSet {
 		var products []string
+		// DEMO: Hardcoded AGENT_TASK product for cluster-agent
+		pkglog.Errorf("Q BRANCH DEMO: rc-client in cluster-agent listens to AGENT_TASK")
+		pkglog.Errorf("Q BRANCH DEMO: rc-client in cluster-agent listens to AGENT_TASK")
+		pkglog.Errorf("Q BRANCH DEMO: rc-client in cluster-agent listens to AGENT_TASK")
+		products = append(products, state.ProductAgentTask)
 		if config.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
 			products = append(products, state.ProductAPMTracing)
 		}
@@ -430,6 +436,13 @@ func start(log log.Component,
 			if err != nil {
 				log.Errorf("Failed to start remote-configuration: %v", err)
 			} else {
+				// Subscribe to AGENT_TASK product if enabled
+				if slices.Contains(products, state.ProductAgentTask) {
+					taskHandler := newAgentTaskHandler()
+					rcClient.Subscribe(state.ProductAgentTask, taskHandler.handleAgentTaskUpdate)
+					pkglog.Info("Subscribed to AGENT_TASK remote config product")
+				}
+
 				rcClient.Start()
 				defer func() {
 					rcClient.Close()

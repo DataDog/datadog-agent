@@ -137,7 +137,7 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 
 	f.log.Infof("Flare was created by remote-config at %s", filePath)
 
-	_, err = f.Send(filePath, caseID, userHandle, helpers.NewRemoteConfigFlareSource(task.Config.UUID))
+	_, err = f.Send(filePath, caseID.(string), userHandle.(string), helpers.NewRemoteConfigFlareSource(task.Config.UUID))
 	return true, err
 }
 
