@@ -344,7 +344,7 @@ func (d *daemonImpl) SetConfigCatalog(configs map[string]installerConfig) {
 }
 
 // Start starts remote config and the garbage collector.
-func (d *daemonImpl) Start(ctx context.Context) error {
+func (d *daemonImpl) Start(_ context.Context) error {
 	d.refreshState(d.ctx)
 
 	d.m.Lock()
