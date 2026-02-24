@@ -306,8 +306,12 @@ static __always_inline int handle_retransmit(struct sock *sk, int count) {
     return 0;
 }
 
-// handle_congestion_stats snapshots TCP congestion fields from tcp_sock into the
-// tcp_congestion_stats map. CO-RE/runtime only; prebuilt is a no-op.
+// handle_congestion_stats reads TCP congestion fields from tcp_sock into the
+// tcp_congestion_stats map. Gauge fields (packets_out, lost_out, sacked_out,
+// retrans_out, ca_state) track the max value seen over the polling interval.
+// Counter fields (delivered, delivered_ce, bytes_retrans, dsack_dups, reord_seen)
+// are monotonically increasing, so the latest value is always the max.
+// CO-RE/runtime only; prebuilt is a no-op.
 static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock *sk) {
 #if !defined(COMPILE_PREBUILT)
     tcp_congestion_stats_t empty = {};
@@ -319,15 +323,27 @@ static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock
     if (val == NULL) {
         return;
     }
-    BPF_CORE_READ_INTO(&val->packets_out, tcp_sk(sk), packets_out);
-    BPF_CORE_READ_INTO(&val->lost_out,    tcp_sk(sk), lost_out);
-    BPF_CORE_READ_INTO(&val->sacked_out,  tcp_sk(sk), sacked_out);
-    BPF_CORE_READ_INTO(&val->delivered,   tcp_sk(sk), delivered);
-    BPF_CORE_READ_INTO(&val->retrans_out,  tcp_sk(sk), retrans_out);
+
+    // Gauge fields: track max over the polling interval. This is safe without
+    // atomics because sendmsg/recvmsg hold the socket lock, so only one CPU
+    // can update a given connection's entry at a time.
+    __u32 tmp = 0;
+    BPF_CORE_READ_INTO(&tmp, tcp_sk(sk), packets_out);
+    if (tmp > val->max_packets_out) { val->max_packets_out = tmp; }
+    BPF_CORE_READ_INTO(&tmp, tcp_sk(sk), lost_out);
+    if (tmp > val->max_lost_out) { val->max_lost_out = tmp; }
+    BPF_CORE_READ_INTO(&tmp, tcp_sk(sk), sacked_out);
+    if (tmp > val->max_sacked_out) { val->max_sacked_out = tmp; }
+    BPF_CORE_READ_INTO(&tmp, tcp_sk(sk), retrans_out);
+    if (tmp > val->max_retrans_out) { val->max_retrans_out = tmp; }
+
+    // Counter fields: monotonically increasing, latest value = max.
+    BPF_CORE_READ_INTO(&val->delivered,    tcp_sk(sk), delivered);
     BPF_CORE_READ_INTO(&val->delivered_ce, tcp_sk(sk), delivered_ce);
     BPF_CORE_READ_INTO(&val->bytes_retrans, tcp_sk(sk), bytes_retrans);
     BPF_CORE_READ_INTO(&val->dsack_dups,   tcp_sk(sk), dsack_dups);
-    BPF_CORE_READ_INTO(&val->reord_seen,  tcp_sk(sk), reord_seen);
+    BPF_CORE_READ_INTO(&val->reord_seen,   tcp_sk(sk), reord_seen);
+
     // BPF_CORE_READ_BITFIELD_PROBED requires __builtin_preserve_field_info which is
     // only available with full CO-RE support. The runtime compiler's clang does not
     // provide this builtin, so ca_state is read only on CO-RE (stays 0 on runtime).
@@ -341,7 +357,8 @@ static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock
     // needs validation against a range of kernels before productionizing.
 #if defined(COMPILE_CORE)
     struct inet_connection_sock *icsk = &tcp_sk(sk)->inet_conn;
-    val->ca_state = (u8)BPF_CORE_READ_BITFIELD_PROBED(icsk, icsk_ca_state);
+    u8 ca = (u8)BPF_CORE_READ_BITFIELD_PROBED(icsk, icsk_ca_state);
+    if (ca > val->max_ca_state) { val->max_ca_state = ca; }
 #endif
 #endif
 }

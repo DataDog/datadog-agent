@@ -155,22 +155,24 @@ func (c *ConnectionStats) FromTupleAndStats(t *netebpf.ConnTuple, s *netebpf.Con
 	}
 }
 
-// FromTCPCongestionStats populates the TCP congestion snapshot fields on ConnectionStats.
+// FromTCPCongestionStats populates the TCP congestion fields on ConnectionStats.
+// Gauge fields contain the max value seen over the polling interval; counter
+// fields contain the latest (highest) monotonically-increasing value.
 func (c *ConnectionStats) FromTCPCongestionStats(cs *netebpf.TCPCongestionStats) {
 	if c.Type != TCP || cs == nil {
 		return
 	}
 
-	c.TCPPacketsOut = cs.Packets_out
-	c.TCPLostOut = cs.Lost_out
-	c.TCPSackedOut = cs.Sacked_out
+	c.TCPMaxPacketsOut = cs.Max_packets_out
+	c.TCPMaxLostOut = cs.Max_lost_out
+	c.TCPMaxSackedOut = cs.Max_sacked_out
 	c.TCPDelivered = cs.Delivered
-	c.TCPRetransOut = cs.Retrans_out
+	c.TCPMaxRetransOut = cs.Max_retrans_out
 	c.TCPDeliveredCE = cs.Delivered_ce
 	c.TCPBytesRetrans = cs.Bytes_retrans
 	c.TCPDSACKDups = cs.Dsack_dups
 	c.TCPReordSeen = cs.Reord_seen
-	c.TCPCAState = cs.Ca_state
+	c.TCPMaxCAState = cs.Max_ca_state
 }
 
 // FromTCPRTORecoveryStats populates the RTO and fast-recovery event counter fields on ConnectionStats.

@@ -288,25 +288,21 @@ type ConnectionStats struct {
 	RTT             uint32 // Stored in µs
 	RTTVar          uint32
 	// TCP congestion fields (CO-RE/runtime tracer only; 0 on prebuilt).
-	// Gauge fields (packets_out, lost_out, sacked_out, retrans_out) are point-in-time
-	// snapshots from the last sendmsg/recvmsg and don't aggregate well over 30s
-	// intervals or across connections.
-	// TODO: before productionizing, reassess the gauge fields — consider tracking
-	// max-over-interval, converting to booleans (e.g. lost_out > 0), or removing
-	// them in favor of the counter fields (delivered, delivered_ce, bytes_retrans,
-	// dsack_dups) which delta and aggregate cleanly.
-	TCPPacketsOut   uint32 // segments currently in-flight (gauge)
-	TCPLostOut      uint32 // SACK/RACK estimated lost segments (gauge)
-	TCPSackedOut    uint32 // segments SACKed by receiver (gauge)
-	TCPDelivered    uint32 // total segments delivered (counter)
-	TCPRetransOut   uint32 // retransmitted segments still in-flight (gauge)
-	TCPDeliveredCE  uint32 // segments delivered with ECN CE mark (counter)
-	TCPBytesRetrans uint64 // cumulative bytes retransmitted (counter, 4.19+)
-	TCPDSACKDups    uint32 // DSACK-detected spurious retransmits (counter)
-	TCPReordSeen    uint32 // reordering events detected (counter, 4.19+)
-	// TODO: before productionizing, move TCPCAState to the trailing single-byte
+	// Gauge fields track max-over-interval (reset when the map entry is deleted
+	// at connection close or client polling). Counter fields are monotonically
+	// increasing; the latest value is always the max.
+	TCPMaxPacketsOut uint32 // max segments in-flight during interval
+	TCPMaxLostOut    uint32 // max SACK/RACK estimated lost segments during interval
+	TCPMaxSackedOut  uint32 // max segments SACKed by receiver during interval
+	TCPDelivered     uint32 // total segments delivered (counter)
+	TCPMaxRetransOut uint32 // max retransmitted segments in-flight during interval
+	TCPDeliveredCE   uint32 // segments delivered with ECN CE mark (counter)
+	TCPBytesRetrans  uint64 // cumulative bytes retransmitted (counter, 4.19+)
+	TCPDSACKDups     uint32 // DSACK-detected spurious retransmits (counter)
+	TCPReordSeen     uint32 // reordering events detected (counter, 4.19+)
+	// TODO: before productionizing, move TCPMaxCAState to the trailing single-byte
 	// section (near SPortIsEphemeral) to avoid 3 bytes of alignment padding.
-	TCPCAState uint8 // inet_connection_sock CA state (0=Open,1=Disorder,2=CWR,3=Recovery,4=Loss)
+	TCPMaxCAState uint8 // worst CA state seen during interval (0=Open..4=Loss)
 	// TCP RTO/recovery event counters (CO-RE/runtime tracer only; 0 on prebuilt)
 	TCPRTOCount      uint32 // number of RTO loss events (tcp_enter_loss invocations)
 	TCPRecoveryCount uint32 // number of fast-recovery events (tcp_enter_recovery invocations)

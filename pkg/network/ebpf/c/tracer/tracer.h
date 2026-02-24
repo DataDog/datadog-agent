@@ -95,21 +95,22 @@ typedef struct {
     __u16 failure_reason;
 } tcp_stats_t;
 
-// Per-connection TCP congestion snapshot. Stored in a separate BPF map (not in conn_t)
+// Per-connection TCP congestion stats. Stored in a separate BPF map (not in conn_t)
 // to avoid overflowing the BPF stack in flush_conn_close_if_full(). Updated on every
-// sendmsg/recvmsg via handle_congestion_stats(). CO-RE/runtime only; prebuilt returns 0.
+// sendmsg/recvmsg via handle_congestion_stats(). Gauge fields track max-over-interval;
+// counter fields are monotonically increasing. CO-RE/runtime only; prebuilt returns 0.
 typedef struct {
-    __u32 packets_out;  // segments currently in-flight
-    __u32 lost_out;     // SACK/RACK estimated lost segments
-    __u32 sacked_out;   // segments SACKed by receiver
-    __u32 delivered;    // total segments delivered (loss rate denominator)
-    __u32 retrans_out;    // retransmitted segments still in-flight
-    __u32 delivered_ce;   // segments delivered with ECN CE mark (counter)
-    __u64 bytes_retrans;  // cumulative bytes retransmitted (counter, 4.19+)
-    __u32 dsack_dups;     // DSACK-detected spurious retransmits (counter)
-    __u32 reord_seen;     // reordering events detected (counter, 4.19+)
-    __u8  ca_state;       // inet_connection_sock.icsk_ca_state (TCP_CA_Open=0..TCP_CA_Loss=4)
-    __u8  _pad[3];        // explicit padding to maintain 4-byte alignment
+    __u32 max_packets_out;  // max segments in-flight during interval
+    __u32 max_lost_out;     // max SACK/RACK estimated lost segments during interval
+    __u32 max_sacked_out;   // max segments SACKed by receiver during interval
+    __u32 delivered;        // total segments delivered (counter)
+    __u32 max_retrans_out;  // max retransmitted segments in-flight during interval
+    __u32 delivered_ce;     // segments delivered with ECN CE mark (counter)
+    __u64 bytes_retrans;    // cumulative bytes retransmitted (counter, 4.19+)
+    __u32 dsack_dups;       // DSACK-detected spurious retransmits (counter)
+    __u32 reord_seen;       // reordering events detected (counter, 4.19+)
+    __u8  max_ca_state;     // worst CA state seen during interval (0=Open..4=Loss)
+    __u8  _pad[3];          // explicit padding to maintain 4-byte alignment
 } tcp_congestion_stats_t;
 
 // Per-connection RTO and fast-recovery event counters. Stored in a separate BPF map

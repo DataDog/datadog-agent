@@ -3402,10 +3402,10 @@ func (s *TracerSuite) TestTCPCongestionSignals() {
 		if !assert.True(ct, ok, "connection not found") {
 			return
 		}
-		t.Logf("Congestion signals: delivered=%d packets_out=%d lost_out=%d sacked_out=%d retrans_out=%d delivered_ce=%d bytes_retrans=%d dsack_dups=%d reord_seen=%d ca_state=%d rto_count=%d recovery_count=%d probe0_count=%d",
-			conn.TCPDelivered, conn.TCPPacketsOut, conn.TCPLostOut, conn.TCPSackedOut,
-			conn.TCPRetransOut, conn.TCPDeliveredCE, conn.TCPBytesRetrans, conn.TCPDSACKDups,
-			conn.TCPReordSeen, conn.TCPCAState, conn.TCPRTOCount, conn.TCPRecoveryCount, conn.TCPProbe0Count)
+		t.Logf("Congestion signals: delivered=%d max_packets_out=%d max_lost_out=%d max_sacked_out=%d max_retrans_out=%d delivered_ce=%d bytes_retrans=%d dsack_dups=%d reord_seen=%d max_ca_state=%d rto_count=%d recovery_count=%d probe0_count=%d",
+			conn.TCPDelivered, conn.TCPMaxPacketsOut, conn.TCPMaxLostOut, conn.TCPMaxSackedOut,
+			conn.TCPMaxRetransOut, conn.TCPDeliveredCE, conn.TCPBytesRetrans, conn.TCPDSACKDups,
+			conn.TCPReordSeen, conn.TCPMaxCAState, conn.TCPRTOCount, conn.TCPRecoveryCount, conn.TCPProbe0Count)
 		assert.Greater(ct, conn.TCPDelivered, uint32(0), "delivered should be > 0 after successful send")
 		assert.Greater(ct, conn.TCPRTOCount, uint32(0), "rto_count should be > 0 after RTO")
 		assert.Greater(ct, conn.TCPBytesRetrans, uint64(0), "bytes_retrans should be > 0 after retransmits")
@@ -3486,8 +3486,8 @@ func (s *TracerSuite) TestTCPZeroWindowProbe() {
 		if !assert.True(ct, found, "connection not found") {
 			return
 		}
-		t.Logf("Zero-window signals: probe0_count=%d packets_out=%d delivered=%d",
-			conn.TCPProbe0Count, conn.TCPPacketsOut, conn.TCPDelivered)
+		t.Logf("Zero-window signals: probe0_count=%d max_packets_out=%d delivered=%d",
+			conn.TCPProbe0Count, conn.TCPMaxPacketsOut, conn.TCPDelivered)
 		assert.Greater(ct, conn.TCPProbe0Count, uint32(0), "probe0_count should be > 0 after zero-window")
 	}, 5*time.Second, 100*time.Millisecond)
 }

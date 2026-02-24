@@ -22,18 +22,18 @@ type TCPStats struct {
 	Failure_reason    uint16
 }
 type TCPCongestionStats struct {
-	Packets_out   uint32
-	Lost_out      uint32
-	Sacked_out    uint32
-	Delivered     uint32
-	Retrans_out   uint32
-	Delivered_ce  uint32
-	Bytes_retrans uint64
-	Dsack_dups    uint32
-	Reord_seen    uint32
-	Ca_state      uint8
-	X_pad         [3]uint8
-	Pad_cgo_0     [4]byte
+	Max_packets_out uint32
+	Max_lost_out    uint32
+	Max_sacked_out  uint32
+	Delivered       uint32
+	Max_retrans_out uint32
+	Delivered_ce    uint32
+	Bytes_retrans   uint64
+	Dsack_dups      uint32
+	Reord_seen      uint32
+	Max_ca_state    uint8
+	X_pad           [3]uint8
+	Pad_cgo_0       [4]byte
 }
 type TCPRTORecoveryStats struct {
 	Rto_count      uint32
