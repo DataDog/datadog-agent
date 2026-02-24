@@ -72,10 +72,12 @@ func (m *Manager) LookupEventInProfiles(event *model.Event) {
 		tags = event.ProcessContext.Process.ContainerContext.Tags
 		selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", tags), "*")
 		if err == nil {
+			event.RecordCheckpoint("secprof_container_profile_lookup_start")
 			// lookup profile
 			m.profilesLock.Lock()
 			profile = m.profiles[selector]
 			m.profilesLock.Unlock()
+			event.RecordCheckpoint("secprof_container_profile_lookup_done")
 			imageTag = utils.GetTagValue("image_tag", tags)
 			if imageTag == "" {
 				imageTag = "latest"
@@ -85,17 +87,21 @@ func (m *Manager) LookupEventInProfiles(event *model.Event) {
 
 	// If no profile found and there's a cgroup ID, try cgroup-based lookup
 	if profile == nil && event.ProcessContext.Process.CGroup.CGroupID != "" {
+		event.RecordCheckpoint("secprof_cgroup_tags_resolve_start")
 		tags, err := m.resolvers.TagsResolver.ResolveWithErr(event.ProcessContext.Process.CGroup.CGroupID)
 		if err != nil {
 			seclog.Errorf("failed to resolve tags for cgroup %s: %v", event.ProcessContext.Process.CGroup.CGroupID, err)
 			return
 		}
+		event.RecordCheckpoint("secprof_cgroup_tags_resolve_done")
 		selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("service", tags), "*")
 		if err == nil {
+			event.RecordCheckpoint("secprof_cgroup_profile_lookup_start")
 			// lookup profile
 			m.profilesLock.Lock()
 			profile = m.profiles[selector]
 			m.profilesLock.Unlock()
+			event.RecordCheckpoint("secprof_cgroup_profile_lookup_done")
 			imageTag = utils.GetTagValue("version", tags)
 			if imageTag == "" {
 				imageTag = "latest"
@@ -103,6 +109,7 @@ func (m *Manager) LookupEventInProfiles(event *model.Event) {
 		}
 	}
 	if profile == nil {
+		event.RecordCheckpoint("secprof_no_profile")
 		m.incrementEventFilteringStat(event.GetEventType(), model.NoProfile, NA)
 		return
 	}
@@ -112,19 +119,23 @@ func (m *Manager) LookupEventInProfiles(event *model.Event) {
 		return
 	}
 
+	event.RecordCheckpoint("secprof_version_context_start")
 	ctx, found := profile.GetVersionContext(imageTag)
 	if found {
 		ctx.LastSeenNano = uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now()))
 	} else {
+		event.RecordCheckpoint("secprof_prepare_new_version_start")
 		evictedVersions := profile.PrepareNewVersion(imageTag, tags, m.config.RuntimeSecurity.SecurityProfileMaxImageTags, uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now())))
 		for _, evictedVersion := range evictedVersions {
 			m.countEvictedVersion(imageTag, evictedVersion)
 		}
+		event.RecordCheckpoint("secprof_prepare_new_version_done")
 		ctx, found = profile.GetVersionContext(imageTag)
 		if !found {
 			return
 		}
 	}
+	event.RecordCheckpoint("secprof_version_context_done")
 
 	// if we have one version of the profile in unstable for this event type, just skip the whole process
 	globalEventTypeProfilState := profile.GetGlobalEventTypeState(event.GetEventType())
@@ -164,9 +175,11 @@ func (m *Manager) LookupEventInProfiles(event *model.Event) {
 		// and if this is not an exec event, check if we can benefit of the occasion to add missing processes
 		insertMissingProcesses := false
 		if event.GetEventType() != model.ExecEventType {
+			event.RecordCheckpoint("secprof_exec_event_state_start")
 			if execState := m.getEventTypeState(profile, ctx, event, model.ExecEventType, imageTag); execState == model.AutoLearning || execState == model.WorkloadWarmup {
 				insertMissingProcesses = true
 			}
+			event.RecordCheckpoint("secprof_exec_event_state_done")
 		}
 		event.RecordCheckpoint("secprof_profile_contains_start")
 		found, err := profile.Contains(event, insertMissingProcesses, imageTag, activity_tree.ProfileDrift, m.resolvers)
