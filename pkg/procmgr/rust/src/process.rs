@@ -445,7 +445,10 @@ LANG=en_US.UTF-8
         let mut cfg = make_config("/bin/true", vec![]);
         cfg.environment_file = Some("/nonexistent/env".to_string());
         let mut proc = ManagedProcess::new("bad-envfile".into(), cfg);
-        assert!(proc.spawn().is_err(), "spawn should fail if environment_file is unreadable");
+        assert!(
+            proc.spawn().is_err(),
+            "spawn should fail if environment_file is unreadable"
+        );
         assert!(!proc.is_running());
     }
 }
