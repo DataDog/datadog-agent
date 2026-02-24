@@ -2,6 +2,7 @@ load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@bazel_skylib//rules:select_file.bzl", "select_file")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_attributes", "pkg_files", "pkg_mklink", "strip_prefix")
@@ -96,6 +97,9 @@ UNIX_BINS = [
     "python{}".format(VERSION_STR),
 ]
 
+LINUX_SO = "libpython{}.so.1.0".format(VERSION_STR)
+MACOS_DYLIB = "libpython{}.dylib".format(VERSION_STR)
+
 python_deps = {
     "libffi": "-lffi",
     "libsqlite3": "-lsqlite3",
@@ -144,6 +148,11 @@ configure_make(
         "OPT": "-DNDEBUG -fwrapv",
         # Ensure we don't use the system provided .pc
         "PKG_CONFIG_LIBDIR": "/does/not/exist",
+        # We need to pass linker flags here instead of `linkopts` because we don't want these to be
+        # picked up by the consumers of the library.
+        # This is meant to allow python to find its dependency during its modules import test.
+        # We will use the install_dir rpath later on
+        "LDFLAGS": "-Wl,-rpath,$$EXT_BUILD_DEPS/lib",
     } | {
         dep.upper() + "_CFLAGS": "-I$$EXT_BUILD_DEPS/include"
         for dep in python_deps.keys()
@@ -158,14 +167,30 @@ configure_make(
         "//conditions:default": {},
     }),
     lib_source = ":all_srcs",
-    # The single dollar sign here isn't a typo, using 2 seems to confuse rules_foreign_cc's substitution
-    # This is meant to allow python to find its dependency during its modules import test.
-    # We will use the install_dir rpath later on
-    linkopts = ["-Wl,-rpath", "$EXT_BUILD_DEPS/lib"],
     out_binaries = UNIX_BINS,
     out_data_dirs = [
-        "lib",
+        "lib/python{}".format(VERSION_STR),
     ],
+    out_data_files = select({
+        "@platforms//os:linux": [
+            # Even though this is a shared lib, we generally don't want to link against this.
+            # When linking against Python, one must decide between the "Stable" API (libpython3.so)
+            # or the minor-version specific libpython3.y.so. In the context of the Agent, we've always
+            # linked against the latter, but shipped both (in case there are extension modules requiring
+            # the Stable API. Therefore, we mark this one as "data".
+            # See https://peps.python.org/pep-0384/#linkage
+            "lib/libpython3.so",
+        ],
+        "@platforms//os:macos": [],
+    }),
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            LINUX_SO,
+        ],
+        "@platforms//os:macos": [
+            MACOS_DYLIB,
+        ],
+    }),
     out_include_dir = "include",
     visibility = ["//visibility:public"],
     deps = [
@@ -182,6 +207,7 @@ configure_make(
         "@xz//:lzma",
         "@zlib//:z",
     ],
+    includes = ["python{}".format(VERSION_STR)],
     targets = [
         # Build in parallel but install without parallel execution
         # (see https://github.com/python/cpython/issues/109796)
@@ -227,35 +253,33 @@ pkg_files(
     },
 )
 
-filegroup(
-    name = "libs_unix",
-    srcs = [":python_unix"],
-    output_group = "lib",
+# We resort to select_file here instead of picking the output groups with filegroup
+# because configure_make names its output groups by "basename", for which we have a conflict:
+# both the versioned python binary as well as the library root (under lib) share the same name.
+# select_file lets us be more specific and remove ambiguity
+select_file(
+    name = "python_lib_dir_group_unix",
+    srcs = ":python_unix",
+    subpath = "lib/python{}".format(VERSION_STR),
 )
 
-# Fix symlinks for libpython3.x shared libraries
-# rules_foreign_cc dereferences symlinks during installation since we're using
-# out_data_dir instead of out_shared_libs, so we need to recreate them
-# For context, we use out_data_dir to copy the entire list of python modules which
-# too long to explicitly list in out_shared_libs, and we can't only copy the
-# lib/python3.X folder as it conflicts with the python3.X executables (rules_foreign_cc
-# output groups are named based on the basename)
+select_file(
+    name = "python3_bin",
+    srcs = ":python_unix",
+    subpath = "bin/python{}".format(VERSION_STR),
+)
 
-# Filter out the dereferenced symlinks - we'll recreate them as proper symlinks
+# Using a copy here is the most convenient way to exclude a bunch of things for the final package
 copy_to_directory(
-    name = "libs_unix_no_symlinks",
-    srcs = [":libs_unix"],
-    # We want to include libpython3.so & libpython3.13.so.1.0, but
-    # exclude libpython3.13.so
+    name = "python_lib_dir_unix",
+    srcs = [":python_lib_dir_group_unix"],
     exclude_srcs_patterns = [
-        "**/libpython3.*.so",
-        "**/python{}/test/**/*".format(VERSION_STR),
+        "test/**/*",
         "**/*.exe",
         "**/Makefile",
-        "**/*.pc",
     ],
-    include_external_repositories = ["*"],
-    root_paths = ["python_unix"],
+    root_paths = ["python_unix/lib/python{}".format(VERSION_STR)],
+    out = "python{}".format(VERSION_STR),
 )
 
 filegroup(
@@ -281,7 +305,7 @@ dd_agent_expand_template(
 pkg_mklink(
     name = "libpython_symlink",
     link_name = "lib/libpython{}.so".format(VERSION_STR),
-    target = "libpython{}.so.1.0".format(VERSION_STR),
+    target = LINUX_SO,
     attributes = pkg_attributes("0644"),
 )
 
@@ -309,18 +333,37 @@ filegroup(
 )
 
 filegroup(
-    name = "python3_bin",
+    name = "python_lib_unix",
     srcs = [":python_unix"],
-    output_group = "python{}".format(VERSION_STR),
+    output_group = select({
+        "@platforms//os:linux": LINUX_SO,
+        "@platforms//os:macos": MACOS_DYLIB,
+    }),
+    target_compatible_with = select({
+        "@platforms//os:macos": [],
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+)
+
+# configure_make doesn't provide output groups for "data files", so we use select_file instead
+select_file(
+    name = "python_stable_lib_linux",
+    srcs = ":python_unix",
+    subpath = "lib/libpython3.so",
 )
 
 pkg_files(
     name = "install_libs_unix",
-    srcs = [":libs_unix_no_symlinks"],
-    renames = {
-        "libs_unix_no_symlinks": REMOVE_BASE_DIRECTORY,
-    },
+    srcs = [
+        ":python_lib_dir_unix",
+        ":python_lib_unix"
+    ] + select({
+        "@platforms//os:linux": [":python_stable_lib_linux"],
+        "//conditions:default": [],
+    }),
     attributes = pkg_attributes("0755"),
+    prefix = "lib",
 )
 
 pkg_files(
