@@ -7,8 +7,11 @@ package checks
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/port/portlist"
@@ -34,6 +37,33 @@ func getListeningPortToPIDMap() map[int32]int32 {
 		if p.Pid > 0 {
 			result[int32(p.Port)] = int32(p.Pid)
 		}
+	}
+	return result
+}
+
+// fetchIISTagsCache retrieves the IIS tags cache from system-probe's /iis_tags endpoint.
+// Returns a map of "localPort-remotePort" -> []string tags, or nil on failure.
+func fetchIISTagsCache(client *http.Client) map[string][]string {
+	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/iis_tags")
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		log.Debugf("failed to create IIS tags request: %v", err)
+		return nil
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Debugf("failed to fetch IIS tags from system-probe: %v", err)
+		return nil
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		log.Debugf("IIS tags request failed with status %d", resp.StatusCode)
+		return nil
+	}
+	var result map[string][]string
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		log.Debugf("failed to decode IIS tags response: %v", err)
+		return nil
 	}
 	return result
 }
