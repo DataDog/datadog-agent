@@ -179,8 +179,8 @@ func (p *PrivateActionRunner) StartAsync(ctx context.Context) <-chan error {
 }
 
 func (p *PrivateActionRunner) start(ctx context.Context) error {
-	// Any cancellation from the parent context will be propagated to the start process
-	// But we want to control cancellation in case Stop is called unexpectedly
+	// Keep the parent context's deadline for the startup phase (config, enrollment, etc.)
+	// but allow Stop() to cancel as well.
 	ctx, p.cancelStart = context.WithCancel(ctx)
 	cfg, err := p.getRunnerConfig(ctx)
 	if err != nil {
