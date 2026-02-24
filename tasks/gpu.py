@@ -79,18 +79,6 @@ def _load_yaml_model(path: str, model_cls: "type[BaseModel]") -> Any:
         raise ValueError(f"Invalid schema in {path}:\n{e}") from e
 
 
-def _normalize_support_value(value: Any) -> bool | None:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered == "true":
-            return True
-        if lowered == "false":
-            return False
-    return None
-
-
 def _get_expected_metrics_for_gpu_config(spec_model: "Spec", gpu_config: "GPUConfig") -> dict[str, "Metric"]:
     expected: dict[str, "Metric"] = {}
     for metric_name, metric in spec_model.metrics.items():
@@ -98,7 +86,7 @@ def _get_expected_metrics_for_gpu_config(spec_model: "Spec", gpu_config: "GPUCon
             continue
         if gpu_config.architecture in metric.support.unsupported_architectures:
             continue
-        mode_support = _normalize_support_value(metric.support.device_features.get(gpu_config.device_mode))
+        mode_support = metric.support.device_features.get(gpu_config.device_mode)
         if not mode_support:
             continue
         expected[f"{spec_model.metric_prefix}.{metric_name}"] = metric

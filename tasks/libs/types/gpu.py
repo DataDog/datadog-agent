@@ -10,12 +10,12 @@ DEVICE_MODES = ("physical", "mig", "vgpu")
 class Support(BaseModel):
     model_config = ConfigDict(extra="forbid")
     unsupported_architectures: list[str] = Field(default_factory=list)
-    device_features: dict[str, bool | str] = Field(default_factory=dict)
-    process_data: bool | str = False
+    device_features: dict[str, bool] = Field(default_factory=dict)
+    process_data: bool = False
 
     @field_validator("device_features")
     @classmethod
-    def validate_device_features(cls, value: dict[str, bool | str]) -> dict[str, bool | str]:
+    def validate_device_features(cls, value: dict[str, bool]) -> dict[str, bool]:
         allowed_modes = set(DEVICE_MODES)
         invalid_modes = sorted(set(value.keys()) - allowed_modes)
         if invalid_modes:
