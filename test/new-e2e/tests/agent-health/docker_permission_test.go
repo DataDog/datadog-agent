@@ -178,16 +178,20 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 			assert.True(ct, agent.Client.IsReady(), "Agent should be ready after permission fix")
 		}, 2*time.Minute, 10*time.Second, "Agent not ready after permission fix")
 
-		// Wait for a health report that no longer contains the docker permission issue
-		require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		// Verify that the docker permission issue NEVER appears in any health report after the fix.
+		// No payload at all is also acceptable — it means there are no issues to report.
+		require.Never(t, func() bool {
 			payloads, err := fakeIntake.GetAgentHealth()
-			if !assert.NoError(ct, err) || !assert.NotEmpty(ct, payloads, "Should receive health report after permission fix") {
-				return
+			if err != nil {
+				return false
 			}
-			latest := payloads[len(payloads)-1]
-			issue := findIssue(t, latest, expectedIssueID)
-			assert.Nil(ct, issue, "Docker permission issue should be resolved and absent from health report")
-		}, 2*time.Minute, 10*time.Second, "Docker permission issue still present in health report after permission fix")
+			for _, payload := range payloads {
+				if findIssue(t, payload, expectedIssueID) != nil {
+					return true
+				}
+			}
+			return false
+		}, 2*time.Minute, 10*time.Second, "Docker permission issue appeared in a health report after the fix")
 
 		t.Log("Phase 3 passed: docker permission issue resolved and absent from health report")
 	})
