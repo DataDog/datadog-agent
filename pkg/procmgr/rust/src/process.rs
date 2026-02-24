@@ -51,16 +51,11 @@ impl ManagedProcess {
 
         cmd.env_clear();
         if let Some(ref path) = self.config.environment_file {
-            match parse_environment_file(path) {
-                Ok(vars) => {
-                    for (k, v) in &vars {
-                        cmd.env(k, v);
-                    }
-                }
-                Err(e) => warn!(
-                    "[{}] failed to read environment file {path}: {e}",
-                    self.name
-                ),
+            let vars = parse_environment_file(path).with_context(|| {
+                format!("[{}] failed to read environment file: {path}", self.name)
+            })?;
+            for (k, v) in &vars {
+                cmd.env(k, v);
             }
         }
         for (k, v) in &self.config.env {
@@ -443,5 +438,14 @@ LANG=en_US.UTF-8
     #[test]
     fn test_parse_environment_file_missing() {
         assert!(parse_environment_file("/nonexistent/env").is_err());
+    }
+
+    #[tokio::test]
+    async fn test_spawn_fails_on_missing_environment_file() {
+        let mut cfg = make_config("/bin/true", vec![]);
+        cfg.environment_file = Some("/nonexistent/env".to_string());
+        let mut proc = ManagedProcess::new("bad-envfile".into(), cfg);
+        assert!(proc.spawn().is_err(), "spawn should fail if environment_file is unreadable");
+        assert!(!proc.is_running());
     }
 }
