@@ -98,6 +98,14 @@ func (d *safeDeviceImpl) GetFanSpeed() (uint32, error) {
 	return speed, NewNvmlAPIErrorOrNil("GetFanSpeed", ret)
 }
 
+func (d *safeDeviceImpl) GetFanSpeed_v2(fanIndex int) (uint32, error) {
+	if err := d.lib.lookup(toNativeName("GetFanSpeed_v2")); err != nil {
+		return 0, err
+	}
+	speed, ret := d.nvmlDevice.GetFanSpeed_v2(fanIndex)
+	return speed, NewNvmlAPIErrorOrNil("GetFanSpeed_v2", ret)
+}
+
 func (d *safeDeviceImpl) GetFieldValues(values []nvml.FieldValue) error {
 	if err := d.lib.lookup(toNativeName("GetFieldValues")); err != nil {
 		return err
@@ -210,6 +218,14 @@ func (d *safeDeviceImpl) GetNumGpuCores() (int, error) {
 	}
 	cores, ret := d.nvmlDevice.GetNumGpuCores()
 	return cores, NewNvmlAPIErrorOrNil("GetNumGpuCores", ret)
+}
+
+func (d *safeDeviceImpl) GetNumFans() (int, error) {
+	if err := d.lib.lookup(toNativeName("GetNumFans")); err != nil {
+		return 0, err
+	}
+	fans, ret := d.nvmlDevice.GetNumFans()
+	return fans, NewNvmlAPIErrorOrNil("GetNumFans", ret)
 }
 
 func (d *safeDeviceImpl) GetNvLinkState(link int) (nvml.EnableState, error) {
