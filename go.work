@@ -108,7 +108,6 @@ use (
 	pkg/logs/diagnostic
 	pkg/logs/message
 	pkg/logs/metrics
-	pkg/logs/pipeline
 	pkg/logs/processor
 	pkg/logs/sender
 	pkg/logs/sources
