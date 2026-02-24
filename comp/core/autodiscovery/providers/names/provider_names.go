@@ -33,6 +33,7 @@ const (
 	Zookeeper                        = "zookeeper"
 	GPU                              = "gpu"
 	DataStreamsLiveMessages          = "dsm-live-messages"
+	DOQueryActions                   = "do-query-actions"
 )
 
 // Internal Autodiscovery names for the config providers
