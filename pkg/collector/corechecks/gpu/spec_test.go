@@ -49,13 +49,9 @@ type metricsMap map[string]specMetric
 
 // specMetric is a metric definition without the name (name is the map key).
 type specMetric struct {
-	Type            string            `yaml:"type"`
-	Tagsets         []string          `yaml:"tagsets"`
-	CustomTags      []string          `yaml:"custom_tags"`
-	MemoryLocations []string          `yaml:"memory_locations"`
-	Support         metricSupportSpec `yaml:"support"`
-	Deprecated      bool              `yaml:"deprecated"`
-	ReplacedBy      string            `yaml:"replaced_by"`
+	Type    string            `yaml:"type"`
+	Tagsets []string          `yaml:"tagsets"`
+	Support metricSupportSpec `yaml:"support"`
 }
 
 type metricSupportSpec struct {
@@ -305,8 +301,7 @@ func TestMetricsFollowSpec(t *testing.T) {
 		specMetrics[name] = struct{}{}
 	}
 
-	// Deprecated metrics are kept in spec for visibility/history but are not expected
-	// from current check runs. XID metrics require real device events.
+	// XID metrics require real device events.
 	notExpectedOnBasicRun := map[string]bool{
 		"errors.xid.total": true,
 	}
@@ -329,18 +324,19 @@ func TestMetricsFollowSpec(t *testing.T) {
 			t.Run(subtestName, func(t *testing.T) {
 				emittedTagsByMetric, knownTagValues := collectMetricSamples(t, archName, mode, archSpec)
 
-				for metricName := range emittedTagsByMetric {
-					assert.Contains(t, specMetrics, metricName, "metric emitted by check is missing from spec: %s", metricName)
+				t.Run("_emits_only_expected_metrics", func(t *testing.T) {
+					for metricName := range emittedTagsByMetric {
+						assert.Contains(t, specMetrics, metricName, "metric emitted by check is missing from spec: %s", metricName)
 
-					metricSpec := spec.Metrics[metricName]
-					assert.False(t, metricSpec.Deprecated, "deprecated metric should not be emitted in this run: %s", metricName)
-					assert.False(t, notExpectedOnBasicRun[metricName], "metric should not be emitted in basic run: %s", metricName)
-					assert.True(t, metricSpec.supportsArchitecture(archName), "metric %s emitted on unsupported architecture %s", metricName, archName)
-					assert.False(t, metricSpec.isDeviceFeatureExplicitlyUnsupported(string(mode)), "metric %s emitted on unsupported device mode %s", metricName, mode)
-				}
+						metricSpec := spec.Metrics[metricName]
+						assert.False(t, notExpectedOnBasicRun[metricName], "metric should not be emitted in basic run: %s", metricName)
+						assert.True(t, metricSpec.supportsArchitecture(archName), "metric %s emitted on unsupported architecture %s", metricName, archName)
+						assert.False(t, metricSpec.isDeviceFeatureExplicitlyUnsupported(string(mode)), "metric %s emitted on unsupported device mode %s", metricName, mode)
+					}
+				})
 
 				for name, m := range spec.Metrics {
-					if m.Deprecated || notExpectedOnBasicRun[name] || !m.supportsArchitecture(archName) || !m.supportsDeviceFeature(string(mode)) {
+					if notExpectedOnBasicRun[name] || !m.supportsArchitecture(archName) || !m.supportsDeviceFeature(string(mode)) {
 						continue
 					}
 
@@ -606,10 +602,6 @@ func validateMetricTagsAgainstSpec(t *testing.T, spec *specFile, metricName stri
 			requiredTags[tag] = struct{}{}
 		}
 	}
-	for _, tag := range metricSpec.CustomTags {
-		requiredTags[tag] = struct{}{}
-	}
-
 	for _, sampleTags := range samples {
 		tagsByKey := tagsToKeyValues(sampleTags)
 
