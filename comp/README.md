@@ -746,6 +746,12 @@ Package datadogclient provides a client to query the datadog API
 
 Package connectivitychecker is responsible for running connectivity checks that will be sent to the backend via the inventory agent.
 
+### [comp/do/queryactions](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/do/queryactions)
+
+*Datadog Team*: data-observability
+
+Package queryactions provides the DO query actions component
+
 ### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
 
 *Datadog Team*: windows-products

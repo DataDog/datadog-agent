@@ -44,6 +44,8 @@ var validProducts = map[string]struct{}{
 	ProductSyntheticsTest:               {},
 	ProductBTFDD:                        {},
 	ProductFFEFlags:                     {},
+	ProductDOQueryActions:               {},
+	ProductDebug:                        {},
 }
 
 const (
@@ -124,4 +126,8 @@ const (
 	ProductApmPolicies = "APM_POLICIES"
 	// ProductFFEFlags is used for feature flagging experiments remote updates
 	ProductFFEFlags = "FFE_FLAGS"
+	// ProductDOQueryActions is used for executing database queries remotely for Data Observability
+	ProductDOQueryActions = "DO_QUERY_ACTIONS"
+	// ProductDebug is used for debugging and testing remote config
+	ProductDebug = "DEBUG"
 )

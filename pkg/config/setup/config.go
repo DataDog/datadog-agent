@@ -609,6 +609,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("ha_agent.enabled", false)
 	config.BindEnv("ha_agent.group") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
+	// Data Observability
+	config.BindEnvAndSetDefault("data_observability.query_actions.enabled", false)
+	bindEnvAndSetLogsConfigKeys(config, "data_observability.forwarder.")
+
 	// Kube ApiServer
 	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
 	config.BindEnvAndSetDefault("kubernetes_apiserver_ca_path", "")
