@@ -40,6 +40,7 @@ pub struct ProcessConfig {
     #[serde(default = "default_true")]
     pub auto_start: bool,
     pub condition_path_exists: Option<String>,
+    pub stop_timeout: Option<u64>,
 }
 
 pub fn config_dir() -> PathBuf {
@@ -58,7 +59,13 @@ pub fn load_configs(dir: &Path) -> Result<Vec<(String, ProcessConfig)>> {
         .with_context(|| format!("failed to read config directory: {}", dir.display()))?;
 
     let mut yaml_files: Vec<_> = entries
-        .filter_map(|e| e.ok())
+        .filter_map(|e| match e {
+            Ok(entry) => Some(entry),
+            Err(e) => {
+                warn!("skipping unreadable entry in {}: {e}", dir.display());
+                None
+            }
+        })
         .filter(|e| {
             e.path()
                 .extension()

@@ -30,7 +30,7 @@ async fn main() -> Result<()> {
     }
 
     info!("dd-procmgrd shutting down");
-    process::shutdown_all(&mut processes, process::DEFAULT_STOP_TIMEOUT).await;
+    process::shutdown_all(&mut processes).await;
     info!("dd-procmgrd stopped");
     Ok(())
 }

@@ -12,7 +12,8 @@ use std::process::Stdio;
 use tokio::process::{Child, Command};
 use tokio::time::{Duration, timeout};
 
-pub const DEFAULT_STOP_TIMEOUT: Duration = Duration::from_secs(90);
+pub const DEFAULT_STOP_TIMEOUT_SECS: u64 = 90;
+const SIGKILL_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub struct ManagedProcess {
     pub name: String,
@@ -107,6 +108,14 @@ impl ManagedProcess {
         self.child = None;
         Ok(status)
     }
+
+    pub fn stop_timeout(&self) -> Duration {
+        Duration::from_secs(
+            self.config
+                .stop_timeout
+                .unwrap_or(DEFAULT_STOP_TIMEOUT_SECS),
+        )
+    }
 }
 
 /// Parse a systemd-style environment file into key-value pairs.
@@ -139,8 +148,8 @@ fn stdio_from_str(s: &str) -> Stdio {
     }
 }
 
-/// Send SIGTERM to all running processes, wait up to `stop_timeout`, then SIGKILL stragglers.
-pub async fn shutdown_all(processes: &mut [ManagedProcess], stop_timeout: Duration) {
+/// Send SIGTERM to all running processes, wait per-process `stop_timeout`, then SIGKILL stragglers.
+pub async fn shutdown_all(processes: &mut [ManagedProcess]) {
     for proc in processes.iter() {
         if proc.is_running() {
             info!("[{}] sending SIGTERM", proc.name);
@@ -148,28 +157,20 @@ pub async fn shutdown_all(processes: &mut [ManagedProcess], stop_timeout: Durati
         }
     }
 
-    let wait_all = async {
-        for proc in processes.iter_mut() {
-            if proc.is_running() {
-                let _ = proc.wait().await;
-            }
+    for proc in processes.iter_mut() {
+        if !proc.is_running() {
+            continue;
         }
-    };
-
-    if timeout(stop_timeout, wait_all).await.is_err() {
-        warn!(
-            "shutdown timeout ({}s) reached, sending SIGKILL",
-            stop_timeout.as_secs()
-        );
-        for proc in processes.iter() {
-            if proc.is_running() {
-                info!("[{}] sending SIGKILL", proc.name);
-                proc.send_signal(Signal::SIGKILL);
-            }
-        }
-        for proc in processes.iter_mut() {
-            if proc.is_running() {
-                let _ = proc.wait().await;
+        let stop = proc.stop_timeout();
+        if timeout(stop, proc.wait()).await.is_err() {
+            warn!(
+                "[{}] stop timeout ({}s) reached, sending SIGKILL",
+                proc.name,
+                stop.as_secs()
+            );
+            proc.send_signal(Signal::SIGKILL);
+            if timeout(SIGKILL_TIMEOUT, proc.wait()).await.is_err() {
+                warn!("[{}] still running after SIGKILL, giving up", proc.name);
             }
         }
     }
@@ -194,6 +195,7 @@ mod tests {
             stderr: "null".to_string(),
             auto_start: true,
             condition_path_exists: None,
+            stop_timeout: None,
         }
     }
 
@@ -308,7 +310,7 @@ mod tests {
         p2.spawn().unwrap();
 
         let mut procs = vec![p1, p2];
-        shutdown_all(&mut procs, Duration::from_secs(5)).await;
+        shutdown_all(&mut procs).await;
 
         assert!(!procs[0].is_running());
         assert!(!procs[1].is_running());
@@ -317,17 +319,18 @@ mod tests {
     #[tokio::test]
     async fn test_shutdown_all_empty() {
         let mut procs: Vec<ManagedProcess> = vec![];
-        shutdown_all(&mut procs, Duration::from_secs(1)).await;
+        shutdown_all(&mut procs).await;
     }
 
     #[tokio::test]
     async fn test_shutdown_all_sigkill_on_timeout() {
-        let cfg = make_config("/bin/sh", vec!["-c", "trap '' TERM; sleep 60"]);
+        let mut cfg = make_config("/bin/sh", vec!["-c", "trap '' TERM; sleep 60"]);
+        cfg.stop_timeout = Some(1);
         let mut proc = ManagedProcess::new("stubborn".into(), cfg);
         proc.spawn().unwrap();
 
         let mut procs = vec![proc];
-        shutdown_all(&mut procs, Duration::from_secs(1)).await;
+        shutdown_all(&mut procs).await;
 
         assert!(!procs[0].is_running());
     }
