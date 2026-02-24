@@ -153,25 +153,6 @@ func (o deviceOptions) hasUnsupportedNVLinkFields() bool {
 	return o.hasUnsupportedField(nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON)
 }
 
-func isNVLinkFieldID(fieldID uint32) bool {
-	switch fieldID {
-	case nvml.FI_DEV_NVLINK_LINK_COUNT,
-		nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON,
-		nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX,
-		nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX,
-		nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX,
-		nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX,
-		nvml.FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL,
-		nvml.FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL,
-		nvml.FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL,
-		nvml.FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL,
-		nvml.FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL:
-		return true
-	default:
-		return false
-	}
-}
-
 func (o deviceOptions) effectiveArchitecture() (nvml.DeviceArchitecture, int, int) {
 	if o.archSet {
 		return o.architecture, o.computeMajor, o.computeMinor
@@ -394,7 +375,7 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			return 0, 0, false, false, nvml.SUCCESS
 		},
 		GetNvLinkStateFunc: func(_ int) (nvml.EnableState, nvml.Return) {
-			if isMIGUnsupported || opts.isVGPU() || opts.hasUnsupportedNVLinkFields() {
+			if isMIGUnsupported || opts.hasUnsupportedNVLinkFields() {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return nvml.FEATURE_ENABLED, nvml.SUCCESS
@@ -433,6 +414,9 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			return *opts.migChildIndex, nvml.SUCCESS
 		},
 		GetProcessUtilizationFunc: func(lastSeenTimestamp uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
+			if isMIGUnsupported {
+				return nil, nvml.ERROR_NOT_FOUND
+			}
 			if opts.processInfoCB != nil {
 				uuid := GPUUUIDs[deviceIdx]
 				if opts.isMIGChild() {
@@ -471,7 +455,7 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			if isMIGUnsupported {
 				return nvml.ERROR_NOT_SUPPORTED
 			}
-			if opts.isVGPU() && len(values) == 1 && values[0].FieldId == nvml.FI_DEV_NVLINK_LINK_COUNT {
+			if len(values) == 1 && opts.hasUnsupportedField(values[0].FieldId) {
 				return nvml.ERROR_NOT_SUPPORTED
 			}
 			// Emulate monotonically increasing counters for field-based throughput metrics.
@@ -480,7 +464,7 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			fieldValuesCounter += 1000
 			for i := range values {
 				values[i].Timestamp = int64(time.Now().UnixMilli())
-				if opts.hasUnsupportedField(values[i].FieldId) || (opts.isVGPU() && isNVLinkFieldID(values[i].FieldId)) {
+				if opts.hasUnsupportedField(values[i].FieldId) {
 					values[i].NvmlReturn = uint32(nvml.ERROR_NOT_SUPPORTED)
 				} else {
 					values[i].NvmlReturn = uint32(nvml.SUCCESS)
@@ -494,6 +478,9 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			return nvml.SUCCESS
 		},
 		GpmQueryDeviceSupportFunc: func() (nvml.GpmSupport, nvml.Return) {
+			if opts.isVGPU() {
+				return nvml.GpmSupport{IsSupportedDevice: 0}, nvml.SUCCESS
+			}
 			if opts.gpmSupported != nil && !*opts.gpmSupported {
 				return nvml.GpmSupport{IsSupportedDevice: 0}, nvml.SUCCESS
 			}

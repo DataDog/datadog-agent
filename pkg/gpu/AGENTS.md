@@ -241,3 +241,5 @@ Active time is derived from kernel execution intervals captured within each coll
 - In `pkg/collector/corechecks/gpu/spec_test.go`, required tags are validated from the union of `tagsets` + `custom_tags` declared in `spec/gpu_metrics.yaml`.
 - Known-value assertions are data-driven through a tag->value map produced during test mock setup (no tag-specific conditionals in validation).
 - Spec tests seed explicit GPU and container tags in the fake tagger to make required-tag checks deterministic across architectures/modes.
+- Run GPU spec tests with `-tags "test nvml"` (for example, `go test -tags "test nvml" -v ./pkg/collector/corechecks/gpu -run TestMetricsFollowSpec`), otherwise Go may report `[no test files]` due build tags.
+- In vGPU mock tuning, suppressing stateless NVML APIs is not enough for field-backed metrics. `memory.temperature`, `pci.replay_counter`, `slowdown_temperature`, and `nvlink.nvswitch_connected` are emitted by the fields collector and require `GetFieldValues` to return `ERROR_NOT_SUPPORTED` for their field IDs in vGPU mode.

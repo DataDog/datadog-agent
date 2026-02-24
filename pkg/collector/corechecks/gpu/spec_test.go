@@ -66,7 +66,12 @@ type architecturesFile struct {
 }
 
 type architectureCapabilities struct {
-	GPM               bool     `yaml:"gpm"`
+	GPM               bool                          `yaml:"gpm"`
+	UnsupportedFields []unsupportedFieldsByFeatures `yaml:"unsupported_fields"`
+}
+
+type unsupportedFieldsByFeatures struct {
+	Features          []string `yaml:"features"`
 	UnsupportedFields []string `yaml:"unsupported_fields"`
 }
 
@@ -131,6 +136,25 @@ func unsupportedFieldIDsFromNames(t *testing.T, names []string) []uint32 {
 	return ids
 }
 
+func unsupportedFieldIDsForMode(t *testing.T, archSpec architectureSpec, mode string) []uint32 {
+	t.Helper()
+	unsupportedNameSet := make(map[string]struct{})
+	for _, group := range archSpec.Capabilities.UnsupportedFields {
+		if len(group.Features) > 0 && !slices.Contains(group.Features, mode) {
+			continue
+		}
+		for _, name := range group.UnsupportedFields {
+			unsupportedNameSet[name] = struct{}{}
+		}
+	}
+
+	unsupportedNames := make([]string, 0, len(unsupportedNameSet))
+	for name := range unsupportedNameSet {
+		unsupportedNames = append(unsupportedNames, name)
+	}
+	return unsupportedFieldIDsFromNames(t, unsupportedNames)
+}
+
 func allConfiguredNVMLFieldValues() []nvml.FieldValue {
 	ids := make([]uint32, 0, len(nvmlFieldNameToFieldID))
 	for _, id := range nvmlFieldNameToFieldID {
@@ -182,7 +206,7 @@ func buildMockOptionsForArchAndMode(t *testing.T, archName string, mode testutil
 	t.Helper()
 	caps := testutil.Capabilities{
 		GPM:               archSpec.Capabilities.GPM,
-		UnsupportedFields: unsupportedFieldIDsFromNames(t, archSpec.Capabilities.UnsupportedFields),
+		UnsupportedFields: unsupportedFieldIDsForMode(t, archSpec, string(mode)),
 	}
 	opts := []testutil.NvmlMockOption{
 		testutil.WithArchitecture(archName),
@@ -264,9 +288,14 @@ func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
 				if caps.GPM {
 					expected = 1
 				}
+				if mode == testutil.DeviceFeatureVGPU {
+					// Mocks model vGPU as not supporting GPM collection even on architectures
+					// where physical devices support GPM.
+					expected = 0
+				}
 				assert.Equal(t, expected, support.IsSupportedDevice, "GpmQueryDeviceSupport.IsSupportedDevice should be %d when gpm=%v", expected, caps.GPM)
 
-				unsupportedIDs := unsupportedFieldIDsFromNames(t, caps.UnsupportedFields)
+				unsupportedIDs := unsupportedFieldIDsForMode(t, archSpec, string(mode))
 				unsupportedSet := make(map[uint32]struct{}, len(unsupportedIDs))
 				for _, id := range unsupportedIDs {
 					unsupportedSet[id] = struct{}{}
@@ -377,7 +406,7 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode testu
 		testutil.WithArchitecture(archName),
 		testutil.WithCapabilities(testutil.Capabilities{
 			GPM:               archSpec.Capabilities.GPM,
-			UnsupportedFields: unsupportedFieldIDsFromNames(t, archSpec.Capabilities.UnsupportedFields),
+			UnsupportedFields: unsupportedFieldIDsForMode(t, archSpec, string(mode)),
 		}),
 		testutil.WithMockAllFunctions(),
 	}
