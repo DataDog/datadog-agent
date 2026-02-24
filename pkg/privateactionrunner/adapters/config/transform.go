@@ -23,7 +23,7 @@ import (
 )
 
 func FromDDConfig(config config.Component) (*Config, error) {
-	ddHost := configutils.GetMainEndpoint(config, "https://api.", "dd_url")
+	ddHost := strings.TrimSuffix(configutils.GetMainEndpoint(config, "https://api.", "dd_url"), ".")
 	ddSite := configutils.ExtractSiteFromURL(ddHost)
 	encodedPrivateKey := config.GetString(setup.PARPrivateKey)
 	urn := config.GetString(setup.PARUrn)
