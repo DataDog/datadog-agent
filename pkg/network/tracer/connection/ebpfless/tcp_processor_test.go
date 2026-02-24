@@ -867,6 +867,7 @@ func TestPreexistingConnUnknownDirection(t *testing.T) {
 
 		// packet 3: SYN arrives — sets direction, connection now persistable
 		result = f.runPkt(pb.outgoing(0, 0, 0, SYN))
+		require.Equal(t, ProcessResultStoreConn, result)
 		require.Equal(t, network.OUTGOING, f.conn.Direction)
 	})
 }
