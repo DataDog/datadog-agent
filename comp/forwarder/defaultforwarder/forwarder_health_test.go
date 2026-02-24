@@ -289,7 +289,7 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 		ts2.URL: keysAfter,
 	}
 	// Setting the config will send the change to the resolver, which updates the health check
-	cfg.SetWithoutSource("additional_endpoints", endpoints)
+	cfg.SetInTest("additional_endpoints", endpoints)
 
 	// Ensure that keysPerAPIEndpoint has the new API Key
 	data, _ = json.Marshal(fh.keysPerAPIEndpoint)
@@ -315,7 +315,7 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 		ts2.URL: keysBefore,
 	}
 	// Setting the config will send the change to the resolver, which updates the health check
-	cfg.SetWithoutSource("additional_endpoints", endpoints)
+	cfg.SetInTest("additional_endpoints", endpoints)
 
 	// Ensure that keysPerAPIEndpoint are restored to previous
 	data, _ = json.Marshal(fh.keysPerAPIEndpoint)

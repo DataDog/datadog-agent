@@ -80,7 +80,7 @@ func newFixtureWithData(t *testing.T, enabled bool, mockData []software.Entry) *
 	hostnameComp := &mockHostname{}
 
 	configComp := config.NewMock(t)
-	configComp.SetWithoutSource("software_inventory.enabled", enabled)
+	configComp.SetInTest("software_inventory.enabled", enabled)
 
 	// Create a mock event platform forwarder
 	epMock := &mockEventPlatform{}

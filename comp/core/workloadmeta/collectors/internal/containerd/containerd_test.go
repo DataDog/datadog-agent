@@ -21,7 +21,7 @@ import (
 
 func TestIgnoreContainer(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("container_exclude", "name:agent-excluded")
+	mockConfig.SetInTest("container_exclude", "name:agent-excluded")
 	mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
 
 	containerID := "123"

@@ -69,7 +69,7 @@ func (m *mockLifecycle) Stop(ctx context.Context) error {
 // testRequires creates a Requires struct for testing with health platform enabled
 func testRequires(t *testing.T, lifecycle *mockLifecycle) Requires {
 	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("health_platform.enabled", true)
+	cfg.SetInTest("health_platform.enabled", true)
 
 	if lifecycle == nil {
 		lifecycle = newMockLifecycle()
@@ -394,7 +394,7 @@ func TestIssueTimestamp(t *testing.T) {
 // TestComponentDisabled tests that component is disabled when config flag is false
 func TestComponentDisabled(t *testing.T) {
 	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("health_platform.enabled", false)
+	cfg.SetInTest("health_platform.enabled", false)
 
 	hostnameMock, _ := hostnameinterface.NewMock("test-hostname")
 

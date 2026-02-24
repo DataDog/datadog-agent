@@ -290,7 +290,7 @@ func TestDefaultSeries(t *testing.T) {
 	taggerComponent := taggerfxmock.SetupFakeTagger(t)
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("config_id", "config123")
+	mockConfig.SetInTest("config_id", "config123")
 
 	mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
 	mockHaAgent.SetEnabled(true)
@@ -643,8 +643,8 @@ func TestTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
-			mockConfig.SetWithoutSource("config_id", tt.configID)
+			mockConfig.SetInTest("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
+			mockConfig.SetInTest("config_id", tt.configID)
 
 			taggerComponent := taggerfxmock.SetupFakeTagger(t)
 
@@ -678,7 +678,7 @@ func TestConfigIDTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("config_id", tt.configID)
+			mockConfig.SetInTest("config_id", tt.configID)
 
 			taggerComponent := taggerfxmock.SetupFakeTagger(t)
 			mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
@@ -691,7 +691,7 @@ func TestConfigIDTags(t *testing.T) {
 
 func TestTimeSamplerFlush(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("dogstatsd_pipeline_count", 1)
+	mockConfig.SetInTest("dogstatsd_pipeline_count", 1)
 
 	s := &MockSerializerIterableSerie{}
 	s.On("AreSeriesEnabled").Return(true)
@@ -710,7 +710,7 @@ func TestAddDJMRecurrentSeries(t *testing.T) {
 	// this test IS USING globals (recurrentSeries)
 	// -
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("djm_config.enabled", true)
+	mockConfig.SetInTest("djm_config.enabled", true)
 
 	s := &MockSerializerIterableSerie{}
 	// NewBufferedAggregator with DJM enable will create a new recurrentSeries

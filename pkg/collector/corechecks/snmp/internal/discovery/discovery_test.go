@@ -37,7 +37,7 @@ func waitForDiscoveredDevices(discovery *Discovery, expectedDeviceCount int, tim
 
 func TestDiscovery(t *testing.T) {
 	config := agentconfig.NewMock(t)
-	config.SetWithoutSource("run_path", t.TempDir())
+	config.SetInTest("run_path", t.TempDir())
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -89,7 +89,7 @@ func TestDiscovery(t *testing.T) {
 
 func TestDiscoveryCache(t *testing.T) {
 	config := agentconfig.NewMock(t)
-	config.SetWithoutSource("run_path", t.TempDir())
+	config.SetInTest("run_path", t.TempDir())
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -165,7 +165,7 @@ func TestDiscoveryTicker(t *testing.T) {
 	t.Skip() // TODO: FIX ME, currently this test is leading to data race when ran with other tests
 
 	config := agentconfig.NewMock(t)
-	config.SetWithoutSource("run_path", t.TempDir())
+	config.SetInTest("run_path", t.TempDir())
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -202,7 +202,7 @@ func TestDiscoveryTicker(t *testing.T) {
 
 func TestDiscovery_checkDevice(t *testing.T) {
 	config := agentconfig.NewMock(t)
-	config.SetWithoutSource("run_path", t.TempDir())
+	config.SetInTest("run_path", t.TempDir())
 	checkConfig := &checkconfig.CheckConfig{
 		Network:           "192.168.0.0/32",
 		CommunityString:   "public",
@@ -319,7 +319,7 @@ func TestDiscovery_checkDevice(t *testing.T) {
 
 func TestDiscovery_createDevice(t *testing.T) {
 	config := agentconfig.NewMock(t)
-	config.SetWithoutSource("run_path", t.TempDir())
+	config.SetInTest("run_path", t.TempDir())
 
 	checkConfig := &checkconfig.CheckConfig{
 		Network:                  "192.168.0.0/32",
@@ -383,7 +383,7 @@ func TestDiscovery_createDevice(t *testing.T) {
 
 func TestDeviceScansAreRequested(t *testing.T) {
 	config := agentconfig.NewMock(t)
-	config.SetWithoutSource("run_path", t.TempDir())
+	config.SetInTest("run_path", t.TempDir())
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {

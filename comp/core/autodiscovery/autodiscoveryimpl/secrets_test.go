@@ -148,8 +148,8 @@ func TestSkipSecretResolve(t *testing.T) {
 	mockResolve := &MockSecretResolver{t: t, scenarios: makeSharedScenarios()}
 
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("secret_backend_skip_checks", true)
-	defer cfg.SetWithoutSource("secret_backend_skip_checks", false)
+	cfg.SetInTest("secret_backend_skip_checks", true)
+	defer cfg.SetInTest("secret_backend_skip_checks", false)
 
 	c, err := decryptConfig(sharedTpl, mockResolve, sharedTpl.Digest())
 	require.NoError(t, err)

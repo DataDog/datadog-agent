@@ -52,7 +52,7 @@ func TestProcessLogProviderDiscoverIntegrationSources(t *testing.T) {
 
 	// Mock the confd_path configuration
 	originalConfig := configmock.New(t)
-	originalConfig.SetWithoutSource("confd_path", confdDir)
+	originalConfig.SetInTest("confd_path", confdDir)
 
 	// Create nginx integration in confd directory
 	nginxDir := filepath.Join(confdDir, "nginx.d")
@@ -153,7 +153,7 @@ func TestProcessLogProviderDiscoverIntegrationSources(t *testing.T) {
 	// Test edge cases
 	t.Run("empty confd_path", func(t *testing.T) {
 		emptyConfig := configmock.New(t)
-		emptyConfig.SetWithoutSource("confd_path", "")
+		emptyConfig.SetInTest("confd_path", "")
 
 		// Should still work with just dist path (if it exists)
 		emptySources := discoverIntegrationSources()
@@ -163,7 +163,7 @@ func TestProcessLogProviderDiscoverIntegrationSources(t *testing.T) {
 
 	t.Run("non-existent confd_path", func(t *testing.T) {
 		nonExistentConfig := configmock.New(t)
-		nonExistentConfig.SetWithoutSource("confd_path", "/non/existent/path")
+		nonExistentConfig.SetInTest("confd_path", "/non/existent/path")
 
 		// Should still work with just dist path (if it exists)
 		nonExistentSources := discoverIntegrationSources()
@@ -1144,7 +1144,7 @@ func TestProcessLogProviderAgentExclude(t *testing.T) {
 
 	createProvider := func(excludeAgent bool) *processLogConfigProvider {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("logs_config.process_exclude_agent", excludeAgent)
+		mockConfig.SetInTest("logs_config.process_exclude_agent", excludeAgent)
 
 		filter := workloadfilterfxmock.SetupMockFilter(t)
 		provider, err := NewProcessLogConfigProvider(nil, nil, nil, filter, nil)

@@ -22,20 +22,20 @@ func Test_resolveProfiles(t *testing.T) {
 	mockConfig := configmock.New(t)
 
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "conf.d"))
-	mockConfig.SetWithoutSource("confd_path", defaultTestConfdPath)
+	mockConfig.SetInTest("confd_path", defaultTestConfdPath)
 	defaultTestConfdProfiles := ProfileConfigMap{}
 	userTestConfdProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
 	require.False(t, haveLegacyProfile)
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_ext.d"))
-	mockConfig.SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
+	mockConfig.SetInTest("confd_path", profilesWithInvalidExtendConfdPath)
 	profilesWithInvalidExtendProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
 	require.False(t, haveLegacyProfile)
 
 	invalidCyclicConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_cyclic.d"))
-	mockConfig.SetWithoutSource("confd_path", invalidCyclicConfdPath)
+	mockConfig.SetInTest("confd_path", invalidCyclicConfdPath)
 	invalidCyclicProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
 	require.False(t, haveLegacyProfile)
@@ -51,7 +51,7 @@ func Test_resolveProfiles(t *testing.T) {
 	require.False(t, haveLegacyProfile)
 
 	userProfilesCaseConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "user_profiles.d"))
-	mockConfig.SetWithoutSource("confd_path", userProfilesCaseConfdPath)
+	mockConfig.SetInTest("confd_path", userProfilesCaseConfdPath)
 	userProfilesCaseUserProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
 	require.False(t, haveLegacyProfile)

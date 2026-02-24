@@ -17,8 +17,8 @@ import (
 // and registers a cleanup to disable it after the test completes.
 func WithGPUConfigEnabled(t testing.TB) {
 	t.Helper()
-	pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", true)
+	pkgconfigsetup.Datadog().SetInTest("gpu.enabled", true)
 	t.Cleanup(func() {
-		pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false)
+		pkgconfigsetup.Datadog().SetInTest("gpu.enabled", false)
 	})
 }

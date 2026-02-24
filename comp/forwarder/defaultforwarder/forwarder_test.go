@@ -78,12 +78,12 @@ func TestNewDefaultForwarderWithAutoscaling(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
 
-	mockConfig.SetWithoutSource("autoscaling.failover.enabled", true)
-	mockConfig.SetWithoutSource("cluster_agent.enabled", true)
+	mockConfig.SetInTest("autoscaling.failover.enabled", true)
+	mockConfig.SetInTest("cluster_agent.enabled", true)
 	localDomain := "https://localhost"
 	localAuth := "tokenABCD12345678910109876543210"
-	mockConfig.SetWithoutSource("cluster_agent.url", localDomain)
-	mockConfig.SetWithoutSource("cluster_agent.auth_token", localAuth)
+	mockConfig.SetInTest("cluster_agent.url", localDomain)
+	mockConfig.SetInTest("cluster_agent.auth_token", localAuth)
 
 	r, err := resolver.NewSingleDomainResolvers(keysPerDomains)
 	require.NoError(t, err)
@@ -143,14 +143,14 @@ func TestStart(t *testing.T) {
 
 func TestStopWithoutPurgingTransaction(t *testing.T) {
 	mockConfig := mock.New(t)
-	mockConfig.SetWithoutSource("forwarder_stop_timeout", 0)
+	mockConfig.SetInTest("forwarder_stop_timeout", 0)
 
 	testStop(t, mockConfig)
 }
 
 func TestStopWithPurgingTransaction(t *testing.T) {
 	mockConfig := mock.New(t)
-	mockConfig.SetWithoutSource("forwarder_stop_timeout", 1)
+	mockConfig.SetInTest("forwarder_stop_timeout", 1)
 
 	testStop(t, mockConfig)
 }
@@ -361,7 +361,7 @@ func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {
 
 func TestArbitraryTagsHTTPHeader(t *testing.T) {
 	mockConfig := mock.New(t)
-	mockConfig.SetWithoutSource("allow_arbitrary_tags", true)
+	mockConfig.SetInTest("allow_arbitrary_tags", true)
 
 	log := logmock.New(t)
 	r, err := resolver.NewSingleDomainResolvers(keysPerDomains)
@@ -455,7 +455,7 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	}))
 	defer ts.Close()
 	mockConfig := mock.New(t)
-	mockConfig.SetWithoutSource("dd_url", ts.URL)
+	mockConfig.SetInTest("dd_url", ts.URL)
 
 	log := logmock.New(t)
 	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("path", "api_key1", "api_key2")}, "invalid": {}, "invalid2": nil})
@@ -532,7 +532,7 @@ func TestTransactionEventHandlers(t *testing.T) {
 	}))
 	defer ts.Close()
 	mockConfig := mock.New(t)
-	mockConfig.SetWithoutSource("dd_url", ts.URL)
+	mockConfig.SetInTest("dd_url", ts.URL)
 
 	log := logmock.New(t)
 	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("path", "api_key1")}})
@@ -592,7 +592,7 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	defer ts.Close()
 
 	mockConfig := mock.New(t)
-	mockConfig.SetWithoutSource("dd_url", ts.URL)
+	mockConfig.SetInTest("dd_url", ts.URL)
 
 	log := logmock.New(t)
 	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("path", "api_key1")}})
@@ -648,7 +648,7 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	defer ts.Close()
 
 	mockConfig := mock.New(t)
-	mockConfig.SetWithoutSource("dd_url", ts.URL)
+	mockConfig.SetInTest("dd_url", ts.URL)
 
 	log := logmock.New(t)
 	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("path", "api_key1")}})
@@ -703,8 +703,8 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 	responseTimeout := defaultResponseTimeout
 
 	defaultResponseTimeout = 5 * time.Second
-	mockConfig.SetWithoutSource("dd_url", ts.URL)
-	mockConfig.SetWithoutSource("forwarder_num_workers", 0) // Set the number of workers to 0 so the txn goes nowhere
+	mockConfig.SetInTest("dd_url", ts.URL)
+	mockConfig.SetInTest("forwarder_num_workers", 0) // Set the number of workers to 0 so the txn goes nowhere
 	defer func() {
 		defaultResponseTimeout = responseTimeout
 	}()
@@ -762,8 +762,8 @@ func TestHighPriorityTransactionTendency(t *testing.T) {
 	}))
 
 	mockConfig := mock.New(t)
-	mockConfig.SetWithoutSource("forwarder_backoff_max", 0.5)
-	mockConfig.SetWithoutSource("forwarder_max_concurrent_requests", 10)
+	mockConfig.SetInTest("forwarder_backoff_max", 0.5)
+	mockConfig.SetInTest("forwarder_max_concurrent_requests", 10)
 
 	oldFlushInterval := flushInterval
 	flushInterval = 500 * time.Millisecond
@@ -837,8 +837,8 @@ func TestHighPriorityTransaction(t *testing.T) {
 	}))
 
 	mockConfig := mock.New(t)
-	mockConfig.SetWithoutSource("forwarder_backoff_max", 0.5)
-	mockConfig.SetWithoutSource("forwarder_max_concurrent_requests", 1)
+	mockConfig.SetInTest("forwarder_backoff_max", 0.5)
+	mockConfig.SetInTest("forwarder_max_concurrent_requests", 1)
 
 	oldFlushInterval := flushInterval
 	flushInterval = 500 * time.Millisecond
@@ -880,12 +880,12 @@ func TestCreateTransactionsWithLocal(t *testing.T) {
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
 	mockConfig := mock.New(t)
-	mockConfig.SetWithoutSource("api_key", "test_key")
-	mockConfig.SetWithoutSource("dd_url", "https://example.test")
-	mockConfig.SetWithoutSource("autoscaling.failover.enabled", true)
-	mockConfig.SetWithoutSource("cluster_agent.enabled", true)
-	mockConfig.SetWithoutSource("cluster_agent.url", "https://cluster.agent.svc")
-	mockConfig.SetWithoutSource("cluster_agent.auth_token", "01234567890123456789012345678901")
+	mockConfig.SetInTest("api_key", "test_key")
+	mockConfig.SetInTest("dd_url", "https://example.test")
+	mockConfig.SetInTest("autoscaling.failover.enabled", true)
+	mockConfig.SetInTest("cluster_agent.enabled", true)
+	mockConfig.SetInTest("cluster_agent.url", "https://cluster.agent.svc")
+	mockConfig.SetInTest("cluster_agent.auth_token", "01234567890123456789012345678901")
 
 	opts, err := createOptions(NewParams(), mockConfig, log, secrets)
 	require.NoError(t, err)

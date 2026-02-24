@@ -36,7 +36,7 @@ func TestTopologyPayload_LLDP(t *testing.T) {
 	timeNow = common.MockTimeNow
 	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour)
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
-	mockConfig.SetWithoutSource("confd_path", invalidPath)
+	mockConfig.SetInTest("confd_path", invalidPath)
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -807,7 +807,7 @@ func TestTopologyPayload_CDP(t *testing.T) {
 	timeNow = common.MockTimeNow
 	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour)
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
-	mockConfig.SetWithoutSource("confd_path", invalidPath)
+	mockConfig.SetInTest("confd_path", invalidPath)
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -1568,7 +1568,7 @@ func TestTopologyPayload_CDPSecondaryIP(t *testing.T) {
 	timeNow = common.MockTimeNow
 	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour)
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
-	mockConfig.SetWithoutSource("confd_path", invalidPath)
+	mockConfig.SetInTest("confd_path", invalidPath)
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -2330,7 +2330,7 @@ func TestTopologyPayload_LLDP_CDP(t *testing.T) {
 	timeNow = common.MockTimeNow
 	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour)
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
-	mockConfig.SetWithoutSource("confd_path", invalidPath)
+	mockConfig.SetInTest("confd_path", invalidPath)
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {

@@ -76,8 +76,8 @@ func TestBinaryAnalysisClient(t *testing.T) {
 	}
 
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("system_probe_config.language_detection.enabled", true)
-	cfg.SetWithoutSource("system_probe_config.sysprobe_socket", socketPath)
+	cfg.SetInTest("system_probe_config.language_detection.enabled", true)
+	cfg.SetInTest("system_probe_config.sysprobe_socket", socketPath)
 
 	res := DetectLanguage(procs, cfg)
 	assert.Equal(t, languagemodels.Python, res[0].Name)

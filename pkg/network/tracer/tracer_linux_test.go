@@ -702,8 +702,8 @@ func (s *TracerSuite) TestGatewayLookupNotEnabled() {
 
 		mockConfig := configmock.New(t)
 		clouds := mockConfig.Get("cloud_provider_metadata")
-		mockConfig.SetWithoutSource("cloud_provider_metadata", []string{})
-		defer mockConfig.SetWithoutSource("cloud_provider_metadata", clouds)
+		mockConfig.SetInTest("cloud_provider_metadata", []string{})
+		defer mockConfig.SetInTest("cloud_provider_metadata", clouds)
 
 		tr := setupTracer(t, cfg)
 		require.Nil(t, tr.gwLookup)

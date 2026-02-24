@@ -57,7 +57,7 @@ func TestTelemetryPath(t *testing.T) {
 
 	collector := NewCollector(testRcClientId, testKubernetesClusterId)
 	collector.SetTestHost(server.URL)
-	mockConfig.SetWithoutSource("api_key", "dummy")
+	mockConfig.SetInTest("api_key", "dummy")
 
 	var reqCount int
 	var path string

@@ -18,11 +18,11 @@ func NewMock(t testing.TB) Component {
 	return &cfg{Config: mock.New(t)}
 }
 
-// NewMockWithOverrides create a mock config and call SetWithoutSource on evey item in overrides
+// NewMockWithOverrides create a mock config and call SetInTest on every item in overrides
 func NewMockWithOverrides(t testing.TB, overrides map[string]interface{}) Component {
 	conf := mock.New(t)
 	for k, v := range overrides {
-		conf.SetWithoutSource(k, v)
+		conf.SetInTest(k, v)
 	}
 	return &cfg{Config: conf}
 }

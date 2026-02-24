@@ -27,8 +27,8 @@ func TestBuildPipelines(t *testing.T) {
 	logger := logmock.New(t)
 	config := configmock.New(t)
 
-	config.SetWithoutSource("dd_url", "http://example.test")
-	config.SetWithoutSource("api_key", "test_key")
+	config.SetInTest("dd_url", "http://example.test")
+	config.SetInTest("api_key", "test_key")
 
 	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
@@ -51,12 +51,9 @@ func TestBuildPipelinesWithAdditionalEndpoints(t *testing.T) {
 	logger := logmock.New(t)
 	config := configmock.New(t)
 
-	config.SetWithoutSource("dd_url", "http://example.test")
-	config.SetWithoutSource("api_key", "test_key")
-	config.SetWithoutSource("additional_endpoints", map[string][]string{
-		"http://example.test": {"another_key"},
-		"http://another.test": {"test_key"},
-	})
+	config.SetInTest("dd_url", "http://example.test")
+	config.SetInTest("api_key", "test_key")
+	config.SetInTest("additional_endpoints", map[string][]string{"http://example.test": {"another_key"}, "http://another.test": {"test_key"}})
 
 	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
@@ -82,12 +79,12 @@ func TestBuildPipelinesWithAutoscalingFailover(t *testing.T) {
 	logger := logmock.New(t)
 	config := configmock.New(t)
 
-	config.SetWithoutSource("dd_url", "http://example.test")
-	config.SetWithoutSource("api_key", "test_key")
-	config.SetWithoutSource("autoscaling.failover.enabled", true)
-	config.SetWithoutSource("cluster_agent.enabled", true)
-	config.SetWithoutSource("cluster_agent.url", "https://cluster.agent.svc")
-	config.SetWithoutSource("cluster_agent.auth_token", "01234567890123456789012345678901")
+	config.SetInTest("dd_url", "http://example.test")
+	config.SetInTest("api_key", "test_key")
+	config.SetInTest("autoscaling.failover.enabled", true)
+	config.SetInTest("cluster_agent.enabled", true)
+	config.SetInTest("cluster_agent.url", "https://cluster.agent.svc")
+	config.SetInTest("cluster_agent.auth_token", "01234567890123456789012345678901")
 
 	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
@@ -120,13 +117,13 @@ func TestBuildPipelinesWithAutoscalingFailoverEmptyList(t *testing.T) {
 	logger := logmock.New(t)
 	config := configmock.New(t)
 
-	config.SetWithoutSource("dd_url", "http://example.test")
-	config.SetWithoutSource("api_key", "test_key")
-	config.SetWithoutSource("autoscaling.failover.enabled", true)
-	config.SetWithoutSource("autoscaling.failover.metrics", []string{})
-	config.SetWithoutSource("cluster_agent.enabled", true)
-	config.SetWithoutSource("cluster_agent.url", "https://cluster.agent.svc")
-	config.SetWithoutSource("cluster_agent.auth_token", "01234567890123456789012345678901")
+	config.SetInTest("dd_url", "http://example.test")
+	config.SetInTest("api_key", "test_key")
+	config.SetInTest("autoscaling.failover.enabled", true)
+	config.SetInTest("autoscaling.failover.metrics", []string{})
+	config.SetInTest("cluster_agent.enabled", true)
+	config.SetInTest("cluster_agent.url", "https://cluster.agent.svc")
+	config.SetInTest("cluster_agent.auth_token", "01234567890123456789012345678901")
 
 	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
@@ -149,10 +146,10 @@ func TestBuildPipelinesWithMRFInactive(t *testing.T) {
 	logger := logmock.New(t)
 	config := configmock.New(t)
 
-	config.SetWithoutSource("dd_url", "http://example.test")
-	config.SetWithoutSource("api_key", "test_key")
-	config.SetWithoutSource("multi_region_failover.enabled", true)
-	config.SetWithoutSource("multi_region_failover.dd_url", "http://mrf.example.test")
+	config.SetInTest("dd_url", "http://example.test")
+	config.SetInTest("api_key", "test_key")
+	config.SetInTest("multi_region_failover.enabled", true)
+	config.SetInTest("multi_region_failover.dd_url", "http://mrf.example.test")
 
 	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
@@ -180,11 +177,11 @@ func TestBuildPipelinesWithMRFActive(t *testing.T) {
 	logger := logmock.New(t)
 	config := configmock.New(t)
 
-	config.SetWithoutSource("dd_url", "http://example.test")
-	config.SetWithoutSource("api_key", "test_key")
-	config.SetWithoutSource("multi_region_failover.enabled", true)
-	config.SetWithoutSource("multi_region_failover.failover_metrics", true)
-	config.SetWithoutSource("multi_region_failover.dd_url", "http://mrf.example.test")
+	config.SetInTest("dd_url", "http://example.test")
+	config.SetInTest("api_key", "test_key")
+	config.SetInTest("multi_region_failover.enabled", true)
+	config.SetInTest("multi_region_failover.failover_metrics", true)
+	config.SetInTest("multi_region_failover.dd_url", "http://mrf.example.test")
 
 	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
@@ -215,12 +212,12 @@ func TestBuildPipelinesWithMRFActiveFilter(t *testing.T) {
 	logger := logmock.New(t)
 	config := configmock.New(t)
 
-	config.SetWithoutSource("dd_url", "http://example.test")
-	config.SetWithoutSource("api_key", "test_key")
-	config.SetWithoutSource("multi_region_failover.enabled", true)
-	config.SetWithoutSource("multi_region_failover.failover_metrics", true)
-	config.SetWithoutSource("multi_region_failover.metric_allowlist", []string{"datadog.agent.running"})
-	config.SetWithoutSource("multi_region_failover.dd_url", "http://mrf.example.test")
+	config.SetInTest("dd_url", "http://example.test")
+	config.SetInTest("api_key", "test_key")
+	config.SetInTest("multi_region_failover.enabled", true)
+	config.SetInTest("multi_region_failover.failover_metrics", true)
+	config.SetInTest("multi_region_failover.metric_allowlist", []string{"datadog.agent.running"})
+	config.SetInTest("multi_region_failover.dd_url", "http://mrf.example.test")
 
 	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
@@ -252,12 +249,12 @@ func TestBuildPipelinesSketches(t *testing.T) {
 	logger := logmock.New(t)
 	config := configmock.New(t)
 
-	config.SetWithoutSource("dd_url", "http://example.test")
-	config.SetWithoutSource("api_key", "test_key")
-	config.SetWithoutSource("autoscaling.failover.enabled", true)
-	config.SetWithoutSource("cluster_agent.enabled", true)
-	config.SetWithoutSource("cluster_agent.url", "https://cluster.agent.svc")
-	config.SetWithoutSource("cluster_agent.auth_token", "01234567890123456789012345678901")
+	config.SetInTest("dd_url", "http://example.test")
+	config.SetInTest("api_key", "test_key")
+	config.SetInTest("autoscaling.failover.enabled", true)
+	config.SetInTest("cluster_agent.enabled", true)
+	config.SetInTest("cluster_agent.url", "https://cluster.agent.svc")
+	config.SetInTest("cluster_agent.auth_token", "01234567890123456789012345678901")
 
 	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
@@ -280,16 +277,13 @@ func TestPipelinesWithV3AndAdditionalEndpoints(t *testing.T) {
 	logger := logmock.New(t)
 	config := configmock.New(t)
 
-	config.SetWithoutSource("dd_url", "http://example.test")
-	config.SetWithoutSource("api_key", "test_key")
-	config.SetWithoutSource("additional_endpoints", map[string][]string{
-		"http://example.test": {"alt_key"},
-		// ensure protocol version setting works even when domain is rewritten by the forwarder
-		"http://app.us5.datadoghq.com": {"test_key"},
-	})
-	config.SetWithoutSource(
-		"serializer_experimental_use_v3_api.series.endpoints",
-		[]string{"http://example.test"})
+	config.SetInTest("dd_url", "http://example.test")
+	config.SetInTest("api_key", "test_key")
+	config.SetInTest("additional_endpoints", map[string][]string{"http://example.test": {"alt_key"}, "http://app.us5.datadoghq.com": {"test_key"}})
+
+	// ensure protocol version setting works even when domain is rewritten by the forwarder
+
+	config.SetInTest("serializer_experimental_use_v3_api.series.endpoints", []string{"http://example.test"})
 
 	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
@@ -322,16 +316,13 @@ func TestPipelinesWithAdditionalEndpointsV3(t *testing.T) {
 	logger := logmock.New(t)
 	config := configmock.New(t)
 
-	config.SetWithoutSource("dd_url", "http://example.test")
-	config.SetWithoutSource("api_key", "test_key")
-	config.SetWithoutSource("additional_endpoints", map[string][]string{
-		"http://example.test": {"alt_key"},
-		// ensure protocol version setting works even when domain is rewritten by the forwarder
-		"http://app.us5.datadoghq.com": {"test_key"},
-	})
-	config.SetWithoutSource(
-		"serializer_experimental_use_v3_api.series.endpoints",
-		[]string{"http://app.us5.datadoghq.com"})
+	config.SetInTest("dd_url", "http://example.test")
+	config.SetInTest("api_key", "test_key")
+	config.SetInTest("additional_endpoints", map[string][]string{"http://example.test": {"alt_key"}, "http://app.us5.datadoghq.com": {"test_key"}})
+
+	// ensure protocol version setting works even when domain is rewritten by the forwarder
+
+	config.SetInTest("serializer_experimental_use_v3_api.series.endpoints", []string{"http://app.us5.datadoghq.com"})
 
 	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
@@ -364,13 +355,12 @@ func TestPipelinesWithV3Validate(t *testing.T) {
 	logger := logmock.New(t)
 	config := configmock.New(t)
 
-	config.SetWithoutSource("dd_url", "http://example.test")
-	config.SetWithoutSource("api_key", "test_key")
-	config.SetWithoutSource("additional_endpoints", map[string][]string{
-		"http://another.test": {"alt_key"},
-	})
-	config.SetWithoutSource("serializer_experimental_use_v3_api.series.endpoints", []string{"http://example.test"})
-	config.SetWithoutSource("serializer_experimental_use_v3_api.series.validate", true)
+	config.SetInTest("dd_url", "http://example.test")
+	config.SetInTest("api_key", "test_key")
+	config.SetInTest("additional_endpoints", map[string][]string{"http://another.test": {"alt_key"}})
+
+	config.SetInTest("serializer_experimental_use_v3_api.series.endpoints", []string{"http://example.test"})
+	config.SetInTest("serializer_experimental_use_v3_api.series.validate", true)
 
 	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)

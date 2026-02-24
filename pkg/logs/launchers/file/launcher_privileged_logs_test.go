@@ -58,8 +58,8 @@ func (s *PrivilegedLogsTestSetupStrategy) Setup(t *testing.T) TestSetupResult {
 	})
 
 	systemProbeConfig := configmock.NewSystemProbe(t)
-	systemProbeConfig.SetWithoutSource("privileged_logs.enabled", true)
-	systemProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", handler.SocketPath)
+	systemProbeConfig.SetInTest("privileged_logs.enabled", true)
+	systemProbeConfig.SetInTest("system_probe_config.sysprobe_socket", handler.SocketPath)
 
 	return TestSetupResult{TestDirs: s.unsearchableTempDirs[:], TestOps: TestOps{
 		create: func(name string) (*os.File, error) {

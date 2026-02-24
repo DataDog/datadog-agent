@@ -96,7 +96,7 @@ var usmUsers = []*gosnmp.UsmSecurityParameters{
 func buildDDConfig(t testing.TB, trapConfig *TrapsConfig, globalNamespace string) config.Component {
 	ddcfg := configmock.New(t)
 	if globalNamespace != "" {
-		ddcfg.SetWithoutSource("network_devices.namespace", globalNamespace)
+		ddcfg.SetInTest("network_devices.namespace", globalNamespace)
 	}
 	if trapConfig != nil {
 		rawTrapConfig := make(map[string]any)
@@ -104,7 +104,7 @@ func buildDDConfig(t testing.TB, trapConfig *TrapsConfig, globalNamespace string
 		require.NoError(t, err)
 		for k, v := range rawTrapConfig {
 			k = "network_devices.snmp_traps." + k
-			ddcfg.SetWithoutSource(k, v)
+			ddcfg.SetInTest(k, v)
 		}
 	}
 	return ddcfg

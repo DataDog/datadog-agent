@@ -52,10 +52,10 @@ func TestProxyWithSecret(t *testing.T) {
 					"no_proxy_2_handle": "no_proxy_2",
 				})
 
-				config.SetWithoutSource("secret_backend_command", "some_command")
-				config.SetWithoutSource("proxy.http", "ENC[http_handle]")
-				config.SetWithoutSource("proxy.https", "ENC[https_handle]")
-				config.SetWithoutSource("proxy.no_proxy", []string{"ENC[no_proxy_1_handle]", "ENC[no_proxy_2_handle]"})
+				config.SetInTest("secret_backend_command", "some_command")
+				config.SetInTest("proxy.http", "ENC[http_handle]")
+				config.SetInTest("proxy.https", "ENC[https_handle]")
+				config.SetInTest("proxy.no_proxy", []string{"ENC[no_proxy_1_handle]", "ENC[no_proxy_2_handle]"})
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t,
@@ -77,7 +77,7 @@ func TestProxyWithSecret(t *testing.T) {
 					"no_proxy_2_handle": "no_proxy_2",
 				})
 
-				config.SetWithoutSource("secret_backend_command", "some_command")
+				config.SetInTest("secret_backend_command", "some_command")
 				t.Setenv("DD_PROXY_HTTP", "ENC[http_handle]")
 				t.Setenv("DD_PROXY_HTTPS", "ENC[https_handle]")
 				t.Setenv("DD_PROXY_NO_PROXY", "ENC[no_proxy_1_handle] ENC[no_proxy_2_handle]")
@@ -102,7 +102,7 @@ func TestProxyWithSecret(t *testing.T) {
 					"no_proxy_2_handle": "no_proxy_2",
 				})
 
-				config.SetWithoutSource("secret_backend_command", "some_command")
+				config.SetInTest("secret_backend_command", "some_command")
 				t.Setenv("HTTP_PROXY", "ENC[http_handle]")
 				t.Setenv("HTTPS_PROXY", "ENC[https_handle]")
 				t.Setenv("NO_PROXY", "ENC[no_proxy_1_handle],ENC[no_proxy_2_handle]")
@@ -147,7 +147,7 @@ func TestProxyWithSecret(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 
 			config := newTestConf(t)
-			config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+			config.SetInTest("use_proxy_for_cloud_metadata", true)
 
 			path := t.TempDir()
 			configPath := filepath.Join(path, "empty_conf.yaml")

@@ -494,14 +494,14 @@ func TestTransportProtocol_HTTP1(t *testing.T) {
 	assert.True(t, c.IsKnown("logs_config.http_protocol"), "Config key logs_config.http_protocol should be known")
 
 	// Force client to use HTTP/1
-	c.SetWithoutSource("logs_config.http_protocol", "http1")
+	c.SetInTest("logs_config.http_protocol", "http1")
 	// Skip SSL validation
-	c.SetWithoutSource("skip_ssl_validation", true)
+	c.SetInTest("skip_ssl_validation", true)
 
 	s := NewTestHTTPSServer(false)
 	defer s.Close()
 
-	c.SetWithoutSource("logs_config.http_timeout", 5)
+	c.SetInTest("logs_config.http_timeout", 5)
 	client := httpClientFactory(c, NoTimeoutOverride)()
 
 	assert.Equal(t, 5*time.Second, client.Timeout)
@@ -527,14 +527,14 @@ func TestTransportProtocol_HTTP2(t *testing.T) {
 	assert.True(t, c.IsKnown("logs_config.http_protocol"), "Config key logs_config.http_protocol should be known")
 
 	// Force client to use ALNP
-	c.SetWithoutSource("logs_config.http_protocol", "auto")
+	c.SetInTest("logs_config.http_protocol", "auto")
 	// Skip SSL validation
-	c.SetWithoutSource("skip_ssl_validation", true)
+	c.SetInTest("skip_ssl_validation", true)
 
 	s := NewTestHTTPSServer(false)
 	defer s.Close()
 
-	c.SetWithoutSource("logs_config.http_timeout", 5)
+	c.SetInTest("logs_config.http_timeout", 5)
 	client := httpClientFactory(c, NoTimeoutOverride)()
 
 	assert.Equal(t, 5*time.Second, client.Timeout)
@@ -559,15 +559,15 @@ func TestTransportProtocol_InvalidProtocol(t *testing.T) {
 	assert.True(t, c.IsKnown("logs_config.http_protocol"), "Config key logs_config.http_protocol should be known")
 
 	// Force client to default to ALNP from invalid protocol
-	c.SetWithoutSource("logs_config.http_protocol", "htto2")
+	c.SetInTest("logs_config.http_protocol", "htto2")
 	// Skip SSL validation
-	c.SetWithoutSource("skip_ssl_validation", true)
+	c.SetInTest("skip_ssl_validation", true)
 
 	// Start the test server
 	server := NewTestHTTPSServer(false)
 	defer server.Close()
 
-	c.SetWithoutSource("logs_config.http_timeout", 5)
+	c.SetInTest("logs_config.http_timeout", 5)
 	client := httpClientFactory(c, NoTimeoutOverride)()
 
 	assert.Equal(t, 5*time.Second, client.Timeout)
@@ -591,15 +591,15 @@ func TestTransportProtocol_HTTP1FallBack(t *testing.T) {
 	assert.True(t, c.IsKnown("logs_config.http_protocol"), "Config key logs_config.http_protocol should be known")
 
 	// Force client to use ALNP
-	c.SetWithoutSource("logs_config.http_protocol", "auto")
+	c.SetInTest("logs_config.http_protocol", "auto")
 	// Skip SSL validation
-	c.SetWithoutSource("skip_ssl_validation", true)
+	c.SetInTest("skip_ssl_validation", true)
 
 	// Start the test server that only support HTTP/1.1
 	server := NewTestHTTPSServer(true)
 	defer server.Close()
 
-	c.SetWithoutSource("logs_config.http_timeout", 5)
+	c.SetInTest("logs_config.http_timeout", 5)
 	client := httpClientFactory(c, NoTimeoutOverride)()
 
 	assert.Equal(t, 5*time.Second, client.Timeout)
@@ -622,17 +622,17 @@ func TestTransportProtocol_HTTP2WhenUsingProxy(t *testing.T) {
 	c := configmock.New(t)
 
 	// Force client to use ALNP
-	c.SetWithoutSource("logs_config.http_protocol", "auto")
-	c.SetWithoutSource("skip_ssl_validation", true)
+	c.SetInTest("logs_config.http_protocol", "auto")
+	c.SetInTest("skip_ssl_validation", true)
 
 	// The test server uses TLS, so if we set the http proxy (not https), it still makes
 	// a request to the test server
-	c.SetWithoutSource("proxy.http", "http://foo.bar")
+	c.SetInTest("proxy.http", "http://foo.bar")
 
 	server := NewTestHTTPSServer(false)
 	defer server.Close()
 
-	c.SetWithoutSource("logs_config.http_timeout", 5)
+	c.SetInTest("logs_config.http_timeout", 5)
 	client := httpClientFactory(c, NoTimeoutOverride)()
 
 	assert.Equal(t, 5*time.Second, client.Timeout)
@@ -654,18 +654,18 @@ func TestTransportProtocol_HTTP1FallBackWhenUsingProxy(t *testing.T) {
 	c := configmock.New(t)
 
 	// Force client to use ALNP
-	c.SetWithoutSource("logs_config.http_protocol", "auto")
-	c.SetWithoutSource("skip_ssl_validation", true)
+	c.SetInTest("logs_config.http_protocol", "auto")
+	c.SetInTest("skip_ssl_validation", true)
 
 	// The test server uses TLS, so if we set the http proxy (not https), it still makes
 	// a request to the test server
-	c.SetWithoutSource("proxy.http", "http://foo.bar")
+	c.SetInTest("proxy.http", "http://foo.bar")
 
 	// Start the test server that only support HTTP/1.1
 	server := NewTestHTTPSServer(true)
 	defer server.Close()
 
-	c.SetWithoutSource("logs_config.http_timeout", 5)
+	c.SetInTest("logs_config.http_timeout", 5)
 	client := httpClientFactory(c, NoTimeoutOverride)()
 
 	assert.Equal(t, 5*time.Second, client.Timeout)
@@ -814,7 +814,7 @@ func TestDestinationCompression(t *testing.T) {
 
 func TestHTTPTimeoutOverride(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("logs_config.http_timeout", 1)
+	cfg.SetInTest("logs_config.http_timeout", 1)
 	client := httpClientFactory(cfg, 15*time.Second)()
 	assert.Equal(t, 15*time.Second, client.Timeout)
 }

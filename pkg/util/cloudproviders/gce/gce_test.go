@@ -232,7 +232,7 @@ func TestGetNTPHosts(t *testing.T) {
 
 	mockConfig := configmock.New(t)
 	metadataURL = ts.URL
-	mockConfig.SetWithoutSource("cloud_provider_metadata", []string{"gcp"})
+	mockConfig.SetInTest("cloud_provider_metadata", []string{"gcp"})
 	actualHosts := GetNTPHosts(ctx)
 
 	assert.Equal(t, expectedHosts, actualHosts)
