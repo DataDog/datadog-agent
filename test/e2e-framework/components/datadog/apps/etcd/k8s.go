@@ -133,6 +133,9 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 				},
 				Spec: &corev1.PodSpecArgs{
 					ServiceAccountName: sa.Metadata.Name().Elem(),
+					ImagePullSecrets: &corev1.LocalObjectReferenceArray{
+						corev1.LocalObjectReferenceArgs{Name: e.ImagePullPassword()},
+					},
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name: pulumi.String("etcd"),

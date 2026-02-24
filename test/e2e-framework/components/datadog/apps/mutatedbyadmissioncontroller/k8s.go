@@ -210,6 +210,9 @@ func k8sDeploymentWithLibInjection(e config.Env, namespace string, name string, 
 				},
 				Spec: &corev1.PodSpecArgs{
 					ServiceAccountName: sa.Metadata.Name().Elem(),
+					ImagePullSecrets: &corev1.LocalObjectReferenceArray{
+						corev1.LocalObjectReferenceArgs{Name: e.ImagePullPassword()},
+					},
 					Containers: corev1.ContainerArray{
 						corev1.ContainerArgs{
 							Name: pulumi.String(name),
