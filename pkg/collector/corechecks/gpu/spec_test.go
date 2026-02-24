@@ -270,8 +270,8 @@ func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
 
 				fieldValues := allConfiguredNVMLFieldValues()
 				err = dev.GetFieldValues(fieldValues)
-				if mode == testutil.DeviceFeatureVGPU && err != nil && ddnvml.IsUnsupported(err) {
-					// vGPU mode can report field APIs as unsupported.
+				if (mode == testutil.DeviceFeatureVGPU || mode == testutil.DeviceFeatureMIG) && err != nil && ddnvml.IsUnsupported(err) {
+					// vGPU and MIG modes can report field APIs as unsupported.
 					return
 				}
 				require.NoError(t, err, "GetFieldValues should not return an error")
