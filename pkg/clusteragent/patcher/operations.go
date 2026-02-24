@@ -155,7 +155,7 @@ type setContainerResources struct {
 // SetContainerResources creates an operation that patches spec.containers[*].resources
 // for the listed containers.
 //
-// Callers targeting the "pods/resize" resource should use types.StrategicMergePatchType, 
+// Callers targeting the "pods/resize" resource should use types.StrategicMergePatchType,
 // as using the default types.MergePatchType fails if not all containers are included.
 func SetContainerResources(containers []ContainerResourcePatch) PatchOperation {
 	return &setContainerResources{containers: containers}
