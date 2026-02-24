@@ -5,17 +5,13 @@
 
 // This doesn't need BPF, but it's built with this tag to only run with
 // system-probe tests.
-//go:build test && linux_bpf
+//go:build test && linux_bpf && !cgo
 
 package module
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"net"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,20 +20,14 @@ import (
 	"syscall"
 	"testing"
 
-	gorillamux "github.com/gorilla/mux"
 	"github.com/prometheus/procfs"
-	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/discovery/core"
 	"github.com/DataDog/datadog-agent/pkg/discovery/language"
 	"github.com/DataDog/datadog-agent/pkg/discovery/model"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -49,68 +39,6 @@ func findService(pid int, services []model.Service) *model.Service {
 	}
 
 	return nil
-}
-
-type testDiscoveryModule struct {
-	url string
-}
-
-func setupDiscoveryModule(t *testing.T) *testDiscoveryModule {
-	t.Helper()
-	mux := gorillamux.NewRouter()
-
-	mod, err := NewDiscoveryModule(nil, module.FactoryDependencies{})
-	require.NoError(t, err)
-	discovery := mod.(*discovery)
-
-	discovery.Register(module.NewRouter(string(config.DiscoveryModule), mux))
-	t.Cleanup(discovery.Close)
-
-	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
-
-	return &testDiscoveryModule{
-		url: srv.URL,
-	}
-}
-
-// makeRequest wraps the request to the discovery module, setting the JSON body if provided,
-// and returning the response as the given type.
-func makeRequest[T any](t require.TestingT, url string, params *core.Params) *T {
-	var body *bytes.Buffer
-	if params != nil {
-		jsonData, err := params.ToJSON()
-		require.NoError(t, err, "failed to serialize params to JSON")
-		body = bytes.NewBuffer(jsonData)
-	}
-
-	var req *http.Request
-	var err error
-	if body != nil {
-		req, err = http.NewRequest(http.MethodPost, url, body)
-		req.Header.Set("Content-Type", "application/json")
-	} else {
-		req, err = http.NewRequest(http.MethodPost, url, nil)
-	}
-	require.NoError(t, err, "failed to create request")
-
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err, "failed to send request")
-	defer resp.Body.Close()
-
-	res := new(T)
-	err = json.NewDecoder(resp.Body).Decode(res)
-	require.NoError(t, err, "failed to decode response")
-
-	return res
-}
-
-// getRunningPids wraps the process.Pids function, returning a slice of ints
-// that can be used as the pids query param.
-func getRunningPids(t require.TestingT) []int32 {
-	pids, err := process.Pids()
-	require.NoError(t, err)
-	return pids
 }
 
 func startTCPServer(t *testing.T, proto string, address string) (*os.File, *net.TCPAddr) {
@@ -184,43 +112,6 @@ func startProcessWithFile(t *testing.T, f *os.File) *exec.Cmd {
 	f.Close()
 
 	return cmd
-}
-
-func makeAlias(t *testing.T, alias string, serverBin string) string {
-	binDir := filepath.Dir(serverBin)
-	aliasPath := filepath.Join(binDir, alias)
-
-	target, err := os.Readlink(aliasPath)
-	if err == nil && target == serverBin {
-		return aliasPath
-	}
-
-	os.Remove(aliasPath)
-	err = os.Symlink(serverBin, aliasPath)
-	require.NoError(t, err)
-
-	return aliasPath
-}
-
-func buildFakeServer(t *testing.T) string {
-	curDir, err := testutil.CurDir()
-	require.NoError(t, err)
-	serverBin, err := usmtestutil.BuildGoBinaryWrapper(filepath.Join(curDir, "testutil"), "fake_server")
-	require.NoError(t, err)
-
-	for _, alias := range []string{"java", "node", "sshd", "dotnet"} {
-		makeAlias(t, alias, serverBin)
-	}
-
-	return filepath.Dir(serverBin)
-}
-
-func newDiscovery() *discovery {
-	mod, err := NewDiscoveryModule(nil, module.FactoryDependencies{})
-	if err != nil {
-		panic(err)
-	}
-	return mod.(*discovery)
 }
 
 // addSockets adds only listening sockets to a map to be used for later looksups.

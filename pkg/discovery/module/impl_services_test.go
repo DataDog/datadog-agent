@@ -5,7 +5,7 @@
 
 // This doesn't need BPF, but it's built with this tag to only run with
 // system-probe tests.
-//go:build test && linux_bpf
+//go:build test && linux_bpf && !cgo
 
 package module
 
@@ -27,7 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
 
-	"github.com/DataDog/datadog-agent/pkg/discovery/core"
 	"github.com/DataDog/datadog-agent/pkg/discovery/language"
 	"github.com/DataDog/datadog-agent/pkg/discovery/model"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
@@ -35,21 +34,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
-
-// getServices call the /discovery/services endpoint. It will perform a /proc scan
-// to get the list of running pids and use them as the pids query param.
-func getServices(t require.TestingT, url string) *model.ServicesResponse {
-	location := url + "/" + string(config.DiscoveryModule) + pathServices
-	params := &core.Params{
-		NewPids: getRunningPids(t),
-	}
-
-	return makeRequest[model.ServicesResponse](t, location, params)
-}
 
 // Check that we get (only) listening processes for all expected protocols using the services endpoint.
 func TestServicesBasic(t *testing.T) {

@@ -229,3 +229,14 @@ rust_test(
         "@sdagent_crates//:tempfile",
     ],
 )
+
+pkg_files(
+    name = "libdd_discovery_files",
+    srcs = [":libdd_discovery"],
+    attributes = pkg_attributes(mode = "0755"),
+)
+
+pkg_install(
+    name = "install_cgo_libs",
+    srcs = [":libdd_discovery_files"],
+)
