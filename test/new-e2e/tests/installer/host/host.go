@@ -17,11 +17,13 @@ import (
 	"testing"
 	"time"
 
-	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 )
 
@@ -113,6 +115,12 @@ func (h *Host) InstallDocker() {
 	default:
 		h.t().Fatalf("unsupported package manager: %s", h.pkgManager)
 	}
+
+	imagePullPassword, err := runner.GetProfile().ParamStore().Get(runner.ImagePullPassword)
+	if err != nil {
+		h.t().Fatalf("failed to get image pull password: %v", err)
+	}
+	h.remote.MustExecute(fmt.Sprintf("sudo docker login --username AWS --password %s 669783387624.dkr.ecr.us-east-1.amazonaws.com", imagePullPassword))
 }
 
 // GetDockerRuntimePath returns the runtime path of a docker runtime
