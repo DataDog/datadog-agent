@@ -107,6 +107,7 @@ func (m specMetric) isDeviceFeatureExplicitlyUnsupported(mode string) bool {
 
 var nvmlFieldNameToFieldID = map[string]uint32{
 	"FI_DEV_MEMORY_TEMP":                       nvml.FI_DEV_MEMORY_TEMP,
+	"FI_DEV_NVLINK_LINK_COUNT":                 nvml.FI_DEV_NVLINK_LINK_COUNT,
 	"FI_DEV_NVLINK_THROUGHPUT_DATA_RX":         nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX,
 	"FI_DEV_NVLINK_THROUGHPUT_DATA_TX":         nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX,
 	"FI_DEV_NVLINK_THROUGHPUT_RAW_RX":          nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX,
