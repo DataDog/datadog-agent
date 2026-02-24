@@ -44,14 +44,6 @@ func TestGetBundleInheritedAllowedActions(t *testing.T) {
 			expectedInheritedActions: map[string]sets.Set[string]{},
 		},
 		{
-			name: "returns empty when for close but wrong bundle",
-			actionsAllowlist: map[string]sets.Set[string]{
-				"com.datadoghq.dd":           sets.New[string]("action1"),
-				"com.datadoghq.dd.subbundle": sets.New[string]("action2"),
-			},
-			expectedInheritedActions: map[string]sets.Set[string]{},
-		},
-		{
 			name: "returns empty when bundle has empty set",
 			actionsAllowlist: map[string]sets.Set[string]{
 				"com.datadoghq.script": sets.New[string](),
@@ -71,12 +63,22 @@ func TestGetBundleInheritedAllowedActions(t *testing.T) {
 				"com.datadoghq.gitlab.users":    sets.New[string]("action2"),
 				"com.datadoghq.kubernetes.core": sets.New[string]("action3"),
 				"com.datadoghq.kubernetes.apps": sets.New[string]("action4"),
+				"com.datadoghq.ddagent":         sets.New[string]("action5"),
 			},
 			expectedInheritedActions: map[string]sets.Set[string]{
 				"com.datadoghq.script":          sets.New[string]("testConnection", "enrichScript"),
 				"com.datadoghq.gitlab.users":    sets.New[string]("testConnection"),
 				"com.datadoghq.kubernetes.core": sets.New[string]("testConnection"),
+				"com.datadoghq.ddagent":         sets.New[string]("testConnection"),
 			},
+		},
+		{
+			name: "returns empty for similar looking bundle	",
+			actionsAllowlist: map[string]sets.Set[string]{
+				"com.datadoghq.dd":           sets.New[string]("action1"),
+				"com.datadoghq.dd.subbundle": sets.New[string]("action2"),
+			},
+			expectedInheritedActions: map[string]sets.Set[string]{},
 		},
 	}
 
