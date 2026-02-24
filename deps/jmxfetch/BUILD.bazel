@@ -13,6 +13,8 @@ pkg_files(
         "@jmxfetch//:jmxfetch.jar",
     ],
     attributes = pkg_attributes(mode = "0644"),
+    # This is essentially redundant, but it serves to document that
+    # the code is under a different license.
     package_metadata = ["@jmxfetch//:license"],
     prefix = "bin/agent/dist/jmx",
 )
