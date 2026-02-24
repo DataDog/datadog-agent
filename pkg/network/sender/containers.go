@@ -184,7 +184,6 @@ func (r *containerResolver) resolveDestinationContainerIDs(conns *network.Connec
 		if cid == nil {
 			continue
 		}
-		conn.ContainerID.Source = cid
 
 		if conn.NetNS != 0 {
 			containerIDCount++
