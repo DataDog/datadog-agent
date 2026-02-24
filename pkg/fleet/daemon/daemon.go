@@ -99,6 +99,7 @@ type daemonImpl struct {
 	configsOverride map[string]installerConfig
 	requests        chan remoteAPIRequest
 	requestsWG      sync.WaitGroup
+	goroutineWG     sync.WaitGroup
 	taskDB          *taskDB
 	clientID        string
 	refreshInterval time.Duration
@@ -367,7 +368,7 @@ func (d *daemonImpl) Start(_ context.Context) error {
 		return nil
 	}
 
-	go func() {
+	d.goroutineWG.Go(func() {
 		// Run the initial state refresh inside the goroutine so that FX init
 		// completes quickly even when packages.db is locked by a concurrent
 		// installer process.  This ensures signal handlers are registered
@@ -412,7 +413,7 @@ func (d *daemonImpl) Start(_ context.Context) error {
 				}
 			}
 		}
-	}()
+	})
 	d.rc.Start(d.handleConfigsUpdate, d.handleCatalogUpdate, d.scheduleRemoteAPIRequest)
 	return nil
 }
@@ -453,6 +454,12 @@ func (d *daemonImpl) Stop(_ context.Context) error {
 	d.m.Unlock()
 
 	d.requestsWG.Wait()
+	// Wait for the background goroutine to exit so that any in-flight subprocess
+	// (e.g. get-states or install-package blocked on packages.db) is waited on
+	// by exec.Cmd.Wait().  This keeps the daemon process alive long enough for
+	// WaitDelay (15s) to fire and SIGKILL the subprocess, preventing it from
+	// being orphaned in the systemd cgroup and causing a 90s stop timeout.
+	d.goroutineWG.Wait()
 	return d.taskDB.Close()
 }
 
