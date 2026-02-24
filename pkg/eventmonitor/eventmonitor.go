@@ -16,9 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"google.golang.org/grpc"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -26,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -48,7 +45,6 @@ type EventMonitor struct {
 
 	Config       *config.Config
 	StatsdClient statsd.ClientInterface
-	GRPCServer   *grpc.Server
 
 	// internals
 	ctx            context.Context
@@ -99,10 +95,6 @@ func (m *EventMonitor) SetCWSStatusProvider(provider CWSStatusProvider) {
 
 // Init initializes the module
 func (m *EventMonitor) Init() error {
-	if err := m.init(); err != nil {
-		return err
-	}
-
 	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
 	// running yet.
 	if err := m.Probe.Init(); err != nil {
@@ -114,20 +106,6 @@ func (m *EventMonitor) Init() error {
 
 // Start the module
 func (m *EventMonitor) Start() error {
-	ln, err := m.getListener()
-	if err != nil {
-		return fmt.Errorf("unable to register event monitoring module: %w", err)
-	}
-
-	m.wg.Add(1)
-	go func() {
-		defer m.wg.Done()
-
-		if err := m.GRPCServer.Serve(ln); err != nil {
-			seclog.Errorf("error launching the grpc server: %v", err)
-		}
-	}()
-
 	// fetch the current state of the system (example: mount points, running processes, ...) so that our user space
 	// context is ready when we start the probes
 	if err := m.Probe.Snapshot(); err != nil {
@@ -167,14 +145,6 @@ func (m *EventMonitor) Close() {
 	// stop event consumers
 	for _, em := range m.eventConsumers {
 		em.Stop()
-	}
-
-	if m.GRPCServer != nil {
-		m.GRPCServer.Stop()
-	}
-
-	if err := m.cleanup(); err != nil {
-		seclog.Errorf("failed to cleanup event monitor: %v", err)
 	}
 
 	m.cancelFnc()
@@ -241,7 +211,7 @@ func (m *EventMonitor) GetStats() map[string]interface{} {
 }
 
 // NewEventMonitor instantiates an event monitoring system-probe module
-func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, ipc ipc.Component, opts Opts) (*EventMonitor, error) {
+func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, hostname string, opts Opts) (*EventMonitor, error) {
 	if opts.StatsdClient == nil {
 		opts.StatsdClient = &statsd.NoOpClient{}
 	}
@@ -250,21 +220,17 @@ func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, ipc ipc
 		opts.ProbeOpts.StatsdClient = opts.StatsdClient
 	}
 
-	probe, err := probe.NewProbe(secconfig, ipc, opts.ProbeOpts)
+	probe, err := probe.NewProbe(secconfig, hostname, opts.ProbeOpts)
 	if err != nil {
 		return nil, err
 	}
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
-	// Add gRPC metrics interceptors
-	grpcOpts := grpcutil.ServerOptionsWithMetrics()
-
 	return &EventMonitor{
 		Config:       config,
 		Probe:        probe,
 		StatsdClient: opts.StatsdClient,
-		GRPCServer:   grpc.NewServer(grpcOpts...),
 
 		ctx:           ctx,
 		cancelFnc:     cancelFnc,

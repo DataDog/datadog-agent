@@ -6,7 +6,7 @@
 package checks
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -20,9 +20,10 @@ import (
 )
 
 // NewProcessDiscoveryCheck returns an instance of the ProcessDiscoveryCheck.
-func NewProcessDiscoveryCheck(config pkgconfigmodel.Reader) *ProcessDiscoveryCheck {
+func NewProcessDiscoveryCheck(config pkgconfigmodel.Reader, sysConfig pkgconfigmodel.Reader) *ProcessDiscoveryCheck {
 	return &ProcessDiscoveryCheck{
 		config:    config,
+		sysConfig: sysConfig,
 		scrubber:  procutil.NewDefaultDataScrubber(),
 		userProbe: NewLookupIDProbe(config),
 	}
@@ -32,7 +33,8 @@ func NewProcessDiscoveryCheck(config pkgconfigmodel.Reader) *ProcessDiscoveryChe
 // It uses its own ProcessDiscovery payload.
 // The goal of this check is to collect information about possible integrations that may be enabled by the end user.
 type ProcessDiscoveryCheck struct {
-	config pkgconfigmodel.Reader
+	config    pkgconfigmodel.Reader
+	sysConfig pkgconfigmodel.Reader
 
 	probe      procutil.Probe
 	scrubber   *procutil.DataScrubber
@@ -61,7 +63,7 @@ func (d *ProcessDiscoveryCheck) IsEnabled() bool {
 	}
 
 	// The Process and Process Discovery checks are mutually exclusive
-	if d.config.GetBool("process_config.process_collection.enabled") {
+	if isProcessCheckEnabled(d.config, d.sysConfig) {
 		return false
 	}
 
@@ -91,7 +93,7 @@ func (d *ProcessDiscoveryCheck) ShouldSaveLastRun() bool { return true }
 // It is a runtime error to call Run without first having called Init.
 func (d *ProcessDiscoveryCheck) Run(nextGroupID func() int32, options *RunOptions) (RunResult, error) {
 	if !d.initCalled {
-		return nil, fmt.Errorf("ProcessDiscoveryCheck.Run called before Init")
+		return nil, errors.New("ProcessDiscoveryCheck.Run called before Init")
 	}
 
 	// Does not need to collect process stats, only metadata

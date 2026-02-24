@@ -5,7 +5,10 @@
 
 package serializers
 
+import "github.com/DataDog/datadog-agent/pkg/security/secl/model"
+
 // EventSerializerPatcher defines an event serializer patcher
 type EventSerializerPatcher interface {
+	model.DelayabledEvent
 	PatchEvent(*EventSerializer)
 }

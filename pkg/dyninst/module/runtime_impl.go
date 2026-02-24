@@ -11,9 +11,14 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
+	"time"
+
+	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
@@ -24,6 +29,7 @@ import (
 type runtimeImpl struct {
 	store                    *processStore
 	diagnostics              *diagnosticsManager
+	actuator                 Actuator
 	decoderFactory           DecoderFactory
 	irGenerator              IRGenerator
 	programCompiler          ProgramCompiler
@@ -37,6 +43,22 @@ type runtimeImpl struct {
 	// crashes while loading programs. If empty, tombstone files are not
 	// created.
 	tombstoneFilePath string
+
+	stats runtimeStats
+}
+
+type runtimeStats struct {
+	eventPairingBufferFull        atomic.Uint64
+	eventPairingCallMapFull       atomic.Uint64
+	eventPairingCallCountExceeded atomic.Uint64
+}
+
+func (s *runtimeStats) asStats() map[string]any {
+	return map[string]any{
+		"event_pairing_buffer_full":         s.eventPairingBufferFull.Load(),
+		"event_pairing_call_map_full":       s.eventPairingCallMapFull.Load(),
+		"event_pairing_call_count_exceeded": s.eventPairingCallCountExceeded.Load(),
+	}
 }
 
 type irGenFailedError struct {
@@ -56,6 +78,7 @@ func (rt *runtimeImpl) Load(
 	executable actuator.Executable,
 	processID actuator.ProcessID,
 	probes []ir.ProbeDefinition,
+	opts actuator.LoadOptions,
 ) (_ actuator.LoadedProgram, retErr error) {
 	if rt.tombstoneFilePath != "" {
 		// Write a tombstone file so that, if we crash in the middle of loading a
@@ -80,7 +103,10 @@ func (rt *runtimeImpl) Load(
 
 	runtimeID, ok := rt.store.updateOnLoad(processID, executable, programID)
 	if !ok {
-		return nil, nil
+		// This can happen if the process has gone away after the load call was
+		// initiated. Such a race is unavoidable because loading happens
+		// asynchronously.
+		return nil, fmt.Errorf("process %v not found", processID)
 	}
 
 	rt.procRuntimeIDbyProgramID.Store(programID, runtimeID)
@@ -115,7 +141,11 @@ func (rt *runtimeImpl) Load(
 		}
 	}()
 
-	irProgram, err := rt.irGenerator.GenerateIR(programID, executable.Path, probes)
+	var irgenOpts []irgen.Option
+	if len(opts.AdditionalTypes) > 0 {
+		irgenOpts = append(irgenOpts, irgen.WithAdditionalTypes(opts.AdditionalTypes))
+	}
+	irProgram, err := rt.irGenerator.GenerateIR(programID, executable.Path, probes, irgenOpts...)
 	if err != nil {
 		return nil, &irGenFailedError{err: err}
 	}
@@ -170,13 +200,15 @@ func (rt *runtimeImpl) Load(
 		decoder:      decoder,
 		symbolicator: rt.store.getSymbolicator(programID),
 		programID:    programID,
+		processID:    processID,
 		service:      runtimeID.service,
 		logUploader: rt.logsFactory.GetUploader(uploader.LogsUploaderMetadata{
 			Tags:        tags,
 			EntityID:    entityID,
 			ContainerID: containerID,
 		}),
-		tree: rt.bufferedMessageTracker.newTree(),
+		tree:   rt.bufferedMessageTracker.newTree(),
+		probes: irProgram.Probes,
 	}
 	rt.dispatcher.RegisterSink(programID, s)
 
@@ -199,7 +231,9 @@ type loadedProgramImpl struct {
 	loadedProgram *loader.Program
 }
 
-func (l *loadedProgramImpl) Attach(processID actuator.ProcessID, executable actuator.Executable) (actuator.AttachedProgram, error) {
+func (l *loadedProgramImpl) Attach(
+	processID actuator.ProcessID, executable actuator.Executable,
+) (actuator.AttachedProgram, error) {
 	attached, err := l.runtime.attacher.Attach(l.loadedProgram, executable, processID)
 	if err != nil {
 		log.Errorf("failed to attach to process %v: %v", processID, err)
@@ -207,11 +241,21 @@ func (l *loadedProgramImpl) Attach(processID actuator.ProcessID, executable actu
 		return nil, err
 	}
 	l.runtime.onProgramAttached(l.programID, processID, l.runtimeID, l.ir)
+	probes := make([]ir.ProbeDefinition, 0, len(l.ir.Probes))
+	for _, probe := range l.ir.Probes {
+		probes = append(probes, probe.ProbeDefinition)
+	}
 	return &attachedProgramImpl{
 		runtime:   l.runtime,
+		runtimeID: l.runtimeID,
 		programID: l.programID,
+		probes:    probes,
 		inner:     attached,
 	}, nil
+}
+
+func (l *loadedProgramImpl) RuntimeStats() []loader.RuntimeStats {
+	return l.loadedProgram.RuntimeStats()
 }
 
 func (l *loadedProgramImpl) Close() error {
@@ -227,12 +271,24 @@ func (l *loadedProgramImpl) IR() *ir.Program {
 
 type attachedProgramImpl struct {
 	runtime   *runtimeImpl
+	runtimeID procRuntimeID
 	programID ir.ProgramID
+	probes    []ir.ProbeDefinition
 	inner     actuator.AttachedProgram
 }
 
-func (a *attachedProgramImpl) Detach() error {
-	err := a.inner.Detach()
+var detachLogLimiter = rate.NewLimiter(rate.Every(time.Minute), 10)
+
+func (a *attachedProgramImpl) Detach(failure error) error {
+	err := a.inner.Detach(failure)
+	if failure != nil {
+		if detachLogLimiter.Allow() {
+			log.Warnf("detaching program %v from process %v due to error: %v", a.programID, a.runtimeID.ID, failure)
+		}
+		for _, probe := range a.probes {
+			a.runtime.diagnostics.reportError(a.runtimeID, probe, failure, "ExecutionFailed")
+		}
+	}
 	a.runtime.onProgramDetached(a.programID)
 	return err
 }

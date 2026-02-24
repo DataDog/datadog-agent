@@ -25,6 +25,8 @@ func (t EventCategory) String() string {
 		return "Kernel Activity"
 	case NetworkCategory:
 		return "Network Activity"
+	case InternalCategory:
+		return "Internal Activity"
 	default:
 		return "Unknown Category"
 	}
@@ -40,6 +42,8 @@ const (
 	KernelCategory
 	// NetworkCategory network events
 	NetworkCategory
+	// InternalCategory internal events
+	InternalCategory
 )
 
 // UnknownCategory for everything without a clear category
@@ -52,6 +56,7 @@ func GetAllCategories() []EventCategory {
 		ProcessCategory,
 		KernelCategory,
 		NetworkCategory,
+		InternalCategory,
 	}
 }
 
@@ -164,6 +169,11 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		ChangePermissionEventType.String():
 
 		return FIMCategory
+
+	// Internal
+	case
+		NopEventType.String():
+		return InternalCategory
 	}
 
 	return UnknownCategory

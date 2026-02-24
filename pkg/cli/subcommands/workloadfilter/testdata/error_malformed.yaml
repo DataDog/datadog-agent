@@ -1,0 +1,8 @@
+---
+# Malformed YAML - incorrect indentation
+- products:
+  - metrics
+rules:
+  containers:
+    - container.name == "redis"
+

@@ -6,8 +6,8 @@
 package testutil
 
 import (
-	"fmt"
 	"net"
+	"strconv"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -33,11 +33,10 @@ func MustPingUDP(tb require.TestingT, ip net.IP, port int) net.Conn {
 // PingTCP connects to the provided IP address over TCP/TCPv6, sends the string "ping",
 // reads from the connection, and returns the open connection for further use/inspection.
 func PingTCP(tb require.TestingT, ip net.IP, port int) net.Conn {
-	addr := fmt.Sprintf("%s:%d", ip, port)
+	addr := net.JoinHostPort(ip.String(), strconv.Itoa(port))
 	network := "tcp"
 	if isIpv6(ip) {
 		network = "tcp6"
-		addr = fmt.Sprintf("[%s]:%d", ip, port)
 	}
 
 	conn, err := net.DialTimeout(network, addr, time.Second)

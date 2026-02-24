@@ -38,15 +38,20 @@ Dumps the contents of a specific eBPF map.
 sudo ./system-probe ebpf map dump id <map-id>       # Dump by map ID
 sudo ./system-probe ebpf map dump name <map-name>   # Dump by map name
 sudo ./system-probe ebpf map dump name conn_stats | jq  # Use with jq
+sudo ./system-probe ebpf map dump --pretty name conn_stats  # Pretty-print output
 ```
 
-**Output:**
-- JSON format with compact byte arrays
-- Each entry shows key and value as arrays of hex-encoded bytes
-- Output format matches bpftool
-- Compatible with jq and other JSON tools
+**Flags:**
+- `--pretty` - Pretty-print JSON output with proper indentation (default: false)
 
-**Example:**
+**Output:**
+- JSON format with compact byte arrays (default) or pretty-printed with `--pretty`
+- Each entry shows key and value as arrays of hex-encoded bytes
+- Default output format matches bpftool for backward compatibility
+- Compatible with jq and other JSON tools
+- Use `--pretty` for human-readable output without requiring jq
+
+**Example (default compact format):**
 ```json
 [{
 	"key": ["0x00","0x00","0x00","0x00","0x00","0x00","0x00","0x00","0xac","0x12","0x00","0x02"],
@@ -55,6 +60,42 @@ sudo ./system-probe ebpf map dump name conn_stats | jq  # Use with jq
 	"key": ["0x00","0x00","0x00","0x00","0x00","0x00","0x00","0x00","0x7f","0x00","0x00","0x01"],
 	"value": ["0xa6","0x7a","0x00","0x00","0x00","0x00","0x00","0x00","0x00","0x00","0x00","0x00"]
 }]
+```
+
+**Example (with `--pretty` flag):**
+```json
+[
+  {
+    "key": [
+      "0x00",
+      "0x00",
+      "0x00",
+      "0x00",
+      "0x00",
+      "0x00",
+      "0x00",
+      "0x00",
+      "0xac",
+      "0x12",
+      "0x00",
+      "0x02"
+    ],
+    "value": [
+      "0x38",
+      "0x04",
+      "0x00",
+      "0x00",
+      "0x00",
+      "0x00",
+      "0x00",
+      "0x00",
+      "0x88",
+      "0x02",
+      "0x00",
+      "0x00"
+    ]
+  }
+]
 ```
 
 ## Use Cases

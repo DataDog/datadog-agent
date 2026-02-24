@@ -1,0 +1,20 @@
+<volume type='file'>
+    <name>{imageName}</name>
+    <key>{volumeKey}</key>
+  <target>
+    <format type='qcow2'/>
+    <permissions>
+      <mode>0660</mode>
+      <owner>$(grep $USER /etc/passwd | cut -d ':' -f 3)</owner>
+      <group>$(grep 'libvirt:' /etc/group | cut -d ':' -f 3)</group>
+    </permissions>
+    <compat>1.1</compat>
+    <clusterSize unit='B'>65536</clusterSize>
+    <features/>
+  </target>
+  <backingStore>
+      <path>{imagePath}</path>
+    <format type='qcow2'/>
+  </backingStore>
+</volume>
+

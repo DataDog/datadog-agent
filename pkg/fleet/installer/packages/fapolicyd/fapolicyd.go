@@ -49,7 +49,7 @@ func SetAgentPermissions(ctx context.Context) (err error) {
 		return err
 	}
 
-	if err = exec.Command("fagenrules", "--load").Run(); err != nil {
+	if err = telemetry.CommandContext(ctx, "fagenrules", "--load").Run(); err != nil {
 		return fmt.Errorf("failed to load fagenrules: %w", err)
 	}
 

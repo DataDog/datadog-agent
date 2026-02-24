@@ -1,0 +1,96 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testStructWithCyclicMaps",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testStructWithCyclicMaps",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go",
+            "lineNumber": 44
+          },
+          {
+            "function": "main.executeStructFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go",
+            "lineNumber": 235
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 32
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testStructWithCyclicMaps",
+          "location": {
+            "method": "main.testStructWithCyclicMaps"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "main.structWithCyclicMaps",
+                "fields": {
+                  "m1": {
+                    "type": "map[struct {}]main.structWithCyclicMaps",
+                    "isNull": true
+                  },
+                  "m2": {
+                    "type": "map[struct {}]map[struct {}]main.structWithCyclicMaps",
+                    "isNull": true
+                  },
+                  "m3": {
+                    "type": "map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps",
+                    "isNull": true
+                  },
+                  "m4": {
+                    "type": "map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps",
+                    "isNull": true
+                  },
+                  "m5": {
+                    "type": "map[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps",
+                    "isNull": true
+                  },
+                  "m6": {
+                    "type": "map[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps",
+                    "isNull": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
+    },
+    "timestamp": "[ts]",
+    "message": "{m1: nil, m2: nil, m3: nil, m4: nil, m5: nil, ...}}"
+  }
+]

@@ -8,6 +8,7 @@ package datadogexporter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"runtime"
 	"sync"
@@ -27,6 +28,7 @@ import (
 
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configretry"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
@@ -117,6 +119,7 @@ func CreateDefaultConfig() component.Config {
 	ddcfg := datadogconfig.CreateDefaultConfig().(*datadogconfig.Config)
 	ddcfg.Traces.TracesConfig.ComputeTopLevelBySpanKind = true
 	ddcfg.Logs.Endpoint = "https://agent-http-intake.logs.datadoghq.com"
+	ddcfg.QueueSettings = configoptional.Some(exporterhelper.NewDefaultQueueConfig()) // TODO: remove this line with next collector version upgrade
 	return ddcfg
 }
 
@@ -160,10 +163,10 @@ func (f *factory) createTracesExporter(
 	}
 
 	if cfg.OnlyMetadata {
-		return nil, fmt.Errorf("datadog::only_metadata should not be set in OTel Agent")
+		return nil, errors.New("datadog::only_metadata should not be set in OTel Agent")
 	}
 
-	tracex := newTracesExporter(ctx, set, cfg, f.traceagentcmp, f.gatewayUsage, f.store.DDOTTraces, f.reporter)
+	tracex := newTracesExporter(ctx, set, cfg, f.traceagentcmp, f.gatewayUsage, f.store.DDOTTraces, f.store.DDOTGWUsage, f.reporter)
 
 	return exporterhelper.NewTraces(
 		ctx,
@@ -287,7 +290,7 @@ func (f *factory) createLogsExporter(
 		return nil, err
 	}
 
-	lf := logsagentexporter.NewFactoryWithType(logch, Type, f.gatewayUsage, f.reporter)
+	lf := logsagentexporter.NewFactoryWithType(logch, Type, f.gatewayUsage, f.store.DDOTGWUsage, f.reporter)
 	lc := &logsagentexporter.Config{
 		OtelSource:    "otel_agent",
 		LogSourceName: logsagentexporter.LogSourceName,

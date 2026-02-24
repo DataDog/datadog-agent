@@ -1,0 +1,133 @@
+---
+# internal_image_deploy stage
+# Contains jobs to trigger a pipeline in the images repo to create internal Agent images.
+
+# Base template with common configuration
+.docker_trigger_base:
+  stage: internal_image_deploy
+  rules: !reference [.on_deploy_internal_or_internal_image_change_or_manual]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  timeout: 1h
+  parallel:
+    matrix: # See https://github.com/DataDog/datadog-agent/pull/45778
+      - COMPRESSION: "zstd"
+        RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd"
+      - COMPRESSION: "nydus"
+        RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
+  script:
+    # Constant variables
+    - export RELEASE_STAGING="true"
+    - export DYNAMIC_BUILD_RENDER_RULES="agent-build-only"
+    # Job specific variables
+    - export BASE_RELEASE_TAG="${CI_COMMIT_REF_NAME//\//-}"
+    - export RELEASE_TAG="${BASE_RELEASE_TAG}${RELEASE_TAG_SUFFIX}${RELEASE_TAG_COMPRESSION_SUFFIX}"
+    - export TMPL_SRC_IMAGE="v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TMPL_SRC_IMAGE_SUFFIX}"
+    # Specify the compression
+    - export IMAGE_VERSION="${IMAGE_VERSION}-${COMPRESSION}"
+    # BUILD_TAG is always RELEASE_TAG
+    - export BUILD_TAG="${RELEASE_TAG}"
+    # Fetch Gitlab token
+    # Set TMPL_SRC_REPO based on branch and release tag based on branch
+    - if [ "$BUCKET_BRANCH" = "beta" ] || [ "$BUCKET_BRANCH" = "stable" ]; then TMPL_SRC_REPO="${TMPL_SRC_REPO}-release"; fi
+    - |
+      if [ "$BUCKET_BRANCH" = "nightly" ]; then
+        RELEASE_TAG="${BASE_RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}${RELEASE_TAG_SUFFIX}${RELEASE_TAG_COMPRESSION_SUFFIX}"
+        TMPL_SRC_REPO="${TMPL_SRC_REPO}-nightly"
+      fi
+    - if [ "$BUCKET_BRANCH" = "dev" ]; then RELEASE_TAG="dev-${BASE_RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}${RELEASE_TAG_SUFFIX}${RELEASE_TAG_COMPRESSION_SUFFIX}"; fi
+    - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master --timeout 3600 --variable IMAGE_VERSION --variable IMAGE_NAME --variable RELEASE_TAG --variable TMPL_SRC_IMAGE --variable TMPL_SRC_REPO --variable TMPL_ADP_VERSION --variable RELEASE_STAGING --variable RELEASE_PROD --variable DYNAMIC_BUILD_RENDER_RULES --variable APPS --variable BAZEL_TARGET --variable DDR --variable DDR_WORKFLOW_ID --variable TARGET_ENV --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+  retry: 2
+
+# -- binary specific variables --
+.agent_variables: &agent_variables
+  IMAGE_VERSION: tmpl-v23
+  IMAGE_NAME: datadog-agent
+  TMPL_SRC_REPO: ci/datadog-agent/agent
+
+.cluster_agent_variables: &cluster_agent_variables
+  IMAGE_VERSION: tmpl-v12
+  IMAGE_NAME: datadog-cluster-agent
+  TMPL_SRC_REPO: ci/datadog-agent/cluster-agent
+  RELEASE_PROD: "true"
+
+.ot_standalone_variables: &ot_standalone_variables
+  IMAGE_VERSION: tmpl-v7
+  IMAGE_NAME: otel-agent
+  TMPL_SRC_REPO: ci/datadog-agent/otel-agent
+
+.host_profiler_standalone_variables: &host_profiler_standalone_variables
+  IMAGE_VERSION: tmpl-v1
+  IMAGE_NAME: ddot-ebpf
+  TMPL_SRC_REPO: ci/datadog-agent/ddot-ebpf
+
+# -- publish jobs --
+publish_internal_container_image-jmx:
+  extends: .docker_trigger_base
+  needs:
+    - job: docker_build_agent7_jmx
+      artifacts: false
+    - job: docker_build_agent7_jmx_arm64
+      artifacts: false
+  variables:
+    <<: *agent_variables
+    TMPL_ADP_VERSION: 0.1.7
+    RELEASE_TAG_SUFFIX: "-jmx"
+    TMPL_SRC_IMAGE_SUFFIX: "-7-jmx"
+
+publish_internal_container_image-fips:
+  extends: .docker_trigger_base
+  needs:
+    - job: docker_build_fips_agent7_jmx
+      artifacts: false
+    - job: docker_build_fips_agent7_arm64_jmx
+      artifacts: false
+  variables:
+    <<: *agent_variables
+    RELEASE_TAG_SUFFIX: "-fips-jmx"
+    TMPL_SRC_IMAGE_SUFFIX: "-7-fips-jmx"
+
+publish_internal_container_image-ot_standalone:
+  extends: .docker_trigger_base
+  needs:
+    - job: docker_build_ot_agent_standalone_amd64
+      artifacts: false
+    - job: docker_build_ot_agent_standalone_arm64
+      artifacts: false
+  variables:
+    <<: *ot_standalone_variables
+    TMPL_SRC_IMAGE_SUFFIX: "-7"
+
+publish_internal_container_image-host_profiler_standalone:
+  extends: .docker_trigger_base
+  needs:
+    - job: docker_build_host_profiler_standalone_amd64
+      artifacts: false
+    - job: docker_build_host_profiler_standalone_arm64
+      artifacts: false
+  variables:
+    <<: *host_profiler_standalone_variables
+    TMPL_SRC_IMAGE_SUFFIX: "-7"
+
+# DCA publish jobs
+publish_internal_dca_container_image:
+  extends: .docker_trigger_base
+  needs:
+    - job: docker_build_cluster_agent_amd64
+      artifacts: false
+    - job: docker_build_cluster_agent_arm64
+      artifacts: false
+  variables:
+    <<: *cluster_agent_variables
+
+publish_internal_dca_container_image-fips:
+  extends: .docker_trigger_base
+  needs:
+    - job: docker_build_cluster_agent_fips_amd64
+      artifacts: false
+    - job: docker_build_cluster_agent_fips_arm64
+      artifacts: false
+  variables:
+    <<: *cluster_agent_variables
+    RELEASE_TAG_SUFFIX: "-fips"
+    TMPL_SRC_IMAGE_SUFFIX: "-fips"

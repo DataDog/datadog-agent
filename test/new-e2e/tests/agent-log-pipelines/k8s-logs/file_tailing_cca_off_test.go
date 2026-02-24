@@ -17,10 +17,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 )
 
 type k8sCCAOffSuite struct {
@@ -53,9 +53,11 @@ func (v *k8sCCAOffSuite) TestADAnnotations() {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:    "annotations-job",
-							Image:   "ubuntu",
-							Command: []string{"echo", testLogMessage},
+							Name:  "annotations-job",
+							Image: "ubuntu",
+							// Sleep is added here so k8s doesn't kill the container before
+							// the agent container can detect it.
+							Command: []string{"sh", "-c", "echo '" + testLogMessage + "' && sleep 10"},
 						},
 					},
 					RestartPolicy: corev1.RestartPolicyNever,
@@ -98,9 +100,11 @@ func (v *k8sCCAOffSuite) TestCCAOff() {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:    "cca-off-job",
-							Image:   "ubuntu",
-							Command: []string{"echo", testLogMessage},
+							Name:  "cca-off-job",
+							Image: "ubuntu",
+							// Sleep is added here so k8s doesn't kill the container before
+							// the agent container can detect it.
+							Command: []string{"sh", "-c", "echo '" + testLogMessage + "' && sleep 10"},
 						},
 					},
 					RestartPolicy: corev1.RestartPolicyNever,

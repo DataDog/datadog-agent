@@ -325,6 +325,9 @@ func TestProcessLifecycleCollection(t *testing.T) {
 	creationTime3 := time.Now().Add(2 * time.Second).Unix()
 	proc4 := createTestUnknownProcess(pid2, creationTime3)
 
+	// same pid AND same creation time as proc1, but different cmdline
+	proc1DiffCmdline := createTestJavaProcess(pid1, creationTime1)
+
 	for _, tc := range []struct {
 		description              string
 		processesToCollectA      map[int32]*procutil.Process
@@ -436,6 +439,25 @@ func TestProcessLifecycleCollection(t *testing.T) {
 				workloadmetaProcess(proc2, nil, nil),
 			},
 		},
+		{
+			description: "process exec: same pid, same createTime, different cmdline",
+			processesToCollectA: map[int32]*procutil.Process{
+				proc1.Pid: proc1, // python process
+			},
+			processesToCollectB: map[int32]*procutil.Process{
+				proc1DiffCmdline.Pid: proc1DiffCmdline, // java process with same pid and createTime
+			},
+			expectedLiveProcesses: []*workloadmeta.Process{
+				workloadmetaProcess(proc1DiffCmdline,
+					&languagemodels.Language{
+						Name: languagemodels.Java,
+					},
+					nil),
+			},
+			expectedDeletedProcesses: []*workloadmeta.Process{
+				workloadmetaProcess(proc1, nil, nil),
+			},
+		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
 			cfg := config.NewMock(t)
@@ -477,9 +499,11 @@ func TestProcessLifecycleCollection(t *testing.T) {
 				for _, expectedDeletedProc := range tc.expectedDeletedProcesses {
 					actualProc, exists := mapActualProcs[expectedDeletedProc.Pid]
 
-					// the same process pid can exist so we ensure it is a different process by checking the creation time
+					// the same process pid can exist so we ensure it is a different process using ProcessIdentity
 					if exists {
-						assert.NotEqual(cT, expectedDeletedProc.CreationTime, actualProc.CreationTime)
+						expectedIdentity := procutil.ProcessIdentity(expectedDeletedProc.Pid, expectedDeletedProc.CreationTime.UnixMilli(), expectedDeletedProc.Cmdline)
+						actualIdentity := procutil.ProcessIdentity(actualProc.Pid, actualProc.CreationTime.UnixMilli(), actualProc.Cmdline)
+						assert.NotEqual(cT, expectedIdentity, actualIdentity, "Expected process to be replaced")
 					}
 
 				}
@@ -526,6 +550,16 @@ func TestStartConfiguration(t *testing.T) {
 			expectedError: nil,
 		},
 		{
+			description: "only GPU monitoring enabled",
+			configOverrides: map[string]interface{}{
+				"gpu.enabled": true,
+			},
+			sysConfigOverrides: map[string]interface{}{
+				"discovery.enabled": false,
+			},
+			expectedError: nil,
+		},
+		{
 			description: "process collection and service discovery not enabled",
 			configOverrides: map[string]interface{}{
 				"process_config.process_collection.enabled": false,
@@ -533,7 +567,7 @@ func TestStartConfiguration(t *testing.T) {
 			sysConfigOverrides: map[string]interface{}{
 				"discovery.enabled": false,
 			},
-			expectedError: errors.NewDisabled(componentName, "process collection and service discovery are disabled"),
+			expectedError: errors.NewDisabled(componentName, "process collection, service discovery, language collection, and GPU monitoring are disabled"),
 		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
@@ -594,6 +628,158 @@ func TestProcessCollectorIntervalConfig(t *testing.T) {
 			assert.Equal(t, tc.expectedInterval, actualInterval)
 		})
 	}
+}
+
+// TestProcessDifferentCmdline tests that the full collector flow correctly handles
+// different cmdline scenarios (same PID, same createTime, but different cmdline).
+func TestProcessDifferentCmdline(t *testing.T) {
+	collectionInterval := time.Second * 10
+	createTime := time.Now().Unix()
+	pid := int32(1234)
+
+	// First collection: bash process
+	bashProc := &procutil.Process{
+		Pid:     pid,
+		Ppid:    6,
+		NsPid:   2,
+		Name:    "bash",
+		Cwd:     "/home/user",
+		Exe:     "/bin/bash",
+		Comm:    "bash",
+		Cmdline: []string{"bash"},
+		Uids:    []int32{1000},
+		Gids:    []int32{1000},
+		Stats:   &procutil.Stats{CreateTime: createTime},
+	}
+
+	// Second collection: htop (same PID and createTime, simulating exec)
+	htopProc := &procutil.Process{
+		Pid:     pid,
+		Ppid:    6,
+		NsPid:   2,
+		Name:    "htop",
+		Cwd:     "/home/user",
+		Exe:     "/usr/bin/htop",
+		Comm:    "htop",
+		Cmdline: []string{"htop"},
+		Uids:    []int32{1000},
+		Gids:    []int32{1000},
+		Stats:   &procutil.Stats{CreateTime: createTime}, // Same createTime!
+	}
+
+	cfg := config.NewMock(t)
+	cfg.SetWithoutSource("process_config.process_collection.enabled", true)
+	cfg.SetWithoutSource("process_config.intervals.process", 10)
+	cfg.SetWithoutSource("language_detection.enabled", true)
+
+	c := setUpCollectorTest(t, cfg, nil, nil)
+	defer c.cleanup()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	// First collection returns bash
+	c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(map[int32]*procutil.Process{pid: bashProc}, nil).Times(1)
+	c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(nil).Times(1)
+
+	// Second collection returns htop (exec'd)
+	c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(map[int32]*procutil.Process{pid: htopProc}, nil).Times(1)
+	c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(nil).Times(1)
+
+	// Start collection
+	err := c.collector.Start(ctx, c.mockStore)
+	assert.NoError(t, err)
+
+	// Wait for first collection to complete
+	assert.EventuallyWithT(t, func(cT *assert.CollectT) {
+		actualProc, err := c.mockStore.GetProcess(pid)
+		if !assert.NoError(cT, err) || !assert.NotNil(cT, actualProc) {
+			return
+		}
+		assert.Equal(cT, []string{"bash"}, actualProc.Cmdline)
+	}, time.Second, time.Millisecond*100)
+
+	// Trigger second collection
+	c.mockClock.Add(collectionInterval)
+
+	// After exec, the store should have htop, not bash
+	assert.EventuallyWithT(t, func(cT *assert.CollectT) {
+		actualProc, err := c.mockStore.GetProcess(pid)
+		if !assert.NoError(cT, err) || !assert.NotNil(cT, actualProc) {
+			return
+		}
+		// Critical assertion: cmdline should be updated to htop after exec
+		assert.Equal(cT, []string{"htop"}, actualProc.Cmdline, "Process cmdline should be updated after exec")
+		assert.Equal(cT, "htop", actualProc.Name, "Process name should be updated after exec")
+	}, time.Second, time.Millisecond*100)
+}
+
+// TestProcessCacheDifferentCmdline tests that processCacheDifference correctly detects
+// when a process has a different cmdline (same PID, same CreateTime, different Cmdline).
+func TestProcessCacheDifferentCmdline(t *testing.T) {
+	createTime := time.Now().Unix()
+	pid := int32(12345)
+
+	// Original bash process
+	bashProc := &procutil.Process{
+		Pid:     pid,
+		Cmdline: []string{"bash"},
+		Stats:   &procutil.Stats{CreateTime: createTime},
+	}
+
+	// Same PID and createTime, but exec'd into htop
+	htopProc := &procutil.Process{
+		Pid:     pid,
+		Cmdline: []string{"htop"},
+		Stats:   &procutil.Stats{CreateTime: createTime},
+	}
+
+	// Cache A has htop (current state after exec)
+	cacheA := map[int32]*procutil.Process{
+		pid: htopProc,
+	}
+
+	// Cache B has bash (previous state before exec)
+	cacheB := map[int32]*procutil.Process{
+		pid: bashProc,
+	}
+
+	// processCacheDifference(A, B) should return htop as a "new" process because cmdline changed
+	diff := processCacheDifference(cacheA, cacheB)
+
+	assert.Len(t, diff, 1, "Expected one process in diff after exec cmdline change")
+	assert.Equal(t, pid, diff[0].Pid)
+	assert.Equal(t, []string{"htop"}, diff[0].Cmdline)
+}
+
+// TestProcessCacheSameCmdline tests that processCacheDifference
+// does not report a process as new when the cmdline stays the same.
+func TestProcessCacheSameCmdline(t *testing.T) {
+	createTime := time.Now().Unix()
+	pid := int32(12345)
+
+	procA := &procutil.Process{
+		Pid:     pid,
+		Cmdline: []string{"bash"},
+		Stats:   &procutil.Stats{CreateTime: createTime},
+	}
+
+	procB := &procutil.Process{
+		Pid:     pid,
+		Cmdline: []string{"bash"},
+		Stats:   &procutil.Stats{CreateTime: createTime},
+	}
+
+	cacheA := map[int32]*procutil.Process{
+		pid: procA,
+	}
+
+	cacheB := map[int32]*procutil.Process{
+		pid: procB,
+	}
+
+	diff := processCacheDifference(cacheA, cacheB)
+
+	assert.Len(t, diff, 0, "Expected no processes in diff when cmdline is the same")
 }
 
 func setUpCollectorTest(t *testing.T, cfg config.Component, sysProbeConfigOverrides map[string]interface{}, wlmConfigOverrides map[string]interface{}) collectorTest {

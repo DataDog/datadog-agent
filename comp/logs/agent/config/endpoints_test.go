@@ -14,6 +14,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
@@ -46,13 +47,13 @@ func (suite *EndpointsTestSuite) TestLogsEndpointConfig() {
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	suite.Equal("agent-intake.logs.datadoghq.eu.", endpoints.Main.Host)
-	suite.Equal(10516, endpoints.Main.Port)
+	suite.Equal(443, endpoints.Main.Port)
 
-	suite.config.SetWithoutSource("logs_config.dd_url", "lambda.logs.datadoghq.co.jp")
-	suite.Equal("lambda.logs.datadoghq.co.jp", pkgconfigutils.GetMainEndpoint(suite.config, tcpEndpointPrefix, "logs_config.dd_url"))
+	suite.config.SetWithoutSource("logs_config.dd_url", "custom.logs.datadoghq.co.jp")
+	suite.Equal("custom.logs.datadoghq.co.jp", pkgconfigutils.GetMainEndpoint(suite.config, tcpEndpointPrefix, "logs_config.dd_url"))
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
-	suite.Equal("lambda.logs.datadoghq.co.jp", endpoints.Main.Host)
+	suite.Equal("custom.logs.datadoghq.co.jp", endpoints.Main.Host)
 	suite.Equal(10516, endpoints.Main.Port)
 
 	suite.config.SetWithoutSource("logs_config.logs_dd_url", "azure.logs.datadoghq.co.uk:1234")
@@ -637,8 +638,8 @@ func (suite *EndpointsTestSuite) TestMainApiKeyRotation() {
 	suite.config.SetWithoutSource("api_key", "1234")
 	logsConfig := defaultLogsConfigKeys(suite.config)
 
-	tcp := newTCPEndpoint(logsConfig)
-	http := newHTTPEndpoint(logsConfig)
+	tcp := newTCPEndpoint(logsConfig, true)
+	http := newHTTPEndpoint(logsConfig, true)
 
 	suite.Equal("1234", tcp.GetAPIKey())
 	suite.Equal("1234", http.GetAPIKey())
@@ -670,8 +671,8 @@ func (suite *EndpointsTestSuite) TestLogsConfigApiKeyRotation() {
 	suite.config.SetWithoutSource("logs_config.api_key", "1234")
 	logsConfig := defaultLogsConfigKeys(suite.config)
 
-	tcp := newTCPEndpoint(logsConfig)
-	http := newHTTPEndpoint(logsConfig)
+	tcp := newTCPEndpoint(logsConfig, true)
+	http := newHTTPEndpoint(logsConfig, true)
 
 	suite.Equal("1234", tcp.GetAPIKey())
 	suite.Equal("1234", http.GetAPIKey())
@@ -690,9 +691,9 @@ func (suite *EndpointsTestSuite) TestLogsConfigApiKeyRotation() {
 func (suite *EndpointsTestSuite) TestEndpointOnUpdate() {
 	loadAdditionalEndpoints := map[string]func(Endpoint, *LogsConfigKeys) []Endpoint{
 		"http": func(main Endpoint, l *LogsConfigKeys) []Endpoint {
-			return loadHTTPAdditionalEndpoints(main, l, "", "", "")
+			return loadHTTPAdditionalEndpoints(main, l, "", "", "", true)
 		},
-		"tcp": func(main Endpoint, l *LogsConfigKeys) []Endpoint { return loadTCPAdditionalEndpoints(main, l) },
+		"tcp": func(main Endpoint, l *LogsConfigKeys) []Endpoint { return loadTCPAdditionalEndpoints(main, l, true) },
 	}
 
 	for endpointType, additionalEndpointsLoader := range loadAdditionalEndpoints {
@@ -718,7 +719,7 @@ func (suite *EndpointsTestSuite) TestEndpointOnUpdate() {
 			"is_reliable": false
 			}]`)
 
-			mainEndpoint := newHTTPEndpoint(logsConfig)
+			mainEndpoint := newHTTPEndpoint(logsConfig, true)
 			additionalEndpoints := additionalEndpointsLoader(mainEndpoint, logsConfig)
 			suite.Suite.Require().Len(additionalEndpoints, 2)
 
@@ -807,7 +808,7 @@ func (suite *EndpointsTestSuite) TestloadTCPAdditionalEndpoints() {
 
 	main := Endpoint{useSSL: true}
 	logsConfig := defaultLogsConfigKeys(suite.config)
-	endpoints := loadTCPAdditionalEndpoints(main, logsConfig)
+	endpoints := loadTCPAdditionalEndpoints(main, logsConfig, true)
 
 	suite.Suite.Require().Len(endpoints, 2)
 	compareEndpoint(suite.T(), expected1, endpoints[0])
@@ -876,6 +877,7 @@ func (suite *EndpointsTestSuite) TestloadHTTPAdditionalEndpoints() {
 		"some track type",
 		"some intake protocol",
 		"some intake origin",
+		true,
 	)
 
 	suite.Suite.Require().Len(endpoints, 2)
@@ -937,6 +939,56 @@ func (suite *EndpointsTestSuite) TestCompressionKindWithAdditionalEndpoints() {
 			suite.Nil(err)
 			suite.Equal(tt.expectedMain.CompressionKind, endpoints.Main.CompressionKind)
 			suite.Equal(tt.expectedMain.CompressionLevel, endpoints.Main.CompressionLevel)
+		})
+	}
+}
+
+func (suite *EndpointsTestSuite) TestMRFApiKeyUpdate() {
+	testEntries := []struct {
+		name           string
+		endpointGetter func(cfg model.Reader) (*Endpoints, error)
+	}{
+		{
+			name: "HTTP",
+			endpointGetter: func(cfg model.Reader) (*Endpoints, error) {
+				return BuildHTTPEndpoints(cfg, "", "", "")
+			},
+		},
+		{
+			name: "TCP",
+			endpointGetter: func(cfg model.Reader) (*Endpoints, error) {
+				return buildTCPEndpoints(cfg, defaultLogsConfigKeys(cfg), true)
+			},
+		},
+	}
+
+	for _, tt := range testEntries {
+		suite.Run(tt.name, func() {
+			suite.config.SetWithoutSource("multi_region_failover.enabled", true)
+			suite.config.SetWithoutSource("multi_region_failover.site", "mrf_fake_site.com:12")
+			suite.config.SetWithoutSource("multi_region_failover.api_key", "1234")
+
+			endpoints, err := tt.endpointGetter(suite.config)
+			suite.Nil(err)
+
+			mrfFound := false
+			for _, endpoint := range endpoints.Endpoints {
+				if endpoint.IsMRF {
+					suite.False(mrfFound, "multiple MRF endpoints found")
+					mrfFound = true
+				}
+			}
+			suite.True(mrfFound, "MRF endpoint not found among endpoints")
+
+			// update mrf API key
+			suite.config.SetWithoutSource("multi_region_failover.api_key", "5678")
+
+			for _, endpoint := range endpoints.Endpoints {
+				if endpoint.IsMRF {
+					suite.Equal("5678", endpoint.GetAPIKey())
+					break
+				}
+			}
 		})
 	}
 }

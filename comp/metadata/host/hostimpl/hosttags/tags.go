@@ -97,7 +97,7 @@ func appendAndSplitTags(target []string, tags []string, splits map[string]string
 			continue
 		}
 
-		for _, elt := range strings.Split(value, sep) {
+		for elt := range strings.SplitSeq(value, sep) {
 			target = append(target, fmt.Sprintf("%s:%s", name, elt))
 		}
 	}

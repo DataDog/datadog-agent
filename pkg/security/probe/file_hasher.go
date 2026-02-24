@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -52,7 +51,7 @@ func (p *FileHasher) AddPendingReports(report *HashActionReport) {
 }
 
 func (p *FileHasher) hash(report *HashActionReport) {
-	p.resolver.HashFileEvent(report.eventType, report.crtID, report.pid, &report.fileEvent)
+	p.resolver.HashFileEvent(report.eventType, report.cgroupID, report.pid, &report.fileEvent, report.maxFileSize)
 	report.resolved = true
 }
 
@@ -65,7 +64,14 @@ func (p *FileHasher) FlushPendingReports() {
 		report.Lock()
 		defer report.Unlock()
 
-		if time.Now().After(report.seenAt.Add(defaultHashActionFlushDelay)) {
+		hashDelay := defaultHashActionFlushDelay
+		if report.eventType == model.ExecEventType {
+			// Exec events can be hashed immediately since the executable file
+			// is already on disk when we process the exec event
+			hashDelay = 0
+		}
+
+		if time.Now().After(report.seenAt.Add(hashDelay)) {
 			report.Trigger = HashTriggerTimeout
 			p.hash(report)
 			return true
@@ -93,16 +99,8 @@ func (p *FileHasher) HandleProcessExited(event *model.Event) {
 }
 
 // HashAndReport hash and report, returns true if the hash computation is supported for the given event
-func (p *FileHasher) HashAndReport(rule *rules.Rule, action *rules.HashDefinition, ev *model.Event) bool {
-	eventType := ev.GetEventType()
-
+func (p *FileHasher) HashAndReport(rule *rules.Rule, action *rules.HashDefinition, ev *model.Event, fileEvent *model.FileEvent) bool {
 	if !p.cfg.RuntimeSecurity.HashResolverEnabled {
-		return false
-	}
-
-	fileEvent, err := ev.GetFileField(action.Field)
-	if err != nil {
-		seclog.Errorf("failed to get file field %s: %v", action.Field, err)
 		return false
 	}
 
@@ -118,12 +116,13 @@ func (p *FileHasher) HashAndReport(rule *rules.Rule, action *rules.HashDefinitio
 	}
 
 	report := &HashActionReport{
-		rule:      rule,
-		pid:       ev.ProcessContext.Pid,
-		crtID:     ev.ProcessContext.Process.ContainerContext.ContainerID,
-		seenAt:    ev.Timestamp,
-		fileEvent: *fileEvent,
-		eventType: eventType,
+		rule:        rule,
+		pid:         ev.ProcessContext.Pid,
+		cgroupID:    ev.ProcessContext.Process.CGroup.CGroupID,
+		maxFileSize: action.MaxFileSize,
+		seenAt:      ev.ResolveEventTime(),
+		fileEvent:   *fileEvent,
+		eventType:   ev.GetEventType(),
 	}
 	ev.ActionReports = append(ev.ActionReports, report)
 	p.pendingReports = append(p.pendingReports, report)

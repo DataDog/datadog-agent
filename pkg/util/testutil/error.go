@@ -5,7 +5,6 @@
 
 //go:build test
 
-// Package testutil provides various helper functions for tests
 package testutil
 
 // ErrorString is a simple error implementation that can be used in tests

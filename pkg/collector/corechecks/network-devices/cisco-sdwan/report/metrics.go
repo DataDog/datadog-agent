@@ -245,7 +245,7 @@ func (ms *SDWanSender) SendDeviceStatusMetrics(deviceStatus map[string]float64) 
 // SendHardwareMetrics sends hardware metrics
 func (ms *SDWanSender) SendHardwareMetrics(hardwareEnvironments []client.HardwareEnvironment) {
 	for _, entry := range hardwareEnvironments {
-		devIndex := fmt.Sprintf("%d", entry.HwDevIndex)
+		devIndex := strconv.Itoa(entry.HwDevIndex)
 
 		tags := ms.getDeviceTags(entry.VmanageSystemIP)
 		tags = append(tags, "status:"+entry.Status, "class:"+entry.HwClass, "item:"+entry.HwItem, "dev_index:"+devIndex)
@@ -267,7 +267,7 @@ func (ms *SDWanSender) SendCloudApplicationMetrics(cloudApplications []client.Cl
 		gatewayTags := ms.getPrefixedDeviceTags("gateway_", entry.GatewaySystemIP)
 
 		tags = append(tags, gatewayTags...)
-		tags = append(tags, "local_color:"+entry.LocalColor, "remote_color:"+entry.RemoteColor, "interface:"+entry.Interface, "exit_type:"+entry.ExitType, "application_group:"+entry.NbarAppGroupName, "application:"+entry.Application, "best_path:"+entry.BestPath, "vpn_id:"+fmt.Sprintf("%d", int(entry.VpnID)))
+		tags = append(tags, "local_color:"+entry.LocalColor, "remote_color:"+entry.RemoteColor, "interface:"+entry.Interface, "exit_type:"+entry.ExitType, "application_group:"+entry.NbarAppGroupName, "application:"+entry.Application, "best_path:"+entry.BestPath, "vpn_id:"+strconv.Itoa(int(entry.VpnID)))
 		key := ms.getMetricKey("application_metrics", entry.VmanageSystemIP, entry.GatewaySystemIP, entry.LocalColor, entry.RemoteColor, entry.Application)
 
 		if !ms.shouldSendEntry(key, entry.EntryTime) {
@@ -293,8 +293,8 @@ func (ms *SDWanSender) SendCloudApplicationMetrics(cloudApplications []client.Cl
 // SendBGPNeighborMetrics sends hardware metrics
 func (ms *SDWanSender) SendBGPNeighborMetrics(bgpNeighbors []client.BGPNeighbor) {
 	for _, entry := range bgpNeighbors {
-		as := fmt.Sprintf("%d", int(entry.AS))
-		vpnID := fmt.Sprintf("%d", int(entry.VpnID))
+		as := strconv.Itoa(int(entry.AS))
+		vpnID := strconv.Itoa(int(entry.VpnID))
 
 		tags := ms.getDeviceTags(entry.VmanageSystemIP)
 		tags = append(tags, "peer_state:"+entry.State, "remote_as:"+as, "neighbor:"+entry.PeerAddr, "vpn_id:"+vpnID, "afi:"+entry.Afi)

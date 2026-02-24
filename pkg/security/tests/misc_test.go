@@ -14,10 +14,8 @@ import (
 	"runtime"
 	"testing"
 
-	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 )
 
 func TestEnv(t *testing.T) {
@@ -46,7 +44,7 @@ func TestOsOrigin(t *testing.T) {
 	}
 	defer test.Close()
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		testFile, _, err := test.Create("test-origin")
 		if err != nil {
 			return err
@@ -54,22 +52,15 @@ func TestOsOrigin(t *testing.T) {
 		return os.Remove(testFile)
 	}, func(_ *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_origin")
-	})
+	}, "test_origin")
 }
 
 func TestHostname(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	ipcComp := ipcmock.New(t)
-
-	hostname, err := hostnameutils.GetHostname(ipcComp)
-	if err != nil || hostname == "" {
-		hostname = "unknown"
-	}
-
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_hostname",
-		Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/test-hostname" && event.hostname == "%s"`, hostname),
+		Expression: `open.file.path == "{{.Root}}/test-hostname" && event.hostname == "functional_tests_host"`,
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef})
@@ -78,7 +69,7 @@ func TestHostname(t *testing.T) {
 	}
 	defer test.Close()
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		testFile, _, err := test.Create("test-hostname")
 		if err != nil {
 			return err
@@ -86,5 +77,5 @@ func TestHostname(t *testing.T) {
 		return os.Remove(testFile)
 	}, func(_ *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_hostname")
-	})
+	}, "test_hostname")
 }

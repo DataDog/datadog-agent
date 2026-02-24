@@ -7,15 +7,13 @@
 package rules
 
 import (
-	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 const (
-	// ScopeGlobal is the global scope
-	ScopeGlobal = ""
 	// ScopeProcess is the scope for process variables
 	ScopeProcess = "process"
 	// ScopeContainer is the scope for container variables
@@ -24,48 +22,44 @@ const (
 	ScopeCGroup = "cgroup"
 )
 
-type globalScope struct{}
-
-// GlobalScopeKey is the constant scope key used by the global scope
-const GlobalScopeKey = ""
-
-// Key always returns the same unique key of the global scope
-func (gs *globalScope) Key() (string, bool) {
-	return GlobalScopeKey, true
+// IsScopeVariable returns true if the variable name is a scope variable
+func IsScopeVariable(varName string) bool {
+	for _, scope := range VariableScopes {
+		if strings.HasPrefix(varName, scope+".") {
+			return true
+		}
+	}
+	return false
 }
 
-// ParentScope returns the parent entity scope
-func (gs *globalScope) ParentScope() (eval.VariableScope, bool) {
-	return nil, false
-}
-
-func getCommonVariableScopers() map[Scope]*eval.VariableScoper {
-	return map[Scope]*eval.VariableScoper{
-		ScopeGlobal: eval.NewVariableScoper(eval.GlobalScoperType, func(_ *eval.Context) (eval.VariableScope, error) {
-			return &globalScope{}, nil
-		}),
-		ScopeProcess: eval.NewVariableScoper(eval.ProcessScoperType, func(ctx *eval.Context) (eval.VariableScope, error) {
-			scopeEvaluator := ctx.GetScopeFieldEvaluator()
-			if scopeEvaluator != nil {
-				pid, ok := scopeEvaluator.Eval(ctx).(int)
-				if !ok {
-					return nil, fmt.Errorf("failed to evaluate scope field value")
+func getCommonStateScopes() map[Scope]VariableProviderFactory {
+	return map[Scope]VariableProviderFactory{
+		ScopeProcess: func() VariableProvider {
+			return eval.NewScopedVariables(ScopeProcess, func(ctx *eval.Context) eval.VariableScope {
+				scopeEvaluator := ctx.GetScopeFieldEvaluator()
+				if scopeEvaluator != nil {
+					pid, ok := scopeEvaluator.Eval(ctx).(int)
+					if !ok {
+						return nil
+					}
+					if pce := ctx.Event.(*model.Event).FieldHandlers.ResolveProcessCacheEntryFromPID(uint32(pid)); pce != nil {
+						return pce
+					}
+				} else {
+					if pce := ctx.Event.(*model.Event).ProcessCacheEntry; pce != nil {
+						return pce
+					}
 				}
-				if pce := ctx.Event.(*model.Event).FieldHandlers.ResolveProcessCacheEntryFromPID(uint32(pid)); pce != nil {
-					return pce, nil
+				return nil
+			})
+		},
+		ScopeContainer: func() VariableProvider {
+			return eval.NewScopedVariables(ScopeContainer, func(ctx *eval.Context) eval.VariableScope {
+				if ctx.Event.(*model.Event).ProcessContext != nil {
+					return &ctx.Event.(*model.Event).ProcessContext.ContainerContext
 				}
-			} else {
-				if pce := ctx.Event.(*model.Event).ProcessCacheEntry; pce != nil {
-					return pce, nil
-				}
-			}
-			return nil, fmt.Errorf("failed to get process scope")
-		}),
-		ScopeContainer: eval.NewVariableScoper(eval.ContainerScoperType, func(ctx *eval.Context) (eval.VariableScope, error) {
-			if ctx.Event.(*model.Event).ProcessContext != nil {
-				return &ctx.Event.(*model.Event).ProcessContext.ContainerContext, nil
-			}
-			return nil, fmt.Errorf("failed to get container scope")
-		}),
+				return nil
+			})
+		},
 	}
 }

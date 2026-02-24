@@ -44,8 +44,11 @@ var (
 	// BytesSent is the total number of sent bytes before encoding if any
 	BytesSent = expvar.Int{}
 	// TlmBytesSent is the total number of sent bytes before encoding if any
+	// The remote_agent tag identifies which agent sent the logs. Use GetAgentIdentityTag()
+	// to get the correct value for the current agent. This tag is used by COAT to partition
+	// log bytes by agent type.
 	TlmBytesSent = telemetry.NewCounter("logs", "bytes_sent",
-		[]string{"source"}, "Total number of bytes sent before encoding if any")
+		[]string{"remote_agent", "source"}, "Total number of bytes sent before encoding if any")
 	// RetryCount is the total number of times we have retried payloads that failed to send
 	RetryCount = expvar.Int{}
 	// TlmRetryCount is the total number of times we have retried payloads that failed to send
@@ -100,6 +103,40 @@ var (
 	LogsTruncated = expvar.Int{}
 	// TlmTruncatedCount tracks the count of times a log is truncated
 	TlmTruncatedCount = telemetry.NewCounter("logs", "truncated", []string{"service", "source"}, "Count the number of times a log is truncated")
+
+	// TlmLogLineSizes is a distribution of post-framer log line sizes
+	TlmLogLineSizes = telemetry.NewHistogram("logs", "log_line_sizes",
+		nil, "Distribution of post-framer log line sizes before line parsers/handlers are applied", []float64{32, 128, 512, 2048, 8192, 32768, 131072, 524288, 2097152})
+
+	// TlmRotationsNix tracks file rotations detected on *nix platforms by rotation type (new_file vs truncated)
+	TlmRotationsNix = telemetry.NewCounter("logs", "rotations_nix",
+		[]string{"rotation_type"}, "Count of file rotations detected on *nix platforms, tagged by rotation_type (new_file or truncated)")
+
+	// TlmRotationSizeMismatch counts disagreements between cache-growth and offset-unread rotation detectors.
+	// The `detector` tag indicates which heuristic detected a potential rotation (not which claimed all was fine):
+	// - detector:cache = cache observed growth but offset indicates all data was read (likely missed rotation)
+	// - detector:offset = offset indicates unread data but cache saw no growth (likely false-positive rotation)
+	TlmRotationSizeMismatch = telemetry.NewCounter("logs", "rotation_size_mismatch",
+		[]string{"detector"}, "Count of disagreements between cache-growth and offset-unread rotation detectors")
+
+	// TlmRotationSizeDifferences records the absolute file size difference whenever the file size changes between checks
+	TlmRotationSizeDifferences = telemetry.NewHistogram("logs", "rotation_size_differences",
+		nil, "Distribution of absolute file size differences observed between consecutive file rotation checks", []float64{256, 1024, 4096, 16384, 65536, 262144, 1048576, 10485760, 104857600})
+
+	// TlmHTTPConnectivityCheck tracks HTTP connectivity check results
+	// Tags: status (success/failure)
+	TlmHTTPConnectivityCheck = telemetry.NewCounter("logs", "http_connectivity_check",
+		[]string{"status"}, "Count of HTTP connectivity checks with status")
+
+	// TlmHTTPConnectivityRetryAttempt tracks HTTP connectivity retry attempts
+	// Tags: status (success/failure)
+	TlmHTTPConnectivityRetryAttempt = telemetry.NewCounter("logs", "http_connectivity_retry_attempt",
+		[]string{"status"}, "Count of HTTP connectivity retry attempts with success/failure status")
+
+	// TlmRestartAttempt tracks logs agent restart attempts
+	// Tags: status (success/failure/timeout), transport (tcp/http)
+	TlmRestartAttempt = telemetry.NewCounter("logs", "restart_attempt",
+		[]string{"status", "transport"}, "Count of logs agent restart attempts with status and target transport")
 )
 
 func init() {
@@ -117,4 +154,26 @@ func init() {
 	LogsExpvars.Set("SenderLatency", &SenderLatency)
 	LogsExpvars.Set("HttpDestinationStats", &DestinationExpVars)
 	LogsExpvars.Set("LogsTruncated", &LogsTruncated)
+}
+
+// agentIdentityTag holds the remote_agent tag value for this agent process.
+// It must be set once at startup via SetAgentIdentity before any log sending occurs.
+//
+// This mirrors the pattern used by pkg/util/flavor (SetFlavor/GetFlavor) rather than
+// importing it directly, because importing flavor would pull in pkg/config/model and
+// pkg/config/setup, significantly widening the dependency graph for the 40+ files that
+// import pkg/logs/metrics.
+var agentIdentityTag = "agent"
+
+// SetAgentIdentity sets the remote_agent tag value for the current agent process.
+// This must be called once during agent startup, before any logs are sent.
+// Example values: "agent", "system-probe", "trace-agent", etc.
+func SetAgentIdentity(tag string) {
+	agentIdentityTag = tag
+}
+
+// GetAgentIdentityTag returns the remote_agent tag value for the current agent process.
+// The value is set at startup via SetAgentIdentity and defaults to "agent".
+func GetAgentIdentityTag() string {
+	return agentIdentityTag
 }

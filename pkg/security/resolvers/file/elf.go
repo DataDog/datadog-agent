@@ -6,7 +6,7 @@
 package file
 
 import (
-	"fmt"
+	"errors"
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -20,7 +20,7 @@ func isELF(header []byte, fileSize int64) bool {
 
 func getELFInfoFromHeader(header []byte) (model.ABI, model.Architecture, error) {
 	if len(header) < 20 {
-		return model.UnknownABI, model.UnknownArch, fmt.Errorf("header too short")
+		return model.UnknownABI, model.UnknownArch, errors.New("header too short")
 	}
 
 	// Get ABI from EI_CLASS (byte 4)
@@ -42,7 +42,7 @@ func getELFInfoFromHeader(header []byte) (model.ABI, model.Architecture, error) 
 	case 2: // ELFDATA2MSB (big-endian)
 		machine = uint16(header[18])<<8 | uint16(header[19])
 	default:
-		return abi, model.UnknownArch, fmt.Errorf("unknown endianness")
+		return abi, model.UnknownArch, errors.New("unknown endianness")
 	}
 
 	// Get architecture from e_machine (bytes 18-19)

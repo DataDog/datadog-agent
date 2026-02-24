@@ -34,10 +34,10 @@ func (p *PolicyProvider) LoadPolicies([]rules.MacroFilter, []rules.RuleFilter) (
 	}
 
 	pInfo := &rules.PolicyInfo{
-		Name:       "bundled_policy",
-		Source:     "bundled",
-		Type:       rules.InternalPolicyType,
-		IsInternal: true,
+		Name:         "bundled_policy",
+		Source:       "bundled",
+		InternalType: rules.BundledPolicyType,
+		IsInternal:   true,
 	}
 
 	policy, err := rules.LoadPolicyFromDefinition(pInfo, policyDef, nil, nil)

@@ -1,0 +1,92 @@
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
+load("@rules_license//rules:license.bzl", "license")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+_VERSION = "1.5.7"
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:BSD-3-Clause"],
+    license_text = "LICENSE",
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "common_sources",
+    srcs = glob([
+        "lib/common/*.c",
+        "lib/common/*.h",
+    ]),
+)
+
+filegroup(
+    name = "compress_sources",
+    srcs = glob([
+        "lib/compress/*.c",
+        "lib/compress/*.h",
+    ]),
+)
+
+filegroup(
+    name = "decompress_sources",
+    srcs = glob([
+        "lib/decompress/*.c",
+        "lib/decompress/*.h",
+        "lib/decompress/*.S",
+    ]),
+)
+
+filegroup(
+    name = "dictbuilder_sources",
+    srcs = glob([
+        "lib/dictBuilder/*.c",
+        "lib/dictBuilder/*.h",
+    ]),
+)
+
+_PUBLIC_HEADERS = [
+    "lib/zdict.h",
+    "lib/zstd.h",
+    "lib/zstd_errors.h",
+]
+
+cc_library(
+    name = "libzstd",
+    srcs = [
+        ":common_sources",
+        ":compress_sources",
+        ":decompress_sources",
+        ":dictbuilder_sources",
+    ],
+    hdrs = _PUBLIC_HEADERS,
+    includes = ["lib"],
+    linkstatic = True,
+    local_defines = [
+        "XXH_NAMESPACE=ZSTD_",
+        "ZSTD_MULTITHREAD",
+        "ZSTD_BUILD_SHARED=ON",
+        "ZSTD_BUILD_STATIC=OFF",
+    ],
+    copts = [
+        "-O2",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_shared_library(
+    name = "zstd",
+    deps = [":libzstd"],
+    visibility = ["//visibility:public"],
+)
+
+so_symlink(
+    name = "lib_files",
+    libname = "libzstd",
+    src = ":zstd",
+    version = _VERSION,
+    prefix = "embedded",
+)

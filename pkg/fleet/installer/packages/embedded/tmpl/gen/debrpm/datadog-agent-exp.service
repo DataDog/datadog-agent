@@ -2,7 +2,7 @@
 Description=Datadog Agent Experiment
 After=network.target
 Conflicts=datadog-agent.service
-Wants=datadog-agent-installer-exp.service datadog-agent-trace-exp.service datadog-agent-process-exp.service datadog-agent-sysprobe-exp.service datadog-agent-security-exp.service datadog-agent-ddot-exp.service
+Wants=datadog-agent-installer-exp.service datadog-agent-trace-exp.service datadog-agent-process-exp.service datadog-agent-sysprobe-exp.service datadog-agent-security-exp.service datadog-agent-data-plane-exp.service datadog-agent-ddot-exp.service datadog-agent-action-exp.service datadog-agent-procmgrd-exp.service
 OnFailure=datadog-agent.service
 Before=datadog-agent.service
 
@@ -11,7 +11,7 @@ Type=simple
 PIDFile=/opt/datadog-agent/run/agent.pid
 User=dd-agent
 EnvironmentFile=-/etc/datadog-agent-exp/environment
-Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent/managed/datadog-agent/experiment"
+Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent-exp/managed/datadog-agent/stable"
 Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
 Environment="EXPERIMENT_TIMEOUT=3000s"
 RuntimeDirectory=datadog
@@ -19,7 +19,7 @@ StartLimitInterval=10
 StartLimitBurst=5
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 Restart=no
-ExecStart=/usr/bin/timeout --kill-after=15s $EXPERIMENT_TIMEOUT /opt/datadog-agent/bin/agent/agent run -c /etc/datadog-agent-exp -p /opt/datadog-agent/run/agent.pid
+ExecStart=/usr/bin/timeout --kill-after=15s $EXPERIMENT_TIMEOUT /opt/datadog-agent/bin/agent/agent run -c /etc/datadog-agent-exp --sysprobecfgpath=/etc/datadog-agent-exp/system-probe.yaml -p /opt/datadog-agent/run/agent.pid
 ExecStopPost=/bin/false
 
 

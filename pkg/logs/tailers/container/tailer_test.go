@@ -10,6 +10,7 @@ package container
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -77,19 +78,13 @@ func (m *mockReaderSleep) Close() error {
 	return nil
 }
 
-func NewTestDecoder() *decoder.Decoder {
-	return &decoder.Decoder{
-		InputChan: make(chan *message.Message),
-	}
-}
-
 func NewTestTailer(reader io.ReadCloser, unsafeReader io.ReadCloser, cancelFunc context.CancelFunc) *Tailer {
 	containerID := "1234567890abcdef"
 	source := sources.NewLogSource("foo", nil)
 	tailer := &Tailer{
 		ContainerID: containerID,
 		outputChan:  make(chan *message.Message, 100),
-		decoder:     NewTestDecoder(),
+		decoder:     decoder.NewMockDecoder(),
 		unsafeLogReader: func(ctx context.Context, t time.Time) (io.ReadCloser, error) { //nolint
 			return unsafeReader, nil
 		},
@@ -168,7 +163,7 @@ func TestTailer_readForever(t *testing.T) {
 			name: "The reader has been closed during the shut down process",
 			newTailer: func() *Tailer {
 				_, cancelFunc := context.WithCancel(context.Background())
-				reader := NewTestReader("", fmt.Errorf("http: read on closed response body"), nil)
+				reader := NewTestReader("", errors.New("http: read on closed response body"), nil)
 				tailer := NewTestTailer(reader, reader, cancelFunc)
 				return tailer
 			},
@@ -183,7 +178,7 @@ func TestTailer_readForever(t *testing.T) {
 			name: "The agent is stopping",
 			newTailer: func() *Tailer {
 				_, cancelFunc := context.WithCancel(context.Background())
-				reader := NewTestReader("", fmt.Errorf("use of closed network connection"), nil)
+				reader := NewTestReader("", errors.New("use of closed network connection"), nil)
 				tailer := NewTestTailer(reader, reader, cancelFunc)
 				return tailer
 			},
@@ -201,7 +196,7 @@ func TestTailer_readForever(t *testing.T) {
 				// init the fake reader with an io.EOF
 				initialReader := NewTestReader("", io.EOF, nil)
 				// then the new reader return by the unsafeReader client will return close network connection to simulate stop agent
-				connectionCloseReader := NewTestReader("", fmt.Errorf("use of closed network connection"), nil)
+				connectionCloseReader := NewTestReader("", errors.New("use of closed network connection"), nil)
 				tailer := NewTestTailer(initialReader, connectionCloseReader, cancelFunc)
 				return tailer
 			},
@@ -216,7 +211,7 @@ func TestTailer_readForever(t *testing.T) {
 			name: "default case with random error",
 			newTailer: func() *Tailer {
 				_, cancelFunc := context.WithCancel(context.Background())
-				reader := NewTestReader("", fmt.Errorf("this is a random error"), nil)
+				reader := NewTestReader("", errors.New("this is a random error"), nil)
 				tailer := NewTestTailer(reader, reader, cancelFunc)
 				return tailer
 			},

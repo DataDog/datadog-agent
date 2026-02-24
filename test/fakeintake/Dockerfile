@@ -1,12 +1,14 @@
 ## Based on https://docs.docker.com/language/golang/build-images/
 # syntax=docker/dockerfile:1
+ARG BASE_IMAGE_REGISTRY=docker.io
+ARG GO_VERSION=1.25.7
 
 ## Build
-FROM golang:1.24.9-alpine3.22 AS build
+FROM ${BASE_IMAGE_REGISTRY}/library/golang:${GO_VERSION} AS build
 
 # need gcc to build with CGO_ENABLED=1
 # need musl-dev to get stdlib.h
-RUN apk add musl-dev gcc
+RUN apt update && apt install --no-install-recommends -y musl-dev gcc musl-tools && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -26,12 +28,14 @@ RUN go mod download
 
 COPY test/fakeintake .
 
-# need to explicitely run with CGO enabled
+# need to explicitely run with CGO enabled and link against musl
 ENV CGO_ENABLED=1
+ENV CC=musl-gcc
+ARG CI
 RUN go build -o /fakeintake cmd/server/main.go
 
 ## Deploy
-FROM alpine:3.21
+FROM ${BASE_IMAGE_REGISTRY}/library/alpine:3.21.3
 
 RUN apk add curl
 

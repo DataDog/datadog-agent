@@ -8,8 +8,12 @@
 package serializers
 
 import (
+	json "encoding/json"
 	"fmt"
 	"slices"
+	"strings"
+
+	"github.com/google/gopacket"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
@@ -79,6 +83,8 @@ type EventContextSerializer struct {
 	Variables Variables `json:"variables,omitempty"`
 	// RuleContext rule context
 	RuleContext RuleContext `json:"rule_context,omitempty"`
+	// Source of the event
+	Source string `json:"source,omitempty"`
 }
 
 // ProcessContextSerializer serializes a process context to JSON
@@ -259,6 +265,40 @@ type TLSContextSerializer struct {
 	Version string `json:"version,omitempty"`
 }
 
+// LayerSerializer defines a layer serializer
+type LayerSerializer struct {
+	Type string `json:"type"`
+	gopacket.Layer
+}
+
+// MarshalJSON marshals the layer serializer to JSON
+func (L *LayerSerializer) MarshalJSON() ([]byte, error) {
+	data, err := json.Marshal(L.Layer)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(data) == 0 || data[0] != '{' {
+		return nil, nil
+	}
+
+	var v map[string]any
+	err = json.Unmarshal(data, &v)
+	if err != nil {
+		return nil, err
+	}
+	delete(v, "Contents")
+	delete(v, "Payload")
+
+	v["type"] = L.Type
+
+	data, err = json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
 // RawPacketSerializer defines a raw packet serializer
 // easyjson:json
 type RawPacketSerializer struct {
@@ -266,6 +306,7 @@ type RawPacketSerializer struct {
 
 	TLSContext *TLSContextSerializer `json:"tls,omitempty"`
 	Dropped    *bool                 `json:"dropped,omitempty"`
+	Layers     []*LayerSerializer    `json:"layers,omitempty"`
 }
 
 // NetworkStatsSerializer defines a new network stats serializer
@@ -425,7 +466,7 @@ func newExitEventSerializer(e *model.Event) *ExitEventSerializer {
 }
 
 // NewBaseEventSerializer creates a new event serializer based on the event type
-func NewBaseEventSerializer(event *model.Event, rule *rules.Rule) *BaseEventSerializer {
+func NewBaseEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Scrubber) *BaseEventSerializer {
 	pc := event.ProcessContext
 
 	eventType := model.EventType(event.Type)
@@ -433,14 +474,15 @@ func NewBaseEventSerializer(event *model.Event, rule *rules.Rule) *BaseEventSeri
 	s := &BaseEventSerializer{
 		EventContextSerializer: EventContextSerializer{
 			Name:        eventType.String(),
-			Variables:   newVariablesContext(event, rule, eval.GlobalScoperType),
-			RuleContext: newRuleContext(event, rule),
+			Variables:   newVariablesContext(event, rule, ""),
+			RuleContext: newRuleContext(event, rule, scrubber),
+			Source:      event.Source,
 		},
 		ProcessContextSerializer: newProcessContextSerializer(pc, event),
 		Date:                     utils.NewEasyjsonTime(event.ResolveEventTime()),
 	}
 	if s.ProcessContextSerializer != nil {
-		s.ProcessContextSerializer.Variables = newVariablesContext(event, rule, eval.ProcessScoperType)
+		s.ProcessContextSerializer.Variables = newVariablesContext(event, rule, "process.")
 	}
 
 	if event.IsAnomalyDetectionEvent() && len(event.Rules) > 0 {
@@ -464,7 +506,7 @@ func NewBaseEventSerializer(event *model.Event, rule *rules.Rule) *BaseEventSeri
 	return s
 }
 
-func newRuleContext(e *model.Event, rule *rules.Rule) RuleContext {
+func newRuleContext(e *model.Event, rule *rules.Rule, scrubber *utils.Scrubber) RuleContext {
 	if rule == nil {
 		return RuleContext{}
 	}
@@ -485,17 +527,11 @@ func newRuleContext(e *model.Event, rule *rules.Rule) RuleContext {
 		case []string:
 			scrubbedValues := make([]string, 0, len(value))
 			for _, elem := range value {
-				if scrubbed, err := scrubber.ScrubString(elem); err == nil {
-					scrubbedValues = append(scrubbedValues, scrubbed)
-				}
+				scrubbedValues = append(scrubbedValues, scrubber.ScrubLine(elem))
 			}
 			subExpr.Value = fmt.Sprintf("%v", scrubbedValues)
 		case string:
-			scrubbed, err := scrubber.ScrubString(value)
-			if err != nil {
-				continue
-			}
-			subExpr.Value = scrubbed
+			subExpr.Value = scrubber.ScrubLine(value)
 		default:
 			subExpr.Value = fmt.Sprintf("%v", value)
 		}
@@ -504,53 +540,64 @@ func newRuleContext(e *model.Event, rule *rules.Rule) RuleContext {
 	return ruleContext
 }
 
-func newVariablesContext(e *model.Event, rule *rules.Rule, scope eval.InternalScoperType) (variables Variables) {
-	if rule != nil && rule.Opts.VariableStore != nil {
-		rule.Opts.VariableStore.IterVariableDefinitions(func(definition eval.VariableDefinition) {
-			if definition.Scoper().Type() != scope {
-				return
+func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (variables Variables) {
+	if rule != nil && rule.Opts != nil && rule.Opts.VariableStore != nil {
+		store := rule.Opts.VariableStore
+		for name, variable := range store.Variables {
+			// do not serialize hardcoded variables like process.pid
+			if _, found := model.SECLVariables[name]; found {
+				continue
 			}
-			if slices.Contains(bundled.InternalVariables[:], definition.VariableName(true)) {
-				return
+
+			if slices.Contains(bundled.InternalVariables[:], name) {
+				continue
 			}
-			if definition.IsPrivate() {
-				return
+
+			if (prefix != "" && !strings.HasPrefix(name, prefix)) ||
+				(prefix == "" && strings.Contains(name, ".")) {
+				continue
 			}
-			instance, exists, err := definition.GetInstance(eval.NewContext(e))
-			// do not check whether the instance has expired here because we want to serialize variables
-			// that were used during the evaluation of the rule.
-			if !exists || err != nil {
-				return
+
+			// Skip private variables
+			if variable.GetVariableOpts().Private {
+				continue
 			}
-			if variables == nil {
-				variables = Variables{}
-			}
-			name := definition.VariableName(false)
-			value := instance.GetValue()
-			switch value := value.(type) {
-			case []string:
-				scrubbedValues := make([]string, 0, len(value))
-				for _, elem := range value {
-					if scrubbed, err := scrubber.ScrubString(elem); err == nil {
-						scrubbedValues = append(scrubbedValues, scrubbed)
+
+			evaluator := variable.GetEvaluator()
+			if evaluator, ok := evaluator.(eval.Evaluator); ok {
+				value := evaluator.Eval(eval.NewContext(e))
+				if variables == nil {
+					variables = Variables{}
+				}
+				if value != nil {
+					trimmedName := strings.TrimPrefix(name, prefix)
+					switch value := value.(type) {
+					case []string:
+						scrubbedValues := make([]string, 0, len(value))
+						for _, elem := range value {
+							if scrubbed, err := scrubber.ScrubString(elem); err == nil {
+								scrubbedValues = append(scrubbedValues, scrubbed)
+							}
+						}
+						variables[trimmedName] = scrubbedValues
+					case string:
+						if scrubbed, err := scrubber.ScrubString(value); err == nil {
+							variables[trimmedName] = scrubbed
+						}
+					default:
+						variables[trimmedName] = value
 					}
 				}
-				variables[name] = scrubbedValues
-			case string:
-				if scrubbed, err := scrubber.ScrubString(value); err == nil {
-					variables[name] = scrubbed
-				}
-			default:
-				variables[name] = value
 			}
-		})
+		}
 	}
 	return variables
 }
 
 // EventStringerWrapper an event stringer wrapper
 type EventStringerWrapper struct {
-	Event interface{} // can be model.Event or events.CustomEvent
+	Event    interface{} // can be model.Event or events.CustomEvent
+	Scrubber *utils.Scrubber
 }
 
 func (e EventStringerWrapper) String() string {
@@ -560,7 +607,7 @@ func (e EventStringerWrapper) String() string {
 	)
 	switch evt := e.Event.(type) {
 	case *model.Event:
-		data, err = MarshalEvent(evt, nil)
+		data, err = MarshalEvent(evt, nil, e.Scrubber)
 	case *events.CustomEvent:
 		data, err = MarshalCustomEvent(evt)
 	default:

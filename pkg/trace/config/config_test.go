@@ -9,8 +9,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 )
 
 const (
@@ -64,6 +65,26 @@ func TestPeerTagsAggregation(t *testing.T) {
 		cfg := New()
 		cfg.PeerTags = basePeerTags[:2]
 		assert.Equal(t, basePeerTags, cfg.ConfiguredPeerTags())
+	})
+}
+
+func TestSpanDerivedPrimaryTagKeys(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		cfg := New()
+		assert.Empty(t, cfg.SpanDerivedPrimaryTagKeys)
+		assert.Empty(t, cfg.ConfiguredSpanDerivedPrimaryTagKeys())
+	})
+
+	t.Run("configured", func(t *testing.T) {
+		cfg := New()
+		cfg.SpanDerivedPrimaryTagKeys = []string{"datacenter", "customer_tier", "availability_zone"}
+		assert.Equal(t, []string{"availability_zone", "customer_tier", "datacenter"}, cfg.ConfiguredSpanDerivedPrimaryTagKeys())
+	})
+
+	t.Run("dedup", func(t *testing.T) {
+		cfg := New()
+		cfg.SpanDerivedPrimaryTagKeys = []string{"datacenter", "customer_tier", "datacenter"}
+		assert.Equal(t, []string{"customer_tier", "datacenter"}, cfg.ConfiguredSpanDerivedPrimaryTagKeys())
 	})
 }
 
@@ -131,5 +152,20 @@ func TestSQLObfuscationMode(t *testing.T) {
 	t.Run("sqlexer", func(t *testing.T) {
 		cfg := New()
 		assert.Equal(t, obfuscate.ObfuscateOnly, obfuscationMode(cfg, true))
+	})
+}
+
+func TestInECSManagedInstancesSidecar(t *testing.T) {
+	t.Setenv("DD_ECS_DEPLOYMENT_MODE", "sidecar")
+	t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES")
+	isSidecar := inECSManagedInstancesSidecar()
+
+	assert.True(t, isSidecar)
+}
+
+func TestDefaultAPMMode(t *testing.T) {
+	t.Run("default-empty", func(t *testing.T) {
+		cfg := New()
+		assert.Empty(t, cfg.APMMode)
 	})
 }

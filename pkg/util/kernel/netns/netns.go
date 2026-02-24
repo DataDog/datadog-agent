@@ -142,7 +142,7 @@ func GetNetNsInoFromPid(procRoot string, pid int) (uint32, error) {
 // GetInoForNs gets the inode number for the given network namespace
 func GetInoForNs(ns netns.NsHandle) (uint32, error) {
 	if ns.Equal(netns.None()) {
-		return 0, fmt.Errorf("net ns is none")
+		return 0, errors.New("net ns is none")
 	}
 
 	var s syscall.Stat_t

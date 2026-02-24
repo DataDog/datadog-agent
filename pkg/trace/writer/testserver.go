@@ -26,6 +26,8 @@ import (
 // create payload IDs for the test server.
 var uid = atomic.NewUint64(0)
 
+const payloadSplitter = "|special_payload|"
+
 // expectResponses creates a new payload for the test server. The test server will
 // respond with the given status codes, in the given order, for each subsequent
 // request, in rotation.
@@ -35,7 +37,7 @@ func expectResponses(codes ...int) *payload {
 	}
 	p := newPayload(nil)
 	p.body.WriteString(strconv.FormatUint(uid.Inc(), 10))
-	p.body.WriteString("|")
+	p.body.WriteString(payloadSplitter)
 	for i, code := range codes {
 		if i > 0 {
 			p.body.WriteString(",")
@@ -175,7 +177,7 @@ func (ts *testServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 // to the given request body. If the request body does not originate from a
 // payload created with expectResponse, it returns http.StatusOK.
 func (ts *testServer) getNextCode(reqBody []byte) int {
-	parts := strings.Split(string(reqBody), "|")
+	parts := strings.Split(string(reqBody), payloadSplitter)
 	if len(parts) != 2 {
 		// not a special body
 		return http.StatusOK

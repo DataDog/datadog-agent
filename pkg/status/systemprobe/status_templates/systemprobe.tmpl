@@ -125,32 +125,6 @@
             {{- end }}
       {{ end }}
 
-
-    SECL Variables
-    ==============
-
-    Global variables:
-    {{ range $variable := .GlobalVariables }}
-      - {{ $variable.Name }}: {{ $variable.Value }}
-    {{- end }}
-    {{- if not .GlobalVariables }}
-        No variable found
-    {{- end }}
-
-    Scoped variables:
-    {{ range $scope, $vars := .ScopedVariables }}
-      {{ $scope }}:
-      {{ range $key, $variables := $vars.KeyValues }}
-        {{ $key }}:
-        {{- range $variable := $variables.Variables }}
-          - {{ $variable.Name }}: {{ $variable.Value }}
-        {{- end }}
-      {{ end }}
-    {{- end }}
-    {{- if not .ScopedVariables }}
-        No variable found
-    {{- end }}
-
     {{- with .Environment }}
 
     Environment

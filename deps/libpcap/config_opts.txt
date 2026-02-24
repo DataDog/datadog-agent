@@ -1,0 +1,15 @@
+--disable-largefile
+--disable-instrument-functions
+--disable-remote
+--disable-usb
+--disable-netmap
+--disable-bluetooth
+--disable-dbus
+--disable-rdma
+--without-dag
+--without-dpdk
+--without-libnl
+--without-septel
+--without-snf
+--without-turbocap
+--enable-static

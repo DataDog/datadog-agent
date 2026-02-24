@@ -62,7 +62,12 @@ const (
 	DatadogPackageConfigLayerMediaType types.MediaType = "application/vnd.datadog.package.config.layer.v1.tar+zstd"
 	// DatadogPackageInstallerLayerMediaType is the media type for the optional Datadog Package installer layer.
 	DatadogPackageInstallerLayerMediaType types.MediaType = "application/vnd.datadog.package.installer.layer.v1"
+	// DatadogPackageExtensionLayerMediaType is the media type for the optional Datadog Package extension layer.
+	DatadogPackageExtensionLayerMediaType types.MediaType = "application/vnd.datadog.package.extension.layer.v1.tar+zstd"
 )
+
+// ErrNoLayerMatchesAnnotations is the error returned when no layer matches the requested annotations.
+var ErrNoLayerMatchesAnnotations = errors.New("no layer matches the requested annotations")
 
 const (
 	layerMaxSize   = 3 << 30 // 3GiB
@@ -78,6 +83,12 @@ var (
 		"gcr.io/datadoghq",
 	}
 )
+
+// LayerAnnotation is the annotation used to identify the layer.
+type LayerAnnotation struct {
+	Key   string
+	Value string
+}
 
 // DownloadedPackage is the downloaded package.
 type DownloadedPackage struct {
@@ -126,11 +137,11 @@ func (d *Downloader) Download(ctx context.Context, packageURL string) (*Download
 	}
 	name, ok := manifest.Annotations[AnnotationPackage]
 	if !ok {
-		return nil, fmt.Errorf("package manifest is missing package annotation")
+		return nil, errors.New("package manifest is missing package annotation")
 	}
 	version, ok := manifest.Annotations[AnnotationVersion]
 	if !ok {
-		return nil, fmt.Errorf("package manifest is missing version annotation")
+		return nil, errors.New("package manifest is missing version annotation")
 	}
 	size := uint64(0)
 	rawSize, ok := manifest.Annotations[AnnotationSize]
@@ -310,57 +321,75 @@ func (d *Downloader) downloadIndex(index oci.ImageIndex) (oci.Image, error) {
 	}
 	return nil, installerErrors.Wrap(
 		installerErrors.ErrPackageNotFound,
-		fmt.Errorf("no matching image found in the index"),
+		errors.New("no matching image found in the index"),
 	)
 }
 
 // ExtractLayers extracts the layers of the downloaded package with the given media type to the given directory.
-func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string) error {
-	layers, err := d.Image.Layers()
+func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string, annotationFilters ...LayerAnnotation) error {
+	manifest, err := d.Image.Manifest()
 	if err != nil {
-		return fmt.Errorf("could not get image layers: %w", err)
+		return fmt.Errorf("could not get image manifest: %w", err)
 	}
-	for _, layer := range layers {
-		layerMediaType, err := layer.MediaType()
-		if err != nil {
-			return fmt.Errorf("could not get layer media type: %w", err)
+	matchesAnnotationsCount := 0
+	for _, layerManifest := range manifest.Layers {
+		if layerManifest.MediaType != mediaType {
+			continue
 		}
-		if layerMediaType == mediaType {
-			err = withNetworkRetries(
-				func() error {
-					var err error
-					defer func() {
-						if err != nil {
-							deferErr := tar.Clean(dir)
-							if deferErr != nil {
-								err = deferErr
-							}
-						}
-					}()
-					uncompressedLayer, err := layer.Uncompressed()
-					if err != nil {
-						return err
-					}
 
-					switch layerMediaType {
-					case DatadogPackageLayerMediaType, DatadogPackageConfigLayerMediaType:
-						err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
-					case DatadogPackageInstallerLayerMediaType:
-						err = writeBinary(uncompressedLayer, dir)
-					default:
-						return fmt.Errorf("unsupported layer media type: %s", layerMediaType)
-					}
-					uncompressedLayer.Close()
-					if err != nil {
-						return err
-					}
-					return nil
-				},
-			)
-			if err != nil {
-				return fmt.Errorf("could not extract layer: %w", err)
+		matchesAnnotations := true
+		for _, annotationFilter := range annotationFilters {
+			if layerManifest.Annotations[annotationFilter.Key] != annotationFilter.Value {
+				matchesAnnotations = false
+				break
 			}
 		}
+		if !matchesAnnotations {
+			continue
+		}
+		matchesAnnotationsCount++
+
+		layer, err := d.Image.LayerByDigest(layerManifest.Digest)
+		if err != nil {
+			return fmt.Errorf("could not get layer: %w", err)
+		}
+		err = withNetworkRetries(
+			func() error {
+				var err error
+				defer func() {
+					if err != nil {
+						deferErr := tar.Clean(dir)
+						if deferErr != nil {
+							err = deferErr
+						}
+					}
+				}()
+				uncompressedLayer, err := layer.Uncompressed()
+				if err != nil {
+					return err
+				}
+
+				switch layerManifest.MediaType {
+				case DatadogPackageLayerMediaType, DatadogPackageConfigLayerMediaType, DatadogPackageExtensionLayerMediaType:
+					err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
+				case DatadogPackageInstallerLayerMediaType:
+					err = writeBinary(uncompressedLayer, dir)
+				default:
+					return fmt.Errorf("unsupported layer media type: %s", layerManifest.MediaType)
+				}
+				uncompressedLayer.Close()
+				if err != nil {
+					return err
+				}
+				return nil
+			},
+		)
+		if err != nil {
+			return fmt.Errorf("could not extract layer: %w", err)
+		}
+	}
+	if matchesAnnotationsCount == 0 && len(annotationFilters) > 0 {
+		return ErrNoLayerMatchesAnnotations
 	}
 	return nil
 }

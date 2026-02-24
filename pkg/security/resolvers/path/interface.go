@@ -15,11 +15,11 @@ import (
 // ResolverInterface defines the resolver interface
 type ResolverInterface interface {
 	ResolveBasename(e *model.FileFields) string
-	ResolveFilePath(e *model.FileFields) (string, error)
-	ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, string, model.MountSource, model.MountOrigin, error)
+	ResolveDentryFilePath(e *model.FileFields) (string, error)
+	ResolveFullFilePath(e *model.FileFields, pidCtx *model.PIDContext) (string, string, model.MountSource, model.MountOrigin, error)
 	SetMountRoot(ev *model.Event, e *model.Mount) error
 	ResolveMountRoot(ev *model.Event, e *model.Mount) (string, error)
 	SetMountPoint(ev *model.Event, e *model.Mount) error
 	ResolveMountPoint(ev *model.Event, e *model.Mount) (string, error)
-	ResolveMountAttributes(e *model.FileEvent, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) error
+	ResolveMountAttributes(e *model.FileEvent, pidCtx *model.PIDContext) error
 }

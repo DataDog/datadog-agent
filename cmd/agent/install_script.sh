@@ -48,10 +48,11 @@ exec 1>$npipe 2>&1
 trap 'rm -f $npipe' EXIT
 
 function fallback_msg(){
-  printf "
-If you are still having problems, please send an email to $support_email
-with the contents of $logfile and any information you think would be
-useful and we will do our very best to help you solve your problem.\n"
+  printf '
+If you are still having problems, please send an email to %s
+with the contents of %s and any information you think would be
+useful and we will do our very best to help you solve your problem.\n' \
+    "$support_email" "$logfile"
 }
 
 function report(){
@@ -62,14 +63,14 @@ function report(){
     --data-urlencode "email=${email}" \
     --data-urlencode "apikey=${apikey}" \
     "$report_failure_url"; then
-   printf "A notification has been sent to Datadog with the contents of $logfile\n"
+   printf 'A notification has been sent to Datadog with the contents of %s\n' "$logfile"
   else
-    printf "Unable to send the notification (curl v7.18 or newer is required)"
+    printf 'Unable to send the notification (curl v7.18 or newer is required)'
   fi
 }
 
 function on_read_error() {
-  printf "Timed out or input EOF reached, assuming 'No'\n"
+  printf 'Timed out or input EOF reached, assuming '\''No'\''\n'
   yn="n"
 }
 
@@ -92,22 +93,25 @@ function get_email() {
 }
 
 function on_error() {
-    printf "\033[31m$ERROR_MESSAGE
-It looks like you hit an issue when trying to install the $nice_flavor.
+    printf '\033[31m%s
+It looks like you hit an issue when trying to install the %s.
 
-Troubleshooting and basic usage information for the $nice_flavor are available at:
+Troubleshooting and basic usage information for the %s are available at:
 
-    https://docs.datadoghq.com/agent/basic_agent_usage/\n\033[0m\n"
+    https://docs.datadoghq.com/agent/basic_agent_usage/\n\033[0m\n' \
+      "$ERROR_MESSAGE" "$nice_flavor" "$nice_flavor"
 
     if ! tty -s; then
       fallback_msg
       exit 1;
     fi
 
-    if [ "$site" == "ddog-gov.com" ]; then
-      fallback_msg
-      exit 1;
-    fi
+    case $site in
+        *"ddog-gov.com")
+        fallback_msg
+        exit 1;
+        ;;
+    esac
 
     while true; do
         read -t 60 -p  "Do you want to send a failure report to Datadog (including $logfile)? (y/[n]) " -r yn || on_read_error
@@ -123,7 +127,7 @@ Troubleshooting and basic usage information for the $nice_flavor are available a
             fallback_msg
             break;;
           * )
-            printf "Please answer yes or no.\n"
+            printf 'Please answer yes or no.\n'
             ;;
         esac
     done
@@ -339,13 +343,13 @@ fi
 if [ ! "$apikey" ]; then
   # if it's an upgrade, then we will use the transition script
   if [ ! "$upgrade" ] && [ ! -e "$config_file" ]; then
-    printf "\033[31mAPI key not available in DD_API_KEY environment variable.\033[0m\n"
+    printf '\033[31mAPI key not available in DD_API_KEY environment variable.\033[0m\n'
     exit 1;
   fi
 fi
 
 if [[ `uname -m` == "armv7l" ]] && [[ $agent_flavor == "datadog-agent" ]]; then
-    printf "\033[31mThe full $nice_flavor isn't available for your architecture (armv7l).\nInstall the ${flavor_to_readable[datadog-iot-agent]} by setting DD_AGENT_FLAVOR='datadog-iot-agent'.\033[0m\n"
+    printf '\033[31mThe full %s isn'\''t available for your architecture (armv7l).\nInstall the %s by setting DD_AGENT_FLAVOR="datadog-iot-agent".\033[0m\n' "$nice_flavor" "${flavor_to_readable[datadog-iot-agent]}"
     exit 1;
 fi
 
@@ -355,9 +359,9 @@ KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE|Roc
 DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || grep -m1 -Eo $KNOWN_DISTRIBUTION /etc/os-release 2>/dev/null || uname -s)
 
 if [ "$DISTRIBUTION" = "Darwin" ]; then
-    printf "\033[31mThis script does not support installing on the Mac.
+    printf '\033[31mThis script does not support installing on the Mac.
 
-Please use the 1-step script available at https://app.datadoghq.com/account/settings/agent/latest?platform=macos.\033[0m\n"
+Please use the 1-step script available at https://app.datadoghq.com/account/settings/agent/latest?platform=macos.\033[0m\n'
     exit 1;
 
 elif [ -f /etc/debian_version ] || [ "$DISTRIBUTION" == "Debian" ] || [ "$DISTRIBUTION" == "Ubuntu" ]; then
@@ -377,11 +381,11 @@ fi
 
 if [[ "$agent_flavor" == "datadog-dogstatsd" ]]; then
     if [[ `uname -m` == "armv7l" ]] || { [[ `uname -m` != "x86_64" ]] && [[ "$OS" != "Debian" ]]; }; then
-        printf "\033[31mThe $nice_flavor isn't available for your architecture.\033[0m\n"
+        printf '\033[31mThe %s isn'\''t available for your architecture.\033[0m\n' "$nice_flavor"
         exit 1;
     fi
     if  [[ "$OS" == "Debian" ]] && [[ `uname -m` == "aarch64" ]] && { [[ -n "$agent_minor_version" ]] && [[ "$agent_minor_version" -lt 35 ]]; }; then
-        printf "\033[31mThe $nice_flavor is only available since version 7.35.0 for your architecture.\033[0m\n"
+        printf '\033[31mThe %s is only available since version 7.35.0 for your architecture.\033[0m\n' "$nice_flavor"
         exit 1;
     fi
 fi
@@ -435,7 +439,7 @@ if [ "$OS" = "RedHat" ]; then
 
     $sudo_cmd sh -c "echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = https://${yum_url}/${yum_version_path}/${ARCHI}/\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=${rpm_repo_gpgcheck}\npriority=1\ngpgkey=${gpgkeys}' > /etc/yum.repos.d/datadog.repo"
 
-    printf "\033[34m* Installing the $nice_flavor package\n\033[0m\n"
+    printf '\033[34m* Installing the %s package\n\033[0m\n' "$nice_flavor"
     $sudo_cmd yum -y clean metadata
 
     dnf_flag=""
@@ -467,8 +471,8 @@ elif [ "$OS" = "Debian" ]; then
     apt_trusted_d_keyring="/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg"
     apt_usr_share_keyring="/usr/share/keyrings/datadog-archive-keyring.gpg"
 
-    printf "\033[34m\n* Installing apt-transport-https, curl and gnupg\n\033[0m\n"
-    $sudo_cmd apt-get update || printf "\033[31m'apt-get update' failed, the script will not install the latest version of apt-transport-https.\033[0m\n"
+    printf '\033[34m\n* Installing apt-transport-https, curl and gnupg\n\033[0m\n'
+    $sudo_cmd apt-get update || printf '\033[31m'\''apt-get update'\'' failed, the script will not install the latest version of apt-transport-https.\033[0m\n'
     # installing curl might trigger install of additional version of libssl; this will fail the installation process,
     # see https://unix.stackexchange.com/q/146283 for reference - we use DEBIAN_FRONTEND=noninteractive to fix that
     if [ -z "$sudo_cmd" ]; then
@@ -479,7 +483,7 @@ elif [ "$OS" = "Debian" ]; then
     else
         $sudo_cmd DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl gnupg
     fi
-    printf "\033[34m\n* Installing APT package sources for Datadog\n\033[0m\n"
+    printf '\033[34m\n* Installing APT package sources for Datadog\n\033[0m\n'
     $sudo_cmd sh -c "echo 'deb [signed-by=${apt_usr_share_keyring}] https://${apt_url}/ ${apt_repo_version}' > /etc/apt/sources.list.d/datadog.list"
 
     if [ ! -f $apt_usr_share_keyring ]; then
@@ -504,7 +508,7 @@ elif [ "$OS" = "Debian" ]; then
     if [ "$DISTRIBUTION" == "Debian" ] && [ "$release_version" -lt 8 ]; then
       if [ -n "$agent_minor_version_without_patch" ]; then
           if [ "$agent_minor_version_without_patch" -ge "36" ]; then
-              printf "\033[31mDebian < 8 only supports $nice_flavor %s up to %s.35.\033[0m\n" "$agent_major_version" "$agent_major_version"
+              printf '\033[31mDebian < 8 only supports %s %s up to %s.35.\033[0m\n' "$nice_flavor" "$agent_major_version" "$agent_major_version"
               exit;
           fi
       else
@@ -515,7 +519,7 @@ elif [ "$OS" = "Debian" ]; then
       fi
     fi
 
-    printf "\033[34m\n* Installing the $nice_flavor package\n\033[0m\n"
+    printf '\033[34m\n* Installing the %s package\n\033[0m\n' "$nice_flavor"
     ERROR_MESSAGE="ERROR
 Failed to update the sources after adding the Datadog repository.
 This may be due to any of the configured APT sources failing -
@@ -554,7 +558,7 @@ elif [ "$OS" = "SUSE" ]; then
   remove_rpm_gpg_keys "$sudo_cmd" "${RPM_GPG_KEYS_TO_REMOVE[@]}"
   UNAME_M=$(uname -m)
   if [ "$UNAME_M"  == "i686" ] || [ "$UNAME_M"  == "i386" ] || [ "$UNAME_M"  == "x86" ]; then
-      printf "\033[31mThe Datadog Agent installer is only available for 64 bit SUSE Enterprise machines.\033[0m\n"
+      printf '\033[31mThe Datadog Agent installer is only available for 64 bit SUSE Enterprise machines.\033[0m\n'
       exit;
   elif [ "$UNAME_M"  == "aarch64" ]; then
       ARCHI="aarch64"
@@ -629,12 +633,12 @@ elif [ "$OS" = "SUSE" ]; then
   if [ "$DISTRIBUTION" == "openSUSE" ] && { [ "$SUSE11" == "yes" ] || [ "$SUSE_VER" -lt 15 ]; }; then
       if [ -n "$agent_minor_version_without_patch" ]; then
           if [ "$agent_minor_version_without_patch" -ge "33" ]; then
-              printf "\033[31mopenSUSE < 15 only supports $nice_flavor %s up to %s.32.\033[0m\n" "$agent_major_version" "$agent_major_version"
+              printf '\033[31mopenSUSE < 15 only supports %s %s up to %s.32.\033[0m\n' "$nice_flavor" "$agent_major_version" "$agent_major_version"
               exit;
           fi
       else
           if ! echo "$agent_flavor" | grep '[0-9]' > /dev/null; then
-              echo -e "  \033[33m$nice_flavor $agent_major_version.32 is the last supported version on $DISTRIBUTION $SUSE_VER\n\033[0m"
+              printf '  \033[33m%s %s.32 is the last supported version on %s %s\n\033[0m' "$nice_flavor" "$agent_major_version" "$DISTRIBUTION" "$SUSE_VER"
               agent_minor_version=32
           fi
       fi
@@ -642,12 +646,12 @@ elif [ "$OS" = "SUSE" ]; then
   if [ "$DISTRIBUTION" == "SUSE" ] && { [ "$SUSE11" == "yes" ] || [ "$SUSE_VER" -lt 12 ]; }; then
       if [ -n "$agent_minor_version_without_patch" ]; then
           if [ "$agent_minor_version_without_patch" -ge "33" ]; then
-              printf "\033[31mSLES < 12 only supports $nice_flavor %s up to %s.32.\033[0m\n" "$agent_major_version" "$agent_major_version"
+              printf '\033[31mSLES < 12 only supports %s %s up to %s.32.\033[0m\n' "$nice_flavor" "$agent_major_version" "$agent_major_version"
               exit;
           fi
       else
           if ! echo "$agent_flavor" | grep '[0-9]' > /dev/null; then
-              echo -e "  \033[33m$nice_flavor $agent_major_version.32 is the last supported version on $DISTRIBUTION $SUSE_VER\n\033[0m"
+              printf '  \033[33m%s %s.32 is the last supported version on %s %s\n\033[0m' "$nice_flavor" "$agent_major_version" "$DISTRIBUTION" "$SUSE_VER"
               agent_minor_version=32
           fi
       fi
@@ -686,10 +690,10 @@ elif [ "$OS" = "SUSE" ]; then
   done
 
 else
-    printf "\033[31mYour OS or distribution are not supported by this install script.
+    printf '\033[31mYour OS or distribution are not supported by this install script.
 Please follow the instructions on the Agent setup page:
 
-    https://app.datadoghq.com/account/settings/agent/latest?platform=overview\033[0m\n"
+    https://app.datadoghq.com/account/settings/agent/latest?platform=overview\033[0m\n'
     exit;
 fi
 
@@ -698,46 +702,46 @@ if [ "$upgrade" ] && [ "$agent_flavor" != "datadog-dogstatsd" ]; then
     # try to import the config file from the previous version
     icmd="datadog-agent import $LEGACY_ETCDIR $etcdir"
     # shellcheck disable=SC2086
-    $sudo_cmd $icmd || printf "\033[31mAutomatic import failed, you can still try to manually run: $icmd\n\033[0m\n"
+    $sudo_cmd $icmd || printf '\033[31mAutomatic import failed, you can still try to manually run: %s\n\033[0m\n' "$icmd"
     # fix file owner and permissions since the script moves around some files
     $sudo_cmd chown -R dd-agent:dd-agent "$etcdir"
     $sudo_cmd find "$etcdir/" -type f -exec chmod 640 {} \;
   else
-    printf "\033[31mYou don't have a datadog.conf file to convert.\n\033[0m\n"
+    printf '\033[31mYou don'\''t have a datadog.conf file to convert.\n\033[0m\n'
   fi
 fi
 
 # Set the configuration
 if [ -e "$config_file" ] && [ -z "$upgrade" ]; then
-  printf "\033[34m\n* Keeping old $config_file configuration file\n\033[0m\n"
+  printf '\033[34m\n* Keeping old %s configuration file\n\033[0m\n' "$config_file"
 else
   if [ ! -e "$config_file" ]; then
     $sudo_cmd cp "$config_file.example" "$config_file"
   fi
   if [ "$apikey" ]; then
-    printf "\033[34m\n* Adding your API key to the $nice_flavor configuration: $config_file\n\033[0m\n"
+    printf '\033[34m\n* Adding your API key to the %s configuration: %s\n\033[0m\n' "$nice_flavor" "$config_file"
     $sudo_cmd sh -c "sed -i 's/api_key:.*/api_key: $apikey/' $config_file"
   else
     # If the import script failed for any reason, we might end here also in case
     # of upgrade, let's not start the agent or it would fail because the api key
     # is missing
     if ! $sudo_cmd grep -q -E '^api_key: .+' "$config_file"; then
-      printf "\033[31mThe $nice_flavor won't start automatically at the end of the script because the API key is missing, please add one in datadog.yaml and start the $nice_flavor manually.\n\033[0m\n"
+      printf '\033[31mThe %s won'\''t start automatically at the end of the script because the API key is missing, please add one in datadog.yaml and start the %s manually.\n\033[0m\n' "$nice_flavor" "$nice_flavor"
       no_start=true
     fi
   fi
 
   if [ -z "$fips_mode" ]; then
     if [ "$site" ]; then
-      printf "\033[34m\n* Setting SITE in the $nice_flavor configuration: $config_file\n\033[0m\n"
+      printf '\033[34m\n* Setting SITE in the %s configuration: %s\n\033[0m\n' "$nice_flavor" "$config_file"
       $sudo_cmd sh -c "sed -i 's/# site:.*/site: $site/' $config_file"
     fi
     if [ -n "$DD_URL" ]; then
-      printf "\033[34m\n* Setting DD_URL in the $nice_flavor configuration: $config_file\n\033[0m\n"
+      printf '\033[34m\n* Setting DD_URL in the %s configuration: %s\n\033[0m\n' "$nice_flavor" "$config_file"
       $sudo_cmd sh -c "sed -i 's|# dd_url:.*|dd_url: $DD_URL|' $config_file"
     fi
   else
-    printf "\033[34m\n* Setting $nice_flavor configuration to use FIPS proxy: $config_file\n\033[0m\n"
+    printf '\033[34m\n* Setting %s configuration to use FIPS proxy: %s\n\033[0m\n' "$nice_flavor" "$config_file"
     $sudo_cmd cp "$config_file" "${config_file}.orig"
     $sudo_cmd sh -c "exec cat - '${config_file}.orig' > '$config_file'" <<EOF
 # Configuration for the agent to use datadog-fips-proxy to communicate with Datadog via FIPS-compliant channel.
@@ -772,11 +776,11 @@ network_devices:
 EOF
   fi
   if [ "$hostname" ]; then
-    printf "\033[34m\n* Adding your HOSTNAME to the $nice_flavor configuration: $config_file\n\033[0m\n"
+    printf '\033[34m\n* Adding your HOSTNAME to the %s configuration: %s\n\033[0m\n' "$nice_flavor" "$config_file"
     $sudo_cmd sh -c "sed -i 's/# hostname:.*/hostname: $hostname/' $config_file"
   fi
   if [ "$host_tags" ]; then
-      printf "\033[34m\n* Adding your HOST TAGS to the $nice_flavor configuration: $config_file\n\033[0m\n"
+      printf '\033[34m\n* Adding your HOST TAGS to the %s configuration: %s\n\033[0m\n' "$nice_flavor" "$config_file"
       formatted_host_tags="['""$( echo "$host_tags" | sed "s/,/','/g" )""']"  # format `env:prod,foo:bar` to yaml-compliant `['env:prod','foo:bar']`
       $sudo_cmd sh -c "sed -i \"s/# tags:.*/tags: ""$formatted_host_tags""/\" $config_file"
   fi
@@ -788,7 +792,7 @@ $sudo_cmd chmod 640 "$config_file"
 # set the FIPS configuration
 if [ -n "$fips_mode" ]; then
   if [ -e "$config_file_fips" ] && [ -z "$upgrade" ]; then
-    printf "\033[34m\n* Keeping old $config_file_fips configuration file\n\033[0m\n"
+    printf '\033[34m\n* Keeping old %s configuration file\n\033[0m\n' "$config_file_fips"
   else
     if [ ! -e "$config_file_fips" ]; then
       $sudo_cmd cp "$config_file_fips.example" "$config_file_fips"
@@ -829,7 +833,7 @@ declare -a monitoring_services
 monitoring_services=( "datadog-agent" )
 
 if [ $no_start ]; then
-  printf "\033[34m\n  * DD_INSTALL_ONLY environment variable set.\033[0m\n"
+  printf '\033[34m\n  * DD_INSTALL_ONLY environment variable set.\033[0m\n'
 fi
 
 for current_service in "${services[@]}"; do
@@ -854,30 +858,30 @@ for current_service in "${services[@]}"; do
   fi
 
   if [ $no_start ]; then
-    printf "\033[34m\n    The newly installed version of the ${nice_current_flavor} will not be started.
+    printf '\033[34m\n    The newly installed version of the %s will not be started.
     You will have to do it manually using the following command:
 
-    $start_instructions\033[0m\n\n"
+    %s\033[0m\n\n' "$nice_current_flavor" "$start_instructions"
 
     continue
   fi
 
-  printf "\033[34m* Starting the ${nice_current_flavor}...\n\033[0m\n"
+  printf '\033[34m* Starting the %s...\n\033[0m\n' "$nice_current_flavor"
   eval "$restart_cmd"
 
 
   # Metrics are submitted, echo some instructions and exit
-  printf "\033[32m  Your ${nice_current_flavor} is running and functioning properly.\n\033[0m"
+  printf '\033[32m  Your %s is running and functioning properly.\n\033[0m' "$nice_current_flavor"
 
   if [[ "${monitoring_services[*]}" =~ ${current_service} ]]; then
-    printf "\033[32m  It will continue to run in the background and submit metrics to Datadog.\n\033[0m"
+    printf '\033[32m  It will continue to run in the background and submit metrics to Datadog.\n\033[0m'
   fi
 
-  printf "\033[32m  If you ever want to stop the ${nice_current_flavor}, run:
+  printf '\033[32m  If you ever want to stop the %s run:
 
-      $stop_instructions
+      %s
 
   And to run it again run:
 
-      $start_instructions\033[0m\n\n"
+      %s\033[0m\n\n' "$nice_current_flavor" "$stop_instructions" "$start_instructions"
 done

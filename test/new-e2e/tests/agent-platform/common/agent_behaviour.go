@@ -8,18 +8,19 @@ package common
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
 
-	componentos "github.com/DataDog/test-infra-definitions/components/os"
+	componentos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	agentclient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	agentclient "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	boundport "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port"
 )
 
@@ -77,7 +78,7 @@ func CheckAgentBehaviour(t *testing.T, client *TestClient) {
 		// Ignore errors specifically due to NTP flakiness.
 		if strings.Contains(statusOutput, "Error: failed to get clock offset from any ntp host") {
 			// The triggering error will look something like this:
-			//   Instance ID: ntp:4c427a42a70bbf8 [ERROR]
+			// Instance ID: ntp:4c427a42a70bbf8 [ERROR]
 			re := regexp.MustCompile(`Instance\sID[:]\sntp[:][a-z0-9]+\s\[ERROR\]`)
 			statusOutput = re.ReplaceAllString(statusOutput, "Instance ID: ntp [ignored]")
 		}
@@ -86,7 +87,7 @@ func CheckAgentBehaviour(t *testing.T, client *TestClient) {
 	})
 }
 
-// CheckDogstatdAgentBehaviour runs tests to check the agent behave properly with dogstatsd
+// CheckDogstatdAgentBehaviour runs tests to check that the Agent behaves properly with dogstatsd
 func CheckDogstatdAgentBehaviour(t *testing.T, client *TestClient) {
 	t.Run("dogstatsd service running", func(tt *testing.T) {
 		_, err := client.SvcManager.Status(client.Helper.GetServiceName())
@@ -222,7 +223,7 @@ const (
 	ExpectedPythonVersion2 = "2.7.18"
 	// ExpectedPythonVersion3 is the expected python 3 version
 	// Bump this version when the version in omnibus/config/software/python3.rb changes
-	ExpectedPythonVersion3 = "3.13.7"
+	ExpectedPythonVersion3 = "3.13.12"
 	// ExpectedUnloadedPython is the status value for uninitialized lazy loaded python runtime
 	ExpectedUnloadedPython = "unused"
 )
@@ -253,7 +254,7 @@ func CheckAgentPython(t *testing.T, client *TestClient, expectedVersion string) 
 	})
 }
 
-// CheckApmEnabled runs tests to check the agent behave properly with APM enabled
+// CheckApmEnabled runs tests to check that the Agent behaves properly with APM enabled
 func CheckApmEnabled(t *testing.T, client *TestClient) {
 	t.Run("port bound apm enabled", func(tt *testing.T) {
 		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
@@ -271,9 +272,9 @@ func CheckApmEnabled(t *testing.T, client *TestClient) {
 
 		var boundPort boundport.BoundPort
 		if !assert.EventuallyWithT(tt, func(c *assert.CollectT) {
-			boundPort, _ = AssertPortBoundByService(c, client, 8126, "trace-agent", apmProcessName)
+			boundPort, _ = AssertPortBoundByService(c, client, "tcp", 8126, "trace-agent", apmProcessName)
 		}, 1*time.Minute, 500*time.Millisecond) {
-			err := fmt.Errorf("port 8126 should be bound when APM is enabled")
+			err := errors.New("port tcp/8126 should be bound when APM is enabled")
 			if client.Host.OSFamily == componentos.LinuxFamily {
 				err = fmt.Errorf("%w\n%s", err, ReadJournalCtl(t, client, "trace-loader\\|trace-agent\\|datadog-agent-trace"))
 			}
@@ -284,7 +285,7 @@ func CheckApmEnabled(t *testing.T, client *TestClient) {
 	})
 }
 
-// CheckApmDisabled runs tests to check the agent behave properly when APM is disabled
+// CheckApmDisabled runs tests to check that the Agent behaves properly when APM is disabled
 func CheckApmDisabled(t *testing.T, client *TestClient) {
 	t.Run("trace-agent not running when disabled", func(tt *testing.T) {
 		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
@@ -393,9 +394,58 @@ func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
 
 		for _, file := range files {
 			file = strings.TrimSpace(file)
-			ddMetadata, err := client.Host.Execute(fmt.Sprintf("readelf -p dd_metadata %s", file))
+			ddMetadata, err := client.Host.Execute("readelf -p dd_metadata " + file)
 			require.NoError(tt, err, "readelf should not error, file is %s", file)
 			require.Contains(tt, ddMetadata, archMetadata, "invalid arch metadata")
 		}
+	})
+}
+
+// CheckADPEnabled runs tests to check that the Agent behaves properly with ADP enabled
+func CheckADPEnabled(t *testing.T, client *TestClient) {
+	t.Run("DogStatsD port bound ADP enabled", func(tt *testing.T) {
+		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
+
+		// `data_plane.enabled` controls whether or not ADP stays running, but `data_plane.dogstatsd.enabled` controls whether or not
+		// ADP takes over DSD traffic, which we want it to do so that our test case can have a meaningful assertion that ADP is running
+		// and accepting traffic.
+		err := client.SetConfig(configFilePath, "data_plane.enabled", "true")
+		require.NoError(tt, err)
+		err = client.SetConfig(configFilePath, "data_plane.dogstatsd.enabled", "true")
+		require.NoError(tt, err)
+
+		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
+		require.NoError(tt, err)
+
+		var boundPort boundport.BoundPort
+		if !assert.EventuallyWithT(tt, func(c *assert.CollectT) {
+			boundPort, _ = AssertPortBoundByService(c, client, "udp", 8125, "agent-data-plane", "agent-data-plane")
+		}, 1*time.Minute, 500*time.Millisecond) {
+			err := errors.New("port udp/8125 should be bound when ADP is enabled")
+			if client.Host.OSFamily == componentos.LinuxFamily {
+				err = fmt.Errorf("%w\n%s", err, ReadJournalCtl(t, client, "agent-data-plane\\|datadog-agent-data-plane"))
+			}
+			t.Fatalf("%s", err.Error())
+		}
+
+		require.EqualValues(t, "127.0.0.1", boundPort.LocalAddress(), "agent-data-plane should only be listening locally")
+	})
+}
+
+// CheckADPDisabled runs tests to check that the Agent behaves properly when ADP is disabled
+func CheckADPDisabled(t *testing.T, client *TestClient) {
+	t.Run("agent-data-plane not running when disabled", func(tt *testing.T) {
+		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
+
+		err := client.SetConfig(configFilePath, "data_plane.enabled", "false")
+		require.NoError(tt, err)
+
+		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
+		require.NoError(tt, err)
+
+		// On Linux, ADP will be started by the service manager and then exit after a bit if it is not enabled.
+		require.Eventually(tt, func() bool {
+			return !AgentProcessIsRunning(client, "agent-data-plane")
+		}, 1*time.Minute, 500*time.Millisecond, "agent-data-plane should not be running ", err)
 	})
 }

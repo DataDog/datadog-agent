@@ -8,13 +8,13 @@
 package integrations
 
 import (
-	"fmt"
+	"errors"
 	"os"
 )
 
 func validateUser(_ bool) error {
 	if os.Geteuid() != 0 {
-		return fmt.Errorf("please run this tool with the root user")
+		return errors.New("please run this tool with the root user")
 	}
 	return nil
 }

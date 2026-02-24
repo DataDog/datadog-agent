@@ -9,6 +9,7 @@
 package testutil
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -39,7 +40,7 @@ func SetupDNAT(t *testing.T) {
 
 	cmds := []string{
 		fmt.Sprintf("ip link add %s type dummy", linkName),
-		fmt.Sprintf("ip address add 1.1.1.1 broadcast + dev %s", linkName),
+		"ip address add 1.1.1.1 broadcast + dev " + linkName,
 		fmt.Sprintf("ip link set %s up", linkName),
 		"iptables -t nat -A OUTPUT --dest 2.2.2.2 -j DNAT --to-destination 1.1.1.1",
 		"iptables -t nat -A PREROUTING --dest 3.3.3.3 -j DNAT --to-destination 1.1.1.1",
@@ -58,8 +59,8 @@ func SetupSNAT(t *testing.T) string {
 
 	cmds := []string{
 		fmt.Sprintf("ip link add %s type dummy", linkName),
-		fmt.Sprintf("ip address add 7.7.7.7 broadcast + dev %s", linkName),
-		fmt.Sprintf("ip address add 6.6.6.6 broadcast + dev %s", linkName),
+		"ip address add 7.7.7.7 broadcast + dev " + linkName,
+		"ip address add 6.6.6.6 broadcast + dev " + linkName,
 		fmt.Sprintf("ip link set %s up", linkName),
 		"iptables -t nat -A POSTROUTING -s 6.6.6.6/32 -j SNAT --to-source 7.7.7.7",
 	}
@@ -72,7 +73,7 @@ func SetupSNAT(t *testing.T) string {
 func teardownDNAT(t *testing.T, linkName string) {
 	cmds := []string{
 		// tear down the testing interface, and iptables rule
-		fmt.Sprintf("ip link del %s", linkName),
+		"ip link del " + linkName,
 		// clear out the conntrack table
 		"conntrack -F",
 	}
@@ -101,7 +102,7 @@ func SetupDNAT6(t *testing.T) {
 	nettestutil.IP6tablesSave(t)
 	cmds := []string{
 		fmt.Sprintf("ip link add %s type dummy", linkName),
-		fmt.Sprintf("ip address add fd00::1 dev %s", linkName),
+		"ip address add fd00::1 dev " + linkName,
 		fmt.Sprintf("ip link set %s up", linkName),
 		fmt.Sprintf("%s/testdata/wait_if.sh %s", curDir, linkName),
 		"ip -6 route add fd00::2 dev " + ifName,
@@ -114,7 +115,7 @@ func SetupDNAT6(t *testing.T) {
 func teardownDNAT6(t *testing.T, ifName string, linkName string) {
 	cmds := []string{
 		// tear down the testing interface, and iptables rule
-		fmt.Sprintf("ip link del %s", linkName),
+		"ip link del " + linkName,
 		"ip -6 r del fd00::2 dev " + ifName,
 
 		// clear out the conntrack table
@@ -134,7 +135,7 @@ func SetupVethPair(tb testing.TB) (ns string) {
 
 	cmds := []string{
 		"ip link add veth1 type veth peer name veth2",
-		fmt.Sprintf("ip link set veth2 netns %s", ns),
+		"ip link set veth2 netns " + ns,
 		"ip address add 2.2.2.3/24 dev veth1",
 		fmt.Sprintf("ip -n %s address add 2.2.2.4/24 dev veth2", ns),
 		"ip link set veth1 up",
@@ -164,7 +165,7 @@ func SetupVeth6Pair(t *testing.T) (ns string) {
 
 	cmds := []string{
 		"ip link add veth1 type veth peer name veth2",
-		fmt.Sprintf("ip link set veth2 netns %s", ns),
+		"ip link set veth2 netns " + ns,
 		"ip address add fd00::1/64 dev veth1",
 		fmt.Sprintf("ip -n %s address add fd00::2/64 dev veth2", ns),
 		"ip link set veth1 up",
@@ -274,7 +275,7 @@ func AddNS(tb testing.TB) string {
 func _curDir() (string, error) {
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
-		return "", fmt.Errorf("unable to get current file build path")
+		return "", errors.New("unable to get current file build path")
 	}
 
 	buildDir := filepath.Dir(file)
@@ -310,4 +311,32 @@ func rootDir(dir string) string {
 		return dir
 	}
 	return strings.Join(parts[:pkgIndex], string(filepath.Separator))
+}
+
+// CreateConntrackEntry creates a conntrack entry using the conntrack -I CLI and
+// registers a cleanup function to delete the entry when the test completes.
+func CreateConntrackEntry(t *testing.T, srcIP, dstIP string, srcPort, dstPort int, replySrcIP, replyDstIP string, replySrcPort, replyDstPort int, proto string) {
+	var state string
+	if proto == "tcp" {
+		state = "--state ESTABLISHED"
+	}
+	cmd := fmt.Sprintf("conntrack -I -s %s -d %s -p %s --sport %d --dport %d "+
+		"--reply-src %s --reply-dst %s --reply-port-src %d --reply-port-dst %d "+
+		"%s --timeout 120",
+		srcIP, dstIP, proto, srcPort, dstPort, replySrcIP, replyDstIP, replySrcPort, replyDstPort, state)
+
+	nettestutil.RunCommands(t, []string{cmd}, false)
+
+	t.Cleanup(func() {
+		DeleteConntrackEntry(t, srcIP, dstIP, srcPort, dstPort, proto)
+	})
+}
+
+// DeleteConntrackEntry deletes a conntrack entry using the conntrack -D CLI
+func DeleteConntrackEntry(t *testing.T, srcIP, dstIP string, srcPort, dstPort int, proto string) {
+	cmd := fmt.Sprintf("conntrack -D -s %s -d %s -p %s --sport %d --dport %d",
+		srcIP, dstIP, proto, srcPort, dstPort)
+
+	// ignore errors since the entry may have already been deleted
+	nettestutil.RunCommands(t, []string{cmd}, true)
 }

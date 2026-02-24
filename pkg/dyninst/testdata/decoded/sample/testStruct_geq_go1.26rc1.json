@@ -1,0 +1,97 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testStruct",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testStruct",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go",
+            "lineNumber": 84
+          },
+          {
+            "function": "main.executeStructFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go",
+            "lineNumber": 143
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 32
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testStruct",
+          "location": {
+            "method": "main.testStruct"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "x": {
+                "type": "main.aStruct",
+                "fields": {
+                  "aBool": {
+                    "type": "bool",
+                    "value": "true"
+                  },
+                  "aString": {
+                    "type": "string",
+                    "value": "one"
+                  },
+                  "aNumber": {
+                    "type": "int",
+                    "value": "2"
+                  },
+                  "nested": {
+                    "type": "main.nestedStruct",
+                    "fields": {
+                      "anotherInt": {
+                        "type": "int",
+                        "value": "3"
+                      },
+                      "anotherString": {
+                        "type": "string",
+                        "value": "four"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
+    },
+    "timestamp": "[ts]",
+    "message": "{aBool: true, aString: one, aNumber: 2, nested: {anotherInt: 3, anotherString: four}}"
+  }
+]

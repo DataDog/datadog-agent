@@ -14,20 +14,21 @@ import (
 	"testing"
 	"time"
 
+	ec2docker "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awsdocker "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/docker"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 
-	"github.com/DataDog/test-infra-definitions/common/config"
-	"github.com/DataDog/test-infra-definitions/common/utils"
-	"github.com/DataDog/test-infra-definitions/components/command"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/jmxfetch"
-	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
-	"github.com/DataDog/test-infra-definitions/components/docker"
-	"github.com/DataDog/test-infra-definitions/components/remote"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/jmxfetch"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 
 	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/secretsmanager"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -62,19 +63,19 @@ func testJMXFetchNix(t *testing.T, mtls bool, fips bool) {
 		extraManifests = append(extraManifests, *mtlsManifest)
 	}
 
-	// causes all sorts of `suite.go:493: unable to create session output directory:` errors
-	// due to race to create /home/vagrant/e2e-output/latest from every test
-	// t.Parallel()
+	t.Parallel()
 
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(
 		awsdocker.Provisioner(
-			awsdocker.WithAgentOptions(
-				dockeragentparams.WithLogs(),
-				dockeragentparams.WithJMX(),
-				choice(fips, dockeragentparams.WithFIPS(), none),
-				dockeragentparams.WithExtraComposeInlineManifest(extraManifests...),
+			awsdocker.WithRunOptions(
+				ec2docker.WithAgentOptions(
+					dockeragentparams.WithLogs(),
+					dockeragentparams.WithJMX(),
+					choice(fips, dockeragentparams.WithFIPS(), none),
+					dockeragentparams.WithExtraComposeInlineManifest(extraManifests...),
+				),
+				choice(mtls, ec2docker.WithPreAgentInstallHook(fetchCertificates), none),
 			),
-			choice(mtls, awsdocker.WithPreAgentInstallHook(fetchCertificates), none),
 		)),
 		e2e.WithStackName(fmt.Sprintf("jmxfetchnixtest-fips_%v-mtls_%v", fips, mtls)),
 	}
@@ -305,9 +306,11 @@ type checkInstance struct {
 	KeyStorePassword   *string `json:"key_store_password,omitempty"`
 	TrustStorePath     *string `json:"trust_store_path,omitempty"`
 	TrustStorePassword *string `json:"trust_store_password,omitempty"`
+	JavaOptions        *string `json:"java_options"`
 }
 
 var defaultJavaPassword = "changeit"
+var javaOptionsNoCertCheck = "-Djdk.rmi.ssl.client.enableEndpointIdentification=false"
 
 const adLabelName = "com.datadoghq.ad.checks"
 
@@ -330,6 +333,7 @@ func makeADLabelsManifest(mtls bool, fips bool) (*docker.ComposeInlineManifest, 
 			instance.KeyStorePassword = &defaultJavaPassword
 			instance.TrustStorePath = &truststorePath
 			instance.TrustStorePassword = &defaultJavaPassword
+			instance.JavaOptions = &javaOptionsNoCertCheck
 		})
 		if err != nil {
 			return nil, err

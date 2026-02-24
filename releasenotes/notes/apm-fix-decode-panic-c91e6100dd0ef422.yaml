@@ -1,0 +1,3 @@
+fixes:
+  - |
+    APM: Fix panic that could occur when decoding malformed v1.0 trace payloads.

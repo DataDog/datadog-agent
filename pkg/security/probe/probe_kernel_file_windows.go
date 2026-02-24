@@ -819,7 +819,7 @@ func (wp *WindowsProbe) convertDrivePath(devicefilename string) (string, error) 
 
 func (wp *WindowsProbe) mustConvertDrivePath(devicefilename string) (string, error) {
 	if devicefilename == "\\FI_UNKNOWN" {
-		return "", fmt.Errorf("unknown device filename")
+		return "", errors.New("unknown device filename")
 	}
 
 	userPath, err := wp.convertDrivePath(devicefilename)

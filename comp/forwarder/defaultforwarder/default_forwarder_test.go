@@ -9,12 +9,14 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 // domainAPIKeyMap used by tests to get API keys from each domain resolver
@@ -27,7 +29,7 @@ func (f *DefaultForwarder) domainAPIKeyMap() map[string][]string {
 }
 
 func TestDefaultForwarderUpdateAPIKey(t *testing.T) {
-	mockConfig := config.NewMock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.Set("api_key", "api_key1", pkgconfigmodel.SourceAgentRuntime)
 	log := logmock.New(t)
 
@@ -43,6 +45,8 @@ func TestDefaultForwarderUpdateAPIKey(t *testing.T) {
 	}
 	forwarderOptions, err := NewOptions(mockConfig, log, keysPerDomains)
 	require.NoError(t, err)
+	secrets := secretsmock.New(t)
+	forwarderOptions.Secrets = secrets
 	forwarder := NewDefaultForwarder(mockConfig, log, forwarderOptions)
 
 	// API keys from the domain resolvers match
@@ -64,7 +68,7 @@ func TestDefaultForwarderUpdateAPIKey(t *testing.T) {
 }
 
 func TestDefaultForwarderUpdateAdditionalEndpointAPIKey(t *testing.T) {
-	mockConfig := config.NewMock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.Set("api_key", "api_key1", pkgconfigmodel.SourceAgentRuntime)
 	log := logmock.New(t)
 
@@ -81,6 +85,8 @@ func TestDefaultForwarderUpdateAdditionalEndpointAPIKey(t *testing.T) {
 	}
 	forwarderOptions, err := NewOptions(mockConfig, log, keysPerDomains)
 	require.NoError(t, err)
+	secrets := secretsmock.New(t)
+	forwarderOptions.Secrets = secrets
 	forwarder := NewDefaultForwarder(mockConfig, log, forwarderOptions)
 
 	// API keys from the domain resolvers match

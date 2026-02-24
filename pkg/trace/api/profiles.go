@@ -84,14 +84,11 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 	tags.WriteString(fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, r.conf.AgentVersion))
 
 	if orch := r.conf.FargateOrchestrator; orch != config.OrchestratorUnknown {
-		tags.WriteString(fmt.Sprintf(",orchestrator:fargate_%s", strings.ToLower(string(orch))))
+		tags.WriteString(",orchestrator:fargate_" + strings.ToLower(string(orch)))
 	}
-	if r.conf.LambdaFunctionName != "" {
-		tags.WriteString(fmt.Sprintf("functionname:%s", strings.ToLower(r.conf.LambdaFunctionName)))
-		tags.WriteString("_dd.origin:lambda")
-	}
-	if r.conf.AzureServerlessTags != "" {
-		tags.WriteString(r.conf.AzureServerlessTags)
+	// Add any additional environment-identifying tags
+	for k, v := range r.conf.AdditionalProfileTags {
+		tags.WriteString(fmt.Sprintf(",%s:%s", k, v))
 	}
 
 	return newProfileProxy(r.conf, targets, keys, tags.String(), r.statsd)
@@ -143,7 +140,7 @@ func isRetryableBodyReadError(err error) bool {
 func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string, tags string, statsd statsd.ClientInterface) *httputil.ReverseProxy {
 	cidProvider := NewIDProvider(conf.ContainerProcRoot, conf.ContainerIDFromOriginInfo)
 	director := func(req *http.Request) {
-		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", conf.AgentVersion))
+		req.Header.Set("Via", "trace-agent "+conf.AgentVersion)
 		if _, ok := req.Header["User-Agent"]; !ok {
 			// explicitly disable User-Agent so it's not set to the default value
 			// that net/http gives it: Go-http-client/1.1

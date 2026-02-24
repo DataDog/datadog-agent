@@ -8,6 +8,7 @@
 package common
 
 import (
+	"errors"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -15,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	apiServerCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -32,7 +33,7 @@ type MutationFilter interface {
 func DefaultDisabledNamespaces() []string {
 	return []string{
 		"kube-system",
-		apiServerCommon.GetResourcesNamespace(),
+		namespace.GetResourcesNamespace(),
 	}
 }
 
@@ -98,7 +99,7 @@ func (f *DefaultFilter) IsNamespaceEligible(ns string) bool {
 //   - Enabled and disabled namespaces: return error.
 func makeNamespaceFilter(enabledNamespaces, disabledNamespaces []string) (*containers.Filter, error) {
 	if len(enabledNamespaces) > 0 && len(disabledNamespaces) > 0 {
-		return nil, fmt.Errorf("enabled_namespaces and disabled_namespaces configuration cannot be set together")
+		return nil, errors.New("enabled_namespaces and disabled_namespaces configuration cannot be set together")
 	}
 
 	// Prefix the namespaces as needed by the containers.Filter.

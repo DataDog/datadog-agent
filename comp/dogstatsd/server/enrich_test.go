@@ -6,6 +6,7 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
@@ -44,7 +45,7 @@ func parseAndEnrichSingleMetricMessage(t *testing.T, message []byte, conf enrich
 	samples := []metrics.MetricSample{}
 	samples = enrichMetricSample(samples, parsed, "", 0, "", conf, nil)
 	if len(samples) != 1 {
-		return metrics.MetricSample{}, fmt.Errorf("wrong number of metrics parsed")
+		return metrics.MetricSample{}, errors.New("wrong number of metrics parsed")
 	}
 	return samples[0], nil
 }

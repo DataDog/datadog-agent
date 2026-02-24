@@ -12,6 +12,7 @@ import "C"
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"runtime"
@@ -34,6 +35,10 @@ import (
 	"github.com/lxn/win"
 	"go.uber.org/fx"
 	"golang.org/x/sys/windows"
+)
+
+var (
+	procLoadImageW = moduser32.NewProc("LoadImageW")
 )
 
 // Module for ddtray
@@ -118,7 +123,7 @@ func newSystray(deps dependencies) (systray.Component, error) {
 		return nil, fmt.Errorf("failed to call IsUserAnAdmin %v", err)
 	}
 	if !isAdmin {
-		return nil, fmt.Errorf("not running as an admin, systray requires administrative privileges")
+		return nil, errors.New("not running as an admin, systray requires administrative privileges")
 	}
 
 	// fx init
@@ -246,7 +251,7 @@ func acquireProcessSingleton(eventname string) (windows.Handle, error) {
 
 		if h != windows.Handle(0) {
 			windows.CloseHandle(h)
-			return windows.Handle(0), fmt.Errorf("systray is already running")
+			return windows.Handle(0), errors.New("systray is already running")
 		}
 	}
 
@@ -269,7 +274,6 @@ func loadIconFromResource(log log.Component, iconID int) (*walk.Icon, error) {
 		return icon, nil
 	}
 	log.Warnf("Failed to load icon: %v", err)
-
 	// NOTE: Windows 7/2008r2 issue only
 	//       walk.NewIconFromResource eventually calls comctl32.LoadIconWithScaleDown, which due to an
 	//       issue in lxn/win cannot be called on Windows 7/2008r2. This issue presents oddly because
@@ -284,17 +288,16 @@ func loadIconFromResource(log log.Component, iconID int) (*walk.Icon, error) {
 	//       Windows 10/2019 seem to not have either of these issues.
 	//
 	//       Previous versions of lxn/walk called LoadImage instead and it worked okay, so fallback to that.
-	hIcon := win.LoadImage(
-		win.GetModuleHandle(nil),
-		win.MAKEINTRESOURCE(uintptr(iconID)),
-		win.IMAGE_ICON,
+	hIcon, _, err := procLoadImageW.Call(
+		uintptr(win.GetModuleHandle(nil)),
+		uintptr(unsafe.Pointer(win.MAKEINTRESOURCE(uintptr(iconID)))),
+		uintptr(win.IMAGE_ICON),
 		0, // width
 		0, // height
-		win.LR_DEFAULTSIZE,
+		uintptr(win.LR_DEFAULTSIZE),
 	)
 	if hIcon == 0 {
-		gle := win.GetLastError()
-		return nil, fmt.Errorf("Failed to load fallback icon: %x (%d)", gle, gle)
+		return nil, fmt.Errorf("failed to load fallback icon with id %d: %w", iconID, err)
 	}
 
 	icon, err = walk.NewIconFromHICONForDPI(win.HICON(hIcon), 96)

@@ -167,11 +167,11 @@ func (pl *ProcessList) isEventValid(event *model.Event) (bool, error) {
 	case model.IMDSEventType:
 		// ignore IMDS answers without AccessKeyIDS
 		if event.IMDS.Type == model.IMDSResponseType && len(event.IMDS.AWS.SecurityCredentials.AccessKeyID) == 0 {
-			return false, fmt.Errorf("untraced event: IMDS response without credentials")
+			return false, errors.New("untraced event: IMDS response without credentials")
 		}
 		// ignore IMDS requests without URLs
 		if event.IMDS.Type == model.IMDSRequestType && len(event.IMDS.URL) == 0 {
-			return false, fmt.Errorf("invalid event: IMDS request without any URL")
+			return false, errors.New("invalid event: IMDS request without any URL")
 		}
 	}
 	return true, nil
@@ -187,7 +187,7 @@ func (pl *ProcessList) Insert(event *model.Event, insertMissingProcesses bool, i
 		return false, err
 	}
 
-	// special case, on exit we remove the associated process and all its childs
+	// special case, on exit we remove the associated process and all its children
 	if event.GetEventType() == model.ExitEventType {
 		// if we can get a key from a process we should be able to retrieve it
 		key := pl.owner.GetProcessCacheKey(&event.ProcessContext.Process)
@@ -341,7 +341,7 @@ func (pl *ProcessList) deleteProcess(process *ProcessNode, imageTag string) (ent
 		return tag == imageTag
 	})
 
-	// recursively remove childs:
+	// recursively remove children:
 	children := process.GetChildren()
 	if children != nil {
 		for _, child := range *children {
@@ -369,7 +369,7 @@ func (pl *ProcessList) deleteCachedProcess(key interface{}, imageTag string) (en
 		return tag == imageTag
 	})
 
-	// recursively remove childs:
+	// recursively remove children:
 	children := process.GetChildren()
 	if children != nil {
 		for _, child := range *children {

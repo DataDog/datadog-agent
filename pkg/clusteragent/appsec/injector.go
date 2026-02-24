@@ -9,6 +9,7 @@ package appsec
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -16,10 +17,11 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	workqueuetelemetry "github.com/DataDog/datadog-agent/pkg/util/workqueue/telemetry"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,10 +45,11 @@ var (
 
 type leaderNotifier func() (<-chan struct{}, func() bool)
 
-// Start initializes and starts the proxy injector
-func Start(ctx context.Context, logger log.Component, datadogConfig config.Component, leaderSub leaderNotifier) error {
+// Start initializes and starts the proxy injector. Must be run before starting the admission controller as the singleton
+// is used in there
+func Start(ctx context.Context, logger logComp.Component, datadogConfig config.Component, leaderSub leaderNotifier) error {
 	if injector != nil {
-		return fmt.Errorf("can't start proxy injection twice")
+		return errors.New("can't start proxy injection twice")
 	}
 
 	injectorStartOnce.Do(func() {
@@ -61,21 +64,24 @@ func Start(ctx context.Context, logger log.Component, datadogConfig config.Compo
 		}
 
 		logger.Infof("Starting appsec proxy injector with config: %#v", injector.config)
-		patterns := injector.CompilePatterns()
-		for typ, pattern := range patterns {
-			go injector.run(ctx, typ, pattern)
+		for typ, pattern := range injector.patterns {
+			if _, enabled := config.Proxies[typ]; enabled {
+				go injector.run(ctx, typ, pattern)
+			} else {
+				go cleanupPattern(ctx, logger, injector.k8sClient, pattern)
+			}
 		}
 	})
 
 	return nil
 }
 
-func detectProxiesInCluster(ctx context.Context, cl *apiserver.APIClient, logger log.Component) (map[appsecconfig.ProxyType]struct{}, error) {
+func detectProxiesInCluster(ctx context.Context, cl *apiserver.APIClient, logger logComp.Component) (map[appsecconfig.ProxyType]struct{}, error) {
 	detected := make(map[appsecconfig.ProxyType]struct{})
 	for proxy, detector := range proxyDetectionMap {
 		found, err := detector(ctx, cl.DynamicCl)
 		if err != nil {
-			logger.Debug("error detecting proxy %s in cluster: %s", proxy, err)
+			logger.Debugf("error detecting proxy %s in cluster: %s", proxy, err)
 			continue
 		}
 		if found {
@@ -88,15 +94,16 @@ func detectProxiesInCluster(ctx context.Context, cl *apiserver.APIClient, logger
 
 type securityInjector struct {
 	k8sClient dynamic.Interface
-	logger    log.Component
+	logger    logComp.Component
 	config    appsecconfig.Config
 	recorder  record.EventRecorder
+	patterns  map[appsecconfig.ProxyType]appsecconfig.InjectionPattern
 
 	leaderSub leaderNotifier
 }
 
 // newSecurityInjector initializes and returns a new patcher with a dynamic k8s client
-func newSecurityInjector(ctx context.Context, logger log.Component, config appsecconfig.Config, leaderSub leaderNotifier) *securityInjector {
+func newSecurityInjector(ctx context.Context, logger logComp.Component, config appsecconfig.Config, leaderSub leaderNotifier) *securityInjector {
 	// Get API client for proxy detection and event recording
 	apiClient, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -113,6 +120,7 @@ func newSecurityInjector(ctx context.Context, logger log.Component, config appse
 		maps.Copy(config.Proxies, detectedProxies)
 	}
 
+	// Cleanup resources of disabled proxies
 	if len(config.Proxies) == 0 {
 		logger.Debug("No appsec proxies enabled for injection")
 		return nil
@@ -132,6 +140,7 @@ func newSecurityInjector(ctx context.Context, logger log.Component, config appse
 		logger:    logger,
 		config:    config,
 		recorder:  eventRecorder,
+		patterns:  instantiatePatterns(config, logger, apiClient.DynamicCl, eventRecorder),
 
 		leaderSub: leaderSub,
 	}
@@ -186,7 +195,6 @@ func (si *securityInjector) run(ctx context.Context, proxyType appsecconfig.Prox
 			select {
 			case <-health.C:
 			case <-ctx.Done():
-				cancel()
 				return
 			}
 		}
@@ -249,7 +257,7 @@ func (si *securityInjector) runLeader(ctx context.Context, proxyType appsecconfi
 
 	if !cache.WaitForCacheSync(ctx.Done(), handle.HasSynced) {
 		si.logger.Warnf("timed out waiting for informer caches to sync for resource %s", proxyType)
-		return err
+		return fmt.Errorf("timed out waiting for informer caches to sync for resource %s", proxyType)
 	}
 
 	si.logger.Debug("Watching resource as leader:", proxyType)
@@ -320,22 +328,47 @@ func (si *securityInjector) processWorkItem(ctx context.Context, proxyType appse
 	return false
 }
 
-func (si *securityInjector) CompilePatterns() map[appsecconfig.ProxyType]appsecconfig.InjectionPattern {
-	patterns := make(map[appsecconfig.ProxyType]appsecconfig.InjectionPattern, len(si.config.Proxies))
-	for proxy := range si.config.Proxies {
+func instantiatePatterns(config appsecconfig.Config, logger logComp.Component, k8sClient dynamic.Interface, recorder record.EventRecorder) map[appsecconfig.ProxyType]appsecconfig.InjectionPattern {
+	patterns := make(map[appsecconfig.ProxyType]appsecconfig.InjectionPattern, len(config.Proxies))
+	for _, proxy := range appsecconfig.AllProxyTypes {
 		constructor, ok := proxyConstructorMap[proxy]
 		if !ok {
-			si.logger.Warnf("unknown proxy type for appsec injector: %s", proxy)
+			logger.Warnf("unknown proxy type for appsec injector: %s", proxy)
 			continue
 		}
 
 		// Add the proxy type to the common annotations so that it is available in the pattern
-		config := si.config
+		config := config
 		config.Injection.CommonAnnotations = maps.Clone(config.Injection.CommonAnnotations)
 		config.Injection.CommonAnnotations[appsecconfig.AppsecProcessorProxyTypeAnnotation] = string(proxy)
 
-		patterns[proxy] = constructor(si.k8sClient, si.logger, config, si.recorder)
+		pattern := constructor(k8sClient, logger, config, recorder)
+		patterns[proxy] = pattern
 	}
 
 	return patterns
+}
+
+// GetSidecarPatterns returns all patterns that are in SIDECAR mode
+// This is used by the admission controller to register the appsec sidecar webhook
+func GetSidecarPatterns() []appsecconfig.SidecarInjectionPattern {
+	if injector == nil {
+		log.Error("Appsec Injector not initialized, cannot setup sidecar patterns")
+		return nil
+	}
+
+	var sidecarPatterns []appsecconfig.SidecarInjectionPattern
+
+	// Only return patterns for enabled proxies
+	for proxyType, pattern := range injector.patterns {
+		// Check if pattern is in SIDECAR mode and implements SidecarInjectionPattern
+		if _, enabled := injector.config.Proxies[proxyType]; enabled && pattern.Mode() == appsecconfig.InjectionModeSidecar {
+			if sidecarPattern, ok := pattern.(appsecconfig.SidecarInjectionPattern); ok {
+				sidecarPatterns = append(sidecarPatterns, sidecarPattern)
+				injector.logger.Debugf("Gathering sidecar pattern for proxy type: %s", proxyType)
+			}
+		}
+	}
+
+	return sidecarPatterns
 }

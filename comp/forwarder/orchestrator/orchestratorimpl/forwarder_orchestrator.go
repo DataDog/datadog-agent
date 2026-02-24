@@ -15,11 +15,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -35,12 +37,14 @@ func Module(params Params) fxutil.Module {
 
 // newOrchestratorForwarder returns an orchestratorForwarder
 // if the feature is activated on the cluster-agent/cluster-check runner, nil otherwise
-func newOrchestratorForwarder(log log.Component, config config.Component, tagger tagger.Component, lc fx.Lifecycle, params Params) orchestrator.Component {
+func newOrchestratorForwarder(log log.Component, config config.Component, secrets secrets.Component, tagger tagger.Component, lc fx.Lifecycle, params Params) orchestrator.Component {
 	if params.useNoopOrchestratorForwarder {
 		return createComponent(defaultforwarder.NoopForwarder{})
 	}
 	if params.useOrchestratorForwarder {
-		if !config.GetBool(orchestratorconfig.OrchestratorNSKey("enabled")) {
+		isOrchestratorEnv := env.IsKubernetes() || env.IsECS() || env.IsECSFargate() || env.IsECSManagedInstances()
+		orchestratorExplorerEnabled := config.GetBool(orchestratorconfig.OrchestratorNSKey("enabled"))
+		if !orchestratorExplorerEnabled || !isOrchestratorEnv {
 			forwarder := option.None[defaultforwarder.Forwarder]()
 			return &forwarder
 		}
@@ -59,6 +63,7 @@ func newOrchestratorForwarder(log log.Component, config config.Component, tagger
 		}
 		orchestratorForwarderOpts := defaultforwarder.NewOptionsWithResolvers(config, log, resolver)
 		orchestratorForwarderOpts.DisableAPIKeyChecking = true
+		orchestratorForwarderOpts.Secrets = secrets
 
 		forwarder := defaultforwarder.NewDefaultForwarder(config, log, orchestratorForwarderOpts)
 		lc.Append(fx.Hook{

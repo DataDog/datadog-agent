@@ -8,8 +8,6 @@
 package redis
 
 import (
-	"fmt"
-
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -38,7 +36,7 @@ func newTelemetry() *telemetry {
 	telem.commandDistribution = make(map[CommandType]*libtelemetry.Counter, maxCommand)
 
 	for command := UnknownCommand; command < maxCommand; command++ {
-		telem.commandDistribution[command] = metricGroup.NewCounter("total_hits", fmt.Sprintf("command:%s", command.String()), libtelemetry.OptPrometheus)
+		telem.commandDistribution[command] = metricGroup.NewCounter("total_hits", "command:"+command.String(), libtelemetry.OptPrometheus)
 	}
 
 	return &telem

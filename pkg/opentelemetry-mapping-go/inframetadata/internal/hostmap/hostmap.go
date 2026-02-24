@@ -152,8 +152,23 @@ func ec2Hostname(m pcommon.Map) (string, bool, error) {
 	return strField(m, string(conventions.HostNameKey))
 }
 
+// getCCRID gets Canonical Cloud Resource ID from a resource attribute map.
+// It returns:
+// - The CCRID if available
+// - Whether CCRID was found
+// - Any errors found retrieving the ID
+func getCCRID(m pcommon.Map) (string, bool, error) {
+	return strField(m, "datadog.ccrid")
+}
+
 // Set a hardcoded host metadata payload.
 func (m *HostMap) Set(md payload.HostMetadata) error {
+	// We'll be modifying the payloads in the host map later, so clone to avoid data races
+	md, err := md.Clone()
+	if err != nil {
+		return err
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.hosts[md.Meta.Hostname] = md
@@ -249,6 +264,16 @@ func (m *HostMap) Update(host string, res pcommon.Resource) (changed bool, md pa
 		md.Meta.EC2Hostname = ec2Host
 	}
 
+	//Get CCRID (Canonical Cloud Resource ID: AWS=ARN, Azure=Resource ID, GCP=CAI, OCI=OCID)
+	if ccrid, ok, err2 := getCCRID(res.Attributes()); err2 != nil {
+		err = errors.Join(err, err2)
+	} else if ok {
+		if ccrid != md.Meta.CanonicalCloudResourceID {
+			md.Meta.CanonicalCloudResourceID = ccrid
+			changed = true
+		}
+	}
+
 	// Gohai - Platform
 	md.Platform()["hostname"] = host
 	for field, attribute := range platformAttributesMap {
@@ -313,6 +338,11 @@ func (m *HostMap) Update(host string, res pcommon.Resource) (changed bool, md pa
 	}
 
 	m.hosts[host] = md
+
+	var err2 error
+	md, err2 = md.Clone() // Clone to avoid accidentally mutating internal maps of previously returned values
+	err = errors.Join(err, err2)
+
 	changed = changed || !found
 	return
 }

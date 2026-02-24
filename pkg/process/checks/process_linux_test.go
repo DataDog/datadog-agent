@@ -8,8 +8,8 @@
 package checks
 
 import (
-	"fmt"
 	"math/rand/v2"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -19,8 +19,8 @@ import (
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	"github.com/DataDog/datadog-agent/pkg/discovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	probemocks "github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
@@ -365,6 +365,7 @@ func TestFormatServiceDiscovery(t *testing.T) {
 				},
 				DDService:          "dd_service_name",
 				APMInstrumentation: true,
+				LogFiles:           []string{"/var/log/app.log", "/var/log/error.log"},
 			},
 			expectedService: &model.ServiceDiscovery{
 				GeneratedServiceName: &model.ServiceName{
@@ -396,6 +397,22 @@ func TestFormatServiceDiscovery(t *testing.T) {
 					},
 				},
 				ApmInstrumentation: true,
+				Resources: []*model.Resource{
+					{
+						Resource: &model.Resource_Logs{
+							Logs: &model.LogResource{
+								Path: "/var/log/app.log",
+							},
+						},
+					},
+					{
+						Resource: &model.Resource_Logs{
+							Logs: &model.LogResource{
+								Path: "/var/log/error.log",
+							},
+						},
+					},
+				},
 			},
 		},
 		{
@@ -420,6 +437,87 @@ func TestFormatServiceDiscovery(t *testing.T) {
 			expectedService: &model.ServiceDiscovery{},
 		},
 		{
+			description: "service with log files only",
+			service: &procutil.Service{
+				LogFiles: []string{"/var/log/nginx/access.log", "/var/log/nginx/error.log", "/var/log/app/application.log"},
+			},
+			expectedService: &model.ServiceDiscovery{
+				Resources: []*model.Resource{
+					{
+						Resource: &model.Resource_Logs{
+							Logs: &model.LogResource{
+								Path: "/var/log/nginx/access.log",
+							},
+						},
+					},
+					{
+						Resource: &model.Resource_Logs{
+							Logs: &model.LogResource{
+								Path: "/var/log/nginx/error.log",
+							},
+						},
+					},
+					{
+						Resource: &model.Resource_Logs{
+							Logs: &model.LogResource{
+								Path: "/var/log/app/application.log",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			description: "service with single log file",
+			service: &procutil.Service{
+				GeneratedName: "my-service",
+				LogFiles:      []string{"/var/log/service.log"},
+			},
+			expectedService: &model.ServiceDiscovery{
+				GeneratedServiceName: &model.ServiceName{
+					Name:   "my-service",
+					Source: model.ServiceNameSource_SERVICE_NAME_SOURCE_UNKNOWN,
+				},
+				Resources: []*model.Resource{
+					{
+						Resource: &model.Resource_Logs{
+							Logs: &model.LogResource{
+								Path: "/var/log/service.log",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			description: "service with nil log files",
+			service: &procutil.Service{
+				GeneratedName: "my-service",
+				LogFiles:      nil,
+			},
+			expectedService: &model.ServiceDiscovery{
+				GeneratedServiceName: &model.ServiceName{
+					Name:   "my-service",
+					Source: model.ServiceNameSource_SERVICE_NAME_SOURCE_UNKNOWN,
+				},
+				Resources: nil,
+			},
+		},
+		{
+			description: "service with empty log files slice",
+			service: &procutil.Service{
+				GeneratedName: "my-service",
+				LogFiles:      []string{},
+			},
+			expectedService: &model.ServiceDiscovery{
+				GeneratedServiceName: &model.ServiceName{
+					Name:   "my-service",
+					Source: model.ServiceNameSource_SERVICE_NAME_SOURCE_UNKNOWN,
+				},
+				Resources: nil,
+			},
+		},
+		{
 			description:     "service not collected",
 			service:         nil,
 			expectedService: nil,
@@ -435,7 +533,7 @@ func TestFormatServiceDiscovery(t *testing.T) {
 func wlmProcessWithCreateTime(pid int32, spaceSeparatedCmdline string, creationTime int64) *wmdef.Process {
 	return &wmdef.Process{
 		EntityID: wmdef.EntityID{
-			ID:   fmt.Sprintf("%d", pid),
+			ID:   strconv.Itoa(int(pid)),
 			Kind: wmdef.KindProcess,
 		},
 		Pid:          pid,

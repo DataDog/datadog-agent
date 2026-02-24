@@ -23,13 +23,13 @@ import (
 )
 
 // GetGroupID returns the ID of the given group.
-func GetGroupID(groupName string) (int, error) {
+func GetGroupID(ctx context.Context, groupName string) (int, error) {
 	if groupName == "root" {
 		return 0, nil
 	}
 
 	if _, err := exec.LookPath("getent"); err == nil {
-		cmd := exec.Command("getent", "group", groupName)
+		cmd := telemetry.CommandContext(ctx, "getent", "group", groupName)
 		output, err := cmd.Output()
 		if err == nil {
 			// Expected output format is groupname:password:gid:users
@@ -56,10 +56,10 @@ func GetGroupID(groupName string) (int, error) {
 }
 
 // GetUserID returns the ID of the given user.
-func GetUserID(userName string) (int, error) {
+func GetUserID(ctx context.Context, userName string) (int, error) {
 
 	if _, err := exec.LookPath("getent"); err == nil {
-		cmd := exec.Command("getent", "passwd", userName)
+		cmd := telemetry.CommandContext(ctx, "getent", "passwd", userName)
 		output, err := cmd.Output()
 		if err == nil {
 			// Expected output format is username:password:uid:gid:gecos:homedir:shell
@@ -86,9 +86,9 @@ func GetUserID(userName string) (int, error) {
 }
 
 // IsUserInGroup checks if a user is a member of a group.
-func IsUserInGroup(userName, groupName string) (bool, error) {
+func IsUserInGroup(ctx context.Context, userName, groupName string) (bool, error) {
 	if _, err := exec.LookPath("getent"); err == nil {
-		groupCmd := exec.Command("getent", "group", groupName)
+		groupCmd := telemetry.CommandContext(ctx, "getent", "group", groupName)
 		groupOutput, err := groupCmd.Output()
 		if err == nil {
 			// Expected output format is groupname:password:gid:user1,user2,user3
@@ -97,7 +97,7 @@ func IsUserInGroup(userName, groupName string) (bool, error) {
 				groupGid := groupParts[2]
 
 				// Get the user's primary GID
-				userCmd := exec.Command("getent", "passwd", userName)
+				userCmd := telemetry.CommandContext(ctx, "getent", "passwd", userName)
 				userOutput, err := userCmd.Output()
 				if err == nil {
 					// Expected output format is username:password:uid:gid:gecos:homedir:shell
@@ -113,8 +113,8 @@ func IsUserInGroup(userName, groupName string) (bool, error) {
 
 				// Check if user is in the supplementary group members list
 				if len(groupParts) >= 4 && groupParts[3] != "" {
-					users := strings.Split(groupParts[3], ",")
-					for _, u := range users {
+					users := strings.SplitSeq(groupParts[3], ",")
+					for u := range users {
 						if strings.TrimSpace(u) == userName {
 							return true, nil
 						}
@@ -160,7 +160,7 @@ func ensureGroup(ctx context.Context, groupName string) (err error) {
 	defer func() {
 		span.Finish(err)
 	}()
-	_, err = GetGroupID(groupName)
+	_, err = GetGroupID(ctx, groupName)
 	if err == nil {
 		return nil
 	}
@@ -168,7 +168,7 @@ func ensureGroup(ctx context.Context, groupName string) (err error) {
 	if !errors.As(err, &unknownGroupError) {
 		log.Warnf("error looking up %s group: %v", groupName, err)
 	}
-	err = exec.CommandContext(ctx, "groupadd", "--force", "--system", groupName).Run()
+	err = telemetry.CommandContext(ctx, "groupadd", "--force", "--system", groupName).Run()
 	if err != nil {
 		return fmt.Errorf("error creating %s group: %w", groupName, err)
 	}
@@ -180,7 +180,7 @@ func ensureUser(ctx context.Context, userName string, installPath string) (err e
 	defer func() {
 		span.Finish(err)
 	}()
-	_, err = GetUserID(userName)
+	_, err = GetUserID(ctx, userName)
 	if err == nil {
 		return nil
 	}
@@ -188,7 +188,7 @@ func ensureUser(ctx context.Context, userName string, installPath string) (err e
 	if !errors.As(err, &unknownUserError) {
 		log.Warnf("error looking up %s user: %v", userName, err)
 	}
-	err = exec.CommandContext(ctx, "useradd", "--system", "--shell", "/usr/sbin/nologin", "--home", installPath, "--no-create-home", "--no-user-group", "-g", "dd-agent", "dd-agent").Run()
+	err = telemetry.CommandContext(ctx, "useradd", "--system", "--shell", "/usr/sbin/nologin", "--home", installPath, "--no-create-home", "--no-user-group", "-g", "dd-agent", "dd-agent").Run()
 	if err != nil {
 		return fmt.Errorf("error creating %s user: %w", userName, err)
 	}
@@ -202,14 +202,14 @@ func ensureUserInGroup(ctx context.Context, userName string, groupName string) (
 	}()
 	// Check if user is already in group and abort if it is -- this allows us
 	// to skip where the user / group are set in LDAP / AD
-	userInGroup, err := IsUserInGroup(userName, groupName)
+	userInGroup, err := IsUserInGroup(ctx, userName, groupName)
 	if err != nil {
 		return fmt.Errorf("error checking if user %s is in group %s: %w", userName, groupName, err)
 	}
 	if userInGroup {
 		return nil
 	}
-	err = exec.CommandContext(ctx, "usermod", "-g", groupName, userName).Run()
+	err = telemetry.CommandContext(ctx, "usermod", "-g", groupName, userName).Run()
 	if err != nil {
 		return fmt.Errorf("error adding %s user to %s group: %w", userName, groupName, err)
 	}

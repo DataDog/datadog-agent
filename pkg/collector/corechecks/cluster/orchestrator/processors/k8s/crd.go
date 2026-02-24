@@ -12,9 +12,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
+	"github.com/DataDog/datadog-agent/pkg/redact"
 
 	"k8s.io/apimachinery/pkg/types"
 )

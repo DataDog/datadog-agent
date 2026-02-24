@@ -105,7 +105,7 @@ func parseHeader(rawHeader []byte) (eventHeader, error) {
 
 	// Ensure that title isn't empty
 	if titleLength == 0 {
-		return eventHeader{}, fmt.Errorf("invalid event: empty title")
+		return eventHeader{}, errors.New("invalid event: empty title")
 	}
 
 	// Convert text length to workable type and do a basic validity check on value

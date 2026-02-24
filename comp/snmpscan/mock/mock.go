@@ -9,34 +9,34 @@
 package mock
 
 import (
+	"context"
 	"testing"
 
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 
 	"github.com/gosnmp/gosnmp"
+	"github.com/stretchr/testify/mock"
 )
 
-type snmpScanMock struct {
-	Logger log.Component
+// SnmpScanMock mocks snmpscan.Component
+type SnmpScanMock struct {
+	mock.Mock
 }
 
-// Provides that defines the output of mocked snmpscan component
-type Provides struct {
-	comp snmpscan.Component
+// Mock returns a mock for snmpscan component
+func Mock(_ *testing.T) snmpscan.Component {
+	return &SnmpScanMock{}
 }
 
-// New returns a mock snmpscanner
-func New(_ *testing.T) Provides {
-	return Provides{
-		comp: snmpScanMock{},
-	}
+// RunSnmpWalk is a mock function
+func (m *SnmpScanMock) RunSnmpWalk(snmpConection *gosnmp.GoSNMP, firstOid string) error {
+	args := m.Called(snmpConection, firstOid)
+	return args.Error(0)
 }
 
-func (m snmpScanMock) RunSnmpWalk(_ *gosnmp.GoSNMP, _ string) error {
-	return nil
-}
-func (m snmpScanMock) ScanDeviceAndSendData(_ *snmpparse.SNMPConfig, _ string, _ snmpscan.ScanParams) error {
-	return nil
+// ScanDeviceAndSendData is a mock function
+func (m *SnmpScanMock) ScanDeviceAndSendData(ctx context.Context, connParams *snmpparse.SNMPConfig, namespace string, scanParams snmpscan.ScanParams) error {
+	args := m.Called(ctx, connParams, namespace, scanParams)
+	return args.Error(0)
 }

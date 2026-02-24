@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime/debug"
+	"slices"
 	"strconv"
 	"time"
 
@@ -43,6 +44,14 @@ type TypeNameResolver interface {
 	ResolveTypeName(typeID gotype.TypeID) (string, error)
 }
 
+// MissingTypeCollector receives notifications about types that were
+// encountered at runtime in interfaces but were not included in the IR
+// program's type registry. Implementations must be safe for use from a
+// single goroutine (the decoder is not thread-safe).
+type MissingTypeCollector interface {
+	RecordMissingType(typeName string)
+}
+
 // GoTypeNameResolver is a TypeNameResolver that uses a gotype.Table to resolve
 // type names.
 type GoTypeNameResolver gotype.Table
@@ -65,6 +74,12 @@ func (r *GoTypeNameResolver) ResolveTypeName(typeID gotype.TypeID) (string, erro
 	return t.Name().Name(), nil
 }
 
+// noopMissingTypeCollector is a no-op implementation of MissingTypeCollector
+// used when no collector is provided.
+type noopMissingTypeCollector struct{}
+
+func (noopMissingTypeCollector) RecordMissingType(string) {}
+
 // Decoder decodes the output of the BPF program into a JSON format.
 // It is not guaranteed to be thread-safe.
 type Decoder struct {
@@ -72,16 +87,25 @@ type Decoder struct {
 	program              *ir.Program
 	decoderTypes         map[ir.TypeID]decoderType
 	probeEvents          map[ir.TypeID]probeEvent
-	stackFrames          map[uint64][]symbol.StackFrame
+	stackPCs             map[uint64][]uint64
 	typesByGoRuntimeType map[uint32]ir.TypeID
 	typeNameResolver     TypeNameResolver
 	approximateBootTime  time.Time
 
 	// These fields are initialized and reset for each message.
-	snapshotMessage snapshotMessage
-	entry           captureEvent
-	_return         captureEvent
-	line            lineCaptureData
+	message     message
+	entryOrLine captureEvent
+	_return     captureEvent
+	line        lineCaptureData
+	messageData messageData
+}
+
+// ReportStackPCs reports the program counters of the stack trace for a
+// given stack hash.
+func (d *Decoder) ReportStackPCs(stackHash uint64, stackPCs []uint64) {
+	if len(stackPCs) > 0 {
+		d.stackPCs[stackHash] = stackPCs
+	}
 }
 
 // NewDecoder creates a new Decoder for the given program.
@@ -94,12 +118,12 @@ func NewDecoder(
 		program:              program,
 		decoderTypes:         make(map[ir.TypeID]decoderType, len(program.Types)),
 		probeEvents:          make(map[ir.TypeID]probeEvent),
-		stackFrames:          make(map[uint64][]symbol.StackFrame),
+		stackPCs:             make(map[uint64][]uint64),
 		typesByGoRuntimeType: make(map[uint32]ir.TypeID),
 		typeNameResolver:     typeNameResolver,
 		approximateBootTime:  approximateBootTime,
 
-		snapshotMessage: snapshotMessage{},
+		message: message{},
 	}
 	for _, probe := range program.Probes {
 		for _, event := range probe.Events {
@@ -120,7 +144,7 @@ func NewDecoder(
 			decoder.typesByGoRuntimeType[goRuntimeType] = id
 		}
 	}
-	decoder.entry.encodingContext = encodingContext{
+	decoder.entryOrLine.encodingContext = encodingContext{
 		typesByID:            decoder.decoderTypes,
 		typesByGoRuntimeType: decoder.typesByGoRuntimeType,
 		typeResolver:         typeNameResolver,
@@ -146,13 +170,20 @@ type typeAndAddr struct {
 
 // Decode decodes the output Event from the BPF program into a JSON format
 // the `output` parameter is appended to and returned as the final output.
-// It is not thread-safe.
+// It is not thread-safe. If missingTypes is nil, missing types are silently
+// ignored.
 func (d *Decoder) Decode(
 	event Event,
 	symbolicator symbol.Symbolicator,
+	missingTypes MissingTypeCollector,
 	buf []byte,
 ) (_ []byte, probe ir.ProbeDefinition, err error) {
 	defer d.resetForNextMessage()
+	if missingTypes == nil {
+		missingTypes = noopMissingTypeCollector{}
+	}
+	d.entryOrLine.missingTypeCollector = missingTypes
+	d._return.missingTypeCollector = missingTypes
 	defer func() {
 		r := recover()
 		switch r := r.(type) {
@@ -163,25 +194,27 @@ func (d *Decoder) Decode(
 			err = pkgerrors.Errorf("Decode: panic: %v\n%s", r, debug.Stack())
 		}
 	}()
-	probe, err = d.snapshotMessage.init(d, event, symbolicator)
+	probe, err = d.message.init(d, event, symbolicator)
 	if err != nil {
 		return buf, nil, err
 	}
 	b := bytes.NewBuffer(buf)
 	enc := jsontext.NewEncoder(b)
 	var numExpressions int
-	if d.snapshotMessage.Debugger.Snapshot.Captures.Entry != nil {
-		numExpressions = len(d.snapshotMessage.Debugger.Snapshot.Captures.Entry.rootType.Expressions)
-		if d.snapshotMessage.Debugger.Snapshot.Captures.Return != nil {
-			numExpressions += len(d.snapshotMessage.Debugger.Snapshot.Captures.Return.rootType.Expressions)
+	if captures := d.message.Debugger.Snapshot.Captures; captures != nil {
+		if captures.Entry != nil {
+			numExpressions = len(captures.Entry.rootType.Expressions)
+			if captures.Return != nil {
+				numExpressions += len(captures.Return.rootType.Expressions)
+			}
+		} else if captures.Lines != nil {
+			numExpressions = len(captures.Lines.capture.rootType.Expressions)
 		}
-	} else if d.snapshotMessage.Debugger.Snapshot.Captures.Lines != nil {
-		numExpressions = len(d.snapshotMessage.Debugger.Snapshot.Captures.Lines.capture.rootType.Expressions)
 	}
 	// We loop here because when evaluation errors occur, we reduce the amount of data we attempt
 	// to encode and then try again after resetting the buffer.
 	for range numExpressions + 1 { // +1 for the initial attempt
-		err = json.MarshalEncode(enc, &d.snapshotMessage)
+		err = json.MarshalEncode(enc, &d.message)
 		if errors.Is(err, errEvaluation) {
 			b = bytes.NewBuffer(buf)
 			enc.Reset(b)
@@ -195,11 +228,14 @@ func (d *Decoder) Decode(
 }
 
 func (d *Decoder) resetForNextMessage() {
-	clear(d.entry.dataItems)
-	d.entry.clear()
+	clear(d.entryOrLine.dataItems)
+	d.entryOrLine.clear()
+	d.entryOrLine.missingTypeCollector = nil
 	d.line.clear()
 	d._return.clear()
-	d.snapshotMessage = snapshotMessage{}
+	d._return.missingTypeCollector = nil
+	d.messageData = messageData{}
+	d.message = message{}
 }
 
 // Event wraps the output Event from the BPF program. It also adds fields
@@ -211,16 +247,49 @@ type Event struct {
 	ServiceName string
 }
 
-type snapshotMessage struct {
+type message struct {
 	Service   string           `json:"service"`
 	DDSource  ddDebuggerSource `json:"ddsource"`
 	Logger    logger           `json:"logger"`
 	Debugger  debuggerData     `json:"debugger"`
 	Timestamp int              `json:"timestamp"`
 	Duration  uint64           `json:"duration,omitzero"`
+	Message   *messageData     `json:"message,omitempty"`
 }
 
-func (s *snapshotMessage) init(
+// populateStackPCsIfMissing populates the decoder's stackPCs map with stack PCs
+// from the given event if the stack hash is not already present.
+func populateStackPCsIfMissing(
+	probe *ir.Probe,
+	decoder *Decoder,
+	stackHash uint64,
+	event output.Event,
+	eventType string,
+) {
+	if _, ok := decoder.stackPCs[stackHash]; ok {
+		return
+	}
+	stackPCs, err := event.StackPCs()
+	if err != nil {
+		if symbolicateErrorLogLimiter.Allow() {
+			log.Errorf(
+				"error getting stack pcs from %s event for probe %s: %v",
+				eventType, probe.GetID(), err,
+			)
+		} else {
+			log.Tracef(
+				"error getting stack pcs from %s event for probe %s: %v",
+				eventType, probe.GetID(), err,
+			)
+		}
+		return
+	}
+	if len(stackPCs) > 0 {
+		decoder.stackPCs[stackHash] = slices.Clone(stackPCs)
+	}
+}
+
+func (s *message) init(
 	decoder *Decoder,
 	event Event,
 	symbolicator symbol.Symbolicator,
@@ -234,14 +303,14 @@ func (s *snapshotMessage) init(
 		EvaluationErrors: []evaluationError{},
 	}
 	if event.EntryOrLine == nil {
-		return nil, fmt.Errorf("entry event is nil")
+		return nil, errors.New("entry event is nil")
 	}
-	if err := decoder.entry.init(
+	if err := decoder.entryOrLine.init(
 		event.EntryOrLine, decoder.program.Types, &s.Debugger.EvaluationErrors,
 	); err != nil {
 		return nil, err
 	}
-	probeEvent := decoder.probeEvents[decoder.entry.rootType.ID]
+	probeEvent := decoder.probeEvents[decoder.entryOrLine.rootType.ID]
 	probe := probeEvent.probe
 	header, err := event.EntryOrLine.Header()
 	if err != nil {
@@ -249,13 +318,14 @@ func (s *snapshotMessage) init(
 	}
 	switch probeEvent.event.Kind {
 	case ir.EventKindEntry:
-		s.Debugger.Snapshot.Captures.Entry = &decoder.entry
+		s.Debugger.Snapshot.captures.Entry = &decoder.entryOrLine
 	case ir.EventKindLine:
 		decoder.line.sourceLine = probeEvent.event.SourceLine
-		decoder.line.capture = &decoder.entry
-		s.Debugger.Snapshot.Captures.Lines = &decoder.line
+		decoder.line.capture = &decoder.entryOrLine
+		s.Debugger.Snapshot.captures.Lines = &decoder.line
 	}
 	var returnHeader *output.EventHeader
+	var durationMissingReason *string
 	if event.Return != nil {
 		if err := decoder._return.init(
 			event.Return, decoder.program.Types, &s.Debugger.EvaluationErrors,
@@ -264,14 +334,51 @@ func (s *snapshotMessage) init(
 		}
 		returnProbeEvent := decoder.probeEvents[decoder._return.rootType.ID]
 		if returnProbeEvent.probe != probe {
-			return nil, fmt.Errorf("return probe event has different probe than entry probe")
+			return nil, errors.New("return probe event has different probe than entry probe")
 		}
 		returnHeader, err = event.Return.Header()
 		if err != nil {
 			return nil, fmt.Errorf("error getting return header %w", err)
 		}
 		s.Duration = uint64(returnHeader.Ktime_ns - header.Ktime_ns)
-		s.Debugger.Snapshot.Captures.Return = &decoder._return
+		s.Debugger.Snapshot.captures.Return = &decoder._return
+	} else {
+		// Check if we expected a return event but didn't get one.
+		pairingExpectation := output.EventPairingExpectation(
+			header.Event_pairing_expectation,
+		)
+		var reason string
+		switch pairingExpectation {
+		case output.EventPairingExpectationReturnPairingExpected:
+			reason = "return event not received"
+		case output.EventPairingExpectationBufferFull:
+			reason = "userspace buffer capacity exceeded"
+		case output.EventPairingExpectationCallMapFull:
+			reason = "call map capacity exceeded"
+		case output.EventPairingExpectationCallCountExceeded:
+			reason = "maximum call count exceeded"
+		case output.EventPairingExpectationNoneInlined:
+			reason = "function was inlined"
+		case output.EventPairingExpectationNoneNoBody:
+			reason = "function has no body"
+		}
+		log.Tracef("no return reason: %v pairing expectation: %v", reason, pairingExpectation)
+		// The choice to use @duration here is somewhat arbitrary; we want to
+		// choose something that definitely can't collide with a real variable
+		// and is evocative of the thing that is missing. Indeed we know in this
+		// situation we will never @duration, so it seems like a good choice.
+		const missingReturnReasonExpression = "@duration"
+		if reason != "" {
+			message := "not available: " + reason
+			s.Debugger.EvaluationErrors = append(
+				s.Debugger.EvaluationErrors,
+				evaluationError{
+					Expression: missingReturnReasonExpression,
+					Message:    message,
+				},
+			)
+			durationMissingReason = &message
+		}
 	}
 
 	s.Debugger.Snapshot.Timestamp = int(decoder.approximateBootTime.Add(
@@ -279,31 +386,52 @@ func (s *snapshotMessage) init(
 	).UnixMilli())
 	s.Timestamp = s.Debugger.Snapshot.Timestamp
 
-	stackHeader, stackEvent := header, event.EntryOrLine
+	// Unconditionally populate stackPCs map for any event with stack PCs.
+	populateStackPCsIfMissing(
+		probe, decoder, header.Stack_hash, event.EntryOrLine, "entry",
+	)
 	if returnHeader != nil {
-		stackHeader, stackEvent = returnHeader, event.Return
-	}
-	stackFrames, ok := decoder.stackFrames[stackHeader.Stack_hash]
-	if !ok {
-		stackFrames, err = symbolicate(
-			stackEvent, stackHeader.Stack_hash, symbolicator,
+		populateStackPCsIfMissing(
+			probe, decoder, returnHeader.Stack_hash, event.Return, "return",
 		)
-		if err != nil {
-			if symbolicateErrorLogLimiter.Allow() {
-				log.Errorf("error symbolicating stack: %v", err)
-			} else {
-				log.Tracef("error symbolicating stack: %v", err)
-			}
+	}
+
+	if probe.GetKind() == ir.ProbeKindSnapshot || probe.GetKind() == ir.ProbeKindCaptureExpression {
+		stackHeader := header
+		if returnHeader != nil {
+			stackHeader = returnHeader
+		}
+		stackPCs, ok := decoder.stackPCs[stackHeader.Stack_hash]
+		if !ok {
 			s.Debugger.EvaluationErrors = append(s.Debugger.EvaluationErrors,
 				evaluationError{
 					Expression: "Stacktrace",
-					Message:    err.Error(),
-				},
-			)
-		} else {
-			decoder.stackFrames[stackHeader.Stack_hash] = stackFrames
+					Message:    "no stack pcs found",
+				})
 		}
+		var stackFrames []symbol.StackFrame
+		if len(stackPCs) > 0 {
+			stackFrames, err = symbolicator.Symbolicate(stackPCs, stackHeader.Stack_hash)
+			if err != nil {
+				if symbolicateErrorLogLimiter.Allow() {
+					log.Errorf("error symbolicating stack for probe %s: %v", probe.GetID(), err)
+				} else {
+					log.Tracef("error symbolicating stack for probe %s: %v", probe.GetID(), err)
+				}
+				s.Debugger.EvaluationErrors = append(s.Debugger.EvaluationErrors,
+					evaluationError{
+						Expression: "Stacktrace",
+						Message:    err.Error(),
+					},
+				)
+			}
+		}
+
+		s.Debugger.Snapshot.stack.frames = stackFrames
+		s.Debugger.Snapshot.Stack = &s.Debugger.Snapshot.stack
+		s.Debugger.Snapshot.Captures = &s.Debugger.Snapshot.captures
 	}
+
 	switch where := probe.GetWhere().(type) {
 	case ir.FunctionWhere:
 		s.Debugger.Snapshot.Probe.Location.Method = where.Location()
@@ -328,25 +456,20 @@ func (s *snapshotMessage) init(
 	s.Logger.Version = probe.GetVersion()
 	s.Logger.ThreadID = int(header.Goid)
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
-	s.Debugger.Snapshot.Stack.frames = stackFrames
-	return probe, nil
-}
 
-func symbolicate(
-	event output.Event,
-	stackHash uint64,
-	symbolicator symbol.Symbolicator,
-) ([]symbol.StackFrame, error) {
-	pcs, err := event.StackPCs()
-	if err != nil {
-		return nil, fmt.Errorf("error getting stack pcs: %w", err)
+	if probe.Template != nil {
+		decoder.messageData = messageData{
+			entryOrLine: &decoder.entryOrLine,
+			_return:     &decoder._return,
+			template:    probe.Template,
+		}
+		s.Message = &decoder.messageData
+		if s.Duration != 0 {
+			s.Message.duration = &s.Duration
+		} else if durationMissingReason != nil {
+			s.Message.durationMissingReason = durationMissingReason
+		}
 	}
-	if len(pcs) == 0 {
-		return nil, errors.New("no stack pcs found")
-	}
-	stackFrames, err := symbolicator.Symbolicate(pcs, stackHash)
-	if err != nil {
-		return nil, fmt.Errorf("error symbolicating stack: %w", err)
-	}
-	return stackFrames, nil
+
+	return probe, nil
 }

@@ -44,18 +44,18 @@ type Resolver struct {
 }
 
 type containerFS struct {
-	cgroup *cgroupModel.CacheEntry
+	cgroupCacheEntry *cgroupModel.CacheEntry
 }
 
 // Open implements the fs.FS interface for containers
 func (fs *containerFS) Open(filename string) (fs.File, error) {
-	for _, rootCandidatePID := range fs.cgroup.GetPIDs() {
+	for _, rootCandidatePID := range fs.cgroupCacheEntry.GetPIDs() {
 		file, err := os.Open(filepath.Join(utils.ProcRootPath(rootCandidatePID), filename))
 		if err != nil {
 			if os.IsNotExist(err) {
-				seclog.Tracef("failed to read %s for pid %d of container %s: %s", filename, rootCandidatePID, fs.cgroup.ContainerID, err)
+				seclog.Tracef("failed to read %s for pid %d of container %s: %s", filename, rootCandidatePID, fs.cgroupCacheEntry.GetContainerContext().ContainerID, err)
 			} else {
-				seclog.Debugf("failed to read %s for pid %d of container %s: %s", filename, rootCandidatePID, fs.cgroup.ContainerID, err)
+				seclog.Debugf("failed to read %s for pid %d of container %s: %s", filename, rootCandidatePID, fs.cgroupCacheEntry.GetContainerContext().ContainerID, err)
 			}
 			continue
 		}
@@ -63,7 +63,7 @@ func (fs *containerFS) Open(filename string) (fs.File, error) {
 		return file, nil
 	}
 
-	return nil, fmt.Errorf("failed to resolve root filesystem for %s", fs.cgroup.ContainerID)
+	return nil, fmt.Errorf("failed to resolve root filesystem for %s", fs.cgroupCacheEntry.GetContainerContext().ContainerID)
 }
 
 type hostFS struct{}
@@ -80,11 +80,11 @@ func (r *Resolver) getFilesystem(containerID containerutils.ContainerID) (fs.FS,
 	var fsys fs.FS
 
 	if containerID != "" {
-		cgroupEntry, found := r.cgroupResolver.GetWorkload(containerID)
-		if !found {
+		cacheEntry := r.cgroupResolver.GetCacheEntryContainerID(containerID)
+		if cacheEntry == nil {
 			return nil, fmt.Errorf("failed to resolve container %s", containerID)
 		}
-		fsys = &containerFS{cgroup: cgroupEntry}
+		fsys = &containerFS{cgroupCacheEntry: cacheEntry}
 	} else {
 		fsys = &hostFS{}
 	}
@@ -211,9 +211,9 @@ func (r *Resolver) ResolveGroup(gid int, containerID containerutils.ContainerID)
 }
 
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
-func (r *Resolver) OnCGroupDeletedEvent(sbom *cgroupModel.CacheEntry) {
-	r.nsGroupCache.Remove(sbom.ContainerID)
-	r.nsUserCache.Remove(sbom.ContainerID)
+func (r *Resolver) OnCGroupDeletedEvent(cacheEntry *cgroupModel.CacheEntry) {
+	r.nsGroupCache.Remove(cacheEntry.GetContainerContext().ContainerID)
+	r.nsUserCache.Remove(cacheEntry.GetContainerContext().ContainerID)
 }
 
 // NewResolver instantiates a new user and group resolver

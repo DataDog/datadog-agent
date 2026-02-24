@@ -29,8 +29,8 @@ const (
 	// A program is currently in the process of being detached.
 	processStateDetaching
 
-	// The program for this process failed to load.
-	processStateLoadingFailed
+	// The program for this process has failed.
+	processStateFailed
 )
 
 //go:generate go run golang.org/x/tools/cmd/stringer -type=programState -trimprefix=programState

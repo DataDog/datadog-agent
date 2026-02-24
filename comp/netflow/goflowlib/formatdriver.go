@@ -7,7 +7,8 @@ package goflowlib
 
 import (
 	"context"
-	"fmt"
+	"errors"
+
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
@@ -50,7 +51,7 @@ func (d *AggregatorFormatDriver) Format(data interface{}) ([]byte, []byte, error
 		d.listenerFlowCount.Add(1)
 		d.flowAggIn <- ConvertFlowWithAdditionalFields(flow, d.namespace)
 	default:
-		return nil, nil, fmt.Errorf("message is not flowpb.FlowMessage or common.FlowMessageWithAdditionalFields")
+		return nil, nil, errors.New("message is not flowpb.FlowMessage or common.FlowMessageWithAdditionalFields")
 	}
 
 	return nil, nil, nil

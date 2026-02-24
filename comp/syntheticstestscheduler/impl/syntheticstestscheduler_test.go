@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"math/big"
 	"net"
@@ -19,8 +20,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/common"
@@ -31,9 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/golang/mock/gomock"
-	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/assert"
 )
 
 func Test_SyntheticsTestScheduler_StartAndStop(t *testing.T) {
@@ -497,12 +498,20 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 	}
 }
 
+type tracerouteRunner struct {
+	fn func(context.Context, config.Config) (payload.NetworkPath, error)
+}
+
+func (t *tracerouteRunner) Run(ctx context.Context, cfg config.Config) (payload.NetworkPath, error) {
+	return t.fn(ctx, cfg)
+}
+
 func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 	type testCase struct {
 		name                  string
 		updateJSON            map[string]string
 		expectedEventJSON     string
-		expectedRunTraceroute func(context.Context, config.Config, telemetry.Component) (payload.NetworkPath, error)
+		expectedRunTraceroute func(context.Context, config.Config) (payload.NetworkPath, error)
 	}
 
 	testCases := []testCase{
@@ -513,10 +522,10 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 					"config":{"assertions":[],"request":{"host":"example.com","port":443,"tcp_method":"SYN","probe_count":3,"traceroute_count":1,"max_ttl":30,"timeout":5,"source_service":"frontend","destination_service":"backend"}},
 					"org_id":12345,"main_dc":"us1.staging.dog","public_id":"puf-9fm-c89","run_type":"scheduled"
 				}`},
-			expectedEventJSON: `{"location":{"id":"agent:test-hostname"},"_dd":{},"result":{"id":"4907739274636687553","initialId":"4907739274636687553","testFinishedAt":1756901488592,"testStartedAt":1756901488591,"testTriggeredAt":1756901488590,"assertions":[],"failure":null,"duration":1,"config":{"assertions":[],"request":{"destinationService":"backend","port":443,"maxTtl":30,"host":"example.com","tracerouteQueries":1,"e2eQueries":3,"sourceService":"frontend","timeout":5,"tcpMethod":"SYN"}},"netstats":{"packetsSent":0,"packetsReceived":0,"packetLossPercentage":0,"jitter":0,"latency":{"avg":0,"min":0,"max":0},"hops":{"avg":0,"min":0,"max":0}},"netpath":{"timestamp":1756901488592,"agent_version":"","namespace":"","test_config_id":"puf-9fm-c89","test_result_id":"4907739274636687553","pathtrace_id":"pathtrace-id-111-example.com","origin":"synthetics","protocol":"TCP","source":{"name":"test-hostname","display_name":"test-hostname","hostname":"test-hostname"},"destination":{"hostname":"example.com","port":443},"traceroute":{"runs":[{"run_id":"1","source":{"ip_address":"","port":0},"destination":{"ip_address":"","port":0},"hops":[{"ttl":0,"ip_address":"1.1.1.1","reachable":false},{"ttl":0,"ip_address":"1.1.1.2","reachable":false}]}],"hop_count":{"avg":0,"min":0,"max":0}},"e2e_probe":{"rtts":null,"packets_sent":0,"packets_received":0,"packet_loss_percentage":0,"jitter":0,"rtt":{"avg":0,"min":0,"max":0}}},"status":"passed","runType":"scheduled"},"test":{"id":"puf-9fm-c89","subType":"tcp","type":"network","version":1},"v":1}`,
-			expectedRunTraceroute: func(_ context.Context, cfg config.Config, _ telemetry.Component) (payload.NetworkPath, error) {
+			expectedEventJSON: `{"location":{"id":"agent:test-hostname"},"_dd":{},"result":{"id":"4907739274636687553","initialId":"4907739274636687553","testFinishedAt":1756901488592,"testStartedAt":1756901488591,"testTriggeredAt":1756901488590,"assertions":[],"failure":null,"duration":1,"config":{"assertions":[],"request":{"destinationService":"backend","port":443,"maxTtl":30,"host":"example.com","tracerouteQueries":1,"e2eQueries":3,"sourceService":"frontend","timeout":5,"tcpMethod":"SYN"}},"netstats":{"packetsSent":0,"packetsReceived":0,"packetLossPercentage":0,"jitter":null,"latency":null,"hops":{"avg":0,"min":0,"max":0}},"netpath":{"timestamp":1756901488592,"agent_version":"","namespace":"","test_config_id":"puf-9fm-c89","test_result_id":"4907739274636687553","test_run_id":"test-run-id-111-example.com","origin":"synthetics","test_run_type":"scheduled","source_product":"synthetics","collector_type":"agent","protocol":"TCP","source":{"name":"test-hostname","display_name":"test-hostname","hostname":"test-hostname"},"destination":{"hostname":"example.com","port":443},"traceroute":{"runs":[{"run_id":"1","source":{"ip_address":"","port":0},"destination":{"ip_address":"","port":0},"hops":[{"ttl":0,"ip_address":"1.1.1.1","reachable":false},{"ttl":0,"ip_address":"1.1.1.2","reachable":false}]}],"hop_count":{"avg":0,"min":0,"max":0}},"e2e_probe":{"rtts":null,"packets_sent":0,"packets_received":0,"packet_loss_percentage":0,"jitter":0,"rtt":{"avg":0,"min":0,"max":0}}},"status":"passed","runType":"scheduled"},"test":{"id":"puf-9fm-c89","subType":"tcp","type":"network","version":1},"v":1}`,
+			expectedRunTraceroute: func(_ context.Context, cfg config.Config) (payload.NetworkPath, error) {
 				return payload.NetworkPath{
-					PathtraceID: "pathtrace-id-111-" + cfg.DestHostname,
+					TestRunID:   "test-run-id-111-" + cfg.DestHostname,
 					Protocol:    cfg.Protocol,
 					Destination: payload.NetworkPathDestination{Hostname: cfg.DestHostname, Port: cfg.DestPort},
 					Traceroute: payload.Traceroute{
@@ -563,7 +572,7 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 			mockEpForwarder := eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
 
 			ctx := context.TODO()
-			scheduler := newSyntheticsTestScheduler(configs, mockEpForwarder, l, &mockHostname{}, timeNowFn, &teststatsd.Client{}, nil)
+			scheduler := newSyntheticsTestScheduler(configs, mockEpForwarder, l, &mockHostname{}, timeNowFn, &teststatsd.Client{}, &tracerouteRunner{tc.expectedRunTraceroute})
 			assert.False(t, scheduler.running)
 
 			configs := map[string]state.RawConfig{}
@@ -581,7 +590,6 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 			scheduler.tickerC = tickCh
 			tickCh <- scheduler.timeNowFn()
 
-			scheduler.runTraceroute = tc.expectedRunTraceroute
 			scheduler.generateTestResultID = func(func(rand io.Reader, max *big.Int) (n *big.Int, err error)) (string, error) {
 				return "4907739274636687553", nil
 			}
@@ -640,15 +648,14 @@ func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *te
 		workers:                      4,
 		hostNameService:              &mockHostname{},
 		statsdClient:                 &teststatsd.Client{},
-	}
-
-	scheduler.runTraceroute = func(context.Context, config.Config, telemetry.Component) (payload.NetworkPath, error) {
-		return payload.NetworkPath{
-			PathtraceID: "path-123",
-			Protocol:    payload.ProtocolTCP,
-			Source:      payload.NetworkPathSource{Hostname: "src"},
-			Destination: payload.NetworkPathDestination{Hostname: "dst", Port: 443},
-		}, nil
+		traceroute: &tracerouteRunner{fn: func(context.Context, config.Config) (payload.NetworkPath, error) {
+			return payload.NetworkPath{
+				TestRunID:   "path-123",
+				Protocol:    payload.ProtocolTCP,
+				Source:      payload.NetworkPathSource{Hostname: "src"},
+				Destination: payload.NetworkPathDestination{Hostname: "dst", Port: 443},
+			}, nil
+		}},
 	}
 
 	gotCh := make(chan *workerResult, 1)
@@ -694,8 +701,8 @@ func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *te
 	if got.testCfg.cfg.PublicID != "abc123" {
 		t.Errorf("unexpected PublicID: %s", got.testCfg.cfg.PublicID)
 	}
-	if got.tracerouteResult.PathtraceID != "path-123" {
-		t.Errorf("unexpected PathtraceID: %s", got.tracerouteResult.PathtraceID)
+	if got.tracerouteResult.TestRunID != "path-123" {
+		t.Errorf("unexpected TestRunID: %s", got.tracerouteResult.TestRunID)
 	}
 }
 func TestFlushEnqueuesDueTests(t *testing.T) {
@@ -721,20 +728,21 @@ func TestFlushEnqueuesDueTests(t *testing.T) {
 				},
 			},
 		},
-		log: l,
+		flushInterval: 10 * time.Second,
+		log:           l,
 	}
 
 	// Flush at 'now'
-	scheduler.flush(now)
+	scheduler.flush(context.Background(), now)
 
 	select {
 	case ctx := <-scheduler.syntheticsTestProcessingChan:
-		time.Sleep(1000 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 		if ctx.cfg.PublicID != "test1" {
 			t.Errorf("expected test1, got %s", ctx.cfg.PublicID)
 		}
 	case <-time.After(1 * time.Second):
-		t.Errorf("expected test1 to be enqueuedffff")
+		t.Errorf("expected test1 to be enqueued")
 	}
 
 	rt := scheduler.state.tests["test1"]
@@ -744,4 +752,71 @@ func TestFlushEnqueuesDueTests(t *testing.T) {
 	assert.Equal(t, expectedNextRun, rt.nextRun)
 }
 
+func TestFlushEnqueueExhaustion(t *testing.T) {
+	now := time.Now()
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, utillog.DebugLvl)
+	assert.Nil(t, err)
+	tl := &testLogger{
+		LoggerInterface: l,
+	}
+	utillog.SetupLogger(tl, "debug")
+
+	scheduler := &syntheticsTestScheduler{
+		timeNowFn:                    func() time.Time { return now },
+		syntheticsTestProcessingChan: make(chan SyntheticsTestCtx, 1),
+		running:                      true,
+		state: runningState{
+			tests: map[string]*runningTestState{
+				"test1": {
+					cfg: common.SyntheticsTestConfig{
+						PublicID: "test1",
+						Interval: 10, // seconds
+					},
+					nextRun: now.Add(-10 * time.Second),
+				},
+				"test2": {
+					cfg: common.SyntheticsTestConfig{
+						PublicID: "test1",
+						Interval: 10, // seconds
+					},
+					nextRun: now.Add(-10 * time.Second),
+				},
+			},
+		},
+		flushInterval: 100 * time.Millisecond,
+		log:           tl,
+	}
+
+	// Flush at 'now'
+	scheduler.flush(context.Background(), now)
+
+	select {
+	case ctx := <-scheduler.syntheticsTestProcessingChan:
+		time.Sleep(200 * time.Millisecond)
+		if ctx.cfg.PublicID != "test1" {
+			t.Errorf("expected test1, got %s", ctx.cfg.PublicID)
+		}
+	case <-time.After(300 * time.Millisecond):
+		t.Errorf("expected test2 not to be enqueued")
+	}
+
+	assert.Equal(t, []string{"test queue high usage (≥70%), increase the number of workers", "enqueuing test test1 timed out, increase the number of workers"}, tl.errorCalls)
+	rt := scheduler.state.tests["test1"]
+
+	// The nextRun should be updated based on the old nextRun, not flushTime
+	expectedNextRun := now // old nextRun (-10s) + interval (10s) = now
+	assert.Equal(t, expectedNextRun, rt.nextRun)
+}
+
+type testLogger struct {
+	utillog.LoggerInterface
+	errorCalls []string
+}
+
+func (l *testLogger) Warnf(format string, params ...interface{}) error {
+	l.errorCalls = append(l.errorCalls, fmt.Sprintf(format, params...))
+	return nil
+}
 func ptr[T any](v T) *T { return &v }

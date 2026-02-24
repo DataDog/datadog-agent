@@ -8,6 +8,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 )
 
+func TestCgoAlignment_SSLCtxPidTGID(t *testing.T) {
+	ebpftest.TestCgoAlignment[SSLCtxPidTGID](t)
+}
+
 func TestCgoAlignment_SslSock(t *testing.T) {
 	ebpftest.TestCgoAlignment[SslSock](t)
 }

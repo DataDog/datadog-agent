@@ -7,8 +7,9 @@ package common
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 // FileSystemSnapshot represents a snapshot of the system files that can be used to compare against later
@@ -73,10 +74,11 @@ func NewFileSystemSnapshot(host *components.RemoteHost, pathsToIgnore []string) 
 	}
 
 	// quote each path and join with commas
-	pattern := ""
+	var patternBuilder strings.Builder
 	for _, ignorePath := range pathsToIgnore {
-		pattern += fmt.Sprintf(`'%s',`, ignorePath)
+		fmt.Fprintf(&patternBuilder, `'%s',`, ignorePath)
 	}
+	pattern := patternBuilder.String()
 
 	// PowerShell list syntax
 	pattern = fmt.Sprintf(`@(%s)`, strings.Trim(pattern, ","))

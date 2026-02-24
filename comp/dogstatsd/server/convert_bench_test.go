@@ -7,6 +7,7 @@ package server
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"go.uber.org/fx"
@@ -25,15 +26,17 @@ import (
 )
 
 func buildRawSample(tagCount int, multipleValues bool) []byte {
-	tags := "tag0:val0"
+	var builder strings.Builder
+	builder.WriteString("tag0:val0")
 	for i := 1; i < tagCount; i++ {
-		tags += fmt.Sprintf(",tag%d:val%d", i, i)
+		fmt.Fprintf(&builder, ",tag%d:val%d", i, i)
 	}
+	tags := builder.String()
 
 	if multipleValues {
-		return []byte(fmt.Sprintf("daemon:666:777|h|@0.5|#%s", tags))
+		return []byte("daemon:666:777|h|@0.5|#" + tags)
 	}
-	return []byte(fmt.Sprintf("daemon:666|h|@0.5|#%s", tags))
+	return []byte("daemon:666|h|@0.5|#" + tags)
 }
 
 // used to store the result and avoid optimizations

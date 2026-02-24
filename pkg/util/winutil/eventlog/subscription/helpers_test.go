@@ -8,10 +8,12 @@
 package evtsubscribe
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+	evtbookmark "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
 	eventlog_test "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
 
 	"github.com/stretchr/testify/assert"
@@ -32,11 +34,11 @@ func ReadNumEvents(t testing.TB, _ eventlog_test.APITester, sub PullSubscription
 		}
 		if count == numEvents {
 			if !assert.Nil(t, events, "events should be nil when count is reached") {
-				return nil, fmt.Errorf("events should be nil when count is reached")
+				return nil, errors.New("events should be nil when count is reached")
 			}
 		} else {
 			if !assert.NotNil(t, events, "events should not be nil if count is not reached %v/%v", count, numEvents) {
-				return nil, fmt.Errorf("events should not be nil")
+				return nil, errors.New("events should not be nil")
 			}
 		}
 		if events != nil {
@@ -50,9 +52,23 @@ func ReadNumEvents(t testing.TB, _ eventlog_test.APITester, sub PullSubscription
 
 	for _, eventRecord := range eventRecords {
 		if !assert.NotEqual(t, evtapi.EventRecordHandle(0), eventRecord.EventRecordHandle, "EventRecordHandle should not be NULL") {
-			return nil, fmt.Errorf("EventRecordHandle should not be NULL")
+			return nil, errors.New("EventRecordHandle should not be NULL")
 		}
 	}
 
 	return eventRecords, nil
+}
+
+// bookmarkXMLFromEvent creates a bookmark XML from an event record
+func bookmarkXMLFromEvent(api evtapi.API, event *evtapi.EventRecord) (string, error) {
+	bookmark, err := evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(api))
+	if err != nil {
+		return "", err
+	}
+	defer bookmark.Close()
+	err = bookmark.Update(event.EventRecordHandle)
+	if err != nil {
+		return "", err
+	}
+	return bookmark.Render()
 }

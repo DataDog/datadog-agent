@@ -10,9 +10,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
-	"runtime"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -24,10 +25,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
+)
+
+const (
+	// AnnotationHumanReadableErrors is the annotation key for commands that should
+	// display errors in human-readable format instead of JSON.
+	//
+	// For example, `setup` is run by humans and its output should be human readable.
+	AnnotationHumanReadableErrors = "human-readable-errors"
 )
 
 type cmd struct {
@@ -121,10 +131,7 @@ type telemetryConfigFields struct {
 
 // telemetryConfig is a best effort to get the API key / site from `datadog.yaml`.
 func telemetryConfig() telemetryConfigFields {
-	configPath := "/etc/datadog-agent/datadog.yaml"
-	if runtime.GOOS == "windows" {
-		configPath = "C:\\ProgramData\\Datadog\\datadog.yaml"
-	}
+	configPath := filepath.Join(paths.AgentConfigDir, "datadog.yaml")
 	rawConfig, err := os.ReadFile(configPath)
 	if err != nil {
 		return telemetryConfigFields{}
@@ -144,9 +151,15 @@ func newTelemetry(env *env.Env) *telemetry.Telemetry {
 		apiKey = config.APIKey
 	}
 	site := env.Site
-	if _, set := os.LookupEnv("DD_SITE"); !set && config.Site != "" {
+	_, ddSiteSet := os.LookupEnv("DD_SITE")
+	if !ddSiteSet && config.Site != "" {
 		site = config.Site
 	}
+
+	// Update env fields with corrected values so subprocesses inherit the right config
+	env.APIKey = apiKey
+	env.Site = site
+
 	t := telemetry.NewTelemetry(env.HTTPClient(), apiKey, site, "datadog-installer") // No sampling rules for commands
 	return t
 }
@@ -169,6 +182,7 @@ func RootCommands() []*cobra.Command {
 		purgeCommand(),
 		isInstalledCommand(),
 		apmCommands(),
+		extensionsCommands(),
 		getStateCommand(),
 		statusCommand(),
 		postinstCommand(),
@@ -217,6 +231,9 @@ func setupCommand() *cobra.Command {
 		Use:     "setup",
 		Hidden:  true,
 		GroupID: "installer",
+		Annotations: map[string]string{
+			AnnotationHumanReadableErrors: "true",
+		},
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
 			cmd := newCmd("setup")
 			defer func() { cmd.stop(err) }()
@@ -384,14 +401,29 @@ func installConfigExperimentCommand() *cobra.Command {
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
 
+			// Parse operations from command-line argument
 			var operations config.Operations
 			err = json.Unmarshal([]byte(args[1]), &operations)
 			if err != nil {
-				return err
+				return fmt.Errorf("could not decode operations: %w", err)
 			}
+
+			// Read decrypted secrets from stdin
+			// For backwards compatibility, accept empty stdin (no secrets)
+			var decryptedSecrets map[string]string
+			decoder := json.NewDecoder(os.Stdin)
+			err = decoder.Decode(&decryptedSecrets)
+			if err != nil && err != io.EOF {
+				return fmt.Errorf("could not decode secrets from stdin: %w", err)
+			}
+			// If stdin is empty or EOF, use empty map
+			if decryptedSecrets == nil {
+				decryptedSecrets = make(map[string]string)
+			}
+
 			i.span.SetTag("params.deployment_id", operations.DeploymentID)
 			i.span.SetTag("params.operations", operations.FileOperations)
-			return i.InstallConfigExperiment(i.ctx, args[0], operations)
+			return i.InstallConfigExperiment(i.ctx, args[0], operations, decryptedSecrets)
 		},
 	}
 	return cmd
@@ -491,18 +523,7 @@ func getState() (*repository.PackageStates, error) {
 		return nil, err
 	}
 	defer i.stop(err)
-	states, err := i.States(i.ctx)
-	if err != nil {
-		return nil, err
-	}
-	configStates, err := i.ConfigStates(i.ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &repository.PackageStates{
-		States:       states,
-		ConfigStates: configStates,
-	}, nil
+	return i.ConfigAndPackageStates(i.ctx)
 }
 
 func getStateCommand() *cobra.Command {
@@ -550,5 +571,94 @@ func packageCommand() *cobra.Command {
 		},
 	}
 
+	return cmd
+}
+
+// extensionsCommands are the extensions installer commands
+func extensionsCommands() *cobra.Command {
+	ctlCmd := &cobra.Command{
+		Use:     "extension [command]",
+		Short:   "Interact with the extensions of a package",
+		GroupID: "extension",
+	}
+	ctlCmd.AddCommand(extensionInstallCommand(), extensionRemoveCommand(), extensionSaveCommand(), extensionRestoreCommand())
+	return ctlCmd
+}
+
+func extensionInstallCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "install [url] [extensions...]",
+		Short: "Install one or more extensions for a package",
+		Args:  cobra.MinimumNArgs(2),
+		RunE: func(_ *cobra.Command, args []string) (err error) {
+			i, err := newInstallerCmd("extension_install")
+			if err != nil {
+				return err
+			}
+			defer func() { i.stop(err) }()
+			i.span.SetTag("params.url", args[0])
+			i.span.SetTag("params.extensions", strings.Join(args[1:], ","))
+			return i.InstallExtensions(i.ctx, args[0], args[1:])
+		},
+	}
+	return cmd
+}
+
+func extensionRemoveCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "remove [package] [extensions...]",
+		Short: "Remove one or more extensions for a package",
+		Args:  cobra.MinimumNArgs(2),
+		RunE: func(_ *cobra.Command, args []string) (err error) {
+			i, err := newInstallerCmd("extension_remove")
+			if err != nil {
+				return err
+			}
+			defer func() { i.stop(err) }()
+			i.span.SetTag("params.package", args[0])
+			i.span.SetTag("params.extensions", strings.Join(args[1:], ","))
+			return i.RemoveExtensions(i.ctx, args[0], args[1:])
+		},
+	}
+	return cmd
+}
+
+func extensionSaveCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:    "save [package] [path]",
+		Short:  "Save the extensions for a package",
+		Args:   cobra.ExactArgs(2),
+		Hidden: true,
+		RunE: func(_ *cobra.Command, args []string) (err error) {
+			i, err := newInstallerCmd("extension_save")
+			if err != nil {
+				return err
+			}
+			defer func() { i.stop(err) }()
+			i.span.SetTag("params.package", args[0])
+			i.span.SetTag("params.path", args[1])
+			return i.SaveExtensions(i.ctx, args[0], args[1])
+		},
+	}
+	return cmd
+}
+
+func extensionRestoreCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:    "restore [package] [path]",
+		Short:  "Restore the extensions for a package",
+		Args:   cobra.ExactArgs(2),
+		Hidden: true,
+		RunE: func(_ *cobra.Command, args []string) (err error) {
+			i, err := newInstallerCmd("extension_restore")
+			if err != nil {
+				return err
+			}
+			defer func() { i.stop(err) }()
+			i.span.SetTag("params.package", args[0])
+			i.span.SetTag("params.path", args[1])
+			return i.RestoreExtensions(i.ctx, args[0], args[1])
+		},
+	}
 	return cmd
 }

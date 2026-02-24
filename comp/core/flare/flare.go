@@ -7,6 +7,7 @@ package flare
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -99,11 +100,11 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 	}
 	caseID, found := task.Config.TaskArgs["case_id"]
 	if !found {
-		return true, fmt.Errorf("Case ID was not provided in the flare agent task")
+		return true, errors.New("Case ID was not provided in the flare agent task")
 	}
 	userHandle, found := task.Config.TaskArgs["user_handle"]
 	if !found {
-		return true, fmt.Errorf("User handle was not provided in the flare agent task")
+		return true, errors.New("User handle was not provided in the flare agent task")
 	}
 
 	flareArgs := types.FlareArgs{}

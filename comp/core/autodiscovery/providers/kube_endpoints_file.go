@@ -12,10 +12,12 @@ import (
 	"fmt"
 	"sync"
 
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -203,9 +205,41 @@ func (p *KubeEndpointsFileConfigProvider) buildConfigStore(templates []integrati
 
 		// Configuration defined using only CEL selectors
 		if len(tpl.AdvancedADIdentifiers) == 0 && len(tpl.CELSelector.KubeEndpoints) > 0 {
+			// Create matching program from CEL rules
+			matchingProg, celADID, compileErr, recError := integration.CreateMatchingProgram(tpl.CELSelector)
+			if celADID != adtypes.CelEndpointIdentifier {
+				log.Errorf("CEL selector for template %s is not targeting endpoints", tpl.Name)
+				continue
+			}
+			if compileErr != nil {
+				log.Errorf("Failed to compile CEL selector for template %s: %v", tpl.Name, compileErr)
+				continue
+			}
+			if recError != nil {
+				log.Errorf("Failed to check rule recommendations for CEL selector for template %s: %v", tpl.Name, recError)
+				continue
+			}
+			tpl.SetMatchingProgram(matchingProg)
+
 			p.store.insertTemplate(celEndpointID, tpl, kubeEndpointResolveAuto)
 		}
 	}
+}
+
+// matchesAnyCELTemplate checks if an endpoint matches any CEL template.
+func (s *store) matchesAnyCELTemplate(ep *v1.Endpoints) bool {
+	celEpConfig, celFound := s.epConfigs[celEndpointID]
+	if !celFound || len(celEpConfig.templates) == 0 {
+		return false
+	}
+
+	filterableEp := workloadfilter.CreateKubeEndpoint(ep.Name, ep.Namespace, ep.GetAnnotations())
+	for _, tpl := range celEpConfig.templates {
+		if tpl.IsMatched(filterableEp) {
+			return true
+		}
+	}
+	return false
 }
 
 // shouldHandle returns whether an endpoints object should be tracked.
@@ -213,9 +247,9 @@ func (s *store) shouldHandle(ep *v1.Endpoints) bool {
 	s.RLock()
 	defer s.RUnlock()
 
-	_, celFound := s.epConfigs[celEndpointID]
+	// Check for AdvancedADIdentifer OR CEL Selector based match
 	_, found := s.epConfigs[epID(ep.Namespace, ep.Name)]
-	return found || celFound
+	return found || s.matchesAnyCELTemplate(ep)
 }
 
 // insertTemplate caches config templates with a specific resolve mode.
@@ -239,19 +273,9 @@ func (s *store) insertEp(ep *v1.Endpoints) bool {
 	s.Lock()
 	defer s.Unlock()
 
-	// Configuration defined using only CEL selectors
-	celEpConfig, celFound := s.epConfigs[celEndpointID]
-	if celFound {
-		if celEpConfig.eps == nil {
-			celEpConfig.eps = make(map[*v1.Endpoints]struct{})
-		}
-		celEpConfig.eps[ep] = struct{}{}
-		celEpConfig.shouldCollect = true
-	}
-
-	// Configuration defined using Advanced AD identifiers
-	epConfig, found := s.epConfigs[epID(ep.Namespace, ep.Name)]
-	if found {
+	// Configuration defined using Advanced AD identifiers (exact namespace/name match)
+	epConfig, adFound := s.epConfigs[epID(ep.Namespace, ep.Name)]
+	if adFound {
 		if epConfig.eps == nil {
 			epConfig.eps = make(map[*v1.Endpoints]struct{})
 		}
@@ -259,7 +283,18 @@ func (s *store) insertEp(ep *v1.Endpoints) bool {
 		epConfig.shouldCollect = true
 	}
 
-	return celFound || found
+	// Endpoint matches any CEL template (CEL Selector based match)
+	celFound := s.matchesAnyCELTemplate(ep)
+	if celFound {
+		celEpConfig := s.epConfigs[celEndpointID]
+		if celEpConfig.eps == nil {
+			celEpConfig.eps = make(map[*v1.Endpoints]struct{})
+		}
+		celEpConfig.eps[ep] = struct{}{}
+		celEpConfig.shouldCollect = true
+	}
+
+	return adFound || celFound
 }
 
 // deleteEp handles endpoint objects deletion.

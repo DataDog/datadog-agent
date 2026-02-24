@@ -11,16 +11,13 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/gosnmp/gosnmp"
-	"github.com/mitchellh/mapstructure"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 )
 
 const mockedHostname = "VeryLongHostnameThatDoesNotFitIntoTheByteArray"
@@ -94,67 +91,53 @@ var usmUsers = []*gosnmp.UsmSecurityParameters{
 	},
 }
 
-// withConfig returns an fx Module providing the default datadog config
-// overridden with the given network device namespace and traps configuration.
-// In tests for other things, prefer to just inject the trapConfig rather than
-// building and parsing an entire fake DD config.
-func withConfig(t testing.TB, trapConfig *TrapsConfig, globalNamespace string) fx.Option {
-	t.Helper()
-	overrides := make(map[string]interface{})
+// buildDDConfig returns a datadog config with the given network device
+// namespace and traps configuration.
+func buildDDConfig(t testing.TB, trapConfig *TrapsConfig, globalNamespace string) config.Component {
+	ddcfg := configmock.New(t)
 	if globalNamespace != "" {
-		overrides["network_devices.namespace"] = globalNamespace
+		ddcfg.SetWithoutSource("network_devices.namespace", globalNamespace)
 	}
 	if trapConfig != nil {
 		rawTrapConfig := make(map[string]any)
 		err := mapstructure.Decode(trapConfig, &rawTrapConfig)
 		require.NoError(t, err)
-		overrides["network_devices.snmp_traps"] = rawTrapConfig
+		for k, v := range rawTrapConfig {
+			k = "network_devices.snmp_traps." + k
+			ddcfg.SetWithoutSource(k, v)
+		}
 	}
-	return fx.Options(
-		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
-	)
+	return ddcfg
 }
 
-func buildConfig(conf config.Component, hnService hostname.Component) (*TrapsConfig, error) {
+func buildTrapsConfig(t testing.TB, trapConfig *TrapsConfig, globalNamespace string) *TrapsConfig {
+	return buildTrapsConfigWithHostname(t, trapConfig, globalNamespace, mockedHostname)
+}
+
+func buildTrapsConfigWithHostname(t testing.TB, trapConfig *TrapsConfig, globalNamespace, hostname string) *TrapsConfig {
+	ddcfg := buildDDConfig(t, trapConfig, globalNamespace)
+	hnService, _ := hostnameinterface.NewMock(hostnameinterface.MockHostname(hostname))
 	name, err := hnService.Get(context.Background())
 	if err != nil {
-		return nil, err
+		t.Fatalf("%s", err)
 	}
-	c, err := ReadConfig(name, conf)
+	trapcfg, err := ReadConfig(name, ddcfg)
 	if err != nil {
-		return nil, err
+		t.Fatalf("%s", err)
 	}
-	return c, nil
-}
-
-// testOptions provides several fx options that multiple tests need
-func testOptions(t *testing.T) fx.Option {
-	return fx.Options(
-		fx.Provide(buildConfig),
-		hostnameimpl.MockModule(),
-		fx.Replace(hostnameimpl.MockHostname(mockedHostname)),
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-	)
+	return trapcfg
 }
 
 func TestFullConfig(t *testing.T) {
-	deps := fxutil.Test[struct {
-		fx.In
-		Config *TrapsConfig
-		Logger log.Component
-	}](t,
-		testOptions(t),
-		withConfig(t, &TrapsConfig{
-			Port:             1234,
-			Users:            usersV3,
-			BindHost:         "127.0.0.1",
-			CommunityStrings: []string{"public"},
-			StopTimeout:      12,
-			Namespace:        "foo",
-		}, ""),
-	)
-	config := deps.Config
-	logger := deps.Logger
+	config := buildTrapsConfig(t, &TrapsConfig{
+		Port:             1234,
+		Users:            usersV3,
+		BindHost:         "127.0.0.1",
+		CommunityStrings: []string{"public"},
+		StopTimeout:      12,
+		Namespace:        "foo",
+	}, "")
+
 	assert.Equal(t, uint16(1234), config.Port)
 	assert.Equal(t, 12, config.StopTimeout)
 	assert.Equal(t, []string{"public"}, config.CommunityStrings)
@@ -162,6 +145,7 @@ func TestFullConfig(t *testing.T) {
 	assert.Equal(t, "foo", config.Namespace)
 	assert.Equal(t, usersV3, config.Users)
 
+	logger := logmock.New(t)
 	params, err := config.BuildSNMPParams(logger)
 	assert.NoError(t, err)
 	assert.Equal(t, uint16(1234), params.Port)
@@ -202,16 +186,8 @@ func TestFullConfig(t *testing.T) {
 }
 
 func TestMinimalConfig(t *testing.T) {
-	deps := fxutil.Test[struct {
-		fx.In
-		Config *TrapsConfig
-		Logger log.Component
-	}](t,
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
-		testOptions(t),
-	)
-	config := deps.Config
-	logger := deps.Logger
+	config := buildTrapsConfig(t, nil, "")
+
 	assert.Equal(t, uint16(9162), config.Port)
 	assert.Equal(t, 5, config.StopTimeout)
 	assert.Empty(t, config.CommunityStrings)
@@ -219,6 +195,7 @@ func TestMinimalConfig(t *testing.T) {
 	assert.Empty(t, config.Users)
 	assert.Equal(t, "default", config.Namespace)
 
+	logger := logmock.New(t)
 	params, err := config.BuildSNMPParams(logger)
 	assert.NoError(t, err)
 	assert.Equal(t, uint16(9162), params.Port)
@@ -229,63 +206,45 @@ func TestMinimalConfig(t *testing.T) {
 }
 
 func TestDefaultUsers(t *testing.T) {
-	config := fxutil.Test[*TrapsConfig](t,
-		testOptions(t),
-		withConfig(t, &TrapsConfig{
-			CommunityStrings: []string{"public"},
-			StopTimeout:      11,
-		}, ""),
-	)
+	config := buildTrapsConfig(t, &TrapsConfig{
+		CommunityStrings: []string{"public"},
+		StopTimeout:      11,
+	}, "")
+
 	assert.Equal(t, 11, config.StopTimeout)
 }
 
 func TestBuildAuthoritativeEngineID(t *testing.T) {
 	for name, engineID := range expectedEngineIDs {
-		config := fxutil.Test[*TrapsConfig](t,
-			fx.Provide(func() config.Component { return config.NewMock(t) }),
-			fx.Provide(buildConfig),
-			hostnameimpl.MockModule(),
-			fx.Replace(hostnameimpl.MockHostname(name)),
-		)
+		config := buildTrapsConfigWithHostname(t, nil, "", name)
 		assert.Equal(t, engineID, config.authoritativeEngineID)
 	}
 }
 
 func TestNamespaceIsNormalized(t *testing.T) {
-	config := fxutil.Test[*TrapsConfig](t,
-		testOptions(t),
-		withConfig(t, &TrapsConfig{
-			Namespace: "><\n\r\tfoo",
-		}, ""),
-	)
+	config := buildTrapsConfig(t, &TrapsConfig{
+		Namespace: "><\n\r\tfoo",
+	}, "")
 	assert.Equal(t, "--foo", config.Namespace)
 }
 
 func TestInvalidNamespace(t *testing.T) {
-	ddConfig := fxutil.Test[config.Component](t,
-		withConfig(t, &TrapsConfig{
-			Namespace: strings.Repeat("x", 101),
-		}, ""))
+	ddConfig := buildDDConfig(t, &TrapsConfig{
+		Namespace: strings.Repeat("x", 101),
+	}, "")
 	_, err := ReadConfig("", ddConfig)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "too long")
 }
 
 func TestNamespaceSetGlobally(t *testing.T) {
-	config := fxutil.Test[*TrapsConfig](t,
-		testOptions(t),
-		withConfig(t, nil, "foo"),
-	)
+	config := buildTrapsConfig(t, nil, "foo")
 	assert.Equal(t, "foo", config.Namespace)
 }
 
 func TestNamespaceSetBothGloballyAndLocally(t *testing.T) {
-	config := fxutil.Test[*TrapsConfig](t,
-		testOptions(t),
-		withConfig(t,
-			&TrapsConfig{Namespace: "bar"},
-			"foo"),
-	)
-
+	config := buildTrapsConfig(t, &TrapsConfig{
+		Namespace: "bar",
+	}, "foo")
 	assert.Equal(t, "bar", config.Namespace)
 }

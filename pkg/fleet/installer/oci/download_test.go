@@ -18,11 +18,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/net/http2"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 	"github.com/google/go-containerregistry/pkg/authn"
 	oci "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/google"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 )
 
 type testDownloadServer struct {
@@ -102,6 +103,23 @@ func TestDownloadLayout(t *testing.T) {
 	err = downloadedPackage.ExtractLayers(DatadogPackageLayerMediaType, tmpDir)
 	assert.NoError(t, err)
 	fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), os.DirFS(tmpDir))
+}
+
+func TestDownloadConfigLayer(t *testing.T) {
+	s := newTestDownloadServer(t)
+	d := s.Downloader()
+
+	downloadedPackage, err := d.Download(context.Background(), s.PackageURL(fixtures.FixtureSimpleV1))
+	assert.NoError(t, err)
+	assert.Equal(t, fixtures.FixtureSimpleV1.Package, downloadedPackage.Name)
+	assert.Equal(t, fixtures.FixtureSimpleV1.Version, downloadedPackage.Version)
+	assert.NotZero(t, downloadedPackage.Size)
+	tmpDir := t.TempDir()
+	err = downloadedPackage.ExtractLayers(DatadogPackageExtensionLayerMediaType, tmpDir, LayerAnnotation{Key: "com.datadoghq.package.extension.name", Value: "simple-extension"})
+	assert.NoError(t, err)
+
+	extensionsFS := s.ExtensionsFS(fixtures.FixtureSimpleV1WithExtension)
+	fixtures.AssertEqualFS(t, extensionsFS["simple-v1-extension"], os.DirFS(tmpDir))
 }
 
 func TestDownloadInvalidHash(t *testing.T) {

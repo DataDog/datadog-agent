@@ -6,7 +6,6 @@
 package metrics
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -63,7 +62,7 @@ func TestIterableSeriesReceiverStopped(_ *testing.T) {
 
 func BenchmarkIterableSeries(b *testing.B) {
 	for bufferSize := 1000; bufferSize <= 8000; bufferSize *= 2 {
-		b.Run(fmt.Sprintf("%v", bufferSize), func(b *testing.B) {
+		b.Run(strconv.Itoa(bufferSize), func(b *testing.B) {
 			Serialize(
 				NewIterableSeries(func(*Serie) {}, 100, bufferSize),
 				NewIterableSketches(func(*SketchSeries) {}, 10, 2),

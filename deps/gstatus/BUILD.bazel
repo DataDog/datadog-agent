@@ -1,0 +1,57 @@
+# dd-compile-policy - make the prebuilt compiler part of the distribution.
+
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+
+package(
+    default_package_metadata = [":license"],
+    default_visibility = ["//packages:__subpackages__"],
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:GPL-3.0"],
+    license_text = "LICENSE",
+    visibility = ["//visibility:public"],
+)
+
+# Change #!* to #!/opt/datadog-agent/embedded/bin/python
+# This is not quite portable to different installation directories.
+# If that ever becomes a need, the solution is to make the install dir
+# a config_flag, then grab the flag value in the substitution.  See ABLD-302.
+genrule(
+    name = "fix_shebang",
+    srcs = ["@gstatus_binary//file"],
+    outs = ["gstatus"],
+    cmd = "sed -e '1s@.*@#!/opt/datadog-agent/embedded/bin/python@' $(location @gstatus_binary//file:file) >$@",
+)
+
+pkg_files(
+    name = "bin_files",
+    srcs = [":gstatus"],
+    attributes = pkg_attributes(
+        group = "root",
+        # Must be writable for signing script to work.
+        mode = "0755",
+        owner = "root",
+    ),
+    prefix = "embedded/sbin",
+)
+
+pkg_files(
+    name = "license_file",
+    srcs = [":LICENSE"],
+    prefix = "LICENSES",
+    renames = {
+        "LICENSE": "gstatus-GPL-3.0",
+    },
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":bin_files",
+        ":license_file",
+    ],
+)

@@ -6,7 +6,6 @@
 package writer
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -62,7 +61,7 @@ func TestTraceWriter(t *testing.T) {
 		{zstd.NewComponent()},
 	}
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("encoding:%s", tc.compressor.Encoding()), func(t *testing.T) {
+		t.Run("encoding:"+tc.compressor.Encoding(), func(t *testing.T) {
 			srv := newTestServer()
 			defer srv.Close()
 			cfg := &config.AgentConfig{
@@ -387,6 +386,65 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 	})
 }
 
+func TestTraceWriterAPMMode(t *testing.T) {
+	testCases := []struct {
+		name        string
+		configValue string
+		expected    string
+	}{
+		{
+			name:        "default-empty",
+			configValue: "",
+			expected:    "",
+		},
+		{
+			name:        "edge",
+			configValue: "edge",
+			expected:    "edge",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := newTestServer()
+			defer srv.Close()
+			cfg := &config.AgentConfig{
+				Hostname:   testHostname,
+				DefaultEnv: testEnv,
+				Endpoints: []*config.Endpoint{{
+					APIKey: "123",
+					Host:   srv.URL,
+				}},
+				TraceWriter:         &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
+				SynchronousFlushing: true,
+				APMMode:             tc.configValue,
+			}
+			tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+			defer tw.Stop()
+
+			// Send a span and force flush
+			tw.WriteChunks(randomSampledSpans(20, 8))
+			err := tw.FlushSync()
+			assert.Nil(t, err)
+
+			// Verify the AgentPayload has the correct APMMode
+			require.Len(t, srv.payloads, 1)
+			ap, err := deserializePayload(*srv.payloads[0], tw.compressor)
+			assert.Nil(t, err)
+			v, ok := ap.Tags[tagAPMMode]
+			// If APMMode is not set, the tag should not be present
+			if tc.expected == "" {
+				assert.False(t, ok)
+				assert.Empty(t, v)
+			} else {
+				// If APMMode is set, the tag should be present and equal to the expected value
+				assert.True(t, ok)
+				assert.Equal(t, tc.expected, v)
+			}
+		})
+	}
+}
+
 func TestTraceWriterUpdateAPIKey(t *testing.T) {
 	assert := assert.New(t)
 	srv := newTestServer()
@@ -408,15 +466,15 @@ func TestTraceWriterUpdateAPIKey(t *testing.T) {
 	assert.NoError(err)
 
 	assert.Len(tw.senders, 1)
-	assert.Equal("123", tw.senders[0].cfg.apiKey)
+	assert.Equal("123", tw.senders[0].apiKeyManager.Get())
 	assert.Equal(url, tw.senders[0].cfg.url)
 
 	tw.UpdateAPIKey("invalid", "foo")
-	assert.Equal("123", tw.senders[0].cfg.apiKey)
+	assert.Equal("123", tw.senders[0].apiKeyManager.Get())
 	assert.Equal(url, tw.senders[0].cfg.url)
 
 	tw.UpdateAPIKey("123", "foo")
-	assert.Equal("foo", tw.senders[0].cfg.apiKey)
+	assert.Equal("foo", tw.senders[0].apiKeyManager.Get())
 	assert.Equal(url, tw.senders[0].cfg.url)
 }
 
@@ -505,7 +563,7 @@ func BenchmarkMapDelete(b *testing.B) {
 	}
 	for n := 0; n < b.N; n++ {
 		m["_sampling_priority_v1"] = 1
-		//delete(m, "_sampling_priority_v1")
+		// delete(m, "_sampling_priority_v1")
 	}
 }
 
@@ -526,7 +584,7 @@ func BenchmarkSpanProto(b *testing.B) {
 		},
 	}
 	for n := 0; n < b.N; n++ {
-		//proto.Marshal(&s)
+		// proto.Marshal(&s)
 		s.MarshalVT()
 	}
 }

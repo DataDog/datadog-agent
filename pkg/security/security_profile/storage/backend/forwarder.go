@@ -15,16 +15,15 @@ import (
 	"net/http"
 	"net/textproto"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	ddhttputil "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // protobufFormat is `config.Protobuf.String()`, this is temporary duplication to not have
@@ -157,7 +156,7 @@ func (backend *ActivityDumpRemoteBackend) HandleActivityDump(imageName string, i
 // SendTelemetry sends telemetry for the current storage
 func (backend *ActivityDumpRemoteBackend) SendTelemetry(sender statsd.ClientInterface) {
 	// send too large entity metric
-	tags := []string{fmt.Sprintf("format:%s", protobufFormat), fmt.Sprintf("compression:%v", true)}
+	tags := []string{"format:" + protobufFormat, "compression:true"}
 	_ = sender.Count(metrics.MetricActivityDumpEntityTooLarge, int64(backend.tooLargeEntities.Load()), tags, 1.0)
 }
 
@@ -165,14 +164,6 @@ func (backend *ActivityDumpRemoteBackend) SendTelemetry(sender statsd.ClientInte
 func activityDumpRemoteStorageEndpoints(endpointPrefix string, intakeTrackType logsconfig.IntakeTrackType, intakeProtocol logsconfig.IntakeProtocol, intakeOrigin logsconfig.IntakeOrigin) (*logsconfig.Endpoints, error) {
 	logsConfig := logsconfig.NewLogsConfigKeys("runtime_security_config.activity_dump.remote_storage.endpoints.", pkgconfigsetup.Datadog())
 	endpoints, err := logsconfig.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
-	if err != nil {
-		endpoints, err = logsconfig.BuildHTTPEndpoints(pkgconfigsetup.Datadog(), intakeTrackType, intakeProtocol, intakeOrigin)
-		if err == nil {
-			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main, pkgconfigsetup.Datadog())
-			endpoints, err = logsconfig.BuildEndpoints(pkgconfigsetup.Datadog(), httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
-		}
-	}
-
 	if err != nil {
 		return nil, fmt.Errorf("invalid endpoints: %w", err)
 	}

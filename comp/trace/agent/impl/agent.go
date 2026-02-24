@@ -113,7 +113,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 	tracecfg := deps.Config.Object()
 	if !tracecfg.Enabled {
 		log.Info(messageAgentDisabled)
-		deps.TelemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, fmt.Errorf(""))
+		deps.TelemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, errors.New(""))
 		// Required to signal that the whole app must stop.
 		_ = deps.Shutdowner.Shutdown()
 		return c, nil
@@ -137,9 +137,17 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 
 	prepGoRuntime(tracecfg)
 
+	tracecfg.SecretsRefreshFn = func() (string, error) {
+		if deps.Secrets == nil {
+			log.Error("Secrets component not available, cannot trigger refresh")
+			return "", errors.New("secrets component not available")
+		}
+		return deps.Secrets.Refresh(true)
+	}
+
 	c.Agent = pkgagent.NewAgent(
 		ctx,
-		c.config.Object(),
+		tracecfg,
 		c.telemetryCollector,
 		statsdCl,
 		deps.Compressor,

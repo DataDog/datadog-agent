@@ -124,10 +124,10 @@ func (bfh *BaseFieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent
 // ResolveSource resolves the source of the event
 func (bfh *BaseFieldHandlers) ResolveSource(ev *model.Event, _ *model.BaseEvent) string {
 	if ev.Source == "" {
-		if ev.IsSnapshotEvent() {
-			ev.Source = "snapshot"
+		if ev.IsEventFromReplay() {
+			ev.Source = model.EventSourceReplay
 		} else {
-			ev.Source = "runtime"
+			ev.Source = model.EventSourceRuntime
 		}
 	}
 	return ev.Source
@@ -156,7 +156,7 @@ func (bfh *BaseFieldHandlers) ResolveService(ev *model.Event, e *model.BaseEvent
 func (bfh *BaseFieldHandlers) ResolveFileExtension(ev *model.Event, f *model.FileEvent) string {
 	if f.Extension == "" {
 		if baseName := ev.FieldHandlers.ResolveFileBasename(ev, f); baseName != "" {
-			f.Extension = filepath.Ext(baseName)
+			f.Extension = strings.TrimPrefix(filepath.Ext(baseName), ".")
 		}
 	}
 	return f.Extension

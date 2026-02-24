@@ -61,8 +61,8 @@ func securityProfileShowCommands(globalParams *command.GlobalParams) []*cobra.Co
 			return fxutil.OneShot(showSecurityProfile,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(""),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 				secretsnoopfx.Module(),
 			)
@@ -107,8 +107,8 @@ func listSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 			return fxutil.OneShot(listSecurityProfiles,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(""),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 				secretsnoopfx.Module(),
 			)
@@ -221,8 +221,8 @@ func saveSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 			return fxutil.OneShot(saveSecurityProfile,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(""),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 				secretsnoopfx.Module(),
 			)

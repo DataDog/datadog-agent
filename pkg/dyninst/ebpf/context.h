@@ -6,6 +6,7 @@
 #include "queue.h"
 #include "scratch.h"
 #include "chased_pointers_trie.h"
+#include "chased_slices.h"
 
 typedef uint32_t type_t;
 
@@ -50,6 +51,7 @@ typedef struct stack_machine {
 
   pointers_queue_t pointers_queue;
   chased_pointers_trie_t chased;
+  chased_slices_t chased_slices;
   // Remaining pointer chasing limit, given currently processed data item.
   // Maybe 0, in which case data might still be processed (i.e. interface type rewrite),
   // but no further pointers will be chased.
@@ -97,6 +99,7 @@ static stack_machine_t* stack_machine_ctx_load(const probe_params_t* probe_param
   stack_machine->pc_stack_pointer = 0;
   stack_machine->data_stack_pointer = 0;
   chased_pointers_trie_init(&stack_machine->chased);
+  chased_slices_init(&stack_machine->chased_slices);
   stack_machine->pointer_chasing_ttl = probe_params->pointer_chasing_limit;
   stack_machine->collection_size_limit = probe_params->collection_size_limit;
   stack_machine->string_size_limit = probe_params->string_size_limit;

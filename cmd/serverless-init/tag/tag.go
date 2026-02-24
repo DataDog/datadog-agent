@@ -22,6 +22,19 @@ const (
 	enableBackendTraceStatsEnvVar = "DD_SERVERLESS_INIT_ENABLE_BACKEND_TRACE_STATS"
 )
 
+// highCardinalityTags is a set of tag keys that should be excluded from metrics
+var highCardinalityTags = map[string]struct{}{
+	"container_id":        {},
+	"gcr.container_id":    {},
+	"gcrfx.container_id":  {},
+	"replica_name":        {},
+	"aca.replica.name":    {},
+	"gcrj.execution_name": {},
+	"gcrj.task_index":     {},
+	"gcrj.task_attempt":   {},
+	"gcrj.task_count":     {},
+}
+
 // TagPair contains a pair of tag key and value
 //
 //nolint:revive // TODO(SERV) Fix revive linter
@@ -38,7 +51,7 @@ func getTagFromEnv(envName string) (string, bool) {
 	return strings.ToLower(value), true
 }
 
-// GetBaseTagsMapWithMetadata returns a map of Datadog's base tags
+// GetBaseTagsMapWithMetadata returns a map of the three reserved Unified Service Tagging tags, to be used everywhere
 func GetBaseTagsMapWithMetadata(metadata map[string]string, versionMode string) map[string]string {
 	tagsMap := map[string]string{}
 	listTags := []TagPair{
@@ -64,25 +77,33 @@ func GetBaseTagsMapWithMetadata(metadata map[string]string, versionMode string) 
 	maps.Copy(tagsMap, metadata)
 
 	tagsMap[versionMode] = tags.GetExtensionVersion()
-	// Only set compute_stats tag if explicitly enabled. This is known to be
-	// incorrect since it does not include traces that get sampled out in the
-	// agent and don't get sent to the backend.
-	if enabled, _ := strconv.ParseBool(os.Getenv(enableBackendTraceStatsEnvVar)); enabled {
-		tagsMap[tags.ComputeStatsKey] = tags.ComputeStatsValue
-	}
-
 	return tagsMap
 }
 
-// WithoutHihCardinalityTags creates a new tag map without high cardinality tags we use on traces
-func WithoutHighCardinalityTags(tags map[string]string) map[string]string {
+// MakeTraceAgentTags handles tag customization for the trace agent.
+//
+// * Adds tags needed for accurate trace metric stats computation to a new tag map.
+// Some traces are sampled out in the agent and don't get sent to the backend.
+// If "_dd.compute_stats" is enabled, we make sure to count the unsampled traces when computing trace stat metrics.
+// If "_dd.compute_stats" is disabled, the result is known incorrect data.
+func MakeTraceAgentTags(tagsMap map[string]string) map[string]string {
+	if enabled, _ := strconv.ParseBool(os.Getenv(enableBackendTraceStatsEnvVar)); enabled {
+		// Use of clone instead of copy creates a new map to avoid polluting other agent components.
+		newTags := maps.Clone(tagsMap)
+		newTags[tags.ComputeStatsKey] = tags.ComputeStatsValue
+		return newTags
+	}
+	return tagsMap
+}
+
+// MakeMetricAgentTags handles tag customization for the metric agent.
+//
+// * Creates a new tag map without high cardinality tags we use on traces
+// We avoid these tags for metrics by default due to cost, as we store and bill by cardinality.
+func MakeMetricAgentTags(tags map[string]string) map[string]string {
 	newTags := make(map[string]string, len(tags))
 	for k, v := range tags {
-		if k != "container_id" &&
-			k != "gcr.container_id" &&
-			k != "gcrfx.container_id" &&
-			k != "replica_name" &&
-			k != "aca.replica.name" {
+		if _, isHighCardinality := highCardinalityTags[k]; !isHighCardinality {
 			newTags[k] = v
 		}
 	}

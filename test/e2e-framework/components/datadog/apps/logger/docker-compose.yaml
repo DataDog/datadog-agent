@@ -1,0 +1,13 @@
+---
+
+services:
+
+  logger-app:
+    image: ghcr.io/datadog/apps-logger:{APPS_VERSION}
+    container_name: logger-app
+    depends_on:
+      - agent
+
+  agent:
+    environment:
+      DD_LOGS_ENABLED: "true"

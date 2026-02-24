@@ -34,15 +34,23 @@ def run():
     server = HTTPServer(addr, Handler)
 
     dd_service = os.getenv("DD_SERVICE", "python")
-    mode = 0o666
-    if dd_service == "python-restricted-dd":
-        # Write-only log file to trigger permission errors from discovery
-        mode = 0o222
+    pid = os.getpid()
+    logpath = f'/tmp/{dd_service}-{pid}'
+    logfile = f'{logpath}/foo.log'
+    restricted = dd_service == "python-restricted-dd"
 
-    logfile = f'/tmp/{dd_service}-{os.getpid()}.log'
+    os.makedirs(logpath, exist_ok=True)
+
+    # Write-only log file to trigger permission errors from discovery
+    mode = 0o222 if restricted else 0o666
 
     fd = os.open(logfile, os.O_CREAT | os.O_WRONLY | os.O_APPEND, mode)
     file = os.fdopen(fd, "a")
+
+    if restricted:
+        # Test that privileged logs can open the file even when the directory is
+        # not searchable.
+        os.chmod(logpath, 0o0)
 
     logging.basicConfig(
         level=logging.INFO,

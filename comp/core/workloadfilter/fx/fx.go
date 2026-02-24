@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package fx provides the fx module for the tagger component
+// Package fx provides the fx module for the workloadfilter component
 package fx
 
 import (

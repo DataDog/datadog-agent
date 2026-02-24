@@ -237,7 +237,7 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 		apiServerHost := os.Getenv("KUBERNETES_SERVICE_HOST")
 		apiServerPort := os.Getenv("KUBERNETES_SERVICE_PORT_HTTPS")
 		if apiServerHost == "" || apiServerPort == "" {
-			return nil, fmt.Errorf("failed to determine API server host/port")
+			return nil, errors.New("failed to determine API server host/port")
 		}
 
 		clientConfig.useAPIServer = true
@@ -303,7 +303,7 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 		return newForConfig(clientConfig, kubeletTimeout)
 	}
 
-	return nil, fmt.Errorf("Invalid Kubelet configuration: both HTTPS and HTTP ports are disabled")
+	return nil, errors.New("Invalid Kubelet configuration: both HTTPS and HTTP ports are disabled")
 }
 
 func checkKubeletConnection(ctx context.Context, scheme string, port int, prefix string, hosts *connectionInfo, clientConfig *kubeletClientConfig) error {

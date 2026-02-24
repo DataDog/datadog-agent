@@ -100,7 +100,6 @@ type Destination struct {
 // NewDestination returns a new Destination.
 // minConcurrency denotes the minimum number of concurrent http requests the pipeline will allow at once.
 // maxConcurrency represents the maximum number of concurrent http requests, reachable when the client is experiencing a large latency in sends.
-// TODO: add support for SOCKS5
 func NewDestination(endpoint config.Endpoint,
 	contentType string,
 	destinationsContext *client.DestinationsContext,
@@ -152,6 +151,8 @@ func newDestination(endpoint config.Endpoint,
 	if destMeta.ReportingEnabled {
 		metrics.DestinationExpVars.Set(destMeta.TelemetryName(), expVars)
 	}
+
+	metrics.DestinationLogsDropped.Set(endpoint.Host, &expvar.Int{})
 
 	workerPool := newDefaultWorkerPool(minConcurrency, maxConcurrency, destMeta)
 
@@ -292,8 +293,15 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			}
 		}
 
-		metrics.LogsSent.Add(payload.Count())
-		metrics.TlmLogsSent.Add(float64(payload.Count()))
+		if err != nil {
+			// Permanent error, increment the logs dropped metric
+			metrics.DestinationLogsDropped.Add(d.host, payload.Count())
+			metrics.TlmLogsDropped.Add(float64(payload.Count()), d.host)
+		} else {
+			metrics.LogsSent.Add(payload.Count())
+			metrics.TlmLogsSent.Add(float64(payload.Count()))
+		}
+
 		output <- payload
 		return result
 	}
@@ -323,7 +331,8 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		sourceTag = "epforwarder"
 	}
 
-	metrics.TlmBytesSent.Add(float64(payload.UnencodedSize), sourceTag)
+	// Use GetAgentIdentityTag() to identify which agent is sending logs
+	metrics.TlmBytesSent.Add(float64(payload.UnencodedSize), metrics.GetAgentIdentityTag(), sourceTag)
 	metrics.EncodedBytesSent.Add(int64(len(payload.Encoded)))
 	metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)), sourceTag, compressionKind)
 
@@ -333,9 +342,10 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		// this can happen when the method or the url are valid.
 		return err
 	}
+
 	req.Header.Set("DD-API-KEY", d.endpoint.GetAPIKey())
 	req.Header.Set("Content-Type", d.contentType)
-	req.Header.Set("User-Agent", fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
+	req.Header.Set("User-Agent", "datadog-agent/"+version.AgentVersion)
 
 	if payload.Encoding != "" {
 		req.Header.Set("Content-Encoding", payload.Encoding)
@@ -476,7 +486,7 @@ func buildURL(endpoint config.Endpoint) string {
 	if endpoint.Version == config.EPIntakeVersion2 && endpoint.TrackType != "" {
 		url.Path = fmt.Sprintf("%s/api/v2/%s", endpoint.PathPrefix, endpoint.TrackType)
 	} else {
-		url.Path = fmt.Sprintf("%s/v1/input", endpoint.PathPrefix)
+		url.Path = endpoint.PathPrefix + "/v1/input"
 	}
 	return url.String()
 }

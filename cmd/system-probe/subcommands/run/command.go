@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
@@ -39,6 +40,7 @@ import (
 	systemprobeloggerfx "github.com/DataDog/datadog-agent/comp/core/log/fx-systemprobe"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-systemprobe"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
@@ -46,12 +48,18 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	remoteWorkloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-remote"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	connectionsforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/fx"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
+	localtraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-local"
+	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
@@ -97,64 +105,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  `Runs the system-probe in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(run,
-				fx.Supply(config.NewAgentParams("")),
-				// Force FX to load Datadog configuration before System Probe config.
-				// This is necessary because the 'software_inventory.enabled' setting is defined in the Datadog configuration.
-				// Without this explicit dependency, FX might initialize System Probe's config first, causing pkgconfigsetup.Datadog().GetBool()
-				// to return default values instead of the actual configuration.
-				fx.Provide(func(_ config.Component) sysprobeconfigimpl.Params {
-					return sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))
+				fx.Invoke(func(_ log.Component) {
+					ddruntime.SetMaxProcs()
 				}),
-				fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
-				fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion, IsSystemProbe: true}),
-				secretsnoopfx.Module(),
-				statsd.Module(),
-				config.Module(),
-				telemetryimpl.Module(),
-				sysprobeconfigimpl.Module(),
-				rcclientimpl.Module(),
-				fx.Provide(func(config config.Component, sysprobeconfig sysprobeconfig.Component) healthprobe.Options {
-					return healthprobe.Options{
-						Port:           sysprobeconfig.SysProbeObject().HealthPort,
-						LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
-					}
-				}),
-				healthprobefx.Module(),
-				systemprobeloggerfx.Module(),
-				// workloadmeta setup
-				wmcatalog.GetCatalog(),
-				workloadmetafx.Module(workloadmeta.Params{
-					AgentType: workloadmeta.Remote,
-				}),
-				ipcfx.ModuleReadWrite(),
-				// Provide tagger module
-				remoteTaggerFx.Module(tagger.NewRemoteParams()),
-				autoexitimpl.Module(),
-				pidimpl.Module(),
+				fx.Supply(config.NewAgentParams(globalParams.DatadogConfFilePath())),
+				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))),
 				fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
-				fx.Provide(func(sysprobeconfig sysprobeconfig.Component) settings.Params {
-					profilingGoRoutines := commonsettings.NewProfilingGoroutines()
-					profilingGoRoutines.ConfigPrefix = configPrefix
-
-					return settings.Params{
-						Settings: map[string]settings.RuntimeSetting{
-							"log_level":                       commonsettings.NewLogLevelRuntimeSetting(),
-							"runtime_mutex_profile_fraction":  &commonsettings.RuntimeMutexProfileFraction{ConfigPrefix: configPrefix},
-							"runtime_block_profile_rate":      &commonsettings.RuntimeBlockProfileRate{ConfigPrefix: configPrefix},
-							"internal_profiling_goroutines":   profilingGoRoutines,
-							commonsettings.MaxDumpSizeConfKey: &commonsettings.ActivityDumpRuntimeSetting{ConfigKey: commonsettings.MaxDumpSizeConfKey},
-							"internal_profiling":              &commonsettings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "system-probe", ConfigPrefix: configPrefix},
-						},
-						Config: sysprobeconfig,
-					}
-				}),
-				settingsimpl.Module(),
-				logscompressionfx.Module(),
-				fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
-					return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
-				}),
-				remotehostnameimpl.Module(),
-				configsyncimpl.Module(configsyncimpl.NewParams(configSyncTimeout, true, configSyncTimeout)),
+				getSharedFxOption(),
 			)
 		},
 	}
@@ -163,140 +120,18 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{runCmd}
 }
 
-// run starts the main loop.
-func run(log log.Component, _ config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, _ pid.Component, _ healthprobe.Component, _ autoexit.Component, settings settings.Component, _ ipc.Component, deps module.FactoryDependencies) error {
-	defer func() {
-		stopSystemProbe()
-	}()
-
-	// prepare go runtime
-	ddruntime.SetMaxProcs()
-
-	if sysprobeconfig.GetBool("system_probe_config.disable_thp") {
-		if err := ddruntime.DisableTransparentHugePages(); err != nil {
-			log.Warnf("cannot disable transparent huge pages, performance may be degraded: %s", err)
-		}
-	}
-
-	// Setup a channel to catch OS signals
-	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
-
-	// Make a channel to exit the function
-	stopCh := make(chan error)
-
-	go func() {
-		// Set up the signals async, so we can start the system-probe
-		select {
-		case <-signals.Stopper:
-			log.Info("Received stop command, shutting down...")
-			stopCh <- nil
-		case <-signals.ErrorStopper:
-			_ = log.Critical("system-probe has encountered an error, shutting down...")
-			stopCh <- errors.New("shutting down because of an error")
-		case sig := <-signalCh:
-			log.Infof("Received signal '%s', shutting down...", sig)
-			stopCh <- nil
-		}
-	}()
-
-	// By default, systemd redirects the stdout to journald. When journald is stopped or crashes we receive a SIGPIPE signal.
-	// Go ignores SIGPIPE signals unless it is when stdout or stdout is closed, in this case the agent is stopped.
-	// We never want the agent to stop upon receiving SIGPIPE, so we intercept the SIGPIPE signals and just discard them.
-	sigpipeCh := make(chan os.Signal, 1)
-	signal.Notify(sigpipeCh, syscall.SIGPIPE)
-	go func() {
-		//nolint:revive
-		for range sigpipeCh {
-			// intentionally drain channel
-		}
-	}()
-
-	if err := startSystemProbe(log, telemetry, sysprobeconfig, rcclient, settings, deps); err != nil {
-		if errors.Is(err, ErrNotEnabled) {
-			// A sleep is necessary to ensure that supervisor registers this process as "STARTED"
-			// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
-			// http://supervisord.org/subprocess.html#process-states
-			time.Sleep(5 * time.Second)
-			return nil
-		}
-		return err
-	}
-	return <-stopCh
-}
-
-// StartSystemProbeWithDefaults is a temporary way for other packages to use startSystemProbe.
-// Starts the agent in the background and then returns.
-//
-// @ctxChan
-//   - After starting the agent the background goroutine waits for a context from
-//     this channel, then stops the agent when the context is cancelled.
-//
-// Returns an error channel that can be used to wait for the agent to stop and get the result.
-func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error, error) {
-	errChan := make(chan error)
-
-	// run startSystemProbe in the background
-	go func() {
-		err := runSystemProbe(ctxChan, errChan)
-		// notify main routine that this is done, so cleanup can happen
-		errChan <- err
-	}()
-
-	// Wait for startSystemProbe to complete, or for an error
-	err := <-errChan
-	if err != nil {
-		// startSystemProbe or fx.OneShot failed, caller does not need errChan
-		return nil, err
-	}
-
-	// startSystemProbe succeeded. provide errChan to caller so they can wait for fxutil.OneShot to stop
-	return errChan, nil
-}
-
-func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
-	return fxutil.OneShot(
-		func(log log.Component, _ config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, _ healthprobe.Component, settings settings.Component, deps module.FactoryDependencies) error {
-			defer StopSystemProbeWithDefaults()
-			err := startSystemProbe(log, telemetry, sysprobeconfig, rcclient, settings, deps)
-			if err != nil {
-				return err
-			}
-
-			// notify outer that startAgent finished
-			errChan <- err
-			// wait for context
-			ctx := <-ctxChan
-
-			// Wait for stop signal
-			select {
-			case <-signals.Stopper:
-				log.Info("Received stop command, shutting down...")
-			case <-signals.ErrorStopper:
-				_ = log.Critical("The Agent has encountered an error, shutting down...")
-			case <-ctx.Done():
-				log.Info("Received stop from service manager, shutting down...")
-			}
-
-			return nil
-		},
-		// no config file path specification in this situation
-		fx.Supply(config.NewAgentParams("")),
-		// Force FX to load Datadog configuration before System Probe config.
-		// This is necessary because the 'software_inventory.enabled' setting is defined in the Datadog configuration.
-		// Without this explicit dependency, FX might initialize System Probe's config first, causing pkgconfigsetup.Datadog().GetBool()
-		// to return default values instead of the actual configuration.
-		fx.Provide(func(_ config.Component) sysprobeconfigimpl.Params {
-			return sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(""))
-		}),
-		fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+func getSharedFxOption() fx.Option {
+	return fx.Options(
+		fx.Supply(log.ForDaemon(command.LoggerName, "log_file", common.DefaultLogFile)),
+		config.Module(),
+		sysprobeconfigimpl.Module(),
+		systemprobeloggerfx.Module(),
+		telemetryimpl.Module(),
+		pidimpl.Module(),
 		fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion, IsSystemProbe: true}),
 		secretsnoopfx.Module(),
-		rcclientimpl.Module(),
-		config.Module(),
-		telemetryimpl.Module(),
 		statsd.Module(),
-		sysprobeconfigimpl.Module(),
+		rcclientimpl.Module(),
 		fx.Provide(func(config config.Component, sysprobeconfig sysprobeconfig.Component) healthprobe.Options {
 			return healthprobe.Options{
 				Port:           sysprobeconfig.SysProbeObject().HealthPort,
@@ -304,15 +139,14 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 			}
 		}),
 		healthprobefx.Module(),
-		// workloadmeta setup
 		wmcatalog.GetCatalog(),
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType: workloadmeta.Remote,
 		}),
+		remoteWorkloadfilterfx.Module(),
 		ipcfx.ModuleReadWrite(),
-		// Provide tagger module
 		remoteTaggerFx.Module(tagger.NewRemoteParams()),
-		systemprobeloggerfx.Module(),
+		autoexitimpl.Module(),
 		fx.Provide(func(sysprobeconfig sysprobeconfig.Component) settings.Params {
 			profilingGoRoutines := commonsettings.NewProfilingGoroutines()
 			profilingGoRoutines.ConfigPrefix = configPrefix
@@ -335,58 +169,128 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 			return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
 		}),
 		remotehostnameimpl.Module(),
+		configsyncimpl.Module(configsyncimpl.NewParams(configSyncTimeout, true, configSyncTimeout)),
+		remoteagentfx.Module(),
+		fxinstrumentation.Module(),
+		localtraceroute.Module(),
+		connectionsforwarderfx.Module(),
+		eventplatformreceiverimpl.Module(),
+		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
+		rdnsquerierfx.Module(),
+		npcollectorimpl.Module(),
 	)
 }
 
-// StopSystemProbeWithDefaults is a temporary way for other packages to use stopAgent.
-func StopSystemProbeWithDefaults() {
-	stopSystemProbe()
+// run starts the main loop.
+func run(
+	_ config.Component,
+	rcclient rcclient.Component,
+	_ pid.Component,
+	_ healthprobe.Component,
+	_ autoexit.Component,
+	settings settings.Component,
+	_ ipc.Component,
+	deps module.FactoryDependencies,
+) error {
+	defer stopSystemProbe()
+
+	if deps.SysprobeConfig.GetBool("system_probe_config.disable_thp") {
+		if err := ddruntime.DisableTransparentHugePages(); err != nil {
+			deps.Log.Warnf("cannot disable transparent huge pages, performance may be degraded: %s", err)
+		}
+	}
+
+	// Setup a channel to catch OS signals
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
+
+	// Make a channel to exit the function
+	stopCh := make(chan error)
+
+	go func() {
+		// Set up the signals async, so we can start the system-probe
+		select {
+		case <-signals.Stopper:
+			deps.Log.Info("Received stop command, shutting down...")
+			stopCh <- nil
+		case <-signals.ErrorStopper:
+			_ = deps.Log.Critical("system-probe has encountered an error, shutting down...")
+			stopCh <- errors.New("shutting down because of an error")
+		case sig := <-signalCh:
+			deps.Log.Infof("Received signal '%s', shutting down...", sig)
+			stopCh <- nil
+		}
+	}()
+
+	// By default, systemd redirects the stdout to journald. When journald is stopped or crashes we receive a SIGPIPE signal.
+	// Go ignores SIGPIPE signals unless it is when stdout or stdout is closed, in this case the agent is stopped.
+	// We never want the agent to stop upon receiving SIGPIPE, so we intercept the SIGPIPE signals and just discard them.
+	sigpipeCh := make(chan os.Signal, 1)
+	signal.Notify(sigpipeCh, syscall.SIGPIPE)
+	go func() {
+		//nolint:revive
+		for range sigpipeCh {
+			// intentionally drain channel
+		}
+	}()
+
+	if err := startSystemProbe(rcclient, settings, deps); err != nil {
+		if errors.Is(err, ErrNotEnabled) {
+			// A sleep is necessary to ensure that supervisor registers this process as "STARTED"
+			// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
+			// http://supervisord.org/subprocess.html#process-states
+			time.Sleep(5 * time.Second)
+			return nil
+		}
+		return err
+	}
+	return <-stopCh
 }
 
 // startSystemProbe Initializes the system-probe process
-func startSystemProbe(log log.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, settings settings.Component, deps module.FactoryDependencies) error {
+func startSystemProbe(rcclient rcclient.Component, settings settings.Component, deps module.FactoryDependencies) error {
 	var err error
-	cfg := sysprobeconfig.SysProbeObject()
+	cfg := deps.SysprobeConfig.SysProbeObject()
 
-	log.Infof("starting system-probe v%v", version.AgentVersion)
+	deps.Log.Infof("starting system-probe v%v", version.AgentVersion)
 
-	logUserAndGroupID(log)
+	logUserAndGroupID(deps.Log)
 	// Exit if system probe is disabled
 	if cfg.ExternalSystemProbe || !cfg.Enabled {
-		log.Info("system probe not enabled. exiting")
+		deps.Log.Info("system probe not enabled. exiting")
 		return ErrNotEnabled
 	}
 
-	if err := coredump.Setup(sysprobeconfig); err != nil {
-		log.Warnf("cannot setup core dumps: %s, core dumps might not be available after a crash", err)
+	if err := coredump.Setup(deps.SysprobeConfig); err != nil {
+		deps.Log.Warnf("cannot setup core dumps: %s, core dumps might not be available after a crash", err)
 	}
 
-	if sysprobeconfig.GetBool("system_probe_config.memory_controller.enabled") {
-		memoryPressureLevels := sysprobeconfig.GetStringMapString("system_probe_config.memory_controller.pressure_levels")
-		memoryThresholds := sysprobeconfig.GetStringMapString("system_probe_config.memory_controller.thresholds")
-		hierarchy := sysprobeconfig.GetString("system_probe_config.memory_controller.hierarchy")
+	if deps.SysprobeConfig.GetBool("system_probe_config.memory_controller.enabled") {
+		memoryPressureLevels := deps.SysprobeConfig.GetStringMapString("system_probe_config.memory_controller.pressure_levels")
+		memoryThresholds := deps.SysprobeConfig.GetStringMapString("system_probe_config.memory_controller.thresholds")
+		hierarchy := deps.SysprobeConfig.GetString("system_probe_config.memory_controller.hierarchy")
 		common.MemoryMonitor, err = utils.NewMemoryMonitor(hierarchy, env.IsContainerized(), memoryPressureLevels, memoryThresholds)
 		if err != nil {
-			log.Warnf("cannot set up memory controller: %s", err)
+			deps.Log.Warnf("cannot set up memory controller: %s", err)
 		} else {
 			common.MemoryMonitor.Start()
 		}
 	}
 
-	setupInternalProfiling(settings, sysprobeconfig, configPrefix, log)
+	setupInternalProfiling(settings, deps.SysprobeConfig, configPrefix, deps.Log)
 
 	if isValidPort(cfg.DebugPort) {
 		if cfg.TelemetryEnabled {
-			http.Handle("/telemetry", telemetry.Handler())
-			telemetry.RegisterCollector(ebpftelemetry.NewDebugFsStatCollector())
+			http.Handle("/telemetry", deps.Telemetry.Handler())
+			deps.Telemetry.RegisterCollector(ebpftelemetry.NewDebugFsStatCollector())
 			if pc := ebpftelemetry.NewPerfUsageCollector(); pc != nil {
-				telemetry.RegisterCollector(pc)
+				deps.Telemetry.RegisterCollector(pc)
 			}
 			if lcc := ddebpf.NewLockContentionCollector(); lcc != nil {
-				telemetry.RegisterCollector(lcc)
+				deps.Telemetry.RegisterCollector(lcc)
 			}
 			if ec := ebpftelemetry.NewEBPFErrorsCollector(); ec != nil {
-				telemetry.RegisterCollector(ec)
+				deps.Telemetry.RegisterCollector(ec)
 			}
 		}
 		go func() {
@@ -395,13 +299,13 @@ func startSystemProbe(log log.Component, telemetry telemetry.Component, sysprobe
 				Handler: http.DefaultServeMux,
 			}
 			if err := common.ExpvarServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				log.Errorf("error creating expvar server on %v: %v", common.ExpvarServer.Addr, err)
+				deps.Log.Errorf("error creating expvar server on %v: %v", common.ExpvarServer.Addr, err)
 			}
 		}()
 	}
 
-	if err = api.StartServer(cfg, settings, telemetry, rcclient, deps); err != nil {
-		return log.Criticalf("error while starting api server, exiting: %v", err)
+	if err = api.StartServer(cfg, settings, rcclient, deps); err != nil {
+		return deps.Log.Criticalf("error while starting api server, exiting: %v", err)
 	}
 	return nil
 }

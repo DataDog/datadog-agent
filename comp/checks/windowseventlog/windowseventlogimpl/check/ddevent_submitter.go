@@ -16,6 +16,7 @@ import (
 	agentEvent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+	evtbookmark "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
 )
 
 // The lower cased version of the `API SOURCE ATTRIBUTE` column from the table located here:
@@ -24,9 +25,9 @@ const sourceTypeName = "event viewer"
 
 // ddEventSubmitter transforms Windows events into Datadog events and submits them to the sender
 type ddEventSubmitter struct {
-	sender        sender.Sender
-	inCh          <-chan *eventWithMessage
-	bookmarkSaver *bookmarkSaver
+	sender          sender.Sender
+	inCh            <-chan *eventWithMessage
+	bookmarkManager evtbookmark.Manager
 
 	// config
 	eventPriority agentEvent.Priority
@@ -44,8 +45,8 @@ func (s *ddEventSubmitter) run(w *sync.WaitGroup) {
 	for e := range s.inCh {
 		s.submit(e)
 
-		// bookmarkSaver manages whether or not to save/persist the bookmark
-		err := s.bookmarkSaver.updateBookmark(e.winevent)
+		// bookmarkManager manages whether or not to save/persist the bookmark
+		err := s.bookmarkManager.UpdateAndSave(e.winevent.EventRecordHandle)
 		if err != nil {
 			log.Warnf("%v", err)
 		}

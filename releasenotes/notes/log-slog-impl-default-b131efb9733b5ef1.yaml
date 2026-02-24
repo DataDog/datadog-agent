@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The Agent's logger has been rewritten with a more modern library to improve
+    security and performance. No visible change is expected for users.
+    In case of issues, the previous logger can still be used by setting
+    `log_use_slog` to `false` in the Agent configuration. This configuration will
+    be removed in a future release.

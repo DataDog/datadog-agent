@@ -48,7 +48,7 @@ func run(binaryPath string, typelinks bool) (err error) {
 
 	tl := mef.Section(".typelink")
 	if tl == nil {
-		return fmt.Errorf("no .typelink section")
+		return errors.New("no .typelink section")
 	}
 	tlMap, err := mef.SectionData(tl)
 	if err != nil {

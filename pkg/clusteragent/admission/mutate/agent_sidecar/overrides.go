@@ -8,7 +8,7 @@
 package agentsidecar
 
 import (
-	"fmt"
+	"errors"
 
 	corev1 "k8s.io/api/core/v1"
 )
@@ -17,7 +17,7 @@ import (
 // boolean that indicates if the container was mutated
 func withEnvOverrides(container *corev1.Container, extraEnv ...corev1.EnvVar) (bool, error) {
 	if container == nil {
-		return false, fmt.Errorf("can't apply environment overrides to nil container")
+		return false, errors.New("can't apply environment overrides to nil container")
 	}
 
 	mutated := false
@@ -49,7 +49,7 @@ func withEnvOverrides(container *corev1.Container, extraEnv ...corev1.EnvVar) (b
 // withResourceLimits applies the resource limits overrides to the container
 func withResourceLimits(container *corev1.Container, resourceLimits corev1.ResourceRequirements) error {
 	if container == nil {
-		return fmt.Errorf("can't apply resource requirements overrides to nil container")
+		return errors.New("can't apply resource requirements overrides to nil container")
 	}
 	container.Resources = resourceLimits
 	return nil
@@ -58,7 +58,7 @@ func withResourceLimits(container *corev1.Container, resourceLimits corev1.Resou
 // withSecurityContextOverrides applies the security context overrides to the container
 func withSecurityContextOverrides(container *corev1.Container, securityContext *corev1.SecurityContext) (bool, error) {
 	if container == nil {
-		return false, fmt.Errorf("can't apply security context overrides to nil container")
+		return false, errors.New("can't apply security context overrides to nil container")
 	}
 
 	mutated := false

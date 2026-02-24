@@ -43,3 +43,10 @@ func V2() (*v2.Client, error) {
 func V3orV4FromCurrentTask() (*v3or4.Client, error) {
 	return nil, docker.ErrDockerNotCompiled
 }
+
+// V4FromCurrentTask returns a client for the ECS metadata API v4 by detecting
+// the endpoint address from the task the executable is running in. Returns an
+// error if it was not possible to detect the endpoint address.
+func V4FromCurrentTask() (*v3or4.Client, error) {
+	return nil, docker.ErrDockerNotCompiled
+}

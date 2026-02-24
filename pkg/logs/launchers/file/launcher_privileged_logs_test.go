@@ -9,6 +9,8 @@
 package file
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -19,15 +21,33 @@ import (
 )
 
 type PrivilegedLogsTestSetupStrategy struct {
-	tempDirs [2]string
+	searchableTempDirs   [2]string
+	unsearchableTempDirs [2]string
 }
 
 func (s *PrivilegedLogsTestSetupStrategy) Setup(t *testing.T) TestSetupResult {
 	handler := privilegedlogstest.Setup(t, func() {
-		s.tempDirs = [2]string{}
+		s.searchableTempDirs = [2]string{}
+		s.unsearchableTempDirs = [2]string{}
 		for i := 0; i < 2; i++ {
 			testDir := t.TempDir()
-			s.tempDirs[i] = testDir
+
+			s.searchableTempDirs[i] = testDir
+
+			// Use a subdirectory without execute permissions so that the
+			// unprivileged user can't even stat(2) the file.
+			subdir := filepath.Join(testDir, "subdir")
+			err := os.Mkdir(subdir, 0)
+			require.NoError(t, err)
+
+			s.unsearchableTempDirs[i] = subdir
+
+			// Restore permissions after the test so that the cleanup of the
+			// temporary directories doesn't fail.
+			t.Cleanup(func() {
+				err := os.Chmod(subdir, 0755)
+				require.NoError(t, err)
+			})
 		}
 	})
 
@@ -41,7 +61,24 @@ func (s *PrivilegedLogsTestSetupStrategy) Setup(t *testing.T) TestSetupResult {
 	systemProbeConfig.SetWithoutSource("privileged_logs.enabled", true)
 	systemProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", handler.SocketPath)
 
-	return TestSetupResult{TestDirs: s.tempDirs[:]}
+	return TestSetupResult{TestDirs: s.unsearchableTempDirs[:], TestOps: TestOps{
+		create: func(name string) (*os.File, error) {
+			var file *os.File
+			err := privilegedlogstest.WithParentPermFixup(t, name, func() error {
+				var err error
+				file, err = os.Create(name)
+				return err
+			})
+			return file, err
+		}, rename: func(oldPath, newPath string) error {
+			return privilegedlogstest.WithParentPermFixup(t, newPath, func() error {
+				return os.Rename(oldPath, newPath)
+			})
+		}, remove: func(name string) error {
+			return privilegedlogstest.WithParentPermFixup(t, name, func() error {
+				return os.Remove(name)
+			})
+		}}}
 }
 
 type PrivilegedLogsLauncherTestSuite struct {
@@ -125,10 +162,13 @@ type privilegedLogsTestSetup struct {
 // setupPrivilegedLogsTest sets up the privileged logs test environment
 func setupPrivilegedLogsTest(t *testing.T) *privilegedLogsTestSetup {
 	strategy := &PrivilegedLogsTestSetupStrategy{}
-	result := strategy.Setup(t)
+	strategy.Setup(t)
 
 	return &privilegedLogsTestSetup{
-		tempDirs: [2]string{result.TestDirs[0], result.TestDirs[1]},
+		// Use the searchable temp dirs since several of the non-suite tests use
+		// wildcard patterns which do not work with non-searchable directories
+		// since the logs agent is unable to scan the directory for files.
+		tempDirs: [2]string{strategy.searchableTempDirs[0], strategy.searchableTempDirs[1]},
 	}
 }
 

@@ -9,12 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,11 +27,11 @@ type linuxSecretSuite struct {
 
 func TestLinuxSecretSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &linuxSecretSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
+	e2e.Run(t, &linuxSecretSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithoutFakeIntake()))))
 }
 
 func (v *linuxSecretSuite) TestAgentSecretExecDoesNotExist() {
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: /does/not/exist"))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: /does/not/exist")))))
 	output := v.Env().Agent.Client.Secret()
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
 	assert.Contains(v.T(), output, "Executable path: /does/not/exist")
@@ -39,7 +40,7 @@ func (v *linuxSecretSuite) TestAgentSecretExecDoesNotExist() {
 }
 
 func (v *linuxSecretSuite) TestAgentSecretChecksExecutablePermissions() {
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: /usr/bin/echo"))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: /usr/bin/echo")))))
 
 	output := v.Env().Agent.Client.Secret()
 
@@ -58,9 +59,11 @@ host_aliases:
 
 	v.UpdateEnv(
 		awshost.ProvisionerNoFakeIntake(
-			awshost.WithAgentOptions(
-				secretsutils.WithUnixSetupCustomScript("/tmp/bin/secret.sh", secretScript, false),
-				agentparams.WithAgentConfig(config),
+			awshost.WithRunOptions(
+				scenec2.WithAgentOptions(
+					secretsutils.WithUnixSetupCustomScript("/tmp/bin/secret.sh", secretScript, false),
+					agentparams.WithAgentConfig(config),
+				),
 			),
 		),
 	)
@@ -91,10 +94,12 @@ api_key: ENC[api_key]
 
 	v.UpdateEnv(
 		awshost.ProvisionerNoFakeIntake(
-			awshost.WithAgentOptions(
-				secretsutils.WithUnixSetupScript("/tmp/secret.py", false),
-				agentparams.WithSkipAPIKeyInConfig(),
-				agentparams.WithAgentConfig(config),
+			awshost.WithRunOptions(
+				scenec2.WithAgentOptions(
+					secretsutils.WithUnixSetupScript("/tmp/secret.py", false),
+					agentparams.WithSkipAPIKeyInConfig(),
+					agentparams.WithAgentConfig(config),
+				),
 			),
 		),
 	)

@@ -42,17 +42,17 @@ GITHUB_SLACK_REVIEW_MAP = load_and_validate(
 def check_for_missing_owners_slack_and_jira(print_missing_teams=True, owners_file=".github/CODEOWNERS"):
     owners = read_owners(owners_file)
     error = False
-    for path in owners.paths:
-        if not path[2] or path[2][0][0] != "TEAM":
-            continue
-        if path[2][0][1].lower() not in GITHUB_SLACK_MAP:
-            error = True
-            if print_missing_teams:
-                print(f"The team {path[2][0][1]} doesn't have a slack team assigned !!")
-        if path[2][0][1].lower() not in GITHUB_JIRA_MAP:
-            error = True
-            if print_missing_teams:
-                print(f"The team {path[2][0][1]} doesn't have a jira project assigned !!")
+    teams = {p[2][0][1].lower() for p in owners.paths if p[2] and p[2][0][0] == "TEAM"}
+    for team in teams:
+        for gh_map, map_name in [
+            (GITHUB_SLACK_MAP, 'slack'),
+            (GITHUB_JIRA_MAP, 'jira'),
+            (GITHUB_SLACK_REVIEW_MAP, 'slack review'),
+        ]:
+            if team not in gh_map:
+                error = True
+                if print_missing_teams:
+                    print(f"The team {team} is missing from the Github {map_name} map. Please update!!")
     return error
 
 

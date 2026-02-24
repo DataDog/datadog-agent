@@ -49,6 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	securityprofile "github.com/DataDog/datadog-agent/pkg/security/security_profile"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
@@ -76,9 +77,10 @@ system_probe_config:
   enable_runtime_compiler: true
 
 event_monitoring_config:
-  socket: /tmp/test-event-monitor.sock
   custom_sensitive_words:
     - "*custom*"
+  custom_sensitive_regexps:
+    - "gh-[a-zA-Z0-9]+"
   network:
     enabled: true
     flow_monitor:
@@ -140,20 +142,12 @@ runtime_security_config:
     tag_rules:
       enabled: {{ .ActivityDumpTagRules }}
     dump_duration: {{ .ActivityDumpDuration }}
-    {{if .ActivityDumpLoadControllerPeriod }}
-    load_controller_period: {{ .ActivityDumpLoadControllerPeriod }}
-    {{end}}
     {{if .ActivityDumpCleanupPeriod }}
     cleanup_period: {{ .ActivityDumpCleanupPeriod }}
-    {{end}}
-    {{if .ActivityDumpLoadControllerTimeout }}
-    min_timeout: {{ .ActivityDumpLoadControllerTimeout }}
     {{end}}
     trace_systemd_cgroups: {{ .TraceSystemdCgroups }}
     traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
     cgroup_differentiate_args: {{ .ActivityDumpCgroupDifferentiateArgs }}
-    auto_suppression:
-      enabled: {{ .ActivityDumpAutoSuppressionEnabled }}
     traced_event_types: {{range .ActivityDumpTracedEventTypes}}
     - {{. -}}
     {{- end}}
@@ -171,11 +165,6 @@ runtime_security_config:
     dir: {{ .SecurityProfileDir }}
     watch_dir: {{ .SecurityProfileWatchDir }}
     node_eviction_timeout: {{ .SecurityProfileNodeEvictionTimeout }}
-    auto_suppression:
-      enabled: {{ .EnableAutoSuppression }}
-      event_types: {{range .AutoSuppressionEventTypes}}
-      - {{. -}}
-      {{- end}}
     anomaly_detection:
       enabled: {{ .EnableAnomalyDetection }}
       event_types: {{range .AnomalyDetectionEventTypes}}
@@ -365,7 +354,13 @@ func assertReturnValue(tb testing.TB, retval, expected int64) bool {
 
 //nolint:deadcode,unused
 func validateProcessContextLineage(tb testing.TB, event *model.Event) {
-	eventJSON, err := serializers.MarshalEvent(event, nil)
+	scrubber, err := utils.NewScrubber(nil, nil)
+	if err != nil {
+		tb.Errorf("failed to create scrubber: %v", err)
+		return
+	}
+
+	eventJSON, err := serializers.MarshalEvent(event, nil, scrubber)
 	if err != nil {
 		tb.Errorf("failed to marshal event: %v", err)
 		return
@@ -484,7 +479,13 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event) {
 	valid := nameFieldValid && pathFieldValid
 
 	if !valid {
-		eventJSON, err := serializers.MarshalEvent(event, nil)
+		scrubber, err := utils.NewScrubber(nil, nil)
+		if err != nil {
+			tb.Errorf("failed to create scrubber: %v", err)
+			return
+		}
+
+		eventJSON, err := serializers.MarshalEvent(event, nil, scrubber)
 		if err != nil {
 			tb.Errorf("failed to marshal event: %v", err)
 			return
@@ -539,7 +540,13 @@ func validateSyscallContext(tb testing.TB, event *model.Event, jsonPath string) 
 		return
 	}
 
-	eventJSON, err := serializers.MarshalEvent(event, nil)
+	scrubber, err := utils.NewScrubber(nil, nil)
+	if err != nil {
+		tb.Errorf("failed to create scrubber: %v", err)
+		return
+	}
+
+	eventJSON, err := serializers.MarshalEvent(event, nil, scrubber)
 	if err != nil {
 		tb.Errorf("failed to marshal event: %v", err)
 		return
@@ -632,7 +639,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	var proFile *os.File
 	if withProfile {
 		var err error
-		proFile, err = os.CreateTemp("/tmp", fmt.Sprintf("cpu-profile-%s", t.Name()))
+		proFile, err = os.CreateTemp("/tmp", "cpu-profile-"+t.Name())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -784,7 +791,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	ipcComp := ipcmock.New(t)
 
-	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, ipcComp, emopts)
+	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, functionalTestsHostname, emopts)
 	if err != nil {
 		return nil, err
 	}
@@ -795,7 +802,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		msgSender := newFakeMsgSender(testMod)
 
 		compression := logscompression.NewComponent()
-		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, module.Opts{EventSender: testMod, MsgSender: msgSender}, compression, ipcComp)
+		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, nil, module.Opts{EventSender: testMod, MsgSender: msgSender}, compression, ipcComp, functionalTestsHostname)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}
@@ -865,7 +872,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 				return nil
 			}
 			return errors.New("No client connected, aborting")
-		}, retry.Delay(time.Second), retry.Attempts(120))
+		}, retry.Delay(time.Second), retry.Attempts(120), retry.DelayType(retry.FixedDelay))
 		if err != nil {
 			return nil, err
 		}
@@ -1057,9 +1064,9 @@ func (tm *testModule) CloseWithOptions(zombieCheck bool) {
 var logInitilialized bool
 
 func initLogger() error {
-	logLevel, found := log.LogLevelFromString(logLevelStr)
-	if !found {
-		return fmt.Errorf("invalid log level '%s'", logLevel)
+	logLevel, err := log.ValidateLogLevel(logLevelStr)
+	if err != nil {
+		return err
 	}
 
 	if !logInitilialized {
@@ -1083,7 +1090,7 @@ func swapLogLevel(logLevel log.LogLevel) (log.LogLevel, error) {
 	}
 	log.SetupLogger(logger, logLevel.String())
 
-	prevLevel, _ := log.LogLevelFromString(logLevelStr)
+	prevLevel, _ := log.ValidateLogLevel(logLevelStr)
 	logLevelStr = logLevel.String()
 	return prevLevel, nil
 }
@@ -1413,7 +1420,7 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 		}
 		dump = d
 		return nil
-	}, retry.Delay(time.Second), retry.Attempts(3)); err != nil {
+	}, retry.Delay(time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay)); err != nil {
 		_, _ = dockerInstance.stop()
 		return nil, nil, err
 	}
@@ -1448,7 +1455,7 @@ func (tm *testModule) StartSystemdServiceGetDump(serviceName string, reloadCmd s
 			}
 		}
 		return errors.New("CGroupID not found on activity dump list")
-	}, retry.Delay(time.Second*1), retry.Attempts(15)); err != nil {
+	}, retry.Delay(time.Second*1), retry.Attempts(15), retry.DelayType(retry.FixedDelay)); err != nil {
 		_, _ = systemd.stop()
 		return nil, nil, err
 	}
@@ -1538,29 +1545,10 @@ func (tm *testModule) addAllEventTypesOnDump(dockerInstance *dockerCmdWrapper, s
 }
 
 //nolint:deadcode,unused
-func (tm *testModule) triggerLoadControllerReducer(_ *dockerCmdWrapper, id *activityDumpIdentifier) {
-	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
-	if !ok {
-		return
-	}
-
-	managers := p.GetProfileManager()
-	if managers == nil {
-		return
-	}
-	managers.FakeDumpOverweight(id.Name)
-
-	// wait until the dump learning has stopped
-	for tm.isDumpRunning(id) {
-		time.Sleep(time.Second * 1)
-	}
-}
-
-//nolint:deadcode,unused
 func (tm *testModule) dockerCreateFiles(dockerInstance *dockerCmdWrapper, syscallTester string, directory string, numberOfFiles int) error {
 	var files []string
 	for i := 0; i < numberOfFiles; i++ {
-		files = append(files, filepath.Join(directory, "ad-test-create-"+fmt.Sprintf("%d", i)))
+		files = append(files, filepath.Join(directory, "ad-test-create-"+strconv.Itoa(i)))
 	}
 	args := []string{"sleep", "2", ";", "open"}
 	args = append(args, files...)
@@ -1749,10 +1737,12 @@ func (tm *testModule) StopAllActivityDumps() error {
 	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if ok {
 		if managers := p.GetProfileManager(); managers != nil {
-			// First call evictTracedCgroup for all active dumps to blacklist them
-			managers.EvictAllTracedCgroups()
-			// Then clear everything
-			managers.ClearTracedCgroups()
+			if m, ok := managers.(*securityprofile.Manager); ok {
+				// First call evictTracedCgroup for all active dumps to blacklist them
+				m.EvictAllTracedCgroups()
+				// Then clear everything
+				m.ClearTracedCgroups()
+			}
 		}
 	}
 
@@ -1891,7 +1881,7 @@ func (tm *testModule) ListAllProfiles() {
 		return
 	}
 
-	m.ListAllProfileStates()
+	m.(*securityprofile.Manager).ListAllProfileStates()
 }
 
 func (tm *testModule) SetProfileVersionState(selector *cgroupModel.WorkloadSelector, imageTag string, state model.EventFilteringProfileState) error {
@@ -1905,7 +1895,7 @@ func (tm *testModule) SetProfileVersionState(selector *cgroupModel.WorkloadSelec
 		return errors.New("no profile managers")
 	}
 
-	profile := m.GetProfile(*selector)
+	profile := m.(*securityprofile.Manager).GetProfile(*selector)
 	if profile == nil {
 		return errors.New("no profile")
 	}
@@ -1928,7 +1918,7 @@ func (tm *testModule) GetProfileVersions(imageName string) ([]string, error) {
 		return []string{}, errors.New("no profile managers")
 	}
 
-	profile := m.GetProfile(cgroupModel.WorkloadSelector{Image: imageName, Tag: "*"})
+	profile := m.(*securityprofile.Manager).GetProfile(cgroupModel.WorkloadSelector{Image: imageName, Tag: "*"})
 	if profile == nil {
 		return []string{}, errors.New("no profile")
 	}
@@ -1991,7 +1981,12 @@ func (tm *testModule) CheckZombieProcesses() error {
 
 				if ppid == myPid {
 					// Found a zombie process with our PID as its parent
-					return fmt.Errorf("found zombie process with PID %d and PPID %d (state=%s, comm=%s)", pid, ppid, state, commStr)
+					// Try to reap it by calling wait (SIGKILL doesn't work on zombies)
+					_, err := syscall.Wait4(pid, nil, syscall.WNOHANG, nil)
+					if err != nil {
+						return fmt.Errorf("found zombie process with PID %d and PPID %d (state=%s, comm=%s), and failed to stop it: %v", pid, ppid, state, commStr, err)
+					}
+					log.Debug("found and stopped zombie process with PID %d and PPID %d (state=%s, comm=%s)", pid, ppid, state, commStr)
 				}
 			}
 		}

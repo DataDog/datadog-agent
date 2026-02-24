@@ -8,7 +8,6 @@
 package local
 
 import (
-	"fmt"
 	"sync"
 
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
@@ -32,7 +31,7 @@ func newFakeWLMPodEvent(ns, deployment, podName string, containerNames []string)
 	containers := []workloadmeta.OrchestratorContainer{}
 	for _, c := range containerNames {
 		containers = append(containers, workloadmeta.OrchestratorContainer{
-			ID:   fmt.Sprintf("%s-id", c),
+			ID:   c + "-id",
 			Name: c,
 			Resources: workloadmeta.ContainerResources{
 				CPURequest:    func(f float64) *float64 { return &f }(25), // 250m
@@ -50,7 +49,7 @@ func newFakeWLMPodEvent(ns, deployment, podName string, containerNames []string)
 			Name:      podName,
 			Namespace: ns,
 		},
-		Owners:     []workloadmeta.KubernetesPodOwner{{Kind: kubernetes.ReplicaSetKind, Name: fmt.Sprintf("%s-766dbb7846", deployment)}},
+		Owners:     []workloadmeta.KubernetesPodOwner{{Kind: kubernetes.ReplicaSetKind, Name: deployment + "-766dbb7846"}},
 		Containers: containers,
 	}
 

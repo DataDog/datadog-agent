@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/avast/retry-go/v4"
 	"github.com/stretchr/testify/assert"
@@ -132,12 +133,12 @@ func TestKworker(t *testing.T) {
 			t.Error(err)
 		}
 
-		if err := retry.Do(func() error { return unix.DeleteModule("xt_LED", 0) }); err != nil {
+		if err := retry.Do(func() error { return unix.DeleteModule("xt_LED", 0) }, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay)); err != nil {
 			t.Error(err)
 		}
 	}()
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		if err := unix.DeleteModule("xt_LED", 0); err != nil {
 			return err
 		}
@@ -150,7 +151,7 @@ func TestKworker(t *testing.T) {
 		return nil
 	}, func(_ *model.Event, r *rules.Rule) {
 		assert.Equal(t, "test_load_module_kworker", r.ID, "invalid rule triggered")
-	})
+	}, "test_load_module_kworker")
 }
 
 func TestLoadModule(t *testing.T) {
@@ -164,7 +165,7 @@ func TestLoadModule(t *testing.T) {
 		t.Skip("skipping kernel module test in docker")
 	}
 
-	// before trying to load the module, some dependant modules might be needed, use modprobe to load them first
+	// before trying to load the module, some dependent modules might be needed, use modprobe to load them first
 	if _, err := loadModule(testModuleName); err != nil {
 		t.Skipf("failed to load %s module: %v", testModuleName, err)
 	}
@@ -211,7 +212,7 @@ func TestLoadModule(t *testing.T) {
 	defer test.Close()
 
 	t.Run("init_module", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			module, err := os.ReadFile(modulePath)
 			if err != nil {
 				return fmt.Errorf("couldn't load module content: %w", err)
@@ -234,11 +235,11 @@ func TestLoadModule(t *testing.T) {
 			assert.Empty(t, event.LoadModule.Argv, "shouldn't get args")
 
 			test.validateLoadModuleNoFileSchema(t, event)
-		})
+		}, "test_load_module_from_memory")
 	})
 
 	t.Run("finit_module", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			f, err := os.Open(modulePath)
 			if err != nil {
 				return fmt.Errorf("couldn't open module: %w", err)
@@ -254,11 +255,11 @@ func TestLoadModule(t *testing.T) {
 			assert.Equal(t, "test_load_module", r.ID, "invalid rule triggered")
 
 			test.validateLoadModuleSchema(t, event)
-		})
+		}, "test_load_module")
 	})
 
 	t.Run("load_module_with_params", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			f, err := os.Open(modulePath)
 			if err != nil {
 				return fmt.Errorf("couldn't open module: %w", err)
@@ -275,11 +276,11 @@ func TestLoadModule(t *testing.T) {
 			assertFieldEqual(t, event, "load_module.loaded_from_memory", false)
 			assertFieldEqual(t, event, "load_module.args_truncated", false)
 			test.validateLoadModuleSchema(t, event)
-		})
+		}, "test_load_module_with_params")
 	})
 
 	t.Run("load_module_with_params_from_memory", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			module, err := os.ReadFile(modulePath)
 			if err != nil {
 				return fmt.Errorf("couldn't load module content: %w", err)
@@ -296,7 +297,7 @@ func TestLoadModule(t *testing.T) {
 			assertFieldEqual(t, event, "load_module.loaded_from_memory", true)
 			assertFieldEqual(t, event, "load_module.args_truncated", false)
 			test.validateLoadModuleSchema(t, event)
-		})
+		}, "test_load_module_with_params_from_memory")
 	})
 
 	t.Run("load_module_with_truncated_params", func(t *testing.T) {
@@ -306,7 +307,7 @@ func TestLoadModule(t *testing.T) {
 			args = append(args, fmt.Sprintf("CIFSMaxBufSize=%d", 8192+i))
 		}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			module, err := os.ReadFile(modulePath)
 			if err != nil {
 				return fmt.Errorf("couldn't load module content: %w", err)
@@ -324,7 +325,7 @@ func TestLoadModule(t *testing.T) {
 			assertFieldEqual(t, event, "load_module.loaded_from_memory", true)
 			assertFieldEqual(t, event, "load_module.args_truncated", true)
 			test.validateLoadModuleSchema(t, event)
-		})
+		}, "test_load_module_with_truncated_params")
 	})
 }
 
@@ -335,7 +336,7 @@ func TestUnloadModule(t *testing.T) {
 		t.Skip("skipping kernel module test in docker")
 	}
 
-	// before trying to load the module, some dependant modules might be needed, use modprobe to load them first
+	// before trying to load the module, some dependent modules might be needed, use modprobe to load them first
 	if _, err := loadModule(testModuleName); err != nil {
 		t.Skipf("failed to load %s module: %v", testModuleName, err)
 	}
@@ -366,7 +367,7 @@ func TestUnloadModule(t *testing.T) {
 	defer test.Close()
 
 	t.Run("delete_module", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			module, err := os.ReadFile(modulePath)
 			if err != nil {
 				return fmt.Errorf("couldn't load module content: %w", err)
@@ -381,6 +382,6 @@ func TestUnloadModule(t *testing.T) {
 			assert.Equal(t, "test_unload_module", r.ID, "invalid rule triggered")
 
 			test.validateUnloadModuleSchema(t, event)
-		})
+		}, "test_unload_module")
 	})
 }

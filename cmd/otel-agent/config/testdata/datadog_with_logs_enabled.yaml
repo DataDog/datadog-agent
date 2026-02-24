@@ -1,0 +1,14 @@
+logs_enabled: true
+log_level: info
+api_key: test_key_12345
+receivers:
+  otlp:
+    protocols:
+      grpc:
+exporters:
+  datadog:
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [datadog]

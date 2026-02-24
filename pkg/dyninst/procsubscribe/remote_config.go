@@ -35,12 +35,27 @@ const (
 	rcMaxReconnectDelay     = 30 * time.Second
 
 	defaultScanInterval = 3 * time.Second
-	defaultScannerDelay = 3 * time.Second
 )
+
+// defaultProcessDelays defines the default delays for process discovery.
+//
+// The 3s delay will capture most processes relatively quickly, but should
+// avoid scanning short-lived processes.
+//
+// The 100s delay will catch processes that start their tracer after 100s which
+// will catch processes that start their tracer after 1 minute.
+//
+// The 1000s will catch extreme outliers that start their tracer really quite
+// late.
+var defaultProcessDelays = []time.Duration{
+	3 * time.Second,
+	100 * time.Second,  // a bit more than 1 minute
+	1000 * time.Second, // quite a while after the process started
+}
 
 type config struct {
 	scanInterval   time.Duration
-	scannerDelay   time.Duration
+	processDelays  []time.Duration
 	processScanner processScanner
 	clk            clock.Clock
 	jitterFactor   float64
@@ -48,9 +63,9 @@ type config struct {
 }
 
 var defaultConfig = config{
-	scanInterval: defaultScanInterval,
-	scannerDelay: defaultScannerDelay,
-	clk:          clock.New(),
+	scanInterval:  defaultScanInterval,
+	processDelays: defaultProcessDelays,
+	clk:           clock.New(),
 	wait: func(ctx context.Context, duration time.Duration) error {
 		select {
 		case <-ctx.Done():
@@ -116,9 +131,9 @@ type optionFunc func(*config)
 
 func (f optionFunc) apply(c *config) { f(c) }
 
-// NewRemoteConfigProcessSubscriber creates a ProcessSubscriber that sources
-// updates directly from Remote Config.
-func NewRemoteConfigProcessSubscriber(
+// NewSubscriber creates a Subscriber that sources updates directly from Remote
+// Config.
+func NewSubscriber(
 	client RemoteConfigSubscriber,
 	opts ...Option,
 ) *Subscriber {
@@ -128,7 +143,7 @@ func NewRemoteConfigProcessSubscriber(
 	}
 	scanner := cfg.processScanner
 	if scanner == nil {
-		scanner = procscan.NewScanner(kernel.ProcFSRoot(), cfg.scannerDelay)
+		scanner = procscan.NewScanner(kernel.ProcFSRoot(), cfg.processDelays...)
 	}
 	s := &Subscriber{
 		client:         client,
@@ -215,14 +230,15 @@ func (s *Subscriber) runScanner(ctx context.Context) {
 		} else if log.ShouldLog(log.TraceLvl) {
 			log.Tracef("process subscriber: onScanUpdate: no changes")
 		}
-		// Add a factor of 5 from how long the scan took to ensure that if
-		// scanning is slow, that we don't scan too frequently.
+		// Add a factor of 100 from how long the scan took to ensure that if
+		// scanning is slow, that we don't scan too frequently. This should
+		// mean we are never scanning for more than 1% of any core time.
 		//
 		// Generally speaking, scanning should be very fast relative to the
 		// interval, so we expect this factor to be small.
 		took := s.clk.Since(start)
 		interval := s.scanInterval
-		interval = interval + 5*took
+		interval = interval + 100*took
 		jittered := jitter(interval, s.jitterFactor)
 		next = jittered
 	}
@@ -398,11 +414,97 @@ func (s *Subscriber) runConnectedStream(
 	return <-errCh
 }
 
+// ProcessReport contains information about a Go process that has been detected
+// and is being monitored for Dynamic Instrumentation updates.
+type ProcessReport struct {
+	RuntimeID    string             `json:"runtime_id"`
+	ProcessID    int32              `json:"process_id"`
+	Executable   process.Executable `json:"executable"`
+	SymDBEnabled bool               `json:"symdb_enabled"`
+	Probes       []ProbeInfo        `json:"probes"`
+	// ProcessAlive is set if the procscan.Scanner reports the process as alive.
+	// This should be true, except for races between the report and the Scanner
+	// recently figuring out that a process is dead.
+	ProcessAlive bool `json:"process_alive"`
+}
+
+// ProbeInfo contains information about a probe for the ProcessReport.
+type ProbeInfo struct {
+	ID      string `json:"id"`
+	Version int    `json:"version"`
+}
+
+// Report is a snapshot of the current state of the subscriber.
+type Report struct {
+	// Processes contains the state for all the currently tracked processes.
+	Processes []ProcessReport `json:"processes"`
+	// ProcessesNotTracked contains the PIDs of processes known to the scanner
+	// that are not tracked. This should be empty, except for to race conditions
+	// between producing this report and the scanner discovering new processes
+	// that have not been added to the tracked set yet.
+	ProcessesNotTracked []int32 `json:"processes_not_tracked"`
+}
+
+// GetReport returns a snapshot of the current state of the subscriber.
+func (s *Subscriber) GetReport() Report {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	liveProcs := map[int32]struct{}{}
+	if scanner, ok := s.scanner.(*procscan.Scanner); ok {
+		procs := scanner.LiveProcesses()
+		for _, proc := range procs {
+			liveProcs[int32(proc)] = struct{}{}
+		}
+	}
+
+	var ret Report
+	for _, entry := range s.mu.state.tracked {
+		pid := entry.Info.ProcessID.PID
+		_, alive := liveProcs[pid]
+		pr := ProcessReport{
+			RuntimeID:    entry.runtimeID,
+			ProcessID:    pid,
+			Executable:   entry.Executable,
+			SymDBEnabled: entry.symdbEnabled,
+			ProcessAlive: alive,
+		}
+		for _, probe := range entry.probesByPath {
+			pr.Probes = append(pr.Probes, ProbeInfo{
+				ID:      probe.GetID(),
+				Version: probe.GetVersion(),
+			})
+		}
+		ret.Processes = append(ret.Processes, pr)
+	}
+	// Look for processes known to the scanner that are not tracked. There
+	// should be no such processes, modulo race conditions between producing
+	// this report and the scanner discovering new processes that have not been
+	// added to the tracked set yet.
+	for pid := range liveProcs {
+		_, ok := s.mu.state.pidToRuntime[pid]
+		if ok {
+			continue
+		}
+		ret.ProcessesNotTracked = append(ret.ProcessesNotTracked, pid)
+	}
+	return ret
+}
+
+type parsedRemoteConfigUpdate struct {
+	probes        map[string]ir.ProbeDefinition
+	haveSymdbFile bool
+	symdbEnabled  bool
+}
+
 func parseRemoteConfigFiles(
 	runtimeID string,
 	files []*pbgo.File,
-) (probes map[string]ir.ProbeDefinition, symdbEnabled bool) {
-	probes = make(map[string]ir.ProbeDefinition, len(files))
+) parsedRemoteConfigUpdate {
+	r := parsedRemoteConfigUpdate{
+		probes:        make(map[string]ir.ProbeDefinition, len(files)),
+		haveSymdbFile: false,
+		symdbEnabled:  false,
+	}
 
 	for _, file := range files {
 		path := file.GetPath()
@@ -431,7 +533,7 @@ func parseRemoteConfigFiles(
 				)
 				continue
 			}
-			probes[path] = probe
+			r.probes[path] = probe
 			if log.ShouldLog(log.TraceLvl) {
 				log.Tracef(
 					"process subscriber: runtime %s parsed probe %s version=%d",
@@ -439,9 +541,10 @@ func parseRemoteConfigFiles(
 				)
 			}
 		case data.ProductLiveDebuggingSymbolDB:
+			r.haveSymdbFile = true
 			raw := file.GetRaw()
 			if len(raw) == 0 {
-				symdbEnabled = false
+				r.symdbEnabled = false
 				continue
 			}
 			var payload struct {
@@ -454,11 +557,11 @@ func parseRemoteConfigFiles(
 				)
 				continue
 			}
-			symdbEnabled = payload.UploadSymbols
+			r.symdbEnabled = payload.UploadSymbols
 		}
 	}
 
-	return probes, symdbEnabled
+	return r
 }
 
 func gitInfoFromTags(tags []string) *process.GitInfo {

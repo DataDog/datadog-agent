@@ -7,8 +7,11 @@
 package model
 
 import (
+	"net"
 	"time"
 )
+
+var _ = net.IP{}
 
 // ResolveFields resolves all the fields associate to the event type. Context fields are automatically resolved.
 func (ev *Event) ResolveFields() {
@@ -23,124 +26,94 @@ func (ev *Event) resolveFields(forADs bool) {
 	eventType := ev.GetEventType().String()
 	// resolve context fields that are not related to any event type
 	_ = ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent)
-	if !forADs {
-		_ = ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
-	}
 	_ = ev.FieldHandlers.ResolveSource(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, &ev.BaseEvent.ProcessContext.Process)
-	_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process.ContainerContext)
-	_ = ev.FieldHandlers.ResolveContainerID(ev, &ev.BaseEvent.ProcessContext.Process.ContainerContext)
-	if !forADs {
-		_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.BaseEvent.ProcessContext.Process.ContainerContext)
-	}
 	_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 	_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 	_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
-	if ev.BaseEvent.ProcessContext.HasParent() {
-		_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.BaseEvent.ProcessContext.Parent)
-	}
-	if ev.BaseEvent.ProcessContext.HasParent() {
-		_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.BaseEvent.ProcessContext.Parent.ContainerContext)
-	}
-	if ev.BaseEvent.ProcessContext.HasParent() {
-		_ = ev.FieldHandlers.ResolveContainerID(ev, &ev.BaseEvent.ProcessContext.Parent.ContainerContext)
+	_ = ev.FieldHandlers.ResolveUser(ev, &ev.BaseEvent.ProcessContext.Process)
+	if !forADs {
+		_ = ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
+		_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.BaseEvent.ProcessContext.Process.ContainerContext)
 	}
 	if !forADs && ev.BaseEvent.ProcessContext.HasParent() {
 		_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.BaseEvent.ProcessContext.Parent.ContainerContext)
 	}
 	if ev.BaseEvent.ProcessContext.HasParent() {
+		_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.BaseEvent.ProcessContext.Parent)
 		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.BaseEvent.ProcessContext.Parent)
-	}
-	if ev.BaseEvent.ProcessContext.HasParent() {
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.BaseEvent.ProcessContext.Parent)
-	}
-	if ev.BaseEvent.ProcessContext.HasParent() {
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.BaseEvent.ProcessContext.Parent)
-	}
-	if ev.BaseEvent.ProcessContext.HasParent() {
 		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
-	}
-	if ev.BaseEvent.ProcessContext.HasParent() {
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
-	}
-	if ev.BaseEvent.ProcessContext.HasParent() {
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
-	}
-	if ev.BaseEvent.ProcessContext.HasParent() {
 		_ = ev.FieldHandlers.ResolveUser(ev, ev.BaseEvent.ProcessContext.Parent)
 	}
-	_ = ev.FieldHandlers.ResolveUser(ev, &ev.BaseEvent.ProcessContext.Process)
 	// resolve event specific fields
 	switch eventType {
 	case "change_permission":
-		_ = ev.FieldHandlers.ResolveOldSecurityDescriptor(ev, &ev.ChangePermission)
 		_ = ev.FieldHandlers.ResolveNewSecurityDescriptor(ev, &ev.ChangePermission)
+		_ = ev.FieldHandlers.ResolveOldSecurityDescriptor(ev, &ev.ChangePermission)
 	case "create":
 		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.CreateNewFile.File)
-		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.CreateNewFile.File)
-		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.CreateNewFile.File)
 		_ = ev.FieldHandlers.ResolveFimFileExtension(ev, &ev.CreateNewFile.File)
+		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.CreateNewFile.File)
+		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.CreateNewFile.File)
 	case "create_key":
 	case "delete":
 		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.DeleteFile.File)
-		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.DeleteFile.File)
-		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.DeleteFile.File)
 		_ = ev.FieldHandlers.ResolveFimFileExtension(ev, &ev.DeleteFile.File)
+		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.DeleteFile.File)
+		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.DeleteFile.File)
 	case "delete_key":
 	case "exec":
-		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent)
-		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exec.Process.FileEvent)
+		_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exec.Process)
+		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exec.Process)
+		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process)
+		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Exec.Process.FileEvent)
-		_ = ev.FieldHandlers.ResolveContainerID(ev, &ev.Exec.Process.ContainerContext)
-		_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Exec.Process.ContainerContext)
+		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exec.Process.FileEvent)
+		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent)
+		_ = ev.FieldHandlers.ResolveUser(ev, ev.Exec.Process)
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.Exec.Process.ContainerContext)
 		}
-		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exec.Process)
-		_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exec.Process)
-		_ = ev.FieldHandlers.ResolveUser(ev, ev.Exec.Process)
-		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process)
-		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process)
 	case "exit":
-		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Exit.Process.FileEvent)
-		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exit.Process.FileEvent)
+		_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exit.Process)
+		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exit.Process)
+		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
+		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Exit.Process.FileEvent)
-		_ = ev.FieldHandlers.ResolveContainerID(ev, &ev.Exit.Process.ContainerContext)
-		_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Exit.Process.ContainerContext)
+		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exit.Process.FileEvent)
+		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Exit.Process.FileEvent)
+		_ = ev.FieldHandlers.ResolveUser(ev, ev.Exit.Process)
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.Exit.Process.ContainerContext)
 		}
-		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exit.Process)
-		_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exit.Process)
-		_ = ev.FieldHandlers.ResolveUser(ev, ev.Exit.Process)
-		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
-		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
 	case "open_key":
 	case "rename":
-		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.RenameFile.Old)
-		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.Old)
-		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.Old)
-		_ = ev.FieldHandlers.ResolveFimFileExtension(ev, &ev.RenameFile.Old)
 		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.RenameFile.New)
-		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.New)
-		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.New)
 		_ = ev.FieldHandlers.ResolveFimFileExtension(ev, &ev.RenameFile.New)
+		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.New)
+		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.New)
+		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.RenameFile.Old)
+		_ = ev.FieldHandlers.ResolveFimFileExtension(ev, &ev.RenameFile.Old)
+		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.Old)
+		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.Old)
 	case "set_key_value":
 	case "write":
 		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.WriteFile.File)
-		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.WriteFile.File)
-		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.WriteFile.File)
 		_ = ev.FieldHandlers.ResolveFimFileExtension(ev, &ev.WriteFile.File)
+		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.WriteFile.File)
+		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.WriteFile.File)
 	}
 }
 
 type FieldHandlers interface {
-	ResolveContainerCreatedAt(ev *Event, e *ContainerContext) int
-	ResolveContainerID(ev *Event, e *ContainerContext) string
 	ResolveContainerTags(ev *Event, e *ContainerContext) []string
 	ResolveEventTime(ev *Event, e *BaseEvent) time.Time
 	ResolveEventTimestamp(ev *Event, e *BaseEvent) int
@@ -165,14 +138,10 @@ type FieldHandlers interface {
 	// custom handlers not tied to any fields
 	ExtraFieldHandlers
 }
-type FakeFieldHandlers struct{}
+type FakeFieldHandlers struct {
+	PCEs map[uint32]*ProcessCacheEntry
+}
 
-func (dfh *FakeFieldHandlers) ResolveContainerCreatedAt(ev *Event, e *ContainerContext) int {
-	return int(e.CreatedAt)
-}
-func (dfh *FakeFieldHandlers) ResolveContainerID(ev *Event, e *ContainerContext) string {
-	return string(e.ContainerID)
-}
 func (dfh *FakeFieldHandlers) ResolveContainerTags(ev *Event, e *ContainerContext) []string {
 	return []string(e.Tags)
 }

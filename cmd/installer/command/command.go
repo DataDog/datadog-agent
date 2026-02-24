@@ -7,7 +7,6 @@
 package command
 
 import (
-	"fmt"
 	"os"
 	"runtime"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/commands"
 )
 
 // common constants for all the updater subcommands.
@@ -57,7 +57,7 @@ func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
 
 	// AgentCmd is the root command
 	agentCmd := &cobra.Command{
-		Use:   fmt.Sprintf("%s [command]", os.Args[0]),
+		Use:   os.Args[0] + " [command]",
 		Short: "Datadog Installer at your service.",
 		Long: `
 Datadog Installer installs datadog-packages based on your commands.`,
@@ -79,6 +79,10 @@ Datadog Installer installs datadog-packages based on your commands.`,
 		&cobra.Group{
 			ID:    "apm",
 			Title: "APM Commands",
+		},
+		&cobra.Group{
+			ID:    "extension",
+			Title: "Extensions Commands",
 		},
 	)
 
@@ -112,6 +116,9 @@ Datadog Installer installs datadog-packages based on your commands.`,
 		// TODO: Specific to Windows for now, as Linux needs more testing/validation of
 		//       the additional migration cases, and the main setup entrypoint is
 		//       currently `install.sh` not the `installer` binary.
+		agentCmd.Annotations = map[string]string{
+			commands.AnnotationHumanReadableErrors: "true",
+		}
 		agentCmd.RunE = func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				cmd.SetArgs([]string{"setup", "--flavor", "default"})

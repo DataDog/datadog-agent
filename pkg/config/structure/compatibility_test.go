@@ -75,18 +75,13 @@ network_devices:
 	num = ntmConf.GetInt("network_devices.autodiscovery.workers")
 	assert.Equal(t, 0, num)
 
-	// no error from UnmarshalKey because the shape mismatch is below the top-level setting
-	err := viperConf.UnmarshalKey("network_devices.autodiscovery", &cfg)
-	assert.NoError(t, err)
-	assert.Equal(t, 0, cfg.Workers)
-
 	// same behavior using reflection based UnmarshalKey
-	err = unmarshalKeyReflection(viperConf, "network_devices.autodiscovery", &cfg)
+	err := UnmarshalKey(viperConf, "network_devices.autodiscovery", &cfg)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, cfg.Workers)
 
 	// NOTE: Behavior difference! UnmarshalKey will fail here because a leaf node will fail to convert
-	err = unmarshalKeyReflection(ntmConf, "network_devices.autodiscovery", &cfg)
+	err = UnmarshalKey(ntmConf, "network_devices.autodiscovery", &cfg)
 	assert.Error(t, err)
 }
 
@@ -104,9 +99,9 @@ network_devices:
 	assert.Equal(t, model.NewWarnings(nil), warnings)
 	assert.Equal(t, 0, len(warnings.Errors))
 
-	// NOTE: An additional warning is created here because the config has an error
+	// NOTE: Keys are declared using SetKnown, no warnings generated
 	warnings = ntmConf.Warnings()
-	assert.Equal(t, 1, len(warnings.Errors))
+	assert.Equal(t, 0, len(warnings.Errors))
 
 	type simpleConfig struct {
 		Workers int `mapstructure:"workers"`
@@ -119,14 +114,13 @@ network_devices:
 	val = ntmConf.Get("network_devices.autodiscovery")
 	assert.NotNil(t, val)
 
-	err := viperConf.UnmarshalKey("network_devices.autodiscovery", &cfg)
+	err := UnmarshalKey(viperConf, "network_devices.autodiscovery", &cfg)
 	assert.Error(t, err)
 	assert.ErrorContains(t, err, "'' expected a map or struct, got \"slice\"")
 
-	// NOTE: Error message differs, but that is an acceptable difference
-	err = unmarshalKeyReflection(ntmConf, "network_devices.autodiscovery", &cfg)
+	err = UnmarshalKey(ntmConf, "network_devices.autodiscovery", &cfg)
 	assert.Error(t, err)
-	assert.ErrorContains(t, err, "expected map at '' got: [map[workers:10]]")
+	assert.ErrorContains(t, err, "'' expected a map or struct, got \"slice\"")
 }
 
 type MetadataProviders struct {
@@ -146,7 +140,7 @@ func TestCompareTimeDuration(t *testing.T) {
 
 	err := UnmarshalKey(viperConf, "provider", &mp1)
 	assert.NoError(t, err)
-	err = unmarshalKeyReflection(ntmConf, "provider", &mp2)
+	err = UnmarshalKey(ntmConf, "provider", &mp2)
 	assert.NoError(t, err)
 
 	assert.Equal(t, 5*time.Second, mp1.Interval)
@@ -176,14 +170,14 @@ func TestUnmarshalIntPermutations(t *testing.T) {
 		viper2, ntm2 IntPermutation
 	)
 
-	err := viperConf.UnmarshalKey("ints", &viper1)
+	err := UnmarshalKey(viperConf, "ints", &viper1)
 	assert.NoError(t, err)
-	err = unmarshalKeyReflection(ntmConf, "ints", &ntm1)
+	err = UnmarshalKey(ntmConf, "ints", &ntm1)
 	assert.NoError(t, err)
 
-	err = viperConf.UnmarshalKey("ints2", &viper2)
+	err = UnmarshalKey(viperConf, "ints2", &viper2)
 	assert.NoError(t, err)
-	err = unmarshalKeyReflection(ntmConf, "ints2", &ntm2)
+	err = UnmarshalKey(ntmConf, "ints2", &ntm2)
 	assert.NoError(t, err)
 
 	assert.Equal(t, int(10), viper1.ToInt)
@@ -231,9 +225,9 @@ func TestCompareNegativeNumber(t *testing.T) {
 	var mf1 MyFeature
 	var mf2 MyFeature
 
-	err := viperConf.UnmarshalKey("my_feature", &mf1)
+	err := UnmarshalKey(viperConf, "my_feature", &mf1)
 	assert.NoError(t, err)
-	err = unmarshalKeyReflection(ntmConf, "my_feature", &mf2)
+	err = UnmarshalKey(ntmConf, "my_feature", &mf2)
 	assert.NoError(t, err)
 
 	assert.Equal(t, "foo", mf1.Name)
@@ -266,12 +260,87 @@ func TestUnmarshalKeyMapToBools(t *testing.T) {
 	objBool2 := testBool{}
 
 	viperConf.Set("test", map[string]bool{"a": false, "b": true}, model.SourceAgentRuntime)
-	err := unmarshalKeyReflection(viperConf, "test", &objBool1)
+	err := UnmarshalKey(viperConf, "test", &objBool1)
 	require.NoError(t, err)
 	assert.Equal(t, objBool1, testBool{A: false, B: true})
 
 	ntmConf.Set("test", map[string]bool{"a": false, "b": true}, model.SourceAgentRuntime)
-	err = unmarshalKeyReflection(ntmConf, "test", &objBool2)
+	err = UnmarshalKey(ntmConf, "test", &objBool2)
 	require.NoError(t, err)
 	assert.Equal(t, objBool2, testBool{A: false, B: true})
+}
+
+type TargetStruct struct {
+	BoolToString  string   `mapstructure:"bool_to_string"`
+	NumToString   string   `mapstructure:"num_to_string"`
+	BoolToInt     int      `mapstructure:"bool_to_int"`
+	StringToInt   int      `mapstructure:"string_to_int"`
+	StringToInt2  int      `mapstructure:"string_to_int2"`
+	IntToBool     bool     `mapstructure:"int_to_bool"`
+	IntToBool2    bool     `mapstructure:"int_to_bool2"`
+	StringToBool  bool     `mapstructure:"string_to_bool"`
+	StringToBool2 bool     `mapstructure:"string_to_bool2"`
+	StringToBool3 bool     `mapstructure:"string_to_bool3"`
+	StringToBool4 bool     `mapstructure:"string_to_bool4"`
+	StrSlice      []string `mapstructure:"str_slice"`
+	IntSlice      []int    `mapstructure:"int_slice"`
+}
+
+func TestUnmarshalWeaklyTyped(t *testing.T) {
+	// Validate that UnmarshalKey uses mapstructure's implicit conversion from
+	// mapstructure's WeaklyTypedInput setting.
+	// https://github.com/go-viper/mapstructure/blob/v2.4.0/mapstructure.go#L257
+	dataYaml := `
+my_target:
+  bool_to_string:  true
+  num_to_string:   5
+  bool_to_int:     true
+  string_to_int:   "345"
+  string_to_int2:  "0x123"
+  int_to_bool:     3
+  int_to_bool2:    0
+  string_to_bool:  T
+  string_to_bool2: True
+  string_to_bool3: "1"
+  string_to_bool4: "FALSE"
+  str_slice:       abc
+  int_slice:       7
+`
+	viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+		cfg.SetKnown("my_target") //nolint:forbidigo // legit usage, often used for UnmarshalKey settings
+	})
+
+	var target TargetStruct
+	err := UnmarshalKey(viperConf, "my_target", &target)
+	assert.Equal(t, "1", target.BoolToString)
+	assert.Equal(t, "5", target.NumToString)
+	assert.Equal(t, 1, target.BoolToInt)
+	assert.Equal(t, 345, target.StringToInt)
+	assert.Equal(t, 291, target.StringToInt2)
+	assert.Equal(t, true, target.IntToBool)
+	assert.Equal(t, false, target.IntToBool2)
+	assert.Equal(t, true, target.StringToBool)
+	assert.Equal(t, true, target.StringToBool2)
+	assert.Equal(t, true, target.StringToBool3)
+	assert.Equal(t, false, target.StringToBool4)
+	assert.Equal(t, []string{"abc"}, target.StrSlice)
+	assert.Equal(t, []int{7}, target.IntSlice)
+	require.NoError(t, err)
+
+	target = TargetStruct{}
+	err = UnmarshalKey(ntmConf, "my_target", &target)
+	assert.Equal(t, "1", target.BoolToString)
+	assert.Equal(t, "5", target.NumToString)
+	assert.Equal(t, 1, target.BoolToInt)
+	assert.Equal(t, 345, target.StringToInt)
+	assert.Equal(t, 291, target.StringToInt2)
+	assert.Equal(t, true, target.IntToBool)
+	assert.Equal(t, false, target.IntToBool2)
+	assert.Equal(t, true, target.StringToBool)
+	assert.Equal(t, true, target.StringToBool2)
+	assert.Equal(t, true, target.StringToBool3)
+	assert.Equal(t, false, target.StringToBool4)
+	assert.Equal(t, []string{"abc"}, target.StrSlice)
+	assert.Equal(t, []int{7}, target.IntSlice)
+	require.NoError(t, err)
 }

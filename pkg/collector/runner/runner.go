@@ -7,6 +7,7 @@
 package runner
 
 import (
+	"context"
 	"fmt"
 
 	"sync"
@@ -15,6 +16,7 @@ import (
 	"go.uber.org/atomic"
 
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -42,6 +44,7 @@ var (
 type Runner struct {
 	senderManager       sender.SenderManager
 	haAgent             haagent.Component
+	healthPlatform      healthplatform.Component // Health platform component for reporting issues
 	isRunning           *atomic.Bool
 	id                  int                           // Globally unique identifier for the Runner
 	workers             map[int]*worker.Worker        // Workers currrently under this Runner's management
@@ -53,15 +56,22 @@ type Runner struct {
 	schedulerLock       sync.RWMutex                  // Lock around operations on the scheduler
 	utilizationMonitor  *worker.UtilizationMonitor    // Monitor in charge of checking the worker utilization
 	utilizationLogLimit *log.Limit                    // Log limiter for utilization warnings
+	// ctx is cancelled when the runner stops, providing a cancellation signal
+	// to any context-aware operation inside workers (e.g. hostname resolution).
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
-func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component) *Runner {
+func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component, healthPlatform healthplatform.Component) *Runner {
 	numWorkers := pkgconfigsetup.Datadog().GetInt("check_runners")
+
+	ctx, cancel := context.WithCancel(context.Background())
 
 	r := &Runner{
 		senderManager:       senderManager,
 		haAgent:             haAgent,
+		healthPlatform:      healthPlatform,
 		id:                  int(runnerIDGenerator.Inc()),
 		isRunning:           atomic.NewBool(true),
 		workers:             make(map[int]*worker.Worker),
@@ -70,6 +80,8 @@ func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component) *R
 		checksTracker:       tracker.NewRunningChecksTracker(),
 		utilizationMonitor:  worker.NewUtilizationMonitor(pkgconfigsetup.Datadog().GetFloat64("check_runner_utilization_threshold")),
 		utilizationLogLimit: log.NewLogLimit(1, pkgconfigsetup.Datadog().GetDuration("check_runner_utilization_warning_cooldown")),
+		ctx:                 ctx,
+		cancel:              cancel,
 	}
 
 	if !r.isStaticWorkerCount {
@@ -125,14 +137,18 @@ func (r *Runner) AddWorker() {
 
 // newWorker adds a new worker running in a separate goroutine
 func (r *Runner) newWorker() (*worker.Worker, error) {
+	watchdogWarningTimeout := pkgconfigsetup.Datadog().GetDuration("check_watchdog_warning_timeout")
+
 	worker, err := worker.NewWorker(
 		r.senderManager,
 		r.haAgent,
+		r.healthPlatform,
 		r.id,
 		int(workerIDGenerator.Inc()),
 		r.pendingChecksChan,
 		r.checksTracker,
 		r.ShouldAddCheckStats,
+		watchdogWarningTimeout,
 	)
 	if err != nil {
 		log.Errorf("Runner %d was unable to instantiate a worker: %s", r.id, err)
@@ -142,7 +158,7 @@ func (r *Runner) newWorker() (*worker.Worker, error) {
 	go func() {
 		defer r.removeWorker(worker.ID)
 
-		worker.Run()
+		worker.Run(r.ctx)
 	}()
 
 	return worker, nil
@@ -188,6 +204,10 @@ func (r *Runner) Stop() {
 		log.Debugf("Runner %d already stopped, nothing to do here...", r.id)
 		return
 	}
+
+	// Cancel the runner context to unblock any context-aware operations in workers
+	// (e.g. hostname resolution via EC2 IMDS) that may be waiting on I/O.
+	r.cancel()
 
 	log.Infof("Runner %d is shutting down...", r.id)
 	close(r.pendingChecksChan)

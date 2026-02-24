@@ -84,6 +84,23 @@ func (handler *languageDetectionHandler) startCleanupInBackground(ctx context.Co
 		}
 	}()
 
+	// Periodic flush for followers to push synced languages to workloadmeta
+	// without blocking the subscriber handler on eventCh
+	go func() {
+		flushTicker := time.NewTicker(1 * time.Minute)
+		defer flushTicker.Stop()
+		for {
+			select {
+			case <-flushTicker.C:
+				if !handler.isLeader() {
+					_ = handler.ownersLanguages.flush(handler.wlm)
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
 	// Remove any owner when its corresponding resource is deleted
 	go handler.ownersLanguages.cleanRemovedOwners(handler.wlm)
 
@@ -137,6 +154,7 @@ func (handler *languageDetectionHandler) leaderHandler(w http.ResponseWriter, r 
 		log.Tracef("Owner Languages state pre merge-and-flush: %s", handler.ownersLanguages.String())
 		log.Tracef("Owner languages received from pld client: %s", ownersLanguagesFromRequest.String())
 	}
+
 	err = handler.ownersLanguages.mergeAndFlush(ownersLanguagesFromRequest, handler.wlm)
 	if log.ShouldLog(log.TraceLvl) { // Avoid call to String() if not needed
 		log.Tracef("Owner Languages state post merge-and-flush: %s", handler.ownersLanguages.String())
@@ -321,7 +339,7 @@ func (handler *languageDetectionHandler) syncFollowerWithInjectableLanguages(ctx
 				)
 
 				// Always sync DetectedLangs to match InjectableLangs (even if empty)
-				handler.ownersLanguages.syncFromInjectableLanguages(handler.wlm, owner, deployment.InjectableLanguages, handler.cfg.languageTTL)
+				handler.ownersLanguages.syncFromInjectableLanguages(owner, deployment.InjectableLanguages, handler.cfg.languageTTL)
 
 				if len(deployment.InjectableLanguages) > 0 {
 					log.Debugf("Follower synced languages for deployment %s/%s from InjectableLanguages",

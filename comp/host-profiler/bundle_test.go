@@ -21,7 +21,7 @@ import (
 // properly configured and can be resolved by the dependency injection container.
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t,
-		Bundle(collectorimpl.NewParams("")),
+		Bundle(collectorimpl.NewParams("", false)),
 		fx.Provide(collectorimpl.NewExtraFactoriesWithoutAgentCore),
 	)
 }

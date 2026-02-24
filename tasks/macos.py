@@ -49,8 +49,7 @@ def list_ci_active_versions(_, lang, n_days=30):
     from datadog_api_client import ApiClient, Configuration
     from datadog_api_client.v1.api.metrics_api import MetricsApi
 
-    configuration = Configuration()
-    with ApiClient(configuration) as api_client:
+    with ApiClient(Configuration(enable_retry=True)) as api_client:
         api_instance = MetricsApi(api_client)
         response = api_instance.query_metrics(
             _from=int((datetime.now() + timedelta(days=-n_days)).timestamp()),

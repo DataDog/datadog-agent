@@ -1,0 +1,68 @@
+.new-e2e_agent_a7:
+  rules: !reference [.on_all_install_script_tests]
+  variables:
+    AGENT_MAJOR_VERSION: 7
+
+.new-e2e_install_script:
+  stage: e2e_install_packages
+  variables:
+    TARGETS: ./tests/agent-platform/install-script
+    TEAM: agent-delivery
+    EXTRA_PARAMS: --cws-supported-osdescriptors $E2E_CWS_SUPPORTED_DESCRIPTORS --flavor $FLAVOR --osdescriptors $E2E_DESCRIPTORS
+    E2E_LOGS_PROCESSING_TEST_DEPTH: 2 # We use a single test suite and run all the platforms test as subtest
+
+.new-e2e_step_by_step:
+  stage: e2e_install_packages
+  variables:
+    TARGETS: ./tests/agent-platform/step-by-step
+    TEAM: agent-delivery
+    EXTRA_PARAMS: --cws-supported-osdescriptors $E2E_CWS_SUPPORTED_DESCRIPTORS --flavor $FLAVOR --osdescriptors $E2E_DESCRIPTORS
+    E2E_LOGS_PROCESSING_TEST_DEPTH: 2 # We use a single test suite and run all the platforms test as subtest
+
+.new-e2e_ddot:
+  stage: e2e_install_packages
+  variables:
+    TARGETS: ./tests/agent-platform/ddot
+    TEAM: agent-delivery
+    EXTRA_PARAMS: --osdescriptors $E2E_DESCRIPTORS
+    E2E_LOGS_PROCESSING_TEST_DEPTH: 2 # We use a single test suite and run all the platforms test as subtest
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_ddot_oci
+
+.new-e2e_script_upgrade7:
+  stage: e2e_install_packages
+  variables:
+    TARGETS: ./tests/agent-platform/upgrade
+    TEAM: agent-delivery
+    EXTRA_PARAMS: --flavor $FLAVOR --osdescriptors $E2E_DESCRIPTORS
+    E2E_LOGS_PROCESSING_TEST_DEPTH: 2 # We use a single test suite and run all the platforms test as subtest
+  parallel:
+    matrix:
+      - START_MAJOR_VERSION: [5, 6, 7]
+        END_MAJOR_VERSION: [7]
+  script:
+    - DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $INSTALL_SCRIPT_API_KEY_ORG2 token ) || exit $?; export DATADOG_AGENT_API_KEY
+    - dda inv -- -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS} --src-agent-version $START_MAJOR_VERSION --dest-agent-version $END_MAJOR_VERSION --test-washer
+
+.new-e2e_script_upgrade_persisting_integrations:
+  stage: e2e_install_packages
+  variables:
+    TARGETS: ./tests/agent-platform/persisting-integrations
+    TEAM: agent-delivery
+    EXTRA_PARAMS: --flavor $FLAVOR --osdescriptors $E2E_DESCRIPTORS
+    E2E_LOGS_PROCESSING_TEST_DEPTH: 2 # We use a single test suite and run all the platforms test as subtest
+  script:
+    - DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $INSTALL_SCRIPT_API_KEY_ORG2 token) || exit $?; export DATADOG_AGENT_API_KEY
+    - dda inv -- -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS} --src-agent-version 7 --test-washer
+
+.new-e2e_rpm:
+  stage: e2e_install_packages
+  variables:
+    TARGETS: ./tests/agent-platform/rpm
+    TEAM: agent-delivery
+    EXTRA_PARAMS: --osdescriptors $E2E_DESCRIPTORS
+    E2E_LOGS_PROCESSING_TEST_DEPTH: 2 # We use a single test suite and run all the platforms test as subtest
+  script:
+    - DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $INSTALL_SCRIPT_API_KEY_ORG2 token) || exit $?; export DATADOG_AGENT_API_KEY
+    - dda inv -- -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS} --test-washer

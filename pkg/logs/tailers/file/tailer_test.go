@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/goleak"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
@@ -26,11 +27,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 )
 
 var chanSize = 10
 var closeTimeout = 1 * time.Second
 
+// TailerTestSuite contains unit tests for the file tailer.
+// These tests are focused on verifying the core functionality of the file tailer
+// with minimal external dependencies. The goal moving forward is to move
+// all of these tests over to file mocks or the integration test suite.
 type TailerTestSuite struct {
 	suite.Suite
 	testDir  string
@@ -40,6 +46,43 @@ type TailerTestSuite struct {
 	tailer     *Tailer
 	outputChan chan *message.Message
 	source     *sources.ReplaceableSource
+}
+
+// createTailerOptions creates TailerOptions with common defaults.
+// Parameters that vary between tests can be customized via the opts parameter.
+type tailerTestOptions struct {
+	source     *sources.LogSource
+	isWildcard bool
+}
+
+func (suite *TailerTestSuite) createTailerOptions(opts *tailerTestOptions) *TailerOptions {
+	if opts == nil {
+		opts = &tailerTestOptions{}
+	}
+
+	// Default to suite.source if no source provided
+	source := opts.source
+	if source == nil {
+		source = suite.source.UnderlyingSource()
+	}
+
+	sleepDuration := 10 * time.Millisecond
+	info := status.NewInfoRegistry()
+
+	return &TailerOptions{
+		OutputChan:      suite.outputChan,
+		File:            NewFile(suite.testPath, source, opts.isWildcard),
+		SleepDuration:   sleepDuration,
+		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
+		Info:            info,
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
+		FileOpener:      opener.NewFileOpener(),
+	}
+}
+
+func TestSuite(t *testing.T) {
+	suite.Run(t, new(TailerTestSuite))
 }
 
 func (suite *TailerTestSuite) SetupTest() {
@@ -56,30 +99,14 @@ func (suite *TailerTestSuite) SetupTest() {
 		Type: config.FileType,
 		Path: suite.testPath,
 	}))
-	sleepDuration := 10 * time.Millisecond
-	info := status.NewInfoRegistry()
 
-	tailerOptions := &TailerOptions{
-		OutputChan:      suite.outputChan,
-		File:            NewFile(suite.testPath, suite.source.UnderlyingSource(), false),
-		SleepDuration:   sleepDuration,
-		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
-		Info:            info,
-		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
-		Registry:        auditor.NewMockRegistry(),
-	}
-
-	suite.tailer = NewTailer(tailerOptions)
+	suite.tailer = NewTailer(suite.createTailerOptions(nil))
 	suite.tailer.closeTimeout = closeTimeout
 }
 
 func (suite *TailerTestSuite) TearDownTest() {
 	suite.tailer.Stop()
 	suite.testFile.Close()
-}
-
-func TestTailerTestSuite(t *testing.T) {
-	suite.Run(t, new(TailerTestSuite))
 }
 
 func (suite *TailerTestSuite) TestStopAfterFileRotationWhenStuck() {
@@ -113,20 +140,8 @@ func (suite *TailerTestSuite) TestTailerTimeDurationConfig() {
 	suite.tailer.StartFromBeginning()
 
 	mockConfig.SetWithoutSource("logs_config.close_timeout", 42)
-	sleepDuration := 10 * time.Millisecond
-	info := status.NewInfoRegistry()
 
-	tailerOptions := &TailerOptions{
-		OutputChan:      suite.outputChan,
-		File:            NewFile(suite.testPath, suite.source.UnderlyingSource(), false),
-		SleepDuration:   sleepDuration,
-		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
-		Info:            info,
-		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
-		Registry:        auditor.NewMockRegistry(),
-	}
-
-	tailer := NewTailer(tailerOptions)
+	tailer := NewTailer(suite.createTailerOptions(nil))
 	tailer.StartFromBeginning()
 
 	suite.Equal(tailer.closeTimeout, time.Duration(42)*time.Second)
@@ -226,7 +241,13 @@ func (suite *TailerTestSuite) TestRecoverTailing() {
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tailer.decodedOffset.Load()))
 }
 
-func (suite *TailerTestSuite) TestWithBlanklines() {
+func (suite *TailerTestSuite) TestWithBlanklinesSingleLineHandler() {
+	mockConfig := configmock.New(suite.T())
+	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection_tagging", false)
+
+	// Recreate the tailer after config change so decoder uses SingleLineHandler
+	suite.tailer = NewTailer(suite.createTailerOptions(nil))
+
 	lines := "\t\t\t     \t\t\n    \n\n   \n\n\r\n\r\n\r\n"
 	lines += "message 1\n"
 	lines += "\n\n\n\n\n\n\n\n\n\t\n"
@@ -257,7 +278,7 @@ func (suite *TailerTestSuite) TestWithBlanklines() {
 func (suite *TailerTestSuite) TestTailerIdentifier() {
 	suite.tailer.StartFromBeginning()
 	suite.Equal(
-		fmt.Sprintf("file:%s", filepath.Join(suite.testDir, "tailer.log")),
+		"file:"+filepath.Join(suite.testDir, "tailer.log"),
 		suite.tailer.Identifier())
 }
 
@@ -282,20 +303,11 @@ func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
 		Type: config.FileType,
 		Path: suite.testPath,
 	})
-	sleepDuration := 10 * time.Millisecond
-	info := status.NewInfoRegistry()
 
-	tailerOptions := &TailerOptions{
-		OutputChan:      suite.outputChan,
-		File:            NewFile(suite.testPath, dirTaggedSource, true),
-		SleepDuration:   sleepDuration,
-		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
-		Info:            info,
-		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
-		Registry:        auditor.NewMockRegistry(),
-	}
-
-	suite.tailer = NewTailer(tailerOptions)
+	suite.tailer = NewTailer(suite.createTailerOptions(&tailerTestOptions{
+		source:     dirTaggedSource,
+		isWildcard: true,
+	}))
 	suite.tailer.StartFromBeginning()
 
 	_, err := suite.testFile.WriteString("foo\n")
@@ -314,20 +326,11 @@ func (suite *TailerTestSuite) TestBuildTagsFileOnly() {
 		Type: config.FileType,
 		Path: suite.testPath,
 	})
-	sleepDuration := 10 * time.Millisecond
-	info := status.NewInfoRegistry()
 
-	tailerOptions := &TailerOptions{
-		OutputChan:      suite.outputChan,
-		File:            NewFile(suite.testPath, dirTaggedSource, false),
-		SleepDuration:   sleepDuration,
-		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
-		Info:            info,
-		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
-		Registry:        auditor.NewMockRegistry(),
-	}
-
-	suite.tailer = NewTailer(tailerOptions)
+	suite.tailer = NewTailer(suite.createTailerOptions(&tailerTestOptions{
+		source:     dirTaggedSource,
+		isWildcard: false,
+	}))
 
 	suite.tailer.StartFromBeginning()
 
@@ -343,20 +346,11 @@ func (suite *TailerTestSuite) TestBuildTagsFileDir() {
 		Type: config.FileType,
 		Path: suite.testPath,
 	})
-	sleepDuration := 10 * time.Millisecond
-	info := status.NewInfoRegistry()
 
-	tailerOptions := &TailerOptions{
-		OutputChan:      suite.outputChan,
-		File:            NewFile(suite.testPath, dirTaggedSource, true),
-		SleepDuration:   sleepDuration,
-		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
-		Info:            info,
-		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
-		Registry:        auditor.NewMockRegistry(),
-	}
-
-	suite.tailer = NewTailer(tailerOptions)
+	suite.tailer = NewTailer(suite.createTailerOptions(&tailerTestOptions{
+		source:     dirTaggedSource,
+		isWildcard: true,
+	}))
 	suite.tailer.StartFromBeginning()
 
 	tags := suite.tailer.buildTailerTags()
@@ -366,31 +360,79 @@ func (suite *TailerTestSuite) TestBuildTagsFileDir() {
 	}, tags)
 }
 
-func (suite *TailerTestSuite) TestTruncatedTag() {
+func (suite *TailerTestSuite) TestTruncatedTagAutoMultilineHandler() {
+	mockConfig := configmock.New(suite.T())
+	mockConfig.SetWithoutSource("logs_config.max_message_size_bytes", 100)     // Small size to force truncation when aggregated
+	mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", true)        // Enable truncation tagging
+	mockConfig.SetWithoutSource("logs_config.tag_multi_line_logs", true)       // Enable multiline tagging
+	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", true) // Enable multiline tagging
+
+	// Enable auto multiline detection with aggregation (not just detection-only tagging)
+	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection_tagging", false) // Disable detection-only
+	// Instead, enable full auto multiline on the source itself
+
+	defer mockConfig.SetWithoutSource("logs_config.max_message_size_bytes", pkgconfigsetup.DefaultMaxMessageSizeBytes)
+	defer mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", false)
+	defer mockConfig.SetWithoutSource("logs_config.tag_multi_line_logs", false)
+
+	autoML := true
+	source := sources.NewLogSource("", &config.LogsConfig{
+		Type:          config.FileType,
+		Path:          suite.testPath,
+		AutoMultiLine: &autoML, // Enable auto multiline aggregation
+	})
+
+	suite.tailer = NewTailer(suite.createTailerOptions(&tailerTestOptions{
+		source:     source,
+		isWildcard: true,
+	}))
+	suite.tailer.StartFromBeginning()
+
+	// Write multiline logs that will exceed the size limit when combined
+	// Use a recognized timestamp format with time component
+	// Line 1: ~60 bytes, Line 2: ~50 bytes, Combined: ~112 bytes (exceeds 100 byte limit)
+	_, err := suite.testFile.WriteString("2024-01-01 10:00:00 [ERROR] First line of multiline log message\n")
+	suite.Nil(err)
+	_, err = suite.testFile.WriteString("  continuation line that should be aggregated here\n") // This should be aggregated with the first line
+	suite.Nil(err)
+	// Write a new log with timestamp to trigger flush of the previous multiline group
+	_, err = suite.testFile.WriteString("2024-01-01 10:00:01 [INFO] Next log\n")
+	suite.Nil(err)
+
+	// First message should be the aggregated multiline log with truncation
+	msg := <-suite.outputChan
+	tags := msg.Tags()
+
+	// Check for truncation tag with "auto_multiline" reason
+	suite.Contains(tags, message.TruncatedReasonTag("auto_multiline"))
+
+	// The content should contain the truncation flag
+	content := string(msg.GetContent())
+	suite.Contains(content, "...TRUNCATED...")
+
+	// Second message should be the single-line log
+	msg2 := <-suite.outputChan
+	suite.NotNil(msg2)
+}
+
+func (suite *TailerTestSuite) TestTruncatedTagSingleLineHandler() {
 	mockConfig := configmock.New(suite.T())
 	mockConfig.SetWithoutSource("logs_config.max_message_size_bytes", 3)
 	mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", true)
+	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection_tagging", false)
 	defer mockConfig.SetWithoutSource("logs_config.max_message_size_bytes", pkgconfigsetup.DefaultMaxMessageSizeBytes)
 	defer mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", false)
+	defer mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection_tagging", true)
 
 	source := sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
 		Path: suite.testPath,
 	})
-	sleepDuration := 10 * time.Millisecond
-	info := status.NewInfoRegistry()
 
-	tailerOptions := &TailerOptions{
-		OutputChan:      suite.outputChan,
-		File:            NewFile(suite.testPath, source, true),
-		SleepDuration:   sleepDuration,
-		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
-		Info:            info,
-		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
-		Registry:        auditor.NewMockRegistry(),
-	}
-
-	suite.tailer = NewTailer(tailerOptions)
+	suite.tailer = NewTailer(suite.createTailerOptions(&tailerTestOptions{
+		source:     source,
+		isWildcard: true,
+	}))
 	suite.tailer.StartFromBeginning()
 
 	_, err := suite.testFile.WriteString("1234\n")
@@ -411,20 +453,9 @@ func (suite *TailerTestSuite) TestMutliLineAutoDetect() {
 	suite.source.Config().AutoMultiLine = &aml
 	suite.source.Config().AutoMultiLineSampleSize = 3
 
-	sleepDuration := 10 * time.Millisecond
-	info := status.NewInfoRegistry()
-
-	tailerOptions := &TailerOptions{
-		OutputChan:      suite.outputChan,
-		File:            NewFile(suite.testPath, suite.source.UnderlyingSource(), true),
-		SleepDuration:   sleepDuration,
-		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
-		Info:            info,
-		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
-		Registry:        auditor.NewMockRegistry(),
-	}
-
-	suite.tailer = NewTailer(tailerOptions)
+	suite.tailer = NewTailer(suite.createTailerOptions(&tailerTestOptions{
+		isWildcard: true,
+	}))
 
 	_, err = suite.testFile.WriteString(lines)
 	suite.Nil(err)
@@ -448,20 +479,7 @@ func (suite *TailerTestSuite) TestMutliLineAutoDetect() {
 func (suite *TailerTestSuite) TestDidRotateNilFullpath() {
 	suite.tailer.StartFromBeginning()
 
-	sleepDuration := 10 * time.Millisecond
-	info := status.NewInfoRegistry()
-
-	tailerOptions := &TailerOptions{
-		OutputChan:      suite.outputChan,
-		File:            NewFile(suite.testPath, suite.source.UnderlyingSource(), false),
-		SleepDuration:   sleepDuration,
-		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
-		Info:            info,
-		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
-		Registry:        auditor.NewMockRegistry(),
-	}
-
-	tailer := NewTailer(tailerOptions)
+	tailer := NewTailer(suite.createTailerOptions(nil))
 	tailer.fullpath = ""
 	tailer.StartFromBeginning()
 
@@ -476,4 +494,91 @@ func toInt(str string) int {
 		return int(value)
 	}
 	return 0
+}
+
+// Test_RotationThenShutdownNoGoroutineLeak tests the following scenario:
+//  1. File rotation is detected => StopAfterFileRotation() called (goroutine sleeps)
+//  2. Agent shutdown happens => Stop() called on the rotated tailer
+//  3. Stop() signals channel and waits for completion
+//  4. StopAfterFileRotation goroutine wakes up and tries to send
+//     to validate that if there is a race condition, the goroutine will exit cleanly
+func TestNoGoLeakWithNonBlockingStop(t *testing.T) {
+	// Ignore all goroutines that exist before the test starts (background workers from logging, caching, etc.)
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	testDir := t.TempDir()
+	testPath := filepath.Join(testDir, "tailer.log")
+	f, err := os.Create(testPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	outputChan := make(chan *message.Message, chanSize)
+	source := sources.NewReplaceableSource(sources.NewLogSource("", &config.LogsConfig{
+		Type: config.FileType,
+		Path: testPath,
+	}))
+	sleepDuration := 10 * time.Millisecond
+	info := status.NewInfoRegistry()
+
+	tailerOptions := &TailerOptions{
+		OutputChan:      outputChan,
+		File:            NewFile(testPath, source.UnderlyingSource(), false),
+		SleepDuration:   sleepDuration,
+		Decoder:         decoder.NewDecoderFromSource(source, info),
+		Info:            info,
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
+		FileOpener:      opener.NewFileOpener(),
+	}
+
+	tailer := NewTailer(tailerOptions)
+	tailer.closeTimeout = 20 * time.Millisecond // Short timeout for test
+
+	// Write some data and start tailer
+	_, err = f.WriteString("line 1\nline 2\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = tailer.StartFromBeginning()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Drain messages
+	<-outputChan
+	<-outputChan
+
+	// ROTATION DETECTED ...
+	// StopAfterFileRotation spawns goroutine that sleeps for closeTimeout, tries to send to the stop channel
+	tailer.StopAfterFileRotation()
+
+	// RN...
+	// - goroutine is sleeping for closeTimeout
+	// - The tailer is still running (readForever is active)
+
+	// Sleep briefly to make sure the goroutine is actually sleeping
+	time.Sleep(10 * time.Millisecond)
+
+	// Stop() is called on the rotated tailer (simulating launcher.cleanup())
+	// This will signal the stop channel, readForever drains it and exits, forwardMessages finishes and closes done channel, Stop() returns after <-t.done
+	tailer.Stop()
+
+	// RN...
+	// - tailer is fully stopped (readForever exited, done channel closed)
+	// - stop channel is empty (0/1)
+	// - StopAfterFileRotation goroutine is still sleeping (not woken up yet)
+
+	// Wait for the closeTimeout to expire
+	// The StopAfterFileRotation goroutine will wake up and try to send to the stop channel,
+	// but since readForever has already exited, there's no reader.
+	// The select/default in StopAfterFileRotation will hit the default case, allowing the goroutine to exit cleanly.
+
+	// Wait long enough for the goroutine to wake up and complete
+	// closeTimeout is 20ms, so 100ms gives us plenty of buffer for slow CI machines
+	time.Sleep(100 * time.Millisecond)
+
+	// The deferred goleak.VerifyNone() will detect if goroutine leaked
 }

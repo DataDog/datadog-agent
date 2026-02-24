@@ -6,6 +6,7 @@
 package session
 
 import (
+	"errors"
 	"fmt"
 	stdlog "log"
 	"strings"
@@ -38,6 +39,7 @@ type Session interface {
 	GetSnmpGetBulkCount() uint32
 	GetSnmpGetNextCount() uint32
 	GetVersion() gosnmp.SnmpVersion
+	IsUnconnectedUDP() bool
 }
 
 // GosnmpSession is used to connect to a snmp device
@@ -94,6 +96,11 @@ func (s *GosnmpSession) GetSnmpGetNextCount() uint32 {
 // GetVersion returns the snmp version used
 func (s *GosnmpSession) GetVersion() gosnmp.SnmpVersion {
 	return s.gosnmpInst.Version
+}
+
+// IsUnconnectedUDP returns whether the session uses unconnected UDP socket mode
+func (s *GosnmpSession) IsUnconnectedUDP() bool {
+	return s.gosnmpInst.UseUnconnectedUDPSocket
 }
 
 // NewGosnmpSession creates a new session
@@ -154,13 +161,14 @@ func NewGosnmpSession(config *checkconfig.CheckConfig) (Session, error) {
 			PrivacyPassphrase:        config.PrivKey,
 		}
 	} else {
-		return nil, fmt.Errorf("an authentication method needs to be provided")
+		return nil, errors.New("an authentication method needs to be provided")
 	}
 
 	s.gosnmpInst.Target = config.IPAddress
 	s.gosnmpInst.Port = config.Port
 	s.gosnmpInst.Timeout = time.Duration(config.Timeout) * time.Second
 	s.gosnmpInst.Retries = config.Retries
+	s.gosnmpInst.UseUnconnectedUDPSocket = config.UseUnconnectedUDPSocket
 
 	lvl, err := log.GetLogLevel()
 	if err != nil {

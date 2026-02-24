@@ -20,7 +20,6 @@ exporters:
       key: "${env:DD_API_KEY}"
       site: datadoghq.com
     force_attempt_http2: true
-    headers: {}
     host_metadata:
       enabled: true
       hostname_source: config_or_system
@@ -48,6 +47,9 @@ exporters:
         cumulative_monotonic_mode: to_delta
         initial_cumulative_monotonic_value: auto
     only_metadata: false
+    orchestrator_explorer:
+      enabled: false
+      endpoint: https://orchestrator.datadoghq.com/api/v2/orchmanif
     retry_on_failure:
       enabled: true
       initial_interval: 5s
@@ -57,8 +59,11 @@ exporters:
       randomization_factor: 0.5
     sending_queue:
       batch:
+        flush_timeout: 200ms
+        max_size: 0
+        min_size: 8192
+        sizer: {}
       block_on_overflow: false
-      enabled: true
       num_consumers: 10
       queue_size: 1000
       sizer: {}
@@ -76,13 +81,7 @@ exporters:
       span_name_remappings: {}
       trace_buffer: 0
 extensions: {}
-processors:
-  batch:
-    metadata_cardinality_limit: 1000
-    metadata_keys: []
-    send_batch_max_size: 0
-    send_batch_size: 8192
-    timeout: 200ms
+processors: {}
 receivers:
   otlp:
     protocols:
@@ -101,39 +100,35 @@ receivers:
         logs_url_path: /v1/logs
         metrics_url_path: /v1/metrics
         read_header_timeout: 0s
-        response_headers: {}
         tls: null
         traces_url_path: /v1/traces
+        transport: tcp
         write_timeout: 0s
 service:
   pipelines:
     logs:
       exporters:
         - datadog
-      processors:
-        - batch
+      processors: []
       receivers:
         - otlp
     metrics:
       exporters:
         - datadog
-      processors:
-        - batch
+      processors: []
       receivers:
         - otlp
         - datadog/connector
     traces:
       exporters:
         - datadog/connector
-      processors:
-        - batch
+      processors: []
       receivers:
         - otlp
     traces/send:
       exporters:
         - datadog
-      processors:
-        - batch
+      processors: []
       receivers:
         - otlp
   telemetry:

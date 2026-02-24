@@ -181,18 +181,7 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 	}
 
 	utils.EnableOption(opts, "http_monitoring_enabled")
-
-	// Set eBPF constant based on consumer type
-	var constantValue uint64
-	if p.useDirectConsumer {
-		constantValue = 1
-	} else {
-		constantValue = 0
-	}
-	opts.ConstantEditors = append(opts.ConstantEditors, manager.ConstantEditor{
-		Name:  "use_direct_consumer",
-		Value: constantValue,
-	})
+	utils.AddBoolConst(opts, p.useDirectConsumer, "use_direct_consumer")
 
 	// Configure event stream
 	events.Configure(p.cfg, eventStream, p.mgr, opts)

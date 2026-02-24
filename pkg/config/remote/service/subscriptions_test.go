@@ -1048,6 +1048,9 @@ func TestSlowReceiver(t *testing.T) {
 
 	_, err = stream.Header()
 	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		return subscriptionIsRegistered(service, "runtime-123")
+	}, 1*time.Second, 10*time.Millisecond)
 
 	// Simulate a client polling for configs (with cached files)
 	tracerClient := &pbgo.Client{
@@ -1068,7 +1071,7 @@ func TestSlowReceiver(t *testing.T) {
 	service.clients.seen(tracerClient)
 
 	// The first poll won't result in any files being returned because the
-	// client, but should send a message to the subscription.
+	// client is up-to-date, but should send a message to the subscription.
 	resp1, err := client.ClientGetConfigs(
 		context.Background(),
 		&pbgo.ClientGetConfigsRequest{
@@ -1095,6 +1098,15 @@ func TestSlowReceiver(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.ElementsMatch(t, fileNames(resp2.TargetFiles), []string{config2Path})
+
+	// Make sure that the second response gets blocked in sending by ensuring it
+	// is no longer in the pending queue (it would have been added before resp2
+	// was sent).
+	require.Eventually(t, func() bool {
+		service.mu.Lock()
+		defer service.mu.Unlock()
+		return len(service.mu.subscriptions.subs[1].pendingQueue) == 0
+	}, 1*time.Second, 10*time.Millisecond)
 
 	tracerClient.State.TargetsVersion = 2
 	resp3, err := client.ClientGetConfigs(ctx, &pbgo.ClientGetConfigsRequest{

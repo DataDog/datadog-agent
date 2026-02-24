@@ -1,0 +1,11 @@
+--- src/odbc/sqlwchar.c	2019-02-04 14:03:20
++++ src/odbc/sqlwchar.c	2026-01-20 12:41:45
+@@ -29,7 +29,7 @@
+ #include <freetds/odbc.h>
+
+ #include <freetds/iconv.h>
+-#include "../tds/encodings.h"
++#include "src/tds/encodings.h"
+
+ #if SIZEOF_SQLWCHAR != SIZEOF_WCHAR_T
+ size_t sqlwcslen(const SQLWCHAR * s)

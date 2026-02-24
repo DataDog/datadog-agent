@@ -9,11 +9,15 @@ package nvidia
 
 import (
 	"fmt"
+	"strconv"
+	"unsafe"
 
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
+
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 // nvlinkSample handles NVLink metrics collection logic
@@ -77,47 +81,127 @@ func nvlinkSample(device ddnvml.Device) ([]Metric, uint64, error) {
 	return allMetrics, 0, multiErr
 }
 
-// processMemorySample handles process memory usage collection logic
-func processMemorySample(device ddnvml.Device, nsPidCache *NsPidCache) ([]Metric, uint64, error) {
-	procs, err := device.GetComputeRunningProcesses()
+type processMemoryUsageData struct {
+	pid           uint32
+	usedGpuMemory uint64
+}
 
+func processMemoryUsage(device ddnvml.Device, usage []processMemoryUsageData, priority MetricPriority) []Metric {
 	var processMetrics []Metric
-	var allPidTags []string
+	var allWorkloadIDs []workloadmeta.EntityID
 
-	if err == nil {
-		// Create PID tag for this process
-		for _, proc := range procs {
-			pidTags := []string{
-				fmt.Sprintf("pid:%d", proc.Pid),
-				fmt.Sprintf("nspid:%d", nsPidCache.GetNsPidOrHostPid(proc.Pid, true)),
-			}
-			allPidTags = append(allPidTags, pidTags...)
+	for _, usage := range usage {
+		workloads := []workloadmeta.EntityID{{
+			Kind: workloadmeta.KindProcess,
+			ID:   strconv.Itoa(int(usage.pid)),
+		}}
+		allWorkloadIDs = append(allWorkloadIDs, workloads...)
 
-			processMetrics = append(processMetrics, Metric{
-				Name:     "process.memory.usage",
-				Value:    float64(proc.UsedGpuMemory),
-				Type:     metrics.GaugeType,
-				Priority: High,
-				Tags:     pidTags,
-			})
-		}
+		processMetrics = append(processMetrics, Metric{
+			Name:                "process.memory.usage",
+			Value:               float64(usage.usedGpuMemory),
+			Type:                metrics.GaugeType,
+			Priority:            priority,
+			AssociatedWorkloads: workloads,
+		})
+	}
+
+	// This covers for the edge case where the higher-priority API is returning
+	// an error but the lower-priority API is still returning metrics. More
+	// detailed explanation follows:
+	//
+	// First, we want to always emit memory.limit even if the process-level API
+	// returns an error. The limit is always retrievable, and this way we have a
+	// consistent limit that can be shown in the UI or dashboards.
+	//
+	// Second, we have two different APIs for getting the process-level memory
+	// usage. One is higher-priority as it's more reliable, but it's not
+	// available on all architectures, so we need to keep the lower-priority API
+	// as a fallback.
+	//
+	// The edge case is when the higher-priority API returns an error but the
+	// lower-priority API is still returning metrics. In that case, the
+	// higher-priority API would still try to send the corresponding
+	// memory.limit metric with high priority, which would not have all the
+	// workload tags because we don't have the process data. The lower-priority
+	// API would have all the workload tags, but the memory.limit metric would
+	// be emitted with low priority and get overridden by the higher-priority
+	// API's memory.limit metric. The end result is that we would have
+	// process.memory.usage metrics tagged with PIDs, but no memory.limit metric
+	// with corresponding tags.
+	//
+	// The solution is the following change: the priority for memory.limit is
+	// set to low if there are no workloads associated with the metric. It fixes
+	// the edge case described above. In the case that all APIs are returning no
+	// workloads, the memory.limit will have the same tag and value so it
+	// doesn't matter which one we choose. If there are conflicts between the
+	// data reported by the two APIs, we will still keep the high-priority
+	// metric, consistently sending the highest-priority metric for both
+	// memory.limit and process.memory.usage.
+	//
+	// We set MediumLow as the priority as we still want to ensure that any of the APIs
+	// for the stateless collector are higher priority than the eBPF collector, which should
+	// only emit metrics if neither of the NVML APIs are supported.
+	metricLimitPriority := priority
+	if len(allWorkloadIDs) == 0 {
+		metricLimitPriority = MediumLow
 	}
 
 	// Add device memory limit
 	devInfo := device.GetDeviceInfo()
 	processMetrics = append(processMetrics, Metric{
-		Name:     "memory.limit",
-		Value:    float64(devInfo.Memory),
-		Type:     metrics.GaugeType,
-		Priority: High,
-		Tags:     allPidTags,
+		Name:                "memory.limit",
+		Value:               float64(devInfo.Memory),
+		Type:                metrics.GaugeType,
+		Priority:            metricLimitPriority,
+		AssociatedWorkloads: allWorkloadIDs,
 	})
 
-	return processMetrics, 0, err
+	return processMetrics
+}
+
+// processMemorySample handles process memory usage collection logic
+func processMemorySample(device ddnvml.Device) ([]Metric, uint64, error) {
+	procs, err := device.GetComputeRunningProcesses()
+	var usage []processMemoryUsageData
+	if err == nil {
+		for _, proc := range procs {
+			usage = append(usage, processMemoryUsageData{
+				pid:           proc.Pid,
+				usedGpuMemory: proc.UsedGpuMemory,
+			})
+		}
+	}
+
+	return processMemoryUsage(device, usage, Medium), 0, err
+}
+
+func processDetailListSample(device ddnvml.Device) ([]Metric, uint64, error) {
+	if device.GetDeviceInfo().Architecture < nvml.DEVICE_ARCH_HOPPER {
+		// This API is only supported on Hopper and later, but it doesn't return "not supported" error,
+		// instead it reports "Argument version mismatch", so just do the check here.
+		return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("GetRunningProcessDetailList", nvml.ERROR_NOT_SUPPORTED)
+	}
+
+	detail, err := device.GetRunningProcessDetailList()
+	var usage []processMemoryUsageData
+	if err == nil {
+		// procs.ProcArray is a pointer to an array of ProcessDetail_v1, in C-style pointer+length mode,
+		// so convert it to a slice:
+		procs := unsafe.Slice(detail.ProcArray, detail.NumProcArrayEntries)
+		for _, proc := range procs {
+			usage = append(usage, processMemoryUsageData{
+				pid:           proc.Pid,
+				usedGpuMemory: proc.UsedGpuMemory,
+			})
+		}
+	}
+
+	return processMemoryUsage(device, usage, High), 0, err
 }
 
 // createStatelessAPIs creates API call definitions for all stateless metrics on demand
-func createStatelessAPIs(nsPidCache *NsPidCache) []apiCallInfo {
+func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 	apis := []apiCallInfo{
 		// Memory collector APIs
 		{
@@ -142,7 +226,7 @@ func createStatelessAPIs(nsPidCache *NsPidCache) []apiCallInfo {
 					return nil, 0, err
 				}
 				return []Metric{
-					{Name: "memory.free", Value: float64(memInfo.Free), Priority: High, Type: metrics.GaugeType},
+					{Name: "memory.free", Value: float64(memInfo.Free), Priority: Medium, Type: metrics.GaugeType},
 					{Name: "memory.reserved", Value: float64(memInfo.Reserved), Type: metrics.GaugeType},
 				}, 0, nil
 			},
@@ -317,21 +401,27 @@ func createStatelessAPIs(nsPidCache *NsPidCache) []apiCallInfo {
 				if err != nil {
 					return nil, 0, err
 				}
-				return []Metric{{Name: "total_energy_consumption", Value: float64(energy), Type: metrics.CountType}}, 0, nil
+				return []Metric{{Name: "total_energy_consumption", Value: float64(energy), Type: metrics.GaugeType}}, 0, nil
 			},
 		},
 		{
 			Name: "device_count",
+			Handler: func(_ ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+				return []Metric{{Name: "device.total", Value: 1, Type: metrics.GaugeType}}, 0, nil
+			},
+		},
+		{
+			Name: "device_unhealthy_count",
 			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
-				isMig, err := device.IsMigDeviceHandle()
+				gpu, err := deps.Workloadmeta.GetGPU(device.GetDeviceInfo().UUID)
 				if err != nil {
 					return nil, 0, err
 				}
 				var count float64
-				if !isMig {
+				if !gpu.Healthy {
 					count = 1
 				}
-				return []Metric{{Name: "device.total", Value: count, Type: metrics.GaugeType}}, 0, nil
+				return []Metric{{Name: "device.unhealthy", Value: count, Type: metrics.GaugeType}}, 0, nil
 			},
 		},
 		{
@@ -353,11 +443,11 @@ func createStatelessAPIs(nsPidCache *NsPidCache) []apiCallInfo {
 					"none":                        nvml.ClocksEventReasonNone,
 				} {
 					value := 0.0
-					if reasons&reasonBit != 0 {
+					if reasons&reasonBit != 0 || (reasons == 0 && reasonBit == 0) {
 						value = 1.0
 					}
 					allMetrics = append(allMetrics, Metric{
-						Name:  fmt.Sprintf("clock.throttle_reasons.%s", reasonName),
+						Name:  "clock.throttle_reasons." + reasonName,
 						Value: value,
 						Type:  metrics.GaugeType,
 					})
@@ -375,10 +465,10 @@ func createStatelessAPIs(nsPidCache *NsPidCache) []apiCallInfo {
 				}
 
 				return []Metric{
-					{Name: "remapped_rows.correctable", Value: float64(correctable), Type: metrics.CountType},
-					{Name: "remapped_rows.uncorrectable", Value: float64(uncorrectable), Type: metrics.CountType},
-					{Name: "remapped_rows.pending", Value: boolToFloat(pending), Type: metrics.CountType},
-					{Name: "remapped_rows.failed", Value: boolToFloat(failed), Type: metrics.CountType},
+					{Name: "remapped_rows.correctable", Value: float64(correctable), Type: metrics.GaugeType},
+					{Name: "remapped_rows.uncorrectable", Value: float64(uncorrectable), Type: metrics.GaugeType},
+					{Name: "remapped_rows.pending", Value: boolToFloat(pending), Type: metrics.GaugeType},
+					{Name: "remapped_rows.failed", Value: boolToFloat(failed), Type: metrics.GaugeType},
 				}, 0, nil
 			},
 		},
@@ -386,7 +476,14 @@ func createStatelessAPIs(nsPidCache *NsPidCache) []apiCallInfo {
 		{
 			Name: "process_memory_usage",
 			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
-				return processMemorySample(device, nsPidCache)
+				return processMemorySample(device)
+			},
+		},
+		// similar to process_memory_usage, but works with MIG. However, only supported on Hopper and later.
+		{
+			Name: "process_detail_list",
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+				return processDetailListSample(device)
 			},
 		},
 		// NVLink collector APIs
@@ -395,7 +492,31 @@ func createStatelessAPIs(nsPidCache *NsPidCache) []apiCallInfo {
 			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				return nvlinkSample(device)
 			},
-		}}
+		},
+	}
+
+	// Create APIs for ECC errors
+	for errorType, errorTypeName := range eccErrorTypeToName {
+		for memoryLocation, memoryLocationName := range memoryLocationToName {
+			apis = append(apis, apiCallInfo{
+				Name: fmt.Sprintf("ecc_errors.%s.%s", errorTypeName, memoryLocationName),
+				Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+					count, err := device.GetMemoryErrorCounter(errorType, nvml.AGGREGATE_ECC, memoryLocation)
+					if err != nil {
+						return nil, 0, err
+					}
+					return []Metric{{
+						Name:  fmt.Sprintf("errors.ecc.%s.total", errorTypeName),
+						Value: float64(count),
+						Type:  metrics.GaugeType,
+						Tags: []string{
+							"memory_location:" + memoryLocationName,
+						},
+					}}, 0, nil
+				},
+			})
+		}
+	}
 
 	return apis
 }
@@ -405,5 +526,5 @@ var statelessAPIFactory = createStatelessAPIs
 
 // newStatelessCollector creates a collector that consolidates all stateless collector types
 func newStatelessCollector(device ddnvml.Device, deps *CollectorDependencies) (Collector, error) {
-	return NewBaseCollector(stateless, device, statelessAPIFactory(deps.NsPidCache))
+	return NewBaseCollector(stateless, device, statelessAPIFactory(deps))
 }

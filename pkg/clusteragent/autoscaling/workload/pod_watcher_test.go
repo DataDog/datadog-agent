@@ -278,6 +278,25 @@ func TestResolveNamespacedPodOwner(t *testing.T) {
 				Name:      "invalid-name",
 			},
 		},
+		{
+			name: "pod owned by statefulset",
+			pod: &workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Namespace: "default",
+				},
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						Kind: kubernetes.StatefulSetKind,
+						Name: "my-statefulset",
+					},
+				},
+			},
+			expected: NamespacedPodOwner{
+				Namespace: "default",
+				Kind:      kubernetes.StatefulSetKind,
+				Name:      "my-statefulset",
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			res, err := resolveNamespacedPodOwner(tt.pod)

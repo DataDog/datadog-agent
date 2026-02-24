@@ -35,17 +35,20 @@ int BPF_KPROBE(kprobe__tcp_close, struct sock *sk) {
         bpf_map_delete_elem(&tuple_by_pid_fd, &pid_fd_copy);
         bpf_map_delete_elem(&pid_fd_by_tuple, &t);
     }
-    
+
     void **ssl_ctx_ptr = bpf_map_lookup_elem(&ssl_ctx_by_tuple, &t);
     if (ssl_ctx_ptr) {
         void *ssl_ctx = *ssl_ctx_ptr;
         bpf_map_delete_elem(&ssl_ctx_by_tuple, &t);
         if (ssl_ctx) {
-            bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
+            ssl_ctx_pid_tgid_t key = {
+                .pid_tgid = pid_tgid,
+                .ctx = ssl_ctx,
+            };
+            bpf_map_delete_elem(&ssl_sock_by_ctx, &key);
         }
     }
-    
-    
+
     // Cleanup Go TLS connections map
     // Look up the Go TLS connection pointer using the reverse mapping
     void **go_tls_conn_ptr = bpf_map_lookup_elem(&go_tls_conn_by_tuple, &t);

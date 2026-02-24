@@ -128,7 +128,7 @@ event: !processes-updated
       probes:
         - {type: LOG_PROBE, id: probe4, where: {methodName: main}, captureSnapshot: true}
 effects:
-  - !detach-from-process {process_id: 1001, program_id: 1}
+  - !detach-from-process {failure: "no", process_id: 1001, program_id: 1}
 state:
   currently_loading: "3"
   queued_programs: '[4]'

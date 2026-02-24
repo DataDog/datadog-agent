@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
@@ -29,7 +30,7 @@ type AttachedProgram struct {
 }
 
 // Detach detaches the program from the target process.
-func (p *AttachedProgram) Detach() error {
+func (p *AttachedProgram) Detach(_ error) error {
 	var retErr error
 	for _, attachpoint := range p.attachpoints {
 		if err := attachpoint.Close(); err != nil {
@@ -78,7 +79,21 @@ func Attach(
 
 	textSection := elfFile.Section(".text")
 	if textSection == nil {
-		return nil, fmt.Errorf("text section not found")
+		return nil, errors.New("text section not found")
+	}
+
+	// As close to injection as possible, check that executable that we analyzed
+	// is the same as the one that we're attaching to.
+	currentExe, err := process.ResolveExecutable(kernel.ProcFSRoot(), processID.PID)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to resolve executable for process %s: %w", processID, err,
+		)
+	}
+	if currentExe != executable {
+		return nil, fmt.Errorf(
+			"executable changed during probe setup: %s != %s", currentExe, executable,
+		)
 	}
 
 	attached := make([]link.Link, 0, len(loaded.Attachpoints))

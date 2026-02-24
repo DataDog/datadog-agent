@@ -10,8 +10,11 @@ package marshal
 import (
 	"bytes"
 	"io"
+	"slices"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/sketches-go/ddsketch"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
@@ -20,6 +23,7 @@ import (
 type http2Encoder struct {
 	http2AggregationsBuilder *model.HTTP2AggregationsBuilder
 	byConnection             *USMConnectionIndex[http.Key, *http.RequestStats]
+	sketchBuilder            *ddsketch.DDSketchCollectionBuilder
 }
 
 func newHTTP2Encoder(http2Payloads map[http.Key]*http.RequestStats) *http2Encoder {
@@ -32,10 +36,24 @@ func newHTTP2Encoder(http2Payloads map[http.Key]*http.RequestStats) *http2Encode
 			return key.ConnectionKey
 		}),
 		http2AggregationsBuilder: model.NewHTTP2AggregationsBuilder(nil),
+		sketchBuilder:            ddsketch.NewDDSketchCollectionBuilder(nil),
 	}
 }
 
-func (e *http2Encoder) EncodeConnection(c network.ConnectionStats, builder *model.ConnectionBuilder) (uint64, map[string]struct{}) {
+func (e *http2Encoder) EncodeConnectionDirect(c network.ConnectionStats, conn *model.Connection, buf *bytes.Buffer) (staticTags uint64, dynamicTags map[string]struct{}) {
+	staticTags, dynamicTags = e.encodeData(c, buf)
+	conn.Http2Aggregations = slices.Clone(buf.Bytes())
+	return
+}
+
+func (e *http2Encoder) EncodeConnection(c network.ConnectionStats, builder *model.ConnectionBuilder) (staticTags uint64, dynamicTags map[string]struct{}) {
+	builder.SetHttp2Aggregations(func(b *bytes.Buffer) {
+		staticTags, dynamicTags = e.encodeData(c, b)
+	})
+	return
+}
+
+func (e *http2Encoder) encodeData(c network.ConnectionStats, w io.Writer) (uint64, map[string]struct{}) {
 	if e == nil {
 		return 0, nil
 	}
@@ -45,18 +63,6 @@ func (e *http2Encoder) EncodeConnection(c network.ConnectionStats, builder *mode
 		return 0, nil
 	}
 
-	var (
-		staticTags  uint64
-		dynamicTags map[string]struct{}
-	)
-
-	builder.SetHttp2Aggregations(func(b *bytes.Buffer) {
-		staticTags, dynamicTags = e.encodeData(connectionData, b)
-	})
-	return staticTags, dynamicTags
-}
-
-func (e *http2Encoder) encodeData(connectionData *USMConnectionData[http.Key, *http.RequestStats], w io.Writer) (uint64, map[string]struct{}) {
 	var staticTags uint64
 	dynamicTags := make(map[string]struct{})
 	e.http2AggregationsBuilder.Reset(w)
@@ -77,7 +83,8 @@ func (e *http2Encoder) encodeData(connectionData *USMConnectionData[http.Key, *h
 						w.SetCount(uint32(stats.Count))
 						if latencies := stats.Latencies; latencies != nil {
 							w.SetLatencies(func(b *bytes.Buffer) {
-								latencies.EncodeProto(b)
+								e.sketchBuilder.Reset(b)
+								e.sketchBuilder.AddSketch(latencies)
 							})
 						} else {
 							w.SetFirstLatencySample(stats.FirstLatencySample)

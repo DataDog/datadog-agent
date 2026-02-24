@@ -8,6 +8,7 @@ package client
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -76,10 +77,10 @@ func (a *authMethod) Parse(authString string) error {
 // processAuthConfig validates and parses the authentication configuration
 func processAuthConfig(config AuthConfig) (authMethod, error) {
 	if config.Username == "" {
-		return "", fmt.Errorf("username is required")
+		return "", errors.New("username is required")
 	}
 	if config.Password == "" {
-		return "", fmt.Errorf("password is required")
+		return "", errors.New("password is required")
 	}
 
 	// Parse and validate the auth method (if provided)
@@ -94,7 +95,7 @@ func processAuthConfig(config AuthConfig) (authMethod, error) {
 	// Validate OAuth specific requirements
 	if authMethod == authMethodOAuth {
 		if config.ClientID == "" || config.ClientSecret == "" {
-			return "", fmt.Errorf("client_id and client_secret are required for OAuth authentication")
+			return "", errors.New("client_id and client_secret are required for OAuth authentication")
 		}
 	}
 

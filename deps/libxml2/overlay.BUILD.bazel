@@ -1,0 +1,177 @@
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+
+VERSION = "2.14.5"
+
+PUBLIC_HEADERS = glob(["include/libxml/*.h"]) + [":xmlversion_h"]
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:MIT"],
+    license_text = "Copyright",
+    visibility = ["//visibility:public"],
+)
+
+copy_file(
+    name = "copy_config_h",
+    src = select({
+        "@@//:linux_x86_64": "config-linux-x86_64.h",
+        "@@//:linux_arm64": "config-linux-arm64.h",
+    }),
+    out = "config.h",
+)
+
+expand_template(
+    name = "xmlversion_h",
+    template = "include/libxml/xmlversion.h.in",
+    out = "include/libxml/xmlversion.h",
+    substitutions = {
+        "@VERSION@": VERSION,
+        "@LIBXML_VERSION_NUMBER@": "21405",
+        "@LIBXML_VERSION_EXTRA@": "",
+        "@WITH_THREADS@": "1",
+        "@WITH_THREAD_ALLOC@": "0",
+        "@WITH_PATTERN@": "1",
+        "@WITH_READER@": "1",
+        "@WITH_SAX1@": "1",
+        "@WITH_HTTP@": "0",
+        "@WITH_VALID@": "1",
+        "@WITH_HTML@": "1",
+        "@WITH_C14N@": "1",
+        "@WITH_CATALOG@": "0",
+        "@WITH_XPATH@": "1",
+        "@WITH_XPTR@": "1",
+        "@WITH_XINCLUDE@": "1",
+        "@WITH_ICONV@": "0",
+        "@WITH_ICU@": "0",
+        "@WITH_ISO8859X@": "1",
+        "@WITH_DEBUG@": "0",
+        "@WITH_REGEXPS@": "1",
+        "@WITH_RELAXNG@": "1",
+        "@WITH_SCHEMAS@": "1",
+        "@WITH_SCHEMATRON@": "1",
+        "@WITH_MODULES@": "1",
+        "@WITH_ZLIB@": "1",
+        # Enabled for now but very likely not needed
+        "@WITH_OUTPUT@": "1",
+        "@WITH_PUSH@": "1",
+        "@WITH_WRITER@": "1",
+        "@WITH_LZMA@": "1",
+    } | select({
+        "@platforms//os:linux": {"@MODULE_EXTENSION@": ".so"},
+        "@platforms//os:macos": {"@MODULE_EXTENSION@": ".dylib"},
+    }),
+)
+
+cc_library(
+    name = "xml2_config_h",
+    hdrs = [
+        ":copy_config_h"
+    ],
+)
+
+cc_library(
+    name = "libxml2",
+    srcs = [
+        "buf.c",
+        "chvalid.c",
+        "dict.c",
+        "encoding.c",
+        "entities.c",
+        "error.c",
+        "globals.c",
+        "hash.c",
+        "libxml.h",
+        "list.c",
+        "parser.c",
+        "parserInternals.c",
+        "SAX2.c",
+        "threads.c",
+        "timsort.h",
+        "tree.c",
+        "uri.c",
+        "valid.c",
+        "xmlIO.c",
+        "xmlmemory.c",
+        "xmlstring.c",
+        "HTMLparser.c",
+        "HTMLtree.c",
+        "xmlmodule.c",
+        "xmlsave.c",
+        "pattern.c",
+        "xmlregexp.c",
+        "xmlunicode.c",
+        "xzlib.c",
+        "relaxng.c",
+        "xinclude.c",
+        "xlink.c",
+        "xpointer.c",
+        "xmlschemas.c",
+        "xmlschemastypes.c",
+        "schematron.c",
+        "xmlreader.c",
+        "xmlwriter.c",
+        "xpath.c",
+        "iso8859x.inc",
+        "html5ent.inc",
+        "c14n.c",
+    ] + glob(["include/private/*.h"]),
+    hdrs = PUBLIC_HEADERS,
+    implementation_deps = [
+        ":xml2_config_h"
+    ],
+    deps = [
+        "@zlib//:zlib",
+        "@xz//:liblzma",
+    ],
+    includes = [
+        "include/libxml",
+        "include",
+        "codegen",
+    ],
+    copts = [
+        "-O2",
+        "-std=gnu11",
+    ],
+    local_defines = [
+        "NDEBUG",
+    ],
+    strip_include_prefix = "include/",
+    visibility = ["//visibility:public"],
+)
+
+cc_shared_library(
+    name = "xml2",
+    deps = [":libxml2"],
+    visibility = ["//visibility:public"],
+    dynamic_deps = [
+        "@zlib//:z",
+        "@xz//:lzma",
+    ]
+)
+
+so_symlink(
+    name = "lib_files",
+    src = ":xml2",
+    libname = "libxml2",
+    version = "16.0.5",
+)
+
+pkg_files(
+    name = "headers",
+    srcs = PUBLIC_HEADERS,
+    prefix = "include/libxml2/libxml",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":headers",
+        ":lib_files",
+    ],
+)

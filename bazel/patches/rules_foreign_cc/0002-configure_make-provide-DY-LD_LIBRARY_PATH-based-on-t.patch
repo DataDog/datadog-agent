@@ -1,0 +1,208 @@
+From d5cb752d75761205a1121616d3b5a92d2cf6f93b Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
+Date: Mon, 1 Dec 2025 15:46:12 +0100
+Subject: [PATCH 2/2] configure_make: provide (DY)LD_LIBRARY_PATH based on the
+ dependencies
+
+---
+ foreign_cc/private/configure_script.bzl          |  3 ++-
+ .../private/framework/toolchains/commands.bzl    | 15 +++++++++++++++
+ .../framework/toolchains/linux_commands.bzl      | 16 ++++++++++++++++
+ .../framework/toolchains/macos_commands.bzl      | 14 ++++++++++++++
+ .../framework/toolchains/windows_commands.bzl    |  8 ++++++++
+ foreign_cc/private/make_script.bzl               |  7 +++++++
+ 6 files changed, 62 insertions(+), 1 deletion(-)
+
+diff --git a/foreign_cc/private/configure_script.bzl b/foreign_cc/private/configure_script.bzl
+index bbb5056..9e14e3d 100644
+--- a/foreign_cc/private/configure_script.bzl
++++ b/foreign_cc/private/configure_script.bzl
+@@ -1,6 +1,6 @@
+ # buildifier: disable=module-docstring
+ load(":make_env_vars.bzl", "get_ldflags_make_vars", "get_make_env_vars")
+-load(":make_script.bzl", "pkgconfig_script")
++load(":make_script.bzl", "pkgconfig_script", "ldpath_script")
+ 
+ # buildifier: disable=function-docstring
+ def create_configure_script(
+@@ -33,6 +33,7 @@ def create_configure_script(
+     ext_build_dirs = inputs.ext_build_dirs
+ 
+     script = pkgconfig_script(ext_build_dirs)
++    script.extend(ldpath_script())
+ 
+     root_path = "$$EXT_BUILD_ROOT$$/{}".format(root)
+     configure_path = "{}/{}".format(root_path, configure_command)
+diff --git a/foreign_cc/private/framework/toolchains/commands.bzl b/foreign_cc/private/framework/toolchains/commands.bzl
+index e4f1073..b5f8f70 100644
+--- a/foreign_cc/private/framework/toolchains/commands.bzl
++++ b/foreign_cc/private/framework/toolchains/commands.bzl
+@@ -113,6 +113,10 @@ PLATFORM_COMMANDS = {
+         arguments = [],
+         doc = "Print all environment variables",
+     ),
++    "export_ld_library_path_var": _command_info(
++        arguments = [],
++        doc = "Export the dynamic linked additional paths env variable",
++    ),
+     "export_var": _command_info(
+         arguments = [
+             _argument_info(name = "name", data_type = type(""), doc = "Variable name"),
+@@ -128,6 +132,17 @@ PLATFORM_COMMANDS = {
+             _argument_info(name = "else_text", data_type = type(""), doc = "Else block text"),
+         ],
+     ),
++    "increment_ld_library_path": _command_info(
++        arguments = [
++            _argument_info(
++                name = "source",
++                data_type = type(""),
++                doc = "Source directory",
++            ),
++        ],
++        doc = "Find shared libraries under the provided source directory and add them " +
++            "to (DY)LD_LIBRARY_PATH",
++    ),
+     "increment_pkg_config_path": _command_info(
+         arguments = [
+             _argument_info(
+diff --git a/foreign_cc/private/framework/toolchains/linux_commands.bzl b/foreign_cc/private/framework/toolchains/linux_commands.bzl
+index 69bd3c9..80a692b 100644
+--- a/foreign_cc/private/framework/toolchains/linux_commands.bzl
++++ b/foreign_cc/private/framework/toolchains/linux_commands.bzl
+@@ -17,6 +17,9 @@ def echo(text):
+ def export_var(name, value):
+     return "{name}={value}; export {name}".format(name = name, value = value)
+ 
++def export_ld_library_path_var():
++    return "LD_LIBRARY_PATH=\"${LD_LIBRARY_PATH:-}\"; export LD_LIBRARY_PATH"
++
+ def local_var(name, value):
+     return "local {name}={value}".format(name = name, value = value)
+ 
+@@ -173,6 +176,17 @@ fi
+ def script_prelude():
+     return "set -euo pipefail"
+ 
++def increment_ld_library_path(_source):
++    text = """\
++    local children=$(find "$1" -name '*.so')
++    LD_LIBRARY_PATH=""
++    for child in $children; do
++      export LD_LIBRARY_PATH="$${LD_LIBRARY_PATH:-}$$:$(dirname $child)"
++    done
++"""
++    return FunctionAndCallInfo(text = text)
++
++
+ def increment_pkg_config_path(_source):
+     text = """\
+ local children=$(find "$1" -mindepth 1 -name '*.pc')
+@@ -266,8 +280,10 @@ commands = struct(
+     echo = echo,
+     enable_tracing = enable_tracing,
+     env = env,
++    export_ld_library_path_var = export_ld_library_path_var,
+     export_var = export_var,
+     if_else = if_else,
++    increment_ld_library_path = increment_ld_library_path,
+     increment_pkg_config_path = increment_pkg_config_path,
+     local_var = local_var,
+     mkdirs = mkdirs,
+diff --git a/foreign_cc/private/framework/toolchains/macos_commands.bzl b/foreign_cc/private/framework/toolchains/macos_commands.bzl
+index a749ae2..e52d7b5 100644
+--- a/foreign_cc/private/framework/toolchains/macos_commands.bzl
++++ b/foreign_cc/private/framework/toolchains/macos_commands.bzl
+@@ -17,6 +17,9 @@ def echo(text):
+ def export_var(name, value):
+     return "{name}={value}; export {name}".format(name = name, value = value)
+ 
++def export_ld_library_path_var():
++    return "DYLD_LIBRARY_PATH=\"${DYLD_LIBRARY_PATH:-}\"; export DYLD_LIBRARY_PATH"
++
+ def local_var(name, value):
+     return "local {name}={value}".format(name = name, value = value)
+ 
+@@ -182,6 +185,15 @@ fi
+ def script_prelude():
+     return "set -euo pipefail"
+ 
++def increment_ld_library_path(_source):
++    text = """\
++    local children=$(find "$1" -name '*.dylib')
++    for child in $children; do
++      export DYLD_LIBRARY_PATH="$${DYLD_LIBRARY_PATH:-}$$:$(dirname $child)"
++    done
++"""
++    return FunctionAndCallInfo(text = text)
++
+ def increment_pkg_config_path(_source):
+     text = """\
+ local children=$(find "$1/" -mindepth 1 -name '*.pc')
+@@ -279,8 +291,10 @@ commands = struct(
+     echo = echo,
+     enable_tracing = enable_tracing,
+     env = env,
++    export_ld_library_path_var = export_ld_library_path_var,
+     export_var = export_var,
+     if_else = if_else,
++    increment_ld_library_path = increment_ld_library_path,
+     increment_pkg_config_path = increment_pkg_config_path,
+     local_var = local_var,
+     mkdirs = mkdirs,
+diff --git a/foreign_cc/private/framework/toolchains/windows_commands.bzl b/foreign_cc/private/framework/toolchains/windows_commands.bzl
+index 1fa741f..60ca440 100644
+--- a/foreign_cc/private/framework/toolchains/windows_commands.bzl
++++ b/foreign_cc/private/framework/toolchains/windows_commands.bzl
+@@ -14,6 +14,9 @@ def pwd():
+ def echo(text):
+     return "echo {text}".format(text = text)
+ 
++def export_ld_library_path_var():
++    return ""
++
+ def export_var(name, value):
+     return "{name}={value}; export {name}".format(name = name, value = value)
+ 
+@@ -205,6 +208,9 @@ export MSYS2_ARG_CONV_EXCL="*"
+ export SYSTEMDRIVE="C:"
+ """
+ 
++def increment_ld_library_path(_source):
++    return ""
++
+ def increment_pkg_config_path(_source):
+     text = """\
+ local children=$($REAL_FIND "$1" -mindepth 1 -name '*.pc')
+@@ -301,8 +307,10 @@ commands = struct(
+     echo = echo,
+     enable_tracing = enable_tracing,
+     env = env,
++    export_ld_library_path_var = export_ld_library_path_var,
+     export_var = export_var,
+     if_else = if_else,
++    increment_ld_library_path = increment_ld_library_path,
+     increment_pkg_config_path = increment_pkg_config_path,
+     local_var = local_var,
+     mkdirs = mkdirs,
+diff --git a/foreign_cc/private/make_script.bzl b/foreign_cc/private/make_script.bzl
+index 0dd6126..e951e3b 100644
+--- a/foreign_cc/private/make_script.bzl
++++ b/foreign_cc/private/make_script.bzl
+@@ -49,6 +49,13 @@ def create_make_script(
+     script.append("##disable_tracing##")
+     return script
+ 
++def ldpath_script():
++    script = []
++    script.append("##increment_ld_library_path## $$EXT_BUILD_DEPS$$/")
++    script.append("##export_ld_library_path_var##")
++    return script
++
++
+ def pkgconfig_script(ext_build_dirs):
+     """Create a script fragment to configure pkg-config
+ 
+-- 
+2.43.0
+

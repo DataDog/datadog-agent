@@ -15,7 +15,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
@@ -40,12 +40,33 @@ type Config struct {
 	ProcessRawMessage bool
 }
 
+// registrySaverWithInitialBookmark wraps a registry and returns a provided bookmark XML on Load.
+// This allows the tailer to pass the bookmark string parameter to the subscription.
+// Save() updates the internal bookmark state so that subsequent Load() calls return the updated value.
+type registrySaverWithInitialBookmark struct {
+	registry        auditor.Registry
+	identifier      string
+	currentBookmark string
+}
+
+func (s *registrySaverWithInitialBookmark) Save(bookmarkXML string) error {
+	s.registry.SetOffset(s.identifier, bookmarkXML)
+	// Update internal bookmark so subsequent Load() calls return the updated value
+	s.currentBookmark = bookmarkXML
+	return nil
+}
+
+func (s *registrySaverWithInitialBookmark) Load() (string, error) {
+	// Return the current bookmark
+	return s.currentBookmark, nil
+}
+
 // Tailer collects logs from Windows Event Log using a pull subscription
 type Tailer struct {
 	evtapi     evtapi.API
 	source     *sources.LogSource
 	config     *Config
-	decoder    *decoder.Decoder
+	decoder    decoder.Decoder
 	outputChan chan *message.Message
 
 	cancelTail context.CancelFunc
@@ -95,7 +116,7 @@ func (t *Tailer) toMessage(m *windowsevent.Map) (*message.Message, error) {
 }
 
 // Start starts tailing the event log.
-func (t *Tailer) Start(bookmark string) {
+func (t *Tailer) Start() {
 	log.Infof("Starting windows event log tailing for channel %s query %s", t.config.ChannelPath, t.config.Query)
 	t.doneTail = make(chan struct{})
 	t.done = make(chan struct{})
@@ -104,6 +125,8 @@ func (t *Tailer) Start(bookmark string) {
 	t.registry.SetTailed(t.Identifier(), true)
 	go t.forwardMessages()
 	t.decoder.Start()
+	// Load initial bookmark from registry; the subscription start loop will handle initialization and retries.
+	bookmark := t.registry.GetOffset(t.Identifier())
 	go t.tail(ctx, bookmark)
 }
 
@@ -127,7 +150,7 @@ func (t *Tailer) forwardMessages() {
 		close(t.done)
 	}()
 
-	for decodedMessage := range t.decoder.OutputChan {
+	for decodedMessage := range t.decoder.OutputChan() {
 		if len(decodedMessage.GetContent()) > 0 {
 			// Leverage the existing message instead of creating a new one
 			// This preserves all bookmark information and is more efficient
@@ -161,50 +184,33 @@ func (t *Tailer) tail(ctx context.Context, bookmark string) {
 		evtsubscribe.WithEventBatchCount(10),
 	}
 
-	t.bookmark = nil
-	if bookmark != "" {
-		// load bookmark
-		t.bookmark, err = evtbookmark.New(
-			evtbookmark.WithWindowsEventLogAPI(t.evtapi),
-			evtbookmark.FromXML(bookmark))
-		if err != nil {
-			log.Errorf("error loading bookmark, tailer will start at new events: %v", err)
-			t.bookmark = nil
-		} else {
-			opts = append(opts, evtsubscribe.WithStartAfterBookmark(t.bookmark))
-		}
+	// Create bookmark saver that returns the provided bookmark XML
+	bookmarkSaver := &registrySaverWithInitialBookmark{
+		registry:        t.registry,
+		identifier:      t.Identifier(),
+		currentBookmark: bookmark,
 	}
-	if t.bookmark == nil {
-		// Create initial bookmark from the most recent event in the log
-		// This ensures we have a valid starting position even if no events are processed
-		log.Debug("Creating initial bookmark from most recent event")
-		t.bookmark, err = evtbookmark.FromLatestEvent(t.evtapi, t.config.ChannelPath, t.config.Query)
-		if err != nil {
-			t.logErrorAndSetStatus(fmt.Errorf("error creating initial bookmark: %w", err))
-			return
-		}
+	opts = append(opts, evtsubscribe.WithBookmarkSaver(bookmarkSaver))
 
-		// Save the initial bookmark to the registry immediately using direct SetOffset
-		// This ensures the bookmark is persisted even if no real events are processed
-		if t.bookmark != nil {
-			offset, err := t.bookmark.Render()
-			if err == nil {
-				log.Debugf("Saving initial bookmark to registry: %s", offset)
-				// Use direct SetOffset call for immediate persistence
-				t.registry.SetOffset(t.Identifier(), offset)
-				log.Debug("Initial bookmark saved to registry")
-			} else {
-				log.Warnf("Failed to render initial bookmark: %v", err)
-			}
-		}
-	}
+	// Always use "now" mode - if bookmark exists it will be loaded via the saver,
+	// otherwise FromLatestEvent will create one
+	opts = append(opts, evtsubscribe.WithStartMode("now"))
 
-	// subscription
+	// Create subscription - bookmark initialization will happen in Start()
 	t.sub = evtsubscribe.NewPullSubscription(
 		t.config.ChannelPath,
 		t.config.Query,
 		opts...,
 	)
+
+	// Create an initial empty bookmark for updating as events are processed
+	// This will be set to the loaded/created bookmark after subscription starts
+	t.bookmark, err = evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(t.evtapi))
+	if err != nil {
+		t.logErrorAndSetStatus(fmt.Errorf("failed to create bookmark: %w", err))
+		return
+	}
+
 	// subscription will be started in the eventLoop
 
 	// render context for system values
@@ -219,14 +225,16 @@ func (t *Tailer) tail(ctx context.Context, bookmark string) {
 	t.eventLoop(ctx)
 }
 
-func retryForeverWithCancel(ctx context.Context, operation backoff.Operation) error {
+func retryForeverWithCancel(ctx context.Context, operation func() error) error {
 	resetBackoff := backoff.NewExponentialBackOff()
 	resetBackoff.InitialInterval = 1 * time.Second
 	resetBackoff.MaxInterval = 1 * time.Minute
-	// retry never stops if MaxElapsedTime == 0
-	resetBackoff.MaxElapsedTime = 0
 
-	return backoff.Retry(operation, backoff.WithContext(resetBackoff, ctx))
+	// retry never stops if MaxElapsedTime == 0
+	_, err := backoff.Retry(ctx, func() (any, error) {
+		return nil, operation()
+	}, backoff.WithBackOff(resetBackoff), backoff.WithMaxElapsedTime(0))
+	return err
 }
 
 func (t *Tailer) eventLoop(ctx context.Context) {
@@ -316,13 +324,12 @@ func (t *Tailer) handleEvent(eventRecordHandle evtapi.EventRecordHandle) {
 	if err == nil {
 		msg.Origin.Identifier = t.Identifier()
 		msg.Origin.Offset = offset
-		t.sub.SetBookmark(t.bookmark)
 	} else {
 		log.Warnf("Failed to render bookmark: %v for event %s", err, xml)
 	}
 
 	t.source.RecordBytes(int64(len(msg.GetContent())))
-	t.decoder.InputChan <- msg
+	t.decoder.InputChan() <- msg
 }
 
 // enrichEvent renders event record fields using EvtFormatMessage and adds them to the map.

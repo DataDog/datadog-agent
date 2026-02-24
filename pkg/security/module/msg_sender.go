@@ -7,10 +7,8 @@
 package module
 
 import (
-	"context"
 	"fmt"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -19,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/reporter"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
-	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -86,8 +83,10 @@ func NewChanMsgSender[T any](msgs chan *T) *ChanMsgSender[T] {
 
 // DirectEventMsgSender defines a direct sender
 type DirectEventMsgSender struct {
-	reporter  common.RawReporter
-	endpoints *logsconfig.Endpoints
+	reporter         common.RawReporter
+	endpoints        *logsconfig.Endpoints
+	secInfoReporter  common.RawReporter
+	secInfoEndpoints *logsconfig.Endpoints
 }
 
 var _ MsgSender[api.SecurityEventMessage] = &DirectEventMsgSender{}
@@ -95,7 +94,11 @@ var _ EndpointsStatusFetcher = &DirectEventMsgSender{}
 
 // Send the message
 func (ds *DirectEventMsgSender) Send(msg *api.SecurityEventMessage, _ func(*api.SecurityEventMessage)) {
-	ds.reporter.ReportRaw(msg.Data, msg.Service, msg.Timestamp.AsTime(), msg.Tags...)
+	if msg.Track == string(common.SecInfo) {
+		ds.secInfoReporter.ReportRaw(msg.Data, msg.Service, msg.Timestamp.AsTime(), msg.Tags...)
+	} else {
+		ds.reporter.ReportRaw(msg.Data, msg.Service, msg.Timestamp.AsTime(), msg.Tags...)
+	}
 }
 
 // SendTelemetry sends telemetry data
@@ -103,38 +106,51 @@ func (ds *DirectEventMsgSender) SendTelemetry(statsd.ClientInterface) {}
 
 // GetEndpointsStatus returns the status of the endpoints
 func (ds *DirectEventMsgSender) GetEndpointsStatus() []string {
-	return ds.endpoints.GetStatus()
+	return append(ds.endpoints.GetStatus(), ds.secInfoEndpoints.GetStatus()...)
 }
 
 // NewDirectEventMsgSender returns a new direct sender
-func NewDirectEventMsgSender(stopper startstop.Stopper, compression compression.Component, ipc ipc.Component) (*DirectEventMsgSender, error) {
+func NewDirectEventMsgSender(stopper startstop.Stopper, compression compression.Component, hostname string) (*DirectEventMsgSender, error) {
 	useSecRuntimeTrack := pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.use_secruntime_track")
 
 	endpoints, destinationsCtx, err := common.NewLogContextRuntime(useSecRuntimeTrack)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create direct reported endpoints: %w", err)
 	}
+
+	secInfoEndpoints, secInfoDestinationsCtx, err := common.NewLogContextSecInfo()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create direct secinfo endpoints: %w", err)
+	}
+
 	stopper.Add(destinationsCtx)
+	stopper.Add(secInfoDestinationsCtx)
 
 	for _, status := range endpoints.GetStatus() {
 		log.Info(status)
 	}
 
-	hostname, err := hostnameutils.GetHostnameWithContextAndFallback(context.TODO(), ipc)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get hostname: %w", err)
+	for _, status := range secInfoEndpoints.GetStatus() {
+		log.Info(status)
 	}
 
 	// we set the hostname to the empty string to take advantage of the out of the box message hostname
 	// resolution
-	reporter, err := reporter.NewCWSReporter(hostname, stopper, endpoints, destinationsCtx, compression)
+	runtimeReporter, err := reporter.NewCWSReporter(hostname, stopper, endpoints, destinationsCtx, compression)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create direct reporter: %w", err)
 	}
 
+	secInfoReporter, err := reporter.NewCWSReporter(hostname, stopper, secInfoEndpoints, secInfoDestinationsCtx, compression)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create direct secinfo reporter: %w", err)
+	}
+
 	return &DirectEventMsgSender{
-		reporter:  reporter,
-		endpoints: endpoints,
+		reporter:         runtimeReporter,
+		endpoints:        endpoints,
+		secInfoReporter:  secInfoReporter,
+		secInfoEndpoints: secInfoEndpoints,
 	}, nil
 }
 

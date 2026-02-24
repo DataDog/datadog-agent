@@ -12,7 +12,8 @@
 #define REVISION_ARRAY_SIZE 4096
 #define INODE_DISCARDER_TYPE 0
 
-#define PATH_ID_MAP_SIZE 512
+#define PATH_ID_HIGH_MAP_SIZE 16384 // mount part of the path id
+#define PATH_ID_LOW_MAP_SIZE 32768 // inode part of the path id
 
 #define MAX_PERF_STR_BUFF_LEN 256
 #define MAX_STR_BUFF_LEN (1 << 15)
@@ -254,7 +255,7 @@ static __attribute__((always_inline)) u64 is_network_flow_monitor_enabled() {
 #define SYSCTL_OLD_VALUE_TRUNCATED (1 << 1)
 #define SYSCTL_NEW_VALUE_TRUNCATED (1 << 2)
 #define MAX_BPF_FILTER_SIZE (511 * sizeof(struct sock_filter))
-#define MAX_PRCTL_NAME_LEN 255
+#define MAX_PRCTL_NAME_LEN 16
 #define TRACER_MEMFD_SUFFIX_LEN 8
 
 static __attribute__((always_inline)) u64 has_tracing_helpers_in_cgroup_sysctl() {
@@ -272,6 +273,12 @@ enum link_target_dentry_origin {
 enum global_rate_limiter_type {
     RAW_PACKET_FILTER_LIMITER = 0,
     RAW_PACKET_ACTION_LIMITER,
+};
+
+enum PATH_ID_INVALIDATE_TYPE {
+    PATH_ID_INVALIDATE_TYPE_NONE = 0, // no invalidate
+    PATH_ID_INVALIDATE_TYPE_LOCAL = 1, // only the local path id is invalidated, mosly non dir related events
+    PATH_ID_INVALIDATE_TYPE_GLOBAL = 2, // the global path id is invalidated, meaning impacting the volume
 };
 
 #define TAIL_CALL_FNC_NAME(name, ...) tail_call_##name(__VA_ARGS__)

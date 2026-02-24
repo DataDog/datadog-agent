@@ -8,26 +8,10 @@
 package common
 
 import (
-	"fmt"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/dynamic"
 )
-
-type MockMutator struct {
-	ShoudErr     bool
-	ShouldMutate bool
-	Called       bool
-}
-
-func (m *MockMutator) MutatePod(_ *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
-	m.Called = true
-	if m.ShoudErr {
-		return false, fmt.Errorf("error")
-	}
-	return m.ShouldMutate, nil
-}
 
 func TestMultiMutator(t *testing.T) {
 	tests := []struct {

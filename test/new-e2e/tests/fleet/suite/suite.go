@@ -8,16 +8,19 @@ package suite
 
 import (
 	"regexp"
+	"slices"
 	"testing"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/agent"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/fleetbackend"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/backend"
+	fleethost "github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/installer"
 )
 
 var (
@@ -27,7 +30,7 @@ var (
 		e2eos.AmazonLinux2,
 		e2eos.Debian12,
 		e2eos.RedHat9,
-		e2eos.CentOS7,
+		// e2eos.CentOS7,
 		e2eos.Suse15,
 	}
 	// WindowsPlatforms is the list of supported Windows platforms.
@@ -45,8 +48,10 @@ var (
 type FleetSuite struct {
 	e2e.BaseSuite[environments.Host]
 
-	Agent   *agent.Agent
-	Backend *fleetbackend.Backend
+	Agent     *agent.Agent
+	Backend   *backend.Backend
+	Host      *fleethost.Host
+	Installer *installer.Installer
 }
 
 // SetupSuite sets up the fleet suite.
@@ -56,7 +61,9 @@ func (s *FleetSuite) SetupSuite() {
 	defer s.CleanupOnSetupFailure()
 
 	s.Agent = agent.New(s.T, s.Env())
-	s.Backend = fleetbackend.New(s.T, s.Env())
+	s.Backend = backend.New(s.T, s.Env())
+	s.Host = fleethost.New(s.Env())
+	s.Installer = installer.New(s.T, s.Env())
 }
 
 // Run runs the fleet suite for the given platforms.
@@ -66,7 +73,8 @@ func Run(t *testing.T, f func() e2e.Suite[environments.Host], platforms []e2eos.
 		t.Run(platform.String(), func(t *testing.T) {
 			t.Parallel()
 			name := regexp.MustCompile("[^a-zA-Z0-9]+").ReplaceAllString(t.Name(), "_")
-			opts = append(opts, awshost.WithEC2InstanceOptions(ec2.WithOS(platform)), awshost.WithoutAgent())
+			// clone opts and shadow it to avoid race condition when running in parallel
+			opts := append(slices.Clone(opts), awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(platform)), ec2.WithoutAgent()))
 			e2e.Run(t, s, e2e.WithProvisioner(awshost.Provisioner(opts...)), e2e.WithStackName(name))
 		})
 	}

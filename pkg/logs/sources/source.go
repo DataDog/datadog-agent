@@ -17,7 +17,6 @@ import (
 )
 
 // SourceType used for log line parsing logic.
-// TODO: remove this logic.
 type SourceType string
 
 const (

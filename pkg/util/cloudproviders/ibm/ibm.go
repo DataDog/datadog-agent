@@ -8,6 +8,7 @@ package ibm
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -61,7 +62,7 @@ func getToken(ctx context.Context) (string, time.Time, error) {
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("could not Unmarshal IBM token answer: %s", err)
 	} else if data.Value == "" {
-		return "", time.Time{}, fmt.Errorf("empty token returned by token API")
+		return "", time.Time{}, errors.New("empty token returned by token API")
 	}
 
 	expiresAt, err := time.Parse(time.RFC3339, data.ExpiresAt)
@@ -84,7 +85,7 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 	Name: "IBM instance name",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
-			return "", fmt.Errorf("IBM cloud provider is disabled by configuration")
+			return "", errors.New("IBM cloud provider is disabled by configuration")
 		}
 
 		t, err := token.Get(ctx)
@@ -95,7 +96,7 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 		res, err := httputils.Get(ctx,
 			metadataURL+instanceEndpoint,
 			map[string]string{
-				"Authorization": fmt.Sprintf("Bearer %s", t),
+				"Authorization": "Bearer " + t,
 			},
 			pkgconfigsetup.Datadog().GetDuration("ibm_metadata_timeout")*time.Second, pkgconfigsetup.Datadog())
 		if err != nil {
@@ -116,7 +117,7 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 		}
 
 		if data.ID == "" {
-			return nil, fmt.Errorf("IBM cloud metdata endpoint returned an empty 'id'")
+			return nil, errors.New("IBM cloud metdata endpoint returned an empty 'id'")
 		}
 
 		return []string{data.ID}, nil

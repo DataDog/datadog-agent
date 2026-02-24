@@ -7,10 +7,13 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -55,29 +58,33 @@ type Worker struct {
 	shouldAddCheckStatsFunc func(id checkid.ID) bool
 	utilizationTickInterval time.Duration
 	haAgent                 haagent.Component
+	healthPlatform          healthplatform.Component
+	watchdogWarningTimeout  time.Duration
 }
 
 // NewWorker returns an instance of a `Worker` after parameter sanity checks are passed
 func NewWorker(
 	senderManager sender.SenderManager,
 	haAgent haagent.Component,
+	healthPlatform healthplatform.Component,
 	runnerID int,
 	ID int,
 	pendingChecksChan chan check.Check,
 	checksTracker *tracker.RunningChecksTracker,
 	shouldAddCheckStatsFunc func(id checkid.ID) bool,
+	watchdogWarningTimeout time.Duration,
 ) (*Worker, error) {
 
 	if checksTracker == nil {
-		return nil, fmt.Errorf("worker cannot initialize using a nil checksTracker")
+		return nil, errors.New("worker cannot initialize using a nil checksTracker")
 	}
 
 	if pendingChecksChan == nil {
-		return nil, fmt.Errorf("worker cannot initialize using a nil pendingChecksChan")
+		return nil, errors.New("worker cannot initialize using a nil pendingChecksChan")
 	}
 
 	if shouldAddCheckStatsFunc == nil {
-		return nil, fmt.Errorf("worker cannot initialize using a nil shouldAddCheckStatsFunc")
+		return nil, errors.New("worker cannot initialize using a nil shouldAddCheckStatsFunc")
 	}
 
 	return newWorkerWithOptions(
@@ -88,7 +95,9 @@ func NewWorker(
 		shouldAddCheckStatsFunc,
 		senderManager.GetDefaultSender,
 		haAgent,
+		healthPlatform,
 		pollingInterval,
+		watchdogWarningTimeout,
 	)
 }
 
@@ -103,11 +112,13 @@ func newWorkerWithOptions(
 	shouldAddCheckStatsFunc func(id checkid.ID) bool,
 	getDefaultSenderFunc func() (sender.Sender, error),
 	haAgent haagent.Component,
+	healthPlatform healthplatform.Component,
 	utilizationTickInterval time.Duration,
+	watchdogWarningTimeout time.Duration,
 ) (*Worker, error) {
 
 	if getDefaultSenderFunc == nil {
-		return nil, fmt.Errorf("worker cannot initialize using a nil getDefaultSenderFunc")
+		return nil, errors.New("worker cannot initialize using a nil getDefaultSenderFunc")
 	}
 
 	workerName := fmt.Sprintf("worker_%d", ID)
@@ -121,12 +132,16 @@ func newWorkerWithOptions(
 		shouldAddCheckStatsFunc: shouldAddCheckStatsFunc,
 		getDefaultSenderFunc:    getDefaultSenderFunc,
 		haAgent:                 haAgent,
+		healthPlatform:          healthPlatform,
 		utilizationTickInterval: utilizationTickInterval,
+		watchdogWarningTimeout:  watchdogWarningTimeout,
 	}, nil
 }
 
-// Run waits for checks and run them as long as they arrive on the channel
-func (w *Worker) Run() {
+// Run waits for checks and run them as long as they arrive on the channel.
+// The provided ctx is used for cancellable operations such as hostname resolution;
+// it should be cancelled when the agent shuts down.
+func (w *Worker) Run(ctx context.Context) {
 	log.Debugf("Runner %d, worker %d: Ready to process checks...", w.runnerID, w.ID)
 
 	alpha := 0.25 // converges to 99.98% of constant input in 30 iterations.
@@ -152,6 +167,21 @@ func (w *Worker) Run() {
 			continue
 		}
 
+		var watchdogCancel chan struct{}
+		var watchdogWG sync.WaitGroup
+		if w.watchdogWarningTimeout > 0 {
+			watchdogCancel = make(chan struct{})
+			watchdogWG.Add(1)
+			go func() {
+				defer watchdogWG.Done()
+				select {
+				case <-time.After(w.watchdogWarningTimeout):
+					log.Warnf("Check %s is running for longer than the watchdog warning timeout of %s", check.ID(), w.watchdogWarningTimeout)
+				case <-watchdogCancel:
+				}
+			}()
+		}
+
 		checkStartTime := time.Now()
 
 		checkLogger.CheckStarted()
@@ -175,10 +205,10 @@ func (w *Worker) Run() {
 		if err != nil {
 			log.Errorf("Error getting default sender: %v. Not sending status check for %s", err, check)
 		}
-		serviceCheckTags := []string{fmt.Sprintf("check:%s", check.String()), "dd_enable_check_intake:true"}
+		serviceCheckTags := []string{"check:" + check.String(), "dd_enable_check_intake:true"}
 		serviceCheckStatus := servicecheck.ServiceCheckOK
 
-		hname, _ := hostname.Get(context.TODO())
+		hname, _ := hostname.Get(ctx)
 
 		if len(checkWarnings) != 0 {
 			expvars.AddWarningsCount(len(checkWarnings))
@@ -213,11 +243,16 @@ func (w *Worker) Run() {
 			// otherwise only do so if the check is in the scheduler
 			if w.shouldAddCheckStatsFunc(check.ID()) {
 				sStats, _ := check.GetSenderStats()
-				expvars.AddCheckStats(check, time.Since(checkStartTime), checkErr, checkWarnings, sStats, w.haAgent)
+				expvars.AddCheckStats(check, time.Since(checkStartTime), checkErr, checkWarnings, sStats, w.haAgent, w.healthPlatform)
 			}
 		}
 
 		checkLogger.CheckFinished()
+
+		if watchdogCancel != nil {
+			close(watchdogCancel)
+			watchdogWG.Wait()
+		}
 	}
 
 	log.Debugf("Runner %d, worker %d: Finished processing checks.", w.runnerID, w.ID)

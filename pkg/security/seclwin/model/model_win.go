@@ -4,14 +4,15 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:generate accessors -tags windows -types-file model.go -output accessors_windows.go -field-handlers field_handlers_windows.go -doc ../../../../docs/cloud-workload-security/secl_windows.json -field-accessors-output field_accessors_windows.go
+//go:generate event_deep_copy -tags windows -types-file model.go -output event_deep_copy_windows.go
 
 // Package model holds model related files
 package model
 
 import (
 	"runtime"
-	"strconv"
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
@@ -29,14 +30,19 @@ func (m *Model) NewEvent() eval.Event {
 func NewFakeEvent() *Event {
 	return &Event{
 		BaseEvent: BaseEvent{
-			FieldHandlers: &FakeFieldHandlers{},
-			Os:            runtime.GOOS,
+			FieldHandlers: &FakeFieldHandlers{
+				PCEs: make(map[uint32]*ProcessCacheEntry),
+			},
+			Os: runtime.GOOS,
 		},
 	}
 }
 
 // ResolveProcessCacheEntryFromPID stub implementation
 func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *ProcessCacheEntry {
+	if fh.PCEs[pid] != nil {
+		return fh.PCEs[pid]
+	}
 	return GetPlaceholderProcessCacheEntry(pid)
 }
 
@@ -54,6 +60,11 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 		return m.ExtraValidateFieldFnc(field, fieldValue)
 	}
 
+	return nil
+}
+
+// ValidateRule validates the rule
+func (m *Model) ValidateRule(_ *eval.Rule) error {
 	return nil
 }
 
@@ -92,7 +103,7 @@ type Event struct {
 
 // NewEventZeroer returns a function that can be used to zero an Event
 func NewEventZeroer() func(*Event) {
-	var eventZero = Event{BaseEvent: BaseEvent{Os: runtime.GOOS}}
+	var eventZero = Event{BaseEvent: BaseEvent{Os: runtime.GOOS, ProcessContext: &ProcessContext{}}}
 
 	return func(e *Event) {
 		*e = eventZero
@@ -109,19 +120,19 @@ func (e *Event) GetContainerID() string {
 
 // FileEvent is the common file event type
 type FileEvent struct {
-	FileObject  uint64 `field:"-"`                                                                                      // handle numeric value
-	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length|gen_getters" op_override:"eval.WindowsPathCmp"` // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "c:\cmd.bat"` Description:`Matches the execution of the file located at c:\cmd.bat`
-	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"eval.CaseInsensitiveCmp"`     // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "cmd.bat"` Description:`Matches the execution of any file named cmd.bat.`
-	Extension   string `field:"extension,handler:ResolveFileExtension" op_override:"eval.CaseInsensitiveCmp"`           // SECLDoc[extension] Definition:`File's extension`
+	FileObject  uint64 `field:"-"`                                                                                              // handle numeric value
+	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length|gen_getters" op_override:"eval.WindowsPathCmp"`         // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "c:\cmd.bat"` Description:`Matches the execution of the file located at c:\cmd.bat`
+	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"eval.CaseInsensitiveCmp"`             // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "cmd.bat"` Description:`Matches the execution of any file named cmd.bat.`
+	Extension   string `field:"extension,handler:ResolveFileExtension" op_override:"eval.CaseInsensitiveCmp,eval.ExtensionCmp"` // SECLDoc[extension] Definition:`File's extension`
 }
 
 // FimFileEvent is the common file event type
 type FimFileEvent struct {
-	FileObject      uint64 `field:"-"`                                                                                     // handle numeric value
-	PathnameStr     string `field:"device_path,handler:ResolveFimFilePath,opts:length" op_override:"eval.WindowsPathCmp"`  // SECLDoc[device_path] Definition:`File's path` Example:`create.file.device_path == "\device\harddisk1\cmd.bat"` Description:`Matches the creation of the file located at c:\cmd.bat`
-	UserPathnameStr string `field:"path,handler:ResolveFileUserPath,opts:length" op_override:"eval.WindowsPathCmp"`        // SECLDoc[path] Definition:`File's path` Example:`create.file.path == "c:\cmd.bat"` Description:`Matches the creation of the file located at c:\cmd.bat`
-	BasenameStr     string `field:"name,handler:ResolveFimFileBasename,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[name] Definition:`File's basename` Example:`create.file.name == "cmd.bat"` Description:`Matches the creation of any file named cmd.bat.`
-	Extension       string `field:"extension,handler:ResolveFimFileExtension" op_override:"eval.CaseInsensitiveCmp"`       // SECLDoc[extension] Definition:`File's extension`
+	FileObject      uint64 `field:"-"`                                                                                                 // handle numeric value
+	PathnameStr     string `field:"device_path,handler:ResolveFimFilePath,opts:length" op_override:"eval.WindowsPathCmp"`              // SECLDoc[device_path] Definition:`File's path` Example:`create.file.device_path == "\device\harddisk1\cmd.bat"` Description:`Matches the creation of the file located at c:\cmd.bat`
+	UserPathnameStr string `field:"path,handler:ResolveFileUserPath,opts:length" op_override:"eval.WindowsPathCmp"`                    // SECLDoc[path] Definition:`File's path` Example:`create.file.path == "c:\cmd.bat"` Description:`Matches the creation of the file located at c:\cmd.bat`
+	BasenameStr     string `field:"name,handler:ResolveFimFileBasename,opts:length" op_override:"eval.CaseInsensitiveCmp"`             // SECLDoc[name] Definition:`File's basename` Example:`create.file.name == "cmd.bat"` Description:`Matches the creation of any file named cmd.bat.`
+	Extension       string `field:"extension,handler:ResolveFimFileExtension" op_override:"eval.CaseInsensitiveCmp,eval.ExtensionCmp"` // SECLDoc[extension] Definition:`File's extension`
 }
 
 // RegistryEvent is the common registry event type
@@ -242,12 +253,16 @@ func SetAncestorFields(_ *ProcessCacheEntry, _ string, _ interface{}) (bool, err
 	return true, nil
 }
 
-// Key returns a unique key for the entity
-func (pc *ProcessCacheEntry) Key() (string, bool) {
-	return strconv.Itoa(int(pc.Pid)), true
+// Hash returns a unique key for the entity
+func (pc *ProcessCacheEntry) Hash() eval.ScopeHashKey {
+	return eval.ScopeHashKey{
+		Uintptr: uintptr(unsafe.Pointer(pc)),
+	}
 }
 
 // ParentScope returns the parent entity scope
 func (pc *ProcessCacheEntry) ParentScope() (eval.VariableScope, bool) {
 	return pc.Ancestor, pc.Ancestor != nil
 }
+
+func (e *Event) initPlatformPointerFields() {}

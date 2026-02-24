@@ -21,7 +21,6 @@ fetch_openjdk                        @DataDog/agent-metric-pipelines
 # Notifications are handled separately for more fine-grained control on go tests
 tests_*                                 @DataDog/multiple
 tests_ebpf*                             @DataDog/ebpf-platform
-tests_serverless                        @DataDog/serverless
 tests_windows_sysprobe*                 @DataDog/windows-products
 security_go_generate_check              @DataDog/agent-security
 prepare_sysprobe_ebpf_functional_tests* @DataDog/ebpf-platform
@@ -37,11 +36,12 @@ golang_deps_commenter                @DataDog/agent-runtimes
 
 # Binary build
 build_system-probe*                  @DataDog/ebpf-platform
+build_sd-agent*                      @DataDog/agent-discovery
+build_dd-procmgrd*                   @DataDog/agent-runtimes
 cluster_agent_cloudfoundry-build*    @Datadog/agent-integrations
 cluster_agent-build*                 @DataDog/container-integrations
 cluster_agent_fips-build*            @DataDog/container-integrations
 cws_instrumentation-build*           @DataDog/agent-security
-build_serverless*                    @DataDog/serverless
 build_windows_container_entrypoint   @DataDog/windows-products
 
 # Package deps build
@@ -109,6 +109,7 @@ dev_branch*                            @Datadog/agent-delivery
 dev_master*                            @Datadog/agent-delivery
 dev_nightly*                           @Datadog/agent-delivery
 qa_agent*                              @DataDog/agent-devx
+qa_ot_agent*                           @DataDog/agent-devx
 qa_cws_instrumentation*                @DataDog/agent-devx
 qa_dca*                                @DataDog/agent-devx
 qa_dogstatsd*                          @DataDog/agent-devx
@@ -155,16 +156,17 @@ trigger_distribution*         @DataDog/agent-delivery
 integration_tests_windows*    @DataDog/windows-products
 integration_tests_otel        @DataDog/opentelemetry-agent
 docker_image_build_otel       @DataDog/opentelemetry-agent
+build_otel_agent_*            @DataDog/opentelemetry-agent
+build_host_profiler_*         @DataDog/opentelemetry-agent @DataDog/profiling-full-host @DataDog/agent-build
 ddot_byoc_*                   @DataDog/opentelemetry-agent
 datadog_otel_components_ocb_build  @DataDog/opentelemetry-agent
 docker_integration_tests      @DataDog/container-integrations
 trace_agent_integration_tests @DataDog/agent-apm
 
 # Functional test
-serverless_cold_start_performance-deb_x64      @DataDog/serverless
-serverless_cold_start_performance-deb_x64_dind @DataDog/agent-devx
 static_quality_gates                           @DataDog/agent-build
 manual_gate_threshold_update                   @DataDog/agent-build
+files_inventory_check                          @DataDog/agent-build
 
 oracle*                                        @DataDog/database-monitoring
 
@@ -176,7 +178,7 @@ k8s-e2e-cspm-*                    @DataDog/agent-security
 e2e_pre_test*                     @DataDog/agent-devx
 new-e2e*                          @DataDog/multiple
 go_e2e_test_binaries              @DataDog/agent-devx
-dynamic_test-evaluate-e2e         @DataDog/agent-devx
+all-artifacts                     @DataDog/agent-devx
 
 # Kernel matrix testing
 upload_dependencies*              @DataDog/ebpf-platform

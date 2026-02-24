@@ -1,7 +1,9 @@
 lading:
-  version: 0.28.0
+  version: 0.30.0
 
 target:
+  ddprof_replicas: 1
+  internal_profiling_replicas: 1
 
 # Link templates for reports.
 #
@@ -36,3 +38,5 @@ report:
   metrics_dashboard: "https://app.datadoghq.com/dashboard/ykh-ua8-vcu/SMP-Regression-Detector-Metrics?fromUser=true&refresh_mode=paused&tpl_var_run-id%5B0%5D={{ job_id }}&view=spans&from_ts={{ start_time_ms }}&to_ts={{ end_time_ms }}&live=false"
   profiles: "https://app.datadoghq.com/profiling/explorer?query=env%3Asingle-machine-performance%20service%3Adatadog-agent%20job_id%3A{{ job_id }}&agg_m=count&agg_m_source=base&agg_t=count&fromUser=false&viz=stream&start={{ filter_start }}&end={{ filter_end }}&paused=true"
   per_experiment_logs: "https://app.datadoghq.com/logs?query=experiment%3A{{ experiment }}%20job_id%3A{{ job_id }}&agg_m=count&agg_m_source=base&agg_q=%40span.url&agg_q_source=base&agg_t=count&fromUser=true&index=single-machine-performance-target-logs&messageDisplay=inline&refresh_mode=paused&storage=hot&stream_sort=time%2Cdesc&top_n=100&top_o=top&viz=stream&x_missing=true&from_ts={{ filter_start }}&to_ts={{ filter_end }}&live=false"
+  debug_dashboard: "https://app.datadoghq.com/dashboard/zv5-qgi-m66/smp-failed-replicates?fromUser=true&refresh_mode=paused&tpl_var_experiment%5B0%5D={{ experiment }}&tpl_var_job_id%5B0%5D={{ job_id}}&tpl_var_replicate_type%5B0%5D={{ replicate_type }}&tpl_var_variant%5B0%5D={{ variant }}&from_ts={{ filter_start }}&to_ts={{ filter_end }}&live=false"
+

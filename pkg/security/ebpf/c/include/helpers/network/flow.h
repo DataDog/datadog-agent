@@ -79,15 +79,15 @@ __attribute__((always_inline)) void print_route_entry(struct pid_route_entry_t *
 __attribute__((always_inline)) void print_route(struct pid_route_t *route) {
 #if defined(DEBUG_NETWORK_FLOW)
     bpf_printk("|    route:");
-    bpf_printk("|        p:%d a:%lu a:%lu", route->port, route->addr[0], route->addr[1]);
+    bpf_printk("|        p:%d a:%lu a:%lu", htons(route->port), route->addr[0], route->addr[1]);
     bpf_printk("|        netns:%lu", route->netns);
+    bpf_printk("|        protocol:%lu", route->l4_protocol);
 #endif
 }
 
 __attribute__((always_inline)) u8 can_delete_route(struct pid_route_t *route, struct sock *sk) {
     struct pid_route_entry_t *existing_entry = bpf_map_lookup_elem(&flow_pid, route);
     if (existing_entry != NULL) {
-
         #if defined(DEBUG_NETWORK_FLOW)
         bpf_printk("|    - attempting to delete:");
         print_route_entry(existing_entry);
@@ -101,7 +101,6 @@ __attribute__((always_inline)) u8 can_delete_route(struct pid_route_t *route, st
             return 1;
         }
     } else {
-
         #if defined(DEBUG_NETWORK_FLOW)
         bpf_printk("|    - no entry found for input route:");
         print_route(route);

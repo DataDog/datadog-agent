@@ -6,7 +6,7 @@
 package obfuscate
 
 import (
-	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -112,7 +112,7 @@ func TestIINValidCardPrefix(t *testing.T) {
 		{594388, false, false},
 		{219899, false, false},
 	} {
-		t.Run(fmt.Sprintf("%d", tt.in), func(t *testing.T) {
+		t.Run(strconv.Itoa(tt.in), func(t *testing.T) {
 			maybe, yes := validCardPrefix(tt.in)
 			assert.Equal(t, maybe, tt.maybe)
 			assert.Equal(t, yes, tt.yes)
@@ -274,11 +274,12 @@ func TestIINIsSensitive(t *testing.T) {
 }
 
 func TestCCKeepValues(t *testing.T) {
-	possibleCard := "378282246310005"
 	o := NewObfuscator(Config{CreditCard: CreditCardsConfig{Enabled: true, KeepValues: []string{"skip_me"}}})
 
-	assert.Equal(t, possibleCard, o.ObfuscateCreditCardNumber("skip_me", possibleCard))
-	assert.Equal(t, "?", o.ObfuscateCreditCardNumber("obfuscate_me", possibleCard))
+	assert.False(t, o.ShouldObfuscateCCKey("skip_me"))
+	assert.False(t, o.ShouldObfuscateCCKey("_some_safe_tag"))
+	assert.False(t, o.ShouldObfuscateCCKey("http.status_code"))
+	assert.True(t, o.ShouldObfuscateCCKey("obfuscate_me"))
 }
 
 func BenchmarkIsSensitive(b *testing.B) {

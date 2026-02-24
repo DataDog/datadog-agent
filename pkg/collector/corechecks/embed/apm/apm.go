@@ -11,7 +11,6 @@ package apm
 import (
 	"bufio"
 	"context"
-	"fmt"
 	"os"
 	"os/exec"
 	"time"
@@ -103,10 +102,10 @@ func (c *APMCheck) run() error {
 	hname, _ := hostname.Get(context.TODO())
 
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("DD_API_KEY=%s", utils.SanitizeAPIKey(pkgconfigsetup.Datadog().GetString("api_key"))))
-	env = append(env, fmt.Sprintf("DD_HOSTNAME=%s", hname))
-	env = append(env, fmt.Sprintf("DD_DOGSTATSD_PORT=%s", pkgconfigsetup.Datadog().GetString("dogstatsd_port")))
-	env = append(env, fmt.Sprintf("DD_LOG_LEVEL=%s", pkgconfigsetup.Datadog().GetString("log_level")))
+	env = append(env, "DD_API_KEY="+utils.SanitizeAPIKey(pkgconfigsetup.Datadog().GetString("api_key")))
+	env = append(env, "DD_HOSTNAME="+hname)
+	env = append(env, "DD_DOGSTATSD_PORT="+pkgconfigsetup.Datadog().GetString("dogstatsd_port"))
+	env = append(env, "DD_LOG_LEVEL="+pkgconfigsetup.Datadog().GetString("log_level"))
 	cmd.Env = env
 
 	// forward the standard output to the Agent logger
@@ -189,7 +188,7 @@ func (c *APMCheck) Configure(_ sender.SenderManager, _ uint64, data integration.
 
 	// explicitly provide to the trace-agent the agent configuration file
 	if _, err := os.Stat(configFile); !os.IsNotExist(err) {
-		c.commandOpts = append(c.commandOpts, fmt.Sprintf("-config=%s", configFile))
+		c.commandOpts = append(c.commandOpts, "-config="+configFile)
 	}
 
 	c.source = source

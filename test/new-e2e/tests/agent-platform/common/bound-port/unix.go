@@ -6,14 +6,14 @@
 package boundport
 
 import (
-	"fmt"
+	"errors"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 func boundPortsUnix(host *components.RemoteHost) ([]BoundPort, error) {
 	if _, err := host.Execute("command -v netstat"); err == nil {
-		out, err := host.Execute("sudo netstat -lntp")
+		out, err := host.Execute("sudo netstat -plunt")
 		if err != nil {
 			return nil, err
 		}
@@ -21,12 +21,12 @@ func boundPortsUnix(host *components.RemoteHost) ([]BoundPort, error) {
 	}
 
 	if _, err := host.Execute("command -v ss"); err == nil {
-		out, err := host.Execute("sudo ss -lntp")
+		out, err := host.Execute("sudo ss -plunt")
 		if err != nil {
 			return nil, err
 		}
 		return FromSs(out)
 	}
 
-	return nil, fmt.Errorf("no netstat or ss found")
+	return nil, errors.New("no ss found")
 }

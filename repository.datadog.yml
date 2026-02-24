@@ -5,14 +5,14 @@ enable: true
 merge_method: squash
 workflow_type: speculative_parallel_impact
 speculative_max_depth: 5
-wait_for_check_timeout_in_minutes: 240
+wait_for_check_timeout_in_minutes: 360
 gitlab_jobs_retry_enable: true
 gitlab_check_enable: true
 skip_labels: true
 branches:
   ^7\.[0-9]+\.x$:
     github_teams_restrictions:
-      - agent-supply-chain
+      - agent-delivery
   ^6\.[0-9]+\.x$:
     github_teams_restrictions:
       - agent-supply-chain

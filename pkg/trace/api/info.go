@@ -7,6 +7,7 @@ package api
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -35,6 +36,40 @@ var serviceOriginTags = map[string]struct{}{
 	"kube_cluster_name":   {},
 }
 
+type reducedObfuscationConfig struct {
+	ElasticSearch        bool                      `json:"elastic_search"`
+	Mongo                bool                      `json:"mongo"`
+	SQLExecPlan          bool                      `json:"sql_exec_plan"`
+	SQLExecPlanNormalize bool                      `json:"sql_exec_plan_normalize"`
+	HTTP                 obfuscate.HTTPConfig      `json:"http"`
+	RemoveStackTraces    bool                      `json:"remove_stack_traces"`
+	Redis                obfuscate.RedisConfig     `json:"redis"`
+	Valkey               obfuscate.ValkeyConfig    `json:"valkey"`
+	Memcached            obfuscate.MemcachedConfig `json:"memcached"`
+}
+
+type reducedConfig struct {
+	DefaultEnv             string                        `json:"default_env"`
+	TargetTPS              float64                       `json:"target_tps"`
+	MaxEPS                 float64                       `json:"max_eps"`
+	ReceiverPort           int                           `json:"receiver_port"`
+	ReceiverSocket         string                        `json:"receiver_socket"`
+	ConnectionLimit        int                           `json:"connection_limit"`
+	ReceiverTimeout        int                           `json:"receiver_timeout"`
+	MaxRequestBytes        int64                         `json:"max_request_bytes"`
+	StatsdPort             int                           `json:"statsd_port"`
+	MaxMemory              float64                       `json:"max_memory"`
+	MaxCPU                 float64                       `json:"max_cpu"`
+	AnalyzedSpansByService map[string]map[string]float64 `json:"analyzed_spans_by_service"`
+	Obfuscation            reducedObfuscationConfig      `json:"obfuscation"`
+}
+
+// filterTags contains trace sampling rules
+type filterTags struct {
+	Require []string `json:"require,omitempty"`
+	Reject  []string `json:"reject,omitempty"`
+}
+
 // makeInfoHandler returns a new handler for handling the discovery endpoint.
 func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc) {
 	var all []string
@@ -45,32 +80,6 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		if !e.Hidden {
 			all = append(all, e.Pattern)
 		}
-	}
-	type reducedObfuscationConfig struct {
-		ElasticSearch        bool                      `json:"elastic_search"`
-		Mongo                bool                      `json:"mongo"`
-		SQLExecPlan          bool                      `json:"sql_exec_plan"`
-		SQLExecPlanNormalize bool                      `json:"sql_exec_plan_normalize"`
-		HTTP                 obfuscate.HTTPConfig      `json:"http"`
-		RemoveStackTraces    bool                      `json:"remove_stack_traces"`
-		Redis                obfuscate.RedisConfig     `json:"redis"`
-		Valkey               obfuscate.ValkeyConfig    `json:"valkey"`
-		Memcached            obfuscate.MemcachedConfig `json:"memcached"`
-	}
-	type reducedConfig struct {
-		DefaultEnv             string                        `json:"default_env"`
-		TargetTPS              float64                       `json:"target_tps"`
-		MaxEPS                 float64                       `json:"max_eps"`
-		ReceiverPort           int                           `json:"receiver_port"`
-		ReceiverSocket         string                        `json:"receiver_socket"`
-		ConnectionLimit        int                           `json:"connection_limit"`
-		ReceiverTimeout        int                           `json:"receiver_timeout"`
-		MaxRequestBytes        int64                         `json:"max_request_bytes"`
-		StatsdPort             int                           `json:"statsd_port"`
-		MaxMemory              float64                       `json:"max_memory"`
-		MaxCPU                 float64                       `json:"max_cpu"`
-		AnalyzedSpansByService map[string]map[string]float64 `json:"analyzed_spans_by_service"`
-		Obfuscation            reducedObfuscationConfig      `json:"obfuscation"`
 	}
 	var oconf reducedObfuscationConfig
 	if o := r.conf.Obfuscation; o != nil {
@@ -97,6 +106,49 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		}
 	}
 
+	filtertags := &filterTags{
+		Require: make([]string, len(r.conf.RequireTags)),
+		Reject:  make([]string, len(r.conf.RejectTags)),
+	}
+	for i, tag := range r.conf.RequireTags {
+		if tag.V != "" {
+			filtertags.Require[i] = fmt.Sprintf("%s:%s", tag.K, tag.V)
+		} else {
+			filtertags.Require[i] = tag.K
+		}
+	}
+	for i, tag := range r.conf.RejectTags {
+		if tag.V != "" {
+			filtertags.Reject[i] = fmt.Sprintf("%s:%s", tag.K, tag.V)
+		} else {
+			filtertags.Reject[i] = tag.K
+		}
+	}
+
+	filtertagsregex := &filterTags{
+		Require: make([]string, len(r.conf.RequireTagsRegex)),
+		Reject:  make([]string, len(r.conf.RejectTagsRegex)),
+	}
+	for i, tag := range r.conf.RequireTagsRegex {
+		if tag.V != nil {
+			filtertagsregex.Require[i] = fmt.Sprintf("%s:%s", tag.K, tag.V.String())
+		} else {
+			filtertagsregex.Require[i] = tag.K
+		}
+	}
+	for i, tag := range r.conf.RejectTagsRegex {
+		if tag.V != nil {
+			filtertagsregex.Reject[i] = fmt.Sprintf("%s:%s", tag.K, tag.V.String())
+		} else {
+			filtertagsregex.Reject[i] = tag.K
+		}
+	}
+
+	var ignoreResources []string
+	if patterns, ok := r.conf.Ignore["resource"]; ok {
+		ignoreResources = patterns
+	}
+
 	txt, err := json.MarshalIndent(struct {
 		Version                string        `json:"version"`
 		GitCommit              string        `json:"git_commit"`
@@ -111,6 +163,9 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		PeerTags               []string      `json:"peer_tags"`
 		SpanKindsStatsComputed []string      `json:"span_kinds_stats_computed"`
 		ObfuscationVersion     int           `json:"obfuscation_version"`
+		FilterTags             *filterTags   `json:"filter_tags,omitempty"`
+		FilterTagsRegex        *filterTags   `json:"filter_tags_regex,omitempty"`
+		IgnoreResources        []string      `json:"ignore_resources,omitempty"`
 	}{
 		Version:                r.conf.AgentVersion,
 		GitCommit:              r.conf.GitCommit,
@@ -123,6 +178,9 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		EvpProxyAllowedHeaders: EvpProxyAllowedHeaders,
 		SpanKindsStatsComputed: spanKindsStatsComputed,
 		ObfuscationVersion:     obfuscate.Version,
+		FilterTags:             filtertags,
+		FilterTagsRegex:        filtertagsregex,
+		IgnoreResources:        ignoreResources,
 		Config: reducedConfig{
 			DefaultEnv:             r.conf.DefaultEnv,
 			TargetTPS:              r.conf.TargetTPS,
@@ -144,7 +202,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		panic(fmt.Errorf("Error making /info handler: %v", err))
 	}
 	h := sha256.Sum256(txt)
-	return fmt.Sprintf("%x", h), func(w http.ResponseWriter, req *http.Request) {
+	return hex.EncodeToString(h[:]), func(w http.ResponseWriter, req *http.Request) {
 		containerID := r.containerIDProvider.GetContainerID(req.Context(), req.Header)
 		if containerTags, err := r.conf.ContainerTags(containerID); err == nil {
 			hash := computeContainerTagsHash(containerTags)

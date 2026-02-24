@@ -7,7 +7,7 @@
 package utils
 
 import (
-	"fmt"
+	"errors"
 	"sync"
 )
 
@@ -30,7 +30,7 @@ func (n *Notifier[E, O]) RegisterListener(event E, listener Listener[O]) error {
 	if n.listeners != nil {
 		n.listeners[event] = append(n.listeners[event], listener)
 	} else {
-		return fmt.Errorf("a listener was inserted before initialization")
+		return errors.New("a listener was inserted before initialization")
 	}
 	return nil
 }

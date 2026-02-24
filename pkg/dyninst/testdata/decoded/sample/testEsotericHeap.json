@@ -131,6 +131,7 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "{esotericStack: {_valid: 77, c: {chan}, val: 42, work: {pointer: not captured at 0x[addr]}, foo: {func}}, mu: {mutex internals}, once: {done: {v: 0}, m: {mutex internals}}, wg: {noCopy: {}, state: {v: 0}, sema: 0}, a: {v: 0}}"
   }
 ]

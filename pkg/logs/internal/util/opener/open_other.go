@@ -18,3 +18,8 @@ import (
 func OpenLogFile(path string) (*os.File, error) {
 	return filesystem.OpenShared(path)
 }
+
+// StatLogFile stats a log file
+func StatLogFile(path string) (os.FileInfo, error) {
+	return os.Stat(path)
+}
