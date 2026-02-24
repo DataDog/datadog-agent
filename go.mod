@@ -175,7 +175,7 @@ require (
 	github.com/DataDog/go-sqllexer v0.1.13
 	github.com/DataDog/gopsutil v1.2.3
 	github.com/DataDog/nikos v1.12.12
-	github.com/DataDog/sketches-go v1.4.7
+	github.com/DataDog/sketches-go v1.4.8
 	github.com/DataDog/viper v1.15.0
 	// TODO: pin to a WPA released version once there is a release that includes the apis module
 	github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20250108152814-82e58d0231d1
@@ -247,7 +247,7 @@ require (
 	github.com/golang/mock v1.7.0-rc.1
 	github.com/golang/protobuf v1.5.4
 	github.com/google/btree v1.1.3
-	github.com/google/cel-go v0.26.1
+	github.com/google/cel-go v0.27.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.20.7
 	github.com/google/gofuzz v1.2.0
@@ -262,7 +262,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-version v1.8.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
-	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb
+	github.com/hectane/go-acl v0.0.0-20230225031251-cdfc9e3acf94
 	github.com/iceber/iouring-go v0.0.0-20230403020409-002cfd2e2a90
 	github.com/imdario/mergo v0.3.16
 	github.com/invopop/jsonschema v0.12.0
@@ -800,7 +800,6 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/stackitcloud/stackit-sdk-go/core v0.20.1 // indirect
-	github.com/stoewer/go-strcase v1.3.1 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/swaggest/refl v1.3.0 // indirect
 	github.com/tchap/go-patricia/v2 v2.3.3 // indirect
@@ -999,7 +998,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.1.0
 	github.com/qri-io/jsonpointer v0.1.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
-	gitlab.com/gitlab-org/api/client-go v1.14.0
+	gitlab.com/gitlab-org/api/client-go v1.40.1
 	go.temporal.io/api v1.62.2
 	go.temporal.io/sdk v1.39.0
 	mvdan.cc/sh/v3 v3.12.0
@@ -1257,6 +1256,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl => ./comp/core/agenttelemetry/impl
 	github.com/DataDog/datadog-agent/comp/core/config => ./comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ./comp/core/configsync
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth => ./comp/core/delegatedauth
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws => ./comp/core/delegatedauth/api/cloudauth/aws
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ./comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ./comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ./comp/core/hostname/hostnameinterface
@@ -1382,6 +1383,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/trace/otel => ./pkg/trace/otel
 	github.com/DataDog/datadog-agent/pkg/trace/stats => ./pkg/trace/stats
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil => ./pkg/trace/traceutil
+	github.com/DataDog/datadog-agent/pkg/util/aws/creds => ./pkg/util/aws/creds
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ./pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ./pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ./pkg/util/cache

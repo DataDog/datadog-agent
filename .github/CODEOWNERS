@@ -128,7 +128,6 @@
 /.gitlab/build/binary_build/fakeintake.yml                 @DataDog/agent-devx
 /.gitlab/build/binary_build/host_profiler.yml              @DataDog/opentelemetry-agent @DataDog/profiling-full-host @DataDog/agent-build
 /.gitlab/build/binary_build/system_probe.yml               @DataDog/ebpf-platform @DataDog/agent-build
-/.gitlab/build/binary_build/dd_procmgrd.yml               @DataDog/agent-runtimes @DataDog/agent-build
 /.gitlab/build/binary_build/windows.yml                    @DataDog/agent-build @DataDog/windows-products
 
 /.gitlab/build/source_test/codeql_scan.yml                 @DataDog/sdlc-security

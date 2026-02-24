@@ -548,6 +548,10 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		// Default of 4 was chosen through experimentation, but may not be the optimal value.
 		c.MaxSenderRetries = 4
 	}
+	if core.IsSet("secret_refresh_on_api_key_failure_interval") {
+		// Use the global secret refresh interval for throttling API key refresh at the sender level
+		c.APIKeyRefreshThrottleInterval = time.Duration(core.GetInt("secret_refresh_on_api_key_failure_interval")) * time.Minute
+	}
 	if core.IsConfigured("apm_config.sync_flushing") {
 		c.SynchronousFlushing = core.GetBool("apm_config.sync_flushing")
 	}
