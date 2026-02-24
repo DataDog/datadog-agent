@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build private_runner_experimental
+//go:build private_runner_experimental && !windows
 
 package com_datadoghq_script
 

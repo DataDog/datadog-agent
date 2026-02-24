@@ -1,6 +1,5 @@
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
-load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
@@ -82,20 +81,6 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-expand_template(
-    name = "libsepol_pc",
-    out = "libsepol.pc",
-    substitutions = {
-        # Prepare the .pc file for our own substitution later
-        "@prefix@": "##PREFIX##",
-        # and make other values depend on the prefix declared in the .pc file
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@VERSION@": VERSION,
-    },
-    template = ":src/libsepol.pc.in",
-)
-
 pkg_files(
     name = "lib_files",
     srcs = [":sepol"],
@@ -114,12 +99,6 @@ pkg_files(
     prefix = "include/sepol/policydb",
 )
 
-pkg_files(
-    name = "pc_file",
-    srcs = [":libsepol_pc"],
-    prefix = "lib/pkgconfig",
-)
-
 pkg_filegroup(
     name = "all_files",
     srcs = [
@@ -134,6 +113,5 @@ pkg_install(
     name = "install",
     srcs = [
         ":all_files",
-        ":pc_file",
     ],
 )

@@ -286,6 +286,11 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.PeerTags = core.GetStringSlice("apm_config.peer_tags")
 	}
 
+	if core.IsConfigured("apm_config.span_derived_primary_tags") {
+		c.SpanDerivedPrimaryTagKeys = core.GetStringSlice("apm_config.span_derived_primary_tags")
+		log.Infof("span_derived_primary_tags configured: %v", c.SpanDerivedPrimaryTagKeys)
+	}
+
 	if core.IsConfigured("apm_config.extra_sample_rate") {
 		c.ExtraSampleRate = core.GetFloat64("apm_config.extra_sample_rate")
 	}
@@ -543,6 +548,10 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		// Default of 4 was chosen through experimentation, but may not be the optimal value.
 		c.MaxSenderRetries = 4
 	}
+	if core.IsSet("secret_refresh_on_api_key_failure_interval") {
+		// Use the global secret refresh interval for throttling API key refresh at the sender level
+		c.APIKeyRefreshThrottleInterval = time.Duration(core.GetInt("secret_refresh_on_api_key_failure_interval")) * time.Minute
+	}
 	if core.IsConfigured("apm_config.sync_flushing") {
 		c.SynchronousFlushing = core.GetBool("apm_config.sync_flushing")
 	}
@@ -670,9 +679,6 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if k := "apm_config.debug_v1_payloads"; core.IsSet(k) {
 		c.DebugV1Payloads = core.GetBool("apm_config.debug_v1_payloads")
-	}
-	if k := "apm_config.enable_v1_trace_endpoint"; core.IsSet(k) {
-		c.EnableV1TraceEndpoint = core.GetBool("apm_config.enable_v1_trace_endpoint")
 	}
 	if k := "apm_config.mode"; core.IsConfigured(k) {
 		c.APMMode = normalizeAPMMode(core.GetString(k))
@@ -842,7 +848,7 @@ func validate(c *config.AgentConfig, core corecompcfg.Component) error {
 		return errors.New("agent binary path not set")
 	}
 
-	if c.Hostname == "" && !core.GetBool("serverless.enabled") {
+	if c.Hostname == "" && !core.GetBool("serverless.enabled") && !core.GetBool("otelcollector.gateway.mode") {
 		if err := hostname(c); err != nil {
 			return err
 		}

@@ -1175,6 +1175,19 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 					},
 				},
 			},
+			{
+				ID:         "variable_noise",
+				Expression: `open.file.path == "/tmp/noise"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:  "noise",
+							Value: "noise",
+							Scope: "process",
+						},
+					},
+				},
+			},
 		},
 	}
 
@@ -1237,6 +1250,12 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 	correlationKeyFromFirstRule := correlationKeyValue.(string)
 
 	pce2 := newFakeProcessCacheEntry(2, pce1)
+
+	// trigger the variable_noise rule
+	eventNoise := fakeOpenEvent("/tmp/noise", pce2)
+	if !rs.Evaluate(eventNoise) {
+		t.Errorf("Expected event to match rule")
+	}
 
 	// trigger the first rule again, and make sure nothing changes
 	event2 := fakeOpenEvent("/tmp/first", pce2)

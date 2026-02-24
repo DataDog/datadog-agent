@@ -1,0 +1,19 @@
+files_inventory_check:
+  stage: functional_test
+  rules:
+    - !reference [.except_coverage_pipeline] # Coverage pipeline creates a special artifact that will not pass the quality gate
+    - !reference [.on_dev_branches_with_artifact_changes]
+    - !reference [.except_mergequeue]
+    - when: on_success
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  needs:
+    - agent_deb-x64-a7
+  script:
+    - !reference [ .setup_agent_github_app ]
+    - dda inv -- files-inventory.check ${CI_COMMIT_BRANCH} ${OMNIBUS_PACKAGE_DIR}
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - "**/*_size_report_*.yml"
+  allow_failure: true

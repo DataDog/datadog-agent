@@ -530,7 +530,7 @@ mod tests {
         if s.data.is_null() {
             return "";
         }
-        let slice = unsafe { std::slice::from_raw_parts(s.data, s.len) };
+        let slice = unsafe { std::slice::from_raw_parts(s.data.cast::<u8>(), s.len) };
         std::str::from_utf8(slice).unwrap()
     }
 

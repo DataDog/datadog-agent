@@ -7,6 +7,9 @@ integration_tests_otel:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   needs: ["go_deps"]
+  variables:
+    KUBERNETES_MEMORY_REQUEST: 16Gi
+    KUBERNETES_MEMORY_LIMIT: 16Gi
   script:
     - !reference [.retrieve_linux_go_deps]
     - dda inv -- check-otel-build
@@ -45,6 +48,7 @@ docker_image_build_otel:
       --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
       --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
       --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
+      --build-arg BASE_IMAGE_REGISTRY=registry.ddbuild.io/images/mirror \
       --build-arg CI \
       --build-arg DDA_VERSION=$DDA_VERSION \
       --tag agent-byoc:latest \
@@ -58,28 +62,30 @@ docker_image_build_otel:
     - !reference [.except_mergequeue]
     - when: on_success
 
-# TODO(songy23): re-enable datadog_otel_components_ocb_build after OSS DD exporter adopts https://github.com/DataDog/datadog-agent/pull/42542
-# datadog_otel_components_ocb_build:
-#   stage: integration_test
-#   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-#   tags: ["arch:amd64", "specific:true"]
-#   needs: ["go_deps"]
-#   artifacts:
-#     paths:
-#       - ocb-output.log
-#       - otelcol-custom.log
-#       - flare-info.log
-#     when: always
-#   before_script:
-#     - !reference [.retrieve_linux_go_deps]
-#   script:
-#     - echo "Building custom collector with datadog components"
-#     - test/otel/testdata/ocb_build_script.sh
-#     - echo "see artifacts for job logs"
-#   rules:
-#     - !reference [.except_mergequeue]
-#     - when: on_success
-#   timeout: 15 minutes
+datadog_otel_components_ocb_build:
+  stage: integration_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  needs: ["go_deps"]
+  artifacts:
+    paths:
+      - ocb-output.log
+      - otelcol-custom.log
+      - flare-info.log
+    when: always
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+  script:
+    - echo "Building custom collector with datadog components"
+    - test/otel/testdata/ocb_build_script.sh
+    - echo "see artifacts for job logs"
+  rules:
+    - !reference [.on_otel_components_changes]
+  timeout: 15 minutes
+  variables:
+    KUBERNETES_CPU_REQUEST: 16
+    KUBERNETES_MEMORY_REQUEST: 32Gi
+    KUBERNETES_MEMORY_LIMIT: 32Gi
 
 # Test that the BYOC packages can be built with the existing Dockerfile
 ddot_byoc_package_build_test_rpm:

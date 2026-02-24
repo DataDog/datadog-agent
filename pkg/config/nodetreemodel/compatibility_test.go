@@ -733,7 +733,7 @@ c: 1234
 	assert.Equal(t, 1234, cvalue)
 
 	dvalue = ntmConf.Get("c.d")
-	assert.Equal(t, false, dvalue)
+	assert.Equal(t, nil, dvalue)
 }
 
 func TestCompareTimeDuration(t *testing.T) {
@@ -835,6 +835,25 @@ func TestReadInConfigResetsPreviousConfig(t *testing.T) {
 	// "host" should now be available
 	assert.Equal(t, "localhost", viperConf.GetString("host"))
 	assert.Equal(t, "localhost", ntmConf.GetString("host"))
+}
+
+func TestReadInConfigExactError(t *testing.T) {
+	// Invalid YAML that will fail to parse
+	dataYaml := `site:datadoghq.eu
+`
+	viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("site", "datadoghq.com")
+	})
+
+	// Both config implementations should return "Config File Not Found" when
+	// a parsing error is encountered
+	err := viperConf.ReadInConfig()
+	assert.ErrorIs(t, err, model.ErrConfigFileNotFound)
+	err = ntmConf.ReadInConfig()
+	assert.ErrorIs(t, err, model.ErrConfigFileNotFound)
+
+	assert.Equal(t, "datadoghq.com", viperConf.GetString("site"))
+	assert.Equal(t, "datadoghq.com", ntmConf.GetString("site"))
 }
 
 func TestCompareEnvVarsSubfields(t *testing.T) {
