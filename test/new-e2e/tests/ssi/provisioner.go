@@ -6,6 +6,7 @@
 package ssi
 
 import (
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
@@ -15,6 +16,7 @@ import (
 	localkind "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/local/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
+	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 )
 
 // ProvisionerOptions contains the common options for Kubernetes provisioners.
@@ -22,6 +24,7 @@ type ProvisionerOptions struct {
 	AgentOptions                  []kubernetesagentparams.Option
 	WorkloadAppFunc               kubeComp.WorkloadAppFunc
 	AgentDependentWorkloadAppFunc kubeComp.AgentDependentWorkloadAppFunc
+	KubernetesVersion             string
 }
 
 // Provisioner returns a Kubernetes provisioner based on E2E_DEV_LOCAL parameter.
@@ -43,6 +46,15 @@ func isLocalMode() bool {
 	return devLocal
 }
 
+func kubeVersionConfigMap(version string) runner.ConfigMap {
+	if version == "" {
+		return runner.ConfigMap{}
+	}
+	return runner.ConfigMap{
+		config.DDInfraConfigNamespace + ":" + config.DDInfraKubernetesVersion: auto.ConfigValue{Value: version},
+	}
+}
+
 // localKindProvisioner returns a local Kind provisioner
 func localKindProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[environments.Kubernetes] {
 	var localOpts []localkind.ProvisionerOption
@@ -54,6 +66,9 @@ func localKindProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner
 	}
 	if opts.AgentDependentWorkloadAppFunc != nil {
 		localOpts = append(localOpts, localkind.WithAgentDependentWorkloadApp(opts.AgentDependentWorkloadAppFunc))
+	}
+	if cm := kubeVersionConfigMap(opts.KubernetesVersion); len(cm) > 0 {
+		localOpts = append(localOpts, localkind.WithExtraConfigParams(cm))
 	}
 	return localkind.Provisioner(localOpts...)
 }
@@ -69,6 +84,9 @@ func awsKindProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[e
 	}
 	if opts.AgentDependentWorkloadAppFunc != nil {
 		runOpts = append(runOpts, kindvm.WithAgentDependentWorkloadApp(opts.AgentDependentWorkloadAppFunc))
+	}
+	if cm := kubeVersionConfigMap(opts.KubernetesVersion); len(cm) > 0 {
+		return provkindvm.Provisioner(provkindvm.WithRunOptions(runOpts...), provkindvm.WithExtraConfigParams(cm))
 	}
 	return provkindvm.Provisioner(provkindvm.WithRunOptions(runOpts...))
 }
