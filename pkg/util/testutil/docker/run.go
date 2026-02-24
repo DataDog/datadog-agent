@@ -10,6 +10,7 @@ package docker
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -60,6 +61,7 @@ func killPreviousInstances(cfg LifecycleConfig) {
 	// Ensuring no previous instances exists.
 	c := exec.CommandContext(timedContext, cfg.command(), args...)
 	c.Env = append(c.Env, cfg.Env()...)
+	c.Env = append(c.Env, registryEnv()...)
 
 	// run synchronously to ensure all instances are killed
 	_ = c.Run()
@@ -76,6 +78,7 @@ func run(t testing.TB, cfg LifecycleConfig) (context.Context, error) {
 	//prepare the command
 	cmd := exec.CommandContext(ctx, cfg.command(), args...)
 	cmd.Env = append(cmd.Env, cfg.Env()...)
+	cmd.Env = append(cmd.Env, registryEnv()...)
 	cmd.Stdout = cfg.PatternScanner()
 	cmd.Stderr = cfg.PatternScanner()
 
@@ -97,6 +100,16 @@ func run(t testing.TB, cfg LifecycleConfig) (context.Context, error) {
 	})
 
 	return ctx, nil
+}
+
+// registryEnv returns a REGISTRY=<value> env entry if the REGISTRY env var is
+// set in the current process, so that docker-compose picks up the correct image
+// registry even when cfg.Env() replaces the subprocess environment entirely.
+func registryEnv() []string {
+	if r := os.Getenv("REGISTRY"); r != "" {
+		return []string{"REGISTRY=" + r}
+	}
+	return nil
 }
 
 func checkReadiness(ctx context.Context, cfg LifecycleConfig) error {
