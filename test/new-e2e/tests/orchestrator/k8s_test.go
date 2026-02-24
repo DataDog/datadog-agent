@@ -11,7 +11,6 @@ import (
 	"time"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
