@@ -10,7 +10,6 @@ import (
 	"io"
 
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
-	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 )
 
