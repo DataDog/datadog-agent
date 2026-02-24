@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/viper"
 	"github.com/mohae/deepcopy"
 
+	"github.com/DataDog/datadog-agent/pkg/config/basic"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -139,7 +140,7 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 // SetWithoutSource sets the given value using source Unknown, may only be called from tests
 func (c *safeConfig) SetWithoutSource(key string, value interface{}) {
 	c.assertIsTest("SetWithoutSource")
-	if !ValidateBasicTypes(value) {
+	if !basic.ValidateBasicTypes(value) {
 		panic(fmt.Errorf("SetWithoutSource can only be called with basic types (int, string, slice, map, etc), got %v", value))
 	}
 	c.Set(key, value, model.SourceUnknown)
@@ -789,11 +790,20 @@ func (c *safeConfig) AllSettingsBySource() map[model.Source]interface{} {
 	return res
 }
 
-// AllSettingsWithSequenceID returns the settings and the sequence ID.
-func (c *safeConfig) AllSettingsWithSequenceID() (map[string]interface{}, uint64) {
+// AllFlattenedSettingsWithSequenceID returns all settings as a flattened map along with the sequence ID.
+// Keys are flattened (e.g., "logs_config.enabled" instead of nested {"logs_config": {"enabled": ...}}).
+// This provides atomic access to flattened keys, values, and sequence ID under a single lock.
+func (c *safeConfig) AllFlattenedSettingsWithSequenceID() (map[string]interface{}, uint64) {
 	c.RLock()
 	defer c.RUnlock()
-	return c.Viper.AllSettings(), c.sequenceID
+
+	keys := c.Viper.AllKeys()
+	settings := make(map[string]interface{}, len(keys))
+	for _, key := range keys {
+		val, _ := c.Viper.GetE(key)
+		settings[key] = val
+	}
+	return settings, c.sequenceID
 }
 
 // AddConfigPath wraps Viper for concurrent access

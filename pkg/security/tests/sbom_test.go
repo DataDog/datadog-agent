@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"testing"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
 	"github.com/avast/retry-go/v4"
 )
@@ -100,6 +102,7 @@ func TestSBOM(t *testing.T) {
 	})
 
 	t.Run("host", func(t *testing.T) {
+		flake.MarkOnJobName(t, "ubuntu_25.10")
 		test.WaitSignalFromRule(t, func() error {
 			sbom := p.Resolvers.SBOMResolver.GetWorkload("")
 			if sbom == nil {
@@ -139,7 +142,7 @@ func checkVersionAgainstApt(tb testing.TB, event *model.Event, pkgName string) {
 func buildDebianVersion(version, release string, epoch int) string {
 	v := version + "-" + release
 	if epoch > 0 {
-		v = fmt.Sprintf("%d:%s", epoch, v)
+		v = strconv.Itoa(epoch) + ":" + v
 	}
 	return v
 }

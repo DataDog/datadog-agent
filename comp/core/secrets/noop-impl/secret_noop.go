@@ -13,6 +13,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 )
 
@@ -27,19 +28,16 @@ type Provides struct {
 
 type secretNoop struct{}
 
-var _ secrets.Component = (*secretNoop)(nil)
-
 var secretDisabled = []byte("secret is disabled")
 
 // NewComponent returns the implementation for the secrets component
 func NewComponent() Provides {
-	resolver := &secretNoop{}
 	return Provides{
-		Comp:            resolver,
-		FlareProvider:   flaretypes.NewProvider(resolver.fillFlare),
-		InfoEndpoint:    api.NewAgentEndpointProvider(resolver.writeDebugInfo, "/secrets", "GET"),
-		RefreshEndpoint: api.NewAgentEndpointProvider(resolver.handleRefresh, "/secret/refresh", "GET"),
-		StatusProvider:  status.NewInformationProvider(resolver),
+		Comp:            &secretnooptypes.SecretNoop{},
+		FlareProvider:   flaretypes.NewProvider(fillFlare),
+		InfoEndpoint:    api.NewAgentEndpointProvider(writeDebugInfo, "/secrets", "GET"),
+		RefreshEndpoint: api.NewAgentEndpointProvider(handleRefresh, "/secret/refresh", "GET"),
+		StatusProvider:  status.NewInformationProvider(&secretNoop{}),
 	}
 }
 
@@ -54,7 +52,7 @@ func (r *secretNoop) Section() string {
 }
 
 // fillFlare fil a flare with secret information
-func (r *secretNoop) fillFlare(fb flaretypes.FlareBuilder) error {
+func fillFlare(fb flaretypes.FlareBuilder) error {
 	fb.AddFile("secrets.log", secretDisabled)
 	return nil
 }
@@ -81,29 +79,10 @@ func (r *secretNoop) HTML(_ bool, buffer io.Writer) error {
 	return nil
 }
 
-func (r *secretNoop) writeDebugInfo(w http.ResponseWriter, _ *http.Request) {
+func writeDebugInfo(w http.ResponseWriter, _ *http.Request) {
 	w.Write(secretDisabled)
 }
 
-func (r *secretNoop) handleRefresh(w http.ResponseWriter, _ *http.Request) {
+func handleRefresh(w http.ResponseWriter, _ *http.Request) {
 	w.Write(secretDisabled)
 }
-
-// Configure does nothing
-func (r *secretNoop) Configure(_ secrets.ConfigParams) {}
-
-// SubscribeToChanges does nothing
-func (r *secretNoop) SubscribeToChanges(_ secrets.SecretChangeCallback) {}
-
-// Resolve does nothing
-func (r *secretNoop) Resolve(data []byte, _ string, _ string, _ string, _ bool) ([]byte, error) {
-	return data, nil
-}
-
-// Refresh does nothing
-func (r *secretNoop) Refresh(_ bool) (string, error) {
-	return "", nil
-}
-
-// RemoveOrigin
-func (r *secretNoop) RemoveOrigin(_ string) {}

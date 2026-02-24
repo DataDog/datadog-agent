@@ -65,6 +65,11 @@ func (m *CloudRunJobsSpanModifier) ModifySpan(_ *pb.TraceChunk, span *pb.Span) {
 		return
 	}
 
+	// Upgrade job span to 128-bit trace ID if we see high bits we didn't have before.
+	// This handles the case where a 64-bit span arrives first, then a 128-bit span
+	// from the same trace arrives later with _dd.p.tid.
+	traceutil.UpgradeTraceID(m.jobSpan, span)
+
 	// Only reparent root spans (ParentID == 0) that match adopted trace
 	if span.ParentID == 0 {
 		span.ParentID = m.jobSpan.SpanID

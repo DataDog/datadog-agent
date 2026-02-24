@@ -11,7 +11,6 @@ updates:
       # These dependencies are replaced in the main go.mod file.
       # They are ignored since bumping them would have no effect on the build.
       # To update them automatically, it is necessary to remove the `replace` directive.
-      - dependency-name: github.com/cihub/seelog  # https://github.com/DataDog/datadog-agent/pull/5647
       - dependency-name: github.com/spf13/cast
       # We only replace github.com/docker/distribution but we ignore all Docker dependencies.
       # Ignore internal modules
@@ -137,7 +136,7 @@ updates:
     labels:
       - dependencies
       - dependencies-go
-      - team/network-device-monitoring
+      - team/ndm-core
       - changelog/no-changelog
     ignore:
       # Ignore internal modules

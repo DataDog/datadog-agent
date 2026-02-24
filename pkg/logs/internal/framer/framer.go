@@ -91,8 +91,16 @@ func NewFramer(
 	case UTF8Newline:
 		matcher = &oneByteNewLineMatcher{contentLenLimit}
 	case UTF16BENewline:
+		contentLenLimit = contentLenLimit & ^0x1 // align to 2-byte character boundary for UTF-16
+		if contentLenLimit < 2 {
+			contentLenLimit = 2
+		}
 		matcher = &twoByteNewLineMatcher{contentLenLimit: contentLenLimit, newline: Utf16beEOL}
 	case UTF16LENewline:
+		contentLenLimit = contentLenLimit & ^0x1 // align to 2-byte character boundary for UTF-16
+		if contentLenLimit < 2 {
+			contentLenLimit = 2
+		}
 		matcher = &twoByteNewLineMatcher{contentLenLimit: contentLenLimit, newline: Utf16leEOL}
 	case SHIFTJISNewline:
 		// No special handling required for the newline matcher since Shift JIS does not use
@@ -154,13 +162,13 @@ func (fr *Framer) Process(input *message.Message) {
 		}
 		buf := fr.buffer.Bytes()[framed:]
 
-		content, rawDataLen := fr.matcher.FindFrame(buf, seen-framed)
+		content, rawDataLen, isTruncated := fr.matcher.FindFrame(buf, seen-framed)
 		if content == nil {
 			// if the matcher was asked to match more than contentLenLimit,
 			// chop off contentLenLimit raw bytes and output them
 			if len(buf) >= contentLenLimit {
 				content, rawDataLen = buf[:contentLenLimit], contentLenLimit
-				input.ParsingExtra.IsTruncated = true
+				isTruncated = true
 			} else {
 				// matcher didn't find a frame, so leave the remainder in
 				// buffer
@@ -173,6 +181,10 @@ func (fr *Framer) Process(input *message.Message) {
 		owned := make([]byte, len(content))
 		copy(owned, content)
 
+		// Copy ParsingExtra and override frame-specific fields
+		parsingExtra := input.ParsingExtra
+		parsingExtra.IsTruncated = isTruncated
+
 		c := &message.Message{
 			MessageContent: message.MessageContent{
 				State: message.StateUnstructured,
@@ -181,7 +193,7 @@ func (fr *Framer) Process(input *message.Message) {
 				Origin:             input.Origin,
 				Status:             input.Status,
 				IngestionTimestamp: input.IngestionTimestamp,
-				ParsingExtra:       input.ParsingExtra,
+				ParsingExtra:       parsingExtra,
 				ServerlessExtra:    input.ServerlessExtra,
 			},
 		}

@@ -6,6 +6,8 @@
 package k8s
 
 import (
+	"strconv"
+
 	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
 	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
@@ -59,7 +61,7 @@ func NewNginxDeploymentManifest(namespace string, nginxPort int, mods ...Deploym
 									"check_tag_cardinality": "high",
 									"instances": []map[string]interface{}{
 										{
-											"nginx_status_url": "http://%%host%%/nginx_status",
+											"nginx_status_url": "http://%%host%%:" + pulumi.String(strconv.Itoa(nginxPort)) + "/nginx_status",
 										},
 									},
 								},
@@ -204,7 +206,7 @@ func NewNginxQueryDeploymentManifest(namespace string, mods ...DeploymentModifie
 }
 
 // NewNginxServiceManifest creates a new service manifest for the Nginx deployment
-func NewNginxServiceManifest(namespace string) *corev1.ServiceArgs {
+func NewNginxServiceManifest(namespace string, nginxPort int) *corev1.ServiceArgs {
 	return &corev1.ServiceArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String("nginx"),

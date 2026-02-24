@@ -53,11 +53,17 @@ var GitCommit string
 type k8sSuite struct {
 	baseSuite[environments.Kubernetes]
 	envSpecificClusterTags []string
+	runtime                string
 }
 
 func (suite *k8sSuite) SetupSuite() {
 	suite.baseSuite.SetupSuite()
 	suite.clusterName = suite.Env().KubernetesCluster.ClusterName
+	suite.runtime = "containerd"
+}
+
+func (suite *k8sSuite) BeforeTest(suiteName, testName string) {
+	suite.baseSuite.BeforeTest(suiteName, testName)
 }
 
 func (suite *k8sSuite) TearDownSuite() {
@@ -92,7 +98,7 @@ func (suite *k8sSuite) TearDownSuite() {
 func (suite *k8sSuite) Test00UpAndRunning() {
 	timeout := 10 * time.Minute
 	// Windows FIPS images are bigger and take longer to pull and start
-	if suite.Env().Agent.FIPSEnabled {
+	if suite.Env().Agent.FIPSEnabled || suite.runtime == "cri-o" {
 		timeout = 20 * time.Minute
 	}
 	suite.testUpAndRunning(timeout)
@@ -386,12 +392,134 @@ func (suite *k8sSuite) testAgentCLI() {
 		}
 	})
 
+	suite.Run("agent workload-list --json", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "workload-list", "--json"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent workload-list --json` should be empty")
+
+		// Validate JSON
+		suite.Truef(json.Valid([]byte(stdout)), "Output of `agent workload-list --json` isn't valid JSON")
+
+		// Unmarshal and validate structure
+		var result map[string]any
+		err = json.Unmarshal([]byte(stdout), &result)
+		suite.Require().NoError(err)
+
+		// Check for expected fields
+		entities, ok := result["Entities"].(map[string]any)
+		suite.Require().True(ok, "expected 'Entities' field in JSON output")
+		suite.NotEmpty(entities, "Entities map should not be empty")
+		suite.Contains(entities, "container", "expected 'container' kind in Entities")
+
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
+	})
+
+	suite.Run("agent workload-list --json container", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "workload-list", "--json", "container"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent workload-list --json container` should be empty")
+
+		// Validate JSON
+		suite.Truef(json.Valid([]byte(stdout)), "Output of `agent workload-list --json container` isn't valid JSON")
+
+		// Unmarshal and validate structure
+		var result map[string]any
+		err = json.Unmarshal([]byte(stdout), &result)
+		suite.Require().NoError(err)
+
+		// Check for expected fields
+		entities, ok := result["Entities"].(map[string]any)
+		suite.Require().True(ok, "expected 'Entities' field in JSON output")
+
+		// Search term "container" uses substring matching on kind names
+		// Should match "container" and may also match "container_image_metadata" if present
+		suite.Contains(entities, "container", "expected 'container' kind in filtered Entities")
+
+		// Verify no unrelated kinds (like kubernetes_pod) are included
+		suite.NotContains(entities, "kubernetes_pod", "kubernetes_pod should not match 'container' filter")
+
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
+	})
+
 	suite.Run("agent tagger-list", func() {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "tagger-list"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `agent tagger-list` should be empty")
 		suite.Contains(stdout, "=== Entity container_id://")
 		suite.Contains(stdout, "=== Entity kubernetes_pod_uid://")
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
+	})
+
+	suite.Run("agent tagger-list --json", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "tagger-list", "--json"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent tagger-list --json` should be empty")
+
+		// Validate JSON
+		suite.Truef(json.Valid([]byte(stdout)), "Output of `agent tagger-list --json` isn't valid JSON")
+
+		// Unmarshal and validate structure
+		var result map[string]any
+		err = json.Unmarshal([]byte(stdout), &result)
+		suite.Require().NoError(err)
+
+		// Check for expected fields
+		entities, ok := result["Entities"].(map[string]any)
+		suite.Require().True(ok, "expected 'Entities' field in JSON output")
+		suite.NotEmpty(entities, "Entities map should not be empty")
+
+		// Check for expected entity types
+		foundContainer := false
+		foundPod := false
+		for key := range entities {
+			if strings.HasPrefix(key, "container_id://") {
+				foundContainer = true
+			}
+			if strings.HasPrefix(key, "kubernetes_pod_uid://") {
+				foundPod = true
+			}
+		}
+		suite.True(foundContainer, "expected at least one container_id entity")
+		suite.True(foundPod, "expected at least one kubernetes_pod_uid entity")
+
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
+	})
+
+	suite.Run("agent tagger-list --json container_id", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "tagger-list", "--json", "container_id"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent tagger-list --json container_id` should be empty")
+
+		// Validate JSON
+		suite.Truef(json.Valid([]byte(stdout)), "Output of `agent tagger-list --json container_id` isn't valid JSON")
+
+		// Unmarshal and validate structure
+		var result map[string]any
+		err = json.Unmarshal([]byte(stdout), &result)
+		suite.Require().NoError(err)
+
+		// Check for expected fields
+		entities, ok := result["Entities"].(map[string]any)
+		suite.Require().True(ok, "expected 'Entities' field in JSON output")
+
+		// Filter by "container_id" should match entities starting with "container_id://"
+		foundContainer := false
+		for key := range entities {
+			if strings.HasPrefix(key, "container_id://") {
+				foundContainer = true
+				break
+			}
+		}
+		suite.True(foundContainer, "expected at least one container_id entity in filtered results")
+
 		if suite.T().Failed() {
 			suite.T().Log(stdout)
 		}
@@ -603,6 +731,15 @@ func (suite *k8sSuite) testDCALeaderElection(restartLeader bool) string {
 func (suite *k8sSuite) TestNginx() {
 	// `nginx` check is configured via AD annotation on pods
 	// Test it is properly scheduled
+
+	var sourceCodeIntegrationTags []string
+	if suite.runtime != "cri-o" {
+		sourceCodeIntegrationTags = []string{
+			`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                      // org.opencontainers.image.revision docker image label
+			`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
+		}
+	}
+
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "nginx.net.request_per_s",
@@ -611,12 +748,10 @@ func (suite *k8sSuite) TestNginx() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.combineTags([]string{
 				`^container_id:`,
 				`^container_name:nginx$`,
 				`^display_container_name:nginx`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
-				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
 				`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -636,7 +771,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^org:agent-org$`,
 				`^parent-name:nginx$`,
 				`^team:contp$`,
-			},
+			}, sourceCodeIntegrationTags),
 			AcceptUnexpectedTags: true,
 		},
 	})
@@ -702,14 +837,12 @@ func (suite *k8sSuite) TestNginx() {
 			},
 		},
 		Expect: testLogExpectArgs{
-			Tags: &[]string{
+			Tags: suite.combineTags([]string{
 				`^container_id:`,
 				`^container_name:nginx$`,
 				`^dirname:/var/log/pods/workload-nginx_nginx-`,
 				`^display_container_name:nginx`,
 				`^filename:[[:digit:]]+.log$`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
-				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
 				`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -729,7 +862,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^org:agent-org$`,
 				`^parent-name:nginx$`,
 				`^team:contp$`,
-			},
+			}, sourceCodeIntegrationTags),
 			Message: `GET / HTTP/1\.1`,
 		},
 	})
@@ -742,6 +875,15 @@ func (suite *k8sSuite) TestNginx() {
 func (suite *k8sSuite) TestRedis() {
 	// `redis` check is auto-configured due to image name
 	// Test it is properly scheduled
+
+	var sourceCodeIntegrationTags []string
+	if suite.runtime != "cri-o" {
+		sourceCodeIntegrationTags = []string{
+			`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                      // org.opencontainers.image.revision docker image label
+			`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
+		}
+	}
+
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "redis.net.instantaneous_ops_per_sec",
@@ -750,12 +892,10 @@ func (suite *k8sSuite) TestRedis() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.combineTags([]string{
 				`^container_id:`,
 				`^container_name:redis$`,
 				`^display_container_name:redis`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
-				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
 				`^image_id:ghcr\.io/datadog/redis@sha256:`,
 				`^image_name:ghcr\.io/datadog/redis$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -770,7 +910,7 @@ func (suite *k8sSuite) TestRedis() {
 				`^pod_name:redis-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^short_image:redis$`,
-			},
+			}, sourceCodeIntegrationTags),
 			AcceptUnexpectedTags: true,
 		},
 	})
@@ -810,13 +950,11 @@ func (suite *k8sSuite) TestRedis() {
 			},
 		},
 		Expect: testLogExpectArgs{
-			Tags: &[]string{
+			Tags: suite.combineTags([]string{
 				`^container_id:`,
 				`^container_name:redis$`,
 				`^dirname:/var/log/pods/workload-redis_redis-`,
 				`^display_container_name:redis`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
-				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
 				`^filename:[[:digit:]]+.log$`,
 				`^image_id:ghcr\.io/datadog/redis@sha256:`,
 				`^image_name:ghcr\.io/datadog/redis$`,
@@ -832,7 +970,7 @@ func (suite *k8sSuite) TestRedis() {
 				`^pod_name:redis-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^short_image:redis$`,
-			},
+			}, sourceCodeIntegrationTags),
 			Message: `Accepted`,
 		},
 	})
@@ -869,6 +1007,15 @@ func (suite *k8sSuite) TestArgoRollout() {
 func (suite *k8sSuite) TestCPU() {
 	// TODO: https://datadoghq.atlassian.net/browse/CONTINT-4143
 	// Test CPU metrics
+
+	var sourceCodeIntegrationTags []string
+	if suite.runtime != "cri-o" {
+		sourceCodeIntegrationTags = []string{
+			`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                      // org.opencontainers.image.revision docker image label
+			`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
+		}
+	}
+
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "container.cpu.usage",
@@ -878,12 +1025,10 @@ func (suite *k8sSuite) TestCPU() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.combineTags([]string{
 				`^container_id:`,
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
 				`^image_tag:`,
@@ -896,9 +1041,9 @@ func (suite *k8sSuite) TestCPU() {
 				`^kube_replica_set:stress-ng-[[:alnum:]]+$`,
 				`^pod_name:stress-ng-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
-				`^runtime:containerd$`,
+				`^runtime:` + regexp.QuoteMeta(suite.runtime) + `$`,
 				`^short_image:apps-stress-ng$`,
-			},
+			}, sourceCodeIntegrationTags),
 			Value: &testMetricExpectValueArgs{
 				Max: 155000000,
 				Min: 145000000,
@@ -915,12 +1060,10 @@ func (suite *k8sSuite) TestCPU() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.combineTags([]string{
 				`^container_id:`,
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
 				`^image_tag:`,
@@ -933,9 +1076,9 @@ func (suite *k8sSuite) TestCPU() {
 				`^kube_replica_set:stress-ng-[[:alnum:]]+$`,
 				`^pod_name:stress-ng-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
-				`^runtime:containerd$`,
+				`^runtime:` + regexp.QuoteMeta(suite.runtime) + `$`,
 				`^short_image:apps-stress-ng$`,
-			},
+			}, sourceCodeIntegrationTags),
 			Value: &testMetricExpectValueArgs{
 				Max: 200000000,
 				Min: 200000000,
@@ -952,12 +1095,10 @@ func (suite *k8sSuite) TestCPU() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.combineTags([]string{
 				`^container_id:`,
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -972,7 +1113,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^pod_phase:running$`,
 				`^short_image:apps-stress-ng$`,
 				`^kube_static_cpus:false$`,
-			},
+			}, sourceCodeIntegrationTags),
 			Value: &testMetricExpectValueArgs{
 				Max: 250000000,
 				Min: 75000000,
@@ -989,12 +1130,10 @@ func (suite *k8sSuite) TestCPU() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.combineTags([]string{
 				`^container_id:`,
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -1009,7 +1148,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^pod_phase:running$`,
 				`^short_image:apps-stress-ng$`,
 				`^kube_static_cpus:false$`,
-			},
+			}, sourceCodeIntegrationTags),
 			Value: &testMetricExpectValueArgs{
 				Max: 0.2,
 				Min: 0.2,
@@ -1093,19 +1232,30 @@ func (suite *k8sSuite) TestKSM() {
 }
 
 func (suite *k8sSuite) TestDogstatsdInAgent() {
+	// Test with UDP + External Data
+	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPExternalData)
+
+	if suite.runtime == "cri-o" {
+		suite.T().Skip("Dogstatsd tests not using External Data are not currently supported on CRI-O")
+		return
+	}
+
 	// Test with UDS
 	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDS)
 	// Test with UDP + Origin detection
 	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPOrigin)
 	// Test with UDP + DD_ENTITY_ID
 	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDP)
-	// Test with UDP + External Data
-	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPExternalData)
 	// Test with UDS + CSI Driver
 	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDSWithCSI)
 }
 
 func (suite *k8sSuite) TestDogstatsdStandalone() {
+	if suite.runtime == "cri-o" {
+		suite.T().Skip("DogstatsdStandalone tests not using External Data are not currently supported on CRI-O")
+		return
+	}
+
 	// Test with UDS
 	suite.testDogstatsd(kubeNamespaceDogstatsStandaloneWorkload, kubeDeploymentDogstatsdUDS)
 	// Dogstatsd standalone does not support origin detection
@@ -1114,6 +1264,15 @@ func (suite *k8sSuite) TestDogstatsdStandalone() {
 }
 
 func (suite *k8sSuite) testDogstatsd(kubeNamespace, kubeDeployment string) {
+
+	var sourceCodeIntegrationTags []string
+	if suite.runtime != "cri-o" {
+		sourceCodeIntegrationTags = []string{
+			`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                    // org.opencontainers.image.revision docker image label
+			`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
+		}
+	}
+
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
@@ -1123,12 +1282,10 @@ func (suite *k8sSuite) testDogstatsd(kubeNamespace, kubeDeployment string) {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.combineTags([]string{
 				`^container_id:`,
 				`^container_name:dogstatsd$`,
 				`^display_container_name:dogstatsd`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
 				`^image_id:ghcr\.io/datadog/apps-dogstatsd@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-dogstatsd$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -1143,13 +1300,22 @@ func (suite *k8sSuite) testDogstatsd(kubeNamespace, kubeDeployment string) {
 				`^pod_phase:running$`,
 				`^series:`,
 				`^short_image:apps-dogstatsd$`,
-			},
+			}, sourceCodeIntegrationTags),
 		},
 	})
 }
 
 func (suite *k8sSuite) TestPrometheus() {
 	// Test Prometheus check
+
+	var sourceCodeIntegrationTags []string
+	if suite.runtime != "cri-o" {
+		sourceCodeIntegrationTags = []string{
+			`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                    // org.opencontainers.image.revision docker image label
+			`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
+		}
+	}
+
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "prom_gauge",
@@ -1159,13 +1325,11 @@ func (suite *k8sSuite) TestPrometheus() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.combineTags([]string{
 				`^container_id:`,
 				`^container_name:prometheus$`,
 				`^display_container_name:prometheus`,
 				`^endpoint:http://.*:8080/metrics$`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                    // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr\.io/datadog/apps-prometheus@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-prometheus$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -1180,7 +1344,7 @@ func (suite *k8sSuite) TestPrometheus() {
 				`^pod_phase:running$`,
 				`^series:`,
 				`^short_image:apps-prometheus$`,
-			},
+			}, sourceCodeIntegrationTags),
 		},
 	})
 }
@@ -1191,6 +1355,15 @@ func (suite *k8sSuite) TestPrometheus() {
 // "prom_gauge_configured_in_etcd" to confirm that the check is using the
 // etcd-defined configuration.
 func (suite *k8sSuite) TestPrometheusWithConfigFromEtcd() {
+
+	var sourceCodeIntegrationTags []string
+	if suite.runtime != "cri-o" {
+		sourceCodeIntegrationTags = []string{
+			`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                    // org.opencontainers.image.revision docker image label
+			`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
+		}
+	}
+
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "prom_gauge_configured_in_etcd", // This is the name defined in the check config stored in etcd
@@ -1200,13 +1373,11 @@ func (suite *k8sSuite) TestPrometheusWithConfigFromEtcd() {
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
+			Tags: suite.combineTags([]string{
 				`^container_id:`,
 				`^container_name:prometheus$`,
 				`^display_container_name:prometheus`,
 				`^endpoint:http://.*:8080/metrics$`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                    // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr\.io/datadog/apps-prometheus@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-prometheus$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -1221,7 +1392,7 @@ func (suite *k8sSuite) TestPrometheusWithConfigFromEtcd() {
 				`^pod_phase:running$`,
 				`^series:`,
 				`^short_image:apps-prometheus$`,
-			},
+			}, sourceCodeIntegrationTags),
 		},
 	})
 }
@@ -1247,14 +1418,14 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 	// libraries for the detected language are injected
 	if languageShouldBeAutoDetected {
 
-		suite.Require().EventuallyWithTf(func(_ *assert.CollectT) {
+		suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
 			appPod, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("workload-mutated-lib-injection").List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("app", name).String(),
 				Limit:         1,
 			})
 
-			suite.Require().NoError(err)
-			suite.Require().Len(appPod.Items, 1)
+			require.NoError(c, err)
+			require.Len(c, appPod.Items, 1)
 
 			nodeName := appPod.Items[0].Spec.NodeName
 
@@ -1264,27 +1435,21 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 				Limit:         1,
 			})
 
-			suite.Require().NoError(err)
-			suite.Require().Len(agentPod.Items, 1)
+			require.NoError(c, err)
+			require.Len(c, agentPod.Items, 1)
 
 			stdout, _, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agentPod.Items[0].Name, "agent", []string{"agent", "workload-list", "-v"})
-			suite.Require().NoError(err)
-			suite.Contains(stdout, "Language: python")
-			if suite.T().Failed() {
+			require.NoError(c, err)
+			if !assert.Contains(c, stdout, "Language: python") {
 				suite.T().Log(stdout)
 			}
 		}, 5*time.Minute, 10*time.Second, "Language python was never detected by node agent.")
 
 		suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
 			deployment, err := suite.Env().KubernetesCluster.Client().AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
-			if !assert.NoError(c, err) {
-				c.Errorf("deployment with name %s in namespace %s not found", name, namespace)
-				return
-			}
+			require.NoErrorf(c, err, "deployment with name %s in namespace %s not found", name, namespace)
 
-			if deployment.Status.AvailableReplicas == 0 {
-				c.Errorf("deployment with name %s in namespace %s has 0 available replicas", name, namespace)
-			}
+			assert.NotZerof(c, deployment.Status.AvailableReplicas, "deployment with name %s in namespace %s has 0 available replicas", name, namespace)
 
 			detectedLangsLabelIsSet := false
 			detectedLangsAnnotationRegex := regexp.MustCompile(`^internal\.dd\.datadoghq\.com/.*\.detected_langs$`)
@@ -1386,6 +1551,13 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 }
 
 func (suite *k8sSuite) TestAdmissionControllerExcludesSystemNamespaces() {
+	if suite.runtime == "cri-o" {
+		// Won't work on OpenShift because the kube-system namespace is unused
+		// Since OpenShift is the only platform that uses cri-o by default, we assume this test is running on OpenShift.
+		suite.T().Skip("TestAdmissionControllerExcludesSystemNamespaces is not supported on CRI-O")
+		return
+	}
+
 	ctx := context.Background()
 
 	suite.Run("webhooks should not mutate pods in kube-system namespace", func() {
@@ -1601,6 +1773,7 @@ func (suite *k8sSuite) TestSBOM() {
 				regexp.MustCompile(`^image_name:ghcr\.io/datadog/apps-nginx-server$`),
 				regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`),
 				regexp.MustCompile(`^os_name:linux$`),
+				regexp.MustCompile(`^scan_method:(filesystem|tarball|overlayfs)$`),
 				regexp.MustCompile(`^short_image:apps-nginx-server$`),
 			}
 			err = assertTags(image.GetTags(), expectedTags, []*regexp.Regexp{}, false)
@@ -1853,7 +2026,11 @@ func (suite *k8sSuite) testTrace(kubeDeployment string) {
 	}, 2*time.Minute, 10*time.Second, "Failed finding trace with proper tags")
 }
 
-func (suite *k8sSuite) testClusterTags(tags []string) *[]string {
-	combined := append(tags, suite.envSpecificClusterTags...)
+func (suite *k8sSuite) combineTags(tags []string, sourceCodeIntegrationTags []string) *[]string {
+	combined := append(tags, sourceCodeIntegrationTags...)
 	return &combined
+}
+
+func (suite *k8sSuite) testClusterTags(tags []string) *[]string {
+	return suite.combineTags(tags, suite.envSpecificClusterTags)
 }

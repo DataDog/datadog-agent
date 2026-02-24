@@ -89,7 +89,7 @@ func (c *fakeContainer) Layers() (layers []ftypes.LayerPath) {
 	return layers
 }
 
-func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, ctr ftypes.Container, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, ctr ftypes.Container, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (*Report, error) {
 	var cache CacheWithCleaner
 	if pkgconfigsetup.Datadog().GetBool("sbom.container_image.overlayfs_disable_cache") {
 		cache = newMemoryCache()

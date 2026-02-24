@@ -34,6 +34,11 @@ const (
 	KillActionStatusQueued KillActionStatus = "kill_queued"
 	// KillActionStatusPartiallyPerformed indicates the kill action was performed on some processes but not all
 	KillActionStatusPartiallyPerformed = "partially_performed"
+
+	// maxRetryForMsgWithKillAction is the maximum number of retries for a kill action
+	// - a kill can be queued up to the end of the first disarmer period (1min by default)
+	// - so, we set the server retry period to 1min and 2sec (+2sec to have the time to trigger the kill and wait to catch the process exit)
+	maxRetryForMsgWithKillAction = 62
 )
 
 // KillActionReport defines a kill action reports
@@ -80,6 +85,11 @@ func (k *KillActionReport) IsResolved() error {
 		return nil
 	}
 	return fmt.Errorf("kill action current state: %+v", k)
+}
+
+// MaxRetry implements the DelayabledEvent interface for kill actions
+func (k *KillActionReport) MaxRetry() int {
+	return maxRetryForMsgWithKillAction
 }
 
 // ToJSON marshal the action

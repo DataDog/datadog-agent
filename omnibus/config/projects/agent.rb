@@ -230,16 +230,12 @@ if do_build
   dependency 'datadog-agent'
 
   # This depends on the agent and must be added after it
-  if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+  unless heroku_target? || osx_target?
     dependency 'datadog-security-agent-policies'
   end
 
   if osx_target?
     dependency 'datadog-agent-mac-app'
-  end
-
-  if linux_target?
-    dependency 'datadog-security-agent-policies'
   end
 
   # this dependency puts few files out of the omnibus install dir and move them
@@ -254,14 +250,14 @@ if do_build
     dependency "init-scripts-agent"
   end
 elsif do_package
+  dependency "init-scripts-agent"
+  dependency 'datadog-agent-installer-symlinks'
   if do_repackage?
     dependency "existing-agent-package"
     dependency "datadog-agent"
   else
     dependency "package-artifact"
   end
-  dependency "init-scripts-agent"
-  dependency 'datadog-agent-installer-symlinks'
 end
 
 # version manifest is based on the built softwares.
@@ -320,12 +316,13 @@ if windows_target?
     "#{install_dir}\\bin\\agent\\trace-agent.exe",
     "#{install_dir}\\bin\\agent\\process-agent.exe",
     "#{install_dir}\\bin\\agent\\system-probe.exe",
+    "#{install_dir}\\bin\\agent\\secret-generic-connector.exe",
     "#{install_dir}\\datadog-installer.exe"
   ]
 
   if not fips_mode?
-    # TODO(AGENTCFG-XXX): SGC is not supported in FIPS mode
-    GO_BINARIES << "#{install_dir}\\bin\\agent\\secret-generic-connector.exe"
+    # TODO(ACTP-XXX): PAR is not enabled in Gov yet
+    GO_BINARIES << "#{install_dir}\\bin\\agent\\privateactionrunner.exe"
   end
 
   if not windows_arch_i386? and ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
@@ -395,4 +392,10 @@ if linux_target? or windows_target?
   # in the debug package.
   strip_build windows_target? || do_build
   debug_path ".debug"  # the strip symbols will be in here
+end
+
+if linux_target?
+  # Strip runs before packaging, so restore final perms after strip.
+  chmod_before_packaging "#{install_dir}/embedded/bin/dd-compile-policy", 0555
+  chmod_before_packaging "#{install_dir}/embedded/bin/secret-generic-connector", 0500
 end

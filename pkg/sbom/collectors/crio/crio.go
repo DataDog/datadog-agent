@@ -107,9 +107,10 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 	report, err := scanner(ctx, imageMeta, c.crioClient, c.opts)
 
 	scanResult := sbom.ScanResult{
-		Error:   err,
-		Report:  report,
-		ImgMeta: imageMeta,
+		Error:            err,
+		Report:           report,
+		ImgMeta:          imageMeta,
+		GenerationMethod: "overlayfs",
 	}
 
 	return scanResult

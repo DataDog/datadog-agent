@@ -3,8 +3,9 @@ single_machine_performance-regression_detector-merge_base_check:
   timeout: 10m
   rules:
     - !reference [.except_coverage_pipeline]
-    - !reference [.on_dev_branches]
-    - when: on_success
+     # Only run SMP on dev branches when artifact-impacting files change.
+     # This skips SMP for doc-only, CI-only, or e2e test-only PRs.
+    - !reference [.on_dev_branches_with_artifact_changes]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64", "specific:true"]
   artifacts:
@@ -76,10 +77,6 @@ single_machine_performance-regression_detector-merge_base_check:
   timeout: 1h10m
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64", "specific:true"]
-  rules:
-    - !reference [.except_coverage_pipeline] # Coverage pipeline creates a duplicate, specialized artifact that is not useful to run through SMP on every PR
-    - !reference [.on_dev_branches]
-    - when: on_success
   artifacts:
     expire_in: 1 weeks
     paths:
@@ -92,13 +89,8 @@ single_machine_performance-regression_detector-merge_base_check:
       - outputs/decision_record.md # for posterity, this is appended to final PR comment
     when: always
   # See 'decision_record.md' for the determination of whether this job passes or fails.
-  allow_failure: false
   retry: !reference [.retry_only_infra_failure, retry]
   script:
-    - |
-      if [[ "${SAMPLE}" == "true" ]] && (( "${CI_PIPELINE_ID}" % 2 != 0 )); then
-        exit 0
-      fi
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
     # Start by tagging the failure mode as `timeout`. At each smp command we will catch any failure exit codes and update this tag properly.
@@ -317,6 +309,11 @@ single-machine-performance-regression_detector:
       artifacts: true
     - job: single_machine_performance-full-amd64-a7
       artifacts: false
+  rules:
+    - !reference [.except_coverage_pipeline] # Coverage pipeline creates a duplicate, specialized artifact that is not useful to run through SMP on every PR
+     # Only run SMP on dev branches when artifact-impacting files change.
+     # This skips SMP for doc-only, CI-only, or e2e test-only PRs.
+    - !reference [.on_dev_branches_with_artifact_changes]
   variables:
     SMP_TEAM_NAME: agent
     SMP_API_URL: api_url
@@ -334,13 +331,17 @@ single-machine-performance-metal-runners-regression_detector:
       optional: true
     - job: single_machine_performance-full-amd64-a7
       artifacts: false
+      optional: true
+  rules:
+    - !reference [.except_coverage_pipeline] # Coverage pipeline creates a duplicate, specialized artifact that is not useful to run through SMP on every PR
+    - !reference [.manual]
+    - when: on_success
   variables:
     SMP_TEAM_NAME: metal-runners
     SMP_API_URL: metal-runners_api_url
     SMP_VERSION: dev-pr3796-e7f7a988
     BOT_LOGIN: bot_login_metal-runners
     BOT_TOKEN: bot_token_metal-runners
-    SAMPLE: "true"
 
 # Shamelessly adapted from golang_deps_commenter job config in
 # golang_deps_diff.yml at commit 01da274032e510d617161cf4e264a53292f44e55.
@@ -348,8 +349,9 @@ single-machine-performance-regression_detector-pr-comment:
   stage: functional_test
   rules:
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a duplicate, specialized artifact that is not useful to run through SMP on every PR
-    - !reference [.on_dev_branches]
-    - when: always
+     # Only run SMP on dev branches when artifact-impacting files change.
+     # This skips SMP for doc-only, CI-only, or e2e test-only PRs.
+    - !reference [.on_dev_branches_with_artifact_changes]
   image:
     name: "486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:3-jammy"
     entrypoint: [""] # disable entrypoint script for the pr-commenter image

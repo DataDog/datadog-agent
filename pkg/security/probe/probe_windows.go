@@ -11,14 +11,14 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v5"
 	lru "github.com/hashicorp/golang-lru/v2"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/etw"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
@@ -1147,16 +1146,16 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 
 func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
 	event.PIDContext.Pid = pid
-	err := backoff.Retry(func() error {
+	_, err := backoff.Retry(context.Background(), func() (any, error) {
 		entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event, nil)
 		event.ProcessCacheEntry = entry
 		// use ProcessCacheEntry process context as process context
 		event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
 		if !isResolved {
-			return fmt.Errorf("could not resolve process for Process: %v", pid)
+			return nil, fmt.Errorf("could not resolve process for Process: %v", pid)
 		}
-		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(50*time.Millisecond), 5))
+		return nil, nil
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(50*time.Millisecond)), backoff.WithMaxTries(5))
 
 	if event.ProcessCacheEntry == nil {
 		panic("should always return a process cache entry")
@@ -1303,7 +1302,7 @@ func (p *WindowsProbe) SendStats() error {
 
 func (p *WindowsProbe) sendMapStats(m *map[uint16]uint64, metric string) error {
 	for k, v := range *m {
-		if err := p.statsdClient.Gauge(metric, float64(v), []string{fmt.Sprintf("event_id:%d", k)}, 1); err != nil {
+		if err := p.statsdClient.Gauge(metric, float64(v), []string{"event_id:" + strconv.FormatUint(uint64(k), 10)}, 1); err != nil {
 			return err
 		}
 	}
@@ -1415,7 +1414,7 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 }
 
 // NewWindowsProbe instantiates a new runtime security agent probe
-func NewWindowsProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts Opts) (*WindowsProbe, error) {
+func NewWindowsProbe(probe *Probe, config *config.Config, hostname string, opts Opts) (*WindowsProbe, error) {
 	p, err := initializeWindowsProbe(config, opts)
 	if err != nil {
 		return nil, err
@@ -1428,11 +1427,6 @@ func NewWindowsProbe(probe *Probe, config *config.Config, ipc ipc.Component, opt
 	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber, resolversOpts)
 	if err != nil {
 		return nil, err
-	}
-
-	hostname, err := hostnameutils.GetHostname(ipc)
-	if err != nil || hostname == "" {
-		hostname = "unknown"
 	}
 
 	fh, err := NewFieldHandlers(config, p.Resolvers, hostname)
@@ -1567,8 +1561,8 @@ func (p *WindowsProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 			if ev.Error != nil {
 				return
 			}
-
-			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev) {
+			tryToKill, _ := p.processKiller.KillAndReport(action.Def.Kill, rule, ev)
+			if tryToKill {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		}
@@ -1600,7 +1594,7 @@ func (p *WindowsProbe) EnableEnforcement(state bool) {
 }
 
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, ipc ipc.Component, opts Opts) (*Probe, error) {
+func NewProbe(config *config.Config, hostname string, opts Opts) (*Probe, error) {
 	opts.normalize()
 
 	p, err := newProbe(config, opts)
@@ -1608,7 +1602,7 @@ func NewProbe(config *config.Config, ipc ipc.Component, opts Opts) (*Probe, erro
 		return nil, err
 	}
 
-	pp, err := NewWindowsProbe(p, config, ipc, opts)
+	pp, err := NewWindowsProbe(p, config, hostname, opts)
 	if err != nil {
 		return nil, err
 	}

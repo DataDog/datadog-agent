@@ -15,7 +15,7 @@ The binary will be located at `target/release/sd-agent`.
 ### Build the Shared Library
 
 The `dd-discovery` shared library (`libdd_discovery.so`) contains the service
-discovery logic and can be linked from other languages (e.g., Go via cgo):
+discovery logic and exposes a C FFI for use from other languages (e.g., Go via cgo):
 
 ```bash
 cargo build --release --lib
@@ -23,9 +23,15 @@ cargo build --release --lib
 
 The shared library will be located at `target/release/libdd_discovery.so`.
 
-**Note**: The shared library currently does not expose C-compatible FFI
-functions. To use it from Go or other languages, you'll need to add FFI wrapper
-functions with `#[no_mangle]` and `extern "C"` attributes.
+#### FFI Interface
+
+The library exposes two C-compatible functions defined in `src/ffi.rs`:
+
+- `dd_discovery_get_services()` - Runs service discovery and returns results
+- `dd_discovery_free()` - Frees memory allocated by `dd_discovery_get_services()`
+
+The C header file is located at `include/dd_discovery.h` and is auto-generated
+from the Rust FFI types using [cbindgen](https://github.com/mozilla/cbindgen).
 
 ### Build Both
 
@@ -34,6 +40,38 @@ cargo build --release
 ```
 
 This builds both the binary and the shared library.
+
+## Development
+
+### Updating the C Header
+
+The C header file `include/dd_discovery.h` is generated from Rust FFI types
+using cbindgen. When you modify FFI structs or functions in `src/ffi.rs`, you
+must regenerate the header:
+
+```bash
+# Install cbindgen (first time only)
+cargo install cbindgen
+
+# Regenerate the header
+cbindgen --config cbindgen.toml --output include/dd_discovery.h
+```
+
+The cbindgen configuration is in `cbindgen.toml`. The generated header should be
+committed to the repository so that C/Go consumers always have a matching header.
+
+### Running Tests
+
+```bash
+# Run all tests
+cargo test
+
+# Run only FFI tests
+cargo test ffi::
+
+# Run FFI tests with Miri (detects undefined behavior in unsafe code)
+cargo +nightly miri test ffi::
+```
 
 ## Running
 
@@ -79,24 +117,46 @@ Built binaries are located in `bazel-bin/`.
 
 ### Updating Bazel Build Files
 
-When you make changes to `Cargo.toml`, you need to update the Bazel dependencies:
+Bazel automatically reads dependencies from `Cargo.toml` and `Cargo.lock`. When you modify Rust dependencies, you need to regenerate the Bazel lockfile.
 
 #### Adding Dependencies
 
-1. Add the dependency to `Cargo.toml` as usual
-2. Update the Bazel lockfile:
-   ```bash
-   CARGO_BAZEL_REPIN=1 bazel sync --only=crates
+1. Add the dependency to `Cargo.toml` as usual:
+   ```toml
+   [dependencies]
+   your-new-crate = "1.0"
    ```
+
+2. Regenerate the Bazel lockfile:
+   ```bash
+   CARGO_BAZEL_REPIN=1 bazel fetch //pkg/discovery/module/rust:sd-agent
+   ```
+
 3. Add the dependency to the appropriate target in `BUILD.bazel`:
    ```starlark
    rust_binary(
        name = "sd-agent",
        deps = [
-           "@crates//:your-new-crate",
+           "@sdagent_crates//:your-new-crate",
            # ... other deps
        ],
    )
+   ```
+
+#### Updating Dependencies
+
+When running `cargo update` to update dependency versions:
+
+1. Update dependencies:
+   ```bash
+   cargo update              # Update all dependencies
+   # or
+   cargo update tokio        # Update specific dependency
+   ```
+
+2. Regenerate the Bazel lockfile:
+   ```bash
+   CARGO_BAZEL_REPIN=1 bazel fetch //pkg/discovery/module/rust:sd-agent
    ```
 
 #### Adding New Source Files

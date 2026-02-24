@@ -135,7 +135,7 @@ func newResolver() (*EBPFResolver, error) {
 		return nil, err
 	}
 
-	resolver, err := NewEBPFResolver(nil, &config.Config{}, &statsd.NoOpClient{}, nil, nil, nil, userGroupResolver, timeResolver, &path.NoOpResolver{}, nil, NewResolverOpts())
+	resolver, err := NewEBPFResolver(nil, &config.Config{}, &statsd.NoOpClient{}, nil, nil, nil, userGroupResolver, timeResolver, &path.NoOpResolver{}, nil, nil, NewResolverOpts())
 	if err != nil {
 		return nil, err
 	}
@@ -791,7 +791,7 @@ func TestIsExecExecSnapshot(t *testing.T) {
 	// X(pid:3)
 	//    |
 	// X(pid:4)
-	resolver.setAncestor(child.ProcessCacheEntry)
+	child.ProcessCacheEntry.SetForkParent(parent.ProcessCacheEntry)
 	resolver.insertEntry(child.ProcessCacheEntry, model.CGroupContext{}, model.ProcessCacheEntryFromSnapshot)
 	assert.Equal(t, child.ProcessCacheEntry, resolver.entryCache[child.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))

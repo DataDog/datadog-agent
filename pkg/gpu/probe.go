@@ -197,7 +197,11 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	}
 
 	attachCfg := getAttacherConfig(cfg)
-	p.attacher, err = uprobes.NewUprobeAttacher(consts.GpuModuleName, consts.GpuAttacherName, attachCfg, p.m, nil, &uprobes.NativeBinaryInspector{}, deps.ProcessMonitor)
+	p.attacher, err = uprobes.NewUprobeAttacher(consts.GpuModuleName, consts.GpuAttacherName, attachCfg, p.m, nil, uprobes.AttacherDependencies{
+		Inspector:      &uprobes.NativeBinaryInspector{},
+		ProcessMonitor: deps.ProcessMonitor,
+		Telemetry:      deps.Telemetry,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
 	}
@@ -468,7 +472,7 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 		ScanProcessesInterval:          cfg.ScanProcessesInterval,
 		EnablePeriodicScanNewProcesses: true,
 		EnableDetailedLogging:          cfg.AttacherDetailedLogs,
-		ExcludeTargets:                 uprobes.ExcludeInternal | uprobes.ExcludeSelf,
+		ExcludeTargets:                 uprobes.ExcludeInternal | uprobes.ExcludeSelf | uprobes.ExcludeBuildkit | uprobes.ExcludeContainerdTmp,
 	}
 }
 

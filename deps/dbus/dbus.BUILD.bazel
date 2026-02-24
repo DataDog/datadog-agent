@@ -1,9 +1,9 @@
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
-load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(default_package_metadata = [":license"])
 
@@ -26,7 +26,7 @@ copy_file(
 cc_library(
     name = "config_h",
     hdrs = [
-        ":copy_config_h"
+        ":copy_config_h",
     ],
 )
 
@@ -64,7 +64,7 @@ expand_template(
         "@DBUS_MAJOR_VERSION@": "1",
         "@DBUS_MINOR_VERSION@": "16",
         "@DBUS_MICRO_VERSION@": "2",
-    }
+    },
 )
 
 cc_library(
@@ -118,12 +118,12 @@ cc_library(
         "dbus/dbus-transport-unix.c",
         "dbus/dbus-userdb.c",
         ":dbus_arch_deps_h",
-    ] + glob(["dbus/*.h"], exclude=PUBLIC_HEADERS),
+    ] + glob(["dbus/*.h"], exclude = PUBLIC_HEADERS),
     hdrs = PUBLIC_HEADERS,
     local_defines = [
         "_GNU_SOURCE",
         "__USE_MINGW_ANSI_STDIO=0",
-        "dbus_1_EXPORTS"
+        "dbus_1_EXPORTS",
     ],
     copts = [
         "-O2",
@@ -136,26 +136,6 @@ cc_library(
     includes = ["."],
     linkstatic = True,
     visibility = ["//visibility:public"],
-)
-
-expand_template(
-    name = "gen_pkgconfig",
-    template = "dbus-1.pc.in",
-    out = "dbus-1.pc",
-    substitutions = {
-        "@prefix@": "##PREFIX##",
-        "@pkgconfig_prefix@": "${prefix}",
-        "@bindir@": "${prefix}/bin",
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@datadir@": "${prefix}/share",
-        "@datarootdir": "${prefix}/share",
-        "@sysconfigdir@": "${prefix}/etc",
-        "@DBUS_SYSTEM_BUS_DEFAULT_ADDRESS@": "unix:path=${prefix}/var/run/dbus/system_bus_socket",
-        "@VERSION@": "1.16.2",
-        "@LIBDBUS_LIBS@": "-pthread",
-        "@DBUS_STATIC_BUILD_CPPFLAGS@": "",
-    }
 )
 
 pkg_files(
@@ -171,24 +151,25 @@ pkg_files(
 )
 
 pkg_files(
-    name = "pkgconfig",
-    srcs = [":gen_pkgconfig"],
-    prefix = "lib/pkgconfig",
-)
-
-pkg_files(
     name = "dbus_arch_deps_install",
     srcs = [":dbus_arch_deps_h"],
     # This header is really meant to be installed in the lib dir.
     prefix = "lib/dbus-1.0/include/dbus",
 )
 
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":headers",
+        ":lib_files",
+        ":dbus_arch_deps_install",
+    ],
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+)
+
 pkg_install(
     name = "install",
     srcs = [
-        ":headers",
-        ":pkgconfig",
-        ":lib_files",
-        ":dbus_arch_deps_install"
+        ":all_files",
     ],
 )

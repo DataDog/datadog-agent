@@ -27,7 +27,7 @@ const (
 )
 
 func TestIsIstioBinary(t *testing.T) {
-	utils.SkipIfTLSUnsupported(t, utils.NewUSMEmptyConfig())
+	utils.SkipIfTLSUnsupported(t, NewUSMEmptyConfig())
 	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{})
 	m := newIstioTestMonitor(t, procRoot)
 
@@ -40,8 +40,8 @@ func TestIsIstioBinary(t *testing.T) {
 }
 
 func TestGetEnvoyPathWithConfig(t *testing.T) {
-	utils.SkipIfTLSUnsupported(t, utils.NewUSMEmptyConfig())
-	cfg := utils.NewUSMEmptyConfig()
+	utils.SkipIfTLSUnsupported(t, NewUSMEmptyConfig())
+	cfg := NewUSMEmptyConfig()
 	cfg.EnableIstioMonitoring = true
 	cfg.EnvoyPath = "/test/envoy"
 	monitor := newIstioTestMonitorWithCFG(t, cfg)
@@ -51,7 +51,7 @@ func TestGetEnvoyPathWithConfig(t *testing.T) {
 }
 
 func TestIstioSync(t *testing.T) {
-	utils.SkipIfTLSUnsupported(t, utils.NewUSMEmptyConfig())
+	utils.SkipIfTLSUnsupported(t, NewUSMEmptyConfig())
 	t.Run("calling sync for the first time", func(tt *testing.T) {
 		procRoot := kernel.CreateFakeProcFS(tt, []kernel.FakeProcFSEntry{
 			{Pid: 1, Exe: defaultEnvoyName},
@@ -116,7 +116,7 @@ func TestIstioSync(t *testing.T) {
 }
 
 func newIstioTestMonitor(t *testing.T, procRoot string) *istioMonitor {
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := NewUSMEmptyConfig()
 	cfg.EnableIstioMonitoring = true
 	cfg.ProcRoot = procRoot
 

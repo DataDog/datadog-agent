@@ -29,8 +29,8 @@ type twoByteNewLineMatcher struct {
 	newline []byte
 }
 
-// FindFrame implements EndLineMatcher#FindFrame.
-func (tb *twoByteNewLineMatcher) FindFrame(buf []byte, seen int) ([]byte, int) {
+// FindFrame implements FrameMatcher#FindFrame.
+func (tb *twoByteNewLineMatcher) FindFrame(buf []byte, seen int) ([]byte, int, bool) {
 	var nl int
 
 	// round `seen` down to a 2-byte boundary
@@ -39,7 +39,7 @@ func (tb *twoByteNewLineMatcher) FindFrame(buf []byte, seen int) ([]byte, int) {
 	for {
 		nl = bytes.Index(buf[seen:], tb.newline)
 		if nl == -1 {
-			return nil, 0
+			return nil, 0, false
 		}
 
 		// check alignment of the match
@@ -55,10 +55,11 @@ func (tb *twoByteNewLineMatcher) FindFrame(buf []byte, seen int) ([]byte, int) {
 	eol := nl + seen
 	cll := tb.contentLenLimit & ^0x1
 	if eol > cll {
-		return buf[:cll], cll
+		// Newline found beyond the limit - truncate and mark as truncated
+		return buf[:cll], cll, true
 	}
 
 	// return the content without the newline, but count the newline sequence
 	// in the raw length
-	return buf[:eol], eol + 2
+	return buf[:eol], eol + 2, false
 }

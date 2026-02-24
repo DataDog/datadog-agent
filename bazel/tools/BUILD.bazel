@@ -1,5 +1,5 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
-load("@check_bazel_version//:defs.bzl", "check_bazel_version")
+load("@bazelisk_check//:defs.bzl", "check_bazel_version")
 load("@rules_python//python:py_binary.bzl", "py_binary")
 
 check_bazel_version()
@@ -7,7 +7,6 @@ check_bazel_version()
 py_binary(
     name = "generate_module_bazel",
     srcs = ["generate_module_bazel.py"],
-    main = "generate_module_bazel.py",
     visibility = ["//deps:__subpackages__"],
 )
 

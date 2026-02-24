@@ -42,4 +42,4 @@ jobs:
               exit 0
             fi
           fi
-          dda inv -- -e issue.ask-reviews -p "${{ github.event.pull_request.number }}" "${options[@]}"
+          dda inv -- -e issue.ask-reviews -p "${{ github.event.pull_request.number }}" -a "${{ github.event.action }}" "${options[@]}"

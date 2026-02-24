@@ -3,6 +3,7 @@ import importlib
 import os
 import re
 import shutil
+from datetime import timedelta
 from pathlib import Path
 
 from invoke.context import Context
@@ -80,48 +81,19 @@ class Pulumi(Requirement):
 
 class TestInfraDefinitionsRepo(Requirement):
     @staticmethod
-    def get_candidate_paths() -> list[Path]:
-        # Allow callers to force a specific path
-        env_path = os.environ.get("KMT_TEST_INFRA_DEFINITIONS_PATH")
-        if env_path is not None:
-            return [Path(env_path)]
-
-        # Default to common paths if a specific setting has not been forced
-        return [
-            get_repo_root() / "test/e2e-framework",
-            Path("~/go/src/github.com/DataDog/datadog-agent/test/e2e-framework").expanduser(),
-        ]
-
-    @staticmethod
-    def get_repo_path() -> Path | None:
-        for path in TestInfraDefinitionsRepo.get_candidate_paths():
-            if path.is_dir():
-                return path
-
-        return None
+    def get_repo_path() -> Path:
+        return get_repo_root() / "test/e2e-framework"
 
     def check(self, ctx: Context, fix: bool) -> RequirementState:
         repo_path = self.get_repo_path()
-        if repo_path is not None:
-            return RequirementState(Status.OK, "test-infra-definitions repository found.")
+        if repo_path.is_dir():
+            return RequirementState(Status.OK, "e2e-framework directory found.")
 
-        candidate_paths = TestInfraDefinitionsRepo.get_candidate_paths()
-        if not fix:
-            return RequirementState(
-                Status.FAIL,
-                f"test-infra-definitions repository not found in any of the expected locations {', '.join(map(os.fspath, candidate_paths))}.",
-                fixable=True,
-            )
-
-        clone_opts = "--depth 1 --single-branch --branch=main" if os.environ.get("CI") else ""
-        repo_access = "https://github.com/" if os.environ.get("CI") else "git@github.com:"
-
-        try:
-            ctx.run(f"git clone {repo_access}DataDog/test-infra-definitions.git {candidate_paths[0]} {clone_opts}")
-        except Exception as e:
-            return RequirementState(Status.FAIL, f"test-infra-definitions could not be cloned: {e}", fixable=True)
-
-        return RequirementState(Status.OK, "test-infra-definitions repository cloned.")
+        return RequirementState(
+            Status.FAIL,
+            f"e2e-framework directory not found at {repo_path}.",
+            fixable=False,
+        )
 
 
 class PulumiPlugin(Requirement):
@@ -140,7 +112,8 @@ class PulumiPlugin(Requirement):
                 return RequirementState(Status.FAIL, "pulumi plugins not installed.", fixable=True)
 
             try:
-                ctx.run("go mod download")
+                # https://github.com/golang/go/issues/63758: downloading dependencies stuck when git tag signature [...]
+                ctx.run("GIT_TERMINAL_PROMPT=0 go mod download", timeout=timedelta(minutes=5).total_seconds())
                 ctx.run("PULUMI_CONFIG_PASSPHRASE=dummy pulumi --non-interactive plugin install")
             except Exception as e:
                 return RequirementState(Status.FAIL, f"pulumi plugins installation failed: {e}")

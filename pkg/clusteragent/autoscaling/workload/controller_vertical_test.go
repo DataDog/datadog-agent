@@ -9,6 +9,7 @@ package workload
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	v2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -28,6 +30,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
@@ -38,1087 +41,504 @@ import (
 type verticalControllerFixture struct {
 	t             *testing.T
 	clock         *clock.FakeClock
-	recorder      *record.FakeRecorder
 	dynamicClient *dynamicfake.FakeDynamicClient
-	podWatcher    *fakePodWatcher
 	controller    *verticalController
 }
 
 func newVerticalControllerFixture(t *testing.T, testTime time.Time) *verticalControllerFixture {
 	fakeClock := clock.NewFakeClock(testTime)
-	recorder := record.NewFakeRecorder(100)
-	scheme := runtime.NewScheme()
-	dynamicClient := dynamicfake.NewSimpleDynamicClient(scheme)
-	podWatcher := &fakePodWatcher{}
-
+	dynamicClient := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
 	return &verticalControllerFixture{
 		t:             t,
 		clock:         fakeClock,
-		recorder:      recorder,
 		dynamicClient: dynamicClient,
-		podWatcher:    podWatcher,
 		controller: &verticalController{
-			clock:         fakeClock,
-			eventRecorder: recorder,
-			dynamicClient: dynamicClient,
+			clock:           fakeClock,
+			eventRecorder:   record.NewFakeRecorder(100),
+			patchClient:     workloadpatcher.NewPatcher(dynamicClient, nil),
+			progressTracker: newRolloutProgressTracker(),
 		},
 	}
 }
 
-func TestSyncDeploymentKind_AllPodsUpdated(t *testing.T) {
-	testTime := time.Now()
-	f := newVerticalControllerFixture(t, testTime)
+type verticalTestArgs struct {
+	targetKind       string
+	targetName       string
+	recommendationID string
 
-	autoscalerNamespace := "default"
-	autoscalerName := "test-deployment-autoscaler"
-	deploymentName := "test-deployment"
-	replicaSetName := "test-deployment-abc123"
-	recommendationID := "rec-123"
+	pods                    []*workloadmeta.KubernetesPod
+	podsPerRecommendationID map[string]int32
+	podsPerDirectOwner      map[string]int32 // For Deployments only
 
-	expectedGVK := schema.GroupVersionKind{
-		Group:   "apps",
-		Version: "v1",
-		Kind:    kubernetes.DeploymentKind,
+	lastAction    *datadoghqcommon.DatadogPodAutoscalerVerticalAction
+	scalingValues *model.VerticalScalingValues
+
+	// Control flags
+	createTarget bool
+	patchError   bool
+
+	// Expectations
+	expectPatch         bool
+	expectError         bool
+	expectActionSet     bool
+	expectActionCleared bool
+}
+
+func (f *verticalControllerFixture) runSync(args verticalTestArgs) {
+	f.t.Helper()
+	ns := "default"
+
+	// Determine GVK based on target kind
+	var gvk schema.GroupVersionKind
+	var resourceName string
+	if args.targetKind == kubernetes.RolloutKind {
+		gvk = schema.GroupVersionKind{Group: "argoproj.io", Version: "v1alpha1", Kind: args.targetKind}
+		resourceName = "rollouts"
+	} else {
+		gvk = schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: args.targetKind}
+		resourceName = strings.ToLower(args.targetKind) + "s"
 	}
 
-	fakePai := &model.FakePodAutoscalerInternal{
-		Namespace: autoscalerNamespace,
-		Name:      autoscalerName,
+	if args.createTarget {
+		f.createTarget(ns, args.targetName, args.targetKind)
+	}
+
+	// Setup patch reactor
+	patchCalled := false
+	if args.patchError || args.expectPatch {
+		var patchErr error
+		if args.patchError {
+			patchErr = assert.AnError
+		}
+		f.dynamicClient.PrependReactor(
+			"patch", resourceName, func(action k8stesting.Action) (bool, runtime.Object, error) {
+				patchCalled = true
+				if patchErr != nil {
+					return true, nil, patchErr
+				}
+				pa := action.(k8stesting.PatchAction)
+				return true, &unstructured.Unstructured{Object: map[string]any{
+					"apiVersion": "apps/v1",
+					"kind":       args.targetKind,
+					"metadata":   map[string]any{"name": pa.GetName(), "namespace": pa.GetNamespace()},
+				}}, nil
+			})
+	}
+
+	// Build autoscaler internal
+	pai := &model.FakePodAutoscalerInternal{
+		Namespace:          ns,
+		Name:               args.targetName + "-autoscaler",
+		TargetGVK:          gvk,
+		CurrentReplicas:    pointer.Ptr[int32](3),
+		VerticalLastAction: args.lastAction,
 		Spec: &datadoghq.DatadogPodAutoscalerSpec{
 			TargetRef: v2.CrossVersionObjectReference{
-				Name:       deploymentName,
-				Kind:       expectedGVK.Kind,
-				APIVersion: expectedGVK.Group + "/" + expectedGVK.Version,
-			},
-		},
-		TargetGVK:       expectedGVK,
-		CurrentReplicas: pointer.Ptr[int32](3),
-	}
-
-	// All pods have the recommendation ID - rollout complete
-	pods := []*workloadmeta.KubernetesPod{
-		{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      "pod-1",
-				Namespace: autoscalerNamespace,
-				Annotations: map[string]string{
-					model.RecommendationIDAnnotation: recommendationID,
-				},
-			},
-			Owners: []workloadmeta.KubernetesPodOwner{
-				{Kind: kubernetes.ReplicaSetKind, Name: replicaSetName},
-			},
-		},
-		{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      "pod-2",
-				Namespace: autoscalerNamespace,
-				Annotations: map[string]string{
-					model.RecommendationIDAnnotation: recommendationID,
-				},
-			},
-			Owners: []workloadmeta.KubernetesPodOwner{
-				{Kind: kubernetes.ReplicaSetKind, Name: replicaSetName},
-			},
-		},
-		{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      "pod-3",
-				Namespace: autoscalerNamespace,
-				Annotations: map[string]string{
-					model.RecommendationIDAnnotation: recommendationID,
-				},
-			},
-			Owners: []workloadmeta.KubernetesPodOwner{
-				{Kind: kubernetes.ReplicaSetKind, Name: replicaSetName},
+				Name:       args.targetName,
+				Kind:       gvk.Kind,
+				APIVersion: "apps/v1",
 			},
 		},
 	}
-
-	podsPerRecomendationID := map[string]int32{
-		recommendationID: 3,
+	if args.scalingValues != nil {
+		pai.ScalingValues = model.ScalingValues{Vertical: args.scalingValues}
 	}
 
-	// All pods owned by the same ReplicaSet
-	podsPerDirectOwner := map[string]int32{
-		replicaSetName: 3,
-	}
-
-	target := NamespacedPodOwner{
-		Namespace: autoscalerNamespace,
-		Kind:      kubernetes.DeploymentKind,
-		Name:      deploymentName,
-	}
-
-	autoscalerInternal := fakePai.Build()
+	autoscalerInternal := pai.Build()
 	fakeAutoscaler := &datadoghq.DatadogPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      autoscalerName,
-			Namespace: autoscalerNamespace,
-		},
+		ObjectMeta: metav1.ObjectMeta{Name: pai.Name, Namespace: ns},
+	}
+	target := NamespacedPodOwner{Namespace: ns, Kind: args.targetKind, Name: args.targetName}
+
+	// Execute sync based on target kind
+	var err error
+	switch args.targetKind {
+	case kubernetes.DeploymentKind:
+		_, err = f.controller.syncDeploymentKind(
+			context.Background(), fakeAutoscaler, &autoscalerInternal, target, gvk,
+			args.recommendationID, args.pods, args.podsPerRecommendationID, args.podsPerDirectOwner,
+		)
+	case kubernetes.RolloutKind:
+		_, err = f.controller.syncRolloutKind(
+			context.Background(), fakeAutoscaler, &autoscalerInternal, target, gvk,
+			args.recommendationID, args.pods, args.podsPerRecommendationID, args.podsPerDirectOwner,
+		)
+	case kubernetes.StatefulSetKind:
+		_, err = f.controller.syncStatefulSetKind(
+			context.Background(), fakeAutoscaler, &autoscalerInternal, target, gvk,
+			args.recommendationID, args.pods, args.podsPerRecommendationID,
+		)
 	}
 
-	result, err := f.controller.syncDeploymentKind(
-		context.Background(),
-		fakeAutoscaler,
-		&autoscalerInternal,
-		datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy,
-		target,
-		expectedGVK,
-		recommendationID,
-		pods,
-		podsPerRecomendationID,
-		podsPerDirectOwner,
-	)
+	// Verify expectations
+	if args.expectError {
+		assert.Error(f.t, err)
+	} else {
+		assert.NoError(f.t, err)
+	}
+	assert.Equal(f.t, args.expectPatch, patchCalled, "patch call mismatch")
 
-	assert.NoError(t, err)
-	assert.Equal(t, autoscaling.NoRequeue, result)
-	// Vertical action should be cleared (nil, nil) on success
-	assert.Nil(t, autoscalerInternal.VerticalLastAction())
-	assert.Nil(t, autoscalerInternal.VerticalLastActionError())
+	if args.expectActionSet {
+		assert.NotNil(f.t, autoscalerInternal.VerticalLastAction())
+		assert.Equal(f.t, args.recommendationID, autoscalerInternal.VerticalLastAction().Version)
+	}
+	if args.expectActionCleared {
+		assert.Nil(f.t, autoscalerInternal.VerticalLastAction())
+	}
 }
 
-func TestSyncDeploymentKind_RolloutInProgress(t *testing.T) {
-	testTime := time.Now()
-	f := newVerticalControllerFixture(t, testTime)
-
-	autoscalerNamespace := "default"
-	autoscalerName := "test-deployment-autoscaler"
-	deploymentName := "test-deployment"
-	oldReplicaSetName := "test-deployment-old123"
-	newReplicaSetName := "test-deployment-new456"
-	recommendationID := "rec-123"
-
-	expectedGVK := schema.GroupVersionKind{
-		Group:   "apps",
-		Version: "v1",
-		Kind:    kubernetes.DeploymentKind,
-	}
-
-	fakePai := &model.FakePodAutoscalerInternal{
-		Namespace: autoscalerNamespace,
-		Name:      autoscalerName,
-		Spec: &datadoghq.DatadogPodAutoscalerSpec{
-			TargetRef: v2.CrossVersionObjectReference{
-				Name:       deploymentName,
-				Kind:       expectedGVK.Kind,
-				APIVersion: expectedGVK.Group + "/" + expectedGVK.Version,
+func (f *verticalControllerFixture) createTarget(ns, name, kind string) {
+	var obj *unstructured.Unstructured
+	var gvr schema.GroupVersionResource
+	switch kind {
+	case kubernetes.DeploymentKind:
+		obj, _ = autoscaling.ToUnstructured(&appsv1.Deployment{
+			TypeMeta:   metav1.TypeMeta{APIVersion: "apps/v1", Kind: "Deployment"},
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+			Spec: appsv1.DeploymentSpec{
+				Replicas: pointer.Ptr(int32(3)),
+				Template: corev1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{}}},
 			},
-		},
-		TargetGVK:       expectedGVK,
-		CurrentReplicas: pointer.Ptr[int32](3),
-	}
-
-	// Pods from two different ReplicaSets - rollout in progress
-	pods := []*workloadmeta.KubernetesPod{
-		{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      "pod-old-1",
-				Namespace: autoscalerNamespace,
-				Annotations: map[string]string{
-					model.RecommendationIDAnnotation: "old-rec",
+		})
+		gvr = schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
+	case kubernetes.RolloutKind:
+		// Argo Rollout - create as unstructured since we don't have the type
+		obj = &unstructured.Unstructured{Object: map[string]any{
+			"apiVersion": "argoproj.io/v1alpha1",
+			"kind":       "Rollout",
+			"metadata":   map[string]any{"name": name, "namespace": ns},
+			"spec": map[string]any{
+				"replicas": int64(3),
+				"template": map[string]any{
+					"metadata": map[string]any{"annotations": map[string]any{}},
 				},
 			},
-			Owners: []workloadmeta.KubernetesPodOwner{
-				{Kind: kubernetes.ReplicaSetKind, Name: oldReplicaSetName},
+		}}
+		gvr = schema.GroupVersionResource{Group: "argoproj.io", Version: "v1alpha1", Resource: "rollouts"}
+	case kubernetes.StatefulSetKind:
+		obj, _ = autoscaling.ToUnstructured(&appsv1.StatefulSet{
+			TypeMeta:   metav1.TypeMeta{APIVersion: "apps/v1", Kind: "StatefulSet"},
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+			Spec: appsv1.StatefulSetSpec{
+				Replicas: pointer.Ptr(int32(3)),
+				Template: corev1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{}}},
 			},
-		},
-		{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      "pod-new-1",
-				Namespace: autoscalerNamespace,
-				Annotations: map[string]string{
-					model.RecommendationIDAnnotation: recommendationID,
-				},
-			},
-			Owners: []workloadmeta.KubernetesPodOwner{
-				{Kind: kubernetes.ReplicaSetKind, Name: newReplicaSetName},
-			},
-		},
-		{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      "pod-new-2",
-				Namespace: autoscalerNamespace,
-				Annotations: map[string]string{
-					model.RecommendationIDAnnotation: recommendationID,
-				},
-			},
-			Owners: []workloadmeta.KubernetesPodOwner{
-				{Kind: kubernetes.ReplicaSetKind, Name: newReplicaSetName},
-			},
-		},
+		})
+		gvr = schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}
 	}
-
-	podsPerRecomendationID := map[string]int32{
-		"old-rec":        1,
-		recommendationID: 2,
-	}
-
-	// Pods from two different ReplicaSets - indicates rollout in progress
-	podsPerDirectOwner := map[string]int32{
-		oldReplicaSetName: 1,
-		newReplicaSetName: 2,
-	}
-
-	target := NamespacedPodOwner{
-		Namespace: autoscalerNamespace,
-		Kind:      kubernetes.DeploymentKind,
-		Name:      deploymentName,
-	}
-
-	autoscalerInternal := fakePai.Build()
-	fakeAutoscaler := &datadoghq.DatadogPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      autoscalerName,
-			Namespace: autoscalerNamespace,
-		},
-	}
-
-	result, err := f.controller.syncDeploymentKind(
-		context.Background(),
-		fakeAutoscaler,
-		&autoscalerInternal,
-		datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy,
-		target,
-		expectedGVK,
-		recommendationID,
-		pods,
-		podsPerRecomendationID,
-		podsPerDirectOwner,
-	)
-
-	assert.NoError(t, err)
-	assert.Equal(t, autoscaling.ProcessResult{Requeue: true, RequeueAfter: rolloutCheckRequeueDelay}, result)
+	_, _ = f.dynamicClient.Resource(gvr).Namespace(ns).Create(context.Background(), obj, metav1.CreateOptions{})
 }
 
-func TestSyncDeploymentKind_TriggerRollout(t *testing.T) {
-	testTime := time.Now()
-	f := newVerticalControllerFixture(t, testTime)
-
-	autoscalerNamespace := "default"
-	autoscalerName := "test-deployment-autoscaler"
-	deploymentName := "test-deployment"
-	replicaSetName := "test-deployment-abc123"
-	recommendationID := "rec-123"
-
-	expectedGVK := schema.GroupVersionKind{
-		Group:   "apps",
-		Version: "v1",
-		Kind:    kubernetes.DeploymentKind,
+// Pod builders
+func pod(name, recID, ownerKind, owner string) *workloadmeta.KubernetesPod {
+	return &workloadmeta.KubernetesPod{
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: name, Namespace: "default",
+			Annotations: map[string]string{model.RecommendationIDAnnotation: recID},
+		},
+		Owners: []workloadmeta.KubernetesPodOwner{{Kind: ownerKind, Name: owner, ID: owner}},
 	}
+}
 
-	// Create a fake Deployment in the dynamic client
-	deployment, err := autoscaling.ToUnstructured(&appsv1.Deployment{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "apps/v1",
-			Kind:       "Deployment",
+func podWithRev(name, recID, ownerKind, owner, rev string) *workloadmeta.KubernetesPod {
+	p := pod(name, recID, ownerKind, owner)
+	p.Labels = map[string]string{controllerRevisionHashLabel: rev}
+	return p
+}
+
+func podWithLimit(name, recID, ownerKind, owner string, cpu float64) *workloadmeta.KubernetesPod {
+	p := pod(name, recID, ownerKind, owner)
+	p.Containers = []workloadmeta.OrchestratorContainer{{Name: "c1", Resources: workloadmeta.ContainerResources{CPULimit: &cpu}}}
+	return p
+}
+
+func podWithRevLimit(name, recID, ownerKind, owner, rev string, cpu float64) *workloadmeta.KubernetesPod {
+	p := podWithRev(name, recID, ownerKind, owner, rev)
+	p.Containers = []workloadmeta.OrchestratorContainer{{Name: "c1", Resources: workloadmeta.ContainerResources{CPULimit: &cpu}}}
+	return p
+}
+
+func scalingVal(recID string, cpuLimit string) *model.VerticalScalingValues {
+	return &model.VerticalScalingValues{
+		ResourcesHash: recID,
+		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			{Name: "c1", Limits: corev1.ResourceList{"cpu": resource.MustParse(cpuLimit)}},
 		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      deploymentName,
-			Namespace: autoscalerNamespace,
+	}
+}
+
+func lastAction(t time.Time, version string) *datadoghqcommon.DatadogPodAutoscalerVerticalAction {
+	return &datadoghqcommon.DatadogPodAutoscalerVerticalAction{
+		Time: metav1.NewTime(t), Version: version, Type: datadoghqcommon.DatadogPodAutoscalerRolloutTriggeredVerticalActionType,
+	}
+}
+
+// Deployment tests
+
+func TestDeploymentSyncAllPodsUpdated(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+	f.runSync(verticalTestArgs{
+		targetKind:       kubernetes.DeploymentKind,
+		targetName:       "d1",
+		recommendationID: "r1",
+		pods: []*workloadmeta.KubernetesPod{
+			pod("p1", "r1", kubernetes.ReplicaSetKind, "rs1"),
+			pod("p2", "r1", kubernetes.ReplicaSetKind, "rs1"),
 		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: pointer.Ptr(int32(3)),
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{},
-				},
-			},
-		},
+		podsPerRecommendationID: map[string]int32{"r1": 2},
+		podsPerDirectOwner:      map[string]int32{"rs1": 2},
+		expectActionCleared:     true,
 	})
-	assert.NoError(t, err)
-
-	gvr := schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
-	_, err = f.dynamicClient.Resource(gvr).Namespace(autoscalerNamespace).Create(context.Background(), deployment, metav1.CreateOptions{})
-	assert.NoError(t, err)
-
-	fakePai := &model.FakePodAutoscalerInternal{
-		Namespace: autoscalerNamespace,
-		Name:      autoscalerName,
-		Spec: &datadoghq.DatadogPodAutoscalerSpec{
-			TargetRef: v2.CrossVersionObjectReference{
-				Name:       deploymentName,
-				Kind:       expectedGVK.Kind,
-				APIVersion: expectedGVK.Group + "/" + expectedGVK.Version,
-			},
-		},
-		TargetGVK:       expectedGVK,
-		CurrentReplicas: pointer.Ptr[int32](3),
-	}
-
-	// No pods have the new recommendation ID - need to trigger rollout
-	pods := []*workloadmeta.KubernetesPod{
-		{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      "pod-1",
-				Namespace: autoscalerNamespace,
-				Annotations: map[string]string{
-					model.RecommendationIDAnnotation: "old-rec",
-				},
-			},
-			Owners: []workloadmeta.KubernetesPodOwner{
-				{Kind: kubernetes.ReplicaSetKind, Name: replicaSetName},
-			},
-		},
-		{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      "pod-2",
-				Namespace: autoscalerNamespace,
-				Annotations: map[string]string{
-					model.RecommendationIDAnnotation: "old-rec",
-				},
-			},
-			Owners: []workloadmeta.KubernetesPodOwner{
-				{Kind: kubernetes.ReplicaSetKind, Name: replicaSetName},
-			},
-		},
-		{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      "pod-3",
-				Namespace: autoscalerNamespace,
-				Annotations: map[string]string{
-					model.RecommendationIDAnnotation: "old-rec",
-				},
-			},
-			Owners: []workloadmeta.KubernetesPodOwner{
-				{Kind: kubernetes.ReplicaSetKind, Name: replicaSetName},
-			},
-		},
-	}
-
-	podsPerRecomendationID := map[string]int32{
-		"old-rec":        3,
-		recommendationID: 0,
-	}
-
-	// All pods from the same ReplicaSet - no rollout in progress
-	podsPerDirectOwner := map[string]int32{
-		replicaSetName: 3,
-	}
-
-	target := NamespacedPodOwner{
-		Namespace: autoscalerNamespace,
-		Kind:      kubernetes.DeploymentKind,
-		Name:      deploymentName,
-	}
-
-	autoscalerInternal := fakePai.Build()
-	fakeAutoscaler := &datadoghq.DatadogPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      autoscalerName,
-			Namespace: autoscalerNamespace,
-		},
-	}
-
-	result, err := f.controller.syncDeploymentKind(
-		context.Background(),
-		fakeAutoscaler,
-		&autoscalerInternal,
-		datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy,
-		target,
-		expectedGVK,
-		recommendationID,
-		pods,
-		podsPerRecomendationID,
-		podsPerDirectOwner,
-	)
-
-	assert.NoError(t, err)
-	assert.Equal(t, autoscaling.ProcessResult{Requeue: true, RequeueAfter: rolloutCheckRequeueDelay}, result)
-
-	// Verify vertical action was recorded
-	assert.NotNil(t, autoscalerInternal.VerticalLastAction())
-	assert.Equal(t, recommendationID, autoscalerInternal.VerticalLastAction().Version)
-	assert.Equal(t, datadoghqcommon.DatadogPodAutoscalerRolloutTriggeredVerticalActionType, autoscalerInternal.VerticalLastAction().Type)
-
-	// Verify the Deployment was patched
-	updatedDeployment, err := f.dynamicClient.Resource(gvr).Namespace(autoscalerNamespace).Get(context.Background(), deploymentName, metav1.GetOptions{})
-	assert.NoError(t, err)
-
-	annotations, found, err := unstructured.NestedStringMap(updatedDeployment.Object, "spec", "template", "metadata", "annotations")
-	assert.NoError(t, err)
-	assert.True(t, found)
-	assert.Equal(t, recommendationID, annotations[model.RecommendationIDAnnotation])
-	assert.NotEmpty(t, annotations[model.RolloutTimestampAnnotation])
 }
 
-func TestSyncDeploymentKind_PatchError(t *testing.T) {
-	testTime := time.Now()
-	f := newVerticalControllerFixture(t, testTime)
-
-	autoscalerNamespace := "default"
-	autoscalerName := "test-deployment-autoscaler"
-	deploymentName := "nonexistent-deployment"
-	replicaSetName := "nonexistent-deployment-abc123"
-	recommendationID := "rec-123"
-
-	expectedGVK := schema.GroupVersionKind{
-		Group:   "apps",
-		Version: "v1",
-		Kind:    kubernetes.DeploymentKind,
-	}
-
-	// Don't create the Deployment in the dynamic client - patch will fail
-
-	fakePai := &model.FakePodAutoscalerInternal{
-		Namespace: autoscalerNamespace,
-		Name:      autoscalerName,
-		Spec: &datadoghq.DatadogPodAutoscalerSpec{
-			TargetRef: v2.CrossVersionObjectReference{
-				Name:       deploymentName,
-				Kind:       expectedGVK.Kind,
-				APIVersion: expectedGVK.Group + "/" + expectedGVK.Version,
-			},
+func TestDeploymentSyncRolloutInProgress(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+	f.runSync(verticalTestArgs{
+		targetKind:       kubernetes.DeploymentKind,
+		targetName:       "d1",
+		recommendationID: "r1",
+		pods: []*workloadmeta.KubernetesPod{
+			pod("p1", "old", kubernetes.ReplicaSetKind, "rs1"),
+			pod("p2", "r1", kubernetes.ReplicaSetKind, "rs2"),
 		},
-		TargetGVK:       expectedGVK,
-		CurrentReplicas: pointer.Ptr[int32](3),
-	}
-
-	pods := []*workloadmeta.KubernetesPod{
-		{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      "pod-1",
-				Namespace: autoscalerNamespace,
-			},
-			Owners: []workloadmeta.KubernetesPodOwner{
-				{Kind: kubernetes.ReplicaSetKind, Name: replicaSetName},
-			},
-		},
-	}
-
-	podsPerRecomendationID := map[string]int32{
-		recommendationID: 0,
-	}
-
-	podsPerDirectOwner := map[string]int32{
-		replicaSetName: 1,
-	}
-
-	target := NamespacedPodOwner{
-		Namespace: autoscalerNamespace,
-		Kind:      kubernetes.DeploymentKind,
-		Name:      deploymentName,
-	}
-
-	autoscalerInternal := fakePai.Build()
-	fakeAutoscaler := &datadoghq.DatadogPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      autoscalerName,
-			Namespace: autoscalerNamespace,
-		},
-	}
-
-	// Add a reactor that returns an error for patch operations
-	f.dynamicClient.PrependReactor("patch", "deployments", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
-		return true, nil, assert.AnError
+		podsPerRecommendationID: map[string]int32{"old": 1, "r1": 1},
+		podsPerDirectOwner:      map[string]int32{"rs1": 1, "rs2": 1},
 	})
-
-	result, err := f.controller.syncDeploymentKind(
-		context.Background(),
-		fakeAutoscaler,
-		&autoscalerInternal,
-		datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy,
-		target,
-		expectedGVK,
-		recommendationID,
-		pods,
-		podsPerRecomendationID,
-		podsPerDirectOwner,
-	)
-
-	assert.Error(t, err)
-	assert.Equal(t, autoscaling.Requeue, result)
-	assert.NotNil(t, autoscalerInternal.VerticalLastActionError())
 }
 
-func TestSyncStatefulSetKind_AllPodsUpdated(t *testing.T) {
-	testTime := time.Now()
-	f := newVerticalControllerFixture(t, testTime)
-
-	autoscalerNamespace := "default"
-	autoscalerName := "test-statefulset-autoscaler"
-	statefulSetName := "test-statefulset"
-	recommendationID := "rec-123"
-
-	expectedGVK := schema.GroupVersionKind{
-		Group:   "apps",
-		Version: "v1",
-		Kind:    kubernetes.StatefulSetKind,
-	}
-
-	fakePai := &model.FakePodAutoscalerInternal{
-		Namespace: autoscalerNamespace,
-		Name:      autoscalerName,
-		Spec: &datadoghq.DatadogPodAutoscalerSpec{
-			TargetRef: v2.CrossVersionObjectReference{
-				Name:       statefulSetName,
-				Kind:       expectedGVK.Kind,
-				APIVersion: expectedGVK.Group + "/" + expectedGVK.Version,
-			},
+func TestDeploymentSyncTriggerRollout(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+	f.runSync(verticalTestArgs{
+		targetKind:       kubernetes.DeploymentKind,
+		targetName:       "d1",
+		recommendationID: "r1",
+		createTarget:     true,
+		pods: []*workloadmeta.KubernetesPod{
+			pod("p1", "old", kubernetes.ReplicaSetKind, "rs1"),
 		},
-		TargetGVK:       expectedGVK,
-		CurrentReplicas: pointer.Ptr[int32](3),
-	}
-
-	// All pods have the recommendation ID - rollout complete
-	pods := []*workloadmeta.KubernetesPod{
-		{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      statefulSetName + "-0",
-				Namespace: autoscalerNamespace,
-				Annotations: map[string]string{
-					model.RecommendationIDAnnotation: recommendationID,
-				},
-			},
-			Owners: []workloadmeta.KubernetesPodOwner{
-				{Kind: kubernetes.StatefulSetKind, Name: statefulSetName},
-			},
-		},
-		{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      statefulSetName + "-1",
-				Namespace: autoscalerNamespace,
-				Annotations: map[string]string{
-					model.RecommendationIDAnnotation: recommendationID,
-				},
-			},
-			Owners: []workloadmeta.KubernetesPodOwner{
-				{Kind: kubernetes.StatefulSetKind, Name: statefulSetName},
-			},
-		},
-		{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      statefulSetName + "-2",
-				Namespace: autoscalerNamespace,
-				Annotations: map[string]string{
-					model.RecommendationIDAnnotation: recommendationID,
-				},
-			},
-			Owners: []workloadmeta.KubernetesPodOwner{
-				{Kind: kubernetes.StatefulSetKind, Name: statefulSetName},
-			},
-		},
-	}
-
-	podsPerRecomendationID := map[string]int32{
-		recommendationID: 3,
-	}
-
-	target := NamespacedPodOwner{
-		Namespace: autoscalerNamespace,
-		Kind:      kubernetes.StatefulSetKind,
-		Name:      statefulSetName,
-	}
-
-	autoscalerInternal := fakePai.Build()
-	fakeAutoscaler := &datadoghq.DatadogPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      autoscalerName,
-			Namespace: autoscalerNamespace,
-		},
-	}
-
-	result, err := f.controller.syncStatefulSetKind(
-		context.Background(),
-		fakeAutoscaler,
-		&autoscalerInternal,
-		datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy,
-		target,
-		expectedGVK,
-		recommendationID,
-		pods,
-		podsPerRecomendationID,
-	)
-
-	assert.NoError(t, err)
-	assert.Equal(t, autoscaling.NoRequeue, result)
-	// Vertical action should be cleared (nil, nil) on success
-	assert.Nil(t, autoscalerInternal.VerticalLastAction())
-	assert.Nil(t, autoscalerInternal.VerticalLastActionError())
-}
-
-func TestSyncStatefulSetKind_RolloutInProgress(t *testing.T) {
-	testTime := time.Now()
-	f := newVerticalControllerFixture(t, testTime)
-
-	autoscalerNamespace := "default"
-	autoscalerName := "test-statefulset-autoscaler"
-	statefulSetName := "test-statefulset"
-	recommendationID := "rec-123"
-	oldRevision := "test-statefulset-rev1"
-	newRevision := "test-statefulset-rev2"
-
-	expectedGVK := schema.GroupVersionKind{
-		Group:   "apps",
-		Version: "v1",
-		Kind:    kubernetes.StatefulSetKind,
-	}
-
-	fakePai := &model.FakePodAutoscalerInternal{
-		Namespace: autoscalerNamespace,
-		Name:      autoscalerName,
-		Spec: &datadoghq.DatadogPodAutoscalerSpec{
-			TargetRef: v2.CrossVersionObjectReference{
-				Name:       statefulSetName,
-				Kind:       expectedGVK.Kind,
-				APIVersion: expectedGVK.Group + "/" + expectedGVK.Version,
-			},
-		},
-		TargetGVK:       expectedGVK,
-		CurrentReplicas: pointer.Ptr[int32](3),
-	}
-
-	// Pods have different controller-revision-hash labels - rollout in progress
-	// StatefulSets update pods in reverse ordinal order, so pod-2 is updated first
-	pods := []*workloadmeta.KubernetesPod{
-		{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      statefulSetName + "-0",
-				Namespace: autoscalerNamespace,
-				Labels: map[string]string{
-					controllerRevisionHashLabel: oldRevision,
-				},
-				Annotations: map[string]string{
-					model.RecommendationIDAnnotation: "old-rec",
-				},
-			},
-			Owners: []workloadmeta.KubernetesPodOwner{
-				{Kind: kubernetes.StatefulSetKind, Name: statefulSetName},
-			},
-		},
-		{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      statefulSetName + "-1",
-				Namespace: autoscalerNamespace,
-				Labels: map[string]string{
-					controllerRevisionHashLabel: oldRevision,
-				},
-				Annotations: map[string]string{
-					model.RecommendationIDAnnotation: "old-rec",
-				},
-			},
-			Owners: []workloadmeta.KubernetesPodOwner{
-				{Kind: kubernetes.StatefulSetKind, Name: statefulSetName},
-			},
-		},
-		{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      statefulSetName + "-2",
-				Namespace: autoscalerNamespace,
-				Labels: map[string]string{
-					controllerRevisionHashLabel: newRevision, // Updated pod
-				},
-				Annotations: map[string]string{
-					model.RecommendationIDAnnotation: recommendationID,
-				},
-			},
-			Owners: []workloadmeta.KubernetesPodOwner{
-				{Kind: kubernetes.StatefulSetKind, Name: statefulSetName},
-			},
-		},
-	}
-
-	podsPerRecomendationID := map[string]int32{
-		"old-rec":        2,
-		recommendationID: 1, // Partial update
-	}
-
-	target := NamespacedPodOwner{
-		Namespace: autoscalerNamespace,
-		Kind:      kubernetes.StatefulSetKind,
-		Name:      statefulSetName,
-	}
-
-	autoscalerInternal := fakePai.Build()
-	fakeAutoscaler := &datadoghq.DatadogPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      autoscalerName,
-			Namespace: autoscalerNamespace,
-		},
-	}
-
-	result, err := f.controller.syncStatefulSetKind(
-		context.Background(),
-		fakeAutoscaler,
-		&autoscalerInternal,
-		datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy,
-		target,
-		expectedGVK,
-		recommendationID,
-		pods,
-		podsPerRecomendationID,
-	)
-
-	assert.NoError(t, err)
-	assert.Equal(t, autoscaling.ProcessResult{Requeue: true, RequeueAfter: rolloutCheckRequeueDelay}, result)
-}
-
-func TestSyncStatefulSetKind_TriggerRollout(t *testing.T) {
-	testTime := time.Now()
-	f := newVerticalControllerFixture(t, testTime)
-
-	autoscalerNamespace := "default"
-	autoscalerName := "test-statefulset-autoscaler"
-	statefulSetName := "test-statefulset"
-	recommendationID := "rec-123"
-	currentRevision := "test-statefulset-rev1"
-
-	expectedGVK := schema.GroupVersionKind{
-		Group:   "apps",
-		Version: "v1",
-		Kind:    kubernetes.StatefulSetKind,
-	}
-
-	// Create a fake StatefulSet in the dynamic client
-	statefulSet, err := autoscaling.ToUnstructured(&appsv1.StatefulSet{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "apps/v1",
-			Kind:       "StatefulSet",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      statefulSetName,
-			Namespace: autoscalerNamespace,
-		},
-		Spec: appsv1.StatefulSetSpec{
-			Replicas: pointer.Ptr(int32(3)),
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{},
-				},
-			},
-		},
+		podsPerRecommendationID: map[string]int32{"old": 1, "r1": 0},
+		podsPerDirectOwner:      map[string]int32{"rs1": 1},
+		expectPatch:             true,
+		expectActionSet:         true,
 	})
-	assert.NoError(t, err)
-
-	gvr := schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}
-	_, err = f.dynamicClient.Resource(gvr).Namespace(autoscalerNamespace).Create(context.Background(), statefulSet, metav1.CreateOptions{})
-	assert.NoError(t, err)
-
-	fakePai := &model.FakePodAutoscalerInternal{
-		Namespace: autoscalerNamespace,
-		Name:      autoscalerName,
-		Spec: &datadoghq.DatadogPodAutoscalerSpec{
-			TargetRef: v2.CrossVersionObjectReference{
-				Name:       statefulSetName,
-				Kind:       expectedGVK.Kind,
-				APIVersion: expectedGVK.Group + "/" + expectedGVK.Version,
-			},
-		},
-		TargetGVK:       expectedGVK,
-		CurrentReplicas: pointer.Ptr[int32](3),
-	}
-
-	// No pods have the new recommendation ID - need to trigger rollout
-	// All pods have the same controller-revision-hash - no rollout in progress
-	pods := []*workloadmeta.KubernetesPod{
-		{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      statefulSetName + "-0",
-				Namespace: autoscalerNamespace,
-				Labels: map[string]string{
-					controllerRevisionHashLabel: currentRevision,
-				},
-				Annotations: map[string]string{
-					model.RecommendationIDAnnotation: "old-rec",
-				},
-			},
-			Owners: []workloadmeta.KubernetesPodOwner{
-				{Kind: kubernetes.StatefulSetKind, Name: statefulSetName},
-			},
-		},
-		{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      statefulSetName + "-1",
-				Namespace: autoscalerNamespace,
-				Labels: map[string]string{
-					controllerRevisionHashLabel: currentRevision,
-				},
-				Annotations: map[string]string{
-					model.RecommendationIDAnnotation: "old-rec",
-				},
-			},
-			Owners: []workloadmeta.KubernetesPodOwner{
-				{Kind: kubernetes.StatefulSetKind, Name: statefulSetName},
-			},
-		},
-		{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      statefulSetName + "-2",
-				Namespace: autoscalerNamespace,
-				Labels: map[string]string{
-					controllerRevisionHashLabel: currentRevision,
-				},
-				Annotations: map[string]string{
-					model.RecommendationIDAnnotation: "old-rec",
-				},
-			},
-			Owners: []workloadmeta.KubernetesPodOwner{
-				{Kind: kubernetes.StatefulSetKind, Name: statefulSetName},
-			},
-		},
-	}
-
-	podsPerRecomendationID := map[string]int32{
-		"old-rec":        3,
-		recommendationID: 0, // No pods have the new recommendation
-	}
-
-	target := NamespacedPodOwner{
-		Namespace: autoscalerNamespace,
-		Kind:      kubernetes.StatefulSetKind,
-		Name:      statefulSetName,
-	}
-
-	autoscalerInternal := fakePai.Build()
-	fakeAutoscaler := &datadoghq.DatadogPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      autoscalerName,
-			Namespace: autoscalerNamespace,
-		},
-	}
-
-	result, err := f.controller.syncStatefulSetKind(
-		context.Background(),
-		fakeAutoscaler,
-		&autoscalerInternal,
-		datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy,
-		target,
-		expectedGVK,
-		recommendationID,
-		pods,
-		podsPerRecomendationID,
-	)
-
-	assert.NoError(t, err)
-	assert.Equal(t, autoscaling.ProcessResult{Requeue: true, RequeueAfter: rolloutCheckRequeueDelay}, result)
-
-	// Verify vertical action was recorded
-	assert.NotNil(t, autoscalerInternal.VerticalLastAction())
-	assert.Equal(t, recommendationID, autoscalerInternal.VerticalLastAction().Version)
-	assert.Equal(t, datadoghqcommon.DatadogPodAutoscalerRolloutTriggeredVerticalActionType, autoscalerInternal.VerticalLastAction().Type)
-
-	// Verify the StatefulSet was patched
-	updatedSts, err := f.dynamicClient.Resource(gvr).Namespace(autoscalerNamespace).Get(context.Background(), statefulSetName, metav1.GetOptions{})
-	assert.NoError(t, err)
-
-	annotations, found, err := unstructured.NestedStringMap(updatedSts.Object, "spec", "template", "metadata", "annotations")
-	assert.NoError(t, err)
-	assert.True(t, found)
-	assert.Equal(t, recommendationID, annotations[model.RecommendationIDAnnotation])
-	assert.NotEmpty(t, annotations[model.RolloutTimestampAnnotation])
 }
 
-func TestSyncStatefulSetKind_PatchError(t *testing.T) {
-	testTime := time.Now()
-	f := newVerticalControllerFixture(t, testTime)
-
-	autoscalerNamespace := "default"
-	autoscalerName := "test-statefulset-autoscaler"
-	statefulSetName := "nonexistent-statefulset"
-	recommendationID := "rec-123"
-	currentRevision := "nonexistent-statefulset-rev1"
-
-	expectedGVK := schema.GroupVersionKind{
-		Group:   "apps",
-		Version: "v1",
-		Kind:    kubernetes.StatefulSetKind,
-	}
-
-	// Don't create the StatefulSet in the dynamic client - patch will fail
-
-	fakePai := &model.FakePodAutoscalerInternal{
-		Namespace: autoscalerNamespace,
-		Name:      autoscalerName,
-		Spec: &datadoghq.DatadogPodAutoscalerSpec{
-			TargetRef: v2.CrossVersionObjectReference{
-				Name:       statefulSetName,
-				Kind:       expectedGVK.Kind,
-				APIVersion: expectedGVK.Group + "/" + expectedGVK.Version,
-			},
+func TestDeploymentSyncPatchError(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+	f.runSync(verticalTestArgs{
+		targetKind:       kubernetes.DeploymentKind,
+		targetName:       "d1",
+		recommendationID: "r1",
+		pods: []*workloadmeta.KubernetesPod{
+			pod("p1", "", kubernetes.ReplicaSetKind, "rs1"),
 		},
-		TargetGVK:       expectedGVK,
-		CurrentReplicas: pointer.Ptr[int32](3),
-	}
-
-	// All pods have the same controller-revision-hash - no rollout in progress
-	pods := []*workloadmeta.KubernetesPod{
-		{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      statefulSetName + "-0",
-				Namespace: autoscalerNamespace,
-				Labels: map[string]string{
-					controllerRevisionHashLabel: currentRevision,
-				},
-			},
-			Owners: []workloadmeta.KubernetesPodOwner{
-				{Kind: kubernetes.StatefulSetKind, Name: statefulSetName},
-			},
-		},
-	}
-
-	podsPerRecomendationID := map[string]int32{
-		recommendationID: 0,
-	}
-
-	target := NamespacedPodOwner{
-		Namespace: autoscalerNamespace,
-		Kind:      kubernetes.StatefulSetKind,
-		Name:      statefulSetName,
-	}
-
-	autoscalerInternal := fakePai.Build()
-	fakeAutoscaler := &datadoghq.DatadogPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      autoscalerName,
-			Namespace: autoscalerNamespace,
-		},
-	}
-
-	// Add a reactor that returns an error for patch operations
-	f.dynamicClient.PrependReactor("patch", "statefulsets", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
-		return true, nil, assert.AnError
+		podsPerRecommendationID: map[string]int32{"r1": 0},
+		podsPerDirectOwner:      map[string]int32{"rs1": 1},
+		patchError:              true,
+		expectPatch:             true,
+		expectError:             true,
 	})
-
-	result, err := f.controller.syncStatefulSetKind(
-		context.Background(),
-		fakeAutoscaler,
-		&autoscalerInternal,
-		datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy,
-		target,
-		expectedGVK,
-		recommendationID,
-		pods,
-		podsPerRecomendationID,
-	)
-
-	assert.Error(t, err)
-	assert.Equal(t, autoscaling.Requeue, result)
-	assert.NotNil(t, autoscalerInternal.VerticalLastActionError())
 }
 
-// TestSyncStatefulSetKind_ExternalRolloutInProgress tests that we correctly detect
-// rollouts triggered by external changes (e.g., image updates) by checking
-// controller-revision-hash labels, even when all pods have the same recommendation ID.
-func TestSyncStatefulSetKind_ExternalRolloutInProgress(t *testing.T) {
-	testTime := time.Now()
-	f := newVerticalControllerFixture(t, testTime)
-
-	autoscalerNamespace := "default"
-	autoscalerName := "test-statefulset-autoscaler"
-	statefulSetName := "test-statefulset"
-	recommendationID := "rec-123"
-	oldRevision := "test-statefulset-rev1"
-	newRevision := "test-statefulset-rev2"
-
-	expectedGVK := schema.GroupVersionKind{
-		Group:   "apps",
-		Version: "v1",
-		Kind:    kubernetes.StatefulSetKind,
-	}
-
-	fakePai := &model.FakePodAutoscalerInternal{
-		Namespace: autoscalerNamespace,
-		Name:      autoscalerName,
-		Spec: &datadoghq.DatadogPodAutoscalerSpec{
-			TargetRef: v2.CrossVersionObjectReference{
-				Name:       statefulSetName,
-				Kind:       expectedGVK.Kind,
-				APIVersion: expectedGVK.Group + "/" + expectedGVK.Version,
-			},
+func TestDeploymentSyncAlreadyTriggeredWaits(t *testing.T) {
+	now := time.Now()
+	f := newVerticalControllerFixture(t, now)
+	f.runSync(verticalTestArgs{
+		targetKind:       kubernetes.DeploymentKind,
+		targetName:       "d1",
+		recommendationID: "r1",
+		pods: []*workloadmeta.KubernetesPod{
+			pod("p1", "old", kubernetes.ReplicaSetKind, "rs1"),
+			pod("p2", "r1", kubernetes.ReplicaSetKind, "rs2"),
 		},
-		TargetGVK:       expectedGVK,
-		CurrentReplicas: pointer.Ptr[int32](3),
-	}
+		podsPerRecommendationID: map[string]int32{"old": 1, "r1": 1},
+		podsPerDirectOwner:      map[string]int32{"rs1": 1, "rs2": 1},
+		lastAction:              lastAction(now.Add(-time.Minute), "r1"),
+	})
+}
 
-	// Scenario: Someone updated the StatefulSet image (external change).
-	// All pods still have the OLD recommendation ID (inherited from template),
-	// but they have DIFFERENT controller-revision-hash labels because a rollout is in progress.
-	// Without checking controller-revision-hash, we would try to trigger another rollout
-	// which would interfere with the ongoing one.
-	pods := []*workloadmeta.KubernetesPod{
-		{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      statefulSetName + "-0",
-				Namespace: autoscalerNamespace,
-				Labels: map[string]string{
-					controllerRevisionHashLabel: oldRevision, // Old revision
-				},
-				Annotations: map[string]string{
-					model.RecommendationIDAnnotation: "old-rec", // Same recommendation
-				},
-			},
-			Owners: []workloadmeta.KubernetesPodOwner{
-				{Kind: kubernetes.StatefulSetKind, Name: statefulSetName},
-			},
+func TestDeploymentSyncBypassOnLimitIncrease(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+	f.runSync(verticalTestArgs{
+		targetKind:       kubernetes.DeploymentKind,
+		targetName:       "d1",
+		recommendationID: "r1",
+		createTarget:     true,
+		pods: []*workloadmeta.KubernetesPod{
+			podWithLimit("p1", "old", kubernetes.ReplicaSetKind, "rs1", 25),
+			podWithLimit("p2", "old", kubernetes.ReplicaSetKind, "rs2", 25),
 		},
-		{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      statefulSetName + "-1",
-				Namespace: autoscalerNamespace,
-				Labels: map[string]string{
-					controllerRevisionHashLabel: oldRevision, // Old revision
-				},
-				Annotations: map[string]string{
-					model.RecommendationIDAnnotation: "old-rec", // Same recommendation
-				},
-			},
-			Owners: []workloadmeta.KubernetesPodOwner{
-				{Kind: kubernetes.StatefulSetKind, Name: statefulSetName},
-			},
+		podsPerRecommendationID: map[string]int32{"old": 2, "r1": 0},
+		podsPerDirectOwner:      map[string]int32{"rs1": 1, "rs2": 1},
+		scalingValues:           scalingVal("r1", "500m"),
+		expectPatch:             true,
+		expectActionSet:         true,
+	})
+}
+
+func TestDeploymentSyncBypassRateLimited(t *testing.T) {
+	now := time.Now()
+	f := newVerticalControllerFixture(t, now)
+	f.runSync(verticalTestArgs{
+		targetKind:       kubernetes.DeploymentKind,
+		targetName:       "d1",
+		recommendationID: "r1",
+		pods: []*workloadmeta.KubernetesPod{
+			podWithLimit("p1", "old", kubernetes.ReplicaSetKind, "rs1", 25),
+			podWithLimit("p2", "old", kubernetes.ReplicaSetKind, "rs2", 25),
 		},
-		{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      statefulSetName + "-2",
-				Namespace: autoscalerNamespace,
-				Labels: map[string]string{
-					controllerRevisionHashLabel: newRevision, // New revision - external rollout in progress!
-				},
-				Annotations: map[string]string{
-					model.RecommendationIDAnnotation: "old-rec", // Still has old recommendation
-				},
-			},
-			Owners: []workloadmeta.KubernetesPodOwner{
-				{Kind: kubernetes.StatefulSetKind, Name: statefulSetName},
-			},
+		podsPerRecommendationID: map[string]int32{"old": 2, "r1": 0},
+		podsPerDirectOwner:      map[string]int32{"rs1": 1, "rs2": 1},
+		lastAction:              lastAction(now.Add(-2*time.Minute), "old"),
+		scalingValues:           scalingVal("r1", "500m"),
+	})
+}
+
+// StatefulSet tests
+
+func TestStatefulSetSyncAllPodsUpdated(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+	f.runSync(verticalTestArgs{
+		targetKind:       kubernetes.StatefulSetKind,
+		targetName:       "s1",
+		recommendationID: "r1",
+		pods: []*workloadmeta.KubernetesPod{
+			pod("s1-0", "r1", kubernetes.StatefulSetKind, "s1"),
+			pod("s1-1", "r1", kubernetes.StatefulSetKind, "s1"),
 		},
-	}
+		podsPerRecommendationID: map[string]int32{"r1": 2},
+		expectActionCleared:     true,
+	})
+}
 
-	// All pods have the OLD recommendation ID - without controller-revision-hash check,
-	// we would think we need to trigger a rollout
-	podsPerRecomendationID := map[string]int32{
-		"old-rec":        3,
-		recommendationID: 0,
-	}
-
-	target := NamespacedPodOwner{
-		Namespace: autoscalerNamespace,
-		Kind:      kubernetes.StatefulSetKind,
-		Name:      statefulSetName,
-	}
-
-	autoscalerInternal := fakePai.Build()
-	fakeAutoscaler := &datadoghq.DatadogPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      autoscalerName,
-			Namespace: autoscalerNamespace,
+func TestStatefulSetSyncRolloutInProgress(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+	f.runSync(verticalTestArgs{
+		targetKind:       kubernetes.StatefulSetKind,
+		targetName:       "s1",
+		recommendationID: "r1",
+		pods: []*workloadmeta.KubernetesPod{
+			podWithRev("s1-0", "old", kubernetes.StatefulSetKind, "s1", "v1"),
+			podWithRev("s1-1", "r1", kubernetes.StatefulSetKind, "s1", "v2"),
 		},
-	}
+		podsPerRecommendationID: map[string]int32{"old": 1, "r1": 1},
+	})
+}
 
-	result, err := f.controller.syncStatefulSetKind(
-		context.Background(),
-		fakeAutoscaler,
-		&autoscalerInternal,
-		datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy,
-		target,
-		expectedGVK,
-		recommendationID,
-		pods,
-		podsPerRecomendationID,
-	)
+func TestStatefulSetSyncTriggerRollout(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+	f.runSync(verticalTestArgs{
+		targetKind:       kubernetes.StatefulSetKind,
+		targetName:       "s1",
+		recommendationID: "r1",
+		createTarget:     true,
+		pods: []*workloadmeta.KubernetesPod{
+			podWithRev("s1-0", "old", kubernetes.StatefulSetKind, "s1", "v1"),
+		},
+		podsPerRecommendationID: map[string]int32{"old": 1, "r1": 0},
+		expectPatch:             true,
+		expectActionSet:         true,
+	})
+}
 
-	// Should detect external rollout in progress and NOT trigger our own rollout
-	assert.NoError(t, err)
-	assert.Equal(t, autoscaling.ProcessResult{Requeue: true, RequeueAfter: rolloutCheckRequeueDelay}, result)
-	// Vertical action should NOT be set since we didn't trigger a rollout
-	assert.Nil(t, autoscalerInternal.VerticalLastAction())
+func TestStatefulSetSyncPatchError(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+	f.runSync(verticalTestArgs{
+		targetKind:       kubernetes.StatefulSetKind,
+		targetName:       "s1",
+		recommendationID: "r1",
+		pods: []*workloadmeta.KubernetesPod{
+			podWithRev("s1-0", "", kubernetes.StatefulSetKind, "s1", "v1"),
+		},
+		podsPerRecommendationID: map[string]int32{"r1": 0},
+		patchError:              true,
+		expectPatch:             true,
+		expectError:             true,
+	})
+}
+
+func TestStatefulSetSyncExternalRolloutInProgress(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+	f.runSync(verticalTestArgs{
+		targetKind:       kubernetes.StatefulSetKind,
+		targetName:       "s1",
+		recommendationID: "r1",
+		pods: []*workloadmeta.KubernetesPod{
+			podWithRev("s1-0", "old", kubernetes.StatefulSetKind, "s1", "v1"),
+			podWithRev("s1-1", "old", kubernetes.StatefulSetKind, "s1", "v1"),
+			podWithRev("s1-2", "old", kubernetes.StatefulSetKind, "s1", "v2"),
+		},
+		podsPerRecommendationID: map[string]int32{"old": 3, "r1": 0},
+	})
+}
+
+func TestStatefulSetSyncBypassOnLimitIncrease(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+	f.runSync(verticalTestArgs{
+		targetKind:       kubernetes.StatefulSetKind,
+		targetName:       "s1",
+		recommendationID: "r1",
+		createTarget:     true,
+		pods: []*workloadmeta.KubernetesPod{
+			podWithRevLimit("s1-0", "old", kubernetes.StatefulSetKind, "s1", "v1", 25),
+			podWithRevLimit("s1-1", "old", kubernetes.StatefulSetKind, "s1", "v2", 25),
+		},
+		podsPerRecommendationID: map[string]int32{"old": 2, "r1": 0},
+		scalingValues:           scalingVal("r1", "500m"),
+		expectPatch:             true,
+		expectActionSet:         true,
+	})
+}
+
+func TestStatefulSetSyncAlreadyTriggeredWaits(t *testing.T) {
+	now := time.Now()
+	f := newVerticalControllerFixture(t, now)
+	f.runSync(verticalTestArgs{
+		targetKind:       kubernetes.StatefulSetKind,
+		targetName:       "s1",
+		recommendationID: "r1",
+		pods: []*workloadmeta.KubernetesPod{
+			podWithRev("s1-0", "old", kubernetes.StatefulSetKind, "s1", "v1"),
+			podWithRev("s1-1", "r1", kubernetes.StatefulSetKind, "s1", "v2"),
+		},
+		podsPerRecommendationID: map[string]int32{"old": 1, "r1": 1},
+		lastAction:              lastAction(now.Add(-time.Minute), "r1"),
+	})
+}
+
+func TestStatefulSetSyncBypassRateLimited(t *testing.T) {
+	now := time.Now()
+	f := newVerticalControllerFixture(t, now)
+	f.runSync(verticalTestArgs{
+		targetKind:       kubernetes.StatefulSetKind,
+		targetName:       "s1",
+		recommendationID: "r1",
+		pods: []*workloadmeta.KubernetesPod{
+			podWithRevLimit("s1-0", "old", kubernetes.StatefulSetKind, "s1", "v1", 25),
+			podWithRevLimit("s1-1", "old", kubernetes.StatefulSetKind, "s1", "v2", 25),
+		},
+		podsPerRecommendationID: map[string]int32{"old": 2, "r1": 0},
+		lastAction:              lastAction(now.Add(-2*time.Minute), "old"),
+		scalingValues:           scalingVal("r1", "500m"),
+	})
+}
+
+// Argo Rollout tests
+// Single test because it's re-using the same logic as the Deployment test.
+func TestRolloutSyncTriggerRollout(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+	f.runSync(verticalTestArgs{
+		targetKind:       kubernetes.RolloutKind,
+		targetName:       "rollout1",
+		recommendationID: "r1",
+		createTarget:     true,
+		pods: []*workloadmeta.KubernetesPod{
+			pod("p1", "old", kubernetes.ReplicaSetKind, "rs1"),
+			pod("p2", "old", kubernetes.ReplicaSetKind, "rs1"),
+		},
+		podsPerRecommendationID: map[string]int32{"old": 2, "r1": 0},
+		podsPerDirectOwner:      map[string]int32{"rs1": 2},
+		expectPatch:             true,
+		expectActionSet:         true,
+	})
 }

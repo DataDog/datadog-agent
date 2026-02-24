@@ -42,7 +42,8 @@ type remoteAgentClient struct {
 	remoteagentregistry.RegisteredAgent
 
 	// health tracking
-	unhealthy bool // marks agent for removal during next cleanup cycle
+	unhealthy       bool  // marks agent for removal during next cleanup cycle
+	unhealthyReason error // stores the reason the agent was marked unhealthy (for logging)
 
 	// gRPC relative
 	pb.FlareProviderClient
@@ -89,7 +90,7 @@ func (rac *remoteAgentClient) close() error {
 	return rac.conn.Close()
 }
 
-// validateSessionID extracts and validates the session_id from gRPC response metadata
+// validateSessionID extracts and validates the session_id from gRPC response metadata.
 func (rac *remoteAgentClient) validateSessionID(responseMetadata metadata.MD) error {
 	sessionIDs := responseMetadata.Get("session_id")
 	if len(sessionIDs) == 0 {
@@ -188,6 +189,7 @@ func callAgentsForService[PbType any, StructuredType any](
 
 					// Mark agent as unhealthy for removal during next cleanup cycle
 					remoteAgent.unhealthy = true
+					remoteAgent.unhealthyReason = validationErr
 				}
 			}
 

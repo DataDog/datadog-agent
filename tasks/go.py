@@ -334,7 +334,7 @@ def version(_):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.25.6 linux/amd64"
+    # result is like "go version go1.25.7 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:
@@ -363,7 +363,9 @@ def go_fix(ctx, fix=None):
 def get_deps(ctx, path):
     with ctx.cd(path):
         # Might fail if no mod tidy
-        deps: list[str] = ctx.run("go list -deps ./...", hide=True, warn=True).stdout.strip().splitlines()
+        deps: list[str] = (
+            ctx.run("go list -buildvcs=false -deps ./...", hide=True, warn=True).stdout.strip().splitlines()
+        )
         prefix = 'github.com/DataDog/datadog-agent/'
         deps = [
             dep.removeprefix(prefix)

@@ -73,7 +73,7 @@ const (
 	megaByte = 1024 * 1024
 
 	// DefaultBatchWait is the default HTTP batch wait in second for logs
-	DefaultBatchWait = 5
+	DefaultBatchWait = 5.0
 
 	// DefaultBatchMaxConcurrentSend is the default HTTP batch max concurrent send for logs
 	DefaultBatchMaxConcurrentSend = 0
@@ -188,11 +188,6 @@ var (
 	// StartTime is the agent startup time
 	StartTime = time.Now()
 )
-
-// GetDefaultSecurityProfilesDir is the default directory used to store Security Profiles by the runtime security module
-func GetDefaultSecurityProfilesDir() string {
-	return filepath.Join(defaultRunPath, "runtime-security", "profiles")
-}
 
 // List of integrations allowed to be configured by RC by default
 var defaultAllowedRCIntegrations = []string{}
@@ -309,8 +304,9 @@ func InitConfigObjects(cliPath string, defaultDir string) {
 	// We first load the configuration to see which config library should be used.
 	configLib := resolveConfigLibType(cliPath, defaultDir)
 
-	datadog = create.NewConfig("datadog", configLib)
-	systemProbe = create.NewConfig("system-probe", configLib)
+	// Assign the config globals, using locks to make the tests happy
+	SetDatadog(create.NewConfig("datadog", configLib))          // nolint: forbidigo // legitimate use of SetDatadog
+	SetSystemProbe(create.NewConfig("system-probe", configLib)) // nolint: forbidigo // legitimate use of SetDatadog
 
 	// Configuration defaults
 	initConfig()
@@ -423,8 +419,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("secret_backend_config", map[string]interface{}{})
 	config.BindEnvAndSetDefault("secret_backend_command", "")
 	config.BindEnvAndSetDefault("secret_backend_arguments", []string{})
-	config.BindEnvAndSetDefault("secret_backend_output_max_size", 0)
-	config.BindEnvAndSetDefault("secret_backend_timeout", 0)
+	config.BindEnvAndSetDefault("secret_backend_output_max_size", 1024*1024)
+	config.BindEnvAndSetDefault("secret_backend_timeout", 30)
 	config.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
 	config.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 	config.BindEnvAndSetDefault("secret_backend_remove_trailing_line_break", false)
@@ -434,7 +430,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("secret_scope_integration_to_their_k8s_namespace", false)
 	config.BindEnvAndSetDefault("secret_allowed_k8s_namespace", []string{})
 	config.BindEnvAndSetDefault("secret_image_to_handle", map[string][]string{})
-	config.SetDefault("secret_audit_file_max_size", 0)
+	config.BindEnvAndSetDefault("secret_audit_file_max_size", 1024*1024)
 
 	// IPC API server timeout
 	config.BindEnvAndSetDefault("server_timeout", 30)
@@ -536,6 +532,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.timeout", 5)
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.retries", 3)
 
+	config.BindEnvAndSetDefault("network_devices.default_scan.enabled", false)
+
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.enabled", false)
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.port", 9162)
@@ -552,7 +550,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.SetKnown("network_devices.netflow.aggregator_flow_context_ttl")                //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.SetKnown("network_devices.netflow.aggregator_port_rollup_threshold")           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.SetKnown("network_devices.netflow.aggregator_rollup_tracker_refresh_interval") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnvAndSetDefault("network_devices.netflow.enabled", "false")
+	config.BindEnvAndSetDefault("network_devices.netflow.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.netflow.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.netflow.reverse_dns_enrichment_enabled", false)
 
@@ -643,7 +641,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// language annotation cleanup period
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.period", "10m")
 
-	// AppSec Injector in the cluster agent ( Experimental )
+	// AppSec Injector in the cluster agent ( Preview )
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.enabled", false)
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.base_backoff", "5m")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.max_backoff", "1h")
@@ -652,6 +650,23 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.name", "")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.namespace", "")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.istio.namespace", "istio-system")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.mode", "sidecar")
+
+	// APM tracing for the cluster agent itself (currently covers cluster check dispatching)
+	config.BindEnvAndSetDefault("cluster_agent.tracing.enabled", false)
+	config.BindEnvAndSetDefault("cluster_agent.tracing.env", "")
+	config.BindEnvAndSetDefault("cluster_agent.tracing.sample_rate", 0.1)
+
+	// Processor mode and sidecar configuration
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.image", "ghcr.io/datadog/dd-trace-go/service-extensions-callout")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.image_tag", "latest")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.port", 8080)
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.health_port", 8081)
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.resources.requests.cpu", "10m")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.resources.requests.memory", "128Mi")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.resources.limits.cpu", "")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.resources.limits.memory", "")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.body_parsing_size_limit", "")
 
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.enabled", false)
 	// list of kubernetes resources for which we collect metadata
@@ -948,6 +963,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 		"docker.io/datadog",
 		"public.ecr.aws/datadog",
 	})
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.gradual_rollout.enabled", true)
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.gradual_rollout.cache_ttl", "1h")
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false)                                // to be enabled only in e2e tests
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.file_provider_path", "/etc/datadog-agent/patch/auto-instru.json") // to be used only in e2e tests
@@ -995,7 +1012,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.
 	config.SetDefault("metadata_providers", []map[string]interface{}{})
 	config.SetDefault("config_providers", []map[string]interface{}{})
-	config.SetDefault("cluster_name", "")
 	config.SetDefault("listeners", []map[string]interface{}{})
 
 	config.BindEnv("provider_kind") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
@@ -1019,8 +1035,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_resources.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods.enabled", true)
+	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods_improved.enabled", false)
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.ootb.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.kubelet_config_check.enabled", true, "DD_ORCHESTRATOR_EXPLORER_KUBELET_CONFIG_CHECK_ENABLED")
+	config.BindEnvAndSetDefault("auto_team_tag_collection", true)
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
@@ -1145,6 +1163,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
+	config.BindEnvAndSetDefault("compliance_config.run_in_system_probe", false)
 	config.BindEnvAndSetDefault("compliance_config.xccdf.enabled", false) // deprecated, use host_benchmarks instead
 	config.BindEnvAndSetDefault("compliance_config.host_benchmarks.enabled", true)
 	config.BindEnvAndSetDefault("compliance_config.database_benchmarks.enabled", false)
@@ -1237,6 +1256,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	setupProcesses(config)
 
+	// Private Action Runner configuration
+	setupPrivateActionRunner(config)
+
 	// Installer configuration
 	config.BindEnvAndSetDefault("remote_updates", true)
 	config.BindEnvAndSetDefault("installer.mirror", "")
@@ -1281,6 +1303,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Data Plane
 	config.BindEnvAndSetDefault("data_plane.enabled", false)
 	config.BindEnvAndSetDefault("data_plane.dogstatsd.enabled", false)
+	config.BindEnvAndSetDefault("data_plane.otlp.enabled", false)
+	config.BindEnvAndSetDefault("data_plane.otlp.proxy.enabled", false)
+	// When the ADP OTLP proxy is enabled, ADP owns the gRPC endpoint configured for the receiver (default :4317) and the core agent uses the endpoint below
+	config.BindEnvAndSetDefault("data_plane.otlp.proxy.receiver.protocols.grpc.endpoint", "127.0.0.1:4319")
 
 	// Agent Workload Filtering config
 	config.BindEnvAndSetDefault("cel_workload_exclude", []interface{}{})
@@ -1297,7 +1323,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
 	config.BindEnvAndSetDefault("metric_filterlist_match_prefix", false)
 	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
-	config.BindEnvAndSetDefault("metric_tag_filterlist", map[string]interface{}{})
+	config.BindEnvAndSetDefault("metric_tag_filterlist", []interface{}{})
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1325,7 +1351,7 @@ func agent(config pkgconfigmodel.Setup) {
 	// If enabled, all origin detection mechanisms will be unified to use the same logic.
 	// Will override all other origin detection settings in favor of the unified one.
 	config.BindEnvAndSetDefault("origin_detection_unified", false)
-	config.BindEnv("env") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("env", "")
 	config.BindEnvAndSetDefault("tag_value_split_separator", map[string]string{})
 	config.BindEnvAndSetDefault("conf_path", ".")
 	config.BindEnvAndSetDefault("confd_path", defaultConfdPath)
@@ -1341,7 +1367,6 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("log_to_console", true)
 	config.BindEnvAndSetDefault("log_format_rfc3339", false)
 	config.BindEnvAndSetDefault("log_all_goroutines_when_unhealthy", false)
-	config.BindEnvAndSetDefault("log_use_slog", true)
 	config.BindEnvAndSetDefault("logging_frequency", int64(500))
 	config.BindEnvAndSetDefault("disable_file_logging", false)
 	config.BindEnvAndSetDefault("syslog_uri", "")
@@ -1400,7 +1425,7 @@ func agent(config pkgconfigmodel.Setup) {
 
 	// Infrastructure mode
 	// The infrastructure mode is used to determine the features that are available to the agent.
-	// The possible values are: full, basic, end_user_device.
+	// The possible values are: full, basic, end_user_device, none.
 	config.BindEnvAndSetDefault("infrastructure_mode", "full")
 
 	// Infrastructure full mode section (default mode, allows all checks)
@@ -1629,7 +1654,7 @@ func debugging(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("tracemalloc_whitelist", "") // deprecated
 	config.BindEnvAndSetDefault("tracemalloc_blacklist", "") // deprecated
 	config.BindEnvAndSetDefault("run_path", defaultRunPath)
-	config.BindEnv("no_proxy_nonexact_match") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("no_proxy_nonexact_match", false)
 }
 
 func telemetry(config pkgconfigmodel.Setup) {
@@ -1731,8 +1756,8 @@ func forwarder(config pkgconfigmodel.Setup) {
 	// Forwarder
 	config.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
 	config.BindEnvAndSetDefault("forwarder_timeout", 20)
-	config.BindEnv("forwarder_retry_queue_max_size")                                                     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // Deprecated in favor of `forwarder_retry_queue_payloads_max_size`
-	config.BindEnv("forwarder_retry_queue_payloads_max_size")                                            //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // Default value is defined inside `NewOptions` in pkg/forwarder/forwarder.go
+	config.BindEnvAndSetDefault("forwarder_retry_queue_max_size", 0) // Deprecated in favor of `forwarder_retry_queue_payloads_max_size`
+	config.BindEnvAndSetDefault("forwarder_retry_queue_payloads_max_size", 15*1024*1024)
 	config.BindEnvAndSetDefault("forwarder_connection_reset_interval", 0)                                // in seconds, 0 means disabled
 	config.BindEnvAndSetDefault("forwarder_apikey_validation_interval", DefaultAPIKeyValidationInterval) // in minutes
 	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
@@ -1795,6 +1820,7 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
 	config.BindEnvAndSetDefault("dogstatsd_socket", defaultStatsdSocket) // Only enabled on unix systems
 	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "")           // Experimental || Notice: empty means feature disabled
+	config.BindEnvAndSetDefault("dogstatsd_stream_log_too_big", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_count", 1)
 	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
@@ -2061,15 +2087,15 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// more disk I/O at the wildcard log paths
 	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "by_name")
 
+	// Opt-in recursive glob for file log paths (supports **). Default false to preserve current behavior.
+	config.BindEnvAndSetDefault("logs_config.enable_recursive_glob", false)
+
 	// Max size in MB an integration logs file can use
-	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 10)
+	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 100)
 	// Max disk usage in MB all integrations logs files are allowed to use in total
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_total_usage", 100)
 	// Do not store logs on disk when the disk usage exceeds 80% of the disk capacity.
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_disk_ratio", 0.80)
-
-	// Max size in MB to allow for integrations logs files
-	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 100)
 
 	// Control how the stream-logs log file is managed
 	config.BindEnvAndSetDefault("logs_config.streaming.streamlogs_log_file", DefaultStreamlogsLogFile)
@@ -2079,6 +2105,10 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// If true, exclude agent processes from process log collection
 	config.BindEnvAndSetDefault("logs_config.process_exclude_agent", false)
+
+	// Pipeline failover configuration
+	config.BindEnvAndSetDefault("logs_config.pipeline_failover.enabled", false)
+	config.BindEnvAndSetDefault("logs_config.pipeline_failover.router_channel_size", 5)
 }
 
 // vector integration
@@ -2847,10 +2877,15 @@ func envVarAreSetAndNotEqual(lhsName string, rhsName string) bool {
 
 // sanitizeAPIKeyConfig strips newlines and other control characters from a given key.
 func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
-	if !config.IsKnown(key) || !config.IsSet(key) {
+	if !config.IsKnown(key) || !config.IsConfigured(key) {
 		return
 	}
-	config.Set(key, strings.TrimSpace(config.GetString(key)), config.GetSource(key))
+	original := config.GetString(key)
+	trimmed := strings.TrimSpace(original)
+	if original == trimmed {
+		return
+	}
+	config.Set(key, trimmed, pkgconfigmodel.SourceAgentRuntime)
 }
 
 // sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range
@@ -3116,6 +3151,9 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 		config.Set("process_config.process_collection.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("software_inventory.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("notable_events.enabled", true, pkgconfigmodel.SourceInfraMode)
+	} else if infraMode == "none" {
+		// Disable integrations (no host metrics collection)
+		config.Set("integration.enabled", false, pkgconfigmodel.SourceInfraMode)
 	}
 }
 

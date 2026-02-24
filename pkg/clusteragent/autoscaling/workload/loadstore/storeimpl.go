@@ -55,11 +55,19 @@ type podList struct {
 	metricName   string
 }
 
+// targetKey is used for fast lookup of targets
+type targetKey struct {
+	namespace string
+	kind      PodOwnerType
+	name      string
+}
+
 // EntityStore manages mappings between entities and their hashed keys.
 type EntityStore struct {
 	key2ValuesMap map[uint64]*dataItem     // Maps hash(entity) to a dataitem (entity and its values)
 	keyAttrTable  map[compositeKey]podList // map Hash<namespace, deployment, metricName> -> pod name ->  dataPerPod
 	lock          sync.RWMutex             // Protects access to store and entityMap
+	targets       map[targetKey]struct{}   // Set of targets to filter on (empty = accept all)
 }
 
 // NewEntityStore creates a new EntityStore.
@@ -68,6 +76,7 @@ func NewEntityStore(ctx context.Context) *EntityStore {
 		key2ValuesMap: make(map[uint64]*dataItem),
 		keyAttrTable:  make(map[compositeKey]podList),
 		lock:          sync.RWMutex{},
+		targets:       make(map[targetKey]struct{}),
 	}
 	store.startCleanupInBackground(ctx)
 	return &store
@@ -80,6 +89,10 @@ func (es *EntityStore) SetEntitiesValues(entities map[*Entity]*EntityValue) {
 	for entity, value := range entities {
 		if entity.EntityName == "" || entity.MetricName == "" || entity.Namespace == "" || entity.PodOwnerName == "" {
 			log.Tracef("Skipping entity with empty entityName, podOwnerName, namespace or metricName: %v", entity)
+			continue
+		}
+		// Filter based on registered targets
+		if !es.matchesTargetLocked(entity) {
 			continue
 		}
 		entityHash := hashEntityToUInt64(entity)
@@ -232,6 +245,49 @@ func (es *EntityStore) startCleanupInBackground(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+// SetTargets sets the list of targets to filter on.
+// Only entities matching one of the targets will be stored.
+// If targets is empty, all entities are accepted (backward compatible - no filtering).
+func (es *EntityStore) SetTargets(targets []Target) {
+	es.lock.Lock()
+	defer es.lock.Unlock()
+
+	// Clear existing targets and rebuild
+	es.targets = make(map[targetKey]struct{}, len(targets))
+	for _, t := range targets {
+		if t.Namespace == "" || t.Kind == "" || t.Name == "" {
+			continue // Skip malformed targets
+		}
+		kind := podOwnerTypeFromString(t.Kind)
+		if kind == Unsupported {
+			continue // Skip unsupported kinds
+		}
+		key := targetKey{
+			namespace: t.Namespace,
+			kind:      kind,
+			name:      t.Name,
+		}
+		es.targets[key] = struct{}{}
+	}
+	log.Debugf("Updated loadstore targets: %d targets registered", len(es.targets))
+}
+
+// matchesTargetLocked checks if an entity matches any registered target.
+// Returns true if no targets are registered (backward compatible - accept all entities).
+// NOTE: Caller must hold es.lock.
+func (es *EntityStore) matchesTargetLocked(entity *Entity) bool {
+	if len(es.targets) == 0 {
+		return true // No targets = accept all (backward compatible)
+	}
+	key := targetKey{
+		namespace: entity.Namespace,
+		kind:      entity.PodOwnerkind,
+		name:      entity.PodOwnerName,
+	}
+	_, ok := es.targets[key]
+	return ok
 }
 
 // GetStoreInfo returns the store information, aggregated by namespace, podOwner, and metric name

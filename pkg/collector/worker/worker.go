@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
@@ -137,8 +138,10 @@ func newWorkerWithOptions(
 	}, nil
 }
 
-// Run waits for checks and run them as long as they arrive on the channel
-func (w *Worker) Run() {
+// Run waits for checks and run them as long as they arrive on the channel.
+// The provided ctx is used for cancellable operations such as hostname resolution;
+// it should be cancelled when the agent shuts down.
+func (w *Worker) Run(ctx context.Context) {
 	log.Debugf("Runner %d, worker %d: Ready to process checks...", w.runnerID, w.ID)
 
 	alpha := 0.25 // converges to 99.98% of constant input in 30 iterations.
@@ -164,11 +167,19 @@ func (w *Worker) Run() {
 			continue
 		}
 
-		var watchdogTimer *time.Timer
+		var watchdogCancel chan struct{}
+		var watchdogWG sync.WaitGroup
 		if w.watchdogWarningTimeout > 0 {
-			watchdogTimer = time.AfterFunc(w.watchdogWarningTimeout, func() {
-				log.Warnf("Check %s is running for longer than the watchdog warning timeout of %s", check.ID(), w.watchdogWarningTimeout)
-			})
+			watchdogCancel = make(chan struct{})
+			watchdogWG.Add(1)
+			go func() {
+				defer watchdogWG.Done()
+				select {
+				case <-time.After(w.watchdogWarningTimeout):
+					log.Warnf("Check %s is running for longer than the watchdog warning timeout of %s", check.ID(), w.watchdogWarningTimeout)
+				case <-watchdogCancel:
+				}
+			}()
 		}
 
 		checkStartTime := time.Now()
@@ -197,7 +208,7 @@ func (w *Worker) Run() {
 		serviceCheckTags := []string{"check:" + check.String(), "dd_enable_check_intake:true"}
 		serviceCheckStatus := servicecheck.ServiceCheckOK
 
-		hname, _ := hostname.Get(context.TODO())
+		hname, _ := hostname.Get(ctx)
 
 		if len(checkWarnings) != 0 {
 			expvars.AddWarningsCount(len(checkWarnings))
@@ -238,8 +249,9 @@ func (w *Worker) Run() {
 
 		checkLogger.CheckFinished()
 
-		if watchdogTimer != nil {
-			watchdogTimer.Stop()
+		if watchdogCancel != nil {
+			close(watchdogCancel)
+			watchdogWG.Wait()
 		}
 	}
 

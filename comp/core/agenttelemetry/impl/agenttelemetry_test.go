@@ -479,8 +479,8 @@ func TestRun(t *testing.T) {
 		totalProfiles += len(job.profiles)
 	}
 	fmt.Println(totalProfiles)
-	// Default config has 13 profiles total (checks, logs-and-metrics, database, api, ondemand, service-discovery, runtime-started, runtime-running, hostname, otlp, trace-agent, gpu, cluster-agent)
-	assert.Equal(t, 13, totalProfiles)
+	// Default config has 15 profiles total (checks, logs-and-metrics, database, synthetics, connectivity, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, trace-agent, gpu, cluster-agent, injector)
+	assert.Equal(t, 15, totalProfiles)
 }
 
 func TestReportMetricBasic(t *testing.T) {

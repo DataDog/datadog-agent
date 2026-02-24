@@ -10,8 +10,6 @@ internal_kubernetes_deploy_experimental:
   needs:
     - job: publish_internal_container_image-jmx
       artifacts: false
-    - job: publish_internal_container_image-full
-      artifacts: false
     - job: publish_internal_container_image-ot_standalone
       artifacts: false
     - job: publish_internal_container_image-fips

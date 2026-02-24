@@ -3,8 +3,10 @@ static_quality_gates:
   rules:
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a special artifact that will not pass the quality gate
     - !reference [.on_main_or_release_branch]
-    - !reference [.on_dev_branches]
-    - when: on_success
+    - !reference [.on_mergequeue]
+    - !reference [.on_dev_branches_with_artifact_changes]
+    - when: manual
+      allow_failure: true
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64", "specific:true"]
   needs:
@@ -44,6 +46,8 @@ static_quality_gates:
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
     - export DD_API_KEY="$DATADOG_API_KEY"
+    # DD_APP_KEY is required for querying metrics (e.g., fetching ancestor metrics for relative size calculation)
+    - DD_APP_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_APP_KEY_ORG2" token)" || exit $?; export DD_APP_KEY
     - !reference [ .setup_agent_github_app ]
     - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
     - dda inv -- quality-gates.parse-and-trigger-gates || exit $?
@@ -73,7 +77,7 @@ manual_gate_threshold_update:
   rules:
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a special artifact that will not pass the quality gate
     - !reference [.on_main_manual]
-    - !reference [.on_dev_branches]
+    - !reference [.on_dev_branches_with_artifact_changes_manual]
     - when: manual
       allow_failure: true
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64

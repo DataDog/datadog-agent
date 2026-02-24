@@ -14,7 +14,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/mdlayher/vsock"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
@@ -134,12 +134,11 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = 500 * time.Millisecond
 	expBackoff.MaxInterval = 5 * time.Minute
-	expBackoff.MaxElapsedTime = maxElapsed
 
-	return backoff.Retry(func() error {
+	_, err := backoff.Retry(c.ctx, func() (any, error) {
 		select {
 		case <-c.ctx.Done():
-			return &backoff.PermanentError{Err: errWorkloadmetaStreamNotStarted}
+			return nil, &backoff.PermanentError{Err: errWorkloadmetaStreamNotStarted}
 		default:
 		}
 
@@ -159,12 +158,13 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 		c.stream, err = c.client.StreamEntities(c.streamCtx)
 		if err != nil {
 			log.Infof("unable to establish stream, will possibly retry: %s", err)
-			return err
+			return nil, err
 		}
 
 		log.Info("workloadmeta stream established successfully")
-		return nil
-	}, expBackoff)
+		return nil, nil
+	}, backoff.WithBackOff(expBackoff), backoff.WithMaxElapsedTime(maxElapsed))
+	return err
 }
 
 // Run will run the generic collector streaming loop

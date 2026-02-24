@@ -1,6 +1,6 @@
 # snmp-traps
 
-http_file = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_file")
+http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
 
 VERSION = "0.4.0"
 

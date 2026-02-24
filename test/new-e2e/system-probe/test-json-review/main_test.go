@@ -64,6 +64,18 @@ const flakyFailWithParentFail = `{"Time":"2024-06-14T22:24:52.156240262Z","Actio
 {"Time":"2024-06-14T22:26:03.039003529Z","Action":"fail","Package":"a/b/c","Test":"testparent","Elapsed":28.25}
 {"Time":"2024-06-14T22:26:02.039003529Z","Action":"fail","Package":"a/b/c","Elapsed":26.25}
 `
+
+const deepFlakyFailWithMultipleParentFail = `{"Time":"2024-06-14T22:24:52.156240242Z","Action":"run","Package":"a/b/c","Test":"testparent"}
+{"Time":"2024-06-14T22:24:53.156240252Z","Action":"run","Package":"a/b/c","Test":"testparent/testparent2"}
+{"Time":"2024-06-14T22:24:53.156240262Z","Action":"run","Package":"a/b/c","Test":"testparent/testparent2/testname"}
+{"Time":"2024-06-14T22:24:53.156263319Z","Action":"output","Package":"a/b/c","Test":"testparent/testparent2/testname","Output":"=== RUN   testparent/testparent2/testname\n"}
+{"Time":"2024-06-14T22:24:53.156271614Z","Action":"output","Package":"a/b/c","Test":"testparent/testparent2/testname","Output":"    file_test.go:10: flakytest: this is a known flaky test\n"}
+{"Time":"2024-06-14T22:26:02.039003529Z","Action":"fail","Package":"a/b/c","Test":"testparent/testparent2/testname","Elapsed":26.25}
+{"Time":"2024-06-14T22:26:02.039003529Z","Action":"fail","Package":"a/b/c","Test":"testparent/testparent2","Elapsed":26.25}
+{"Time":"2024-06-14T22:26:03.039003529Z","Action":"fail","Package":"a/b/c","Test":"testparent","Elapsed":28.25}
+{"Time":"2024-06-14T22:26:02.039003529Z","Action":"fail","Package":"a/b/c","Elapsed":26.25}
+`
+
 const parentWithFlakyAndNormalFail = `{"Time":"2024-06-14T22:24:52.156240262Z","Action":"run","Package":"a/b/c","Test":"testparent"}
 {"Time":"2024-06-14T22:24:53.156240262Z","Action":"run","Package":"a/b/c","Test":"testparent/testname"}
 {"Time":"2024-06-14T22:24:53.156263319Z","Action":"output","Package":"a/b/c","Test":"testparent/testname","Output":"=== RUN   testparent/testname\n"}
@@ -150,5 +162,18 @@ func TestPackageRunFail(t *testing.T) {
 
 	assert.Equal(t, failStr, out.Failed)
 	assert.Empty(t, out.Flaky)
+	assert.Empty(t, out.ReRuns)
+}
+
+func TestDeepFlakes(t *testing.T) {
+	out, err := reviewTestsReaders(bytes.NewBuffer([]byte(deepFlakyFailWithMultipleParentFail)), nil, nil)
+	require.NoError(t, err)
+
+	flakyParent := fmt.Sprintf(flakyFormatTest, "a/b/c", "testparent")
+	flakyParent2 := fmt.Sprintf(flakyFormatTest, "a/b/c", "testparent/testparent2")
+	flakyChild := fmt.Sprintf(flakyFormatTest, "a/b/c", "testparent/testparent2/testname")
+
+	assert.Empty(t, out.Failed)
+	assert.Equal(t, flakyParent+flakyParent2+flakyChild, out.Flaky)
 	assert.Empty(t, out.ReRuns)
 }

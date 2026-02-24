@@ -11,6 +11,7 @@ import (
 	"sort"
 	"testing"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -61,7 +62,7 @@ func TestProcessService(t *testing.T) {
 
 	ports, err := svc.GetPorts()
 	assert.NoError(t, err)
-	assert.Equal(t, []ContainerPort{{123, "test1"}, {126, "test2"}}, ports)
+	assert.Equal(t, []workloadmeta.ContainerPort{{Port: 123, Name: "test1"}, {Port: 126, Name: "test2"}}, ports)
 
 	tags, err := svc.GetTags()
 	assert.NoError(t, err)

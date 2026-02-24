@@ -8,8 +8,10 @@
 package ebpf
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -17,11 +19,14 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestPatchPrintkNewline(t *testing.T) {
@@ -131,6 +136,122 @@ func TestPatchPrintkNewline(t *testing.T) {
 	}
 }
 
+func TestPatchPrintkManualAssembly(t *testing.T) {
+	type testCase struct {
+		name                string
+		instructions        asm.Instructions
+		expectedImms        map[int]int64
+		expectedJumpSources map[int][]int
+		patches             int
+	}
+
+	testCases := []testCase{
+		{
+			name: "base-case",
+			instructions: asm.Instructions{
+				asm.LoadImm(asm.R3, 0x00000000000a6261, asm.DWord),
+				asm.StoreMem(asm.RFP, -16, asm.R3, asm.DWord),
+				asm.Mov.Reg(asm.R1, asm.RFP),
+				asm.Add.Imm(asm.R1, -16),
+				asm.Mov.Imm(asm.R2, 4),
+				asm.FnTracePrintk.Call(),
+				asm.Return(),
+			},
+			expectedImms: map[int]int64{
+				0: int64(0x0000000000006261),
+				4: 3,
+			},
+			expectedJumpSources: map[int][]int{},
+			patches:             1,
+		},
+		{
+			name: "branch-to-shared-call",
+			instructions: asm.Instructions{
+				asm.Mov.Imm(asm.R3, 0x00000000000a333231),                    // off 0
+				asm.StoreMem(asm.RFP, -32, asm.R3, asm.DWord),                // off 1
+				asm.Mov.Reg(asm.R1, asm.RFP),                                 // off 2
+				asm.Add.Imm(asm.R1, -32),                                     // off 3
+				asm.Mov.Imm(asm.R2, 5),                                       // off 4
+				asm.Instruction{OpCode: asm.Ja.Op(asm.ImmSource), Offset: 5}, // off 5 -> 11
+				asm.Mov.Imm(asm.R4, 0x00000000000a6261),                      // off 6
+				asm.StoreMem(asm.RFP, -16, asm.R4, asm.DWord),                // off 7
+				asm.Mov.Reg(asm.R1, asm.RFP),                                 // off 8
+				asm.Add.Imm(asm.R1, -16),                                     // off 9
+				asm.Mov.Imm(asm.R2, 4),                                       // off 10
+				asm.FnTracePrintk.Call(),                                     // off 11
+				asm.Return(),                                                 // off 12
+			},
+			expectedImms: map[int]int64{
+				0:  int64(0x000000000000333231),
+				4:  4,
+				6:  int64(0x0000000000006261),
+				10: 3,
+			},
+			expectedJumpSources: map[int][]int{
+				11: {5},
+			},
+			patches: 2,
+		},
+		{
+			name: "jump-over-double-wide",
+			instructions: asm.Instructions{
+				asm.LoadImm(asm.R3, 0x00000000000a333231, asm.DWord),         // off 0-1 (double-wide)
+				asm.StoreMem(asm.RFP, -32, asm.R3, asm.DWord),                // off 2
+				asm.Mov.Reg(asm.R1, asm.RFP),                                 // off 3
+				asm.Add.Imm(asm.R1, -32),                                     // off 4
+				asm.Mov.Imm(asm.R2, 5),                                       // off 5
+				asm.Instruction{OpCode: asm.Ja.Op(asm.ImmSource), Offset: 9}, // off 6 -> 15, indexes 5 -> 13
+				asm.LoadImm(asm.R7, 0x1122334455667788, asm.DWord),           // off 7-8 (double-wide filler)
+				asm.Mov.Imm(asm.R0, 0),                                       // off 9
+				asm.LoadImm(asm.R4, 0x00000000000a6261, asm.DWord),           // off 10-11 (double-wide)
+				asm.StoreMem(asm.RFP, -16, asm.R4, asm.DWord),                // off 12
+				asm.Mov.Reg(asm.R1, asm.RFP),                                 // off 13
+				asm.Add.Imm(asm.R1, -16),                                     // off 14
+				asm.Mov.Imm(asm.R2, 4),                                       // off 15
+				asm.FnTracePrintk.Call(),                                     // off 16
+				asm.Return(),                                                 // off 17
+			},
+			expectedImms: map[int]int64{
+				0:  int64(0x000000000000333231),
+				4:  4,
+				8:  int64(0x0000000000006261),
+				12: 3,
+			},
+			expectedJumpSources: map[int][]int{
+				13: {5}, // the jump map is populated with the index of the instruction, not the offset, so doesn't take into account the double-wide instruction
+			},
+			patches: 2,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			program := &ebpf.ProgramSpec{
+				Name:         tc.name,
+				Type:         ebpf.Kprobe,
+				Instructions: tc.instructions,
+				License:      "GPL",
+			}
+
+			patcher := newPrintkPatcher(program)
+			patches, err := patcher.patch()
+
+			log.Flush() // Ensure we flush logs before assertions to avoid messing the output
+			require.NoError(t, err)
+			assert.Equal(t, tc.patches, patches, "number of patches does not match expected ones")
+
+			assert.ElementsMatch(t, slices.Collect(maps.Keys(tc.expectedJumpSources)), slices.Collect(maps.Keys(patcher.jumpSources)), "jump sources keys do not match expected ones")
+			for target, sources := range tc.expectedJumpSources {
+				assert.ElementsMatch(t, sources, patcher.jumpSources[target], "detected jump sources for target %d do not match expected ones", target)
+			}
+
+			for idx, expected := range tc.expectedImms {
+				require.Equal(t, expected, tc.instructions[idx].Constant, "immediate for instruction %d does not match expected one", idx)
+			}
+		})
+	}
+}
+
 func TestPatchPrintkAllAssets(t *testing.T) {
 	cfg := NewConfig()
 	require.NotNil(t, cfg)
@@ -151,12 +272,14 @@ func TestPatchPrintkAllAssets(t *testing.T) {
 		}
 
 		t.Run(progname, func(t *testing.T) {
+			log.Tracef("Testing program %s, path: %s", progname, path)
 			spec, err := ebpf.LoadCollectionSpec(path)
 			require.NoError(t, err)
 
 			for _, prog := range spec.Programs {
 				t.Run(prog.Name, func(t *testing.T) {
-					patches, err := patchPrintkInstructions(prog)
+					patcher := newPrintkPatcher(prog)
+					patches, err := patcher.patch()
 					require.NoError(t, err)
 					totalPatches += patches
 				})

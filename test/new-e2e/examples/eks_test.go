@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	scenarioeks "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -37,6 +38,9 @@ func TestMyEKSSuite(t *testing.T) {
 					scenarioeks.WithWindowsNodeGroup(),
 					scenarioeks.WithBottlerocketNodeGroup(),
 					scenarioeks.WithLinuxARMNodeGroup(),
+				),
+				scenarioeks.WithAgentOptions(
+					kubernetesagentparams.WithWindowsImage(),
 				),
 			),
 		)))

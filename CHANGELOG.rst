@@ -2,6 +2,367 @@
 Release Notes
 =============
 
+.. _Release Notes_7.76.0:
+
+7.76.0
+======
+
+.. _Release Notes_7.76.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-02-23
+
+- Please refer to the `7.76.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7760>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.76.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- DDOT now submits Fleet Automation metadata through the upstream datadogextension, which is enabled by default. As a result, your DDOT configuration will now appear under the OTel Collector tab.
+  If you configured ``otelcollector.converter.features``, you may need to add the ``datadog`` feature to enable Fleet Automation, as DDOT Fleet Automation metadata is no longer submitted through the ``ddflareextension``.
+
+
+.. _Release Notes_7.76.0_New Features:
+
+New Features
+------------
+
+- Allow users to filter agent check instances using a new --instance-filter parameter, which filters by the instance hash found in the agent status.
+
+- Add ``privateactionrunner`` binary in Agent artifacts to allow running actions using the Agent,
+  and enable running it on Linux. The binary is disabled by default. To enable it, set
+  ``privateactionrunner.enabled: true`` in your configuration file.
+
+- Integration check failures are now automatically reported to the Agent Health Platform component
+  when enabled via ``health_platform.enabled: true``. This provides structured health issue tracking with:
+  
+  * Detailed error context including check name, error message, and configuration source
+  * Actionable remediation steps for debugging check failures
+  * Automatic issue resolution when checks recover
+  * Integration with the health platform telemetry and reporting system
+  
+  This feature helps users proactively identify and troubleshoot integration issues across their fleet.
+
+- The Agent Profiling check now supports automatic Agent termination after flare generation when memory or CPU thresholds are exceeded. This feature is useful in resource-constrained environments where the Agent needs to be restarted after generating diagnostic information.
+  
+  Enable this feature by setting ``terminate_agent_on_threshold: true`` in the Agent Profiling check configuration. When enabled, the Agent uses its established shutdown mechanism to trigger graceful shutdown after successfully generating a flare, ensuring proper cleanup before exit.
+  
+  **Warning**: This feature will cause the Agent to exit. This feature is disabled by default and should be used with caution.
+
+- Experimental support the ConfigSync HTTP endpoints over unix sockets with
+  ``agent_ipc.use_socket: true`` (defaults to false).
+
+- Implements the ``flare`` command for the otel-agent binary.
+  Now you can run ``otel-agent flare`` directly in the otel-agent container to get OTel flares.
+
+- Adds system info metadata collection for macOS end-user devices.
+
+- Adds system info metadata collection for Windows end-user devices.
+
+- Added GPU runtime discovery support for ECS EC2 environments. The Datadog Agent
+  can now detect GPU device UUIDs assigned to containers by extracting the
+  ``NVIDIA_VISIBLE_DEVICES`` environment variable from the Docker container configuration.
+  This enables GPU-to-container mapping for GPU metrics without requiring the
+  Kubernetes PodResources API, which is not available in ECS environments.
+
+- After falling back to TCP, the Logs Agent periodically retries to establish HTTP and upgrades the connection once HTTP connectivity is available.
+
+- Container logs now include a ``LogSource`` tag indicating whether each log
+  message originated from stdout or stderr. This applies to logs parsed via
+  Docker and Kubernetes CRI runtimes.
+
+- Added paging file metrics to the Windows memory check for ``pagefile.sys`` usage.
+
+
+.. _Release Notes_7.76.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add a new ``global_view_db`` variable to AWS Autodisovery templates. By default this is the value of the ``datadoghq.com/global_view_db`` tag on the instance or cluster.
+
+- Add NotReady endpoint processing to be on par with EndpointSlices processing.
+
+- The agentprofiling check now retries flare generation 2 times with exponential backoff (1 minute after first failure, 5 minutes after second failure) when flare creation or sending fails. This improves reliability when encountering transient failures during flare generation.
+
+- Adds a ``kubernetes_kube_service_new_behavior`` flag (default false) to alter ``kube_service`` tag behavior.
+  If the flag is set to true, ``kube_service`` tag is attached unconditionally.
+  Previously, the tag was only attached when the Kubernetes service has the status ``Ready``.
+
+- APM: Add custom protobuf encoder for trace writer v1 with string compaction to reduce payload size.
+
+- Extended the autodiscovery secret resolver to support refreshing secrets.
+
+- Agents are now built with Go ``1.25.7``.
+
+- The datadog-installer ``setup`` command now prints human-readable errors instead of mixing JSON and text.
+
+- Added ``GPUDeviceIDs`` field to the workloadmeta Container entity to store
+  GPU device UUIDs. This field is populated by the Docker collector in ECS
+  environments from the ``NVIDIA_VISIBLE_DEVICES`` environment variable
+  (e.g., ``GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx``).
+
+- The GPU collector now uses ``GPUDeviceIDs`` from workloadmeta as the primary
+  source for GPU-to-container mapping in ECS, with fallback to procfs for
+  regular Docker environments and PodResources API for Kubernetes.
+
+- GPU: add new tag ``gpu_type`` to the GPU metrics to identify the type of GPU (e.g., ``a100``, ``h100``).
+
+- Improve eBPF conntracker support by using alternate probes when the primary probe is unavailable, enabling compatibility with GKE Autopilot and other environments running Google COS.
+
+- The ``logs.dropped`` metric now tracks dropped logs for both TCP and HTTP
+  log transports. Previously, this metric was only available when using TCP
+  transport. Customers can now monitor dropped logs with a single unified
+  metric regardless of which transport protocol is configured, making it
+  easier to detect and troubleshoot log delivery issues.
+
+- The logs agent now supports using ``start_position: beginning`` and
+  ``start_position: forceBeginning`` with wildcard file paths. Previously,
+  configurations like ``path: /var/log/*.log`` with ``start_position: beginning``
+  would fail validation. The agent's fingerprinting system when enabled prevents 
+  duplicate log reads during file rotation, making this combination safe to use.
+
+- Site config URLs are now lowercased for consistent handling.
+
+- APM: Add tags ``databricks_job_id``, ``databricks_job_run_id``, ``databricks_task_run_id``, ``config.spark_app_startTime``, ``config.spark_databricks_job_parentRunId``
+  to the default list of tags that are known to not be credit card numbers so they are skipped by the credit card obfuscator.
+
+- Add option to switch on/off Infra-Attribute-Processor for traces in the OTLP ingest pipeline.
+    otlp_config:
+     traces:
+      infra_attributes:
+        enabled: false
+  These settings can be configured in the Agent config file or by using the environment variables.
+
+- The Datadog Agent now collects AWS Spot preemption events (requires IMDS access) as Datadog events.
+
+- Added ``network_config.dns_monitoring_ports``, which is a list of DNS ports Cloud Network Monitoring will use to monitor DNS traffic on.
+
+- Automatically tag, but don't aggregate, multiline logs.
+  Logs are tagged with the number of other logs they could
+  potentially be aggregated with.
+
+- Update the histogram helpers API in the ``pkg/opentelemetry-mapping-go/otlp/metrics`` package. The API now accepts accept pointers to the OTLP data points, and returns blank DDSketches when the pointer is nil.
+
+- Update image resolution attempt telemetry to include the ``tag`` specified
+  in the configuration, and remove the ``registry`` and ``digest_resolution`` tags.
+
+- Windows: Add a new flare artifact ``agent_loaded_modules.json`` listing loaded DLLs with metadata
+  (full path, timestamp, size, perms) and version info (CompanyName, ProductName, OriginalFilename,
+  FileVersion, ProductVersion, InternalName). Keeps ``<flavor>_open_files.txt`` for compatibility.
+
+
+.. _Release Notes_7.76.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- The command ``agent diagnose show-metadata inventory-otel`` has been removed. To display DDOT metadata, you can query the datadog extension endpoint: ``http://localhost:9875/metadata``.
+
+
+.. _Release Notes_7.76.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Properly scrub sensitive information from Kubernetes pod specifications in agent flares.
+  Environment variables with sensitive names are now redacted.
+
+- Fixed a bug where long Kubernetes event bundles were being truncated by dogweb. 
+
+- APM: Fix a bug where the Agent would log a warning when the ``DD_APM_MODE`` environment variable was unset.
+
+- Properly parse the ``image_tag`` tag when defining a container spec
+  that uses both an image tag and a digest like ``nginx:1.23@sha256:xxx``.
+
+- Updates tag enrichment logic to retry on failed tag resolution attempts.
+  This regression was introduced in #41587 on Agent v7.73+.
+  Impacts origin detection on cgroup v2 runtimes with DogStatsD, which led
+  to tags not being enriched, even if origin detection was possible by
+  using other methods like container ID from socket or ExternalData.
+
+- Fixed a regression in the Go-native disk check (diskv2) where a failure
+  in IO counter collection (e.g. ``ERROR_INVALID_FUNCTION`` from
+  ``DeviceIoControl`` on Windows Server 2016) caused all disk metrics to be
+  discarded, including successfully collected partition/usage metrics such as
+  ``system.disk.total``, ``system.disk.used``, and ``system.disk.free``.
+  IO counter collection is now best-effort: known errors such as
+  ``ERROR_INVALID_FUNCTION`` are logged at debug level, while unexpected
+  errors are logged as warnings. Neither prevent partition metrics from
+  being reported.
+
+- Fleet installer: ensure the ``DD_LOGS_ENABLED`` environment variable is honored again
+  when running setup scripts, so Windows installs using the new installer flow properly.
+  Sets ``logs_enabled`` in ``datadog.yaml``.
+
+- Fixes a bug introduced in 7.73.0 that can cause a remote Agent update through Fleet Automation to fail to restore the previous version if the MSI fails and
+  the ``C:\Windows\SystemTemp\datadog-installer\rollback\InstallOciPackages.json`` file is present.
+
+- Fix Flux API groups, split fluxcd.io into source.toolkit.fluxcd.io and kustomize.toolkit.fluxcd.io.
+
+- Fixes repetitive 'Could not make file tailer' warning logs when short lived
+  pods are terminated and the Agent attempts to create a file tailer for the
+  deleted containers in a pod. Now the Agent will not create container services
+  for pods that have been deleted and no-longer have containers to tail.
+
+- GPU: MIG devices and parents are now reporting correct core and memory limits.
+
+- GPUm: fix gpu.memory.limit being duplicated in Hopper devices
+
+- Fixed the ``logs.sent`` metric for the HTTP log transport to no longer 
+  increment when logs are dropped due to non-retryable errors. This ensures 
+  more accurate reporting of successfully delivered logs.
+
+- Fix WLAN check failure on macOS systems.
+
+- Fix ``datadog.agent.check_ready`` to always include the ``check_name`` tag value for Python checks.
+
+- Rename ``kubernetes_kube_service_new_behavior`` to ``kubernetes_kube_service_ignore_readiness`` to
+  better reflect the behavior.
+
+- Prevent a deadlock from occurring in the otel-agent when its internal telemetry Prometheus endpoint is scraped.
+
+- [oracle] Updates the oracle.d/conf.yaml.example file to include all supported sql obfuscator options.
+  [DBM] Bump go-sqllexer to v0.1.12:
+  - Fixes a normalization bug for Oracle queries with positional bind parameters.
+  - Fixes a memory leak in the go-sqllexer package.
+
+
+.. _Release Notes_7.76.0_Other Notes:
+
+Other Notes
+-----------
+
+- Add metrics origins for battery integration.
+
+- Remove procps-ng and associated tools from Agent packages.
+
+
+.. _Release Notes_7.75.4:
+
+7.75.4
+======
+
+.. _Release Notes_7.75.4_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-02-17
+
+- Please refer to the `7.75.4 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7754>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.75.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.25.7``.
+
+
+.. _Release Notes_7.75.4_Security Notes:
+
+Security Notes
+--------------
+
+- APM: On span tags, add obfuscation for ``HELLO`` and ``MIGRATE`` Redis commands.
+    Similar to ``AUTH``, all arguments passed to these commands will be obfuscated
+    and replaced with ``?``.
+
+.. _Release Notes_7.75.3:
+
+7.75.3
+======
+
+.. _Release Notes_7.75.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-02-11
+
+- Please refer to the `7.75.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7753>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.75.3_Security Notes:
+
+Security Notes
+---------
+
+- Bump the version of envoyproxy/gateway to 1.5.7
+
+
+.. _Release Notes_7.75.2:
+
+7.75.2
+======
+
+.. _Release Notes_7.75.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-02-04
+
+- Please refer to the `7.75.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7752>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.75.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Disable the SNMP device scan by default.
+
+- Fixes a regression introduced in version 7.75 that caused Workload Protection
+  File Integrity Monitoring to be disabled by default when installing the Datadog Agent via the Helm chart.
+
+- Fixes a bug introduced in Agent v7.74 where unresolved SSH sessions could cause Workload Protection events to be delayed for several minutes, potentially blocking the delivery of other Workload Protection events.
+
+- GPU: fix metric type for gpu.nvlink.*, gpu.pci.replay_counter and gpu.remapped_rows.* metric that were reported as counters instead of gauges
+
+
+.. _Release Notes_7.75.1:
+
+7.75.1
+======
+
+.. _Release Notes_7.75.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2026-01-28
+
+- Please refer to the `7.75.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7751>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.75.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.25.6``.
+
+
+.. _Release Notes_7.75.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- GPU: fix an issue where containerd image creation could be blocked sporadically when advanced eBPF metrics are enabled
+
+- Change the Log Agent default TCP port for datadoghq.eu from the incorrect value of 10516 to the correct 443.
+
+- Resolves an issue where NetFlow metrics are submitted every 10 seconds, instead of aggregating
+  for the full interval per Source/Destination pair.
+
+
 .. _Release Notes_7.75.0:
 
 7.75.0
@@ -33,9 +394,9 @@ New Features
 ------------
 
 - Added support for ``infrastructure_mode: end_user_device`` configuration option.
-  When enabled, this mode automatically activates key monitoring features tailored for 
-  end-user devices including process collection, software inventory tracking, and 
-  notable events monitoring. These settings can still be individually overridden in 
+  When enabled, this mode automatically activates key monitoring features tailored for
+  end-user devices including process collection, software inventory tracking, and
+  notable events monitoring. These settings can still be individually overridden in
   the configuration file if needed.
 
 - Make MSI install the DDOT OCI package via command line option.
@@ -46,7 +407,7 @@ New Features
 
 - [APM] Add support for DD_APM_MODE=edge. This mode configures the Agent to receive traces from edge devices.
 
-- The datadog-agent now uses datadog-secret-backend v1.5.0 which added support for Kubernetes secrets via the Secrets API, Kubernetes file-based secrets, support for Docker secrets, and support for plaintext file secrets. 
+- The datadog-agent now uses datadog-secret-backend v1.5.0 which added support for Kubernetes secrets via the Secrets API, Kubernetes file-based secrets, support for Docker secrets, and support for plaintext file secrets.
 
 - Collect feature gate and version data as part of kubernetes api server workloadmeta collector.
 
@@ -88,7 +449,7 @@ Enhancement Notes
 
 - Added a new boolean environment variable DD_OTELCOLLECTOR_GATEWAY_MODE for precise identification of the DDOT operating mode.
   The variable automatically configured via the Helm chart, the Operator, or set manually.
-  Acceptable string values are (case insensitive): "true", "false", "1", "0" 
+  Acceptable string values are (case insensitive): "true", "false", "1", "0"
 
 - The Discovery module is now enabled by default if system-probe is enabled.
   It can be disabled by setting ``discovery.enabled: false`` in
@@ -109,7 +470,7 @@ Enhancement Notes
 - OTLP spans describing an HTTP error without an explicit error message will now fallback
   to one with a description, eg. "500 Internal Server Error" instead of just "500".
   Users who relied on the error message to extract the status code should use ``http.response.status_code`` instead.
-  
+
   Additionally, the error message is no longer sourced from the deprecated ``http.status_text`` attribute.
   This behavior can be overridden by explicitly setting the span's status message.
 
@@ -171,12 +532,12 @@ Bug Fixes
 
 - Fix SNMP Autodiscovery bug where the Agent had to be restarted to take into account new devices discovered in a subnet.
 
-- Fixes a rare crash on Windows during the Wi-Fi check when the  
+- Fixes a rare crash on Windows during the Wi-Fi check when the
   Agent cannot find a matching Wi-Fi adapter on some computers.
 
-- Fixed ownership and permissions for the ``/opt/datadog-agent/run`` directory 
-  in Agent and Cluster Agent Docker images. This resolves permission errors 
-  encountered by Remote Configuration when running as a non-root user 
+- Fixed ownership and permissions for the ``/opt/datadog-agent/run`` directory
+  in Agent and Cluster Agent Docker images. This resolves permission errors
+  encountered by Remote Configuration when running as a non-root user
   (UID 100), such as in AWS ECS Fargate environments.
 
 - The NTP check now submits the ``ntp.offset`` metric using the timestamp
@@ -281,11 +642,11 @@ New Features
 
 - Logs Agent is able to restart its pipeline in place to enable switching between endpoint types (HTTP/TCP) without full Agent restart.
 
-- The OTEL logs agent exporter now supports exporting Kubernetes orchestrator data. 
+- The OTEL logs agent exporter now supports exporting Kubernetes orchestrator data.
   The exporter consumes Kubernetes resource manifests from the ``k8sobjectsreceiver``
   and forwards them to Datadog's orchestrator endpoint. This enables Kubernetes cluster
-  visibility through the OTEL agent pipeline. 
-  
+  visibility through the OTEL agent pipeline.
+
   Use the ``OrchestratorConfig`` section to configure
   cluster name, API key, site, endpoint, and enablement toggle.
 
@@ -317,7 +678,7 @@ Enhancement Notes
 
 - Add annotation to associate a replica NodePool to its target
 
-- Move the ``chmod`` operation for the ``dogstatsd`` binary from runtime (``entrypoint.sh``) to build time (``Dockerfile``). 
+- Move the ``chmod`` operation for the ``dogstatsd`` binary from runtime (``entrypoint.sh``) to build time (``Dockerfile``).
 
 - Expand logs file rotation analytics to include more detailed information using telemetry metrics.
 
@@ -355,7 +716,7 @@ Enhancement Notes
   - ``batch.min_size``
   - ``batch.max_size``
   - ``batch.flush_timeout``
-  
+
   These settings can be configured in the Agent config file or by using the environment variables.
 
 - Change serverless-init default log level to error.
@@ -369,8 +730,8 @@ Enhancement Notes
 - Fixes missing tags at container startup by buffering spans and
   APM stats until Kubernetes metadata is resolved.
 
-- The agent now can automatically triggers a secret refresh when an API key expires or becomes invalid, 
-  either through 403 responses or periodic API key validation. The refresh rate is throttled by 
+- The agent now can automatically triggers a secret refresh when an API key expires or becomes invalid,
+  either through 403 responses or periodic API key validation. The refresh rate is throttled by
   ``secret_refresh_on_api_key_failure_interval`` configuration option (in minutes).
 
 - Enforces that the DDOT service is stopped by the core Agent service.
@@ -394,14 +755,14 @@ Bug Fixes
 
 - [DBM] Bump go-sqllexer to v0.1.10 to fix the following bugs:
   - Fixes a normalization bug in SqlServer parameterized queries containing multiple depths of parentheses.
-  - Fixes identifier quote removal to preserve quotes for aliases that aren't strictly alphanumeric.  
+  - Fixes identifier quote removal to preserve quotes for aliases that aren't strictly alphanumeric.
 
 - For ECS Managed Instances, the Agent no longer overrides the runtime to ``ECS``.
   The runtime is now left for Docker to determine, ensuring correct backend configuration.
 
 - Fixed a bug which caused events from pause containers to not be filtered out when using the containerd collector
 
-- Refactored the KSM custom resource handling to support wildcard matching of version/kind and CRD discovery. 
+- Refactored the KSM custom resource handling to support wildcard matching of version/kind and CRD discovery.
 
 - Exclude the 'aws-fargate-pause' container from the default
   pause container exclusion list.
@@ -483,9 +844,9 @@ Bug Fixes
   with the Python disk check and preserves existing dashboards and monitors.
 
 - Fix an issue introduced in 7.73.0 that can cause the MSI to overwrite the ``site`` option in ``datadog.yaml`` with the default value of ``datadoghq.com``.
-  
+
   This issue impacts users who do not provide the ``SITE`` option to the MSI when upgrading AND who have an error in their ``datadog.yaml`` file that prevents the MSI from reading the existing ``site`` option (MSI log contains ``ReadConfig. User config could not be read``).
-  
+
   This issue also impacts users of ``datadog-installer.exe`` and ``Install-Datadog.ps1``, introduced in 7.72.0, who do not provide the ``DD_SITE`` environment variable when upgrading.
 
 
@@ -571,10 +932,10 @@ Upgrade Notes
   More details: https://github.com/open-telemetry/opentelemetry-collector/issues/8122
 
 - Remote Agent Management now creates a new directory that is at the same level as the current Agent configuration directory.
-  
+
   * Linux: /etc/datadog-agent-exp
   * Windows: C:\ProgramData\Datadog-exp
-  
+
   This directory is used during remote configuration updates and is deleted after the update is complete.
 
 
@@ -583,7 +944,7 @@ Upgrade Notes
 New Features
 ------------
 
-- Added a new core check to send raw Kubelet configuration manifests to the Kubernetes Orchestrator. 
+- Added a new core check to send raw Kubelet configuration manifests to the Kubernetes Orchestrator.
 
 - Added comprehensive support for AWS ECS Managed Instances, including
   automatic deployment mode detection, hostname resolution for sidecar
@@ -601,7 +962,7 @@ New Features
 - [Remote Agent Management](https://docs.datadoghq.com/agent/fleet_automation/remote_management)
   is now enabled by default for Agents running on Linux and Windows hosts.
   This feature allows you to remotely upgrade and configure the Agent from the Datadog UI in Fleet Automation.
-  
+
   To disable, set ``remote_updates`` to ``false`` in the Agent configuration file.
 
 - The Datadog Installer now supports installing the datadog-apm-inject package on Windows systems.
@@ -690,7 +1051,7 @@ Enhancement Notes
 Bug Fixes
 ---------
 
-- Applies a fix to the hacky_dev_image_build script to copy new check configurations. 
+- Applies a fix to the hacky_dev_image_build script to copy new check configurations.
 
 - [DBM] Bump go-sqllexer to v0.1.9 to fix the following bugs:
   - Fixes a nil pointer when normalizing CTE queries with collectTables=false.
@@ -910,12 +1271,12 @@ Upgrade Notes
 
 - The PowerShell install script ``Install-Datadog.ps1`` now executes a different
   ``datadog-installer-x86_64.exe`` subcommand.
-  
+
   If you always download a fresh ``Install-Datadog.ps1``, then no changes are needed.
-  
+
   If you have a cached or modified copy of ``Install-Datadog.ps1``, then you must merge
   the latest changes, or migrate to use the executable setup instead. See the features section for more information.
-  
+
   ``Install-Datadog.ps1`` is now a light wrapper for downloading and executing ``datadog-installer-x86_64.exe``. The rest of
   the setup responsibility has been moved into the executable.
 
@@ -930,7 +1291,7 @@ New Features
 
 - Add the new metric `kubernetes.pod.resize.pending` to kubelet check to track pods
   that have pending resource resize request that can't be satisfied right now.
-  Metrics has `reason` tag. 
+  Metrics has `reason` tag.
 
 - Print service details in the Agent configcheck verbose command output.
 
@@ -946,56 +1307,56 @@ New Features
 - Add support of CIS Ubuntu 24.04 Benchmark in CSPM.
 
 - Added Datadog OTEL agent as Windows service
-  
+
   This is part of the effort to add Datadog OpenTelemetry agent as a
-  Windows service. 
+  Windows service.
 
 - Adds support for UDP, ICMP, and TCP Network Path for Windows Client OSes using ddnpm driver.
 
 - Added new Windows Server 2025 container images:
-  
+
   **Release tags:**
   * ``agent:7-ltsc2025`` and ``agent:latest-ltsc2025``
   * ``agent:7-servercore-ltsc2025`` and ``agent:latest-servercore-ltsc2025``
   * ``agent:7-ltsc2025-jmx`` and ``agent:latest-ltsc2025-jmx``
   * ``agent:7-servercore-ltsc2025-jmx`` and ``agent:latest-servercore-ltsc2025-jmx``
-  
+
   **Release candidate tags:**
   * ``agent:7-rc-ltsc2025``
   * ``agent:7-rc-servercore-ltsc2025``
   * ``agent:7-rc-ltsc2025-jmx``
   * ``agent:7-rc-servercore-ltsc2025-jmx``
-  
+
   Version-specific release candidate tags (such as ``agent:7.X.Y-rc.Z-ltsc2025``,
   ``agent:7.X.Y-rc.Z-servercore-ltsc2025``) are also supported.
-  
+
   Updated the base multi-arch images to include Windows 2025 images alongside existing
   Windows 2019 and Windows 2022 variants.
 
 - The Agent can now be configured to restrict which secrets from Kubernetes can be by integration (only apply to
   secret using the `k8s_secret@` prefix).
-  
+
   Three new settings have been introduced, allowing different levels of control (see datadog.yaml.example for more
   information).
-  
+
   * `secret_scope_integration_to_their_k8s_namespace`: limit containers to their own namespace.
   * `secret_allowed_k8s_namespace`: limit containers to a set of predefined namespaces.
   * `secret_image_to_handle`: explicitly list which secret can be accessed by which container image.
 
-- Added integration test to ensure correct population of service and source tags on the truncate log metric. 
+- Added integration test to ensure correct population of service and source tags on the truncate log metric.
 
 - USM HTTP2 monitoring configuration now uses a tree structure
   for improved organization and consistency with other protocol configurations.
-  
+
   Configuration changes:
   - `service_monitoring_config.enable_http2_monitoring` → `service_monitoring_config.http2.enabled`
   - `service_monitoring_config.http2_dynamic_table_map_cleaner_interval_seconds` → `service_monitoring_config.http2.dynamic_table_map_cleaner_interval_seconds`
-  
+
   The previous configuration paths are deprecated but still supported for backward
   compatibility. Users will receive deprecation warnings and should migrate
   to the new tree structure. If both old and new configurations are present,
   the new tree structure takes precedence.
-  
+
   Environment variable changes:
   - `DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP2_MONITORING` → `DD_SERVICE_MONITORING_CONFIG_HTTP2_ENABLED`
   - `DD_SERVICE_MONITORING_CONFIG_HTTP2_DYNAMIC_TABLE_MAP_CLEANER_INTERVAL_SECONDS` → `DD_SERVICE_MONITORING_CONFIG_HTTP2_DYNAMIC_TABLE_MAP_CLEANER_INTERVAL_SECONDS`
@@ -1004,10 +1365,10 @@ New Features
   script. The executable is versioned and will only install that version. For example, to install Agent 7.72.0,
   download and run ``https://install.datadoghq.com/datadog-installer-7.72.0-1-x86_64.exe``. For more information, refer
   to the [in-app install instructions](https://app.datadoghq.com/fleet/install-agent/latest?platform=windows).
-  
+
   To install the latest stable Agent version, download and run ``https://install.datadoghq.com/datadog-installer-x86_64.exe``.
   This executable file is also versioned and will only install one version. It is updated with each release.
-  
+
   To check the version, run ``.\datadog-installer-x86_64.exe version``.
 
 
@@ -1016,7 +1377,7 @@ New Features
 Enhancement Notes
 -----------------
 
-- Add resize policies for CPU and memory as tags for containers when they are explicitly set on workloads. 
+- Add resize policies for CPU and memory as tags for containers when they are explicitly set on workloads.
 
 - Fix config path patterns for Python 3.13 and add SpecifierSet error handling.
 
@@ -1061,9 +1422,9 @@ Enhancement Notes
 
 - Added exponential backoff to host metadata collection at startup to increase early host-payload frequency and speed up node-level tag availability.
 
-- Enhanced fingerprinting configuration with file-specific overrides and improved fallback behavior. 
+- Enhanced fingerprinting configuration with file-specific overrides and improved fallback behavior.
   `logs_config.fingerprint_config` can now be set on a per-source and global basis, as either [disabled, line_checksum, byte_checksum].
-  
+
   File-specific configurations take precedence over global settings, with automatic fallback to global config when file configs
   are missing or incomplete.
 
@@ -1081,8 +1442,8 @@ Enhancement Notes
 
 - Set the 'provider-kind' tag at the beginning of the static tag list.
 
-- For better troubleshooting, secret backend version information is now 
-  included in the `agent secret` command, flare output, and other metadata 
+- For better troubleshooting, secret backend version information is now
+  included in the `agent secret` command, flare output, and other metadata
   when `secret_backend_type` is configured and the backend executable supports the `--version` flag.
 
 - Avoid ReadString allocation in serverless-init log processing for improved efficiency.
@@ -1143,7 +1504,7 @@ Bug Fixes
 - Fixes an issue which would result in some `container.*` metrics showing up
   without any container-related tags associated with them.
 
-- Utilize single origin information source for DogStatsD tag 
+- Utilize single origin information source for DogStatsD tag
   enrichment to avoid tag duplication.
 
 - Removes unused map that was being mutated in a read lock.
@@ -1176,9 +1537,9 @@ Bug Fixes
 - Fixed an issue where certain autodiscovery errors were not shown in the
   Autodiscovery section of the ``agent status`` command.
 
-- Fixes an issue in the Windows NPM driver, where existing connections were incorrectly marked as timeouts when closed.  
+- Fixes an issue in the Windows NPM driver, where existing connections were incorrectly marked as timeouts when closed.
   Fixes handle cleanup issues in the Windows NPM driver.
-  Removes overlapping filter in the Windows NPM driver. 
+  Removes overlapping filter in the Windows NPM driver.
 
 - Warns when Logs Agent log configuration is null and handles gracefully, instead of panicking.
 
@@ -1189,7 +1550,7 @@ Other Notes
 -----------
 
 - Added the following agent telemetry metrics for debugging gRPC communication within the agent:
-  
+
   | Metric Name                     | Type      | Description                                           |
   | ------------------------------- | --------- | ----------------------------------------------------- |
   | `grpc.request_count`            | Counter   | Total number of gRPC requests processed by the agent   |
@@ -1247,13 +1608,13 @@ Release on: 2025-10-08
 Bug Fixes
 ---------
 
-- Fixes configuration parsing for extended container metric 
+- Fixes configuration parsing for extended container metric
   collection on the container core check.
 
 - Fix Remote Agent management configuration changes on Windows.
 
 - Fix race condition that in rare cases caused remote updates on Windows to fail without an error.
-  
+
   The Go context used when creating a detached subprocess was closed on exit. This triggered an async
   action to kill the detached subprocess, which in rare cases completed before the process exited.
 
@@ -1280,7 +1641,7 @@ Upgrade Notes
 
 - pkg/opentelemetry-mapping-go/otlp/metrics: Add interval argument to Consumer methods. All intervals passed as of this change will be `0`, which is equivalent to the previous behavior. [#725](https://github.com/DataDog/opentelemetry-mapping-go/pull/725)
 
-- Upgrade go-sqllexer to v0.1.8  
+- Upgrade go-sqllexer to v0.1.8
 
 
 .. _Release Notes_7.71.0_New Features:
@@ -1316,7 +1677,7 @@ Enhancement Notes
 
 - Improved logs destination warning log with additional endpoint metadata such as full url, track type, EvP category, and origin.
 
-- Displays the partially redacted API key to each endpoint on the Logs Agent status page. 
+- Displays the partially redacted API key to each endpoint on the Logs Agent status page.
 
 - Add debugger v2 intake proxy.
 
@@ -1330,7 +1691,7 @@ Enhancement Notes
 - On Linux, the Agent is now able to bind to ports below 1024 by default,
   simplifying common logs, SNMP, and integrations configurations.
   This is done by setting `AmbientCapabilities=CAP_NET_BIND_SERVICE` in the Agent systemd units.
-  
+
   If you want to disable this, create a systemd drop-in file
   (e.g., `/etc/systemd/system/datadog-agent.service.d/disable-capability.conf`)
   with:
@@ -1362,7 +1723,7 @@ Enhancement Notes
 
 - Add RUM support to the OpenTelemetry mapping library.
 
-- DDOT now supports sending host metadata from OTel resource attributes. This is required for Gateway support. 
+- DDOT now supports sending host metadata from OTel resource attributes. This is required for Gateway support.
   See https://docs.datadoghq.com/opentelemetry/mapping/host_metadata/ on how to configure the attributes.
 
 - The non-DDOT OTLP ingestion pipelines for traces and metrics now include the
@@ -1420,10 +1781,10 @@ Bug Fixes
 
 - Fix redis span obfuscation for HSET command, as it allows multiples fields to be set at once since redis 4.0.0
 
-- Store previously seen images in workloadmeta, and only query the image 
-  status endpoint for new images. Previously, if image collection for CRI-O 
-  was enabled, the Agent would query the image status endpoint for every 
-  image, on every check. This was an expensive network request and would 
+- Store previously seen images in workloadmeta, and only query the image
+  status endpoint for new images. Previously, if image collection for CRI-O
+  was enabled, the Agent would query the image status endpoint for every
+  image, on every check. This was an expensive network request and would
   log verbose output to journald.
 
 - Fixed `could not create SSL context: library has no ciphers` error in the `postgres` integration for the FIPS version of the Agent.
@@ -1463,7 +1824,7 @@ Bug Fixes
 
 - Resolved possible segfault when running zstd-compressed journald log collection on systemd versions >= 256.
 
-- Fixed truncation telemetry so it records service and source values correctly, by moving metrics recording to the tailer layer. 
+- Fixed truncation telemetry so it records service and source values correctly, by moving metrics recording to the tailer layer.
 
 - Include bugcheck data if available as part of Windows crash reports.
 
@@ -1483,12 +1844,12 @@ Other Notes
   rtloader memory usage and behavior.
 
 - **Scrubber**: Added support for additional sensitive keys in configuration scrubbing:
-  
+
   * HTTP header-style API keys with "key" suffix: ``x-seel-api-key``, ``x-goog-api-key``, ``x-sonar-passcode``
   * HTTP header-style API keys with "token" suffix: ``x-consul-token``, ``x-datadog-monitor-token``, ``x-vault-token``, ``x-vtex-api-apptoken``, ``x-static-token``
   * HTTP header-style API keys with "secret" suffix: ``x-api-secret``, ``x-ibm-client-secret``, ``x-chalk-client-secret``
   * Exact key matches: ``cookie``, ``private-token``, ``kong-admin-token``, ``accesstoken``, ``session_token``
-  
+
   These keys will now be automatically scrubbed from configuration files, logs, and other sensitive data to prevent accidental exposure of credentials.
 
 
@@ -1656,7 +2017,7 @@ Deprecation Notes
 -----------------
 
 - Remove deprecated serializer options.
-  
+
   * ``enable_stream_payload_serialization``
   * ``enable_service_checks_stream_payload_serialization``
   * ``enable_events_stream_payload_serialization``

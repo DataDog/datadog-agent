@@ -91,6 +91,7 @@ AGENT_CORECHECKS = [
     "versa",
     "network_config_management",
     "battery",
+    "cloud_hostinfo",
 ]
 
 WINDOWS_CORECHECKS = [
@@ -453,6 +454,7 @@ def hacky_dev_image_build(
     system_probe=False,
     security_agent=False,
     trace_loader=False,
+    privateactionrunner=False,
     push=False,
     race=False,
     signed_pull=False,
@@ -528,6 +530,14 @@ def hacky_dev_image_build(
 
         trace_loader_build(ctx)
         copy_extra_agents += "COPY bin/trace-loader/trace-loader /opt/datadog-agent/embedded/bin/trace-loader\n"
+
+    if privateactionrunner:
+        from tasks.privateactionrunner import build as privateactionrunner_build
+
+        privateactionrunner_build(ctx)
+        copy_extra_agents += (
+            "COPY bin/privateactionrunner/privateactionrunner /opt/datadog-agent/embedded/bin/privateactionrunner\n"
+        )
 
     copy_ebpf_assets = ""
     copy_ebpf_assets_final = ""
@@ -928,6 +938,11 @@ def generate_config(ctx, build_type, output_file, env=None):
         "template_file": "./pkg/config/config_template.yaml",
         "output_file": output_file,
     }
+    if build_type == "system-probe":
+        args["template_file"] = "./pkg/config/system-probe_template.yaml"
+    elif build_type == "security-agent":
+        args["template_file"] = "./pkg/config/security-agent_template.yaml"
+
     cmd = "go run {go_file} {build_type} {template_file} {output_file}"
     return ctx.run(cmd.format(**args), env=env or {})
 

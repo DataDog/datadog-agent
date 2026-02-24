@@ -14,7 +14,7 @@ qa_agent:
   variables:
     IMG_REGISTRIES: agent-qa
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-arm64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-win1809-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-winltsc2022-amd64
-    IMG_DESTINATIONS: agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
+    IMG_DESTINATIONS: agent-qa:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
 
 qa_agent_fips:
   extends: .docker_publish_job_definition
@@ -30,7 +30,7 @@ qa_agent_fips:
   variables:
     IMG_REGISTRIES: agent-qa
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-arm64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-winltsc2022-servercore-amd64
-    IMG_DESTINATIONS: agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-fips
+    IMG_DESTINATIONS: agent-qa:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-fips
 
 qa_agent_jmx:
   extends: .docker_publish_job_definition
@@ -46,7 +46,7 @@ qa_agent_jmx:
   variables:
     IMG_REGISTRIES: agent-qa
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-arm64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-win1809-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-winltsc2022-amd64
-    IMG_DESTINATIONS: agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-jmx
+    IMG_DESTINATIONS: agent-qa:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-jmx
 
 qa_agent_fips_jmx:
   extends: .docker_publish_job_definition
@@ -62,7 +62,69 @@ qa_agent_fips_jmx:
   variables:
     IMG_REGISTRIES: agent-qa
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-jmx-arm64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-jmx-winltsc2022-servercore-amd64
-    IMG_DESTINATIONS: agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-fips-jmx
+    IMG_DESTINATIONS: agent-qa:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-fips-jmx
+
+# Linux-only variants for e2e tests that don't require Windows images.
+# These unblock container-based tests ~20 minutes earlier by not waiting for Windows builds.
+qa_agent_linux:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.except_disable_e2e_tests]
+    - when: on_success
+  needs:
+    - docker_build_agent7
+    - docker_build_agent7_arm64
+  variables:
+    IMG_REGISTRIES: agent-qa
+    IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-arm64
+    IMG_DESTINATIONS: agent-qa:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-linux
+
+qa_agent_fips_linux:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.except_disable_e2e_tests]
+    - when: on_success
+  needs:
+    - docker_build_fips_agent7
+    - docker_build_fips_agent7_arm64
+  variables:
+    IMG_REGISTRIES: agent-qa
+    IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-arm64
+    IMG_DESTINATIONS: agent-qa:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-fips-linux
+
+qa_agent_linux_jmx:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.except_disable_e2e_tests]
+    - when: on_success
+  needs:
+    - docker_build_agent7_jmx
+    - docker_build_agent7_jmx_arm64
+  variables:
+    IMG_REGISTRIES: agent-qa
+    IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-arm64
+    IMG_DESTINATIONS: agent-qa:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-linux-jmx
+
+qa_agent_fips_linux_jmx:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.except_disable_e2e_tests]
+    - when: on_success
+  needs:
+    - docker_build_fips_agent7_jmx
+    - docker_build_fips_agent7_arm64_jmx
+  variables:
+    IMG_REGISTRIES: agent-qa
+    IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-jmx-arm64
+    IMG_DESTINATIONS: agent-qa:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-fips-linux-jmx
 
 qa_agent_full:
   extends: .docker_publish_job_definition
@@ -76,7 +138,7 @@ qa_agent_full:
   variables:
     IMG_REGISTRIES: agent-qa
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-arm64
-    IMG_DESTINATIONS: agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full
+    IMG_DESTINATIONS: agent-qa:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full
 
 qa_ot_agent_standalone:
   extends: .docker_publish_job_definition
@@ -90,7 +152,7 @@ qa_ot_agent_standalone:
   variables:
     IMG_REGISTRIES: agent-qa
     IMG_SOURCES: ${SRC_OTEL_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64,${SRC_OTEL_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-arm64
-    IMG_DESTINATIONS: otel-agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
+    IMG_DESTINATIONS: otel-agent-qa:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
 
 qa_dca:
   extends: .docker_publish_job_definition
@@ -105,7 +167,7 @@ qa_dca:
   variables:
     IMG_REGISTRIES: agent-qa
     IMG_SOURCES: ${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
-    IMG_DESTINATIONS: cluster-agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
+    IMG_DESTINATIONS: cluster-agent-qa:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
 
 qa_dca_fips:
   extends: .docker_publish_job_definition
@@ -120,7 +182,7 @@ qa_dca_fips:
   variables:
     IMG_REGISTRIES: agent-qa
     IMG_SOURCES: ${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-fips-amd64,${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-fips-arm64
-    IMG_DESTINATIONS: cluster-agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-fips
+    IMG_DESTINATIONS: cluster-agent-qa:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-fips
 
 qa_dogstatsd:
   extends: .docker_publish_job_definition
@@ -135,7 +197,7 @@ qa_dogstatsd:
   variables:
     IMG_REGISTRIES: agent-qa
     IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
-    IMG_DESTINATIONS: dogstatsd:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
+    IMG_DESTINATIONS: dogstatsd-qa:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
 
 .qa_cws_instrumentation:
   extends: .docker_publish_job_definition
@@ -146,7 +208,7 @@ qa_dogstatsd:
   variables:
     IMG_REGISTRIES: agent-qa
     IMG_SOURCES: ${SRC_CWS_INSTRUMENTATION}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_CWS_INSTRUMENTATION}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
-    IMG_DESTINATIONS: cws-instrumentation:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
+    IMG_DESTINATIONS: cws-instrumentation-qa:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
 
 qa_cws_instrumentation:
   extends: .qa_cws_instrumentation

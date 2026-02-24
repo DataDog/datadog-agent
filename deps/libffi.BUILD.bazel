@@ -2,9 +2,6 @@ load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
 package(
     default_applicable_licenses = [":license"],
@@ -218,7 +215,7 @@ cc_library(
 
 # ffi will be prepended by lib automatically
 cc_library(
-    name = "libffi",
+    name = "ffi",
     hdrs = [
         ":ffi_h",
         ":fficonfig_h",
@@ -273,58 +270,6 @@ cc_library(
             }),
     implementation_deps = [":dlmalloc_header", ":libffi_include_headers"],
     visibility = ["//visibility:public"],
-)
-
-cc_shared_library(
-    name = "ffi",
-    deps = [":libffi"],
-    visibility = ["//visibility:public"],
-)
-
-so_symlink(
-    name = "lib_files",
-    src = ":ffi",
-    libname = "libffi",
-    version = "8.1.4",
-)
-
-expand_template(
-    name = "gen_pkgconfig",
-    out = "libffi.pc",
-    substitutions = {
-        # Prepare the .pc file for our own substitution later
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@toolexeclibdir@": "${libdir}",
-        "@PACKAGE_VERSION@": VERSION,
-        "@PACKAGE_NAME@": "libffi"
-    },
-    template = "libffi.pc.in",
-)
-
-pkg_files(
-    name = "hdr_files",
-    srcs = [
-        ":ffi_h",
-        ":ffitarget_h"
-    ],
-    prefix = "include",
-)
-
-pkg_files(
-    name = "pc_file",
-    srcs = [":gen_pkgconfig"],
-    prefix = "lib/pkgconfig",
-)
-
-pkg_install(
-    name = "install",
-    srcs = [
-        ":hdr_files",
-        ":lib_files",
-        ":pc_file",
-    ],
+    linkstatic = True,
 )
 

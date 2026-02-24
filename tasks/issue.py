@@ -14,11 +14,14 @@ from tasks.libs.pipeline.notifications import (
 
 
 @task(iterable=["team_slugs"])
-def ask_reviews(_, pr_id, team_slugs):
+def ask_reviews(_, pr_id, action, team_slugs):
     gh = GithubAPI()
     pr = gh.repo.get_pull(int(pr_id))
-    if 'backport' in pr.title.casefold():
-        print("This is a backport PR, we don't need to ask for reviews.")
+    if pr.base.ref != 'main':
+        print("We don't ask for reviews on non main target PRs.")
+        return
+    if action != "labeled" and _is_revert(pr):
+        print("We don't ask for reviews on revert PRs creation, only on label requests.")
         return
     if any(label.name == 'no-review' for label in pr.get_labels()):
         print("This PR has the no-review label, we don't need to ask for reviews.")
@@ -55,9 +58,7 @@ def ask_reviews(_, pr_id, team_slugs):
         )
         channels[channel].append(reviewer)
 
-    events = list(pr.get_issue_events())
-    last_event = events[-1]
-    actor = last_event.actor.name or last_event.actor.login
+    actor = pr.user.name or pr.user.login
     for channel, reviewers in channels.items():
         stop_updating = ""
         if (pr.user.login == "renovate[bot]" or pr.user.login == "mend[bot]") and pr.title.startswith(
@@ -78,6 +79,17 @@ def ask_reviews(_, pr_id, team_slugs):
         except Exception as e:
             message = f"An error occurred while sending a review message from {actor} for PR <{pr.html_url}/s|{pr.title}> to channel {channel}. Error: {e}"
             client.chat_postMessage(channel=DEFAULT_SLACK_CHANNEL, text=message)
+
+
+def _is_revert(pr) -> bool:
+    """
+    Check if a PR is a revert PR.
+    """
+    commits = pr.get_commits()
+    # Only check the first commit message
+    if re.match(r"^Revert \"(.*)\"\n\nThis reverts commit (\w+).", commits[0].commit.message):
+        return True
+    return False
 
 
 @task
@@ -117,8 +129,8 @@ def add_reviewers(ctx, pr_id, dry_run=False, owner_file=".github/CODEOWNERS"):
             folder = match_folder.group(1).removeprefix("/")
     dependency = match.group(1)
 
-    # Find the responsible person for each file
-    owners = set()
+    # Find the responsible team for each file that uses the dependency; count uses per team.
+    owner_usage_count = {}
     git_files = ctx.run("git ls-files | grep -e \"^.*.go$\"", hide=True).stdout
     for file in git_files.splitlines():
         if not file.startswith(folder):
@@ -135,10 +147,13 @@ def add_reviewers(ctx, pr_id, dry_run=False, owner_file=".github/CODEOWNERS"):
                         break
                     else:
                         if dependency in line:
-                            owners.update(set(search_owners(file, owner_file)))
+                            for owner in search_owners(file, owner_file):
+                                slug = owner.casefold().removeprefix("@datadog/")
+                                owner_usage_count[slug] = owner_usage_count.get(slug, 0) + 1
                             break
     if dry_run:
-        print(f"Owners for {dependency}: {owners}")
+        print(f"Owner usage for {dependency}: {owner_usage_count}")
         return
-    # Teams are added by slug, so we need to remove the @DataDog/ prefix
-    pr.create_review_request(team_reviewers=[owner.casefold().removeprefix("@datadog/") for owner in owners])
+    # Cap reviewers to avoid asking too many teams
+    team_slugs = sorted(owner_usage_count, key=lambda s: -owner_usage_count[s])[:3]
+    pr.create_review_request(team_reviewers=team_slugs)

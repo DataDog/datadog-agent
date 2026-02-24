@@ -12,6 +12,7 @@
       -m 24576M
       -v "$(Get-Location):c:\mnt"
       -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS="${DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS}"
+      -e GITLAB_CI
       -e CI_JOB_ID
       -e CI_PIPELINE_ID
       -e CI_PROJECT_NAME
@@ -46,6 +47,7 @@
       -e E2E_COVERAGE_PIPELINE
       -e DEPLOY_AGENT
       -e CI_JOB_TOKEN
+      -e CI_IDENTITIES_GITLAB_ID_TOKEN
       ${WINBUILDIMAGE}
       powershell -C "c:\mnt\tasks\winbuildscripts\Build-AgentPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1 -BuildUpgrade 1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
@@ -64,7 +66,6 @@
 windows_msi_and_bosh_zip_x64-a7:
   extends: .windows_main_agent_base
   rules:
-    - !reference [.except_mergequeue]
     - when: on_success
   variables:
     ARCH: "x64"
@@ -122,6 +123,7 @@ windows_msi_and_bosh_zip_x64-a7-fips:
       -e BUNDLE_MIRROR__RUBYGEMS__ORG
       -e PIP_INDEX_URL
       -e API_KEY_ORG2
+      -e CI_IDENTITIES_GITLAB_ID_TOKEN
       ${WINBUILDIMAGE}
       powershell -C "c:\mnt\tasks\winbuildscripts\Build-OmnibusTarget.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }

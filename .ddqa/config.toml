@@ -57,6 +57,13 @@ jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "agent-build"
 github_labels = ["team/agent-build"]
 
+[teams."Action Platform"]
+jira_project = "ACTP"
+jira_issue_type = "Task"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "action-platform"
+github_labels = ["team/action-platform"]
+
 [teams."Agent Discovery"]
 jira_project = "DSCVR"
 jira_issue_type = "Task"
@@ -72,12 +79,11 @@ github_team = "universal-service-monitoring"
 github_labels = ["team/usm"]
 
 [teams."Network Device Monitoring - Core"]
-jira_project = "NDMII"
-jira_issue_type = "Task"
+jira_project = "NDMC"
+jira_issue_type = "HighPriority"
 jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "ndm-core"
-github_labels = ["team/ndm-core", "team/network-device-monitoring"]
-exclude_members = ["leeavital", "heyronhay"]
+github_labels = ["team/ndm-core"]
 
 [teams."Network Device Monitoring - Integrations"]
 jira_project = "NDINT"
@@ -203,6 +209,14 @@ jira_statuses = ["TRIAGE", "In Progress", "Done"]
 github_team = "container-experiences"
 github_labels = ["team/container-experiences"]
 
+[teams."ECS Experiences"]
+jira_project = "EXP"
+jira_issue_type = "Task"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "ecs-experiences"
+github_labels = ["team/ecs-experiences"]
+exclude_members = []
+
 [teams."Windows Products"]
 jira_project = "WINA"
 jira_issue_type = "QA Task"
@@ -252,3 +266,10 @@ jira_issue_type = "Task"
 jira_statuses = ["To do", "In Development", "Done"]
 github_team = "data-streams-monitoring"
 github_labels = ["team/data-streams-monitoring"]
+
+[teams."Profiling Full Host"]
+jira_project = "PROF"
+jira_issue_type = "Task"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "profiling-full-host"
+github_labels = ["team/profiling-full-host"]

@@ -7,6 +7,7 @@
 package teeconfig
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"reflect"
@@ -53,7 +54,6 @@ func (t *teeConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
 // Callbacks are only called if the value is effectively changed.
 func (t *teeConfig) OnUpdate(callback model.NotificationReceiver) {
 	t.baseline.OnUpdate(callback)
-	t.compare.OnUpdate(callback)
 }
 
 // SetTestOnlyDynamicSchema allows more flexible usage of the config, should only be used by tests
@@ -394,8 +394,9 @@ func (t *teeConfig) ReadInConfig() error {
 
 // ReadConfig wraps Viper for concurrent access
 func (t *teeConfig) ReadConfig(in io.Reader) error {
-	err1 := t.baseline.ReadConfig(in)
-	err2 := t.compare.ReadConfig(in)
+	data, _ := io.ReadAll(in)
+	err1 := t.baseline.ReadConfig(bytes.NewBuffer(data))
+	err2 := t.compare.ReadConfig(bytes.NewBuffer(data))
 	if (err1 != nil && err2 == nil) || (err1 == nil && err2 != nil) {
 		log.Warnf("difference in config: ReadConfig() -> base error: %v | compare error: %v", err1, err2)
 	}
@@ -404,8 +405,9 @@ func (t *teeConfig) ReadConfig(in io.Reader) error {
 
 // MergeConfig wraps Viper for concurrent access
 func (t *teeConfig) MergeConfig(in io.Reader) error {
-	err1 := t.baseline.MergeConfig(in)
-	err2 := t.compare.MergeConfig(in)
+	data, _ := io.ReadAll(in)
+	err1 := t.baseline.MergeConfig(bytes.NewBuffer(data))
+	err2 := t.compare.MergeConfig(bytes.NewBuffer(data))
 	if (err1 != nil && err2 == nil) || (err1 == nil && err2 != nil) {
 		log.Warnf("difference in config: MergeConfig() -> base error: %v | compare error: %v", err1, err2)
 	}
@@ -465,12 +467,12 @@ func (t *teeConfig) AllSettingsBySource() map[model.Source]interface{} {
 
 }
 
-// AllSettingsWithSequenceID returns the settings and the sequence ID.
-func (t *teeConfig) AllSettingsWithSequenceID() (map[string]interface{}, uint64) {
-	base, baseSequenceID := t.baseline.AllSettingsWithSequenceID()
-	compare, compareSequenceID := t.compare.AllSettingsWithSequenceID()
-	t.compareResult("", "AllSettingsWithSequenceID (settings)", base, compare)
-	t.compareResult("", "AllSettingsWithSequenceID (sequenceID)", baseSequenceID, compareSequenceID)
+// AllFlattenedSettingsWithSequenceID returns all settings as a flattened map along with the sequence ID.
+func (t *teeConfig) AllFlattenedSettingsWithSequenceID() (map[string]interface{}, uint64) {
+	base, baseSequenceID := t.baseline.AllFlattenedSettingsWithSequenceID()
+	compare, compareSequenceID := t.compare.AllFlattenedSettingsWithSequenceID()
+	t.compareResult("", "AllFlattenedSettingsWithSequenceID (settings)", base, compare)
+	t.compareResult("", "AllFlattenedSettingsWithSequenceID (sequenceID)", baseSequenceID, compareSequenceID)
 	return base, baseSequenceID
 }
 
@@ -546,7 +548,7 @@ func (t *teeConfig) BindEnvAndSetDefault(key string, val interface{}, env ...str
 }
 
 func (t *teeConfig) Warnings() *model.Warnings {
-	return nil
+	return t.baseline.Warnings()
 }
 
 func (t *teeConfig) Object() model.Reader {

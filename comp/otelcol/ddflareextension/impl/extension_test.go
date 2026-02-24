@@ -31,6 +31,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
@@ -52,7 +53,10 @@ func getExtensionTestConfig(t *testing.T) *Config {
 	assert.NoError(t, err)
 	return &Config{
 		HTTPConfig: &confighttp.ServerConfig{
-			Endpoint: "localhost:0",
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "localhost:0",
+				Transport: confignet.TransportTypeTCP,
+			},
 		},
 		configProviderSettings: newConfigProviderSettings(uriFromFile("config.yaml"), false),
 		factories:              &factories,

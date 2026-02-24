@@ -16,7 +16,7 @@ import (
 type ResolverInterface interface {
 	IsMountIDValid(mountID uint32) (bool, error)
 	SyncCache() error
-	Delete(mountID uint32) error
+	Delete(mountID uint32, mountIDUnique uint64) error
 	ResolveFilesystem(mountID uint32, pid uint32) (string, error)
 	Insert(m model.Mount) error
 	InsertMoved(m model.Mount) error
@@ -25,4 +25,5 @@ type ResolverInterface interface {
 	ResolveMount(mountID uint32, pid uint32) (*model.Mount, model.MountSource, model.MountOrigin, error)
 	SendStats() error
 	ToJSON() ([]byte, error)
+	Iterate(cb func(*model.Mount))
 }

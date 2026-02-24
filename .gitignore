@@ -64,7 +64,8 @@ Dockerfiles/cluster-agent/dist
 Dockerfiles/cluster-agent/security-agent-policies
 pkg/status/template.go
 
-# JetBrains IDE directory
+# JetBrains IDE project files: GoLand, IntelliJ IDEA, PyCharm, etc.
+/*.iml
 /.idea/
 /.ijwb/
 
@@ -228,3 +229,9 @@ go.work.sum
 # CLAUDE override file for personal use
 CLAUDE_PERSONAL.md
 
+# Claude local settings and overrides
+**/.claude/settings.local.json
+**/CLAUDE.local.md
+
+# Zed config
+.zed

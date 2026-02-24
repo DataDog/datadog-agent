@@ -14,6 +14,6 @@ import (
 )
 
 // NewDirectSenderConsumer is not supported on non-linux systems
-func NewDirectSenderConsumer(_ *eventmonitor.EventMonitor, _ log.Component, _ sysprobeconfig.Component) (eventmonitor.EventConsumer, error) {
+func NewDirectSenderConsumer(_ EventConsumerRegistry, _ log.Component, _ sysprobeconfig.Component) (eventmonitor.EventConsumer, error) {
 	return nil, nil
 }

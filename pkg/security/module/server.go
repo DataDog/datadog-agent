@@ -10,7 +10,6 @@ import (
 	"context"
 	json "encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"runtime"
 	"slices"
@@ -19,12 +18,11 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/mailru/easyjson"
 	"go.uber.org/atomic"
+	empty "google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -51,17 +49,11 @@ import (
 )
 
 const (
-	// events delay is used for 2 actions: hash and kills:
-	// - for hash actions, the reports will be marked as resolved after MAX 5 sec (so
-	//   it doesn't matter if this retry period lasts for longer)
-	// - for kill actions:
-	//   . a kill can be queued up to the end of the first disarmer period (1min by default)
-	//   . so, we set the server retry period to 1min and 2sec (+2sec to have the
-	//     time to trigger the kill and wait to catch the process exit)
-	maxRetryForMsgWithActions    = 62
-	maxRetryForMsgWithSSHContext = 62
-	maxRetryForRegularMsgs       = 5
-	retryDelay                   = time.Second
+	// defaultMaxRetry is the default maximum number of retries for a pending message
+	defaultMaxRetry = 5
+
+	// retryDelay is the delay between retries, changing this value may impact the retry logic.
+	retryDelay = time.Second
 )
 
 type pendingMsg struct {
@@ -80,17 +72,14 @@ type pendingMsg struct {
 }
 
 func (p *pendingMsg) getMaxRetry() int {
-	retry := maxRetryForRegularMsgs
-
-	if len(p.actionReports) != 0 {
-		retry = max(retry, maxRetryForMsgWithActions)
+	maxRetry := defaultMaxRetry
+	for _, report := range p.actionReports {
+		maxRetry = max(maxRetry, report.MaxRetry())
 	}
-
 	if p.sshSessionPatcher != nil {
-		retry = max(retry, maxRetryForMsgWithSSHContext)
+		maxRetry = max(maxRetry, p.sshSessionPatcher.MaxRetry())
 	}
-
-	return retry
+	return maxRetry
 }
 
 func (p *pendingMsg) isResolved() bool {
@@ -101,12 +90,13 @@ func (p *pendingMsg) isResolved() bool {
 		}
 	}
 
-	if p.sshSessionPatcher != nil {
-		if err := p.sshSessionPatcher.IsResolved(); err != nil {
-			seclog.Tracef("ssh session not resolved: %v", err)
-			return false
-		}
-	}
+	// TODO: for now skip the retry mechanism and always send the event
+	// if p.sshSessionPatcher != nil {
+	// 	if err := p.sshSessionPatcher.IsResolved(); err != nil {
+	// 		seclog.Tracef("ssh session not resolved: %v", err)
+	// 		return false
+	// 	}
+	// }
 	return true
 }
 
@@ -249,25 +239,33 @@ func (a *APIServer) enqueue(msg *pendingMsg) {
 	a.queueLock.Unlock()
 }
 
-func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
+func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg, retry bool) bool) {
 	a.queueLock.Lock()
 	defer a.queueLock.Unlock()
 
+	queueSize := len(a.queue)
+
 	a.queue = slicesDeleteUntilFalse(a.queue, func(msg *pendingMsg) bool {
-		if msg.sendAfter.After(now) {
+		seclog.Tracef("dequeueing message, queue size: %d", queueSize)
+
+		// apply the delay only if the queue is not full
+		if queueSize < a.cfg.EventRetryQueueThreshold && msg.sendAfter.After(now) {
 			return false
 		}
 
-		if cb(msg) {
+		if cb(msg, queueSize < a.cfg.EventRetryQueueThreshold) {
+			queueSize--
 			return true
 		}
 
 		msgMaxRetry := msg.getMaxRetry()
 		if msg.retry >= msgMaxRetry {
-			seclog.Errorf("failed to sent event, max retry reached: %d", msg.retry)
+			seclog.Warnf("max retry reached: %d, sending event anyway", msg.retry)
+
+			queueSize--
 			return true
 		}
-		seclog.Tracef("failed to sent event, retry %d/%d", msg.retry, msgMaxRetry)
+		seclog.Warnf("failed to send event for rule `%s`, retry %d/%d, queue size: %d", msg.ruleID, msg.retry, msgMaxRetry, len(a.queue))
 
 		msg.sendAfter = now.Add(retryDelay)
 		msg.retry++
@@ -336,8 +334,12 @@ func (a *APIServer) start(ctx context.Context) {
 	for {
 		select {
 		case now := <-ticker.C:
-			a.dequeue(now, func(msg *pendingMsg) bool {
-				if msg.extTagsCb != nil {
+			a.dequeue(now, func(msg *pendingMsg, isRetryAllowed bool) bool {
+				if !isRetryAllowed {
+					seclog.Debugf("queue limit reached: %d, sending event anyway", len(a.queue))
+				}
+
+				if msg.extTagsCb != nil && isRetryAllowed {
 					tags, retryable := msg.extTagsCb()
 					if len(tags) == 0 && retryable && msg.retry < msg.getMaxRetry() {
 						return false
@@ -352,7 +354,7 @@ func (a *APIServer) start(ctx context.Context) {
 				}
 
 				// not fully resolved, retry
-				if !msg.isResolved() && msg.retry < msg.getMaxRetry() {
+				if !msg.isResolved() && isRetryAllowed && msg.retry < msg.getMaxRetry() {
 					return false
 				}
 
@@ -482,16 +484,15 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 		}
 
 		msg := &pendingMsg{
-			ruleID:          groupRuleID,
-			backendEvent:    backendEvent,
-			eventSerializer: serializers.NewEventSerializer(ev, rule, a.probe.GetScrubber()),
-			extTagsCb:       extTagsCb,
-			service:         service,
-			timestamp:       timestamp,
-			sendAfter:       time.Now().Add(retention),
-			tags:            tags,
-			actionReports:   actionReports,
-
+			ruleID:            groupRuleID,
+			backendEvent:      backendEvent,
+			eventSerializer:   serializers.NewEventSerializer(ev, rule, a.probe.GetScrubber()),
+			extTagsCb:         extTagsCb,
+			service:           service,
+			timestamp:         timestamp,
+			sendAfter:         time.Now().Add(retention),
+			tags:              tags,
+			actionReports:     actionReports,
 			sshSessionPatcher: sshSessionPatcher,
 		}
 
@@ -566,7 +567,7 @@ func (a *APIServer) expireDump(dump *api.ActivityDumpStreamMessage) {
 
 	selectorStr := "<unknown>"
 	if sel := dump.GetSelector(); sel != nil {
-		selectorStr = fmt.Sprintf("%s:%s", sel.GetName(), sel.GetTag())
+		selectorStr = sel.GetName() + ":" + sel.GetTag()
 	}
 	seclog.Tracef("the activity dump server channel is full, a dump of [%s] was dropped\n", selectorStr)
 }
@@ -711,47 +712,6 @@ func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.S
 	}
 	apiStatus.PoliciesStatus = a.policiesStatus
 
-	seclVariables := a.GetSECLVariables()
-
-	var globals []*api.SECLVariableState
-	for _, global := range seclVariables {
-		if !strings.Contains(global.Name, ".") {
-			globals = append(globals, global)
-		}
-	}
-	apiStatus.GlobalVariables = globals
-
-	scopedVariables := make(map[string]map[string][]*api.SECLVariableState)
-	for _, scoped := range seclVariables {
-		split := strings.SplitN(scoped.Name, ".", 3)
-		if len(split) < 3 {
-			continue
-		}
-		scope, name, key := split[0], split[1], split[2]
-		if scope != "" {
-			if _, found := scopedVariables[scope]; !found {
-				scopedVariables[scope] = make(map[string][]*api.SECLVariableState)
-			}
-
-			scopedVariables[scope][key] = append(scopedVariables[scope][key], &api.SECLVariableState{
-				Name:  name,
-				Value: scoped.Value,
-			})
-		}
-	}
-	apiStatus.ScopedVariables = make(map[string]*api.ScopedVariableStore)
-	for scope, vars := range scopedVariables {
-		store := &api.ScopedVariableStore{
-			KeyValues: make(map[string]*api.SECLVariableStateList),
-		}
-		for key, values := range vars {
-			store.KeyValues[key] = &api.SECLVariableStateList{
-				Variables: values,
-			}
-		}
-		apiStatus.ScopedVariables[scope] = store
-	}
-
 	if err := a.fillStatusPlatform(&apiStatus); err != nil {
 		return nil, err
 	}
@@ -785,14 +745,14 @@ func getEnvAsTags(cfg *config.RuntimeSecurityConfig) []string {
 	for _, env := range cfg.EnvAsTags {
 		value := os.Getenv(env)
 		if value != "" {
-			tags = append(tags, fmt.Sprintf("%s:%s", env, value))
+			tags = append(tags, env+":"+value)
 		}
 	}
 	return tags
 }
 
 // NewAPIServer returns a new gRPC event server
-func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender[api.SecurityEventMessage], client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component, ipc ipc.Component) (*APIServer, error) {
+func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender[api.SecurityEventMessage], client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component, hostname string) (*APIServer, error) {
 	stopper := startstop.NewSerialStopper()
 	containerFilter, err := utils.NewContainerFilter()
 	if err != nil {
@@ -831,7 +791,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 
 	if as.msgSender == nil {
 		if cfg.SendPayloadsFromSystemProbe {
-			msgSender, err := NewDirectEventMsgSender(stopper, compression, ipc)
+			msgSender, err := NewDirectEventMsgSender(stopper, compression, hostname)
 			if err != nil {
 				log.Errorf("failed to setup direct event sender: %v", err)
 			} else {

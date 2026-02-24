@@ -57,6 +57,38 @@ func NewProcessListener(options ServiceListernerDeps) (ServiceListener, error) {
 	return l, nil
 }
 
+func isMainProcessForService(process *workloadmeta.Process, wmeta workloadmeta.Component) bool {
+	// If no parent or parent is the init process, then this process is the main
+	// process.
+	if process.Ppid == 0 || process.Ppid == 1 {
+		return true
+	}
+
+	parent, err := wmeta.GetProcess(process.Ppid)
+	if err != nil {
+		// The parent doesn't exist in WLM, so we assume that we are the main
+		// process. Note that if the parent and the child process have been
+		// collected at the same time, the event for the child process could be
+		// received before the event for the parent process. However, since WLM
+		// calls the events after creating all the entities in WLM (see
+		// store.go:handleEvents()), the GetProcess call should return the
+		// parent process in that case too.
+		return true
+	}
+
+	// If the parent process has no service data, then we assume that we are the
+	// main process.
+	if parent.Service == nil {
+		return true
+	}
+
+	// If the parent has the same GeneratedName, then we assume that we are not
+	// the main process (the parent is). We use GeneratedName rather than Comm
+	// to avoid false matches between unrelated services that share the same
+	// interpreter (eg supervisord and flask both have Comm="python").
+	return parent.Service.GeneratedName != process.Service.GeneratedName
+}
+
 func (l *ProcessListener) createProcessService(entity workloadmeta.Entity) {
 	process := entity.(*workloadmeta.Process)
 
@@ -74,6 +106,11 @@ func (l *ProcessListener) createProcessService(entity workloadmeta.Entity) {
 		return
 	}
 
+	if !isMainProcessForService(process, l.Store()) {
+		log.Tracef("process %d (%s) is not the main process of the service, skipping", process.Pid, process.Comm)
+		return
+	}
+
 	if l.processFilters != nil {
 		filterableProcess := workloadmetafilter.CreateProcess(process)
 		if l.processFilters.IsExcluded(filterableProcess) {
@@ -83,9 +120,9 @@ func (l *ProcessListener) createProcessService(entity workloadmeta.Entity) {
 	}
 
 	// Build ports from Service.TCPPorts
-	ports := make([]ContainerPort, 0, len(process.Service.TCPPorts))
+	ports := make([]workloadmeta.ContainerPort, 0, len(process.Service.TCPPorts))
 	for _, port := range process.Service.TCPPorts {
-		ports = append(ports, ContainerPort{
+		ports = append(ports, workloadmeta.ContainerPort{
 			Port: int(port),
 		})
 	}
@@ -115,7 +152,7 @@ type ProcessService struct {
 	process  *workloadmeta.Process
 	tagsHash string
 	hosts    map[string]string
-	ports    []ContainerPort
+	ports    []workloadmeta.ContainerPort
 	pid      int
 	ready    bool
 	tagger   tagger.Component
@@ -155,7 +192,7 @@ func (s *ProcessService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns the ports exposed by the service.
-func (s *ProcessService) GetPorts() ([]ContainerPort, error) {
+func (s *ProcessService) GetPorts() ([]workloadmeta.ContainerPort, error) {
 	return s.ports, nil
 }
 

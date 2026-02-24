@@ -14,8 +14,6 @@ update_rc_build_links:
       artifacts: false
     - job: publish_internal_dca_container_image
       artifacts: false
-    - job: publish_internal_container_image-full
-      artifacts: false
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   script:
@@ -23,5 +21,5 @@ update_rc_build_links:
     - ATLASSIAN_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE user) || exit $?; export ATLASSIAN_USERNAME
     - dda self dep sync -f legacy-tasks
     - PATCH=$(echo "$CI_COMMIT_REF_NAME" | cut -d'.' -f3 | cut -c1)
-    - if [[ "$PATCH" == "0" ]]; then PATCH_OPTION=""; else PATCH_OPTION="-p"; fi
-    - dda inv -- -e release.update-build-links ${CI_COMMIT_REF_NAME} ${PATCH_OPTION}
+    # Do not run this task for patch releases
+    - if [[ "$PATCH" == "0" ]]; then dda inv -- -e release.update-build-links ${CI_COMMIT_REF_NAME}; fi

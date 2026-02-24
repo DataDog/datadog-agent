@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	jsonutil "github.com/DataDog/datadog-agent/pkg/util/json"
 )
 
 func isValidJSON(data []byte) bool {
@@ -133,7 +134,7 @@ value: 456`,
 
 	var b bytes.Buffer
 
-	err := printJSON(&b, c, false)
+	err := jsonutil.PrintJSON(&b, c, false, false, "")
 	require.NoError(t, err)
 
 	require.True(t, isValidJSON(b.Bytes()))
@@ -184,7 +185,7 @@ value: 456`,
 
 	var b bytes.Buffer
 
-	err := printJSON(&b, c, true)
+	err := jsonutil.PrintJSON(&b, c, true, false, "")
 	require.NoError(t, err)
 
 	require.True(t, isValidJSON(b.Bytes()))

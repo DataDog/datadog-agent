@@ -44,6 +44,7 @@ const (
 	KarpenterAPIGroup       = "karpenter.sh"
 	KarpenterAWSAPIGroup    = "karpenter.k8s.aws"
 	KarpenterAzureAPIGroup  = "karpenter.azure.com"
+	EKSAPIGroup             = "eks.amazonaws.com"
 )
 
 var (
@@ -90,6 +91,7 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		Config:       chk.orchestratorConfig,
 		MsgGroupRef:  chk.groupID,
 		AgentVersion: chk.agentVersion,
+		StopCh:       chk.stopCh,
 	}
 	terminatedResourceRunCfg := &collectors.CollectorRunConfig{
 		K8sCollectorRunConfig: runCfg.K8sCollectorRunConfig,
@@ -98,7 +100,10 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		MsgGroupRef:           runCfg.MsgGroupRef,
 		TerminatedResources:   true,
 	}
+
 	manifestBuffer := NewManifestBuffer(chk)
+	terminatedResourceBundle := NewTerminatedResourceBundle(chk, terminatedResourceRunCfg, manifestBuffer)
+	runCfg.TerminatedResourceHandler = terminatedResourceBundle.Add
 
 	bundle := &CollectorBundle{
 		discoverCollectors:       chk.orchestratorConfig.CollectorDiscoveryEnabled,
@@ -109,8 +114,9 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		manifestBuffer:           manifestBuffer,
 		collectorDiscovery:       discovery.NewDiscoveryCollectorForInventory(),
 		activatedCollectors:      map[string]struct{}{},
-		terminatedResourceBundle: NewTerminatedResourceBundle(chk, terminatedResourceRunCfg, manifestBuffer),
+		terminatedResourceBundle: terminatedResourceBundle,
 	}
+
 	bundle.prepare()
 
 	return bundle
@@ -318,6 +324,12 @@ func (cb *CollectorBundle) initialize() {
 		collector.Init(cb.runCfg)
 		informer := collector.Informer()
 
+		// special case of improved terminated pod collector that is not using an informer
+		// TODO: improve the initialization logic to avoid leaking collector implementation details to the bundle.
+		if informer == nil {
+			continue
+		}
+
 		if _, found := informerSynced[informer]; !found {
 			informersToSync[apiserver.InformerName(collectorFullName)] = informer
 			informerSynced[informer] = struct{}{}
@@ -514,6 +526,9 @@ func newBuiltinCRDConfigs() []builtinCRDConfig {
 		newBuiltinCRDConfig(KarpenterAPIGroup, "", isOOTBCRDEnabled, "v1"),
 		newBuiltinCRDConfig(KarpenterAWSAPIGroup, "", isOOTBCRDEnabled, "v1"),
 		newBuiltinCRDConfig(KarpenterAzureAPIGroup, "", isOOTBCRDEnabled, "v1beta1"),
+
+		// EKS Auto Mode resources (for now only nodeclasses, but we can easily add more in the future if needed)
+		newBuiltinCRDConfig(EKSAPIGroup, "nodeclasses", isOOTBCRDEnabled, "v1", "v1beta1"),
 	}
 }
 

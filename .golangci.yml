@@ -20,7 +20,6 @@ linters:
     - ineffassign               # Detects when assignments to existing variables are not used
     - misspell                  # Finds commonly misspelled English words in comments
     - perfsprint                # replace uses of fmt.Sprintf and fmt.Errorf with better (both in CPU and memory) alternatives
-    - pkgconfigusage            # Linter for checking usage of pkgconfig inside components folder
     - revive                    # Revive is a replacement for golint, a coding style checker
     - staticcheck               # staticcheck is a go vet on steroids, applying a ton of static analysis checks
     - unconvert                 # Remove unnecessary type conversions
@@ -52,10 +51,141 @@ linters:
               desc: "use the v2 sdk instead"
         logger:
           files:
-            - "!**/pkg/util/log/**"
+            - $all
           deny:
             - pkg: "github.com/cihub/seelog"
-              desc: "seelog should not be used directly. Use `pkg/util/log` instead."
+              desc: "seelog should not be used. Use `pkg/util/log` instead."
+        pkgconfigusage:
+          files:
+            - "**/comp/**"
+            # Treat this list as a TODO for fixing issues with pkgconfigusage rule
+            # DO NOT ADD NEW ENTRIES
+            - "!**/comp/api/api/apiimpl/listener/common.go"
+            - "!**/comp/api/api/apiimpl/server_ipc.go"
+            - "!**/comp/core/autodiscovery/autodiscoveryimpl/autoconfig.go"
+            - "!**/comp/core/autodiscovery/autodiscoveryimpl/autoconfig_test.go"
+            - "!**/comp/core/autodiscovery/autodiscoveryimpl/secrets.go"
+            - "!**/comp/core/autodiscovery/common/utils/container_collect_all.go"
+            - "!**/comp/core/autodiscovery/common/utils/prometheus.go"
+            - "!**/comp/core/autodiscovery/component.go"
+            - "!**/comp/core/autodiscovery/configresolver/configresolver.go"
+            - "!**/comp/core/autodiscovery/listeners/common.go"
+            - "!**/comp/core/autodiscovery/listeners/container.go"
+            - "!**/comp/core/autodiscovery/listeners/kubelet.go"
+            - "!**/comp/core/autodiscovery/listeners/service.go"
+            - "!**/comp/core/autodiscovery/listeners/staticconfig.go"
+            - "!**/comp/core/autodiscovery/noopimpl/autoconfig.go"
+            - "!**/comp/core/autodiscovery/providers/cloudfoundry.go"
+            - "!**/comp/core/autodiscovery/providers/cloudfoundry_nop.go"
+            - "!**/comp/core/autodiscovery/providers/clusterchecks.go"
+            - "!**/comp/core/autodiscovery/providers/config_reader.go"
+            - "!**/comp/core/autodiscovery/providers/consul.go"
+            - "!**/comp/core/autodiscovery/providers/consul_nop.go"
+            - "!**/comp/core/autodiscovery/providers/container.go"
+            - "!**/comp/core/autodiscovery/providers/endpointschecks.go"
+            - "!**/comp/core/autodiscovery/providers/endpointschecks_nop.go"
+            - "!**/comp/core/autodiscovery/providers/etcd.go"
+            - "!**/comp/core/autodiscovery/providers/etcd_nop.go"
+            - "!**/comp/core/autodiscovery/providers/kube_endpoints.go"
+            - "!**/comp/core/autodiscovery/providers/kube_endpoints_file.go"
+            - "!**/comp/core/autodiscovery/providers/kube_endpoints_file_nop.go"
+            - "!**/comp/core/autodiscovery/providers/kube_endpointslices.go"
+            - "!**/comp/core/autodiscovery/providers/kube_endpointslices_nop.go"
+            - "!**/comp/core/autodiscovery/providers/kube_endpointslices_file.go"
+            - "!**/comp/core/autodiscovery/providers/kube_endpointslices_file_nop.go"
+            - "!**/comp/core/autodiscovery/providers/kube_endpoints_nop.go"
+            - "!**/comp/core/autodiscovery/providers/kube_services.go"
+            - "!**/comp/core/autodiscovery/providers/kube_services_file.go"
+            - "!**/comp/core/autodiscovery/providers/kube_services_file_nop.go"
+            - "!**/comp/core/autodiscovery/providers/kube_services_nop.go"
+            - "!**/comp/core/autodiscovery/providers/process_log.go"
+            - "!**/comp/core/autodiscovery/providers/prometheus_common.go"
+            - "!**/comp/core/autodiscovery/providers/prometheus_pods.go"
+            - "!**/comp/core/autodiscovery/providers/prometheus_pods_nop.go"
+            - "!**/comp/core/autodiscovery/providers/prometheus_services.go"
+            - "!**/comp/core/autodiscovery/providers/prometheus_services_nop.go"
+            - "!**/comp/core/autodiscovery/providers/prometheus_services_eps.go"
+            - "!**/comp/core/autodiscovery/providers/prometheus_services_eps_nop.go"
+            - "!**/comp/core/autodiscovery/providers/providers.go"
+            - "!**/comp/core/autodiscovery/providers/remote_config.go"
+            - "!**/comp/core/autodiscovery/providers/types/types.go"
+            - "!**/comp/core/autodiscovery/providers/utils.go"
+            - "!**/comp/core/autodiscovery/providers/utils_test.go"
+            - "!**/comp/core/autodiscovery/providers/zookeeper.go"
+            - "!**/comp/core/autodiscovery/providers/zookeeper_nop.go"
+            - "!**/comp/core/config/config.go"
+            - "!**/comp/core/config/params.go"
+            - "!**/comp/core/config/setup.go"
+            - "!**/comp/core/gui/guiimpl/checks.go"
+            - "!**/comp/core/hostname/remotehostnameimpl/hostname.go"
+            - "!**/comp/core/status/statusimpl/common_header_provider.go"
+            - "!**/comp/core/status/statusimpl/common_header_provider_test.go"
+            - "!**/comp/core/status/statusimpl/status_api_endpoints_test.go"
+            - "!**/comp/core/status/statusimpl/status_test.go"
+            - "!**/comp/core/sysprobeconfig/sysprobeconfigimpl/config.go"
+            - "!**/comp/core/sysprobeconfig/sysprobeconfigimpl/config_mock.go"
+            - "!**/comp/core/tagger/collectors/ecs_common.go"
+            - "!**/comp/core/tagger/collectors/workloadmeta_extract.go"
+            - "!**/comp/core/tagger/taglist/taglist.go"
+            - "!**/comp/core/workloadfilter/baseimpl/filter_utils.go"
+            - "!**/comp/core/workloadfilter/catalog/filter_config.go"
+            - "!**/comp/core/workloadmeta/collectors/internal/cloudfoundry/container/cf_container.go"
+            - "!**/comp/core/workloadmeta/collectors/internal/cloudfoundry/vm/cf_vm.go"
+            - "!**/comp/core/workloadmeta/collectors/internal/containerd/containerd.go"
+            - "!**/comp/core/workloadmeta/collectors/internal/containerd/image_sbom_trivy.go"
+            - "!**/comp/core/workloadmeta/collectors/internal/containerd/network_linux.go"
+            - "!**/comp/core/workloadmeta/collectors/internal/crio/crio.go"
+            - "!**/comp/core/workloadmeta/collectors/internal/docker/image_sbom_trivy.go"
+            - "!**/comp/core/workloadmeta/collectors/internal/kubemetadata/kubemetadata.go"
+            - "!**/comp/core/workloadmeta/collectors/internal/podman/podman.go"
+            - "!**/comp/core/workloadmeta/collectors/internal/remote/generic.go"
+            - "!**/comp/core/workloadmeta/collectors/internal/remote/processcollector/process_collector.go"
+            - "!**/comp/core/workloadmeta/collectors/internal/remote/workloadmeta/workloadmeta.go"
+            - "!**/comp/dogstatsd/packets/pool.go"
+            - "!**/comp/dogstatsd/server/float64_list_pool.go"
+            - "!**/comp/dogstatsd/server/serverless.go"
+            - "!**/comp/dogstatsd/serverDebug/serverdebugimpl/debug.go"
+            - "!**/comp/forwarder/connectionsforwarder/impl/connectionsforwarder.go"
+            - "!**/comp/forwarder/defaultforwarder/blocked_endpoints.go"
+            - "!**/comp/forwarder/defaultforwarder/default_forwarder.go"
+            - "!**/comp/forwarder/eventplatform/eventplatformimpl/epforwarder.go"
+            - "!**/comp/logs/agent/agentimpl/agent_test.go"
+            - "!**/comp/logs/agent/agentimpl/analyze_logs_init.go"
+            - "!**/comp/logs/agent/agentimpl/serverless.go"
+            - "!**/comp/logs/agent/config/config_keys.go"
+            - "!**/comp/logs/agent/config/config_test.go"
+            - "!**/comp/logs/agent/config/endpoints.go"
+            - "!**/comp/logs/agent/config/endpoints_test.go"
+            - "!**/comp/metadata/clusteragent/impl/cluster_agent.go"
+            - "!**/comp/metadata/inventoryagent/inventoryagentimpl/inventoryagent.go"
+            - "!**/comp/metadata/inventoryagent/inventoryagentimpl/inventoryagent_test.go"
+            - "!**/comp/otelcol/otlp/components/exporter/serializerexporter/serializer.go"
+            - "!**/comp/otelcol/otlp/components/processor/infraattributesprocessor/factory.go"
+            - "!**/comp/otelcol/otlp/config.go"
+            - "!**/comp/otelcol/otlp/configcheck/configcheck_common.go"
+            - "!**/comp/otelcol/otlp/configcheck/configcheck_test.go"
+            - "!**/comp/otelcol/otlp/integrationtest/integration_test.go"
+            - "!**/comp/otelcol/otlp/testutil/testutil.go"
+            - "!**/comp/process/agent/agent_linux.go"
+            - "!**/comp/process/agent/status.go"
+            - "!**/comp/process/apiserver/apiserver.go"
+            - "!**/comp/process/expvars/expvarsimpl/expvars.go"
+            - "!**/comp/process/forwarders/forwardersimpl/forwarders.go"
+            - "!**/comp/process/profiler/profilerimpl/profiler.go"
+            - "!**/comp/process/status/statusimpl/status.go"
+            - "!**/comp/remote-config/rcclient/rcclientimpl/rcclient.go"
+            - "!**/comp/remote-config/rcclient/rcclientimpl/rcclient_test.go"
+            - "!**/comp/systray/systray/systrayimpl/doflare.go"
+            - "!**/comp/trace/agent/impl/run.go"
+            - "!**/comp/trace/config/config.go"
+            - "!**/comp/trace/config/config_nix.go"
+            - "!**/comp/trace/config/config_test.go"
+            - "!**/comp/trace/config/hostname.go"
+            - "!**/comp/trace/config/remote.go"
+            - "!**/comp/trace/config/setup.go"
+          deny:
+            - pkg: "github.com/DataDog/datadog-agent/pkg/config/setup"
+              desc: "github.com/DataDog/datadog-agent/pkg/config/setup should not be used inside comp folder. Use the config component instead, by declaring it as part of your component's dependencies."
         templates:
           deny:
             # see https://github.com/golang/go/issues/72895 for details
@@ -96,7 +226,6 @@ linters:
         - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Warnf
         - (net/http.ResponseWriter).Write
         - fmt.Sscanf
-        - github.com/cihub/seelog.Warnf
         - github.com/DataDog/datadog-agent/pkg/util/log.ChangeLogLevel
         - github.com/DataDog/datadog-agent/pkg/util/log.Critical
         - github.com/DataDog/datadog-agent/pkg/util/log.Criticalc
@@ -216,10 +345,6 @@ linters:
         - pattern: RevertFinishedBackToBuilder
           msg: RevertFinishedBackToBuilder is typically not needed, so using it is discouraged. Only existing OTel usage is allowed.
       analyze-types: true
-    custom:
-      pkgconfigusage:
-        type: "module"
-        description: Check usage of pkgconfig in components folder
 
   exclusions:
     generated: lax
@@ -301,377 +426,6 @@ linters:
       linters: [staticcheck]
     - text: "EndpointSubset is deprecated: This API is deprecated in v1.33+"
       linters: [staticcheck]
-    # Treat this list as a TODO for fixing issues with pkgconfigusage custom linter
-    # DO NOT ADD NEW ENTRIES
-    - path: comp/aggregator/demultiplexer/demultiplexerimpl/test_agent_demultiplexer.go
-      linters:
-        - pkgconfigusage
-    - path: comp/api/api/apiimpl/listener/common.go
-      linters:
-        - pkgconfigusage
-    - path: comp/api/api/apiimpl/server_ipc.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/agenttelemetry/impl/config.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/autodiscoveryimpl/autoconfig.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/autodiscoveryimpl/autoconfig_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/autodiscoveryimpl/secrets.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/common/utils/container_collect_all.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/common/utils/prometheus.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/component.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/configresolver/configresolver.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/listeners/common.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/listeners/container.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/listeners/kubelet.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/listeners/service.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/listeners/staticconfig.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/noopimpl/autoconfig.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/cloudfoundry.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/cloudfoundry_nop.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/clusterchecks.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/config_reader.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/consul.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/consul_nop.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/container.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/endpointschecks.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/endpointschecks_nop.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/etcd.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/etcd_nop.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/kube_endpoints.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/kube_endpoints_file.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/kube_endpoints_file_nop.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/kube_endpoints_nop.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/kube_services.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/kube_services_file.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/kube_services_file_nop.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/kube_services_nop.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/process_log.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/prometheus_common.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/prometheus_pods.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/prometheus_pods_nop.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/prometheus_services.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/prometheus_services_nop.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/providers.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/remote_config.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/types/types.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/utils.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/utils_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/zookeeper.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/zookeeper_nop.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/config/config.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/config/config_mock.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/config/setup.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/gui/guiimpl/checks.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/hostname/remotehostnameimpl/hostname.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/status/statusimpl/common_header_provider.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/status/statusimpl/common_header_provider_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/status/statusimpl/status_api_endpoints_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/status/statusimpl/status_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/sysprobeconfig/sysprobeconfigimpl/config.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/sysprobeconfig/sysprobeconfigimpl/config_mock.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/tagger/collectors/ecs_common.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/tagger/collectors/workloadmeta_extract.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/tagger/taglist/taglist.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadfilter/def/utils.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/cloudfoundry/container/cf_container.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/cloudfoundry/vm/cf_vm.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/containerd/containerd.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/containerd/network_linux.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/containerd/image_sbom_trivy.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/crio/crio.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/docker/image_sbom_trivy.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/kubemetadata/kubemetadata.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/podman/podman.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/process/process_collector.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/remote/generic.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/remote/processcollector/process_collector.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/remote/workloadmeta/workloadmeta.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/util/process_util_linux.go
-      linters:
-        - pkgconfigusage
-    - path: comp/dogstatsd/listeners/udp.go
-      linters:
-        - pkgconfigusage
-    - path: comp/dogstatsd/packets/pool.go
-      linters:
-        - pkgconfigusage
-    - path: comp/dogstatsd/server/float64_list_pool.go
-      linters:
-        - pkgconfigusage
-    - path: comp/dogstatsd/server/serverless.go
-      linters:
-        - pkgconfigusage
-    - path: comp/dogstatsd/serverDebug/serverdebugimpl/debug.go
-      linters:
-        - pkgconfigusage
-    - path: comp/forwarder/connectionsforwarder/impl/connectionsforwarder.go
-      linters:
-        - pkgconfigusage
-    - path: comp/forwarder/defaultforwarder/blocked_endpoints.go
-      linters:
-        - pkgconfigusage
-    - path: comp/forwarder/defaultforwarder/default_forwarder.go
-      linters:
-        - pkgconfigusage
-    - path: comp/forwarder/eventplatform/eventplatformimpl/epforwarder.go
-      linters:
-        - pkgconfigusage
-    - path: comp/logs/agent/agentimpl/agent_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/logs/agent/agentimpl/analyze_logs_init.go
-      linters:
-        - pkgconfigusage
-    - path: comp/logs/agent/agentimpl/serverless.go
-      linters:
-        - pkgconfigusage
-    - path: comp/logs/agent/config/config_keys.go
-      linters:
-        - pkgconfigusage
-    - path: comp/logs/agent/config/config_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/logs/agent/config/endpoints.go
-      linters:
-        - pkgconfigusage
-    - path: comp/logs/agent/config/endpoints_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/metadata/clusteragent/impl/cluster_agent.go
-      linters:
-        - pkgconfigusage
-    - path: comp/metadata/inventoryagent/inventoryagentimpl/inventoryagent.go
-      linters:
-        - pkgconfigusage
-    - path: comp/metadata/inventoryagent/inventoryagentimpl/inventoryagent_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/otelcol/otlp/components/exporter/serializerexporter/serializer.go
-      linters:
-        - pkgconfigusage
-    - path: comp/otelcol/otlp/components/processor/infraattributesprocessor/factory.go
-      linters:
-        - pkgconfigusage
-    - path: comp/otelcol/otlp/config.go
-      linters:
-        - pkgconfigusage
-    - path: comp/otelcol/otlp/configcheck/configcheck_common.go
-      linters:
-        - pkgconfigusage
-    - path: comp/otelcol/otlp/configcheck/configcheck_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/otelcol/otlp/integrationtest/integration_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/otelcol/otlp/testutil/testutil.go
-      linters:
-        - pkgconfigusage
-    - path: comp/process/agent/agent_linux.go
-      linters:
-        - pkgconfigusage
-    - path: comp/process/agent/status.go
-      linters:
-        - pkgconfigusage
-    - path: comp/process/apiserver/apiserver.go
-      linters:
-        - pkgconfigusage
-    - path: comp/process/expvars/expvarsimpl/expvars.go
-      linters:
-        - pkgconfigusage
-    - path: comp/process/forwarders/forwardersimpl/forwarders.go
-      linters:
-        - pkgconfigusage
-    - path: comp/process/profiler/profilerimpl/profiler.go
-      linters:
-        - pkgconfigusage
-    - path: comp/process/status/statusimpl/status.go
-      linters:
-        - pkgconfigusage
-    - path: comp/remote-config/rcclient/rcclientimpl/rcclient.go
-      linters:
-        - pkgconfigusage
-    - path: comp/remote-config/rcclient/rcclientimpl/rcclient_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/remote-config/rcservice/rcserviceimpl/rcservice.go
-      linters:
-        - pkgconfigusage
-    - path: comp/remote-config/rcservicemrf/rcservicemrfimpl/rcservicemrf.go
-      linters:
-        - pkgconfigusage
-    - path: comp/trace/agent/impl/run.go
-      linters:
-        - pkgconfigusage
-    - path: comp/trace/config/config.go
-      linters:
-        - pkgconfigusage
-    - path: comp/trace/config/config_nix.go
-      linters:
-        - pkgconfigusage
-    - path: comp/trace/config/config_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/trace/config/hostname.go
-      linters:
-        - pkgconfigusage
-    - path: comp/trace/config/remote.go
-      linters:
-        - pkgconfigusage
-    - path: comp/trace/config/setup.go
-      linters:
-        - pkgconfigusage
-    - path: comp/systray/systray/systrayimpl/doflare.go
-      linters:
-        - pkgconfigusage
     paths:
       - pkg/util/cloudproviders/cloudfoundry/bbscache_test.go
       - pkg/util/intern/string.go

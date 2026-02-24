@@ -14,6 +14,7 @@ The Datadog Agent is a comprehensive monitoring and observability agent written 
   - `system-probe/` - System-level monitoring (eBPF)
   - `security-agent/` - Security monitoring
   - `process-agent/` - Process monitoring
+  - `privateactionrunner/` - Executing actions
 
 - `/pkg/` - Core Go packages and libraries
   - `aggregator/` - Metrics aggregation

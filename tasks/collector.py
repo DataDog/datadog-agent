@@ -28,7 +28,7 @@ LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repo
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 """
-OCB_VERSION = "0.143.0"
+OCB_VERSION = "0.145.0"
 
 MANDATORY_COMPONENTS = {
     "extensions": [
@@ -53,20 +53,17 @@ COMPONENTS_TO_STRIP = {
     ],
 }
 
-# TODO(songy23): OCB is not released in v0.143.0, revert this in the next release
-BASE_URL = (
-    "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/cmd%2Fbuilder%2Fv0.142.0/"
-)
+BASE_URL = f"https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/cmd%2Fbuilder%2Fv{OCB_VERSION}/"
 
 BINARY_NAMES_BY_SYSTEM_AND_ARCH = {
     "Linux": {
-        "x86_64": "ocb_0.142.0_linux_amd64",
-        "arm64": "ocb_0.142.0_linux_arm64",
-        "aarch64": "ocb_0.142.0_linux_arm64",
+        "x86_64": f"ocb_{OCB_VERSION}_linux_amd64",
+        "arm64": f"ocb_{OCB_VERSION}_linux_arm64",
+        "aarch64": f"ocb_{OCB_VERSION}_linux_arm64",
     },
     "Darwin": {
-        "x86_64": "ocb_0.142.0_darwin_amd64",
-        "arm64": "ocb_0.142.0_darwin_arm64",
+        "x86_64": f"ocb_{OCB_VERSION}_darwin_amd64",
+        "arm64": f"ocb_{OCB_VERSION}_darwin_arm64",
     },
 }
 
@@ -514,7 +511,7 @@ class CollectorVersionUpdater:
             MANIFEST_FILE,
             "./comp/otelcol/collector/impl/collector.go",
             "./tasks/collector.py",
-            "./.gitlab/integration_test/otel.yml",
+            "./.gitlab/test/integration_test/otel.yml",
             "./test/otel/testdata/ocb_build_script.sh",
         ]
         for root, _, testfiles in os.walk("./tasks/unit_tests/testdata/collector"):

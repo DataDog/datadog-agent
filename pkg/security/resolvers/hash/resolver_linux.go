@@ -80,8 +80,8 @@ type ResolverOpts struct {
 
 // LRUCacheKey is the structure used to access cached hashes
 type LRUCacheKey struct {
-	path        string
-	containerID string
+	path     string
+	cgroupID string
 }
 
 // LRUCacheEntry is the structure used to cache hashes
@@ -156,7 +156,7 @@ func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInte
 }
 
 // ComputeHashesFromEvent calls ComputeHashes using the provided event
-func (resolver *Resolver) ComputeHashesFromEvent(event *model.Event, file *model.FileEvent) []string {
+func (resolver *Resolver) ComputeHashesFromEvent(event *model.Event, file *model.FileEvent, maxFileSize int64) []string {
 	if !resolver.opts.Enabled {
 		return nil
 	}
@@ -165,19 +165,19 @@ func (resolver *Resolver) ComputeHashesFromEvent(event *model.Event, file *model
 	event.FieldHandlers.ResolveFilePath(event, file)
 
 	process := event.ProcessContext.Process
-	resolver.HashFileEvent(event.GetEventType(), process.ContainerContext.ContainerID, process.Pid, file)
+	resolver.HashFileEvent(event.GetEventType(), process.CGroup.CGroupID, process.Pid, file, maxFileSize)
 
 	return file.Hashes
 }
 
 // ComputeHashes computes the hashes of the provided file event.
 // Disclaimer: This resolver considers that the FileEvent has already been resolved
-func (resolver *Resolver) ComputeHashes(eventType model.EventType, process *model.Process, file *model.FileEvent) []string {
+func (resolver *Resolver) ComputeHashes(eventType model.EventType, process *model.Process, file *model.FileEvent, maxFileSize int64) []string {
 	if !resolver.opts.Enabled {
 		return nil
 	}
 
-	resolver.HashFileEvent(eventType, process.ContainerContext.ContainerID, process.Pid, file)
+	resolver.HashFileEvent(eventType, process.CGroup.CGroupID, process.Pid, file, maxFileSize)
 
 	return file.Hashes
 }
@@ -221,7 +221,7 @@ func getFileInfo(path string) (fs.FileMode, int64, uint64, fileUniqKey, error) {
 }
 
 // HashFileEvent hashes the provided file event
-func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID containerutils.ContainerID, pid uint32, file *model.FileEvent) {
+func (resolver *Resolver) HashFileEvent(eventType model.EventType, cgroupID containerutils.CGroupID, pid uint32, file *model.FileEvent, maxFileSize int64) {
 	if !resolver.opts.Enabled {
 		return
 	}
@@ -256,8 +256,8 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 
 	// check if the hash(es) of this file is in cache
 	fileKey := LRUCacheKey{
-		path:        file.PathnameStr,
-		containerID: string(ctrID),
+		path:     file.PathnameStr,
+		cgroupID: string(cgroupID),
 	}
 
 	// Note: we'll check after stat if the cached entry matches the file metadata
@@ -275,7 +275,7 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 	// add pid one for hash resolution outside of a container
 	rootPIDs := []uint32{1, pid}
 	if resolver.cgroupResolver != nil {
-		if cacheEntry := resolver.cgroupResolver.GetCacheEntryContainerID(ctrID); cacheEntry != nil {
+		if cacheEntry := resolver.cgroupResolver.GetCacheEntryByCgroupID(cgroupID); cacheEntry != nil {
 			rootPIDs = cacheEntry.GetPIDs()
 		}
 	}
@@ -341,8 +341,12 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 	}
 	defer f.Close()
 
+	if maxFileSize <= 0 {
+		maxFileSize = resolver.opts.MaxFileSize
+	}
+
 	// is the file size above the configured limit
-	if size > resolver.opts.MaxFileSize {
+	if size > maxFileSize {
 		rateReservation.Cancel()
 		hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.FileTooBig.String())
 		file.HashState = model.FileTooBig

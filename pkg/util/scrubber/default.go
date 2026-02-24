@@ -271,6 +271,14 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	)
 	exactKeyReplacer.LastUpdated = parseVersion("7.70.2")
 
+	// Private key replacer (for instance private action runner)
+	privateKeyReplacer := matchYAMLKeyEnding(
+		`private_key`,
+		[]string{"private_key"},
+		[]byte(`$1 "********"`),
+	)
+	privateKeyReplacer.LastUpdated = parseVersion("7.76.0")
+
 	scrubber.AddReplacer(SingleLine, hintedAPIKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedAPPKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedBearerReplacer)
@@ -280,6 +288,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, httpHeaderAuthReplacer)
 	scrubber.AddReplacer(SingleLine, httpHeaderSecretReplacer)
 	scrubber.AddReplacer(SingleLine, exactKeyReplacer)
+	scrubber.AddReplacer(SingleLine, privateKeyReplacer)
 	scrubber.AddReplacer(SingleLine, apiKeyReplacerYAML)
 	scrubber.AddReplacer(SingleLine, apiKeyReplacer)
 	scrubber.AddReplacer(SingleLine, appKeyReplacerYAML)

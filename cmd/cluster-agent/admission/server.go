@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	corelisters "k8s.io/client-go/listers/core/v1"
 
 	admicommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
@@ -73,14 +74,16 @@ type WebhookFunc func(request *Request) *admiv1.AdmissionResponse
 
 // Server TODO <container-integrations>
 type Server struct {
-	decoder runtime.Decoder
-	mux     *http.ServeMux
+	decoder       runtime.Decoder
+	mux           *http.ServeMux
+	secretsLister corelisters.SecretLister
 }
 
 // NewServer creates an admission webhook server.
-func NewServer() *Server {
+func NewServer(secretsLister corelisters.SecretLister) *Server {
 	s := &Server{
-		mux: http.NewServeMux(),
+		mux:           http.NewServeMux(),
+		secretsLister: secretsLister,
 	}
 
 	s.initDecoder()
@@ -113,7 +116,7 @@ func (s *Server) Register(uri string, webhookName string, webhookType admicommon
 }
 
 // Run starts the kubernetes admission webhook server.
-func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error {
+func (s *Server) Run(mainCtx context.Context) error {
 	var tlsMinVersion uint16 = tls.VersionTLS13
 	if pkgconfigsetup.Datadog().GetBool("cluster_agent.allow_legacy_tls") {
 		tlsMinVersion = tls.VersionTLS10
@@ -128,7 +131,7 @@ func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error
 			GetCertificate: func(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
 				secretNs := namespace.GetResourcesNamespace()
 				secretName := pkgconfigsetup.Datadog().GetString("admission_controller.certificate.secret_name")
-				cert, err := certificate.GetCertificateFromSecret(secretNs, secretName, client)
+				cert, err := certificate.GetCertificateFromLister(s.secretsLister.Secrets(secretNs), secretName)
 				if err != nil {
 					log.Errorf("Couldn't fetch certificate: %v", err)
 				}

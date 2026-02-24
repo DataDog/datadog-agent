@@ -8,8 +8,14 @@
   - rm -f modcache.tar.xz
 
 .retrieve_linux_go_tools_deps:
-  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache_tools.tar.xz -C $GOPATH/pkg/mod/cache
+  - mkdir -p $GOPATH/bin $GOPATH/pkg/mod/cache && tar xJf modcache_tools.tar.xz -C $GOPATH
   - rm -f modcache_tools.tar.xz
+  - export PATH=$PATH:$GOPATH/bin
+
+.retrieve_linux_go_tools_deps_arm64:
+  - mkdir -p $GOPATH/bin $GOPATH/pkg/mod/cache && tar xJf modcache_tools_arm64.tar.xz -C $GOPATH
+  - rm -f modcache_tools_arm64.tar.xz
+  - export PATH=$PATH:$GOPATH/bin
 
 .retrieve_linux_go_e2e_deps:
   - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache_e2e.tar.xz -C $GOPATH/pkg/mod/cache
@@ -22,7 +28,6 @@
 .cache:
   stage: deps_fetch
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
   needs: ["setup_agent_version"]
   variables:
     KUBERNETES_CPU_REQUEST: 16
@@ -38,6 +43,7 @@
 # HACK: If you change the behavior of this job, change the `cache:key:prefix` value to invalidate the cache
 go_deps:
   extends: .cache
+  tags: ["arch:amd64", "specific:true"]
   variables:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
@@ -46,7 +52,6 @@ go_deps:
     # but still provide the artifact that's expected for the other jobs to run
     - if [ -f modcache.tar.xz  ]; then exit 0; fi
     - dda inv -- -e deps --verbose
-    - dda inv -- -e install-tools
     - cd $GOPATH/pkg/mod/cache/ && tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache.tar.xz .
   artifacts:
     expire_in: 1 day
@@ -54,10 +59,6 @@ go_deps:
       - $CI_PROJECT_DIR/modcache.tar.xz
   cache:
     # The `cache:key:files` only accepts up to two paths ([docs](https://docs.gitlab.com/ee/ci/yaml/#cachekeyfiles)).
-    # Ideally, we should also include the https://github.com/DataDog/datadog-agent/blob/main/.custom-gcl.yml file to
-    # avoid issues if a plugin is added in one PR and enabled in another. However, we decided to accept this limitation
-    # because the probability for this to happen is very low and go mod files are modified frequently so the risk of
-    # failing a job because of a network issue when building the custom binary is very low, but still exists.
     # We should also include the file this job is defined in to invalicate the cache when this job is modified.
     - key:
         files:
@@ -70,10 +71,12 @@ go_deps:
 
 go_tools_deps:
   extends: .cache
+  tags: ["arch:amd64", "specific:true"]
   script:
     - if [ -f modcache_tools.tar.xz  ]; then exit 0; fi
     - dda inv -- -e install-tools
-    - cd $GOPATH/pkg/mod/cache/ && tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools.tar.xz .
+    # Exclude datadog-package binary from the cache: it's already installed on all images and they don't have the same glibc version
+    - cd $GOPATH && tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools.tar.xz $(find bin/ -type f ! -name 'datadog-package') pkg/mod/cache/
   artifacts:
     expire_in: 1 day
     paths:
@@ -82,20 +85,40 @@ go_tools_deps:
     - key:
         files:
           - ./**/go.mod
-          - .gitlab/deps_fetch/deps_fetch.yml
+          - .gitlab/.pre/deps_fetch/deps_fetch.yml
         prefix: "go_tools_deps_modcache"
       paths:
         - modcache_tools.tar.xz
+
+go_tools_deps_arm64:
+  extends: .cache
+  tags: ["arch:arm64", "specific:true"]
+  script:
+    - if [ -f modcache_tools_arm64.tar.xz  ]; then exit 0; fi
+    - dda inv -- -e install-tools
+    # Exclude datadog-package binary from the cache: it's already installed on all images and they don't have the same glibc version
+    - cd $GOPATH && tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools_arm64.tar.xz $(find bin/ -type f ! -name 'datadog-package') pkg/mod/cache/
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - $CI_PROJECT_DIR/modcache_tools_arm64.tar.xz
+  cache:
+    - key:
+        files:
+          - ./**/go.mod
+          - .gitlab/.pre/deps_fetch/deps_fetch.yml
+        prefix: "go_tools_deps_modcache_arm64"
+      paths:
+        - modcache_tools_arm64.tar.xz
 
 go_e2e_deps:
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
   extends: .cache
+  tags: ["arch:amd64", "specific:true"]
   before_script:
-    - dd-octo-sts version
-    - dd-octo-sts debug --scope DataDog/datadog-agent --policy self.gitlab.deps-fetch
-    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.deps-fetch)
+    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.read)
   script:
     - |
       if [ ! -f modcache_e2e.tar.xz ]; then

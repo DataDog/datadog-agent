@@ -13,7 +13,6 @@
       fi
     - AGENT_BASE_IMAGE_TAG=registry.ddbuild.io/ci/datadog-agent/agent-base-image${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-$ARCH
     - TARGET_TAG=${IMAGE}${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}$TAG_SUFFIX-$ARCH
-    - !reference [.login_to_docker_readonly]
     # Caching setup
     - DOCKER_CACHE_REGISTRY_TARGET="${IMAGE}${TAG_SUFFIX}-${ARCH}:cache"
     - CACHE_SOURCE="--cache-from type=registry,ref=${DOCKER_CACHE_REGISTRY_TARGET}"
@@ -69,6 +68,7 @@
           --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} \
           --build-arg DD_GIT_REPOSITORY_URL=https://github.com/DataDog/datadog-agent \
           --build-arg DD_GIT_COMMIT_SHA=${CI_COMMIT_SHA} \
+          --build-arg BASE_IMAGE_REGISTRY \
           $BUILD_ARG \
           ${EXTRA_BUILD_CONTEXT} \
           --file $BUILD_CONTEXT/Dockerfile \
@@ -88,6 +88,7 @@
         --build-arg AGENT_BASE_IMAGE_TAG=${AGENT_BASE_IMAGE_TAG} \
         --build-arg CI \
         --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} \
+        --build-arg BASE_IMAGE_REGISTRY \
         $BUILD_ARG \
         $TARGET_ARG \
         --build-arg DD_GIT_REPOSITORY_URL=https://github.com/DataDog/datadog-agent \
@@ -110,6 +111,8 @@
         crane flatten -t ${TARGET_TAG} ${TARGET_TAG}
       fi
     - !reference [.static_quality_gate_docker]
+  variables:
+    BASE_IMAGE_REGISTRY: "registry.ddbuild.io/images/mirror"
   # Workaround for temporary network failures
   retry: 2
   timeout: 30m
@@ -157,6 +160,8 @@
 
 docker_build_agent7:
   extends: [.docker_build_amd64, .docker_build_agent7]
+  rules:
+    - when: on_success
   needs:
     - job: datadog-agent-7-x64
   variables:
@@ -180,7 +185,11 @@ single_machine_performance-full-amd64-a7:
   stage: container_build
   rules:
     - !reference [.except_mergequeue]
-    - when: on_success
+    # Always publish SMP images on main (needed for baseline comparisons)
+    - !reference [.on_main]
+    # On dev branches, only publish when artifact-impacting files change.
+    # This skips SMP for doc-only, CI-only, or e2e test-only PRs.
+    - !reference [.on_dev_branches_with_artifact_changes]
   needs:
     - docker_build_agent7_full
   variables:
@@ -190,6 +199,8 @@ single_machine_performance-full-amd64-a7:
 
 docker_build_agent7_arm64:
   extends: [.docker_build_arm64, .docker_build_agent7]
+  rules:
+    - when: on_success
   needs:
     - job: datadog-agent-7-arm64
   variables:
@@ -217,6 +228,8 @@ docker_build_fips_agent7_arm64:
 # build agent7 jmx image
 docker_build_agent7_jmx:
   extends: [.docker_build_amd64, .docker_build_agent7]
+  rules:
+    - when: on_success
   needs:
     - job: datadog-agent-7-x64
   variables:
@@ -226,6 +239,8 @@ docker_build_agent7_jmx:
 
 docker_build_agent7_jmx_arm64:
   extends: [.docker_build_arm64, .docker_build_agent7]
+  rules:
+    - when: on_success
   needs:
     - job: datadog-agent-7-arm64
   variables:
@@ -301,9 +316,21 @@ docker_build_host_profiler_standalone_arm64:
 .docker_build_ot_agent_standalone:
   extends: .docker_build_job_definition
   before_script:
-    - cp bin/otel-agent/otel-agent $BUILD_CONTEXT/
-    - cp cmd/otel-agent/dist/otel-config.yaml $BUILD_CONTEXT/
-    - ls -l $BUILD_CONTEXT/
+    - mkdir /tmp/otel
+    - ARCHIVE_NAME=$(find . -name "datadog-*agent-ddot-7*.tar.xz" | head -1) # Only 1 match is expected
+    - |
+      tar --extract --xz --file $ARCHIVE_NAME \
+      --verbose \
+      --directory $BUILD_CONTEXT \
+      --strip-components 4 \
+      opt/datadog-agent/embedded/bin/otel-agent
+    - |
+      tar --extract --xz --file $ARCHIVE_NAME \
+      --verbose \
+      --directory $BUILD_CONTEXT \
+      --strip-components 2 \
+      --transform 's|\.example||' \
+      etc/datadog-agent/otel-config.yaml.example
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -319,14 +346,32 @@ docker_build_ot_agent_standalone_amd64:
     [.docker_build_ot_agent_standalone, .docker_build_amd64]
   needs:
     - job: docker_build_base_image_amd64
-    - job: build_otel_agent_binary_x64
+    - job: datadog-otel-agent-x64
 
 docker_build_ot_agent_standalone_arm64:
   extends:
     [.docker_build_ot_agent_standalone, .docker_build_arm64]
   needs:
     - job: docker_build_base_image_arm64
-    - job: build_otel_agent_binary_arm64
+    - job: datadog-otel-agent-arm64
+
+docker_build_ot_agent_standalone_fips_amd64:
+  extends:
+    [.docker_build_ot_agent_standalone, .docker_build_amd64]
+  needs:
+    - job: docker_build_base_image_amd64
+    - job: datadog-otel-agent-x64-fips
+  variables:
+    TAG_SUFFIX: -7-fips
+
+docker_build_ot_agent_standalone_fips_arm64:
+  extends:
+    [.docker_build_ot_agent_standalone, .docker_build_arm64]
+  needs:
+    - job: docker_build_base_image_arm64
+    - job: datadog-otel-agent-arm64-fips
+  variables:
+    TAG_SUFFIX: -7-fips
 
 docker_build_agent7_full:
   extends: [.docker_build_amd64, .docker_build_agent7]
@@ -378,11 +423,16 @@ docker_build_agent7_fips_full_arm64:
   before_script:
     - mkdir -p ${ARTIFACTS_BUILD_CONTEXT}
     - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $ARTIFACTS_BUILD_CONTEXT/
+    - mv -vf $SECRET_GENERIC_CONNECTOR_BINARIES_DIR/secret-generic-connector $ARTIFACTS_BUILD_CONTEXT/
     - mv -vf $CWS_INSTRUMENTATION_BINARIES_DIR $ARTIFACTS_BUILD_CONTEXT/
     - mv -vf Dockerfiles/agent/nosys-seccomp $BUILD_CONTEXT/
+    - mkdir -p ${BUILD_CONTEXT}/private-action-runner
+    - cp -v pkg/privateactionrunner/autoconnections/conf/script-config.yaml ${BUILD_CONTEXT}/private-action-runner/
 
 docker_build_cluster_agent_amd64:
   extends: [.docker_build_amd64, .docker_build_cluster_agent]
+  rules:
+    - when: on_success
   needs:
     - job: cluster_agent-build_amd64
       artifacts: true
@@ -395,6 +445,8 @@ docker_build_cluster_agent_amd64:
 
 docker_build_cluster_agent_arm64:
   extends: [.docker_build_arm64, .docker_build_cluster_agent]
+  rules:
+    - when: on_success
   needs:
     - job: cluster_agent-build_arm64
       artifacts: true
@@ -437,7 +489,6 @@ docker_build_cluster_agent_fips_arm64:
 .docker_build_cws_instrumentation:
   extends: .docker_build_job_definition
   rules:
-    - !reference [.except_mergequeue]
     - when: on_success
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/cws-instrumentation
@@ -465,7 +516,6 @@ docker_build_cws_instrumentation_arm64:
 .docker_build_dogstatsd:
   extends: [.docker_build_job_definition, .docker_build_s3]
   rules:
-    - !reference [.except_mergequeue]
     - when: on_success
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/dogstatsd

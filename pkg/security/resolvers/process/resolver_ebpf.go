@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	spath "github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -70,12 +71,13 @@ type EBPFResolver struct {
 	statsdClient statsd.ClientInterface
 	scrubber     *utils.Scrubber
 
-	mountResolver     mount.ResolverInterface
-	cgroupResolver    *cgroup.Resolver
-	userGroupResolver *usergroup.Resolver
-	timeResolver      *stime.Resolver
-	pathResolver      spath.ResolverInterface
-	envVarsResolver   *envvars.Resolver
+	mountResolver       mount.ResolverInterface
+	cgroupResolver      *cgroup.Resolver
+	userGroupResolver   *usergroup.Resolver
+	timeResolver        *stime.Resolver
+	pathResolver        spath.ResolverInterface
+	envVarsResolver     *envvars.Resolver
+	userSessionResolver *usersessions.Resolver
 
 	inodeFileMap ebpf.Map
 	procCacheMap ebpf.Map
@@ -369,13 +371,34 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 	// Get the file fields of the process binary
 	info, err := p.RetrieveFileFieldsFromProcfs(procExecPath)
 	if err != nil {
-		if !os.IsNotExist(err) {
-			seclog.Errorf("snapshot failed for %d: couldn't retrieve file info: %s", proc.Pid, err)
+		if os.IsNotExist(err) {
+			return fmt.Errorf("snapshot failed for %d: couldn't retrieve file info of `%s`: %w", proc.Pid, procExecPath, err)
 		}
-		return fmt.Errorf("snapshot failed for %d: couldn't retrieve file info: %w", proc.Pid, err)
+
+		// log the error and insert anyway the entry with the pathnameStr. This will avoid later broken lineage detection.
+		seclog.Errorf("snapshot failed for %d: couldn't retrieve file info of `%s`(%s): %s ", proc.Pid, procExecPath, pathnameStr, err)
+
+		// try to collect more information about the mount point
+		if seclog.DefaultLogger.IsDebugging() || seclog.DefaultLogger.IsTracing() {
+			var (
+				bestPrefix string
+				bestFS     string
+			)
+			p.mountResolver.Iterate(func(mount *model.Mount) {
+				if strings.HasPrefix(pathnameStr, mount.MountPointStr) {
+					if len(mount.MountPointStr) > len(bestPrefix) {
+						bestPrefix = mount.MountPointStr
+						bestFS = mount.FSType
+					}
+				}
+			})
+
+			seclog.Debugf("potential mount info for %s: %s (%s)", procExecPath, bestPrefix, bestFS)
+		}
+	} else {
+		entry.FileEvent.FileFields = *info
 	}
 
-	entry.FileEvent.FileFields = *info
 	setPathname(&entry.FileEvent, pathnameStr)
 
 	// force mount from procfs/snapshot
@@ -387,7 +410,7 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 		entry.FileEvent.MountVisible = false
 		entry.FileEvent.MountDetached = true
 		entry.FileEvent.Filesystem = model.TmpFS
-	} else {
+	} else if entry.Process.FileEvent.MountID != 0 {
 		entry.FileEvent.MountVisible = true
 		entry.FileEvent.MountDetached = false
 		// resolve container path with the MountEBPFResolver
@@ -473,8 +496,9 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 		entry.LinuxBinprm.FileEvent.SetBasenameStr("")
 	}
 
-	// add netns
-	entry.NetNS, _ = utils.NetNSPathFromPid(pid).GetProcessNetworkNamespace()
+	// add namespace ids
+	entry.NetNS, _ = utils.NewNSPathFromPid(pid, utils.NetNsType).GetNSID()
+	entry.MntNS, _ = utils.NewNSPathFromPid(pid, utils.MntNsType).GetNSID()
 
 	if p.config.NetworkEnabled {
 		// snapshot pid routes in kernel space
@@ -557,6 +581,12 @@ func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, cgroupContext
 
 	// handle cgroup & container context
 	if p.cgroupResolver != nil {
+		// safeguard log, this should never happen. cgroupContext should be null for entries from procfs or snapshot as
+		// it will be resolved from the procfs fallback of the cgroup resolver.
+		if (source == model.ProcessCacheEntryFromProcFS || source == model.ProcessCacheEntryFromSnapshot) && !cgroupContext.IsNull() {
+			seclog.Debugf("cgroupContext should be null entry from procfs or snapshot: %s %+v", entry.Comm, entry)
+		}
+
 		createdAt := entry.ForkTime
 		if entry.ExecTime.After(createdAt) {
 			createdAt = entry.ExecTime
@@ -708,7 +738,7 @@ func (p *EBPFResolver) resolve(pid, tid uint32, inode uint64, useProcFS bool, ne
 	return nil
 }
 
-func (p *EBPFResolver) resolveFileFieldsPath(e *model.FileFields, pce *model.ProcessCacheEntry) (string, string, model.MountSource, model.MountOrigin, error) {
+func (p *EBPFResolver) resolveFullFilePath(e *model.FileFields, pce *model.ProcessCacheEntry) (string, string, model.MountSource, model.MountOrigin, error) {
 	var (
 		pathnameStr, mountPath string
 		source                 model.MountSource
@@ -717,7 +747,7 @@ func (p *EBPFResolver) resolveFileFieldsPath(e *model.FileFields, pce *model.Pro
 		maxDepthRetry          = 3
 	)
 	for maxDepthRetry > 0 {
-		pathnameStr, mountPath, source, origin, err = p.pathResolver.ResolveFileFieldsPath(e, &pce.PIDContext)
+		pathnameStr, mountPath, source, origin, err = p.pathResolver.ResolveFullFilePath(e, &pce.PIDContext)
 		if err == nil {
 			return pathnameStr, mountPath, source, origin, nil
 		}
@@ -747,7 +777,7 @@ func (p *EBPFResolver) SetProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 	if fileEvent.Inode == 0 {
 		return onError("", &model.ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID})
 	}
-	pathnameStr, mountPath, source, origin, err := p.resolveFileFieldsPath(&fileEvent.FileFields, pce)
+	pathnameStr, mountPath, source, origin, err := p.resolveFullFilePath(&fileEvent.FileFields, pce)
 	if err != nil {
 		return onError(pathnameStr, err)
 	}
@@ -1297,13 +1327,6 @@ func (p *EBPFResolver) SyncCache(proc *process.Process) {
 	}
 }
 
-func (p *EBPFResolver) setAncestor(pce *model.ProcessCacheEntry) {
-	parent := p.entryCache[pce.PPid]
-	if parent != nil {
-		pce.SetAncestor(parent)
-	}
-}
-
 func (p *EBPFResolver) syncKernelMaps(entry *model.ProcessCacheEntry) {
 	bootTime := p.timeResolver.GetBootTime()
 
@@ -1369,7 +1392,14 @@ func (p *EBPFResolver) newEntryFromProcfs(proc *process.Process, filledProc *uti
 		seclog.Debugf("unable to set the type of process, not pid 1, no parent in cache: %+v", entry)
 	}
 
-	p.insertEntry(entry, entry.CGroup, source)
+	// snapshot SSH session
+	if p.userSessionResolver != nil {
+		p.userSessionResolver.HandleSSHUserSessionFromPCE(entry)
+	}
+
+	// use an empty cgroup context to force the fallback to resolve the cgroup
+	// we don't want to use the cgroup of the entry has it can be inherited from the parent.
+	p.insertEntry(entry, model.CGroupContext{}, source)
 
 	seclog.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.FileEvent.PathnameStr, pid, entry.FileEvent.Inode)
 
@@ -1434,7 +1464,7 @@ func (p *EBPFResolver) ToJSON(raw bool) ([]byte, error) {
 
 func (p *EBPFResolver) toDot(writer io.Writer, entry *model.ProcessCacheEntry, already map[string]bool, withArgs bool) {
 	for entry != nil {
-		label := fmt.Sprintf("%s:%d", entry.Comm, entry.Pid)
+		label := entry.Comm + ":" + strconv.FormatUint(uint64(entry.Pid), 10)
 		if _, exists := already[label]; !exists {
 			if !entry.ExitTime.IsZero() {
 				label = "[" + label + "]"
@@ -1545,7 +1575,7 @@ func allInodeErrTags() []string {
 func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
 	scrubber *utils.Scrubber, mountResolver mount.ResolverInterface,
 	cgroupResolver *cgroup.Resolver, userGroupResolver *usergroup.Resolver, timeResolver *stime.Resolver,
-	pathResolver spath.ResolverInterface, envVarsResolver *envvars.Resolver, opts *ResolverOpts) (*EBPFResolver, error) {
+	pathResolver spath.ResolverInterface, envVarsResolver *envvars.Resolver, userSessionResolver *usersessions.Resolver, opts *ResolverOpts) (*EBPFResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint64, *argsEnvsCacheEntry](maxParallelArgsEnvs, nil)
 	if err != nil {
 		return nil, err
@@ -1580,6 +1610,7 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		timeResolver:              timeResolver,
 		pathResolver:              pathResolver,
 		envVarsResolver:           envVarsResolver,
+		userSessionResolver:       userSessionResolver,
 	}
 
 	for _, t := range metrics.AllTypesTags {

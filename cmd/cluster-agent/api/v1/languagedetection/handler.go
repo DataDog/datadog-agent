@@ -154,6 +154,7 @@ func (handler *languageDetectionHandler) leaderHandler(w http.ResponseWriter, r 
 		log.Tracef("Owner Languages state pre merge-and-flush: %s", handler.ownersLanguages.String())
 		log.Tracef("Owner languages received from pld client: %s", ownersLanguagesFromRequest.String())
 	}
+
 	err = handler.ownersLanguages.mergeAndFlush(ownersLanguagesFromRequest, handler.wlm)
 	if log.ShouldLog(log.TraceLvl) { // Avoid call to String() if not needed
 		log.Tracef("Owner Languages state post merge-and-flush: %s", handler.ownersLanguages.String())

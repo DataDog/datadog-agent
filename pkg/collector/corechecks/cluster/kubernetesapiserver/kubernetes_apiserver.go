@@ -185,6 +185,11 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 			Source: "datadog-workload-autoscaler",
 		})
 	}
+	if pkgconfigsetup.Datadog().GetBool("autoscaling.cluster.enabled") {
+		k.instance.CollectedEventTypes = append(k.instance.CollectedEventTypes, collectedEventType{
+			Source: "datadog-cluster-autoscaler",
+		})
+	}
 
 	// When we use both bundled and unbundled transformers, we apply two filters: filtered_event_types and collected_event_types.
 	// When we use only the bundled transformer, we apply filtered_event_types.
@@ -287,6 +292,13 @@ func (k *KubeASCheck) Run() error {
 		for _, event := range events {
 			sender.Event(event)
 		}
+	}
+
+	clusterResources, err := apiserver.GetClusterResources()
+	if err != nil {
+		k.Warnf("Could not get cluster resources: %s", err.Error())
+	} else {
+		k.sendAPIResourceMetrics(sender, clusterResources)
 	}
 
 	return nil
@@ -412,6 +424,18 @@ func (k *KubeASCheck) controlPlaneHealthCheck(ctx context.Context, sender sender
 	sender.ServiceCheck(KubeControlPaneCheck, status, "", nil, msg)
 
 	return nil
+}
+
+func (k *KubeASCheck) sendAPIResourceMetrics(sender sender.Sender, resources map[string]apiserver.ClusterResource) {
+	for name, resource := range resources {
+		tags := []string{
+			"api_resource_name:" + name,
+			"api_resource_kind:" + strings.ToLower(resource.Kind),
+			"api_resource_group:" + resource.Group,
+			"api_resource_version:" + resource.APIVersion,
+		}
+		sender.Gauge("kube_apiserver.api_resource", 1, "", tags)
+	}
 }
 
 func convertFilters(conf []string) string {

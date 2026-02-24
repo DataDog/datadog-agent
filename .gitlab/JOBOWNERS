@@ -36,6 +36,7 @@ golang_deps_commenter                @DataDog/agent-runtimes
 
 # Binary build
 build_system-probe*                  @DataDog/ebpf-platform
+build_sd-agent*                      @DataDog/agent-discovery
 cluster_agent_cloudfoundry-build*    @Datadog/agent-integrations
 cluster_agent-build*                 @DataDog/container-integrations
 cluster_agent_fips-build*            @DataDog/container-integrations
@@ -118,7 +119,6 @@ publish_internal_dca_container_image*        @Datadog/agent-delivery
 
 # Internal kubernetes deploy
 internal_kubernetes_deploy*            @Datadog/agent-delivery
-k8s_staging_deployment_pr              @Datadog/agent-delivery
 
 # Deploy packages
 deploy_agent*                          @DataDog/agent-delivery
@@ -165,6 +165,7 @@ trace_agent_integration_tests @DataDog/agent-apm
 # Functional test
 static_quality_gates                           @DataDog/agent-build
 manual_gate_threshold_update                   @DataDog/agent-build
+files_inventory_check                          @DataDog/agent-build
 
 oracle*                                        @DataDog/database-monitoring
 
@@ -176,7 +177,6 @@ k8s-e2e-cspm-*                    @DataDog/agent-security
 e2e_pre_test*                     @DataDog/agent-devx
 new-e2e*                          @DataDog/multiple
 go_e2e_test_binaries              @DataDog/agent-devx
-dynamic_test-evaluate-e2e         @DataDog/agent-devx
 all-artifacts                     @DataDog/agent-devx
 
 # Kernel matrix testing

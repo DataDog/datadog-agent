@@ -57,6 +57,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
@@ -188,6 +189,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				inventorychecksimpl.Module(),
 				logscompression.Module(),
 				metricscompression.Module(),
+				filterlistfx.Module(),
 				// inventorychecksimpl depends on a collector and serializer when created to send payload.
 				// Here we just want to collect metadata to be displayed, so we don't need a collector.
 				collector.NoneModule(),
@@ -681,12 +683,22 @@ func runCheck(cliParams *cliParams, c check.Check, _ aggregator.Demultiplexer) *
 	return s
 }
 
+// checkFlareDirPerms is the permission mode for the check flare directory (rwxr-x---)
+const checkFlareDirPerms = 0750
+
 func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
-	_ = os.Mkdir(defaultpaths.CheckFlareDirectory, os.ModeDir)
+	writeCheckToFileInDir(checkName, checkFileOutput, defaultpaths.CheckFlareDirectory)
+}
+
+func writeCheckToFileInDir(checkName string, checkFileOutput *bytes.Buffer, dir string) {
+	if err := os.MkdirAll(dir, checkFlareDirPerms); err != nil {
+		fmt.Println("Error while creating check flare directory:", err)
+		return
+	}
 
 	// Windows cannot accept ":" in file names
 	filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
-	flarePath := filepath.Join(defaultpaths.CheckFlareDirectory, "check_"+checkName+"_"+filenameSafeTimeStamp+".log")
+	flarePath := filepath.Join(dir, "check_"+checkName+"_"+filenameSafeTimeStamp+".log")
 
 	scrubbed, err := scrubber.ScrubBytes(checkFileOutput.Bytes())
 	if err != nil {

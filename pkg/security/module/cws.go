@@ -9,14 +9,15 @@ package module
 import (
 	"context"
 	"errors"
-	"fmt"
 	"runtime"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
@@ -72,14 +73,23 @@ type CWSConsumer struct {
 }
 
 // NewCWSConsumer initializes the module with options
-func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, wmeta workloadmeta.Component, opts Opts, compression compression.Component, ipc ipc.Component) (*CWSConsumer, error) {
+func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, wmeta workloadmeta.Component, filterStore workloadfilter.Component, opts Opts, compression compression.Component, ipc ipc.Component, hostname string) (*CWSConsumer, error) {
 	crtelemcfg := telemetry.ContainersRunningTelemetryConfig{
 		RuntimeEnabled: cfg.RuntimeEnabled,
 		FIMEnabled:     cfg.FIMEnabled,
 	}
-	crtelemetry, err := telemetry.NewContainersRunningTelemetry(crtelemcfg, evm.StatsdClient, wmeta)
-	if err != nil {
-		return nil, err
+
+	var (
+		crtelemetry *telemetry.ContainersRunningTelemetry
+		err         error
+	)
+
+	// filterStore can be nil, especially in the case of functional tests
+	if filterStore != nil {
+		crtelemetry, err = telemetry.NewContainersRunningTelemetry(crtelemcfg, evm.StatsdClient, wmeta, filterStore)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var selfTester *selftests.SelfTester
@@ -96,7 +106,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 	}
 
 	family, socketPath := socket.GetSocketAddress(cmdSocketPath)
-	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, ipc)
+	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, hostname)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +143,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		listeners = append(listeners, selfTester)
 	}
 
-	c.ruleEngine, err = rulesmodule.NewRuleEngine(evm, cfg, evm.Probe, c.rateLimiter, c.apiServer, c, c.statsdClient, ipc, listeners...)
+	c.ruleEngine, err = rulesmodule.NewRuleEngine(evm, cfg, evm.Probe, c.rateLimiter, c.apiServer, c, c.statsdClient, hostname, ipc, listeners...)
 	if err != nil {
 		return nil, err
 	}
@@ -300,8 +310,8 @@ func (c *CWSConsumer) reportSelfTest(success []eval.RuleID, fails []eval.RuleID)
 
 	// send metric with number of success and fails
 	tags := []string{
-		fmt.Sprintf("success:%d", len(success)),
-		fmt.Sprintf("fails:%d", len(fails)),
+		"success:" + strconv.Itoa(len(success)),
+		"fails:" + strconv.Itoa(len(fails)),
 		"os:" + runtime.GOOS,
 		"arch:" + utils.RuntimeArch(),
 		"origin:" + c.probe.Origin(),
@@ -321,13 +331,15 @@ func (c *CWSConsumer) Stop() {
 
 	c.cancelFnc()
 
-	if c.apiServer != nil {
-		c.apiServer.Stop()
-	}
-
+	// Stop the rule engine first to stop goroutines that send heartbeat/ruleset loaded events to the reporter
 	c.ruleEngine.Stop()
 
 	c.wg.Wait()
+
+	// Now we shouldn't have anymore events to send so we can safely stop the API server to close reporter channels
+	if c.apiServer != nil {
+		c.apiServer.Stop()
+	}
 
 	c.grpcCmdServer.Stop()
 	if c.grpcEventServer != nil {
@@ -377,16 +389,6 @@ func (c *CWSConsumer) sendStats() {
 	}
 
 	c.ruleEngine.SendStats()
-
-	for statsTags, counter := range c.ruleEngine.AutoSuppression.GetStats() {
-		if counter > 0 {
-			tags := []string{
-				"rule_id:" + statsTags.RuleID,
-				"suppression_type:" + statsTags.SuppressionType,
-			}
-			_ = c.statsdClient.Count(metrics.MetricRulesSuppressed, counter, tags, 1.0)
-		}
-	}
 }
 
 func (c *CWSConsumer) statsSender() {

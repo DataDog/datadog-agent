@@ -16,6 +16,7 @@ import (
 	"net/netip"
 	"runtime"
 	"time"
+	"unsafe"
 
 	"github.com/google/gopacket"
 
@@ -42,7 +43,9 @@ func (m *Model) NewEvent() eval.Event {
 func NewFakeEvent() *Event {
 	return &Event{
 		BaseEvent: BaseEvent{
-			FieldHandlers:  &FakeFieldHandlers{},
+			FieldHandlers: &FakeFieldHandlers{
+				PCEs: make(map[uint32]*ProcessCacheEntry),
+			},
 			ProcessContext: &ProcessContext{},
 			Os:             runtime.GOOS,
 		},
@@ -51,6 +54,9 @@ func NewFakeEvent() *Event {
 
 // ResolveProcessCacheEntryFromPID stub implementation
 func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *ProcessCacheEntry {
+	if fh.PCEs[pid] != nil {
+		return fh.PCEs[pid]
+	}
 	return GetPlaceholderProcessCacheEntry(pid, pid, false)
 }
 
@@ -438,8 +444,7 @@ func SetAncestorFields(pce *ProcessCacheEntry, subField string, _ interface{}) (
 // Hash returns a unique key for the entity
 func (pc *ProcessCacheEntry) Hash() eval.ScopeHashKey {
 	return eval.ScopeHashKey{
-		Integer: pc.Pid,
-		String:  pc.Comm,
+		Uintptr: uintptr(unsafe.Pointer(pc)),
 	}
 }
 
@@ -484,7 +489,7 @@ type FileEvent struct {
 	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length" op_override:"ProcessSymlinkPathname,OverlayFSPathname"` // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "/usr/bin/apt"` Description:`Matches the execution of the file located at /usr/bin/apt` Example:`open.file.path == "/etc/passwd"` Description:`Matches any process opening the /etc/passwd file.`
 	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"ProcessSymlinkBasename"`               // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "apt"` Description:`Matches the execution of any file named apt.`
 	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem"`                                                        // SECLDoc[filesystem] Definition:`File's filesystem`
-	Extension   string `field:"extension,handler:ResolveFileExtension"`                                                          // SECLDoc[extension] Definition:`File's extension`
+	Extension   string `field:"extension,handler:ResolveFileExtension" op_override:"eval.ExtensionCmp"`                          // SECLDoc[extension] Definition:`File's extension`
 
 	MountPath               string `field:"-"`
 	MountSource             uint32 `field:"-"`
@@ -519,7 +524,8 @@ type InvalidateDentryEvent struct {
 
 // MountReleasedEvent defines a mount released event
 type MountReleasedEvent struct {
-	MountID uint32
+	MountID       uint32
+	MountIDUnique uint64
 }
 
 // LinkEvent represents a link event
@@ -634,6 +640,7 @@ type PIDContext struct {
 	Pid           uint32 `field:"pid"`        // SECLDoc[pid] Definition:`Process ID of the process (also called thread group ID)`
 	Tid           uint32 `field:"tid"`        // SECLDoc[tid] Definition:`Thread ID of the thread`
 	NetNS         uint32 `field:"netns"`      // SECLDoc[netns] Definition:`NetNS ID of the process`
+	MntNS         uint32 `field:"mntns"`      // SECLDoc[mntns] Definition:`MNTNS ID of the process`
 	IsKworker     bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker`
 	ExecInode     uint64 `field:"-"`          // used to track exec and event loss
 	UserSessionID uint64 `field:"-"`          // used to track user sessions from kernel space
@@ -1097,4 +1104,18 @@ type PrCtlEvent struct {
 type TracerMemfdSealEvent struct {
 	SyscallEvent
 	Fd uint32
+}
+
+func (e *Event) initPlatformPointerFields() {
+	if e.GetEventType() == PTraceEventType {
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		if e.PTrace.Tracee.Ancestor == nil {
+			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if e.PTrace.Tracee.Parent == nil {
+			e.PTrace.Tracee.Parent = &e.PTrace.Tracee.Ancestor.ProcessContext.Process
+		}
+	}
 }

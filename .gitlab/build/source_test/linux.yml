@@ -26,9 +26,9 @@
     KUBERNETES_MEMORY_LIMIT: 16Gi
     TEST_OUTPUT_FILE: test_output.json
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
-  script:
+  before_script:
     - !reference [.retrieve_linux_go_tools_deps]
-    - dda inv -- -e install-tools
+  script:
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
@@ -40,6 +40,7 @@
     paths:
       - $TEST_OUTPUT_FILE
       - junit-*.tgz
+      - coverage.out
     reports:
       junit: "**/junit-out-*.xml"
       annotations:
@@ -115,6 +116,9 @@ tests_linux-arm64-py3:
   extends:
     - .rtloader_tests
     - .linux_tests
+  needs: ["go_deps", "go_tools_deps_arm64"]
+  before_script:
+    - !reference [.retrieve_linux_go_tools_deps_arm64]
   after_script:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
@@ -182,7 +186,6 @@ new-e2e-unit-tests:
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
   script:
-    - dda inv -- -e install-tools
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - dda inv -- -e new-e2e-tests.run --module-name test/e2e-framework --targets ./testing/utils --tags "e2eunit" --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS}
   after_script:

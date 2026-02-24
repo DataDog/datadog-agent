@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/envvars"
@@ -44,7 +43,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // EBPFResolvers holds the list of the event attribute resolvers
@@ -177,22 +175,23 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		}
 	}
 
-	processResolver, err := process.NewEBPFResolver(manager, config.Probe, statsdClient,
-		scrubber, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, envVarsResolver, processOpts)
-	if err != nil {
-		return nil, err
-	}
 	hashResolver, err := hash.NewResolver(config.RuntimeSecurity, statsdClient, cgroupsResolver)
 	if err != nil {
 		return nil, err
 	}
 
-	userSessionsResolver, err := usersessions.NewResolver(config.RuntimeSecurity.UserSessionsCacheSize)
+	userSessionsResolver, err := usersessions.NewResolver(config.RuntimeSecurity.UserSessionsCacheSize, config.RuntimeSecurity.SSHUserSessionsEnabled)
 	if err != nil {
 		return nil, err
 	}
 
 	fileMetadataResolver, err := file.NewResolver(config.RuntimeSecurity, statsdClient, &file.Opt{CgroupResolver: cgroupsResolver})
+	if err != nil {
+		return nil, err
+	}
+
+	processResolver, err := process.NewEBPFResolver(manager, config.Probe, statsdClient,
+		scrubber, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, envVarsResolver, userSessionsResolver, processOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -328,27 +327,6 @@ func (r *EBPFResolvers) snapshot() error {
 
 		// Sync the namespace cache
 		r.NamespaceResolver.SyncCache(pid)
-	}
-
-	return nil
-}
-
-// nolint: deadcode, unused
-func (r *EBPFResolvers) snapshotBoundSockets() error {
-	processes, err := utils.GetProcesses()
-	if err != nil {
-		return err
-	}
-
-	boundSocketSnapshotter := procfs.NewBoundSocketSnapshotter()
-
-	for _, proc := range processes {
-		bs, err := boundSocketSnapshotter.GetBoundSockets(proc)
-		if err != nil {
-			log.Debugf("sockets snapshot failed for (pid: %v): %s", proc.Pid, err)
-			continue
-		}
-		r.ProcessResolver.SyncBoundSockets(uint32(proc.Pid), bs)
 	}
 
 	return nil

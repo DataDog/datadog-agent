@@ -7,19 +7,16 @@
 package catalog
 
 import (
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 )
 
 // PodCELMetricsProgram creates a program for filtering pods metrics via CEL rules
-func PodCELMetricsProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
-	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductMetrics, workloadfilter.PodType)
-	return createCELExcludeProgram(string(workloadfilter.PodCELMetrics), rule, workloadfilter.PodType, logger)
+func PodCELMetricsProgram(b *ProgramBuilder) program.FilterProgram {
+	return b.CreateCELProgram(workloadfilter.PodCELMetrics, workloadfilter.ProductMetrics)
 }
 
 // PodCELGlobalProgram creates a program for filtering pods globally via CEL rules
-func PodCELGlobalProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
-	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductGlobal, workloadfilter.PodType)
-	return createCELExcludeProgram(string(workloadfilter.PodCELGlobal), rule, workloadfilter.PodType, logger)
+func PodCELGlobalProgram(b *ProgramBuilder) program.FilterProgram {
+	return b.CreateCELProgram(workloadfilter.PodCELGlobal, workloadfilter.ProductGlobal)
 }

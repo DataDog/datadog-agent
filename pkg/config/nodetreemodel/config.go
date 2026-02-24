@@ -21,8 +21,8 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/config/basic"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -211,6 +211,16 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 		return
 	}
 
+	// convert the value to the type of the default
+	if declaredNode.IsLeafNode() {
+		if converted, err := convertToDefaultType(newValue, declaredNode.Get()); err == nil {
+			if reflect.TypeOf(converted) != reflect.TypeOf(newValue) {
+				log.Warnf("Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
+			}
+			newValue = converted
+		}
+	}
+
 	// convert the key to lower case for the logs line and the notification
 	key = strings.ToLower(key)
 
@@ -257,7 +267,7 @@ func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source mo
 // SetWithoutSource assigns the value to the given key using source Unknown, may only be called from tests
 func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
 	c.assertIsTest("SetWithoutSource")
-	if !viperconfig.ValidateBasicTypes(value) {
+	if !basic.ValidateBasicTypes(value) {
 		panic(fmt.Errorf("SetWithoutSource can only be called with basic types (int, string, slice, map, etc), got %v", value))
 	}
 	c.Set(key, value, model.SourceUnknown)
@@ -352,7 +362,7 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	}
 
 	// Replace the child with the node from the previous layer
-	parentNode.InsertChildNode(childName, prevNode.Clone())
+	parentNode.InsertChildNode(childName, prevNode)
 
 	newValue := c.leafAtPathFromNode(key, c.root).Get()
 
@@ -550,10 +560,14 @@ func (c *ntmConfig) buildEnvVars() {
 
 func (c *ntmConfig) insertNodeFromString(curr *nodeImpl, key string, envval string) error {
 	var actualValue interface{} = envval
-	// TODO: When nodetreemodel has a schema with type information, we should
-	// use this type to convert the value, instead of requiring a transformer
 	if transformer, found := c.envTransform[key]; found {
 		actualValue = transformer(envval)
+	}
+
+	if defaultNode := c.leafAtPathFromNode(key, c.defaults); defaultNode != missingLeaf {
+		if converted, err := convertToDefaultType(actualValue, defaultNode.Get()); err == nil {
+			actualValue = converted
+		}
 	}
 	parts := splitKeyFunc(key)
 	return curr.setAt(parts, actualValue, model.SourceEnvVar)
@@ -700,12 +714,9 @@ func (c *ntmConfig) HasSection(key string) bool {
 	return false
 }
 
-// AllKeysLowercased returns all keys, including unknown keys and those without default values
-// Unlike AllSettings, this returns keys defined by SetKnown or BindEnv
-func (c *ntmConfig) AllKeysLowercased() []string {
-	c.RLock()
-	defer c.RUnlock()
-
+// collectFlattenedKeys returns all flattened keys without acquiring a lock.
+// Must be called while holding at least a read lock.
+func (c *ntmConfig) collectFlattenedKeys() []string {
 	// collect keys from known set
 	allKeys := map[string]struct{}{}
 	for k, isLeaf := range c.knownKeys {
@@ -718,7 +729,16 @@ func (c *ntmConfig) AllKeysLowercased() []string {
 		allKeys[k] = struct{}{}
 	}
 
-	keylist := slices.Collect(maps.Keys(allKeys))
+	return slices.Collect(maps.Keys(allKeys))
+}
+
+// AllKeysLowercased returns all keys, including unknown keys and those without default values
+// Unlike AllSettings, this returns keys defined by SetKnown or BindEnv
+func (c *ntmConfig) AllKeysLowercased() []string {
+	c.RLock()
+	defer c.RUnlock()
+
+	keylist := c.collectFlattenedKeys()
 	sort.Strings(keylist)
 	return keylist
 }
@@ -923,13 +943,21 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 	}
 }
 
-// AllSettingsWithSequenceID returns the settings and the sequence ID.
-func (c *ntmConfig) AllSettingsWithSequenceID() (map[string]interface{}, uint64) {
+// AllFlattenedSettingsWithSequenceID returns all settings as a flattened map along with the sequence ID.
+// Keys are flattened (e.g., "logs_config.enabled" instead of nested {"logs_config": {"enabled": ...}}).
+// This provides atomic access to flattened keys, values, and sequence ID under a single lock.
+func (c *ntmConfig) AllFlattenedSettingsWithSequenceID() (map[string]interface{}, uint64) {
 	c.maybeRebuild()
 
 	c.RLock()
 	defer c.RUnlock()
-	return c.root.dumpSettings(true), c.sequenceID
+
+	keys := c.collectFlattenedKeys()
+	settings := make(map[string]interface{}, len(keys))
+	for _, key := range keys {
+		settings[key] = c.getNodeValue(key)
+	}
+	return settings, c.sequenceID
 }
 
 // AddConfigPath adds another config for the given path

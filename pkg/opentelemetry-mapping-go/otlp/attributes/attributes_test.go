@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	semconv1_12 "go.opentelemetry.io/otel/semconv/v1.12.0"
 	semconv1_17 "go.opentelemetry.io/otel/semconv/v1.17.0"
 	semconv127 "go.opentelemetry.io/otel/semconv/v1.27.0"
@@ -144,6 +145,58 @@ func TestContainerTagFromResourceAttributes(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		assert.Empty(t, ContainerTagsFromResourceAttributes(pcommon.NewMap()))
 	})
+}
+
+func TestConsumeContainerTagsFromResource(t *testing.T) {
+	res := pcommon.NewResource()
+	res.SetDroppedAttributesCount(42)
+	attrs := map[string]any{
+		// OTel conventions
+		string(semconv127.ContainerIDKey):        "test_container_id_otel",
+		string(semconv127.ContainerNameKey):      "test_container_name_otel",
+		string(semconv127.ContainerImageNameKey): "test_image_name_otel",
+		string(conventions.ContainerImageTagKey): "test_image_tag_otel",
+
+		// Custom tags
+		"datadog.container.tag.container_id":        "test_container_id_custom",
+		"datadog.container.tag.container_name":      "test_container_name_custom",
+		"datadog.container.tag.runtime":             "test_runtime_custom",
+		"datadog.container.tag.kube_container_name": "test_kube_container_name_custom",
+
+		// Datadog conventions
+		"container_id":      "test_container_id_dd",
+		"image_name":        "test_image_name_dd",
+		"runtime":           "test_runtime_dd",
+		"kube_cluster_name": "test_kube_cluster_name_dd",
+
+		// Non-container resource attribute
+		string(semconv127.HostNameKey): "test_host_name",
+	}
+	err := res.Attributes().FromRaw(attrs)
+	require.NoError(t, err)
+	containerTags, newRes := ConsumeContainerTagsFromResource(res)
+	assert.Equal(t, map[string]string{
+		"container_id":        "test_container_id_otel",          // OTel > Custom, Datadog
+		"container_name":      "test_container_name_otel",        // OTel > Custom
+		"image_name":          "test_image_name_otel",            // OTel > Datadog
+		"image_tag":           "test_image_tag_otel",             // OTel only
+		"runtime":             "test_runtime_custom",             // Custom > Datadog
+		"kube_container_name": "test_kube_container_name_custom", // Custom only
+		"kube_cluster_name":   "test_kube_cluster_name_dd",       // Datadog only
+	}, containerTags)
+	assert.Equal(t, uint32(42), newRes.DroppedAttributesCount())
+	newAttrs := newRes.Attributes().AsRaw()
+	assert.NotEqual(t, attrs, newAttrs)
+	assert.Equal(t, map[string]any{
+		// Only keep OTel conventions to be used as span attributes
+		string(semconv127.ContainerIDKey):        "test_container_id_otel",
+		string(semconv127.ContainerNameKey):      "test_container_name_otel",
+		string(semconv127.ContainerImageNameKey): "test_image_name_otel",
+		string(conventions.ContainerImageTagKey): "test_image_tag_otel",
+
+		// Of course, keep non-container resource attributes
+		string(semconv127.HostNameKey): "test_host_name",
+	}, newAttrs)
 }
 
 func TestContainerTagFromAttributes(t *testing.T) {

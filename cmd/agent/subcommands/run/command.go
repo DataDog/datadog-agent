@@ -112,6 +112,7 @@ import (
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/fx"
 	fleetfx "github.com/DataDog/datadog-agent/comp/fleetstatus/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -120,6 +121,7 @@ import (
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	healthplatformfx "github.com/DataDog/datadog-agent/comp/healthplatform/fx"
+	healthplatformimpl "github.com/DataDog/datadog-agent/comp/healthplatform/impl"
 	hostProfilerFlareFx "github.com/DataDog/datadog-agent/comp/host-profiler/flare/fx"
 	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl"
@@ -296,7 +298,7 @@ func run(log log.Component,
 	_ option.Option[gui.Component],
 	agenttelemetryComponent agenttelemetry.Component,
 	_ diagnose.Component,
-	_ healthplatform.Component,
+	healthplatformComp healthplatform.Component,
 	hostname hostnameinterface.Component,
 	ipc ipc.Component,
 	snmpScanManager snmpscanmanager.Component,
@@ -363,6 +365,7 @@ func run(log log.Component,
 		ipc,
 		snmpScanManager,
 		traceroute,
+		healthplatformComp,
 	); err != nil {
 		return err
 	}
@@ -445,6 +448,7 @@ func getSharedFxOption() fx.Option {
 		apiimpl.Module(),
 		grpcAgentfx.Module(),
 		commonendpoints.Module(),
+		filterlist.Module(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig())),
 		demultiplexerendpointfx.Module(),
 		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
@@ -536,7 +540,9 @@ func getSharedFxOption() fx.Option {
 					"multi_region_failover.failover_metrics": internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_metrics", "Enable/disable redirection of metrics to failover region."),
 					"multi_region_failover.failover_logs":    internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_logs", "Enable/disable redirection of logs to failover region."),
 					"multi_region_failover.failover_apm":     internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_apm", "Enable/disable redirection of APM to failover region."),
+					"multi_region_failover.metric_allowlist": internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.metric_allowlist", "Allowlist of metrics to be redirected to failover region."),
 					"internal_profiling":                     commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent"),
+					"dogstatsd_stream_log_too_big":           commonsettings.NewDogstatsdStreamLogTooBigSetting(),
 				},
 				Config: config,
 			}
@@ -585,6 +591,7 @@ func startAgent(
 	ipc ipc.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
+	healthplatformComp healthplatform.Component,
 ) error {
 	var err error
 
@@ -710,6 +717,13 @@ func startAgent(
 
 	diagnosecatalog.Register(diagnose.FirewallScan, func(_ diagnose.Config) []diagnose.Diagnosis {
 		return firewallscanner.Diagnose(cfg)
+	})
+
+	diagnosecatalog.Register(diagnose.HealthPlatformIssues, func(diagCfg diagnose.Config) []diagnose.Diagnosis {
+		if !cfg.GetBool("health_platform.enabled") {
+			return nil
+		}
+		return healthplatformimpl.Diagnose(healthplatformComp, diagCfg)
 	})
 
 	// start dependent services
