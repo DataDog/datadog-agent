@@ -208,7 +208,12 @@ func (c *testRemoteConfigClient) GetClientID() string {
 
 func (c *testRemoteConfigClient) SubmitCatalog(catalog catalog) {
 	// wait for the client to subscribe to the catalog after rc.Start() completes
-	require.Eventually(c.t, c.subscribedToCatalog, 1*time.Second, 10*time.Millisecond)
+	require.Eventually(c.t, func() bool {
+		c.Lock()
+		defer c.Unlock()
+		_, ok := c.listeners[state.ProductUpdaterCatalogDD]
+		return ok
+	}, 1*time.Second, 10*time.Millisecond)
 	c.Lock()
 	defer c.Unlock()
 	rawCatalog, err := json.Marshal(catalog)
@@ -222,13 +227,6 @@ func (c *testRemoteConfigClient) SubmitCatalog(catalog catalog) {
 			},
 		}, func(string, state.ApplyStatus) {})
 	}
-}
-
-func (c *testRemoteConfigClient) subscribedToCatalog() bool {
-	c.Lock()
-	defer c.Unlock()
-	_, ok := c.listeners[state.ProductUpdaterCatalogDD]
-	return ok
 }
 
 func (c *testRemoteConfigClient) subscribedToRequests() bool {
