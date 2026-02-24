@@ -58,9 +58,17 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 		}, 2*time.Minute, 10*time.Second, "Agent not ready")
 
 		// Verify containers are running
-		output := host.MustExecute("docker ps --format '{{.Names}}' | grep spam")
-		t.Logf("Running containers: %s", output)
-		assert.Contains(t, output, "spam", "Busybox containers should be running")
+		containers, err := suite.Env().Docker.Client.ListContainers()
+		require.NoError(t, err, "Failed to list Docker containers")
+		t.Logf("Running containers: %v", containers)
+		hasSpam := false
+		for _, name := range containers {
+			if strings.Contains(name, "spam") {
+				hasSpam = true
+				break
+			}
+		}
+		assert.True(t, hasSpam, "Busybox spam containers should be running")
 
 		// Wait for health report to be sent to fakeintake
 		var latestReport *aggregator.AgentHealthPayload
