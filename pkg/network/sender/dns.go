@@ -33,12 +33,12 @@ func formatDNSStatsByDomainByQueryType(builder *model.ConnectionBuilder, stats m
 							w.SetDnsFailureLatencySum(stat.FailureLatencySum)
 							w.SetDnsSuccessLatencySum(stat.SuccessLatencySum)
 							w.SetDnsTimeouts(stat.Timeouts)
-							w.AddDnsCountByRcode(func(w *model.DNSStats_DnsCountByRcodeEntryBuilder) {
-								for k, v := range stat.CountByRcode {
+							for k, v := range stat.CountByRcode {
+								w.AddDnsCountByRcode(func(w *model.DNSStats_DnsCountByRcodeEntryBuilder) {
 									w.SetKey(k)
 									w.SetValue(v)
-								}
-							})
+								})
+							}
 						})
 					})
 				}
@@ -76,12 +76,12 @@ func formatDNSStatsByDomain(builder *model.ConnectionBuilder, stats map[dns.Host
 						w.SetDnsFailureLatencySum(ms.DnsFailureLatencySum)
 						w.SetDnsSuccessLatencySum(ms.DnsSuccessLatencySum)
 						w.SetDnsTimeouts(ms.DnsTimeouts)
-						w.AddDnsCountByRcode(func(w *model.DNSStats_DnsCountByRcodeEntryBuilder) {
-							for rcode, count := range ms.DnsCountByRcode {
+						for rcode, count := range ms.DnsCountByRcode {
+							w.AddDnsCountByRcode(func(w *model.DNSStats_DnsCountByRcodeEntryBuilder) {
 								w.SetKey(rcode)
 								w.SetValue(count)
-							}
-						})
+							})
+						}
 					})
 				})
 			})
