@@ -207,7 +207,7 @@ func (dr *Resolver) DelCacheEntriesForMountID(mountID uint32) {
 }
 
 func (dr *Resolver) lookupInodeFromCache(pathKey model.PathKey) (PathEntry, error) {
-	entry, exists := dr.cache.Get(pathKey.MountID, pathKey)
+	entry, exists := dr.cache.GetReadOnly(pathKey.MountID, pathKey)
 	if !exists {
 		return PathEntry{}, ErrEntryNotFound
 	}
