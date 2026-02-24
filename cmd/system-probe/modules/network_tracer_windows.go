@@ -8,11 +8,14 @@
 package modules
 
 import (
+	"net/http"
 	"os"
 	"time"
 
+	httpprotocol "github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/messagestrings"
@@ -36,5 +39,11 @@ func (nt *networkTracer) platformRegister(httpMux *module.Router) error {
 			os.Exit(1)
 		})
 	}
+
+	httpMux.HandleFunc("/iis_tags", func(w http.ResponseWriter, req *http.Request) {
+		cache := httpprotocol.GetIISTagsCache()
+		utils.WriteAsJSON(w, cache, utils.CompactOutput)
+	})
+
 	return nil
 }

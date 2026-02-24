@@ -17,6 +17,11 @@ func getListeningPortToPIDMap() map[int32]int32 {
 	return nil
 }
 
+// fetchIISTagsCache is not applicable on this platform; returns nil.
+func fetchIISTagsCache(_ *http.Client) map[string][]string {
+	return nil
+}
+
 // getNetworkID fetches network_id
 func getNetworkID(_ *http.Client) (string, error) {
 	return "", errors.New("unsupported on this platform")
