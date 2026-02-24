@@ -33,6 +33,7 @@ func TestInjectionModeSuite(t *testing.T) {
 	helmValues, err := os.ReadFile("testdata/injection_mode.yaml")
 	require.NoError(t, err, "Could not open helm values file for test")
 	e2e.Run(t, &injectionModeSuite{}, e2e.WithProvisioner(Provisioner(ProvisionerOptions{
+		KubernetesVersion: "1.35",
 		AgentOptions: []kubernetesagentparams.Option{
 			kubernetesagentparams.WithHelmValues(string(helmValues)),
 		},

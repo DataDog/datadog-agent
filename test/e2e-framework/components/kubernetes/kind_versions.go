@@ -21,6 +21,11 @@ type KindConfig struct {
 
 // Source: https://github.com/kubernetes-sigs/kind/releases
 var kubeToKindVersion = map[string]KindConfig{
+	"1.35": {
+		KindVersion:            "v0.31.0",
+		NodeImageVersion:       "v1.35.0@sha256:452d707d4862f52530247495d180205e029056831160e22870e37e3f6c1ac31f",
+		UseNewContainerdConfig: true,
+	},
 	"1.34": {
 		KindVersion:            "v0.30.0",
 		NodeImageVersion:       "v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a",
