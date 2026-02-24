@@ -161,7 +161,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageFromExeWithAltDir() {
 		installerwindows.WithExtraEnvVars(map[string]string{
 			"DD_PROJECTLOCATION":          altInstallPath,
 			"DD_APPLICATIONDATADIRECTORY": altConfigRoot,
-			// TODO: these need to be overridden here so they're not overriden by installer.InstallScriptEnv
+			// TODO: these need to be overridden here so they're not overridden by installer.InstallScriptEnv
 			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT": "",
 			"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":        s.StableAgentVersion().OCIPackage().Registry,
 		}),
