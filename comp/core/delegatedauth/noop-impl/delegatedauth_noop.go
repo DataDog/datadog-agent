@@ -22,12 +22,14 @@ type Provides struct {
 
 type delegatedAuthNoop struct{}
 
+var _ delegatedauth.Component = (*delegatedAuthNoop)(nil)
+
 // NewComponent returns a no-op implementation for the delegated auth component
 func NewComponent() Provides {
 	noop := &delegatedAuthNoop{}
 	// Note: importing log package would require adding it as a dependency, so skipping debug here
 	return Provides{
-		Comp:           &delegatedauthnooptypes.DelegatedAuthNoop{},
+		Comp:           noop,
 		StatusProvider: status.NewInformationProvider(noop),
 	}
 }
