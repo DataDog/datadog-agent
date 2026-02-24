@@ -41,53 +41,39 @@ def get_aws_vault_env(ctx, account: str):
     return env
 
 
-def _extract_env_var(output: str, key: str) -> str:
-    for raw_line in output.splitlines():
-        line = raw_line.strip()
-        if line.startswith("export "):
-            line = line[len("export ") :]
-        prefix = f"{key}="
-        if not line.startswith(prefix):
-            continue
-        value = line[len(prefix) :].strip()
-        if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
-            value = value[1:-1]
-        if not value:
-            raise RuntimeError(f"Parsed empty value for {key} from dd-auth output")
-        return value
-    raise RuntimeError(f"Could not parse {key} from dd-auth output")
-
 
 @contextmanager
-def dd_auth_api_app_keys(ctx, domain: str, api_key_env: str = "DD_API_KEY", app_key_env: str = "DD_APP_KEY"):
+def dd_auth_api_app_keys(ctx, domain: str):
     """
     Fetch API/App keys from dd-auth for a given domain and temporarily set them in env.
     """
-    command = (
-        f"dd-auth --domain {shlex.quote(domain)} "
-        f"--api-key-env {shlex.quote(api_key_env)} "
-        f"--app-key-env {shlex.quote(app_key_env)} "
-        "--output"
-    )
-    res = ctx.run(command, hide=True, warn=True)
-    if res.exited != 0:
-        raise RuntimeError(f"dd-auth failed for domain {domain}: {res.stderr.strip()}")
+    res = ctx.run(f"dd-auth --domain {shlex.quote(domain)} --output", hide=True, warn=True)
+    if not res.ok:
+        raise RuntimeError(f"dd-auth failed for domain {domain}")
 
-    api_key = _extract_env_var(res.stdout, api_key_env)
-    app_key = _extract_env_var(res.stdout, app_key_env)
+    output_vars = {}
+    for line in res.stdout.splitlines():
+        if "=" in line:
+            key, value = line.split("=", 1)
+            output_vars[key] = value
 
-    previous_api = os.environ.get(api_key_env)
-    previous_app = os.environ.get(app_key_env)
-    os.environ[api_key_env] = api_key
-    os.environ[app_key_env] = app_key
+    env_vars = ['DD_API_KEY', 'DD_APP_KEY']
+    new_values, prev_values = {}, {}
+    for env_var in env_vars:
+        if env_var not in output_vars:
+            raise RuntimeError(f"dd-auth output does not contain {env_var}")
+
+        new_values[env_var] = output_vars[env_var]
+        prev_values[env_var] = os.environ.get(env_var)
+
+    for env_var in env_vars:
+        os.environ[env_var] = new_values[env_var]
+
     try:
         yield
     finally:
-        if previous_api is None:
-            os.environ.pop(api_key_env, None)
-        else:
-            os.environ[api_key_env] = previous_api
-        if previous_app is None:
-            os.environ.pop(app_key_env, None)
-        else:
-            os.environ[app_key_env] = previous_app
+        for env_var in env_vars:
+            if prev_values[env_var] is None:
+                os.environ.pop(env_var, None)
+            else:
+                os.environ[env_var] = prev_values[env_var]
