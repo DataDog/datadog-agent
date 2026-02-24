@@ -3,8 +3,8 @@ module github.com/DataDog/datadog-agent/comp/trace/agent/def
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.76.0
-	github.com/DataDog/datadog-agent/pkg/proto v0.76.0
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.76.1-rc.1
+	github.com/DataDog/datadog-agent/pkg/proto v0.76.1-rc.1
 	go.opentelemetry.io/collector/pdata v1.50.0
 )
 
@@ -16,8 +16,8 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/trace/log v0.76.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.76.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.76.1-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.76.1-rc.1 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect

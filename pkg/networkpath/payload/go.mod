@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/networkpath/payload
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/network/payload v0.76.0
+	github.com/DataDog/datadog-agent/pkg/network/payload v0.76.1-rc.1
 	github.com/google/uuid v1.6.0
 	github.com/stretchr/testify v1.11.1
 )
