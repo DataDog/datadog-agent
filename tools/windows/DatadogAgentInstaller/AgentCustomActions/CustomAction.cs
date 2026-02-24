@@ -226,5 +226,17 @@ namespace Datadog.AgentCustomActions
         {
             return Datadog.CustomActions.InstallOciPackages.PurgePackages(session);
         }
+
+        [CustomAction]
+        public static ActionResult ConfigureAutoLogger(Session session)
+        {
+            return Datadog.CustomActions.AutoLoggerCustomAction.ConfigureAutoLogger(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RemoveAutoLogger(Session session)
+        {
+            return Datadog.CustomActions.AutoLoggerCustomAction.RemoveAutoLogger(session);
+        }
     }
 }
