@@ -153,7 +153,9 @@ type setContainerResources struct {
 }
 
 // SetContainerResources creates an operation that patches spec.containers[*].resources
-// for the listed containers.
+// for the listed containers. This targets Pod objects directly — for owner resources
+// (Deployment, ReplicaSet, etc.) container resources live under
+// spec.template.spec.containers.
 //
 // Callers targeting the "pods/resize" resource should use types.StrategicMergePatchType,
 // as using the default types.MergePatchType fails if not all containers are included.
