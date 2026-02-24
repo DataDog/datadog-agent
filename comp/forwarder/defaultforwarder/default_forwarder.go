@@ -18,8 +18,6 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/atomic"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -36,9 +34,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+type forwarderState uint32
+
 const (
 	// Stopped represent the internal state of an unstarted Forwarder.
-	Stopped uint32 = iota
+	Stopped forwarderState = iota
 	// Started represent the internal state of an started Forwarder.
 	Started
 	// Disabled represent the internal state of a disabled Forwarder.
@@ -283,7 +283,7 @@ type DefaultForwarder struct {
 	domainResolvers  map[string]pkgresolver.DomainResolver
 	localForwarder   *domainForwarder // domain forward used for communication with the local cluster-agent
 	healthChecker    *forwarderHealth
-	internalState    *atomic.Uint32
+	internalState    forwarderState
 	m                sync.Mutex // To control Start/Stop races
 
 	agentName                       string
@@ -300,7 +300,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 		NumberOfWorkers:  options.NumberOfWorkers,
 		domainForwarders: map[string]*domainForwarder{},
 		domainResolvers:  map[string]pkgresolver.DomainResolver{},
-		internalState:    atomic.NewUint32(Stopped),
+		internalState:    Stopped,
 		healthChecker: &forwarderHealth{
 			log:                   log,
 			config:                config,
@@ -437,7 +437,7 @@ func (f *DefaultForwarder) Start() error {
 	f.m.Lock()
 	defer f.m.Unlock()
 
-	if f.internalState.Load() == Started {
+	if f.internalState == Started {
 		return errors.New("the forwarder is already started")
 	}
 
@@ -455,7 +455,7 @@ func (f *DefaultForwarder) Start() error {
 		len(endpointLogs), f.NumberOfWorkers, strings.Join(endpointLogs, " ; "))
 
 	f.healthChecker.Start()
-	f.internalState.Store(Started)
+	f.internalState = Started
 	return nil
 }
 
@@ -466,12 +466,12 @@ func (f *DefaultForwarder) Stop() {
 	f.m.Lock()
 	defer f.m.Unlock()
 
-	if f.internalState.Load() == Stopped {
+	if f.internalState == Stopped {
 		f.log.Warnf("the forwarder is already stopped")
 		return
 	}
 
-	f.internalState.Store(Stopped)
+	f.internalState = Stopped
 
 	purgeTimeout := f.config.GetDuration("forwarder_stop_timeout") * time.Second
 	if purgeTimeout > 0 {
@@ -509,12 +509,13 @@ func (f *DefaultForwarder) Stop() {
 }
 
 // State returns the internal state of the forwarder (Started or Stopped)
+// Deprecated. Returned value may be stale by the time this method returns.
 func (f *DefaultForwarder) State() uint32 {
 	// Lock so we can't start/stop a Forwarder while getting its state
 	f.m.Lock()
 	defer f.m.Unlock()
 
-	return f.internalState.Load()
+	return uint32(f.internalState)
 }
 
 func (f *DefaultForwarder) createHTTPTransactions(endpoint transaction.Endpoint, payloads transaction.BytesPayloads, kind transaction.Kind, extra http.Header) []*transaction.HTTPTransaction {
@@ -573,7 +574,7 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 	f.m.Lock()
 	defer f.m.Unlock()
 
-	if f.internalState.Load() == Stopped {
+	if f.internalState == Stopped {
 		return errors.New("the forwarder is not started")
 	}
 

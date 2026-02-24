@@ -70,8 +70,8 @@ func TestNewDefaultForwarder(t *testing.T) {
 	assert.Equal(t, testDomain, forwarder.domainResolvers[testVersionDomain].GetConfigName())
 	assert.Equal(t, validKeys, forwarder.domainResolvers[testVersionDomain].GetAPIKeys())
 
-	assert.Equal(t, forwarder.internalState.Load(), Stopped)
-	assert.Equal(t, forwarder.State(), forwarder.internalState.Load())
+	assert.Equal(t, forwarder.internalState, Stopped)
+	assert.Equal(t, forwarder.State(), uint32(forwarder.internalState))
 }
 
 func TestNewDefaultForwarderWithAutoscaling(t *testing.T) {
@@ -101,8 +101,8 @@ func TestNewDefaultForwarderWithAutoscaling(t *testing.T) {
 	assert.Len(t, forwarder.domainResolvers[localDomain].GetAPIKeys(), 0)
 	assert.True(t, forwarder.domainResolvers[localDomain].IsLocal())
 
-	assert.Equal(t, forwarder.internalState.Load(), Stopped)
-	assert.Equal(t, forwarder.State(), forwarder.internalState.Load())
+	assert.Equal(t, forwarder.internalState, Stopped)
+	assert.Equal(t, forwarder.State(), uint32(forwarder.internalState))
 }
 
 func TestFeature(t *testing.T) {
@@ -135,7 +135,7 @@ func TestStart(t *testing.T) {
 	defer forwarder.Stop()
 
 	assert.NoError(t, err)
-	assert.Equal(t, Started, forwarder.State())
+	assert.Equal(t, Started, forwarder.internalState)
 	require.Len(t, forwarder.domainForwarders, 1)
 	require.NotNil(t, forwarder.healthChecker)
 	assert.NotNil(t, forwarder.Start())
@@ -163,12 +163,12 @@ func testStop(t *testing.T, mockConfig pkgconfigmodel.Config) {
 	options := NewOptionsWithResolvers(mockConfig, log, r)
 	options.Secrets = secrets
 	forwarder := NewDefaultForwarder(mockConfig, log, options)
-	assert.Equal(t, Stopped, forwarder.State())
+	assert.Equal(t, Stopped, forwarder.internalState)
 	forwarder.Stop() // this should be a noop
 	forwarder.Start()
 	domainForwarders := forwarder.domainForwarders
 	forwarder.Stop()
-	assert.Equal(t, Stopped, forwarder.State())
+	assert.Equal(t, Stopped, forwarder.internalState)
 	assert.Nil(t, forwarder.healthChecker)
 	assert.Len(t, forwarder.domainForwarders, 0)
 	for _, df := range domainForwarders {
@@ -187,7 +187,7 @@ func TestSubmitIfStopped(t *testing.T) {
 	forwarder := NewDefaultForwarder(mockConfig, log, options)
 
 	require.NotNil(t, forwarder)
-	require.Equal(t, Stopped, forwarder.State())
+	require.Equal(t, Stopped, forwarder.internalState)
 	assert.NotNil(t, forwarder.SubmitSketchSeries(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitHostMetadata(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitMetadata(nil, make(http.Header)))
