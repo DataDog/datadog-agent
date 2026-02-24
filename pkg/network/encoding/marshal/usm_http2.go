@@ -13,6 +13,7 @@ import (
 	"slices"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/sketches-go/ddsketch"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -22,6 +23,7 @@ import (
 type http2Encoder struct {
 	http2AggregationsBuilder *model.HTTP2AggregationsBuilder
 	byConnection             *USMConnectionIndex[http.Key, *http.RequestStats]
+	sketchBuilder            *ddsketch.DDSketchCollectionBuilder
 }
 
 func newHTTP2Encoder(http2Payloads map[http.Key]*http.RequestStats) *http2Encoder {
@@ -34,6 +36,7 @@ func newHTTP2Encoder(http2Payloads map[http.Key]*http.RequestStats) *http2Encode
 			return key.ConnectionKey
 		}),
 		http2AggregationsBuilder: model.NewHTTP2AggregationsBuilder(nil),
+		sketchBuilder:            ddsketch.NewDDSketchCollectionBuilder(nil),
 	}
 }
 
@@ -80,7 +83,8 @@ func (e *http2Encoder) encodeData(c network.ConnectionStats, w io.Writer) (uint6
 						w.SetCount(uint32(stats.Count))
 						if latencies := stats.Latencies; latencies != nil {
 							w.SetLatencies(func(b *bytes.Buffer) {
-								latencies.EncodeProto(b)
+								e.sketchBuilder.Reset(b)
+								e.sketchBuilder.AddSketch(latencies)
 							})
 						} else {
 							w.SetFirstLatencySample(stats.FirstLatencySample)
