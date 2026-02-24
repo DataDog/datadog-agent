@@ -18,8 +18,6 @@ metrics:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures: []
       device_features:
@@ -27,29 +25,21 @@ metrics:
         physical: true
         vgpu: true
       process_data: false
-    deprecated: false
-    replaced_by: ""
   clock.speed.graphics.max:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures: []
       device_features:
         mig: false
         physical: true
-        vgpu: false
+        vgpu: true
       process_data: false
-    deprecated: false
-    replaced_by: ""
   clock.speed.memory:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures: []
       device_features:
@@ -57,29 +47,21 @@ metrics:
         physical: true
         vgpu: true
       process_data: false
-    deprecated: false
-    replaced_by: ""
   clock.speed.memory.max:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures: []
       device_features:
         mig: false
         physical: true
-        vgpu: false
+        vgpu: true
       process_data: false
-    deprecated: false
-    replaced_by: ""
   clock.speed.sm:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures: []
       device_features:
@@ -87,29 +69,21 @@ metrics:
         physical: true
         vgpu: true
       process_data: false
-    deprecated: false
-    replaced_by: ""
   clock.speed.sm.max:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures: []
       device_features:
         mig: false
         physical: true
-        vgpu: false
+        vgpu: true
       process_data: false
-    deprecated: false
-    replaced_by: ""
   clock.speed.video:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -118,30 +92,22 @@ metrics:
         physical: true
         vgpu: true
       process_data: false
-    deprecated: false
-    replaced_by: ""
   clock.speed.video.max:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
       device_features:
         mig: false
         physical: true
-        vgpu: false
+        vgpu: true
       process_data: false
-    deprecated: false
-    replaced_by: ""
   clock.throttle_reasons.applications_clocks_setting:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -150,14 +116,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   clock.throttle_reasons.display_clock_setting:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -166,14 +128,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   clock.throttle_reasons.gpu_idle:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -182,14 +140,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   clock.throttle_reasons.none:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -198,14 +152,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   clock.throttle_reasons.sw_power_cap:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -214,14 +164,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   clock.throttle_reasons.sw_thermal_slowdown:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -230,14 +176,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   clock.throttle_reasons.sync_boost:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -246,16 +188,12 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   core.limit:
     type: gauge
     tagsets:
       - device
       - process
       - container
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures: []
       device_features:
@@ -263,28 +201,10 @@ metrics:
         physical: true
         vgpu: true
       process_data: false
-    deprecated: false
-    replaced_by: ""
-  core.usage:
-    type: ""
-    tagsets: []
-    custom_tags: []
-    memory_locations: []
-    support:
-      unsupported_architectures: []
-      device_features:
-        mig: true
-        physical: true
-        vgpu: true
-      process_data: false
-    deprecated: true
-    replaced_by: process.core.usage
   decoder_active:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -293,14 +213,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   device.total:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures: []
       device_features:
@@ -308,14 +224,10 @@ metrics:
         physical: true
         vgpu: true
       process_data: false
-    deprecated: false
-    replaced_by: ""
   device.unhealthy:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures: []
       device_features:
@@ -323,14 +235,10 @@ metrics:
         physical: true
         vgpu: true
       process_data: false
-    deprecated: false
-    replaced_by: ""
   dram_active:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -339,14 +247,10 @@ metrics:
         physical: true
         vgpu: true
       process_data: false
-    deprecated: false
-    replaced_by: ""
   encoder_active:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -355,23 +259,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   errors.ecc.corrected.total:
     type: gauge
     tagsets:
       - device
-    custom_tags:
-      - memory_location
-    memory_locations:
-      - l1_cache
-      - l2_cache
-      - device_memory
-      - register_file
-      - texture_memory
-      - texture_shm
-      - cbu
-      - sram
     support:
       unsupported_architectures: []
       device_features:
@@ -379,23 +270,10 @@ metrics:
         physical: true
         vgpu: true
       process_data: false
-    deprecated: false
-    replaced_by: ""
   errors.ecc.uncorrected.total:
     type: gauge
     tagsets:
       - device
-    custom_tags:
-      - memory_location
-    memory_locations:
-      - l1_cache
-      - l2_cache
-      - device_memory
-      - register_file
-      - texture_memory
-      - texture_shm
-      - cbu
-      - sram
     support:
       unsupported_architectures: []
       device_features:
@@ -403,16 +281,10 @@ metrics:
         physical: true
         vgpu: true
       process_data: false
-    deprecated: false
-    replaced_by: ""
   errors.xid.total:
     type: gauge
     tagsets:
       - device
-    custom_tags:
-      - type
-      - origin
-    memory_locations: []
     support:
       unsupported_architectures: []
       device_features:
@@ -420,14 +292,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   fan_speed:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures: []
       device_features:
@@ -435,14 +303,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   fp16_active:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -458,14 +322,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   fp32_active:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -481,14 +341,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   fp64_active:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -504,14 +360,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   gr_engine_active:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -520,14 +372,10 @@ metrics:
         physical: true
         vgpu: true
       process_data: false
-    deprecated: false
-    replaced_by: ""
   integer_active:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -543,14 +391,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   memory.bar1.free:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -559,14 +403,10 @@ metrics:
         physical: true
         vgpu: true
       process_data: false
-    deprecated: false
-    replaced_by: ""
   memory.bar1.total:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -575,14 +415,10 @@ metrics:
         physical: true
         vgpu: true
       process_data: false
-    deprecated: false
-    replaced_by: ""
   memory.bar1.used:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -591,14 +427,10 @@ metrics:
         physical: true
         vgpu: true
       process_data: false
-    deprecated: false
-    replaced_by: ""
   memory.free:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -609,16 +441,12 @@ metrics:
         physical: true
         vgpu: true
       process_data: false
-    deprecated: false
-    replaced_by: ""
   memory.limit:
     type: gauge
     tagsets:
       - device
       - process
       - container
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures: []
       device_features:
@@ -626,14 +454,10 @@ metrics:
         physical: true
         vgpu: true
       process_data: false
-    deprecated: false
-    replaced_by: ""
   memory.reserved:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -644,14 +468,10 @@ metrics:
         physical: true
         vgpu: true
       process_data: false
-    deprecated: false
-    replaced_by: ""
   memory.temperature:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -666,28 +486,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
-  memory.usage:
-    type: ""
-    tagsets: []
-    custom_tags: []
-    memory_locations: []
-    support:
-      unsupported_architectures: []
-      device_features:
-        mig: true
-        physical: true
-        vgpu: true
-      process_data: false
-    deprecated: true
-    replaced_by: process.memory.usage
   nvlink.count.active:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -697,16 +499,12 @@ metrics:
       device_features:
         mig: false
         physical: true
-        vgpu: true
+        vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   nvlink.count.inactive:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -716,16 +514,12 @@ metrics:
       device_features:
         mig: false
         physical: true
-        vgpu: true
+        vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   nvlink.count.total:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -735,16 +529,12 @@ metrics:
       device_features:
         mig: false
         physical: true
-        vgpu: true
+        vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   nvlink.errors.crc.data:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -756,14 +546,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   nvlink.errors.crc.flit:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -775,14 +561,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   nvlink.errors.ecc:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -794,14 +576,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   nvlink.errors.recovery:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -813,14 +591,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   nvlink.errors.replay:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -832,14 +606,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   nvlink.nvswitch_connected:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -852,14 +622,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   nvlink.speed:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -871,14 +637,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   nvlink.throughput.data.rx:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -890,14 +652,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   nvlink.throughput.data.tx:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -909,14 +667,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   nvlink.throughput.raw.rx:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -928,14 +682,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   nvlink.throughput.raw.tx:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -947,14 +697,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   pci.replay_counter:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -963,14 +709,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   pci.throughput.rx:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -979,14 +721,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   pci.throughput.tx:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -995,14 +733,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   performance_state:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures: []
       device_features:
@@ -1010,14 +744,10 @@ metrics:
         physical: true
         vgpu: true
       process_data: false
-    deprecated: false
-    replaced_by: ""
   power.management_limit:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures: []
       device_features:
@@ -1025,14 +755,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   power.usage:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures: []
       device_features:
@@ -1040,16 +766,12 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   process.core.usage:
     type: gauge
     tagsets:
       - device
       - process
       - container
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures: []
       device_features:
@@ -1057,16 +779,12 @@ metrics:
         physical: true
         vgpu: true
       process_data: true
-    deprecated: false
-    replaced_by: ""
   process.decoder_active:
     type: gauge
     tagsets:
       - device
       - process
       - container
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -1075,16 +793,12 @@ metrics:
         physical: true
         vgpu: false
       process_data: true
-    deprecated: false
-    replaced_by: ""
   process.dram_active:
     type: gauge
     tagsets:
       - device
       - process
       - container
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -1093,16 +807,12 @@ metrics:
         physical: true
         vgpu: true
       process_data: true
-    deprecated: false
-    replaced_by: ""
   process.encoder_active:
     type: gauge
     tagsets:
       - device
       - process
       - container
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -1111,16 +821,12 @@ metrics:
         physical: true
         vgpu: false
       process_data: true
-    deprecated: false
-    replaced_by: ""
   process.memory.usage:
     type: gauge
     tagsets:
       - device
       - process
       - container
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures: []
       device_features:
@@ -1128,16 +834,12 @@ metrics:
         physical: true
         vgpu: true
       process_data: true
-    deprecated: false
-    replaced_by: ""
   process.sm_active:
     type: gauge
     tagsets:
       - device
       - process
       - container
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures: []
       device_features:
@@ -1145,14 +847,10 @@ metrics:
         physical: true
         vgpu: true
       process_data: true
-    deprecated: false
-    replaced_by: ""
   remapped_rows.correctable:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -1166,14 +864,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   remapped_rows.failed:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -1187,14 +881,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   remapped_rows.pending:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -1208,14 +898,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   remapped_rows.uncorrectable:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -1229,14 +915,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   slowdown_temperature:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -1245,14 +927,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   sm_active:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures: []
       device_features:
@@ -1260,14 +938,10 @@ metrics:
         physical: true
         vgpu: true
       process_data: false
-    deprecated: false
-    replaced_by: ""
   sm_occupancy:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -1283,14 +957,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   sm_utilization:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -1306,14 +976,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   temperature:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures: []
       device_features:
@@ -1321,14 +987,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   tensor_active:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -1344,14 +1006,10 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
   total_energy_consumption:
     type: gauge
     tagsets:
       - device
-    custom_tags: []
-    memory_locations: []
     support:
       unsupported_architectures:
         - fermi
@@ -1363,5 +1021,3 @@ metrics:
         physical: true
         vgpu: false
       process_data: false
-    deprecated: false
-    replaced_by: ""
