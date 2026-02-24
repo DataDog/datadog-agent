@@ -396,16 +396,7 @@ func (d *daemonImpl) Start(_ context.Context) error {
 				d.refreshState(d.ctx)
 				d.m.Unlock()
 			case <-d.stopChan:
-				// Drain buffered requests and decrement WG for each so that
-				// requestsWG.Wait() in Stop() can return cleanly.
-				for {
-					select {
-					case <-d.requests:
-						d.requestsWG.Done()
-					default:
-						return
-					}
-				}
+				return
 			case request := <-d.requests:
 				err := d.handleRemoteAPIRequest(request)
 				if err != nil {
@@ -449,11 +440,10 @@ func (d *daemonImpl) Stop(_ context.Context) error {
 
 	// Stop the background goroutine
 	close(d.stopChan)
-	// Release the lock before waiting: handleRemoteAPIRequest acquires the lock before
-	// calling requestsWG.Done(), so holding the lock here would deadlock.
+	// Release the lock before waiting so that the background goroutine can still
+	// acquire d.m if needed (e.g. handleRemoteAPIRequest, periodic refreshState).
 	d.m.Unlock()
 
-	d.requestsWG.Wait()
 	// Wait for the background goroutine to exit so that any in-flight subprocess
 	// (e.g. get-states or install-package blocked on packages.db) is waited on
 	// by exec.Cmd.Wait().  This keeps the daemon process alive long enough for
@@ -668,7 +658,6 @@ func (d *daemonImpl) scheduleRemoteAPIRequest(request remoteAPIRequest) error {
 	select {
 	case d.requests <- request:
 	case <-d.stopChan:
-		// Goroutine already exited; undo the Add so requestsWG.Wait() can return.
 		d.requestsWG.Done()
 	}
 	return nil

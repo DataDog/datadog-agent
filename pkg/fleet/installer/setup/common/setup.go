@@ -68,7 +68,6 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 		}) // comma and space-separated list, consistent with viper and documentation
 	}
 	span, ctx := telemetry.StartSpanFromContext(ctx, "setup."+flavor)
-	SetupLogger(env, span)
 	s := &Setup{
 		configDir: paths.DatadogDataDir,
 		installer: installer,
