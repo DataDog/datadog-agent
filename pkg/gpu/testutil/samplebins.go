@@ -54,7 +54,7 @@ var RateSample = Sample{
 // dockerImage represents the Docker image to use for running the sample binary.
 type dockerImage string
 
-const (
+var (
 	// MinimalDockerImage is the minimal docker image, just used for running a binary
 	MinimalDockerImage dockerImage = dockerutils.MinimalDockerImage
 )
