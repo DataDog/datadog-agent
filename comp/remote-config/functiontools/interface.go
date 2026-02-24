@@ -2,178 +2,228 @@ package functiontools
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
+	"reflect"
 
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
+	"github.com/DataDog/jsonapi"
+	"github.com/mitchellh/mapstructure"
 )
 
-type Property struct {
-	Type        string `json:"type"`
-	Description string `json:"description"`
-}
-
-type Parameters struct {
-	Type                 string              `json:"type"`
-	Properties           map[string]Property `json:"properties"`
-	Required             []string            `json:"required"`
-	AdditionalProperties bool                `json:"additionalProperties"`
-}
-
-type Description struct {
-	Type        string     `json:"type"`
-	Name        string     `json:"name"`
-	Description string     `json:"description"`
-	Strict      bool       `json:"strict"`
-	Parameters  Parameters `json:"parameters"`
+type Params struct {
+	Kind        reflect.Kind `json:"kind"`
+	Description string       `json:"description"`
 }
 
 type FunctionTool struct {
 	description string
-	properties  map[string]Property
-	handler     func(parameters map[string]string) (any, error)
+	params      map[string]Params
+	handler     func(parameters map[string]any) (any, error)
 }
 
 var registry = map[string]FunctionTool{
 	"list_files": {
 		description: "Recursively list all files under a directory that end with a given extension (e.g. 'log' or 'txt'). Returns full file paths. Commonly used to inspect logs located under '/var/log'.",
-		properties: map[string]Property{
-			"directory": {Type: "string", Description: "The directory to search from (search is recursive). For system logs, this is typically '/var/log'."},
-			"extension": {Type: "string", Description: "The file extension to match, exclusing the dot, e.g. 'log' or 'txt'."},
+		params: map[string]Params{
+			"directory": {Kind: reflect.String, Description: "The directory to search from (search is recursive). For system logs, this is typically '/var/log'."},
+			"extension": {Kind: reflect.String, Description: "The file extension to match, exclusing the dot, e.g. 'log' or 'txt'."},
 		},
-		handler: func(parameters map[string]string) (any, error) {
-			return listFiles(parameters["directory"], parameters["extension"])
+		handler: func(parameters map[string]any) (any, error) {
+			return listFiles(parameters["directory"].(string), parameters["extension"].(string))
 		},
 	},
 	"tail_file": {
 		description: "Read the last N lines of a text file (such as a log file).",
-		properties: map[string]Property{
-			"file_path": {Type: "string", Description: "The full path of the file to tail."},
-			"n_lines":   {Type: "integer", Description: "The number of lines to read from the end of the file. Usually 10 lines is enough to get the last events."},
+		params: map[string]Params{
+			"file_path": {Kind: reflect.String, Description: "The full path of the file to tail."},
+			"n_lines":   {Kind: reflect.Float64, Description: "The number of lines to read from the end of the file. Usually 10 lines is enough to get the last events."},
 		},
-		handler: func(parameters map[string]string) (any, error) {
-			return tailFile(parameters["file_path"], parameters["n_lines"])
+		handler: func(parameters map[string]any) (any, error) {
+			return tailFile(parameters["file_path"].(string), parameters["n_lines"].(float64))
 		},
 	},
 	"enable_ssi": {
 		description: "Enable Single Step Instrumentation (SSI) for a given application in the cluster.",
-		properties: map[string]Property{
-			"namespace":       {Type: "string", Description: "The namespace of the application to enable SSI for."},
-			"deployment_name": {Type: "string", Description: "The name of the deployment to enable SSI for."},
-			"tracer_versions": {Type: "string", Description: "The language and version of the tracers to enable for the application, separated by a colon. For example: `python:3,java:1`."},
+		params: map[string]Params{
+			"namespace":       {Kind: reflect.String, Description: "The namespace of the application to enable SSI for."},
+			"deployment_name": {Kind: reflect.String, Description: "The name of the deployment to enable SSI for."},
+			"tracer_versions": {Kind: reflect.String, Description: "The language and version of the tracers to enable for the application, separated by a colon. For example: `python:3,java:1`."},
 		},
-		handler: func(parameters map[string]string) (any, error) {
-			return enableSsi(parameters["namespace"], parameters["deployment_name"], parameters["tracer_versions"])
+		handler: func(parameters map[string]any) (any, error) {
+			return enableSsi(parameters["namespace"].(string), parameters["deployment_name"].(string), parameters["tracer_versions"].(string))
 		},
 	},
 	"list_pods": {
 		description: "List all Kubernetes pods across all namespaces, grouped by namespace.",
-		properties:  map[string]Property{},
-		handler: func(parameters map[string]string) (any, error) {
+		params:      map[string]Params{},
+		handler: func(parameters map[string]any) (any, error) {
 			return listPods()
 		},
 	},
 	"delete_pod": {
 		description: "Delete a Kubernetes pod by name and namespace.",
-		properties: map[string]Property{
-			"namespace": {Type: "string", Description: "The namespace of the pod to delete."},
-			"pod_name":  {Type: "string", Description: "The name of the pod to delete."},
+		params: map[string]Params{
+			"namespace": {Kind: reflect.String, Description: "The namespace of the pod to delete."},
+			"pod_name":  {Kind: reflect.String, Description: "The name of the pod to delete."},
 		},
-		handler: func(parameters map[string]string) (any, error) {
-			return deletePod(parameters["namespace"], parameters["pod_name"])
+		handler: func(parameters map[string]any) (any, error) {
+			return deletePod(parameters["namespace"].(string), parameters["pod_name"].(string))
 		},
 	},
 }
 
-type FunctionToolCall struct {
-	CallID           string            `json:"call_id"`
-	DatadogAgentKey  string            `json:"datadog_agent_key"`
-	FunctionToolName string            `json:"function_tool_name"`
-	Parameters       map[string]string `json:"parameters"`
-	Output           any               `json:"output"`
-	Error            error             `json:"error,omitempty"`
+type Tool struct {
+	Name   string         `json:"name" jsonapi:"primary,name"`
+	Params map[string]any `json:"params" jsonapi:"attr,params"`
+}
+type ToolCall struct {
+	TaskID string `json:"task_id" jsonapi:"primary,task"`
+	DDAKey string `json:"datadog_agent_key" jsonapi:"attr,datadog_agent_key"`
+	Tool   *Tool  `json:"tool" jsonapi:"attr,tool"`
+
+	Output any    `json:"output" jsonapi:"attr,output"`
+	Error  string `json:"error,omitempty" jsonapi:"attr,error"`
 }
 
-func NewCall(task types.AgentTaskConfig) FunctionToolCall {
-	raw, ok := task.Config.TaskArgs["parameters"]
+func NewCall(task types.AgentTaskConfig) ToolCall {
+	taskIDRaw, ok := task.Config.TaskArgs["task_id"]
 	if !ok {
-		// No parameters provided, return an empty map (not nil)
-		return FunctionToolCall{
-			CallID:           task.Config.TaskArgs["call_id"],
-			FunctionToolName: task.Config.TaskArgs["function_tool_name"],
-			Parameters:       make(map[string]string),
+		return ToolCall{
+			Error: "no task id provided",
 		}
 	}
-
-	var parameters map[string]string
-	err := json.Unmarshal([]byte(raw), &parameters)
-	if err != nil {
-		return FunctionToolCall{
-			Error: fmt.Errorf("failed to unmarshal parameters: %w", err),
-		}
-	}
-	return FunctionToolCall{
-		CallID:           task.Config.TaskArgs["call_id"],
-		FunctionToolName: task.Config.TaskArgs["function_tool_name"],
-		Parameters:       parameters,
-	}
-}
-
-func (functionToolCall FunctionToolCall) Execute() FunctionToolCall {
-	if functionToolCall.Error != nil {
-		return FunctionToolCall{
-			Error: fmt.Errorf("failed to execute: %w", functionToolCall.Error),
-		}
-	}
-	functionTool, ok := registry[functionToolCall.FunctionToolName]
+	taskID, ok := taskIDRaw.(string)
 	if !ok {
-		functionToolCall.Error = fmt.Errorf("function tool '%s' not found", functionToolCall.FunctionToolName)
-		return functionToolCall
-	}
-	if len(registry[functionToolCall.FunctionToolName].properties) != len(functionToolCall.Parameters) {
-		functionToolCall.Error = fmt.Errorf("expected %d parameters, got %d", len(registry[functionToolCall.FunctionToolName].properties), len(functionToolCall.Parameters))
-		return functionToolCall
-	}
-	for name := range registry[functionToolCall.FunctionToolName].properties {
-		if _, ok := functionToolCall.Parameters[name]; !ok {
-			functionToolCall.Error = fmt.Errorf("parameter '%s' is required", name)
-			return functionToolCall
+		return ToolCall{
+			Error: "task id is not a string",
 		}
 	}
-	result, err := functionTool.handler(functionToolCall.Parameters)
-	if err != nil {
-		functionToolCall.Error = err
-		return functionToolCall
+
+	datadogAgentKeyRaw, ok := task.Config.TaskArgs["datadog_agent_key"]
+	if !ok {
+		return ToolCall{
+			Error: "no datadog agent key provided",
+		}
 	}
-	functionToolCall.Output = result
-	return functionToolCall
+	datadogAgentKey, ok := datadogAgentKeyRaw.(string)
+	if !ok {
+		return ToolCall{
+			Error: "datadog agent key is not a string",
+		}
+	}
+
+	raw, ok := task.Config.TaskArgs["tool"]
+	if !ok {
+		return ToolCall{
+			Error: "no tool provided",
+		}
+	}
+
+	// The raw value is map[string]interface{} from JSON unmarshaling,
+	// so we use mapstructure to decode it into the Tool struct
+	var tool Tool
+	if err := mapstructure.Decode(raw, &tool); err != nil {
+		return ToolCall{
+			Error: "tool is not a valid tool: " + err.Error(),
+		}
+	}
+
+	return ToolCall{
+		TaskID: taskID,
+		DDAKey: datadogAgentKey,
+		Tool:   &tool,
+	}
 }
 
-func (functionToolCall FunctionToolCall) Send() error {
-	if functionToolCall.Error != nil {
-		return fmt.Errorf("failed to send result: %w", functionToolCall.Error)
+func (toolCall ToolCall) Execute() ToolCall {
+	if toolCall.Error != "" {
+		toolCall.Error = "failed to execute: " + toolCall.Error
+		return toolCall
 	}
-	if functionToolCall.Output == nil {
+
+	functionTool, ok := registry[toolCall.Tool.Name]
+	if !ok {
+		toolCall.Error = fmt.Sprintf("tool '%s' not found", toolCall.Tool.Name)
+		return toolCall
+	}
+
+	if len(registry[toolCall.Tool.Name].params) != len(toolCall.Tool.Params) {
+		toolCall.Error = fmt.Sprintf("expected '%d' parameters, got '%d'", len(registry[toolCall.Tool.Name].params), len(toolCall.Tool.Params))
+		return toolCall
+	}
+
+	for registryName, registryParam := range registry[toolCall.Tool.Name].params {
+		callParam, ok := toolCall.Tool.Params[registryName]
+		if !ok {
+			toolCall.Error = fmt.Sprintf("parameter '%s' is required", registryName)
+			return toolCall
+		}
+
+		callParamKind := reflect.TypeOf(callParam).Kind()
+		if callParamKind != registryParam.Kind {
+			toolCall.Error = fmt.Sprintf("parameter '%s' should be of kind '%s', got '%s'", registryName, registryParam.Kind, callParamKind)
+			return toolCall
+		}
+	}
+
+	result, err := functionTool.handler(toolCall.Tool.Params)
+	if err != nil {
+		toolCall.Error = err.Error()
+		return toolCall
+	}
+
+	toolCall.Output = result
+	return toolCall
+}
+
+func (toolCall ToolCall) Send() error {
+	if toolCall.Error != "" {
+		return fmt.Errorf("failed to send result: %s", toolCall.Error)
+	}
+	if toolCall.Output == nil {
 		return fmt.Errorf("output is empty")
 	}
-	jsonData, err := json.Marshal(functionToolCall)
+	jsonData, err := jsonapi.Marshal(toolCall)
+	fmt.Println("jsonData: " + string(jsonData))
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
-	resp, err := http.Post(
-		"http://host.minikube.internal:8123/functiontool",
-		"application/json",
+	// Send the payload to the Datadog intake API as a custom event (example endpoint)
+	datadogAPIKey := os.Getenv("DD_API_KEY")
+	if datadogAPIKey == "" {
+		return fmt.Errorf("Datadog API key not set. Please set the DD_API_KEY environment variable")
+	}
+
+	req, err := http.NewRequest(
+		"POST",
+		"https://app.datad0g.com/api/unstable/dda-ft-api/task/finish?force_tracing=1",
 		bytes.NewBuffer(jsonData),
 	)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("DD-API-KEY", datadogAPIKey)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
 
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return fmt.Errorf("unexpected status code: '%d' with body: %s", resp.StatusCode, respBody)
 	}
 
 	fmt.Printf("Successfully sent result to webserver (status: %d)\n", resp.StatusCode)

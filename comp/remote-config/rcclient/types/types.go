@@ -25,8 +25,8 @@ const (
 	TaskDeviceScan TaskType = "ndm-device-scan"
 	// TaskRestart is the task sent to request a restart of the agent
 	TaskRestart TaskType = "restart"
-	// TaskExecuteFunctionTool is the task to execute a function tool.
-	TaskExecuteFunctionTool TaskType = "execute_function_tool"
+	// TaskExecuteTool is the task to execute a function tool.
+	TaskExecuteTool TaskType = "execute_tool"
 )
 
 // AgentTaskConfig is a deserialized agent task configuration file
@@ -38,9 +38,9 @@ type AgentTaskConfig struct {
 
 // agentTaskData is the content of a agent task configuration file
 type agentTaskData struct {
-	TaskType string            `json:"task_type"`
-	UUID     string            `json:"uuid"`
-	TaskArgs map[string]string `json:"args"`
+	TaskType string                 `json:"task_type"`
+	UUID     string                 `json:"uuid"`
+	TaskArgs map[string]interface{} `json:"args"`
 }
 
 // ParseConfigAgentTask parses an agent task config

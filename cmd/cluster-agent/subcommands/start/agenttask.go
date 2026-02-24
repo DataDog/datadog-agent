@@ -80,7 +80,7 @@ func (h *agentTaskHandler) handleAgentTaskUpdate(updates map[string]state.RawCon
 
 			// Handle different task types
 			switch types.TaskType(task.Config.TaskType) {
-			case types.TaskExecuteFunctionTool:
+			case types.TaskExecuteTool:
 				processed = true
 				pkglog.Infof("Executing function tool for agent task %s", configPath)
 				pkglog.Debugf("Task details - Call ID: %s, Function: %s",

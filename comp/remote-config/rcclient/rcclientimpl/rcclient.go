@@ -10,7 +10,6 @@ package rcclientimpl
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"sync"
 	"time"
 
@@ -439,34 +438,16 @@ func (rc *rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, 
 				}
 
 				switch task.Config.TaskType {
-				case string(types.TaskRestart):
+				case string(types.TaskExecuteTool):
 					processed = true
-					pkglog.Errorf("[FA] Restarting agent task %s", configPath)
-					switch task.Config.TaskArgs["manager"] {
-					case "docker":
-						pkglog.Errorf("[FA] Restarting docker container %s", task.Config.TaskArgs["target_name"])
-						err = exec.Command("docker", "restart", task.Config.TaskArgs["target_name"]).Run()
-					case "launchctl":
-						pkglog.Errorf("[FA] Restarting launchctl service %s", task.Config.TaskArgs["target_name"])
-						err = exec.Command("launchctl", "kickstart", "-k", task.Config.TaskArgs["target_name"]).Run()
-					case "systemctl":
-						pkglog.Errorf("[FA] Restarting systemctl service %s", task.Config.TaskArgs["target_name"])
-						err = exec.Command("systemctl", "restart", task.Config.TaskArgs["target_name"]).Run()
-					}
-					if err != nil {
-						pkglog.Errorf("[FA] Error while restarting agent task: %s", err.Error())
-					}
-				case string(types.TaskExecuteFunctionTool):
-					processed = true
-					pkglog.Errorf("[FA] Executing function tool for agent task %s", configPath)
-					pkglog.Errorf("[FA] Task: %s", task)
-					pkglog.Errorf("[FA] Call ID: %s", task.Config.TaskArgs["call_id"])
-					pkglog.Errorf("[FA] Function tool name: %s", task.Config.TaskArgs["function_tool_name"])
-					pkglog.Errorf("[FA] Parameters: %s", task.Config.TaskArgs["parameters"])
-					err = functiontools.NewCall(task).Execute().Send()
+					pkglog.Errorf("[FA] Executing tool for agent task %s", configPath)
+					toolCall := functiontools.NewCall(task)
+					pkglog.Errorf("[FA] Tool call: %s", toolCall)
+					err = toolCall.Execute().Send()
 					if err != nil {
 						pkglog.Errorf("[FA] Error while executing function tool for agent task: %s", err.Error())
 					}
+					pkglog.Errorf("[FA] Tool call done")
 				}
 
 				if processed && err != nil {

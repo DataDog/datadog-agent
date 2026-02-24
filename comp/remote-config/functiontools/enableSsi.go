@@ -55,11 +55,10 @@ spec:
 }
 
 type enableSsiResponse struct {
-	Status         string                     `json:"status"`
-	Namespace      string                     `json:"namespace"`
-	Name           string                     `json:"name"`
-	TracerVersions string                     `json:"tracer_versions"`
-	Crd            *unstructured.Unstructured `json:"crd,omitempty"`
+	Status         string `json:"status"`
+	Namespace      string `json:"namespace"`
+	Name           string `json:"name"`
+	TracerVersions string `json:"tracer_versions"`
 }
 
 func enableSsi(namespace string, instanceName string, tracerVersions string) (*enableSsiResponse, error) {
@@ -90,7 +89,6 @@ func enableSsi(namespace string, instanceName string, tracerVersions string) (*e
 			Namespace:      obj.GetNamespace(),
 			Name:           obj.GetName(),
 			TracerVersions: tracerVersions,
-			Crd:            obj,
 		}, nil
 	}
 
@@ -104,6 +102,5 @@ func enableSsi(namespace string, instanceName string, tracerVersions string) (*e
 		Namespace:      obj.GetNamespace(),
 		Name:           obj.GetName(),
 		TracerVersions: tracerVersions,
-		Crd:            obj,
 	}, nil
 }
