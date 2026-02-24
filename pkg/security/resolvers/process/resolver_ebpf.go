@@ -59,7 +59,7 @@ const (
 	argsEnvsValueCacheSize           = 8192
 	numAllowedPIDsToResolvePerPeriod = 1
 	procFallbackLimiterPeriod        = 30 * time.Second // proc fallback period by pid
-	tryReparentMaxForkDepth          = 3                // max ancestor fork levels to check in TryReparentFromProcfs (execs not counted)
+	tryReparentMaxForkDepth          = 99               // max ancestor fork levels to check in TryReparentFromProcfs (execs not counted)
 )
 
 // EBPFResolver resolved process context
