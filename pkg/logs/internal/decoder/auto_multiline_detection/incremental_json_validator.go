@@ -29,6 +29,7 @@ type IncrementalJSONValidator struct {
 	decoder  *json.Decoder
 	writer   *bytes.Buffer
 	objCount int
+	arrCount int
 }
 
 // NewIncrementalJSONValidator creates a new IncrementalJSONValidator.
@@ -62,17 +63,15 @@ func (d *IncrementalJSONValidator) Write(s []byte) JSONState {
 
 		switch delim := t.(type) {
 		case json.Delim:
-			if delim.String() == "{" {
+			switch delim.String() {
+			case "{":
 				d.objCount++
-				break
-			}
-			if delim.String() == "}" {
+			case "}":
 				d.objCount--
-				break
-			}
-			// If we're not in an object, we can't have a valid JSON message
-			if d.objCount == 0 {
-				isValid = false
+			case "[":
+				d.arrCount++
+			case "]":
+				d.arrCount--
 			}
 		}
 
@@ -81,7 +80,7 @@ func (d *IncrementalJSONValidator) Write(s []byte) JSONState {
 		return Invalid
 	}
 
-	if d.objCount <= 0 {
+	if d.objCount <= 0 && d.arrCount <= 0 {
 		return Complete
 	}
 	return Incomplete
@@ -92,4 +91,5 @@ func (d *IncrementalJSONValidator) Reset() {
 	d.writer.Reset()
 	d.decoder = json.NewDecoder(d.writer)
 	d.objCount = 0
+	d.arrCount = 0
 }

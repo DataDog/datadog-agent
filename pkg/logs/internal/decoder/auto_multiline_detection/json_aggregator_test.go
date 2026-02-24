@@ -368,3 +368,166 @@ func TestJSONAggregatorMultilineStillWorks(t *testing.T) {
 	assert.Equal(t, []byte(`{"key":"value"}`), result[0].GetContent(), "Content should be compacted")
 	assert.Contains(t, result[0].ParsingExtra.Tags, message.AggregatedJSONTag, "Should be tagged as aggregated")
 }
+
+func TestJSONAggregatorRootLevelArray(t *testing.T) {
+	aggregator := NewJSONAggregator(true, 1000)
+
+	msg1 := newTestMessage(`[`)
+	result := aggregator.Process(msg1)
+	assert.Equal(t, 0, len(result), "Expected no messages for incomplete array")
+
+	msg2 := newTestMessage(`{"key": "val"},`)
+	result = aggregator.Process(msg2)
+	assert.Equal(t, 0, len(result), "Expected no messages for incomplete array")
+
+	msg3 := newTestMessage(`{"key": "val2"}`)
+	result = aggregator.Process(msg3)
+	assert.Equal(t, 0, len(result), "Expected no messages for incomplete array")
+
+	msg4 := newTestMessage(`]`)
+	result = aggregator.Process(msg4)
+	assert.Equal(t, 1, len(result), "Expected one aggregated message")
+	assert.Equal(t, []byte(`[{"key":"val"},{"key":"val2"}]`), result[0].GetContent())
+	assert.Contains(t, result[0].ParsingExtra.Tags, message.AggregatedJSONTag)
+}
+
+func TestJSONAggregatorRootLevelArraySingleLine(t *testing.T) {
+	aggregator := NewJSONAggregator(true, 1000)
+
+	msg := newTestMessage(`[{"key":"val"},{"key":"val2"}]`)
+	result := aggregator.Process(msg)
+	assert.Equal(t, 1, len(result), "Expected one message for complete array")
+	assert.Equal(t, []byte(`[{"key":"val"},{"key":"val2"}]`), result[0].GetContent())
+}
+
+func TestJSONAggregatorPrefixWithObject(t *testing.T) {
+	aggregator := NewJSONAggregator(true, 1000)
+
+	msg1 := newTestMessage(`2024-01-01 error details: {`)
+	result := aggregator.Process(msg1)
+	assert.Equal(t, 0, len(result), "Expected no messages for incomplete JSON with prefix")
+
+	msg2 := newTestMessage(`  "error": "something bad",`)
+	result = aggregator.Process(msg2)
+	assert.Equal(t, 0, len(result))
+
+	msg3 := newTestMessage(`  "code": 500`)
+	result = aggregator.Process(msg3)
+	assert.Equal(t, 0, len(result))
+
+	msg4 := newTestMessage(`}`)
+	result = aggregator.Process(msg4)
+	assert.Equal(t, 1, len(result), "Expected one aggregated message")
+	assert.Equal(t, []byte(`2024-01-01 error details: {"error":"something bad","code":500}`), result[0].GetContent())
+	assert.Contains(t, result[0].ParsingExtra.Tags, message.AggregatedJSONTag)
+}
+
+func TestJSONAggregatorPrefixWithArray(t *testing.T) {
+	aggregator := NewJSONAggregator(true, 1000)
+
+	msg1 := newTestMessage(`0001-01-01 We have encountered a really bad error: [`)
+	result := aggregator.Process(msg1)
+	assert.Equal(t, 0, len(result))
+
+	msg2 := newTestMessage(`  {`)
+	result = aggregator.Process(msg2)
+	assert.Equal(t, 0, len(result))
+
+	msg3 := newTestMessage(`    "but": "it is",`)
+	result = aggregator.Process(msg3)
+	assert.Equal(t, 0, len(result))
+
+	msg4 := newTestMessage(`    "pretty": "printed"`)
+	result = aggregator.Process(msg4)
+	assert.Equal(t, 0, len(result))
+
+	msg5 := newTestMessage(`  },`)
+	result = aggregator.Process(msg5)
+	assert.Equal(t, 0, len(result))
+
+	msg6 := newTestMessage(`  {`)
+	result = aggregator.Process(msg6)
+	assert.Equal(t, 0, len(result))
+
+	msg7 := newTestMessage(`    "and in": "array format"`)
+	result = aggregator.Process(msg7)
+	assert.Equal(t, 0, len(result))
+
+	msg8 := newTestMessage(`  }`)
+	result = aggregator.Process(msg8)
+	assert.Equal(t, 0, len(result))
+
+	msg9 := newTestMessage(`]`)
+	result = aggregator.Process(msg9)
+	assert.Equal(t, 1, len(result), "Expected one aggregated message")
+	assert.Equal(t, []byte(`0001-01-01 We have encountered a really bad error: [{"but":"it is","pretty":"printed"},{"and in":"array format"}]`), result[0].GetContent())
+	assert.Contains(t, result[0].ParsingExtra.Tags, message.AggregatedJSONTag)
+}
+
+func TestJSONAggregatorPrefixFalsePositive(t *testing.T) {
+	aggregator := NewJSONAggregator(true, 1000)
+
+	// Line ends with [ but subsequent content is not valid JSON
+	msg1 := newTestMessage(`Some log message [`)
+	result := aggregator.Process(msg1)
+	assert.Equal(t, 0, len(result), "Expected buffering due to trailing [")
+
+	msg2 := newTestMessage(`not valid json content`)
+	result = aggregator.Process(msg2)
+	assert.Equal(t, 2, len(result), "Expected both messages flushed on invalid")
+	assert.Equal(t, []byte(`Some log message [`), result[0].GetContent(), "Original first message preserved")
+	assert.Equal(t, []byte(`not valid json content`), result[1].GetContent(), "Original second message preserved")
+}
+
+func TestJSONAggregatorNoPrefixDetectionMidStream(t *testing.T) {
+	aggregator := NewJSONAggregator(true, 1000)
+
+	// Start with a valid JSON opening
+	msg1 := newTestMessage(`{`)
+	result := aggregator.Process(msg1)
+	assert.Equal(t, 0, len(result))
+
+	// Second message ending with [ should NOT trigger prefix detection
+	msg2 := newTestMessage(`"arr": [`)
+	result = aggregator.Process(msg2)
+	assert.Equal(t, 0, len(result))
+
+	msg3 := newTestMessage(`1, 2, 3`)
+	result = aggregator.Process(msg3)
+	assert.Equal(t, 0, len(result))
+
+	msg4 := newTestMessage(`]`)
+	result = aggregator.Process(msg4)
+	assert.Equal(t, 0, len(result))
+
+	msg5 := newTestMessage(`}`)
+	result = aggregator.Process(msg5)
+	assert.Equal(t, 1, len(result), "Expected one aggregated message")
+	assert.Equal(t, []byte(`{"arr":[1,2,3]}`), result[0].GetContent())
+}
+
+func TestFindEmbeddedJSONStart(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected int
+	}{
+		{"trailing brace", "error: {", 7},
+		{"trailing bracket", "error: [", 7},
+		{"trailing brace with whitespace", "error: {  ", 7},
+		{"trailing bracket with whitespace", "error: [  \t\n", 7},
+		{"no trailing delimiter", "error: something", -1},
+		{"just brace", "{", 0},
+		{"just bracket", "[", 0},
+		{"empty", "", -1},
+		{"only whitespace", "   ", -1},
+		{"brace mid-string", "error { more text", -1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := findEmbeddedJSONStart([]byte(tt.input))
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}

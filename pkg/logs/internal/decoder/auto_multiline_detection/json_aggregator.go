@@ -20,6 +20,7 @@ type JSONAggregator struct {
 	currentSize     int
 	tagCompleteJSON bool
 	maxContentSize  int
+	prefixLen       int
 	inBuf           *bytes.Buffer
 	outBuf          *bytes.Buffer
 }
@@ -34,6 +35,22 @@ func NewJSONAggregator(tagCompleteJSON bool, maxContentSize int) *JSONAggregator
 		inBuf:           &bytes.Buffer{},
 		outBuf:          &bytes.Buffer{},
 	}
+}
+
+// findEmbeddedJSONStart returns the byte index of a trailing '{' or '['
+// in content (ignoring trailing whitespace), or -1 if none is found.
+// This is used to detect log lines like "error message: [" where JSON is
+// embedded after a text prefix.
+func findEmbeddedJSONStart(content []byte) int {
+	trimmed := bytes.TrimRight(content, " \t\r\n")
+	if len(trimmed) == 0 {
+		return -1
+	}
+	last := trimmed[len(trimmed)-1]
+	if last == '{' || last == '[' {
+		return len(trimmed) - 1
+	}
+	return -1
 }
 
 // Process processes a message. If the message is a complete JSON message, it will be aggregated into a single line JSON message.
@@ -56,24 +73,40 @@ func (r *JSONAggregator) Process(msg *message.Message) []*message.Message {
 		return r.Flush()
 	}
 
-	switch r.decoder.Write(content) {
+	// On the first message, check for a text prefix before an embedded JSON start.
+	// For example: "2024-01-01 error: [" — feed only "[" to the validator.
+	writeContent := content
+	if len(r.messageBuf) == 1 {
+		if idx := findEmbeddedJSONStart(content); idx > 0 {
+			r.prefixLen = idx
+			writeContent = content[idx:]
+		}
+	}
+
+	switch r.decoder.Write(writeContent) {
 	case Incomplete:
 		break
 	case Complete:
 		r.decoder.Reset()
 
-		// If only one message, no need to compact
-		if len(r.messageBuf) == 1 {
+		// If only one message and no prefix, no need to compact
+		if len(r.messageBuf) == 1 && r.prefixLen == 0 {
 			r.messageBuf = r.messageBuf[:0]
 			r.currentSize = 0
 			return []*message.Message{msg}
 		}
 
-		r.outBuf.Reset()
+		// Build the JSON portion (skipping the prefix in the first message)
 		r.inBuf.Reset()
-		for _, m := range r.messageBuf {
-			r.inBuf.Write(m.GetContent())
+		for i, m := range r.messageBuf {
+			c := m.GetContent()
+			if i == 0 && r.prefixLen > 0 {
+				c = c[r.prefixLen:]
+			}
+			r.inBuf.Write(c)
 		}
+
+		r.outBuf.Reset()
 		err := json.Compact(r.outBuf, r.inBuf.Bytes())
 		if err != nil {
 			return r.Flush()
@@ -85,10 +118,21 @@ func (r *JSONAggregator) Process(msg *message.Message) []*message.Message {
 			metrics.TlmAutoMultilineJSONAggregatorFlush.Inc("true")
 		}
 
+		// Prepend the prefix if present
+		if r.prefixLen > 0 {
+			prefix := r.messageBuf[0].GetContent()[:r.prefixLen]
+			combined := make([]byte, len(prefix)+r.outBuf.Len())
+			copy(combined, prefix)
+			copy(combined[len(prefix):], r.outBuf.Bytes())
+			msg.SetContent(combined)
+		} else {
+			msg.SetContent(r.outBuf.Bytes())
+		}
+
 		r.messageBuf = r.messageBuf[:0]
-		msg.SetContent(r.outBuf.Bytes())
 		msg.RawDataLen = r.currentSize
 		r.currentSize = 0
+		r.prefixLen = 0
 
 		return []*message.Message{msg}
 	case Invalid:
@@ -107,6 +151,7 @@ func (r *JSONAggregator) Flush() []*message.Message {
 	msgs := r.messageBuf
 	r.messageBuf = r.messageBuf[:0]
 	r.currentSize = 0
+	r.prefixLen = 0
 	return msgs
 }
 

@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixes a bug in the auto multiline JSON aggregator where pretty-printed JSON arrays
+    and JSON embedded after a text prefix (e.g. ``timestamp error: [``) could not be
+    aggregated. Root-level arrays are now supported and text prefixes preceding an
+    opening ``{`` or ``[`` are preserved during aggregation.

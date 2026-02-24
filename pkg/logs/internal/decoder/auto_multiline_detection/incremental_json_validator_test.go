@@ -151,12 +151,12 @@ func TestEdgeCases(t *testing.T) {
 		{
 			name:     "Standalone string in array",
 			inputs:   []string{`["hi"]`},
-			expected: []JSONState{Invalid},
+			expected: []JSONState{Complete},
 		},
 		{
 			name:     "Standalone array opening",
 			inputs:   []string{`[`},
-			expected: []JSONState{Invalid},
+			expected: []JSONState{Incomplete},
 		},
 		{
 			name:     "Simple object followed by non-json",
@@ -173,6 +173,89 @@ func TestEdgeCases(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRootLevelArrays(t *testing.T) {
+	tests := []struct {
+		name     string
+		inputs   []string
+		expected []JSONState
+	}{
+		{
+			name:     "simple array of strings",
+			inputs:   []string{`["a","b","c"]`},
+			expected: []JSONState{Complete},
+		},
+		{
+			name:     "array of objects single line",
+			inputs:   []string{`[{"key":"val"},{"key":"val2"}]`},
+			expected: []JSONState{Complete},
+		},
+		{
+			name:     "array split across lines",
+			inputs:   []string{`[`, `"a",`, `"b"`, `]`},
+			expected: []JSONState{Incomplete, Incomplete, Incomplete, Complete},
+		},
+		{
+			name:     "array of objects split across lines",
+			inputs:   []string{`[`, `{"key":`, `"val"},`, `{"key":`, `"val2"}`, `]`},
+			expected: []JSONState{Incomplete, Incomplete, Incomplete, Incomplete, Incomplete, Complete},
+		},
+		{
+			name:     "empty array",
+			inputs:   []string{`[]`},
+			expected: []JSONState{Complete},
+		},
+		{
+			name:     "empty array split",
+			inputs:   []string{`[`, `]`},
+			expected: []JSONState{Incomplete, Complete},
+		},
+		{
+			name:     "nested arrays",
+			inputs:   []string{`[`, `[1,2],`, `[3,4]`, `]`},
+			expected: []JSONState{Incomplete, Incomplete, Incomplete, Complete},
+		},
+		{
+			name:     "array with invalid content",
+			inputs:   []string{`[`, `not json`},
+			expected: []JSONState{Incomplete, Invalid},
+		},
+		{
+			name:     "log-like bracket is not a valid array start",
+			inputs:   []string{`[INFO] some message`},
+			expected: []JSONState{Invalid},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			decoder := NewIncrementalJSONValidator()
+			for i, input := range tt.inputs {
+				assert.Equal(t, tt.expected[i], decoder.Write([]byte(input)), "on input %d: %s", i, input)
+			}
+		})
+	}
+}
+
+func TestPrettyPrintedRootLevelArray(t *testing.T) {
+	jsonString := `[
+  {
+    "but": "it is",
+    "pretty": "printed"
+  },
+  {
+    "and in": "array format"
+  }
+]`
+
+	lines := strings.Split(jsonString, "\n")
+	decoder := NewIncrementalJSONValidator()
+	for i, line := range lines[:len(lines)-1] {
+		status := decoder.Write([]byte(line))
+		assert.Equal(t, Incomplete, status, "line %d should be incomplete: %s", i, line)
+	}
+	assert.Equal(t, Complete, decoder.Write([]byte(lines[len(lines)-1])))
 }
 
 func TestLargeComplexJson(t *testing.T) {
