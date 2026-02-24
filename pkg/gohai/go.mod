@@ -7,7 +7,7 @@ go 1.25.0
 require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel
 	github.com/moby/sys/mountinfo v0.7.2
-	github.com/shirou/gopsutil/v4 v4.26.1
+	github.com/shirou/gopsutil/v4 v4.26.2-0.20260223115143-2ef7eb78356f
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sys v0.41.0
 )

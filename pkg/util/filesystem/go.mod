@@ -7,7 +7,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0
 	github.com/gofrs/flock v0.13.0
 	github.com/hectane/go-acl v0.0.0-20230225031251-cdfc9e3acf94
-	github.com/shirou/gopsutil/v4 v4.26.1
+	github.com/shirou/gopsutil/v4 v4.26.2-0.20260223115143-2ef7eb78356f
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sync v0.19.0
 	golang.org/x/sys v0.41.0
