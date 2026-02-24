@@ -25,7 +25,7 @@ import (
 func FromDDConfig(config config.Component) (*Config, error) {
 	mainEndpoint := configutils.GetMainEndpoint(config, "https://api.", "dd_url")
 	ddHost := getDatadogHost(mainEndpoint)
-	ddSite := configutils.ExtractSiteFromURL(ddHost)
+	ddSite := configutils.ExtractSiteFromURL(mainEndpoint)
 	encodedPrivateKey := config.GetString(setup.PARPrivateKey)
 	urn := config.GetString(setup.PARUrn)
 
