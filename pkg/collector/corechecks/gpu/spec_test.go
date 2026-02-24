@@ -49,9 +49,10 @@ type metricsMap map[string]specMetric
 
 // specMetric is a metric definition without the name (name is the map key).
 type specMetric struct {
-	Type    string            `yaml:"type"`
-	Tagsets []string          `yaml:"tagsets"`
-	Support metricSupportSpec `yaml:"support"`
+	Type       string            `yaml:"type"`
+	Tagsets    []string          `yaml:"tagsets"`
+	CustomTags []string          `yaml:"custom_tags,omitempty"`
+	Support    metricSupportSpec `yaml:"support"`
 }
 
 type metricSupportSpec struct {
@@ -601,6 +602,9 @@ func validateMetricTagsAgainstSpec(t *testing.T, spec *specFile, metricName stri
 		for _, tag := range tagsetSpec.Tags {
 			requiredTags[tag] = struct{}{}
 		}
+	}
+	for _, tag := range metricSpec.CustomTags {
+		requiredTags[tag] = struct{}{}
 	}
 	for _, sampleTags := range samples {
 		tagsByKey := tagsToKeyValues(sampleTags)
