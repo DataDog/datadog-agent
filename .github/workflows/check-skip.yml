@@ -1,0 +1,28 @@
+---
+name: Check PR title and description for CI skip tags
+
+on:
+  pull_request:
+    types: [opened,edited]
+
+jobs:
+  check_pr_content:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PR title and description for CI skip tags
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          DESCRIPTION: ${{ github.event.pull_request.body }}
+        run: |
+          SKIP_CI_PATTERN='\[(ci skip|skip ci|actions skip|skip actions|no ci)\]|skip-checks:\s*true'
+          if [[ "$TITLE" =~ $SKIP_CI_PATTERN ]]; then
+            echo "error: The PR title contains ci skip tags." >&2
+            exit 1
+          fi
+          if [[ "$DESCRIPTION" =~ $SKIP_CI_PATTERN ]]; then
+            echo "error: The PR description contains ci skip tags." >&2
+            exit 1
+          fi
+
+          echo "success: No ci skip tags found."
+          exit 0
