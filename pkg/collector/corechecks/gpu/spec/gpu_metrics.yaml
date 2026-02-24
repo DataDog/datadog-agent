@@ -795,7 +795,7 @@ metrics:
       device_features:
         mig: false
         physical: true
-        vgpu: false
+        vgpu: true
       process_data: true
   process.dram_active:
     type: gauge
@@ -823,7 +823,7 @@ metrics:
       device_features:
         mig: false
         physical: true
-        vgpu: false
+        vgpu: true
       process_data: true
   process.memory.usage:
     type: gauge
