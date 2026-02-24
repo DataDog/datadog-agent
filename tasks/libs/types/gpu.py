@@ -30,8 +30,7 @@ class Metric(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: str
     tagsets: list[str]
-    custom_tags: list[str]
-    memory_locations: list[str]
+    custom_tags: list[str] = Field(default_factory=list)
     support: Support = Field(default_factory=Support)
     deprecated: bool = False
     replaced_by: str = ""
