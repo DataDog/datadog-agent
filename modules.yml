@@ -222,8 +222,6 @@ modules:
     used_by_otel: true
   pkg/logs/metrics:
     used_by_otel: true
-  pkg/logs/pipeline:
-    used_by_otel: true
   pkg/logs/processor:
     used_by_otel: true
   pkg/logs/sender:
