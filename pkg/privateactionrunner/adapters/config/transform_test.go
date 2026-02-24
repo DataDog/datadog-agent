@@ -69,3 +69,59 @@ func TestGetBundleInheritedAllowedActions(t *testing.T) {
 		})
 	}
 }
+
+func TestGetDatadogHost(t *testing.T) {
+	tests := []struct {
+		name     string
+		endpoint string
+		expected string
+	}{
+		{
+			name:     "removes https prefix and trailing dot",
+			endpoint: "https://api.datadoghq.com.",
+			expected: "api.datadoghq.com",
+		},
+		{
+			name:     "removes https prefix only",
+			endpoint: "https://api.datadoghq.com",
+			expected: "api.datadoghq.com",
+		},
+		{
+			name:     "removes trailing dot only",
+			endpoint: "api.datadoghq.com.",
+			expected: "api.datadoghq.com",
+		},
+		{
+			name:     "handles clean URL without modifications",
+			endpoint: "api.datadoghq.com",
+			expected: "api.datadoghq.com",
+		},
+		{
+			name:     "handles empty string",
+			endpoint: "",
+			expected: "",
+		},
+		{
+			name:     "handles EU site with https and trailing dot",
+			endpoint: "https://api.datadoghq.eu.",
+			expected: "api.datadoghq.eu",
+		},
+		{
+			name:     "handles gov site",
+			endpoint: "https://api.ddog-gov.com.",
+			expected: "api.ddog-gov.com",
+		},
+		{
+			name:     "handles custom domain",
+			endpoint: "https://custom.endpoint.example.com.",
+			expected: "custom.endpoint.example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getDatadogHost(tt.endpoint)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
