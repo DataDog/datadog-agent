@@ -837,6 +837,25 @@ func TestReadInConfigResetsPreviousConfig(t *testing.T) {
 	assert.Equal(t, "localhost", ntmConf.GetString("host"))
 }
 
+func TestReadInConfigExactError(t *testing.T) {
+	// Invalid YAML that will fail to parse
+	dataYaml := `site:datadoghq.eu
+`
+	viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("site", "datadoghq.com")
+	})
+
+	// Both config implementations should return "Config File Not Found" when
+	// a parsing error is encountered
+	err := viperConf.ReadInConfig()
+	assert.ErrorIs(t, err, model.ErrConfigFileNotFound)
+	err = ntmConf.ReadInConfig()
+	assert.ErrorIs(t, err, model.ErrConfigFileNotFound)
+
+	assert.Equal(t, "datadoghq.com", viperConf.GetString("site"))
+	assert.Equal(t, "datadoghq.com", ntmConf.GetString("site"))
+}
+
 func TestCompareEnvVarsSubfields(t *testing.T) {
 	t.Run("Subsettings are merged with env vars", func(t *testing.T) {
 		data, _ := json.Marshal(map[string]string{"a": "apple"})

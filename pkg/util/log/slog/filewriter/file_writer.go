@@ -290,6 +290,8 @@ func (rw *rollingFileWriter) Write(bytes []byte) (n int, err error) {
 }
 
 func (rw *rollingFileWriter) Close() error {
+	rw.rollLock.Lock()
+	defer rw.rollLock.Unlock()
 	if rw.currentFile != nil {
 		e := rw.currentFile.Close()
 		if e != nil {
