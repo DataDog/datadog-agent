@@ -571,6 +571,9 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 }
 
 func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTransaction) error {
+	f.m.Lock()
+	defer f.m.Unlock()
+
 	if f.internalState.Load() == Stopped {
 		return errors.New("the forwarder is not started")
 	}
