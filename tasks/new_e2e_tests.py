@@ -545,26 +545,7 @@ def run(
             if args.get(param_key):
                 params.append(f"-{args[param_key]}")
 
-        configparams_to_retain = {
-            "ddagent:imagePullRegistry",
-            "ddagent:imagePullUsername",
-        }
-
-        registry_to_password_commands = {
-            "669783387624.dkr.ecr.us-east-1.amazonaws.com": "aws-vault exec sso-agent-qa-read-only -- aws ecr get-login-password"
-        }
-
-        for configparam in configparams:
-            parts = configparam.split("=", 1)
-            key = parts[0]
-            if key in configparams_to_retain:
-                params.append(f"-c {configparam}")
-
-                if key == "ddagent:imagePullRegistry" and len(parts) > 1:
-                    registry = parts[1]
-                    password_cmd = registry_to_password_commands.get(registry)
-                    if password_cmd is not None:
-                        params.append(f"-c ddagent:imagePullPassword=$({password_cmd})")
+        params.extend(f"-c {configparam}" for configparam in configparams)
 
         command = f"E2E_PIPELINE_ID={os.environ.get('CI_PIPELINE_ID')} E2E_COMMIT_SHA={os.environ.get('CI_COMMIT_SHORT_SHA')} dda inv -- -e new-e2e-tests.run {' '.join(params)}"
         print(
