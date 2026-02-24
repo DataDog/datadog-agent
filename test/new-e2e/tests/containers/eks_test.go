@@ -45,7 +45,6 @@ func TestEKSSuite(t *testing.T) {
 	if !skipWindows {
 		eksOptions = append(eksOptions, sceneks.WithWindowsNodeGroup())
 		agentOptions = append(agentOptions, kubernetesagentparams.WithWindowsImage())
-		suite.windowsEnabled = true
 	}
 
 	e2e.Run(t, suite, e2e.WithProvisioner(proveks.Provisioner(

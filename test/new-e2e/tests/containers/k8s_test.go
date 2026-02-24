@@ -54,7 +54,6 @@ type k8sSuite struct {
 	baseSuite[environments.Kubernetes]
 	envSpecificClusterTags []string
 	runtime                string
-	windowsEnabled         bool
 }
 
 func (suite *k8sSuite) SetupSuite() {
@@ -134,15 +133,12 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 				return
 			}
 
-			var windowsNodes *corev1.NodeList
-			if suite.windowsEnabled {
-				windowsNodes, err = suite.Env().KubernetesCluster.Client().CoreV1().Nodes().List(ctx, metav1.ListOptions{
-					LabelSelector: fields.OneTermEqualSelector("kubernetes.io/os", "windows").String(),
-				})
-				// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-				if !assert.NoErrorf(c, err, "Failed to list Windows nodes") {
-					return
-				}
+			windowsNodes, err := suite.Env().KubernetesCluster.Client().CoreV1().Nodes().List(ctx, metav1.ListOptions{
+				LabelSelector: fields.OneTermEqualSelector("kubernetes.io/os", "windows").String(),
+			})
+			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NoErrorf(c, err, "Failed to list Windows nodes") {
+				return
 			}
 
 			linuxPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
@@ -153,8 +149,8 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 				return
 			}
 
-			var windowsPods *corev1.PodList
-			if suite.windowsEnabled {
+			windowsPods := &corev1.PodList{}
+			if suite.Env().Agent.WindowsNodeAgent.LabelSelectors != nil {
 				windowsPods, err = suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 					LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.WindowsNodeAgent.LabelSelectors["app"]).String(),
 				})
@@ -189,17 +185,12 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 			}
 
 			assert.Len(c, linuxPods.Items, len(linuxNodes.Items))
-			if suite.windowsEnabled {
-				assert.Len(c, windowsPods.Items, len(windowsNodes.Items))
-			}
+			assert.Len(c, windowsPods.Items, len(windowsNodes.Items))
 			assert.NotEmpty(c, clusterAgentPods.Items)
 			assert.NotEmpty(c, clusterChecksPods.Items)
 			assert.Len(c, dogstatsdPods.Items, len(linuxNodes.Items))
 
-			podLists := []*corev1.PodList{linuxPods, clusterAgentPods, clusterChecksPods, dogstatsdPods}
-			if suite.windowsEnabled {
-				podLists = append(podLists, windowsPods)
-			}
+			podLists := []*corev1.PodList{linuxPods, windowsPods, clusterAgentPods, clusterChecksPods, dogstatsdPods}
 			for _, podList := range podLists {
 				for _, pod := range podList.Items {
 					for _, containerStatus := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
@@ -261,7 +252,7 @@ func (suite *k8sSuite) TestVersion() {
 			"agent",
 		},
 	}
-	if suite.windowsEnabled {
+	if suite.Env().Agent.WindowsNodeAgent.LabelSelectors != nil {
 		testCases = append(testCases, versionTestCase{
 			"Windows agent",
 			suite.Env().Agent.WindowsNodeAgent.LabelSelectors["app"],
