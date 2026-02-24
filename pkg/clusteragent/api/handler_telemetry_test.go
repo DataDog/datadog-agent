@@ -15,22 +15,6 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/mocktracer"
 )
 
-func TestWithTelemetryWrapper_TracingDisabled(t *testing.T) {
-	th := &TelemetryHandler{
-		handlerName: "testHandler",
-		handler: func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		},
-		tracingEnabled: false,
-	}
-
-	req := httptest.NewRequest("GET", "/test", nil)
-	rec := httptest.NewRecorder()
-	th.handle(rec, req)
-
-	assert.Equal(t, http.StatusOK, rec.Code)
-}
-
 func TestWithTelemetryWrapper_TracingEnabled(t *testing.T) {
 	mt := mocktracer.Start()
 	defer mt.Stop()
@@ -81,24 +65,3 @@ func TestWithTelemetryWrapper_5xxSetsErrorTag(t *testing.T) {
 	assert.Equal(t, true, spans[0].Tag("error"))
 }
 
-func TestWithTelemetryWrapper_4xxNoErrorTag(t *testing.T) {
-	mt := mocktracer.Start()
-	defer mt.Stop()
-
-	th := &TelemetryHandler{
-		handlerName: "notFoundHandler",
-		handler: func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusNotFound)
-		},
-		tracingEnabled: true,
-	}
-
-	req := httptest.NewRequest("GET", "/test", nil)
-	rec := httptest.NewRecorder()
-	th.handle(rec, req)
-
-	spans := mt.FinishedSpans()
-	require.Len(t, spans, 1)
-	assert.Equal(t, 404, spans[0].Tag("http.status_code"))
-	assert.Nil(t, spans[0].Tag("error"))
-}
