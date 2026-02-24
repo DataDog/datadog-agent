@@ -86,6 +86,7 @@ type Tracer struct {
 	usmMonitor  *usm.Monitor
 	ebpfTracer  connection.Tracer
 	lastCheck   *atomic.Int64
+	statsd      statsd.ClientInterface
 
 	bufferLock sync.Mutex
 
@@ -156,6 +157,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 	tr := &Tracer{
 		config:                     cfg,
 		lastCheck:                  atomic.NewInt64(time.Now().Unix()),
+		statsd:                     statsd,
 		sysctlUDPConnTimeout:       sysctl.NewInt(cfg.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout", time.Minute),
 		sysctlUDPConnStreamTimeout: sysctl.NewInt(cfg.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout_stream", time.Minute),
 		telemetryComp:              telemetryComponent,
@@ -471,6 +473,8 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, fu
 	tracerTelemetry.payloadSizePerClient.Set(float64(udpConns), clientID, network.UDP.String())
 	tracerTelemetry.payloadSizePerClient.Set(float64(tcpConns), clientID, network.TCP.String())
 
+	t.emitCongestionMetrics(delta.Conns)
+
 	buffer.ConnectionBuffer.Assign(delta.Conns)
 	conns := network.NewConnections(buffer)
 	conns.DNS = t.reverseDNS.Resolve(ips)
@@ -486,6 +490,38 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, fu
 	t.lastCheck.Store(time.Now().Unix())
 
 	return conns, cleanup, nil
+}
+
+// emitCongestionMetrics sends the new TCP congestion signals as DogStatsD
+// metrics for each TCP connection, enabling validation via Datadog dashboards
+// before the signals are added to the agent-payload.
+// TODO: remove this once the signals are wired through the agent-payload.
+func (t *Tracer) emitCongestionMetrics(conns []network.ConnectionStats) {
+	if t.statsd == nil {
+		return
+	}
+	for i := range conns {
+		c := &conns[i]
+		if c.Type != network.TCP {
+			continue
+		}
+		tags := []string{
+			fmt.Sprintf("flow:%s:%d-%s:%d", c.Source, c.SPort, c.Dest, c.DPort),
+		}
+		t.statsd.Gauge("network.tcp.congestion.max_packets_out", float64(c.TCPMaxPacketsOut), tags, 1) //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.max_lost_out", float64(c.TCPMaxLostOut), tags, 1)       //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.max_sacked_out", float64(c.TCPMaxSackedOut), tags, 1)   //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.max_retrans_out", float64(c.TCPMaxRetransOut), tags, 1) //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.max_ca_state", float64(c.TCPMaxCAState), tags, 1)       //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.delivered", int64(c.TCPDelivered), tags, 1)             //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.delivered_ce", int64(c.TCPDeliveredCE), tags, 1)        //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.bytes_retrans", int64(c.TCPBytesRetrans), tags, 1)      //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.dsack_dups", int64(c.TCPDSACKDups), tags, 1)            //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.reord_seen", int64(c.TCPReordSeen), tags, 1)            //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.rto_count", int64(c.TCPRTOCount), tags, 1)              //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.recovery_count", int64(c.TCPRecoveryCount), tags, 1)    //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.probe0_count", int64(c.TCPProbe0Count), tags, 1)        //nolint:errcheck
+	}
 }
 
 // RegisterClient registers a clientID with the tracer
