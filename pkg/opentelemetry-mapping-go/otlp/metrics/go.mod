@@ -3,10 +3,10 @@ module github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metric
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.77.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/proto v0.77.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/quantile v0.77.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/quantile/sketchtest v0.77.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.77.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/proto v0.77.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/quantile v0.77.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/quantile/sketchtest v0.77.0-rc.2
 	github.com/DataDog/sketches-go v1.4.7
 	github.com/lightstep/go-expohisto v1.0.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.145.0
@@ -22,8 +22,8 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0-rc.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect

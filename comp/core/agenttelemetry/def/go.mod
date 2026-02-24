@@ -2,13 +2,13 @@ module github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def
 
 go 1.25.0
 
-require github.com/DataDog/datadog-agent/pkg/fleet/installer v0.77.0-rc.1
+require github.com/DataDog/datadog-agent/pkg/fleet/installer v0.77.0-rc.2
 
 require (
-	github.com/DataDog/datadog-agent/pkg/template v0.77.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.77.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.77.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.77.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.77.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.77.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.77.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.77.0-rc.2 // indirect
 	github.com/ebitengine/purego v0.9.1 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20251013123823-9fd1530e3ec3 // indirect

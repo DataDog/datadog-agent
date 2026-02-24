@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/util/winutil
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/log v0.77.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.77.0-rc.2
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/atomic v1.11.0
@@ -11,9 +11,9 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/template v0.77.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.77.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.77.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.77.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.77.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.77.0-rc.2 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
