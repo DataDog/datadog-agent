@@ -338,11 +338,18 @@ static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock
     if (tmp > val->max_retrans_out) { val->max_retrans_out = tmp; }
 
     // Counter fields: monotonically increasing, latest value = max.
+    // Guard newer tcp_sock fields with kernel version checks for the runtime
+    // compiler (which compiles against real kernel headers). CO-RE handles
+    // missing fields gracefully via BTF relocations at load time.
+#if defined(COMPILE_CORE) || LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
     BPF_CORE_READ_INTO(&val->delivered,    tcp_sk(sk), delivered);
+#endif
+#if defined(COMPILE_CORE) || LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
     BPF_CORE_READ_INTO(&val->delivered_ce, tcp_sk(sk), delivered_ce);
     BPF_CORE_READ_INTO(&val->bytes_retrans, tcp_sk(sk), bytes_retrans);
     BPF_CORE_READ_INTO(&val->dsack_dups,   tcp_sk(sk), dsack_dups);
     BPF_CORE_READ_INTO(&val->reord_seen,   tcp_sk(sk), reord_seen);
+#endif
 
     // BPF_CORE_READ_BITFIELD_PROBED requires __builtin_preserve_field_info which is
     // only available with full CO-RE support. The runtime compiler's clang does not
