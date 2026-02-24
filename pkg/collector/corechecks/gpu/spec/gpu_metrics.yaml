@@ -263,6 +263,8 @@ metrics:
     type: gauge
     tagsets:
       - device
+    custom_tags:
+      - memory_location
     support:
       unsupported_architectures: []
       device_features:
@@ -274,6 +276,8 @@ metrics:
     type: gauge
     tagsets:
       - device
+    custom_tags:
+      - memory_location
     support:
       unsupported_architectures: []
       device_features:
