@@ -28,16 +28,18 @@ var tlmAnomalyCount = atomic.Int64{}
 
 // PatternLogProcessor is a log processor that detects patterns in logs.
 type PatternLogProcessor struct {
+	Observer          *observerImpl
 	ClustererPipeline *patterns.MultiThreadPipeline
 	ResultChannel     chan *patterns.MultiThreadResult
 	AnomalyDetectors  []PatternLogAnomalyDetector
 }
 
-func NewPatternLogProcessor(anomalyDetectors []PatternLogAnomalyDetector) *PatternLogProcessor {
+func NewPatternLogProcessor(observer *observerImpl, anomalyDetectors []PatternLogAnomalyDetector) *PatternLogProcessor {
 	resultChannel := make(chan *patterns.MultiThreadResult, 4096)
 	clustererPipeline := patterns.NewMultiThreadPipeline(runtime.NumCPU(), resultChannel, false)
 
 	p := &PatternLogProcessor{
+		Observer:          observer,
 		ClustererPipeline: clustererPipeline,
 		ResultChannel:     resultChannel,
 		AnomalyDetectors:  anomalyDetectors,
@@ -251,7 +253,23 @@ func (w *WatchdogLogAnomalyDetector) ProcessBatch(batch []*LogAnomalyDetectionPr
 			}
 		*/
 
-		w.DetectAnomalies()
+		// Send back to the observer creating virtual metrics
+		for clusterID, rate := range w.PatternRate {
+			virtualMetricName := fmt.Sprintf("_.watchdog_log_ad.cluster.%d", clusterID)
+			w.Processor.Observer.obsCh <- observation{
+				source: "watchdog_log_ad",
+				metric: &metricObs{
+					name:  virtualMetricName,
+					value: rate,
+					// TODO: [partitionate] Tags
+					tags: []string{},
+				},
+			}
+		}
+
+		// TODO
+		// Test anomaly detection
+		// w.DetectAnomalies()
 	}
 }
 

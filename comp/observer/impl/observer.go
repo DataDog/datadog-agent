@@ -93,9 +93,6 @@ func NewComponent(deps Requires) Provides {
 				},
 			},
 			&ConnectionErrorExtractor{},
-			NewPatternLogProcessor([]PatternLogAnomalyDetector{
-				NewWatchdogLogAnomalyDetector(make(chan *observerdef.LogProcessorResult, 1024)),
-			}),
 		},
 		tsAnalyses: []observerdef.TimeSeriesAnalysis{
 			NewCUSUMDetector(),
@@ -110,6 +107,11 @@ func NewComponent(deps Requires) Provides {
 		obsCh:     make(chan observation, 1000),
 		maxEvents: 1000, // Keep last 1000 events for debugging
 	}
+
+	logPatternProcessor := NewPatternLogProcessor(obs, []PatternLogAnomalyDetector{
+		NewWatchdogLogAnomalyDetector(make(chan *observerdef.LogProcessorResult, 1024)),
+	})
+	obs.logProcessors = append(obs.logProcessors, logPatternProcessor)
 
 	// Set up handle function with optional recorder wrapping.
 	// If recorder is provided, wrap handles to enable transparent metric recording.

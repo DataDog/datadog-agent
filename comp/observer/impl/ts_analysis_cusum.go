@@ -80,6 +80,12 @@ func (c *CUSUMDetector) Analyze(series observer.Series) observer.TimeSeriesAnaly
 		return observer.TimeSeriesAnalysisResult{}
 	}
 
+	isVirtual := strings.HasPrefix(series.Name, "_.")
+
+	if isVirtual {
+		fmt.Printf("[cc] CUSUMDetector: running on %s\n", series.Name)
+	}
+
 	minPoints := c.MinPoints
 	if minPoints <= 0 {
 		minPoints = 5
@@ -146,6 +152,10 @@ func (c *CUSUMDetector) Analyze(series observer.Series) observer.TimeSeriesAnaly
 	anomaly := runCUSUM(series, baselineMean, baselineStddev, k, h, debugInfo)
 	if anomaly == nil {
 		return observer.TimeSeriesAnalysisResult{}
+	}
+
+	if isVirtual {
+		fmt.Printf("[cc] CUSUMDetector: Anomaly detected: %s\n", series.Name)
 	}
 
 	return observer.TimeSeriesAnalysisResult{Anomalies: []observer.AnomalyOutput{*anomaly}}
