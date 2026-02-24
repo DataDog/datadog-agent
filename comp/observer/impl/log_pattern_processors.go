@@ -34,6 +34,7 @@ var tlmAnomalyCount = atomic.Int64{}
 // - service
 // - source
 // - pod_name
+// - dirname
 type PatternLogProcessor struct {
 	Observer          *observerImpl
 	ClustererPipeline *patterns.MultiThreadPipeline[*LogADTags]
@@ -100,6 +101,7 @@ func (p *PatternLogProcessor) Process(log observer.LogView) observer.LogProcesso
 		return observer.LogProcessorResult{}
 	}
 
+	// TODO: Remove debug
 	tags := ParseTags(log.GetTags())
 	// fmt.Printf("Processing log[%+v]: %s\n", tags, string(log.GetContent()))
 	t := strings.Builder{}
@@ -192,10 +194,13 @@ func (key *LogADGroupByKey) Hash() int64 {
 // Tags that are used to group anomalies
 // Tags could be empty
 type LogADTags struct {
+	// TODO: Verify that we can get these tags from the observer (not present when run locally)
 	Env     string
 	PodName string
 	Service string
 	Source  string
+	// TODO: Should we prefer dirname over filepath?
+	DirName string
 }
 
 func ParseTags(tags []string) LogADTags {
@@ -209,6 +214,8 @@ func ParseTags(tags []string) LogADTags {
 			result.Service = strings.TrimPrefix(tag, "service:")
 		} else if strings.HasPrefix(tag, "source:") {
 			result.Source = strings.TrimPrefix(tag, "source:")
+		} else if strings.HasPrefix(tag, "dirname:") {
+			result.DirName = strings.TrimPrefix(tag, "dirname:")
 		}
 	}
 
