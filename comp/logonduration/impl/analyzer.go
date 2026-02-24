@@ -9,6 +9,7 @@ package logondurationimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -214,7 +215,7 @@ func analyzeETL(ctx context.Context, etlPath string) (*AnalysisResult, error) {
 	log.Debugf("Processed %d events in %v", totalEvents.Load(), elapsed.Round(time.Millisecond))
 
 	if coll.timeline.BootStart.IsZero() {
-		return nil, fmt.Errorf("ETL file contained no boot start event (Kernel-General 12); timeline would be invalid")
+		return nil, errors.New("ETL file contained no boot start event (Kernel-General 12); timeline would be invalid")
 	}
 
 	return &AnalysisResult{
@@ -354,7 +355,7 @@ func (coll *collector) parseUserProfile(_ *etw.Event, id uint16, ts time.Time) {
 }
 
 // parseGroupPolicy processes Group Policy events (4000/4001: start, 8000/8001: end).
-func (coll *collector) parseGroupPolicy(e *etw.Event, id uint16, ts time.Time) {
+func (coll *collector) parseGroupPolicy(_ *etw.Event, id uint16, ts time.Time) {
 	switch id {
 	case 4000:
 		if coll.timeline.MachineGPStart.IsZero() {
