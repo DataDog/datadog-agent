@@ -44,6 +44,14 @@ func TestGetBundleInheritedAllowedActions(t *testing.T) {
 			expectedInheritedActions: map[string]sets.Set[string]{},
 		},
 		{
+			name: "returns empty when for close but wrong bundle",
+			actionsAllowlist: map[string]sets.Set[string]{
+				"com.datadoghq.dd":           sets.New[string]("action1"),
+				"com.datadoghq.dd.subbundle": sets.New[string]("action2"),
+			},
+			expectedInheritedActions: map[string]sets.Set[string]{},
+		},
+		{
 			name: "returns empty when bundle has empty set",
 			actionsAllowlist: map[string]sets.Set[string]{
 				"com.datadoghq.script": sets.New[string](),
