@@ -13,9 +13,7 @@ import (
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
-	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/samber/lo"
 )
 
 /*
@@ -52,21 +50,6 @@ func (w *workloadmeta) sbomFlareProvider(fb flaretypes.FlareBuilder) error {
 		names[name]++
 
 		_ = fb.AddFileWithoutScrubbing(filepath.Join("sbom", name+".json"), content)
-	}
-
-	if w.config.GetBool("runtime_security_config.sbom.enabled") {
-		containers := w.ListContainers()
-
-		fields := lo.SliceToMap(containers, func(container *wmdef.Container) (string, *wmdef.SBOM) {
-			return container.ID, container.SBOM
-		})
-
-		content, err := json.MarshalIndent(fields, "", "    ")
-		if err != nil {
-			return fmt.Errorf("failed to marshal results to JSON: %v", err)
-		}
-
-		_ = fb.AddFile("containers-sbom.json", content)
 	}
 
 	return nil
