@@ -11,6 +11,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -124,15 +126,37 @@ func (cs *configStream) Subscribe(req *pb.ConfigStreamRequest) (<-chan *pb.Confi
 func (cs *configStream) run() {
 	updatesChan := make(chan *pb.ConfigEvent, 100)
 
-	cs.config.OnUpdate(func(setting string, source model.Source, _, newValue interface{}, sequenceID uint64) {
-		sanitizedValue, err := sanitizeValue(newValue)
-		if err != nil {
-			cs.log.Warnf("Failed to sanitize setting '%s': %v", setting, err)
+	cs.config.OnUpdate(func(setting string, source model.Source, _, _ interface{}, sequenceID uint64) {
+		topLevelSetting := topLevelKey(setting)
+
+		allSettingsBySource, _ := cs.config.AllSettingsBySourceWithSequenceID()
+		sourceSettingsValue, ok := allSettingsBySource[source]
+		if !ok {
+			cs.log.Warnf("Could not find source '%s' while building update for setting '%s'", source, setting)
 			return
 		}
+
+		sourceSettings, ok := sourceSettingsValue.(map[string]interface{})
+		if !ok {
+			cs.log.Warnf("Unexpected settings shape for source '%s' while building update for setting '%s'", source, setting)
+			return
+		}
+
+		newValue, exists := sourceSettings[topLevelSetting]
+		// Check deletion case.
+		if !exists {
+			newValue = nil
+		}
+
+		sanitizedValue, err := sanitizeValue(newValue)
+		if err != nil {
+			cs.log.Warnf("Failed to sanitize setting '%s': %v", topLevelSetting, err)
+			return
+		}
+
 		pbValue, err := structpb.NewValue(sanitizedValue)
 		if err != nil {
-			cs.log.Warnf("Failed to convert setting '%s' to structpb.Value: %v", setting, err)
+			cs.log.Warnf("Failed to convert setting '%s' to structpb.Value: %v", topLevelSetting, err)
 			return
 		}
 
@@ -142,7 +166,7 @@ func (cs *configStream) run() {
 					SequenceId: int32(sequenceID),
 					Origin:     cs.origin,
 					Setting: &pb.ConfigSetting{
-						Key:    setting,
+						Key:    topLevelSetting,
 						Value:  pbValue,
 						Source: source.String(),
 					},
@@ -268,32 +292,55 @@ func (cs *configStream) handleConfigUpdate(event *pb.ConfigEvent) {
 }
 
 func (cs *configStream) createConfigSnapshot() (*pb.ConfigEvent, uint64, error) {
-	allSettings, sequenceID := cs.config.AllFlattenedSettingsWithSequenceID()
+	allSettingsBySource, sequenceID := cs.config.AllSettingsBySourceWithSequenceID()
 
-	settings := make([]*pb.ConfigSetting, 0, len(allSettings))
-	for key, value := range allSettings {
-		if value == nil {
+	settings := make([]*pb.ConfigSetting, 0, 128)
+	for _, source := range model.Sources {
+		sourceSettingsValue, ok := allSettingsBySource[source]
+		if !ok || sourceSettingsValue == nil {
 			continue
 		}
 
-		sanitizedValue, err := sanitizeValue(value)
-		if err != nil {
-			cs.log.Errorf("Failed to sanitize setting '%s': %v", key, err)
+		sourceSettings, ok := sourceSettingsValue.(map[string]interface{})
+		if !ok {
+			cs.log.Warnf("Unexpected settings shape for source '%s' while building configstream snapshot", source)
 			continue
 		}
 
-		pbValue, err := structpb.NewValue(sanitizedValue)
-		if err != nil {
-			cs.log.Errorf("Failed to convert setting '%s' to structpb.Value: %v", key, err)
-			continue
+		keys := make([]string, 0, len(sourceSettings))
+		for key := range sourceSettings {
+			keys = append(keys, key)
 		}
+		sort.Strings(keys)
 
-		source := cs.config.GetSource(key).String()
-		settings = append(settings, &pb.ConfigSetting{
-			Source: source,
-			Key:    key,
-			Value:  pbValue,
-		})
+		for _, key := range keys {
+			value := sourceSettings[key]
+			if value == nil {
+				continue
+			}
+
+			sanitizedValue, err := sanitizeValue(value)
+			if err != nil {
+				cs.log.Errorf("Failed to sanitize setting '%s': %v", key, err)
+				continue
+			}
+
+			pbValue, err := structpb.NewValue(sanitizedValue)
+			if err != nil {
+				cs.log.Errorf("Failed to convert setting '%s' to structpb.Value: %v", key, err)
+				continue
+			}
+			cs.log.Infof(
+				"Config stream snapshot setting: sequence_id=%d source=%s key=%s value=%v",
+				sequenceID, source, key, sanitizedValue,
+			)
+
+			settings = append(settings, &pb.ConfigSetting{
+				Source: source.String(),
+				Key:    key,
+				Value:  pbValue,
+			})
+		}
 	}
 
 	snapshot := &pb.ConfigEvent{
@@ -307,6 +354,14 @@ func (cs *configStream) createConfigSnapshot() (*pb.ConfigEvent, uint64, error) 
 	}
 
 	return snapshot, sequenceID, nil
+}
+
+func topLevelKey(setting string) string {
+	idx := strings.Index(setting, ".")
+	if idx == -1 {
+		return setting
+	}
+	return setting[:idx]
 }
 
 // getConfigOrigin returns the origin identifier for the config stream.

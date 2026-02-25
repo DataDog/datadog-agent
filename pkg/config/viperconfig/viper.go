@@ -790,6 +790,20 @@ func (c *safeConfig) AllSettingsBySource() map[model.Source]interface{} {
 	return res
 }
 
+// AllSettingsBySourceWithSequenceID returns the settings from each source (file, env vars, ...)
+// along with the current sequence ID.
+func (c *safeConfig) AllSettingsBySourceWithSequenceID() (map[model.Source]interface{}, uint64) {
+	c.RLock()
+	defer c.RUnlock()
+
+	res := map[model.Source]interface{}{}
+	for _, source := range model.Sources {
+		res[source] = c.configSources[source].AllSettingsWithoutDefault()
+	}
+	res[model.SourceProvided] = c.Viper.AllSettingsWithoutDefault()
+	return res, c.sequenceID
+}
+
 // AllFlattenedSettingsWithSequenceID returns all settings as a flattened map along with the sequence ID.
 // Keys are flattened (e.g., "logs_config.enabled" instead of nested {"logs_config": {"enabled": ...}}).
 // This provides atomic access to flattened keys, values, and sequence ID under a single lock.

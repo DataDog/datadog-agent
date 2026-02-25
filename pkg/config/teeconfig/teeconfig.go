@@ -467,6 +467,15 @@ func (t *teeConfig) AllSettingsBySource() map[model.Source]interface{} {
 
 }
 
+// AllSettingsBySourceWithSequenceID returns source-layered settings along with the sequence ID.
+func (t *teeConfig) AllSettingsBySourceWithSequenceID() (map[model.Source]interface{}, uint64) {
+	base, baseSequenceID := t.baseline.AllSettingsBySourceWithSequenceID()
+	compare, compareSequenceID := t.compare.AllSettingsBySourceWithSequenceID()
+	t.compareResult("", "AllSettingsBySourceWithSequenceID (settings)", base, compare)
+	t.compareResult("", "AllSettingsBySourceWithSequenceID (sequenceID)", baseSequenceID, compareSequenceID)
+	return base, baseSequenceID
+}
+
 // AllFlattenedSettingsWithSequenceID returns all settings as a flattened map along with the sequence ID.
 func (t *teeConfig) AllFlattenedSettingsWithSequenceID() (map[string]interface{}, uint64) {
 	base, baseSequenceID := t.baseline.AllFlattenedSettingsWithSequenceID()
