@@ -110,6 +110,28 @@ run_binary(
     visibility = ["//visibility:public"],
 )
 
+select_file(
+    name = "headers_win",
+    srcs = "python_win",
+    subpath = "build/include",
+)
+
+cc_import(
+    name = "_python313_dll",
+    shared_library = "build/python{}.dll".format(VERSION_STR_FLAT),
+    visibility = ["//visibility:private"],
+)
+
+# The extra cc_library layer on top of the cc_import is needed so that
+# relative paths (like the one for the includes) are resolved correctly
+cc_library(
+    name = "lib_win",
+    hdrs = [":headers_win"],
+    includes = ["build/include"],
+    deps = [":_python313_dll"],
+    visibility = ["//visibility:public"],
+)
+
 filegroup(
     name = "all_srcs",
     srcs = glob(["**"], exclude = ["BUILD.bazel"]),
