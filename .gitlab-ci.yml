@@ -81,6 +81,7 @@ variables:
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
   AGENT_BINARIES_DIR: bin/agent
   CLUSTER_AGENT_BINARIES_DIR: bin/datadog-cluster-agent
+  SECRET_GENERIC_CONNECTOR_BINARIES_DIR: bin/secret-generic-connector
   CWS_INSTRUMENTATION_BINARIES_DIR: bin/cws-instrumentation
   CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR: bin/datadog-cluster-agent-cloudfoundry
   SYSTEM_PROBE_BINARIES_DIR: bin/system-probe
@@ -177,6 +178,7 @@ variables:
   CHANGELOG_COMMIT_SHA: ci.datadog-agent.gitlab_changelog_commit_sha # agent-devx
   CHOCOLATEY_API_KEY: ci.datadog-agent.chocolatey_api_key # windows-products
   CODECOV_TOKEN: ci.datadog-agent.codecov_token # agent-devx
+  CRC_PULL_SECRET: ci.datadog-agent.crc-pull-secret # container-integrations
   DOCKER_REGISTRY_LOGIN: ci.datadog-agent.docker_hub_login # container-integrations
   DOCKER_REGISTRY_PWD: ci.datadog-agent.docker_hub_pwd # container-integrations
   VCPKG_BLOB_SAS_URL: ci.datadog-agent-buildimages.vcpkg_blob_sas_url # windows-products
@@ -644,8 +646,6 @@ workflow:
   - test/e2e-framework/testing/runner/**/*
   - test/e2e-framework/testing/utils/**/*
   - test/e2e-framework/scenarios/aws/microVMs/**/*
-  - test/new-e2e/go.mod
-  - go.mod
   - tasks/security_agent.py
   - tasks/kmt.py
   - tasks/kernel_matrix_testing/*
@@ -700,8 +700,6 @@ workflow:
   - test/e2e-framework/testing/runner/**/*
   - test/e2e-framework/testing/utils/**/*
   - test/e2e-framework/scenarios/aws/microVMs/**/*
-  - test/new-e2e/go.mod
-  - go.mod
   - tasks/system_probe.py
   - tasks/kmt.py
   - tasks/kernel_matrix_testing/*
@@ -1055,6 +1053,17 @@ workflow:
         - pkg/trace/otel/traceutil/otel_util.go
         - pkg/trace/transform/transform.go
         - test/new-e2e/tests/otel/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+.on_otel_components_changes:
+  - !reference [.except_mergequeue]
+  - !reference [.on_main]
+  - changes:
+      paths:
+        - cmd/otel-agent/**/*
+        - comp/otelcol/**/*
+        - test/otel/testdata/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
