@@ -1283,8 +1283,8 @@ api_key:
 #
 #   enabled: true
 
-#   # @param env - string - optional - default: none
-#   # @env DD_APM_ENV - string - optional - default: none
+#   # @param env - string - optional - default: "none"
+#   # @env DD_APM_ENV - string - optional - default: "none"
 #   # The environment tag that Traces should be tagged with.
 #   # If not set the value will be inherited, in order, from the top level
 #   # "env" config option if set and then from the 'env:' tag if present in the
@@ -1294,6 +1294,7 @@ api_key:
 
 #   # @param receiver_port - integer - optional - default: 8126
 #   # @env DD_APM_RECEIVER_PORT - integer - optional - default: 8126
+#   # @env DD_RECEIVER_PORT - integer - optional - default: 8126
 #   # The port that the trace receiver should listen on.
 #   # Set to 0 to disable the HTTP receiver.
 #
@@ -1310,12 +1311,12 @@ api_key:
 #
 #   receiver_socket: ""
 {{- else -}}
-#   # @param receiver_socket - string - optional - default: unix:///var/run/datadog/apm.socket
-#   # @env DD_APM_RECEIVER_SOCKET - string - optional - default: unix:///var/run/datadog/apm.socket
+#   # @param receiver_socket - string - optional - default: {{ if (eq .OS "linux") }}"/var/run/datadog/apm.socket"{{else}}""{{end}}
+#   # @env DD_APM_RECEIVER_SOCKET - string - optional - default: {{ if (eq .OS "linux") }}"/var/run/datadog/apm.socket"{{else}}""{{end}}
 #   # Accept traces through Unix Domain Sockets.
 #   # Set to "" to disable the UDS receiver.
 #
-#   receiver_socket: /var/run/datadog/apm.socket
+#   receiver_socket: {{ if (eq .OS "linux") }}"/var/run/datadog/apm.socket"{{else}}""{{end}}
 {{- end }}
 
 #   # @param apm_non_local_traffic - boolean - optional - default: false
@@ -1396,129 +1397,235 @@ api_key:
 #     # @param credit_cards - custom object - optional
 #
 #     credit_cards:
-#       # @param DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED - boolean - optional
+
+#       # @param enabled - boolean - optional - default: true
+#       # @env DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED - boolean - optional - default: true
 #       # Enables obfuscation rules for credit cards. Enabled by default.
+#
 #       enabled: true
-#       # @param DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN - boolean - optional
+
+#       # @param luhn - boolean - optional - default: false
+#       # @env DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN - boolean - optional - default: false
 #       # Enables a Luhn checksum check in order to eliminate false negatives. Disabled by default.
+#
 #       luhn: false
-#       # @param DD_APM_OBFUSCATION_CREDIT_CARDS_KEEP_VALUES - object - optional
+
+#       # @param keep_values - list of strings - optional - default: []
+#       # @env DD_APM_OBFUSCATION_CREDIT_CARDS_KEEP_VALUES - space separated list of strings or JSON array of strings - optional - default: []
 #       # List of keys that should not be obfuscated.
+#
 #       keep_values:
 #         - client_id
+
+#     # @param elasticsearch - custom object - optional
 #
 #     elasticsearch:
-#       # @param DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED - boolean - optional
+
+#       # @param enabled - boolean - optional - default: true
+#       # @env DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED - boolean - optional - default: true
 #       # Enables obfuscation rules for spans of type "elasticsearch". Enabled by default.
+#
 #       enabled: true
-#       # @param DD_APM_OBFUSCATION_ELASTICSEARCH_KEEP_VALUES - object - optional
+
+#       # @param keep_values - list of strings - optional - default: []
+#       # @env DD_APM_OBFUSCATION_ELASTICSEARCH_KEEP_VALUES - space separated list of strings - optional - default: []
 #       # List of keys that should not be obfuscated.
+#
 #       keep_values:
 #         - client_id
-#       # @param DD_APM_OBFUSCATION_ELASTICSEARCH_OBFUSCATE_SQL_VALUES - boolean - optional
+
+#       # @param obfuscate_sql_values - list of strings - optional - default: []
+#       # @env DD_APM_OBFUSCATION_ELASTICSEARCH_OBFUSCATE_SQL_VALUES - space separated list of strings - optional - default: []
 #       # The set of keys for which their values will be passed through SQL obfuscation
+#
 #       obfuscate_sql_values:
 #         - val1
+
+#     # @param opensearch - custom object - optional
 #
 #     opensearch:
-#       # @param DD_APM_OBFUSCATION_OPENSEARCH_ENABLED - boolean - optional
+
+#       # @param enabled - boolean - optional - default: true
+#       # @env DD_APM_OBFUSCATION_OPENSEARCH_ENABLED - boolean - optional - default: true
 #       # Enables obfuscation rules for spans of type "opensearch". Enabled by default.
+#
 #       enabled: true
-#       # @param DD_APM_OBFUSCATION_OPENSEARCH_KEEP_VALUES - object - optional
+
+#       # @param keep_values - list of strings - optional - default: []
+#       # @env DD_APM_OBFUSCATION_OPENSEARCH_KEEP_VALUES - space separated list of strings - optional - default: []
 #       # List of keys that should not be obfuscated.
+#
 #       keep_values:
 #         - client_id
-#       # @param DD_APM_OBFUSCATION_OPENSEARCH_OBFUSCATE_SQL_VALUES - boolean - optional
+
+#       # @param obfuscate_sql_values - list of strings - optional - default: []
+#       # @env DD_APM_OBFUSCATION_OPENSEARCH_OBFUSCATE_SQL_VALUES - space separated list of strings - optional - default: []
 #       # The set of keys for which their values will be passed through SQL obfuscation
+#
 #       obfuscate_sql_values:
 #         - val1
+
+#     # @param http - custom object - optional
 #
 #     http:
-#       # @param DD_APM_OBFUSCATION_HTTP_REMOVE_QUERY_STRING - boolean - optional
+
+#       # @param remove_query_string - boolean - optional - default: false
+#       # @env DD_APM_OBFUSCATION_HTTP_REMOVE_QUERY_STRING - boolean - optional - default: false
 #       # Enables obfuscation of query strings in URLs
+#
 #       remove_query_string: false
-#       # @param DD_APM_OBFUSCATION_HTTP_REMOVE_PATHS_WITH_DIGITS - boolean - optional
+
+#       # @param remove_paths_with_digits - boolean - optional - default: false
+#       # @env DD_APM_OBFUSCATION_HTTP_REMOVE_PATHS_WITH_DIGITS - boolean - optional - default: false
 #       # If enabled, path segments in URLs containing digits are replaced by "?"
+#
 #       remove_paths_with_digits: false
+
+#     # @param memcached - custom object - optional
 #
 #     memcached:
-#       # @param DD_APM_OBFUSCATION_MEMCACHED_ENABLED - boolean - optional
+
+#       # @param enabled - boolean - optional - default: true
+#       # @env DD_APM_OBFUSCATION_MEMCACHED_ENABLED - boolean - optional - default: true
 #       # Enables obfuscation rules for spans of type "memcached". Enabled by default.
+#
 #       enabled: true
-#       # @param DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND - boolean - optional
+
+#       # @param keep_command - boolean - optional - default: false
+#       # @env DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND - boolean - optional - default: false
 #       # If enabled, the full command for the query will be kept, including any lookup
 #       # keys that could be present. The value for storage commands will still be
 #       # redacted if Memcached obfuscation is enabled.
+#
 #       keep_command: false
+
+#     # @param mongodb - custom object - optional
 #
 #     mongodb:
-#       # @param DD_APM_OBFUSCATION_MONGODB_ENABLED - boolean - optional
+
+#       # @param enabled - boolean - optional - default: true
+#       # @env DD_APM_OBFUSCATION_MONGODB_ENABLED - boolean - optional - default: true
 #       # Enables obfuscation rules for spans of type "mongodb". Enabled by default.
+#
 #       enabled: true
-#       # @param DD_APM_OBFUSCATION_MONGODB_KEEP_VALUES - object - optional
+
+#       # @param keep_values - list of strings - optional - default: []
+#       # @env DD_APM_OBFUSCATION_MONGODB_KEEP_VALUES - space separated list of strings - optional - default: []
 #       # List of keys that should not be obfuscated.
+#
 #       keep_values:
 #         - document_id
-#       # @param DD_APM_OBFUSCATION_MONGODB_OBFUSCATE_SQL_VALUES - object - optional
+
+#       # @param obfuscate_sql_values - list of strings - optional - default: []
+#       # @env DD_APM_OBFUSCATION_MONGODB_OBFUSCATE_SQL_VALUES - space separated list of strings - optional - default: []
 #       # The set of keys for which their values will be passed through SQL obfuscation
+#
 #       obfuscate_sql_values:
 #         - val1
+
+#     # @param redis - custom object - optional
 #
 #     redis:
-#       # @param DD_APM_OBFUSCATION_REDIS_ENABLED - boolean - optional
+
+#       # @param enabled - boolean - optional - default: true
+#       # @env DD_APM_OBFUSCATION_REDIS_ENABLED - boolean - optional - default: true
 #       # Enables obfuscation rules for spans of type "redis". Enabled by default.
+#
 #       enabled: true
-#       # @param DD_APM_OBFUSCATION_REDIS_REMOVE_ALL_ARGS - boolean - optional
+
+#       # @param remove_all_args - boolean - optional - default: false
+#       # @env DD_APM_OBFUSCATION_REDIS_REMOVE_ALL_ARGS - boolean - optional - default: false
 #       # When true, replaces all arguments of a redis command with a single "?". Disabled by default.
+#
 #       remove_all_args: false
+
+#     # @param valkey - custom object - optional
 #
 #     valkey:
-#       # @param DD_APM_OBFUSCATION_VALKEY_ENABLED - boolean - optional
+
+#       # @param enabled - boolean - optional - default: true
+#       # @env DD_APM_OBFUSCATION_VALKEY_ENABLED - boolean - optional - default: true
 #       # Enables obfuscation rules for spans of type "valkey". Enabled by default.
+#
 #       enabled: true
-#
-#       # @param DD_APM_OBFUSCATION_VALKEY_REMOVE_ALL_ARGS - boolean - optional
+
+#       # @param remove_all_args - boolean - optional - default: false
+#       # @env DD_APM_OBFUSCATION_VALKEY_REMOVE_ALL_ARGS - boolean - optional - default: false
 #       # When true, replaces all arguments of a valkey command with a single "?". Disabled by default.
-#       remove_all_args: false
 #
-#     # @param DD_APM_OBFUSCATION_REMOVE_STACK_TRACES - boolean - optional
+#       remove_all_args: false
+
+#     # @param remove_stack_traces - boolean - optional - default: false
+#     # @env DD_APM_OBFUSCATION_REMOVE_STACK_TRACES - boolean - optional - default: false
 #     # Enables removing stack traces to replace them with "?". Disabled by default.
+#
 #     remove_stack_traces: false
+
+#     # @param sql_exec_plan - custom object - optional
 #
 #     sql_exec_plan:
-#       # @param DD_APM_OBFUSCATION_SQL_EXEC_PLAN_ENABLED - boolean - optional
+
+#       # @param enabled - boolean - optional - default: false
+#       # @env DD_APM_OBFUSCATION_SQL_EXEC_PLAN_ENABLED - boolean - optional - default: false
 #       # Enables obfuscation rules for JSON query execution plans. Disabled by default.
+#
 #       enabled: false
-#       # @param DD_APM_OBFUSCATION_SQL_EXEC_PLAN_KEEP_VALUES - object - optional
+
+#       # @param keep_values - list of strings - optional - default: []
+#       # @env DD_APM_OBFUSCATION_SQL_EXEC_PLAN_KEEP_VALUES - space separated list of strings - optional - default: []
 #       # List of keys that should not be obfuscated.
+#
 #       keep_values:
 #         - id1
-#       # @param DD_APM_OBFUSCATION_SQL_EXEC_PLAN_OBFUSCATE_SQL_VALUES - boolean - optional
+
+#       # @param obfuscate_sql_values - list of strings - optional - default: []
+#       # @env DD_APM_OBFUSCATION_SQL_EXEC_PLAN_OBFUSCATE_SQL_VALUES - space separated list of strings - optional - default: []
 #       # The set of keys for which their values will be passed through SQL obfuscation
+#
 #       obfuscate_sql_values:
 #         - val1
+
+#     # @param sql_exec_plan_normalize - custom object - optional
 #
 #     sql_exec_plan_normalize:
-#       # @param DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_ENABLED - boolean - optional
+
+#       # @param enabled - boolean - optional - default: false
+#       # @env DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_ENABLED - boolean - optional - default: false
 #       # Enables obfuscation rules for JSON query execution plans, including cost and row estimates.
 #       # Produces a normalized execution plan. Disabled by default.
+#
 #       enabled: false
-#       # @param DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_KEEP_VALUES - object - optional
+
+#       # @param keep_values - list of strings - optional - default: []
+#       # @env DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_KEEP_VALUES - space separated list of strings - optional - default: []
 #       # List of keys that should not be obfuscated.
+#
 #       keep_values:
 #         - id1
-#       # @param DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_OBFUSCATE_SQL_VALUES - boolean - optional
+
+#       # @param obfuscate_sql_values - list of strings - optional - default: []
+#       # @env DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_OBFUSCATE_SQL_VALUES - space separated list of strings - optional - default: []
 #       # The set of keys for which their values will be passed through SQL obfuscation
+#
 #       obfuscate_sql_values:
 #         - val1
+
+#     # @param cache - custom object - optional
+#
 #     cache:
-#       # @param DD_APM_OBFUSCATION_CACHE_ENABLED - boolean - optional
+
+#       # @param enabled - boolean - optional - default: true
+#       # @env DD_APM_OBFUSCATION_CACHE_ENABLED - boolean - optional - default: true
 #       # Enables caching obfuscated statements. Currently supported for SQL and MongoDB queries.
 #       # Enabled by default.
+#
 #       enabled: true
-#       # @param DD_APM_OBFUSCATION_CACHE_MAX_SIZE - integer - optional - default: 5000000
+
+#       # @param max_size - integer - optional - default: 5000000
+#       # @env DD_APM_OBFUSCATION_CACHE_MAX_SIZE - integer - optional - default: 5000000
 #       # The maximum size of the cache in bytes. The maximum allowed resource length is 5000.
 #       # Datadog stores a minimum of 1000 queries (5000000 / 5000) by default.
+#
 #       max_size: 5000000
 
 #   # @param sql_obfuscation_mode - string - optional - default: ""
@@ -1531,9 +1638,7 @@ api_key:
 #
 #   sql_obfuscation_mode: ""
 
-#   # @param filter_tags - object - optional
-#   # @env DD_APM_FILTER_TAGS_REQUIRE - object - optional
-#   # @env DD_APM_FILTER_TAGS_REJECT - object - optional
+#   # @param filter_tags - custom object - optional
 #   # Defines rules by which to filter traces based on tags.
 #   #  * require - list of key or key/value strings - traces must have those tags in order to be sent to Datadog
 #   #  * reject - list of key or key/value strings - traces with these tags are dropped by the Agent
@@ -1604,8 +1709,9 @@ api_key:
 #       pattern: "<REGEX_PATTERN>"
 #       repl: "<PATTERN_TO_INLINE>"
 
-#   # @param ignore_resources - list of strings - optional
-#   # @env DD_APM_IGNORE_RESOURCES - comma separated list of strings - optional
+#   # @param ignore_resources - list of strings - optional - default: []
+#   # @env DD_APM_IGNORE_RESOURCES - comma separated list of strings - optional - default: []
+#   # @env DD_IGNORE_RESOURCE - comma separated list of strings - optional - default: []
 #   # An exclusion list of regular expressions can be provided to disable certain traces based on their resource name
 #   # all entries must be surrounded by double quotes and separated by commas.
 #
@@ -1617,8 +1723,9 @@ api_key:
 #
 #   log_file: <APM_LOG_FILE_PATH>
 
-#   # @param connection_limit - integer - default: 2000
-#   # @env DD_APM_CONNECTION_LIMIT - integer - default: 2000
+#   # @param connection_limit - integer - optional - default: 2000
+#   # @env DD_APM_CONNECTION_LIMIT - integer - optional - default: 2000
+#   # @env DD_CONNECTION_LIMIT - integer - optional - default: 2000
 #   # The APM connection limit for the Agent.
 #   # See https://docs.datadoghq.com/tracing/troubleshooting/agent_rate_limits/#max-connection-limit
 #
