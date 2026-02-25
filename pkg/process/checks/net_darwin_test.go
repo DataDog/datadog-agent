@@ -36,13 +36,13 @@ func syscfgWithNPM(npmEnabled bool) *sysconfigtypes.Config {
 // explicitly true, regardless of the other conditions being satisfied.
 func TestConnectionsCheck_IsEnabled_DarwinGuard(t *testing.T) {
 	tests := []struct {
-		name             string
-		networkEnabled   bool // network_config.enabled in sysprobe yaml
-		npmModule        bool // NetworkTracerModule present in syscfg
-		syscfgEnabled    bool // syscfg.Enabled
-		directSend       bool // network_config.direct_send
-		agentFlavor      string
-		expectedEnabled  bool
+		name            string
+		networkEnabled  bool // network_config.enabled in sysprobe yaml
+		npmModule       bool // NetworkTracerModule present in syscfg
+		syscfgEnabled   bool // syscfg.Enabled
+		directSend      bool // network_config.direct_send
+		agentFlavor     string
+		expectedEnabled bool
 	}{
 		{
 			name:            "darwin guard blocks when network_config.enabled is false",
