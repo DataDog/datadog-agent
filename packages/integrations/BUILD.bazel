@@ -4,14 +4,7 @@ Replaces: datadog-agent-integrations-py3-dependencies
 """
 
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load(
-    "@rules_pkg//pkg:mappings.bzl",
-    "pkg_attributes",
-    "pkg_filegroup",
-    "pkg_mkdirs",
-)
-load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
-load("//bazel/rules:dd_agent_pkg_mklink.bzl", "dd_agent_pkg_mklink")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
 
 package(default_visibility = ["//packages:__subpackages__"])
 
@@ -64,6 +57,7 @@ pkg_install(
 #    command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
 #    " #{install_dir}/embedded/lib/libtdsodbc.so"
 
+# buildifier: disable=no-effect
 """
     unless heroku_target?
       pc_files = [
@@ -100,7 +94,7 @@ pkg_install(
       bin_files = [
           'kinit',
         ]
-      
+
       # (TODO(agent-build): Check if we still need pc files)
       command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded' " \
         + lib_files.map{ |l| "#{install_dir}/embedded/lib/#{l}" }.join(' ') \
