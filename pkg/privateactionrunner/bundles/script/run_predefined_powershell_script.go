@@ -8,7 +8,6 @@
 package com_datadoghq_script
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -97,30 +96,28 @@ func (h *RunPredefinedPowershellScriptHandler) Run(
 	}
 
 	cmd := newPowershellCommand(ctx, evaluatedScript, script.AllowedEnvVars)
-	var stdoutBuffer bytes.Buffer
-	cmd.Stdout = &stdoutBuffer
-	var stderrBuffer bytes.Buffer
-	cmd.Stderr = &stderrBuffer
+	stdoutWriter, stderrWriter := newLimitedWriterPair(maxOutputSize)
+	cmd.Stdout = stdoutWriter
+	cmd.Stderr = stderrWriter
 	start := time.Now()
 	err = cmd.Run()
 
-	const maxOutputSize = 10 * 1024 * 1024 // 10MB
-	if stdoutBuffer.Len()+stderrBuffer.Len() > maxOutputSize {
-		return nil, errors.New("script output exceeded 10MB limit")
+	if stdoutWriter.LimitReached() || stderrWriter.LimitReached() {
+		return nil, errOutputLimitExceeded
 	}
 
 	if err != nil && !inputs.NoFailOnError {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return nil, fmt.Errorf("script execution timed out after %d seconds", inputs.Timeout)
 		}
-		return nil, fmt.Errorf("failed to execute script: %w, stderr %s", err, stderrBuffer.String())
+		return nil, fmt.Errorf("failed to execute script: %w, stderr %s", err, stderrWriter.String())
 	}
 
 	return &RunPredefinedPowershellScriptOutputs{
 		ExecutedCommand: cmd.String(),
 		ExitCode:        cmd.ProcessState.ExitCode(),
-		Stdout:          formatPowershellOutput(stdoutBuffer.String(), inputs.NoStripTrailingNewline),
-		Stderr:          formatPowershellOutput(stderrBuffer.String(), inputs.NoStripTrailingNewline),
+		Stdout:          formatPowershellOutput(stdoutWriter.String(), inputs.NoStripTrailingNewline),
+		Stderr:          formatPowershellOutput(stderrWriter.String(), inputs.NoStripTrailingNewline),
 		DurationMillis:  int(time.Since(start).Milliseconds()),
 	}, nil
 }
