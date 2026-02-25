@@ -24,9 +24,6 @@ import (
 
 	"golang.org/x/crypto/nacl/box"
 
-	"net/http"
-	_ "net/http/pprof" // register pprof HTTP handlers for profiling
-
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -43,14 +40,7 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/gorilla/mux"
 )
-
-func Router() *mux.Router {
-	router := mux.NewRouter()
-	router.PathPrefix("/debug/pprof/").Handler(http.DefaultServeMux)
-	return router
-}
 
 const (
 	// disableClientIDCheck is the magic string to disable the client ID check.
@@ -355,10 +345,6 @@ func (d *daemonImpl) SetConfigCatalog(configs map[string]installerConfig) {
 
 // Start starts remote config and the garbage collector.
 func (d *daemonImpl) Start(_ context.Context) error {
-	go func() {
-		_ = http.ListenAndServe("localhost:12345", nil)
-	}()
-
 	d.refreshState(d.ctx)
 
 	d.m.Lock()
