@@ -146,7 +146,7 @@ func (p *EBPFResolver) resolveParentFromProcfs(entry *model.ProcessCacheEntry) {
 // is still valid for field resolution (Go GC keeps the object alive).
 // Only ancestors within tryReparentMaxForkDepth fork levels are checked
 // (exec transitions do not count toward the depth).
-func (p *EBPFResolver) TryReparentFromProcfs(entry *model.ProcessCacheEntry) {
+func (p *EBPFResolver) TryReparentFromProcfs(entry *model.ProcessCacheEntry, callpathTag string) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -166,7 +166,7 @@ func (p *EBPFResolver) TryReparentFromProcfs(entry *model.ProcessCacheEntry) {
 			break
 		}
 		forkDepth++
-		p.tryReparentChildrenFromProcfs(pc, metrics.ReparentCallpathSetProcessContext)
+		p.tryReparentChildrenFromProcfs(pc, callpathTag)
 	}
 }
 
