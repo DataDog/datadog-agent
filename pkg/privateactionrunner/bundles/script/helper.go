@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build !local && !windows
+//go:build !windows
 
 package com_datadoghq_script
 
@@ -11,10 +11,6 @@ import (
 	"context"
 	"os"
 	"os/exec"
-)
-
-var (
-	ScriptUserName = "dd-scriptuser"
 )
 
 func buildEnv(allowedEnvVars []string) []string {
@@ -28,21 +24,13 @@ func buildEnv(allowedEnvVars []string) []string {
 }
 
 func NewShellScriptCommand(ctx context.Context, scriptFile string, args []string) (*exec.Cmd, error) {
-	shellCmd, err := shellQuoteArgs(append([]string{"sh", scriptFile}, args...))
-	if err != nil {
-		return nil, err
-	}
-	cmd := exec.CommandContext(ctx, "su", ScriptUserName, "-s", "/bin/sh", "-c", shellCmd)
+	cmd := exec.CommandContext(ctx, "/bin/sh", append([]string{"-c", scriptFile}, args...)...)
 	cmd.Env = buildEnv(nil)
 	return cmd, nil
 }
 
 func NewPredefinedScriptCommand(ctx context.Context, command []string, envVarNames []string) (*exec.Cmd, error) {
-	shellCmd, err := shellQuoteArgs(command)
-	if err != nil {
-		return nil, err
-	}
-	cmd := exec.CommandContext(ctx, "su", ScriptUserName, "-s", "/bin/sh", "-c", shellCmd)
+	cmd := exec.CommandContext(ctx, command[0], command[1:]...)
 	cmd.Env = buildEnv(envVarNames)
 	return cmd, nil
 }

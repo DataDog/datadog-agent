@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/pprof"
 
 	"github.com/gorilla/mux"
 
@@ -81,18 +82,35 @@ func (l *localAPIImpl) Stop(ctx context.Context) error {
 }
 
 func (l *localAPIImpl) handler() http.Handler {
-	r := mux.NewRouter().Headers("Content-Type", "application/json").Subrouter()
-	r.HandleFunc("/status", l.status).Methods(http.MethodGet)
-	r.HandleFunc("/catalog", l.setCatalog).Methods(http.MethodPost)
-	r.HandleFunc("/config_catalog", l.setConfigCatalog).Methods(http.MethodPost)
-	r.HandleFunc("/{package}/experiment/start", l.startExperiment).Methods(http.MethodPost)
-	r.HandleFunc("/{package}/experiment/stop", l.stopExperiment).Methods(http.MethodPost)
-	r.HandleFunc("/{package}/experiment/promote", l.promoteExperiment).Methods(http.MethodPost)
-	r.HandleFunc("/{package}/config_experiment/start", l.startConfigExperiment).Methods(http.MethodPost)
-	r.HandleFunc("/{package}/config_experiment/stop", l.stopConfigExperiment).Methods(http.MethodPost)
-	r.HandleFunc("/{package}/config_experiment/promote", l.promoteConfigExperiment).Methods(http.MethodPost)
-	r.HandleFunc("/{package}/install", l.install).Methods(http.MethodPost)
-	r.HandleFunc("/{package}/remove", l.remove).Methods(http.MethodPost)
+	r := mux.NewRouter()
+
+	// API routes with Content-Type requirement
+	api := r.Headers("Content-Type", "application/json").Subrouter()
+	api.HandleFunc("/status", l.status).Methods(http.MethodGet)
+	api.HandleFunc("/catalog", l.setCatalog).Methods(http.MethodPost)
+	api.HandleFunc("/config_catalog", l.setConfigCatalog).Methods(http.MethodPost)
+	api.HandleFunc("/{package}/experiment/start", l.startExperiment).Methods(http.MethodPost)
+	api.HandleFunc("/{package}/experiment/stop", l.stopExperiment).Methods(http.MethodPost)
+	api.HandleFunc("/{package}/experiment/promote", l.promoteExperiment).Methods(http.MethodPost)
+	api.HandleFunc("/{package}/config_experiment/start", l.startConfigExperiment).Methods(http.MethodPost)
+	api.HandleFunc("/{package}/config_experiment/stop", l.stopConfigExperiment).Methods(http.MethodPost)
+	api.HandleFunc("/{package}/config_experiment/promote", l.promoteConfigExperiment).Methods(http.MethodPost)
+	api.HandleFunc("/{package}/install", l.install).Methods(http.MethodPost)
+	api.HandleFunc("/{package}/remove", l.remove).Methods(http.MethodPost)
+
+	// pprof debug endpoints
+	r.HandleFunc("/debug/pprof/", pprof.Index)
+	r.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	r.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	r.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	r.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	r.Handle("/debug/pprof/heap", pprof.Handler("heap"))
+	r.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
+	r.Handle("/debug/pprof/block", pprof.Handler("block"))
+	r.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
+	r.Handle("/debug/pprof/mutex", pprof.Handler("mutex"))
+	r.Handle("/debug/pprof/allocs", pprof.Handler("allocs"))
+
 	return r
 }
 

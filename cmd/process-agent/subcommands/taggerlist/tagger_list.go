@@ -19,7 +19,6 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/api"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -38,7 +37,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(command.GetCoreBundleParamsForOneShot(globalParams)),
 
 				core.Bundle(),
-				secretsnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
