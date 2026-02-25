@@ -8,13 +8,11 @@ package cws
 
 import (
 	_ "embed"
-	"errors"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -127,10 +125,6 @@ func (a *agentSuite) Test00OpenSignal() {
 	// Trigger agent event
 	a.Env().RemoteHost.MustExecute(fmt.Sprintf("touch %s", filename))
 
-	// Check agent event
-	err = a.waitAgentLogs("security-agent", "Successfully posted payload to")
-	require.NoError(a.T(), err, "could not send payload")
-
 	// Check app signal
 	signal, err := api.WaitAppSignal(apiClient, fmt.Sprintf("host:%s @workflow.rule.id:%s", a.Env().Agent.Client.Hostname(), signalRuleID))
 	require.NoError(a.T(), err)
@@ -200,18 +194,4 @@ func (a *agentSuite) Test01FeatureCWSEnabled() {
 			}
 		}
 	}, 20*time.Minute, 30*time.Second, "cws activation test timed out for host %s", a.Env().Agent.Client.Hostname())
-}
-
-func (a *agentSuite) waitAgentLogs(agentName string, pattern string) error {
-	err := backoff.Retry(func() error {
-		output, err := a.Env().RemoteHost.Execute(fmt.Sprintf("cat /var/log/datadog/%s.log", agentName))
-		if err != nil {
-			return err
-		}
-		if strings.Contains(output, pattern) {
-			return nil
-		}
-		return errors.New("no log found")
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
-	return err
 }

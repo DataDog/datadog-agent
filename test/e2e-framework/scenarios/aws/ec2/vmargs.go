@@ -40,9 +40,11 @@ type vmArgs struct {
 	hostID          string
 
 	httpTokensRequired    bool
+	volumeThroughput      int // GP3 volume throughput in MiB/s (125-1000, default 125)
 	pulumiResourceOptions []pulumi.ResourceOption
 }
 
+// VMOption is a functional option for configuring a VM.
 type VMOption = func(*vmArgs) error
 
 func buildArgs(options ...VMOption) (*vmArgs, error) {
@@ -57,8 +59,8 @@ func WithOS(osDesc os.Descriptor) VMOption {
 	return WithOSArch(osDesc, osDesc.Architecture)
 }
 
-// WithArch set the architecture and the operating system.
-// Version defaults to latest
+// WithOSArch sets the architecture and the operating system.
+// Version defaults to latest.
 func WithOSArch(osDesc os.Descriptor, arch os.Architecture) VMOption {
 	return func(p *vmArgs) error {
 		p.osInfo = utils.Pointer(osDesc.WithArch(arch))
@@ -99,6 +101,7 @@ func WithUserData(userData string) VMOption {
 	}
 }
 
+// WithInstanceProfile sets the IAM instance profile for the VM.
 func WithInstanceProfile(instanceProfile string) VMOption {
 	return func(p *vmArgs) error {
 		p.instanceProfile = instanceProfile
@@ -106,6 +109,7 @@ func WithInstanceProfile(instanceProfile string) VMOption {
 	}
 }
 
+// WithIMDSv1Disable disables IMDSv1 by requiring HTTP tokens.
 func WithIMDSv1Disable() VMOption {
 	return func(p *vmArgs) error {
 		p.httpTokensRequired = true
@@ -113,7 +117,7 @@ func WithIMDSv1Disable() VMOption {
 	}
 }
 
-// WithHostId sets the dedicated host ID for the instance
+// WithHostID sets the dedicated host ID for the instance.
 func WithHostID(hostID string) VMOption {
 	return func(p *vmArgs) error {
 		p.hostID = hostID
@@ -129,6 +133,16 @@ func WithTenancy(tenancy string) VMOption {
 	}
 }
 
+// WithVolumeThroughput sets the throughput for the root GP3 volume in MiB/s.
+// Valid range: 125-1000. Default is 125 MiB/s if not specified.
+func WithVolumeThroughput(throughput int) VMOption {
+	return func(p *vmArgs) error {
+		p.volumeThroughput = throughput
+		return nil
+	}
+}
+
+// WithPulumiResourceOptions sets additional Pulumi resource options.
 func WithPulumiResourceOptions(options ...pulumi.ResourceOption) VMOption {
 	return func(p *vmArgs) error {
 		p.pulumiResourceOptions = options
