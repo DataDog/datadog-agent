@@ -125,15 +125,12 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 	outputChan := make(chan *message.Message)
 	detectedPattern := &DetectedPattern{}
 
-	// Sampler is the final step of the Preprocessor — emits completed messages to outputChan.
-	sampler := preprocessor.NewNoopSampler(outputChan)
-
 	tokenizerMaxInputBytes := pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
 	if opts := source.Config().AutoMultiLineOptions; opts != nil && opts.TokenizerMaxInputBytes != nil {
 		tokenizerMaxInputBytes = *opts.TokenizerMaxInputBytes
 	}
 	tok := preprocessor.NewTokenizer(tokenizerMaxInputBytes)
-	lineHandler := buildLineHandler(source, multiLinePattern, tailerInfo, outputChan, detectedPattern, tok, sampler)
+	lineHandler := buildLineHandler(source, multiLinePattern, tailerInfo, outputChan, detectedPattern, tok)
 
 	var lineParser LineParser
 	if parser.SupportsPartialLine() {
@@ -147,9 +144,10 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 	return New(inputChan, outputChan, framer, lineParser, lineHandler, detectedPattern)
 }
 
-func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, outputChan chan *message.Message, detectedPattern *DetectedPattern, tok *preprocessor.Tokenizer, sampler preprocessor.Sampler) LineHandler {
+func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, outputChan chan *message.Message, detectedPattern *DetectedPattern, tok *preprocessor.Tokenizer) LineHandler {
 	maxContentSize := config.MaxMessageSizeBytes(pkgconfigsetup.Datadog())
 	flushTimeout := config.AggregationTimeout(pkgconfigsetup.Datadog())
+	sampler := preprocessor.NewNoopSampler()
 
 	// directOutputFn is used by legacy handlers that bypass the Preprocessor.
 	directOutputFn := func(msg *message.Message) { outputChan <- msg }
@@ -161,7 +159,7 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 		if rule.Type == config.MultiLine {
 			regexAggregator := preprocessor.NewRegexAggregator(rule.Regex, maxContentSize, false, tailerInfo, "multi_line")
 			syncSourceInfo(source, regexAggregator)
-			lineHandler = newPreprocessorHandler(regexAggregator, tok, nil, sampler, nil, false, flushTimeout)
+			lineHandler = newPreprocessorHandler(regexAggregator, tok, preprocessor.NewNoopLabeler(), sampler, outputChan, preprocessor.NewNoopJSONAggregator(), flushTimeout)
 		}
 	}
 
@@ -186,16 +184,19 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 		if source.Config().AutoMultiLineOptions != nil && source.Config().AutoMultiLineOptions.EnableJSONAggregation != nil {
 			enableJSON = *source.Config().AutoMultiLineOptions.EnableJSONAggregation
 		}
-		jsonAgg := preprocessor.NewJSONAggregator(pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.tag_aggregated_json"), maxContentSize)
-		return newPreprocessorHandler(combiningAggregator, tok, labeler, sampler, jsonAgg, enableJSON, flushTimeout)
+		var jsonAgg preprocessor.JSONAggregator = preprocessor.NewNoopJSONAggregator()
+		if enableJSON {
+			jsonAgg = preprocessor.NewJSONAggregator(pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.tag_aggregated_json"), maxContentSize)
+		}
+		return newPreprocessorHandler(combiningAggregator, tok, labeler, sampler, outputChan, jsonAgg, flushTimeout)
 	} else if pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line_detection_tagging") {
 		labeler := buildAutoMultilineLabeler(source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, tailerInfo)
 		// JSON aggregation is disabled in detection mode — we don't want to combine JSON
 		// while only tagging everything else.
 		detectingAggregator := preprocessor.NewDetectingAggregator(tailerInfo)
-		return newPreprocessorHandler(detectingAggregator, tok, labeler, sampler, nil, false, flushTimeout)
+		return newPreprocessorHandler(detectingAggregator, tok, labeler, sampler, outputChan, preprocessor.NewNoopJSONAggregator(), flushTimeout)
 	}
-	return newPreprocessorHandler(preprocessor.NewPassThroughAggregator(maxContentSize), tok, nil, sampler, nil, false, flushTimeout)
+	return newPreprocessorHandler(preprocessor.NewPassThroughAggregator(maxContentSize), tok, preprocessor.NewNoopLabeler(), sampler, outputChan, preprocessor.NewNoopJSONAggregator(), flushTimeout)
 }
 
 func getLegacyAutoMultilineHandler(outputFn func(*message.Message), multiLinePattern *regexp.Regexp, maxContentSize int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) LineHandler {

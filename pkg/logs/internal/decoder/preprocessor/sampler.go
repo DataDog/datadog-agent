@@ -7,46 +7,35 @@
 package preprocessor
 
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// Sampler is the final stage of the Pipeline. It receives completed log messages
-// and emits them to the downstream output, potentially applying rate-limiting or
-// sampling logic.
+// Sampler is the final stage of the Preprocessor. It receives completed log messages
+// and returns them, potentially applying rate-limiting or sampling logic.
+// A nil return means the message was dropped or buffered for later.
 type Sampler interface {
-	// Process handles a completed log message.
-	Process(msg *message.Message)
+	// Process handles a completed log message and returns zero or more output messages.
+	Process(msg *message.Message) []*message.Message
 
-	// Flush flushes any buffered state and pending messages.
-	Flush()
-
-	// FlushChan returns a channel that delivers a tick when Flush should be called.
-	// Returns nil if the sampler has no internal buffering.
-	FlushChan() <-chan time.Time
+	// Flush flushes any buffered state and returns any pending messages.
+	Flush() []*message.Message
 }
 
-// NoopSampler passes all messages directly to the output channel without sampling.
-// It is the default implementation used until adaptive sampling logic is complete.
-type NoopSampler struct {
-	outputChan chan *message.Message
+// NoopSampler passes all messages through without modification.
+// It is the default implementation used until adaptive sampling logic is added.
+type NoopSampler struct{}
+
+// NewNoopSampler returns a new NoopSampler.
+func NewNoopSampler() *NoopSampler {
+	return &NoopSampler{}
 }
 
-// NewNoopSampler returns a new NoopSampler that forwards all messages to outputChan.
-func NewNoopSampler(outputChan chan *message.Message) *NoopSampler {
-	return &NoopSampler{outputChan: outputChan}
-}
-
-// Process passes the message directly to the output channel.
-func (s *NoopSampler) Process(msg *message.Message) {
-	s.outputChan <- msg
+// Process returns the message unchanged.
+func (s *NoopSampler) Process(msg *message.Message) []*message.Message {
+	return []*message.Message{msg}
 }
 
 // Flush is a no-op since NoopSampler has no buffered state.
-func (s *NoopSampler) Flush() {}
-
-// FlushChan returns nil since NoopSampler has no internal buffering.
-func (s *NoopSampler) FlushChan() <-chan time.Time {
+func (s *NoopSampler) Flush() []*message.Message {
 	return nil
 }

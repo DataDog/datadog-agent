@@ -20,8 +20,8 @@ import (
 // The caller picks the Aggregator that determines the combining strategy; everything else
 // (tokenization, labeling, JSON aggregation, sampling) is wired identically.
 // Pass nil for labeler on paths that don't use auto multiline detection (regex, pass-through).
-func newPreprocessorHandler(aggregator preprocessor.Aggregator, tok *preprocessor.Tokenizer, labeler *preprocessor.Labeler, sampler preprocessor.Sampler, jsonAggregator *preprocessor.JSONAggregator, enableJSONAggregation bool, flushTimeout time.Duration) LineHandler {
-	pp := preprocessor.NewPreprocessor(aggregator, tok, labeler, sampler, jsonAggregator, enableJSONAggregation, flushTimeout)
+func newPreprocessorHandler(aggregator preprocessor.Aggregator, tok *preprocessor.Tokenizer, labeler preprocessor.Labeler, sampler preprocessor.Sampler, outputChan chan *message.Message, jsonAggregator preprocessor.JSONAggregator, flushTimeout time.Duration) LineHandler {
+	pp := preprocessor.NewPreprocessor(aggregator, tok, labeler, sampler, outputChan, jsonAggregator, flushTimeout)
 	return &preprocessorLineHandler{preprocessor: pp}
 }
 
@@ -45,7 +45,7 @@ func (h *preprocessorLineHandler) flush() {
 
 // buildAutoMultilineLabeler constructs a Labeler configured from global settings and any
 // per-source overrides. It is shared by both aggregating and detecting preprocessor modes.
-func buildAutoMultilineLabeler(sourceSettings *config.SourceAutoMultiLineOptions, sourceSamples []*config.AutoMultilineSample, tailerInfo *status.InfoRegistry) *preprocessor.Labeler {
+func buildAutoMultilineLabeler(sourceSettings *config.SourceAutoMultiLineOptions, sourceSamples []*config.AutoMultilineSample, tailerInfo *status.InfoRegistry) preprocessor.Labeler {
 	heuristics := []preprocessor.Heuristic{}
 	sourceHasSettings := sourceSettings != nil
 

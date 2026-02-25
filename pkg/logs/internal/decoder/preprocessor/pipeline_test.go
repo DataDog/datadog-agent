@@ -23,9 +23,11 @@ type captureSampler struct {
 	emitted []*message.Message
 }
 
-func (s *captureSampler) Process(msg *message.Message) { s.emitted = append(s.emitted, msg) }
-func (s *captureSampler) Flush()                       {}
-func (s *captureSampler) FlushChan() <-chan time.Time  { return nil }
+func (s *captureSampler) Process(msg *message.Message) []*message.Message {
+	s.emitted = append(s.emitted, msg)
+	return []*message.Message{msg}
+}
+func (s *captureSampler) Flush() []*message.Message { return nil }
 
 // captureAggregator wraps an aggregator and exposes the received slice.
 // Used to verify that the aggregator received the right messages from processOne.
@@ -77,10 +79,13 @@ func newTestPreprocessor(enableJSON bool) (*Preprocessor, *captureAggregator, *c
 	tailerInfo := status.NewInfoRegistry()
 	aggregator := &captureAggregator{}
 	sampler := &captureSampler{}
-	tokenizer := NewTokenizer(1000)
-	jsonAggregator := NewJSONAggregator(false, 10000)
 	_ = tailerInfo
-	preprocessor := NewPreprocessor(aggregator, tokenizer, nil, sampler, jsonAggregator, enableJSON, 10*time.Second)
+	var jsonAggregator JSONAggregator = NewNoopJSONAggregator()
+	if enableJSON {
+		jsonAggregator = NewJSONAggregator(false, 10000)
+	}
+	outputChan := make(chan *message.Message, 10)
+	preprocessor := NewPreprocessor(aggregator, NewTokenizer(1000), NewNoopLabeler(), sampler, outputChan, jsonAggregator, 10*time.Second)
 	return preprocessor, aggregator, sampler
 }
 
@@ -129,9 +134,8 @@ func TestPreprocessor_FlushCascadesInOrder(t *testing.T) {
 	_ = tailerInfo
 	aggregator := &flushCaptureAggregator{}
 	sampler := &captureSampler{}
-	tokenizer := NewTokenizer(1000)
-	jsonAggregator := NewJSONAggregator(false, 10000)
-	preprocessor := NewPreprocessor(aggregator, tokenizer, nil, sampler, jsonAggregator, true, 10*time.Second)
+	outputChan := make(chan *message.Message, 10)
+	preprocessor := NewPreprocessor(aggregator, NewTokenizer(1000), NewNoopLabeler(), sampler, outputChan, NewJSONAggregator(false, 10000), 10*time.Second)
 
 	// Send an incomplete JSON fragment — it stays in jsonAggregator
 	preprocessor.Process(newTestPreprocessorMessage(`{"key":`))

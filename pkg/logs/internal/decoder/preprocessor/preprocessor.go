@@ -13,62 +13,58 @@ import (
 )
 
 // Preprocessor owns all preprocessor stages and wires them in the correct order:
-// JSON aggregation (optional) → tokenization → labeling → aggregation → sampling
+// JSON aggregation → tokenization → labeling → aggregation → sampling → outputChan
 type Preprocessor struct {
-	jsonAggregator        *JSONAggregator
-	tokenizer             *Tokenizer
-	labeler               *Labeler
-	aggregator            Aggregator
-	sampler               Sampler
-	enableJSONAggregation bool
-	flushTimeout          time.Duration
-	flushTimer            *time.Timer
+	outputChan     chan *message.Message
+	jsonAggregator JSONAggregator
+	tokenizer      *Tokenizer
+	labeler        Labeler
+	aggregator     Aggregator
+	sampler        Sampler
+	flushTimeout   time.Duration
+	flushTimer     *time.Timer
 }
 
 // NewPreprocessor creates a new Preprocessor.
-// Pass nil for jsonAggregator when JSON aggregation is not needed.
-// Pass nil for labeler when labeling is not needed (regex and pass-through paths).
-func NewPreprocessor(aggregator Aggregator, tokenizer *Tokenizer, labeler *Labeler, sampler Sampler,
-	jsonAggregator *JSONAggregator, enableJSONAggregation bool, flushTimeout time.Duration) *Preprocessor {
+// Use NoopJSONAggregator for paths that don't aggregate JSON.
+// Use NoopLabeler for paths that don't use auto multiline detection (regex, pass-through).
+func NewPreprocessor(aggregator Aggregator, tokenizer *Tokenizer, labeler Labeler, sampler Sampler,
+	outputChan chan *message.Message, jsonAggregator JSONAggregator, flushTimeout time.Duration) *Preprocessor {
 	return &Preprocessor{
-		jsonAggregator:        jsonAggregator,
-		tokenizer:             tokenizer,
-		labeler:               labeler,
-		aggregator:            aggregator,
-		sampler:               sampler,
-		enableJSONAggregation: enableJSONAggregation,
-		flushTimeout:          flushTimeout,
+		outputChan:     outputChan,
+		jsonAggregator: jsonAggregator,
+		tokenizer:      tokenizer,
+		labeler:        labeler,
+		aggregator:     aggregator,
+		sampler:        sampler,
+		flushTimeout:   flushTimeout,
 	}
 }
 
-// Process processes a message through the preprocessor.
+// Process processes a message through all preprocessor stages in order.
+// Step 1: Aggregate JSON logs
 func (p *Preprocessor) Process(msg *message.Message) {
 	p.stopFlushTimerIfNeeded()
 	defer p.startFlushTimerIfNeeded()
 
-	if p.enableJSONAggregation {
-		for _, m := range p.jsonAggregator.Process(msg) {
-			p.processOne(m)
-		}
-	} else {
-		p.processOne(msg)
+	for _, m := range p.jsonAggregator.Process(msg) {
+		p.tokenizeLabelAndAggregate(m)
 	}
 }
 
-func (p *Preprocessor) processOne(msg *message.Message) {
-	// Step 1: Tokenize and label — only when a labeler is present (auto multiline paths).
-	// Tokens stay local; they are never stored on the message.
-	var label Label
-	if p.labeler != nil {
-		var tokens []Token
-		var tokenIndices []int
-		tokens, tokenIndices = p.tokenizer.Tokenize(msg.GetContent())
-		label = p.labeler.Label(msg.GetContent(), tokens, tokenIndices)
-	}
-	// Step 2: Aggregate (may buffer; returns zero or more completed messages)
+// Steps 2, 3, and 4: tokenize, label, and aggregate each log
+func (p *Preprocessor) tokenizeLabelAndAggregate(msg *message.Message) {
+	tokens, tokenIndices := p.tokenizer.Tokenize(msg.GetContent())
+	label := p.labeler.Label(msg.GetContent(), tokens, tokenIndices)
 	for _, completed := range p.aggregator.Process(msg, label) {
-		// Step 3: Sample/emit
-		p.sampler.Process(completed)
+		p.sample(completed)
+	}
+}
+
+// Step 5: Sample and emit the log
+func (p *Preprocessor) sample(msg *message.Message) {
+	for _, out := range p.sampler.Process(msg) {
+		p.outputChan <- out
 	}
 }
 
@@ -82,21 +78,20 @@ func (p *Preprocessor) FlushChan() <-chan time.Time {
 
 // Flush flushes all preprocessor stages in order.
 func (p *Preprocessor) Flush() {
-	if p.enableJSONAggregation && p.jsonAggregator != nil {
-		for _, m := range p.jsonAggregator.Flush() {
-			p.processOne(m)
-		}
+	for _, m := range p.jsonAggregator.Flush() {
+		p.tokenizeLabelAndAggregate(m)
 	}
 	for _, completed := range p.aggregator.Flush() {
-		p.sampler.Process(completed)
+		p.sample(completed)
 	}
-	p.sampler.Flush()
+	for _, out := range p.sampler.Flush() {
+		p.outputChan <- out
+	}
 	p.stopFlushTimerIfNeeded()
 }
 
 func (p *Preprocessor) isEmpty() bool {
-	jsonEmpty := p.jsonAggregator == nil || p.jsonAggregator.IsEmpty()
-	return p.aggregator.IsEmpty() && jsonEmpty
+	return p.aggregator.IsEmpty() && p.jsonAggregator.IsEmpty()
 }
 
 func (p *Preprocessor) stopFlushTimerIfNeeded() {

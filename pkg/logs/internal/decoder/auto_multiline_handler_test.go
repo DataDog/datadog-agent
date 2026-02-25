@@ -26,21 +26,23 @@ func newTestMessage(content string) *message.Message {
 // outputChan receives fully combined messages via a NoopSampler.
 func newCombiningHandler(outputChan chan *message.Message, maxContentSize int, flushTimeout time.Duration) LineHandler {
 	tailerInfo := status.NewInfoRegistry()
-	sampler := preprocessor.NewNoopSampler(outputChan)
+	tok := preprocessor.NewTokenizer(1000)
+	sampler := preprocessor.NewNoopSampler()
 	labeler := buildAutoMultilineLabeler(nil, nil, tailerInfo)
 	aggregator := preprocessor.NewCombiningAggregator(maxContentSize, false, false, tailerInfo)
 	jsonAgg := preprocessor.NewJSONAggregator(false, maxContentSize)
-	return newPreprocessorHandler(aggregator, preprocessor.NewTokenizer(1000), labeler, sampler, jsonAgg, true, flushTimeout)
+	return newPreprocessorHandler(aggregator, tok, labeler, sampler, outputChan, jsonAgg, flushTimeout)
 }
 
 // newDetectingHandler creates an auto multiline handler in detection-only mode.
 // outputChan receives individual messages (tagged when a multiline group is detected).
 func newDetectingHandler(outputChan chan *message.Message, _ int, flushTimeout time.Duration) LineHandler {
 	tailerInfo := status.NewInfoRegistry()
-	sampler := preprocessor.NewNoopSampler(outputChan)
+	tok := preprocessor.NewTokenizer(1000)
+	sampler := preprocessor.NewNoopSampler()
 	labeler := buildAutoMultilineLabeler(nil, nil, tailerInfo)
 	aggregator := preprocessor.NewDetectingAggregator(tailerInfo)
-	return newPreprocessorHandler(aggregator, preprocessor.NewTokenizer(1000), labeler, sampler, nil, false, flushTimeout)
+	return newPreprocessorHandler(aggregator, tok, labeler, sampler, outputChan, preprocessor.NewNoopJSONAggregator(), flushTimeout)
 }
 
 func TestAutoMultilineHandler_ManualFlush(t *testing.T) {
@@ -176,10 +178,11 @@ func TestAutoMultilineHandler_JSONAggregationDisabled(t *testing.T) {
 
 	// Create handler with JSON aggregation explicitly disabled
 	tailerInfo := status.NewInfoRegistry()
-	sampler := preprocessor.NewNoopSampler(outputChan)
+	tok := preprocessor.NewTokenizer(1000)
+	sampler := preprocessor.NewNoopSampler()
 	labeler := buildAutoMultilineLabeler(nil, nil, tailerInfo)
 	aggregator := preprocessor.NewCombiningAggregator(1000, false, false, tailerInfo)
-	handler := newPreprocessorHandler(aggregator, preprocessor.NewTokenizer(1000), labeler, sampler, nil, false, 10*time.Second)
+	handler := newPreprocessorHandler(aggregator, tok, labeler, sampler, outputChan, preprocessor.NewNoopJSONAggregator(), 10*time.Second)
 
 	// Process multi-part JSON
 	handler.process(newTestMessage(`{"key":`))

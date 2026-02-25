@@ -12,70 +12,57 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// mockTokenCountingHeuristic counts how many times it's called with non-nil tokens
-type mockTokenCountingHeuristic struct {
-	tokenizeCount int
+// mockTokenCapturingHeuristic captures the tokens it receives from the context.
+type mockTokenCapturingHeuristic struct {
+	capturedTokens  []Token
+	capturedIndices []int
 }
 
-func (m *mockTokenCountingHeuristic) ProcessAndContinue(context *messageContext) bool {
-	if len(context.tokens) > 0 {
-		m.tokenizeCount++
-	}
+func (m *mockTokenCapturingHeuristic) ProcessAndContinue(ctx *messageContext) bool {
+	m.capturedTokens = ctx.tokens
+	m.capturedIndices = ctx.tokenIndicies
 	return true
 }
 
-func TestLabelerReceivesTokensWhenProvided(t *testing.T) {
-	mockHeuristic := &mockTokenCountingHeuristic{}
-	labeler := NewLabeler([]Heuristic{mockHeuristic}, nil)
+// TestLabelerReceivesTokens verifies that heuristics receive the tokens forwarded
+// by the Preprocessor (i.e. the Labeler passes them through to the context).
+func TestLabelerReceivesTokens(t *testing.T) {
+	tok := NewTokenizer(1000)
+	content := []byte("2024-01-01 12:00:00 INFO Test message")
+	tokens, tokenIndices := tok.Tokenize(content)
+	require.NotEmpty(t, tokens, "Tokenizer should produce tokens for this content")
 
-	tokens := []Token{
-		D1 + 4, // "2024"
-		Dash,   // "-"
-		D1 + 2, // "01"
-		Dash,   // "-"
-		D1 + 2, // "01"
-		Space,  // " "
-	}
-	tokenIndices := []int{0, 4, 5, 7, 8, 10}
+	h := &mockTokenCapturingHeuristic{}
+	labeler := NewLabeler([]Heuristic{h}, nil)
+	labeler.Label(content, tokens, tokenIndices)
 
-	labeler.Label([]byte("2024-01-01 12:00:00 INFO Test message"), tokens, tokenIndices)
-
-	assert.Equal(t, 1, mockHeuristic.tokenizeCount, "Heuristic should have seen non-nil tokens")
+	assert.Equal(t, tokens, h.capturedTokens, "Heuristic should receive the pre-computed tokens")
+	assert.Equal(t, tokenIndices, h.capturedIndices, "Heuristic should receive the pre-computed token indices")
 }
 
-func TestLabelerWorksWithNilTokens(t *testing.T) {
-	mockHeuristic := &mockTokenCountingHeuristic{}
-	labeler := NewLabeler([]Heuristic{mockHeuristic}, nil)
+// TestLabelerEmptyContentProducesNoTokens verifies that when no tokens are passed in,
+// the heuristic sees nil/empty tokens.
+func TestLabelerEmptyContentProducesNoTokens(t *testing.T) {
+	h := &mockTokenCapturingHeuristic{}
+	labeler := NewLabeler([]Heuristic{h}, nil)
+	labeler.Label([]byte(""), nil, nil)
 
-	labeler.Label([]byte("some log message"), nil, nil)
-
-	assert.Equal(t, 0, mockHeuristic.tokenizeCount, "Heuristic should see no tokens when nil is passed")
+	assert.Empty(t, h.capturedTokens, "Heuristic should see no tokens when none are passed")
 }
 
-// mockCapturingHeuristic allows capturing context fields in tests.
-type mockCapturingHeuristic struct {
-	fn func(*messageContext) bool
-}
-
-func (m *mockCapturingHeuristic) ProcessAndContinue(ctx *messageContext) bool {
-	return m.fn(ctx)
-}
-
+// TestLabelConvertsTokensCorrectly verifies that the tokens passed to Label are
+// forwarded unchanged to the heuristic context.
 func TestLabelConvertsTokensCorrectly(t *testing.T) {
-	var capturedTokens []Token
-	wrapper := &mockCapturingHeuristic{fn: func(ctx *messageContext) bool {
-		capturedTokens = ctx.tokens
-		return true
-	}}
-	labeler := NewLabeler([]Heuristic{wrapper}, nil)
+	tok := NewTokenizer(1000)
+	content := []byte("2024-01-01")
+	tokens, tokenIndices := tok.Tokenize(content)
+	require.NotEmpty(t, tokens, "Should have produced tokens for a date-like string")
+	// "2024" is a 4-digit run, so the first token should be D4
+	assert.Equal(t, D4, tokens[0])
 
-	tokens := []Token{D1 + 4, Dash, Space}
-	tokenIndices := []int{0, 4, 5}
+	h := &mockTokenCapturingHeuristic{}
+	labeler := NewLabeler([]Heuristic{h}, nil)
+	labeler.Label(content, tokens, tokenIndices)
 
-	labeler.Label([]byte("test"), tokens, tokenIndices)
-
-	require.Len(t, capturedTokens, 3, "Should have 3 tokens")
-	assert.Equal(t, D1+4, capturedTokens[0])
-	assert.Equal(t, Dash, capturedTokens[1])
-	assert.Equal(t, Space, capturedTokens[2])
+	assert.Equal(t, tokens, h.capturedTokens)
 }

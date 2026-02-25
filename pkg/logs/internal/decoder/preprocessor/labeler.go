@@ -34,28 +34,33 @@ type Heuristic interface {
 	ProcessAndContinue(*messageContext) bool
 }
 
-// Labeler labels log messages based on a set of heuristics.
-// Each Heuristic operates on the output of the previous heuristic - mutating the message context.
-// A label is chosen when a herusitc signals the labeler to stop or when all Heuristics have been processed.
-type Labeler struct {
+// Labeler classifies a log line as startGroup, noAggregate, or aggregate.
+// Tokens and tokenIndices are pre-computed by the Preprocessor's Tokenizer step
+// and forwarded here so that heuristics can inspect them without re-tokenizing.
+type Labeler interface {
+	Label(content []byte, tokens []Token, tokenIndices []int) Label
+}
+
+// labeler is the real implementation: it chains a set of heuristics and returns
+// the label chosen by the first heuristic that signals it is done.
+type labeler struct {
 	lablerHeuristics    []Heuristic
 	analyticsHeuristics []Heuristic
 }
 
-// NewLabeler creates a new labeler with the given heuristics.
+// NewLabeler creates a new Labeler with the given heuristics.
 // lablerHeuristics are used to mutate the label of a log message.
 // analyticsHeuristics are used to analyze the log message and labeling process
 // for the status page and telemetry.
-func NewLabeler(lablerHeuristics []Heuristic, analyticsHeuristics []Heuristic) *Labeler {
-	return &Labeler{
+func NewLabeler(lablerHeuristics []Heuristic, analyticsHeuristics []Heuristic) Labeler {
+	return &labeler{
 		lablerHeuristics:    lablerHeuristics,
 		analyticsHeuristics: analyticsHeuristics,
 	}
 }
 
 // Label labels a log message using the provided content and pre-computed tokens.
-// tokens and tokenIndices may be nil if tokenization was skipped for this path.
-func (l *Labeler) Label(content []byte, tokens []Token, tokenIndices []int) Label {
+func (l *labeler) Label(content []byte, tokens []Token, tokenIndices []int) Label {
 	context := &messageContext{
 		rawMessage:      content,
 		tokens:          tokens,
@@ -74,6 +79,21 @@ func (l *Labeler) Label(content []byte, tokens []Token, tokenIndices []int) Labe
 		h.ProcessAndContinue(context)
 	}
 	return context.label
+}
+
+// NoopLabeler is a Labeler that always returns noAggregate without any processing.
+// Use this for pipeline paths that don't need auto-multiline detection
+// (e.g. pass-through, regex multiline).
+type NoopLabeler struct{}
+
+// NewNoopLabeler returns a new NoopLabeler.
+func NewNoopLabeler() *NoopLabeler {
+	return &NoopLabeler{}
+}
+
+// Label always returns noAggregate without inspecting content or tokens.
+func (l *NoopLabeler) Label(_ []byte, _ []Token, _ []int) Label {
+	return noAggregate
 }
 
 func labelToString(label Label) string {
