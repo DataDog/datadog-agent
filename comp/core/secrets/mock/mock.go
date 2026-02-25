@@ -19,9 +19,10 @@ import (
 
 // Mock is a mock of the secret Component useful for testing
 type Mock struct {
-	secretsCache map[string]string
-	callbacks    []secrets.SecretChangeCallback
-	refreshHook  func(bool) (string, error)
+	secretsCache   map[string]string
+	callbacks      []secrets.SecretChangeCallback
+	refreshHook    func() bool
+	refreshNowHook func() (string, error)
 }
 
 var _ secrets.Component = (*Mock)(nil)
@@ -89,14 +90,27 @@ func (m *Mock) SubscribeToChanges(callback secrets.SecretChangeCallback) {
 }
 
 // SetRefreshHook sets a hook function that will be called when Refresh is invoked
-func (m *Mock) SetRefreshHook(hook func(bool) (string, error)) {
+func (m *Mock) SetRefreshHook(hook func() bool) {
 	m.refreshHook = hook
 }
 
-// Refresh will resolve secret handles again, notifying any subscribers of changed values
-func (m *Mock) Refresh(updateNow bool) (string, error) {
+// SetRefreshNowHook sets a hook function that will be called when RefreshNow is invoked
+func (m *Mock) SetRefreshNowHook(hook func() (string, error)) {
+	m.refreshNowHook = hook
+}
+
+// Refresh schedules an asynchronous secret refresh
+func (m *Mock) Refresh() bool {
 	if m.refreshHook != nil {
-		return m.refreshHook(updateNow)
+		return m.refreshHook()
+	}
+	return false
+}
+
+// RefreshNow performs an immediate blocking secret refresh
+func (m *Mock) RefreshNow() (string, error) {
+	if m.refreshNowHook != nil {
+		return m.refreshNowHook()
 	}
 	return "", nil
 }
