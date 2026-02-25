@@ -19,6 +19,7 @@ python_externals = {
 }
 
 VERSION_STR = "3.13"
+VERSION_STR_FLAT = VERSION_STR.replace(".", "")
 
 # These rules will make it easier to get a reference to their folder via $(location)
 # and they add the version in the folder name (as some of the vcxproj stuff relies on that)
@@ -86,7 +87,7 @@ run_binary(
         "build/{}".format(file) for file in [
             "python.exe",
             "python3.dll",
-            "python313.dll",
+            "python{}.dll".format(VERSION_STR_FLAT),
             "pythonw.exe",
             "vcruntime140.dll",
             "vcruntime140_1.dll",
