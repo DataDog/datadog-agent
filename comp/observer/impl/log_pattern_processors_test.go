@@ -116,7 +116,8 @@ func TestWatchdogLogAnomalyDetector(t *testing.T) {
 	log_ad.PreprocessLen = 2
 	log_ad.EvalLen = 1
 	log_ad.BaselineLen = 1
-	// log_ad.AlertCooldown = 0 * time.Second
+	// Send only one alert per group
+	log_ad.AlertCooldown = 999 * time.Hour
 
 	// Init processor (do a shallow init to use the custom pipeline)
 	processor := &PatternLogProcessor{ClustererPipeline: pipeline, AnomalyDetectors: []LogAnomalyDetector{log_ad}}
@@ -159,71 +160,3 @@ func TestWatchdogLogAnomalyDetector(t *testing.T) {
 		fmt.Printf("Alert: %s\n", alert.Describe())
 	}
 }
-
-// func TestWatchdogLogAnomalyDetector(t *testing.T) {
-// 	observationsChannel := make(chan observation, 1024)
-// 	logs := []*message.Message{
-// 		message.NewMessage([]byte("this is my test 1"), nil, "info", time.Now().Unix()),
-// 		message.NewMessage([]byte("http 200 on /api/v1/users"), nil, "info", time.Now().Unix()),
-// 		message.NewMessage([]byte("this is my test 2"), nil, "info", time.Now().Unix()),
-// 		// We use nil to simulate a time step
-// 		nil,
-// 		message.NewMessage([]byte("this is my test 0"), nil, "info", time.Now().Unix()),
-// 		nil,
-// 		message.NewMessage([]byte("this is my test 0"), nil, "info", time.Now().Unix()),
-// 		nil,
-// 		message.NewMessage([]byte("this is my test 0"), nil, "info", time.Now().Unix()),
-// 		nil,
-// 		message.NewMessage([]byte("this is my test 0"), nil, "info", time.Now().Unix()),
-// 		nil,
-// 		message.NewMessage([]byte("this is my test 0"), nil, "info", time.Now().Unix()),
-// 		message.NewMessage([]byte("http 200 on /api/v1/users"), nil, "info", time.Now().Unix()),
-// 		message.NewMessage([]byte("http 404 on /api/v1/users"), nil, "info", time.Now().Unix()),
-// 		nil,
-// 		message.NewMessage([]byte("http 404 on /api/v1/users"), nil, "info", time.Now().Unix()),
-// 		message.NewMessage([]byte("this is my test 1"), nil, "info", time.Now().Unix()),
-// 		message.NewMessage([]byte("this is my test 1"), nil, "info", time.Now().Unix()),
-// 		nil,
-// 		message.NewMessage([]byte("http 200 on /api/v1/users"), nil, "info", time.Now().Unix()),
-// 		message.NewMessage([]byte("http 404 on /api/v1/users"), nil, "info", time.Now().Unix()),
-// 		message.NewMessage([]byte("http 404 on /api/v1/users"), nil, "info", time.Now().Unix()),
-// 		message.NewMessage([]byte("http 404 on /api/v1/users"), nil, "info", time.Now().Unix()),
-// 		message.NewMessage([]byte("http 404 on /api/v1/users"), nil, "info", time.Now().Unix()),
-// 		message.NewMessage([]byte("http 404 on /api/v1/users"), nil, "info", time.Now().Unix()),
-// 		message.NewMessage([]byte("http 404 on /api/v1/users"), nil, "info", time.Now().Unix()),
-// 		message.NewMessage([]byte("http 404 on /api/v1/users"), nil, "info", time.Now().Unix()),
-// 		message.NewMessage([]byte("this is my test 1"), nil, "info", time.Now().Unix()),
-// 		message.NewMessage([]byte("http 404 on /api/v1/users"), nil, "info", time.Now().Unix()),
-// 		message.NewMessage([]byte("http 404 on /api/v1/users"), nil, "info", time.Now().Unix()),
-// 		nil,
-// 		message.NewMessage([]byte("http 404 on /api/v1/users"), nil, "info", time.Now().Unix()),
-// 		message.NewMessage([]byte("http 200 on /api/v1/users"), nil, "info", time.Now().Unix()),
-// 		message.NewMessage([]byte("http 404 on /api/v1/users"), nil, "info", time.Now().Unix()),
-// 		message.NewMessage([]byte("this is my test 1"), nil, "info", time.Now().Unix()),
-// 		message.NewMessage([]byte("this is my test 1"), nil, "info", time.Now().Unix()),
-// 		nil,
-// 		message.NewMessage([]byte("this is my test 1"), nil, "info", time.Now().Unix()),
-// 	}
-
-// 	const nCpus = 4
-// 	pipelineChannel := make(chan *patterns.MultiThreadResult[*LogADTags], 1024)
-// 	pipeline := patterns.NewMultiThreadPipeline[*LogADTags](nCpus, pipelineChannel, false)
-// 	resultChannel := make(chan *observer.LogProcessorResult, 1024)
-// 	log_ad := NewWatchdogLogAnomalyDetector(resultChannel, observationsChannel)
-
-// 	// TODO A: How to manage time updates? -> We need to do it for the replay anyway
-// 	for _, log := range logs {
-// 		tags := ParseTags(log.GetTags())
-// 		pipeline.Process(&patterns.TokenizerInput[*LogADTags]{Message: string(log.GetContent()), UserData: &tags})
-// 		if log == nil {
-// 			// TODO: Don't do that
-// 			time.Sleep(100 * time.Millisecond)
-// 			log_ad.Snapshot()
-// 		}
-// 	}
-
-// 	// TODO: Process results
-// 	for result := range pipelineChannel {
-// 		fmt.Printf("Result: %+v\n", result)
-// 	}
-// }
