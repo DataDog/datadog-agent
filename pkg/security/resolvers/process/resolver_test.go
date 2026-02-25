@@ -900,6 +900,187 @@ func TestIsExecExecSnapshot(t *testing.T) {
 	assert.True(t, child3.ProcessCacheEntry.IsExec)
 }
 
+func TestTryResolveMissingAncestor(t *testing.T) {
+	t.Run("ppid-known-parent-in-cache", func(t *testing.T) {
+		resolver, err := newResolver()
+		if err != nil {
+			t.Fatal()
+		}
+
+		// Build: init(pid:1) -> parent(pid:3), child(pid:4, ppid:3)
+		// Insert child directly into the cache without linking its Ancestor,
+		// simulating a broken lineage (e.g. the parent wasn't in cache when
+		// the child was first inserted).
+		//
+		// init(pid:1)
+		//     |
+		// parent(pid:3)    child(pid:4, ppid:3)  [Ancestor=nil]
+		init1 := newFakeForkEvent(0, 1, 100, resolver)
+		parent := newFakeForkEvent(1, 3, 100, resolver)
+		child := newFakeForkEvent(3, 4, 100, resolver)
+
+		resolver.AddForkEntry(init1, model.CGroupContext{}, nil)
+		resolver.AddForkEntry(parent, model.CGroupContext{}, nil)
+
+		resolver.Lock()
+		resolver.entryCache[child.ProcessCacheEntry.Pid] = child.ProcessCacheEntry
+		resolver.Unlock()
+
+		assert.Nil(t, child.ProcessCacheEntry.Ancestor)
+		assert.Equal(t, uint32(3), child.ProcessCacheEntry.PPid)
+
+		resolver.TryReparentFromProcfs(child.ProcessCacheEntry, metrics.ReparentCallpathEventSerialization)
+
+		// init(pid:1)
+		//     |
+		// parent(pid:3)
+		//     |
+		// child(pid:4)
+		assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
+		assert.Equal(t, int64(1), resolver.reparentSuccessStats[metrics.ReparentCallpathEventSerialization].Load())
+		assertChildrenConsistency(t, resolver)
+	})
+
+	t.Run("ppid-zero-resolved-from-procfs", func(t *testing.T) {
+		resolver, err := newResolver()
+		if err != nil {
+			t.Fatal()
+		}
+
+		// Use real PIDs so that procfs can reveal the actual ppid.
+		realPid := uint32(os.Getpid())
+		realPPid := uint32(os.Getppid())
+
+		// Build: init(pid:1) -> parent(pid:realPPid)
+		// Insert child(pid:realPid, ppid:0) with no Ancestor.
+		// TryReparentFromProcfs should read /proc/realPid/status to discover
+		// realPPid, find parent in the cache, and link the Ancestor.
+		//
+		// init(pid:1)
+		//     |
+		// parent(pid:realPPid)    child(pid:realPid, ppid:0)  [Ancestor=nil]
+		init1 := newFakeForkEvent(0, 1, 100, resolver)
+		parent := newFakeForkEvent(1, int(realPPid), 100, resolver)
+		child := newFakeForkEvent(0, int(realPid), 100, resolver)
+
+		resolver.AddForkEntry(init1, model.CGroupContext{}, nil)
+		resolver.AddForkEntry(parent, model.CGroupContext{}, nil)
+
+		resolver.Lock()
+		resolver.entryCache[child.ProcessCacheEntry.Pid] = child.ProcessCacheEntry
+		resolver.Unlock()
+
+		assert.Nil(t, child.ProcessCacheEntry.Ancestor)
+		assert.Equal(t, uint32(0), child.ProcessCacheEntry.PPid)
+
+		resolver.TryReparentFromProcfs(child.ProcessCacheEntry, metrics.ReparentCallpathEventSerialization)
+
+		// init(pid:1)
+		//     |
+		// parent(pid:realPPid)
+		//     |
+		// child(pid:realPid)
+		assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
+		assert.Equal(t, int64(1), resolver.reparentSuccessStats[metrics.ReparentCallpathEventSerialization].Load())
+		assertChildrenConsistency(t, resolver)
+	})
+
+	t.Run("ppid-zero-procfs-fails", func(t *testing.T) {
+		resolver, err := newResolver()
+		if err != nil {
+			t.Fatal()
+		}
+
+		// Use a fake PID that does not exist in procfs. With ppid=0 the
+		// resolver tries to read /proc/<pid>/status which will fail, so
+		// the Ancestor should remain nil and reparentFailed should be
+		// incremented.
+		child := newFakeForkEvent(0, 99998, 100, resolver)
+
+		resolver.Lock()
+		resolver.entryCache[child.ProcessCacheEntry.Pid] = child.ProcessCacheEntry
+		resolver.Unlock()
+
+		assert.Nil(t, child.ProcessCacheEntry.Ancestor)
+		assert.Equal(t, uint32(0), child.ProcessCacheEntry.PPid)
+
+		resolver.TryReparentFromProcfs(child.ProcessCacheEntry, metrics.ReparentCallpathEventSerialization)
+
+		assert.Nil(t, child.ProcessCacheEntry.Ancestor)
+		assert.Equal(t, int64(1), resolver.reparentFailedStats[metrics.ReparentCallpathEventSerialization].Load())
+	})
+}
+
+func TestTryReparentMaxForkDepth(t *testing.T) {
+	resolver, err := newResolver()
+	if err != nil {
+		t.Fatal()
+	}
+
+	// Build a chain that exceeds tryReparentMaxForkDepth. The chain alternates
+	// alive/exited entries so that each (alive child → exited parent) pair
+	// walking up from the entry increments forkDepth by 1.
+	//
+	// entry(alive) → exited → alive → exited → ... → init(1)
+	//
+	// We create tryReparentMaxForkDepth+5 such pairs and break the Ancestor
+	// link of an entry well beyond the limit. TryReparentFromProcfs should
+	// stop before reaching it.
+	numPairs := tryReparentMaxForkDepth + 5
+	chainLen := 2*numPairs + 1
+
+	// Use PIDs well above pid_max to avoid collisions with real processes.
+	basePid := 5_000_000
+
+	init1 := newFakeForkEvent(0, 1, 100, resolver)
+	resolver.AddForkEntry(init1, model.CGroupContext{}, nil)
+
+	first := newFakeForkEvent(1, basePid, 100, resolver)
+	resolver.AddForkEntry(first, model.CGroupContext{}, nil)
+
+	allEntries := []*model.ProcessCacheEntry{first.ProcessCacheEntry}
+	prevPid := basePid
+	for i := 1; i < chainLen; i++ {
+		pid := basePid + i
+		e := newFakeForkEvent(prevPid, pid, 100, resolver)
+		resolver.AddForkEntry(e, model.CGroupContext{}, nil)
+		allEntries = append(allEntries, e.ProcessCacheEntry)
+		prevPid = pid
+	}
+
+	entryIdx := len(allEntries) - 1
+	entry := allEntries[entryIdx]
+
+	// Mark entries at odd distance from entry as exited so the walk from
+	// entry encounters the pattern: alive, exited, alive, exited, ...
+	for i := 0; i < len(allEntries); i++ {
+		dist := entryIdx - i
+		if dist > 0 && dist%2 == 1 {
+			allEntries[i].ExitTime = time.Now()
+		}
+	}
+
+	// Break the Ancestor link of an entry beyond the depth limit.
+	// forkDepth reaches tryReparentMaxForkDepth+1 at distance 2*(tryReparentMaxForkDepth+1)-1
+	// from entry, so an entry at distance 2*(tryReparentMaxForkDepth+3)+2 is
+	// guaranteed to be unreachable.
+	beyondDist := 2*(tryReparentMaxForkDepth+3) + 2
+	beyondIdx := entryIdx - beyondDist
+	assert.True(t, beyondIdx >= 0, "chain not long enough")
+
+	allEntries[beyondIdx].Ancestor = nil
+
+	resolver.TryReparentFromProcfs(entry, metrics.ReparentCallpathEventSerialization)
+
+	// The broken ancestor link beyond the depth limit should NOT be resolved
+	// because the walk stops before reaching it.
+	assert.Nil(t, allEntries[beyondIdx].Ancestor,
+		"ancestor link beyond tryReparentMaxForkDepth should not be resolved")
+	assert.Equal(t, int64(0),
+		resolver.reparentSuccessStats[metrics.ReparentCallpathEventSerialization].Load(),
+		"no missing-ancestor resolution should have occurred")
+}
+
 func TestSubreaperReparenting(t *testing.T) {
 	resolver, err := newResolver()
 	if err != nil {

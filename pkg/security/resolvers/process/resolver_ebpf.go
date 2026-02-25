@@ -138,12 +138,14 @@ func (p *EBPFResolver) resolveParentFromProcfs(entry *model.ProcessCacheEntry) {
 	}
 }
 
-// TryReparentFromProcfs walks the ancestor chain of the given entry and looks
-// for exited ancestors whose children may not have been reparented yet. For
-// each such ancestor it reads the children's current ppid from procfs and
-// updates the cache links. If procfs hasn't been updated yet (race with
-// forget_original_parent), the children stay linked to their dead parent which
-// is still valid for field resolution (Go GC keeps the object alive).
+// TryReparentFromProcfs walks the ancestor chain of the given entry up to
+// pid 1 and looks for exited ancestors whose children may not have been
+// reparented yet. For each such ancestor it reads the children's current ppid
+// from procfs and updates the cache links. If procfs hasn't been updated yet
+// (race with forget_original_parent), the children stay linked to their dead
+// parent which is still valid for field resolution (Go GC keeps the object
+// alive). When a broken ancestor link is encountered (Ancestor is nil, PPid
+// unknown), the parent is resolved from procfs so the walk can continue.
 // Only ancestors within tryReparentMaxForkDepth fork levels are checked
 // (exec transitions do not count toward the depth).
 func (p *EBPFResolver) TryReparentFromProcfs(entry *model.ProcessCacheEntry, callpathTag string) {
@@ -152,22 +154,58 @@ func (p *EBPFResolver) TryReparentFromProcfs(entry *model.ProcessCacheEntry, cal
 
 	var prev *model.ProcessCacheEntry
 	forkDepth := 0
-	for pc := entry; pc != nil; prev, pc = pc, pc.Ancestor {
-		if pc.ExitTime.IsZero() || prev == nil || !prev.ExitTime.IsZero() {
-			continue
+	for pc := entry; pc != nil && pc.Pid != 1; prev, pc = pc, pc.Ancestor {
+		if prev != nil && pc.Pid != prev.Pid {
+			forkDepth++
+
+			if !pc.ExitTime.IsZero() {
+				p.tryReparentChildrenFromProcfs(pc, callpathTag)
+			}
 		}
-		// Skip fork→exec transitions: when prev and pc share the same
-		// PID, pc is the fork entry replaced by an exec (prev). Its
-		// ExitTime is set by Exec() but it is not a real process death.
-		if pc.Pid == prev.Pid {
-			continue
+
+		if pc.Ancestor == nil {
+			if p.tryResolveMissingAncestor(pc, callpathTag) == nil {
+				break
+			}
 		}
+
 		if forkDepth > tryReparentMaxForkDepth {
 			break
 		}
-		forkDepth++
-		p.tryReparentChildrenFromProcfs(pc, callpathTag)
 	}
+}
+
+// tryResolveMissingAncestor attempts to fill a broken ancestor link by
+// resolving the parent from the cache or procfs. Returns the resolved parent
+// or nil if resolution failed.
+// Must be called with the lock held.
+func (p *EBPFResolver) tryResolveMissingAncestor(pc *model.ProcessCacheEntry, callpathTag string) *model.ProcessCacheEntry {
+	ppid := pc.PPid
+	if ppid == 0 {
+		proc, err := process.NewProcess(int32(pc.Pid))
+		if err != nil {
+			p.reparentFailedStats[callpathTag].Inc()
+			return nil
+		}
+		newPPid, err := proc.Ppid()
+		if err != nil || newPPid <= 0 {
+			p.reparentFailedStats[callpathTag].Inc()
+			return nil
+		}
+		ppid = uint32(newPPid)
+	}
+
+	parent := p.entryCache[ppid]
+	if parent == nil {
+		parent = p.resolveFromProcfs(ppid, 0, procResolveMaxDepth, nil)
+	}
+	if parent != nil {
+		pc.Reparent(parent)
+		p.reparentSuccessStats[callpathTag].Inc()
+	} else {
+		p.reparentFailedStats[callpathTag].Inc()
+	}
+	return parent
 }
 
 // tryReparentChildrenFromProcfs iterates over the children of an exited process
