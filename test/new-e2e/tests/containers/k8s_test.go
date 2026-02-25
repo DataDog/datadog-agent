@@ -149,15 +149,12 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 				return
 			}
 
-			windowsPods := &corev1.PodList{}
-			if suite.Env().Agent.WindowsNodeAgent.LabelSelectors != nil {
-				windowsPods, err = suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-					LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.WindowsNodeAgent.LabelSelectors["app"]).String(),
-				})
-				// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-				if !assert.NoErrorf(c, err, "Failed to list Windows datadog agent pods") {
-					return
-				}
+			windowsPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+				LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.WindowsNodeAgent.LabelSelectors["app"]).String(),
+			})
+			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NoErrorf(c, err, "Failed to list Windows datadog agent pods") {
+				return
 			}
 
 			clusterAgentPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
@@ -190,8 +187,7 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 			assert.NotEmpty(c, clusterChecksPods.Items)
 			assert.Len(c, dogstatsdPods.Items, len(linuxNodes.Items))
 
-			podLists := []*corev1.PodList{linuxPods, windowsPods, clusterAgentPods, clusterChecksPods, dogstatsdPods}
-			for _, podList := range podLists {
+			for _, podList := range []*corev1.PodList{linuxPods, windowsPods, clusterAgentPods, clusterChecksPods, dogstatsdPods} {
 				for _, pod := range podList.Items {
 					for _, containerStatus := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
 						assert.Truef(c, containerStatus.Ready, "Container %s of pod %s isn’t ready", containerStatus.Name, pod.Name)
@@ -240,36 +236,32 @@ func (suite *k8sSuite) TestVersion() {
 	ctx := context.Background()
 	versionExtractor := regexp.MustCompile(`Commit: ([[:xdigit:]]+)`)
 
-	type versionTestCase struct {
+	for _, tt := range []struct {
 		podType     string
 		appSelector string
 		container   string
-	}
-	testCases := []versionTestCase{
+	}{
 		{
 			"Linux agent",
 			suite.Env().Agent.LinuxNodeAgent.LabelSelectors["app"],
 			"agent",
 		},
-	}
-	if suite.Env().Agent.WindowsNodeAgent.LabelSelectors != nil {
-		testCases = append(testCases, versionTestCase{
+		{
 			"Windows agent",
 			suite.Env().Agent.WindowsNodeAgent.LabelSelectors["app"],
 			"agent",
-		})
-	}
-	testCases = append(testCases, versionTestCase{
-		"cluster agent",
-		suite.Env().Agent.LinuxClusterAgent.LabelSelectors["app"],
-		"cluster-agent",
-	}, versionTestCase{
-		"cluster checks",
-		suite.Env().Agent.LinuxClusterChecks.LabelSelectors["app"],
-		"agent",
-	})
-
-	for _, tt := range testCases {
+		},
+		{
+			"cluster agent",
+			suite.Env().Agent.LinuxClusterAgent.LabelSelectors["app"],
+			"cluster-agent",
+		},
+		{
+			"cluster checks",
+			suite.Env().Agent.LinuxClusterChecks.LabelSelectors["app"],
+			"agent",
+		},
+	} {
 		suite.Run(tt.podType+" pods are running the good version", func() {
 			linuxPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("app", tt.appSelector).String(),
