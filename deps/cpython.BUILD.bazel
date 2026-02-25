@@ -95,7 +95,7 @@ run_binary(
         ]
     ],
     out_dirs = [
-        "build/{}".format(file) for file in [
+        "build/{}".format(dir) for dir in [
             "DLLs",
             "include",
             "Lib",
