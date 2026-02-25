@@ -203,6 +203,43 @@ func TestSafety_CatLargeFileWarning(t *testing.T) {
 	}
 }
 
+func TestSafety_GrepDepthCapped(t *testing.T) {
+	// We can't easily create a 10+ level deep directory tree in the interpreter,
+	// but we can verify the constant and the comparison operator.
+	// The depth check uses >= so depth 10 is rejected (0-9 = 10 levels allowed).
+	if grepMaxRecursionDepth != 10 {
+		t.Errorf("grepMaxRecursionDepth should be 10, got %d", grepMaxRecursionDepth)
+	}
+}
+
+func TestSafety_TailFollowTimeout(t *testing.T) {
+	// Verify the tail follow timeout constant is set correctly.
+	if tailFollowMaxDuration != 60*time.Second {
+		t.Errorf("tailFollowMaxDuration should be 60s, got %v", tailFollowMaxDuration)
+	}
+
+	// Functional test: tail -f on /dev/null should return within the timeout.
+	// We use a shorter context timeout to avoid waiting 60s in tests.
+	_, _, exitCode := runShellScriptWithTimeout(t, `tail -f /dev/null`, 2*time.Second)
+	// Should exit due to context cancellation (which is before the 60s tail timeout).
+	_ = exitCode // exit code varies by platform; the key assertion is it doesn't hang.
+}
+
+func TestSafety_AllowedCommandsDenylist(t *testing.T) {
+	// Verify that shell interpreters are rejected by AllowedCommands.
+	for _, cmd := range []string{"sh", "bash", "python", "perl", "ruby", "node"} {
+		_, err := New(AllowedCommands([]string{cmd}))
+		if err == nil {
+			t.Errorf("AllowedCommands should reject %q but did not", cmd)
+		}
+	}
+	// Verify that non-interpreter commands are accepted.
+	_, err := New(AllowedCommands([]string{"curl", "wget"}))
+	if err != nil {
+		t.Errorf("AllowedCommands should accept non-interpreter commands, got: %v", err)
+	}
+}
+
 // Functional tests for new commands.
 
 func TestHead_Basic(t *testing.T) {

@@ -1,5 +1,7 @@
-// Copyright (c) 2017, Daniel Martí <mvdan@mvdan.cc>
-// See LICENSE for licensing information
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
 
 package interp
 
@@ -10,34 +12,34 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
 const grepMaxRecursionDepth = 10
 
 // builtinGrep implements the POSIX grep command.
-// Options: -i, -v, -c, -l, -L, -n, -H, -h, -r/-R, -e, -w, -x, -q, -s, -m, -E, -F.
 // Safety: -r/-R recursion is capped at depth 10.
 func (r *Runner) builtinGrep(ctx context.Context, args []string) exitStatus {
 	var exit exitStatus
 
 	var (
-		ignoreCase  bool
-		invertMatch bool
-		countOnly   bool
-		filesMatch  bool   // -l
-		filesNoMatch bool  // -L
-		lineNumbers bool
+		ignoreCase   bool
+		invertMatch  bool
+		countOnly    bool
+		filesMatch   bool // -l
+		filesNoMatch bool // -L
+		lineNumbers  bool
 		forceFilename bool // -H
-		noFilename   bool  // -h
-		recursive   bool
-		wordMatch   bool
-		lineMatch   bool // -x
-		quiet       bool
-		suppress    bool // -s: suppress error messages
-		maxCount    int
-		fixedStr    bool // -F
-		patterns    []string
+		noFilename    bool // -h
+		recursive    bool
+		wordMatch    bool
+		lineMatch    bool // -x
+		quiet        bool
+		suppress     bool // -s
+		maxCount     int
+		fixedStr     bool // -F
+		patterns     []string
 	)
 
 	fp := flagParser{remaining: args}
@@ -86,7 +88,7 @@ func (r *Runner) builtinGrep(ctx context.Context, args []string) exitStatus {
 				exit.code = 2
 				return exit
 			}
-			n, err := atoi64(v)
+			n, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
 			if err != nil || n <= 0 {
 				r.errf("grep: invalid max count: %q\n", v)
 				exit.code = 2
@@ -106,7 +108,6 @@ func (r *Runner) builtinGrep(ctx context.Context, args []string) exitStatus {
 
 	remaining := fp.args()
 
-	// If no -e patterns, first remaining arg is the pattern.
 	if len(patterns) == 0 {
 		if len(remaining) == 0 {
 			r.errf("usage: grep [OPTION]... PATTERN [FILE]...\n")
@@ -117,7 +118,6 @@ func (r *Runner) builtinGrep(ctx context.Context, args []string) exitStatus {
 		remaining = remaining[1:]
 	}
 
-	// Compile patterns.
 	var regexps []*regexp.Regexp
 	for _, pat := range patterns {
 		if fixedStr {
@@ -147,7 +147,6 @@ func (r *Runner) builtinGrep(ctx context.Context, args []string) exitStatus {
 	anyMatch := false
 
 	if len(paths) == 0 {
-		// Read from stdin.
 		if r.stdin == nil {
 			exit.code = 1
 			return exit
@@ -188,12 +187,11 @@ func (r *Runner) builtinGrep(ctx context.Context, args []string) exitStatus {
 				exit.code = 2
 				continue
 			}
-			matched := grepStream(r, f, func() string {
-				if showFilename {
-					return p
-				}
-				return ""
-			}(), regexps, invertMatch, countOnly, filesMatch, filesNoMatch,
+			fname := ""
+			if showFilename {
+				fname = p
+			}
+			matched := grepStream(r, f, fname, regexps, invertMatch, countOnly, filesMatch, filesNoMatch,
 				lineNumbers, showFilename, quiet, maxCount)
 			f.Close()
 			if matched {
@@ -208,11 +206,10 @@ func (r *Runner) builtinGrep(ctx context.Context, args []string) exitStatus {
 	return exit
 }
 
-// grepRecursive walks a directory for grep, with a depth cap.
 func grepRecursive(ctx context.Context, r *Runner, displayPath, absPath string, depth int,
 	regexps []*regexp.Regexp, invertMatch, countOnly, filesMatch, filesNoMatch, lineNumbers, showFilename, quiet, suppress bool, maxCount int) bool {
 
-	if depth > grepMaxRecursionDepth {
+	if depth >= grepMaxRecursionDepth {
 		r.errf("grep: warning: recursive search depth exceeded at '%s' (max %d)\n", displayPath, grepMaxRecursionDepth)
 		return false
 	}
@@ -261,12 +258,11 @@ func grepRecursive(ctx context.Context, r *Runner, displayPath, absPath string, 
 		if err != nil {
 			continue
 		}
-		if grepStream(r, f, func() string {
-			if showFilename {
-				return entryDisplay
-			}
-			return ""
-		}(), regexps, invertMatch, countOnly, filesMatch, filesNoMatch,
+		fname := ""
+		if showFilename {
+			fname = entryDisplay
+		}
+		if grepStream(r, f, fname, regexps, invertMatch, countOnly, filesMatch, filesNoMatch,
 			lineNumbers, showFilename, quiet, maxCount) {
 			anyMatch = true
 		}
@@ -276,7 +272,6 @@ func grepRecursive(ctx context.Context, r *Runner, displayPath, absPath string, 
 	return anyMatch
 }
 
-// grepStream searches a single stream and outputs matches.
 func grepStream(r *Runner, reader io.Reader, filename string,
 	regexps []*regexp.Regexp, invertMatch, countOnly, filesMatch, filesNoMatch, lineNumbers, showFilename, quiet bool, maxCount int) bool {
 
@@ -323,7 +318,6 @@ func grepStream(r *Runner, reader io.Reader, filename string,
 				prefix = filename + ":"
 			}
 			if lineNumbers {
-				prefix += strings.Repeat("", 0) // ensure prefix is built
 				r.outf("%s%d:%s\n", prefix, lineNo, line)
 			} else {
 				r.outf("%s%s\n", prefix, line)
@@ -337,7 +331,7 @@ func grepStream(r *Runner, reader io.Reader, filename string,
 
 	if filesNoMatch && matchCount == 0 && filename != "" {
 		r.outf("%s\n", filename)
-		return false // no match (but we reported the file)
+		return false
 	}
 
 	if countOnly {
@@ -349,30 +343,4 @@ func grepStream(r *Runner, reader io.Reader, filename string,
 	}
 
 	return matchCount > 0
-}
-
-// atoi64 parses a string as int64.
-func atoi64(s string) (int64, error) {
-	s = strings.TrimSpace(s)
-	n, err := parseInt64(s)
-	return n, err
-}
-
-func parseInt64(s string) (int64, error) {
-	var n int64
-	for _, c := range s {
-		if c < '0' || c > '9' {
-			return 0, &strconvError{s}
-		}
-		n = n*10 + int64(c-'0')
-	}
-	return n, nil
-}
-
-type strconvError struct {
-	s string
-}
-
-func (e *strconvError) Error() string {
-	return "invalid number: " + e.s
 }

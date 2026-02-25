@@ -1,5 +1,7 @@
-// Copyright (c) 2017, Daniel Martí <mvdan@mvdan.cc>
-// See LICENSE for licensing information
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
 
 package interp
 
@@ -13,7 +15,6 @@ import (
 
 // builtinWc implements the POSIX wc command.
 // Options: -l (lines), -w (words), -c (bytes), -m (chars).
-// Default (no flags): lines + words + bytes.
 func (r *Runner) builtinWc(ctx context.Context, args []string) exitStatus {
 	var exit exitStatus
 
@@ -42,7 +43,6 @@ func (r *Runner) builtinWc(ctx context.Context, args []string) exitStatus {
 		}
 	}
 
-	// Default: show all three classic counts.
 	if !showLines && !showWords && !showBytes && !showChars {
 		showLines = true
 		showWords = true
@@ -124,13 +124,12 @@ func (r *Runner) builtinWc(ctx context.Context, args []string) exitStatus {
 	return exit
 }
 
-// wcCount counts lines, words, bytes, and characters in a reader.
 func wcCount(reader io.Reader) (lines, words, bytes, chars int64) {
 	br := bufio.NewReader(reader)
 	inWord := false
+	buf := make([]byte, 4096)
 
 	for {
-		buf := make([]byte, 4096)
 		n, err := br.Read(buf)
 		if n > 0 {
 			chunk := buf[:n]

@@ -1,5 +1,7 @@
-// Copyright (c) 2017, Daniel Martí <mvdan@mvdan.cc>
-// See LICENSE for licensing information
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
 
 package interp
 
@@ -14,18 +16,18 @@ import (
 
 // builtinUniq implements the POSIX uniq command.
 // Options: -c, -d, -u, -i, -f N, -s N, -w N.
-// Safety: Output file (second positional arg) is rejected.
+// Safety: Output file (second positional arg) is rejected — write operations are not permitted.
 func (r *Runner) builtinUniq(ctx context.Context, args []string) exitStatus {
 	var exit exitStatus
 
 	var (
-		showCount      bool // -c
-		dupsOnly       bool // -d
-		uniqOnly       bool // -u
-		ignoreCase     bool // -i
-		skipFields     int  // -f N
-		skipChars      int  // -s N
-		compareWidth   int  // -w N (0 = full width)
+		showCount    bool // -c
+		dupsOnly     bool // -d
+		uniqOnly     bool // -u
+		ignoreCase   bool // -i
+		skipFields   int  // -f N
+		skipChars    int  // -s N
+		compareWidth int  // -w N (0 = full width)
 	)
 
 	fp := flagParser{remaining: args}
@@ -90,7 +92,7 @@ func (r *Runner) builtinUniq(ctx context.Context, args []string) exitStatus {
 
 	positional := fp.args()
 	if len(positional) > 1 {
-		r.errf("uniq: output file is not available in safe shell\n")
+		r.errf("uniq: output file is not available in safe shell (write operations are not permitted)\n")
 		exit.code = 2
 		return exit
 	}
@@ -122,7 +124,6 @@ func (r *Runner) builtinUniq(ctx context.Context, args []string) exitStatus {
 	extractKey := func(line string) string {
 		key := line
 
-		// Skip fields.
 		if skipFields > 0 {
 			remaining := key
 			for i := 0; i < skipFields; i++ {
@@ -137,7 +138,6 @@ func (r *Runner) builtinUniq(ctx context.Context, args []string) exitStatus {
 			key = strings.TrimLeft(remaining, " \t")
 		}
 
-		// Skip chars.
 		if skipChars > 0 {
 			runes := []rune(key)
 			if skipChars < len(runes) {
@@ -147,7 +147,6 @@ func (r *Runner) builtinUniq(ctx context.Context, args []string) exitStatus {
 			}
 		}
 
-		// Compare width.
 		if compareWidth > 0 {
 			runes := []rune(key)
 			if compareWidth < len(runes) {

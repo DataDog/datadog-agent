@@ -4,6 +4,7 @@
 package interp
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"io"
@@ -75,7 +76,7 @@ func (r *Runner) builtinTail(ctx context.Context, args []string) exitStatus {
 
 	paths := fp.args()
 
-	// No file arguments: read from stdin.
+	// No file arguments: read from stdin (cannot seek, must buffer).
 	if len(paths) == 0 {
 		if r.stdin == nil {
 			r.errf("tail: cannot read from stdin\n")
@@ -110,12 +111,8 @@ func (r *Runner) builtinTail(ctx context.Context, args []string) exitStatus {
 			continue
 		}
 
-		data, _ := io.ReadAll(f)
-		if lineMode {
-			tailLastLines(r, data, count, fromBeginning)
-		} else {
-			tailLastBytes(r, data, count, fromBeginning)
-		}
+		// Use streaming approach to avoid reading entire file into memory.
+		tailStreamFile(r, f, lineMode, count, fromBeginning)
 
 		// Follow mode: only the last file is followed (POSIX behaviour).
 		if follow && i == len(paths)-1 {
@@ -126,6 +123,48 @@ func (r *Runner) builtinTail(ctx context.Context, args []string) exitStatus {
 	}
 
 	return exit
+}
+
+// tailStreamFile outputs the tail of a file without reading it all into memory.
+// For "from beginning" mode or byte mode, it still buffers as needed, but for
+// the common "last N lines" case it uses a ring buffer of lines.
+func tailStreamFile(r *Runner, reader io.Reader, lineMode bool, count int64, fromBeginning bool) {
+	if !lineMode || fromBeginning {
+		// Byte mode or from-beginning requires buffering; cap at 16MB to
+		// prevent runaway memory. The 1MB output cap will truncate anyway.
+		const maxBuf = 16 << 20
+		lr := io.LimitReader(reader, maxBuf)
+		data, _ := io.ReadAll(lr)
+		if lineMode {
+			tailLastLines(r, data, count, fromBeginning)
+		} else {
+			tailLastBytes(r, data, count, fromBeginning)
+		}
+		return
+	}
+
+	// Stream last N lines using a ring buffer.
+	if count == 0 {
+		return
+	}
+	ring := make([]string, count)
+	var total int64
+	scanner := bufio.NewScanner(reader)
+	for scanner.Scan() {
+		ring[total%count] = scanner.Text()
+		total++
+	}
+	if total == 0 {
+		return
+	}
+	n := count
+	if total < count {
+		n = total
+	}
+	start := (total - n) % count
+	for i := int64(0); i < n; i++ {
+		r.outf("%s\n", ring[(start+i)%count])
+	}
 }
 
 // tailSplitLines splits data into lines, each retaining its trailing '\n'

@@ -1,5 +1,7 @@
-// Copyright (c) 2017, Daniel Martí <mvdan@mvdan.cc>
-// See LICENSE for licensing information
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
 
 package interp
 
@@ -21,14 +23,14 @@ func (r *Runner) builtinSort(ctx context.Context, args []string) exitStatus {
 	var exit exitStatus
 
 	var (
-		reverse     bool
-		numeric     bool
-		foldCase    bool
-		unique      bool
+		reverse      bool
+		numeric      bool
+		foldCase     bool
+		unique       bool
 		ignoreBlanks bool
-		separator   string
-		keyDefs     []sortKeyDef
-		stable      bool
+		separator    string
+		keyDefs      []sortKeyDef
+		stable       bool
 	)
 
 	fp := flagParser{remaining: args}
@@ -81,7 +83,6 @@ func (r *Runner) builtinSort(ctx context.Context, args []string) exitStatus {
 
 	paths := fp.args()
 
-	// Collect all lines.
 	var lines []string
 
 	addLines := func(reader io.Reader) {
@@ -112,7 +113,6 @@ func (r *Runner) builtinSort(ctx context.Context, args []string) exitStatus {
 		}
 	}
 
-	// Build comparison function.
 	cmpFn := func(a, b string) int {
 		ka := sortExtractKey(a, keyDefs, separator, ignoreBlanks)
 		kb := sortExtractKey(b, keyDefs, separator, ignoreBlanks)
@@ -147,7 +147,6 @@ func (r *Runner) builtinSort(ctx context.Context, args []string) exitStatus {
 		slices.SortFunc(lines, cmpFn)
 	}
 
-	// Output, with optional deduplication.
 	var prev *string
 	for _, line := range lines {
 		if unique && prev != nil && cmpFn(*prev, line) == 0 {
@@ -160,15 +159,13 @@ func (r *Runner) builtinSort(ctx context.Context, args []string) exitStatus {
 	return exit
 }
 
-// sortKeyDef represents a -k field specification.
 type sortKeyDef struct {
-	startField int // 1-based
-	startChar  int // 1-based, 0 = start of field
-	endField   int // 1-based, 0 = end of line
-	endChar    int // 1-based, 0 = end of field
+	startField int
+	startChar  int
+	endField   int
+	endChar    int
 }
 
-// parseSortKey parses a -k KEYDEF like "1", "1,2", "1.2,3.4".
 func parseSortKey(s string) (sortKeyDef, error) {
 	var kd sortKeyDef
 	parts := strings.SplitN(s, ",", 2)
@@ -218,7 +215,8 @@ func parseSortKey(s string) (sortKeyDef, error) {
 	return kd, nil
 }
 
-// sortExtractKey extracts the sort key from a line using keyDefs and separator.
+// sortExtractKey extracts the sort key from a line.
+// NOTE: Only the first -k key definition is used. Multi-key sort is not yet implemented.
 func sortExtractKey(line string, keyDefs []sortKeyDef, separator string, ignoreBlanks bool) string {
 	if len(keyDefs) == 0 {
 		if ignoreBlanks {
@@ -227,7 +225,7 @@ func sortExtractKey(line string, keyDefs []sortKeyDef, separator string, ignoreB
 		return line
 	}
 
-	kd := keyDefs[0] // Use first key definition for comparison.
+	kd := keyDefs[0]
 	fields := sortSplitFields(line, separator)
 
 	startIdx := kd.startField - 1
@@ -247,12 +245,11 @@ func sortExtractKey(line string, keyDefs []sortKeyDef, separator string, ignoreB
 		return ""
 	}
 
-	result := strings.Join(fields[startIdx:endIdx+1], func() string {
-		if separator != "" {
-			return separator
-		}
-		return " "
-	}())
+	sep := " "
+	if separator != "" {
+		sep = separator
+	}
+	result := strings.Join(fields[startIdx:endIdx+1], sep)
 
 	if ignoreBlanks {
 		result = strings.TrimLeft(result, " \t")
@@ -261,7 +258,6 @@ func sortExtractKey(line string, keyDefs []sortKeyDef, separator string, ignoreB
 	return result
 }
 
-// sortSplitFields splits a line into fields by separator.
 func sortSplitFields(line, separator string) []string {
 	if separator != "" {
 		return strings.Split(line, separator)
@@ -269,7 +265,6 @@ func sortSplitFields(line, separator string) []string {
 	return strings.Fields(line)
 }
 
-// sortParseNum extracts a leading numeric value from a string.
 func sortParseNum(s string) float64 {
 	s = strings.TrimLeft(s, " \t")
 	if s == "" {
@@ -277,10 +272,11 @@ func sortParseNum(s string) float64 {
 	}
 
 	negative := false
-	if s[0] == '-' {
+	switch s[0] {
+	case '-':
 		negative = true
 		s = s[1:]
-	} else if s[0] == '+' {
+	case '+':
 		s = s[1:]
 	}
 

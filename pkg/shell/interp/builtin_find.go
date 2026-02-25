@@ -156,7 +156,7 @@ func (r *Runner) builtinFind(ctx context.Context, args []string) exitStatus {
 
 // findWalk recursively walks a directory applying find predicates.
 func findWalk(ctx context.Context, r *Runner, displayPath, absPath string, depth int, opts findOpts, exit *exitStatus) {
-	const maxRecursion = 256
+	const maxRecursion = 20
 	if depth > maxRecursion {
 		r.errf("find: recursion depth exceeded for '%s'\n", displayPath)
 		exit.code = 1

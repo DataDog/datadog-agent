@@ -1,5 +1,7 @@
-// Copyright (c) 2017, Daniel Martí <mvdan@mvdan.cc>
-// See LICENSE for licensing information
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
 
 package interp
 
@@ -10,11 +12,11 @@ import (
 	"os"
 )
 
-const catLargeFileWarningBytes = 1 << 20 // 1 MiB
+const catLargeFileWarningBytes = 512 * 1024 // 512 KiB — warn before the 1MB output cap hits
 
 // builtinCat implements the POSIX cat command.
 // Options: -n (number all lines), -b (number non-blank, overrides -n), -s (squeeze blank lines).
-// Safety: Files > 1MB trigger a warning to stderr suggesting head/tail/grep.
+// Safety: Files > 512KB trigger a warning to stderr suggesting head/tail/grep.
 func (r *Runner) builtinCat(ctx context.Context, args []string) exitStatus {
 	var exit exitStatus
 
@@ -75,7 +77,7 @@ func (r *Runner) builtinCat(ctx context.Context, args []string) exitStatus {
 		info, err := r.stat(ctx, absP)
 		if err == nil && info.Size() > catLargeFileWarningBytes {
 			sizeMB := float64(info.Size()) / (1024 * 1024)
-			r.errf("cat: %s is %.1fMB, output will be truncated (1MB cap). Consider using head, tail, or grep for large files.\n", p, sizeMB)
+			r.errf("cat: %s is %.1fMB, output may be truncated (1MB cap). Consider using head, tail, or grep for large files.\n", p, sizeMB)
 		}
 
 		f, err := r.open(ctx, absP, os.O_RDONLY, 0, true)

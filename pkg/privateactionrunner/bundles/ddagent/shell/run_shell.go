@@ -64,11 +64,14 @@ func (h *RunShellHandler) Run(
 		return nil, util.DefaultActionError(errors.New("script must be provided"))
 	}
 
-	if inputs.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, time.Duration(inputs.Timeout)*time.Second)
-		defer cancel()
+	const defaultShellTimeout = 300 // seconds
+	timeout := inputs.Timeout
+	if timeout <= 0 {
+		timeout = defaultShellTimeout
 	}
+	var cancel context.CancelFunc
+	ctx, cancel = context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+	defer cancel()
 
 	var stdoutBuf, stderrBuf bytes.Buffer
 

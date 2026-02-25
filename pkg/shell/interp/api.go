@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"sync"
 	"time"
 
 	"mvdan.cc/sh/v3/expand"
@@ -513,9 +514,18 @@ func StatHandler(f StatHandlerFunc) RunnerOption {
 	}
 }
 
+// deniedCommands is a hardcoded set of interpreters that must never be
+// allowed via AllowedCommands, as they would bypass all safe-shell controls.
+var deniedCommands = map[string]bool{
+	"sh": true, "bash": true, "zsh": true, "dash": true, "ksh": true, "csh": true, "tcsh": true, "fish": true,
+	"python": true, "python3": true, "python2": true, "perl": true, "ruby": true,
+	"node": true, "php": true, "lua": true, "tclsh": true, "wish": true,
+}
+
 // AllowedCommands restricts which external commands the interpreter may
 // execute. Builtins and shell functions are always permitted. When cmds is
 // nil or empty, all external commands are allowed.
+// Known shell interpreters are rejected to prevent sandbox bypass.
 func AllowedCommands(cmds []string) RunnerOption {
 	return func(r *Runner) error {
 		if len(cmds) == 0 {
@@ -523,6 +533,10 @@ func AllowedCommands(cmds []string) RunnerOption {
 		}
 		r.allowedCommands = make(map[string]bool, len(cmds))
 		for _, c := range cmds {
+			base := filepath.Base(c)
+			if deniedCommands[base] {
+				return fmt.Errorf("command %q cannot be allowed: interpreter bypass risk", c)
+			}
 			r.allowedCommands[c] = true
 		}
 		return nil
@@ -1021,9 +1035,11 @@ const maxOutputBytes = 1 << 20 // 1 MiB
 // limitedWriter wraps an io.Writer and stops writing after a byte limit.
 // Once the limit is reached, a truncation warning is written to stderr
 // and all subsequent writes are silently discarded.
+// It is safe for concurrent use (pipeline stages may write concurrently).
 type limitedWriter struct {
-	w       io.Writer // underlying stdout
-	stderr  io.Writer // for the truncation warning
+	mu     sync.Mutex
+	w      io.Writer // underlying stdout
+	stderr io.Writer // for the truncation warning
 	written int64
 	limit   int64
 	capped  bool
@@ -1034,6 +1050,9 @@ func newLimitedWriter(w, stderr io.Writer, limit int64) *limitedWriter {
 }
 
 func (lw *limitedWriter) Write(p []byte) (n int, err error) {
+	lw.mu.Lock()
+	defer lw.mu.Unlock()
+
 	if lw.capped {
 		return len(p), nil // silently discard
 	}

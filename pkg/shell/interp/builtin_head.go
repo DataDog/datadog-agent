@@ -1,5 +1,7 @@
-// Copyright (c) 2017, Daniel Martí <mvdan@mvdan.cc>
-// See LICENSE for licensing information
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
 
 package interp
 
@@ -72,7 +74,6 @@ func (r *Runner) builtinHead(ctx context.Context, args []string) exitStatus {
 	paths := fp.args()
 
 	if len(paths) == 0 {
-		// Read from stdin.
 		if r.stdin == nil {
 			r.errf("head: cannot read from stdin\n")
 			exit.code = 1
@@ -115,7 +116,6 @@ func (r *Runner) builtinHead(ctx context.Context, args []string) exitStatus {
 	return exit
 }
 
-// headLines outputs the first n lines from a reader.
 func headLines(r *Runner, reader io.Reader, n int64) {
 	scanner := bufio.NewScanner(reader)
 	var printed int64
@@ -128,7 +128,6 @@ func headLines(r *Runner, reader io.Reader, n int64) {
 	}
 }
 
-// headBytes outputs the first n bytes from a reader.
 func headBytes(r *Runner, reader io.Reader, n int64) {
 	buf := make([]byte, 4096)
 	var written int64
