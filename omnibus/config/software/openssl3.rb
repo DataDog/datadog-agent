@@ -63,11 +63,10 @@ build do
       " #{install_dir}/embedded/lib/libcrypto#{lib_extension}" \
   end
   if fips_mode?
+    command_on_repo_root "bazelisk run -- @openssl_fips//:install --destdir=#{install_dir}"
     if windows?
-      command_on_repo_root "bazelisk run -- @openssl_fips//:install --destdir=#{install_dir}"
       command_on_repo_root "bazelisk run -- @openssl_fips//:configure_fips --destdir=\"#{install_dir}/embedded3\" --embedded_ssl_dir=\"C:/Program Files/Datadog/Datadog Agent/embedded3/ssl\""
     else
-      command_on_repo_root "bazelisk run -- @openssl_fips//:install --destdir=#{install_dir}"
       command_on_repo_root "bazelisk run -- @openssl_fips//:configure_fips --destdir=#{install_dir}/embedded"
       command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded" \
         " #{install_dir}/embedded/lib/ossl-modules/fips.so"
