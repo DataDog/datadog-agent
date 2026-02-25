@@ -2069,8 +2069,8 @@ func (s *TracerSuite) TestBlockingReadCounts() {
 			return true
 		})
 
-		require.NoError(collect, err, "error reading from connection") ||
-			!assert.NoError(collect, readErr, "error from raw conn")
+		require.NoError(collect, err, "error reading from connection")
+		require.NoError(collect, readErr, "error from raw conn")
 
 		read += n
 		t.Logf("read %d", read)
