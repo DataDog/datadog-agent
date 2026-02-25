@@ -22,6 +22,7 @@ import (
 
 type agentCommandExecutor interface {
 	execute(arguments []string) (string, error)
+	restart() error
 }
 
 // agentCommandRunner is an internal type that provides methods to run Agent commands.
@@ -143,6 +144,12 @@ func (agent *agentCommandRunner) IntegrationWithError(commandArgs ...agentclient
 // Secret runs the secret command
 func (agent *agentCommandRunner) Secret(commandArgs ...agentclient.AgentArgsOption) string {
 	return agent.executeCommand("secret", commandArgs...)
+}
+
+// Restart restarts the Agent service.
+func (agent *agentCommandRunner) Restart() error {
+	agent.isReady = false
+	return agent.executor.restart()
 }
 
 // IsReady runs status command and returns true if the command returns a zero exit code.
