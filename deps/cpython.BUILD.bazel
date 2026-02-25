@@ -149,7 +149,7 @@ configure_make(
         # Ensure we don't use the system provided .pc
         "PKG_CONFIG_LIBDIR": "/does/not/exist",
         # We need to pass linker flags here instead of `linkopts` because we don't want these to be
-        # picked up by the consumers of the library.
+        # propagated to dependent targets, as `linkopts` would do.
         # This is meant to allow python to find its dependency during its modules import test.
         # We will use the install_dir rpath later on
         "LDFLAGS": "-Wl,-rpath,$$EXT_BUILD_DEPS/lib",
@@ -177,7 +177,7 @@ configure_make(
             # When linking against Python, one must decide between the "Stable" API (libpython3.so)
             # or the minor-version specific libpython3.y.so. In the context of the Agent, we've always
             # linked against the latter, but shipped both (in case there are extension modules requiring
-            # the Stable API. Therefore, we mark this one as "data".
+            # the Stable API). Therefore, we mark this one as "data".
             # See https://peps.python.org/pep-0384/#linkage
             "lib/libpython3.so",
         ],
