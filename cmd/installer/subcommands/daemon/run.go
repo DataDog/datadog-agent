@@ -50,7 +50,7 @@ func getCommonFxOption(global *command.GlobalParams) fx.Option {
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
 			LogParams:            log.ForDaemon("INSTALLER", "installer.log_file", pkgconfigsetup.DefaultUpdaterLogFile),
 		}),
-		core.Bundle(core.WithSecrets()),
+		core.Bundle(core.WithSecrets(), core.WithDelegatedAuth()),
 		hostnameimpl.Module(),
 		fx.Supply(&rcservice.Params{
 			Options: []service.Option{

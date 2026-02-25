@@ -43,7 +43,7 @@ import (
 func getCoreAgentFxOptions(cliParams *check.CliParams, bundleParams core.BundleParams) []fx.Option {
 	return []fx.Option{
 		fx.Supply(cliParams, bundleParams),
-		core.Bundle(core.WithSecrets()),
+		core.Bundle(core.WithSecrets(), core.WithDelegatedAuth()),
 		hostnameimpl.Module(),
 
 		// Provide eventplatformimpl module

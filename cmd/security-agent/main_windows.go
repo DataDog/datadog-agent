@@ -114,7 +114,7 @@ func (s *service) Run(svcctx context.Context) error {
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(defaultSysProbeConfPath)),
 			LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", setup.DefaultSecurityAgentLogFile),
 		}),
-		core.Bundle(core.WithSecrets()),
+		core.Bundle(core.WithSecrets(), core.WithDelegatedAuth()),
 		remotehostnameimpl.Module(),
 		statsd.Module(),
 

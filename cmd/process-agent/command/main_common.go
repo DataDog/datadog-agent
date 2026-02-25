@@ -130,7 +130,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		fx.Populate(&appInitDeps),
 
 		// Provide core components
-		core.Bundle(core.WithSecrets()),
+		core.Bundle(core.WithSecrets(), core.WithDelegatedAuth()),
 		hostnameimpl.Module(),
 
 		// Provide process agent bundle so fx knows where to find components

@@ -197,7 +197,7 @@ func experimentFxWrapper(f interface{}, params *cliParams) error {
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
 			LogParams:            log.ForOneShot("INSTALLER", "off", true),
 		}),
-		core.Bundle(core.WithSecrets()),
+		core.Bundle(core.WithSecrets(), core.WithDelegatedAuth()),
 		hostnameimpl.Module(),
 		fx.Supply(params),
 		localapiclientimpl.Module(),

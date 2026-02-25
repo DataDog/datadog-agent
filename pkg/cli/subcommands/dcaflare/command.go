@@ -88,7 +88,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
 					LogParams:    log.ForOneShot(LoggerName, DefaultLogLevel, true),
 				}),
-				core.Bundle(core.WithSecrets()),
+				core.Bundle(core.WithSecrets(), core.WithDelegatedAuth()),
 				diagnosefx.Module(),
 				ipcfx.ModuleInsecure(),
 			)

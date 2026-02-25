@@ -83,7 +83,7 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 					"", // dogstatsDLogFilePath - not used for OTel Agent
 					"", // streamlogsLogFilePath - not used for OTel Agent
 				)),
-				core.Bundle(core.WithSecrets()),
+				core.Bundle(core.WithSecrets(), core.WithDelegatedAuth()),
 				// Provide empty option for workloadmeta (optional dependency)
 				fx.Supply(option.None[workloadmeta.Component]()),
 				// Provide required modules

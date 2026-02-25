@@ -16,6 +16,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
+	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
@@ -29,7 +31,8 @@ import (
 // team: agent-runtimes
 
 type bundleOptions struct {
-	secretsModule fx.Option
+	secretsModule       fx.Option
+	delegatedAuthModule fx.Option
 }
 
 // Option changes some module implementations included in the bundle
@@ -38,7 +41,8 @@ type Option func(params *bundleOptions)
 // Bundle defines the fx options for this bundle.
 func Bundle(options ...Option) fxutil.BundleOptions {
 	params := &bundleOptions{
-		secretsModule: secretsnoopfx.Module(),
+		secretsModule:       secretsnoopfx.Module(),
+		delegatedAuthModule: delegatedauthnoopfx.Module(),
 	}
 	for _, option := range options {
 		option(params)
@@ -55,6 +59,7 @@ func Bundle(options ...Option) fxutil.BundleOptions {
 		telemetryimpl.Module(),
 		pidimpl.Module(), // You must supply pidimpl.NewParams in order to use it
 		params.secretsModule,
+		params.delegatedAuthModule,
 	}
 
 	return fxutil.Bundle(
@@ -66,5 +71,12 @@ func Bundle(options ...Option) fxutil.BundleOptions {
 func WithSecrets() Option {
 	return func(params *bundleOptions) {
 		params.secretsModule = secretsfx.Module()
+	}
+}
+
+// WithDelegatedAuth adds the delegated auth module to the bundle
+func WithDelegatedAuth() Option {
+	return func(params *bundleOptions) {
+		params.delegatedAuthModule = delegatedauthfx.Module()
 	}
 }

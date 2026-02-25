@@ -399,7 +399,7 @@ func getSharedFxOption() fx.Option {
 			defaultpaths.DogstatsDLogFile,
 			defaultpaths.StreamlogsLogFile,
 		)),
-		core.Bundle(core.WithSecrets()),
+		core.Bundle(core.WithSecrets(), core.WithDelegatedAuth()),
 		hostnameimpl.Module(),
 		flareprofiler.Module(),
 		fx.Provide(func(cfg config.Component) flaretypes.Provider {
