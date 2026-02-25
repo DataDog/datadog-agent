@@ -103,21 +103,25 @@ func (li *linuxImpl) AppendListeningPorts(base []Port) ([]Port, error) {
 		pm.keep = false
 	}
 
-	for _, f := range li.procNetFiles {
-		name := f.Name()
-		_, err := f.Seek(0, io.SeekStart)
-		if errors.Is(err, syscall.ESPIPE) {
-			// Some kernels may return `illegal seek` on `/proc/net/tcp`s files, ignore it.
+	for i, f := range li.procNetFiles {
+		if _, err := f.Seek(0, io.SeekStart); err != nil {
+			if !errors.Is(err, syscall.ESPIPE) {
+				return nil, err
+			}
+			// Some kernels may return `illegal seek` on `/proc/net/*` files; re-open to
+			// read from the beginning instead of skipping the file entirely.
 			// See https://github.com/tailscale/tailscale/issues/16966
-			continue
-		}
-		if err != nil {
-			return nil, err
+			newF, err := os.Open(f.Name())
+			if err != nil {
+				continue
+			}
+			f.Close()
+			li.procNetFiles[i] = newF
+			f = newF
 		}
 		br.Reset(f)
-		err = li.parseProcNetFile(br, filepath.Base(name))
-		if err != nil {
-			return nil, fmt.Errorf("parsing %q: %w", name, err)
+		if err := li.parseProcNetFile(br, filepath.Base(f.Name())); err != nil {
+			return nil, fmt.Errorf("parsing %q: %w", f.Name(), err)
 		}
 	}
 
