@@ -59,7 +59,19 @@ func (t *TelemetryHandler) handle(w http.ResponseWriter, r *http.Request) {
 				span.SetTag("error", true)
 			}
 		}
-		defer span.Finish()
+		defer func() {
+			if p := recover(); p != nil {
+				if !wrapper.wroteHeader {
+					wrapper.setSpanTags(http.StatusInternalServerError)
+				}
+				span.Finish()
+				panic(p)
+			}
+			if !wrapper.wroteHeader {
+				wrapper.setSpanTags(http.StatusOK)
+			}
+			span.Finish()
+		}()
 		r = r.WithContext(ctx)
 	}
 	t.handler(wrapper, r)
@@ -70,10 +82,15 @@ type telemetryWriterWrapper struct {
 	http.ResponseWriter
 	handlerName string
 	startTime   time.Time
+	wroteHeader bool
 	setSpanTags func(int) // non-nil only when tracing is enabled
 }
 
 func (w *telemetryWriterWrapper) WriteHeader(statusCode int) {
+	if w.wroteHeader {
+		return
+	}
+	w.wroteHeader = true
 	w.ResponseWriter.WriteHeader(statusCode)
 	forwarded := w.Header().Get(respForwarded)
 	if forwarded == "" {
