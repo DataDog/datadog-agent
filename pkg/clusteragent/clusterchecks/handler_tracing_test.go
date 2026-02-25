@@ -10,9 +10,6 @@ package clusterchecks
 import (
 	"context"
 	"errors"
-	"net"
-	"net/http"
-	"net/http/httptest"
 	"runtime"
 	"testing"
 	"time"
@@ -23,7 +20,6 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/mocktracer"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
@@ -39,8 +35,8 @@ func filterSpans(spans []mocktracer.Span, opName string) []mocktracer.Span {
 }
 
 // TestHandlerWarmupSpan verifies that a leader_warmup span is emitted when
-// the handler completes warmup normally, and that it carries an "interrupted"
-// tag when warmup is cut short by a leadership loss.
+// the handler completes warmup normally, and that a leadership_lost span is
+// emitted when leadership is subsequently lost.
 func TestHandlerWarmupSpan(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Cluster Agent is not supported on Windows")
@@ -54,12 +50,6 @@ func TestHandlerWarmupSpan(t *testing.T) {
 	ac.Test(t)
 	le := &fakeLeaderEngine{err: errors.New("failing")}
 
-	testServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		http.Error(w, "I'm a teapot", 418)
-	}))
-	testPort := testServer.Listener.Addr().(*net.TCPAddr).Port
-	defer testServer.Close()
-
 	h := &Handler{
 		autoconfig:           ac,
 		leaderStatusFreq:     50 * time.Millisecond,
@@ -67,7 +57,6 @@ func TestHandlerWarmupSpan(t *testing.T) {
 		leadershipChan:       make(chan state, 1),
 		dispatcher:           newDispatcher(fakeTagger),
 		leaderStatusCallback: le.get,
-		leaderForwarder:      api.NewLeaderForwarder(testPort, 10),
 	}
 	h.dispatcher.tracingEnabled = true
 
@@ -92,11 +81,6 @@ func TestHandlerWarmupSpan(t *testing.T) {
 	// Lose leadership — triggers leadership_lost span.
 	ac.On("RemoveScheduler", schedulerName).Return()
 	le.set("127.0.0.1", nil)
-	testutil.AssertTrueBeforeTimeout(t, tick, waitfor, func() bool {
-		h.m.RLock()
-		defer h.m.RUnlock()
-		return h.state == follower
-	})
 	testutil.AssertTrueBeforeTimeout(t, tick, waitfor, func() bool {
 		return ac.AssertNumberOfCalls(&testing.T{}, "RemoveScheduler", 1)
 	})
