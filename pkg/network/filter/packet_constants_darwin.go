@@ -7,8 +7,9 @@
 
 package filter
 
-// Define packet type constants for Darwin (these exist in unix package on Linux)
-// We define them here to match the Linux values for compatibility
+// Packet type constants for Darwin. These values are intentionally aligned with
+// golang.org/x/sys/unix PACKET_* on Linux so that shared code (e.g. connDirectionFromPktType
+// in ebpfless/tcp_utils.go) works consistently across platforms without conditional logic.
 const (
 	PacketHost      = 0 // To us
 	PacketBroadcast = 1 // To all

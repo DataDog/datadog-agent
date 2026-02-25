@@ -31,7 +31,6 @@ type Tracer struct {
 	connTracer     connection.Tracer
 	state          network.State
 	reverseDNS     dns.ReverseDNS
-	closeConnChan  chan struct{}
 	staticTableSet bool //nolint:unused // reserved for interface compatibility with Linux tracer
 	sourceExcludes []*networkfilter.ConnectionFilter
 	destExcludes   []*networkfilter.ConnectionFilter
@@ -78,7 +77,6 @@ func NewTracer(cfg *config.Config, telemetryComp telemetry.Component, _ statsd.C
 		connTracer:     connTracer,
 		state:          state,
 		reverseDNS:     reverseDNS,
-		closeConnChan:  make(chan struct{}),
 		sourceExcludes: networkfilter.ParseConnectionFilters(cfg.ExcludedSourceConnections),
 		destExcludes:   networkfilter.ParseConnectionFilters(cfg.ExcludedDestinationConnections),
 	}
@@ -94,7 +92,7 @@ func NewTracer(cfg *config.Config, telemetryComp telemetry.Component, _ statsd.C
 	return tr, nil
 }
 
-// Stop halts all network monitoring
+// Stop halts all network monitoring.
 func (t *Tracer) Stop() {
 	if t.connTracer != nil {
 		t.connTracer.Stop()
@@ -102,7 +100,6 @@ func (t *Tracer) Stop() {
 	if t.reverseDNS != nil {
 		t.reverseDNS.Close()
 	}
-	close(t.closeConnChan)
 }
 
 // GetActiveConnections returns the network connections for the given client

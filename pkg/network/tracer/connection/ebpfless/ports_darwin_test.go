@@ -301,8 +301,8 @@ func TestParseUDPPcblistN_Synthetic(t *testing.T) {
 	buf = append(buf, buildInpcbRecord(5353)...)
 	buf = append(buf, buildXinpgen(2)...)
 
-	ports := parseUDPPcblistN(buf)
-
+	ports, err := parseUDPPcblistN(buf)
+	require.NoError(t, err)
 	assert.Contains(t, ports, uint16(53))
 	assert.Contains(t, ports, uint16(5353))
 }
