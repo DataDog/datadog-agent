@@ -423,13 +423,6 @@ Bazel will fail if `Cargo.toml` and `Cargo.lock` are out of sync:
 ERROR: Cargo.lock out of sync: sd-agent requires clap ^4.5.58 but Cargo.lock has 4.5.51.
 ```
 
-## Existing Rust Components
-
-| Component | Path | Crate Repository |
-|-----------|------|------------------|
-| sd-agent (discovery) | `pkg/discovery/module/rust/` | `@crates` |
-| dd-procmgrd | `pkg/procmgr/rust/` | `@crates` |
-
 ## Further Reading
 
 - [rules_rust documentation](https://bazelbuild.github.io/rules_rust/) - Rust toolchain and build rules
