@@ -52,8 +52,7 @@ func NewParquetReader(dirPath string) (*ParquetReader, error) {
 	for _, filePath := range parquetFiles {
 		metrics, err := readParquetFile(filePath)
 		if err != nil {
-			fmt.Printf("[parquet-reader] Skipping %s: %v\n", filePath, err)
-			continue
+			return nil, fmt.Errorf("reading %s: %w", filePath, err)
 		}
 		allMetrics = append(allMetrics, metrics...)
 	}
