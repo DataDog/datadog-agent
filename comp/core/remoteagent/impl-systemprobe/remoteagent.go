@@ -8,6 +8,7 @@ package systemprobeimpl
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -129,7 +130,15 @@ func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatu
 
 // GetFlareFiles returns files for the system-probe flare
 func (r *remoteagentImpl) GetFlareFiles(_ context.Context, _ *pbcore.GetFlareFilesRequest) (*pbcore.GetFlareFilesResponse, error) {
-	files := helper.DefaultFlareFiles(r.cfg.AllSettings(), "system_probe")
+	files := make(map[string][]byte)
+
+	if data, err := json.MarshalIndent(helper.ExpvarData(), "", "  "); err == nil {
+		files["system_probe_stats.json"] = data
+	}
+
+	if data, err := json.MarshalIndent(r.cfg.AllSettings(), "", "  "); err == nil {
+		files["system_probe_runtime_config_dump.json"] = data
+	}
 
 	if prometheusText, err := r.telemetry.GatherText(false, telemetry.NoFilter); err == nil {
 		files["system_probe_telemetry.log"] = []byte(prometheusText)
