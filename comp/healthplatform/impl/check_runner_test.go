@@ -46,7 +46,7 @@ func TestCheckRunnerRegisterCheck(t *testing.T) {
 		return nil, nil
 	}
 
-	err := runner.RegisterCheck("test-check", "Test Check", checkFn, 1*time.Minute)
+	err := runner.RegisterCheck("test-check", "Test Check", checkFn, 1*time.Minute, false)
 	require.NoError(t, err)
 
 	// Verify check is registered
@@ -65,21 +65,21 @@ func TestCheckRunnerRegisterCheckValidation(t *testing.T) {
 	runner := newCheckRunner(logmock.New(t), reporter)
 
 	// Empty check ID
-	err := runner.RegisterCheck("", "Test Check", func() (*healthplatformpayload.IssueReport, error) { return nil, nil }, 0)
+	err := runner.RegisterCheck("", "Test Check", func() (*healthplatformpayload.IssueReport, error) { return nil, nil }, 0, false)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "check ID cannot be empty")
 
 	// Nil check function
-	err = runner.RegisterCheck("test-check", "Test Check", nil, 0)
+	err = runner.RegisterCheck("test-check", "Test Check", nil, 0, false)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "check function cannot be nil")
 
 	// Duplicate registration
 	checkFn := func() (*healthplatformpayload.IssueReport, error) { return nil, nil }
-	err = runner.RegisterCheck("test-check", "Test Check", checkFn, 0)
+	err = runner.RegisterCheck("test-check", "Test Check", checkFn, 0, false)
 	require.NoError(t, err)
 
-	err = runner.RegisterCheck("test-check", "Test Check 2", checkFn, 0)
+	err = runner.RegisterCheck("test-check", "Test Check 2", checkFn, 0, false)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "already registered")
 }
@@ -92,7 +92,7 @@ func TestCheckRunnerDefaultInterval(t *testing.T) {
 	checkFn := func() (*healthplatformpayload.IssueReport, error) { return nil, nil }
 
 	// Zero interval should use default
-	err := runner.RegisterCheck("test-check", "Test Check", checkFn, 0)
+	err := runner.RegisterCheck("test-check", "Test Check", checkFn, 0, false)
 	require.NoError(t, err)
 
 	runner.checkMux.RLock()
@@ -114,7 +114,7 @@ func TestCheckRunnerRunsChecks(t *testing.T) {
 	}
 
 	// Register with very short interval for testing
-	err := runner.RegisterCheck("test-check", "Test Check", checkFn, 50*time.Millisecond)
+	err := runner.RegisterCheck("test-check", "Test Check", checkFn, 50*time.Millisecond, false)
 	require.NoError(t, err)
 
 	// Start the runner
@@ -136,7 +136,7 @@ func TestCheckRunnerStartStop(t *testing.T) {
 		return nil, nil
 	}
 
-	err := runner.RegisterCheck("test-check", "Test Check", checkFn, 10*time.Millisecond)
+	err := runner.RegisterCheck("test-check", "Test Check", checkFn, 10*time.Millisecond, false)
 	require.NoError(t, err)
 
 	// Start and stop should complete gracefully
@@ -174,7 +174,7 @@ func TestCheckRunnerWithComponent(t *testing.T) {
 	}
 
 	// Register check before starting
-	err = comp.RegisterCheck("test-check", "Test Check", checkFn, 50*time.Millisecond)
+	err = comp.RegisterCheck("test-check", "Test Check", checkFn, 50*time.Millisecond, false)
 	require.NoError(t, err)
 
 	// Start component
@@ -209,7 +209,7 @@ func TestCheckRunnerReportsIssues(t *testing.T) {
 		}, nil
 	}
 
-	err = comp.RegisterCheck("test-check", "Test Check", checkFn, 50*time.Millisecond)
+	err = comp.RegisterCheck("test-check", "Test Check", checkFn, 50*time.Millisecond, false)
 	require.NoError(t, err)
 
 	err = lifecycle.Start(context.Background())
@@ -221,6 +221,34 @@ func TestCheckRunnerReportsIssues(t *testing.T) {
 		issue := comp.GetIssueForCheck("test-check")
 		return issue != nil && issue.Id == "check-execution-failure"
 	}, 500*time.Millisecond, 10*time.Millisecond)
+}
+
+// TestCheckRunnerOnceCheck tests that a check registered with once=true runs exactly once
+func TestCheckRunnerOnceCheck(t *testing.T) {
+	reporter := newMockReporter()
+	runner := newCheckRunner(logmock.New(t), reporter)
+
+	callCount := int32(0)
+	checkFn := func() (*healthplatformpayload.IssueReport, error) {
+		atomic.AddInt32(&callCount, 1)
+		return nil, nil
+	}
+
+	err := runner.RegisterCheck("once-check", "Once Check", checkFn, 100*time.Millisecond, true)
+	require.NoError(t, err)
+
+	runner.Start()
+	defer runner.Stop()
+
+	// Wait for the single execution
+	assert.Eventually(t, func() bool {
+		return atomic.LoadInt32(&callCount) == 1
+	}, 500*time.Millisecond, 10*time.Millisecond)
+
+	// Confirm check never runs again.
+	assert.Never(t, func() bool {
+		return atomic.LoadInt32(&callCount) > 1
+	}, 300*time.Millisecond, 10*time.Millisecond, "check should run exactly once")
 }
 
 // TestCheckRunnerClearsIssueWhenNil tests that nil report clears issues using the component
@@ -247,7 +275,7 @@ func TestCheckRunnerClearsIssueWhenNil(t *testing.T) {
 		return nil, nil // No issue - should clear
 	}
 
-	err = comp.RegisterCheck("test-check", "Test Check", checkFn, 50*time.Millisecond)
+	err = comp.RegisterCheck("test-check", "Test Check", checkFn, 50*time.Millisecond, false)
 	require.NoError(t, err)
 
 	err = lifecycle.Start(context.Background())

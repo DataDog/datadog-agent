@@ -60,7 +60,7 @@ func (m *mockHealthPlatform) ReportIssue(checkID string, checkName string, repor
 }
 
 // RegisterCheck does nothing in the mock implementation
-func (m *mockHealthPlatform) RegisterCheck(_ string, _ string, _ healthplatform.HealthCheckFunc, _ time.Duration) error {
+func (m *mockHealthPlatform) RegisterCheck(_ string, _ string, _ healthplatform.HealthCheckFunc, _ time.Duration, _ bool) error {
 	return nil
 }
 

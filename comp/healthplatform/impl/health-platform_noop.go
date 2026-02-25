@@ -26,7 +26,7 @@ func (n *noopHealthPlatform) ReportIssue(_ string, _ string, _ *healthplatformpa
 }
 
 // RegisterCheck does nothing when the health platform is disabled
-func (n *noopHealthPlatform) RegisterCheck(_ string, _ string, _ healthplatform.HealthCheckFunc, _ time.Duration) error {
+func (n *noopHealthPlatform) RegisterCheck(_ string, _ string, _ healthplatform.HealthCheckFunc, _ time.Duration, _ bool) error {
 	return nil
 }
 
