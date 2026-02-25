@@ -6,13 +6,9 @@
 package portlist
 
 import (
-	"errors"
-	"io"
 	"net"
-	"os"
 	"reflect"
 	"runtime"
-	"syscall"
 	"testing"
 )
 
@@ -199,20 +195,6 @@ func TestPoller(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Skipping test on Windows -- not implemented yet")
 	}
-	if runtime.GOOS == "linux" {
-		// Some kernels may return `illegal seek` on `/proc/net/tcp`s files, ignore it.
-		// See https://github.com/tailscale/tailscale/issues/16966
-		f, err := os.Open("/proc/net/tcp")
-		if err != nil {
-			t.Skipf("failed to open /proc/net/tcp: %v", err)
-		}
-		_, err = f.Seek(0, io.SeekStart)
-		_ = f.Close()
-		if errors.Is(err, syscall.ESPIPE) {
-			t.Skip("linux kernel returns illegal seek on /proc/net/tcp, skipping")
-		}
-	}
-
 	var p Poller
 	p.IncludeLocalhost = true
 	get := func(t *testing.T) []Port {
