@@ -4,7 +4,7 @@ def _rewrite_rpath_impl(ctx):
     if ctx.attr.os == "unsupported":
         return DefaultInfo(files = depset(ctx.files.inputs))
     processed_files = []
-    rpath = ctx.attr.rpath.format(install_dir=ctx.attr._install_dir[BuildSettingInfo].value)
+    rpath = ctx.attr.rpath.format(install_dir = ctx.attr._install_dir[BuildSettingInfo].value)
     for input in ctx.files.inputs:
         processed_file = ctx.actions.declare_file("patched/" + input.basename)
         if ctx.attr.os == "linux":
@@ -42,7 +42,7 @@ _rewrite_rpath = rule(
     attrs = {
         "inputs": attr.label_list(
             doc = "The binaries to patch",
-            mandatory=True,
+            mandatory = True,
         ),
         "os": attr.string(
             mandatory = True,
