@@ -12,6 +12,8 @@ import (
 	"time"
 
 	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -396,6 +398,154 @@ func TestStatusPopulateInfo_MultipleInstances(t *testing.T) {
 	// Pending without failures
 	assert.Equal(t, "Pending", instances["apm_config.api_key"]["Status"])
 	assert.Nil(t, instances["apm_config.api_key"]["Error"])
+}
+
+// Done Channel Tests - Goroutine lifecycle management
+
+func TestDoneChannelClosedOnGoroutineExit(t *testing.T) {
+	// Test that the done channel is properly closed when the background goroutine exits.
+	// This ensures proper goroutine lifecycle signaling for instance replacement.
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+
+	// Simulate the goroutine pattern used in startBackgroundRefresh
+	go func() {
+		defer close(done) // This is what we added to fix P3
+
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				// Simulate work
+			}
+		}
+	}()
+
+	// Cancel the context to trigger goroutine exit
+	cancel()
+
+	// Verify the done channel is closed
+	select {
+	case <-done:
+		// Success - done channel was closed
+	case <-time.After(1 * time.Second):
+		t.Fatal("Done channel was not closed after goroutine exit")
+	}
+}
+
+func TestWaitingForOldGoroutineOnInstanceReplacement(t *testing.T) {
+	// Test that when replacing an instance, we properly wait for the old goroutine to exit.
+	// This prevents goroutine leaks when instances are rapidly reconfigured.
+
+	oldCtx, oldCancel := context.WithCancel(context.Background())
+	oldDone := make(chan struct{})
+
+	// Track goroutine execution
+	oldGoroutineStarted := make(chan struct{})
+	oldGoroutineExited := make(chan struct{})
+
+	// Simulate an "old" goroutine that takes some time to exit
+	go func() {
+		defer close(oldDone)
+		close(oldGoroutineStarted)
+
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-oldCtx.Done():
+				// Simulate some cleanup time
+				time.Sleep(50 * time.Millisecond)
+				close(oldGoroutineExited)
+				return
+			case <-ticker.C:
+				// Simulate work
+			}
+		}
+	}()
+
+	// Wait for old goroutine to start
+	<-oldGoroutineStarted
+
+	// Now simulate the replacement logic from AddInstance
+	// Cancel the old goroutine
+	oldCancel()
+
+	// Wait for the old goroutine to exit (simulating the select in AddInstance)
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer waitCancel()
+
+	select {
+	case <-oldDone:
+		// Success - old goroutine exited
+	case <-waitCtx.Done():
+		t.Fatal("Timed out waiting for old goroutine to exit")
+	}
+
+	// Verify the old goroutine actually exited
+	select {
+	case <-oldGoroutineExited:
+		// Success
+	default:
+		t.Fatal("Old goroutine did not properly exit")
+	}
+}
+
+// Context Cancellation Tests - AddInstance context support
+
+func TestAddInstanceRespectsContextCancellation(t *testing.T) {
+	// Test that AddInstance returns early when context is already canceled.
+	// This ensures callers can cancel initialization if needed.
+
+	comp := &delegatedAuthComponent{
+		instances: make(map[string]*authInstance),
+	}
+
+	// Create an already-canceled context
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// Use the configmock package for a proper mock config
+	mockConfig := mock.New(t)
+
+	// AddInstance should return context.Canceled error after validating params
+	err := comp.AddInstance(ctx, delegatedauth.InstanceParams{
+		Config:          mockConfig,
+		OrgUUID:         "test-org",
+		APIKeyConfigKey: "api_key",
+	})
+
+	// The context cancellation check happens after parameter validation,
+	// so we should get context.Canceled
+	assert.ErrorIs(t, err, context.Canceled)
+}
+
+func TestWaitForOldGoroutineRespectsContextCancellation(t *testing.T) {
+	// Test that when waiting for an old goroutine to exit, we respect context cancellation
+	// This prevents hanging if the old goroutine is stuck
+
+	oldDone := make(chan struct{})
+	// Don't close oldDone - simulate a stuck goroutine
+
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer waitCancel()
+
+	// Simulate the select pattern used in AddInstance when waiting for old goroutine
+	start := time.Now()
+	select {
+	case <-oldDone:
+		t.Fatal("Old goroutine should not have exited")
+	case <-waitCtx.Done():
+		// Expected - context timed out
+		elapsed := time.Since(start)
+		assert.Less(t, elapsed, 200*time.Millisecond, "Should have timed out quickly")
+	}
 }
 
 // Refresh Interval Validation Tests

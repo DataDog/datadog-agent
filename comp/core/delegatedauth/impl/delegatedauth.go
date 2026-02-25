@@ -57,6 +57,9 @@ type authInstance struct {
 	// Context and cancellation for background refresh goroutine
 	refreshCtx    context.Context
 	refreshCancel context.CancelFunc
+
+	// done is closed when the background refresh goroutine exits
+	done chan struct{}
 }
 
 // delegatedAuthComponent implements the delegatedauth.Component interface.
@@ -178,7 +181,8 @@ func (d *delegatedAuthComponent) initializeIfNeeded(ctx context.Context, params 
 
 // AddInstance configures delegated auth for a specific API key.
 // On the first call, it detects the cloud provider and initializes the component.
-func (d *delegatedAuthComponent) AddInstance(params delegatedauth.InstanceParams) error {
+// The context is used for the initial API key fetch and cloud provider detection.
+func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegatedauth.InstanceParams) error {
 	// Validate required parameters first
 	if params.Config == nil {
 		return errors.New("config is required")
@@ -190,8 +194,12 @@ func (d *delegatedAuthComponent) AddInstance(params delegatedauth.InstanceParams
 		return errors.New("api_key_config_key is required")
 	}
 
+	// Check for context cancellation early
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
 	// Initialize on first call - this detects cloud provider without holding locks
-	ctx := context.Background()
 	providerConfig, err := d.initializeIfNeeded(ctx, params)
 	if err != nil {
 		return err
@@ -239,11 +247,14 @@ func (d *delegatedAuthComponent) AddInstance(params delegatedauth.InstanceParams
 		backoff:         newBackoff(refreshInterval),
 		refreshCtx:      refreshCtx,
 		refreshCancel:   refreshCancel,
+		done:            make(chan struct{}),
 	}
 
 	// Check if we're replacing an existing instance.
 	// This is expected behavior - callers may reconfigure delegated auth (e.g., with different org UUID
-	// or refresh interval). When this happens, we cancel the old refresh goroutine and start a new one.
+	// or refresh interval). When this happens, we cancel the old refresh goroutine and wait for it to
+	// exit before starting a new one to prevent goroutine leaks.
+	var existingDone chan struct{}
 	d.mu.Lock()
 	if existingInstance, exists := d.instances[apiKeyConfigKey]; exists {
 		log.Infof("Replacing existing delegated auth configuration for '%s'", apiKeyConfigKey)
@@ -251,14 +262,27 @@ func (d *delegatedAuthComponent) AddInstance(params delegatedauth.InstanceParams
 		if existingInstance.refreshCancel != nil {
 			existingInstance.refreshCancel()
 		}
+		existingDone = existingInstance.done
 	}
 	d.instances[apiKeyConfigKey] = instance
 	d.mu.Unlock()
 
+	// Wait for the old goroutine to exit outside the lock to avoid blocking other operations
+	if existingDone != nil {
+		select {
+		case <-existingDone:
+			// Old goroutine has exited
+		case <-ctx.Done():
+			// Context was canceled while waiting - clean up and return error
+			refreshCancel()
+			return ctx.Err()
+		}
+	}
+
 	log.Infof("Delegated authentication is enabled for '%s', fetching initial API key...", apiKeyConfigKey)
 
-	// Fetch the initial API key synchronously
-	apiKey, _, err := d.refreshAndGetAPIKey(context.Background(), instance, false)
+	// Fetch the initial API key synchronously using the caller's context
+	apiKey, _, err := d.refreshAndGetAPIKey(ctx, instance, false)
 	if err != nil {
 		log.Errorf("Failed to get initial delegated API key for '%s': %v", apiKeyConfigKey, err)
 		// Backoff will be used for retry interval in startBackgroundRefresh
@@ -319,6 +343,9 @@ func (d *delegatedAuthComponent) refreshAndGetAPIKey(ctx context.Context, instan
 // with exponential backoff on failures
 func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) {
 	go func() {
+		// Signal goroutine exit when we return
+		defer close(instance.done)
+
 		// Get initial interval with jitter from backoff
 		d.mu.Lock()
 		nextInterval := instance.backoff.NextBackOff()

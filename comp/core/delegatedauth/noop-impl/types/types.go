@@ -7,6 +7,8 @@
 package types
 
 import (
+	"context"
+
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 )
 
@@ -16,6 +18,6 @@ type DelegatedAuthNoop struct{}
 var _ delegatedauth.Component = (*DelegatedAuthNoop)(nil)
 
 // AddInstance does nothing in the noop implementation
-func (r *DelegatedAuthNoop) AddInstance(_ delegatedauth.InstanceParams) error {
+func (r *DelegatedAuthNoop) AddInstance(_ context.Context, _ delegatedauth.InstanceParams) error {
 	return nil
 }
