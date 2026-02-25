@@ -65,6 +65,10 @@ type BuiltInCheck struct {
 	Name     string
 	CheckFn  healthplatformdef.HealthCheckFunc
 	Interval time.Duration
+
+	// Once is mutually exclusive with Interval.
+	// If true, the check will only run once at startup.
+	Once bool
 }
 
 // Module represents a complete issue feature module

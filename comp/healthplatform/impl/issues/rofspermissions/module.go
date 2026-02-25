@@ -55,8 +55,6 @@ func (r *rofsPermissionsModule) BuiltInCheck() *issues.BuiltInCheck {
 		CheckFn: func() (*healthplatform.IssueReport, error) {
 			return Check(r.conf)
 		},
-		// TODO: No way to run once in the current state. Investigate the addition of a 'once'
-		// option to run a check just at startup.
-		Interval: 0,
+		Once: true,
 	}
 }
