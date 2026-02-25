@@ -43,6 +43,33 @@ void __attribute__((always_inline)) monitor_event_rejected(u64 event_type) {
     __sync_fetch_and_add(&stats->event_rejected, 1);
 }
 
+// Activity dump sample monitoring helpers
+struct activity_dump_sample_stats_t * __attribute__((always_inline)) get_active_ad_sample_stats(u64 event_type) {
+    struct bpf_map_def *ad_sample_stats = select_buffer(&fb_ad_sample_stats, &bb_ad_sample_stats, AD_SAMPLE_MONITOR_KEY);
+    if (ad_sample_stats == NULL) {
+        return NULL;
+    }
+
+    u32 key = event_type;
+    return bpf_map_lookup_elem(ad_sample_stats, &key);
+}
+
+void __attribute__((always_inline)) monitor_ad_sample_total(u64 event_type) {
+    struct activity_dump_sample_stats_t *stats = get_active_ad_sample_stats(event_type);
+    if (stats == NULL) {
+        return;
+    }
+    __sync_fetch_and_add(&stats->events_total, 1);
+}
+
+void __attribute__((always_inline)) monitor_ad_sample_sampled(u64 event_type) {
+    struct activity_dump_sample_stats_t *stats = get_active_ad_sample_stats(event_type);
+    if (stats == NULL) {
+        return;
+    }
+    __sync_fetch_and_add(&stats->events_sampled, 1);
+}
+
 enum SYSCALL_STATE __attribute__((always_inline)) approve_by_auid(struct syscall_cache_t *syscall, u64 event_type) {
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
@@ -268,6 +295,9 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_by_flags(struct s
 }
 
 enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct dentry *dentry, struct file_t *file) {
+    // Track total open events that hit the sampling logic
+    monitor_ad_sample_total(EVENT_OPEN);
+
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     if (IS_KTHREAD(pid, pid)) {
         return DISCARDED;
@@ -296,6 +326,9 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct den
     if (!global_limiter_allow(OPEN_SAMPLE_LIMITER, 100, 1)) {
         return DISCARDED;
     }
+
+    // Track open events that were sampled
+    monitor_ad_sample_sampled(EVENT_OPEN);
 
     return SAMPLED;
 }
