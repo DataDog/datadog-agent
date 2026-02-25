@@ -451,6 +451,7 @@ retry:
 	key, stats := &cookie{}, &kprobeKernelStats{}
 
 	var toDelete []cookie
+	missingMappings := 0
 	for entries.Next(key, stats) {
 		// record this key to be deleted later on
 		toDelete = append(toDelete, *key)
@@ -464,7 +465,7 @@ retry:
 
 		name, err := ddebpf.GetProgNameFromProgID(key.Kprobe_id)
 		if err != nil {
-			log.Errorf("unable to get program name for kprobe id %d: %v", key.Kprobe_id, err)
+			missingMappings++
 			continue
 		}
 
@@ -488,6 +489,8 @@ retry:
 		})
 
 	}
+
+	log.Warnf("unable to get program name for %d kprobes due to missing mappings", missingMappings)
 
 	// we do not expect any errors including iteration aborted errors, since ebpf check
 	// does not execute concurrently. This means the map should never be modified while
