@@ -15,7 +15,6 @@
 package metrics
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 
@@ -113,7 +112,7 @@ func (d *Dimensions) WithAttributeMap(labels pcommon.Map) *Dimensions {
 // WithSuffix creates a new dimensions struct with an extra name suffix.
 func (d *Dimensions) WithSuffix(suffix string) *Dimensions {
 	return &Dimensions{
-		name:                fmt.Sprintf("%s.%s", d.name, suffix),
+		name:                d.name + "." + suffix,
 		host:                d.host,
 		tags:                d.tags,
 		originID:            d.originID,
@@ -134,16 +133,25 @@ func concatDimensionValue(metricKeyBuilder *strings.Builder, value string) {
 // String maps dimensions to a string to use as an identifier.
 // The tags order does not matter.
 func (d *Dimensions) String() string {
-	var metricKeyBuilder strings.Builder
-
-	dimensions := make([]string, len(d.tags))
+	// Allocate exactly the right size upfront (len(tags)+3) in one shot,
+	// avoiding the original pattern of make(len)+copy+append+append+append
+	// which could cause up to 2 reallocations when cap(tags)==len(tags).
+	n := len(d.tags)
+	dimensions := make([]string, n+3)
 	copy(dimensions, d.tags)
-
-	dimensions = append(dimensions, "name:"+d.name)
-	dimensions = append(dimensions, "host:"+d.host)
-	dimensions = append(dimensions, "originID:"+d.originID)
+	dimensions[n] = "name:" + d.name
+	dimensions[n+1] = "host:" + d.host
+	dimensions[n+2] = "originID:" + d.originID
 	sort.Strings(dimensions)
 
+	// Pre-compute total byte size so the Builder never reallocates its buffer.
+	// Each dimension contributes len(dim)+1 bytes (dim + null separator).
+	totalSize := len(dimensions) // one separator byte per entry
+	for _, dim := range dimensions {
+		totalSize += len(dim)
+	}
+	var metricKeyBuilder strings.Builder
+	metricKeyBuilder.Grow(totalSize)
 	for _, dim := range dimensions {
 		concatDimensionValue(&metricKeyBuilder, dim)
 	}

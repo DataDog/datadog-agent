@@ -100,6 +100,33 @@ func TestAddTags(t *testing.T) {
 	assert.ElementsMatch(t, []string{"key:val"}, testDims.tags)
 }
 
+func TestWithAttributeMapEmptyMap(t *testing.T) {
+	// WithAttributeMap on an empty attribute map must return a valid Dimensions
+	// value and must not mutate the original tags.
+	original := &Dimensions{name: "my.metric", tags: []string{"existing:tag"}, host: "h"}
+	result := original.WithAttributeMap(pcommon.NewMap())
+	assert.Equal(t, original.name, result.name)
+	assert.Equal(t, original.host, result.host)
+	assert.ElementsMatch(t, original.tags, result.tags)
+	// Ensure original is not mutated.
+	assert.ElementsMatch(t, []string{"existing:tag"}, original.tags)
+}
+
+func TestWithAttributeMapDoesNotMutateOriginalTags(t *testing.T) {
+	// When WithAttributeMap is called on a Dimensions that already has tags, the
+	// resulting tag slice must be independent of the original's tag slice.
+	original := &Dimensions{name: "my.metric", tags: []string{"a:1", "b:2"}, host: "h"}
+
+	attrs := pcommon.NewMap()
+	attrs.FromRaw(map[string]interface{}{"c": "3"})
+
+	result := original.WithAttributeMap(attrs)
+	assert.ElementsMatch(t, []string{"a:1", "b:2", "c:3"}, result.tags)
+
+	// Original tags must be unchanged.
+	assert.ElementsMatch(t, []string{"a:1", "b:2"}, original.tags)
+}
+
 func TestAllFieldsAreCopied(t *testing.T) {
 	dims := &Dimensions{
 		name:     "example.name",
