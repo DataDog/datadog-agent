@@ -137,7 +137,7 @@ type WatchdogLogAnomalyDetector struct {
 	Processor *PatternLogProcessor
 	// Like Observer.obsCh, will create virtual metrics here
 	ObservationsChannel chan observation
-	AlertChannel        chan<- *AlertInfo
+	AnomalyChannel      chan<- observer.AnomalyOutput
 	Period              time.Duration
 	InputBatchMutex     sync.Mutex
 	InputBatch          []*LogAnomalyDetectionProcessInput
@@ -249,10 +249,10 @@ func (tags *LogADTags) FullTags() []string {
 	return res
 }
 
-func NewWatchdogLogAnomalyDetector(alertChannel chan<- *AlertInfo, observationsChannel chan observation) *WatchdogLogAnomalyDetector {
+func NewWatchdogLogAnomalyDetector(anomalyChannel chan<- observer.AnomalyOutput, observationsChannel chan observation) *WatchdogLogAnomalyDetector {
 	// TODO: Increase delay / sizes
 	return &WatchdogLogAnomalyDetector{
-		AlertChannel:        alertChannel,
+		AnomalyChannel:      anomalyChannel,
 		ObservationsChannel: observationsChannel,
 		Period:              100 * time.Millisecond,
 		Alpha:               0.95,
@@ -277,17 +277,6 @@ type TimeSeriesHistory struct {
 	Preprocess *queue.Queue
 	Eval       *queue.Queue
 	Baseline   *queue.Queue
-}
-
-type AlertInfo struct {
-	Date        time.Time
-	GroupByKey  *LogADGroupByKey
-	ZScore      float64
-	ClusterInfo *patterns.ClusterInfo
-}
-
-func (a *AlertInfo) Describe() string {
-	return fmt.Sprintf("Tags: %s, Z-Score: %f, Pattern: %s", a.GroupByKey.Tags.FullTags(), a.ZScore, a.ClusterInfo.PatternString)
 }
 
 // TODO: Is it better to have this in the processor and not each anomaly detector?
@@ -373,7 +362,9 @@ func (w *WatchdogLogAnomalyDetector) ProcessBatch(batch []*LogAnomalyDetectionPr
 		// Send back to the observer creating virtual metrics
 		for hash, rate := range w.PatternRate {
 			groupByKey := w.GroupByKeys[hash]
-			virtualMetricName := fmt.Sprintf("_.watchdog_log_ad.cluster.%d", hash)
+			// TODO: Is it better to use a single metric and add a specific cluster id tag?
+			// Cluster IDs are unique even though they are not on the same CPU
+			virtualMetricName := fmt.Sprintf("_.watchdog_log_ad.cluster.%d", groupByKey.ClusterID)
 			w.ObservationsChannel <- observation{
 				source: "watchdog_log_ad",
 				metric: &metricObs{
@@ -497,7 +488,30 @@ func (w *WatchdogLogAnomalyDetector) OnAnomalyDetected(date time.Time, groupByKe
 			return
 		}
 
-		alertInfo := AlertInfo{GroupByKey: groupByKey, ZScore: zScore, ClusterInfo: &clusterInfo, Date: date}
-		w.AlertChannel <- &alertInfo
+		w.AnomalyChannel <- w.MakeAlert(date, groupByKey, zScore, &clusterInfo)
+	}
+}
+
+func (w *WatchdogLogAnomalyDetector) MakeAlert(date time.Time, groupByKey *LogADGroupByKey, zScore float64, clusterInfo *patterns.ClusterInfo) observer.AnomalyOutput {
+	fullTags := groupByKey.Tags.FullTags()
+	title := fmt.Sprintf("Log pattern anomaly on %s for pattern: %s", fullTags, clusterInfo.PatternString)
+	description := fmt.Sprintf("%s\nTags: %s\nZ-Score: %f", title, fullTags, zScore)
+
+	return observer.AnomalyOutput{
+		Source:       observer.MetricName(fmt.Sprintf("log.patterns.%s", w.Name())),
+		AnalyzerName: w.Name(),
+		// TODO: Type: log (or full source: log)
+		// TODO: This should be removed
+		SourceSeriesID: "",
+		Title:          title,
+		Description:    description,
+		Tags:           fullTags,
+		Timestamp:      date.Unix(),
+		// TODO: Precise range
+		TimeRange: observer.TimeRange{
+			Start: date.Unix(),
+			End:   date.Unix(),
+		},
+		// TODO: User data... (to be done after refactoring anomalies)
 	}
 }
