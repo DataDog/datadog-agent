@@ -6,6 +6,7 @@
 package com_datadoghq_script
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,7 +14,7 @@ import (
 )
 
 func TestLimitedWriter_UnderLimit(t *testing.T) {
-	stdout, stderr := newLimitedWriterPair(100)
+	stdout, stderr := newLimitedStdoutStderrWritersPair(100)
 
 	n, err := stdout.Write([]byte("hello"))
 	require.NoError(t, err)
@@ -30,7 +31,7 @@ func TestLimitedWriter_UnderLimit(t *testing.T) {
 }
 
 func TestLimitedWriter_ExactLimit(t *testing.T) {
-	stdout, stderr := newLimitedWriterPair(10)
+	stdout, stderr := newLimitedStdoutStderrWritersPair(10)
 
 	n, err := stdout.Write([]byte("12345"))
 	require.NoError(t, err)
@@ -47,7 +48,7 @@ func TestLimitedWriter_ExactLimit(t *testing.T) {
 }
 
 func TestLimitedWriter_ExceedsLimit(t *testing.T) {
-	stdout, stderr := newLimitedWriterPair(10)
+	stdout, stderr := newLimitedStdoutStderrWritersPair(10)
 
 	n, err := stdout.Write([]byte("12345678"))
 	require.NoError(t, err)
@@ -64,7 +65,7 @@ func TestLimitedWriter_ExceedsLimit(t *testing.T) {
 }
 
 func TestLimitedWriter_SubsequentWritesAfterLimit(t *testing.T) {
-	stdout, stderr := newLimitedWriterPair(5)
+	stdout, stderr := newLimitedStdoutStderrWritersPair(5)
 
 	_, err := stdout.Write([]byte("12345"))
 	require.NoError(t, err)
@@ -83,7 +84,7 @@ func TestLimitedWriter_SubsequentWritesAfterLimit(t *testing.T) {
 }
 
 func TestLimitedWriter_SingleWriterExceedsLimit(t *testing.T) {
-	stdout, stderr := newLimitedWriterPair(5)
+	stdout, stderr := newLimitedStdoutStderrWritersPair(5)
 
 	n, err := stdout.Write([]byte("0123456789"))
 	assert.ErrorIs(t, err, errOutputLimitExceeded)
@@ -98,7 +99,7 @@ func TestLimitedWriter_SingleWriterExceedsLimit(t *testing.T) {
 }
 
 func TestLimitedWriter_SharedCounter(t *testing.T) {
-	stdout, stderr := newLimitedWriterPair(10)
+	stdout, stderr := newLimitedStdoutStderrWritersPair(10)
 
 	// Alternate writes between stdout and stderr
 	stdout.Write([]byte("aa"))  // shared = 2
@@ -112,4 +113,37 @@ func TestLimitedWriter_SharedCounter(t *testing.T) {
 
 	assert.Equal(t, "aacc", stdout.String())
 	assert.Equal(t, "bbbddd", stderr.String())
+}
+
+func TestLimitedWriter_ConcurrentWrites(t *testing.T) {
+	const limit int64 = 1024
+	stdout, stderr := newLimitedStdoutStderrWritersPair(limit)
+
+	chunk := []byte("abcdefghij") // 10 bytes per write
+	var wg sync.WaitGroup
+
+	// Simulate exec.Cmd: two goroutines writing concurrently
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for {
+			if _, err := stdout.Write(chunk); err != nil {
+				return
+			}
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for {
+			if _, err := stderr.Write(chunk); err != nil {
+				return
+			}
+		}
+	}()
+	wg.Wait()
+
+	total := int64(stdout.Len() + stderr.Len())
+	assert.True(t, stdout.LimitReached() || stderr.LimitReached())
+	assert.LessOrEqual(t, total, limit+int64(len(chunk)),
+		"total bytes (%d) should not exceed limit (%d) by more than one chunk (%d)", total, limit, len(chunk))
 }

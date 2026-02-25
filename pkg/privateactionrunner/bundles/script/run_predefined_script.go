@@ -78,14 +78,14 @@ func (h *RunPredefinedScriptHandler) Run(
 	if err != nil {
 		return nil, fmt.Errorf("invalid command arguments: %w", err)
 	}
-	stdoutWriter, stderrWriter := newLimitedWriterPair(maxOutputSize)
+	stdoutWriter, stderrWriter := newLimitedStdoutStderrWritersPair(defaultMaxOutputSize)
 	cmd.Stdout = stdoutWriter
 	cmd.Stderr = stderrWriter
 	start := time.Now()
 	err = cmd.Run()
 
 	if stdoutWriter.LimitReached() || stderrWriter.LimitReached() {
-		return nil, errOutputLimitExceeded
+		return nil, newOutputLimitError(defaultMaxOutputSize)
 	}
 
 	if err != nil && !inputs.NoFailOnError {

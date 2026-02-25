@@ -96,14 +96,14 @@ func (h *RunPredefinedPowershellScriptHandler) Run(
 	}
 
 	cmd := newPowershellCommand(ctx, evaluatedScript, script.AllowedEnvVars)
-	stdoutWriter, stderrWriter := newLimitedWriterPair(maxOutputSize)
+	stdoutWriter, stderrWriter := newLimitedStdoutStderrWritersPair(defaultMaxOutputSize)
 	cmd.Stdout = stdoutWriter
 	cmd.Stderr = stderrWriter
 	start := time.Now()
 	err = cmd.Run()
 
 	if stdoutWriter.LimitReached() || stderrWriter.LimitReached() {
-		return nil, errOutputLimitExceeded
+		return nil, newOutputLimitError(defaultMaxOutputSize)
 	}
 
 	if err != nil && !inputs.NoFailOnError {
