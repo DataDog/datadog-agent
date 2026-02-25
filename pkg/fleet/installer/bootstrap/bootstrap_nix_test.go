@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows
+//go:build !windows
 
 package bootstrap
 
@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 )
 
-// TestGetInstallerOCIWithDefaultVersion tests getInstallerOCI with default version on Windows
+// TestGetInstallerOCIWithDefaultVersion tests getInstallerOCI with default version on Linux
 func TestGetInstallerOCIWithDefaultVersion(t *testing.T) {
 	ctx := context.Background()
 	testEnv := &env.Env{}
@@ -25,27 +25,27 @@ func TestGetInstallerOCIWithDefaultVersion(t *testing.T) {
 	url, err := getInstallerOCI(ctx, testEnv)
 	require.NoError(t, err)
 	// PackageURL strips "datadog-" prefix and adds "-package" suffix
-	// On Windows, AgentPackage is "datadog-agent" which becomes "agent-package"
-	assert.Contains(t, url, "agent-package")
+	// So "datadog-installer" becomes "installer-package"
+	assert.Contains(t, url, "installer-package")
 	assert.Contains(t, url, "latest")
 	assert.Contains(t, url, "oci://")
 }
 
-// TestGetInstallerOCIWithVersionOverride tests getInstallerOCI with version override on Windows
+// TestGetInstallerOCIWithVersionOverride tests getInstallerOCI with version override on Linux
 func TestGetInstallerOCIWithVersionOverride(t *testing.T) {
 	ctx := context.Background()
 	testEnv := &env.Env{
-		DefaultPackagesVersionOverride: map[string]string{"datadog-agent": "7.65.0"},
+		DefaultPackagesVersionOverride: map[string]string{"datadog-installer": "7.50.0"},
 	}
 
 	url, err := getInstallerOCI(ctx, testEnv)
 	require.NoError(t, err)
-	assert.Contains(t, url, "agent-package")
-	assert.Contains(t, url, "7.65.0")
+	assert.Contains(t, url, "installer-package")
+	assert.Contains(t, url, "7.50.0")
 	assert.NotContains(t, url, "latest")
 }
 
-// TestGetInstallerOCIWithDifferentSite tests getInstallerOCI with different site on Windows
+// TestGetInstallerOCIWithDifferentSite tests getInstallerOCI with different site on Linux
 func TestGetInstallerOCIWithDifferentSite(t *testing.T) {
 	ctx := context.Background()
 	testEnv := &env.Env{
@@ -54,19 +54,6 @@ func TestGetInstallerOCIWithDifferentSite(t *testing.T) {
 
 	url, err := getInstallerOCI(ctx, testEnv)
 	require.NoError(t, err)
-	assert.Contains(t, url, "agent-package")
+	assert.Contains(t, url, "installer-package")
 	assert.Contains(t, url, "datad0g.com")
-}
-
-// TestGetInstallerOCIWithUnsupportedVersion tests getInstallerOCI rejects unsupported versions on Windows
-func TestGetInstallerOCIWithUnsupportedVersion(t *testing.T) {
-	ctx := context.Background()
-	testEnv := &env.Env{
-		AgentMajorVersion: "7",
-		AgentMinorVersion: "50.0", // Below minimum version 7.65.0
-	}
-
-	_, err := getInstallerOCI(ctx, testEnv)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "does not support fleet automation")
 }
