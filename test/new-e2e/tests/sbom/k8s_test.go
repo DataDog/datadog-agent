@@ -312,9 +312,7 @@ func (suite *k8sSuite) TestSBOM() {
 
 					for _, image := range images {
 						cyclonedx := image.GetCyclonedx()
-						if !assert.NotNil(c, cyclonedx.Metadata.Component.Properties) {
-							continue
-						}
+						require.NotNil(c, cyclonedx.Metadata.Component.Properties)
 
 						expectedTags := []*regexp.Regexp{
 							regexp.MustCompile(`^architecture:(amd|arm)64$`),

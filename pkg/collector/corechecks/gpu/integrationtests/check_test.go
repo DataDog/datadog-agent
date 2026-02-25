@@ -82,9 +82,7 @@ func assertMetricCase(t *testing.T, metricsByName map[string][]mock.Call, tc met
 	t.Helper()
 
 	calls, ok := metricsByName[tc.name]
-	if !assert.True(t, ok, "%s metric should be present", tc.name) || !assert.NotEmpty(t, calls, "No calls found for metric %s", tc.name) {
-		return
-	}
+	require.True(t, ok, "%s metric should be present", tc.name) || !assert.NotEmpty(t, calls, "No calls found for metric %s", tc.name)
 
 	for _, call := range calls {
 		value := call.Arguments[1].(float64)

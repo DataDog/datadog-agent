@@ -118,10 +118,7 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 					MaxResults: pointer.Ptr(int32(10)), // Because `DescribeServices` takes at most 10 services in input
 					NextToken:  nextToken,
 				})
-				// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-				if !assert.NoErrorf(c, err, "Failed to list ECS services") {
-					return
-				}
+				require.NoErrorf(c, err, "Failed to list ECS services")
 
 				nextToken = servicesList.NextToken
 
@@ -129,9 +126,7 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 					Cluster:  &suite.ecsClusterName,
 					Services: servicesList.ServiceArns,
 				})
-				if !assert.NoErrorf(c, err, "Failed to describe ECS services %v", servicesList.ServiceArns) {
-					continue
-				}
+				require.NoErrorf(c, err, "Failed to describe ECS services %v", servicesList.ServiceArns)
 
 				for _, serviceDescription := range servicesDescription.Services {
 					assert.NotZerof(c, serviceDescription.DesiredCount, "ECS service %s has no task", *serviceDescription.ServiceName)
@@ -148,9 +143,7 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 							MaxResults:    pointer.Ptr(int32(100)), // Because `DescribeTasks` takes at most 100 tasks in input
 							NextToken:     nextToken,
 						})
-						if !assert.NoErrorf(c, err, "Failed to list ECS tasks for service %s", *serviceDescription.ServiceName) {
-							break
-						}
+						require.NoErrorf(c, err, "Failed to list ECS tasks for service %s", *serviceDescription.ServiceName)
 
 						nextToken = tasksList.NextToken
 
@@ -158,9 +151,7 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 							Cluster: &suite.ecsClusterName,
 							Tasks:   tasksList.TaskArns,
 						})
-						if !assert.NoErrorf(c, err, "Failed to describe ECS tasks %v", tasksList.TaskArns) {
-							continue
-						}
+						require.NoErrorf(c, err, "Failed to describe ECS tasks %v", tasksList.TaskArns)
 
 						for _, taskDescription := range tasksDescription.Tasks {
 							assert.Equalf(c, string(awsecstypes.DesiredStatusRunning), *taskDescription.LastStatus,
@@ -614,10 +605,7 @@ func (suite *ecsSuite) TestTraceTCP() {
 func (suite *ecsSuite) testTrace(taskName string) {
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
 		traces, cerr := suite.Fakeintake.GetTraces()
-		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NoErrorf(c, cerr, "Failed to query fake intake") {
-			return
-		}
+		require.NoErrorf(c, cerr, "Failed to query fake intake")
 
 		var err error
 		// Iterate starting from the most recent traces

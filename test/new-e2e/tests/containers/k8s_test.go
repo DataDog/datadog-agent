@@ -128,58 +128,37 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 					fields.OneTermNotEqualSelector("eks.amazonaws.com/compute-type", "fargate"),
 				).String(),
 			})
-			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to list Linux nodes") {
-				return
-			}
+			require.NoErrorf(c, err, "Failed to list Linux nodes")
 
 			windowsNodes, err := suite.Env().KubernetesCluster.Client().CoreV1().Nodes().List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("kubernetes.io/os", "windows").String(),
 			})
-			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to list Windows nodes") {
-				return
-			}
+			require.NoErrorf(c, err, "Failed to list Windows nodes")
 
 			linuxPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
 			})
-			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to list Linux datadog agent pods") {
-				return
-			}
+			require.NoErrorf(c, err, "Failed to list Linux datadog agent pods")
 
 			windowsPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.WindowsNodeAgent.LabelSelectors["app"]).String(),
 			})
-			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to list Windows datadog agent pods") {
-				return
-			}
+			require.NoErrorf(c, err, "Failed to list Windows datadog agent pods")
 
 			clusterAgentPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxClusterAgent.LabelSelectors["app"]).String(),
 			})
-			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to list datadog cluster agent pods") {
-				return
-			}
+			require.NoErrorf(c, err, "Failed to list datadog cluster agent pods")
 
 			clusterChecksPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxClusterChecks.LabelSelectors["app"]).String(),
 			})
-			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to list datadog cluster checks runner pods") {
-				return
-			}
+			require.NoErrorf(c, err, "Failed to list datadog cluster checks runner pods")
 
 			dogstatsdPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("dogstatsd-standalone").List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("app", "dogstatsd-standalone").String(),
 			})
-			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to list dogstatsd standalone pods") {
-				return
-			}
+			require.NoErrorf(c, err, "Failed to list dogstatsd standalone pods")
 
 			assert.Len(c, linuxPods.Items, len(linuxNodes.Items))
 			assert.Len(c, windowsPods.Items, len(windowsNodes.Items))
@@ -348,10 +327,7 @@ func (suite *k8sSuite) testAgentCLI() {
 		var stdout string
 		suite.EventuallyWithT(func(c *assert.CollectT) {
 			stdout, _, err = suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "check", "-t", "3", "container", "--table", "--delay", "1000", "--pause", "5000"})
-			// Can be replaced by require.NoError(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoError(c, err) {
-				return
-			}
+			require.NoError(c, err)
 			matched, err := regexp.MatchString(`container\.memory\.usage\s+gauge\s+\d+\s+\d+`, stdout)
 			if assert.NoError(c, err) {
 				assert.Truef(c, matched, "Output of `agent check -r container` doesn’t contain the expected metric")
@@ -366,10 +342,7 @@ func (suite *k8sSuite) testAgentCLI() {
 		var stdout string
 		suite.EventuallyWithT(func(c *assert.CollectT) {
 			stdout, _, err = suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "check", "-r", "container", "--table", "--delay", "1000", "--json"})
-			// Can be replaced by require.NoError(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoError(c, err) {
-				return
-			}
+			require.NoError(c, err)
 			if !assert.Truef(c, json.Valid([]byte(stdout)), "Output of `agent check -r container --json` isn’t valid JSON") {
 				var blob interface{}
 				err := json.Unmarshal([]byte(stdout), &blob)
@@ -1644,14 +1617,8 @@ func (suite *k8sSuite) TestContainerImage() {
 		}()
 
 		images, err := suite.Fakeintake.FilterContainerImages("ghcr.io/datadog/apps-nginx-server")
-		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NoErrorf(c, err, "Failed to query fake intake") {
-			return
-		}
-		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NotEmptyf(c, images, "No container_image yet") {
-			return
-		}
+		require.NoErrorf(c, err, "Failed to query fake intake")
+		require.NotEmptyf(c, images, "No container_image yet")
 
 		expectedTags := []*regexp.Regexp{
 			regexp.MustCompile(`^architecture:(amd|arm)64$`),
@@ -1714,19 +1681,13 @@ func (suite *k8sSuite) TestSBOM() {
 		}()
 
 		sbomIDs, err := suite.Fakeintake.GetSBOMIDs()
-		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NoErrorf(c, err, "Failed to query fake intake") {
-			return
-		}
+		require.NoErrorf(c, err, "Failed to query fake intake")
 
 		sbomIDs = lo.Filter(sbomIDs, func(id string, _ int) bool {
 			return strings.HasPrefix(id, "ghcr.io/datadog/apps-nginx-server")
 		})
 
-		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NotEmptyf(c, sbomIDs, "No SBOM for ghcr.io/datadog/apps-nginx-server yet") {
-			return
-		}
+		require.NotEmptyf(c, sbomIDs, "No SBOM for ghcr.io/datadog/apps-nginx-server yet")
 
 		images := lo.FlatMap(sbomIDs, func(id string, _ int) []*aggregator.SBOMPayload {
 			images, err := suite.Fakeintake.FilterSBOMs(id)
@@ -1734,19 +1695,13 @@ func (suite *k8sSuite) TestSBOM() {
 			return images
 		})
 
-		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NotEmptyf(c, images, "No SBOM payload yet") {
-			return
-		}
+		require.NotEmptyf(c, images, "No SBOM payload yet")
 
 		images = lo.Filter(images, func(image *aggregator.SBOMPayload, _ int) bool {
 			return image.Status == sbom.SBOMStatus_SUCCESS
 		})
 
-		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NotEmptyf(c, images, "No successful SBOM yet") {
-			return
-		}
+		require.NotEmptyf(c, images, "No successful SBOM yet")
 
 		images = lo.Filter(images, func(image *aggregator.SBOMPayload, _ int) bool {
 			cyclonedx := image.GetCyclonedx()
@@ -1755,15 +1710,10 @@ func (suite *k8sSuite) TestSBOM() {
 				cyclonedx.Metadata.Component != nil
 		})
 
-		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NotEmptyf(c, images, "No SBOM with complete CycloneDX") {
-			return
-		}
+		require.NotEmptyf(c, images, "No SBOM with complete CycloneDX")
 
 		for _, image := range images {
-			if !assert.NotNil(c, image.GetCyclonedx().Metadata.Component.Properties) {
-				continue
-			}
+			require.NotNil(c, image.GetCyclonedx().Metadata.Component.Properties)
 
 			expectedTags := []*regexp.Regexp{
 				regexp.MustCompile(`^architecture:(amd|arm)64$`),
@@ -1830,13 +1780,8 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 			LabelSelector: fields.OneTermEqualSelector("app", "nginx").String(),
 			FieldSelector: fields.OneTermEqualSelector("status.phase", "Running").String(),
 		})
-		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NoErrorf(c, err, "Failed to list nginx pods") {
-			return
-		}
-		if !assert.NotEmptyf(c, pods.Items, "Failed to find an nginx pod") {
-			return
-		}
+		require.NoErrorf(c, err, "Failed to list nginx pods")
+		require.NotEmptyf(c, pods.Items, "Failed to find an nginx pod")
 
 		// Choose the oldest pod.
 		// If we choose a pod that is too recent, there is a risk that we delete a pod that hasn’t been seen by the agent yet.
@@ -1866,10 +1811,7 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 		}()
 
 		events, err := suite.Fakeintake.GetContainerLifecycleEvents()
-		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NoErrorf(c, err, "Failed to query fake intake") {
-			return
-		}
+		require.NoErrorf(c, err, "Failed to query fake intake")
 
 		foundPodEvent := false
 
@@ -1925,14 +1867,8 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 					"kube_deployment:" + deployment,
 				}),
 			)
-			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to query fake intake") {
-				return
-			}
-			if !assert.NotEmptyf(c, metrics, "No `kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}` metrics yet", namespace, deployment) {
-				sendEvent("warning", fmt.Sprintf("No `kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}` metrics yet", namespace, deployment), nil)
-				return
-			}
+			require.NoErrorf(c, err, "Failed to query fake intake")
+			require.NotEmptyf(c, metrics, "No `kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}` metrics yet", namespace, deployment)
 
 			// Check HPA is properly scaling up or down
 			// This indirectly tests the cluster-agent external metrics server
@@ -1975,10 +1911,7 @@ func (suite *k8sSuite) TestTraceTCP() {
 func (suite *k8sSuite) testTrace(kubeDeployment string) {
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
 		traces, cerr := suite.Fakeintake.GetTraces()
-		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-		if !assert.NoErrorf(c, cerr, "Failed to query fake intake") {
-			return
-		}
+		require.NoErrorf(c, cerr, "Failed to query fake intake")
 
 		var err error
 		// Iterate starting from the most recent traces

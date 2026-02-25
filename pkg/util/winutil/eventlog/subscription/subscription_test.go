@@ -409,9 +409,7 @@ func (s *GetEventsTestSuite) TestStopWhileWaitingWithEventsAvailable() {
 		// Read not all of the events
 		_, err := ReadNumEvents(s.T(), s.ti, sub, batchCount)
 		close(readyToStop)
-		if !assert.NoError(s.T(), err) {
-			return
-		}
+		require.NoError(s.T(), err)
 		// Purposefully don't read the rest of the events. This leaves the signal event set.
 		// Wait for Stop() to finish
 		<-stopped
@@ -443,9 +441,7 @@ func (s *GetEventsTestSuite) TestStopWhileWaitingWithNoMoreItemseNotFinalized() 
 		// Read all events
 		_, err := getEventHandles(s.T(), s.ti, sub, s.numEvents)
 		close(readyToStop)
-		if !assert.NoError(s.T(), err) {
-			return
-		}
+		require.NoError(s.T(), err)
 		// Purposefully don't call EvtNext the final time when it would normally return ERROR_NO_MORE_ITEMS.
 		// This leaves the signal event set.
 		// Wait for Stop() to finish
@@ -792,9 +788,7 @@ func (s *GetEventsTestSuite) TestReadWhenNoMoreEvents() {
 	eventRecords, err := getEventHandles(s.T(), s.ti, sub, 2*s.numEvents)
 	require.NoError(s.T(), err)
 	count := uint(len(eventRecords))
-	if !assert.Equal(s.T(), 2*s.numEvents, count, fmt.Sprintf("Missing events, collected %d/%d events", count, 2*s.numEvents)) {
-		return
-	}
+	require.Equal(s.T(), 2*s.numEvents, count, fmt.Sprintf("Missing events, collected %d/%d events", count, 2*s.numEvents))
 	err = assertNoMoreEvents(s.T(), sub)
 	require.NoError(s.T(), err)
 

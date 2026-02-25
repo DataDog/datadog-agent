@@ -45,9 +45,7 @@ func testSubscriptionExample(t testing.TB, ti eventlog_test.APITester, stop chan
 
 	// Start the subscription
 	err := sub.Start()
-	if !assert.NoError(t, err) {
-		return
-	}
+	require.NoError(t, err)
 	// Cleanup the subscription when done
 	defer sub.Stop()
 
