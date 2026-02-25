@@ -77,6 +77,7 @@ func NewComponent(deps Requires) Provides {
 	reporter.SetCorrelationState(correlator)
 
 	obsCh := make(chan observation, 1000)
+	alertCh := make(chan *AlertInfo, 1024)
 	obs := &observerImpl{
 		logProcessors: []observerdef.LogProcessor{
 			&LogTimeSeriesAnalysis{
@@ -95,8 +96,7 @@ func NewComponent(deps Requires) Provides {
 			},
 			&ConnectionErrorExtractor{},
 			NewPatternLogProcessor([]LogAnomalyDetector{
-				// TODO: The result channel is useless now, this should be a channel for the aggregator
-				NewWatchdogLogAnomalyDetector(make(chan *observerdef.LogProcessorResult, 1024), obsCh),
+				NewWatchdogLogAnomalyDetector(alertCh, obsCh),
 			}),
 		},
 		tsAnalyses: []observerdef.TimeSeriesAnalysis{
@@ -110,6 +110,7 @@ func NewComponent(deps Requires) Provides {
 		},
 		storage:   newTimeSeriesStorage(),
 		obsCh:     obsCh,
+		alertCh:   alertCh,
 		maxEvents: 1000, // Keep last 1000 events for debugging
 	}
 
@@ -251,7 +252,9 @@ type observerImpl struct {
 	reporters         []observerdef.Reporter
 	storage           *timeSeriesStorage
 	obsCh             chan observation
-	handleFunc        observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
+	// TODO: Move this to the aggregator...
+	alertCh    chan *AlertInfo
+	handleFunc observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
 
 	// NEW path: Signal-based processing (V2 architecture)
 	signalEmitters   []observerdef.SignalEmitter   // Layer 1: Point-based anomaly detection
@@ -278,12 +281,17 @@ type observerImpl struct {
 
 // run is the main dispatch loop, processing all observations sequentially.
 func (o *observerImpl) run() {
-	for obs := range o.obsCh {
-		if obs.metric != nil {
-			o.processMetric(obs.source, obs.metric)
-		}
-		if obs.log != nil {
-			o.processLog(obs.source, obs.log)
+	for {
+		select {
+		case alert := <-o.alertCh:
+			fmt.Printf("[observer] ALERT: %s\n", alert.Describe())
+		case obs := <-o.obsCh:
+			if obs.metric != nil {
+				o.processMetric(obs.source, obs.metric)
+			}
+			if obs.log != nil {
+				o.processLog(obs.source, obs.log)
+			}
 		}
 	}
 }
