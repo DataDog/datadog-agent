@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/netip"
+	"runtime"
 	"sort"
 	"strconv"
 	"time"
@@ -130,7 +131,12 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 
 // IsEnabled returns true if the check is enabled by configuration
 func (c *ConnectionsCheck) IsEnabled() bool {
-	// connection check is now supported on darwin via libpcap-based packet capture
+	// On Darwin, connections monitoring uses libpcap-based packet capture.
+	// Require network_config.enabled to be explicitly set to true so that
+	// existing macOS deployments without system-probe are not affected.
+	if runtime.GOOS == "darwin" && !c.sysprobeYamlConfig.GetBool("network_config.enabled") {
+		return false
+	}
 
 	// connections check is only supported on the process agent
 	if flavor.GetFlavor() != flavor.ProcessAgent {
