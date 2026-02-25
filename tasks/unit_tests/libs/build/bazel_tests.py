@@ -19,7 +19,7 @@ class TestBazel(unittest.TestCase):
     def test_bazel_not_found(self):
         with self.assertRaises(SystemExit) as cm:
             bazel("info")
-        self.assertIn("❌ ERROR: `bazelisk` is required to build this project", cm.exception.code)
+        self.assertIn("Please run `inv install-tools` for `bazel` support!", cm.exception.code)
 
 
 if __name__ == "__main__":
