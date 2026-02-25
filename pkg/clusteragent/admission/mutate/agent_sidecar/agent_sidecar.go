@@ -57,22 +57,23 @@ type Webhook struct {
 	namespaceSelector *metav1.LabelSelector
 	objectSelector    *metav1.LabelSelector
 	containerRegistry string
+	caCertData        map[string]string
 
 	// These fields store datadog agent config parameters
 	// to avoid calling the config resolution each time the webhook
 	// receives requests because the resolution is CPU expensive.
-	profileOverrides              []ProfileOverride
-	provider                      string
-	imageName                     string
-	imageTag                      string
-	isLangDetectEnabled           bool
-	isLangDetectReportingEnabled  bool
-	isClusterAgentEnabled         bool
-	isKubeletAPILoggingEnabled    bool
-	isClusterAgentTLSEnabled      bool
-	isClusterAgentTLSCopySecretCA bool
-	clusterAgentCmdPort           int
-	clusterAgentServiceName       string
+	profileOverrides                 []ProfileOverride
+	provider                         string
+	imageName                        string
+	imageTag                         string
+	isLangDetectEnabled              bool
+	isLangDetectReportingEnabled     bool
+	isClusterAgentEnabled            bool
+	isKubeletAPILoggingEnabled       bool
+	isClusterAgentTLSEnabled         bool
+	isClusterAgentTLSCopyCAConfigMap bool
+	clusterAgentCmdPort              int
+	clusterAgentServiceName          string
 }
 
 // NewWebhook returns a new Webhook
@@ -98,15 +99,16 @@ func NewWebhook(datadogConfig config.Component) *Webhook {
 		containerRegistry: containerRegistry,
 		profileOverrides:  profileOverrides,
 
-		provider:                      datadogConfig.GetString("admission_controller.agent_sidecar.provider"),
-		imageName:                     datadogConfig.GetString("admission_controller.agent_sidecar.image_name"),
-		imageTag:                      datadogConfig.GetString("admission_controller.agent_sidecar.image_tag"),
-		clusterAgentServiceName:       datadogConfig.GetString("cluster_agent.kubernetes_service_name"),
-		clusterAgentCmdPort:           datadogConfig.GetInt("cluster_agent.cmd_port"),
-		isClusterAgentEnabled:         datadogConfig.GetBool("admission_controller.agent_sidecar.cluster_agent.enabled"),
-		isKubeletAPILoggingEnabled:    datadogConfig.GetBool("admission_controller.agent_sidecar.kubelet_api_logging.enabled"),
-		isClusterAgentTLSEnabled:      datadogConfig.GetBool("admission_controller.agent_sidecar.cluster_agent.tls_verification.enabled"),
-		isClusterAgentTLSCopySecretCA: datadogConfig.GetBool("admission_controller.agent_sidecar.cluster_agent.tls_verification.copy_secret_ca"),
+		provider:                         datadogConfig.GetString("admission_controller.agent_sidecar.provider"),
+		imageName:                        datadogConfig.GetString("admission_controller.agent_sidecar.image_name"),
+		imageTag:                         datadogConfig.GetString("admission_controller.agent_sidecar.image_tag"),
+		clusterAgentServiceName:          datadogConfig.GetString("cluster_agent.kubernetes_service_name"),
+		clusterAgentCmdPort:              datadogConfig.GetInt("cluster_agent.cmd_port"),
+		isClusterAgentEnabled:            datadogConfig.GetBool("admission_controller.agent_sidecar.cluster_agent.enabled"),
+		isKubeletAPILoggingEnabled:       datadogConfig.GetBool("admission_controller.agent_sidecar.kubelet_api_logging.enabled"),
+		isClusterAgentTLSEnabled:         datadogConfig.GetBool("admission_controller.agent_sidecar.cluster_agent.tls_verification.enabled"),
+		isClusterAgentTLSCopyCAConfigMap: datadogConfig.GetBool("admission_controller.agent_sidecar.cluster_agent.tls_verification.copy_ca_configmap"),
+		caCertData:                       readCAFromFilesystem(datadogConfig),
 
 		isLangDetectEnabled:          datadogConfig.GetBool("language_detection.enabled"),
 		isLangDetectReportingEnabled: datadogConfig.GetBool("language_detection.reporting.enabled"),
@@ -266,33 +268,26 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, namespace string, _ dynami
 		if w.isClusterAgentTLSEnabled {
 			isDryRun := dryRun != nil && *dryRun
 
-			// Gracefully handle cases where the certificate authority fails to be copied to the target namespace
-			secretSideEffectSucceeded := false
-			if !isDryRun && w.isClusterAgentTLSCopySecretCA {
-				// 4a. Load CA from filesystem
-				caCertData, err := readCAFromFilesystem()
-				if err != nil {
-					log.Errorf("Failed to read certificate authority from filesystem: %v", err)
+			// Gracefully handle cases where the CA certificate fails to be copied to the target namespace
+			configMapSideEffectSucceeded := false
+			if !isDryRun && w.isClusterAgentTLSCopyCAConfigMap && w.caCertData != nil {
+				if err := ensureCACertConfigMapInNamespace(namespace, w.caCertData, apiClient); err != nil {
+					log.Errorf("Failed to ensure CA cert ConfigMap in namespace %s: %v", namespace, err)
 				} else {
-					// 4b. Copy CA to target namespace as secret
-					if err = ensureCASecretInNamespace(namespace, caCertData, apiClient); err != nil {
-						log.Errorf("Failed to ensure certificate authority secret in namespace %s: %v", namespace, err)
-					} else {
-						secretSideEffectSucceeded = true
-					}
+					configMapSideEffectSucceeded = true
 				}
 			}
 
 			if isDryRun {
-				log.Infof("[DRY-RUN] Would create/update CA cert secret in namespace %s", namespace)
+				log.Infof("[DRY-RUN] Would create/update CA cert ConfigMap in namespace %s", namespace)
 				// Still add volume, mount, and env vars in dry-run mode for validation
-				secretSideEffectSucceeded = true
+				configMapSideEffectSucceeded = true
 			}
 
-			// Add volume and mount to use the secret if
-			// a. the secret was successfully created/updated OR
-			// b. the secret is self managed by the user
-			if secretSideEffectSucceeded || !w.isClusterAgentTLSCopySecretCA {
+			// Add volume and mount to use the ConfigMap if
+			// a. the ConfigMap was successfully created/updated/read OR
+			// b. the ConfigMap is self managed by the user
+			if configMapSideEffectSucceeded || !w.isClusterAgentTLSCopyCAConfigMap {
 				if err := attachVolume(pod, clusterCACertVolume); err != nil {
 					log.Errorf("Failed to attach volume: %v", err)
 				}
@@ -302,8 +297,7 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, namespace string, _ dynami
 
 				_, _ = withEnvOverrides(agentSidecarContainer,
 					corev1.EnvVar{Name: "DD_CLUSTER_TRUST_CHAIN_ENABLE_TLS_VERIFICATION", Value: "true"},
-					corev1.EnvVar{Name: "DD_CLUSTER_TRUST_CHAIN_CA_CERT_FILE_PATH", Value: caCertDirPath + "/tls.cert"},
-					corev1.EnvVar{Name: "DD_CLUSTER_TRUST_CHAIN_CA_KEY_FILE_PATH", Value: caCertDirPath + "/tls.key"},
+					corev1.EnvVar{Name: "DD_CLUSTER_TRUST_CHAIN_CA_CERT_FILE_PATH", Value: caCertDirPath + "/ca.crt"},
 				)
 			}
 		}

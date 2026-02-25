@@ -23,9 +23,9 @@ const (
 )
 
 const (
-	// secretCAName is the name of the secret containing the cluster agent certificate authority
-	secretCAName = "datadog-secret-ca"
-	// caCertDirPath is the path to the directory containing the CA certificate and key
+	// configMapCAName is the name of the ConfigMap containing the cluster agent CA certificate
+	configMapCAName = "datadog-ca-cert"
+	// caCertDirPath is the path to the directory containing the CA certificate
 	caCertDirPath = "/etc/datadog-agent/certificates"
 )
 
@@ -94,8 +94,10 @@ var kubernetesAPILoggingVolumeMounts = []corev1.VolumeMount{
 var clusterCACertVolume = corev1.Volume{
 	Name: clusterCACertVolumeName,
 	VolumeSource: corev1.VolumeSource{
-		Secret: &corev1.SecretVolumeSource{
-			SecretName: secretCAName,
+		ConfigMap: &corev1.ConfigMapVolumeSource{
+			LocalObjectReference: corev1.LocalObjectReference{
+				Name: configMapCAName,
+			},
 		},
 	},
 }

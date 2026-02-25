@@ -39,7 +39,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 		ExpectInjection           bool
 		KubernetesAPILogging      bool
 		TLSEnabled                bool
-		TLSCopySecretCA           bool
+		TLSCopyCAConfigMap        bool
 		DryRun                    *bool
 		ExpectedPodAfterInjection func() *corev1.Pod
 	}{
@@ -570,20 +570,19 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 				},
 			},
-			provider:        "",
-			profilesJSON:    "[]",
-			TLSEnabled:      true,
-			TLSCopySecretCA: false,
-			ExpectError:     false,
-			ExpectInjection: true,
+			provider:           "",
+			profilesJSON:       "[]",
+			TLSEnabled:         true,
+			TLSCopyCAConfigMap: false,
+			ExpectError:        false,
+			ExpectInjection:    true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
 				sidecar := *NewWebhook(mockConfig).getDefaultSidecarTemplate()
 
 				// TLS env vars should be added
 				sidecar.Env = append(sidecar.Env, []corev1.EnvVar{
 					{Name: "DD_CLUSTER_TRUST_CHAIN_ENABLE_TLS_VERIFICATION", Value: "true"},
-					{Name: "DD_CLUSTER_TRUST_CHAIN_CA_CERT_FILE_PATH", Value: caCertDirPath + "/tls.cert"},
-					{Name: "DD_CLUSTER_TRUST_CHAIN_CA_KEY_FILE_PATH", Value: caCertDirPath + "/tls.key"},
+					{Name: "DD_CLUSTER_TRUST_CHAIN_CA_CERT_FILE_PATH", Value: caCertDirPath + "/ca.crt"},
 				}...)
 				// TLS volume mount should be added
 				sidecar.VolumeMounts = append(sidecar.VolumeMounts, clusterCACertVolumeMount)
@@ -615,21 +614,20 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 				},
 			},
-			provider:        "",
-			profilesJSON:    "[]",
-			TLSEnabled:      true,
-			TLSCopySecretCA: true,
-			DryRun:          pointer.Ptr(true),
-			ExpectError:     false,
-			ExpectInjection: true,
+			provider:           "",
+			profilesJSON:       "[]",
+			TLSEnabled:         true,
+			TLSCopyCAConfigMap: true,
+			DryRun:             pointer.Ptr(true),
+			ExpectError:        false,
+			ExpectInjection:    true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
 				sidecar := *NewWebhook(mockConfig).getDefaultSidecarTemplate()
 
 				// TLS env vars should be added in dry-run mode
 				sidecar.Env = append(sidecar.Env, []corev1.EnvVar{
 					{Name: "DD_CLUSTER_TRUST_CHAIN_ENABLE_TLS_VERIFICATION", Value: "true"},
-					{Name: "DD_CLUSTER_TRUST_CHAIN_CA_CERT_FILE_PATH", Value: caCertDirPath + "/tls.cert"},
-					{Name: "DD_CLUSTER_TRUST_CHAIN_CA_KEY_FILE_PATH", Value: caCertDirPath + "/tls.key"},
+					{Name: "DD_CLUSTER_TRUST_CHAIN_CA_CERT_FILE_PATH", Value: caCertDirPath + "/ca.crt"},
 				}...)
 				// TLS volume mount should be added in dry-run mode
 				sidecar.VolumeMounts = append(sidecar.VolumeMounts, clusterCACertVolumeMount)
@@ -658,7 +656,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.kubelet_api_logging.enabled", test.KubernetesAPILogging)
 			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", test.profilesJSON)
 			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.tls_verification.enabled", test.TLSEnabled)
-			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.tls_verification.copy_secret_ca", test.TLSCopySecretCA)
+			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.tls_verification.copy_ca_configmap", test.TLSCopyCAConfigMap)
 
 			webhook := NewWebhook(mockConfig)
 

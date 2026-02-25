@@ -1003,7 +1003,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_tag", "latest")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.cluster_agent.enabled", "true")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.cluster_agent.tls_verification.enabled", false)
-	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.cluster_agent.tls_verification.copy_secret_ca", false)
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.cluster_agent.tls_verification.copy_ca_configmap", false)
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.kubelet_api_logging.enabled", false)
 
 	config.BindEnvAndSetDefault("admission_controller.kubernetes_admission_events.enabled", false)
