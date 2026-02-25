@@ -7,6 +7,7 @@ package configstreamimpl
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -73,6 +74,9 @@ func TestClientConnectsAndReceivesStream(t *testing.T) {
 			foundBool := false
 
 			for _, setting := range snapshot.Settings {
+				if setting.Source != model.SourceFile.String() {
+					continue
+				}
 				switch setting.Key {
 				case "test_string":
 					foundString = true
@@ -328,6 +332,7 @@ func buildComponent(t *testing.T) (Provides, *configInterceptor) {
 
 	// Register keys used in tests
 	cfg.BindEnvAndSetDefault("my.new.setting", "")
+	cfg.BindEnvAndSetDefault("my.other.setting", "")
 	cfg.BindEnvAndSetDefault("dropped.setting", "")
 	cfg.BindEnvAndSetDefault("another.setting", 0)
 	cfg.BindEnvAndSetDefault("logs_config.auto_multi_line_detection", true)
@@ -385,8 +390,13 @@ func TestConfigStream(t *testing.T) {
 		update, isUpdate := event.GetEvent().(*pb.ConfigEvent_Update)
 		require.True(t, isUpdate, "second event must be an update")
 
-		require.Equal(t, "my.new.setting", update.Update.Setting.Key)
-		require.Equal(t, "new_value", update.Update.Setting.Value.GetStringValue())
+		require.Equal(t, "my", update.Update.Setting.Key)
+		require.Equal(t, model.SourceAgentRuntime.String(), update.Update.Setting.Source)
+		require.Equal(t, map[string]interface{}{
+			"new": map[string]interface{}{
+				"setting": "new_value",
+			},
+		}, update.Update.Setting.Value.AsInterface())
 	})
 	t.Run("receives unset updates", func(t *testing.T) {
 		provides, configComp := buildComponent(t)
@@ -417,7 +427,13 @@ func TestConfigStream(t *testing.T) {
 		require.NotNil(t, event)
 		update, isUpdate := event.GetEvent().(*pb.ConfigEvent_Update)
 		require.True(t, isUpdate, "second event must be an update")
-		require.Equal(t, "original_value", update.Update.Setting.Value.GetStringValue())
+		require.Equal(t, "my", update.Update.Setting.Key)
+		require.Equal(t, model.SourceAgentRuntime.String(), update.Update.Setting.Source)
+		require.Equal(t, map[string]interface{}{
+			"new": map[string]interface{}{
+				"setting": "original_value",
+			},
+		}, update.Update.Setting.Value.AsInterface())
 
 		// verify we receive the update for the second set.
 		select {
@@ -428,7 +444,13 @@ func TestConfigStream(t *testing.T) {
 		require.NotNil(t, event)
 		update, isUpdate = event.GetEvent().(*pb.ConfigEvent_Update)
 		require.True(t, isUpdate, "third event must be an update")
-		require.Equal(t, "new_value", update.Update.Setting.Value.GetStringValue())
+		require.Equal(t, "my", update.Update.Setting.Key)
+		require.Equal(t, model.SourceCLI.String(), update.Update.Setting.Source)
+		require.Equal(t, map[string]interface{}{
+			"new": map[string]interface{}{
+				"setting": "new_value",
+			},
+		}, update.Update.Setting.Value.AsInterface())
 
 		configComp.UnsetForSource("my.new.setting", model.SourceCLI)
 		// verify we receive the update for the unset.
@@ -441,9 +463,10 @@ func TestConfigStream(t *testing.T) {
 		update, isUpdate = event.GetEvent().(*pb.ConfigEvent_Update)
 		require.True(t, isUpdate, "unset event must be an update")
 
-		// verify that the value has been unset and back to the original value.
-		require.Equal(t, "my.new.setting", update.Update.Setting.Key)
-		require.Equal(t, "original_value", update.Update.Setting.Value.GetStringValue())
+		// verify that this source has been unset for the top-level key.
+		require.Equal(t, "my", update.Update.Setting.Key)
+		require.Equal(t, model.SourceCLI.String(), update.Update.Setting.Source)
+		require.Nil(t, update.Update.Setting.Value.AsInterface())
 	})
 
 	t.Run("resyncs with snapshot on discontinuity", func(t *testing.T) {
@@ -507,7 +530,7 @@ func TestConfigStream(t *testing.T) {
 		}
 	})
 
-	t.Run("snapshot contains correct sources for nested keys", func(t *testing.T) {
+	t.Run("snapshot contains top-level values grouped by source for nested keys", func(t *testing.T) {
 		provides, configComp := buildComponent(t)
 
 		// Set nested config values with different sources
@@ -528,25 +551,228 @@ func TestConfigStream(t *testing.T) {
 		snapshot, isSnapshot := event.GetEvent().(*pb.ConfigEvent_Snapshot)
 		require.True(t, isSnapshot, "first event must be a snapshot")
 
-		// Build a map of key -> source from the snapshot
-		settingsMap := make(map[string]string)
+		// Build a map of source -> value for top-level key logs_config
+		logsConfigBySource := make(map[string]interface{})
 		for _, setting := range snapshot.Snapshot.Settings {
-			settingsMap[setting.Key] = setting.Source
+			if setting.Key == "logs_config" {
+				logsConfigBySource[setting.Source] = setting.Value.AsInterface()
+			}
 		}
 
-		// Verify flattened keys have their correct individual sources
-		require.Contains(t, settingsMap, "logs_config.auto_multi_line_detection",
-			"snapshot should contain flattened key logs_config.auto_multi_line_detection")
-		require.Equal(t, model.SourceFile.String(), settingsMap["logs_config.auto_multi_line_detection"],
-			"logs_config.auto_multi_line_detection should have source 'file'")
+		require.Contains(t, logsConfigBySource, model.SourceFile.String())
+		require.Equal(t, map[string]interface{}{
+			"auto_multi_line_detection": false,
+		}, logsConfigBySource[model.SourceFile.String()])
 
-		require.Contains(t, settingsMap, "logs_config.use_compression",
-			"snapshot should contain flattened key logs_config.use_compression")
-		require.Equal(t, model.SourceAgentRuntime.String(), settingsMap["logs_config.use_compression"],
-			"logs_config.use_compression should have source 'agent-runtime'")
+		require.Contains(t, logsConfigBySource, model.SourceAgentRuntime.String())
+		require.Equal(t, map[string]interface{}{
+			"use_compression": true,
+		}, logsConfigBySource[model.SourceAgentRuntime.String()])
 
-		// Parent keys should not exist as settings (they are containers, not leaf values)
-		require.NotContains(t, settingsMap, "logs_config",
-			"snapshot should NOT contain the parent key 'logs_config' as a setting")
+		for _, setting := range snapshot.Snapshot.Settings {
+			require.False(t, strings.HasPrefix(setting.Key, "logs_config."),
+				"snapshot should not contain flattened logs_config.* keys: got %q", setting.Key)
+		}
+	})
+
+	t.Run("snapshot emits top-level map key when child keys contain dots", func(t *testing.T) {
+		provides, configComp := buildComponent(t)
+
+		configComp.Set("additional_endpoints", map[string][]string{
+			"https://foo.datadoghq.com": {"api_key"},
+		}, model.SourceFile)
+
+		eventsCh, unsubscribe := provides.Comp.Subscribe(&pb.ConfigStreamRequest{Name: "test-client-additional-endpoints"})
+		defer unsubscribe()
+
+		var event *pb.ConfigEvent
+		select {
+		case event = <-eventsCh:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for initial snapshot")
+		}
+		require.NotNil(t, event)
+		snapshot, isSnapshot := event.GetEvent().(*pb.ConfigEvent_Snapshot)
+		require.True(t, isSnapshot, "first event must be a snapshot")
+
+		foundTopLevel := false
+		for _, setting := range snapshot.Snapshot.Settings {
+			if setting.Source == model.SourceFile.String() && setting.Key == "additional_endpoints" {
+				foundTopLevel = true
+				require.Equal(t, map[string]interface{}{
+					"https://foo.datadoghq.com": []interface{}{"api_key"},
+				}, setting.Value.AsInterface())
+			}
+			require.False(t, strings.HasPrefix(setting.Key, "additional_endpoints."),
+				"snapshot should not contain flattened additional_endpoints.* keys: got %q", setting.Key)
+		}
+
+		require.True(t, foundTopLevel, "snapshot should contain top-level additional_endpoints setting for source=file")
+	})
+
+	t.Run("updates normalize dotted keys to top-level key", func(t *testing.T) {
+		provides, configComp := buildComponent(t)
+
+		eventsCh, unsubscribe := provides.Comp.Subscribe(&pb.ConfigStreamRequest{Name: "test-client-dotted-update"})
+		defer unsubscribe()
+
+		// drain initial snapshot
+		select {
+		case <-eventsCh:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for initial snapshot")
+		}
+
+		configComp.Set("additional_endpoints.https://foo.datadoghq.com", []string{"api_key"}, model.SourceAgentRuntime)
+
+		var event *pb.ConfigEvent
+		select {
+		case event = <-eventsCh:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for config update")
+		}
+
+		update, isUpdate := event.GetEvent().(*pb.ConfigEvent_Update)
+		require.True(t, isUpdate, "event must be an update")
+		require.Equal(t, "additional_endpoints", update.Update.Setting.Key)
+		require.Equal(t, model.SourceAgentRuntime.String(), update.Update.Setting.Source)
+
+		// Value should be the source-layer top-level value, not a flattened leaf value.
+		settingsBySource, _ := configComp.AllSettingsBySourceWithSequenceID()
+		sourceSettingsRaw, ok := settingsBySource[model.SourceAgentRuntime]
+		require.True(t, ok)
+		sourceSettings, ok := sourceSettingsRaw.(map[string]interface{})
+		require.True(t, ok)
+		expectedValueRaw, ok := sourceSettings["additional_endpoints"]
+		require.True(t, ok)
+
+		expectedValue, err := sanitizeValue(expectedValueRaw)
+		require.NoError(t, err)
+		require.Equal(t, expectedValue, update.Update.Setting.Value.AsInterface())
+	})
+
+	t.Run("updates emit top-level map key when set directly with dotted child keys", func(t *testing.T) {
+		provides, configComp := buildComponent(t)
+
+		eventsCh, unsubscribe := provides.Comp.Subscribe(&pb.ConfigStreamRequest{Name: "test-client-map-update"})
+		defer unsubscribe()
+
+		// drain initial snapshot
+		select {
+		case <-eventsCh:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for initial snapshot")
+		}
+
+		configComp.Set("additional_endpoints", map[string][]string{
+			"https://foo.datadoghq.com": {"api_key"},
+			"https://bar.datadoghq.com": {"bar_api_key"},
+		}, model.SourceFile)
+
+		var event *pb.ConfigEvent
+		select {
+		case event = <-eventsCh:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for map update")
+		}
+
+		update, isUpdate := event.GetEvent().(*pb.ConfigEvent_Update)
+		require.True(t, isUpdate, "event must be an update")
+		require.Equal(t, "additional_endpoints", update.Update.Setting.Key)
+		require.Equal(t, model.SourceFile.String(), update.Update.Setting.Source)
+		require.Equal(t, map[string]interface{}{
+			"https://foo.datadoghq.com": []interface{}{"api_key"},
+			"https://bar.datadoghq.com": []interface{}{"bar_api_key"},
+		}, update.Update.Setting.Value.AsInterface())
+	})
+
+	t.Run("updates include full top-level object for sibling keys in same source", func(t *testing.T) {
+		provides, configComp := buildComponent(t)
+
+		eventsCh, unsubscribe := provides.Comp.Subscribe(&pb.ConfigStreamRequest{Name: "test-client-sibling-update"})
+		defer unsubscribe()
+
+		// drain initial snapshot
+		select {
+		case <-eventsCh:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for initial snapshot")
+		}
+
+		configComp.Set("my.new.setting", "new_value", model.SourceAgentRuntime)
+		select {
+		case <-eventsCh:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for first sibling update")
+		}
+
+		configComp.Set("my.other.setting", "other_value", model.SourceAgentRuntime)
+
+		var event *pb.ConfigEvent
+		select {
+		case event = <-eventsCh:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for second sibling update")
+		}
+
+		update, isUpdate := event.GetEvent().(*pb.ConfigEvent_Update)
+		require.True(t, isUpdate, "event must be an update")
+		require.Equal(t, "my", update.Update.Setting.Key)
+		require.Equal(t, model.SourceAgentRuntime.String(), update.Update.Setting.Source)
+		require.Equal(t, map[string]interface{}{
+			"new": map[string]interface{}{
+				"setting": "new_value",
+			},
+			"other": map[string]interface{}{
+				"setting": "other_value",
+			},
+		}, update.Update.Setting.Value.AsInterface())
+	})
+
+	t.Run("unsetting one sibling keeps remaining top-level object for source", func(t *testing.T) {
+		provides, configComp := buildComponent(t)
+
+		eventsCh, unsubscribe := provides.Comp.Subscribe(&pb.ConfigStreamRequest{Name: "test-client-sibling-unset"})
+		defer unsubscribe()
+
+		// drain initial snapshot
+		select {
+		case <-eventsCh:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for initial snapshot")
+		}
+
+		configComp.Set("my.new.setting", "new_value", model.SourceAgentRuntime)
+		select {
+		case <-eventsCh:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for first sibling update")
+		}
+
+		configComp.Set("my.other.setting", "other_value", model.SourceAgentRuntime)
+		select {
+		case <-eventsCh:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for second sibling update")
+		}
+
+		configComp.UnsetForSource("my.new.setting", model.SourceAgentRuntime)
+
+		var event *pb.ConfigEvent
+		select {
+		case event = <-eventsCh:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for sibling unset update")
+		}
+
+		update, isUpdate := event.GetEvent().(*pb.ConfigEvent_Update)
+		require.True(t, isUpdate, "event must be an update")
+		require.Equal(t, "my", update.Update.Setting.Key)
+		require.Equal(t, model.SourceAgentRuntime.String(), update.Update.Setting.Source)
+		require.Equal(t, map[string]interface{}{
+			"other": map[string]interface{}{
+				"setting": "other_value",
+			},
+		}, update.Update.Setting.Value.AsInterface())
 	})
 }
