@@ -53,28 +53,6 @@ var packetSourceTelemetry = struct {
 	telemetry.NewStatCounterWrapper(telemetryModuleName, "dropped_packets", []string{}, "Counter measuring the number of dropped packets"),
 }
 
-// bufferPool is used to reuse packet buffers and reduce GC pressure.
-// All buffers have the same capacity (defaultSnapLen) since libpcap truncates
-// packets at snapLen anyway, guaranteeing all packets fit.
-var bufferPool = sync.Pool{
-	New: func() interface{} {
-		return make([]byte, defaultSnapLen)
-	},
-}
-
-// getBuffer retrieves a defaultSnapLen-capacity buffer from the pool.
-// The returned slice always has len == cap == defaultSnapLen.
-func getBuffer() []byte {
-	return bufferPool.Get().([]byte)
-}
-
-// putBuffer returns a buffer to the pool. The slice is always reset to its
-// full capacity before pooling so that the next caller always receives a
-// slice with len == cap == defaultSnapLen, preventing a panic when a future
-// caller tries to reslice to a length larger than the stored len.
-func putBuffer(buf []byte) {
-	bufferPool.Put(buf[:cap(buf)])
-}
 
 // packetWithInfo wraps copied packet data with metadata
 type packetWithInfo struct {
@@ -115,6 +93,17 @@ type LibpcapSource struct {
 	packetChan chan packetWithInfo
 	// readerWg tracks reader goroutines so Close() can wait for them to finish
 	readerWg sync.WaitGroup
+	// bgWg tracks background (non-reader) goroutines such as refreshLocalAddrs.
+	// bgWg.Wait() must complete before readerWg.Wait() in Close() to guarantee
+	// that syncInterfaces cannot call addInterface (which calls readerWg.Add)
+	// after readerWg.Wait() has begun.
+	bgWg sync.WaitGroup
+
+	// bufPool reuses packet copy buffers of exactly snapLen bytes to reduce
+	// GC pressure. The pool is initialized in NewLibpcapSource with the
+	// configured snapLen so that buf[:len(data)] is always safe (libpcap
+	// truncates captured data to snapLen).
+	bufPool sync.Pool
 }
 
 // DarwinPacketInfo holds information about a packet on Darwin
@@ -168,6 +157,14 @@ func NewLibpcapSource(_ int, opts ...interface{}) (*LibpcapSource, error) {
 		exit:       make(chan struct{}),
 		packetChan: make(chan packetWithInfo, packetChannelSize),
 	}
+	// Capture snapLen in a local variable so the closure below doesn't hold a
+	// reference to ps (which would prevent GC of the LibpcapSource).
+	poolSnapLen := snapLen
+	ps.bufPool = sync.Pool{
+		New: func() interface{} {
+			return make([]byte, poolSnapLen)
+		},
+	}
 
 	ifaces, err := net.Interfaces()
 	if err != nil {
@@ -187,7 +184,11 @@ func NewLibpcapSource(_ int, opts ...interface{}) (*LibpcapSource, error) {
 		return nil, errors.New("no eligible network interfaces found for packet capture")
 	}
 
-	go ps.refreshLocalAddrs()
+	ps.bgWg.Add(1)
+	go func() {
+		defer ps.bgWg.Done()
+		ps.refreshLocalAddrs()
+	}()
 
 	names := make([]string, 0, len(ps.interfaces))
 	for name := range ps.interfaces {
@@ -203,6 +204,13 @@ func NewLibpcapSource(_ int, opts ...interface{}) (*LibpcapSource, error) {
 // When the reader exits for any reason it removes itself from the map and
 // closes the handle, so the caller never needs to do that explicitly.
 func (p *LibpcapSource) addInterface(ifaceName string) error {
+	// Don't open new handles after shutdown has been signalled.
+	select {
+	case <-p.exit:
+		return nil
+	default:
+	}
+
 	handle, err := pcap.OpenLive(ifaceName, int32(p.snapLen), false, pcapTimeout)
 	if err != nil {
 		return fmt.Errorf("error opening pcap handle on %s: %w", ifaceName, err)
@@ -259,6 +267,20 @@ func (p *LibpcapSource) addInterface(ifaceName string) error {
 	return nil
 }
 
+// getBuffer retrieves a snapLen-capacity buffer from the pool.
+// The returned slice always has len == cap == snapLen.
+func (p *LibpcapSource) getBuffer() []byte {
+	return p.bufPool.Get().([]byte)
+}
+
+// putBuffer returns a buffer to the pool. The slice is always reset to its
+// full capacity before pooling so that the next caller always receives a
+// slice with len == cap == snapLen, preventing a panic when a future
+// caller tries to reslice to a length larger than the stored len.
+func (p *LibpcapSource) putBuffer(buf []byte) {
+	p.bufPool.Put(buf[:cap(buf)])
+}
+
 // VisitPackets reads packets from the persistent channel and invokes the visitor
 // callback for each. The data slice and PacketInfo pointer passed to the visitor
 // are only valid for the duration of the call and must not be retained.
@@ -275,7 +297,7 @@ func (p *LibpcapSource) VisitPackets(visitor func(data []byte, info PacketInfo, 
 			// panics, preventing a permanent pool leak.
 			var visitorErr error
 			func() {
-				defer putBuffer(pkt.data)
+				defer p.putBuffer(pkt.data)
 				visitorErr = visitor(pkt.data, packetInfo, pkt.timestamp)
 			}()
 
@@ -348,7 +370,7 @@ func (p *LibpcapSource) readPacketsFromInterface(ih *interfaceHandle) {
 
 		// Copy data to a pooled buffer immediately (before the zero-copy
 		// buffer is reused by the next ZeroCopyReadPacketData call).
-		buf := getBuffer()
+		buf := p.getBuffer()
 		buf = buf[:len(data)]
 		copy(buf, data)
 
@@ -360,7 +382,7 @@ func (p *LibpcapSource) readPacketsFromInterface(ih *interfaceHandle) {
 			layerType: ih.goPacketLayerType,
 		}:
 		case <-p.exit:
-			putBuffer(buf)
+			p.putBuffer(buf)
 			return
 		}
 	}
@@ -400,14 +422,17 @@ func (p *LibpcapSource) LayerType() gopacket.LayerType {
 }
 
 // Close stops packet capture and cleans up resources. Safe to call multiple times.
-// It signals all goroutines to stop and waits for reader goroutines to finish;
-// each reader goroutine closes its own pcap handle on exit.
+// It signals all goroutines to stop, then waits in two stages:
+//  1. bgWg: wait for refreshLocalAddrs to stop so that no further addInterface
+//     calls (which call readerWg.Add) can race with the readerWg.Wait below.
+//  2. readerWg: wait for all reader goroutines to finish and close their handles.
 func (p *LibpcapSource) Close() {
 	p.closeOnce.Do(func() {
 		close(p.exit)
 	})
-	// Readers check p.exit and return after at most one pcap timeout (1s),
-	// at which point they each close their own handle via deferred cleanup.
+	// Stage 1: stop background goroutines first to prevent new readerWg.Add calls.
+	p.bgWg.Wait()
+	// Stage 2: drain all reader goroutines (each closes its own pcap handle).
 	p.readerWg.Wait()
 }
 
