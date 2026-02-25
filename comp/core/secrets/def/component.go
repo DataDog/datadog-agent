@@ -44,6 +44,8 @@ type Component interface {
 	Refresh() bool
 	// RefreshNow performs an immediate blocking secret refresh, returning an informative message suitable for user display.
 	RefreshNow() (string, error)
+	// IsValueFromSecret returns true if the given value was ever resolved from a secret handle.
+	IsValueFromSecret(value string) bool
 	// RemoveOrigin removes a origin from the internal cache of the secret component. This does not remove secrets
 	// from the cache but the reference where those secrets are used.
 	RemoveOrigin(origin string)
