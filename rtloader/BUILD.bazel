@@ -143,10 +143,7 @@ cc_library(
             "-Wno-implicit-function-declaration",
             "-Wno-int-conversion",
         ],
-        "@platforms//os:windows": [
-            # TODO: only set if MSVC
-            "/MT",
-        ],
+        "@platforms//os:windows": [],
     }),
     includes = [
         ".",
@@ -170,7 +167,9 @@ cc_library(
         ],
     }),
     deps = [":rtloader"] + select({
-        "@platforms//os:windows": [],
+        "@platforms//os:windows": [
+            "@cpython//:lib_win",
+        ],
         "@platforms//os:linux": [
             "@cpython//:python_unix_shared",
         ],
@@ -182,12 +181,17 @@ cc_library(
 
 cc_shared_library(
     name = "datadog-agent-three",
-    dynamic_deps = [":datadog-agent-rtloader"] + select({
+    dynamic_deps = select({
+        # Note: on Windows we link against the rtloader lib statically, and we don't
+        # need to add a reference to python explicitly because there's no static python lib
+        # visible to this rule in its dependency chain.
         "@platforms//os:windows": [],
         "@platforms//os:linux": [
+            ":datadog-agent-rtloader",
             "@cpython//:python_unix_shared",
         ],
         "@platforms//os:macos": [
+            ":datadog-agent-rtloader",
             "@cpython//:python_unix_shared",
         ],
     }),
@@ -198,6 +202,7 @@ cc_shared_library(
             "-Wl,--no-undefined",
         ],
         "@platforms//os:macos": [
+            # Ensure symbols are resolved
             "-Wl,-undefined,error",
         ],
     }),
@@ -216,9 +221,7 @@ else()
   target_compile_options(datadog-agent-three PRIVATE "-Wno-deprecated-register")
 endif()
 
-if(WIN32)
-  set_target_properties(datadog-agent-three PROPERTIES LINK_FLAGS -static)
-elseif(APPLE)
+if(APPLE)
   set_target_properties(datadog-agent-three PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
 endif()
 
