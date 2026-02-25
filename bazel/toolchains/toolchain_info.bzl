@@ -4,7 +4,7 @@ ToolInfo = provider(
     doc = """Agent toolchain""",
     fields = {
         "name": "The name of the toolchain",
-        "valid": "Is this toolchain valid and usable?",
+        "valid": "Is this toolchain valid and usable? A toolchain must have a path or label to be valid.",
         "version": "The version string of the tool",
         "label": "The path to a target I will build. If we are building the tool from source",
         "path": "The path to a pre-built instance of the tool",

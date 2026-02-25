@@ -224,32 +224,64 @@
   },
   "selectedYankedVersions": {},
   "moduleExtensions": {
-    "//bazel/toolchains/otool:otool_configure.bzl%find_system_otool": {
+    "//bazel/toolchains/codesign:configure.bzl%find_system_codesign": {
       "general": {
-        "bzlTransitiveDigest": "68iERr/kCkKOV3vSc2q4LzpEgt7vSpOMHMX9EL+4l7g=",
-        "usagesDigest": "fSN6/kn8e/g7DLnxiuMteG88rd6OVfCnXR7SSOcGUdw=",
+        "bzlTransitiveDigest": "VyRxlnHtoIlQ/pg+WeSpWvokWqC+HKTeeRWR1pjrWKs=",
+        "usagesDigest": "z9aoOeDDXImH9KPAFUvSdO8yqRMYkVK1Qdiu8iDCs38=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
         "generatedRepoSpecs": {
-          "otool": {
-            "repoRuleId": "@@//bazel/toolchains/otool:otool_configure.bzl%build_repo_for_otool_toolchain",
+          "codesign": {
+            "repoRuleId": "@@//bazel/toolchains/codesign:configure.bzl%build_repo_for_toolchain",
             "attributes": {}
           }
         },
         "recordedRepoMappingEntries": []
       }
     },
-    "//bazel/toolchains/patchelf:patchelf_configure.bzl%find_system_patchelf": {
+    "//bazel/toolchains/install_name_tool:configure.bzl%find_system_install_name_tool": {
+      "general": {
+        "bzlTransitiveDigest": "G3aJ622u6dgM/WsohQFBbUbKHcq88iAAHwQKM2Z8Yww=",
+        "usagesDigest": "umaEmXZz5xDHQ2MT2T4h5DBZ4nSTN4OTXhzGDy168dg=",
+        "recordedFileInputs": {},
+        "recordedDirentsInputs": {},
+        "envVariables": {},
+        "generatedRepoSpecs": {
+          "install_name_tool": {
+            "repoRuleId": "@@//bazel/toolchains/install_name_tool:configure.bzl%build_repo_for_toolchain",
+            "attributes": {}
+          }
+        },
+        "recordedRepoMappingEntries": []
+      }
+    },
+    "//bazel/toolchains/otool:configure.bzl%find_system_otool": {
+      "general": {
+        "bzlTransitiveDigest": "FmlBYPpWI7VItdau8DFJ0w06SkdPA98hi3kMhCuPxkU=",
+        "usagesDigest": "GGiHbQ6iyMFGLXAYm6Lt0MEBO39MVLPEqV9sDI/HWko=",
+        "recordedFileInputs": {},
+        "recordedDirentsInputs": {},
+        "envVariables": {},
+        "generatedRepoSpecs": {
+          "otool": {
+            "repoRuleId": "@@//bazel/toolchains/otool:configure.bzl%build_repo_for_toolchain",
+            "attributes": {}
+          }
+        },
+        "recordedRepoMappingEntries": []
+      }
+    },
+    "//bazel/toolchains/patchelf:configure.bzl%find_system_patchelf": {
       "general": {
         "bzlTransitiveDigest": "LycsDwhNSFStb20EW25ZzhzQ5zgmwMvzS7gxKN0tTo0=",
-        "usagesDigest": "sbh/OV5qDj0UnO59z1JQIBVtZdGEcUj1f7xDqQlvL+Y=",
+        "usagesDigest": "TN0rk+SSp41vaQRrRlRfiMag8QgbNrctVmF9IHc8Vms=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
         "generatedRepoSpecs": {
           "patchelf_toolchains": {
-            "repoRuleId": "@@//bazel/toolchains/patchelf:patchelf_configure.bzl%build_repo_for_patchelf_toolchain",
+            "repoRuleId": "@@//bazel/toolchains/patchelf:configure.bzl%build_repo_for_patchelf_toolchain",
             "attributes": {}
           }
         },
