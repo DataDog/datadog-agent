@@ -10,7 +10,7 @@
 package ssi
 
 import (
-	"os"
+	_ "embed"
 	"testing"
 	"time"
 
@@ -27,6 +27,21 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 )
 
+//go:embed testdata/base.yaml
+var baseHelmValues string
+
+//go:embed testdata/injection_mode.yaml
+var injectionModeHelmValues string
+
+//go:embed testdata/local_sdk_injection.yaml
+var localSDKInjectionHelmValues string
+
+//go:embed testdata/namespace_selection.yaml
+var namespaceSelectionHelmValues string
+
+//go:embed testdata/workload_selection.yaml
+var workloadSelectionHelmValues string
+
 // ssiSuite runs all SSI test groups on a single cluster, calling UpdateEnv at the start of
 // each group to update the env (workloads, helm values).
 type ssiSuite struct {
@@ -36,21 +51,17 @@ type ssiSuite struct {
 // TestSSISuite is the single entry point: one cluster is provisioned once with the base config,
 // then UpdateEnv is called at the start of each test group.
 func TestSSISuite(t *testing.T) {
-	helmValues, err := os.ReadFile("testdata/base.yaml")
-	require.NoError(t, err, "Could not open helm values file for test")
 	e2e.Run(t, &ssiSuite{}, e2e.WithProvisioner(Provisioner(ProvisionerOptions{
 		AgentOptions: []kubernetesagentparams.Option{
-			kubernetesagentparams.WithHelmValues(string(helmValues)),
+			kubernetesagentparams.WithHelmValues(baseHelmValues),
 		},
 	})))
 }
 
 func (v *ssiSuite) TestInjectionMode() {
-	helmValues, err := os.ReadFile("testdata/injection_mode.yaml")
-	require.NoError(v.T(), err, "Could not open helm values file for test")
 	v.UpdateEnv(Provisioner(ProvisionerOptions{
 		AgentOptions: []kubernetesagentparams.Option{
-			kubernetesagentparams.WithHelmValues(string(helmValues)),
+			kubernetesagentparams.WithHelmValues(injectionModeHelmValues),
 		},
 		AgentDependentWorkloadAppFunc: func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*compkube.Workload, error) {
 			return singlestep.Scenario(e, kubeProvider, "injection-mode", []singlestep.Namespace{
@@ -109,11 +120,9 @@ func (v *ssiSuite) TestInjectionMode() {
 }
 
 func (v *ssiSuite) TestLocalSDKInjection() {
-	helmValues, err := os.ReadFile("testdata/local_sdk_injection.yaml")
-	require.NoError(v.T(), err, "Could not open helm values file for test")
 	v.UpdateEnv(Provisioner(ProvisionerOptions{
 		AgentOptions: []kubernetesagentparams.Option{
-			kubernetesagentparams.WithHelmValues(string(helmValues)),
+			kubernetesagentparams.WithHelmValues(localSDKInjectionHelmValues),
 		},
 		AgentDependentWorkloadAppFunc: func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*compkube.Workload, error) {
 			return singlestep.Scenario(e, kubeProvider, "local-sdk-injection", []singlestep.Namespace{
@@ -178,11 +187,9 @@ func (v *ssiSuite) TestLocalSDKInjection() {
 }
 
 func (v *ssiSuite) TestNamespaceSelection() {
-	helmValues, err := os.ReadFile("testdata/namespace_selection.yaml")
-	require.NoError(v.T(), err, "Could not open helm values file for test")
 	v.UpdateEnv(Provisioner(ProvisionerOptions{
 		AgentOptions: []kubernetesagentparams.Option{
-			kubernetesagentparams.WithHelmValues(string(helmValues)),
+			kubernetesagentparams.WithHelmValues(namespaceSelectionHelmValues),
 		},
 		AgentDependentWorkloadAppFunc: func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*compkube.Workload, error) {
 			return singlestep.Scenario(e, kubeProvider, "namespace-selection", []singlestep.Namespace{
@@ -246,11 +253,9 @@ func (v *ssiSuite) TestNamespaceSelection() {
 }
 
 func (v *ssiSuite) TestWorkloadSelection() {
-	helmValues, err := os.ReadFile("testdata/workload_selection.yaml")
-	require.NoError(v.T(), err, "Could not open helm values file for test")
 	v.UpdateEnv(Provisioner(ProvisionerOptions{
 		AgentOptions: []kubernetesagentparams.Option{
-			kubernetesagentparams.WithHelmValues(string(helmValues)),
+			kubernetesagentparams.WithHelmValues(workloadSelectionHelmValues),
 		},
 		AgentDependentWorkloadAppFunc: func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*compkube.Workload, error) {
 			return singlestep.Scenario(e, kubeProvider, "workload-selection", []singlestep.Namespace{
