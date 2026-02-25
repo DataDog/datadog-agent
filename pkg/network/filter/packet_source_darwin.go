@@ -210,13 +210,17 @@ func (p *LibpcapSource) addInterface(ifaceName string) error {
 	default:
 	}
 
+	// Add this to insure we wait for this initialization to complete before exiting
+	p.readerWg.Add(1)
 	handle, err := pcap.OpenLive(ifaceName, int32(p.snapLen), false, pcapTimeout)
 	if err != nil {
+		p.readerWg.Done()
 		return fmt.Errorf("error opening pcap handle on %s: %w", ifaceName, err)
 	}
 
 	if err := handle.SetBPFFilter("tcp or udp"); err != nil {
 		handle.Close()
+		p.readerWg.Done()
 		return fmt.Errorf("error setting BPF filter on %s: %w", ifaceName, err)
 	}
 
@@ -237,7 +241,6 @@ func (p *LibpcapSource) addInterface(ifaceName string) error {
 	p.interfaces[ifaceName] = ih
 	p.interfacesMu.Unlock()
 
-	p.readerWg.Add(1)
 	go func() {
 		defer p.readerWg.Done()
 		// Self-cleanup: remove from the map and close the handle regardless of

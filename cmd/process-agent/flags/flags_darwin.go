@@ -11,6 +11,5 @@ const (
 	// DefaultConfPath points to the location of datadog.yaml
 	DefaultConfPath = "/opt/datadog-agent/etc/datadog.yaml"
 	// DefaultSysProbeConfPath points to the system-probe config on Darwin.
-	// This file may not exist on installations without system-probe; a missing file is handled gracefully.
 	DefaultSysProbeConfPath = "/opt/datadog-agent/etc/system-probe.yaml"
 )
