@@ -490,9 +490,9 @@ retry:
 
 	}
 
-  if missingMappings > 0 {
-	log.Warnf("unable to get program name for %d kprobes due to missing mappings", missingMappings)
-  }
+	if missingMappings > 0 {
+		log.Warnf("unable to get program name for %d kprobes due to missing mappings", missingMappings)
+	}
 
 	// we do not expect any errors including iteration aborted errors, since ebpf check
 	// does not execute concurrently. This means the map should never be modified while
