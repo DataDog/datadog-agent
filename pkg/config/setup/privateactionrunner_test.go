@@ -24,7 +24,7 @@ func TestPrivateActionRunnerHttpAllowlistFromEnv(t *testing.T) {
 
 	cfg := newTestConf(t)
 
-	assert.Equal(t, []string{"*.datadoghq.com", "*.datadoghq.eu"}, cfg.GetStringSlice(PARHttpAllowlist))
+	assert.Equal(t, []string{"*.datadoghq.com", "datadoghq.eu"}, cfg.GetStringSlice(PARHttpAllowlist))
 }
 
 func TestPrivateActionRunnerAllowlistDefaultsEmpty(t *testing.T) {
