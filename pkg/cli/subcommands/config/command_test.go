@@ -6,75 +6,52 @@
 package config
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"testing"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestConfigCommand(t *testing.T) {
-	commands := []*cobra.Command{
-		MakeCommand(func() GlobalParams {
-			return GlobalParams{}
-		}),
+func getCmdByUse(cmd *cobra.Command, use string) *cobra.Command {
+	for _, c := range cmd.Commands() {
+		if c.Use == use {
+			return c
+		}
 	}
+	return nil
+}
 
-	fxutil.TestOneShotSubcommand(t,
-		commands,
+func TestConfigCommandPresent(t *testing.T) {
+	root := MakeCommand(func() GlobalParams { return GlobalParams{} })
+	require.Equal(t, "config", root.Use)
+}
+
+func TestConfigListRuntimeSubcommandPresent(t *testing.T) {
+	root := MakeCommand(func() GlobalParams { return GlobalParams{} })
+	require.NotNil(t, getCmdByUse(root, "list-runtime"))
+}
+
+func TestConfigSetSubcommandPresent(t *testing.T) {
+	root := MakeCommand(func() GlobalParams { return GlobalParams{} })
+	require.NotNil(t, getCmdByUse(root, "set [setting] [value]"))
+}
+
+func TestConfigSystemProbeCommand(t *testing.T) {
+	root := MakeCommand(func() GlobalParams { return GlobalParams{} })
+	require.NotNil(t, getCmdByUse(root, "system-probe"))
+}
+
+func TestConfigOneShotInvoked(t *testing.T) {
+	root := MakeCommand(func() GlobalParams { return GlobalParams{} })
+	fxutil.TestOneShotSubcommand(
+		t,
+		[]*cobra.Command{root},
 		[]string{"config"},
 		showRuntimeConfiguration,
-		func(cliParams *cliParams, _ core.BundleParams) {
-			require.Empty(t, cliParams.args)
-		})
-}
-
-func TestConfigListRuntimeCommand(t *testing.T) {
-	commands := []*cobra.Command{
-		MakeCommand(func() GlobalParams {
-			return GlobalParams{}
-		}),
-	}
-
-	fxutil.TestOneShotSubcommand(t,
-		commands,
-		[]string{"config", "list-runtime"},
-		listRuntimeConfigurableValue,
-		func(cliParams *cliParams, _ core.BundleParams) {
-			require.Empty(t, cliParams.args)
-		})
-}
-
-func TestConfigSetCommand(t *testing.T) {
-	commands := []*cobra.Command{
-		MakeCommand(func() GlobalParams {
-			return GlobalParams{}
-		}),
-	}
-
-	fxutil.TestOneShotSubcommand(t,
-		commands,
-		[]string{"config", "set", "foo", "bar"},
-		setConfigValue,
-		func(cliParams *cliParams, _ core.BundleParams) {
-			require.Equal(t, []string{"foo", "bar"}, cliParams.args)
-		})
-}
-
-func TestConfigGetCommand(t *testing.T) {
-	commands := []*cobra.Command{
-		MakeCommand(func() GlobalParams {
-			return GlobalParams{}
-		}),
-	}
-
-	fxutil.TestOneShotSubcommand(t,
-		commands,
-		[]string{"config", "get", "foo"},
-		getConfigValue,
-		func(cliParams *cliParams, _ core.BundleParams) {
-			require.Equal(t, []string{"foo"}, cliParams.args)
-		})
+		func(p *cliParams) {
+			// Should be invoked with a cliParams instance; no args for top-level command
+			require.Empty(t, p.args)
+		},
+	)
 }

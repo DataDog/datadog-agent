@@ -1,0 +1,9 @@
+features:
+  - |
+    Core Agent CLI: add ``datadog-agent config system-probe`` to print the
+    ``system_probe_config`` as seen by the running Core Agent (via the IPC-backed
+    settings client). The output reflects the Agent's effective configuration
+    (defaults + files + environment) and is scrubbed for secrets. This does not
+    query the system-probe process directly, but surfaces the Core Agent's view
+    of system-probe settings for easier troubleshooting.
+
