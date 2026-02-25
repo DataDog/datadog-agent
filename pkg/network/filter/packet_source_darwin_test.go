@@ -8,10 +8,12 @@
 package filter
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/google/gopacket/layers"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // buildIPv4Packet constructs a minimal Ethernet + IPv4 packet (14 + 20 bytes).
@@ -164,4 +166,186 @@ func TestDeterminePacketDirection_NonIP_EtherType(t *testing.T) {
 	}
 	dir := ih.determinePacketDirection(data)
 	assert.Equal(t, uint8(PacketHost), dir, "non-IP ethertype should default to PACKET_HOST")
+}
+
+// ============================================================================
+// Loopback (utun / VPN interface) direction tests
+//
+// BSD loopback format (DLT_NULL / LinkTypeNull):
+//   bytes 0-3  : address family, little-endian (AF_INET=2, AF_INET6=28 on macOS)
+//   bytes 4+   : raw IP header
+//
+// IPv4: src at offset 4+12=16, dst at 4+16=20
+// IPv6: src at offset 4+8=12,  dst at 4+24=28
+// ============================================================================
+
+// buildLoopbackIPv4Packet builds a minimal BSD loopback + IPv4 packet.
+func buildLoopbackIPv4Packet(srcIP, dstIP [4]byte) []byte {
+	buf := make([]byte, 4+20)
+	buf[0] = 2 // AF_INET (little-endian, first byte only)
+	buf[4] = 0x45
+	copy(buf[16:20], srcIP[:])
+	copy(buf[20:24], dstIP[:])
+	return buf
+}
+
+// buildLoopbackIPv6Packet builds a minimal BSD loopback + IPv6 packet.
+func buildLoopbackIPv6Packet(srcIP, dstIP [16]byte) []byte {
+	buf := make([]byte, 4+40)
+	buf[0] = 28 // AF_INET6 on macOS
+	copy(buf[12:28], srcIP[:])
+	copy(buf[28:44], dstIP[:])
+	return buf
+}
+
+func TestDeterminePacketDirection_Loopback_IPv4_Outgoing(t *testing.T) {
+	local := [4]byte{10, 0, 0, 1}
+	remote := [4]byte{8, 8, 8, 8}
+	data := buildLoopbackIPv4Packet(local, remote)
+
+	ih := &interfaceHandle{
+		ifaceName:  "utun0",
+		linkType:   layers.LinkTypeNull,
+		localAddrs: map[string]struct{}{string(local[:]): {}},
+	}
+	assert.Equal(t, uint8(PacketOutgoing), ih.determinePacketDirection(data),
+		"loopback IPv4: src local, dst remote should be PacketOutgoing")
+}
+
+func TestDeterminePacketDirection_Loopback_IPv4_Host(t *testing.T) {
+	local := [4]byte{10, 0, 0, 1}
+	remote := [4]byte{8, 8, 8, 8}
+	data := buildLoopbackIPv4Packet(remote, local)
+
+	ih := &interfaceHandle{
+		ifaceName:  "utun0",
+		linkType:   layers.LinkTypeNull,
+		localAddrs: map[string]struct{}{string(local[:]): {}},
+	}
+	assert.Equal(t, uint8(PacketHost), ih.determinePacketDirection(data),
+		"loopback IPv4: src remote, dst local should be PacketHost")
+}
+
+func TestDeterminePacketDirection_Loopback_IPv6_Outgoing(t *testing.T) {
+	var local, remote [16]byte
+	local[15] = 1
+	remote[15] = 2
+	data := buildLoopbackIPv6Packet(local, remote)
+
+	ih := &interfaceHandle{
+		ifaceName:  "utun0",
+		linkType:   layers.LinkTypeNull,
+		localAddrs: map[string]struct{}{string(local[:]): {}},
+	}
+	assert.Equal(t, uint8(PacketOutgoing), ih.determinePacketDirection(data),
+		"loopback IPv6: src local, dst remote should be PacketOutgoing")
+}
+
+func TestDeterminePacketDirection_Loopback_IPv6_Host(t *testing.T) {
+	var local, remote [16]byte
+	local[15] = 1
+	remote[15] = 2
+	data := buildLoopbackIPv6Packet(remote, local)
+
+	ih := &interfaceHandle{
+		ifaceName:  "utun0",
+		linkType:   layers.LinkTypeNull,
+		localAddrs: map[string]struct{}{string(local[:]): {}},
+	}
+	assert.Equal(t, uint8(PacketHost), ih.determinePacketDirection(data),
+		"loopback IPv6: src remote, dst local should be PacketHost")
+}
+
+func TestDeterminePacketDirection_Loopback_ShortData(t *testing.T) {
+	// Fewer than 4 bytes — cannot read AF header.
+	ih := &interfaceHandle{
+		ifaceName:  "utun0",
+		linkType:   layers.LinkTypeNull,
+		localAddrs: map[string]struct{}{},
+	}
+	assert.Equal(t, uint8(PacketHost), ih.determinePacketDirection([]byte{2, 0}),
+		"loopback: fewer than 4 bytes should default to PacketHost")
+}
+
+func TestDeterminePacketDirection_Loopback_UnknownAF(t *testing.T) {
+	// AF=99 is not AF_INET or AF_INET6.
+	buf := make([]byte, 4+20)
+	buf[0] = 99
+	ih := &interfaceHandle{
+		ifaceName:  "utun0",
+		linkType:   layers.LinkTypeNull,
+		localAddrs: map[string]struct{}{},
+	}
+	assert.Equal(t, uint8(PacketHost), ih.determinePacketDirection(buf),
+		"loopback: unknown AF should default to PacketHost")
+}
+
+func TestDeterminePacketDirection_Loopback_IPv4_TruncatedIP(t *testing.T) {
+	// AF_INET header present but IPv4 header is too short (< 20 bytes after the 4-byte prefix).
+	buf := make([]byte, 4+10) // only 10 bytes of IP instead of 20
+	buf[0] = 2                // AF_INET
+	ih := &interfaceHandle{
+		ifaceName:  "utun0",
+		linkType:   layers.LinkTypeNull,
+		localAddrs: map[string]struct{}{},
+	}
+	assert.Equal(t, uint8(PacketHost), ih.determinePacketDirection(buf),
+		"loopback: truncated IPv4 header should default to PacketHost")
+}
+
+// ============================================================================
+// T-2: Buffer pool regression — snapLen > defaultSnapLen must not panic
+// ============================================================================
+
+func TestLibpcapSource_BufferPool_LargeSnapLen(t *testing.T) {
+	const largeSnapLen = 8192 // larger than defaultSnapLen (4096)
+
+	// Build a LibpcapSource directly so we can exercise the pool methods
+	// without opening any real pcap handles (which would require root).
+	ps := &LibpcapSource{}
+	ps.bufPool = sync.Pool{
+		New: func() interface{} {
+			return make([]byte, largeSnapLen)
+		},
+	}
+
+	buf := ps.getBuffer()
+	require.Equal(t, largeSnapLen, cap(buf), "pool should vend buffers sized to snapLen")
+
+	// Simulate receiving a packet larger than the old defaultSnapLen (4096).
+	// Before the fix this line would have panicked with "slice bounds out of range".
+	simulatedPacketLen := 7000
+	require.LessOrEqual(t, simulatedPacketLen, cap(buf),
+		"simulated packet must fit in the buffer")
+	buf = buf[:simulatedPacketLen]
+	copy(buf, make([]byte, simulatedPacketLen))
+
+	ps.putBuffer(buf)
+
+	// After putBuffer the pool must restore the buffer to full capacity.
+	buf2 := ps.getBuffer()
+	assert.Equal(t, largeSnapLen, cap(buf2),
+		"putBuffer must restore capacity so the next caller does not panic")
+	ps.putBuffer(buf2)
+}
+
+func TestLibpcapSource_BufferPool_DefaultSnapLen(t *testing.T) {
+	// Sanity check: the default snapLen (4096) path still works correctly.
+	ps := &LibpcapSource{}
+	ps.bufPool = sync.Pool{
+		New: func() interface{} {
+			return make([]byte, defaultSnapLen)
+		},
+	}
+
+	buf := ps.getBuffer()
+	assert.Equal(t, defaultSnapLen, cap(buf))
+
+	// Simulate a small packet.
+	buf = buf[:100]
+	ps.putBuffer(buf)
+
+	buf2 := ps.getBuffer()
+	assert.Equal(t, defaultSnapLen, cap(buf2))
+	ps.putBuffer(buf2)
 }
