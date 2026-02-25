@@ -3,14 +3,14 @@ module github.com/DataDog/datadog-agent/pkg/util/hostname/validate
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/log v0.76.1-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.76.1
 	github.com/stretchr/testify v1.11.1
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/template v0.76.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.76.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.76.1-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.76.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.76.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.76.1 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect

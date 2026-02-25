@@ -3,8 +3,8 @@ module github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attrib
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/trace/log v0.76.1-rc.1
-	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.76.1-rc.1
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.76.1
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.76.1
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/component v1.50.0
 	go.opentelemetry.io/collector/component/componenttest v0.144.0

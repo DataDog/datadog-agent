@@ -6,21 +6,21 @@ go 1.24.0
 replace github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/create v0.76.1-rc.1
-	github.com/DataDog/datadog-agent/pkg/config/helper v0.76.1-rc.1
-	github.com/DataDog/datadog-agent/pkg/config/model v0.76.1-rc.1
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.76.1-rc.1
-	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.76.1-rc.1
+	github.com/DataDog/datadog-agent/pkg/config/create v0.76.1
+	github.com/DataDog/datadog-agent/pkg/config/helper v0.76.1
+	github.com/DataDog/datadog-agent/pkg/config/model v0.76.1
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.76.1
+	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.76.1
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/stretchr/testify v1.11.1
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.76.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.76.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.76.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.76.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.76.1-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.76.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.76.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.76.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.76.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.76.1 // indirect
 	github.com/DataDog/viper v1.15.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
