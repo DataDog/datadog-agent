@@ -514,12 +514,31 @@ func StatHandler(f StatHandlerFunc) RunnerOption {
 	}
 }
 
-// deniedCommands is a hardcoded set of interpreters that must never be
-// allowed via AllowedCommands, as they would bypass all safe-shell controls.
+// SafeOpenHandler returns an OpenHandlerFunc that blocks all write operations.
+// Only O_RDONLY is permitted. This prevents shell redirects (>, >>) from
+// creating or modifying files on the host.
+func SafeOpenHandler() OpenHandlerFunc {
+	return func(ctx context.Context, path string, flag int, perm os.FileMode) (io.ReadWriteCloser, error) {
+		if flag&(os.O_WRONLY|os.O_RDWR|os.O_CREATE|os.O_APPEND|os.O_TRUNC) != 0 {
+			return nil, &os.PathError{Op: "open", Path: path, Err: fmt.Errorf("write operations not permitted in safe shell")}
+		}
+		mc := HandlerCtx(ctx)
+		if path != "" && !filepath.IsAbs(path) {
+			path = filepath.Join(mc.Dir, path)
+		}
+		return os.OpenFile(path, flag, perm)
+	}
+}
+
+// deniedCommands is a hardcoded set of interpreters and command-execution
+// utilities that must never be allowed via AllowedCommands.
 var deniedCommands = map[string]bool{
 	"sh": true, "bash": true, "zsh": true, "dash": true, "ksh": true, "csh": true, "tcsh": true, "fish": true,
 	"python": true, "python3": true, "python2": true, "perl": true, "ruby": true,
 	"node": true, "php": true, "lua": true, "tclsh": true, "wish": true,
+	"env": true, "xargs": true,
+	"awk": true, "gawk": true, "nawk": true, "mawk": true,
+	"expect": true, "script": true,
 }
 
 // AllowedCommands restricts which external commands the interpreter may

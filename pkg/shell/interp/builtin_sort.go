@@ -63,6 +63,11 @@ func (r *Runner) builtinSort(ctx context.Context, args []string) exitStatus {
 				exit.code = 2
 				return exit
 			}
+			if len(keyDefs) > 0 {
+				r.errf("sort: multiple -k keys not supported; only one -k is allowed\n")
+				exit.code = 2
+				return exit
+			}
 			kd, err := parseSortKey(v)
 			if err != nil {
 				r.errf("sort: invalid key: %q\n", v)
@@ -85,10 +90,13 @@ func (r *Runner) builtinSort(ctx context.Context, args []string) exitStatus {
 
 	var lines []string
 
-	addLines := func(reader io.Reader) {
+	addLines := func(reader io.Reader, name string) {
 		scanner := bufio.NewScanner(reader)
 		for scanner.Scan() {
 			lines = append(lines, scanner.Text())
+		}
+		if err := scanner.Err(); err != nil {
+			r.errf("sort: read error (%s): %v\n", name, err)
 		}
 	}
 
@@ -98,7 +106,7 @@ func (r *Runner) builtinSort(ctx context.Context, args []string) exitStatus {
 			exit.code = 1
 			return exit
 		}
-		addLines(r.stdin)
+		addLines(r.stdin, "stdin")
 	} else {
 		for _, p := range paths {
 			absP := r.absPath(p)
@@ -108,7 +116,7 @@ func (r *Runner) builtinSort(ctx context.Context, args []string) exitStatus {
 				exit.code = 2
 				return exit
 			}
-			addLines(f)
+			addLines(f, p)
 			f.Close()
 		}
 	}

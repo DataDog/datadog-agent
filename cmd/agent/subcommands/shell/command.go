@@ -37,6 +37,7 @@ func Commands(_ *command.GlobalParams) []*cobra.Command {
 			opts := []interp.RunnerOption{
 				interp.Interactive(true),
 				interp.StdIO(os.Stdin, os.Stdout, os.Stderr),
+				interp.OpenHandler(interp.SafeOpenHandler()),
 			}
 			if allowedCommands != "" {
 				cmds := strings.Split(allowedCommands, ",")

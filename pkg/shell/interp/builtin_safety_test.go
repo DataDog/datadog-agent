@@ -19,7 +19,7 @@ import (
 func runShellScript(t *testing.T, script string) (stdout, stderr string, exitCode int) {
 	t.Helper()
 	var stdoutBuf, stderrBuf bytes.Buffer
-	r, err := New(StdIO(nil, &stdoutBuf, &stderrBuf))
+	r, err := New(StdIO(nil, &stdoutBuf, &stderrBuf), OpenHandler(SafeOpenHandler()))
 	if err != nil {
 		t.Fatalf("failed to create runner: %v", err)
 	}
@@ -42,7 +42,7 @@ func runShellScript(t *testing.T, script string) (stdout, stderr string, exitCod
 func runShellScriptWithTimeout(t *testing.T, script string, timeout time.Duration) (stdout, stderr string, exitCode int) {
 	t.Helper()
 	var stdoutBuf, stderrBuf bytes.Buffer
-	r, err := New(StdIO(nil, &stdoutBuf, &stderrBuf))
+	r, err := New(StdIO(nil, &stdoutBuf, &stderrBuf), OpenHandler(SafeOpenHandler()))
 	if err != nil {
 		t.Fatalf("failed to create runner: %v", err)
 	}
@@ -131,6 +131,26 @@ func TestSafety_FindNoDelete(t *testing.T) {
 	}
 	if !strings.Contains(stderr, "unknown predicate") {
 		t.Errorf("find -delete stderr should contain 'unknown predicate', got: %q", stderr)
+	}
+}
+
+func TestSafety_RedirectWriteBlocked(t *testing.T) {
+	_, stderr, exitCode := runShellScript(t, `echo "pwned" > /tmp/safe-shell-test-write`)
+	if exitCode != 1 {
+		t.Errorf("redirect write should fail, got exit code %d", exitCode)
+	}
+	if !strings.Contains(stderr, "write operations not permitted") {
+		t.Errorf("redirect write stderr should contain 'write operations not permitted', got: %q", stderr)
+	}
+}
+
+func TestSafety_RedirectAppendBlocked(t *testing.T) {
+	_, stderr, exitCode := runShellScript(t, `echo "pwned" >> /tmp/safe-shell-test-append`)
+	if exitCode != 1 {
+		t.Errorf("redirect append should fail, got exit code %d", exitCode)
+	}
+	if !strings.Contains(stderr, "write operations not permitted") {
+		t.Errorf("redirect append stderr should contain 'write operations not permitted', got: %q", stderr)
 	}
 }
 

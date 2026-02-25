@@ -122,4 +122,7 @@ func catStream(r *Runner, reader io.Reader, numberAll, numberBlank, squeeze bool
 			r.outf("%s\n", line)
 		}
 	}
+	if err := scanner.Err(); err != nil {
+		r.errf("cat: read error: %v\n", err)
+	}
 }

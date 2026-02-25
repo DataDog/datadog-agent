@@ -147,12 +147,19 @@ func tailStreamFile(r *Runner, reader io.Reader, lineMode bool, count int64, fro
 	if count == 0 {
 		return
 	}
+	const tailMaxLines = 100000
+	if count > tailMaxLines {
+		count = tailMaxLines
+	}
 	ring := make([]string, count)
 	var total int64
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		ring[total%count] = scanner.Text()
 		total++
+	}
+	if err := scanner.Err(); err != nil {
+		r.errf("tail: read error: %v\n", err)
 	}
 	if total == 0 {
 		return

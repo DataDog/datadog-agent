@@ -77,10 +77,10 @@ func (h *RunShellHandler) Run(
 
 	opts := []interp.RunnerOption{
 		interp.StdIO(nil, &stdoutBuf, &stderrBuf),
+		interp.OpenHandler(interp.SafeOpenHandler()),
 	}
-	if len(inputs.AllowedCommands) > 0 {
-		opts = append(opts, interp.AllowedCommands(inputs.AllowedCommands))
-	}
+	// AllowedCommands is intentionally not passed from PAR inputs.
+	// The safe shell only permits builtin commands when invoked via PAR.
 
 	runner, err := interp.New(opts...)
 	if err != nil {
@@ -104,7 +104,7 @@ func (h *RunShellHandler) Run(
 		if errors.As(runErr, &es) {
 			exitCode = int(es)
 		} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return nil, util.DefaultActionError(fmt.Errorf("shell execution timed out after %d seconds", inputs.Timeout))
+			return nil, util.DefaultActionError(fmt.Errorf("shell execution timed out after %d seconds", timeout))
 		} else {
 			return nil, util.DefaultActionError(fmt.Errorf("shell execution failed: %w", runErr))
 		}

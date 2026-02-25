@@ -126,6 +126,9 @@ func headLines(r *Runner, reader io.Reader, n int64) {
 		r.outf("%s\n", scanner.Text())
 		printed++
 	}
+	if err := scanner.Err(); err != nil {
+		r.errf("head: read error: %v\n", err)
+	}
 }
 
 func headBytes(r *Runner, reader io.Reader, n int64) {

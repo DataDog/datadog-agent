@@ -202,6 +202,10 @@ func (r *Runner) builtinUniq(ctx context.Context, args []string) exitStatus {
 		}
 	}
 
+	if err := scanner.Err(); err != nil {
+		r.errf("uniq: read error: %v\n", err)
+	}
+
 	if !first {
 		outputLine(prevLine, count)
 	}

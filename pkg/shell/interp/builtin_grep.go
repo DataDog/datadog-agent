@@ -329,6 +329,10 @@ func grepStream(r *Runner, reader io.Reader, filename string,
 		}
 	}
 
+	if err := scanner.Err(); err != nil && !quiet {
+		r.errf("grep: read error: %v\n", err)
+	}
+
 	if filesNoMatch && matchCount == 0 && filename != "" {
 		r.outf("%s\n", filename)
 		return false
