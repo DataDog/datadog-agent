@@ -51,6 +51,9 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
     /// Cached value of request_location_permission from datadog.yaml (nil = not yet read).
     private static var cachedRequestLocationPermissionEnabled: Bool? = nil
 
+    /// Set to true after logging once that the prompt was skipped due to request_location_permission (avoids repeated logs on every WLAN check).
+    private static var hasLoggedRequestLocationPermissionDisabled: Bool = false
+
     override init() {
         self.locationManager = CLLocationManager()
         super.init()
@@ -237,7 +240,10 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
                 Logger.info("WiFi data request without permission (after 10s delay), attempting prompt (attempt \(permissionAttemptCount + 1)/2)...", context: "WiFiDataProvider")
                 attemptPermissionPrompt(authStatus: authStatus)
             } else if !requestLocationPermissionEnabled() {
-                Logger.info("Location permission prompt disabled by request_location_permission in config - skipping prompt", context: "WiFiDataProvider")
+                if !Self.hasLoggedRequestLocationPermissionDisabled {
+                    Self.hasLoggedRequestLocationPermissionDisabled = true
+                    Logger.info("Location permission prompt disabled by request_location_permission in config - skipping prompt", context: "WiFiDataProvider")
+                }
             } else {
                 Logger.info("WiFi data request without permission in headless environment - skipping prompt", context: "WiFiDataProvider")
             }
