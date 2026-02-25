@@ -1,0 +1,5 @@
+ad_identifiers:
+  - _pod_lifecycle
+init_config:
+instances:
+  -

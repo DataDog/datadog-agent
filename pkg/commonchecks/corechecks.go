@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containerimage"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containerlifecycle"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/podlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/containerd"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/cri"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
@@ -88,6 +89,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(filehandles.CheckName, filehandles.Factory())
 	corecheckLoader.RegisterCheck(containerimage.CheckName, containerimage.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(containerlifecycle.CheckName, containerlifecycle.Factory(store))
+	corecheckLoader.RegisterCheck(podlifecycle.CheckName, podlifecycle.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(generic.CheckName, generic.Factory(store, filterStore, tagger))
 	corecheckLoader.RegisterCheck(agentprofiling.CheckName, agentprofiling.Factory(flare, cfg))
 
