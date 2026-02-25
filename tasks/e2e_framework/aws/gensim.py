@@ -1,6 +1,5 @@
 import json
 import os
-import subprocess
 from pathlib import Path
 
 from invoke.context import Context
@@ -85,7 +84,7 @@ def list_gensim_episodes(ctx: Context):
 
 @task(
     help={
-        "episode": "Episode directory name (e.g., 002_AWS_S3_Service_Disruption); defaults to the first episode found",
+        "episode": "Episode directory name (e.g., 002_AWS_S3_Service_Disruption);",
         "scenario": "Scenario name to run autonomously on the VM (from episodes/*.yaml)",
         "s3_bucket": "S3 bucket to upload results archive (default: qbranch-gensim-recordings)",
         "instance_type": "EC2 instance type (default: t3.xlarge)",
@@ -116,7 +115,7 @@ def deploy_gensim(
     Deploy a gensim episode to an EC2+Kind cluster and run it autonomously on the VM.
 
     Example:
-        inv e2e-framework.aws.deploy-gensim --episode=002_AWS_S3_Service_Disruption --scenario=capacity-removal-outage --s3-bucket=my-bucket
+        inv e2e-framework.aws.deploy-gensim --episode=002_AWS_S3_Service_Disruption --scenario=capacity-removal-outage
     """
 
     from pydantic_core._pydantic_core import ValidationError
@@ -131,12 +130,6 @@ def deploy_gensim(
 
     # Find episode — if not specified, pick the first one available
     gensim_path = get_gensim_repo_path()
-    if episode is None:
-        episodes = list_episodes()
-        if not episodes:
-            raise Exit(f"No episodes found in {gensim_path}")
-        episode = episodes[0]["name"]
-        tool.info(f"No episode specified, using: {episode}")
 
     episode_dir = gensim_path / episode
 
@@ -230,101 +223,3 @@ def destroy_gensim(ctx: Context, stack_name: str | None = None, config_path: str
     Destroy a gensim EC2+Kind environment created with inv e2e-framework.aws.deploy-gensim.
     """
     destroy(ctx, scenario_name=scenario_name, stack=stack_name, config_path=config_path)
-
-
-@task(
-    help={
-        "stack_name": doc.stack_name,
-        "namespace": "Kubernetes namespace where Datadog Agent is deployed",
-        "output_dir": "Directory to save parquet files (default: ./parquet_files)",
-    }
-)
-def collect_parquet_files(
-    ctx: Context,
-    stack_name: str,
-    namespace: str | None = "default",
-    output_dir: str | None = "./parquet_files",
-):
-    """
-    Collect parquet files from Datadog Agent pods in a running gensim deployment.
-
-    Example:
-        inv e2e-framework.aws.collect-parquet-files --stack-name=gensim-002-aws-s3
-    """
-
-    # Get the full stack name
-    full_stack_name = tool.get_stack_name(stack_name, scenario_name)
-
-    # Get kubeconfig from the Kind cluster output
-    outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
-    kubeconfig_output = outputs["dd-Cluster-gensim"]["kubeConfig"]
-
-    import yaml
-
-    kubeconfig_content = yaml.dump(yaml.safe_load(kubeconfig_output))
-    kubeconfig_path = Path(f"{full_stack_name}-config.yaml")
-
-    with open(kubeconfig_path, "w") as f:
-        f.write(kubeconfig_content)
-    os.chmod(kubeconfig_path, 0o600)
-
-    # Create output directory
-    output_path = Path(output_dir)
-    output_path.mkdir(parents=True, exist_ok=True)
-
-    # Get Datadog Agent pods
-    result = subprocess.run(
-        [
-            "kubectl",
-            "--kubeconfig",
-            str(kubeconfig_path),
-            "get",
-            "pods",
-            "-n",
-            namespace,
-            "-l",
-            "app=datadog-agent",
-            "-o",
-            "jsonpath={.items[*].metadata.name}",
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-
-    pod_names = result.stdout.strip().split()
-
-    if not pod_names:
-        tool.warn("No Datadog Agent pods found")
-        return
-
-    tool.info(f"Found {len(pod_names)} Datadog Agent pod(s)")
-
-    # Collect parquet files from each pod
-    for pod_name in pod_names:
-        tool.info(f"Collecting from pod: {pod_name}")
-
-        pod_output_dir = output_path / pod_name
-        pod_output_dir.mkdir(exist_ok=True)
-
-        # Copy parquet files
-        subprocess.run(
-            [
-                "kubectl",
-                "--kubeconfig",
-                str(kubeconfig_path),
-                "cp",
-                f"{namespace}/{pod_name}:/tmp/observer-metrics/",
-                str(pod_output_dir),
-            ],
-            check=False,  # Don't fail if directory doesn't exist
-        )
-
-        # Count parquet files
-        parquet_files = list(pod_output_dir.rglob("*.parquet"))
-        if parquet_files:
-            tool.info(f"  Collected {len(parquet_files)} parquet file(s)")
-        else:
-            tool.warn(f"  No parquet files found in pod {pod_name}")
-
-    tool.notify(ctx, f"Parquet files collected to: {output_path}")
