@@ -13,7 +13,7 @@ use crate::injector::is_apm_injector_in_process_maps;
 use crate::language::Language;
 use crate::params::Params;
 use crate::ports::{self, ParsingContext};
-use crate::procfs::{self, Cmdline, Exe};
+use crate::procfs::{self, fd::OpenFilesInfo, Cmdline, Exe};
 use crate::service_name::ServiceNameSource;
 use crate::tracer_metadata::TracerMetadata;
 use crate::ust::UST;
@@ -23,6 +23,7 @@ use crate::{service_name, tracer_metadata};
 pub struct ServicesResponse {
     pub services: Vec<Service>,
     pub injected_pids: Vec<i32>,
+    pub gpu_pids: Vec<i32>,
 }
 
 impl ServicesResponse {
@@ -30,6 +31,7 @@ impl ServicesResponse {
         ServicesResponse {
             services: Vec::new(),
             injected_pids: Vec::new(),
+            gpu_pids: Vec::new(),
         }
     }
 }
@@ -68,9 +70,14 @@ pub fn get_services(params: Params) -> ServicesResponse {
                 resp.injected_pids.push(*pid);
             }
 
-            if let Some(service) = get_service(*pid, &mut context) {
+            let (service, fd_info) = get_service(*pid, &mut context);
+            if let Some(service) = service {
                 info!("found service {service:#?}");
                 resp.services.push(service);
+            } else if let Some(info) = fd_info {
+                if info.has_gpu_device || procfs::maps::has_gpu_nvidia_libraries(*pid) {
+                    resp.gpu_pids.push(*pid);
+                }
             }
         }
     }
@@ -87,9 +94,30 @@ pub fn get_services(params: Params) -> ServicesResponse {
     resp
 }
 
-fn get_service(pid: i32, context: &mut ParsingContext) -> Option<Service> {
-    let open_files_info = procfs::fd::get_open_files_info(pid).ok()?;
+// get_service reads /proc/pid/fd, then tries to build a Service.
+// When no service is found but the fd directory was successfully read,
+// the OpenFilesInfo is returned so the caller can reuse it for GPU detection
+// without reading /proc/pid/fd again.
+fn get_service(
+    pid: i32,
+    context: &mut ParsingContext,
+) -> (Option<Service>, Option<OpenFilesInfo>) {
+    let Ok(open_files_info) = procfs::fd::get_open_files_info(pid) else {
+        return (None, None);
+    };
+    let service = try_build_service(pid, context, &open_files_info);
+    if service.is_some() {
+        (service, None)
+    } else {
+        (None, Some(open_files_info))
+    }
+}
 
+fn try_build_service(
+    pid: i32,
+    context: &mut ParsingContext,
+    open_files_info: &OpenFilesInfo,
+) -> Option<Service> {
     let log_files = procfs::fd::get_log_files(pid, &open_files_info.logs);
 
     let (tcp_ports, udp_ports) = ports::get(context, pid, &open_files_info.sockets);
@@ -112,7 +140,7 @@ fn get_service(pid: i32, context: &mut ParsingContext) -> Option<Service> {
     };
     let language = match tracer_metadata {
         Some(ref metadata) => metadata.tracer_language,
-        None => Language::detect(pid, &exe, &cmdline, &open_files_info),
+        None => Language::detect(pid, &exe, &cmdline, open_files_info),
     };
 
     // Collect environment variables
@@ -154,6 +182,7 @@ fn get_service(pid: i32, context: &mut ParsingContext) -> Option<Service> {
     })
 }
 
+// GPU state is not re-detected on heartbeat; the caller preserves it from the initial detection.
 fn get_heartbeat_service(pid: i32, context: &mut ParsingContext) -> Option<Service> {
     let open_files_info = procfs::fd::get_open_files_info(pid).ok()?;
 
@@ -367,36 +396,64 @@ mod tests {
         }
     }
 
-    mod nvidia_gpu_field_validation {
+    #[cfg(target_os = "linux")]
+    mod gpu_pids {
+        use std::os::unix::fs::symlink;
+
         use super::*;
+        use crate::params::Params;
+        use tempfile::TempDir;
 
-        #[test]
-        fn test_has_nvidia_gpu_serializes_true() {
-            let service = Service {
-                pid: 123,
-                has_nvidia_gpu: true,
-                ..Default::default()
-            };
-
-            let json = serde_json::to_string(&service).unwrap();
-            assert!(
-                json.contains("\"has_nvidia_gpu\":true"),
-                "has_nvidia_gpu should serialize as true"
-            );
+        fn make_fake_proc(pid: i32) -> TempDir {
+            let tmp = TempDir::new().unwrap();
+            let fd_dir = tmp.path().join(pid.to_string()).join("fd");
+            std::fs::create_dir_all(&fd_dir).unwrap();
+            tmp
         }
 
         #[test]
-        fn test_has_nvidia_gpu_serializes_false_by_default() {
-            let service = Service {
-                pid: 123,
-                ..Default::default()
-            };
+        fn test_non_service_process_with_gpu_device_added_to_gpu_pids() {
+            let pid = 99998i32;
+            let tmp = make_fake_proc(pid);
+            let fd_dir = tmp.path().join(pid.to_string()).join("fd");
+            symlink("/dev/nvidia0", fd_dir.join("3")).unwrap();
 
-            let json = serde_json::to_string(&service).unwrap();
-            assert!(
-                json.contains("\"has_nvidia_gpu\":false"),
-                "has_nvidia_gpu should serialize as false when not set"
-            );
+            temp_env::with_var("HOST_PROC", Some(tmp.path()), || {
+                let resp = get_services(Params {
+                    new_pids: Some(vec![pid]),
+                    heartbeat_pids: None,
+                });
+                assert!(resp.gpu_pids.contains(&pid));
+                assert!(resp.services.is_empty());
+            });
+        }
+
+        #[test]
+        fn test_non_service_process_without_gpu_not_in_gpu_pids() {
+            let pid = 99997i32;
+            let tmp = make_fake_proc(pid);
+            let fd_dir = tmp.path().join(pid.to_string()).join("fd");
+            symlink("/dev/null", fd_dir.join("0")).unwrap();
+
+            temp_env::with_var("HOST_PROC", Some(tmp.path()), || {
+                let resp = get_services(Params {
+                    new_pids: Some(vec![pid]),
+                    heartbeat_pids: None,
+                });
+                assert!(!resp.gpu_pids.contains(&pid));
+                assert!(resp.services.is_empty());
+            });
+        }
+
+        #[test]
+        fn test_unreadable_pid_not_in_gpu_pids() {
+            let params = Params {
+                new_pids: Some(vec![i32::MAX]),
+                heartbeat_pids: None,
+            };
+            let resp = get_services(params);
+            assert!(resp.gpu_pids.is_empty());
+            assert!(resp.services.is_empty());
         }
     }
 }

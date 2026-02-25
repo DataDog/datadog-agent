@@ -54,8 +54,6 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
-    /// Helper to test GPU detection with mocked maps content
-    /// Creates a reader from the mock content and uses the real detection logic
     fn test_with_mock_maps(maps_content: &str) -> bool {
         let reader = BufReader::new(maps_content.as_bytes());
         check_for_gpu_libraries(reader)
@@ -91,9 +89,7 @@ mod tests {
     #[test]
     fn test_has_gpu_nvidia_libraries_invalid_pid() {
         // Test with PID that doesn't have a maps file
-        let Ok(temp_dir) = TempDir::new() else {
-            return;
-        };
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
         temp_env::with_var("HOST_PROC", Some(temp_dir.path()), || {
             assert!(!has_gpu_nvidia_libraries(999999));
         });

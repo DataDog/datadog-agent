@@ -381,7 +381,7 @@ func (c *collector) handleServiceRetries(pid int32) {
 }
 
 // getProcessEntitiesFromServices creates Process entities with service discovery data
-func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPids []int32, pidsToService map[int32]*model.Service, injectedPids core.PidSet) []*workloadmeta.Process {
+func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPids []int32, pidsToService map[int32]*model.Service, injectedPids core.PidSet, gpuPids core.PidSet) []*workloadmeta.Process {
 	entities := make([]*workloadmeta.Process, 0, len(pidsToService))
 	now := c.clock.Now().UTC()
 
@@ -415,6 +415,7 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 			},
 			Pid:            pid,
 			InjectionState: injectionState,
+			HasNvidiaGPU:   gpuPids.Has(pid) || (service != nil && service.HasNvidiaGPU),
 		}
 
 		if service != nil {
@@ -461,9 +462,9 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 			},
 			Pid:            int32(service.PID),
 			Service:        &preservedService,
-			InjectionState: existingProcess.InjectionState, // Preserve injection status from existing process
-			// Preserve language from existing process
-			Language: existingProcess.Language,
+			InjectionState: existingProcess.InjectionState,
+			Language:       existingProcess.Language,
+			HasNvidiaGPU:   existingProcess.HasNvidiaGPU,
 		}
 
 		entities = append(entities, entity)
@@ -494,13 +495,17 @@ func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procu
 		pidsToService[int32(service.PID)] = &resp.Services[i]
 	}
 
-	// Convert InjectedPIDs to PidSet for efficient lookup
 	injectedPids := make(core.PidSet)
 	for _, pid := range resp.InjectedPIDs {
 		injectedPids.Add(int32(pid))
 	}
 
-	return c.getProcessEntitiesFromServices(newPids, heartbeatPids, pidsToService, injectedPids), injectedPids
+	gpuPids := make(core.PidSet)
+	for _, pid := range resp.GPUPIDs {
+		gpuPids.Add(int32(pid))
+	}
+
+	return c.getProcessEntitiesFromServices(newPids, heartbeatPids, pidsToService, injectedPids, gpuPids), injectedPids
 }
 
 func (c *collector) updateServicesNoCache(alivePids core.PidSet, procs map[int32]*procutil.Process) []*workloadmeta.Process {

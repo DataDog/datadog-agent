@@ -84,6 +84,8 @@ struct dd_discovery_result {
   size_t services_len;
   int32_t *injected_pids;
   size_t injected_pids_len;
+  int32_t *gpu_pids;
+  size_t gpu_pids_len;
 };
 
 /**
