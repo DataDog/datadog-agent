@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "enrollment",
+    srcs = [
+        "enrollment.go",
+        "k8s_secret_nocompile.go",
+        "storage.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/privateactionrunner/adapters/logging",
+        "//pkg/privateactionrunner/adapters/modes",
+        "//pkg/privateactionrunner/adapters/regions",
+        "//pkg/privateactionrunner/opms",
+        "//pkg/privateactionrunner/util",
+        "//pkg/util/flavor",
+    ],
+)

@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "clusterchecks",
+    srcs = ["handler_api_nocompile.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery",
+        "//comp/core/tagger/def",
+        "//pkg/clusteragent/clusterchecks/types",
+    ],
+)

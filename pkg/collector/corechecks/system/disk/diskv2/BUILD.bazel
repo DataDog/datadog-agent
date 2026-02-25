@@ -1,0 +1,154 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "diskv2",
+    srcs = [
+        "disk.go",
+        "disk_nix.go",
+        "disk_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/diskv2",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/config/setup",
+        "//pkg/metrics/servicecheck",
+        "//pkg/util/flavor",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_shirou_gopsutil_v4//common",
+        "@com_github_shirou_gopsutil_v4//disk",
+        "@com_github_spf13_afero//:afero",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:android": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:js": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:osx": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "diskv2_test",
+    srcs = [
+        "disk_nix_test.go",
+        "disk_test.go",
+        "disk_windows_test.go",
+        "with_test.go",
+    ],
+    embed = [":diskv2"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/collector/check",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/util/flavor",
+        "//pkg/util/log",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_shirou_gopsutil_v4//disk",
+        "@com_github_spf13_afero//:afero",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/metrics/servicecheck",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/metrics/servicecheck",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/metrics/servicecheck",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/metrics/servicecheck",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/metrics/servicecheck",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/metrics/servicecheck",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/metrics/servicecheck",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/metrics/servicecheck",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/metrics/servicecheck",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/metrics/servicecheck",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/metrics/servicecheck",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/metrics/servicecheck",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/metrics/servicecheck",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/metrics/servicecheck",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/metrics/servicecheck",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/metrics/servicecheck",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)

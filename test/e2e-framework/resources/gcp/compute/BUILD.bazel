@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "compute",
+    srcs = ["vm.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/resources/gcp/compute",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/resources/gcp",
+        "@com_github_pulumi_pulumi_gcp_sdk_v7//go/gcp/compute",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

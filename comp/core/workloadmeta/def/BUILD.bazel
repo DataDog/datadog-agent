@@ -1,0 +1,53 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "def",
+    srcs = [
+        "collectors.go",
+        "component.go",
+        "dump.go",
+        "filter.go",
+        "merge.go",
+        "params.go",
+        "types.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//pkg/discovery/tracermetadata",
+        "//pkg/languagedetection/languagemodels",
+        "//pkg/util/containers/image",
+        "//pkg/util/scrubber",
+        "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
+        "@com_github_fatih_color//:color",
+        "@com_github_imdario_mergo//:mergo",
+        "@com_github_mohae_deepcopy//:deepcopy",
+        "@com_github_opencontainers_image_spec//specs-go/v1:specs-go",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_apimachinery//pkg/version",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "def_test",
+    srcs = [
+        "dump_test.go",
+        "filter_test.go",
+        "json_test.go",
+        "merge_test.go",
+        "types_example_test.go",
+        "types_test.go",
+    ],
+    embed = [":def"],
+    deps = [
+        "//pkg/discovery/tracermetadata",
+        "//pkg/languagedetection/languagemodels",
+        "//pkg/util/pointer",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+    ],
+)

@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "misconfig",
+    srcs = [
+        "global.go",
+        "mounts.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/common/misconfig",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/config/env",
+            "//pkg/config/setup",
+            "@com_github_pkg_errors//:errors",
+            "@com_github_syndtr_gocapability//capability",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/config/env",
+            "//pkg/config/setup",
+            "@com_github_pkg_errors//:errors",
+            "@com_github_syndtr_gocapability//capability",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "misconfig_test",
+    srcs = ["mounts_test.go"],
+    embed = [":misconfig"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)

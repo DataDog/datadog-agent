@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "versa",
+    srcs = ["versa.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/collector/corechecks/network-devices/versa/client",
+        "//pkg/collector/corechecks/network-devices/versa/payload",
+        "//pkg/collector/corechecks/network-devices/versa/report",
+        "//pkg/networkdevice/metadata",
+        "//pkg/snmp/utils",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)

@@ -1,0 +1,48 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "goflowlib",
+    srcs = [
+        "convert.go",
+        "flowstate.go",
+        "formatdriver.go",
+        "logger.go",
+        "metric.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/netflow/goflowlib",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/log/def",
+        "//comp/netflow/common",
+        "//comp/netflow/config",
+        "//comp/netflow/goflowlib/netflowstate",
+        "//pkg/metrics",
+        "@com_github_netsampler_goflow2//decoders/netflow/templates",
+        "@com_github_netsampler_goflow2//decoders/netflow/templates/memory",
+        "@com_github_netsampler_goflow2//pb",
+        "@com_github_netsampler_goflow2//utils",
+        "@com_github_prometheus_client_model//go",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "goflowlib_test",
+    srcs = [
+        "convert_test.go",
+        "flowstate_test.go",
+        "metric_test.go",
+    ],
+    embed = [":goflowlib"],
+    deps = [
+        "//comp/core/log/mock",
+        "//comp/netflow/common",
+        "//comp/netflow/config",
+        "//pkg/metrics",
+        "@com_github_netsampler_goflow2//pb",
+        "@com_github_prometheus_client_model//go",
+        "@com_github_stretchr_testify//assert",
+        "@org_golang_google_protobuf//proto",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

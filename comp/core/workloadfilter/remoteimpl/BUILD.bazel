@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "remoteimpl",
+    srcs = ["remote.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadfilter/remoteimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/ipc/def",
+        "//comp/core/log/def",
+        "//comp/core/telemetry",
+        "//comp/core/workloadfilter/baseimpl",
+        "//comp/core/workloadfilter/catalog",
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadfilter/program",
+        "//comp/def",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/common",
+        "//pkg/util/system/socket",
+        "@com_github_mdlayher_vsock//:vsock",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
+    ],
+)

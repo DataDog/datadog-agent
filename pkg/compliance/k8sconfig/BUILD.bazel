@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "k8sconfig",
+    srcs = [
+        "loader.go",
+        "types.go",
+        "types_generated.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/compliance/types",
+        "//pkg/compliance/utils",
+        "@com_github_shirou_gopsutil_v4//process",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+    ],
+)
+
+go_test(
+    name = "k8sconfig_test",
+    srcs = ["loader_test.go"],
+    embed = [":k8sconfig"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)

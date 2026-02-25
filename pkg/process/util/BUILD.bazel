@@ -1,0 +1,81 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "util",
+    srcs = [
+        "address.go",
+        "chunking.go",
+        "signal_nowindows.go",
+        "signal_windows.go",
+        "ss_bytes.go",
+        "util.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/process/util",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/docker",
+        "//pkg/util/filesystem",
+        "//pkg/util/sync",
+        "@org_go4_netipx//:netipx",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/log",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "util_test",
+    srcs = [
+        "address_test.go",
+        "chunking_test.go",
+    ],
+    embed = [":util"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

@@ -1,0 +1,37 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tagset",
+    srcs = [
+        "composite_tags.go",
+        "docs.go",
+        "hash_generator.go",
+        "hashed_tags.go",
+        "hashed_tags_pvt.go",
+        "hashing_tags_accumulator.go",
+        "hashless_tags_accumulator.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/tagset",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/sort",
+        "@com_github_twmb_murmur3//:murmur3",
+    ],
+)
+
+go_test(
+    name = "tagset_test",
+    srcs = [
+        "hash_generator_test.go",
+        "hashed_tags_pvt_test.go",
+        "hashed_tags_test.go",
+        "hashing_tags_accumulator_test.go",
+        "hashless_tags_accumulator_test.go",
+    ],
+    embed = [":tagset"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_twmb_murmur3//:murmur3",
+    ],
+)

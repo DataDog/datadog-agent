@@ -1,0 +1,121 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "common",
+    srcs = [
+        "output.go",
+        "packages.go",
+        "services_nix.go",
+        "services_windows.go",
+        "setup.go",
+        "setup_nix.go",
+        "setup_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/fleet/installer",
+        "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/installinfo",
+        "//pkg/fleet/installer/oci",
+        "//pkg/fleet/installer/paths",
+        "//pkg/fleet/installer/setup/config",
+        "//pkg/fleet/installer/telemetry",
+        "//pkg/version",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/fleet/installer/exec",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/packages/user",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/fleet/installer/exec",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/packages/user",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/fleet/installer/exec",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/packages/user",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/fleet/installer/exec",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/packages/user",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/fleet/installer/exec",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/packages/user",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/fleet/installer/exec",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/packages/user",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/fleet/installer/exec",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/packages/user",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/fleet/installer/exec",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/packages/user",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/fleet/installer/exec",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/packages/user",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/fleet/installer/exec",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/packages/user",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/fleet/installer/exec",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/packages/user",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/fleet/installer/exec",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/packages/user",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/fleet/installer/exec",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/packages/user",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/fleet/installer/exec",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/packages/user",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/fleet/installer/exec",
+            "//pkg/fleet/installer/packages/service/systemd",
+            "//pkg/fleet/installer/packages/user",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/packages/service/windows",
+        ],
+        "//conditions:default": [],
+    }),
+)

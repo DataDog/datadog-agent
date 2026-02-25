@@ -1,0 +1,53 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["system_probe.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/metadata/systemprobe/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/ipc/def",
+        "//comp/core/log/def",
+        "//comp/core/sysprobeconfig",
+        "//comp/metadata/internal/util",
+        "//comp/metadata/runner/runnerimpl",
+        "//comp/metadata/systemprobe/def",
+        "//pkg/config/fetcher/sysprobe",
+        "//pkg/config/model",
+        "//pkg/serializer",
+        "//pkg/serializer/marshaler",
+        "//pkg/util/http",
+        "//pkg/util/option",
+        "//pkg/version",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["system_probe_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/mock",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/core/sysprobeconfig",
+        "//comp/core/sysprobeconfig/sysprobeconfigimpl",
+        "//pkg/config/fetcher/sysprobe",
+        "//pkg/config/model",
+        "//pkg/serializer/mocks",
+        "//pkg/util/fxutil",
+        "//pkg/util/option",
+        "//pkg/version",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

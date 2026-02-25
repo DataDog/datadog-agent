@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tls",
+    srcs = [
+        "tags.go",
+        "tags_linux.go",
+        "tags_nolinux.go",
+        "types_linux.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/tls",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "tls_test",
+    srcs = [
+        "types_linux_test.go",
+        "types_test.go",
+    ],
+    embed = [":tls"],
+)

@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "config.go",
+        "networkdeviceconfig.go",
+        "remote.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/networkdeviceconfig/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//comp/networkdeviceconfig/def",
+        "//pkg/config/structure",
+        "@org_golang_x_crypto//ssh",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["config_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

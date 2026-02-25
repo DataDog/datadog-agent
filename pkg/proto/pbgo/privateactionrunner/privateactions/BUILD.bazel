@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "privateactions",
+    srcs = ["private_actions.pb.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/pbgo/privateactionrunner/actionsclient",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//runtime/protoimpl",
+        "@org_golang_google_protobuf//types/known/structpb",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)

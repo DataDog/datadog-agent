@@ -1,0 +1,109 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "dogstatsd_lib",
+    srcs = [
+        "generate.go",
+        "main_nix.go",
+        "main_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/dogstatsd",
+    visibility = ["//visibility:private"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:android": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:js": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//cmd/dogstatsd/command",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//cmd/dogstatsd/command",
+            "//cmd/dogstatsd/subcommands/start",
+            "//comp/aggregator/demultiplexer",
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/dogstatsd/server",
+            "//pkg/util/flavor",
+            "//pkg/util/log",
+            "//pkg/util/winutil",
+            "//pkg/util/winutil/messagestrings",
+            "//pkg/util/winutil/servicemain",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_binary(
+    name = "dogstatsd",
+    embed = [":dogstatsd_lib"],
+    visibility = ["//visibility:public"],
+)

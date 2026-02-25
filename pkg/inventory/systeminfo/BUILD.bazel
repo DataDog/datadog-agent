@@ -1,0 +1,64 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "systeminfo",
+    srcs = [
+        "collector.go",
+        "collector_darwin.go",
+        "collector_nix.go",
+        "collector_windows.go",
+        "systeminfo_darwin.h",
+        "systeminfo_darwin.m",
+    ],
+    cgo = True,
+    clinkopts = select({
+        "@rules_go//go/platform:darwin": [
+            "-framework Foundation -framework IOKit",
+        ],
+        "@rules_go//go/platform:ios": [
+            "-framework Foundation -framework IOKit",
+        ],
+        "//conditions:default": [],
+    }),
+    copts = select({
+        "@rules_go//go/platform:darwin": [
+            "-x objective-c -fobjc-arc",
+        ],
+        "@rules_go//go/platform:ios": [
+            "-x objective-c -fobjc-arc",
+        ],
+        "//conditions:default": [],
+    }),
+    importpath = "github.com/DataDog/datadog-agent/pkg/inventory/systeminfo",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/log",
+            "@com_github_yusufpapurcu_wmi//:wmi",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "systeminfo_test",
+    srcs = [
+        "collector_darwin_test.go",
+        "collector_windows_test.go",
+    ],
+    embed = [":systeminfo"],
+    deps = select({
+        "@rules_go//go/platform:darwin": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)

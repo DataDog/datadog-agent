@@ -1,0 +1,87 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "script",
+    srcs = [
+        "credentials.go",
+        "enrich_script.go",
+        "entrypoint.go",
+        "helper.go",
+        "run_predefined_powershell_script.go",
+        "run_predefined_powershell_script_nonwindows.go",
+        "run_predefined_script.go",
+        "run_predefined_script_windows.go",
+        "run_shell_script.go",
+        "shell_quote.go",
+        "test_connection.go",
+        "test_connection_windows.go",
+        "validate_parameters.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/script",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/adapters/workflowjsonschema",
+        "//pkg/privateactionrunner/bundle-support",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "@com_github_santhosh_tekuri_jsonschema_v5//:jsonschema",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/privateactionrunner/adapters/tmpl",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/privateactionrunner/adapters/tmpl",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/privateactionrunner/adapters/tmpl",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/privateactionrunner/adapters/tmpl",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/privateactionrunner/adapters/tmpl",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/privateactionrunner/adapters/tmpl",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/privateactionrunner/adapters/tmpl",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/privateactionrunner/adapters/tmpl",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/privateactionrunner/adapters/tmpl",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/privateactionrunner/adapters/tmpl",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/privateactionrunner/adapters/tmpl",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/privateactionrunner/adapters/tmpl",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/privateactionrunner/adapters/tmpl",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/privateactionrunner/adapters/tmpl",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/privateactionrunner/adapters/tmpl",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/privateactionrunner/adapters/tmpl",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "script_test",
+    srcs = ["shell_quote_test.go"],
+    embed = [":script"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

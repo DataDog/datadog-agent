@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "eventplatformreceiverimpl",
+    srcs = [
+        "eventplatformreceiver.go",
+        "format.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/api/api/utils/stream",
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/forwarder/eventplatform",
+        "//comp/forwarder/eventplatformreceiver",
+        "//pkg/logs/diagnostic",
+        "//pkg/logs/message",
+        "//pkg/util/fxutil",
+        "@com_github_datadog_agent_payload_v5//contimage",
+        "@com_github_datadog_agent_payload_v5//contlcycle",
+        "@com_github_datadog_agent_payload_v5//sbom",
+        "@org_golang_google_protobuf//proto",
+        "@org_uber_go_fx//:fx",
+    ],
+)

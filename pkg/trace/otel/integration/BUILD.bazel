@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "integration_test",
+    srcs = ["container_tags_v2_test.go"],
+    deps = [
+        "//comp/core/tagger/origindetection",
+        "//comp/core/tagger/types",
+        "//comp/otelcol/otlp/components/processor/infraattributesprocessor",
+        "//comp/otelcol/otlp/testutil",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes",
+        "//pkg/trace/api",
+        "//pkg/trace/config",
+        "//pkg/trace/timing",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
+        "@io_opentelemetry_go_collector_consumer//:consumer",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@io_opentelemetry_go_collector_processor_processortest//:processortest",
+    ],
+)

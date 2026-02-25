@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "types",
+    srcs = [
+        "bundle_types.go",
+        "enrollment.go",
+        "key.go",
+        "task.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/types",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/proto/pbgo/privateactionrunner/actionsclient",
+        "//pkg/proto/pbgo/privateactionrunner/privateactions",
+    ],
+)

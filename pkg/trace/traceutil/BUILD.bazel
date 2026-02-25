@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "traceutil",
+    srcs = [
+        "azure.go",
+        "constants.go",
+        "doc.go",
+        "processed_trace.go",
+        "span.go",
+        "trace.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/traceutil",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/log",
+        "@com_github_tinylib_msgp//msgp",
+    ],
+)
+
+go_test(
+    name = "traceutil_test",
+    srcs = [
+        "azure_test.go",
+        "processed_trace_test.go",
+        "span_test.go",
+        "trace_test.go",
+    ],
+    embed = [":traceutil"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

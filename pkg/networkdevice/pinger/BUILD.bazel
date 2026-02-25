@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "pinger",
+    srcs = [
+        "mock.go",
+        "pinger.go",
+        "pinger_darwin.go",
+        "pinger_linux.go",
+        "pinger_windows.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/networkdevice/pinger",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "@com_github_prometheus_community_pro_bing//:pro-bing",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/config/setup",
+            "//pkg/system-probe/api/client",
+            "//pkg/system-probe/config",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/config/setup",
+            "//pkg/system-probe/api/client",
+            "//pkg/system-probe/config",
+        ],
+        "//conditions:default": [],
+    }),
+)

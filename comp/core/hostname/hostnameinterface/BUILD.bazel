@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "hostnameinterface",
+    srcs = [
+        "component.go",
+        "data.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "hostnameinterface_test",
+    srcs = ["mock_test.go"],
+    embed = [":hostnameinterface"],
+    deps = [
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

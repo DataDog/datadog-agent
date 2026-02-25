@@ -1,0 +1,60 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "cgroup",
+    srcs = ["resolver.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/metrics",
+            "//pkg/security/resolvers/cgroup/model",
+            "//pkg/security/resolvers/dentry",
+            "//pkg/security/secl/containerutils",
+            "//pkg/security/secl/model",
+            "//pkg/security/seclog",
+            "//pkg/security/utils",
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_hashicorp_golang_lru_v2//simplelru",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/metrics",
+            "//pkg/security/resolvers/cgroup/model",
+            "//pkg/security/resolvers/dentry",
+            "//pkg/security/secl/containerutils",
+            "//pkg/security/secl/model",
+            "//pkg/security/seclog",
+            "//pkg/security/utils",
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_hashicorp_golang_lru_v2//simplelru",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "cgroup_test",
+    srcs = ["resolver_test.go"],
+    embed = [":cgroup"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/resolvers/cgroup/model",
+            "//pkg/security/secl/containerutils",
+            "//pkg/security/secl/model",
+            "//pkg/security/utils",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//mock",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/resolvers/cgroup/model",
+            "//pkg/security/secl/containerutils",
+            "//pkg/security/secl/model",
+            "//pkg/security/utils",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//mock",
+        ],
+        "//conditions:default": [],
+    }),
+)

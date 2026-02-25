@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "client",
+    srcs = [
+        "destination.go",
+        "destination_metadata.go",
+        "destinations.go",
+        "destinations_context.go",
+        "errors.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/client",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/logs/message"],
+)
+
+go_test(
+    name = "client_test",
+    srcs = ["destinations_context_test.go"],
+    embed = [":client"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

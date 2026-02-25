@@ -1,0 +1,111 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "kernel",
+    srcs = [
+        "arch.go",
+        "auxv.go",
+        "cpu.go",
+        "fs.go",
+        "fs_nolinux.go",
+        "ip.go",
+        "ip_unsupported.go",
+        "lockdown.go",
+        "platform.go",
+        "proc.go",
+        "uname.go",
+        "vdso.go",
+        "version.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/kernel",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/config/env",
+            "//pkg/util/funcs",
+            "//pkg/util/safeelf",
+            "@com_github_datadog_gopsutil//host",
+            "@com_github_moby_sys_mountinfo//:mountinfo",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/config/env",
+            "//pkg/util/funcs",
+            "//pkg/util/safeelf",
+            "@com_github_datadog_gopsutil//host",
+            "@com_github_moby_sys_mountinfo//:mountinfo",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/util/funcs",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/funcs",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "kernel_test",
+    srcs = [
+        "auxv_test.go",
+        "cpu_test.go",
+        "lockdown_test.go",
+        "platform_test.go",
+        "proc_linux_test.go",
+        "vdso_test.go",
+        "version_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":kernel"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)

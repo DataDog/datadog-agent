@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["healthprobe.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/healthprobe/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/healthprobe/def",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//pkg/status/health",
+        "@com_github_gorilla_mux//:mux",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["healthprobe_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/healthprobe/def",
+        "//comp/core/log/mock",
+        "//comp/def",
+        "//pkg/status/health",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

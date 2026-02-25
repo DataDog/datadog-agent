@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "size",
+    srcs = [
+        "parse.go",
+        "size.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/size",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_spf13_cast//:cast"],
+)

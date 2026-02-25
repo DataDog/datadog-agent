@@ -1,0 +1,50 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "serializer",
+    srcs = [
+        "metrics.go",
+        "serializer.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serializer",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/forwarder/defaultforwarder",
+        "//comp/forwarder/defaultforwarder/endpoints",
+        "//comp/forwarder/defaultforwarder/resolver",
+        "//comp/forwarder/defaultforwarder/transaction",
+        "//comp/forwarder/orchestrator/orchestratorinterface",
+        "//pkg/metrics",
+        "//pkg/metrics/event",
+        "//pkg/metrics/servicecheck",
+        "//pkg/process/util/api/headers",
+        "//pkg/serializer/internal/metrics",
+        "//pkg/serializer/internal/stream",
+        "//pkg/serializer/marshaler",
+        "//pkg/serializer/split",
+        "//pkg/serializer/types",
+        "//pkg/util/compression",
+        "//pkg/version",
+        "@com_github_google_uuid//:uuid",
+    ],
+)
+
+go_test(
+    name = "serializer_test",
+    srcs = ["metrics_test.go"],
+    embed = [":serializer"],
+    deps = [
+        "//comp/core/log/mock",
+        "//comp/core/secrets/noop-impl/types",
+        "//comp/forwarder/defaultforwarder",
+        "//comp/forwarder/defaultforwarder/endpoints",
+        "//comp/serializer/metricscompression/impl",
+        "//pkg/config/mock",
+        "//pkg/serializer/internal/metrics",
+        "//pkg/util/testutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

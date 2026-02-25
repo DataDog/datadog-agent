@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "client.go",
+        "fallbackclient.go",
+        "none.go",
+        "singleclient.go",
+        "status.go",
+    ],
+    embedsrcs = ["status_templates/externalmetrics.tmpl"],
+    importpath = "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/autoscaling/datadogclient/def",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/status",
+        "//pkg/config/model",
+        "//pkg/config/structure",
+        "//pkg/config/utils",
+        "//pkg/util/http",
+        "@in_gopkg_zorkian_go_datadog_api_v2//:go-datadog-api_v2",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["client_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/mock",
+        "//pkg/config/model",
+        "@com_github_stretchr_testify//assert",
+        "@in_gopkg_zorkian_go_datadog_api_v2//:go-datadog-api_v2",
+    ],
+)

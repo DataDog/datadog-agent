@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "apm",
+    srcs = ["detect.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/discovery/apm",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/discovery/language",
+            "//pkg/discovery/tracermetadata",
+            "//pkg/discovery/usm",
+            "//pkg/util/kernel",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/discovery/language",
+            "//pkg/discovery/tracermetadata",
+            "//pkg/discovery/usm",
+            "//pkg/util/kernel",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "apm_test",
+    srcs = ["detect_nix_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":apm"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/discovery/envs",
+            "//pkg/discovery/usm",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/discovery/envs",
+            "//pkg/discovery/usm",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)

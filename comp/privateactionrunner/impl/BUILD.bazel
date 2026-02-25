@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = ["privateactionrunner.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/privateactionrunner/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname",
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/log/def",
+        "//comp/core/tagger/def",
+        "//comp/def",
+        "//comp/forwarder/eventplatform",
+        "//comp/networkpath/traceroute/def",
+        "//comp/privateactionrunner/def",
+        "//comp/remote-config/rcclient",
+        "//pkg/config/model",
+        "//pkg/privateactionrunner/adapters/config",
+        "//pkg/privateactionrunner/adapters/parversion",
+        "//pkg/privateactionrunner/adapters/rcclient",
+        "//pkg/privateactionrunner/autoconnections",
+        "//pkg/privateactionrunner/enrollment",
+        "//pkg/privateactionrunner/opms",
+        "//pkg/privateactionrunner/runners",
+        "//pkg/privateactionrunner/task-verifier",
+        "//pkg/privateactionrunner/util",
+    ],
+)

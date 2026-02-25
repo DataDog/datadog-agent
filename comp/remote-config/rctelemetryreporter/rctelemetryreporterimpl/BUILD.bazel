@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "rctelemetryreporterimpl",
+    srcs = ["rctelemetryreporter.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/telemetry",
+        "//comp/remote-config/rctelemetryreporter",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

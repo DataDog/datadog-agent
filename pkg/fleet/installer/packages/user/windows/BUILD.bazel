@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "windows",
+    srcs = [
+        "lsa.c",
+        "lsa.h",
+        "user.go",
+        "winapi.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user/windows",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/errors",
+            "//pkg/util/winutil",
+            "@org_golang_x_sys//windows",
+            "@org_golang_x_sys//windows/registry",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "windows_test",
+    srcs = ["user_test.go"],
+    embed = [":windows"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

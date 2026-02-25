@@ -1,0 +1,45 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "catalog",
+    srcs = [
+        "builder.go",
+        "common.go",
+        "container.go",
+        "filter_config.go",
+        "kube_endpoints.go",
+        "kube_service.go",
+        "pod.go",
+        "process.go",
+        "remote.go",
+        "utils_nocel.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadfilter/catalog",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadfilter/impl/parse",
+        "//comp/core/workloadfilter/program",
+        "//comp/core/workloadfilter/telemetry",
+        "//pkg/config/setup",
+        "//pkg/config/structure",
+        "//pkg/util/containers",
+        "//pkg/util/log",
+        "@com_github_fatih_color//:color",
+        "@com_github_patrickmn_go_cache//:go-cache",
+    ],
+)
+
+go_test(
+    name = "catalog_test",
+    srcs = ["filter_config_test.go"],
+    embed = [":catalog"],
+    deps = [
+        "//comp/core/workloadfilter/def",
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

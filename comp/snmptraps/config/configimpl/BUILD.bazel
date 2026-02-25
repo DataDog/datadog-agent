@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "configimpl",
+    srcs = [
+        "service.go",
+        "service_mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmptraps/config/configimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname",
+        "//comp/snmptraps/config",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

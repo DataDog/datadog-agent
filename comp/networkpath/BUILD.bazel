@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "networkpath",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/networkpath",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/networkpath/npcollector/npcollectorimpl",
+        "//pkg/util/fxutil",
+    ],
+)
+
+go_test(
+    name = "networkpath_test",
+    srcs = ["bundle_test.go"],
+    embed = [":networkpath"],
+    deps = [
+        "//comp/core",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/forwarder/eventplatform/eventplatformimpl",
+        "//comp/networkpath/traceroute/def",
+        "//comp/rdnsquerier/fx-mock",
+        "//pkg/util/fxutil",
+        "@com_github_datadog_datadog_agent_comp_serializer_logscompression//fx-mock",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@org_uber_go_fx//:fx",
+    ],
+)

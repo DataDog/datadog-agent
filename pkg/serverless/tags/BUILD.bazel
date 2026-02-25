@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tags",
+    srcs = ["tags.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serverless/tags",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/log"],
+)
+
+go_test(
+    name = "tags_test",
+    srcs = ["tags_test.go"],
+    embed = [":tags"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

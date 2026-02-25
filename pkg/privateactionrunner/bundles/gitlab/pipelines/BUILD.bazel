@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "pipelines",
+    srcs = [
+        "cancel_pipeline_build.gen.go",
+        "create_pipeline.go",
+        "delete_pipeline.gen.go",
+        "entrypoint.gen.go",
+        "get_latest_pipeline.gen.go",
+        "get_pipeline.gen.go",
+        "get_pipeline_test_report.gen.go",
+        "get_pipeline_variables.gen.go",
+        "list_project_pipelines.go",
+        "retry_pipeline_build.go",
+        "update_pipeline_metadata.gen.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/pipelines",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/bundle-support/gitlab",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "@com_gitlab_gitlab_org_api_client_go//:client-go",
+    ],
+)

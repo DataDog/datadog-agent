@@ -1,0 +1,11 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "custommetrics",
+    srcs = [
+        "doc.go",
+        "status_no_apiserver.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics",
+    visibility = ["//visibility:public"],
+)

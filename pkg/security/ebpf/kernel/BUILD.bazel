@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "kernel",
+    srcs = [
+        "kernel.go",
+        "kernel_nobpf.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/config/env",
+            "//pkg/util/filesystem",
+            "//pkg/util/kernel",
+            "@com_github_acobaugh_osrelease//:osrelease",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/config/env",
+            "//pkg/util/filesystem",
+            "//pkg/util/kernel",
+            "@com_github_acobaugh_osrelease//:osrelease",
+        ],
+        "//conditions:default": [],
+    }),
+)

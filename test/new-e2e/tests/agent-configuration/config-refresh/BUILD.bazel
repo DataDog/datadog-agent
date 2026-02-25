@@ -1,0 +1,45 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "config-refresh",
+    srcs = [
+        "config_endpoint.go",
+        "docs.go",
+        "non_core_agents_sync_common.go",
+    ],
+    embedsrcs = [
+        "fixtures/config.yaml.tmpl",
+        "fixtures/security-agent.yaml",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/config-refresh",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/testing/components",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "config-refresh_test",
+    srcs = [
+        "api_key_refresh_test.go",
+        "non_core_agents_sync_nix_test.go",
+        "non_core_agents_sync_win_test.go",
+    ],
+    embed = [":config-refresh"],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclient",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclientparams",
+        "//test/new-e2e/tests/agent-configuration/secretsutils",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

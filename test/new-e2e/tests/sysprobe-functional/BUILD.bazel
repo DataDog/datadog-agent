@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "sysprobe-functional_test",
+    srcs = [
+        "apmtags_test.go",
+        "apmtags_testdefs_test.go",
+        "sysprobe_test.go",
+    ],
+    embedsrcs = ["fixtures/system-probe.yaml"],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/scenarios/aws/ec2/windows",
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host/windows",
+        "//test/new-e2e/tests/windows",
+        "//test/new-e2e/tests/windows/common/agent",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

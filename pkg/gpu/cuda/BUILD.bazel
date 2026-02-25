@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "cuda",
+    srcs = [
+        "cubin.go",
+        "cubin_string.go",
+        "elf.go",
+        "fatbin.go",
+        "fatbin_string.go",
+        "symbols.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/gpu/cuda",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/safeelf",
+        "@com_github_pierrec_lz4_v4//:lz4",
+    ],
+)
+
+go_test(
+    name = "cuda_test",
+    srcs = [
+        "elf_test.go",
+        "symbols_test.go",
+    ],
+    embed = [":cuda"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/safeelf",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/safeelf",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

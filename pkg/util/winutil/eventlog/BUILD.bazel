@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "eventlog_test",
+    srcs = ["example_test.go"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil/eventlog/api",
+            "//pkg/util/winutil/eventlog/subscription",
+            "//pkg/util/winutil/eventlog/test",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)

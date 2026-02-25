@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "common",
+    srcs = [
+        "doc.go",
+        "pathtest.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/networkpath/payload"],
+)
+
+go_test(
+    name = "common_test",
+    srcs = ["pathtest_test.go"],
+    embed = [":common"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

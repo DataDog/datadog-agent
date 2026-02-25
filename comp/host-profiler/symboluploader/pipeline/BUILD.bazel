@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "pipeline",
+    srcs = ["pipeline.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/pipeline",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_jonboulle_clockwork//:clockwork",
+            "@org_golang_x_sync//semaphore",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_jonboulle_clockwork//:clockwork",
+            "@org_golang_x_sync//semaphore",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "pipeline_test",
+    srcs = ["pipeline_test.go"],
+    embed = [":pipeline"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_jonboulle_clockwork//:clockwork",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_jonboulle_clockwork//:clockwork",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

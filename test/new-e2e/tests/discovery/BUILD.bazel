@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "discovery_test",
+    srcs = [
+        "linux_test.go",
+        "process_autodiscovery_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embedsrcs = [
+        "testdata/config/agent_config.yaml",
+        "testdata/config/agent_process_autodiscovery.yaml",
+        "testdata/config/agent_process_config.yaml",
+        "testdata/config/agent_process_disabled_config.yaml",
+        "testdata/config/redisdb_process_autodiscovery.yaml",
+        "testdata/config/system_probe_config.yaml",
+        "testdata/config/system_probe_config_privileged_logs.yaml",
+        "testdata/config/nginx_process_autodiscovery.yaml",
+    ],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/fakeintake/aggregator",
+        "//test/new-e2e/tests/process",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_google_go_cmp//cmp/cmpopts",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

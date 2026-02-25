@@ -1,0 +1,106 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "events",
+    srcs = [
+        "monitor.go",
+        "monitor_linux.go",
+        "monitor_others.go",
+        "monitor_windows.go",
+        "network_consumer.go",
+        "network_consumer_others.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/events",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/eventmonitor",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/discovery/tracermetadata",
+            "//pkg/eventmonitor",
+            "//pkg/security/probe",
+            "//pkg/security/secl/model",
+            "//pkg/util/log",
+            "@org_go4_intern//:intern",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/eventmonitor",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/eventmonitor",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/eventmonitor",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/eventmonitor",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/eventmonitor",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/eventmonitor",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/discovery/tracermetadata",
+            "//pkg/eventmonitor",
+            "//pkg/security/probe",
+            "//pkg/security/secl/model",
+            "//pkg/util/log",
+            "@org_go4_intern//:intern",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/eventmonitor",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/eventmonitor",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/eventmonitor",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/eventmonitor",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/eventmonitor",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/eventmonitor",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/discovery/tracermetadata",
+            "//pkg/eventmonitor",
+            "//pkg/security/probe",
+            "//pkg/security/secl/model",
+            "//pkg/util/log",
+            "//pkg/util/winutil/iisconfig",
+            "@org_go4_intern//:intern",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "events_test",
+    srcs = ["monitor_test.go"],
+    embed = [":events"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/secl/model",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_go4_intern//:intern",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/secl/model",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_go4_intern//:intern",
+        ],
+        "//conditions:default": [],
+    }),
+)

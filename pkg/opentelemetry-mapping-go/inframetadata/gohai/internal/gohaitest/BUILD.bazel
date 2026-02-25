@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "gohaitest_test",
+    srcs = ["gohai_test.go"],
+    deps = [
+        "//pkg/opentelemetry-mapping-go/inframetadata/gohai",
+        "@com_github_datadog_gohai//cpu",
+        "@com_github_datadog_gohai//filesystem",
+        "@com_github_datadog_gohai//memory",
+        "@com_github_datadog_gohai//network",
+        "@com_github_datadog_gohai//platform",
+        "@com_github_stretchr_testify//require",
+    ],
+)

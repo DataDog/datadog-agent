@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "types",
+    srcs = [
+        "consts.go",
+        "prometheus.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/log"],
+)
+
+go_test(
+    name = "types_test",
+    srcs = ["prometheus_test.go"],
+    embed = [":types"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

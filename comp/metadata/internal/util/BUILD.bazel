@@ -1,0 +1,41 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "util",
+    srcs = [
+        "inventory_enabled.go",
+        "inventory_payload.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/metadata/internal/util",
+    visibility = ["//comp/metadata:__subpackages__"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/log/def",
+        "//comp/metadata/runner/runnerimpl",
+        "//pkg/config/model",
+        "//pkg/serializer",
+        "//pkg/serializer/marshaler",
+        "//pkg/util/log",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "util_test",
+    srcs = [
+        "inventory_enabled_test.go",
+        "inventory_payload_test.go",
+    ],
+    embed = [":util"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/helpers",
+        "//comp/core/log/mock",
+        "//pkg/config/mock",
+        "//pkg/serializer/marshaler",
+        "//pkg/serializer/mocks",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+    ],
+)

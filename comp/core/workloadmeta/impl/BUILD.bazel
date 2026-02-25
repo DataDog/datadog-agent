@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "cached_entity.go",
+        "doc.go",
+        "dump.go",
+        "flare_provider.go",
+        "store.go",
+        "workloadmeta.go",
+        "workloadmeta_mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/log/def",
+        "//comp/core/workloadmeta/collectors/sbomutil",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/mock",
+        "//comp/core/workloadmeta/telemetry",
+        "//comp/def",
+        "//pkg/config/env",
+        "//pkg/errors",
+        "//pkg/status/health",
+        "//pkg/util/common",
+        "//pkg/util/fxutil",
+        "//pkg/util/http",
+        "//pkg/util/log",
+        "//pkg/util/retry",
+        "@com_github_cenkalti_backoff_v5//:backoff",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = [
+        "dump_test.go",
+        "store_example_test.go",
+    ],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

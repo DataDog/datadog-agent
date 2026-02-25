@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "tags",
+    srcs = [
+        "create_tag.gen.go",
+        "delete_tag.gen.go",
+        "entrypoint.gen.go",
+        "get_tag.gen.go",
+        "list_tags.gen.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/tags",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/bundle-support/gitlab",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "@com_gitlab_gitlab_org_api_client_go//:client-go",
+    ],
+)

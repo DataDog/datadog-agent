@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+go_library(
+    name = "test-runner_lib",
+    srcs = [
+        "main.go",
+        "testcontainer.go",
+        "xml.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/system-probe/test-runner",
+    visibility = ["//visibility:private"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_fatih_color//:color",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_fatih_color//:color",
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_binary(
+    name = "test-runner",
+    embed = [":test-runner_lib"],
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "test-runner_test",
+    srcs = ["xml_test.go"],
+    embed = [":test-runner_lib"],
+)

@@ -1,0 +1,63 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "privileged",
+    srcs = [
+        "dotnet_detector.go",
+        "go_detector.go",
+        "injector.go",
+        "tracer.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/languagedetection/internal/detectors/privileged",
+    visibility = ["//pkg/languagedetection:__subpackages__"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/discovery/tracermetadata",
+            "//pkg/discovery/tracermetadata/language",
+            "//pkg/errors",
+            "//pkg/languagedetection/languagemodels",
+            "//pkg/network/go/binversion",
+            "//pkg/util/kernel",
+            "//pkg/util/safeelf",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/discovery/tracermetadata",
+            "//pkg/discovery/tracermetadata/language",
+            "//pkg/errors",
+            "//pkg/languagedetection/languagemodels",
+            "//pkg/network/go/binversion",
+            "//pkg/util/kernel",
+            "//pkg/util/safeelf",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "privileged_test",
+    srcs = [
+        "dotnet_detector_test.go",
+        "go_detector_test.go",
+        "injector_test.go",
+        "tracer_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":privileged"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/languagedetection/languagemodels",
+            "//pkg/proto/pbgo/languagedetection",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/languagedetection/languagemodels",
+            "//pkg/proto/pbgo/languagedetection",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)

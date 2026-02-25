@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "common",
+    srcs = [
+        "agent_behaviour.go",
+        "agent_install.go",
+        "agent_integration.go",
+        "test_client.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/version",
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/utils/common",
+        "//test/e2e-framework/testing/utils/e2e/client",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclient",
+        "//test/new-e2e/tests/agent-platform/common/bound-port",
+        "//test/new-e2e/tests/agent-platform/common/file-manager",
+        "//test/new-e2e/tests/agent-platform/common/helper",
+        "//test/new-e2e/tests/agent-platform/common/pkg-manager",
+        "//test/new-e2e/tests/agent-platform/common/process",
+        "//test/new-e2e/tests/agent-platform/common/svc-manager",
+        "@com_github_cenkalti_backoff_v5//:backoff",
+        "@com_github_datadog_datadog_agent_pkg_util_testutil//flake",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "common_test",
+    srcs = ["test_client_test.go"],
+    embed = [":common"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)

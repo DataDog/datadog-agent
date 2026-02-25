@@ -1,0 +1,46 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "http",
+    srcs = [
+        "destination.go",
+        "sync_destination.go",
+        "worker_pool.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/client/http",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/config/model",
+        "//pkg/logs/client",
+        "//pkg/logs/message",
+        "//pkg/logs/metrics",
+        "//pkg/telemetry",
+        "//pkg/util/backoff",
+        "//pkg/util/http",
+        "//pkg/util/log",
+        "//pkg/version",
+    ],
+)
+
+go_test(
+    name = "http_test",
+    srcs = [
+        "destination_test.go",
+        "worker_pool_test.go",
+    ],
+    embed = [":http"],
+    deps = [
+        "//comp/core/telemetry",
+        "//comp/core/telemetry/telemetryimpl",
+        "//comp/logs/agent/config",
+        "//pkg/config/mock",
+        "//pkg/logs/client",
+        "//pkg/logs/message",
+        "//pkg/logs/metrics",
+        "//pkg/util/fxutil",
+        "//pkg/util/log",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

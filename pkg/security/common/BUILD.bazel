@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "common",
+    srcs = [
+        "account_id.go",
+        "address_utils.go",
+        "filters.go",
+        "hostname_service.go",
+        "logs_context.go",
+        "raw_reporter.go",
+        "status_provider.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/common",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/logs/agent/config",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/logs/client",
+        "//pkg/util/cloudproviders/azure",
+        "//pkg/util/cloudproviders/gce",
+        "//pkg/util/containers",
+        "//pkg/util/ec2",
+        "//pkg/util/log",
+    ],
+)

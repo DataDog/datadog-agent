@@ -1,0 +1,113 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "security",
+    srcs = ["security.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/api/security",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/config/utils",
+        "//pkg/util/filesystem",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "security_test",
+    srcs = ["security_test.go"],
+    embed = [":security"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/config/mock",
+            "//pkg/config/model",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/config/mock",
+            "//pkg/config/model",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/config/mock",
+            "//pkg/config/model",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/config/mock",
+            "//pkg/config/model",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/config/mock",
+            "//pkg/config/model",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/config/mock",
+            "//pkg/config/model",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/config/mock",
+            "//pkg/config/model",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/config/mock",
+            "//pkg/config/model",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/config/mock",
+            "//pkg/config/model",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/config/mock",
+            "//pkg/config/model",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/config/mock",
+            "//pkg/config/model",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/config/mock",
+            "//pkg/config/model",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/config/mock",
+            "//pkg/config/model",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/config/mock",
+            "//pkg/config/model",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/config/mock",
+            "//pkg/config/model",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

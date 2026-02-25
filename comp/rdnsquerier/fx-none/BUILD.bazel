@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx-none",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-none",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/rdnsquerier/impl-none",
+        "//pkg/util/fxutil",
+    ],
+)

@@ -1,0 +1,44 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "env",
+    srcs = [
+        "doc.go",
+        "environment.go",
+        "environment_container_features.go",
+        "environment_containers.go",
+        "environment_detection.go",
+        "environment_nocontainers.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/env",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/util/filesystem",
+        "//pkg/util/log",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/system",
+            "//pkg/util/system/socket",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/system",
+            "//pkg/util/system/socket",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/system",
+            "//pkg/util/system/socket",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "env_test",
+    srcs = [
+        "environment_containers_test.go",
+        "environment_detection_test.go",
+    ],
+    embed = [":env"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

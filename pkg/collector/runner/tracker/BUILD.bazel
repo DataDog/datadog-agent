@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tracker",
+    srcs = ["tracker.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/runner/tracker",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+    ],
+)
+
+go_test(
+    name = "tracker_test",
+    srcs = ["tracker_test.go"],
+    embed = [":tracker"],
+    deps = [
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

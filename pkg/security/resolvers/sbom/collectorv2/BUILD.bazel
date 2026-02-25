@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "collectorv2",
+    srcs = [
+        "collector.go",
+        "dpkg.go",
+        "rpm.go",
+        "sqlite.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/collectorv2",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_mattn_go_sqlite3//:go-sqlite3",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/resolvers/sbom/types",
+            "//pkg/security/seclog",
+            "@com_github_knqyf263_go_deb_version//:go-deb-version",
+            "@com_github_knqyf263_go_rpmdb//pkg",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/resolvers/sbom/types",
+            "//pkg/security/seclog",
+            "@com_github_knqyf263_go_deb_version//:go-deb-version",
+            "@com_github_knqyf263_go_rpmdb//pkg",
+        ],
+        "//conditions:default": [],
+    }),
+)

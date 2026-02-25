@@ -1,0 +1,44 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "containers",
+    srcs = ["containers.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/process/util/containers",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/types",
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadfilter/util/workloadmeta",
+        "//comp/core/workloadmeta/def",
+        "//pkg/util/containers/metrics",
+        "//pkg/util/containers/metrics/provider",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "@com_github_datadog_agent_payload_v5//process",
+    ],
+)
+
+go_test(
+    name = "containers_test",
+    srcs = ["containers_test.go"],
+    embed = [":containers"],
+    deps = [
+        "//comp/core",
+        "//comp/core/tagger/types",
+        "//comp/core/workloadfilter/fx-mock",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/core/workloadmeta/mock",
+        "//pkg/config/mock",
+        "//pkg/util/containers/metrics/mock",
+        "//pkg/util/containers/metrics/provider",
+        "//pkg/util/fxutil",
+        "//pkg/util/pointer",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_google_go_cmp//cmp/cmpopts",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
+    ],
+)

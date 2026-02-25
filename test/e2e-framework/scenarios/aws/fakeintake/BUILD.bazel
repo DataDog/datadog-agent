@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fakeintake",
+    srcs = [
+        "fakeintake.go",
+        "params.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common",
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/common/namer",
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/components",
+        "//test/e2e-framework/components/datadog/fakeintake",
+        "//test/e2e-framework/resources/aws",
+        "//test/e2e-framework/resources/aws/ecs",
+        "@com_github_cenkalti_backoff_v5//:backoff",
+        "@com_github_pulumi_pulumi_aws_sdk_v6//go/aws/ecs",
+        "@com_github_pulumi_pulumi_aws_sdk_v6//go/aws/lb",
+        "@com_github_pulumi_pulumi_aws_sdk_v6//go/aws/ssm",
+        "@com_github_pulumi_pulumi_awsx_sdk_v2//go/awsx/ecs",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

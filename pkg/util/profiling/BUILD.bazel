@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "profiling",
+    srcs = [
+        "profiling.go",
+        "runtime.go",
+        "settings.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/profiling",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "//pkg/version",
+        "@in_gopkg_datadog_dd_trace_go_v1//profiler",
+    ],
+)
+
+go_test(
+    name = "profiling_test",
+    srcs = ["profiling_test.go"],
+    embed = [":profiling"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

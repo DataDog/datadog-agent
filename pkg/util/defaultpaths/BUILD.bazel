@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "defaultpaths",
+    srcs = [
+        "docs.go",
+        "path_darwin.go",
+        "path_freebsd.go",
+        "path_nix.go",
+        "path_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/defaultpaths",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/executable",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/util/executable",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/util/executable",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/util/executable",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/util/executable",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/executable",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/util/executable",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/util/executable",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/util/executable",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/log",
+            "//pkg/util/winutil",
+            "@org_golang_x_sys//windows/registry",
+        ],
+        "//conditions:default": [],
+    }),
+)

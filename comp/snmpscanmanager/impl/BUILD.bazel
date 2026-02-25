@@ -1,0 +1,55 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "devicescan.go",
+        "flare.go",
+        "scanscheduler.go",
+        "snmpconfigprovider.go",
+        "snmpscanmanager.go",
+        "status.go",
+    ],
+    embedsrcs = [
+        "status_templates/snmpscanmanager.tmpl",
+        "status_templates/snmpscanmanagerHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmpscanmanager/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/ipc/def",
+        "//comp/core/log/def",
+        "//comp/core/status",
+        "//comp/def",
+        "//comp/snmpscan/def",
+        "//comp/snmpscanmanager/def",
+        "//pkg/networkdevice/metadata",
+        "//pkg/persistentcache",
+        "//pkg/snmp/gosnmplib",
+        "//pkg/snmp/snmpparse",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = [
+        "devicescan_test.go",
+        "flare_test.go",
+        "scanscheduler_test.go",
+        "status_test.go",
+    ],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/flare/helpers",
+        "//comp/core/ipc/mock",
+        "//comp/core/log/mock",
+        "//comp/def",
+        "//comp/snmpscanmanager/def",
+        "//pkg/config/mock",
+        "//pkg/snmp/snmpparse",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+    ],
+)

@@ -1,0 +1,63 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "trace",
+    srcs = [
+        "agent_payload.pb.go",
+        "agent_payload_gen.go",
+        "agent_payload_marshal.go",
+        "agent_payload_vtproto.pb.go",
+        "decoder_bytes.go",
+        "decoder_v05.go",
+        "span.pb.go",
+        "span_gen.go",
+        "span_utils.go",
+        "span_vtproto.pb.go",
+        "stats.pb.go",
+        "stats_gen.go",
+        "stats_vtproto.pb.go",
+        "trace.go",
+        "trace_gen.go",
+        "tracer_payload.pb.go",
+        "tracer_payload_gen.go",
+        "tracer_payload_utils.go",
+        "tracer_payload_vtproto.pb.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_planetscale_vtprotobuf//protohelpers",
+        "@com_github_tinylib_msgp//msgp",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//runtime/protoimpl",
+    ],
+)
+
+go_test(
+    name = "trace_test",
+    srcs = [
+        "agent_payload_gen_test.go",
+        "agent_payload_marshal_test.go",
+        "convert_test.go",
+        "decoder_bytes_test.go",
+        "decoder_v05_test.go",
+        "span_gen_modifs_test.go",
+        "span_gen_test.go",
+        "stats_gen_test.go",
+        "trace_gen_safe_test.go",
+        "trace_gen_test.go",
+        "trace_test.go",
+        "tracer_payload_gen_test.go",
+        "utils_test.go",
+    ],
+    embed = [":trace"],
+    deps = [
+        "@com_github_google_gofuzz//:gofuzz",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_tinylib_msgp//msgp",
+        "@com_github_vmihailenco_msgpack_v4//:msgpack",
+        "@org_golang_google_protobuf//proto",
+    ],
+)

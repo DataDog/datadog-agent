@@ -1,0 +1,71 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "bininspect",
+    srcs = [
+        "dwarf.go",
+        "newproc.go",
+        "pclntab.go",
+        "symbol_filter.go",
+        "symbols.go",
+        "types.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/go/bininspect",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/network/go/asmscan",
+            "//pkg/network/go/binversion",
+            "//pkg/network/go/dwarfutils",
+            "//pkg/network/go/dwarfutils/locexpr",
+            "//pkg/network/go/goid",
+            "//pkg/network/go/goversion",
+            "//pkg/util/common",
+            "//pkg/util/log",
+            "//pkg/util/safeelf",
+            "@com_github_go_delve_delve//pkg/dwarf/godwarf",
+            "@com_github_go_delve_delve//pkg/dwarf/loclist",
+            "@com_github_go_delve_delve//pkg/goversion",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/network/go/asmscan",
+            "//pkg/network/go/binversion",
+            "//pkg/network/go/dwarfutils",
+            "//pkg/network/go/dwarfutils/locexpr",
+            "//pkg/network/go/goid",
+            "//pkg/network/go/goversion",
+            "//pkg/util/common",
+            "//pkg/util/log",
+            "//pkg/util/safeelf",
+            "@com_github_go_delve_delve//pkg/dwarf/godwarf",
+            "@com_github_go_delve_delve//pkg/dwarf/loclist",
+            "@com_github_go_delve_delve//pkg/goversion",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "bininspect_test",
+    srcs = [
+        "pclntab_test.go",
+        "symbols_test.go",
+    ],
+    embed = [":bininspect"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/common",
+            "//pkg/util/safeelf",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/common",
+            "//pkg/util/safeelf",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -1,0 +1,48 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "config.go",
+        "extension.go",
+        "factory.go",
+        "server.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/log/def",
+        "//comp/otelcol/ddprofilingextension/def",
+        "//comp/trace/agent/def",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes/source",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//config",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//hostmetadata",
+        "@in_gopkg_datadog_dd_trace_go_v1//profiler",
+        "@io_opentelemetry_go_collector_component//:component",
+        "@io_opentelemetry_go_collector_component_componentstatus//:componentstatus",
+        "@io_opentelemetry_go_collector_extension//:extension",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["extension_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/log/impl",
+        "//comp/trace/compression/impl-gzip",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes/source",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/agent",
+        "//pkg/trace/config",
+        "//pkg/trace/telemetry",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//config",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_component//:component",
+        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+    ],
+)

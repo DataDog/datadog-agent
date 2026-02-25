@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "ddagent",
+    srcs = [
+        "agent_info.go",
+        "entrypoint.go",
+        "test_connection.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/ddagent",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/adapters/parversion",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+    ],
+)

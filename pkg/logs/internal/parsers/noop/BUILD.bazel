@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "noop",
+    srcs = ["noop.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop",
+    visibility = ["//pkg/logs:__subpackages__"],
+    deps = [
+        "//pkg/logs/internal/parsers",
+        "//pkg/logs/message",
+    ],
+)
+
+go_test(
+    name = "noop_test",
+    srcs = ["noop_test.go"],
+    embed = [":noop"],
+    deps = [
+        "//pkg/logs/message",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

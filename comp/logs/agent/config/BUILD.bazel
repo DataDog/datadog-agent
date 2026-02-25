@@ -1,0 +1,56 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "config",
+    srcs = [
+        "channel_message.go",
+        "config.go",
+        "config_keys.go",
+        "constants.go",
+        "endpoints.go",
+        "endpoints_mock.go",
+        "integration_config.go",
+        "messages.go",
+        "parser.go",
+        "processing_rules.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/logs/agent/config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/config/structure",
+        "//pkg/config/utils",
+        "//pkg/logs/types",
+        "//pkg/util/log",
+        "//pkg/util/scrubber",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "config_test",
+    srcs = [
+        "config_keys_test.go",
+        "config_test.go",
+        "endpoints_test.go",
+        "integration_config_test.go",
+        "messages_test.go",
+        "parser_test.go",
+        "processing_rules_test.go",
+    ],
+    embed = [":config"],
+    deps = [
+        "//comp/core/config",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/logs/types",
+        "//pkg/util/pointer",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

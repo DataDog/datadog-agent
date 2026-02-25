@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "sgc-embedded_test",
+    srcs = [
+        "sgc_aws_nix_test.go",
+        "sgc_aws_win_test.go",
+        "sgc_common_test.go",
+        "sgc_nix_test.go",
+        "sgc_win_test.go",
+    ],
+    embedsrcs = ["fixtures/secrets.yaml"],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/datadog/agentparams/filepermissions",
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

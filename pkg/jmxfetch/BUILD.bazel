@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "jmxfetch",
+    srcs = [
+        "limiter.go",
+        "stub.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/jmxfetch",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/agent/jmxlogger",
+        "//comp/core/autodiscovery",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/ipc/def",
+        "//comp/dogstatsd/server",
+    ],
+)
+
+go_test(
+    name = "jmxfetch_test",
+    srcs = ["limiter_test.go"],
+    embed = [":jmxfetch"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

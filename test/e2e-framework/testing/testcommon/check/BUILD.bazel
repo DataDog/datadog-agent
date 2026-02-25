@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "check",
+    srcs = ["parse.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/testcommon/check",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

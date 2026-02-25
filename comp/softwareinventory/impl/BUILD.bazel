@@ -1,0 +1,61 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "inventorysoftware.go",
+        "payload.go",
+        "status.go",
+    ],
+    embedsrcs = [
+        "status_templates/inventory.tmpl",
+        "status_templates/inventoryHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/softwareinventory/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/log/def",
+        "//comp/core/status",
+        "//comp/core/sysprobeconfig",
+        "//comp/def",
+        "//comp/forwarder/eventplatform",
+        "//comp/softwareinventory/def",
+        "//pkg/inventory/software",
+        "//pkg/logs/message",
+        "//pkg/serializer",
+        "//pkg/serializer/marshaler",
+        "//pkg/system-probe/api/client",
+        "//pkg/system-probe/config",
+        "//pkg/system-probe/config/types",
+        "//pkg/util/http",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = [
+        "inventorysoftware_test.go",
+        "payload_test.go",
+        "status_test.go",
+    ],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/helpers",
+        "//comp/core/log/mock",
+        "//comp/def",
+        "//comp/forwarder/eventplatform",
+        "//pkg/inventory/software",
+        "//pkg/logs/message",
+        "//pkg/serializer/mocks",
+        "//pkg/system-probe/config",
+        "//pkg/util/option",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
+    ],
+)

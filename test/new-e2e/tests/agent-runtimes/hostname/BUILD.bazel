@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "hostname_test",
+    srcs = [
+        "drift_common_test.go",
+        "drift_nix_test.go",
+        "drift_win_test.go",
+        "imdsv2_transition_common_test.go",
+    ],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/utils/e2e/client",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclient",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

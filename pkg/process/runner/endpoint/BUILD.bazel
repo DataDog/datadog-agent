@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "endpoint",
+    srcs = ["endpoints.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/process/runner/endpoint",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/config/utils",
+        "//pkg/process/util/api/config",
+    ],
+)

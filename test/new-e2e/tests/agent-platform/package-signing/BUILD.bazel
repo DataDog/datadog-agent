@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "package-signing_test",
+    srcs = ["package_signing_test.go"],
+    deps = [
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclient",
+        "//test/new-e2e/tests/agent-platform/platforms",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

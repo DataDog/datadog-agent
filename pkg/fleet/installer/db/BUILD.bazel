@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "db",
+    srcs = ["db.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/db",
+    visibility = ["//visibility:public"],
+    deps = ["@io_etcd_go_bbolt//:bbolt"],
+)
+
+go_test(
+    name = "db_test",
+    srcs = ["db_test.go"],
+    embed = [":db"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@io_etcd_go_bbolt//errors",
+    ],
+)

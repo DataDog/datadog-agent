@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "installer-package",
+    srcs = ["base_installer_package_suite.go"],
+    embedsrcs = [
+        "fixtures/sample_config_disabled",
+        "fixtures/sample_config_enabled",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/suites/installer-package",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/new-e2e/tests/installer/windows",
+        "//test/new-e2e/tests/installer/windows/consts",
+        "//test/new-e2e/tests/windows/common",
+        "//test/new-e2e/tests/windows/common/agent",
+    ],
+)
+
+go_test(
+    name = "installer-package_test",
+    srcs = [
+        "install_test.go",
+        "rollback_test.go",
+    ],
+    embed = [":installer-package"],
+    deps = [
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/provisioners/aws/host/windows",
+        "//test/new-e2e/tests/installer/windows",
+        "//test/new-e2e/tests/installer/windows/consts",
+        "//test/new-e2e/tests/windows/common",
+    ],
+)

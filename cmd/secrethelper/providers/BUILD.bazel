@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "providers",
+    srcs = [
+        "file.go",
+        "k8s_secret.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/secrethelper/providers",
+    visibility = ["//visibility:public"],
+    deps = ["//comp/core/secrets/def"],
+)
+
+go_test(
+    name = "providers_test",
+    srcs = [
+        "file_test.go",
+        "k8s_secret_test.go",
+    ],
+    embed = [":providers"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_client_go//kubernetes/fake",
+    ],
+)

@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "msi",
+    srcs = ["install_params.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams/msi",
+    visibility = ["//visibility:public"],
+    deps = ["//test/e2e-framework/components/datadog/fakeintake"],
+)

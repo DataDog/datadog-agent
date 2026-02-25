@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "module",
+    srcs = [
+        "common.go",
+        "factory_linux.go",
+        "factory_others.go",
+        "loader.go",
+        "loader_unsupported.go",
+        "loader_windows.go",
+        "router.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/system-probe/api/module",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname",
+        "//comp/core/ipc/def",
+        "//comp/core/log/def",
+        "//comp/core/sysprobeconfig",
+        "//comp/core/tagger/def",
+        "//comp/core/telemetry",
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadmeta/def",
+        "//comp/forwarder/connectionsforwarder/def",
+        "//comp/networkpath/npcollector",
+        "//comp/networkpath/traceroute/def",
+        "//comp/remote-config/rcclient",
+        "//comp/serializer/logscompression/def",
+        "//pkg/system-probe/config/types",
+        "//pkg/util/log",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_gorilla_mux//:mux",
+        "@org_uber_go_fx//:fx",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/network/driver",
+        ],
+        "//conditions:default": [],
+    }),
+)

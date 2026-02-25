@@ -1,0 +1,60 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "config.go",
+        "configstore.go",
+        "envconfmap.go",
+        "extension.go",
+        "factory.go",
+        "server.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/ipc/def",
+        "//comp/otelcol/ddflareextension/def",
+        "//comp/otelcol/ddflareextension/impl/internal/metadata",
+        "//comp/otelcol/ddflareextension/types",
+        "//pkg/api/security",
+        "//pkg/util/option",
+        "//pkg/version",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_gorilla_mux//:mux",
+        "@com_github_mohae_deepcopy//:deepcopy",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+        "@io_opentelemetry_go_collector_component//:component",
+        "@io_opentelemetry_go_collector_component_componentstatus//:componentstatus",
+        "@io_opentelemetry_go_collector_config_confighttp//:confighttp",
+        "@io_opentelemetry_go_collector_config_confignet//:confignet",
+        "@io_opentelemetry_go_collector_confmap//:confmap",
+        "@io_opentelemetry_go_collector_extension//:extension",
+        "@io_opentelemetry_go_collector_extension_extensioncapabilities//:extensioncapabilities",
+        "@io_opentelemetry_go_collector_otelcol//:otelcol",
+        "@org_uber_go_zap//:zap",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = [
+        "config_test.go",
+        "envconfmap_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":impl"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+        "@io_opentelemetry_go_collector_config_confighttp//:confighttp",
+        "@io_opentelemetry_go_collector_config_confignet//:confignet",
+        "@io_opentelemetry_go_collector_confmap//:confmap",
+        "@io_opentelemetry_go_collector_confmap_provider_envprovider//:envprovider",
+        "@io_opentelemetry_go_collector_confmap_provider_fileprovider//:fileprovider",
+        "@io_opentelemetry_go_collector_confmap_provider_yamlprovider//:yamlprovider",
+        "@io_opentelemetry_go_collector_otelcol//:otelcol",
+    ],
+)

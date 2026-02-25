@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["ipc.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/ipc/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
+        "//comp/core/log/def",
+        "//pkg/api/security",
+        "//pkg/api/security/cert",
+        "//pkg/api/util",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["ipc_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/log/mock",
+        "//pkg/api/util",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/util/flavor",
+        "@com_github_gofrs_flock//:flock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

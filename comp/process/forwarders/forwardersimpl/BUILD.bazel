@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "forwardersimpl",
+    srcs = ["forwarders.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/process/forwarders/forwardersimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/secrets/def",
+        "//comp/def",
+        "//comp/forwarder/connectionsforwarder/def",
+        "//comp/forwarder/defaultforwarder",
+        "//comp/forwarder/defaultforwarder/resolver",
+        "//comp/process/forwarders",
+        "//pkg/config/setup",
+        "//pkg/process/runner/endpoint",
+        "//pkg/process/util/api/config",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl-systemprobe",
+    srcs = ["systemprobe_logger.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/log/impl-systemprobe",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/log/def",
+        "//comp/core/sysprobeconfig",
+        "//comp/def",
+        "//pkg/util/log",
+        "//pkg/util/log/setup",
+    ],
+)
+
+go_test(
+    name = "impl-systemprobe_test",
+    srcs = ["systemprobe_logger_test.go"],
+    embed = [":impl-systemprobe"],
+    deps = [
+        "//comp/core/log/def",
+        "//comp/core/sysprobeconfig/sysprobeconfigimpl",
+        "//comp/def",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

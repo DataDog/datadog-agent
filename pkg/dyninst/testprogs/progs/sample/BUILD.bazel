@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "sample_lib",
+    srcs = [
+        "arrays.go",
+        "basics.go",
+        "complex.go",
+        "esoteric.go",
+        "generics.go",
+        "inlined.go",
+        "interfaces.go",
+        "main.go",
+        "maps.go",
+        "multi_params.go",
+        "other.go",
+        "pointers.go",
+        "ranges.go",
+        "returns.go",
+        "slices.go",
+        "stacktraces.go",
+        "strings.go",
+        "structs.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//pkg/dyninst/testprogs/progs/sample/lib",
+        "//pkg/dyninst/testprogs/progs/sample/lib.v2:lib_v2",
+        "@com_github_datadog_dd_trace_go_v2//ddtrace/tracer",
+    ],
+)
+
+go_binary(
+    name = "sample",
+    embed = [":sample_lib"],
+    visibility = ["//visibility:public"],
+)

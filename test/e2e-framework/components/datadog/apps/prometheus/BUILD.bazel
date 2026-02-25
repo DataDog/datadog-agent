@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "prometheus",
+    srcs = [
+        "ecs.go",
+        "k8s.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/prometheus",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/components/datadog/apps",
+        "//test/e2e-framework/components/ecs",
+        "//test/e2e-framework/components/kubernetes",
+        "//test/e2e-framework/resources/aws",
+        "@com_github_pulumi_pulumi_awsx_sdk_v2//go/awsx/awsx",
+        "@com_github_pulumi_pulumi_awsx_sdk_v2//go/awsx/ecs",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/apps/v1:apps",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/core/v1:core",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/meta/v1:meta",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

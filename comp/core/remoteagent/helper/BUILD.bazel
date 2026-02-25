@@ -1,0 +1,44 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "helper",
+    srcs = ["serverhelper.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/remoteagent/helper",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/grpc",
+        "@com_github_cenkalti_backoff_v5//:backoff",
+        "@com_github_grpc_ecosystem_go_grpc_middleware//auth",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_google_grpc//metadata",
+    ],
+)
+
+go_test(
+    name = "helper_test",
+    srcs = ["serverhelper_test.go"],
+    embed = [":helper"],
+    deps = [
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/mock",
+        "//comp/core/log/mock",
+        "//comp/def",
+        "//pkg/config/mock",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/grpc",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_google_grpc//metadata",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_grpc_examples//features/proto/echo",
+    ],
+)

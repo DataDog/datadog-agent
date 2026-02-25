@@ -7,19 +7,6 @@ load("@gazelle//:def.bzl", "gazelle")
 
 package(default_visibility = ["//visibility:public"])
 
-# TODO(agent-build): remove below `gazelle:exclude` directives and add corresponding paths to bazel/go.work
-# gazelle:exclude cmd
-# gazelle:exclude comp
-# gazelle:exclude internal/remote-agent
-# gazelle:exclude internal/third_party
-# gazelle:exclude internal/tools/gotest-custom
-# gazelle:exclude internal/tools/independent-lint
-# gazelle:exclude internal/tools/modformatter
-# gazelle:exclude pkg
-# gazelle:exclude rtloader/test
-# gazelle:exclude tasks
-# gazelle:exclude test
-# gazelle:exclude tools
 # gazelle:prefix github.com/DataDog/datadog-agent
 gazelle(
     name = "gazelle",

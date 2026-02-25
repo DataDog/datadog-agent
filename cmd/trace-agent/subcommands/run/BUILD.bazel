@@ -1,0 +1,62 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "run",
+    srcs = [
+        "command.go",
+        "command_nix.go",
+        "command_windows.go",
+        "service_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands/run",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/trace-agent/subcommands",
+        "//comp/agent/autoexit",
+        "//comp/agent/autoexit/autoexitimpl",
+        "//comp/core/agenttelemetry/def",
+        "//comp/core/agenttelemetry/fx",
+        "//comp/core/config",
+        "//comp/core/configsync/configsyncimpl",
+        "//comp/core/fxinstrumentation/fx",
+        "//comp/core/ipc/fx",
+        "//comp/core/log/def",
+        "//comp/core/log/fx-trace",
+        "//comp/core/remoteagent/fx-trace",
+        "//comp/core/secrets/fx",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/fx-optional-remote",
+        "//comp/core/telemetry",
+        "//comp/core/telemetry/telemetryimpl",
+        "//comp/dogstatsd/statsd",
+        "//comp/trace",
+        "//comp/trace/agent/def",
+        "//comp/trace/agent/impl",
+        "//comp/trace/compression/fx-zstd",
+        "//comp/trace/config",
+        "//comp/trace/payload-modifier/fx",
+        "//pkg/serverless/env",
+        "//pkg/trace/api",
+        "//pkg/trace/telemetry",
+        "//pkg/util/fxutil",
+        "//pkg/util/option",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/trace/config",
+            "//pkg/util/winutil/servicemain",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "run_test",
+    srcs = ["command_test.go"],
+    embed = [":run"],
+    deps = [
+        "//cmd/trace-agent/subcommands",
+        "//pkg/util/fxutil",
+    ],
+)

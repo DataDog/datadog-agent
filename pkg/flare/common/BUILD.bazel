@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "common",
+    srcs = [
+        "common.go",
+        "envvars.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/flare/common",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/flare/types",
+        "//pkg/config/setup",
+        "//pkg/util/log",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "common_test",
+    srcs = [
+        "common_test.go",
+        "envvars_test.go",
+    ],
+    embed = [":common"],
+    deps = [
+        "//comp/core/flare/helpers",
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

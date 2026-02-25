@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "flake_test",
+    srcs = [
+        "flake_test.go",
+        "parse_test.go",
+    ],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

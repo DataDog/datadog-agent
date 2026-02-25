@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "language",
+    srcs = [
+        "language.go",
+        "language_linux.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/discovery/language",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/discovery/tracermetadata",
+            "//pkg/discovery/tracermetadata/language",
+            "//pkg/languagedetection",
+            "//pkg/languagedetection/languagemodels",
+            "//pkg/languagedetection/privileged",
+            "//pkg/process/procutil",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/discovery/tracermetadata",
+            "//pkg/discovery/tracermetadata/language",
+            "//pkg/languagedetection",
+            "//pkg/languagedetection/languagemodels",
+            "//pkg/languagedetection/privileged",
+            "//pkg/process/procutil",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "language_test",
+    srcs = ["language_nix_test.go"],
+    embed = [":language"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/discovery/tracermetadata",
+            "//pkg/languagedetection/privileged",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/discovery/tracermetadata",
+            "//pkg/languagedetection/privileged",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

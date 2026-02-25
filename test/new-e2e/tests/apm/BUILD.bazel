@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "apm",
+    srcs = [
+        "apm.go",
+        "tests.go",
+        "tracegen.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/apm",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//test/e2e-framework/components/datadog/apps",
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclient",
+        "//test/fakeintake/aggregator",
+        "//test/fakeintake/client",
+        "@com_github_davecgh_go_spew//spew",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//suite",
+    ],
+)
+
+go_test(
+    name = "apm_test",
+    srcs = [
+        "docker_test.go",
+        "vm_test.go",
+    ],
+    embed = [":apm"],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/datadog/apps",
+        "//test/e2e-framework/components/datadog/dockeragentparams",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/scenarios/aws/ec2docker",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/docker",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclient",
+        "//test/new-e2e/tests/agent-configuration/secretsutils",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_crypto//ssh",
+    ],
+)

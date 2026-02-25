@@ -1,0 +1,55 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "connectivity",
+    srcs = [
+        "core_endpoint.go",
+        "endpoint_info.go",
+        "hooks.go",
+        "http.go",
+        "inventoryendpoint.go",
+        "metadata.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/diagnose/connectivity",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/diagnose/def",
+        "//comp/core/flare/helpers",
+        "//comp/core/log/def",
+        "//comp/forwarder/defaultforwarder",
+        "//comp/forwarder/defaultforwarder/endpoints",
+        "//comp/forwarder/defaultforwarder/resolver",
+        "//comp/forwarder/defaultforwarder/transaction",
+        "//comp/logs/agent/config",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/logs/client/http",
+        "//pkg/logs/client/tcp",
+        "//pkg/util/scrubber",
+        "//pkg/version",
+        "@com_github_datadog_agent_payload_v5//gogen",
+        "@com_github_gogo_protobuf//proto",
+    ],
+)
+
+go_test(
+    name = "connectivity_test",
+    srcs = [
+        "core_endpoint_test.go",
+        "inventoryendpoint_test.go",
+    ],
+    embed = [":connectivity"],
+    deps = [
+        "//comp/core/diagnose/def",
+        "//comp/core/log/mock",
+        "//comp/forwarder/defaultforwarder",
+        "//comp/forwarder/defaultforwarder/endpoints",
+        "//comp/forwarder/defaultforwarder/transaction",
+        "//pkg/config/mock",
+        "//pkg/version",
+        "@com_github_gogo_protobuf//proto",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

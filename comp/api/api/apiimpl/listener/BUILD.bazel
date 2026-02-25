@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "listener",
+    srcs = [
+        "common.go",
+        "listener_nix.go",
+        "listener_other.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/listener",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/setup",
+        "//pkg/util/system/socket",
+        "@com_github_mdlayher_vsock//:vsock",
+    ],
+)
+
+go_test(
+    name = "listener_test",
+    srcs = [
+        "common_test.go",
+        "listener_nix_test.go",
+        "listener_other_test.go",
+    ],
+    embed = [":listener"],
+    deps = [
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//require",
+    ],
+)

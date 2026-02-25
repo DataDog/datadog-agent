@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "examples",
+    srcs = [
+        "consumer.go",
+        "event_copy.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/eventmonitor/examples",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/eventmonitor",
+        "//pkg/security/secl/model",
+        "//pkg/util/log",
+        "@org_go4_intern//:intern",
+    ],
+)

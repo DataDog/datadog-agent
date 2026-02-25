@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "settings",
+    srcs = [
+        "runtime_setting_dogstatsd_capture_duration.go",
+        "runtime_setting_dogstatsd_stats.go",
+        "runtime_settings_multi_region_failover.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings",
+    visibility = ["//cmd/agent/subcommands/run:__subpackages__"],
+    deps = [
+        "//comp/core/config",
+        "//comp/dogstatsd/serverDebug",
+        "//pkg/config/model",
+        "//pkg/config/settings",
+    ],
+)
+
+go_test(
+    name = "settings_test",
+    srcs = ["runtime_settings_test.go"],
+    embed = [":settings"],
+    deps = [
+        "//comp/aggregator/demultiplexer",
+        "//comp/aggregator/demultiplexer/demultiplexerimpl",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/tagger/def",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/dogstatsd",
+        "//comp/dogstatsd/server",
+        "//comp/dogstatsd/serverDebug",
+        "//comp/filterlist/fx-mock",
+        "//comp/forwarder/defaultforwarder",
+        "//pkg/config/model",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
+    ],
+)

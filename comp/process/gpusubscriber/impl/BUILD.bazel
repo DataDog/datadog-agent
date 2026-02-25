@@ -1,0 +1,75 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "noopsubscriber.go",
+        "subscriber.go",
+        "subscriber_linux.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/impl",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//comp/process/gpusubscriber/def",
+        ],
+        "@rules_go//go/platform:android": [
+            "//comp/core/tagger/def",
+            "//comp/core/workloadmeta/def",
+            "//comp/def",
+            "//comp/process/gpusubscriber/def",
+            "//pkg/process/subscribers",
+            "//pkg/trace/log",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//comp/process/gpusubscriber/def",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//comp/process/gpusubscriber/def",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//comp/process/gpusubscriber/def",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//comp/process/gpusubscriber/def",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//comp/process/gpusubscriber/def",
+        ],
+        "@rules_go//go/platform:js": [
+            "//comp/process/gpusubscriber/def",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/core/tagger/def",
+            "//comp/core/workloadmeta/def",
+            "//comp/def",
+            "//comp/process/gpusubscriber/def",
+            "//pkg/process/subscribers",
+            "//pkg/trace/log",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//comp/process/gpusubscriber/def",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//comp/process/gpusubscriber/def",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//comp/process/gpusubscriber/def",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//comp/process/gpusubscriber/def",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//comp/process/gpusubscriber/def",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//comp/process/gpusubscriber/def",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//comp/process/gpusubscriber/def",
+        ],
+        "//conditions:default": [],
+    }),
+)

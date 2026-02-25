@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "events",
+    srcs = ["types_linux.go"],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/events",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "events_test",
+    srcs = ["types_linux_test.go"],
+    embed = [":events"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf/ebpftest",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/ebpftest",
+        ],
+        "//conditions:default": [],
+    }),
+)

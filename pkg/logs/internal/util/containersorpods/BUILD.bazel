@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "containersorpods",
+    srcs = [
+        "containers_or_pods.go",
+        "docker_nodocker.go",
+        "kubernetes_nokubelet.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods",
+    visibility = ["//pkg/logs:__subpackages__"],
+    deps = [
+        "//pkg/config/env",
+        "//pkg/config/setup",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "containersorpods_test",
+    srcs = ["containers_or_pods_test.go"],
+    embed = [":containersorpods"],
+    deps = [
+        "//pkg/config/env",
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//require",
+    ],
+)

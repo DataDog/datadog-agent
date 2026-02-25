@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "djm",
+    srcs = [
+        "databricks.go",
+        "dataproc.go",
+        "emr.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/djm",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/fleet/installer/setup/common",
+        "//pkg/fleet/installer/setup/config",
+        "//pkg/fleet/installer/telemetry",
+        "//pkg/util/log",
+        "@com_google_cloud_go_compute_metadata//:metadata",
+    ],
+)
+
+go_test(
+    name = "djm_test",
+    srcs = [
+        "databricks_test.go",
+        "dataproc_test.go",
+        "emr_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":djm"],
+    embedsrcs = [
+        "testdata/emrDescribeClusterResponse.json",
+        "testdata/emrExtraInstanceData.json",
+        "testdata/emrInstance.json",
+    ],
+    deps = [
+        "//pkg/fleet/installer/setup/common",
+        "//pkg/fleet/installer/setup/config",
+        "//pkg/fleet/installer/telemetry",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_google_cloud_go_compute_metadata//:metadata",
+    ],
+)

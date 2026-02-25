@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "lutgen",
+    srcs = [
+        "function.go",
+        "run.go",
+        "template.go",
+    ],
+    embedsrcs = ["template.go.tpl"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/go/lutgen",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/network/go/goversion",
+        "//pkg/network/go/rungo",
+        "//pkg/network/go/rungo/matrix",
+    ],
+)

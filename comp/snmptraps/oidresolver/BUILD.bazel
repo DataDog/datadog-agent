@@ -1,0 +1,11 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "oidresolver",
+    srcs = [
+        "component.go",
+        "traps_db.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver",
+    visibility = ["//visibility:public"],
+)

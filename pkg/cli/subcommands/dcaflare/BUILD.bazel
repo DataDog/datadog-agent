@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "dcaflare",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/cli/subcommands/dcaflare",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/diagnose/def",
+        "//comp/core/diagnose/fx",
+        "//comp/core/flare/helpers",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/fx",
+        "//comp/core/ipc/httphelpers",
+        "//comp/core/log/def",
+        "//comp/core/secrets/fx",
+        "//pkg/config/settings",
+        "//pkg/config/settings/http",
+        "//pkg/config/setup",
+        "//pkg/flare/clusteragent",
+        "//pkg/util/defaultpaths",
+        "//pkg/util/fxutil",
+        "//pkg/util/input",
+        "@com_github_fatih_color//:color",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ],
+)

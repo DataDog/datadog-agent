@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "shared-library_test",
+    srcs = [
+        "common_test.go",
+        "example_nix_test.go",
+        "example_win_test.go",
+    ],
+    embedsrcs = ["files/minimal_conf.yaml"],
+    deps = [
+        "//pkg/util/option",
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/datadog/agentparams/filepermissions",
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/testcommon/check",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclient",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

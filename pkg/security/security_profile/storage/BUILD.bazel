@@ -1,0 +1,58 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "storage",
+    srcs = [
+        "directory.go",
+        "remote_storage_forwarder.go",
+        "storage.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/security_profile/storage",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/security/config",
+        "//pkg/security/security_profile/profile",
+        "@com_github_datadog_datadog_go_v5//statsd",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/metrics",
+            "//pkg/security/resolvers/cgroup/model",
+            "//pkg/security/seclog",
+            "//pkg/security/security_profile/storage/backend",
+            "@com_github_hashicorp_golang_lru_v2//simplelru",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/metrics",
+            "//pkg/security/resolvers/cgroup/model",
+            "//pkg/security/seclog",
+            "//pkg/security/security_profile/storage/backend",
+            "@com_github_hashicorp_golang_lru_v2//simplelru",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "storage_test",
+    srcs = ["directory_test.go"],
+    embed = [":storage"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/config",
+            "//pkg/security/resolvers/cgroup/model",
+            "//pkg/security/security_profile/profile",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/config",
+            "//pkg/security/resolvers/cgroup/model",
+            "//pkg/security/security_profile/profile",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

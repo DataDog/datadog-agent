@@ -1,0 +1,57 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "msi",
+    srcs = [
+        "cmd_interface.go",
+        "msiexec.go",
+        "msilog.go",
+        "product.go",
+        "sourcelist.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/msi",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/paths",
+            "//pkg/fleet/installer/telemetry",
+            "//pkg/util/winutil",
+            "@com_github_cenkalti_backoff_v5//:backoff",
+            "@org_golang_x_sys//windows",
+            "@org_golang_x_sys//windows/registry",
+            "@org_golang_x_text//encoding/unicode",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "msi_test",
+    srcs = [
+        "msiexec_test.go",
+        "msilog_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":msi"],
+    embedsrcs = select({
+        "@rules_go//go/platform:windows": [
+            "testdata/file_in_use.log",
+            "testdata/invalid_credentials.log",
+            "testdata/missing_password_for_dc.log",
+            "testdata/service_marked_for_deletion.log",
+            "testdata/wixfailwhendeferred.log",
+        ],
+        "//conditions:default": [],
+    }),
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_cenkalti_backoff_v5//:backoff",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//mock",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//windows",
+            "@org_golang_x_text//encoding/unicode",
+        ],
+        "//conditions:default": [],
+    }),
+)

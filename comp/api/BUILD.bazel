@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "api",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/api",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/fxutil"],
+)
+
+go_test(
+    name = "api_test",
+    srcs = ["bundle_test.go"],
+    embed = [":api"],
+    deps = ["//pkg/util/fxutil"],
+)

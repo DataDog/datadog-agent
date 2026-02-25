@@ -1,0 +1,37 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "issues",
+    srcs = [
+        "add_spent_time.gen.go",
+        "create_issue.gen.go",
+        "create_todo.gen.go",
+        "delete_issue.gen.go",
+        "entrypoint.gen.go",
+        "get_issue.gen.go",
+        "get_issue_by_id.gen.go",
+        "get_participants.gen.go",
+        "get_time_spent.gen.go",
+        "list_group_issues.gen.go",
+        "list_issues.gen.go",
+        "list_mrs_closing_issue.gen.go",
+        "list_mrs_related_to_issue.gen.go",
+        "list_project_issues.gen.go",
+        "move_issue.gen.go",
+        "reorder_issue.gen.go",
+        "reset_spent_time.gen.go",
+        "reset_time_estimate.gen.go",
+        "set_time_estimate.gen.go",
+        "subscribe_to_issue.gen.go",
+        "unsubscribe_from_issue.gen.go",
+        "update_issue.gen.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/issues",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/bundle-support/gitlab",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "@com_gitlab_gitlab_org_api_client_go//:client-go",
+    ],
+)

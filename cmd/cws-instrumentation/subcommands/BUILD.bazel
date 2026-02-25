@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "subcommands",
+    srcs = [
+        "subcommands.go",
+        "subcommands_tracing.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/cws-instrumentation/subcommands",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//cmd/cws-instrumentation/command",
+            "//cmd/cws-instrumentation/subcommands/healthcmd",
+            "//cmd/cws-instrumentation/subcommands/injectcmd",
+            "//cmd/cws-instrumentation/subcommands/setupcmd",
+            "//cmd/cws-instrumentation/subcommands/tracecmd",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//cmd/cws-instrumentation/command",
+            "//cmd/cws-instrumentation/subcommands/healthcmd",
+            "//cmd/cws-instrumentation/subcommands/injectcmd",
+            "//cmd/cws-instrumentation/subcommands/setupcmd",
+            "//cmd/cws-instrumentation/subcommands/tracecmd",
+        ],
+        "//conditions:default": [],
+    }),
+)

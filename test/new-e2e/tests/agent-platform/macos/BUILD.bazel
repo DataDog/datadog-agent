@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "macos_test",
+    srcs = ["install_script_test.go"],
+    deps = [
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/runner",
+        "//test/new-e2e/tests/agent-platform/common",
+        "//test/new-e2e/tests/agent-platform/install",
+        "//test/new-e2e/tests/agent-platform/install/installparams",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

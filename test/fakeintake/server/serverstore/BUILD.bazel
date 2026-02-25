@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "serverstore",
+    srcs = [
+        "in_memory.go",
+        "parser.go",
+        "store.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/fakeintake/server/serverstore",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/fakeintake/aggregator",
+        "//test/fakeintake/api",
+        "@com_github_prometheus_client_golang//prometheus",
+    ],
+)
+
+go_test(
+    name = "serverstore_test",
+    srcs = [
+        "in_memory_test.go",
+        "store_test.go",
+    ],
+    embed = [":serverstore"],
+    deps = [
+        "//test/fakeintake/api",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

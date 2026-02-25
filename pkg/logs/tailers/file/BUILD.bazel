@@ -1,0 +1,58 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "file",
+    srcs = [
+        "file.go",
+        "fingerprint.go",
+        "rotate.go",
+        "rotate_nix.go",
+        "rotate_windows.go",
+        "tailer.go",
+        "tailer_nix.go",
+        "tailer_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/tailers/file",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/types",
+        "//comp/logs/auditor/def",
+        "//pkg/config/setup",
+        "//pkg/logs/internal/decoder",
+        "//pkg/logs/internal/tag",
+        "//pkg/logs/internal/util",
+        "//pkg/logs/message",
+        "//pkg/logs/metrics",
+        "//pkg/logs/sources",
+        "//pkg/logs/status/utils",
+        "//pkg/logs/types",
+        "//pkg/logs/util/opener",
+        "//pkg/util/log",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_spf13_afero//:afero",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "file_test",
+    srcs = [
+        "fingerprint_test.go",
+        "tailer_test.go",
+    ],
+    embed = [":file"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/config/mock",
+        "//pkg/config/setup",
+        "//pkg/logs/internal/decoder",
+        "//pkg/logs/message",
+        "//pkg/logs/metrics",
+        "//pkg/logs/sources",
+        "//pkg/logs/status/utils",
+        "//pkg/logs/types",
+        "//pkg/logs/util/opener",
+        "@com_github_stretchr_testify//suite",
+        "@org_uber_go_goleak//:goleak",
+    ],
+)

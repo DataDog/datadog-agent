@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "tests",
+    srcs = [
+        "fake_tags_resolver.go",
+        "trace_pipe.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/tests",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//comp/core/tagger/types",
+            "//pkg/security/resolvers/cgroup/model",
+            "//pkg/security/resolvers/tags",
+            "@com_github_datadog_ebpf_manager//tracefs",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/core/tagger/types",
+            "//pkg/security/resolvers/cgroup/model",
+            "//pkg/security/resolvers/tags",
+            "@com_github_datadog_ebpf_manager//tracefs",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//comp/core/tagger/types",
+            "//pkg/security/resolvers/cgroup/model",
+            "//pkg/security/resolvers/tags",
+        ],
+        "//conditions:default": [],
+    }),
+)

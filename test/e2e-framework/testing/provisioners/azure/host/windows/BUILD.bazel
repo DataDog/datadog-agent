@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "windows",
+    srcs = [
+        "host.go",
+        "params.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/azure/host/windows",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/components/activedirectory",
+        "//test/e2e-framework/components/datadog/agent",
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/resources/azure",
+        "//test/e2e-framework/scenarios/azure/compute",
+        "//test/e2e-framework/scenarios/azure/fakeintake",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclientparams",
+        "//test/e2e-framework/testing/utils/optional",
+        "//test/new-e2e/tests/windows/components/defender",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

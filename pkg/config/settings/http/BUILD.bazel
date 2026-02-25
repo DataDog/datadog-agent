@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "http",
+    srcs = [
+        "client.go",
+        "options.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/settings/http",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/ipc/def",
+        "//comp/core/settings",
+        "//pkg/config/settings",
+    ],
+)
+
+go_test(
+    name = "http_test",
+    srcs = ["client_test.go"],
+    embed = [":http"],
+    deps = [
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
+        "//comp/core/ipc/mock",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "podman",
+    srcs = ["vm.go"],
+    embedsrcs = ["data/Dockerfile"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/resources/local/podman",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/components/command",
+        "//test/e2e-framework/resources/local",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

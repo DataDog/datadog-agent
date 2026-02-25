@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ebpfcheck",
+    srcs = ["c_types_linux.go"],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "ebpfcheck_test",
+    srcs = ["c_types_linux_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":ebpfcheck"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf/ebpftest",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/ebpftest",
+        ],
+        "//conditions:default": [],
+    }),
+)

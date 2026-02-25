@@ -1,0 +1,54 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "flowaggregator",
+    srcs = [
+        "aggregator.go",
+        "buildpayload.go",
+        "flowaccumulator.go",
+        "flowscheduler.go",
+        "testutil.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/netflow/flowaggregator",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/log/def",
+        "//comp/forwarder/eventplatform",
+        "//comp/netflow/common",
+        "//comp/netflow/config",
+        "//comp/netflow/format",
+        "//comp/netflow/goflowlib",
+        "//comp/netflow/payload",
+        "//comp/netflow/portrollup",
+        "//comp/netflow/topn",
+        "//comp/rdnsquerier/def",
+        "//pkg/aggregator/sender",
+        "//pkg/logs/message",
+        "//pkg/metrics",
+        "//pkg/networkdevice/integrations",
+        "//pkg/networkdevice/metadata",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "flowaggregator_test",
+    srcs = [
+        "buildpayload_test.go",
+        "flowaccumulator_test.go",
+        "flowscheduler_test.go",
+    ],
+    embed = [":flowaggregator"],
+    deps = [
+        "//comp/core/log/mock",
+        "//comp/netflow/common",
+        "//comp/netflow/payload",
+        "//comp/netflow/portrollup",
+        "//comp/rdnsquerier/def",
+        "//comp/rdnsquerier/fx-mock",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

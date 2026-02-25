@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "registry",
+    srcs = ["scenarios.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/registry",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/scenarios/aws/ec2docker",
+        "//test/e2e-framework/scenarios/aws/ecs",
+        "//test/e2e-framework/scenarios/aws/eks",
+        "//test/e2e-framework/scenarios/aws/installer",
+        "//test/e2e-framework/scenarios/aws/kindvm",
+        "//test/e2e-framework/scenarios/aws/microVMs/microvms",
+        "//test/e2e-framework/scenarios/azure/aks",
+        "//test/e2e-framework/scenarios/azure/compute/run",
+        "//test/e2e-framework/scenarios/gcp/compute/run",
+        "//test/e2e-framework/scenarios/gcp/gke",
+        "//test/e2e-framework/scenarios/gcp/openshiftvm",
+        "//test/e2e-framework/scenarios/local/podman/run",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

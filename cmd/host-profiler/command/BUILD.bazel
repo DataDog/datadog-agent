@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "command",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/host-profiler/command",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//cmd/host-profiler/globalparams",
+            "//cmd/host-profiler/subcommands/run",
+            "//pkg/cli/subcommands/version",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//cmd/host-profiler/globalparams",
+            "//cmd/host-profiler/subcommands/run",
+            "//pkg/cli/subcommands/version",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "//conditions:default": [],
+    }),
+)

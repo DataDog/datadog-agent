@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "flare",
+    srcs = ["flare_controller.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/logs/agent/flare",
+    visibility = ["//visibility:public"],
+    deps = ["//comp/core/flare/types"],
+)
+
+go_test(
+    name = "flare_test",
+    srcs = ["flare_controller_test.go"],
+    embed = [":flare"],
+    deps = [
+        "//comp/core/flare/helpers",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

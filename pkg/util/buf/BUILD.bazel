@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "buf",
+    srcs = ["buffered_chan.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/buf",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "buf_test",
+    srcs = ["buffered_chan_test.go"],
+    embed = [":buf"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

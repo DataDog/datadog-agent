@@ -1,0 +1,53 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ssi",
+    srcs = [
+        "doc.go",
+        "provisioner.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/ssi",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//test/e2e-framework/components/datadog/kubernetesagentparams",
+        "//test/e2e-framework/components/kubernetes",
+        "//test/e2e-framework/scenarios/aws/kindvm",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners",
+        "//test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm",
+        "//test/e2e-framework/testing/provisioners/local/kubernetes",
+        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/runner/parameters",
+        "//test/fakeintake/client",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//kubernetes",
+    ],
+)
+
+go_test(
+    name = "ssi_test",
+    srcs = [
+        "injection_mode_test.go",
+        "local_sdk_injection_test.go",
+        "namespace_selection_test.go",
+        "workload_selection_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":ssi"],
+    deps = [
+        "//pkg/ssi/testutils",
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/components/datadog/apps/singlestep",
+        "//test/e2e-framework/components/datadog/kubernetesagentparams",
+        "//test/e2e-framework/components/kubernetes",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@com_github_stretchr_testify//require",
+    ],
+)

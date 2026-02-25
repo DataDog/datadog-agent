@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "cloudproviders",
+    srcs = ["cloudproviders.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/cloudproviders",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/setup",
+        "//pkg/util/cloudproviders/alibaba",
+        "//pkg/util/cloudproviders/azure",
+        "//pkg/util/cloudproviders/cloudfoundry",
+        "//pkg/util/cloudproviders/gce",
+        "//pkg/util/cloudproviders/ibm",
+        "//pkg/util/cloudproviders/kubernetes",
+        "//pkg/util/cloudproviders/oracle",
+        "//pkg/util/cloudproviders/tencent",
+        "//pkg/util/ec2",
+        "//pkg/util/hostname/validate",
+        "//pkg/util/kubelet",
+        "//pkg/util/log",
+        "//pkg/util/sort",
+    ],
+)
+
+go_test(
+    name = "cloudproviders_test",
+    srcs = ["cloudproviders_test.go"],
+    embed = [":cloudproviders"],
+    deps = [
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

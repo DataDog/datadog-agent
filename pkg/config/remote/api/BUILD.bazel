@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "api",
+    srcs = ["http.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/remote/api",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/http",
+        "//pkg/util/log",
+        "//pkg/version",
+        "@com_github_gorilla_websocket//:websocket",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+go_test(
+    name = "api_test",
+    srcs = ["http_test.go"],
+    embed = [":api"],
+    deps = [
+        "//pkg/config/mock",
+        "@com_github_coreos_go_semver//semver",
+        "@com_github_gorilla_websocket//:websocket",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

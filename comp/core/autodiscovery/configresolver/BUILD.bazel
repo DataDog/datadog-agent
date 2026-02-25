@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "configresolver",
+    srcs = ["configresolver.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/configresolver",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/listeners",
+        "//comp/core/autodiscovery/providers/names",
+        "//comp/core/workloadfilter/def",
+        "//pkg/util/log",
+        "//pkg/util/tmplvar",
+    ],
+)
+
+go_test(
+    name = "configresolver_test",
+    srcs = ["configresolver_test.go"],
+    embed = [":configresolver"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/listeners",
+        "//comp/core/autodiscovery/providers/names",
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadmeta/def",
+        "//pkg/collector/corechecks/system",
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

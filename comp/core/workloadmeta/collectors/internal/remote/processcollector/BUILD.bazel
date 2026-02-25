@@ -1,0 +1,104 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "processcollector",
+    srcs = [
+        "process_collector.go",
+        "process_collector_nop.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/processcollector",
+    visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:android": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:js": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:osx": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//comp/core/ipc/def",
+            "//comp/core/workloadmeta/collectors/internal/remote",
+            "//comp/core/workloadmeta/def",
+            "//pkg/config/model",
+            "//pkg/config/setup",
+            "//pkg/languagedetection/languagemodels",
+            "//pkg/proto/pbgo/process",
+            "//pkg/util/containers/metrics",
+            "//pkg/util/flavor",
+            "//pkg/util/grpc",
+            "//pkg/util/log",
+            "//pkg/util/option",
+            "@org_golang_google_grpc//:grpc",
+            "@org_golang_google_grpc//grpclog",
+            "@org_uber_go_fx//:fx",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "processcollector_test",
+    srcs = ["process_collector_test.go"],
+    embed = [":processcollector"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//comp/core/config",
+            "//comp/core/ipc/mock",
+            "//comp/core/log/def",
+            "//comp/core/log/mock",
+            "//comp/core/workloadmeta/collectors/internal/remote",
+            "//comp/core/workloadmeta/def",
+            "//comp/core/workloadmeta/fx-mock",
+            "//comp/core/workloadmeta/mock",
+            "//pkg/languagedetection/languagemodels",
+            "//pkg/proto/pbgo/process",
+            "//pkg/util/fxutil",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_google_grpc//:grpc",
+            "@org_golang_google_grpc//credentials",
+            "@org_golang_x_xerrors//:xerrors",
+            "@org_uber_go_fx//:fx",
+        ],
+        "//conditions:default": [],
+    }),
+)

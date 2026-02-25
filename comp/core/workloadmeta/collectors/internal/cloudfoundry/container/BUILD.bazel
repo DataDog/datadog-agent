@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "container",
+    srcs = ["cf_container.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/container",
+    visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "//pkg/config/env",
+        "//pkg/config/setup",
+        "//pkg/errors",
+        "//pkg/util/cloudproviders/cloudfoundry",
+        "//pkg/util/common",
+        "//pkg/util/log",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "container_test",
+    srcs = ["cf_container_test.go"],
+    embed = [":container"],
+    deps = [
+        "//comp/core",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/core/workloadmeta/mock",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

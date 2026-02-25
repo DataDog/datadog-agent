@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "agent-health",
+    srcs = ["provisioner.go"],
+    embedsrcs = [
+        "fixtures/docker-compose.busybox.yaml",
+        "fixtures/docker_permission_agent_config.yaml",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-health",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/components/datadog/agent",
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/docker",
+        "//test/e2e-framework/resources/aws",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/scenarios/aws/fakeintake",
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/provisioners",
+        "//test/e2e-framework/testing/utils/common",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclient",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)
+
+go_test(
+    name = "agent-health_test",
+    srcs = ["docker_permission_test.go"],
+    embed = [":agent-health"],
+    deps = [
+        "//test/e2e-framework/testing/e2e",
+        "//test/fakeintake/aggregator",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

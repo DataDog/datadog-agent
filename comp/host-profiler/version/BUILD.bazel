@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "version",
+    srcs = ["version.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/version",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/version",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/version",
+        ],
+        "//conditions:default": [],
+    }),
+)

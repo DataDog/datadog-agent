@@ -1,0 +1,11 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "vmconfig",
+    srcs = [
+        "config.go",
+        "load.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/microVMs/vmconfig",
+    visibility = ["//visibility:public"],
+)

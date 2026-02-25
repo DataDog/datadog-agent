@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "secretsutils",
+    srcs = [
+        "client.go",
+        "helpers.go",
+    ],
+    embedsrcs = [
+        "fixtures/secret-resolver.py",
+        "fixtures/secret_wrapper.bat",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/option",
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/datadog/agentparams/filepermissions",
+        "//test/e2e-framework/testing/components",
+        "@com_github_stretchr_testify//require",
+    ],
+)

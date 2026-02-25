@@ -1,0 +1,41 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "fetch",
+    srcs = [
+        "batch_size_optimizers.go",
+        "errors.go",
+        "fetch.go",
+        "fetch_column.go",
+        "fetch_scalar.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/fetch",
+    visibility = ["//pkg/collector/corechecks/snmp:__subpackages__"],
+    deps = [
+        "//pkg/collector/corechecks/snmp/internal/common",
+        "//pkg/collector/corechecks/snmp/internal/session",
+        "//pkg/collector/corechecks/snmp/internal/valuestore",
+        "//pkg/snmp/gosnmplib",
+        "//pkg/util/log",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+    ],
+)
+
+go_test(
+    name = "fetch_test",
+    srcs = [
+        "batch_size_optimizers_test.go",
+        "fetch_test.go",
+    ],
+    embed = [":fetch"],
+    deps = [
+        "//pkg/collector/corechecks/snmp/internal/checkconfig",
+        "//pkg/collector/corechecks/snmp/internal/session",
+        "//pkg/collector/corechecks/snmp/internal/valuestore",
+        "//pkg/util/log",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

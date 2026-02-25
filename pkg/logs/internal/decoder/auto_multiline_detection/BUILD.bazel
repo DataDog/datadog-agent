@@ -1,0 +1,59 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "auto_multiline_detection",
+    srcs = [
+        "aggregator.go",
+        "combining_aggregator.go",
+        "detecting_aggregator.go",
+        "incremental_json_validator.go",
+        "json_aggregator.go",
+        "json_detector.go",
+        "labeler.go",
+        "pattern_table.go",
+        "timestamp_detector.go",
+        "token_graph.go",
+        "tokenizer.go",
+        "user_samples.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection",
+    visibility = ["//pkg/logs:__subpackages__"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/config/model",
+        "//pkg/config/structure",
+        "//pkg/logs/internal/decoder/auto_multiline_detection/tokens",
+        "//pkg/logs/message",
+        "//pkg/logs/metrics",
+        "//pkg/logs/status/utils",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "auto_multiline_detection_test",
+    srcs = [
+        "aggregator_test.go",
+        "incremental_json_validator_test.go",
+        "json_aggregator_benchmark_test.go",
+        "json_aggregator_test.go",
+        "json_detector_test.go",
+        "labeler_test.go",
+        "pattern_table_test.go",
+        "timestamp_detector_test.go",
+        "token_graph_test.go",
+        "tokenizer_benchamrk_test.go",
+        "tokenizer_test.go",
+        "user_samples_test.go",
+    ],
+    embed = [":auto_multiline_detection"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/config/mock",
+        "//pkg/logs/internal/decoder/auto_multiline_detection/tokens",
+        "//pkg/logs/message",
+        "//pkg/logs/metrics",
+        "//pkg/logs/status/utils",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

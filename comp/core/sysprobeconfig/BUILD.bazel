@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "sysprobeconfig",
+    srcs = [
+        "component.go",
+        "component_mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/system-probe/config/types",
+        "//pkg/util/fxutil",
+        "//pkg/util/option",
+        "@org_uber_go_fx//:fx",
+    ],
+)

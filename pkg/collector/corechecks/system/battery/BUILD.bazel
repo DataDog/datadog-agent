@@ -1,0 +1,48 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "battery",
+    srcs = [
+        "battery.go",
+        "battery_darwin.go",
+        "battery_darwin.h",
+        "battery_darwin.m",
+        "battery_nix.go",
+        "battery_windows.go",
+    ],
+    cgo = True,
+    clinkopts = select({
+        "@rules_go//go/platform:darwin": [
+            "-framework Foundation -framework IOKit",
+        ],
+        "@rules_go//go/platform:ios": [
+            "-framework Foundation -framework IOKit",
+        ],
+        "//conditions:default": [],
+    }),
+    copts = select({
+        "@rules_go//go/platform:darwin": [
+            "-x objective-c -fobjc-arc",
+        ],
+        "@rules_go//go/platform:ios": [
+            "-x objective-c -fobjc-arc",
+        ],
+        "//conditions:default": [],
+    }),
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/battery",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/util/log",
+        "//pkg/util/option",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)

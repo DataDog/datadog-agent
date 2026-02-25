@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ad",
+    srcs = ["scheduler.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers/names",
+        "//comp/core/workloadfilter/def",
+        "//comp/logs/agent/config",
+        "//pkg/config/setup",
+        "//pkg/logs/internal/util/adlistener",
+        "//pkg/logs/schedulers",
+        "//pkg/logs/service",
+        "//pkg/logs/sources",
+        "//pkg/util/containers",
+        "//pkg/util/log",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "ad_test",
+    srcs = ["scheduler_test.go"],
+    embed = [":ad"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers/names",
+        "//comp/logs/agent/config",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/logs/schedulers",
+        "//pkg/logs/sources",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

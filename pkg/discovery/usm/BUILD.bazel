@@ -1,0 +1,121 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "usm",
+    srcs = [
+        "cwd_linux.go",
+        "cwd_others.go",
+        "erlang.go",
+        "java.go",
+        "java_utils.go",
+        "jboss.go",
+        "jee.go",
+        "laravel.go",
+        "nodejs.go",
+        "php.go",
+        "python.go",
+        "ruby.go",
+        "service.go",
+        "spring.go",
+        "tomcat.go",
+        "weblogic.go",
+        "websphere.go",
+        "yaml.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/discovery/usm",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/discovery/envs",
+        "//pkg/discovery/language",
+        "//pkg/util/log",
+        "@com_github_rickar_props//:props",
+        "@com_github_shirou_gopsutil_v4//process",
+        "@com_github_valyala_fastjson//:fastjson",
+        "@com_github_vibrantbyte_go_antpath//antpath",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/kernel",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/kernel",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "usm_test",
+    srcs = [
+        "erlang_test.go",
+        "java_utils_test.go",
+        "jboss_test.go",
+        "jee_test.go",
+        "laravel_test.go",
+        "nodejs_test.go",
+        "php_test.go",
+        "python_test.go",
+        "ruby_test.go",
+        "service_linux_test.go",
+        "service_test.go",
+        "spring_test.go",
+        "tomcat_test.go",
+        "weblogic_nix_test.go",
+        "websphere_test.go",
+        "yaml_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":usm"],
+    deps = [
+        "//pkg/discovery/envs",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/discovery/language",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/discovery/language",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/discovery/language",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/discovery/language",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/discovery/language",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/discovery/language",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/discovery/language",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/discovery/language",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/discovery/language",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/discovery/language",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/discovery/language",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/discovery/language",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/discovery/language",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/discovery/language",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/discovery/language",
+        ],
+        "//conditions:default": [],
+    }),
+)

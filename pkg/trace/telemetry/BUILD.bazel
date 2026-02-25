@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "telemetry",
+    srcs = ["collector.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/telemetry",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/trace/config",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "telemetry_test",
+    srcs = ["collector_test.go"],
+    embed = [":telemetry"],
+    deps = [
+        "//pkg/trace/config",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

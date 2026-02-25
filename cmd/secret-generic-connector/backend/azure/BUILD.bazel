@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "azure",
+    srcs = ["keyvault.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/secret-generic-connector/backend/azure",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/secret-generic-connector/secret",
+        "@com_github_azure_azure_sdk_for_go_sdk_azcore//:azcore",
+        "@com_github_azure_azure_sdk_for_go_sdk_azidentity//:azidentity",
+        "@com_github_azure_azure_sdk_for_go_sdk_security_keyvault_azsecrets//:azsecrets",
+        "@com_github_mitchellh_mapstructure//:mapstructure",
+    ],
+)
+
+go_test(
+    name = "azure_test",
+    srcs = ["keyvault_test.go"],
+    embed = [":azure"],
+    deps = [
+        "//cmd/secret-generic-connector/secret",
+        "@com_github_azure_azure_sdk_for_go_sdk_security_keyvault_azsecrets//:azsecrets",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

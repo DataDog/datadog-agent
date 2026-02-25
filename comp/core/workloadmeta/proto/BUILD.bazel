@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "proto",
+    srcs = ["proto.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/proto",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "//pkg/discovery/tracermetadata",
+        "//pkg/languagedetection/languagemodels",
+        "//pkg/proto/pbgo/core",
+    ],
+)
+
+go_test(
+    name = "proto_test",
+    srcs = ["proto_test.go"],
+    embed = [":proto"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "//pkg/discovery/tracermetadata",
+        "//pkg/languagedetection/languagemodels",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/kubernetes",
+        "//pkg/util/pointer",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//proto",
+    ],
+)

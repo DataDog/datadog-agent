@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["common_endpoints.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/api/commonendpoints/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/common/signals",
+        "//comp/api/api/def",
+        "//comp/core/hostname/hostnameinterface",
+        "//pkg/api/version",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["common_endpoints_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//cmd/agent/common/signals",
+        "//comp/core/hostname/hostnameimpl",
+        "@com_github_stretchr_testify//require",
+    ],
+)

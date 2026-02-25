@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "expvarsimpl",
+    srcs = ["expvars.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/process/expvars/expvarsimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/sysprobeconfig",
+        "//comp/core/telemetry",
+        "//comp/process/expvars",
+        "//comp/process/hostinfo",
+        "//pkg/config/setup",
+        "//pkg/process/runner/endpoint",
+        "//pkg/process/status",
+        "//pkg/process/util",
+        "//pkg/system-probe/config",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "expvarsimpl_test",
+    srcs = ["expvars_test.go"],
+    embed = [":expvarsimpl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/core/sysprobeconfig/sysprobeconfigimpl",
+        "//comp/core/telemetry/telemetryimpl",
+        "//comp/process/expvars",
+        "//comp/process/hostinfo/hostinfoimpl",
+        "//pkg/util/flavor",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
+    ],
+)

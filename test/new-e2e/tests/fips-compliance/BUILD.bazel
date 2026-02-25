@@ -1,0 +1,63 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "fips-compliance",
+    srcs = ["common.go"],
+    embedsrcs = ["fixtures/e2e_fips_test.py"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/fips-compliance",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/utils/e2e/client",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+go_test(
+    name = "fips-compliance_test",
+    srcs = [
+        "cluster_agent_fips_test.go",
+        "fips_ciphers_nix_test.go",
+        "fips_ciphers_win_test.go",
+        "fips_nix_test.go",
+        "fips_win_test.go",
+    ],
+    embed = [":fips-compliance"],
+    embedsrcs = [
+        "fixtures/docker-compose-cluster-agent.yaml",
+        "fixtures/docker-compose-fips-server.yaml",
+        "fixtures/docker-compose.yaml",
+        "fixtures/openssl-default.cnf",
+        "fixtures/security-agent.yaml",
+        "fixtures/system-probe.yaml",
+    ],
+    deps = [
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/datadog/apps",
+        "//test/e2e-framework/components/datadog/dockeragentparams",
+        "//test/e2e-framework/components/docker",
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/resources/aws",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/scenarios/aws/ec2/windows",
+        "//test/e2e-framework/scenarios/aws/ec2docker",
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners",
+        "//test/e2e-framework/testing/provisioners/aws/docker",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/provisioners/aws/host/windows",
+        "//test/e2e-framework/testing/utils/e2e/client",
+        "//test/fakeintake/client",
+        "//test/new-e2e/tests/windows/common",
+        "//test/new-e2e/tests/windows/common/agent",
+        "//test/new-e2e/tests/windows/components/fipsmode",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

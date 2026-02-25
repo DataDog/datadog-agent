@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "expvarserverimpl",
+    srcs = ["expvarserver.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/agent/expvarserver/expvarserverimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/agent/expvarserver",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

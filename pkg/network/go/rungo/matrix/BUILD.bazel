@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "matrix",
+    srcs = ["matrix.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/go/rungo/matrix",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/network/go/goversion",
+        "//pkg/network/go/rungo",
+    ],
+)

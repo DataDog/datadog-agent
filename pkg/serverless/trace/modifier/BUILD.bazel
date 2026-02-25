@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "modifier",
+    srcs = ["tracer_payload_modifier.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serverless/trace/modifier",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "modifier_test",
+    srcs = ["tracer_payload_modifier_test.go"],
+    embed = [":modifier"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/agent",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

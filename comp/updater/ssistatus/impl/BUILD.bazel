@@ -1,0 +1,70 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "ssistatus.go",
+        "ssistatus_unix.go",
+        "ssistatus_windows.go",
+    ],
+    embedsrcs = [
+        "status_templates/ssistatus.tmpl",
+        "status_templates/ssistatusHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/updater/ssistatus/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/log/def",
+        "//comp/core/status",
+        "//comp/def",
+        "//comp/metadata/inventoryagent",
+        "//comp/updater/ssistatus/def",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/fleet/installer/packages/ssi",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/fleet/installer/packages/ssi",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/fleet/installer/packages/ssi",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/fleet/installer/packages/ssi",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/fleet/installer/packages/ssi",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/fleet/installer/packages/ssi",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/fleet/installer/packages/ssi",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/fleet/installer/packages/ssi",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/fleet/installer/packages/ssi",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/fleet/installer/packages/ssi",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/fleet/installer/packages/ssi",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/fleet/installer/packages/ssi",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/fleet/installer/packages/ssi",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/fleet/installer/packages/ssi",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/fleet/installer/packages/ssi",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -1,0 +1,67 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "retry_proto",
+    srcs = ["HttpTransactionProto.proto"],
+    visibility = ["//comp/forwarder/defaultforwarder:__subpackages__"],
+)
+
+go_proto_library(
+    name = "retry_go_proto",
+    importpath = "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry",
+    proto = ":retry_proto",
+    visibility = ["//comp/forwarder/defaultforwarder:__subpackages__"],
+)
+
+go_library(
+    name = "retry",
+    srcs = [
+        "disk_usage_limit.go",
+        "docs.go",
+        "file_removal_policy.go",
+        "http_transactions_serializer.go",
+        "on_disk_retry_queue.go",
+        "point_count_telemetry.go",
+        "queue_duration_capacity.go",
+        "telemetry.go",
+        "time_interval_accumulator.go",
+        "transaction_retry_queue.go",
+    ],
+    embed = [":retry_go_proto"],
+    importpath = "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry",
+    visibility = ["//comp/forwarder/defaultforwarder:__subpackages__"],
+    deps = [
+        "//comp/core/log/def",
+        "//comp/forwarder/defaultforwarder/resolver",
+        "//comp/forwarder/defaultforwarder/transaction",
+        "//pkg/config/utils",
+        "//pkg/telemetry",
+        "//pkg/util/common",
+        "//pkg/util/filesystem",
+        "@com_github_hashicorp_go_multierror//:go-multierror",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+go_test(
+    name = "retry_test",
+    srcs = [
+        "disk_usage_limit_test.go",
+        "file_removal_policy_test.go",
+        "http_transactions_serializer_test.go",
+        "queue_duration_capacity_test.go",
+        "time_interval_accumulator_test.go",
+    ],
+    embed = [":retry"],
+    deps = [
+        "//comp/core/log/mock",
+        "//comp/forwarder/defaultforwarder/resolver",
+        "//comp/forwarder/defaultforwarder/transaction",
+        "//pkg/config/utils",
+        "//pkg/util/filesystem",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

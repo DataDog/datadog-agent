@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tags",
+    srcs = [
+        "cluster_name.go",
+        "docs.go",
+        "ec2_no_tags.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/ec2/tags",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/util/ec2/internal",
+    ],
+)
+
+go_test(
+    name = "tags_test",
+    srcs = ["cluster_name_test.go"],
+    embed = [":tags"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

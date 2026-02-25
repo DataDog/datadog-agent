@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "socket",
+    srcs = ["tailer.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/tailers/socket",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/setup",
+        "//pkg/logs/internal/decoder",
+        "//pkg/logs/internal/parsers/noop",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "//pkg/logs/status/utils",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "socket_test",
+    srcs = ["tailer_test.go"],
+    embed = [":socket"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/config/mock",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

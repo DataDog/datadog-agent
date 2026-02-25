@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "akeyless",
+    srcs = ["vault.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/secret-generic-connector/backend/akeyless",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/secret-generic-connector/secret",
+        "@com_github_mitchellh_mapstructure//:mapstructure",
+    ],
+)
+
+go_test(
+    name = "akeyless_test",
+    srcs = ["vault_test.go"],
+    embed = [":akeyless"],
+    deps = [
+        "//cmd/secret-generic-connector/secret",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

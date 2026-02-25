@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "util",
+    srcs = [
+        "doc.go",
+        "owners.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/languagedetection/util",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/pbgo/process",
+        "//pkg/util/kubernetes",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+    ],
+)
+
+go_test(
+    name = "util_test",
+    srcs = ["owners_test.go"],
+    embed = [":util"],
+    deps = [
+        "//pkg/proto/pbgo/process",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

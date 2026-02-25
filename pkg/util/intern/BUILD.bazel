@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "intern",
+    srcs = ["string.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/intern",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "intern_test",
+    srcs = ["string_test.go"],
+    embed = [":intern"],
+)

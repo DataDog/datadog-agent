@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "clcrunnerapi",
+    srcs = ["clcrunner.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi/v1",
+    visibility = ["//cmd/agent/subcommands/run:__subpackages__"],
+    deps = [
+        "//comp/core/autodiscovery",
+        "//pkg/api/version",
+        "//pkg/collector/check/id",
+        "//pkg/status",
+        "//pkg/util/log",
+        "@com_github_gorilla_mux//:mux",
+    ],
+)

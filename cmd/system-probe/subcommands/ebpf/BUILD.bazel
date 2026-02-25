@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "ebpf",
+    srcs = [
+        "command.go",
+        "command_unsupported.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/ebpf",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/system-probe/command",
+        "@com_github_spf13_cobra//:cobra",
+    ],
+)

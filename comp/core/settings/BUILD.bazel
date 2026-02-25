@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "settings",
+    srcs = ["component.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/settings",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//pkg/config/model",
+        "@org_uber_go_fx//:fx",
+    ],
+)

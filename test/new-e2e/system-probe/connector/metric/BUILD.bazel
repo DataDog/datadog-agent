@@ -1,0 +1,86 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "metric",
+    srcs = ["metric.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/system-probe/connector/metric",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadog",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV1",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV2",
+        ],
+        "@rules_go//go/platform:android": [
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadog",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV1",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV2",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadog",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV1",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV2",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadog",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV1",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV2",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadog",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV1",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV2",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadog",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV1",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV2",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadog",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV1",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV2",
+        ],
+        "@rules_go//go/platform:js": [
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadog",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV1",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV2",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadog",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV1",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV2",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadog",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV1",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV2",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadog",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV1",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV2",
+        ],
+        "@rules_go//go/platform:osx": [
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadog",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV1",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV2",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadog",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV1",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV2",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadog",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV1",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV2",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadog",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV1",
+            "@com_github_datadog_datadog_api_client_go_v2//api/datadogV2",
+        ],
+        "//conditions:default": [],
+    }),
+)

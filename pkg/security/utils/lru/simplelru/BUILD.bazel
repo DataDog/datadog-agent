@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "simplelru",
+    srcs = ["lru.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/security/utils/lru/internal"],
+)
+
+go_test(
+    name = "simplelru_test",
+    srcs = ["lru_test.go"],
+    embed = [":simplelru"],
+)

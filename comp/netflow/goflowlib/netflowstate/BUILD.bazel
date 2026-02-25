@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "netflowstate",
+    srcs = [
+        "netflow.go",
+        "stopper.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/netflow/goflowlib/netflowstate",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/netflow/common",
+        "//comp/netflow/config",
+        "//comp/netflow/goflowlib/additionalfields",
+        "@com_github_netsampler_goflow2//decoders/netflow",
+        "@com_github_netsampler_goflow2//decoders/netflow/templates",
+        "@com_github_netsampler_goflow2//format",
+        "@com_github_netsampler_goflow2//pb",
+        "@com_github_netsampler_goflow2//producer",
+        "@com_github_netsampler_goflow2//transport",
+        "@com_github_netsampler_goflow2//utils",
+        "@com_github_prometheus_client_golang//prometheus",
+    ],
+)
+
+go_test(
+    name = "netflowstate_test",
+    srcs = ["netflow_test.go"],
+    embed = [":netflowstate"],
+    deps = [
+        "//comp/netflow/testutil",
+        "@com_github_netsampler_goflow2//decoders/netflow/templates",
+        "@com_github_netsampler_goflow2//decoders/netflow/templates/memory",
+        "@com_github_netsampler_goflow2//utils",
+        "@com_github_prometheus_client_golang//prometheus/testutil",
+        "@com_github_sirupsen_logrus//:logrus",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

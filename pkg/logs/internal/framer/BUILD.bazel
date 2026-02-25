@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "framer",
+    srcs = [
+        "docker_stream.go",
+        "framer.go",
+        "matcher.go",
+        "no_framing.go",
+        "onebyte.go",
+        "twobyte.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/framer",
+    visibility = ["//pkg/logs:__subpackages__"],
+    deps = [
+        "//pkg/logs/message",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "framer_test",
+    srcs = [
+        "docker_stream_test.go",
+        "framer_test.go",
+        "matcher_test.go",
+    ],
+    embed = [":framer"],
+    deps = [
+        "//pkg/logs/message",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

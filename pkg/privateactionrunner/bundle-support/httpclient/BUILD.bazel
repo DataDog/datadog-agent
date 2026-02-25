@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "httpclient",
+    srcs = [
+        "http_helper.go",
+        "httpclient.go",
+        "imds_blocker_authorizer.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/httpclient",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/adapters/config",
+        "//pkg/privateactionrunner/adapters/httpclient",
+        "//pkg/privateactionrunner/util",
+    ],
+)

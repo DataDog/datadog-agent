@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "jmxloggerimpl",
+    srcs = [
+        "jmxlogger.go",
+        "params.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/agent/jmxlogger",
+        "//comp/core/config",
+        "//pkg/util/defaultpaths",
+        "//pkg/util/fxutil",
+        "//pkg/util/log/setup",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "jmxloggerimpl_test",
+    srcs = ["jmxlogger_test.go"],
+    embed = [":jmxloggerimpl"],
+    deps = [
+        "//comp/core/config",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
+    ],
+)

@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "option",
+    srcs = ["option.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/option",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "option_test",
+    srcs = ["option_test.go"],
+    embed = [":option"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

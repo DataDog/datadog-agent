@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "ha-agent_test",
+    srcs = [
+        "haagent_failover_test.go",
+        "haagent_metadata_test.go",
+        "haagent_test.go",
+    ],
+    embedsrcs = [
+        "fixtures/cisco_aci_conf.yaml",
+        "fixtures/snmp_conf.yaml",
+    ],
+    deps = [
+        "//test/e2e-framework/components/datadog/agent",
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/resources/aws",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclient",
+        "//test/fakeintake/aggregator",
+        "//test/fakeintake/client",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

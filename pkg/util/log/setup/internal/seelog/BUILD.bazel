@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "seelog",
+    srcs = [
+        "seelog_config.go",
+        "split_writer.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/log/setup/internal/seelog",
+    visibility = ["//pkg/util/log/setup:__subpackages__"],
+    deps = [
+        "//pkg/util/log",
+        "//pkg/util/log/slog",
+        "//pkg/util/log/slog/filewriter",
+        "//pkg/util/log/slog/formatters",
+        "//pkg/util/log/slog/handlers",
+        "//pkg/util/log/syslog",
+        "//pkg/util/log/types",
+    ],
+)
+
+go_test(
+    name = "seelog_test",
+    srcs = ["split_writer_test.go"],
+    embed = [":seelog"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)
