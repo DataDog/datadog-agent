@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -96,13 +97,13 @@ func NewProvider(
 	return NewProviderWithSecrets(
 		numberOfPipelines, sink, diagnosticMessageReceiver, processingRules,
 		endpoints, destinationsContext, status, hostname, cfg, compression,
-		legacyMode, serverless, nil,
+		legacyMode, serverless, &secretnooptypes.SecretNoop{},
 	)
 }
 
-// NewProviderWithSecrets returns a new Provider with optional secrets support.
-// When secretsComp is non-nil, HTTP destinations will trigger an async API key refresh
-// on 403 responses and retry the payload instead of dropping it.
+// NewProviderWithSecrets returns a new Provider with secrets support.
+// HTTP destinations will trigger an async API key refresh on 403 responses
+// when the secrets component has resolved the endpoint's API key path.
 func NewProviderWithSecrets(
 	numberOfPipelines int,
 	sink sender.Sink,

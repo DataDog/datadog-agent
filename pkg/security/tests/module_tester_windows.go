@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/impl"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -177,7 +178,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	var ruleSetloadedErr *multierror.Error
 	if !opts.staticOpts.disableRuntimeSecurity {
 		compression := logscompression.NewComponent()
-		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, nil, module.Opts{EventSender: testMod}, compression, ipcComp, functionalTestsHostname, nil)
+		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, nil, module.Opts{EventSender: testMod}, compression, ipcComp, functionalTestsHostname, &secretnooptypes.SecretNoop{})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}

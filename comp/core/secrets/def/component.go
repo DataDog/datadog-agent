@@ -46,4 +46,8 @@ type Component interface {
 	// RemoveOrigin removes a origin from the internal cache of the secret component. This does not remove secrets
 	// from the cache but the reference where those secrets are used.
 	RemoveOrigin(origin string)
+	// IsSecretResolved returns true if the secrets component has resolved a secret
+	// handle at a config path containing the given settingPath element.
+	// This is used to determine if a secrets refresh could change the value at that path.
+	IsSecretResolved(settingPath string) bool
 }

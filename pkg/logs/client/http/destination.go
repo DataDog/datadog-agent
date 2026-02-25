@@ -20,6 +20,7 @@ import (
 	"time"
 
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -91,7 +92,8 @@ type Destination struct {
 	lastRetryError error
 
 	// Secrets
-	secrets secrets.Component
+	secrets       secrets.Component
+	canRefreshKey bool
 
 	// Telemetry
 	expVars         *expvar.Map
@@ -104,7 +106,7 @@ type Destination struct {
 // NewDestination returns a new Destination.
 // minConcurrency denotes the minimum number of concurrent http requests the pipeline will allow at once.
 // maxConcurrency represents the maximum number of concurrent http requests, reachable when the client is experiencing a large latency in sends.
-// secretsComp is optional (may be nil) and is used to trigger an API key refresh on 403 responses.
+// secretsComp is used to trigger an API key refresh on 403 responses; pass a SecretNoop when no secrets backend is available.
 func NewDestination(endpoint config.Endpoint,
 	contentType string,
 	destinationsContext *client.DestinationsContext,
@@ -180,6 +182,7 @@ func newDestination(endpoint config.Endpoint,
 		retryLock:           sync.Mutex{},
 		shouldRetry:         shouldRetry,
 		secrets:             secretsComp,
+		canRefreshKey:       secretsComp.IsSecretResolved(endpoint.GetConfigSettingPath()),
 		expVars:             expVars,
 		destMeta:            destMeta,
 		isMRF:               endpoint.IsMRF,
@@ -400,7 +403,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	if resp.StatusCode >= http.StatusBadRequest {
 		log.Warnf("failed to post http payload. code=%d, url=%s, EvP track type=%s, content type=%s, EvP category=%s, origin=%s, response=%s", resp.StatusCode, d.url, d.endpoint.TrackType, d.contentType, d.destMeta.EvpCategory(), d.origin, string(response))
 	}
-	if resp.StatusCode == http.StatusForbidden && d.secrets != nil {
+	if resp.StatusCode == http.StatusForbidden && d.canRefreshKey {
 		// 403 may indicate a stale API key; trigger a throttled async refresh
 		// and retry so the next attempt can use the updated key.
 		_, _ = d.secrets.Refresh(false)
@@ -512,7 +515,7 @@ func getMessageTimestamp(messages []*message.MessageMetadata) int64 {
 func prepareCheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) (*client.DestinationsContext, *Destination) {
 	ctx := client.NewDestinationsContext()
 	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
-	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, false, client.NewNoopDestinationMetadata(), cfg, 1, 1, metrics.NewNoopPipelineMonitor(""), "", nil)
+	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, false, client.NewNoopDestinationMetadata(), cfg, 1, 1, metrics.NewNoopPipelineMonitor(""), "", &secretnooptypes.SecretNoop{})
 
 	return ctx, destination
 }

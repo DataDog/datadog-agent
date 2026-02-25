@@ -628,6 +628,27 @@ func (r *secretResolver) matchesAllowlist(handle string) bool {
 	return slices.ContainsFunc(r.origin[handle], secretMatchesAllowlist)
 }
 
+// IsSecretResolved returns true if the secrets component has resolved a secret
+// handle at a config path containing the given settingPath element.
+func (r *secretResolver) IsSecretResolved(settingPath string) bool {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	if r.backendCommand == "" {
+		return false
+	}
+	parts := strings.Split(settingPath, ".")
+	for _, origins := range r.origin {
+		for _, ctx := range origins {
+			for _, part := range parts {
+				if slices.Contains(ctx.path, part) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 // for all secrets returned by the backend command, notify subscribers (if allowlist lets them),
 // and return the handles that have received new values compared to what was in the cache,
 // and where those handles appear

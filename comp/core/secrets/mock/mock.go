@@ -19,9 +19,10 @@ import (
 
 // Mock is a mock of the secret Component useful for testing
 type Mock struct {
-	secretsCache map[string]string
-	callbacks    []secrets.SecretChangeCallback
-	refreshHook  func(bool) (string, error)
+	secretsCache     map[string]string
+	callbacks        []secrets.SecretChangeCallback
+	refreshHook      func(bool) (string, error)
+	isSecretResolved bool
 }
 
 var _ secrets.Component = (*Mock)(nil)
@@ -103,3 +104,13 @@ func (m *Mock) Refresh(updateNow bool) (string, error) {
 
 // RemoveOrigin
 func (m *Mock) RemoveOrigin(_ string) {}
+
+// SetIsSecretResolved sets the return value of IsSecretResolved for testing
+func (m *Mock) SetIsSecretResolved(v bool) {
+	m.isSecretResolved = v
+}
+
+// IsSecretResolved returns the configured value for testing
+func (m *Mock) IsSecretResolved(_ string) bool {
+	return m.isSecretResolved
+}

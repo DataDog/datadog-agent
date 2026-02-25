@@ -36,7 +36,7 @@ type LogReporter struct {
 }
 
 // NewLogReporter instantiates a new log LogReporter.
-// secretsComp is optional (may be nil) and enables API key refresh on 403 responses.
+// secretsComp enables API key refresh on 403 responses; pass a SecretNoop when no secrets backend is available.
 func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext, compression logscompression.Component, secretsComp secrets.Component) *LogReporter {
 	// setup the pipeline provider that provides pairs of processor and sender
 	cfg := pkgconfigsetup.Datadog()

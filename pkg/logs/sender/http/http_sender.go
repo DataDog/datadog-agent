@@ -20,7 +20,7 @@ import (
 )
 
 // NewHTTPSender returns a new http sender.
-// secretsComp is optional (may be nil) and is used to trigger an API key refresh on 403 responses.
+// secretsComp is used to trigger an API key refresh on 403 responses; pass a SecretNoop when no secrets backend is available.
 func NewHTTPSender(
 	config pkgconfigmodel.Reader,
 	sink sender.Sink,

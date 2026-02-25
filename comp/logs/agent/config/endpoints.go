@@ -266,6 +266,11 @@ func (e *Endpoint) GetAPIKey() string {
 	return e.apiKey.Load()
 }
 
+// GetConfigSettingPath returns the config path this endpoint monitors for API key updates
+func (e *Endpoint) GetConfigSettingPath() string {
+	return e.configSettingPath
+}
+
 // UseSSL returns the useSSL config setting
 func (e *Endpoint) UseSSL() bool {
 	return e.useSSL

@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -102,7 +103,7 @@ func TestHttpDestinationFactory(t *testing.T) {
 				"",
 				1,
 				10,
-				nil,
+				&secretnooptypes.SecretNoop{},
 			)
 
 			// Test 1: Verify first call creates destinations

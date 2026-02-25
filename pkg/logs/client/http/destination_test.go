@@ -205,6 +205,10 @@ func (m *mockSecrets) Refresh(_ bool) (string, error) {
 	return "", nil
 }
 
+func (m *mockSecrets) IsSecretResolved(_ string) bool {
+	return true
+}
+
 func TestForbiddenTriggersSecretsRefreshAndRetry(t *testing.T) {
 	cfg := configmock.New(t)
 	respondChan := make(chan int)
@@ -212,6 +216,7 @@ func TestForbiddenTriggersSecretsRefreshAndRetry(t *testing.T) {
 
 	mock := &mockSecrets{}
 	server.Destination.secrets = mock
+	server.Destination.canRefreshKey = true
 
 	input := make(chan *message.Payload)
 	output := make(chan *message.Payload)
@@ -231,6 +236,26 @@ func TestForbiddenTriggersSecretsRefreshAndRetry(t *testing.T) {
 			break
 		}
 	}
+	<-output
+
+	server.Stop()
+}
+
+func TestForbiddenDropsWithoutSecrets(t *testing.T) {
+	cfg := configmock.New(t)
+	respondChan := make(chan int)
+	server := NewTestServerWithOptions(403, 1, true, respondChan, cfg)
+
+	input := make(chan *message.Payload)
+	output := make(chan *message.Payload)
+	isRetrying := make(chan bool, 1)
+	server.Destination.Start(input, output, isRetrying)
+
+	input <- &message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("yo")}
+
+	<-respondChan
+	// With canRefreshKey=false (default from noop), 403 is a client error — payload is dropped.
+	// The output channel should receive the dropped payload.
 	<-output
 
 	server.Stop()
@@ -526,7 +551,7 @@ func TestDestinationHA(t *testing.T) {
 		}
 		isEndpointMRF := endpoint.IsMRF
 
-		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), false, client.NewNoopDestinationMetadata(), configmock.New(t), 1, 1, metrics.NewNoopPipelineMonitor(""), "test", nil)
+		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), false, client.NewNoopDestinationMetadata(), configmock.New(t), 1, 1, metrics.NewNoopPipelineMonitor(""), "test", &secretnooptypes.SecretNoop{})
 		isDestMRF := dest.IsMRF()
 
 		assert.Equal(t, isEndpointMRF, isDestMRF)

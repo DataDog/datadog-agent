@@ -35,6 +35,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/impl"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
@@ -802,7 +803,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		msgSender := newFakeMsgSender(testMod)
 
 		compression := logscompression.NewComponent()
-		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, nil, module.Opts{EventSender: testMod, MsgSender: msgSender}, compression, ipcComp, functionalTestsHostname, nil)
+		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, nil, module.Opts{EventSender: testMod, MsgSender: msgSender}, compression, ipcComp, functionalTestsHostname, &secretnooptypes.SecretNoop{})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}

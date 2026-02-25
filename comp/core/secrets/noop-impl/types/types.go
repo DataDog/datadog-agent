@@ -31,3 +31,6 @@ func (r *SecretNoop) Refresh(_ bool) (string, error) {
 
 // RemoveOrigin
 func (r *SecretNoop) RemoveOrigin(_ string) {}
+
+// IsSecretResolved always returns false for the noop implementation
+func (r *SecretNoop) IsSecretResolved(_ string) bool { return false }
