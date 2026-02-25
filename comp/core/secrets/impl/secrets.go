@@ -685,7 +685,7 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 // Refresh schedules an asynchronous secret refresh (throttled). Returns true if async refresh is
 // enabled, so the caller knows whether to expect a follow-up retry to succeed.
 func (r *secretResolver) Refresh() bool {
-	if r.apiKeyFailureRefreshInterval == 0 {
+	if r.apiKeyFailureRefreshInterval == 0 || r.backendCommand == "" {
 		return false
 	}
 	// non-blocking send, max 1 at a time, others dropped
