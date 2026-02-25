@@ -12,6 +12,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	traceroutemock "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/mock"
@@ -23,6 +24,7 @@ import (
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle(),
 		core.MockBundle(),
+		hostnameimpl.MockModule(),
 		eventplatformimpl.MockModule(),
 		rdnsquerier.MockModule(),
 		logscompression.MockModule(),
