@@ -315,9 +315,10 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct den
         return DISCARDED;
     }
 
-    if (!global_limiter_allow(OPEN_SAMPLE_LIMITER, 100, 1)) {
-        return DISCARDED;
-    }
+    // Test without global limiter
+    // if (!global_limiter_allow(OPEN_SAMPLE_LIMITER, 100, 1)) {
+    //     return DISCARDED;
+    // }
 
     // Track open events that were sampled
     monitor_ad_sample_sampled(EVENT_OPEN);
