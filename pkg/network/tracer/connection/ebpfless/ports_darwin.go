@@ -241,20 +241,21 @@ func readUDPListeningPorts() (map[uint16]struct{}, error) {
 	if err != nil {
 		return nil, fmt.Errorf("sysctl net.inet.udp.pcblist_n: %w", err)
 	}
-	return parseUDPPcblistN(buf), nil
+	return parseUDPPcblistN(buf)
 }
 
 // parseUDPPcblistN parses a raw net.inet.udp.pcblist_n buffer.
 // UDP has no connection state so all bound ports (lport > 0) are returned.
-func parseUDPPcblistN(buf []byte) map[uint16]struct{} {
+// Returns an error if the buffer is truncated or invalid (e.g. header length exceeds buffer size).
+func parseUDPPcblistN(buf []byte) (map[uint16]struct{}, error) {
 	ports := make(map[uint16]struct{})
 	if len(buf) < 4 {
-		return ports
+		return ports, nil
 	}
 
 	headerLen := int(binary.LittleEndian.Uint32(buf[:4]))
 	if headerLen > len(buf) {
-		return ports
+		return nil, fmt.Errorf("pcblist_n header length %d exceeds buffer size %d", headerLen, len(buf))
 	}
 	pos := headerLen
 
@@ -279,5 +280,5 @@ func parseUDPPcblistN(buf []byte) map[uint16]struct{} {
 		pos += recLen
 	}
 
-	return ports
+	return ports, nil
 }
