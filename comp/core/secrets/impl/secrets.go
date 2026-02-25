@@ -212,7 +212,7 @@ func (r *secretResolver) writeDebugInfo(w http.ResponseWriter, _ *http.Request) 
 }
 
 func (r *secretResolver) handleRefresh(w http.ResponseWriter, _ *http.Request) {
-	result, err := r.Refresh(true)
+	result, err := r.RefreshNow()
 	if err != nil {
 		log.Infof("could not refresh secrets: %s", err)
 		setJSONError(w, err, 500)
@@ -674,21 +674,23 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 	return secretRefreshInfo{Handles: handleInfoList}
 }
 
-// Refresh will resolve secret handles again, notifying any subscribers of changed values.
-// If updateNow is true, the function performs the refresh immediately and blocks, returning an informative message suitable for user display.
-// If updateNow is false, the function will asynchronously perform a refresh, and may fail to refresh due to throttling. No message is returned, just an empty string.
-func (r *secretResolver) Refresh(updateNow bool) (string, error) {
-	if updateNow {
-		// blocking refresh
-		return r.performRefresh()
+// Refresh schedules an asynchronous secret refresh (throttled). Returns true if async refresh is
+// enabled, so the caller knows whether to expect a follow-up retry to succeed.
+func (r *secretResolver) Refresh() bool {
+	if r.apiKeyFailureRefreshInterval == 0 {
+		return false
 	}
-
-	// non-blocking refresh, max 1 at a time, others dropped
+	// non-blocking send, max 1 at a time, others dropped
 	select {
 	case r.refreshTrigger <- struct{}{}:
 	default:
 	}
-	return "", nil
+	return true
+}
+
+// RefreshNow performs an immediate blocking secret refresh and returns an informative message suitable for user display.
+func (r *secretResolver) RefreshNow() (string, error) {
+	return r.performRefresh()
 }
 
 // RemoveOrigin removes a origin from the cache
