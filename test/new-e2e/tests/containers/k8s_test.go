@@ -1936,15 +1936,9 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 
 			// Check HPA is properly scaling up or down
 			// This indirectly tests the cluster-agent external metrics server
-			//
-			// The deployments that have an HPA configured (nginx and redis)
-			// exhibit a traffic pattern that follows a sine wave with a
-			// 20-minute period. This is defined in the test-infra-definitions
-			// repo. Detecting either a scale-up or a scale-down event is
-			// sufficient to validate that the external metrics pipeline works
-			// end-to-end, without having to wait for a full sine wave cycle.
 			scaled := false
 			prevValue := -1.0
+		outer:
 			for _, metric := range metrics {
 				for _, point := range metric.GetPoints() {
 					if prevValue == -1.0 {
@@ -1955,16 +1949,13 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 					if point.Value > prevValue+0.5 {
 						sendEvent("success", "Scale up detected.", pointer.Ptr(int(point.Timestamp)))
 						scaled = true
-						break
+						break outer
 					} else if point.Value < prevValue-0.5 {
 						sendEvent("success", "Scale down detected.", pointer.Ptr(int(point.Timestamp)))
 						scaled = true
-						break
+						break outer
 					}
 					prevValue = point.Value
-				}
-				if scaled {
-					break
 				}
 			}
 			assert.Truef(c, scaled, "No scale up or scale down detected")
