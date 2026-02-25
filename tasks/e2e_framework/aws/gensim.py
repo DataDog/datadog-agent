@@ -1,7 +1,6 @@
 import json
 import os
 import subprocess
-import time
 from pathlib import Path
 
 from invoke.context import Context
@@ -86,8 +85,10 @@ def list_gensim_episodes(ctx: Context):
 
 @task(
     help={
-        "episode": "Episode directory name (e.g., 002_AWS_S3_Service_Disruption)",
-        "scenario": "Scenario name to execute (from episodes/*.yaml)",
+        "episode": "Episode directory name (e.g., 002_AWS_S3_Service_Disruption); defaults to the first episode found",
+        "scenario": "Scenario name to run autonomously on the VM (from episodes/*.yaml)",
+        "s3_bucket": "S3 bucket to upload results archive (default: qbranch-gensim-recordings)",
+        "instance_type": "EC2 instance type (default: t3.xlarge)",
         "stack_name": doc.stack_name,
         "agent_version": doc.container_agent_version,
         "config_path": "Path to config file",
@@ -97,8 +98,10 @@ def list_gensim_episodes(ctx: Context):
 )
 def deploy_gensim(
     ctx: Context,
-    episode: str,
+    episode: str | None = None,
     scenario: str | None = None,
+    s3_bucket: str | None = "qbranch-gensim-recordings",
+    instance_type: str | None = "t3.xlarge",
     debug: bool | None = False,
     stack_name: str | None = None,
     agent_version: str | None = None,
@@ -110,10 +113,10 @@ def deploy_gensim(
     keep_after_scenario: bool | None = False,
 ) -> None:
     """
-    Deploy a gensim episode to an EC2+Kind cluster, execute scenarios, and collect results.
+    Deploy a gensim episode to an EC2+Kind cluster and run it autonomously on the VM.
 
     Example:
-        inv e2e-framework.aws.deploy-gensim --episode=002_AWS_S3_Service_Disruption --scenario=capacity-removal-outage
+        inv e2e-framework.aws.deploy-gensim --episode=002_AWS_S3_Service_Disruption --scenario=capacity-removal-outage --s3-bucket=my-bucket
     """
 
     from pydantic_core._pydantic_core import ValidationError
@@ -126,8 +129,15 @@ def deploy_gensim(
     except ValidationError as e:
         raise Exit(f"Error in config {get_full_profile_path(config_path)}") from e
 
-    # Find episode
+    # Find episode — if not specified, pick the first one available
     gensim_path = get_gensim_repo_path()
+    if episode is None:
+        episodes = list_episodes()
+        if not episodes:
+            raise Exit(f"No episodes found in {gensim_path}")
+        episode = episodes[0]["name"]
+        tool.info(f"No episode specified, using: {episode}")
+
     episode_dir = gensim_path / episode
 
     if not episode_dir.exists():
@@ -137,19 +147,37 @@ def deploy_gensim(
     if not chart_dir.exists():
         raise Exit(f"Chart directory not found: {chart_dir}")
 
+    # Auto-pick the first available scenario if none was specified
+    if scenario is None:
+        available = sorted((episode_dir / "episodes").glob("*.yaml"))
+        if not available:
+            raise Exit(f"No scenario files found in {episode_dir / 'episodes'}")
+        scenario = available[0].stem
+        tool.info(f"No scenario specified, using: {scenario}")
+
     datadog_values_path = gensim_path / "datadog-values.yaml"
+
+    # Default stack name to the episode name so each episode gets its own stack
+    if stack_name is None:
+        stack_name = "gensim-" + episode.replace("_", "-").lower()
 
     # Prepare extra flags for gensim scenario
     extra_flags = {
         "ddinfra:osDescriptor": "amazonlinuxecs::x86_64",
-        "ddinfra:aws/defaultInstanceType": "t3.xlarge",
+        "ddinfra:aws/defaultInstanceType": instance_type,
         "gensim:episodeName": episode,
         "gensim:chartPath": str(chart_dir),
+        "gensim:episodePath": str(episode_dir),
         "gensim:namespace": namespace,
     }
 
     if datadog_values_path.exists():
         extra_flags["gensim:datadogValuesPath"] = str(datadog_values_path)
+
+    if scenario:
+        extra_flags["gensim:scenario"] = scenario
+    if s3_bucket:
+        extra_flags["gensim:s3Bucket"] = s3_bucket
 
     # Deploy the infrastructure
     tool.notify(ctx, f"Deploying gensim episode: {episode}")
@@ -173,93 +201,21 @@ def deploy_gensim(
     if interactive:
         tool.notify(ctx, f"Kind cluster created for episode: {episode}")
 
-    # Get kubeconfig from the Kind cluster output
+    # Get VM connection info from stack outputs
     outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
-    kubeconfig_output = outputs["dd-Cluster-gensim"]["kubeConfig"]
+    remote_host = tool.RemoteHost("aws-gensim", outputs)
+    key_path = cfg.get_aws().privateKeyPath
 
-    import yaml
-
-    kubeconfig_content = yaml.dump(yaml.safe_load(kubeconfig_output))
-    kubeconfig_path = Path(f"{full_stack_name}-config.yaml")
-
-    with open(kubeconfig_path, "w") as f:
-        f.write(kubeconfig_content)
-    os.chmod(kubeconfig_path, 0o600)
-
-    tool.info(f"Kubeconfig saved to: {kubeconfig_path}")
-
-    # Wait for pods to be ready
-    tool.info("Waiting for pods to be ready...")
-    time.sleep(30)
-
-    # Execute episode scenarios
-    play_script = episode_dir / "play-episode.sh"
-
-    if not play_script.exists():
-        tool.warn(f"play-episode.sh not found in {episode_dir}")
-    else:
-        tool.info("Executing episode scenario(s)...")
-
-        # Set environment variables for play-episode.sh
-        env = os.environ.copy()
-        env.update(
-            {
-                "DD_API_KEY": cfg.get_agent().apiKey or "",
-                "DD_APP_KEY": cfg.get_agent().appKey or "",
-                "DD_ENV": f"gensim-{episode}",
-                "DD_SITE": cfg.get_site() if hasattr(cfg, 'get_site') else "datadoghq.com",
-                "KUBE_NAMESPACE": namespace or "",
-                "KUBECONFIG": str(kubeconfig_path),
-            }
-        )
-
-        if scenario:
-            # Run specific scenario
-            tool.info(f"Running scenario: {scenario}")
-            cmd = [str(play_script), "run-episode", scenario]
-            subprocess.run(cmd, cwd=episode_dir, env=env, check=True)
-        else:
-            # List and prompt for scenario
-            tool.info("Listing available scenarios...")
-            result = subprocess.run(
-                [str(play_script), "list-episodes"],
-                cwd=episode_dir,
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            scenarios_json = json.loads(result.stdout)
-
-            if not scenarios_json:
-                tool.warn("No scenarios found")
-            else:
-                tool.info(f"Available scenarios: {[s['name'] for s in scenarios_json]}")
-
-                if interactive:
-                    print("\nRun scenarios manually with:")
-                    print(f"  export KUBECONFIG={kubeconfig_path}")
-                    print(f"  cd {episode_dir}")
-                    print("  ./play-episode.sh run-episode <scenario-name>")
-                else:
-                    # Run all scenarios in non-interactive mode
-                    for scenario_info in scenarios_json:
-                        scenario_name_run = scenario_info["name"]
-                        tool.info(f"Running scenario: {scenario_name_run}")
-                        cmd = [str(play_script), "run-episode", scenario_name_run]
-                        subprocess.run(cmd, cwd=episode_dir, env=env, check=True)
-
-    # Instructions for collecting parquet files
     tool.info("\n" + "=" * 80)
-    tool.info("Episode deployment complete!")
+    tool.info("Infrastructure is ready. Episode is running autonomously on the VM.")
     tool.info("=" * 80)
-    print(f"\nKubeconfig: {kubeconfig_path}")
-    print(f"Namespace: {namespace}")
-    print("\nTo collect parquet files from Datadog Agent pods:")
-    print(f"  kubectl --kubeconfig={kubeconfig_path} -n {namespace} get pods -l app=datadog-agent")
-    print(f"  kubectl --kubeconfig={kubeconfig_path} -n {namespace} exec <pod-name> -- ls /tmp/observer-metrics/")
-    print(
-        f"  kubectl --kubeconfig={kubeconfig_path} -n {namespace} cp <pod-name>:/tmp/observer-metrics/ ./parquet_files/"
-    )
+    ssh_key_flag = f"-i {key_path} " if key_path else ""
+    print("\nTo monitor progress:")
+    print(f"  ssh {ssh_key_flag}{remote_host.user}@{remote_host.address}")
+    print("  tail -f /tmp/gensim-runner.log")
+
+    if s3_bucket:
+        print(f"\nResults will be uploaded to: s3://{s3_bucket}/gensim-results-{episode}-<YYYYMMDD>.zip")
 
     if not keep_after_scenario:
         print("\nTo destroy the cluster:")
