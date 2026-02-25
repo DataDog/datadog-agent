@@ -860,6 +860,7 @@
 /tools/windows/DatadogAgentInstaller/WixSetup/localization-en-us.wxl @DataDog/windows-products @DataDog/documentation
 /tools/agent_QA/                        @DataDog/agent-devx
 
+/internal/remote-agent                  @DataDog/agent-runtimes
 /internal/tools/                        @DataDog/agent-devx
 /internal/third_party/client-go         @DataDog/container-platform
 /internal/third_party/kubernetes        @DataDog/container-integrations
