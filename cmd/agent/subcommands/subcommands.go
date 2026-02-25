@@ -30,6 +30,7 @@ import (
 	cmdremoteconfig "github.com/DataDog/datadog-agent/cmd/agent/subcommands/remoteconfig"
 	cmdrun "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run"
 	cmdsecret "github.com/DataDog/datadog-agent/cmd/agent/subcommands/secret"
+	cmdshell "github.com/DataDog/datadog-agent/cmd/agent/subcommands/shell"
 	cmdsecrethelper "github.com/DataDog/datadog-agent/cmd/agent/subcommands/secrethelper"
 	cmdsnmp "github.com/DataDog/datadog-agent/cmd/agent/subcommands/snmp"
 	cmdstatus "github.com/DataDog/datadog-agent/cmd/agent/subcommands/status"
@@ -80,5 +81,6 @@ func AgentSubcommands() []command.SubcommandFactory {
 		cmdcontrolsvc.Commands,
 		cmdprocesschecks.Commands,
 		cmdcoverage.Commands,
+		cmdshell.Commands,
 	}
 }

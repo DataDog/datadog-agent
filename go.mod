@@ -1195,6 +1195,7 @@ require (
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	gopkg.in/neurosnap/sentences.v1 v1.0.7 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
+	mvdan.cc/sh/v3 v3.12.0 // indirect
 )
 
 // github.com/aws/karpenter-provider-aws requires alpha versions of K8s libraries. We are only using some constants from these packages.
