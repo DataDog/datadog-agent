@@ -295,14 +295,19 @@ condition_path_exists: /usr/bin/sleep
     #[cfg(unix)]
     #[test]
     fn test_load_configs_unreadable_directory() {
+        use nix::unistd::Uid;
         use std::os::unix::fs::PermissionsExt;
+
+        if Uid::effective().is_root() {
+            eprintln!("skipping test_load_configs_unreadable_directory: running as root");
+            return;
+        }
 
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join("proc.yaml"), "command: /a\n").unwrap();
         fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o000)).unwrap();
 
         let result = load_configs(dir.path());
-        // Restore permissions so tempdir cleanup succeeds.
         fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o755)).unwrap();
         assert!(result.is_err());
     }

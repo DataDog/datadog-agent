@@ -49,11 +49,11 @@ impl RestartTracker {
 
     /// Record a restart. Resets backoff if the process ran long enough.
     fn record(&mut self, base_delay: f64, runtime_success: Duration) {
-        if let Some(spawn_time) = self.last_spawn_time {
-            if spawn_time.elapsed() >= runtime_success {
-                self.current_delay = base_delay;
-                self.count = 0;
-            }
+        if let Some(spawn_time) = self.last_spawn_time
+            && spawn_time.elapsed() >= runtime_success
+        {
+            self.current_delay = base_delay;
+            self.count = 0;
         }
         self.count += 1;
         self.timestamps.push(Instant::now());
@@ -198,10 +198,10 @@ impl ManagedProcess {
     /// `shutdown_all()` can fan out SIGTERM to all processes before blocking
     /// on each.
     pub fn send_signal(&self, sig: Signal) {
-        if let Some(raw_pid) = self.pid {
-            if let Err(e) = signal::kill(Pid::from_raw(raw_pid as i32), sig) {
-                warn!("[{}] failed to send {sig}: {e}", self.name);
-            }
+        if let Some(raw_pid) = self.pid
+            && let Err(e) = signal::kill(Pid::from_raw(raw_pid as i32), sig)
+        {
+            warn!("[{}] failed to send {sig}: {e}", self.name);
         }
     }
 
