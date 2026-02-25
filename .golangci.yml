@@ -145,6 +145,7 @@ linters:
             - "!**/comp/dogstatsd/server/float64_list_pool.go"
             - "!**/comp/dogstatsd/server/serverless.go"
             - "!**/comp/dogstatsd/serverDebug/serverdebugimpl/debug.go"
+            - "!**/comp/dogstatsd/serverDebug/serverdebugimpltopk/debug.go"
             - "!**/comp/forwarder/connectionsforwarder/impl/connectionsforwarder.go"
             - "!**/comp/forwarder/defaultforwarder/blocked_endpoints.go"
             - "!**/comp/forwarder/defaultforwarder/default_forwarder.go"
