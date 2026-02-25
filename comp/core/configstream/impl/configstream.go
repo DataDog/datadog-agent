@@ -330,10 +330,6 @@ func (cs *configStream) createConfigSnapshot() (*pb.ConfigEvent, uint64, error) 
 				cs.log.Errorf("Failed to convert setting '%s' to structpb.Value: %v", key, err)
 				continue
 			}
-			cs.log.Infof(
-				"Config stream snapshot setting: sequence_id=%d source=%s key=%s value=%v",
-				sequenceID, source, key, sanitizedValue,
-			)
 
 			settings = append(settings, &pb.ConfigSetting{
 				Source: source.String(),
