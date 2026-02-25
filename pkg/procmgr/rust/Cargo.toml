@@ -19,4 +19,11 @@ simple_logger = { workspace = true, features = ["timestamps"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "process", "fs", "time", "sync"] }
 
 [dev-dependencies]
+nix = { workspace = true, features = ["signal", "process"] }
 tempfile.workspace = true
+
+[profile.release]
+lto = "fat"
+opt-level = "z"
+strip = "symbols"
+panic = "abort"
