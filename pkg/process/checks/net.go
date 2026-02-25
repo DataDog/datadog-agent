@@ -551,7 +551,7 @@ func batchConnections(
 		}
 
 		// remap resolv.conf indices for this batch
-		resolvConfSet := indexedset.New[string]()
+		resolvConfSet := indexedset.New[string](0)
 		for _, c := range batchConns {
 			if c.ResolvConfIdx >= 0 && int(c.ResolvConfIdx) < len(resolvConfs) {
 				c.ResolvConfIdx = resolvConfSet.Add(resolvConfs[c.ResolvConfIdx])

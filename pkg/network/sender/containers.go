@@ -13,10 +13,12 @@ import (
 	"maps"
 	"net/netip"
 	"sync"
+	"time"
 
 	"go4.org/intern"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -26,8 +28,10 @@ const containerResolverSubsystem = "sender__container_resolver"
 
 var containerResolverTelemetry = struct {
 	addressCount telemetry.Gauge
+	tagCount     telemetry.Gauge
 }{
 	telemetry.NewGauge(containerResolverSubsystem, "address_count", nil, ""),
+	telemetry.NewGauge(containerResolverSubsystem, "tag_count", nil, ""),
 }
 
 type connKey struct {
@@ -46,13 +50,20 @@ type containerResolver struct {
 
 	mtx               sync.Mutex
 	addrToContainerID map[containerAddr]containerID
+	tagContainerIDs   map[containerID]struct{}
+	tagDuration       time.Duration
 }
 
-func newContainerResolver(wmeta workloadmeta.Component) *containerResolver {
-	return &containerResolver{
+func newContainerResolver(wmeta workloadmeta.Component, tagDuration time.Duration) *containerResolver {
+	cr := &containerResolver{
 		wmeta:             wmeta,
 		addrToContainerID: make(map[containerAddr]containerID),
 	}
+	if tagDuration > 0 {
+		cr.tagContainerIDs = make(map[containerID]struct{})
+		cr.tagDuration = tagDuration
+	}
+	return cr
 }
 
 func (r *containerResolver) start(ctx context.Context) {
@@ -109,9 +120,47 @@ func (r *containerResolver) process(eventBundle workloadmeta.EventBundle) {
 			}
 		}
 
+		// see if container qualifies for tagging
+		if r.tagDuration > 0 {
+			currentTime := time.Now()
+			withinAgentStartingPeriod := pkgconfigsetup.StartTime.Add(r.tagDuration).After(currentTime)
+			if withinAgentStartingPeriod || container.State.StartedAt.Add(r.tagDuration).After(currentTime) {
+				if !idWrapper.alive {
+					k := containerID{id: idWrapper.id, alive: true}
+					delete(r.tagContainerIDs, k)
+				}
+				r.tagContainerIDs[idWrapper] = struct{}{}
+			}
+		}
 	}
 
 	containerResolverTelemetry.addressCount.Set(float64(len(r.addrToContainerID)))
+	containerResolverTelemetry.tagCount.Set(float64(len(r.tagContainerIDs)))
+}
+
+func (r *containerResolver) shouldTagContainer(cid *intern.Value) bool {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+
+	if r.tagDuration > 0 {
+		if _, ok := r.tagContainerIDs[containerID{id: cid, alive: true}]; ok {
+			return true
+		}
+		if _, ok := r.tagContainerIDs[containerID{id: cid, alive: false}]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *containerResolver) removeDeadTagContainers() {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+
+	maps.DeleteFunc(r.tagContainerIDs, func(id containerID, _ struct{}) bool {
+		return !id.alive
+	})
+	containerResolverTelemetry.tagCount.Set(float64(len(r.tagContainerIDs)))
 }
 
 func (r *containerResolver) resolveDestinationContainerIDs(conns *network.Connections) {
@@ -124,13 +173,39 @@ func (r *containerResolver) resolveDestinationContainerIDs(conns *network.Connec
 		containerResolverTelemetry.addressCount.Set(float64(len(r.addrToContainerID)))
 	}()
 
-	containerIDByConnection := make(map[connKey]*intern.Value, len(conns.Conns))
+	// establish a tighter bound on a number of container IDs for the map
+	containerIDCount := 0
 	for i := range conns.Conns {
 		conn := &conns.Conns[i]
 		if !conn.IntraHost {
 			continue
 		}
+		cid := conn.ContainerID.Source
+		if cid == nil {
+			continue
+		}
 
+		if conn.NetNS != 0 {
+			containerIDCount++
+			continue
+		}
+
+		laddr := conn.Source.Addr
+		if conn.IPTranslation != nil {
+			laddr = conn.IPTranslation.ReplDstIP.Addr
+		}
+		if !laddr.IsLoopback() {
+			containerIDCount++
+			continue
+		}
+	}
+
+	containerIDByConnection := make(map[connKey]*intern.Value, containerIDCount)
+	for i := range conns.Conns {
+		conn := &conns.Conns[i]
+		if !conn.IntraHost {
+			continue
+		}
 		cid := conn.ContainerID.Source
 		if cid == nil {
 			continue
@@ -159,7 +234,9 @@ func (r *containerResolver) resolveDestinationContainerIDs(conns *network.Connec
 		}
 	}
 
-	log.Tracef("containerIDByConnection = %v", containerIDByConnection)
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef("containerIDByConnection = %v", containerIDByConnection)
+	}
 
 	// go over connections again using hashtable computed earlier to containerResolver raddr
 	for i := range conns.Conns {
@@ -199,7 +276,9 @@ func (r *containerResolver) resolveDestinationContainerIDs(conns *network.Connec
 		if v, ok := r.addrToContainerID[containerAddr{addr: raddr, proto: conn.Type}]; ok {
 			conn.ContainerID.Dest = v.id
 		} else {
-			log.Tracef("could not resolve raddr %v", raddr)
+			if log.ShouldLog(log.TraceLvl) {
+				log.Tracef("could not resolve raddr %v", raddr)
+			}
 		}
 	}
 }

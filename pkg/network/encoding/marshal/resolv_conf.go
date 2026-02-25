@@ -20,7 +20,7 @@ type resolvConfFormatter struct {
 func newResolvConfFormatter(conns *network.Connections) *resolvConfFormatter {
 	return &resolvConfFormatter{
 		conns:         conns,
-		resolvConfSet: indexedset.New[network.ResolvConf](),
+		resolvConfSet: indexedset.New[network.ResolvConf](0),
 	}
 }
 

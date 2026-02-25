@@ -444,6 +444,47 @@ func TestScenarioVPARollout(t *testing.T) {
 	assert.True(t, applied)
 }
 
+func TestPatcherApplySubresource(t *testing.T) {
+	pod := newUnstructuredPod("default", "my-pod")
+	client := newFakeClient(pod)
+	p := NewPatcher(client, nil)
+
+	intent := NewPatchIntent(PodTarget("default", "my-pod")).
+		With(SetMetadataAnnotations(map[string]interface{}{"k": "v"}))
+
+	_, err := p.Apply(context.Background(), intent, PatchOptions{
+		Caller:      "test",
+		Subresource: "resize",
+	})
+	require.NoError(t, err)
+
+	actions := client.Actions()
+	require.NotEmpty(t, actions)
+	lastAction := actions[len(actions)-1]
+	patchAction, ok := lastAction.(k8stesting.PatchAction)
+	require.True(t, ok)
+	assert.Equal(t, "resize", patchAction.GetSubresource())
+}
+
+func TestPatcherApplyNoSubresource(t *testing.T) {
+	pod := newUnstructuredPod("default", "my-pod")
+	client := newFakeClient(pod)
+	p := NewPatcher(client, nil)
+
+	intent := NewPatchIntent(PodTarget("default", "my-pod")).
+		With(SetMetadataAnnotations(map[string]interface{}{"k": "v"}))
+
+	_, err := p.Apply(context.Background(), intent, PatchOptions{Caller: "test"})
+	require.NoError(t, err)
+
+	actions := client.Actions()
+	require.NotEmpty(t, actions)
+	lastAction := actions[len(actions)-1]
+	patchAction, ok := lastAction.(k8stesting.PatchAction)
+	require.True(t, ok)
+	assert.Equal(t, "", patchAction.GetSubresource(), "no subresource should be set when Subresource is empty")
+}
+
 func TestScenarioVPAPodPatcher(t *testing.T) {
 	// Simulates the VPA pod patcher annotation update
 	pod := newUnstructuredPod("ns1", "web-app-abc123")

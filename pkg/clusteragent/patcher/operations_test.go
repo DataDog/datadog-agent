@@ -84,6 +84,114 @@ func TestSetMetadataLabels(t *testing.T) {
 	assert.Nil(t, labels["label2"])
 }
 
+func TestSetContainerResources(t *testing.T) {
+	t.Run("single container with requests and limits", func(t *testing.T) {
+		op := SetContainerResources([]ContainerResourcePatch{
+			{
+				Name:     "app",
+				Requests: map[string]string{"cpu": "250m", "memory": "512Mi"},
+				Limits:   map[string]string{"cpu": "500m", "memory": "1Gi"},
+			},
+		})
+
+		result := op.build()
+		spec := result["spec"].(map[string]interface{})
+		containers := spec["containers"].([]interface{})
+		require.Len(t, containers, 1)
+
+		container := containers[0].(map[string]interface{})
+		assert.Equal(t, "app", container["name"])
+		resources := container["resources"].(map[string]interface{})
+
+		requests := resources["requests"].(map[string]interface{})
+		assert.Equal(t, "250m", requests["cpu"])
+		assert.Equal(t, "512Mi", requests["memory"])
+
+		limits := resources["limits"].(map[string]interface{})
+		assert.Equal(t, "500m", limits["cpu"])
+		assert.Equal(t, "1Gi", limits["memory"])
+	})
+
+	t.Run("multiple containers", func(t *testing.T) {
+		op := SetContainerResources([]ContainerResourcePatch{
+			{Name: "app", Requests: map[string]string{"cpu": "100m"}},
+			{Name: "sidecar", Requests: map[string]string{"cpu": "50m"}},
+		})
+
+		result := op.build()
+		spec := result["spec"].(map[string]interface{})
+		containers := spec["containers"].([]interface{})
+		require.Len(t, containers, 2)
+
+		c0 := containers[0].(map[string]interface{})
+		assert.Equal(t, "app", c0["name"])
+		c0Requests := c0["resources"].(map[string]interface{})["requests"].(map[string]interface{})
+		assert.Equal(t, "100m", c0Requests["cpu"])
+
+		c1 := containers[1].(map[string]interface{})
+		assert.Equal(t, "sidecar", c1["name"])
+		c1Requests := c1["resources"].(map[string]interface{})["requests"].(map[string]interface{})
+		assert.Equal(t, "50m", c1Requests["cpu"])
+	})
+
+	t.Run("requests only, no limits", func(t *testing.T) {
+		op := SetContainerResources([]ContainerResourcePatch{
+			{Name: "app", Requests: map[string]string{"memory": "256Mi"}},
+		})
+
+		result := op.build()
+		spec := result["spec"].(map[string]interface{})
+		containers := spec["containers"].([]interface{})
+		container := containers[0].(map[string]interface{})
+		resources := container["resources"].(map[string]interface{})
+
+		_, hasRequests := resources["requests"]
+		_, hasLimits := resources["limits"]
+		assert.True(t, hasRequests)
+		assert.False(t, hasLimits)
+	})
+
+	t.Run("limits only, no requests", func(t *testing.T) {
+		op := SetContainerResources([]ContainerResourcePatch{
+			{Name: "app", Limits: map[string]string{"cpu": "500m"}},
+		})
+
+		result := op.build()
+		spec := result["spec"].(map[string]interface{})
+		containers := spec["containers"].([]interface{})
+		container := containers[0].(map[string]interface{})
+		resources := container["resources"].(map[string]interface{})
+
+		_, hasRequests := resources["requests"]
+		_, hasLimits := resources["limits"]
+		assert.False(t, hasRequests)
+		assert.True(t, hasLimits)
+		assert.Equal(t, "500m", resources["limits"].(map[string]interface{})["cpu"])
+	})
+
+	t.Run("empty container list", func(t *testing.T) {
+		op := SetContainerResources([]ContainerResourcePatch{})
+		result := op.build()
+		spec := result["spec"].(map[string]interface{})
+		containers := spec["containers"].([]interface{})
+		assert.Empty(t, containers)
+	})
+
+	t.Run("empty Name is passed through without guard", func(t *testing.T) {
+		// Name == "" is not rejected at construction time; the empty string becomes
+		// the strategic-merge-patch key and will fail to match any real container.
+		// Callers are responsible for providing a non-empty Name.
+		op := SetContainerResources([]ContainerResourcePatch{
+			{Name: "", Requests: map[string]string{"cpu": "100m"}},
+		})
+		result := op.build()
+		spec := result["spec"].(map[string]interface{})
+		containers := spec["containers"].([]interface{})
+		require.Len(t, containers, 1)
+		assert.Equal(t, "", containers[0].(map[string]interface{})["name"])
+	})
+}
+
 func TestEmptyOperations(t *testing.T) {
 	t.Run("empty metadata annotations", func(t *testing.T) {
 		op := SetMetadataAnnotations(map[string]interface{}{})
