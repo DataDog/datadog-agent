@@ -19,12 +19,10 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
-	hostnameimpl "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
-	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -56,16 +54,15 @@ func TestCommand(t *testing.T) {
 	fxutil.Test[ipc.Component](t,
 		ipcfx.ModuleReadWrite(),
 		core.MockBundle(),
+		hostnameimpl.MockModule(),
 	)
 
 	// closely mirrors what the agents would use, but with mock modules where possible
 	getTestFxOptions := func(cliParams *CliParams, bundleParams core.BundleParams) []fx.Option {
 		return []fx.Option{
 			fx.Supply(cliParams, bundleParams),
-			core.Bundle(),
+			core.Bundle(core.WithSecrets()),
 			hostnameimpl.Module(),
-			secretsfx.Module(),
-			delegatedauthfx.Module(),
 
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			workloadfilterfxmock.MockModule(),

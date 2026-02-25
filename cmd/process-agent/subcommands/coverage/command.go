@@ -21,8 +21,6 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
-	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/process"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -49,8 +47,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(requestCoverage,
 				fx.Supply(cliParams, command.GetCoreBundleParamsForOneShot(globalParams)),
 				core.Bundle(),
-				secretsnoopfx.Module(),
-				delegatedauthnoopfx.Module(),
 				process.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)

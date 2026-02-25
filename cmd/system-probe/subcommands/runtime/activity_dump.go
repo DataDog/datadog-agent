@@ -17,10 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
@@ -73,8 +71,6 @@ func listCommands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
-				secretsnoopfx.Module(),
-				delegatedauthnoopfx.Module(),
 			)
 		},
 	}
@@ -97,8 +93,6 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
-				secretsnoopfx.Module(),
-				delegatedauthnoopfx.Module(),
 			)
 		},
 	}
@@ -151,8 +145,6 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
-				secretsnoopfx.Module(),
-				delegatedauthnoopfx.Module(),
 			)
 		},
 	}
@@ -230,8 +222,6 @@ func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Comma
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
-				secretsnoopfx.Module(),
-				delegatedauthnoopfx.Module(),
 			)
 		},
 	}
@@ -292,8 +282,6 @@ func diffCommands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
-				secretsnoopfx.Module(),
-				delegatedauthnoopfx.Module(),
 			)
 		},
 	}

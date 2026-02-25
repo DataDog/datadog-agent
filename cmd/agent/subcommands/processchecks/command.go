@@ -16,11 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	processCommand "github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -45,10 +43,8 @@ import (
 func getCoreAgentFxOptions(cliParams *check.CliParams, bundleParams core.BundleParams) []fx.Option {
 	return []fx.Option{
 		fx.Supply(cliParams, bundleParams),
-		core.Bundle(),
+		core.Bundle(core.WithSecrets()),
 		hostnameimpl.Module(),
-		secretsfx.Module(),
-		delegatedauthfx.Module(),
 
 		// Provide eventplatformimpl module
 		eventplatformreceiverimpl.Module(),

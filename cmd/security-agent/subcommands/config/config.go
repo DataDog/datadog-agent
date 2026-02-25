@@ -18,13 +18,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
@@ -61,8 +59,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
-				secretsnoopfx.Module(),
-				delegatedauthnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -81,8 +77,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 						LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 					core.Bundle(),
-					secretsnoopfx.Module(),
-					delegatedauthnoopfx.Module(),
 					ipcfx.ModuleReadOnly(),
 				)
 			},
@@ -103,8 +97,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 						LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 					core.Bundle(),
-					secretsnoopfx.Module(),
-					delegatedauthnoopfx.Module(),
 					ipcfx.ModuleReadOnly(),
 				)
 			},
@@ -125,8 +117,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 						LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 					core.Bundle(),
-					secretsnoopfx.Module(),
-					delegatedauthnoopfx.Module(),
 					ipcfx.ModuleReadOnly(),
 				)
 			},
@@ -147,8 +137,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 						LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 					core.Bundle(),
-					secretsnoopfx.Module(),
-					delegatedauthnoopfx.Module(),
 					ipcfx.ModuleReadOnly(),
 				)
 			},

@@ -17,10 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -58,9 +56,7 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 		fx.Supply(core.BundleParams{
 			ConfigParams: config.NewAgentParams(confPath, config.WithExtraConfFiles(extraConfFiles)),
 			LogParams:    log.ForDaemon(command.LoggerName, pkgconfigsetup.PARLogFile, pkgconfigsetup.DefaultPrivateActionRunnerLogFile)}),
-		core.Bundle(),
-		secretsnoopfx.Module(),
-		delegatedauthnoopfx.Module(),
+		core.Bundle(core.WithSecrets()),
 		fx.Provide(func(c config.Component) settings.Params {
 			return settings.Params{
 				Settings: map[string]settings.RuntimeSetting{

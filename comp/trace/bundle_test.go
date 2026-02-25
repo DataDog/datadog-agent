@@ -15,8 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
-	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -52,8 +50,6 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Supply(&traceagentimpl.Params{}),
 		payloadmodifierfx.NilModule(),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
-		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
-		fx.Provide(func() delegatedauth.Component { return delegatedauthmock.New(t) }),
 	)
 }
 
@@ -86,7 +82,6 @@ func TestMockBundleDependencies(t *testing.T) {
 		MockBundle(),
 		taggerfx.Module(),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
-		fx.Provide(func() delegatedauth.Component { return delegatedauthmock.New(t) }),
 	))
 
 	require.NotNil(t, cfg.Object())

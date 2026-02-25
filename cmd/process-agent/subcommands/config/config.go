@@ -16,11 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
-	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -56,8 +54,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(showRuntimeConfiguration,
 				fx.Supply(globalParams, command.GetCoreBundleParamsForOneShot(globalParams)),
 				core.Bundle(),
-				secretsnoopfx.Module(),
-				delegatedauthnoopfx.Module(),
 				process.Bundle(),
 				fx.Supply(params),
 				ipcfx.ModuleReadOnly(),
@@ -75,8 +71,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				return fxutil.OneShot(listRuntimeConfigurableValue,
 					fx.Supply(globalParams, command.GetCoreBundleParamsForOneShot(globalParams)),
 					core.Bundle(),
-					secretsnoopfx.Module(),
-					delegatedauthnoopfx.Module(),
 					process.Bundle(),
 					ipcfx.ModuleReadOnly(),
 				)
@@ -93,8 +87,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				return fxutil.OneShot(setConfigValue,
 					fx.Supply(globalParams, args, command.GetCoreBundleParamsForOneShot(globalParams)),
 					core.Bundle(),
-					secretsnoopfx.Module(),
-					delegatedauthnoopfx.Module(),
 					process.Bundle(),
 					ipcfx.ModuleReadOnly(),
 				)
@@ -110,8 +102,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				return fxutil.OneShot(getConfigValue,
 					fx.Supply(globalParams, args, command.GetCoreBundleParamsForOneShot(globalParams)),
 					core.Bundle(),
-					secretsnoopfx.Module(),
-					delegatedauthnoopfx.Module(),
 					process.Bundle(),
 					ipcfx.ModuleReadOnly(),
 				)
