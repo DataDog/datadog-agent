@@ -24,27 +24,18 @@ import (
 
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(_ *command.GlobalParams) []*cobra.Command {
-	var (
-		commandFlag     string
-		allowedCommands string
-	)
+	var commandFlag string
 
 	shellCmd := &cobra.Command{
 		Use:   "shell [script-file ...]",
 		Short: "Run an embedded POSIX shell",
-		Long:  `Run an embedded POSIX shell interpreter. Supports interactive mode, command strings via -c, script files, and piped stdin.`,
+		Long:  `Run an embedded POSIX shell interpreter. Only builtin commands are available; external command execution is not permitted. Supports interactive mode, command strings via -c, script files, and piped stdin.`,
 		RunE: func(_ *cobra.Command, args []string) error {
-			opts := []interp.RunnerOption{
+			r, err := interp.New(
 				interp.Interactive(true),
 				interp.StdIO(os.Stdin, os.Stdout, os.Stderr),
 				interp.OpenHandler(interp.SafeOpenHandler()),
-			}
-			if allowedCommands != "" {
-				cmds := strings.Split(allowedCommands, ",")
-				opts = append(opts, interp.AllowedCommands(cmds))
-			}
-
-			r, err := interp.New(opts...)
+			)
 			if err != nil {
 				return err
 			}
@@ -58,7 +49,6 @@ func Commands(_ *command.GlobalParams) []*cobra.Command {
 		},
 	}
 	shellCmd.Flags().StringVar(&commandFlag, "command", "", "command string to execute")
-	shellCmd.Flags().StringVar(&allowedCommands, "allowed-commands", "", "comma-separated list of allowed external commands")
 
 	return []*cobra.Command{shellCmd}
 }

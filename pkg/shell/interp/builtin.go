@@ -411,9 +411,8 @@ func (r *Runner) builtin(ctx context.Context, pos syntax.Pos, name string, args 
 			if IsBuiltin(args[0]) {
 				return r.builtin(ctx, pos, args[0], args[1:])
 			}
-			r.exec(ctx, pos, args)
-			exit = r.exit
-			return exit
+			// Safe shell: external commands are not permitted.
+			return failf(127, "%s: command not allowed\n", args[0])
 		}
 		last := uint8(0)
 		for _, arg := range args {

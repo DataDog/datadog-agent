@@ -89,8 +89,12 @@ func (r *Runner) fillExpandConfig(ctx context.Context) {
 			try := 0
 			for {
 				path = filepath.Join(r.tempDir, fifoNamePrefix+strconv.FormatUint(mathrand.Uint64(), 16))
-				err := mkfifo(path, 0o666)
+				err := mkfifo(path, 0o600)
 				if err == nil {
+					if r.activeFifos == nil {
+						r.activeFifos = make(map[string]bool)
+					}
+					r.activeFifos[path] = true
 					break
 				}
 				if !os.IsExist(err) {
@@ -1031,12 +1035,10 @@ func (r *Runner) call(ctx context.Context, pos syntax.Pos, args []string) {
 		r.exit = r.builtin(ctx, pos, name, args[1:])
 		return
 	}
-	if !r.allowedCommands[name] {
-		r.errf("%s: command not allowed\n", name)
-		r.exit.code = 127
-		return
-	}
-	r.exec(ctx, pos, args)
+	// Safe shell: only builtins and shell functions are permitted.
+	// External command execution is unconditionally blocked.
+	r.errf("%s: command not allowed\n", name)
+	r.exit.code = 127
 }
 
 func (r *Runner) exec(ctx context.Context, pos syntax.Pos, args []string) {
@@ -1044,16 +1046,10 @@ func (r *Runner) exec(ctx context.Context, pos syntax.Pos, args []string) {
 }
 
 func (r *Runner) open(ctx context.Context, path string, flags int, mode os.FileMode, print bool) (io.ReadWriteCloser, error) {
-	// If we are opening a FIFO temporary file created by the interpreter itself,
-	// don't pass this along to the open handler as it will not work at all
-	// unless [os.OpenFile] is used directly with it.
-	// Matching by directory and basename prefix isn't perfect, but works.
-	//
-	// If we want FIFOs to use a handler in the future, they probably
-	// need their own separate handler API matching Unix-like semantics.
-	dir, name := filepath.Split(path)
-	dir = strings.TrimSuffix(dir, "/")
-	if dir == r.tempDir && strings.HasPrefix(name, fifoNamePrefix) {
+	// If we are opening a FIFO created by the interpreter's own process
+	// substitution, bypass the open handler — FIFOs require direct os.OpenFile.
+	// Only exact paths tracked in activeFifos are permitted.
+	if r.activeFifos[path] {
 		return os.OpenFile(path, flags, mode)
 	}
 

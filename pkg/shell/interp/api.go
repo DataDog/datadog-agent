@@ -167,14 +167,14 @@ type Runner struct {
 	// apply to the current shell, and not just the command.
 	keepRedirs bool
 
-	// allowedCommands is a set of external command names permitted to run.
-	// When non-nil, only commands in this set may be executed via exec;
-	// builtins and shell functions are always allowed.
-	allowedCommands map[string]bool
 
 	// Fake signal callbacks
 	callbackErr  string
 	callbackExit string
+
+	// activeFifos tracks FIFO paths created by process substitution.
+	// Only these exact paths bypass the openHandler in r.open().
+	activeFifos map[string]bool
 }
 
 // exitStatus holds the state of the shell after running one command.
@@ -530,37 +530,9 @@ func SafeOpenHandler() OpenHandlerFunc {
 	}
 }
 
-// deniedCommands is a hardcoded set of interpreters and command-execution
-// utilities that must never be allowed via AllowedCommands.
-var deniedCommands = map[string]bool{
-	"sh": true, "bash": true, "zsh": true, "dash": true, "ksh": true, "csh": true, "tcsh": true, "fish": true,
-	"python": true, "python3": true, "python2": true, "perl": true, "ruby": true,
-	"node": true, "php": true, "lua": true, "tclsh": true, "wish": true,
-	"env": true, "xargs": true,
-	"awk": true, "gawk": true, "nawk": true, "mawk": true,
-	"expect": true, "script": true,
-}
-
-// AllowedCommands restricts which external commands the interpreter may
-// execute. Builtins and shell functions are always permitted. When cmds is
-// nil or empty, all external commands are allowed.
-// Known shell interpreters are rejected to prevent sandbox bypass.
-func AllowedCommands(cmds []string) RunnerOption {
-	return func(r *Runner) error {
-		if len(cmds) == 0 {
-			return nil
-		}
-		r.allowedCommands = make(map[string]bool, len(cmds))
-		for _, c := range cmds {
-			base := filepath.Base(c)
-			if deniedCommands[base] {
-				return fmt.Errorf("command %q cannot be allowed: interpreter bypass risk", c)
-			}
-			r.allowedCommands[c] = true
-		}
-		return nil
-	}
-}
+// NOTE: External command execution is unconditionally blocked in the safe shell.
+// Only builtins and shell functions are permitted. There is no AllowedCommands
+// mechanism — this is by design to prevent sandbox escapes.
 
 func stdinFile(r io.Reader) (*os.File, error) {
 	switch r := r.(type) {
@@ -833,7 +805,6 @@ func (r *Runner) Reset() {
 		openHandler:     r.openHandler,
 		readDirHandler:  r.readDirHandler,
 		statHandler:     r.statHandler,
-		allowedCommands: r.allowedCommands,
 
 		// These can be set by functions like [Dir] or [Params], but
 		// builtins can overwrite them; reset the fields to whatever the
@@ -1022,7 +993,6 @@ func (r *Runner) subshell(background bool) *Runner {
 		openHandler:     r.openHandler,
 		readDirHandler:  r.readDirHandler,
 		statHandler:     r.statHandler,
-		allowedCommands: r.allowedCommands,
 		stdin:          r.stdin,
 		stdout:         r.stdout,
 		stderr:         r.stderr,

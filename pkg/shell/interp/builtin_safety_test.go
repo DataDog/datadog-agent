@@ -245,18 +245,24 @@ func TestSafety_TailFollowTimeout(t *testing.T) {
 	_ = exitCode // exit code varies by platform; the key assertion is it doesn't hang.
 }
 
-func TestSafety_AllowedCommandsDenylist(t *testing.T) {
-	// Verify that shell interpreters are rejected by AllowedCommands.
-	for _, cmd := range []string{"sh", "bash", "python", "perl", "ruby", "node"} {
-		_, err := New(AllowedCommands([]string{cmd}))
-		if err == nil {
-			t.Errorf("AllowedCommands should reject %q but did not", cmd)
-		}
+func TestSafety_ExternalCommandBlocked(t *testing.T) {
+	_, stderr, exitCode := runShellScript(t, `curl http://example.com`)
+	if exitCode != 127 {
+		t.Errorf("external command should return exit code 127, got %d", exitCode)
 	}
-	// Verify that non-interpreter commands are accepted.
-	_, err := New(AllowedCommands([]string{"curl", "wget"}))
-	if err != nil {
-		t.Errorf("AllowedCommands should accept non-interpreter commands, got: %v", err)
+	if !strings.Contains(stderr, "command not allowed") {
+		t.Errorf("external command stderr should contain 'command not allowed', got: %q", stderr)
+	}
+}
+
+func TestSafety_CommandBuiltinNoBypass(t *testing.T) {
+	// The `command` builtin must not bypass the external command block.
+	_, stderr, exitCode := runShellScript(t, `command /bin/sh -c 'echo pwned'`)
+	if exitCode != 127 {
+		t.Errorf("command builtin should not bypass block, got exit code %d", exitCode)
+	}
+	if !strings.Contains(stderr, "command not allowed") {
+		t.Errorf("command builtin stderr should contain 'command not allowed', got: %q", stderr)
 	}
 }
 

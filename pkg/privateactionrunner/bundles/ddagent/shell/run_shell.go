@@ -64,10 +64,13 @@ func (h *RunShellHandler) Run(
 		return nil, util.DefaultActionError(errors.New("script must be provided"))
 	}
 
-	const defaultShellTimeout = 300 // seconds
+	const defaultShellTimeout = 300  // seconds
+	const maxShellTimeout    = 3600 // seconds
 	timeout := inputs.Timeout
 	if timeout <= 0 {
 		timeout = defaultShellTimeout
+	} else if timeout > maxShellTimeout {
+		timeout = maxShellTimeout
 	}
 	var cancel context.CancelFunc
 	ctx, cancel = context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
