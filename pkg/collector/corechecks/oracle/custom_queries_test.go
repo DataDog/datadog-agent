@@ -10,6 +10,7 @@ package oracle
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/jmoiron/sqlx"
@@ -324,6 +325,101 @@ func TestPdbNameInjectionPrevented(t *testing.T) {
 	err = chk.CustomQueries()
 	assert.NoError(t, err)
 	assert.NoError(t, dbMock.ExpectationsWereMet())
+}
+
+func TestCustomQueriesWithMetricTimestamp(t *testing.T) {
+	db, dbMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	dbMock.ExpectExec("alter.*").WillReturnResult(sqlmock.NewResult(1, 1))
+
+	rows := sqlmock.NewRows([]string{"c1", "c2"}).
+		AddRow(1, "A").
+		AddRow(2, "B")
+	c1 := config.CustomQueryColumns{Name: "c1", Type: "gauge"}
+	c2 := config.CustomQueryColumns{Name: "c2", Type: "tag"}
+	columns := []config.CustomQueryColumns{c1, c2}
+	dbMock.ExpectQuery("SELECT c1, c2 FROM t").WillReturnRows(rows)
+	q := config.CustomQuery{
+		MetricPrefix:    "oracle.custom_query.test",
+		Query:           "SELECT c1, c2 FROM t",
+		Columns:         columns,
+		MetricTimestamp: "query_start",
+	}
+
+	chk, sender := newDbDoesNotExistCheck(t, "", "")
+	chk.Run()
+
+	sender.SetupAcceptAll()
+	sender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	chk.config.InstanceConfig.CustomQueries = []config.CustomQuery{q}
+	chk.dbCustomQueries = sqlx.NewDb(db, "sqlmock")
+
+	beforeExec := float64(time.Now().UnixNano()) / float64(time.Second)
+	err = chk.CustomQueries()
+	afterExec := float64(time.Now().UnixNano()) / float64(time.Second)
+	assert.NoError(t, err, "failed to execute custom query")
+
+	sender.AssertCalled(t, "GaugeWithTimestamp",
+		"oracle.custom_query.test.c1",
+		mock.AnythingOfType("float64"),
+		mock.AnythingOfType("string"),
+		mock.MatchedBy(func(tags []string) bool {
+			for _, tag := range tags {
+				if tag == "c2:A" {
+					return true
+				}
+			}
+			return false
+		}),
+		mock.MatchedBy(func(ts float64) bool {
+			return ts >= beforeExec && ts <= afterExec
+		}),
+	)
+	sender.AssertNotCalled(t, "Gauge", "oracle.custom_query.test.c1",
+		mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestCustomQueriesWithMetricTimestampUnsupportedType(t *testing.T) {
+	db, dbMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	dbMock.ExpectExec("alter.*").WillReturnResult(sqlmock.NewResult(1, 1))
+
+	rows := sqlmock.NewRows([]string{"c1", "c2"}).
+		AddRow(1, "A")
+	c1 := config.CustomQueryColumns{Name: "c1", Type: "rate"}
+	c2 := config.CustomQueryColumns{Name: "c2", Type: "tag"}
+	columns := []config.CustomQueryColumns{c1, c2}
+	dbMock.ExpectQuery("SELECT c1, c2 FROM t").WillReturnRows(rows)
+	q := config.CustomQuery{
+		MetricPrefix:    "oracle.custom_query.test",
+		Query:           "SELECT c1, c2 FROM t",
+		Columns:         columns,
+		MetricTimestamp: "query_start",
+	}
+
+	chk, sender := newDbDoesNotExistCheck(t, "", "")
+	chk.Run()
+
+	sender.SetupAcceptAll()
+
+	chk.config.InstanceConfig.CustomQueries = []config.CustomQuery{q}
+	chk.dbCustomQueries = sqlx.NewDb(db, "sqlmock")
+
+	err = chk.CustomQueries()
+	assert.NoError(t, err)
+
+	// Rate does not support timestamps, so regular Rate should be called as fallback
+	sender.AssertCalled(t, "Rate",
+		"oracle.custom_query.test.c1",
+		mock.AnythingOfType("float64"),
+		mock.AnythingOfType("string"),
+		mock.AnythingOfType("[]string"),
+	)
 }
 
 func TestGlobalCustomQueries(t *testing.T) {
