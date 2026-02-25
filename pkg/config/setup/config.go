@@ -1042,6 +1042,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
 	bindEnvAndSetLogsConfigKeys(config, "container_lifecycle.")
 
+	// Pod lifecycle configuration
+	config.BindEnvAndSetDefault("pod_lifecycle.enabled", true)
+	bindEnvAndSetLogsConfigKeys(config, "pod_lifecycle.")
+
 	// Container image configuration
 	config.BindEnvAndSetDefault("container_image.enabled", true)
 	bindEnvAndSetLogsConfigKeys(config, "container_image.")

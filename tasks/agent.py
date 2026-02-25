@@ -59,6 +59,7 @@ AGENT_CORECHECKS = [
     "containerd",
     "container_image",
     "container_lifecycle",
+    "pod_lifecycle",
     "cpu",
     "cri",
     "snmp",
