@@ -87,6 +87,9 @@ type secretResolver struct {
 	// list of handles and where they were found
 	origin handleToContext
 
+	// set of all values ever resolved from the secret backend
+	resolvedValues map[string]struct{}
+
 	backendType                     string
 	backendConfig                   map[string]interface{}
 	backendCommand                  string
@@ -139,6 +142,7 @@ func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 	return &secretResolver{
 		cache:                   make(map[string]string),
 		origin:                  make(handleToContext),
+		resolvedValues:          make(map[string]struct{}),
 		tlmSecretBackendElapsed: telemetry.NewGauge("secret_backend", "elapsed_ms", []string{"command", "exit_code"}, "Elapsed time of secret backend invocation"),
 		tlmSecretUnmarshalError: telemetry.NewCounter("secret_backend", "unmarshal_errors_count", []string{}, "Count of errors when unmarshalling the output of the secret binary"),
 		tlmSecretResolveError:   telemetry.NewCounter("secret_backend", "resolve_errors_count", []string{"error_kind", "handle"}, "Count of errors when resolving a secret"),
@@ -667,6 +671,10 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 	}
 	// add results to the cache
 	stdmaps.Copy(r.cache, secretResponse)
+	// track all resolved values in an append-only set for IsValueFromSecret lookups
+	for _, secretValue := range secretResponse {
+		r.resolvedValues[secretValue] = struct{}{}
+	}
 	// return info about the handles sorted by their name
 	sort.Slice(handleInfoList, func(i, j int) bool {
 		return handleInfoList[i].Name < handleInfoList[j].Name
@@ -691,6 +699,14 @@ func (r *secretResolver) Refresh() bool {
 // RefreshNow performs an immediate blocking secret refresh and returns an informative message suitable for user display.
 func (r *secretResolver) RefreshNow() (string, error) {
 	return r.performRefresh()
+}
+
+// IsValueFromSecret returns true if the given value was ever resolved from a secret handle.
+func (r *secretResolver) IsValueFromSecret(value string) bool {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	_, ok := r.resolvedValues[value]
+	return ok
 }
 
 // RemoveOrigin removes a origin from the cache

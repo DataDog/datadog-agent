@@ -34,5 +34,10 @@ func (r *SecretNoop) RefreshNow() (string, error) {
 	return "", nil
 }
 
+// IsValueFromSecret always returns false for noop
+func (r *SecretNoop) IsValueFromSecret(_ string) bool {
+	return false
+}
+
 // RemoveOrigin
 func (r *SecretNoop) RemoveOrigin(_ string) {}

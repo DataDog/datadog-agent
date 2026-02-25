@@ -875,6 +875,38 @@ func TestRefreshModes(t *testing.T) {
 	})
 }
 
+func TestIsValueFromSecret(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendCommand = "some_command"
+
+	// initially no values are from secrets
+	assert.False(t, resolver.IsValueFromSecret("password1"))
+
+	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
+		return map[string]string{"pass1": "password1"}, nil
+	}
+	_, err := resolver.Resolve(testSimpleConf, "test", "", "", true)
+	require.NoError(t, err)
+
+	assert.True(t, resolver.IsValueFromSecret("password1"))
+	assert.False(t, resolver.IsValueFromSecret("some_other_value"))
+
+	// mock key rotation
+	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
+		return map[string]string{"pass1": "password2"}, nil
+	}
+	_, err = resolver.RefreshNow()
+	require.NoError(t, err)
+
+	// the new value is recognized
+	assert.True(t, resolver.IsValueFromSecret("password2"))
+	// the OLD value is still recognized
+	assert.True(t, resolver.IsValueFromSecret("password1"))
+
+	assert.False(t, resolver.IsValueFromSecret("some_other_hardcoded_key"))
+}
+
 func TestStartRefreshRoutineWithScatter(t *testing.T) {
 	testCases := []struct {
 		name                   string
