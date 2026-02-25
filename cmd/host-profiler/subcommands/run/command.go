@@ -106,7 +106,6 @@ func getRemoteTaggerOptions() []fx.Option {
 
 func getConfigOptions(params *globalparams.GlobalParams) []fx.Option {
 	return []fx.Option{
-		secretsnoopfx.Module(),
 		configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
 	}
 }
