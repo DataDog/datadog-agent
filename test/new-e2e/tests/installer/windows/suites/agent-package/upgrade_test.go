@@ -145,6 +145,55 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageWithAltDir() {
 		WithValueEqual("InstallPath", altInstallPath+`\`)
 }
 
+// TestUpgradeAgentPackageFromExeWithAltDir tests that an Agent installed with the .exe
+// and custom paths maintains those paths when remotely upgraded
+func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageFromExeWithAltDir() {
+	// Arrange
+	altConfigRoot := `C:\ddconfig`
+	altInstallPath := `C:\ddinstall`
+	s.Installer().SetBinaryPath(altInstallPath + `\bin\` + consts.BinaryName)
+	s.setAgentConfigWithAltDir(altConfigRoot)
+	// TODO: build into AgentVersionManager?
+	url := fmt.Sprintf("https://s3.amazonaws.com/dd-agent/datadog-installer-%s-x86_64.exe", s.StableAgentVersion().PackageVersion())
+	installExe := installerwindows.NewDatadogInstallExe(s.Env().RemoteHost)
+	output, err := installExe.Run(
+		installerwindows.WithInstallerURL(url),
+		installerwindows.WithExtraEnvVars(map[string]string{
+			"DD_PROJECTLOCATION":          altInstallPath,
+			"DD_APPLICATIONDATADIRECTORY": altConfigRoot,
+			// TODO: these need to be overridden here so they're not overridden by installer.InstallScriptEnv
+			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT": "",
+			"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":        s.StableAgentVersion().OCIPackage().Registry,
+		}),
+		installerwindows.WithInstallScriptDevEnvOverrides("STABLE_AGENT"),
+	)
+	s.Require().NoErrorf(err, "failed to install stable agent via exe: %s", output)
+	s.Require().NoError(s.WaitForInstallerService("Running"))
+	s.Require().Host(s.Env().RemoteHost).
+		HasDatadogInstaller().
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, s.StableAgentVersion().Version())
+		})
+
+	// Act
+	s.MustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+	_, err = s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
+
+	// Assert
+	s.Require().Host(s.Env().RemoteHost).
+		NoDirExists(windowsagent.DefaultConfigRoot).
+		NoDirExists(windowsagent.DefaultInstallPath).
+		DirExists(altConfigRoot).
+		DirExists(altInstallPath).
+		HasARunningDatadogAgentService().
+		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("ConfigRoot", altConfigRoot+`\`).
+		WithValueEqual("InstallPath", altInstallPath+`\`)
+}
+
 // TestUpgradeAgentPackageAfterRollback tests that upgrade works after an initial upgrade failed.
 //
 // This is a regression test for WINA-1469, where the Agent account password and

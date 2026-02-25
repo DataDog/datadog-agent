@@ -7,7 +7,9 @@ Processes ~180 go.mod files in ~4 seconds (with a warm Go module cache) using `a
 import asyncio
 import os
 import sys
+from datetime import timedelta
 from subprocess import PIPE, CalledProcessError
+from traceback import format_exception_only
 
 from python.runfiles import runfiles
 
@@ -21,14 +23,15 @@ async def _exec(go, *args, **kwargs):
 
 
 async def _tidy(max_workers, go, mod_path, args):
-    async with max_workers, asyncio.timeout(30):
+    async with max_workers:
         await _exec(go, "mod", "tidy", "-C", mod_path, *args)
 
 
 async def main(go, args):
     mod_paths = await _exec(go, "list", "-f", "{{.Dir}}", "-m", stdout=PIPE)
     max_workers = asyncio.Semaphore((os.cpu_count() or 1) + 4)  # TODO(regis): cpu_count -> Py 3.13's process_cpu_count
-    async with asyncio.TaskGroup() as tg:
+    # global timeout: on cold cache, per-task timeouts were unfairly hit because early tasks download most modules
+    async with asyncio.timeout(timedelta(minutes=5).total_seconds()), asyncio.TaskGroup() as tg:
         for mod_path in mod_paths.decode().splitlines():
             tg.create_task(_tidy(max_workers, go, mod_path, args))
 
@@ -37,4 +40,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main(runfiles.Create().Rlocation(sys.argv[1]), sys.argv[2:]))
     except* Exception as eg:
-        sys.exit("\n".join(str(e) for e in eg.exceptions))
+        sys.exit("\n".join(line.rstrip() for e in eg.exceptions for line in format_exception_only(e)))

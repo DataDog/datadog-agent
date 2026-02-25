@@ -217,8 +217,6 @@ func lint(destFile string) error {
 	}
 
 	reencoded := buf.Bytes()
-	reencoded = bytes.TrimSpace(reencoded)
-	normalized = bytes.TrimSpace(normalized)
 
 	if !bytes.Equal(normalized, reencoded) {
 		origLines := difflib.SplitLines(string(normalized))

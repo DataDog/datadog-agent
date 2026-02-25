@@ -32,24 +32,27 @@ go build -o bin/config-stream-client ./cmd/config-stream-client
 
 ### Prerequisites
 
-1. **Running core-agent** with config stream enabled (enabled by default)
-2. **Auth token** from the agent's runtime directory
+1. **Running core-agent** with config stream enabled (enabled by default) and with mTLS-enabled IPC (default on recent agents).
+2. **Auth token** and **IPC certificate** from the agent's runtime directory. The agent creates these on first run (e.g. `bin/agent/dist/auth_token` and `bin/agent/dist/ipc_cert.pem` when using `-c bin/agent/dist/datadog.yaml`).
+
+**Setup:** Move the IPC files to `/etc/datadog-agent` and set permissions so the client can read them:
 
 ```bash
-chmod 777 bin/agent/dist/auth_token
-cp bin/agent/dist/auth_token /etc/datadog-agent/auth_token
+sudo cp bin/agent/dist/auth_token /etc/datadog-agent/auth_token
+sudo cp bin/agent/dist/ipc_cert.pem /etc/datadog-agent/ipc_cert.pem
+sudo chmod 777 /etc/datadog-agent/auth_token /etc/datadog-agent/ipc_cert.pem
 ```
 
 ### Running the Client
 
-```bash
-# Basic usage (reads auth_token from current directory)
-./bin/config-stream-client
+The client **requires** `-agent-cert-file` when connecting to an agent with mTLS-enabled IPC (the agent presents the same cert; the client must use it to authenticate).
 
-# Specify options explicitly
+```bash
+# Using /etc/datadog-agent (after running the setup steps above)
 ./bin/config-stream-client \
+  --agent-cert-file /etc/datadog-agent/ipc_cert.pem \
+  --agent-auth-token-file /etc/datadog-agent/auth_token \
   --ipc-address localhost:5001 \
-  --auth-token $(cat /etc/datadog-agent/auth_token) \
   --name my-test-client \
   --duration 60s
 ```
@@ -59,9 +62,12 @@ cp bin/agent/dist/auth_token /etc/datadog-agent/auth_token
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--ipc-address` | `localhost:5001` | IPC server address |
-| `--auth-token` | (from file) | Auth token for authentication |
+| `--agent-cert-file` | (required) | Path to agent IPC certificate file (e.g. `/etc/datadog-agent/ipc_cert.pem`). Required for mTLS. |
+| `--agent-auth-token-file` | (none) | Path to agent auth token file (e.g. `/etc/datadog-agent/auth_token`). Overrides `--auth-token` and default `./auth_token`. |
+| `--auth-token` | (from file) | Auth token for authentication (or use `--agent-auth-token-file` or `./auth_token`) |
 | `--name` | `test-client` | Client name for subscription |
 | `--duration` | `30s` | How long to listen for events |
+| `--max-samples` | `5` | Max sample settings to show from snapshot |
 
 ## Example Output
 
@@ -166,9 +172,26 @@ Failed to subscribe: rpc error: code = Unauthenticated
 ```
 
 **Solution:**
-1. Verify auth token is correct: `cat /etc/datadog-agent/auth_token`
-2. Copy token to current directory or use `--auth-token` flag
+1. Verify auth token is correct: `cat /etc/datadog-agent/auth_token` (or your agent's auth_token path)
+2. Use `--agent-auth-token-file` or `--auth-token` or ensure `./auth_token` exists
 3. Check token hasn't expired (restart agent if needed)
+4. Ensure files in `/etc/datadog-agent` have readable permissions (e.g. `chmod 777` as in the setup steps)
+
+### Client Certificate (mTLS) Failed
+
+**Symptoms:**
+```
+client certificate validation failed: client certificate does not match server certificate
+```
+or
+```
+Error: -agent-cert-file is required when connecting to an agent with mTLS-enabled IPC
+```
+
+**Solution:**
+1. Copy the agent's IPC files to `/etc/datadog-agent` and set permissions (see **Setup** under Prerequisites): `auth_token`, `ipc_cert.pem`, and `chmod 777` on both.
+2. Pass the **same** IPC certificate the agent uses: `--agent-cert-file /etc/datadog-agent/ipc_cert.pem` (or the path where you copied `ipc_cert.pem`).
+3. Ensure the agent has been started at least once so that `ipc_cert.pem` and `auth_token` exist in its config directory before copying.
 
 ### No Snapshot Received
 

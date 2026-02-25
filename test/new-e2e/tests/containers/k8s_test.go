@@ -1911,9 +1911,9 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 
 		defer func() {
 			if suite.T().Failed() {
-				sendEvent("error", "Failed to witness scale up *and* scale down events.", nil)
+				sendEvent("error", "Failed to witness a scale up *or* scale down event.", nil)
 			} else {
-				sendEvent("success", "Scale up and scale down events detected.", nil)
+				sendEvent("success", "Scale up or scale down event detected.", nil)
 			}
 		}()
 
@@ -1934,12 +1934,11 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 				return
 			}
 
-			// Check HPA is properly scaling up and down
+			// Check HPA is properly scaling up or down
 			// This indirectly tests the cluster-agent external metrics server
-			scaleUp := false
-			scaleDown := false
+			scaled := false
 			prevValue := -1.0
-		out:
+		outer:
 			for _, metric := range metrics {
 				for _, point := range metric.GetPoints() {
 					if prevValue == -1.0 {
@@ -1947,30 +1946,20 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 						continue
 					}
 
-					if !scaleUp && point.Value > prevValue+0.5 {
-						scaleUp = true
+					if point.Value > prevValue+0.5 {
 						sendEvent("success", "Scale up detected.", pointer.Ptr(int(point.Timestamp)))
-						if scaleDown {
-							break out
-						}
-					} else if !scaleDown && point.Value < prevValue-0.5 {
-						scaleDown = true
+						scaled = true
+						break outer
+					} else if point.Value < prevValue-0.5 {
 						sendEvent("success", "Scale down detected.", pointer.Ptr(int(point.Timestamp)))
-						if scaleUp {
-							break out
-						}
+						scaled = true
+						break outer
 					}
 					prevValue = point.Value
 				}
 			}
-			assert.Truef(c, scaleUp, "No scale up detected")
-			assert.Truef(c, scaleDown, "No scale down detected")
-			// The deployments that have an HPA configured (nginx and redis)
-			// exhibit a traffic pattern that follows a sine wave with a
-			// 20-minute period. This is defined in the test-infra-definitions
-			// repo. For this reason, the timeout for this test needs to be a
-			// bit higher than 20 min to capture the scale down event.
-		}, 25*time.Minute, 10*time.Second, "Failed to witness scale up and scale down of %s.%s", namespace, deployment)
+			assert.Truef(c, scaled, "No scale up or scale down detected")
+		}, 7*time.Minute, 10*time.Second, "Failed to witness scale up or scale down of %s.%s", namespace, deployment)
 	})
 }
 

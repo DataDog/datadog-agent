@@ -707,7 +707,7 @@ def build_libpcap(ctx, env: dict, arch: Arch | None = None):
     """
     embedded_path = get_embedded_path(ctx)
     assert embedded_path, "Failed to find embedded path"
-    target_file = os.path.join(embedded_path, "lib", "libpcap.a")
+    target_file = os.path.join(embedded_path, "embedded", "lib", "libpcap.a")
     if os.path.exists(target_file):
         version = ctx.run(f"strings {target_file} | grep -E '^libpcap version' | cut -d ' ' -f 3").stdout.strip()
         if version == LIBPCAP_VERSION:
@@ -732,8 +732,8 @@ def get_libpcap_cgo_flags(ctx, install_path: str = None):
         embedded_path = get_embedded_path(ctx)
         assert embedded_path, "Failed to find embedded path"
         return {
-            'CGO_CFLAGS': f"-I{os.path.join(embedded_path, 'include')}",
-            'CGO_LDFLAGS': f"-L{os.path.join(embedded_path, 'lib')}",
+            'CGO_CFLAGS': f"-I{os.path.join(embedded_path, 'embedded', 'include')}",
+            'CGO_LDFLAGS': f"-L{os.path.join(embedded_path, 'embedded', 'lib')}",
         }
 
 

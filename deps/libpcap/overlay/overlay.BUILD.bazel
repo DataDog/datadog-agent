@@ -162,6 +162,7 @@ pkg_filegroup(
         ":hdr_files",
         ":lib_files",
     ],
+    prefix = "embedded",
     visibility = ["@@//packages:__subpackages__"],
 )
 
