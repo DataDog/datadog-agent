@@ -123,6 +123,9 @@ type CustomQuery struct {
 	Query        string               `yaml:"query"`
 	Columns      []CustomQueryColumns `yaml:"columns"`
 	Tags         []string             `yaml:"tags"`
+	// can be `query_start` -- BEWARE, when using this option
+	// your metric can be dropped by the intake if it's too slow to complete
+	MetricTimestamp string `yaml:"metric_timestamp"`
 }
 
 type asmConfig struct {
