@@ -24,22 +24,22 @@ func (r *Runner) builtinGrep(ctx context.Context, args []string) exitStatus {
 	var exit exitStatus
 
 	var (
-		ignoreCase   bool
-		invertMatch  bool
-		countOnly    bool
-		filesMatch   bool // -l
-		filesNoMatch bool // -L
-		lineNumbers  bool
+		ignoreCase    bool
+		invertMatch   bool
+		countOnly     bool
+		filesMatch    bool // -l
+		filesNoMatch  bool // -L
+		lineNumbers   bool
 		forceFilename bool // -H
 		noFilename    bool // -h
-		recursive    bool
-		wordMatch    bool
-		lineMatch    bool // -x
-		quiet        bool
-		suppress     bool // -s
-		maxCount     int
-		fixedStr     bool // -F
-		patterns     []string
+		recursive     bool
+		wordMatch     bool
+		lineMatch     bool // -x
+		quiet         bool
+		suppress      bool // -s
+		maxCount      int
+		fixedStr      bool // -F
+		patterns      []string
 	)
 
 	fp := flagParser{remaining: args}

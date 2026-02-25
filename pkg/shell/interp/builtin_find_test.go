@@ -74,7 +74,7 @@ type mockFileInfo struct {
 	isDir   bool
 }
 
-func (m *mockFileInfo) Name() string      { return m.name }
+func (m *mockFileInfo) Name() string       { return m.name }
 func (m *mockFileInfo) Size() int64        { return m.size }
 func (m *mockFileInfo) Mode() fs.FileMode  { return m.mode }
 func (m *mockFileInfo) ModTime() time.Time { return m.modTime }

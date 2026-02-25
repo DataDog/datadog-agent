@@ -82,7 +82,7 @@ const pingMaxCount = 100
 func (r *Runner) builtinPing(ctx context.Context, args []string) exitStatus {
 	var exit exitStatus
 
-	count := 4  // default: send 4 packets
+	count := 4    // default: send 4 packets
 	timeout := 10 // -W: per-packet timeout in seconds
 
 	fp := flagParser{remaining: args}

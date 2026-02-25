@@ -167,7 +167,6 @@ type Runner struct {
 	// apply to the current shell, and not just the command.
 	keepRedirs bool
 
-
 	// Fake signal callbacks
 	callbackErr  string
 	callbackExit string
@@ -798,13 +797,13 @@ func (r *Runner) Reset() {
 	}
 	// reset the internal state
 	*r = Runner{
-		Env:             r.Env,
-		tempDir:         r.tempDir,
-		callHandler:     r.callHandler,
-		execHandler:     r.execHandler,
-		openHandler:     r.openHandler,
-		readDirHandler:  r.readDirHandler,
-		statHandler:     r.statHandler,
+		Env:            r.Env,
+		tempDir:        r.tempDir,
+		callHandler:    r.callHandler,
+		execHandler:    r.execHandler,
+		openHandler:    r.openHandler,
+		readDirHandler: r.readDirHandler,
+		statHandler:    r.statHandler,
 
 		// These can be set by functions like [Dir] or [Params], but
 		// builtins can overwrite them; reset the fields to whatever the
@@ -985,14 +984,14 @@ func (r *Runner) subshell(background bool) *Runner {
 	// Keep in sync with the Runner type. Manually copy fields, to not copy
 	// sensitive ones like [errgroup.Group], and to do deep copies of slices.
 	r2 := &Runner{
-		Dir:             r.Dir,
-		tempDir:         r.tempDir,
-		Params:          r.Params,
-		callHandler:     r.callHandler,
-		execHandler:     r.execHandler,
-		openHandler:     r.openHandler,
-		readDirHandler:  r.readDirHandler,
-		statHandler:     r.statHandler,
+		Dir:            r.Dir,
+		tempDir:        r.tempDir,
+		Params:         r.Params,
+		callHandler:    r.callHandler,
+		execHandler:    r.execHandler,
+		openHandler:    r.openHandler,
+		readDirHandler: r.readDirHandler,
+		statHandler:    r.statHandler,
 		stdin:          r.stdin,
 		stdout:         r.stdout,
 		stderr:         r.stderr,
@@ -1026,9 +1025,9 @@ const maxOutputBytes = 1 << 20 // 1 MiB
 // and all subsequent writes are silently discarded.
 // It is safe for concurrent use (pipeline stages may write concurrently).
 type limitedWriter struct {
-	mu     sync.Mutex
-	w      io.Writer // underlying stdout
-	stderr io.Writer // for the truncation warning
+	mu      sync.Mutex
+	w       io.Writer // underlying stdout
+	stderr  io.Writer // for the truncation warning
 	written int64
 	limit   int64
 	capped  bool

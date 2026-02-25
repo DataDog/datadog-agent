@@ -64,8 +64,8 @@ func (h *RunShellHandler) Run(
 		return nil, util.DefaultActionError(errors.New("script must be provided"))
 	}
 
-	const defaultShellTimeout = 300  // seconds
-	const maxShellTimeout    = 3600 // seconds
+	const defaultShellTimeout = 300 // seconds
+	const maxShellTimeout = 3600    // seconds
 	timeout := inputs.Timeout
 	if timeout <= 0 {
 		timeout = defaultShellTimeout
