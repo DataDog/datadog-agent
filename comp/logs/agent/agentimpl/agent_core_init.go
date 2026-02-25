@@ -162,7 +162,7 @@ func (a *logAgent) addLauncherInstances(lnchrs *launchers.Launchers, wmeta optio
 	lnchrs.AddLauncher(listener.NewLauncher(a.config.GetInt("logs_config.frame_size")))
 	lnchrs.AddLauncher(journald.NewLauncher(a.flarecontroller, a.tagger))
 	lnchrs.AddLauncher(windowsevent.NewLauncher())
-	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta, a.tagger, a.healthPlatform))
+	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta, a.tagger))
 	lnchrs.AddLauncher(integrationLauncher.NewLauncher(
 		afero.NewOsFs(),
 		a.sources, integrationsLogs))

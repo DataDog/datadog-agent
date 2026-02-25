@@ -107,7 +107,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4 v4.3.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 // indirect
 	github.com/Code-Hex/go-generics-cache v1.5.1 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.180 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.182 // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.76.0-rc.4 // indirect
@@ -212,7 +212,7 @@ require (
 	github.com/DataDog/go-sqllexer v0.1.13 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
-	github.com/DataDog/sketches-go v1.4.7 // indirect
+	github.com/DataDog/sketches-go v1.4.8 // indirect
 	github.com/DataDog/viper v1.15.0 // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
@@ -316,7 +316,7 @@ require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/hashicorp/nomad/api v0.0.0-20260106084653-e8f2200c7039 // indirect
 	github.com/hashicorp/serf v0.10.1 // indirect
-	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect
+	github.com/hectane/go-acl v0.0.0-20230225031251-cdfc9e3acf94 // indirect
 	github.com/hetznercloud/hcloud-go/v2 v2.36.0 // indirect
 	github.com/iancoleman/strcase v0.3.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
@@ -536,6 +536,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl => ../../../../comp/core/agenttelemetry/impl
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../../comp/core/configsync
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth => ../../../../comp/core/delegatedauth
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws => ../../../../comp/core/delegatedauth/api/cloudauth/aws
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../../comp/core/hostname/hostnameinterface
@@ -660,6 +662,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/trace/otel => ../../../../pkg/trace/otel
 	github.com/DataDog/datadog-agent/pkg/trace/stats => ../../../../pkg/trace/stats
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil => ../../../../pkg/trace/traceutil
+	github.com/DataDog/datadog-agent/pkg/util/aws/creds => ../../../../pkg/util/aws/creds
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../../pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../../../../pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ../../../../pkg/util/cache

@@ -5,7 +5,7 @@ go 1.25.0
 // every datadog-agent module replaced in the fakeintake go.mod needs to be copied in the Dockerfile
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.180
+	github.com/DataDog/agent-payload/v5 v5.0.182
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/metrics v0.64.0
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
@@ -63,6 +63,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl => ../../comp/core/agenttelemetry/impl
 	github.com/DataDog/datadog-agent/comp/core/config => ../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../comp/core/configsync
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth => ../../comp/core/delegatedauth
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws => ../../comp/core/delegatedauth/api/cloudauth/aws
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../comp/core/hostname/hostnameinterface
@@ -188,6 +190,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/trace/otel => ../../pkg/trace/otel
 	github.com/DataDog/datadog-agent/pkg/trace/stats => ../../pkg/trace/stats
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil => ../../pkg/trace/traceutil
+	github.com/DataDog/datadog-agent/pkg/util/aws/creds => ../../pkg/util/aws/creds
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../../pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ../../pkg/util/cache
