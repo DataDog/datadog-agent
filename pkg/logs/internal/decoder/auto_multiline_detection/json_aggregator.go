@@ -87,6 +87,11 @@ func (r *JSONAggregator) Process(msg *message.Message) []*message.Message {
 	case Incomplete:
 		break
 	case Complete:
+		// Read suffix info before reset — only relevant when a prefix was detected
+		suffixLen := 0
+		if r.prefixLen > 0 {
+			suffixLen = r.decoder.SuffixLen()
+		}
 		r.decoder.Reset()
 
 		// If only one message and no prefix, no need to compact
@@ -96,12 +101,28 @@ func (r *JSONAggregator) Process(msg *message.Message) []*message.Message {
 			return []*message.Message{msg}
 		}
 
-		// Build the JSON portion (skipping the prefix in the first message)
+		// If the suffix is whitespace-only, treat it as no suffix
+		// so json.Compact handles it naturally
+		var suffix []byte
+		if suffixLen > 0 {
+			lastContent := r.messageBuf[len(r.messageBuf)-1].GetContent()
+			suffix = lastContent[len(lastContent)-suffixLen:]
+			if len(bytes.TrimSpace(suffix)) == 0 {
+				suffix = nil
+				suffixLen = 0
+			}
+		}
+
+		// Build the JSON portion (skipping prefix from first message, suffix from last)
 		r.inBuf.Reset()
+		lastIdx := len(r.messageBuf) - 1
 		for i, m := range r.messageBuf {
 			c := m.GetContent()
 			if i == 0 && r.prefixLen > 0 {
 				c = c[r.prefixLen:]
+			}
+			if i == lastIdx && suffixLen > 0 {
+				c = c[:len(c)-suffixLen]
 			}
 			r.inBuf.Write(c)
 		}
@@ -118,12 +139,13 @@ func (r *JSONAggregator) Process(msg *message.Message) []*message.Message {
 			metrics.TlmAutoMultilineJSONAggregatorFlush.Inc("true")
 		}
 
-		// Prepend the prefix if present
+		// Assemble output: prefix + compacted JSON + suffix
 		if r.prefixLen > 0 {
 			prefix := r.messageBuf[0].GetContent()[:r.prefixLen]
-			combined := make([]byte, len(prefix)+r.outBuf.Len())
-			copy(combined, prefix)
-			copy(combined[len(prefix):], r.outBuf.Bytes())
+			combined := make([]byte, len(prefix)+r.outBuf.Len()+len(suffix))
+			n := copy(combined, prefix)
+			n += copy(combined[n:], r.outBuf.Bytes())
+			copy(combined[n:], suffix)
 			msg.SetContent(combined)
 		} else {
 			msg.SetContent(r.outBuf.Bytes())

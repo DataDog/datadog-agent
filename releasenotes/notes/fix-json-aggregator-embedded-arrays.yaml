@@ -11,4 +11,6 @@ fixes:
     Fixes a bug in the auto multiline JSON aggregator where pretty-printed JSON arrays
     and JSON embedded after a text prefix (e.g. ``timestamp error: [``) could not be
     aggregated. Root-level arrays are now supported and text prefixes preceding an
-    opening ``{`` or ``[`` are preserved during aggregation.
+    opening ``{`` or ``[`` are preserved during aggregation. Non-JSON suffixes
+    following the closing delimiter (e.g. ``} END_OF_LOG``) are also preserved when
+    a text prefix is present.

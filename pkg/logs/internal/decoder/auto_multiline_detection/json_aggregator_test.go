@@ -506,6 +506,98 @@ func TestJSONAggregatorNoPrefixDetectionMidStream(t *testing.T) {
 	assert.Equal(t, []byte(`{"arr":[1,2,3]}`), result[0].GetContent())
 }
 
+func TestJSONAggregatorPrefixAndSuffix_MultiMessage(t *testing.T) {
+	aggregator := NewJSONAggregator(true, 4096)
+
+	msg1 := newTestMessage(`0001-01-01 error: [`)
+	result := aggregator.Process(msg1)
+	assert.Equal(t, 0, len(result))
+
+	msg2 := newTestMessage(`  {"key": "val"}`)
+	result = aggregator.Process(msg2)
+	assert.Equal(t, 0, len(result))
+
+	msg3 := newTestMessage(`] END_OF_LOG`)
+	result = aggregator.Process(msg3)
+	assert.Equal(t, 1, len(result), "Expected one aggregated message")
+	assert.Equal(t, []byte(`0001-01-01 error: [{"key":"val"}] END_OF_LOG`), result[0].GetContent())
+	assert.Contains(t, result[0].ParsingExtra.Tags, message.AggregatedJSONTag)
+}
+
+func TestJSONAggregatorPrefixAndSuffix_SingleMessage(t *testing.T) {
+	aggregator := NewJSONAggregator(true, 4096)
+
+	// Single line with prefix + JSON + suffix
+	// json.Valid fails so it goes through the validator path
+	msg := newTestMessage(`error: {"k":"v"} END`)
+	result := aggregator.Process(msg)
+	assert.Equal(t, 1, len(result))
+	assert.Equal(t, []byte(`error: {"k":"v"} END`), result[0].GetContent())
+}
+
+func TestJSONAggregatorPrefixAndSuffix_ObjectMultiMessage(t *testing.T) {
+	aggregator := NewJSONAggregator(true, 4096)
+
+	msg1 := newTestMessage(`2024-01-01 details: {`)
+	result := aggregator.Process(msg1)
+	assert.Equal(t, 0, len(result))
+
+	msg2 := newTestMessage(`  "error": "bad",`)
+	result = aggregator.Process(msg2)
+	assert.Equal(t, 0, len(result))
+
+	msg3 := newTestMessage(`  "code": 500`)
+	result = aggregator.Process(msg3)
+	assert.Equal(t, 0, len(result))
+
+	msg4 := newTestMessage(`} -- logged by svc`)
+	result = aggregator.Process(msg4)
+	assert.Equal(t, 1, len(result))
+	assert.Equal(t, []byte(`2024-01-01 details: {"error":"bad","code":500} -- logged by svc`), result[0].GetContent())
+}
+
+func TestJSONAggregatorPrefixAndWhitespaceOnlySuffix(t *testing.T) {
+	aggregator := NewJSONAggregator(true, 4096)
+
+	msg1 := newTestMessage(`error: {`)
+	result := aggregator.Process(msg1)
+	assert.Equal(t, 0, len(result))
+
+	msg2 := newTestMessage(`  "k": "v"`)
+	result = aggregator.Process(msg2)
+	assert.Equal(t, 0, len(result))
+
+	// Closing brace with only trailing whitespace — should be treated as no suffix
+	msg3 := newTestMessage(`}   ` + "\n")
+	result = aggregator.Process(msg3)
+	assert.Equal(t, 1, len(result))
+	assert.Equal(t, []byte(`error: {"k":"v"}`), result[0].GetContent())
+}
+
+func TestJSONAggregatorNoPrefixWithSuffix_Unchanged(t *testing.T) {
+	aggregator := NewJSONAggregator(true, 1000)
+
+	// No prefix detected — suffix handling should NOT apply
+	msg1 := newTestMessage(`{`)
+	result := aggregator.Process(msg1)
+	assert.Equal(t, 0, len(result))
+
+	msg2 := newTestMessage(`"key": "value"`)
+	result = aggregator.Process(msg2)
+	assert.Equal(t, 0, len(result))
+
+	// Closing brace with trailing text, but no prefix was detected
+	// json.Compact will fail on the trailing text → Flush as-is
+	msg3 := newTestMessage(`} trailing stuff`)
+	result = aggregator.Process(msg3)
+
+	// With the early-exit, validator returns Complete, but json.Compact fails → Flush
+	assert.Equal(t, 3, len(result), "Expected all three messages flushed as-is")
+	assert.Equal(t, []byte(`{`), result[0].GetContent())
+	assert.Equal(t, []byte(`"key": "value"`), result[1].GetContent())
+	assert.Equal(t, []byte(`} trailing stuff`), result[2].GetContent())
+}
+
 func TestFindEmbeddedJSONStart(t *testing.T) {
 	tests := []struct {
 		name     string

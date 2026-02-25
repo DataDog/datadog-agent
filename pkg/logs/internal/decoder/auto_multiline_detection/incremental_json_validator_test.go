@@ -258,6 +258,101 @@ func TestPrettyPrintedRootLevelArray(t *testing.T) {
 	assert.Equal(t, Complete, decoder.Write([]byte(lines[len(lines)-1])))
 }
 
+func TestSuffixLen(t *testing.T) {
+	tests := []struct {
+		name              string
+		inputs            []string
+		expectedState     JSONState
+		expectedSuffixLen int
+	}{
+		{
+			name:              "no suffix",
+			inputs:            []string{`{"key":`, `"value"`, `}`},
+			expectedState:     Complete,
+			expectedSuffixLen: 0,
+		},
+		{
+			name:              "text suffix on closing line",
+			inputs:            []string{`{"key":`, `"value"`, `} END_OF_LOG`},
+			expectedState:     Complete,
+			expectedSuffixLen: 11,
+		},
+		{
+			name:              "whitespace-only suffix",
+			inputs:            []string{`{"key":`, `"value"`, `}   ` + "\n\t"},
+			expectedState:     Complete,
+			expectedSuffixLen: 5,
+		},
+		{
+			name:              "array with text suffix",
+			inputs:            []string{`[`, `1,2`, `] -- end`},
+			expectedState:     Complete,
+			expectedSuffixLen: 7,
+		},
+		{
+			name:              "single line with suffix",
+			inputs:            []string{`{"key":"value"} trailing`},
+			expectedState:     Complete,
+			expectedSuffixLen: 9,
+		},
+		{
+			name:              "single line no suffix",
+			inputs:            []string{`{"key":"value"}`},
+			expectedState:     Complete,
+			expectedSuffixLen: 0,
+		},
+		{
+			name:              "suffix after reset",
+			inputs:            []string{`{"a":"b"}`},
+			expectedState:     Complete,
+			expectedSuffixLen: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			decoder := NewIncrementalJSONValidator()
+			var lastState JSONState
+			for _, input := range tt.inputs {
+				lastState = decoder.Write([]byte(input))
+			}
+			assert.Equal(t, tt.expectedState, lastState)
+			assert.Equal(t, tt.expectedSuffixLen, decoder.SuffixLen(), "unexpected suffix length")
+		})
+	}
+
+	// Verify SuffixLen resets properly
+	t.Run("reset clears suffix tracking", func(t *testing.T) {
+		decoder := NewIncrementalJSONValidator()
+		state := decoder.Write([]byte(`{"key":"value"} trailing`))
+		assert.Equal(t, Complete, state)
+		assert.Equal(t, 9, decoder.SuffixLen())
+
+		decoder.Reset()
+		state = decoder.Write([]byte(`{"a":"b"}`))
+		assert.Equal(t, Complete, state)
+		assert.Equal(t, 0, decoder.SuffixLen())
+	})
+}
+
+func TestEarlyExitOnCompletion(t *testing.T) {
+	// Verify that trailing non-JSON content doesn't cause Invalid
+	// when the JSON structure is already complete
+	decoder := NewIncrementalJSONValidator()
+
+	state := decoder.Write([]byte(`{"key":`))
+	assert.Equal(t, Incomplete, state)
+
+	state = decoder.Write([]byte(`"value"}`))
+	assert.Equal(t, Complete, state)
+
+	// After Complete + Reset, new content works normally
+	decoder.Reset()
+	state = decoder.Write([]byte(`{"k":"v"} SUFFIX`))
+	assert.Equal(t, Complete, state)
+	assert.Equal(t, 7, decoder.SuffixLen())
+}
+
 func TestLargeComplexJson(t *testing.T) {
 	jsonString := `{
     "id": "test-123",
