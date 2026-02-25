@@ -2,6 +2,11 @@ name 'datadog-agent-dependencies'
 
 description "Enforce building dependencies as soon as possible so they can be cached"
 
+# Linux-specific dependencies
+if linux_target?
+  dependency 'curl'
+end
+
 dependency 'datadog-agent-data-plane' if linux_target? && !heroku_target?
 
 if (linux_target? && !heroku_target?) || windows_target?
