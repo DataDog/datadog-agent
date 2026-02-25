@@ -116,8 +116,8 @@ pkg_files(
 
 # FIPS version of the agent requires libraries and headers of the regular OpenSSL installation.
 # Thus, bringing them in here with openssl_install_files target.
-pkg_install(
-    name = "install",
+pkg_filegroup(
+    name = "all_files",
     srcs = [
         ":openssl_cnf_tmp",
         ":openssl_fips_provider",
@@ -125,6 +125,17 @@ pkg_install(
         "@platforms//os:windows": [],
         "//conditions:default": [":fipsinstall_sh"],
     }),
+    prefix = select({
+        "@platforms//os:windows": "embedded3",
+        "//conditions:default": "embedded",
+    }),
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
 )
 
 # Cross-platform helper to set the correct paths in openssl.cnf and fipsinstall.sh.
