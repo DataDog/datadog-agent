@@ -9,8 +9,7 @@ include:
   # Windows jobs - set SKIP_WINDOWS=true to exclude all Windows-related jobs
   - local: .gitlab/windows/**.yml
     rules:
-      - if: $SKIP_WINDOWS == "true"
-        when: never
+      - !reference [.except_skip_windows]
       - when: always
 
 default:
@@ -483,6 +482,10 @@ workflow:
 
 .except_deploy:
   - <<: *if_deploy
+    when: never
+
+.except_skip_windows:
+  - if: $SKIP_WINDOWS == "true"
     when: never
 
 .except_no_tests_no_deploy:

@@ -23,3 +23,12 @@ bazel:test:macos-arm64:
   extends: [ .bazel:test, .bazel:runner:macos-arm64 ]
   script:
     - bazel test //bazel/tests/...
+
+bazel:test:windows-amd64:
+  extends: [ .bazel:test, .bazel:runner:windows-amd64 ]
+  rules:
+    - !reference [.except_skip_windows]
+    - !reference [.bazel:test, rules]
+  variables:
+    POWERSHELL_SCRIPT: |-
+      bazel test //bazel/tests/...

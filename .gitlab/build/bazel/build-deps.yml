@@ -24,3 +24,13 @@ bazel:build-deps:macos-arm64:
   script:
     - bazel build //deps/... --platforms=//bazel/platforms:macos_arm64
 
+bazel:build-deps:windows-amd64:
+  extends: [ .bazel:build-deps, .bazel:runner:windows-amd64 ]
+  rules:
+    - !reference [.except_skip_windows]
+    - !reference [.bazel:build-deps, rules]
+  variables:
+    POWERSHELL_SCRIPT: |-
+      [Console]::WriteLine("🟡 TODO(regis): compilation errors remain - limiting to a working subset for the time being")
+      bazel build '@zlib//...' '@libffi//:ffi' '@xz//...' '@cpython//...' '@openssl//...' --platforms=//bazel/platforms:windows_x86_64
+      # bazel build @bzip2//...
