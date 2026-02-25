@@ -134,7 +134,17 @@ func findParquetFiles(dirPath string) ([]string, error) {
 }
 
 // readParquetFile reads a single parquet file and extracts FGM metrics.
+// Will return an empty slice if the file is too small (no error).
 func readParquetFile(filePath string) ([]FGMMetric, error) {
+	// Ensure file is not too small
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("statting file: %w", err)
+	}
+	if info.Size() < minParquetFileSize {
+		return []FGMMetric{}, nil
+	}
+
 	// Open the parquet file
 	f, err := os.Open(filePath)
 	if err != nil {
