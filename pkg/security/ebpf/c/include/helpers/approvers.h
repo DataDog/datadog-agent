@@ -310,9 +310,14 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct den
 
     struct path_key_t *process_path_key = bpf_map_lookup_elem(&pid_path_keys, &pid);
     if (process_path_key != NULL) {
-        struct process_path_key_t key = {
-            // NOTE should add the parent pid here
+        u32 ppid = 0;
+        struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
+        if (pid_entry != NULL) {
+            ppid = pid_entry->ppid;
+        }
 
+        struct process_path_key_t key = {
+            .ppid = ppid,
             .process_path_key = *process_path_key,
             .file_path_key = file->path_key,
         };
