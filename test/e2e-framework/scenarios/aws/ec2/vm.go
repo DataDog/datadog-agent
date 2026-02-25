@@ -58,6 +58,7 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			HTTPTokensRequired: vmArgs.httpTokensRequired,
 			Tenancy:            vmArgs.tenancy,
 			HostID:             pulumi.String(vmArgs.hostID),
+			VolumeThroughput:   vmArgs.volumeThroughput,
 		}
 
 		if vmArgs.osInfo.Family() == os.MacOSFamily && vmArgs.hostID == "" {
@@ -134,6 +135,7 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 	})
 }
 
+// InstallECRCredentialsHelper installs the ECR credentials helper on the given VM.
 func InstallECRCredentialsHelper(e aws.Environment, vm *remote.Host) (command.Command, error) {
 	ecrCredsHelperInstall, err := vm.OS.PackageManager().Ensure("amazon-ecr-credential-helper", nil, "docker-credential-ecr-login")
 	if err != nil {
@@ -167,6 +169,14 @@ func defaultVMArgs(e aws.Environment, vmArgs *vmArgs) error {
 		if vmArgs.osInfo.Architecture == os.ARM64Arch {
 			vmArgs.instanceType = e.DefaultARMInstanceType()
 		}
+		if vmArgs.osInfo.Family() == os.WindowsFamily {
+			vmArgs.instanceType = e.DefaultWindowsInstanceType()
+		}
+	}
+
+	if vmArgs.volumeThroughput == 0 && vmArgs.osInfo.Family() == os.WindowsFamily {
+		// Increase throughput for Windows instances to 400 MiB/s to reduce test flakiness
+		vmArgs.volumeThroughput = 400
 	}
 
 	// macOS dedicated host defaults
