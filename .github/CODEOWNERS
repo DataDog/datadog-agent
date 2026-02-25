@@ -349,6 +349,7 @@
 /comp/core/flare @DataDog/agent-configuration
 /comp/core/gui @DataDog/agent-configuration
 /comp/core/profiler @DataDog/agent-configuration
+/comp/core/remoteflags @DataDog/agent-metric-pipelines
 /comp/core/secrets @DataDog/agent-configuration
 /comp/core/settings @DataDog/agent-configuration
 /comp/core/status @DataDog/agent-configuration
@@ -558,6 +559,7 @@
 /pkg/proto/datadog/trace                @DataDog/agent-apm
 /pkg/proto/datadog/workloadmeta         @DataDog/container-platform
 /pkg/remoteconfig/                      @DataDog/remote-config
+/pkg/remoteflags/                       @DataDog/agent-metric-pipelines
 /pkg/runtime/                           @DataDog/agent-runtimes
 /pkg/redact/                            @DataDog/kubernetes-experiences
 /pkg/system-probe/                      @DataDog/ebpf-platform
