@@ -191,12 +191,3 @@ func (s *processAutodiscoverySuite) verifyNginxCheckScheduledViaProcess(c *asser
 
 	assert.Fail(c, "Nginx check is configured but has not run yet")
 }
-
-// getCheckNames returns the names of all scheduled checks
-func getCheckNames(checks map[checkName]map[instanceName]checkStatus) []string {
-	names := make([]string, 0, len(checks))
-	for name := range checks {
-		names = append(names, name)
-	}
-	return names
-}

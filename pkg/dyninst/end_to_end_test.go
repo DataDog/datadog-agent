@@ -311,7 +311,7 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 		exp := expected.AsStats()
 		gotKeys := slices.Sorted(maps.Keys(stats))
 		expectedKeys := slices.Sorted(maps.Keys(exp))
-		require.Equal(t, gotKeys, expectedKeys)
+		assert.Equal(t, gotKeys, expectedKeys)
 		for _, key := range gotKeys {
 			assert.Equal(t, exp[key], stats[key], "key %s", key)
 		}
