@@ -86,6 +86,7 @@ def _collect_cc_dynamic_deps_impl(target, ctx):
             for dep in attr_value:
                 if DefaultInfo in dep:
                     direct.extend(dep[DefaultInfo].files.to_list())
+
     return [_TransitiveCcDynamicDepsInfo(libs = depset(direct, transitive = transitive))]
 
 _collect_cc_dynamic_deps = aspect(

@@ -1,13 +1,11 @@
-load("@//bazel/rules:collect_cc_dynamic_deps.bzl", "cc_dynamic_deps_filegroup")
 load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
-load("@//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@bazel_skylib//rules:select_file.bzl", "select_file")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink", "strip_prefix")
+load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_attributes", "pkg_files", "pkg_mklink", "strip_prefix")
 
 # Keep in sync with the ones on repos.MODULE.bazel
 python_externals = {
@@ -359,7 +357,7 @@ pkg_files(
     name = "install_libs_unix",
     srcs = [
         ":python_lib_dir_unix",
-        ":python_lib_unix",
+        ":python_lib_unix"
     ] + select({
         "@platforms//os:linux": [":python_stable_lib_linux"],
         "//conditions:default": [],
@@ -383,27 +381,6 @@ pkg_files(
     attributes = pkg_attributes("0755"),
 )
 
-cc_dynamic_deps_filegroup(
-    name = "_auto_cc_dynamic_deps",
-    srcs = [":python_unix"],
-    target_compatible_with = select({
-        "@platforms//os:macos": [],
-        "@platforms//os:linux": [],
-        "//conditions:default": ["@platforms//:incompatible"],
-    }),
-)
-
-rewrite_rpath(
-    name = "_auto_deps_fixed_rpath",
-    inputs = [":_auto_cc_dynamic_deps"],
-)
-
-pkg_files(
-    name = "auto_cc_dynamic_deps_pkg",
-    srcs = [":_auto_deps_fixed_rpath"],
-    prefix = "lib",
-)
-
 pkg_install(
     name = "install",
     srcs = select({
@@ -414,7 +391,6 @@ pkg_install(
             ":install_libs_unix",
             ":install_headers_unix",
             ":install_bins_unix",
-            ":auto_cc_dynamic_deps_pkg",
         ] + [":python_bin_symlink_" + name for name in BIN_SYMLINKS.values()],
     }) + select({
         "@platforms//os:linux": [":libpython_symlink"],
