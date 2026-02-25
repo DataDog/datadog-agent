@@ -10,7 +10,6 @@ package marshal
 import (
 	"bytes"
 	"io"
-	"slices"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/sketches-go/ddsketch"
@@ -38,12 +37,6 @@ func newPostgresEncoder(postgresPayloads map[postgres.Key]*postgres.RequestStat)
 			return key.ConnectionKey
 		}),
 	}
-}
-
-func (e *postgresEncoder) EncodeConnectionDirect(c network.ConnectionStats, conn *model.Connection, buf *bytes.Buffer) (staticTags uint64, dynamicTags map[string]struct{}) {
-	staticTags = e.encodeData(c, buf)
-	conn.DatabaseAggregations = slices.Clone(buf.Bytes())
-	return
 }
 
 func (e *postgresEncoder) EncodeConnection(c network.ConnectionStats, builder *model.ConnectionBuilder) (staticTags uint64, dynamicTags map[string]struct{}) {
