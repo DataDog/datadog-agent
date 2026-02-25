@@ -20,7 +20,6 @@ import (
 )
 
 func runFxWrapper(global *command.GlobalParams) error {
-	log.Infof("Running fxutil.Run (runFxWrapper start)")
 	return fxutil.Run(
 		getCommonFxOption(global),
 		fx.Invoke(func(_ pid.Component) {}),
@@ -31,12 +30,10 @@ func runFxWrapper(global *command.GlobalParams) error {
 }
 
 func startDaemon(shutdowner fx.Shutdowner, cfg config.Component) {
-	log.Infof("Starting daemon (startDaemon start)")
 	if !cfg.GetBool("remote_updates") {
 		log.Infof("Datadog installer is not enabled, exiting")
 		_ = shutdowner.Shutdown()
 		return
 	}
 	releaseMemory()
-	log.Infof("Daemon started (startDaemon end)")
 }
