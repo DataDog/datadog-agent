@@ -85,7 +85,7 @@ def rewrite_rpath(name, inputs, rpath = None):
         inputs = inputs,
         rpath = rpath,
         script = select({
-            "@platforms//os:macos": ":macos.sh",
+            "@platforms//os:macos": "@@//bazel/rules/rewrite_rpath:macos.sh",
             "//conditions:default": None,
         }),
         os = select({
