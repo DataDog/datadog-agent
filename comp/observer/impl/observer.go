@@ -113,6 +113,12 @@ func NewComponent(deps Requires) Provides {
 	// Otherwise, use inner handle directly (no recording).
 	if deps.Recorder != nil {
 		obs.handleFunc = deps.Recorder.GetHandle(obs.innerHandle)
+		deps.Recorder.WriteMetric("debug", &metricSample{
+			name:      "debug",
+			value:     1,
+			tags:      []string{"debug:true"},
+			timestamp: float64(time.Now().Unix()),
+		})
 	} else {
 		obs.handleFunc = obs.innerHandle
 	}

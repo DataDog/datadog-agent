@@ -26,6 +26,9 @@ type Component interface {
 	// This is called by the observer's GetHandle to create the final handle chain.
 	GetHandle(handleFunc observer.HandleFunc) observer.HandleFunc
 
+	// Used for debug metrics, these won't go through the handle chain.
+	WriteMetric(source string, sample observer.MetricView) error
+
 	// ReadAllMetrics reads all metrics from parquet files and returns them as a slice.
 	// This is for batch loading scenarios (like testbench) where streaming via handles
 	// is not needed and direct access to all metrics at once is more efficient.

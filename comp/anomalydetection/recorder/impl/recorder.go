@@ -86,6 +86,14 @@ func (r *recorderImpl) GetHandle(handleFunc observer.HandleFunc) observer.Handle
 	}
 }
 
+func (r *recorderImpl) WriteMetric(source string, sample observer.MetricView) error {
+	if r.parquetWriter == nil {
+		return fmt.Errorf("parquet writer not initialized")
+	}
+	r.WriteParquetMetric(source, sample)
+	return nil
+}
+
 // ReadAllMetrics reads all metrics from parquet files and returns them as a slice.
 // This is for batch loading scenarios where streaming via handles is not needed.
 func (r *recorderImpl) ReadAllMetrics(inputDir string) ([]recorderdef.MetricData, error) {
@@ -140,6 +148,20 @@ func (r *recorderImpl) ReadAllMetrics(inputDir string) ([]recorderdef.MetricData
 	return metrics, nil
 }
 
+func (r *recorderImpl) WriteParquetMetric(source string, sample observer.MetricView) {
+	timestamp := int64(sample.GetTimestamp())
+	if timestamp == 0 {
+		timestamp = time.Now().Unix()
+	}
+	r.parquetWriter.WriteMetric(
+		source,
+		sample.GetName(),
+		sample.GetValue(),
+		sample.GetRawTags(),
+		timestamp,
+	)
+}
+
 // recordingHandle wraps an observer handle to record observations.
 type recordingHandle struct {
 	inner    observer.Handle
@@ -154,17 +176,7 @@ func (h *recordingHandle) ObserveMetric(sample observer.MetricView) {
 
 	// Record to parquet if writer is available
 	if h.recorder.parquetWriter != nil {
-		timestamp := int64(sample.GetTimestamp())
-		if timestamp == 0 {
-			timestamp = time.Now().Unix()
-		}
-		h.recorder.parquetWriter.WriteMetric(
-			h.name,
-			sample.GetName(),
-			sample.GetValue(),
-			sample.GetRawTags(),
-			timestamp,
-		)
+		h.recorder.WriteParquetMetric(h.name, sample)
 	}
 }
 
