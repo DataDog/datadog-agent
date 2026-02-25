@@ -10,6 +10,7 @@ package filter
 import (
 	"testing"
 
+	"github.com/google/gopacket/layers"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -50,6 +51,7 @@ func TestDeterminePacketDirection_IPv4_Outgoing(t *testing.T) {
 
 	ih := &interfaceHandle{
 		ifaceName:  "test",
+		linkType:   layers.LinkTypeEthernet,
 		localAddrs: map[string]struct{}{string(local[:]): {}},
 	}
 
@@ -65,6 +67,7 @@ func TestDeterminePacketDirection_IPv4_Host(t *testing.T) {
 
 	ih := &interfaceHandle{
 		ifaceName:  "test",
+		linkType:   layers.LinkTypeEthernet,
 		localAddrs: map[string]struct{}{string(local[:]): {}},
 	}
 
@@ -80,6 +83,7 @@ func TestDeterminePacketDirection_IPv4_ShortData(t *testing.T) {
 
 	ih := &interfaceHandle{
 		ifaceName:  "test",
+		linkType:   layers.LinkTypeEthernet,
 		localAddrs: map[string]struct{}{string([]byte{192, 168, 1, 1}): {}},
 	}
 
@@ -91,6 +95,7 @@ func TestDeterminePacketDirection_IPv4_VeryShort(t *testing.T) {
 	// Less than 14 bytes: no ethernet.
 	ih := &interfaceHandle{
 		ifaceName:  "test",
+		linkType:   layers.LinkTypeEthernet,
 		localAddrs: map[string]struct{}{},
 	}
 	dir := ih.determinePacketDirection([]byte{1, 2, 3})
@@ -106,6 +111,7 @@ func TestDeterminePacketDirection_IPv6_Outgoing(t *testing.T) {
 
 	ih := &interfaceHandle{
 		ifaceName:  "test",
+		linkType:   layers.LinkTypeEthernet,
 		localAddrs: map[string]struct{}{string(local[:]): {}},
 	}
 
@@ -122,6 +128,7 @@ func TestDeterminePacketDirection_IPv6_Host(t *testing.T) {
 
 	ih := &interfaceHandle{
 		ifaceName:  "test",
+		linkType:   layers.LinkTypeEthernet,
 		localAddrs: map[string]struct{}{string(local[:]): {}},
 	}
 
@@ -137,6 +144,7 @@ func TestDeterminePacketDirection_IPv6_ShortData(t *testing.T) {
 
 	ih := &interfaceHandle{
 		ifaceName:  "test",
+		linkType:   layers.LinkTypeEthernet,
 		localAddrs: map[string]struct{}{},
 	}
 	dir := ih.determinePacketDirection(data)
@@ -151,6 +159,7 @@ func TestDeterminePacketDirection_NonIP_EtherType(t *testing.T) {
 
 	ih := &interfaceHandle{
 		ifaceName:  "test",
+		linkType:   layers.LinkTypeEthernet,
 		localAddrs: map[string]struct{}{},
 	}
 	dir := ih.determinePacketDirection(data)
