@@ -131,6 +131,10 @@ func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 		hostTags = appendToHostTags(hostTags, []string{"env:" + env})
 	}
 
+	if infraMode := conf.GetString("infrastructure_mode"); infraMode != "" && infraMode != "full" {
+		hostTags = appendToHostTags(hostTags, []string{"infra_mode:" + infraMode})
+	}
+
 	gpuTags := conf.GetBool("collect_gpu_tags")
 	if gpuTags {
 		hostTags = appendToHostTags(hostTags, gpu.GetTags())

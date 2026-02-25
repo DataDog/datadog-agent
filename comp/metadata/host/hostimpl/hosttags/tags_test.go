@@ -92,6 +92,15 @@ func TestMarshalEmptyHostTags(t *testing.T) {
 	assert.Equal(t, string(marshaled), `{"system":[]}`)
 }
 
+func TestGetWithInfraMode(t *testing.T) {
+	mockConfig, ctx := setupTest(t)
+	mockConfig.SetWithoutSource("infrastructure_mode", "basic")
+
+	hostTags := Get(ctx, false, mockConfig)
+	assert.NotNil(t, hostTags.System)
+	assert.Contains(t, hostTags.System, "infra_mode:basic")
+}
+
 func TestCombineExtraTags(t *testing.T) {
 	mockConfig, ctx := setupTest(t)
 	mockConfig.SetWithoutSource("tags", []string{"tag1:value1", "tag2", "tag4"})
