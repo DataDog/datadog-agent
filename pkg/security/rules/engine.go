@@ -655,8 +655,8 @@ func (e *RuleEngine) SetRulesetLoadedCallback(cb func(es *rules.RuleSet, err *mu
 }
 
 type slowProcessingEvent struct {
-	EventType       string                        `json:"event_type"`
-	DurationUs      int64                         `json:"duration_us"`
+	EventType       string                       `json:"event_type"`
+	DurationUs      int64                        `json:"duration_us"`
 	ProcessingTrace []model.ProcessingCheckpoint `json:"processing_trace,omitempty"`
 }
 
@@ -726,7 +726,7 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 	}
 
 	// Debug-only: report events that took too long to process, even if no rule matched.
-	if event.Flags&model.EventFlagsSlowProcessingReported == 0 && time.Since(event.StartTime) > 3*time.Second {
+	if event.Flags&model.EventFlagsSlowProcessingReported == 0 && time.Since(event.StartTime) > 1*time.Second {
 		event.AddToFlags(model.EventFlagsSlowProcessingReported)
 
 		originalRuleID := fmt.Sprintf("event_%s", event.GetEventType())
