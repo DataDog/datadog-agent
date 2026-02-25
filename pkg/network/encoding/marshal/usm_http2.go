@@ -10,6 +10,7 @@ package marshal
 import (
 	"bytes"
 	"io"
+	"strings"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/sketches-go/ddsketch"
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type http2Encoder struct {
@@ -46,6 +48,13 @@ func (e *http2Encoder) EncodeConnection(c network.ConnectionStats, builder *mode
 	return
 }
 
+// isK8sAPIPath checks if a path looks like a Kubernetes API path
+func isK8sAPIPathHTTP2(path string) bool {
+	return strings.Contains(path, "persistentvolume") ||
+		strings.Contains(path, "configmaps") ||
+		strings.Contains(path, "namespaces")
+}
+
 func (e *http2Encoder) encodeData(c network.ConnectionStats, w io.Writer) (uint64, map[string]struct{}) {
 	if e == nil {
 		return 0, nil
@@ -54,6 +63,17 @@ func (e *http2Encoder) encodeData(c network.ConnectionStats, w io.Writer) (uint6
 	connectionData := e.byConnection.Find(c)
 	if connectionData == nil || len(connectionData.Data) == 0 || connectionData.IsPIDCollision(c) {
 		return 0, nil
+	}
+
+	// TRACE: Log when NPM connection claims HTTP2 stats with k8s API paths
+	if log.ShouldLog(log.TraceLvl) {
+		for _, kvPair := range connectionData.Data {
+			path := kvPair.Key.Path.Content.Get()
+			if isK8sAPIPathHTTP2(path) {
+				log.Tracef("[USM-ENCODE-K8S-API-HTTP2] MATCH path=%s method=%v pid=%d conn=[%s:%d ⇄ %s:%d]",
+					path, kvPair.Key.Method, c.Pid, c.Source, c.SPort, c.Dest, c.DPort)
+			}
+		}
 	}
 
 	var staticTags uint64
@@ -99,6 +119,23 @@ func (e *http2Encoder) encodeData(c network.ConnectionStats, w io.Writer) (uint6
 func (e *http2Encoder) Close() {
 	if e == nil {
 		return
+	}
+
+	// TRACE: Log orphan k8s API paths (HTTP2 stats not claimed by any NPM connection)
+	if log.ShouldLog(log.TraceLvl) {
+		for key, value := range e.byConnection.GetData() {
+			if !value.IsClaimed() {
+				log.Tracef("[USM-ORPHAN-HTTP2] key=%s dataLen=%d", key.String(), len(value.Data))
+				for _, kvPair := range value.Data {
+					path := kvPair.Key.Path.Content.Get()
+					log.Tracef("[USM-ORPHAN-HTTP2] path=%s method=%v isK8s=%v", path, kvPair.Key.Method, isK8sAPIPathHTTP2(path))
+					if isK8sAPIPathHTTP2(path) {
+						log.Tracef("[USM-ORPHAN-K8S-API-HTTP2] path=%s method=%v key=%s",
+							path, kvPair.Key.Method, key.String())
+					}
+				}
+			}
+		}
 	}
 
 	e.byConnection.Close()
