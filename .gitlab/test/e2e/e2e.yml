@@ -216,17 +216,7 @@ go_e2e_test_binaries:
       optional: true
 
 new-e2e-containers-ecs:
-  extends: .new_e2e_template
-  needs:
-    - !reference [.needs_new_e2e_template]
-    - qa_agent_linux
-    - qa_agent_linux_jmx
-    - qa_dca
-    - qa_dogstatsd
-    - job: qa_agent
-      optional: true
-    - job: qa_agent_jmx
-      optional: true
+  extends: .new_e2e_template_needs_container_deploy
   rules:
     - !reference [.on_container_or_e2e_changes]
     - !reference [.manual]
@@ -306,15 +296,7 @@ new-e2e-containers-eks:
     - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   needs:
-    - !reference [.needs_new_e2e_template]
-    - qa_agent_linux
-    - qa_agent_linux_jmx
-    - qa_dca
-    - qa_dogstatsd
-    - job: qa_agent
-      optional: true
-    - job: qa_agent_jmx
-      optional: true
+    - !reference [.new_e2e_template_needs_container_deploy, needs]
     - new-e2e-containers-eks-init
   variables:
     TARGETS: ./tests/containers
