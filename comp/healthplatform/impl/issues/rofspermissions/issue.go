@@ -42,31 +42,34 @@ func (t *RofsPermissionIssue) BuildIssue(context map[string]string) (*healthplat
 	var remediation *healthplatform.Remediation
 	if env.IsContainerized() {
 		remediation = &healthplatform.Remediation{
-			Summary: "Mount writable volumes to required directories.",
+			Summary: "Mount writable volumes to each directory listed.",
 			Steps: []*healthplatform.RemediationStep{
-				{Order: 1, Text: "Mount a writable volume (as a bind mount or VOLUME instruction) to the following directories:"},
-				{Order: 2, Text: fmt.Sprintf("[%s]", directoriesStr)},
-				{Order: 3, Text: "Identify your container configuration (Docker, Kubernetes, ECS) for the Agent."},
-				{Order: 2, Text: "Learn More: https://docs.datadoghq.com/containers/guide/readonly-root-filesystem"},
+				{Order: 1, Text: "Mount writable volumes to the following directories: " + directoriesStr},
+				{Order: 2, Text: "Use a bind mount or emptyDir volume depending on your container platform (Docker, Kubernetes, ECS)."},
+				{Order: 3, Text: "For detailed instructions, see: https://docs.datadoghq.com/containers/guide/readonly-root-filesystem"},
 			},
 		}
 	} else {
-		// TODO: Add more specific remediation steps, possible scrip to run.
 		remediation = &healthplatform.Remediation{
-			Summary: "Grant write permissions to required directories using ACL or adding dd-agent to group",
+			Summary: "Grant write permissions to the dd-agent user for the required directories.",
 			Steps: []*healthplatform.RemediationStep{
-				{Order: 1, Text: "Grant write permissions to the following directories:"},
-				{Order: 2, Text: fmt.Sprintf("[%s]", directoriesStr)},
-				{Order: 3, Text: fmt.Sprintf("Example: sudo setfacl -Rm g:dd-agent:rwx '%s'", strings.ReplaceAll(directories[0], `'`, `'\''`))},
+				{Order: 1, Text: "Grant write permissions to the following directories: " + directoriesStr},
+				{Order: 2, Text: fmt.Sprintf("Run: sudo setfacl -Rm g:dd-agent:rwx '%s'", strings.ReplaceAll(directories[0], `'`, `'\''`))},
+				{Order: 3, Text: "Alternatively, add the dd-agent user to a group with write access to these directories."},
 			},
 		}
+	}
+
+	descriptionDirectory := "directory"
+	if len(directories) > 1 {
+		descriptionDirectory = "directories"
 	}
 
 	return &healthplatform.Issue{
 		Id:          IssueID,
 		IssueName:   "read_only_filesystem_error",
 		Title:       "Agent Cannot Write to Read-Only Filesystem",
-		Description: fmt.Sprintf("Agent is missing write access to the following directories: %s", directories),
+		Description: fmt.Sprintf("Agent is missing write access to %v %v. Without write access, the Agent may experience issues starting or operating correctly.", len(directories), descriptionDirectory),
 		Category:    "permissions",
 		Location:    "core",
 		Severity:    "high",
