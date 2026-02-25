@@ -80,7 +80,9 @@ func (s *testExtensionsSuite) removeExtension(packageName, extensionName string)
 }
 
 // verifyDDOTRunning verifies that DDOT is running via PowerShell service check.
-func (s *testExtensionsSuite) verifyDDOTRunning() {
+// If expectedVersion is non-empty, also verifies the DDOT service binary path
+// contains that version string, confirming the correct version is running.
+func (s *testExtensionsSuite) verifyDDOTRunning(expectedVersion string) {
 	assert.Eventually(s.T(), func() bool {
 		output, err := s.Env().RemoteHost.Execute(
 			`$svc = Get-Service -Name "datadog-otel-agent" -ErrorAction SilentlyContinue; if ($null -eq $svc) { Write-Output "NotFound" } else { Write-Output $svc.Status }`)
@@ -89,6 +91,14 @@ func (s *testExtensionsSuite) verifyDDOTRunning() {
 		}
 		return strings.Contains(output, "Running")
 	}, 60*time.Second, 2*time.Second, "DDOT service should be running")
+
+	if expectedVersion != "" {
+		binaryPath, err := s.Env().RemoteHost.Execute(
+			`(Get-WmiObject -Class Win32_Service -Filter "Name='datadog-otel-agent'").PathName`)
+		s.Require().NoError(err, "failed to get DDOT service binary path")
+		s.Require().Contains(binaryPath, expectedVersion,
+			"DDOT binary path should contain version %s", expectedVersion)
+	}
 }
 
 // verifyDDOTServiceNotRunning verifies that the DDOT service is not present.
@@ -157,9 +167,9 @@ func (s *testExtensionsSuite) TestExtensionPersistThroughMSIUpgrade() {
 	defer func() {
 		s.removeExtension("datadog-agent", "ddot")
 	}()
-	s.verifyDDOTRunning()
+	s.verifyDDOTRunning(s.StableAgentVersion().Version())
 	s.installCurrentAgentVersion()
-	s.verifyDDOTRunning()
+	s.verifyDDOTRunning(s.CurrentAgentVersion().Version())
 }
 
 // TestExtensionRestoredOnMSIRollback tests that extensions are restored when an MSI upgrade fails and rolls back.
@@ -173,7 +183,7 @@ func (s *testExtensionsSuite) TestExtensionRestoredOnMSIRollback() {
 	defer func() {
 		s.removeExtension("datadog-agent", "ddot")
 	}()
-	s.verifyDDOTRunning()
+	s.verifyDDOTRunning(s.StableAgentVersion().Version())
 
 	err := windowscommon.SetRegistryMultiString(s.Env().RemoteHost,
 		`HKLM:SOFTWARE\Datadog\Datadog Agent`, "StartExperimentMSIArgs",
@@ -194,7 +204,7 @@ func (s *testExtensionsSuite) TestExtensionRestoredOnMSIRollback() {
 			s.Require().Contains(version, s.StableAgentVersion().Version())
 		})
 
-	s.verifyDDOTRunning()
+	s.verifyDDOTRunning(s.StableAgentVersion().Version())
 }
 
 // TestExtensionRemovedOnUninstall tests that extensions are cleaned up on uninstall.
@@ -210,7 +220,7 @@ func (s *testExtensionsSuite) TestExtensionRemovedOnUninstall() {
 	s.installExtension(s.CurrentAgentVersion().OCIPackage(), "ddot")
 
 	// 3. Verify DDOT is running
-	s.verifyDDOTRunning()
+	s.verifyDDOTRunning(s.CurrentAgentVersion().Version())
 
 	// 4. Uninstall agent
 	err := s.Installer().Uninstall()

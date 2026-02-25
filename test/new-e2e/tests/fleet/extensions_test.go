@@ -168,16 +168,19 @@ func (s *extensionsSuite) TestExtensionSurvivesExperiment() {
 		_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")
 	}()
 	s.verifyDDOTRunning()
+	initialDDOTVersion := s.getDDOTAgentVersion()
 	s.setInstallerRegistryConfig()
 
 	targetVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
 	err := s.Backend.StartExperiment("datadog-agent", targetVersion)
 	s.Require().NoError(err)
 	s.verifyDDOTRunning()
+	s.Require().NotEqual(initialDDOTVersion, s.getDDOTAgentVersion(), "DDOT should be running on experiment version after start experiment")
 
 	err = s.Backend.PromoteExperiment("datadog-agent")
 	s.Require().NoError(err)
 	s.verifyDDOTRunning()
+	s.Require().NotEqual(initialDDOTVersion, s.getDDOTAgentVersion(), "DDOT should remain on promoted version after promote experiment")
 }
 
 // TestExtensionRestoredAfterExperimentRollback verifies that extensions are
@@ -192,16 +195,19 @@ func (s *extensionsSuite) TestExtensionRestoredAfterExperimentRollback() {
 	}()
 
 	s.verifyDDOTRunning()
+	initialDDOTVersion := s.getDDOTAgentVersion()
 	s.setInstallerRegistryConfig()
 
 	targetVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
 	err := s.Backend.StartExperiment("datadog-agent", targetVersion)
 	s.Require().NoError(err)
 	s.verifyDDOTRunning()
+	s.Require().NotEqual(initialDDOTVersion, s.getDDOTAgentVersion(), "DDOT should be running on experiment version after start experiment")
 
 	err = s.Backend.StopExperiment("datadog-agent")
 	s.Require().NoError(err)
 	s.verifyDDOTRunning()
+	s.Require().Equal(initialDDOTVersion, s.getDDOTAgentVersion(), "DDOT should be restored to initial version after rollback")
 }
 
 // TestDDOTExtension tests installing DDOT as an extension on all platforms
@@ -270,6 +276,14 @@ func (s *extensionsSuite) getAgentPackageURL(version string) string {
 		}
 	}
 	return "oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-" + version
+}
+
+// getDDOTAgentVersion returns the DDOT AgentVersion from the agent status.
+// Must be called after verifyDDOTRunning to ensure the version field is populated.
+func (s *extensionsSuite) getDDOTAgentVersion() string {
+	status, err := s.Agent.Status()
+	s.Require().NoError(err, "failed to get agent status")
+	return status.OtelAgent.AgentVersion
 }
 
 // verifyDDOTRunning verifies DDOT is running via agent status
