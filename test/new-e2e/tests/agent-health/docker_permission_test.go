@@ -36,80 +36,206 @@ func TestDockerPermissionSuite(t *testing.T) {
 	)
 }
 
-// TestDockerPermissionIssue tests that the agent detects and reports docker permission issues
-func (suite *dockerPermissionSuite) TestDockerPermissionIssue() {
+// TestDockerPermissionIssueLifecycle tests the full lifecycle of a docker permission issue:
+//  1. IssueDetection: agent detects the issue and reports it to fakeintake with correct metadata
+//  2. RestartResilience: after agent restart, issue transitions to "ongoing" in the payload
+//  3. Resolution: after fixing permissions and restarting, the issue disappears from fakeintake
+func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 	host := suite.Env().RemoteHost
 	agent := suite.Env().Agent
 	fakeIntake := suite.Env().Fakeintake.Client()
 
-	// Containers are already deployed by the provisioner via Docker Compose
-	// The agent should detect that it cannot access the Docker socket
-	suite.T().Log("Verifying agent health reports...")
+	// initialFirstSeen is captured in IssueDetection and verified in subsequent phases.
+	var initialFirstSeen string
 
-	// Verify agent is running
-	require.EventuallyWithT(suite.T(), func(t *assert.CollectT) {
-		assert.True(t, agent.Client.IsReady(), "Agent should be ready")
-	}, 2*time.Minute, 10*time.Second, "Agent not ready")
+	// =========================================================================
+	// Phase 1: Issue Detection
+	// =========================================================================
+	suite.T().Run("IssueDetection", func(t *testing.T) {
+		// Verify agent is running
+		require.EventuallyWithT(t, func(ct *assert.CollectT) {
+			assert.True(ct, agent.Client.IsReady(), "Agent should be ready")
+		}, 2*time.Minute, 10*time.Second, "Agent not ready")
 
-	// Verify containers are running
-	output := host.MustExecute("docker ps --format '{{.Names}}' | grep spam")
-	suite.T().Logf("Running containers: %s", output)
-	assert.Contains(suite.T(), output, "spam", "Busybox containers should be running")
+		// Verify containers are running
+		containers, err := suite.Env().Docker.Client.ListContainers()
+		require.NoError(t, err, "Failed to list Docker containers")
+		t.Logf("Running containers: %v", containers)
+		hasSpam := false
+		for _, name := range containers {
+			if strings.Contains(name, "spam") {
+				hasSpam = true
+				break
+			}
+		}
+		assert.True(t, hasSpam, "Busybox spam containers should be running")
 
-	// Wait for health report to be sent to fakeintake
-	var healthPayloads []*aggregator.AgentHealthPayload
-	require.EventuallyWithT(suite.T(), func(t *assert.CollectT) {
-		var err error
-		healthPayloads, err = fakeIntake.GetAgentHealth()
-		assert.NoError(t, err)
-		assert.NotEmpty(t, healthPayloads)
-	}, 2*time.Minute, 10*time.Second, "Health report not received in FakeIntake within timeout")
+		// Wait for health report to be sent to fakeintake
+		var latestReport *aggregator.AgentHealthPayload
+		require.EventuallyWithT(t, func(ct *assert.CollectT) {
+			payloads, err := fakeIntake.GetAgentHealth()
+			assert.NoError(ct, err)
+			assert.NotEmpty(ct, payloads, "Health report not received in FakeIntake")
+			if len(payloads) > 0 {
+				latestReport = payloads[len(payloads)-1]
+			}
+		}, 2*time.Minute, 10*time.Second, "Health report not received in FakeIntake within timeout")
 
-	// Get the most recent health report
-	require.NotEmpty(suite.T(), healthPayloads, "No health payloads received")
-	latestReport := healthPayloads[len(healthPayloads)-1]
-	require.NotNil(suite.T(), latestReport.HealthReport, "Health report is nil")
+		require.NotNil(t, latestReport.HealthReport, "Health report is nil")
 
-	// Verify docker permission issue is present
-	var dockerIssue *healthplatform.Issue
-	for _, issue := range latestReport.Issues {
-		if issue.Id == expectedIssueID {
-			dockerIssue = issue
-			break
+		dockerIssue := findIssue(t, latestReport, expectedIssueID)
+		require.NotNil(t, dockerIssue, "Docker permission issue should be detected")
+
+		// Verify issue metadata
+		assert.Equal(t, "docker-file-tailing-disabled", dockerIssue.Id)
+		assert.Equal(t, "docker_file_tailing_disabled", dockerIssue.IssueName)
+		assert.Equal(t, "permissions", dockerIssue.Category)
+		assert.Equal(t, "medium", dockerIssue.Severity)
+		assert.Equal(t, "logs-agent", dockerIssue.Location)
+		assert.Equal(t, "logs", dockerIssue.Source)
+
+		// Verify issue tags
+		assert.Contains(t, dockerIssue.Tags, "docker")
+		assert.Contains(t, dockerIssue.Tags, "logs")
+		assert.Contains(t, dockerIssue.Tags, "permissions")
+		assert.Contains(t, dockerIssue.Tags, "file-tailing")
+
+		// Verify remediation is provided
+		assert.NotNil(t, dockerIssue.Remediation, "Remediation should be provided")
+		assert.NotEmpty(t, dockerIssue.Remediation.Summary, "Remediation summary should not be empty")
+		assert.NotEmpty(t, dockerIssue.Remediation.Steps, "Remediation steps should not be empty")
+
+		// Verify the PersistedIssue is populated in the payload — this is the black-box view of persistence
+		require.NotNil(t, dockerIssue.PersistedIssue, "PersistedIssue should be populated in the health report payload")
+		assert.Contains(t,
+			[]healthplatform.IssueState{healthplatform.IssueState_ISSUE_STATE_NEW, healthplatform.IssueState_ISSUE_STATE_ONGOING},
+			dockerIssue.PersistedIssue.State, "PersistedIssue state should be NEW or ONGOING")
+		assert.NotEmpty(t, dockerIssue.PersistedIssue.FirstSeen, "PersistedIssue should have first_seen")
+		assert.NotEmpty(t, dockerIssue.PersistedIssue.LastSeen, "PersistedIssue should have last_seen")
+
+		// Capture first_seen for later phases
+		initialFirstSeen = dockerIssue.PersistedIssue.FirstSeen
+		t.Logf("Phase 1 passed: docker permission issue detected, first_seen=%s", initialFirstSeen)
+	})
+
+	// =========================================================================
+	// Phase 2: Restart Resilience
+	// =========================================================================
+	suite.T().Run("RestartResilience", func(t *testing.T) {
+		// Flush fakeintake to distinguish pre/post restart payloads
+		require.NoError(t, fakeIntake.FlushServerAndResetAggregators(), "Failed to flush fakeintake")
+
+		require.NoError(t, agent.Client.Restart(), "Failed to restart agent")
+		t.Log("Agent restarted")
+
+		require.EventuallyWithT(t, func(ct *assert.CollectT) {
+			assert.True(ct, agent.Client.IsReady(), "Agent should be ready after restart")
+		}, 2*time.Minute, 10*time.Second, "Agent not ready after restart")
+
+		// Wait for a health report after restart with the issue still present and ONGOING state
+		var postRestartIssue *healthplatform.Issue
+		require.EventuallyWithT(t, func(ct *assert.CollectT) {
+			payloads, err := fakeIntake.GetAgentHealth()
+			if !assert.NoError(ct, err) || !assert.NotEmpty(ct, payloads, "Should receive health report after restart") {
+				return
+			}
+			latest := payloads[len(payloads)-1]
+			postRestartIssue = findIssue(t, latest, expectedIssueID)
+			assert.NotNil(ct, postRestartIssue, "Docker permission issue should still be present after restart")
+		}, 2*time.Minute, 10*time.Second, "Health report with issue not received after restart")
+
+		require.NotNil(t, postRestartIssue.PersistedIssue, "PersistedIssue should be populated after restart")
+		assert.Equal(t, healthplatform.IssueState_ISSUE_STATE_ONGOING, postRestartIssue.PersistedIssue.State,
+			"PersistedIssue in payload should be ONGOING after restart")
+		assert.Equal(t, initialFirstSeen, postRestartIssue.PersistedIssue.FirstSeen,
+			"PersistedIssue first_seen in payload should be preserved across restart")
+
+		t.Logf("Phase 2 passed: post-restart state=ONGOING, first_seen=%s (preserved)", initialFirstSeen)
+	})
+
+	// =========================================================================
+	// Phase 3: Resolution
+	// =========================================================================
+	suite.T().Run("Resolution", func(t *testing.T) {
+		// Cleanup: restore the original socket permissions and restart the agent so the issue is
+		// re-detected on the next run (important for dev-mode where infra is kept alive).
+		t.Cleanup(func() {
+			host.Execute("sudo chmod 660 /var/run/docker.sock")
+			_ = agent.Client.Restart()
+		})
+
+		// Grant world-read/write on the Docker socket so dd-agent can connect.
+		// This is more reliable than group membership (which requires PAM session reload)
+		// and is sufficient for the check: socket.IsAvailable only reports an issue when
+		// the dial returns os.ErrPermission; with 666 any process can connect.
+		host.MustExecute("sudo chmod 666 /var/run/docker.sock")
+		t.Log("Granted world-accessible permissions to Docker socket")
+
+		permOutput := host.MustExecute("stat -c '%a' /var/run/docker.sock")
+		t.Logf("Docker socket permissions: %s", strings.TrimSpace(permOutput))
+		assert.Contains(t, permOutput, "666", "Docker socket should be world-accessible")
+
+		// Flush fakeintake to get fresh post-restart payloads only
+		require.NoError(t, fakeIntake.FlushServerAndResetAggregators(), "Failed to flush fakeintake before resolution restart")
+
+		// Restart agent so it re-runs the check with the updated socket permissions
+		require.NoError(t, agent.Client.Restart(), "Failed to restart agent after permission fix")
+		t.Log("Agent restarted after permission fix")
+
+		require.EventuallyWithT(t, func(ct *assert.CollectT) {
+			assert.True(ct, agent.Client.IsReady(), "Agent should be ready after permission fix")
+		}, 2*time.Minute, 10*time.Second, "Agent not ready after permission fix")
+
+		// Verify that the docker permission issue NEVER appears in any health report after the fix.
+		// The health platform does not send a final "resolved" payload: once an issue is cleared
+		// it is simply absent from subsequent reports (the forwarder skips sending when there are
+		// no active issues). No payload at all is therefore also acceptable.
+		require.Never(t, func() bool {
+			payloads, err := fakeIntake.GetAgentHealth()
+			if err != nil {
+				return false
+			}
+			for _, payload := range payloads {
+				if findIssue(t, payload, expectedIssueID) != nil {
+					return true
+				}
+			}
+			return false
+		}, 2*time.Minute, 10*time.Second, "Docker permission issue appeared in a health report after the fix")
+
+		t.Log("Phase 3 passed: docker permission issue resolved and absent from health report")
+	})
+
+	suite.T().Log("=== Full lifecycle test passed ===")
+}
+
+// ============================================================================
+// Helper methods
+// ============================================================================
+
+// findIssue searches for an issue by ID in a health report payload.
+// Returns nil if not found and logs all found issues for debugging.
+func findIssue(t *testing.T, report *aggregator.AgentHealthPayload, issueID string) *healthplatform.Issue {
+	t.Helper()
+
+	if report.HealthReport == nil {
+		return nil
+	}
+
+	for _, issue := range report.Issues {
+		if issue.Id == issueID {
+			return issue
 		}
 	}
 
-	// Build debug message with all found issues if expected one is missing
-	if dockerIssue == nil {
-		var debugMsg strings.Builder
-		debugMsg.WriteString(fmt.Sprintf("\nExpected issue not found. Found %d issues:", len(latestReport.Issues)))
-		count := 1
-		for _, issue := range latestReport.Issues {
-			debugMsg.WriteString(fmt.Sprintf("\n  #%d: ID='%s', Category='%s', Tags=%v", count, issue.Id, issue.Category, issue.Tags))
-			count++
-		}
-		require.Fail(suite.T(), fmt.Sprintf("Docker permission issue '%s' not found in health report%s", expectedIssueID, debugMsg.String()))
-		return
+	// Log all found issues for debugging
+	var debugMsg strings.Builder
+	debugMsg.WriteString(fmt.Sprintf("Issue '%s' not found. Found %d issues:", issueID, len(report.Issues)))
+	count := 1
+	for _, issue := range report.Issues {
+		debugMsg.WriteString(fmt.Sprintf("\n  #%d: ID='%s', Category='%s', Tags=%v", count, issue.Id, issue.Category, issue.Tags))
+		count++
 	}
-
-	// Verify issue metadata
-	assert.Equal(suite.T(), "docker-file-tailing-disabled", dockerIssue.Id)
-	assert.Equal(suite.T(), "docker_file_tailing_disabled", dockerIssue.IssueName)
-	assert.Equal(suite.T(), "permissions", dockerIssue.Category)
-	assert.Equal(suite.T(), "medium", dockerIssue.Severity)
-	assert.Equal(suite.T(), "logs-agent", dockerIssue.Location)
-	assert.Equal(suite.T(), "logs", dockerIssue.Source)
-
-	// Verify issue tags
-	assert.Contains(suite.T(), dockerIssue.Tags, "docker")
-	assert.Contains(suite.T(), dockerIssue.Tags, "logs")
-	assert.Contains(suite.T(), dockerIssue.Tags, "permissions")
-	assert.Contains(suite.T(), dockerIssue.Tags, "file-tailing")
-
-	// Verify remediation is provided
-	assert.NotNil(suite.T(), dockerIssue.Remediation, "Remediation should be provided")
-	assert.NotEmpty(suite.T(), dockerIssue.Remediation.Summary, "Remediation summary should not be empty")
-	assert.NotEmpty(suite.T(), dockerIssue.Remediation.Steps, "Remediation steps should not be empty")
-
-	suite.T().Logf("✅ Test passed! Docker permission issue detected: %s", dockerIssue.Id)
+	t.Log(debugMsg.String())
+	return nil
 }

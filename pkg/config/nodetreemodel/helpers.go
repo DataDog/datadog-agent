@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/mohae/deepcopy"
 	"github.com/spf13/cast"
 )
 
@@ -178,7 +179,42 @@ func isScalar(v interface{}) bool {
 	}
 }
 
+// copyIfNeeded returns simple immutable types and deep copies complex types
+func copyIfNeeded(v interface{}) interface{} {
+	if v == nil || isScalar(v) {
+		return v
+	}
+	return deepcopy.Copy(v)
+}
+
 func isSlice(v interface{}) bool {
 	rval := reflect.ValueOf(v)
 	return rval.Kind() == reflect.Slice
+}
+
+// convertToDefaultType converts a value to match the type of the given default value using cast
+// If defaultValue is nil or the type is not one of the known types, it is returned
+func convertToDefaultType(value interface{}, defaultValue interface{}) (interface{}, error) {
+	if defaultValue == nil {
+		return value, nil
+	}
+	switch defaultValue.(type) {
+	case bool:
+		return cast.ToBoolE(value)
+	case string:
+		return cast.ToStringE(value)
+	case int32, int16, int8, int:
+		return cast.ToIntE(value)
+	case int64:
+		return cast.ToInt64E(value)
+	case float64, float32:
+		return cast.ToFloat64E(value)
+	case time.Time:
+		return cast.ToTimeE(value)
+	case time.Duration:
+		return cast.ToDurationE(value)
+	case []string:
+		return cast.ToStringSliceE(value)
+	}
+	return value, nil
 }

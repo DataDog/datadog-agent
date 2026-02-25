@@ -47,7 +47,6 @@ build do
     files_to_patch = [
       "lib/libssl#{lib_extension}",
       "lib/libcrypto#{lib_extension}",
-      "lib/pkgconfig/*.pc",
       "bin/openssl",
     ]
     if fips_mode?
