@@ -4,14 +4,22 @@ default_version "3.13.12"
 
 unless windows?
   dependency "zlib"
-  dependency "bzip2"
-  dependency "libsqlite3"
-  dependency "liblzma"
+  build do
+    # Temporary deps. When we fix auto-rpath fixing these will disappear.
+    command_on_repo_root "bazelisk run -- @bzip2//:install --destdir='#{install_dir}'"
+
+    command_on_repo_root "bazelisk run -- @xz//:install --destdir='#{install_dir}'"
+    sh_lib = if linux_target? then "liblzma.so" else "liblzma.dylib" end
+    command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded' " \
+      "#{install_dir}/embedded/lib/#{sh_lib}"
+
+    command_on_repo_root "bazelisk run -- @sqlite3//:install --destdir='#{install_dir}'"
+    sh_lib = if linux_target? then "libsqlite3.so" else "libsqlite3.dylib" end
+    command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded' " \
+       "#{install_dir}/embedded/lib/#{sh_lib}"
+  end
 end
 dependency "openssl3"
-
-source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-       :sha256 => "12e7cb170ad2d1a69aee96a1cc7fc8de5b1e97a2bdac51683a3db016ec9a2996"
 
 relative_path "Python-#{version}"
 
@@ -33,4 +41,3 @@ build do
     command_on_repo_root "bazelisk run #{flavor_flag} -- @cpython//:install --destdir=#{python_3_embedded}"
   end
 end
-

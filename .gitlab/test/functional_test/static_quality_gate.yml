@@ -71,6 +71,7 @@ static_quality_gates:
     expire_in: 1 week
   variables:
     GIT_DEPTH: 0
+    OVERRIDE_GIT_STRATEGY: "clone" # needed because this job uses git merge-base
 
 manual_gate_threshold_update:
   stage: functional_test

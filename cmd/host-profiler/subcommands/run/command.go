@@ -14,10 +14,13 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/host-profiler/globalparams"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -39,7 +42,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type cliParams struct {
@@ -60,6 +62,7 @@ func MakeCommand(globalConfGetter func() *globalparams.GlobalParams) []*cobra.Co
 			return runHostProfilerCommand(context.Background(), params)
 		},
 	}
+
 	cmd.Flags().BoolVar(&params.GoRuntimeMetrics, "go-runtime-metrics", false, "Enable Go runtime metrics collection.")
 	return []*cobra.Command{cmd}
 }
@@ -72,7 +75,7 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 
 	if cliParams.GlobalParams.CoreConfPath != "" {
 		opts = append(opts,
-			core.Bundle(core.WithSecrets()),
+			core.Bundle(),
 			remotehostnameimpl.Module(),
 			fx.Supply(core.BundleParams{
 				ConfigParams: config.NewAgentParams(cliParams.GlobalParams.CoreConfPath),
@@ -82,7 +85,7 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 		)
 		opts = append(opts, getRemoteTaggerOptions()...)
 		opts = append(opts, getTraceAgentOptions(ctx)...)
-
+		opts = append(opts, getConfigOptions(cliParams.GlobalParams)...)
 	} else {
 		opts = append(opts, fx.Provide(collectorimpl.NewExtraFactoriesWithoutAgentCore))
 	}
@@ -98,6 +101,13 @@ func getRemoteTaggerOptions() []fx.Option {
 	return []fx.Option{
 		ipcfx.ModuleReadOnly(),
 		remoteTaggerFx.Module(tagger.NewRemoteParams()),
+	}
+}
+
+func getConfigOptions(params *globalparams.GlobalParams) []fx.Option {
+	return []fx.Option{
+		secretsnoopfx.Module(),
+		configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
 	}
 }
 
