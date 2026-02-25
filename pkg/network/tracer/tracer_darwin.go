@@ -194,8 +194,6 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 		return nil, fmt.Errorf("error getting connections: %w", err)
 	}
 
-	conns := buffer.Connections()
-	buffer.Assign(conns)
 	return network.NewConnections(buffer), nil
 }
 
