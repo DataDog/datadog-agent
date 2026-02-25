@@ -48,12 +48,13 @@ func NewParquetReader(dirPath string) (*ParquetReader, error) {
 		return nil, fmt.Errorf("no parquet files found in %s", dirPath)
 	}
 
-	// Read all metrics from all files
+	// Read all metrics from all files, skipping any that fail to parse.
 	var allMetrics []FGMMetric
 	for _, filePath := range parquetFiles {
 		metrics, err := readParquetFile(filePath)
 		if err != nil {
-			return nil, fmt.Errorf("reading %s: %w", filePath, err)
+			fmt.Printf("[parquet-reader] Skipping %s: %v\n", filePath, err)
+			continue
 		}
 		allMetrics = append(allMetrics, metrics...)
 	}
@@ -105,7 +106,11 @@ func (r *ParquetReader) EndTime() int64 {
 	return r.metrics[len(r.metrics)-1].Time
 }
 
-// findParquetFiles recursively finds all .parquet files in a directory.
+// minParquetFileSize is the minimum valid size for a parquet file
+const minParquetFileSize = 20
+
+// findParquetFiles recursively finds all .parquet files in a directory,
+// skipping files that are too small to be valid parquet files.
 func findParquetFiles(dirPath string) ([]string, error) {
 	var files []string
 	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
@@ -113,6 +118,10 @@ func findParquetFiles(dirPath string) ([]string, error) {
 			return err
 		}
 		if !info.IsDir() && strings.HasSuffix(path, ".parquet") {
+			if info.Size() < minParquetFileSize {
+				fmt.Printf("[parquet-reader] Skipping %s: file too small (%d bytes)\n", path, info.Size())
+				return nil
+			}
 			files = append(files, path)
 		}
 		return nil
@@ -125,7 +134,17 @@ func findParquetFiles(dirPath string) ([]string, error) {
 }
 
 // readParquetFile reads a single parquet file and extracts FGM metrics.
+// Will return an empty slice if the file is too small (no error).
 func readParquetFile(filePath string) ([]FGMMetric, error) {
+	// Ensure file is not too small
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("statting file: %w", err)
+	}
+	if info.Size() < minParquetFileSize {
+		return []FGMMetric{}, nil
+	}
+
 	// Open the parquet file
 	f, err := os.Open(filePath)
 	if err != nil {
