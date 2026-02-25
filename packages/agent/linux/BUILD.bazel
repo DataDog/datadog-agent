@@ -12,17 +12,16 @@ load(
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("//bazel/rules:collect_cc_dynamic_deps.bzl", "cc_dynamic_deps_filegroup")
 load("//bazel/rules:dd_agent_pkg_mklink.bzl", "dd_agent_pkg_mklink")
-load("//compliance:package_licenses.bzl", "package_licenses")
 load("//bazel/rules:rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
+load("//compliance:package_licenses.bzl", "package_licenses")
 
 package(default_visibility = ["//packages:__subpackages__"])
-
 
 pkg_filegroup(
     name = "security_agent_components",
     srcs = [
         "@openscap//:lib_files",
-    ]
+    ],
 )
 
 # This is everything in the distro. All the things that were explicit
@@ -38,7 +37,7 @@ pkg_filegroup(
         # This should probably be in its own target instead and aggregated later on
         # but this is good enough for now so that we can start pulling in dependencies
         # in the package automatically
-        ":security_agent_components"
+        ":security_agent_components",
     ],
     prefix = "/opt/datadog-agent",
 )
