@@ -159,6 +159,7 @@ func provideSystemProbe(fb flaretypes.FlareBuilder) error {
 		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "system_probe_telemetry.log"), getSystemProbeTelemetry)
 		_ = fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", getSystemProbeConfig)
 		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "vpc_subnets.log"), getVPCSubnetsForHost)
+		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "dyninst_goprocs.json"), getSystemProbeDyninstProcs)
 	} else {
 		// If system probe is disabled, we still want to include the system probe config file
 		_ = fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.SystemProbe().AllSettings()) })
@@ -213,6 +214,12 @@ func getSystemProbeTelemetry() ([]byte, error) {
 func getSystemProbeConfig() ([]byte, error) {
 	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
 	url := sysprobeclient.URL("/config")
+	return getHTTPData(sysProbeClient, url)
+}
+
+func getSystemProbeDyninstProcs() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
+	url := sysprobeclient.URL("/dynamic_instrumentation/debug/goprocs")
 	return getHTTPData(sysProbeClient, url)
 }
 

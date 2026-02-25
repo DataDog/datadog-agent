@@ -53,6 +53,18 @@ func (ae agentHostExecutor) execute(arguments []string) (string, error) {
 	return ae.host.Execute(ae.baseCommand + " " + parameters)
 }
 
+func (ae agentHostExecutor) restart() error {
+	var cmd string
+	switch ae.host.osFamily {
+	case os.WindowsFamily:
+		cmd = "Restart-Service -Name datadogagent"
+	default:
+		cmd = "sudo systemctl restart datadog-agent"
+	}
+	_, err := ae.host.Execute(cmd)
+	return err
+}
+
 // DefaultWindowsAgentInstallPath returns a reasonable default for the AgentInstallPath.
 //
 // If the Agent is installed, the installPath is read from the registry.
