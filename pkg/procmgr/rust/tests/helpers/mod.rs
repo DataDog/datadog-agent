@@ -131,7 +131,11 @@ impl DaemonHandle {
     pub fn wait_with_timeout(&mut self, timeout: Duration) -> std::process::ExitStatus {
         let deadline = Instant::now() + timeout;
         loop {
-            match self.child.try_wait().expect("failed to check daemon status") {
+            match self
+                .child
+                .try_wait()
+                .expect("failed to check daemon status")
+            {
                 Some(status) => return status,
                 None => {
                     if Instant::now() >= deadline {
@@ -169,7 +173,8 @@ impl Drop for DaemonHandle {
 /// Write a YAML config file into `dir` with the given process `name`.
 pub fn write_config(dir: &Path, name: &str, yaml: &str) {
     let path = dir.join(format!("{name}.yaml"));
-    std::fs::write(&path, yaml).unwrap_or_else(|e| panic!("failed to write {}: {e}", path.display()));
+    std::fs::write(&path, yaml)
+        .unwrap_or_else(|e| panic!("failed to write {}: {e}", path.display()));
 }
 
 /// Check if a PID is still alive.

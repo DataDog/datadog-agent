@@ -99,7 +99,10 @@ fn test_shutdown_stops_managed_processes() {
     let pids = daemon.spawned_pids();
     assert_eq!(pids.len(), 2);
     for &pid in &pids {
-        assert!(pid_is_alive(pid), "pid {pid} should be alive before shutdown");
+        assert!(
+            pid_is_alive(pid),
+            "pid {pid} should be alive before shutdown"
+        );
     }
 
     let status = daemon.stop();
