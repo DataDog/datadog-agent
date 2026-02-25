@@ -76,6 +76,8 @@ func NewComponent(deps Requires) Provides {
 	// Connect the reporter to the correlator's state
 	reporter.SetCorrelationState(correlator)
 
+	obsCh := make(chan observation, 1000)
+	anomalyCh := make(chan observerdef.AnomalyOutput, 1024)
 	obs := &observerImpl{
 		logProcessors: []observerdef.LogProcessor{
 			&LogTimeSeriesAnalysis{
@@ -93,6 +95,9 @@ func NewComponent(deps Requires) Provides {
 				},
 			},
 			&ConnectionErrorExtractor{},
+			NewPatternLogProcessor([]LogAnomalyDetector{
+				NewWatchdogLogAnomalyDetector(anomalyCh, obsCh),
+			}),
 		},
 		tsAnalyses: []observerdef.TimeSeriesAnalysis{
 			NewCUSUMDetector(),
@@ -104,7 +109,8 @@ func NewComponent(deps Requires) Provides {
 			reporter,
 		},
 		storage:   newTimeSeriesStorage(),
-		obsCh:     make(chan observation, 1000),
+		obsCh:     obsCh,
+		anomalyCh: anomalyCh,
 		maxEvents: 1000, // Keep last 1000 events for debugging
 	}
 
@@ -246,6 +252,7 @@ type observerImpl struct {
 	reporters         []observerdef.Reporter
 	storage           *timeSeriesStorage
 	obsCh             chan observation
+	anomalyCh         chan observerdef.AnomalyOutput
 	handleFunc        observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
 
 	// NEW path: Signal-based processing (V2 architecture)
@@ -273,12 +280,19 @@ type observerImpl struct {
 
 // run is the main dispatch loop, processing all observations sequentially.
 func (o *observerImpl) run() {
-	for obs := range o.obsCh {
-		if obs.metric != nil {
-			o.processMetric(obs.source, obs.metric)
-		}
-		if obs.log != nil {
-			o.processLog(obs.source, obs.log)
+	for {
+		select {
+		case anomaly := <-o.anomalyCh:
+			// Forward to anomaly processors
+			o.processAnomaly(anomaly)
+			fmt.Printf("[observer] ALERT: %s\n", anomaly.Description)
+		case obs := <-o.obsCh:
+			if obs.metric != nil {
+				o.processMetric(obs.source, obs.metric)
+			}
+			if obs.log != nil {
+				o.processLog(obs.source, obs.log)
+			}
 		}
 	}
 }
