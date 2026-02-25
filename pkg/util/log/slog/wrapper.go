@@ -32,8 +32,8 @@ type Wrapper struct {
 	flush   func()
 	close   func()
 
-	attrs           []slog.Attr
-	extraStackDepth int
+	attrs           atomic.Pointer[[]slog.Attr]
+	extraStackDepth atomic.Int32
 }
 
 // NewWrapper returns a new Wrapper implementing the LoggerInterface interface.
@@ -78,7 +78,7 @@ func (w *Wrapper) handleError(level types.LogLevel, message string) error {
 
 func (w *Wrapper) handle(level types.LogLevel, message string) {
 	var pc [1]uintptr
-	runtime.Callers(baseStackDepth+w.extraStackDepth, pc[:])
+	runtime.Callers(baseStackDepth+int(w.extraStackDepth.Load()), pc[:])
 	r := slog.NewRecord(
 		time.Now(),
 		types.ToSlogLevel(level),
@@ -88,8 +88,9 @@ func (w *Wrapper) handle(level types.LogLevel, message string) {
 
 	// we only set a context to perform a single log, so adding them directly on the record is fine
 	// this can be optimized once we stop using seelog and can change the API
-	if len(w.attrs) > 0 {
-		r.AddAttrs(w.attrs...)
+	attrs := w.attrs.Load()
+	if attrs != nil && len(*attrs) > 0 {
+		r.AddAttrs(*attrs...)
 	}
 
 	err := w.handler.Handle(context.Background(), r)
@@ -206,7 +207,7 @@ func (w *Wrapper) SetAdditionalStackDepth(depth int) error {
 		return nil
 	}
 
-	w.extraStackDepth = depth
+	w.extraStackDepth.Store(int32(depth))
 	return nil
 }
 
@@ -216,5 +217,6 @@ func (w *Wrapper) SetContext(context interface{}) {
 		return
 	}
 
-	w.attrs = formatters.ToSlogAttrs(context)
+	attrs := formatters.ToSlogAttrs(context)
+	w.attrs.Store(&attrs)
 }
