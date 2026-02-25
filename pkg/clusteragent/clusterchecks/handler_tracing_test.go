@@ -58,7 +58,6 @@ func TestHandlerWarmupSpan(t *testing.T) {
 		dispatcher:           newDispatcher(fakeTagger),
 		leaderStatusCallback: le.get,
 	}
-	h.dispatcher.tracingEnabled = true
 
 	ctx, cancelRun := context.WithCancel(context.Background())
 	runReturned := make(chan struct{}, 1)
