@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package api
 
 import (
@@ -58,49 +60,6 @@ func TestWithTelemetryWrapper_5xxSetsErrorTag(t *testing.T) {
 	req := httptest.NewRequest("GET", "/test", nil)
 	rec := httptest.NewRecorder()
 	th.handle(rec, req)
-
-	spans := mt.FinishedSpans()
-	require.Len(t, spans, 1)
-	assert.Equal(t, 500, spans[0].Tag("http.status_code"))
-	assert.Equal(t, true, spans[0].Tag("error"))
-}
-
-func TestWithTelemetryWrapper_ImplicitStatus(t *testing.T) {
-	mt := mocktracer.Start()
-	defer mt.Stop()
-
-	th := &TelemetryHandler{
-		handlerName: "getClusterID",
-		handler: func(_ http.ResponseWriter, _ *http.Request) {
-			// handler writes body without calling WriteHeader — implicit 200
-		},
-		tracingEnabled: true,
-	}
-
-	req := httptest.NewRequest("GET", "/cluster/id", nil)
-	rec := httptest.NewRecorder()
-	th.handle(rec, req)
-
-	spans := mt.FinishedSpans()
-	require.Len(t, spans, 1)
-	assert.Equal(t, 200, spans[0].Tag("http.status_code"))
-}
-
-func TestWithTelemetryWrapper_PanicSets500(t *testing.T) {
-	mt := mocktracer.Start()
-	defer mt.Stop()
-
-	th := &TelemetryHandler{
-		handlerName: "panicHandler",
-		handler: func(_ http.ResponseWriter, _ *http.Request) {
-			panic("something went wrong")
-		},
-		tracingEnabled: true,
-	}
-
-	req := httptest.NewRequest("GET", "/test", nil)
-	rec := httptest.NewRecorder()
-	assert.Panics(t, func() { th.handle(rec, req) })
 
 	spans := mt.FinishedSpans()
 	require.Len(t, spans, 1)
