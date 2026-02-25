@@ -53,7 +53,6 @@ var packetSourceTelemetry = struct {
 	telemetry.NewStatCounterWrapper(telemetryModuleName, "dropped_packets", []string{}, "Counter measuring the number of dropped packets"),
 }
 
-
 // packetWithInfo wraps copied packet data with metadata
 type packetWithInfo struct {
 	data      []byte // Copied data from pool, caller must return via putBuffer
