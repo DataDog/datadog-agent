@@ -8,4 +8,4 @@
 ---
 other:
   - |
-    Add metric origin for Dell PowerFlex. Fix metric origins for Control-M and Prefect.
+    Add metric origin for Dell Powerflex. Fix metric origins for Control-M and Prefect.

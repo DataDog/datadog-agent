@@ -366,7 +366,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceIbmSpectrumLsf,
 		metrics.MetricSourceDatadogOperator,
 		metrics.MetricSourceBattery,
-		metrics.MetricSourcePinot
+		metrics.MetricSourcePinot,
 		metrics.MetricSourceDellPowerFlex:
 		return 11 // integrationMetrics
 	case metrics.MetricSourceGPU:
