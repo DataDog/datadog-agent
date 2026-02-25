@@ -13,7 +13,6 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -22,8 +21,7 @@ import (
 type dependencies struct {
 	fx.In
 
-	Config config.Component
-	RAR    remoteagentregistry.Component `optional:"true"`
+	RAR remoteagentregistry.Component `optional:"true"`
 }
 
 type provides struct {
@@ -39,15 +37,13 @@ func Module() fxutil.Module {
 }
 
 type statusProvider struct {
-	Config config.Component
-	RAR    remoteagentregistry.Component
+	RAR remoteagentregistry.Component
 }
 
 func newStatus(deps dependencies) provides {
 	return provides{
 		StatusProvider: status.NewInformationProvider(statusProvider{
-			Config: deps.Config,
-			RAR:    deps.RAR,
+			RAR: deps.RAR,
 		}),
 	}
 }
@@ -76,18 +72,13 @@ func (s statusProvider) getStatusInfo() map[string]interface{} {
 }
 
 func (s statusProvider) populateStatus() map[string]interface{} {
-	port := s.Config.GetInt("apm_config.debug.port")
-
 	if s.RAR != nil {
 		for _, agentStatus := range s.RAR.GetRegisteredAgentStatuses() {
 			if agentStatus.Flavor != "trace_agent" {
 				continue
 			}
 			if agentStatus.FailureReason != "" {
-				return map[string]interface{}{
-					"port":  port,
-					"error": agentStatus.FailureReason,
-				}
+				return map[string]interface{}{"error": agentStatus.FailureReason}
 			}
 
 			result := make(map[string]interface{}, len(agentStatus.MainSection))
@@ -103,10 +94,7 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 		}
 	}
 
-	return map[string]interface{}{
-		"port":  port,
-		"error": "not running or unreachable",
-	}
+	return map[string]interface{}{"error": "not running or unreachable"}
 }
 
 // JSON populates the status map
