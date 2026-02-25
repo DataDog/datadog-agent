@@ -56,7 +56,6 @@ var (
 	appKeyRegex = regexp.MustCompile(`^[a-fA-F0-9]{40}$`)
 )
 
-// validateAPIKey checks if an API key is valid and properly resolved
 func validateAPIKey(key string) error {
 	if key == "" {
 		return errors.New("api_key is required but not set")
@@ -70,7 +69,6 @@ func validateAPIKey(key string) error {
 	return nil
 }
 
-// validateAppKey checks if an application key is valid and properly resolved
 func validateAppKey(key string) error {
 	if key == "" {
 		return errors.New("app_key is required but not set")
@@ -289,12 +287,10 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 	apiKey := p.coreConfig.GetString("api_key")
 	appKey := p.coreConfig.GetString("app_key")
 
-	// Validate API key format and ensure secrets are resolved
 	if err := validateAPIKey(apiKey); err != nil {
 		return nil, fmt.Errorf("invalid api_key: %w", err)
 	}
 
-	// Validate app key format and ensure secrets are resolved
 	if err := validateAppKey(appKey); err != nil {
 		return nil, fmt.Errorf("invalid app_key: %w", err)
 	}
