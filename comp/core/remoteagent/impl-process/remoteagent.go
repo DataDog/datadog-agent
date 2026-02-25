@@ -8,7 +8,6 @@ package processimpl
 
 import (
 	"context"
-	"encoding/json"
 	"net"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -100,22 +99,10 @@ func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetry
 
 // GetStatusDetails returns the status details of the process agent
 func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
-	return &pbcore.GetStatusDetailsResponse{
-		MainSection: &pbcore.StatusSection{Fields: helper.ExpvarFields()},
-	}, nil
+	return helper.DefaultStatusResponse(), nil
 }
 
 // GetFlareFiles returns files for the process agent flare
 func (r *remoteagentImpl) GetFlareFiles(_ context.Context, _ *pbcore.GetFlareFilesRequest) (*pbcore.GetFlareFilesResponse, error) {
-	files := make(map[string][]byte)
-
-	if data, err := json.MarshalIndent(helper.ExpvarData(), "", "  "); err == nil {
-		files["process_agent_status.json"] = data
-	}
-
-	if data, err := json.MarshalIndent(r.cfg.AllSettings(), "", "  "); err == nil {
-		files["process_agent_runtime_config_dump.json"] = data
-	}
-
-	return &pbcore.GetFlareFilesResponse{Files: files}, nil
+	return &pbcore.GetFlareFilesResponse{Files: helper.DefaultFlareFiles(r.cfg.AllSettings(), "process_agent")}, nil
 }

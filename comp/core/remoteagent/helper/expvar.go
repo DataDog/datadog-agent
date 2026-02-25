@@ -8,6 +8,8 @@ package helper
 import (
 	"encoding/json"
 	"expvar"
+
+	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 // ExpvarFields returns a map of all currently registered expvar key-value pairs
@@ -24,6 +26,25 @@ func ExpvarFields() map[string]string {
 		fields[kv.Key] = kv.Value.String()
 	})
 	return fields
+}
+
+// DefaultStatusResponse returns a GetStatusDetailsResponse populated with all in-process expvar data.
+func DefaultStatusResponse() *pbcore.GetStatusDetailsResponse {
+	return &pbcore.GetStatusDetailsResponse{
+		MainSection: &pbcore.StatusSection{Fields: ExpvarFields()},
+	}
+}
+
+// DefaultFlareFiles returns the standard set of flare files for a sub-process agent:
+func DefaultFlareFiles(settings map[string]interface{}, prefix string) map[string][]byte {
+	files := make(map[string][]byte)
+	if data, err := json.MarshalIndent(ExpvarData(), "", "  "); err == nil {
+		files[prefix+"_status.json"] = data
+	}
+	if data, err := json.MarshalIndent(settings, "", "  "); err == nil {
+		files[prefix+"_runtime_config_dump.json"] = data
+	}
+	return files
 }
 
 // ExpvarData returns all currently registered expvar values as a structured map
