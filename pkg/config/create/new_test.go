@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestCreateFromParms(t *testing.T) {
+func TestCreateFromParms(_ *testing.T) {
 	/*
 		defer func(val string, ok bool) {
 			if ok {
@@ -59,7 +59,7 @@ func TestCreateFromParms(t *testing.T) {
 	*/
 }
 
-func TestCreateFromEnv(t *testing.T) {
+func TestCreateFromEnv(_ *testing.T) {
 	/*
 		defer func(val string, ok bool) {
 			if ok {
