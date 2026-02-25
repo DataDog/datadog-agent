@@ -136,6 +136,12 @@ func readPortsDarwin(cfg *config.Config) (map[boundPortsKey]struct{}, error) {
 }
 
 // readTCPListeningPorts reads TCP ports in LISTEN state from the kernel via sysctl.
+//
+// We use the raw pcblist_n sysctl directly rather than a library like gopsutil
+// because gopsutil's darwin implementation spawns an lsof subprocess, which
+// adds process overhead and an external binary dependency. The sysctl approach
+// reads the kernel PCB list in-process with no dependencies and returns exactly
+// the LISTEN-state ports we need.
 func readTCPListeningPorts() (map[uint16]struct{}, error) {
 	buf, err := unix.SysctlRaw("net.inet.tcp.pcblist_n")
 	if err != nil {
