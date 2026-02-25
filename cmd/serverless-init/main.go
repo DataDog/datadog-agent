@@ -170,15 +170,11 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 
 	setupOtlpAgent(metricAgent, tagger)
 
-	var enhancedMetricsCollector *collector.Collector
-	if modeConf.Mode == mode.ModeInit {
-		var err error
-		enhancedMetricsCollector, err = collector.NewCollector(metricAgent, cloudService.GetSource(), cloudService.GetMetricPrefix())
-		if err != nil {
-			log.Warnf("Failed to initialize enhanced metrics collector: %v", err)
-		} else {
-			go enhancedMetricsCollector.Start()
-		}
+	enhancedMetricsCollector, err := collector.NewCollector(metricAgent, cloudService.GetSource(), cloudService.GetMetricPrefix())
+	if err != nil {
+		log.Warnf("Failed to initialize enhanced metrics collector: %v", err)
+	} else {
+		go enhancedMetricsCollector.Start()
 	}
 
 	go flushMetricsAgent(metricAgent)

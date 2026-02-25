@@ -9,8 +9,11 @@
 TODO:
 
 add collector tests
-Check in Cloud Run Functions, Cloud Run Jobs, Azure Web Apps
+Check in Cloud Run Functions, Cloud Run Jobs, Azure Web Apps, Sidecar
+Add instance id tag to app service metrics
 Remove/add debug logs as needed
+Send gcr job cpu metrics with .container prefix?
+Does first gen cloud run support cgroups?
 */
 
 package collector
@@ -93,6 +96,7 @@ func (c *Collector) Start() {
 	c.cancelFunc = cancel
 
 	log.Info("Enhanced metrics collector started")
+	log.Debugf("Using cgroup version %d", c.cgroupReader.CgroupVersion())
 	c.collectLoop(ctx)
 }
 
