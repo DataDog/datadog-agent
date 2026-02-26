@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
@@ -21,28 +22,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
-const (
-	maxBackoff                   = 3 * time.Minute
-	minBackoff                   = 1 * time.Second
-	maxAttempts                  = 20
-	waitBeforeRetry              = 5 * time.Minute
-	loopInterval                 = 1 * time.Second
-	opmsRequestTimeout           = 30_000
-	defaultHealthCheckEndpoint   = "/healthz"
-	healthCheckInterval          = 30_000
-	defaultHTTPServerReadTimeout = 10_000
-	defaultHTTPTimeout           = 30 * time.Second
-	// defaultHTTPServerWriteTimeout defines how long a request is allowed to run for after the HTTP connection is established. If actions are timing out often, `httpServerWriteTimeout` can be adjusted in config.yaml to override this value. See the Golang docs under `WriteTimeout` for more information about how the server uses this value - https://pkg.go.dev/net/http#Server
-	defaultHTTPServerWriteTimeout = 60_000
-	runnerAccessTokenHeader       = "X-Datadog-Apps-On-Prem-Runner-Access-Token"
-	runnerAccessTokenIDHeader     = "X-Datadog-Apps-On-Prem-Runner-Access-Token-ID"
-	defaultPort                   = 9016
-	defaultJwtRefreshInterval     = 15 * time.Second
-	heartbeatInterval             = 20 * time.Second
-)
-
 func FromDDConfig(config config.Component) (*Config, error) {
-	ddSite := config.GetString("site")
+	mainEndpoint := configutils.GetMainEndpoint(config, "https://api.", "dd_url")
+	ddHost := getDatadogHost(mainEndpoint)
+	ddSite := configutils.ExtractSiteFromURL(mainEndpoint)
 	encodedPrivateKey := config.GetString(setup.PARPrivateKey)
 	urn := config.GetString(setup.PARUrn)
 
@@ -72,7 +55,7 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		taskTimeoutSeconds = &v
 	}
 
-	httpTimeout := defaultHTTPTimeout
+	httpTimeout := defaultHTTPClientTimeout
 	if v := config.GetInt32(setup.PARHttpTimeoutSeconds); v != 0 {
 		httpTimeout = time.Duration(v) * time.Second
 	}
@@ -101,8 +84,8 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		ActionsAllowlist:          makeActionsAllowlist(config),
 		Allowlist:                 config.GetStringSlice(setup.PARHttpAllowlist),
 		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
-		DDHost:                    strings.Join([]string{"api", ddSite}, "."),
-		DDApiHost:                 strings.Join([]string{"api", ddSite}, "."),
+		DDHost:                    ddHost,
+		DDApiHost:                 ddHost,
 		Modes:                     []modes.Mode{modes.ModePull},
 		OrgId:                     orgID,
 		PrivateKey:                privateKey,
@@ -123,5 +106,48 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 		}
 		allowlist[bundleName] = previous.Insert(actionName)
 	}
+
+	bundleInheritedActions := GetBundleInheritedAllowedActions(allowlist)
+	for bundleID, actionsSet := range bundleInheritedActions {
+		allowlist[bundleID] = allowlist[bundleID].Union(actionsSet)
+	}
+
 	return allowlist
+}
+
+// getDatadogHost extracts and normalizes the Datadog host from the main endpoint.
+// It removes the "https://" prefix and any trailing "." from the endpoint URL.
+func getDatadogHost(endpoint string) string {
+	host := strings.TrimSuffix(endpoint, ".")
+	host = strings.TrimPrefix(host, "https://")
+	return host
+}
+
+func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[string]) map[string]sets.Set[string] {
+	result := make(map[string]sets.Set[string])
+
+	for _, inheritedAction := range BundleInheritedAllowedActions {
+		actionBundleID, actionName := actions.SplitFQN(inheritedAction.ActionFQN)
+		actionBundleID = strings.ToLower(actionBundleID)
+		prefix := strings.ToLower(inheritedAction.ExpectedPrefix)
+
+		matched := false
+		for bundleID, actionsSet := range actionsAllowlist {
+			if actionsSet.Len() > 0 && strings.HasPrefix(bundleID, prefix) {
+				matched = true
+				break
+			}
+		}
+
+		if !matched {
+			continue
+		}
+
+		if _, exists := result[actionBundleID]; !exists {
+			result[actionBundleID] = sets.New[string]()
+		}
+		result[actionBundleID].Insert(actionName)
+	}
+
+	return result
 }

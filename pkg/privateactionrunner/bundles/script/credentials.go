@@ -30,9 +30,22 @@ type RunPredefinedScriptConfig struct {
 }
 
 type RunPredefinedPowershellScriptConfig struct {
-	Script          string                 `yaml:"script,omitempty"`
-	File            string                 `yaml:"file,omitempty"`
-	Arguments       []string               `yaml:"arguments,omitempty"`
+	// Script is an inline PowerShell script/command string
+	// Users write native PowerShell syntax, e.g.:
+	//   script: 'Write-Output "Hello $env:USERNAME"'
+	// or multi-line:
+	//   script: |
+	//     $services = Get-Service
+	//     $services | ConvertTo-Json
+	Script string `yaml:"script,omitempty"`
+
+	// File is a path to a .ps1 script file to execute
+	// Use this for complex scripts stored in files
+	File string `yaml:"file,omitempty"`
+
+	// Arguments to pass to the script file (only used with File)
+	Arguments []string `yaml:"arguments,omitempty"`
+
 	ParameterSchema map[string]interface{} `yaml:"parameterSchema,omitempty"`
 	AllowedEnvVars  []string               `yaml:"allowedEnvVars,omitempty"`
 }

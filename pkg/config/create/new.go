@@ -22,7 +22,8 @@ import (
 //
 // Possible values for DD_CONF_NODETREEMODEL:
 //   - "enable":          Use the nodetreemodel for the config, instead of viper
-//   - "tee":             Construct both viper and nodetreemodel. Write to both, only read from viper
+//   - "tee":             Construct both viper and nodetreemodel. Write to both, only read from viper (base=viper, compare=nodetreemodel)
+//   - "enable-tee":      Same as tee but with base=nodetreemodel and compare=viper (read from nodetreemodel, log diffs vs viper)
 //   - "<Agent version>": enable NTM if the Agent has a version equal or higher than the given version. This acts has a
 //     minimum version for whitch to enable NTM, useful when using the same configuration across
 //     different agent versions.
@@ -41,6 +42,10 @@ func NewConfig(name string, configLib string) model.BuildableConfig {
 		viperImpl := viperconfig.NewViperConfig(name, "DD", strings.NewReplacer(".", "_"))         // nolint: forbidigo // legit use case
 		nodetreeImpl := nodetreemodel.NewNodeTreeConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 		return teeconfig.NewTeeConfig(viperImpl, nodetreeImpl)
+	} else if lib == "enable-tee" {
+		viperImpl := viperconfig.NewViperConfig(name, "DD", strings.NewReplacer(".", "_"))         // nolint: forbidigo // legit use case
+		nodetreeImpl := nodetreemodel.NewNodeTreeConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+		return teeconfig.NewTeeConfig(nodetreeImpl, viperImpl)
 	} else if lib != "" {
 		// If the Agent is at or above the minimum version specified we enabled NTM
 		agentVersion, err := version.Agent()

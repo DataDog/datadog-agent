@@ -32,7 +32,12 @@ alias(
     actual = "@rules_go//go",
 )
 
-# bazel run //:gen_go_work
+# bazel run //:go_mod_tidy_all -- -x
+alias(
+    name = "go_mod_tidy_all",
+    actual = "//bazel/tools:go_mod_tidy_all",
+)
+
 run_binary(
     name = "gen_go_work",
     srcs = [

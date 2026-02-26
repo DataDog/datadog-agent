@@ -49,6 +49,13 @@ func normalizeDeviceTag(deviceName string) string {
 	return deviceName
 }
 
+// isExpectedIOCounterError returns true for errors that are expected and
+// non-fatal for IO counter collection. On Linux/Unix, no such errors are
+// expected so this always returns false.
+func isExpectedIOCounterError(_ error) bool {
+	return false
+}
+
 func (c *Check) configureCreateMounts() {
 }
 

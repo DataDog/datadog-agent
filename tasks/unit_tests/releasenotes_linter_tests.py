@@ -299,9 +299,55 @@ class TestValidateRenoStructure(unittest.TestCase):
 
     def test_all_reno_sections_valid(self):
         """All known reno sections should be accepted."""
-        content = {section: [f'Content for {section}'] for section in RENO_SECTIONS}
+        content = {section: [f'Content for {section}'] for section in RENO_SECTIONS if section != 'prelude'}
+        # Prelude is a string, not a list
+        content['prelude'] = 'This is a prelude string'
         errors = validate_reno_structure(content, 'test.yaml')
         self.assertEqual(len(errors), 0)
+
+    def test_prelude_as_string_valid(self):
+        """Prelude section with string content should be valid."""
+        content = {
+            'prelude': 'This is a valid prelude string with content.',
+            'features': ['Feature 1'],
+        }
+        errors = validate_reno_structure(content, 'test.yaml')
+        self.assertEqual(len(errors), 0)
+
+    def test_prelude_as_list_invalid(self):
+        """Prelude section with list content should be invalid."""
+        content = {
+            'prelude': ['This should not be a list'],
+            'features': ['Feature 1'],
+        }
+        errors = validate_reno_structure(content, 'test.yaml')
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(errors[0].section, 'prelude')
+        self.assertIn('must be a string', errors[0].errors[0].message)
+
+    def test_prelude_empty_string_warning(self):
+        """Empty prelude string should produce a warning."""
+        content = {
+            'prelude': '   ',  # whitespace-only
+            'features': ['Feature 1'],
+        }
+        errors = validate_reno_structure(content, 'test.yaml')
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(errors[0].section, 'prelude')
+        self.assertEqual(errors[0].errors[0].level, 'warning')
+        self.assertIn('empty or whitespace-only', errors[0].errors[0].message)
+
+    def test_prelude_non_string_type_error(self):
+        """Prelude section with non-string type should be an error."""
+        content = {
+            'prelude': 123,  # number instead of string
+            'features': ['Feature 1'],
+        }
+        errors = validate_reno_structure(content, 'test.yaml')
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(errors[0].section, 'prelude')
+        self.assertEqual(errors[0].errors[0].level, 'error')
+        self.assertIn('must be a string, got int', errors[0].errors[0].message)
 
 
 class TestRSTLintError(unittest.TestCase):

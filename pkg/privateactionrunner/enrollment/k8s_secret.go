@@ -12,6 +12,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"time"
 
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -27,9 +29,10 @@ import (
 )
 
 const (
-	defaultSecretName = "private-action-runner-identity"
-	privateKeyField   = "private_key"
-	urnField          = "urn"
+	defaultSecretName  = "private-action-runner-identity"
+	privateKeyField    = "private_key"
+	urnField           = "urn"
+	secretPollInterval = 1 * time.Second
 )
 
 // getIdentityFromK8sSecret retrieves PAR identity from a Kubernetes secret
@@ -42,14 +45,90 @@ func getIdentityFromK8sSecret(ctx context.Context, cfg configModel.Reader) (*Per
 	ns := namespace.GetResourcesNamespace()
 	secretName := getSecretName(cfg)
 
-	secret, err := client.CoreV1().Secrets(ns).Get(ctx, secretName, metav1.GetOptions{})
+	le, err := leaderelection.GetLeaderEngine()
 	if err != nil {
-		if k8serrors.IsNotFound(err) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("failed to get identity secret: %w", err)
+		return nil, err
 	}
 
+	secret, err := client.CoreV1().Secrets(ns).Get(ctx, secretName, metav1.GetOptions{})
+	if err != nil {
+		if isNonTransientK8sError(err) {
+			return nil, fmt.Errorf("failed to get identity secret: %w", err)
+		}
+		if k8serrors.IsNotFound(err) {
+			log.Info("PAR identity secret does not exist, waiting for leader to create it...")
+		} else {
+			log.Warnf("Transient error fetching PAR identity secret, will retry: %v", err)
+		}
+		leadershipChange, isLeader := le.Subscribe()
+		secret, err = waitForLeaderAndSecret(
+			ctx, leadershipChange, isLeader, client, ns, secretName,
+			secretPollInterval,
+		)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if secret == nil {
+		return nil, nil
+	}
+	return parseSecretData(secret, ns, secretName)
+}
+
+// waitForLeaderAndSecret waits until either:
+// - We become leader (then returns nil to trigger enrollment)
+// - The secret appears (created by current or previous leader)
+// - The context is cancelled
+//
+// Transient K8s API errors (timeouts, rate limiting, 5xx) are logged and
+// retried indefinitely at a constant polling interval.
+func waitForLeaderAndSecret(
+	ctx context.Context,
+	leadershipChange <-chan struct{},
+	isLeader func() bool,
+	client kubernetes.Interface,
+	ns, secretName string,
+	pollInterval time.Duration,
+) (*corev1.Secret, error) {
+	if isLeader() {
+		log.Info("This replica is the leader, will create PAR identity secret")
+		return nil, nil
+	}
+
+	log.Info("This replica is a follower, waiting for leader to create PAR identity secret")
+
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+
+		case <-leadershipChange:
+			if isLeader() {
+				log.Info("Became leader, will create PAR identity secret")
+				return nil, nil
+			}
+
+		case <-ticker.C:
+			secret, err := client.CoreV1().Secrets(ns).Get(ctx, secretName, metav1.GetOptions{})
+			if err == nil {
+				log.Infof("Follower replica: found PAR identity secret created by leader: %s/%s", ns, secretName)
+				return secret, nil
+			}
+			if isNonTransientK8sError(err) {
+				return nil, fmt.Errorf("non-transient error checking for secret %s/%s: %w", ns, secretName, err)
+			}
+			if !k8serrors.IsNotFound(err) {
+				log.Warnf("Transient error checking for secret %s/%s (will retry): %v", ns, secretName, err)
+			}
+		}
+	}
+}
+
+// parseSecretData extracts identity data from a Kubernetes secret
+func parseSecretData(secret *corev1.Secret, ns, secretName string) (*PersistedIdentity, error) {
 	privateKey, ok := secret.Data[privateKeyField]
 	if !ok || len(privateKey) == 0 {
 		return nil, errors.New("private_key field is missing or empty in secret")
@@ -70,6 +149,17 @@ func getIdentityFromK8sSecret(ctx context.Context, cfg configModel.Reader) (*Per
 
 // persistIdentityToK8sSecret saves the enrollment result to a Kubernetes secret
 func persistIdentityToK8sSecret(ctx context.Context, cfg configModel.Reader, result *Result) error {
+	le, err := leaderelection.GetLeaderEngine()
+	if err != nil {
+		return err
+	}
+	if !le.IsLeader() {
+		log.Info("Not leader, skipping PAR identity secret persistence")
+		return nil
+	}
+
+	log.Info("Leader replica: persisting PAR identity to K8s secret")
+
 	client, err := getKubeClient()
 	if err != nil {
 		return err
@@ -123,6 +213,21 @@ func persistIdentityToK8sSecret(ctx context.Context, cfg configModel.Reader, res
 
 	log.Infof("Created PAR identity in K8s secret: %s/%s", ns, secretName)
 	return nil
+}
+
+// isNonTransientK8sError returns true for errors that indicate a permanent
+// problem (e.g. RBAC misconfiguration) that will not resolve by retrying.
+// Unknown errors and network-level errors are assumed transient.
+func isNonTransientK8sError(err error) bool {
+	return k8serrors.IsForbidden(err) ||
+		k8serrors.IsUnauthorized(err) ||
+		k8serrors.IsBadRequest(err) ||
+		k8serrors.IsMethodNotSupported(err) ||
+		k8serrors.IsNotAcceptable(err) ||
+		k8serrors.IsGone(err) ||
+		k8serrors.IsInvalid(err) ||
+		k8serrors.IsRequestEntityTooLargeError(err) ||
+		k8serrors.IsUnsupportedMediaType(err)
 }
 
 func getKubeClient() (kubernetes.Interface, error) {
