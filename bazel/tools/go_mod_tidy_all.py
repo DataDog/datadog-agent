@@ -5,6 +5,7 @@ Processes ~180 go.mod files in ~4 seconds (with a warm Go module cache) using `a
 """
 
 import asyncio
+import logging
 import os
 import sys
 from datetime import timedelta
@@ -16,10 +17,20 @@ from python.runfiles import runfiles
 
 async def _exec(go, *args, **kwargs):
     proc = await asyncio.create_subprocess_exec(go, *args, **kwargs)
-    stdout, _ = await proc.communicate()
+    try:
+        stdout, _ = await proc.communicate()
+    except BaseException:  # reap the process on any CancelledError, KeyboardInterrupt, SystemExit, TimeoutError, etc.
+        if proc.returncode is None:
+            try:
+                proc.terminate()
+            except ProcessLookupError:
+                pass
+            else:
+                await asyncio.shield(proc.communicate())
+        raise
     if proc.returncode == 0:
         return stdout
-    raise CalledProcessError(proc.returncode, " ".join(("go", *args)))
+    raise CalledProcessError(proc.returncode, " ".join((os.path.basename(go), *args)), output=stdout)
 
 
 async def _tidy(max_workers, go, mod_path, args):
@@ -37,7 +48,8 @@ async def main(go, args):
 
 
 if __name__ == "__main__":
+    logging.getLogger("asyncio").setLevel(logging.ERROR)  # no `Unknown child process pid N, will report returncode 255`
     try:
         asyncio.run(main(runfiles.Create().Rlocation(sys.argv[1]), sys.argv[2:]))
-    except* Exception as eg:
+    except* BaseException as eg:
         sys.exit("\n".join(line.rstrip() for e in eg.exceptions for line in format_exception_only(e)))
