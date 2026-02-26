@@ -1982,6 +1982,11 @@ int test_subreaper(int argc, char **argv) {
             int fd = open(filepath, O_RDONLY | O_CREAT, 0400);
             if (fd > 0)
                 close(fd);
+
+            // Wait for the reparent resolution to be able to resolve via procfs the
+            // new parent
+            sleep(1);
+
             _exit(EXIT_SUCCESS);
         }
         // child exits, grandchild will be reparented to the subreaper

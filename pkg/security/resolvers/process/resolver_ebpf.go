@@ -98,8 +98,8 @@ type EBPFResolver struct {
 	envsTruncated             *atomic.Int64
 	envsSize                  *atomic.Int64
 	brokenLineage             *atomic.Int64
-	reparentSuccessStats      *atomic.Int64
-	reparentFailedStats       *atomic.Int64
+	reparentSuccessStats      map[string]*atomic.Int64
+	reparentFailedStats       map[string]*atomic.Int64
 	inodeErrStats             map[string]*atomic.Int64 // inode error stats by tag
 
 	entryCache              map[uint32]*model.ProcessCacheEntry
@@ -148,7 +148,7 @@ func (p *EBPFResolver) resolveParentFromProcfs(entry *model.ProcessCacheEntry) {
 // unknown), the parent is resolved from procfs so the walk can continue.
 // Only ancestors within tryReparentMaxForkDepth fork levels are checked
 // (exec transitions do not count toward the depth).
-func (p *EBPFResolver) TryReparentFromProcfs(entry *model.ProcessCacheEntry) {
+func (p *EBPFResolver) TryReparentFromProcfs(entry *model.ProcessCacheEntry, callpathTag string) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -159,12 +159,12 @@ func (p *EBPFResolver) TryReparentFromProcfs(entry *model.ProcessCacheEntry) {
 			forkDepth++
 
 			if !pc.ExitTime.IsZero() {
-				p.tryReparentChildrenFromProcfs(pc)
+				p.tryReparentChildrenFromProcfs(pc, callpathTag)
 			}
 		}
 
 		if pc.Ancestor == nil {
-			if p.tryResolveMissingAncestor(pc) == nil {
+			if p.tryResolveMissingAncestor(pc, callpathTag) == nil {
 				break
 			}
 		}
@@ -179,17 +179,17 @@ func (p *EBPFResolver) TryReparentFromProcfs(entry *model.ProcessCacheEntry) {
 // resolving the parent from the cache or procfs. Returns the resolved parent
 // or nil if resolution failed.
 // Must be called with the lock held.
-func (p *EBPFResolver) tryResolveMissingAncestor(pc *model.ProcessCacheEntry) *model.ProcessCacheEntry {
+func (p *EBPFResolver) tryResolveMissingAncestor(pc *model.ProcessCacheEntry, callpathTag string) *model.ProcessCacheEntry {
 	ppid := pc.PPid
 	if ppid == 0 {
 		proc, err := process.NewProcess(int32(pc.Pid))
 		if err != nil {
-			p.reparentFailedStats.Inc()
+			p.reparentFailedStats[callpathTag].Inc()
 			return nil
 		}
 		newPPid, err := proc.Ppid()
 		if err != nil || newPPid <= 0 {
-			p.reparentFailedStats.Inc()
+			p.reparentFailedStats[callpathTag].Inc()
 			return nil
 		}
 		ppid = uint32(newPPid)
@@ -201,9 +201,9 @@ func (p *EBPFResolver) tryResolveMissingAncestor(pc *model.ProcessCacheEntry) *m
 	}
 	if parent != nil {
 		pc.Reparent(parent)
-		p.reparentSuccessStats.Inc()
+		p.reparentSuccessStats[callpathTag].Inc()
 	} else {
-		p.reparentFailedStats.Inc()
+		p.reparentFailedStats[callpathTag].Inc()
 	}
 	return parent
 }
@@ -212,13 +212,13 @@ func (p *EBPFResolver) tryResolveMissingAncestor(pc *model.ProcessCacheEntry) *m
 // and tries to update their parent link by reading their current ppid from
 // procfs. The Children list is maintained by setAncestor/Reparent.
 // Must be called with the lock held.
-func (p *EBPFResolver) tryReparentChildrenFromProcfs(exitedEntry *model.ProcessCacheEntry) {
+func (p *EBPFResolver) tryReparentChildrenFromProcfs(exitedEntry *model.ProcessCacheEntry, callpathTag string) {
 	// snapshot since Reparent modifies the Children slice
 	children := make([]*model.ProcessCacheEntry, len(exitedEntry.Children))
 	copy(children, exitedEntry.Children)
 
 	for _, child := range children {
-		p.tryReparentEntryFromProcfs(child, exitedEntry.Pid)
+		p.tryReparentEntryFromProcfs(child, exitedEntry.Pid, callpathTag)
 	}
 }
 
@@ -226,7 +226,7 @@ func (p *EBPFResolver) tryReparentChildrenFromProcfs(exitedEntry *model.ProcessC
 // procfs and updates its parent link. If procfs hasn't been updated yet (race)
 // or fails, the entry stays linked to the dead parent.
 // Must be called with the lock held.
-func (p *EBPFResolver) tryReparentEntryFromProcfs(child *model.ProcessCacheEntry, exitedPid uint32) {
+func (p *EBPFResolver) tryReparentEntryFromProcfs(child *model.ProcessCacheEntry, exitedPid uint32, callpathTag string) {
 	proc, err := process.NewProcess(int32(child.Pid))
 	if err != nil {
 		return
@@ -239,7 +239,7 @@ func (p *EBPFResolver) tryReparentEntryFromProcfs(child *model.ProcessCacheEntry
 
 	newPPidU32 := uint32(newPPid)
 	if newPPidU32 == 0 || newPPidU32 == exitedPid {
-		p.reparentFailedStats.Inc()
+		p.reparentFailedStats[callpathTag].Inc()
 		return
 	}
 
@@ -250,9 +250,9 @@ func (p *EBPFResolver) tryReparentEntryFromProcfs(child *model.ProcessCacheEntry
 
 	if newParent != nil {
 		child.Reparent(newParent)
-		p.reparentSuccessStats.Inc()
+		p.reparentSuccessStats[callpathTag].Inc()
 	} else {
-		p.reparentFailedStats.Inc()
+		p.reparentFailedStats[callpathTag].Inc()
 	}
 }
 
@@ -379,14 +379,16 @@ func (p *EBPFResolver) SendStats() error {
 		}
 	}
 
-	if count := p.reparentSuccessStats.Swap(0); count > 0 {
-		if err := p.statsdClient.Count(metrics.MetricProcessResolverReparentSuccess, count, []string{}, 1.0); err != nil {
-			return fmt.Errorf("failed to send process_resolver reparent success metric: %w", err)
+	for _, tag := range metrics.AllReparentCallpathTags {
+		if count := p.reparentSuccessStats[tag].Swap(0); count > 0 {
+			if err := p.statsdClient.Count(metrics.MetricProcessResolverReparentSuccess, count, []string{tag}, 1.0); err != nil {
+				return fmt.Errorf("failed to send process_resolver reparent success metric: %w", err)
+			}
 		}
-	}
-	if count := p.reparentFailedStats.Swap(0); count > 0 {
-		if err := p.statsdClient.Count(metrics.MetricProcessResolverReparentFailed, count, []string{}, 1.0); err != nil {
-			return fmt.Errorf("failed to send process_resolver reparent failed metric: %w", err)
+		if count := p.reparentFailedStats[tag].Swap(0); count > 0 {
+			if err := p.statsdClient.Count(metrics.MetricProcessResolverReparentFailed, count, []string{tag}, 1.0); err != nil {
+				return fmt.Errorf("failed to send process_resolver reparent failed metric: %w", err)
+			}
 		}
 	}
 
@@ -504,6 +506,8 @@ func (p *EBPFResolver) ApplyExitEntry(event *model.Event, newEntryCb func(*model
 	// The pid_cache kernel map has the exit_time but it's only accessed if there's a local miss
 	event.ProcessCacheEntry.ExitTime = event.FieldHandlers.ResolveEventTime(event, &event.BaseEvent)
 	event.Exit.Process = &event.ProcessCacheEntry.Process
+
+	p.tryReparentChildrenFromProcfs(event.ProcessCacheEntry, metrics.ReparentCallpathDoExit)
 
 	return true
 }
@@ -1775,8 +1779,8 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		envsTruncated:             atomic.NewInt64(0),
 		envsSize:                  atomic.NewInt64(0),
 		brokenLineage:             atomic.NewInt64(0),
-		reparentSuccessStats:      atomic.NewInt64(0),
-		reparentFailedStats:       atomic.NewInt64(0),
+		reparentSuccessStats:      make(map[string]*atomic.Int64),
+		reparentFailedStats:       make(map[string]*atomic.Int64),
 		inodeErrStats:             make(map[string]*atomic.Int64),
 		mountResolver:             mountResolver,
 		cgroupResolver:            cgroupResolver,
@@ -1789,6 +1793,11 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 
 	for _, t := range metrics.AllTypesTags {
 		p.hitsStats[t] = atomic.NewInt64(0)
+	}
+
+	for _, tag := range metrics.AllReparentCallpathTags {
+		p.reparentSuccessStats[tag] = atomic.NewInt64(0)
+		p.reparentFailedStats[tag] = atomic.NewInt64(0)
 	}
 
 	for _, tag := range allInodeErrTags() {
