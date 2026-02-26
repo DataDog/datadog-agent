@@ -9,6 +9,4 @@ crate.from_cargo(
     ],
     validate_lockfile = True,
 )
-
 use_repo(crate, "crates")
-
