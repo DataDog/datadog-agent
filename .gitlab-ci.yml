@@ -9,7 +9,9 @@ include:
   # Windows jobs - set SKIP_WINDOWS=true to exclude all Windows-related jobs
   - local: .gitlab/windows/**.yml
     rules:
-      - !reference [.except_skip_windows]
+      # - !reference [.except_skip_windows] Should be the rule but it is not working so we need to explicitly write the rule. See https://gitlab.com/gitlab-org/gitlab/-/issues/434157
+      - if: $SKIP_WINDOWS == "true"
+        when: never
       - when: always
 
 default:
