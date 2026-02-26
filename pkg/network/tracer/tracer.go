@@ -506,7 +506,7 @@ func (t *Tracer) emitCongestionMetrics(conns []network.ConnectionStats) {
 			continue
 		}
 		tags := []string{
-			fmt.Sprintf("flow:%s:%d-%s:%d", c.Source, c.SPort, c.Dest, c.DPort),
+			fmt.Sprintf("flow:%s-%s", c.Source, c.Dest),
 		}
 		t.statsd.Gauge("network.tcp.congestion.max_packets_out", float64(c.TCPMaxPacketsOut), tags, 1) //nolint:errcheck
 		t.statsd.Gauge("network.tcp.congestion.max_lost_out", float64(c.TCPMaxLostOut), tags, 1)       //nolint:errcheck
