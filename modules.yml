@@ -92,7 +92,8 @@ modules:
   comp/logs/agent/config:
     used_by_otel: true
   comp/netflow/payload: default
-  comp/observer/def: default
+  comp/observer/def:
+    used_by_otel: true
   comp/otelcol/collector-contrib/def: default
   comp/otelcol/collector-contrib/impl: default
   comp/otelcol/converter/def: default
@@ -133,7 +134,8 @@ modules:
     used_by_otel: true
   comp/trace/compression/impl-zstd:
     used_by_otel: true
-  comp/trace/observerbuffer/def: default
+  comp/trace/observerbuffer/def:
+    used_by_otel: true
   internal/tools:
     independent: false
     should_tag: false

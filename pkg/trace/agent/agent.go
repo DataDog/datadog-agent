@@ -226,8 +226,10 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 	agnt.SamplerMetrics.Add(agnt.PrioritySampler, agnt.ErrorsSampler, agnt.NoPrioritySampler, agnt.RareSampler)
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, inV1, agnt, telemetryCollector, statsd, timing)
 	// Wire up profile capture to forward raw profile data to the buffer
-	agnt.Receiver.ProfileCaptureFunc = func(body []byte, headers http.Header) {
-		obsBuf.AddRawProfile(body, headers)
+	if obsBuf != nil {
+		agnt.Receiver.ProfileCaptureFunc = func(body []byte, headers http.Header) {
+			obsBuf.AddRawProfile(body, headers)
+		}
 	}
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf, statsd, timing)
 	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler)
