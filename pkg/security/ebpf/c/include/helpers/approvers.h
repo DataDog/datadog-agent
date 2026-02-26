@@ -328,10 +328,10 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct den
         }
     }
 
-    // Test without global limiter
-    // if (!global_limiter_allow(OPEN_SAMPLE_LIMITER, 100, 1)) {
-    //     return DISCARDED;
-    // }
+    // We can use the global limiter as a security measure, but from the tests we can conclude that the sampler above should be enough.
+    if (!global_limiter_allow(OPEN_SAMPLE_LIMITER, 500, 1)) {
+        return DISCARDED;
+    }
 
     // Track open events that were sampled
     monitor_ad_sample_sampled(EVENT_OPEN);
