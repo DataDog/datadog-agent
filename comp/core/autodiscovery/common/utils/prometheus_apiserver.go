@@ -8,6 +8,8 @@
 package utils
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
@@ -84,35 +86,25 @@ func ConfigsForServiceEndpoints(pc *types.PrometheusCheck, svc *v1.Service, ep *
 	return configs
 }
 
-// ConfigsForServiceEndpointSlices returns the openmetrics configurations for a given endpointslice if it matches the AD
-// configuration for related service
-func ConfigsForServiceEndpointSlices(pc *types.PrometheusCheck, svc *v1.Service, slice *discv1.EndpointSlice) []integration.Config {
-	var configs []integration.Config
+// ConfigForServiceEndpointSlices returns a single openmetrics configuration for a service that matches all its
+// endpoint services via a service-level AD identifier, instead of generating one config per endpoint IP.
+func ConfigForServiceEndpointSlices(pc *types.PrometheusCheck, svc *v1.Service) *integration.Config {
 	namespacedName := svc.GetNamespace() + "/" + svc.GetName()
 	instances, found := buildInstances(pc, svc.GetAnnotations(), namespacedName)
-	if found {
-		for _, endpoint := range slice.Endpoints {
-			for _, ip := range endpoint.Addresses {
-				endpointsID := apiserver.EntityForEndpoints(slice.GetNamespace(), svc.GetName(), ip)
-
-				epConfig := integration.Config{
-					ServiceID:     endpointsID,
-					Name:          openmetricsCheckName,
-					InitConfig:    integration.Data(openmetricsInitConfig),
-					Instances:     instances,
-					ClusterCheck:  true,
-					Provider:      names.PrometheusServicesEndpointSlices,
-					Source:        "prometheus_services:" + endpointsID,
-					ADIdentifiers: []string{endpointsID},
-				}
-
-				ResolveEndpointSliceConfigAuto(&epConfig, endpoint)
-				configs = append(configs, epConfig)
-			}
-		}
+	if !found {
+		return nil
 	}
 
-	return configs
+	serviceEndpointID := fmt.Sprintf("kube_endpoint://%s/%s", svc.GetNamespace(), svc.GetName())
+	return &integration.Config{
+		Name:          openmetricsCheckName,
+		InitConfig:    integration.Data(openmetricsInitConfig),
+		Instances:     instances,
+		ClusterCheck:  true,
+		Provider:      names.PrometheusServicesEndpointSlices,
+		Source:        "prometheus_services:" + serviceEndpointID,
+		ADIdentifiers: []string{serviceEndpointID},
+	}
 }
 
 // ResolveEndpointConfigAuto automatically resolves endpoint pod and node information if available

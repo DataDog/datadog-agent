@@ -182,9 +182,12 @@ func (p *PrometheusServicesEndpointSlicesConfigProvider) Collect(_ context.Conte
 				p.monitoredEndpoints[endpointsID] = true
 				p.Unlock()
 
-				for _, slice := range slices {
-					endpointSliceConfigs := utils.ConfigsForServiceEndpointSlices(check, svc, slice)
-					configs = append(configs, endpointSliceConfigs...)
+				// Generate ONE config per service (not per endpoint IP).
+				// The config uses a service-level AD identifier that matches
+				// all endpoint services created by the listener.
+				serviceLevelConfig := utils.ConfigForServiceEndpointSlices(check, svc)
+				if serviceLevelConfig != nil {
+					configs = append(configs, *serviceLevelConfig)
 				}
 			}
 		}
