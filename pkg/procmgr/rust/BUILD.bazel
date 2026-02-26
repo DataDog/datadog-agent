@@ -43,7 +43,7 @@ rust_test(
     crate = ":dd-procmgrd",
     edition = "2024",
     deps = [
-        "@procmgrd_crates//:tempfile",
+        "@crates//:tempfile",
     ],
 )
 
@@ -60,7 +60,7 @@ rust_test(
         "CARGO_BIN_EXE_dd-procmgrd": "$(rootpath :dd-procmgrd)",
     },
     deps = [
-        "@procmgrd_crates//:nix",
-        "@procmgrd_crates//:tempfile",
+        "@crates//:nix",
+        "@crates//:tempfile",
     ],
 )
