@@ -3,8 +3,8 @@ module github.com/DataDog/datadog-agent/pkg/trace/traceutil
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/proto v0.77.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/proto v0.77.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-rc.3
 	github.com/stretchr/testify v1.11.1
 	github.com/tinylib/msgp v1.6.3
 )

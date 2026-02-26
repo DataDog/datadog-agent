@@ -6,22 +6,22 @@ go 1.25.0
 replace github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/create v0.77.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/config/helper v0.77.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/config/model v0.77.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.77.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.77.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/config/create v0.77.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/config/helper v0.77.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/config/model v0.77.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.77.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.77.0-rc.3
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/stretchr/testify v1.11.1
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/basic v0.77.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.77.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.77.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.77.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.77.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.77.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/basic v0.77.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.77.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.77.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.77.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.77.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.77.0-rc.3 // indirect
 	github.com/DataDog/viper v1.15.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
