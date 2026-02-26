@@ -124,6 +124,7 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 					errorStats.setRunError(id, err.Error())
 				} else {
 					stopped[id] = struct{}{}
+					errorStats.removeRunError(id)
 				}
 			} else {
 				log.Errorf("Collector not available, unable to stop check %s", id)
