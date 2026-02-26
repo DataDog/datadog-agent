@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strings"
 
 	"go.opentelemetry.io/collector/confmap"
 	"go.uber.org/zap/exp/zapslog"
@@ -118,6 +119,16 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 
 	// infraattributes processor can also be used in metrics pipeline
 	if err := c.ensureMetricsPipeline(confStringMap); err != nil {
+		return err
+	}
+
+	// Add internal health metrics pipeline
+	// Get updated exporter list from profiles pipeline (may have been modified by ensureOtlpHTTPExporterConfig)
+	updatedExporterNames, err := Ensure[[]any](profilesPipeline, "exporters")
+	if err != nil {
+		return err
+	}
+	if err := c.addInternalHealthMetricsPipeline(confStringMap, updatedExporterNames); err != nil {
 		return err
 	}
 
@@ -386,6 +397,137 @@ func (c *converterWithoutAgent) removeAgentOnlyExtensions(conf confMap) error {
 			}
 		}
 	}
+
+	return nil
+}
+
+// addInternalHealthMetricsPipeline adds a metrics pipeline for internal health metrics collection.
+// It creates a prometheus receiver to scrape OTel collector's internal telemetry,
+// infers metrics endpoints from profiles endpoints, and creates a pipeline that
+// sends metrics to the same orgs that receive profiles.
+// This is separate from ensureMetricsPipeline which handles user-defined metrics pipelines.
+func (c *converterWithoutAgent) addInternalHealthMetricsPipeline(conf confMap, profilesExporterNames []any) error {
+	// Check if user already configured the internal health metrics pipeline
+	if existing, ok := Get[confMap](conf, "service::pipelines::"+internalHealthMetricsPipelineName); ok {
+		slog.Warn("metrics/profiler-internal-health pipeline already configured, skipping auto-configuration",
+			slog.Any("existing_config", existing))
+		return nil
+	}
+
+	// Check if telemetry metrics are disabled
+	if level, ok := Get[string](conf, "service::telemetry::metrics::level"); ok {
+		if strings.ToLower(level) == "none" {
+			slog.Info("metrics telemetry disabled (level=none), skipping metrics pipeline")
+			return nil
+		}
+	}
+
+	// Check for reserved component name conflicts
+	if receivers, ok := Get[confMap](conf, "receivers"); ok {
+		if _, exists := receivers[reservedPrometheusReceiver]; exists {
+			slog.Warn("receiver name conflicts with reserved name, skipping metrics pipeline",
+				slog.String("receiver", reservedPrometheusReceiver))
+			return nil
+		}
+	}
+	if processors, ok := Get[confMap](conf, "processors"); ok {
+		if _, exists := processors[reservedFilterProcessor]; exists {
+			slog.Warn("processor name conflicts with reserved name, skipping metrics pipeline",
+				slog.String("processor", reservedFilterProcessor))
+			return nil
+		}
+	}
+
+	// Add prometheus receiver
+	if err := Set(conf, pathPrefixReceivers+reservedPrometheusReceiver, prometheusReceiverConfig()); err != nil {
+		return fmt.Errorf("failed to add prometheus receiver: %w", err)
+	}
+
+	// Add filter processor
+	if err := Set(conf, pathPrefixProcessors+reservedFilterProcessor, filterProcessorConfig()); err != nil {
+		return fmt.Errorf("failed to add filter processor: %w", err)
+	}
+
+	// Collect metrics exporters (same as profiles exporters)
+	metricsExporterNames := []any{}
+	for _, exporterNameAny := range profilesExporterNames {
+		exporterName, ok := exporterNameAny.(string)
+		if !ok {
+			continue
+		}
+
+		// Only process OTLP HTTP exporters
+		if !isComponentType(exporterName, componentTypeOtlpHTTP) {
+			continue
+		}
+
+		// Get exporter config
+		exporterConf, ok := Get[confMap](conf, pathPrefixExporters+exporterName)
+		if !ok {
+			slog.Warn("exporter not found in config", slog.String("exporter", exporterName))
+			continue
+		}
+
+		// Check if metrics_endpoint is already set (user override)
+		if _, hasMetrics := Get[string](exporterConf, "metrics_endpoint"); hasMetrics {
+			slog.Debug("metrics_endpoint already set, preserving user config", slog.String("exporter", exporterName))
+			metricsExporterNames = append(metricsExporterNames, exporterName)
+			continue
+		}
+
+		// Infer metrics_endpoint from profiles_endpoint
+		profilesEndpoint, ok := Get[string](exporterConf, "profiles_endpoint")
+		if !ok {
+			slog.Warn("otlphttp exporter missing profiles_endpoint, cannot infer metrics endpoint",
+				slog.String("exporter", exporterName))
+			continue
+		}
+
+		metricsEndpoint, err := inferMetricsEndpoint(profilesEndpoint)
+		if err != nil {
+			slog.Warn("cannot infer metrics endpoint from profiles endpoint",
+				slog.String("exporter", exporterName),
+				slog.String("profiles_endpoint", profilesEndpoint),
+				slog.Any("error", err))
+			continue
+		}
+
+		// Set inferred metrics_endpoint
+		if err := Set(exporterConf, "metrics_endpoint", metricsEndpoint); err != nil {
+			return fmt.Errorf("failed to set metrics_endpoint for %s: %w", exporterName, err)
+		}
+
+		slog.Info("inferred metrics endpoint for exporter",
+			slog.String("exporter", exporterName),
+			slog.String("profiles_endpoint", profilesEndpoint),
+			slog.String("metrics_endpoint", metricsEndpoint))
+
+		metricsExporterNames = append(metricsExporterNames, exporterName)
+	}
+
+	if len(metricsExporterNames) == 0 {
+		slog.Info("no exporters configured for metrics, skipping metrics pipeline")
+		return nil
+	}
+
+	// Build metrics pipeline (uses resourcedetection instead of infraattributes)
+	metricsPipeline := confMap{
+		"receivers": []any{reservedPrometheusReceiver},
+		"processors": []any{
+			reservedFilterProcessor,
+			defaultResourceDetectionName, // Use resourcedetection for standalone mode
+			"resource/dd-profiler-internal-metadata", // Reuse from profiles pipeline
+		},
+		"exporters": metricsExporterNames,
+	}
+
+	if err := Set(conf, "service::pipelines::"+internalHealthMetricsPipelineName, metricsPipeline); err != nil {
+		return fmt.Errorf("failed to create metrics pipeline: %w", err)
+	}
+
+	slog.Info("created internal health metrics pipeline",
+		slog.Int("exporters", len(metricsExporterNames)),
+		slog.String("pipeline", internalHealthMetricsPipelineName))
 
 	return nil
 }
