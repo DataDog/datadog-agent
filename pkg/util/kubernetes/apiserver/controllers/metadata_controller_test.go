@@ -47,8 +47,9 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 
 	// don't use the global store so we can inspect the store without
 	// it being modified by other tests.
-	metaController.store = &metaBundleStore{
-		cache: gocache.New(gocache.NoExpiration, 5*time.Second),
+	metaController.store = &MetaBundleStore{
+		cache:       gocache.New(gocache.NoExpiration, 5*time.Second),
+		subscribers: make(map[string]chan struct{}),
 	}
 
 	pod1 := newFakePod(
@@ -355,7 +356,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 			assert.Equal(t, len(tt.expectedBundles), nonNilKeys, "Unexpected metaBundles found")
 
 			for nodeName, expectedMapper := range tt.expectedBundles {
-				metaBundle, ok := metaController.store.get(nodeName)
+				metaBundle, ok := metaController.store.Get(nodeName)
 				require.True(t, ok, "No meta bundle for %s", nodeName)
 				assert.Equal(t, expectedMapper, metaBundle.Services, nodeName)
 			}
@@ -368,8 +369,9 @@ func TestMetadataControllerSyncEndpointSlices(t *testing.T) {
 
 	metaController, informerFactory := newFakeMetadataController(client, newMockWorkloadMeta(t), true)
 
-	metaController.store = &metaBundleStore{
-		cache: gocache.New(gocache.NoExpiration, 5*time.Second),
+	metaController.store = &MetaBundleStore{
+		cache:       gocache.New(gocache.NoExpiration, 5*time.Second),
+		subscribers: make(map[string]chan struct{}),
 	}
 
 	pod1 := newFakePod(
@@ -647,7 +649,7 @@ func TestMetadataControllerSyncEndpointSlices(t *testing.T) {
 			assert.Equal(t, len(tt.expectedBundles), nonNilKeys, "Unexpected metaBundles found")
 
 			for nodeName, expectedMapper := range tt.expectedBundles {
-				metaBundle, ok := metaController.store.get(nodeName)
+				metaBundle, ok := metaController.store.Get(nodeName)
 				require.True(t, ok, "No meta bundle for %s", nodeName)
 				assert.Equal(t, expectedMapper, metaBundle.Services, nodeName)
 			}
@@ -900,7 +902,7 @@ func newFakeEndpoint(nodeName string, pod corev1.Pod) discv1.Endpoint {
 func (m *metadataController) countNonNilKeys() int {
 	nonNilKeys := 0
 	for _, key := range m.store.listKeys() {
-		value, _ := m.store.get(key)
+		value, _ := m.store.Get(key)
 		if value != nil && len(value.Services) > 0 {
 			nonNilKeys++
 		}
@@ -908,7 +910,7 @@ func (m *metadataController) countNonNilKeys() int {
 	return nonNilKeys
 }
 
-func (m *metaBundleStore) listKeys() []string {
+func (m *MetaBundleStore) listKeys() []string {
 	keys := []string{}
 	for k := range m.cache.Items() {
 		k = strings.TrimPrefix(k, "agent/KubernetesMetadataMapping/")
