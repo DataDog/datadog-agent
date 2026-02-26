@@ -113,7 +113,7 @@ func (suite *kindSuite) testControlPlane(t *testing.T) {
 		},
 	})
 
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "kube_apiserver.api_resource",
 		},
