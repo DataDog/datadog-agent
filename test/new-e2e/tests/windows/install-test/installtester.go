@@ -246,6 +246,11 @@ func (t *Tester) TestUninstallExpectations(tt *testing.T) {
 	assert.False(tt, registryKeyExists, "uninstall should remove registry key")
 	// don't need to check registry key permissions because the key is removed
 
+	autologgerPath := windowsAgent.AutologgerRegistryKeyPath
+	autologgerExists, err := windows.RegistryKeyExists(t.host, autologgerPath)
+	assert.NoError(tt, err)
+	assert.False(tt, autologgerExists, "autologger session key should be removed after uninstall")
+
 	tt.Run("file permissions", func(tt *testing.T) {
 		t.testUninstalledFilePermissions(tt)
 	})
@@ -411,6 +416,32 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 			windows.AssertContainsEqualable(tt, out.Access, agentUserFullAccessDirRule, "%s should have full access rule for %s", path, ddAgentUserIdentity)
 		}
 		assert.False(tt, out.AreAccessRulesProtected, "%s should inherit access rules", path)
+	})
+
+	tt.Run("autologger registry keys", func(tt *testing.T) {
+		autologgerPath := windowsAgent.AutologgerRegistryKeyPath
+
+		// Verify session key exists
+		exists, err := windows.RegistryKeyExists(t.host, autologgerPath)
+		require.NoError(tt, err)
+		assert.True(tt, exists, "autologger session key should exist after install")
+
+		// Verify Start is 0 (disabled by default)
+		val, err := windows.GetRegistryValue(t.host, autologgerPath, "Start")
+		require.NoError(tt, err)
+		assert.Equal(tt, "0", val)
+
+		// Verify ddagentuser has SetValue + QueryValues
+		out, err := windows.GetSecurityInfoForPath(t.host, autologgerPath)
+		require.NoError(tt, err)
+		if !windows.IsIdentityLocalSystem(ddAgentUserIdentity) {
+			agentUserRule := windows.NewExplicitAccessRule(
+				ddAgentUserIdentity,
+				windows.KEY_SET_VALUE|windows.KEY_QUERY_VALUE,
+				windows.AccessControlTypeAllow,
+			)
+			windows.AssertContainsEqualable(tt, out.Access, agentUserRule, "%s should have access rule for %s", autologgerPath, ddAgentUserIdentity)
+		}
 	})
 
 	RequireAgentRunningWithNoErrors(tt, t.InstallTestClient)
