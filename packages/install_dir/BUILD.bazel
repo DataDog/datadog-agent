@@ -29,6 +29,7 @@ filegroup(
     srcs = [
         ":embedded",
         "//deps:all_deps",
+        "//deps/jmxfetch:all_files",
     ] + select({
         "//packages/agent:linux_heroku": [],
         "//packages/agent:linux_default": [

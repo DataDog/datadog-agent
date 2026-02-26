@@ -41,8 +41,6 @@ type Poller struct {
 
 // osImpl is the OS-specific implementation of getting the open listening ports.
 type osImpl interface {
-	Close() error
-
 	// AppendListeningPorts appends to base (which must have length 0 but
 	// optional capacity) the list of listening ports. The Port struct should be
 	// populated as completely as possible. Another pass will not add anything
@@ -57,17 +55,6 @@ func (p *Poller) setPrev(pl List) {
 	// Make a copy, as the pass in pl slice aliases pl.scratch and we don't want
 	// that to except to the caller.
 	p.prev = slices.Clone(pl)
-}
-
-// Close closes the Poller.
-func (p *Poller) Close() error {
-	if p.initErr != nil {
-		return p.initErr
-	}
-	if p.os == nil {
-		return nil
-	}
-	return p.os.Close()
 }
 
 // Poll returns the list of listening ports, if changed from

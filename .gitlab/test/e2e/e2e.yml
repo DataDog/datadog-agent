@@ -487,7 +487,7 @@ new-e2e-windows-fips-compliance-test:
     - windows_msi_and_bosh_zip_x64-a7-fips
     - deploy_windows_testing-a7-fips
   rules:
-    - !reference [.on_arun_or_e2e_changes]
+    - !reference [.on_windows_fips_compliance_or_e2e_changes]
     - !reference [.manual]
   variables:
     TARGETS: ./tests/fips-compliance

@@ -4,7 +4,7 @@ load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 VERSION = "2.14.5"
 
@@ -71,7 +71,7 @@ expand_template(
 cc_library(
     name = "xml2_config_h",
     hdrs = [
-        ":copy_config_h"
+        ":copy_config_h",
     ],
 )
 
@@ -123,7 +123,7 @@ cc_library(
     ] + glob(["include/private/*.h"]),
     hdrs = PUBLIC_HEADERS,
     implementation_deps = [
-        ":xml2_config_h"
+        ":xml2_config_h",
     ],
     deps = [
         "@zlib//:zlib",
@@ -152,7 +152,7 @@ cc_shared_library(
     dynamic_deps = [
         "@zlib//:z",
         "@xz//:lzma",
-    ]
+    ],
 )
 
 so_symlink(
@@ -168,10 +168,18 @@ pkg_files(
     prefix = "include/libxml2/libxml",
 )
 
-pkg_install(
-    name = "install",
+pkg_filegroup(
+    name = "all_files",
     srcs = [
         ":headers",
         ":lib_files",
+    ],
+    prefix = "embedded",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
     ],
 )

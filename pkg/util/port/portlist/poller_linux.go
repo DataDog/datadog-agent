@@ -17,7 +17,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"unsafe"
 
 	"go4.org/mem"
@@ -31,7 +30,6 @@ func (p *Poller) init() {
 }
 
 type linuxImpl struct {
-	procNetFiles    []*os.File // seeked to start & reused between calls
 	readlinkPathBuf []byte
 
 	known            map[string]*portMeta // inode string => metadata
@@ -48,41 +46,12 @@ type portMeta struct {
 
 var eofReader = bytes.NewReader(nil)
 
-func newLinuxImplBase(includeLocalhost bool) *linuxImpl {
+func newLinuxImpl(includeLocalhost bool) *linuxImpl {
 	return &linuxImpl{
 		br:               bufio.NewReader(eofReader),
 		known:            map[string]*portMeta{},
 		includeLocalhost: includeLocalhost,
 	}
-}
-
-func newLinuxImpl(includeLocalhost bool) osImpl {
-	li := newLinuxImplBase(includeLocalhost)
-	for _, name := range []string{
-		"/proc/net/tcp",
-		"/proc/net/tcp6",
-		"/proc/net/udp",
-		"/proc/net/udp6",
-	} {
-		f, err := os.Open(name)
-		if err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			log.Errorf("diagnose port-conflict poller warning; ignoring: %v", err)
-			continue
-		}
-		li.procNetFiles = append(li.procNetFiles, f)
-	}
-	return li
-}
-
-func (li *linuxImpl) Close() error {
-	for _, f := range li.procNetFiles {
-		f.Close()
-	}
-	li.procNetFiles = nil
-	return nil
 }
 
 const (
@@ -103,19 +72,22 @@ func (li *linuxImpl) AppendListeningPorts(base []Port) ([]Port, error) {
 		pm.keep = false
 	}
 
-	for _, f := range li.procNetFiles {
-		name := f.Name()
-		_, err := f.Seek(0, io.SeekStart)
-		if errors.Is(err, syscall.ESPIPE) {
-			// Some kernels may return `illegal seek` on `/proc/net/tcp`s files, ignore it.
-			// See https://github.com/tailscale/tailscale/issues/16966
-			continue
-		}
+	for _, name := range []string{
+		"/proc/net/tcp",
+		"/proc/net/tcp6",
+		"/proc/net/udp",
+		"/proc/net/udp6",
+	} {
+		f, err := os.Open(name)
 		if err != nil {
-			return nil, err
+			if !os.IsNotExist(err) {
+				log.Errorf("diagnose port-conflict poller warning; ignoring: %v", err)
+			}
+			continue
 		}
 		br.Reset(f)
 		err = li.parseProcNetFile(br, filepath.Base(name))
+		f.Close()
 		if err != nil {
 			return nil, fmt.Errorf("parsing %q: %w", name, err)
 		}

@@ -169,6 +169,16 @@ Go build tags control feature inclusion, some examples are:
 - Tests about the pull-request settings or repository configuration
 - Release automation workflows
 
+## Code Review
+
+Code reviewer plugins for Go and Python are available from the
+[Datadog Claude Marketplace](https://github.com/DataDog/claude-marketplace):
+
+- `/go-review`, `/go-improve` - Go code review and iterative improvement
+- `/py-review`, `/py-improve` - Python code review and iterative improvement
+
+See the marketplace README for installation instructions.
+
 ## Security Considerations
 
 ### Sensitive Data
@@ -188,7 +198,6 @@ tasks.
 - **Container**: Docker, Kubernetes, ECS, containerd, and more
 
 ## Best Practices
-
 1. **Always run linters before committing**: `dda inv linter.go`
 2. **Always test your changes**: `dda inv test --targets=<your_package>`
 3. **Follow Go conventions**: Use gofmt, follow project structure

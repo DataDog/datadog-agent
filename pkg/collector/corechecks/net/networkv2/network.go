@@ -11,7 +11,6 @@ package networkv2
 import (
 	"bufio"
 	"bytes"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -298,7 +297,7 @@ func handleEthtoolStats(sender sender.Sender, ethtoolObject ethtoolInterface, in
 		if err == unix.ENOTTY || err == unix.EOPNOTSUPP {
 			log.Debugf("driver info is not supported for interface: %s", interfaceIO.Name)
 		} else {
-			return errors.New("failed to get driver info for interface " + interfaceIO.Name + ": " + fmt.Sprintf("%d", err))
+			return fmt.Errorf("failed to get driver info for interface %s: %w", interfaceIO.Name, err)
 		}
 	}
 
@@ -312,7 +311,7 @@ func handleEthtoolStats(sender sender.Sender, ethtoolObject ethtoolInterface, in
 		if err == unix.ENOTTY || err == unix.EOPNOTSUPP {
 			log.Debugf("ethtool stats are not supported for interface: %s", interfaceIO.Name)
 		} else {
-			return errors.New("failed to get ethtool stats information for interface " + interfaceIO.Name + ": " + fmt.Sprintf("%d", err))
+			return fmt.Errorf("failed to get ethtool stats information for interface %s: %w", interfaceIO.Name, err)
 		}
 	}
 

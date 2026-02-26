@@ -5,7 +5,7 @@ load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@bazel_skylib//rules:select_file.bzl", "select_file")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_attributes", "pkg_files", "pkg_mklink", "strip_prefix")
+load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_attributes", "pkg_files", "pkg_mklink")
 
 # Keep in sync with the ones on repos.MODULE.bazel
 python_externals = {
@@ -19,6 +19,7 @@ python_externals = {
 }
 
 VERSION_STR = "3.13"
+VERSION_STR_FLAT = VERSION_STR.replace(".", "")
 
 # These rules will make it easier to get a reference to their folder via $(location)
 # and they add the version in the folder name (as some of the vcxproj stuff relies on that)
@@ -69,7 +70,7 @@ run_binary(
         "PROCESSOR_ARCHITECTURE": "AMD64",
         # Input and output paths
         "SRCFILE": r"$(location LICENSE)",  # Any file at the root of the repo works here
-        "OUTDIR": "$(@D)",
+        "OUTDIR": "$(@D)/build",
         # Paths to dependencies:
         "BZ2_DIR": "$(location bzip2_win_dir)",
         "MPDECIMAL_DIR": "$(location mpdecimal_win_dir)",
@@ -82,7 +83,26 @@ run_binary(
         "TCL_VERSION": python_externals["tcltk"],
         "MSBUILD": "$(location @visual_studio//:msbuild)",
     },
-    out_dirs = ["python_win"],
+    outs = [
+        "build/{}".format(file) for file in [
+            "python.exe",
+            "python3.dll",
+            "python{}.dll".format(VERSION_STR_FLAT),
+            "pythonw.exe",
+            "vcruntime140.dll",
+            "vcruntime140_1.dll",
+            "LICENSE.txt",
+        ]
+    ],
+    out_dirs = [
+        "build/{}".format(dir) for dir in [
+            "DLLs",
+            "include",
+            "Lib",
+            "libs",
+            "Scripts",
+        ]
+    ],
     tool = "build_python.bat",
     visibility = ["//visibility:public"],
 )
@@ -248,9 +268,6 @@ configure_make(
 pkg_files(
     name = "install_files_win",
     srcs = [":python_win"],
-    renames = {
-        "python_win": REMOVE_BASE_DIRECTORY,
-    },
 )
 
 # We resort to select_file here instead of picking the output groups with filegroup

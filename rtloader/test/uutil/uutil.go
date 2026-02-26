@@ -36,7 +36,23 @@ import "C"
 var (
 	rtloader *C.rtloader_t
 	tmpfile  *os.File
+	stdout       string
+	stderr       string
+	setException bool
+	exception    string
+	retCode      int
+	args         []string
+	env          []string
 )
+
+func resetTest() {
+	stdout = ""
+	stderr = ""
+	setException = false
+	exception = ""
+	retCode = 0
+	args = nil
+}
 
 func setUp() error {
 	// Initialize memory tracking

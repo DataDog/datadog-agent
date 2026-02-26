@@ -59,8 +59,11 @@ var (
 	// EncodedBytesSent is the total number of sent bytes after encoding if any
 	EncodedBytesSent = expvar.Int{}
 	// TlmEncodedBytesSent is the total number of sent bytes after encoding if any
+	// The remote_agent tag identifies which agent sent the logs. Use GetAgentIdentityTag()
+	// to get the correct value for the current agent. This tag is used by COAT to partition
+	// encoded log bytes by agent type.
 	TlmEncodedBytesSent = telemetry.NewCounter("logs", "encoded_bytes_sent",
-		[]string{"source", "compression_kind"}, "Total number of sent bytes after encoding if any")
+		[]string{"remote_agent", "source", "compression_kind"}, "Total number of sent bytes after encoding if any")
 	// BytesMissed is the number of bytes lost before they could be consumed by the agent, such as after a log rotation
 	BytesMissed = expvar.Int{}
 	// TlmBytesMissed is the number of bytes lost before they could be consumed by the agent, such as after log rotation

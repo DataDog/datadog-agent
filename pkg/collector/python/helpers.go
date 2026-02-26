@@ -100,7 +100,7 @@ func newStickyLock() (*stickyLock, error) {
 
 	// Ensure that rtloader isn't destroyed while we are trying to acquire GIL
 	if rtloader == nil {
-		return nil, errors.New("error acquiring the GIL: rtloader is not initialized")
+		return nil, fmt.Errorf("error acquiring the GIL: %w", ErrNotInitialized)
 	}
 
 	state := C.ensure_gil(rtloader)
@@ -130,6 +130,9 @@ func (sl *stickyLock) unlock() {
 func GetPythonIntegrationList() ([]string, error) {
 	glock, err := newStickyLock()
 	if err != nil {
+		if errors.Is(err, ErrNotInitialized) {
+			return []string{}, nil
+		}
 		return nil, err
 	}
 

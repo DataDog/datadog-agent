@@ -1,9 +1,9 @@
 [package]
 name = "sd-agent"
 version = "0.1.0"
-edition = "2024"
-license = "Apache-2.0"
-rust-version = "1.91"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
 
 [lib]
 name = "dd_discovery"
@@ -18,43 +18,36 @@ name = "disco"
 path = "src/bin/disco.rs"
 
 [dependencies]
-clap = { version = "4.5", features = ["derive"] }
-anyhow = "1.0.98"
-cap-std = "3.4"
-http-body-util = "0.1"
-hyper-util = { version = "0.1", default-features = false, features = ["http1", "server", "tokio"] }
-hyper = { version = "1"} # hyper-utils adds the needed features, no need to define them here
-log = "0.4"
-lru = { version = "0.16.0", default-features = false }  # Don't use hashbrown for the hash map; prefer std
-phf = { version = "0.11", features = ["macros"] }
-rmp-serde = "1.3"
-serde_json = "1.0"
-serde = { version ="1.0.219", features = ["derive", "std"] }
-simple_logger = { version = "5.0", features = ["colors", "timestamps"] }
-thiserror = "2.0.12"
-tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal"] }
-uzers = "0.12"
-elf = "0.8.0"
-memchr = "2.7.6"
-nom = "7.1"
-zip = { version = "2.1", default-features = false, features = ["deflate"] }
-glob-match = "0.2"
-yaml-rust2 = "0.9"
-normalize-path = "0.2"
-walkdir = "2"
-quick-xml = { version = "0.37", features = ["serialize"] }
+anyhow.workspace = true
+cap-std.workspace = true
+clap.workspace = true
+elf.workspace = true
+glob-match.workspace = true
+http-body-util.workspace = true
+hyper.workspace = true
+hyper-util.workspace = true
+log.workspace = true
+lru.workspace = true
+memchr.workspace = true
+nom.workspace = true
+normalize-path.workspace = true
+phf.workspace = true
+quick-xml.workspace = true
+rmp-serde.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+simple_logger = { workspace = true, features = ["colors", "timestamps"] }
+thiserror.workspace = true
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal"] }
+uzers.workspace = true
+walkdir.workspace = true
+yaml-rust2.workspace = true
+zip.workspace = true
 
 [dev-dependencies]
-memmap2 = "0.9"
-scopeguard = "1.2"
-tempfile = "3.0"
-temp-env = "0.3"
-dircpy = "0.3.19"
-nix = { version = "0.29", features = ["signal"] }
-
-[profile.release]
-# debug = true  # Add debugging information. Useful for profiling.
-lto = "fat"
-opt-level = "z" # Optimize for size
-strip = "symbols"
-panic = "abort" # Remove stack unwinding on panic => lower binary size.
+dircpy.workspace = true
+memmap2.workspace = true
+nix.workspace = true
+scopeguard.workspace = true
+temp-env.workspace = true
+tempfile.workspace = true

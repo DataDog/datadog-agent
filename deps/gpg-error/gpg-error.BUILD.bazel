@@ -7,7 +7,7 @@ load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
     default_package_metadata = [":license"],
@@ -289,10 +289,18 @@ pkg_files(
     prefix = "include",
 )
 
-pkg_install(
-    name = "install",
+pkg_filegroup(
+    name = "all_files",
     srcs = [
         ":hdr_files",
         ":lib_files",
+    ],
+    prefix = "embedded",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
     ],
 )

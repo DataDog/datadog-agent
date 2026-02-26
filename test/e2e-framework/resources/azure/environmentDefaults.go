@@ -58,7 +58,7 @@ func sandboxDefault() environmentDefault {
 			subscriptionID: "8c56d827-5f07-45ce-8f2b-6c5001db5c6f",
 		},
 		ddInfra: ddInfra{
-			defaultContainerRegistry: "registry.datadoghq.com",
+			defaultContainerRegistry: "/subscriptions/c767177d-c6fc-47d3-a87e-3ab195f5b99e/resourceGroups/dd-agent-qa/providers/Microsoft.ContainerRegistry/registries/agentqa",
 			defaultResourceGroup:     "datadog-agent-testing",
 			defaultVNet:              "/subscriptions/8c56d827-5f07-45ce-8f2b-6c5001db5c6f/resourceGroups/datadog-agent-testing/providers/Microsoft.Network/virtualNetworks/default-vnet",
 			defaultSubnet:            "/subscriptions/8c56d827-5f07-45ce-8f2b-6c5001db5c6f/resourceGroups/datadog-agent-testing/providers/Microsoft.Network/virtualNetworks/default-vnet/subnets/default-subnet",
@@ -81,7 +81,7 @@ func agentSandboxDefault() environmentDefault {
 		},
 		ddInfra: ddInfra{
 			defaultSubscriptionID:    "9972cab2-9e99-419b-a683-86bfa77b3df1",
-			defaultContainerRegistry: "registry.datadoghq.com",
+			defaultContainerRegistry: "/subscriptions/c767177d-c6fc-47d3-a87e-3ab195f5b99e/resourceGroups/dd-agent-qa/providers/Microsoft.ContainerRegistry/registries/agentqa",
 			defaultResourceGroup:     "dd-agent-sandbox",
 			defaultVNet:              "/subscriptions/9972cab2-9e99-419b-a683-86bfa77b3df1/resourceGroups/dd-agent-sandbox/providers/Microsoft.Network/virtualNetworks/dd-agent-sandbox",
 			defaultSubnet:            "/subscriptions/9972cab2-9e99-419b-a683-86bfa77b3df1/resourceGroups/dd-agent-sandbox/providers/Microsoft.Network/virtualNetworks/dd-agent-sandbox/subnets/dd-agent-sandbox-private",
@@ -104,7 +104,7 @@ func agentQaDefault() environmentDefault {
 		},
 		ddInfra: ddInfra{
 			defaultSubscriptionID:    "c767177d-c6fc-47d3-a87e-3ab195f5b99e",
-			defaultContainerRegistry: "registry.datadoghq.com",
+			defaultContainerRegistry: "/subscriptions/c767177d-c6fc-47d3-a87e-3ab195f5b99e/resourceGroups/dd-agent-qa/providers/Microsoft.ContainerRegistry/registries/agentqa",
 			defaultResourceGroup:     "dd-agent-qa",
 			defaultVNet:              "/subscriptions/c767177d-c6fc-47d3-a87e-3ab195f5b99e/resourceGroups/dd-agent-qa/providers/Microsoft.Network/virtualNetworks/dd-agent-qa",
 			defaultSubnet:            "/subscriptions/c767177d-c6fc-47d3-a87e-3ab195f5b99e/resourceGroups/dd-agent-qa/providers/Microsoft.Network/virtualNetworks/dd-agent-qa/subnets/dd-agent-qa-private",

@@ -19,10 +19,5 @@ func GetUsedPorts() ([]Port, error) {
 		IncludeLocalhost: true,
 	}
 	ports, _, err := poller.Poll()
-	if err != nil {
-		return nil, err
-	}
-
-	err = poller.Close()
 	return ports, err
 }

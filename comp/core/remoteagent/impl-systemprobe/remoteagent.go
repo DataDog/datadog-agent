@@ -87,6 +87,7 @@ func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetry
 		// Metrics to forward from system-probe to core agent.
 		// The remote_agent tag is set to "system-probe" via metrics.SetAgentIdentity() above.
 		"logs__bytes_sent",
+		"logs__encoded_bytes_sent",
 
 		// Windows Injector metrics (using double underscore format from telemetry component)
 		"injector__processes_added_to_injection_tracker",
