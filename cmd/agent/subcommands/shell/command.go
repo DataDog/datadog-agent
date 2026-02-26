@@ -33,7 +33,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	}
 
 	shellCmd := &cobra.Command{
-		Use:   "shell [-c command | script_file]",
+		Use:   "shell [--command cmd | --file script | script_file]",
 		Short: "Execute shell commands in a safe sandbox",
 		Long: `Execute shell commands after verifying they contain only allowed
 commands and flags. Commands are parsed and validated against an allowlist
@@ -43,9 +43,9 @@ before execution via /bin/sh.`,
 		},
 	}
 
-	shellCmd.Flags().StringVarP(&params.command, "command", "c", "", "command string to execute")
-	shellCmd.Flags().StringVarP(&params.file, "file", "f", "", "script file to execute")
-	shellCmd.Flags().DurationVarP(&params.timeout, "timeout", "t", executor.DefaultTimeout, "execution timeout")
+	shellCmd.Flags().StringVar(&params.command, "command", "", "command string to execute")
+	shellCmd.Flags().StringVar(&params.file, "file", "", "script file to execute")
+	shellCmd.Flags().DurationVar(&params.timeout, "timeout", executor.DefaultTimeout, "execution timeout")
 
 	return []*cobra.Command{shellCmd}
 }
