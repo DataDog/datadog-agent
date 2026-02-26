@@ -23,11 +23,11 @@ type captureSampler struct {
 	emitted []*message.Message
 }
 
-func (s *captureSampler) Process(msg *message.Message) []*message.Message {
+func (s *captureSampler) Process(msg *message.Message) *message.Message {
 	s.emitted = append(s.emitted, msg)
-	return []*message.Message{msg}
+	return msg
 }
-func (s *captureSampler) Flush() []*message.Message { return nil }
+func (s *captureSampler) Flush() *message.Message { return nil }
 
 // captureAggregator wraps an aggregator and exposes the received slice.
 // Used to verify that the aggregator received the right messages from processOne.

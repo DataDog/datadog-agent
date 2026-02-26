@@ -63,7 +63,7 @@ func (p *Preprocessor) tokenizeLabelAndAggregate(msg *message.Message) {
 
 // Step 5: Sample and emit the log
 func (p *Preprocessor) sample(msg *message.Message) {
-	for _, out := range p.sampler.Process(msg) {
+	if out := p.sampler.Process(msg); out != nil {
 		p.outputChan <- out
 	}
 }
@@ -84,7 +84,7 @@ func (p *Preprocessor) Flush() {
 	for _, completed := range p.aggregator.Flush() {
 		p.sample(completed)
 	}
-	for _, out := range p.sampler.Flush() {
+	if out := p.sampler.Flush(); out != nil {
 		p.outputChan <- out
 	}
 	p.stopFlushTimerIfNeeded()

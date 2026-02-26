@@ -10,15 +10,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// Sampler is the final stage of the Preprocessor. It receives completed log messages
-// and returns them, potentially applying rate-limiting or sampling logic.
-// A nil return means the message was dropped or buffered for later.
+// Sampler is the final stage of the Preprocessor. It receives one completed log
+// message and returns it unchanged or nil if the message should be dropped.
 type Sampler interface {
-	// Process handles a completed log message and returns zero or more output messages.
-	Process(msg *message.Message) []*message.Message
+	// Process handles a completed log message and returns it, or nil to drop it.
+	Process(msg *message.Message) *message.Message
 
-	// Flush flushes any buffered state and returns any pending messages.
-	Flush() []*message.Message
+	// Flush flushes any buffered state and returns a pending message, or nil if empty.
+	Flush() *message.Message
 }
 
 // NoopSampler passes all messages through without modification.
@@ -31,11 +30,11 @@ func NewNoopSampler() *NoopSampler {
 }
 
 // Process returns the message unchanged.
-func (s *NoopSampler) Process(msg *message.Message) []*message.Message {
-	return []*message.Message{msg}
+func (s *NoopSampler) Process(msg *message.Message) *message.Message {
+	return msg
 }
 
 // Flush is a no-op since NoopSampler has no buffered state.
-func (s *NoopSampler) Flush() []*message.Message {
+func (s *NoopSampler) Flush() *message.Message {
 	return nil
 }
