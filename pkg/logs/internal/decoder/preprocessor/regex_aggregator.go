@@ -36,6 +36,10 @@ type RegexAggregator struct {
 	countInfo         *status.CountInfo
 	linesCombinedInfo *status.CountInfo
 	collected         []*message.Message
+	// patternMatchedOnce tracks whether the regex has ever matched.
+	// Before the first match, lines are sent individually to prevent a misconfigured
+	// pattern from silently joining all lines into a single message.
+	patternMatchedOnce bool
 }
 
 // NewRegexAggregator returns a new RegexAggregator.
@@ -85,6 +89,9 @@ func (a *RegexAggregator) Process(msg *message.Message, _ Label) []*message.Mess
 
 	if a.newContentRe.Match(msg.GetContent()) {
 		a.countInfo.Add(1)
+		a.patternMatchedOnce = true
+		a.sendBuffer()
+	} else if !a.patternMatchedOnce {
 		a.sendBuffer()
 	}
 

@@ -7,6 +7,7 @@
 package preprocessor
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -290,6 +291,73 @@ func TestSingleLineTooLongTruncation(t *testing.T) {
 	msgs = ag.Process(newMessage(""), startGroup)
 	require.Len(t, msgs, 1)
 	assertMessageContent(t, msgs[0], "...TRUNCATED...123")
+}
+
+// Tests for RegexAggregator
+
+func TestRegexAggregatorNoMatchSendsLinesIndividually(t *testing.T) {
+	re := regexp.MustCompile(`^NEVER_MATCHES_ANYTHING$`)
+	ag := NewRegexAggregator(re, 1000, false, status.NewInfoRegistry(), "multi_line")
+
+	msgs := ag.Process(newMessage("first line"), noAggregate)
+	require.Empty(t, msgs, "first line should be buffered until a second line arrives")
+
+	msgs = ag.Process(newMessage("second line"), noAggregate)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "first line", string(msgs[0].GetContent()))
+
+	msgs = ag.Process(newMessage("third line"), noAggregate)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "second line", string(msgs[0].GetContent()))
+
+	msgs = ag.Flush()
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "third line", string(msgs[0].GetContent()))
+}
+
+func TestRegexAggregatorNoMatchThenMatchSwitchesToMultiLine(t *testing.T) {
+	re := regexp.MustCompile(`^START`)
+	ag := NewRegexAggregator(re, 1000, false, status.NewInfoRegistry(), "multi_line")
+
+	// Lines before the first match are sent individually
+	require.Empty(t, ag.Process(newMessage("no match line 1"), noAggregate))
+
+	msgs := ag.Process(newMessage("no match line 2"), noAggregate)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "no match line 1", string(msgs[0].GetContent()))
+
+	// Pattern matches — flushes buffered line, starts multiline aggregation
+	msgs = ag.Process(newMessage("START of multiline"), noAggregate)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "no match line 2", string(msgs[0].GetContent()))
+
+	// Continuation is now aggregated (pattern has matched)
+	require.Empty(t, ag.Process(newMessage("continuation line"), noAggregate))
+
+	// Next match flushes the combined group
+	msgs = ag.Process(newMessage("START of second group"), noAggregate)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "START of multiline\\ncontinuation line", string(msgs[0].GetContent()))
+
+	msgs = ag.Flush()
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "START of second group", string(msgs[0].GetContent()))
+}
+
+func TestRegexAggregatorFirstLineMatchesWorksNormally(t *testing.T) {
+	re := regexp.MustCompile(`^START`)
+	ag := NewRegexAggregator(re, 1000, false, status.NewInfoRegistry(), "multi_line")
+
+	require.Empty(t, ag.Process(newMessage("START first group"), noAggregate))
+	require.Empty(t, ag.Process(newMessage("continuation"), noAggregate))
+
+	msgs := ag.Process(newMessage("START second group"), noAggregate)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "START first group\\ncontinuation", string(msgs[0].GetContent()))
+
+	msgs = ag.Flush()
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "START second group", string(msgs[0].GetContent()))
 }
 
 // Tests for detectingAggregator
