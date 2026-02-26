@@ -132,18 +132,11 @@ cc_library(
         "three/three.h",
         "three/three_mem.cpp",
     ],
-    copts = [
-        "-Wno-unused-function",
-        "-O2",
-    ] + select({
-        "@platforms//os:linux": [
-            "-Wsign-compare",
-        ],
-        "@platforms//os:macos": [
-            "-Wno-implicit-function-declaration",
-            "-Wno-int-conversion",
-        ],
+    copts = select({
         "@platforms//os:windows": [],
+        "//conditions:default": [
+            "-Wno-deprecated-register",
+        ],
     }),
     includes = [
         ".",
@@ -162,8 +155,8 @@ cc_library(
             "DATADOG_AGENT_THREE",
         ],
         "//conditions:default": [
-            "DATADOG_AGENT_THREE",
             "_GLIBCXX_USE_CXX11_ABI=0",
+            "DATADOG_AGENT_THREE",
         ],
     }),
     deps = [":rtloader"] + select({
@@ -210,20 +203,3 @@ cc_shared_library(
         ":three",
     ],
 )
-
-# buildifier: disable=no-effect
-"""
-
-Remaining  work:
-
-if(WIN32)
-else()
-  target_compile_options(datadog-agent-three PRIVATE "-Wno-deprecated-register")
-endif()
-
-if(APPLE)
-  set_target_properties(datadog-agent-three PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
-endif()
-
-add_compile_definitions(DATADOG_AGENT_THREE)
-"""
