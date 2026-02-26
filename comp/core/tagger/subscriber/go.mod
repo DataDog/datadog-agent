@@ -3,22 +3,22 @@ module github.com/DataDog/datadog-agent/comp/core/tagger/subscriber
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.77.0-rc.2
-	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.77.0-rc.2
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.77.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.77.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/log v0.77.0-rc.2
+	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.77.0-rc.3
+	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.77.0-rc.3
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.77.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.77.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log v0.77.0-rc.3
 	github.com/stretchr/testify v1.11.1
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.77.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.77.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.77.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.77.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.77.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.77.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.77.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.77.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.77.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.77.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.77.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.77.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.77.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.77.0-rc.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect

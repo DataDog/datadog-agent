@@ -3,11 +3,11 @@ module github.com/DataDog/datadog-agent/pkg/util/system
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.77.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/log v0.77.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.77.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/testutil v0.77.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.77.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.77.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log v0.77.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.77.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/testutil v0.77.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.77.0-rc.3
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/mdlayher/vsock v1.2.1
 	github.com/shirou/gopsutil/v4 v4.26.1
@@ -17,9 +17,9 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/template v0.77.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.77.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.77.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.77.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.77.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.77.0-rc.3 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/ebitengine/purego v0.9.1 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
