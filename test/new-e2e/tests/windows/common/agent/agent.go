@@ -37,6 +37,8 @@ const (
 	DefaultConfigRoot = `C:\ProgramData\Datadog`
 	// DefaultAgentUserName is the default user name for the Datadog Agent
 	DefaultAgentUserName = `ddagentuser`
+	// AutologgerRegistryKeyPath is the path to the Autologger registry key
+	AutologgerRegistryKeyPath = `HKLM:\SYSTEM\CurrentControlSet\Control\WMI\Autologger\Datadog Logon Duration`
 )
 
 // GetCodeSignatureThumbprints returns the allowed code detached thumbprint used for
