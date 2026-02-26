@@ -61,8 +61,8 @@ func mkContext(buildType string, osName string) context {
 			ECS:                 true,
 			TraceAgent:          true,
 			Kubelet:             true,
-			KubeApiServer:       true,  // TODO: remove when phasing out from node-agent
-			PrivateActionRunner: false, // NOTE: hidden until v7.77.0
+			KubeApiServer:       true, // TODO: remove when phasing out from node-agent
+			PrivateActionRunner: true,
 		}
 	case "iot-agent":
 		return context{
