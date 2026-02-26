@@ -491,14 +491,16 @@ func TestFxShutdowner(t *testing.T) {
 	)
 	assert.NoError(t, err)
 
-	// Wait for the application to stop, with a timeout to avoid hanging tests
-	waitCh := make(chan error, 1)
+	// Wait for the application to stop, with a timeout to avoid hanging tests.
+	// fxApp.Wait() returns <-chan fx.ShutdownSignal; receive from it to block until shutdown.
+	done := make(chan struct{}, 1)
 	go func() {
-		waitCh <- fxApp.Wait()
+		<-fxApp.Wait()
+		done <- struct{}{}
 	}()
 	select {
-	case err := <-waitCh:
-		assert.NoError(t, err, "fxApp.Wait returned an error")
+	case <-done:
+		// Shutdown completed
 	case <-time.After(1 * time.Second):
 		assert.Fail(t, "waiting for Application timed out, Shutdown() did not work")
 	}
