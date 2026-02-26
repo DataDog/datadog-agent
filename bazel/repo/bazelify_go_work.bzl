@@ -37,8 +37,10 @@ def _impl(rctx):
     """See module docstring."""
     lines, symlinks = _filter_lines(rctx.read(rctx.attr.build_file).splitlines(), rctx.read(rctx.attr.go_work).splitlines())
     rctx.file("BUILD.bazel", 'exports_files(["go.work"])\n')
-    rctx.file("DONT_FOLLOW_SYMLINKS_WHEN_TRAVERSING_THIS_DIRECTORY_VIA_A_RECURSIVE_TARGET_PATTERN")
     rctx.file("go.work", "\n".join(lines + [""]))
+
+    # prevent `bazel` from following symlinks when evaluating recursive target patterns in the repo directory
+    rctx.file("DONT_FOLLOW_SYMLINKS_WHEN_TRAVERSING_THIS_DIRECTORY_VIA_A_RECURSIVE_TARGET_PATTERN")
     for symlink in symlinks:
         rctx.symlink(rctx.path(rctx.attr.go_work).dirname.get_child(symlink), symlink)
 
