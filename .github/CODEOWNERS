@@ -54,6 +54,8 @@
 /generate_tools.go                      @DataDog/agent-devx
 /service.datadog.yaml                   @DataDog/agent-delivery @DataDog/agent-devx
 /static-analysis.datadog.yml            @DataDog/agent-devx
+/Cargo.toml                             @DataDog/agent-build
+/Cargo.lock                             @DataDog/agent-build
 
 /modules.yml                            @DataDog/agent-runtimes
 # if go.work changes then either .go-version or modules.yml changed too, so ASC might as well own it
@@ -124,11 +126,10 @@
 /.gitlab/build/source_test/kmt_tasks.yml                   @DataDog/ebpf-platform
 
 /.gitlab/build/binary_build/cluster_agent_cloudfoundry.yml @DataDog/agent-integrations @DataDog/agent-build
-/.gitlab/build/binary_build/cluster_agent.yml              @DataDog/container-integrations @DataDog/agent-build
+/.gitlab/build/binary_build/cluster_agent.yml              @DataDog/container-platform @DataDog/agent-build
 /.gitlab/build/binary_build/fakeintake.yml                 @DataDog/agent-devx
 /.gitlab/build/binary_build/host_profiler.yml              @DataDog/opentelemetry-agent @DataDog/profiling-full-host @DataDog/agent-build
 /.gitlab/build/binary_build/system_probe.yml               @DataDog/ebpf-platform @DataDog/agent-build
-/.gitlab/build/binary_build/dd_procmgrd.yml               @DataDog/agent-runtimes @DataDog/agent-build
 /.gitlab/build/binary_build/windows.yml                    @DataDog/agent-build @DataDog/windows-products
 
 /.gitlab/build/source_test/codeql_scan.yml                 @DataDog/sdlc-security
@@ -164,7 +165,7 @@
 /.gitlab/test/kernel_matrix_testing/security_agent.yml    @DataDog/agent-security
 
 /.gitlab/.pre/common/container_publish_job_templates.yml  @DataDog/container-integrations @DataDog/agent-delivery
-/.gitlab/deploy/container_build/                            @DataDog/container-integrations @DataDog/agent-build
+/.gitlab/deploy/container_build/                            @DataDog/container-platform @DataDog/agent-build
 /.gitlab/deploy/container_build/docker_windows*             @DataDog/agent-build @DataDog/windows-products
 
 /.gitlab/deploy/dev_container_deploy/                       @DataDog/container-integrations @DataDog/agent-delivery
@@ -224,7 +225,7 @@
 /cmd/agent/dist/conf.d/jetson.d/        @DataDog/agent-runtimes
 /cmd/agent/dist/conf.d/oracle.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/oracle-dbm.d/    @DataDog/database-monitoring
-/cmd/agent/dist/conf.d/network_path.d/ @DataDog/cloud-network-monitoring @DataDog/network-path
+/cmd/agent/dist/conf.d/network_path.d/  @DataDog/network-path
 /cmd/agent/dist/conf.d/orchestrator_ecs.d/  @DataDog/ecs-experiences
 /cmd/agent/dist/conf.d/sbom.d/          @DataDog/agent-security @DataDog/container-integrations
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/ndm-core
@@ -251,10 +252,11 @@
 /cmd/system-probe/modules/eventmonitor* @DataDog/agent-security
 /cmd/system-probe/modules/compliance*   @DataDog/agent-cspm
 /cmd/system-probe/modules/tcp_queue_tracer* @DataDog/container-integrations
-/cmd/system-probe/modules/traceroute*  @DataDog/cloud-network-monitoring @DataDog/network-path
+/cmd/system-probe/modules/traceroute*   @DataDog/network-path
 /cmd/system-probe/modules/ping*         @DataDog/ndm-core
 /cmd/system-probe/modules/language_detection* @DataDog/container-experiences @DataDog/agent-discovery
 /cmd/system-probe/modules/dynamic_instrumentation* @DataDog/debugger-go
+/cmd/system-probe/modules/noisy_neighbor* @DataDog/container-experiences
 /cmd/system-probe/windows/              @DataDog/windows-products
 /cmd/system-probe/windows_resources/    @DataDog/windows-products
 /cmd/system-probe/main_windows*.go      @DataDog/windows-products
@@ -329,7 +331,7 @@
 /comp/metadata @DataDog/agent-configuration
 /comp/ndmtmp @DataDog/ndm-core
 /comp/netflow @DataDog/ndm-integrations
-/comp/networkpath @DataDog/cloud-network-monitoring @DataDog/network-path
+/comp/networkpath @DataDog/network-path
 /comp/otelcol @DataDog/opentelemetry-agent
 /comp/process @DataDog/container-experiences
 /comp/remote-config @DataDog/remote-config
@@ -483,8 +485,11 @@
 /pkg/collector/corechecks/discovery/ @DataDog/agent-discovery
 /pkg/collector/corechecks/ebpf/                       @DataDog/container-integrations
 /pkg/collector/corechecks/ebpf/ebpf*                  @DataDog/ebpf-platform
+/pkg/collector/corechecks/ebpf/noisyneighbor/         @DataDog/container-experiences
 /pkg/collector/corechecks/ebpf/probe/ebpfcheck/       @DataDog/ebpf-platform
+/pkg/collector/corechecks/ebpf/probe/noisyneighbor/   @DataDog/container-experiences
 /pkg/collector/corechecks/ebpf/c/runtime/ebpf*        @DataDog/ebpf-platform
+/pkg/collector/corechecks/ebpf/c/runtime/noisy-neighbor*    @DataDog/container-experiences
 /pkg/collector/corechecks/embed/                   @DataDog/agent-delivery
 /pkg/collector/corechecks/embed/apm/               @DataDog/agent-apm
 /pkg/collector/corechecks/embed/process/           @DataDog/container-experiences
@@ -691,12 +696,13 @@
 /comp/core/workloadmeta/collectors/internal/process          @DataDog/container-experiences @DataDog/container-platform
 /comp/core/tagger/collectors            @DataDog/container-platform @DataDog/container-integrations
 /pkg/sbom/                              @DataDog/agent-security @DataDog/container-integrations
-/pkg/networkpath/                       @DataDog/cloud-network-monitoring @DataDog/network-path
-/pkg/networkpath/traceroute/            @DataDog/cloud-network-monitoring @DataDog/windows-products @DataDog/network-path
-/pkg/collector/corechecks/networkpath/  @DataDog/cloud-network-monitoring @DataDog/network-path
+/pkg/networkpath/                       @DataDog/network-path
+/pkg/networkpath/traceroute/            @DataDog/windows-products @DataDog/network-path
+/pkg/collector/corechecks/networkpath/  @DataDog/network-path
 
-/releasenotes/                          @DataDog/documentation
-/releasenotes-dca/                      @DataDog/documentation
+# release notes accompany code changes, so code owners will review anyway
+/releasenotes/                          # do not notify anyone
+/releasenotes-dca/                      # do not notify anyone
 
 /rtloader/                              @DataDog/agent-runtimes
 
@@ -808,7 +814,7 @@
 /test/new-e2e/tests/language-detection        @DataDog/container-experiences
 /test/new-e2e/tests/ndm                       @DataDog/ndm-core
 /test/new-e2e/tests/ndm/netflow               @DataDog/ndm-integrations
-/test/new-e2e/tests/netpath                   @DataDog/cloud-network-monitoring @DataDog/windows-products @DataDog/network-path
+/test/new-e2e/tests/netpath                   @DataDog/windows-products @DataDog/network-path
 /test/new-e2e/tests/npm                       @DataDog/cloud-network-monitoring
 /test/new-e2e/tests/npm/ec2_1host_wkit_test.go @DataDog/cloud-network-monitoring @DataDog/windows-products
 /test/new-e2e/tests/npm/ecs_1host_test.go    @DataDog/ecs-experiences
@@ -856,6 +862,7 @@
 /tools/windows/DatadogAgentInstaller/WixSetup/localization-en-us.wxl @DataDog/windows-products @DataDog/documentation
 /tools/agent_QA/                        @DataDog/agent-devx
 
+/internal/remote-agent                  @DataDog/agent-runtimes
 /internal/tools/                        @DataDog/agent-devx
 /internal/third_party/client-go         @DataDog/container-platform
 /internal/third_party/kubernetes        @DataDog/container-integrations

@@ -133,3 +133,64 @@ func (o *deletePodTemplateAnnotations) build() map[string]interface{} {
 		},
 	}
 }
+
+// --- Pod container operations ---
+
+// ContainerResourcePatch describes the resource changes for a single container.
+// Name is required — it is the strategic merge key for spec.containers.
+type ContainerResourcePatch struct {
+	// Name is the container name (required).
+	Name string
+	// Requests is the desired resource requests (e.g. {"cpu": "250m", "memory": "512Mi"}).
+	Requests map[string]string
+	// Limits is the desired resource limits (e.g. {"cpu": "500m", "memory": "1Gi"}).
+	Limits map[string]string
+}
+
+// setContainerResources sets spec.containers[*].resources for the listed containers
+type setContainerResources struct {
+	containers []ContainerResourcePatch
+}
+
+// SetContainerResources creates an operation that patches spec.containers[*].resources
+// for the listed containers. This targets Pod objects directly — for owner resources
+// (Deployment, ReplicaSet, etc.) container resources live under
+// spec.template.spec.containers.
+//
+// Callers targeting the "pods/resize" resource should use types.StrategicMergePatchType,
+// as using the default types.MergePatchType fails if not all containers are included.
+func SetContainerResources(containers []ContainerResourcePatch) PatchOperation {
+	return &setContainerResources{containers: containers}
+}
+
+func (o *setContainerResources) build() map[string]interface{} {
+	containerList := make([]interface{}, 0, len(o.containers))
+	for _, c := range o.containers {
+		resources := map[string]interface{}{}
+		if len(c.Requests) > 0 {
+			requests := make(map[string]interface{}, len(c.Requests))
+			for k, v := range c.Requests {
+				requests[k] = v
+			}
+			resources["requests"] = requests
+		}
+
+		if len(c.Limits) > 0 {
+			limits := make(map[string]interface{}, len(c.Limits))
+			for k, v := range c.Limits {
+				limits[k] = v
+			}
+			resources["limits"] = limits
+		}
+
+		containerList = append(containerList, map[string]interface{}{
+			"name":      c.Name,
+			"resources": resources,
+		})
+	}
+	return map[string]interface{}{
+		"spec": map[string]interface{}{
+			"containers": containerList,
+		},
+	}
+}

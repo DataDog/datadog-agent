@@ -46,7 +46,6 @@ endif()
 
 set_target_properties(datadog-agent-rtloader PROPERTIES
     VERSION ${PROJECT_VERSION}
-    SOVERSION 2
     PUBLIC_HEADER "../include/datadog_agent_rtloader.h;../include/rtloader_types.h;../common/rtloader_mem.h"
 )
 

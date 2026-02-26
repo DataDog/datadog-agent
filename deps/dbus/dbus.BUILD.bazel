@@ -138,26 +138,6 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
-expand_template(
-    name = "gen_pkgconfig",
-    template = "dbus-1.pc.in",
-    out = "dbus-1.pc",
-    substitutions = {
-        "@prefix@": "##PREFIX##",
-        "@pkgconfig_prefix@": "${prefix}",
-        "@bindir@": "${prefix}/bin",
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@datadir@": "${prefix}/share",
-        "@datarootdir": "${prefix}/share",
-        "@sysconfigdir@": "${prefix}/etc",
-        "@DBUS_SYSTEM_BUS_DEFAULT_ADDRESS@": "unix:path=${prefix}/var/run/dbus/system_bus_socket",
-        "@VERSION@": "1.16.2",
-        "@LIBDBUS_LIBS@": "-pthread",
-        "@DBUS_STATIC_BUILD_CPPFLAGS@": "",
-    },
-)
-
 pkg_files(
     name = "lib_files",
     srcs = [":dbus-1"],
@@ -168,12 +148,6 @@ pkg_files(
     name = "headers",
     srcs = PUBLIC_HEADERS,
     prefix = "include/dbus-1.0/dbus",
-)
-
-pkg_files(
-    name = "pkgconfig",
-    srcs = [":gen_pkgconfig"],
-    prefix = "lib/pkgconfig",
 )
 
 pkg_files(
@@ -190,6 +164,7 @@ pkg_filegroup(
         ":lib_files",
         ":dbus_arch_deps_install",
     ],
+    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
@@ -197,6 +172,5 @@ pkg_install(
     name = "install",
     srcs = [
         ":all_files",
-        ":pkgconfig",
     ],
 )
