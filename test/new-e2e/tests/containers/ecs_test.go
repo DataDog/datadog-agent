@@ -118,7 +118,6 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 					MaxResults: pointer.Ptr(int32(10)), // Because `DescribeServices` takes at most 10 services in input
 					NextToken:  nextToken,
 				})
-				// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 				if !assert.NoErrorf(c, err, "Failed to list ECS services") {
 					return
 				}
@@ -614,7 +613,6 @@ func (suite *ecsSuite) TestTraceTCP() {
 func (suite *ecsSuite) testTrace(taskName string) {
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
 		traces, cerr := suite.Fakeintake.GetTraces()
-		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 		if !assert.NoErrorf(c, cerr, "Failed to query fake intake") {
 			return
 		}

@@ -306,12 +306,12 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 		makeTargetStatus(uploader.StatusEmitting, expectedProbeIDs...),
 	)
 
-	assertModuleStats := func(t assert.TestingT, expected actuator.Metrics) {
+	assertModuleStats := func(t require.TestingT, expected actuator.Metrics) {
 		stats := ts.module.GetStats()["actuator"].(map[string]any)
 		exp := expected.AsStats()
 		gotKeys := slices.Sorted(maps.Keys(stats))
 		expectedKeys := slices.Sorted(maps.Keys(exp))
-		assert.Equal(t, gotKeys, expectedKeys)
+		require.Equal(t, gotKeys, expectedKeys)
 		for _, key := range gotKeys {
 			assert.Equal(t, exp[key], stats[key], "key %s", key)
 		}

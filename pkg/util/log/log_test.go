@@ -546,7 +546,7 @@ func TestLoggerScrubbingCount(t *testing.T) {
 				}
 
 				valTy := reflect.TypeOf(fun)
-				if !assert.Equal(t, valTy.Kind(), reflect.Func, "expected %s to be a function", funcName) {
+				if !assert.Equalf(t, valTy.Kind(), reflect.Func, "expected %s to be a function", funcName) {
 					continue
 				}
 
