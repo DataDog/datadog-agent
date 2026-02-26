@@ -491,20 +491,17 @@ func TestFxShutdowner(t *testing.T) {
 	)
 	assert.NoError(t, err)
 
-	// create a wait-loop that will timeout if it takes longer than 1 second
-	ctx, cancel := context.WithCancel(context.Background())
-	time.AfterFunc(1*time.Second, cancel)
+	// Wait for the application to stop, with a timeout to avoid hanging tests
+	waitCh := make(chan error, 1)
+	go func() {
+		waitCh <- fxApp.Wait()
+	}()
 	select {
-	case <-ctx.Done():
+	case err := <-waitCh:
+		assert.NoError(t, err, "fxApp.Wait returned an error")
+	case <-time.After(1 * time.Second):
 		assert.Fail(t, "waiting for Application timed out, Shutdown() did not work")
-		return
-	case <-fxApp.Done():
-		// if compdef.Shutdown is successfully upgraded to fx.Shutdown,
-		// then this loop should exit here
-		break
 	}
-	// TODO: (components) When we upgrade fx to 1.19.0, use fxApp.Wait() and check Shutdown's return code
-	// see: https://github.com/uber-go/fx/blob/45af511c27eebb3b9e02abe4a35e1f978ad61bdc/app.go#L748
 }
 
 func TestFxValueGroups(t *testing.T) {
