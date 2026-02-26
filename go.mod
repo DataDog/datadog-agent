@@ -354,7 +354,7 @@ require (
 	go.opentelemetry.io/collector/component v1.51.1-0.20260205185216-81bc641f26c0
 	go.opentelemetry.io/collector/component/componenttest v0.145.1-0.20260205185216-81bc641f26c0
 	go.opentelemetry.io/collector/config/configtelemetry v0.145.0
-	go.opentelemetry.io/collector/confmap v1.51.1-0.20260205185216-81bc641f26c0
+	go.opentelemetry.io/collector/confmap v1.52.0
 	go.opentelemetry.io/collector/confmap/provider/envprovider v1.51.0
 	go.opentelemetry.io/collector/confmap/provider/fileprovider v1.51.0
 	go.opentelemetry.io/collector/confmap/provider/httpprovider v1.51.0
@@ -364,7 +364,7 @@ require (
 	go.opentelemetry.io/collector/exporter/debugexporter v0.145.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.145.0
 	go.opentelemetry.io/collector/extension v1.51.1-0.20260205185216-81bc641f26c0
-	go.opentelemetry.io/collector/featuregate v1.51.1-0.20260205185216-81bc641f26c0
+	go.opentelemetry.io/collector/featuregate v1.52.0
 	go.opentelemetry.io/collector/otelcol v0.145.0
 	go.opentelemetry.io/collector/pdata v1.51.1-0.20260205185216-81bc641f26c0
 	go.opentelemetry.io/collector/processor v1.51.0
@@ -839,7 +839,7 @@ require (
 	go.mongodb.org/mongo-driver v1.17.6
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/collector v0.145.0 // indirect
+	go.opentelemetry.io/collector v0.146.1 // indirect
 	go.opentelemetry.io/collector/client v1.51.1-0.20260205185216-81bc641f26c0 // indirect
 	go.opentelemetry.io/collector/component/componentstatus v0.145.0
 	go.opentelemetry.io/collector/config/configauth v1.51.1-0.20260205185216-81bc641f26c0 // indirect
@@ -852,7 +852,7 @@ require (
 	go.opentelemetry.io/collector/config/configoptional v1.51.1-0.20260205185216-81bc641f26c0 // indirect
 	go.opentelemetry.io/collector/config/configretry v1.51.1-0.20260205185216-81bc641f26c0 // indirect
 	go.opentelemetry.io/collector/config/configtls v1.51.1-0.20260205185216-81bc641f26c0 // indirect
-	go.opentelemetry.io/collector/confmap/xconfmap v0.145.1-0.20260205185216-81bc641f26c0
+	go.opentelemetry.io/collector/confmap/xconfmap v0.146.1
 	go.opentelemetry.io/collector/connector v0.145.1-0.20260205185216-81bc641f26c0 // indirect
 	go.opentelemetry.io/collector/connector/connectortest v0.145.1-0.20260205185216-81bc641f26c0 // indirect
 	go.opentelemetry.io/collector/connector/xconnector v0.145.1-0.20260205185216-81bc641f26c0 // indirect
@@ -919,7 +919,7 @@ require (
 	go.uber.org/goleak v1.3.0
 	go.uber.org/zap/exp v0.3.0
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
-	go.yaml.in/yaml/v3 v3.0.4 // indirect
+	go.yaml.in/yaml/v3 v3.0.4
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20231121144256-b99613f794b6 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20251125195548-87e1e737ad39 // indirect
 	golang.org/x/lint v0.0.0-20241112194109-818c5a804067 // indirect
