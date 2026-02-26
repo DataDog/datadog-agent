@@ -7,6 +7,14 @@ exporters:
         metrics_endpoint: https://otlp.datadoghq.com/v1/metrics
         profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
 processors:
+    filter/dd-hp-drop-internal:
+        metrics:
+            exclude:
+                match_type: regexp
+                metric_names:
+                    - ^scrape_.*$
+                    - ^up$
+                    - ^promhttp_metric_handler_errors_total$
     infraattributes/default:
         allow_hostname_override: true
     resource/dd-profiler-internal-metadata:
@@ -24,8 +32,30 @@ receivers:
             symbol_endpoints:
                 - api_key: test_api_key_123
                   site: datadoghq.com
+    prometheus/dd-hp-internal:
+        config:
+            scrape_configs:
+                - fallback_scrape_protocol: PrometheusText0.0.4
+                  job_name: host-profiler-internal
+                  metric_name_escaping_scheme: underscores
+                  metric_name_validation_scheme: legacy
+                  scrape_interval: 60s
+                  scrape_protocols:
+                    - PrometheusText0.0.4
+                  static_configs:
+                    - targets:
+                        - 0.0.0.0:8888
 service:
     pipelines:
+        metrics/profiler-internal-health:
+            exporters:
+                - otlphttp/datadoghq.com_0
+            processors:
+                - filter/dd-hp-drop-internal
+                - infraattributes/default
+                - resource/dd-profiler-internal-metadata
+            receivers:
+                - prometheus/dd-hp-internal
         profiles:
             exporters:
                 - logging

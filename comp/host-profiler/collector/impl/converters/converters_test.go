@@ -338,3 +338,83 @@ func TestConverterWithoutAgentLogsHostArchWarning(t *testing.T) {
 	}
 	assert.True(t, found, "expected warning about host.arch being disabled, got logs: %v", logs.All())
 }
+
+func TestInferMetricsEndpoint(t *testing.T) {
+	tests := []struct {
+		name            string
+		profilesURL     string
+		expectedMetrics string
+		expectError     bool
+	}{
+		{
+			name:            "standard site",
+			profilesURL:     "https://intake.profile.datadoghq.com/v1development/profiles",
+			expectedMetrics: "https://otlp.datadoghq.com/v1/metrics",
+			expectError:     false,
+		},
+		{
+			name:            "US3 datacenter site",
+			profilesURL:     "https://intake.profile.us3.datadoghq.com/v1development/profiles",
+			expectedMetrics: "https://otlp.us3.datadoghq.com/v1/metrics",
+			expectError:     false,
+		},
+		{
+			name:            "US5 datacenter site",
+			profilesURL:     "https://intake.profile.us5.datadoghq.com/v1development/profiles",
+			expectedMetrics: "https://otlp.us5.datadoghq.com/v1/metrics",
+			expectError:     false,
+		},
+		{
+			name:            "EU site",
+			profilesURL:     "https://intake.profile.datadoghq.eu/v1development/profiles",
+			expectedMetrics: "https://otlp.datadoghq.eu/v1/metrics",
+			expectError:     false,
+		},
+		{
+			name:            "custom prefix",
+			profilesURL:     "https://custom-intake.profile.datadoghq.com/v1development/profiles",
+			expectedMetrics: "https://otlp.datadoghq.com/v1/metrics",
+			expectError:     false,
+		},
+		{
+			name:            "FQDN with trailing dot",
+			profilesURL:     "https://intake.profile.datadoghq.com./v1development/profiles",
+			expectedMetrics: "https://otlp.datadoghq.com/v1/metrics",
+			expectError:     false,
+		},
+		{
+			name:            "no .profile. subdomain (still extracts site)",
+			profilesURL:     "https://intake.datadoghq.com/v1/profiles",
+			expectedMetrics: "https://otlp.datadoghq.com/v1/metrics",
+			expectError:     false,
+		},
+		{
+			name:        "invalid hostname",
+			profilesURL: "https://not-a-datadog-site.example.com/profiles",
+			expectError: true,
+		},
+		{
+			name:        "empty URL",
+			profilesURL: "",
+			expectError: true,
+		},
+		{
+			name:            "AP1 site",
+			profilesURL:     "https://intake.profile.ap1.datadoghq.com/v1development/profiles",
+			expectedMetrics: "https://otlp.ap1.datadoghq.com/v1/metrics",
+			expectError:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := inferMetricsEndpoint(tt.profilesURL)
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.expectedMetrics, result)
+			}
+		})
+	}
+}

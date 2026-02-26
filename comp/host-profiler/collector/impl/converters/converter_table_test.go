@@ -312,6 +312,11 @@ func TestConverterWithAgent(t *testing.T) {
 			provided: "agent/symbol-ep-no-inference/in.yaml",
 			expected: "agent/symbol-ep-no-inference/out.yaml",
 		},
+		{
+			name:     "adds-metrics-pipeline-single-exporter",
+			provided: "agent/metrics-pipeline-single-exp/in.yaml",
+			expected: "agent/metrics-pipeline-single-exp/out.yaml",
+		},
 	}
 
 	mockCfg := newMockConfig()
