@@ -122,7 +122,9 @@ func (s *TracerSuite) TestTCPRemoveEntries() {
 		conns, cleanup := getConnections(ct, tr)
 		defer cleanup()
 		conn, ok := findConnection(c2.LocalAddr(), c2.RemoteAddr(), conns)
-		require.True(ct, ok)
+		if !assert.True(ct, ok) {
+			return
+		}
 		assert.Equal(ct, clientMessageSize, int(conn.Monotonic.SentBytes))
 		assert.Equal(ct, 0, int(conn.Monotonic.RecvBytes))
 		assert.Equal(ct, 0, int(conn.Monotonic.Retransmits))
@@ -322,7 +324,9 @@ func (s *TracerSuite) TestTCPRTT() {
 		allConnections, cleanup := getConnections(ct, tr)
 		defer cleanup()
 		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), allConnections)
-		require.True(ct, ok)
+		if !assert.True(ct, ok) {
+			return
+		}
 
 		if cfg.EnableEbpfless {
 			timeoutUs := uint32((10 * time.Second).Microseconds())
@@ -489,14 +493,18 @@ func (s *TracerSuite) TestConntrackExpiration() {
 	var conn *network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		_, err = c.Write([]byte("ping\n"))
-		require.NoError(collect, err, "error sending data to server")
+		if !assert.NoError(collect, err, "error sending data to server") {
+			return
+		}
 
 		connections, cleanup := getConnections(collect, tr)
 		defer cleanup()
 		t.Log(connections) // for debugging failures
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		require.True(collect, ok, "connection not found")
+		if !assert.True(collect, ok, "connection not found") {
+			return
+		}
 		assert.NotNil(collect, tr.conntracker.GetTranslationForConn(&conn.ConnectionTuple), "connection does not have NAT translation")
 	}, 3*time.Second, 100*time.Millisecond, "failed to find connection translation")
 
@@ -654,7 +662,9 @@ func (s *TracerSuite) TestUnconnectedUDPSendIPv6() {
 			}
 			return cs.DPort == uint16(remoteAddr.Port)
 		})
-		require.Len(ct, outgoing, 1)
+		if !assert.Len(ct, outgoing, 1) {
+			return
+		}
 		assert.Equal(ct, remoteAddr.IP.String(), outgoing[0].Dest.String())
 		assert.Equal(ct, bytesSent, int(outgoing[0].Monotonic.SentBytes))
 	}, 3*time.Second, 100*time.Millisecond)
@@ -2069,8 +2079,10 @@ func (s *TracerSuite) TestBlockingReadCounts() {
 			return true
 		})
 
-		require.NoError(collect, err, "error reading from connection")
-		require.NoError(collect, readErr, "error from raw conn")
+		if !assert.NoError(collect, err, "error reading from connection") ||
+			!assert.NoError(collect, readErr, "error from raw conn") {
+			return
+		}
 
 		read += n
 		t.Logf("read %d", read)
@@ -2138,7 +2150,9 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 
 		require.NotNil(collect, outgoing)
 		require.NotNil(collect, incoming)
-		require.True(collect, incoming != nil && outgoing != nil)
+		if !assert.True(collect, incoming != nil && outgoing != nil) {
+			return
+		}
 
 		m := outgoing.Monotonic
 		// skip byte counts in ebpfless: for ebpfless pre-existing connections,
@@ -3314,7 +3328,9 @@ func (s *TracerSuite) TestTCPRetransmitSyncOnClose() {
 		defer cleanup()
 
 		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		require.True(ct, ok, "connection not found")
+		if !assert.True(ct, ok, "connection not found") {
+			return
+		}
 
 		// We expect retransmits > 0
 		assert.Greater(ct, int(conn.Monotonic.Retransmits), 0, "should have retransmits")

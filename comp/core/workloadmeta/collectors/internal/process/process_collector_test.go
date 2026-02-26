@@ -18,7 +18,6 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -693,8 +692,9 @@ func TestProcessDifferentCmdline(t *testing.T) {
 	// Wait for first collection to complete
 	assert.EventuallyWithT(t, func(cT *assert.CollectT) {
 		actualProc, err := c.mockStore.GetProcess(pid)
-		require.NoError(cT, err)
-		require.NotNil(cT, actualProc)
+		if !assert.NoError(cT, err) || !assert.NotNil(cT, actualProc) {
+			return
+		}
 		assert.Equal(cT, []string{"bash"}, actualProc.Cmdline)
 	}, time.Second, time.Millisecond*100)
 
@@ -704,8 +704,9 @@ func TestProcessDifferentCmdline(t *testing.T) {
 	// After exec, the store should have htop, not bash
 	assert.EventuallyWithT(t, func(cT *assert.CollectT) {
 		actualProc, err := c.mockStore.GetProcess(pid)
-		require.NoError(cT, err)
-		require.NotNil(cT, actualProc)
+		if !assert.NoError(cT, err) || !assert.NotNil(cT, actualProc) {
+			return
+		}
 		// Critical assertion: cmdline should be updated to htop after exec
 		assert.Equal(cT, []string{"htop"}, actualProc.Cmdline, "Process cmdline should be updated after exec")
 		assert.Equal(cT, "htop", actualProc.Name, "Process name should be updated after exec")

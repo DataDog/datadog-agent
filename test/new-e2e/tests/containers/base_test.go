@@ -164,8 +164,14 @@ func (suite *baseSuite[Env]) testMetric(args *testMetricArgs) {
 				args.Filter.Name,
 				fakeintake.WithMatchingTags[*aggregator.MetricSeries](regexTags),
 			)
-			require.NoErrorf(c, err, "Failed to query fake intake")
-			require.NotEmptyf(c, metrics, "No `%s` metrics yet", prettyMetricQuery)
+			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NoErrorf(c, err, "Failed to query fake intake") {
+				return
+			}
+			// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NotEmptyf(c, metrics, "No `%s` metrics yet", prettyMetricQuery) {
+				return
+			}
 
 			// Check tags
 			if expectedTags != nil {
@@ -287,8 +293,14 @@ func (suite *baseSuite[Env]) testLog(args *testLogArgs) {
 				args.Filter.Service,
 				fakeintake.WithMatchingTags[*aggregator.Log](regexTags),
 			)
-			require.NoErrorf(c, err, "Failed to query fake intake")
-			require.NotEmptyf(c, logs, "No `%s` logs yet", prettyLogQuery)
+			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NoErrorf(c, err, "Failed to query fake intake") {
+				return
+			}
+			// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NotEmptyf(c, logs, "No `%s` logs yet", prettyLogQuery) {
+				return
+			}
 
 			// Check tags
 			if expectedTags != nil {
@@ -414,8 +426,14 @@ func (suite *baseSuite[Env]) testCheckRun(args *testCheckRunArgs) {
 				args.Filter.Name,
 				fakeintake.WithMatchingTags[*aggregator.CheckRun](regexTags),
 			)
-			require.NoErrorf(c, err, "Failed to query fake intake")
-			require.NotEmptyf(c, checkRuns, "No `%s` checkRun yet", prettyCheckRunQuery)
+			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NoErrorf(c, err, "Failed to query fake intake") {
+				return
+			}
+			// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NotEmptyf(c, checkRuns, "No `%s` checkRun yet", prettyCheckRunQuery) {
+				return
+			}
 
 			// Check tags
 			if expectedTags != nil {
@@ -521,8 +539,14 @@ func (suite *baseSuite[Env]) testEvent(args *testEventArgs) {
 				args.Filter.Source,
 				fakeintake.WithMatchingTags[*aggregator.Event](regexTags),
 			)
-			require.NoErrorf(c, err, "Failed to query fake intake")
-			require.NotEmptyf(c, events, "No `%s` events yet", prettyEventQuery)
+			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NoErrorf(c, err, "Failed to query fake intake") {
+				return
+			}
+			// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NotEmptyf(c, events, "No `%s` events yet", prettyEventQuery) {
+				return
+			}
 
 			// Check tags
 			if expectedTags != nil {

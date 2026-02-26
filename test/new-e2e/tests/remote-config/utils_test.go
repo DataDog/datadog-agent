@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
@@ -33,7 +32,9 @@ func assertAgentLogsEventually(t *testing.T, rh *components.RemoteHost, agentNam
 	assert.EventuallyWithTf(t, func(c *assert.CollectT) {
 		// read agent logs
 		agentLogs, err := rh.ReadFilePrivileged(remoteLogsPath)
-		require.NoError(c, err)
+		if !assert.NoError(c, err) {
+			return
+		}
 		logs := string(agentLogs)
 		for _, log := range missingLogs {
 			if strings.Contains(logs, log) {
