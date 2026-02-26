@@ -9,7 +9,6 @@ package kubeactions
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"time"
@@ -19,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/hashicorp/go-multierror"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // ActionStoreInterface defines the interface for action stores
@@ -65,9 +65,15 @@ func (p *ActionProcessor) Process(configKey string, rawConfig state.RawConfig) e
 	log.Infof("[KubeActions] Metadata validated: ID=%s, Version=%d", rawConfig.Metadata.ID, rawConfig.Metadata.Version)
 
 	// Parse the actions list from the config
+	// NOTE: We use protojson instead of encoding/json because the KubeAction message
+	// uses protobuf oneof fields (delete_pod, restart_deployment) which encoding/json
+	// cannot properly unmarshal. protojson handles oneof fields correctly.
 	log.Infof("[KubeActions] Attempting to unmarshal config data...")
 	actionsList := &kubeactions.KubeActionsList{}
-	err := json.Unmarshal(rawConfig.Config, &actionsList)
+	unmarshaler := protojson.UnmarshalOptions{
+		DiscardUnknown: true, // Ignore unknown fields for forward compatibility
+	}
+	err := unmarshaler.Unmarshal(rawConfig.Config, actionsList)
 	if err != nil {
 		log.Errorf("[KubeActions] Failed to unmarshal config: %v", err)
 		return fmt.Errorf("failed to unmarshal config id:%s, version: %d, config key: %s, err: %v",
@@ -114,8 +120,9 @@ func (p *ActionProcessor) Process(configKey string, rawConfig state.RawConfig) e
 
 // processAction processes a single action
 func (p *ActionProcessor) processAction(action *kubeactions.KubeAction, index int, actionKey ActionKey, receivedAt int64) error {
+	actionType := GetActionType(action)
 	log.Infof("[KubeActions] === Processing action %d ===", index)
-	log.Infof("[KubeActions]   ActionType: %s", action.ActionType)
+	log.Infof("[KubeActions]   ActionType: %s", actionType)
 	log.Infof("[KubeActions]   Resource.Kind: %s", action.Resource.Kind)
 	log.Infof("[KubeActions]   Resource.Name: %s", action.Resource.Name)
 	log.Infof("[KubeActions]   Resource.Namespace: %s", action.Resource.Namespace)

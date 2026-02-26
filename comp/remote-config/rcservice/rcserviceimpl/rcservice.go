@@ -80,17 +80,20 @@ func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
 	}
 	apiKey = configUtils.SanitizeAPIKey(apiKey)
 
-	// TODO(KUBEACTIONS-POC): REMOVE THESE HARDCODES - Temporary overrides for staging testing
-	if apiKey == "" {
-		deps.Logger.Warn("API key is empty, using hardcoded test key")
-		apiKey = ""
-	}
 	baseRawURL := configUtils.GetMainEndpoint(deps.Cfg, "https://config.", "remote_configuration.rc_dd_url")
-
-	// TODO(KUBEACTIONS-POC): REMOVE THIS - Temporary override to use staging environment
-	deps.Logger.Warnf("Overriding RC URL from %s to staging: https://config.datad0g.com", baseRawURL)
-	baseRawURL = "https://config.datad0g.com"
 	traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(deps.Cfg)
+
+	// Log RC connection details for debugging
+	maskedKey := apiKey
+	if len(maskedKey) > 8 {
+		maskedKey = maskedKey[:4] + "..." + maskedKey[len(maskedKey)-4:]
+	}
+	deps.Logger.Infof("[KubeActions] RC config: site=%s, rc_url=%s, api_key=%s, app_key_set=%v",
+		deps.Cfg.GetString("site"),
+		baseRawURL,
+		maskedKey,
+		deps.Cfg.GetString("app_key") != "",
+	)
 
 	options := []remoteconfig.Option{
 		remoteconfig.WithAPIKey(apiKey),

@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"time"
 
+	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -82,16 +83,38 @@ func (r *ResultReporter) ReportResult(actionKey ActionKey, action interface{}, r
 
 	// Try to extract KubeAction details if available
 	var actionType string
+	var actionID string
 	var resource *ResourcePayload
 	var parameters map[string]string
 
 	// Type assert to get the actual action
 	if kubeAction, ok := action.(interface {
-		GetActionType() string
 		GetResource() interface{ GetKind() string; GetName() string; GetNamespace() string; GetApiVersion() string }
-		GetParameters() map[string]string
+		GetDeletePod() interface{ GetGracePeriodSeconds() int64 }
+		GetRestartDeployment() interface{}
+		GetAction() interface{}
 	}); ok {
-		actionType = kubeAction.GetActionType()
+		// Get action type using the helper function
+		if typedAction, ok := action.(*kubeactions.KubeAction); ok {
+			actionType = GetActionType(typedAction)
+
+			// Get action_id from payload for EVP correlation
+			// This matches the action_id sent in server-side EVP events
+			actionID = typedAction.GetActionId()
+
+			// Extract action-specific parameters for reporting
+			switch actionType {
+			case ActionTypeDeletePod:
+				if params := typedAction.GetDeletePod(); params != nil && params.GracePeriodSeconds != nil {
+					parameters = map[string]string{
+						"grace_period_seconds": fmt.Sprintf("%d", *params.GracePeriodSeconds),
+					}
+				}
+			case ActionTypeRestartDeployment:
+				// No parameters for restart_deployment
+			}
+		}
+
 		res := kubeAction.GetResource()
 		resource = &ResourcePayload{
 			APIVersion: res.GetApiVersion(),
@@ -99,12 +122,17 @@ func (r *ResultReporter) ReportResult(actionKey ActionKey, action interface{}, r
 			Namespace:  res.GetNamespace(),
 			Name:       res.GetName(),
 		}
-		parameters = kubeAction.GetParameters()
+	}
+
+	// Use action_id from payload if available, fall back to RC metadata.id
+	// The action_id in the payload is the canonical ID for EVP correlation
+	if actionID == "" {
+		actionID = actionKey.ID
 	}
 
 	// Create the event payload matching the service format
 	event := ActionEventPayload{
-		ActionID:   actionKey.ID,
+		ActionID:   actionID,
 		ActionType: actionType,
 		Version:    int64(actionKey.Version),
 		Status:     result.Status,

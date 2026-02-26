@@ -45,7 +45,8 @@ func (r *ExecutorRegistry) GetExecutor(actionType string) (ActionExecutor, error
 
 // Execute executes an action using the appropriate executor
 func (r *ExecutorRegistry) Execute(ctx context.Context, action *kubeactions.KubeAction) ExecutionResult {
-	executor, err := r.GetExecutor(action.ActionType)
+	actionType := GetActionType(action)
+	executor, err := r.GetExecutor(actionType)
 	if err != nil {
 		return ExecutionResult{
 			Status:  "failed",
