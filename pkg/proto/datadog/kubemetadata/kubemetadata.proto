@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package datadog.kubemetadata;
+
+option go_package = "pkg/proto/pbgo/core"; // golang
+
+enum KubeMetadataEventType {
+  SET = 0;
+  UNSET = 1;
+}
+
+message KubeMetadataStreamRequest {
+  string node_name = 1;
+}
+
+message PodServiceMapping {
+  string namespace = 1;
+  string pod_name = 2;
+  repeated string service_names = 3;
+  KubeMetadataEventType type = 4;
+}
+
+message KubeMetadataStreamResponse {
+  bool is_full_state = 1;
+  repeated PodServiceMapping mappings = 2;
+}

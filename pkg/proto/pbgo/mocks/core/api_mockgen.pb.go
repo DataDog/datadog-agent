@@ -425,6 +425,26 @@ func (mr *MockAgentSecureClientMockRecorder) StreamConfigEvents(ctx, in interfac
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamConfigEvents", reflect.TypeOf((*MockAgentSecureClient)(nil).StreamConfigEvents), varargs...)
 }
 
+// StreamKubeMetadata mocks base method.
+func (m *MockAgentSecureClient) StreamKubeMetadata(ctx context.Context, in *core.KubeMetadataStreamRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[core.KubeMetadataStreamResponse], error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "StreamKubeMetadata", varargs...)
+	ret0, _ := ret[0].(grpc.ServerStreamingClient[core.KubeMetadataStreamResponse])
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StreamKubeMetadata indicates an expected call of StreamKubeMetadata.
+func (mr *MockAgentSecureClientMockRecorder) StreamKubeMetadata(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamKubeMetadata", reflect.TypeOf((*MockAgentSecureClient)(nil).StreamKubeMetadata), varargs...)
+}
+
 // TaggerFetchEntity mocks base method.
 func (m *MockAgentSecureClient) TaggerFetchEntity(ctx context.Context, in *core.FetchEntityRequest, opts ...grpc.CallOption) (*core.FetchEntityResponse, error) {
 	m.ctrl.T.Helper()
@@ -738,6 +758,20 @@ func (m *MockAgentSecureServer) StreamConfigEvents(arg0 *core.ConfigStreamReques
 func (mr *MockAgentSecureServerMockRecorder) StreamConfigEvents(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamConfigEvents", reflect.TypeOf((*MockAgentSecureServer)(nil).StreamConfigEvents), arg0, arg1)
+}
+
+// StreamKubeMetadata mocks base method.
+func (m *MockAgentSecureServer) StreamKubeMetadata(arg0 *core.KubeMetadataStreamRequest, arg1 grpc.ServerStreamingServer[core.KubeMetadataStreamResponse]) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StreamKubeMetadata", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// StreamKubeMetadata indicates an expected call of StreamKubeMetadata.
+func (mr *MockAgentSecureServerMockRecorder) StreamKubeMetadata(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamKubeMetadata", reflect.TypeOf((*MockAgentSecureServer)(nil).StreamKubeMetadata), arg0, arg1)
 }
 
 // TaggerFetchEntity mocks base method.
