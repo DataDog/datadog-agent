@@ -149,6 +149,13 @@ func BenchmarkStringLookup_PData(b *testing.B) {
 			_ = LookupString(reg, accessor, ConceptHTTPMethod)
 		}
 	})
+
+	b.Run("SemanticWithAccessor", func(b *testing.B) {
+		for b.Loop() {
+			a := NewPDataMapAccessor(attrs)
+			_ = LookupString(reg, a, ConceptHTTPMethod)
+		}
+	})
 }
 
 // BenchmarkStringLookup_Fallback compares direct multi-key access vs semantic lookup when
@@ -175,6 +182,13 @@ func BenchmarkStringLookup_Fallback(b *testing.B) {
 			_ = LookupString(reg, accessor, ConceptHTTPMethod)
 		}
 	})
+
+	b.Run("SemanticWithAccessor", func(b *testing.B) {
+		for b.Loop() {
+			a := NewPDataMapAccessor(attrs)
+			_ = LookupString(reg, a, ConceptHTTPMethod)
+		}
+	})
 }
 
 // BenchmarkInt64Lookup_PData compares direct typed pdata access vs semantic LookupInt64.
@@ -195,6 +209,13 @@ func BenchmarkInt64Lookup_PData(b *testing.B) {
 	b.Run("Semantic", func(b *testing.B) {
 		for b.Loop() {
 			_, _ = LookupInt64(reg, accessor, ConceptHTTPStatusCode)
+		}
+	})
+
+	b.Run("SemanticWithAccessor", func(b *testing.B) {
+		for b.Loop() {
+			a := NewPDataMapAccessor(attrs)
+			_, _ = LookupInt64(reg, a, ConceptHTTPStatusCode)
 		}
 	})
 }
@@ -220,6 +241,13 @@ func BenchmarkStringLookup_StringMap(b *testing.B) {
 			_ = LookupString(reg, accessor, ConceptHTTPStatusCode)
 		}
 	})
+
+	b.Run("SemanticWithAccessor", func(b *testing.B) {
+		for b.Loop() {
+			a := NewStringMapAccessor(m)
+			_ = LookupString(reg, a, ConceptHTTPStatusCode)
+		}
+	})
 }
 
 // BenchmarkInt64Lookup_StringMap compares direct map access + parse vs semantic LookupInt64
@@ -240,6 +268,13 @@ func BenchmarkInt64Lookup_StringMap(b *testing.B) {
 	b.Run("Semantic", func(b *testing.B) {
 		for b.Loop() {
 			_, _ = LookupInt64(reg, accessor, ConceptHTTPStatusCode)
+		}
+	})
+
+	b.Run("SemanticWithAccessor", func(b *testing.B) {
+		for b.Loop() {
+			a := NewStringMapAccessor(m)
+			_, _ = LookupInt64(reg, a, ConceptHTTPStatusCode)
 		}
 	})
 }
@@ -303,6 +338,16 @@ func BenchmarkDualMapLookup(b *testing.B) {
 			_ = LookupString(reg, accessor, ConceptDeploymentEnv)
 		}
 	})
+
+	b.Run("SemanticWithAccessor", func(b *testing.B) {
+		for b.Loop() {
+			a := NewOTelSpanAccessor(spanAttrs, resAttrs)
+			_ = LookupString(reg, a, ConceptHTTPMethod)
+			_ = LookupString(reg, a, ConceptHTTPRoute)
+			_, _ = LookupInt64(reg, a, ConceptHTTPStatusCode)
+			_ = LookupString(reg, a, ConceptDeploymentEnv)
+		}
+	})
 }
 
 // BenchmarkLookup_Miss compares the cost of looking up a concept that has no matching
@@ -326,6 +371,13 @@ func BenchmarkLookup_Miss(b *testing.B) {
 	b.Run("Semantic", func(b *testing.B) {
 		for b.Loop() {
 			_ = LookupString(reg, accessor, ConceptHTTPMethod)
+		}
+	})
+
+	b.Run("SemanticWithAccessor", func(b *testing.B) {
+		for b.Loop() {
+			a := NewPDataMapAccessor(attrs)
+			_ = LookupString(reg, a, ConceptHTTPMethod)
 		}
 	})
 }
