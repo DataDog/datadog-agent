@@ -4,9 +4,9 @@
 // Copyright 2025-present Datadog, Inc.
 
 // CGO-backed getServices implementation using the Rust libdd_discovery shared library.
-// When CGO is disabled, impl_linux.go is compiled instead.
+// Without the dd_discovery_cgo build tag, impl_linux.go is compiled instead.
 
-//go:build cgo
+//go:build dd_discovery_cgo
 
 package module
 

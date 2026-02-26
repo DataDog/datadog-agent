@@ -170,7 +170,7 @@ rust_binary(
 # Test data files
 filegroup(
     name = "testdata",
-    srcs = glob(["testdata/**/*"]),
+    srcs = glob(["testdata/**/*"], allow_empty = True),
 )
 
 filegroup(

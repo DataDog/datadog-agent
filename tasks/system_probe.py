@@ -840,6 +840,10 @@ def build_sysprobe_binary(
             else:
                 env[k] = v
 
+    if not is_windows and not is_macos:
+        build_rust_cgo_libs(ctx, arch=arch_obj)
+        build_tags.append("dd_discovery_cgo")
+
     if os.path.exists(binary):
         os.remove(binary)
 
@@ -1586,7 +1590,6 @@ def build_object_files(
     validate_object_file_metadata(ctx, build_dir, verbose=False)
 
     build_rust_binaries(ctx, arch=arch_obj)
-    build_rust_cgo_libs(ctx, arch=arch_obj)
 
     if not is_windows:
         sudo = "" if is_root() else "sudo"
