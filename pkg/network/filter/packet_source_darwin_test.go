@@ -339,10 +339,6 @@ func TestDeterminePacketDirection_Loopback_IPv4_TruncatedIP(t *testing.T) {
 		"loopback: truncated IPv4 header should default to PacketHost")
 }
 
-// ============================================================================
-// T-2: Buffer pool regression — snapLen > defaultSnapLen must not panic
-// ============================================================================
-
 func TestLibpcapSource_BufferPool_LargeSnapLen(t *testing.T) {
 	const largeSnapLen = 8192 // larger than defaultSnapLen (4096)
 
