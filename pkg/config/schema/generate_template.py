@@ -216,6 +216,9 @@ build_type_to_section = {
         ],
 }
 
+def is_node_section(node):
+    return node.get("node_type", "") == "section"
+
 def should_render(build_type, node):
     for t in node["tags"]:
         if t.startswith("template_section:"):
@@ -289,7 +292,7 @@ def get_default_from_node(node, os_target):
     return default
 
 def get_node_types_and_default(full_name, node, os_target):
-    if node.get("node_type") == "section":
+    if is_node_section(node):
         return "custom object", None, None
 
     default = get_default_from_node(node, os_target)
@@ -363,7 +366,7 @@ def get_param_line(name, node_type, default):
     return line
 
 def get_env_lines(node, full_name, node_type, default):
-    if node.get("node_type") == "section":
+    if is_node_section(node):
         return ""
 
     env_vars = node.get("env_vars", [])
@@ -385,7 +388,7 @@ def get_env_lines(node, full_name, node_type, default):
 
 def get_example(node, indent_level, name, default):
     line = f"{name}:"
-    if node.get("node_type") != "section":
+    if not is_node_section(node):
         line += " " + node.get("example", print_default(default, False, False))
 
     # edge case for the top level to match the current template
