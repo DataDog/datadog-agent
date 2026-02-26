@@ -6,6 +6,7 @@
 package traceutil
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.6.1"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
 
@@ -1191,6 +1193,161 @@ func TestFallbackInconsistency_HTTPMethodPrecedence(t *testing.T) {
 			res := pcommon.NewResource()
 			assert.Equal(t, tt.expectedV1, GetOTelResourceV1(span, res), "V1: %s", tt.note)
 			assert.Equal(t, tt.expectedV2, GetOTelResourceV2(span, res), "V2: %s", tt.note)
+		})
+	}
+}
+
+// makeSpanAndResource creates a test OTel span and resource with the given attributes.
+func makeSpanAndResource(kind ptrace.SpanKind, spanAttrs, resAttrs map[string]string) (ptrace.Span, pcommon.Resource) {
+	span := ptrace.NewSpan()
+	span.SetName("test-span")
+	span.SetKind(kind)
+	span.SetTraceID(testTraceID)
+	span.SetSpanID(testSpanID1)
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(-time.Second)))
+	span.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+	for k, v := range spanAttrs {
+		span.Attributes().PutStr(k, v)
+	}
+	res := pcommon.NewResource()
+	for k, v := range resAttrs {
+		res.Attributes().PutStr(k, v)
+	}
+	return span, res
+}
+
+// BenchmarkSemanticLookups measures the allocation and CPU cost of per-span semantic
+// attribute lookups. Each sub-benchmark covers a different span profile (HTTP, DB, etc.)
+// to exercise different code paths and lookup depths.
+func BenchmarkSemanticLookups(b *testing.B) {
+	benchCases := []struct {
+		name      string
+		kind      ptrace.SpanKind
+		spanAttrs map[string]string
+		resAttrs  map[string]string
+	}{
+		{
+			name: "http_server",
+			kind: ptrace.SpanKindServer,
+			spanAttrs: map[string]string{
+				"http.request.method":       "GET",
+				"http.route":                "/api/v1/users",
+				"http.response.status_code": "200",
+				"network.protocol.name":     "http",
+				"network.protocol.version":  "1.1",
+			},
+			resAttrs: map[string]string{
+				"service.name":           "user-service",
+				"service.version":        "1.2.3",
+				"deployment.environment": "production",
+			},
+		},
+		{
+			name: "db_client",
+			kind: ptrace.SpanKindClient,
+			spanAttrs: map[string]string{
+				"db.system":    "postgresql",
+				"db.statement": "SELECT * FROM users WHERE id = ?",
+				"db.name":      "mydb",
+			},
+			resAttrs: map[string]string{
+				"service.name":           "user-service",
+				"deployment.environment": "production",
+			},
+		},
+		{
+			name: "messaging_producer",
+			kind: ptrace.SpanKindProducer,
+			spanAttrs: map[string]string{
+				"messaging.system":      "kafka",
+				"messaging.operation":   "publish",
+				"messaging.destination": "user-events",
+			},
+			resAttrs: map[string]string{
+				"service.name":           "event-publisher",
+				"deployment.environment": "production",
+			},
+		},
+		{
+			name: "rpc_client",
+			kind: ptrace.SpanKindClient,
+			spanAttrs: map[string]string{
+				"rpc.system":  "grpc",
+				"rpc.service": "UserService",
+				"rpc.method":  "GetUser",
+			},
+			resAttrs: map[string]string{
+				"service.name":           "api-gateway",
+				"deployment.environment": "production",
+			},
+		},
+		{
+			name: "internal_no_match",
+			kind: ptrace.SpanKindInternal,
+			spanAttrs: map[string]string{
+				"custom.attr": "value",
+			},
+			resAttrs: map[string]string{
+				"service.name": "my-service",
+			},
+		},
+	}
+
+	for _, bc := range benchCases {
+		span, res := makeSpanAndResource(bc.kind, bc.spanAttrs, bc.resAttrs)
+		b.Run(fmt.Sprintf("OperationNameV2/%s", bc.name), func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				_ = GetOTelOperationNameV2(span, res)
+			}
+		})
+		b.Run(fmt.Sprintf("ResourceV2/%s", bc.name), func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				_ = GetOTelResourceV2(span, res)
+			}
+		})
+		b.Run(fmt.Sprintf("SpanType/%s", bc.name), func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				_ = GetOTelSpanType(span, res)
+			}
+		})
+		b.Run(fmt.Sprintf("Service/%s", bc.name), func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				_ = GetOTelService(span, res, true)
+			}
+		})
+	}
+
+	// Combined: simulate full per-span V2 processing (each function creates its own accessor)
+	for _, bc := range benchCases {
+		span, res := makeSpanAndResource(bc.kind, bc.spanAttrs, bc.resAttrs)
+		b.Run(fmt.Sprintf("AllV2Functions/%s", bc.name), func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				_ = GetOTelService(span, res, true)
+				_ = GetOTelSpanType(span, res)
+				_ = GetOTelOperationNameV2(span, res)
+				_ = GetOTelResourceV2(span, res)
+			}
+		})
+	}
+
+	// Combined with shared accessor: simulate full per-span V2 processing
+	// with a single accessor reused across all functions via WithAccessor variants.
+	for _, bc := range benchCases {
+		span, res := makeSpanAndResource(bc.kind, bc.spanAttrs, bc.resAttrs)
+		b.Run(fmt.Sprintf("AllV2SharedAccessor/%s", bc.name), func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				accessor := semantics.NewOTelSpanAccessor(span.Attributes(), res.Attributes())
+				_ = GetOTelServiceWithAccessor(accessor, true)
+				_ = GetOTelSpanTypeWithAccessor(span, accessor)
+				_ = GetOTelOperationNameV2WithAccessor(span, accessor)
+				_ = GetOTelResourceV2WithAccessor(span, accessor)
+			}
 		})
 	}
 }

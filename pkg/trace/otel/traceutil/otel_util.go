@@ -170,6 +170,13 @@ func LookupSemanticString(attrs pcommon.Map, concept semantics.Concept, shouldNo
 	return lookupString(accessor, concept, shouldNormalize)
 }
 
+// LookupSemanticStringWithAccessor looks up a semantic concept using a pre-created accessor.
+// Use this when performing multiple lookups on the same attribute maps to avoid repeated accessor allocation.
+// If shouldNormalize is true, normalize the return value with NormalizeTagValue.
+func LookupSemanticStringWithAccessor(accessor semantics.Accessor, concept semantics.Concept, shouldNormalize bool) string {
+	return lookupString(accessor, concept, shouldNormalize)
+}
+
 // LookupSemanticStringFromDualMaps looks up a semantic concept from two OTel attribute maps.
 // The primary map (typically span attributes) takes precedence over secondary (typically resource attributes).
 // If shouldNormalize is true, normalize the return value with NormalizeTagValue.

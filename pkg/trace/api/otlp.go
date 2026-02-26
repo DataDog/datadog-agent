@@ -293,19 +293,18 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		src = source.Source{Kind: source.HostnameKind, Identifier: hostname}
 	}
 
+	// Create a single accessor for all resource-level semantic lookups below, avoiding
+	// repeated allocation of accessor objects for the same attribute map.
+	resAccessor := semantics.NewPDataMapAccessor(otelres.Attributes())
+
 	// Get container ID from OTel semantic conventions
-	var containerID string
-	if o.conf.HasFeature("enable_otlp_container_tags_v2") {
-		containerID = traceutilotel.LookupSemanticString(otelres.Attributes(), semantics.ConceptContainerID, true)
-	} else {
-		containerID = traceutilotel.LookupSemanticString(otelres.Attributes(), semantics.ConceptContainerID, true)
-		if containerID == "" {
-			containerID = traceutilotel.LookupSemanticString(otelres.Attributes(), semantics.ConceptK8sPodUID, true)
-		}
+	containerID := traceutilotel.LookupSemanticStringWithAccessor(resAccessor, semantics.ConceptContainerID, true)
+	if containerID == "" && !o.conf.HasFeature("enable_otlp_container_tags_v2") {
+		containerID = traceutilotel.LookupSemanticStringWithAccessor(resAccessor, semantics.ConceptK8sPodUID, true)
 	}
 
 	// Get env from OTel semantic conventions
-	env := traceutilotel.LookupSemanticString(otelres.Attributes(), semantics.ConceptDeploymentEnv, true)
+	env := traceutilotel.LookupSemanticStringWithAccessor(resAccessor, semantics.ConceptDeploymentEnv, true)
 
 	// Get container tags from OTel semantic conventions
 	var containerTags string

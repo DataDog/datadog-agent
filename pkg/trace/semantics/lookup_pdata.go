@@ -70,16 +70,16 @@ func (a *PDataMapAccessor) GetFloat64(key string) (float64, bool) {
 // OTelSpanAccessor provides typed access to combined span and resource attributes.
 // The primary accessor (typically span attributes) takes precedence over the secondary.
 type OTelSpanAccessor struct {
-	primary   *PDataMapAccessor
-	secondary *PDataMapAccessor
+	primary   PDataMapAccessor
+	secondary PDataMapAccessor
 }
 
 // NewOTelSpanAccessor returns an OTelSpanAccessor for OTel span and resource attributes.
 // Span attributes take precedence over resource attributes.
 func NewOTelSpanAccessor(spanAttrs, resAttrs pcommon.Map) *OTelSpanAccessor {
 	return &OTelSpanAccessor{
-		primary:   NewPDataMapAccessor(spanAttrs),
-		secondary: NewPDataMapAccessor(resAttrs),
+		primary:   PDataMapAccessor{attrs: spanAttrs},
+		secondary: PDataMapAccessor{attrs: resAttrs},
 	}
 }
 

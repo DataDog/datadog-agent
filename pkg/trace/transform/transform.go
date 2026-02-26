@@ -37,25 +37,21 @@ func OperationAndResourceNameV2Enabled(conf *config.AgentConfig) bool {
 	return !conf.OTLPReceiver.SpanNameAsResourceName && len(conf.OTLPReceiver.SpanNameRemappings) == 0 && !conf.HasFeature("disable_operation_and_resource_name_logic_v2")
 }
 
-// OtelSpanToDDSpanMinimal otelSpanToDDSpan converts an OTel span to a DD span.
-// The converted DD span only has the minimal number of fields for APM stats calculation and is only meant
-// to be used in OTLPTracesToConcentratorInputs. Do not use them for other purposes.
-func OtelSpanToDDSpanMinimal(
+// otelSpanToDDSpanMinimal is the internal implementation shared by OtelSpanToDDSpanMinimal and
+// OtelSpanToDDSpan, accepting a pre-created accessor to avoid repeated allocation.
+func otelSpanToDDSpanMinimal(
 	otelspan ptrace.Span,
 	otelres pcommon.Resource,
 	lib pcommon.InstrumentationScope,
 	isTopLevel, topLevelByKind bool,
 	conf *config.AgentConfig,
 	peerTagKeys []string,
+	spanAccessor semantics.Accessor,
 ) *pb.Span {
 	spanKind := otelspan.Kind()
 
 	sattr := otelspan.Attributes()
 	rattr := otelres.Attributes()
-
-	// Create a single accessor and reuse it for all span+resource lookups in this function,
-	// avoiding repeated allocation of accessor objects for the same attribute maps.
-	spanAccessor := semantics.NewOTelSpanAccessor(sattr, rattr)
 
 	ddspan := &pb.Span{
 		Service:  traceutilotel.GetOTelServiceWithAccessor(spanAccessor, true),
@@ -113,6 +109,20 @@ func OtelSpanToDDSpanMinimal(
 		}
 	}
 	return ddspan
+}
+
+// OtelSpanToDDSpanMinimal converts an OTel span to a DD span with only the minimal fields
+// needed for APM stats calculation. Only use with OTLPTracesToConcentratorInputs.
+func OtelSpanToDDSpanMinimal(
+	otelspan ptrace.Span,
+	otelres pcommon.Resource,
+	lib pcommon.InstrumentationScope,
+	isTopLevel, topLevelByKind bool,
+	conf *config.AgentConfig,
+	peerTagKeys []string,
+) *pb.Span {
+	spanAccessor := semantics.NewOTelSpanAccessor(otelspan.Attributes(), otelres.Attributes())
+	return otelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, peerTagKeys, spanAccessor)
 }
 
 func isDatadogAPMConventionKey(k string) bool {
@@ -206,10 +216,11 @@ func GetOTelContainerID(span ptrace.Span, res pcommon.Resource) string {
 // The Kubernetes pod UID will be used as a fallback if the container ID is not found.
 // This is only done for backward compatibility; consider using GetOTelContainerID instead.
 func GetOTelContainerOrPodID(span ptrace.Span, res pcommon.Resource) string {
-	if id := traceutilotel.LookupSemanticStringFromDualMaps(span.Attributes(), res.Attributes(), semantics.ConceptContainerID, true); id != "" {
+	accessor := semantics.NewOTelSpanAccessor(span.Attributes(), res.Attributes())
+	if id := traceutilotel.LookupSemanticStringWithAccessor(accessor, semantics.ConceptContainerID, true); id != "" {
 		return id
 	}
-	return traceutilotel.LookupSemanticStringFromDualMaps(span.Attributes(), res.Attributes(), semantics.ConceptK8sPodUID, true)
+	return traceutilotel.LookupSemanticStringWithAccessor(accessor, semantics.ConceptK8sPodUID, true)
 }
 
 // GetOTelStatusCode returns the HTTP status code based on OTel span and resource attributes, with span taking precedence.
@@ -257,7 +268,10 @@ func OtelSpanToDDSpan(
 	if topLevelByKind {
 		isTopLevel = otelspan.ParentSpanID() == pcommon.NewSpanIDEmpty() || spanKind == ptrace.SpanKindServer || spanKind == ptrace.SpanKindConsumer
 	}
-	ddspan := OtelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, nil)
+	// Create one shared accessor for all span+resource lookups in this function and in the
+	// minimal span conversion below, avoiding repeated allocation of accessor objects.
+	spanAccessor := semantics.NewOTelSpanAccessor(otelspan.Attributes(), otelres.Attributes())
+	ddspan := otelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, nil, spanAccessor)
 
 	// Span attributes take precedence over resource attributes in the event of key collisions; so, use span attributes first
 	otelspan.Attributes().Range(func(k string, v pcommon.Value) bool {
@@ -276,7 +290,7 @@ func OtelSpanToDDSpan(
 	traceID := otelspan.TraceID()
 	ddspan.Meta["otel.trace_id"] = hex.EncodeToString(traceID[:])
 	if !spanMetaHasKey(ddspan, "version") {
-		if version := GetOTelVersion(otelspan, otelres); version != "" {
+		if version := traceutilotel.LookupSemanticStringWithAccessor(spanAccessor, semantics.ConceptServiceVersion, true); version != "" {
 			ddspan.Meta["version"] = version
 		}
 	}
@@ -308,7 +322,7 @@ func OtelSpanToDDSpan(
 	}
 
 	if !spanMetaHasKey(ddspan, "env") {
-		if env := GetOTelEnv(otelspan, otelres); env != "" {
+		if env := traceutilotel.LookupSemanticStringWithAccessor(spanAccessor, semantics.ConceptDeploymentEnv, true); env != "" {
 			ddspan.Meta["env"] = env
 		}
 	}
@@ -323,9 +337,13 @@ func OtelSpanToDDSpan(
 		ddspan.Meta[k] = v.AsString()
 	}
 
-	// Check for db.namespace and conditionally set db.name
+	// Check for db.namespace and conditionally set db.name.
+	// db.namespace is a resource-level attribute; check resource attrs first, then span attrs.
 	if _, ok := ddspan.Meta["db.name"]; !ok {
-		if dbNamespace := traceutilotel.LookupSemanticStringFromDualMaps(otelres.Attributes(), otelspan.Attributes(), semantics.ConceptDBNamespace, false); dbNamespace != "" {
+		if dbNamespace := traceutilotel.LookupSemanticStringWithAccessor(
+			semantics.NewOTelSpanAccessor(otelres.Attributes(), otelspan.Attributes()),
+			semantics.ConceptDBNamespace, false,
+		); dbNamespace != "" {
 			ddspan.Meta["db.name"] = dbNamespace
 		}
 	}
