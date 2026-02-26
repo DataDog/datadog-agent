@@ -228,8 +228,10 @@ func SpanKind2Type(span ptrace.Span, res pcommon.Resource) string {
 	return typ
 }
 
-// getOTelSpanType returns the DD span type using a pre-created accessor.
-func getOTelSpanType(span ptrace.Span, accessor semantics.Accessor) string {
+// GetOTelSpanTypeWithAccessor returns the DD span type based on OTel span kind and attributes,
+// using a pre-created accessor to avoid repeated allocation when multiple lookups share the
+// same span and resource attribute maps.
+func GetOTelSpanTypeWithAccessor(span ptrace.Span, accessor semantics.Accessor) string {
 	typ := lookupString(accessor, semantics.ConceptSpanType, false)
 	if typ != "" {
 		return typ
@@ -253,13 +255,7 @@ func getOTelSpanType(span ptrace.Span, accessor semantics.Accessor) string {
 // GetOTelSpanType returns the DD span type based on OTel span kind and attributes.
 // This logic is used in ReceiveResourceSpansV2 logic
 func GetOTelSpanType(span ptrace.Span, res pcommon.Resource) string {
-	return getOTelSpanType(span, semantics.NewOTelSpanAccessor(span.Attributes(), res.Attributes()))
-}
-
-// GetOTelSpanTypeWithAccessor is like GetOTelSpanType but uses a pre-created accessor to avoid
-// repeated allocation when multiple lookups share the same span and resource attribute maps.
-func GetOTelSpanTypeWithAccessor(span ptrace.Span, accessor semantics.Accessor) string {
-	return getOTelSpanType(span, accessor)
+	return GetOTelSpanTypeWithAccessor(span, semantics.NewOTelSpanAccessor(span.Attributes(), res.Attributes()))
 }
 
 // getOTelService returns the DD service name using a pre-created accessor.

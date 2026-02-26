@@ -43,18 +43,9 @@ func TestPDataMapAccessor(t *testing.T) {
 		assert.False(t, ok)
 	})
 
-	t.Run("GetInt64 from exact float", func(t *testing.T) {
+	t.Run("GetInt64 rejects Double", func(t *testing.T) {
 		m := pcommon.NewMap()
 		m.PutDouble("code", 200.0)
-		a := NewPDataMapAccessor(m)
-		v, ok := a.GetInt64("code")
-		assert.True(t, ok)
-		assert.Equal(t, int64(200), v)
-	})
-
-	t.Run("GetInt64 rejects non-integer float", func(t *testing.T) {
-		m := pcommon.NewMap()
-		m.PutDouble("code", 3.14)
 		a := NewPDataMapAccessor(m)
 		_, ok := a.GetInt64("code")
 		assert.False(t, ok)
@@ -65,9 +56,9 @@ func TestPDataMapAccessor(t *testing.T) {
 		assert.True(t, ok)
 		assert.InDelta(t, 3.14, v, 0.001)
 
-		v, ok = accessor.GetFloat64("http.status_code")
-		assert.True(t, ok)
-		assert.Equal(t, float64(200), v)
+		// GetFloat64 is strict: returns false for non-Double pdata types.
+		_, ok = accessor.GetFloat64("http.status_code")
+		assert.False(t, ok)
 
 		_, ok = accessor.GetFloat64("http.method")
 		assert.False(t, ok)
@@ -101,10 +92,10 @@ func TestNewOTelSpanAccessor(t *testing.T) {
 		assert.Equal(t, int64(500), v)
 	})
 
-	t.Run("GetFloat64 precedence", func(t *testing.T) {
-		v, ok := accessor.GetFloat64("http.status_code")
-		assert.True(t, ok)
-		assert.Equal(t, float64(500), v)
+	t.Run("GetFloat64 rejects Int", func(t *testing.T) {
+		// http.status_code is ValueTypeInt; GetFloat64 is strict and only accepts Double.
+		_, ok := accessor.GetFloat64("http.status_code")
+		assert.False(t, ok)
 	})
 }
 

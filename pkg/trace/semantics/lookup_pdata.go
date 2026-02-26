@@ -29,42 +29,22 @@ func (a *PDataMapAccessor) GetString(key string) string {
 	return v.Str()
 }
 
-// GetInt64 returns the attribute value as int64 if the underlying pdata type is Int
-// or an exact-integer Double.
+// GetInt64 returns the attribute value as int64 if the underlying pdata type is Int.
 func (a *PDataMapAccessor) GetInt64(key string) (int64, bool) {
 	v, ok := a.attrs.Get(key)
-	if !ok {
+	if !ok || v.Type() != pcommon.ValueTypeInt {
 		return 0, false
 	}
-	switch v.Type() {
-	case pcommon.ValueTypeInt:
-		return v.Int(), true
-	case pcommon.ValueTypeDouble:
-		f := v.Double()
-		i := int64(f)
-		if float64(i) == f {
-			return i, true
-		}
-		return 0, false
-	default:
-		return 0, false
-	}
+	return v.Int(), true
 }
 
-// GetFloat64 returns the attribute value as float64 if the underlying pdata type is Double or Int.
+// GetFloat64 returns the attribute value as float64 if the underlying pdata type is Double.
 func (a *PDataMapAccessor) GetFloat64(key string) (float64, bool) {
 	v, ok := a.attrs.Get(key)
-	if !ok {
+	if !ok || v.Type() != pcommon.ValueTypeDouble {
 		return 0, false
 	}
-	switch v.Type() {
-	case pcommon.ValueTypeDouble:
-		return v.Double(), true
-	case pcommon.ValueTypeInt:
-		return float64(v.Int()), true
-	default:
-		return 0, false
-	}
+	return v.Double(), true
 }
 
 // OTelSpanAccessor provides typed access to combined span and resource attributes.
