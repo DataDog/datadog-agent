@@ -108,6 +108,10 @@ func NewComponent(deps Requires) Provides {
 		maxEvents: 1000, // Keep last 1000 events for debugging
 	}
 
+	// TODO
+	// Wire the reporter to pull raw anomaly state from obs.
+	reporter.SetRawAnomalyState(obs)
+
 	// Set up handle function with optional recorder wrapping.
 	// If recorder is provided, wrap handles to enable transparent metric recording.
 	// Otherwise, use inner handle directly (no recording).
@@ -118,6 +122,46 @@ func NewComponent(deps Requires) Provides {
 	}
 
 	go obs.run()
+
+	go func() {
+		time.Sleep(4 * time.Second)
+
+		signal := observerdef.Signal{
+			Source:    "system.disk.free",
+			Message:   "What r u doing???",
+			Timestamp: time.Now().Unix(),
+			Tags:      []string{"celian:true"},
+			Value:     100,
+			Score:     nil,
+		}
+		anomaly := obs.signalToAnomaly(signal, "cusum_detector")
+		// anomaly := observerdef.AnomalyOutput{
+		// 	Source:         observerdef.MetricName("system.disk.free:avg"),
+		// 	SourceSeriesID: observerdef.SeriesID(seriesKey("system.disk.free", "avg", []string{"celian:true"})),
+		// 	Title:          "Celian",
+		// 	Description:    "wow",
+		// 	Tags:           []string{"celian:true"},
+		// 	Timestamp:      time.Now().Unix(),
+		// 	DebugInfo: &observerdef.AnomalyDebugInfo{
+		// 		BaselineStart:  time.Now().Unix() - 1000,
+		// 		BaselineEnd:    time.Now().Unix(),
+		// 		BaselineMean:   100,
+		// 		BaselineStddev: 10,
+		// 		CurrentValue:   100,
+		// 		DeviationSigma: 1,
+		// 	},
+		// 	// AnalyzerName: "celian_detector",
+		// 	AnalyzerName: "cusum_detector",
+		// }
+
+		obs.captureRawAnomaly(anomaly)
+		obs.processAnomaly(anomaly)
+		obs.processSignal(signal)
+		obs.flushAndReport()
+
+		// Forward to anomaly processors
+		fmt.Printf("[observer] [celian] ALERT: %s\n", anomaly.Description)
+	}()
 
 	cfg := pkgconfigsetup.Datadog()
 
@@ -392,8 +436,8 @@ func (o *observerImpl) runTSAnalyses(series observerdef.Series, agg Aggregate) {
 			anomaly.Source = observerdef.MetricName(seriesWithAgg.Name)
 			anomaly.SourceSeriesID = observerdef.SeriesID(seriesKey(series.Namespace, seriesWithAgg.Name, series.Tags))
 			// Capture raw anomaly before passing to processors
-			o.captureRawAnomaly(anomaly)
-			o.processAnomaly(anomaly)
+			// o.captureRawAnomaly(anomaly)
+			// o.processAnomaly(anomaly)
 		}
 	}
 }
@@ -412,11 +456,11 @@ func (o *observerImpl) runSignalEmitters(series observerdef.Series, agg Aggregat
 			// Convert signal to anomaly and send to correlators
 			anomaly := o.signalToAnomaly(signal, emitter.Name())
 			anomaly.SourceSeriesID = observerdef.SeriesID(seriesKey(series.Namespace, seriesWithAgg.Name, series.Tags))
-			o.captureRawAnomaly(anomaly) // For UI display
-			o.processAnomaly(anomaly)    // Send to correlators (GraphSketchCorrelator, etc.)
+			// o.captureRawAnomaly(anomaly) // For UI display
+			// o.processAnomaly(anomaly)    // Send to correlators (GraphSketchCorrelator, etc.)
 
 			// Also send signal to signal processors (Layer 2)
-			o.processSignal(signal)
+			// o.processSignal(signal)
 		}
 	}
 }
