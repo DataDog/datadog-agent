@@ -105,6 +105,10 @@
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
+         <loc>https://datadoghq.dev/datadog-agent/guidelines/languages/RUST/</loc>
+         <lastmod>2020-02-02</lastmod>
+    </url>
+    <url>
          <loc>https://datadoghq.dev/datadog-agent/guidelines/languages/go/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
