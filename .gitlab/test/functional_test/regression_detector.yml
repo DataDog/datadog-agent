@@ -10,6 +10,7 @@ single_machine_performance-regression_detector-merge_base_check:
           artifacts: false
     # On dev branches: no needs — runs at the start of functional_test for fast feedback.
     - !reference [.on_dev_branches_with_artifact_changes]
+  needs: []
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64", "specific:true"]
   artifacts:
