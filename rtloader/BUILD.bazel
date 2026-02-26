@@ -1,6 +1,3 @@
-load("@pythons_hub//:versions.bzl", "DEFAULT_PYTHON_VERSION")
-
-# rtloader
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
@@ -98,7 +95,9 @@ dd_agent_expand_template(
     name = "constants_gen",
     out = "constants.h",
     substitutions = {
-        "@Python3_STDLIB@": "{install_dir}/embedded/lib/python%s" % DEFAULT_PYTHON_VERSION,
+        # TODO(agent-build): either get rid of the need for this substitution or
+        # use a single source of truth for the version
+        "@Python3_STDLIB@": "{install_dir}/embedded/lib/python3.13",
     },
     template = "three/constants.h.in",
 )
