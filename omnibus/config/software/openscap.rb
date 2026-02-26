@@ -24,59 +24,59 @@ build do
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/libattr.so"
 
-  command_on_repo_root "bazelisk run -- @dbus//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- @dbus//:install --destdir='#{install_dir}'"
 
-  command_on_repo_root "bazelisk run -- @libselinux//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- @libselinux//:install --destdir='#{install_dir}'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/libselinux.so"
 
-  command_on_repo_root "bazelisk run -- @libsepol//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- @libsepol//:install --destdir='#{install_dir}'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/libsepol.so"
 
-  command_on_repo_root "bazelisk run -- @libyaml//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- @libyaml//:install --destdir='#{install_dir}'"
   sh_lib = if linux_target? then "libyaml.so" else "libyaml.dylib" end
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded' " \
     "#{install_dir}/embedded/lib/#{sh_lib}"
 
-  command_on_repo_root "bazelisk run -- @pcre2//:install --destdir=#{install_dir}/embedded"
+  command_on_repo_root "bazelisk run -- @pcre2//:install --destdir=#{install_dir}"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix " \
     "--prefix #{install_dir}/embedded " \
     "#{install_dir}/embedded/lib/libpcre2*.so"
 
-  command_on_repo_root "bazelisk run -- @popt//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- @popt//:install --destdir='#{install_dir}'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/libpopt.so"
 
-  command_on_repo_root "bazelisk run -- @rpm//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- @rpm//:install --destdir='#{install_dir}'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/librpm.so" \
     " #{install_dir}/embedded/lib/librpmio.so"
 
-  command_on_repo_root "bazelisk run -- @util-linux//:blkid_install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- @util-linux//:blkid_install --destdir='#{install_dir}'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/libblkid.so"
 
-  command_on_repo_root "bazelisk run -- @gpg-error//:install --destdir='#{install_dir}/embedded'"
-  command_on_repo_root "bazelisk run -- @gcrypt//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- @gpg-error//:install --destdir='#{install_dir}'"
+  command_on_repo_root "bazelisk run -- @gcrypt//:install --destdir='#{install_dir}'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/libgcrypt.so" \
     " #{install_dir}/embedded/lib/libgpg-error.so" \
 
-  command_on_repo_root "bazelisk run -- @libxml2//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- @libxml2//:install --destdir='#{install_dir}'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/libxml2.so"
 
-  command_on_repo_root "bazelisk run -- @libxslt//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- @libxslt//:install --destdir='#{install_dir}'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/libxslt.so" \
     " #{install_dir}/embedded/lib/libexslt.so"
 
-  command_on_repo_root "bazelisk run -- @xmlsec//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- @xmlsec//:install --destdir='#{install_dir}'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/libxmlsec1*.so" \
 
-  command_on_repo_root "bazelisk run -- @openscap//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- @openscap//:install --destdir='#{install_dir}'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/libopenscap.so" \
     " #{install_dir}/embedded/lib/libopenscap_sce.so" \
