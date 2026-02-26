@@ -56,6 +56,21 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 		resolvedConfig.PodNamespace = namespace
 	}
 
+	if nodeName, err := svc.GetExtraConfig("node_name"); err == nil && nodeName != "" {
+		resolvedConfig.NodeName = nodeName
+	}
+
+	// For endpoint checks, add pod UID to ADIdentifiers for pod tag resolution
+	if podUID, err := svc.GetExtraConfig("pod_uid"); err == nil && podUID != "" {
+		podEntity := fmt.Sprintf("kubernetes_pod://%s", podUID)
+		resolvedConfig.ADIdentifiers = append(resolvedConfig.ADIdentifiers, podEntity)
+		// Also add the specific service entity ID if not already present
+		serviceID := svc.GetServiceID()
+		if !contains(resolvedConfig.ADIdentifiers, serviceID) {
+			resolvedConfig.ADIdentifiers = append(resolvedConfig.ADIdentifiers, serviceID)
+		}
+	}
+
 	if resolvedConfig.IsCheckConfig() && !svc.IsReady() {
 		return resolvedConfig, errors.New("unable to resolve, service not ready")
 	}
@@ -196,4 +211,14 @@ func tagsAdder(tags []string) func(interface{}) error {
 		}
 		return nil
 	}
+}
+
+// contains checks if a string slice contains a value
+func contains(slice []string, val string) bool {
+	for _, item := range slice {
+		if item == val {
+			return true
+		}
+	}
+	return false
 }
