@@ -136,7 +136,7 @@ func isEligibleInterface(iface net.Interface) bool {
 }
 
 // NewLibpcapSource creates a LibpcapSource using libpcap
-func NewLibpcapSource(_ int, opts ...interface{}) (*LibpcapSource, error) {
+func NewLibpcapSource(opts ...interface{}) (*LibpcapSource, error) {
 	snapLen := defaultSnapLen
 	for _, opt := range opts {
 		switch o := opt.(type) {
