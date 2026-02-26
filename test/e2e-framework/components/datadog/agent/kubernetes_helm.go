@@ -732,7 +732,7 @@ func (values HelmValues) configureImagePullSecret(secret *corev1.Secret) {
 		return
 	}
 
-	for _, section := range []string{"agents", "clusterAgent", "clusterChecksRunner"} {
+	for _, section := range []string{"agents", "clusterAgent", "clusterChecksRunner", "otelAgentGateway"} {
 		if _, ok := values[section].(pulumi.Map); !ok {
 			continue
 		}
