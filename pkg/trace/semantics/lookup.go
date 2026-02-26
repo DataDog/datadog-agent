@@ -6,6 +6,7 @@
 package semantics
 
 import (
+	"fmt"
 	"strconv"
 )
 
@@ -70,14 +71,28 @@ type LookupResult struct {
 }
 
 // Lookup performs a semantic attribute lookup in precedence order and returns the first match.
+// For string-typed tags it uses GetString; for numeric-typed tags it uses the typed getter and
+// formats the result as a string, so LookupString works correctly on any concept regardless of
+// the underlying pdata storage type.
 func Lookup(r Registry, accessor Accessor, concept Concept) (LookupResult, bool) {
 	tags := r.GetAttributePrecedence(concept)
 	if tags == nil {
 		return LookupResult{}, false
 	}
 	for _, tag := range tags {
-		if v := accessor.GetString(tag.Name); v != "" {
-			return LookupResult{TagInfo: tag, StringValue: v}, true
+		switch tag.Type {
+		case ValueTypeInt64:
+			if v, ok := accessor.GetInt64(tag.Name); ok {
+				return LookupResult{TagInfo: tag, StringValue: strconv.FormatInt(v, 10)}, true
+			}
+		case ValueTypeFloat64:
+			if v, ok := accessor.GetFloat64(tag.Name); ok {
+				return LookupResult{TagInfo: tag, StringValue: fmt.Sprintf("%g", v)}, true
+			}
+		default:
+			if v := accessor.GetString(tag.Name); v != "" {
+				return LookupResult{TagInfo: tag, StringValue: v}, true
+			}
 		}
 	}
 	return LookupResult{}, false

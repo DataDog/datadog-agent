@@ -221,13 +221,8 @@ func SpanKind2Type(span ptrace.Span, res pcommon.Resource) string {
 	return typ
 }
 
-// GetOTelSpanType returns the DD span type based on OTel span kind and attributes.
-// This logic is used in ReceiveResourceSpansV2 logic
-func GetOTelSpanType(span ptrace.Span, res pcommon.Resource) string {
-	sattr := span.Attributes()
-	rattr := res.Attributes()
-	accessor := semantics.NewOTelSpanAccessor(sattr, rattr)
-
+// getOTelSpanType returns the DD span type using a pre-created accessor.
+func getOTelSpanType(span ptrace.Span, accessor semantics.Accessor) string {
 	typ := lookupString(accessor, semantics.ConceptSpanType, false)
 	if typ != "" {
 		return typ
@@ -248,11 +243,22 @@ func GetOTelSpanType(span ptrace.Span, res pcommon.Resource) string {
 	return typ
 }
 
-// GetOTelService returns the DD service name based on OTel span and resource attributes.
-func GetOTelService(span ptrace.Span, res pcommon.Resource, normalize bool) string {
-	// Use semantic lookup for service.name with fallback handling
+// GetOTelSpanType returns the DD span type based on OTel span kind and attributes.
+// This logic is used in ReceiveResourceSpansV2 logic
+func GetOTelSpanType(span ptrace.Span, res pcommon.Resource) string {
+	return getOTelSpanType(span, semantics.NewOTelSpanAccessor(span.Attributes(), res.Attributes()))
+}
+
+// GetOTelSpanTypeWithAccessor is like GetOTelSpanType but uses a pre-created accessor to avoid
+// repeated allocation when multiple lookups share the same span and resource attribute maps.
+func GetOTelSpanTypeWithAccessor(span ptrace.Span, accessor semantics.Accessor) string {
+	return getOTelSpanType(span, accessor)
+}
+
+// getOTelService returns the DD service name using a pre-created accessor.
+func getOTelService(accessor semantics.Accessor, normalize bool) string {
 	// No need to normalize with NormalizeTagValue since we will do NormalizeService later
-	svc := LookupSemanticStringFromDualMaps(span.Attributes(), res.Attributes(), semantics.ConceptServiceName, false)
+	svc := lookupString(accessor, semantics.ConceptServiceName, false)
 	if svc == "" {
 		svc = DefaultOTLPServiceName
 	}
@@ -267,6 +273,17 @@ func GetOTelService(span ptrace.Span, res pcommon.Resource, normalize bool) stri
 		svc = newsvc
 	}
 	return svc
+}
+
+// GetOTelService returns the DD service name based on OTel span and resource attributes.
+func GetOTelService(span ptrace.Span, res pcommon.Resource, normalize bool) string {
+	return getOTelService(semantics.NewOTelSpanAccessor(span.Attributes(), res.Attributes()), normalize)
+}
+
+// GetOTelServiceWithAccessor is like GetOTelService but uses a pre-created accessor to avoid
+// repeated allocation when multiple lookups share the same span and resource attribute maps.
+func GetOTelServiceWithAccessor(accessor semantics.Accessor, normalize bool) string {
+	return getOTelService(accessor, normalize)
 }
 
 // GetOTelResourceV1 returns the DD resource name based on OTel span and resource attributes.
@@ -308,16 +325,13 @@ func GetOTelResourceV1(span ptrace.Span, res pcommon.Resource) (resName string) 
 	return
 }
 
-// GetOTelResourceV2 returns the DD resource name based on OTel span and resource attributes.
-func GetOTelResourceV2(span ptrace.Span, res pcommon.Resource) (resName string) {
+// getOTelResourceV2 returns the DD resource name using a pre-created accessor.
+func getOTelResourceV2(span ptrace.Span, accessor semantics.Accessor) (resName string) {
 	defer func() {
 		if len(resName) > normalizeutil.MaxResourceLen {
 			resName = resName[:normalizeutil.MaxResourceLen]
 		}
 	}()
-	sattr := span.Attributes()
-	rattr := res.Attributes()
-	accessor := semantics.NewOTelSpanAccessor(sattr, rattr)
 
 	if m := lookupString(accessor, semantics.ConceptResourceName, false); m != "" {
 		resName = m
@@ -379,14 +393,19 @@ func GetOTelResourceV2(span ptrace.Span, res pcommon.Resource) (resName string) 
 	return
 }
 
-// GetOTelOperationNameV2 returns the DD operation name based on OTel span and resource attributes and given configs.
-func GetOTelOperationNameV2(
-	span ptrace.Span,
-	res pcommon.Resource,
-) string {
-	sattr := span.Attributes()
-	rattr := res.Attributes()
-	accessor := semantics.NewOTelSpanAccessor(sattr, rattr)
+// GetOTelResourceV2 returns the DD resource name based on OTel span and resource attributes.
+func GetOTelResourceV2(span ptrace.Span, res pcommon.Resource) string {
+	return getOTelResourceV2(span, semantics.NewOTelSpanAccessor(span.Attributes(), res.Attributes()))
+}
+
+// GetOTelResourceV2WithAccessor is like GetOTelResourceV2 but uses a pre-created accessor to avoid
+// repeated allocation when multiple lookups share the same span and resource attribute maps.
+func GetOTelResourceV2WithAccessor(span ptrace.Span, accessor semantics.Accessor) string {
+	return getOTelResourceV2(span, accessor)
+}
+
+// getOTelOperationNameV2 returns the DD operation name using a pre-created accessor.
+func getOTelOperationNameV2(span ptrace.Span, accessor semantics.Accessor) string {
 
 	if operationName := lookupString(accessor, semantics.ConceptOperationName, true); operationName != "" {
 		return operationName
@@ -477,6 +496,17 @@ func GetOTelOperationNameV2(
 		return span.Kind().String()
 	}
 	return ptrace.SpanKindInternal.String()
+}
+
+// GetOTelOperationNameV2 returns the DD operation name based on OTel span and resource attributes.
+func GetOTelOperationNameV2(span ptrace.Span, res pcommon.Resource) string {
+	return getOTelOperationNameV2(span, semantics.NewOTelSpanAccessor(span.Attributes(), res.Attributes()))
+}
+
+// GetOTelOperationNameV2WithAccessor is like GetOTelOperationNameV2 but uses a pre-created accessor to avoid
+// repeated allocation when multiple lookups share the same span and resource attribute maps.
+func GetOTelOperationNameV2WithAccessor(span ptrace.Span, accessor semantics.Accessor) string {
+	return getOTelOperationNameV2(span, accessor)
 }
 
 // GetOTelOperationNameV1 returns the DD operation name based on OTel span and resource attributes and given configs.

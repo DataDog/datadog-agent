@@ -25,8 +25,9 @@ func TestPDataMapAccessor(t *testing.T) {
 	t.Run("GetString", func(t *testing.T) {
 		assert.Equal(t, "GET", accessor.GetString("http.method"))
 		assert.Equal(t, "SELECT * FROM users", accessor.GetString("db.statement"))
-		assert.NotEmpty(t, accessor.GetString("http.status_code"))
-		assert.NotEmpty(t, accessor.GetString("custom.float"))
+		// GetString is strict: returns "" for non-Str pdata types; use GetInt64/GetFloat64 for numerics.
+		assert.Equal(t, "", accessor.GetString("http.status_code"))
+		assert.Equal(t, "", accessor.GetString("custom.float"))
 		assert.Equal(t, "", accessor.GetString("nonexistent"))
 	})
 

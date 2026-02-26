@@ -53,8 +53,12 @@ func OtelSpanToDDSpanMinimal(
 	sattr := otelspan.Attributes()
 	rattr := otelres.Attributes()
 
+	// Create a single accessor and reuse it for all span+resource lookups in this function,
+	// avoiding repeated allocation of accessor objects for the same attribute maps.
+	spanAccessor := semantics.NewOTelSpanAccessor(sattr, rattr)
+
 	ddspan := &pb.Span{
-		Service:  traceutilotel.GetOTelService(otelspan, otelres, true),
+		Service:  traceutilotel.GetOTelServiceWithAccessor(spanAccessor, true),
 		TraceID:  traceutilotel.OTelTraceIDToUint64(otelspan.TraceID()),
 		SpanID:   traceutilotel.OTelSpanIDToUint64(otelspan.SpanID()),
 		ParentID: traceutilotel.OTelSpanIDToUint64(otelspan.ParentSpanID()),
@@ -69,8 +73,8 @@ func OtelSpanToDDSpanMinimal(
 	}
 
 	if OperationAndResourceNameV2Enabled(conf) {
-		ddspan.Name = traceutilotel.GetOTelOperationNameV2(otelspan, otelres)
-		ddspan.Resource = traceutilotel.GetOTelResourceV2(otelspan, otelres)
+		ddspan.Name = traceutilotel.GetOTelOperationNameV2WithAccessor(otelspan, spanAccessor)
+		ddspan.Resource = traceutilotel.GetOTelResourceV2WithAccessor(otelspan, spanAccessor)
 	} else {
 		ddspan.Name = traceutilotel.GetOTelOperationNameV1(otelspan, otelres, lib, conf.OTLPReceiver.SpanNameAsResourceName, conf.OTLPReceiver.SpanNameRemappings, true)
 		ddspan.Resource = traceutilotel.GetOTelResourceV1(otelspan, otelres)
@@ -78,7 +82,7 @@ func OtelSpanToDDSpanMinimal(
 
 	// correct span type logic if using new resource receiver, keep same if on v1. separate from OperationAndResourceNameV2Enabled.
 	if !conf.HasFeature("disable_receive_resource_spans_v2") {
-		ddspan.Type = traceutilotel.GetOTelSpanType(otelspan, otelres)
+		ddspan.Type = traceutilotel.GetOTelSpanTypeWithAccessor(otelspan, spanAccessor)
 	} else {
 		ddspan.Type = traceutilotel.LookupSemanticStringFromDualMaps(rattr, sattr, semantics.ConceptSpanType, true)
 		if ddspan.Type == "" {
@@ -88,14 +92,14 @@ func OtelSpanToDDSpanMinimal(
 
 	ddspan.Meta["span.kind"] = traceutilotel.OTelSpanKindName(spanKind)
 
-	code := GetOTelStatusCode(otelspan, otelres)
-	if code != 0 {
+	reg := semantics.DefaultRegistry()
+	if code, ok := semantics.LookupInt64(reg, spanAccessor, semantics.ConceptHTTPStatusCode); ok && code >= 0 {
 		ddspan.Metrics[traceutil.TagStatusCode] = float64(code)
 	}
 	if isTopLevel {
 		traceutil.SetTopLevel(ddspan, true)
 	}
-	if isMeasured := traceutilotel.LookupSemanticStringFromDualMaps(sattr, rattr, semantics.ConceptDDMeasured, false); isMeasured == "1" {
+	if semantics.LookupString(reg, spanAccessor, semantics.ConceptDDMeasured) == "1" {
 		traceutil.SetMeasured(ddspan, true)
 	} else if topLevelByKind && (spanKind == ptrace.SpanKindClient || spanKind == ptrace.SpanKindProducer) {
 		// When enable_otlp_compute_top_level_by_span_kind is true, compute stats for client-side spans
