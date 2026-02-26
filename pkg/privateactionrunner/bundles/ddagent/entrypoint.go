@@ -6,6 +6,7 @@
 package com_datadoghq_ddagent
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/ddagent/shell"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
@@ -18,6 +19,7 @@ func NewAgentActions() *AgentActions {
 		actions: map[string]types.Action{
 			"agentInfo":      NewAgentInfoHandler(),
 			"testConnection": NewTestConnectionHandler(),
+			"runShell":       shell.NewRunShellHandler(),
 		},
 	}
 }
