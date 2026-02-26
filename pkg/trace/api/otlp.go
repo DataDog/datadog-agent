@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	traceutilotel "github.com/DataDog/datadog-agent/pkg/trace/otel/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
@@ -41,7 +42,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	semconv117 "go.opentelemetry.io/otel/semconv/v1.17.0"
-	semconv127 "go.opentelemetry.io/otel/semconv/v1.27.0"
 	semconv "go.opentelemetry.io/otel/semconv/v1.6.1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -295,13 +295,16 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	// Get container ID from OTel semantic conventions
 	var containerID string
 	if o.conf.HasFeature("enable_otlp_container_tags_v2") {
-		containerID = traceutilotel.GetOTelAttrVal(otelres.Attributes(), true, string(semconv.ContainerIDKey))
+		containerID = traceutilotel.LookupSemanticString(otelres.Attributes(), semantics.ConceptContainerID, true)
 	} else {
-		containerID = traceutilotel.GetOTelAttrVal(otelres.Attributes(), true, string(semconv.ContainerIDKey), string(semconv.K8SPodUIDKey))
+		containerID = traceutilotel.LookupSemanticString(otelres.Attributes(), semantics.ConceptContainerID, true)
+		if containerID == "" {
+			containerID = traceutilotel.LookupSemanticString(otelres.Attributes(), semantics.ConceptK8sPodUID, true)
+		}
 	}
 
 	// Get env from OTel semantic conventions
-	env := traceutilotel.GetOTelAttrVal(otelres.Attributes(), true, string(semconv127.DeploymentEnvironmentNameKey), string(semconv.DeploymentEnvironmentKey))
+	env := traceutilotel.LookupSemanticString(otelres.Attributes(), semantics.ConceptDeploymentEnv, true)
 
 	// Get container tags from OTel semantic conventions
 	var containerTags string
@@ -409,12 +412,17 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	if !srcok {
 		hostFromMap(rattr, "_dd.hostname")
 	}
-	_, env := transform.GetFirstFromMap(rattr, string(semconv127.DeploymentEnvironmentNameKey), string(semconv.DeploymentEnvironmentKey))
+	rattrAccessor := semantics.NewStringMapAccessor(rattr)
+	reg := semantics.DefaultRegistry()
+	env := semantics.LookupString(reg, rattrAccessor, semantics.ConceptDeploymentEnv)
 	lang := rattr[string(semconv.TelemetrySDKLanguageKey)]
 	if lang == "" {
 		lang = fastHeaderGet(httpHeader, header.Lang)
 	}
-	_, containerID := transform.GetFirstFromMap(rattr, string(semconv.ContainerIDKey), string(semconv.K8SPodUIDKey))
+	containerID := semantics.LookupString(reg, rattrAccessor, semantics.ConceptContainerID)
+	if containerID == "" {
+		containerID = semantics.LookupString(reg, rattrAccessor, semantics.ConceptK8sPodUID)
+	}
 	if containerID == "" {
 		containerID = o.cidProvider.GetContainerID(ctx, httpHeader)
 	}
@@ -667,14 +675,15 @@ func (o *OTLPReceiver) convertSpan(res pcommon.Resource, lib pcommon.Instrumenta
 		return true
 	})
 	if _, ok := span.Meta["env"]; !ok {
-		if _, env := transform.GetFirstFromMap(span.Meta, string(semconv127.DeploymentEnvironmentNameKey), string(semconv.DeploymentEnvironmentKey)); env != "" {
+		metaAccessor := semantics.NewStringMapAccessor(span.Meta)
+		if env := semantics.LookupString(semantics.DefaultRegistry(), metaAccessor, semantics.ConceptDeploymentEnv); env != "" {
 			transform.SetMetaOTLP(span, "env", normalize.NormalizeTag(env))
 		}
 	}
 
 	// Check for db.namespace and conditionally set db.name
 	if _, ok := span.Meta["db.name"]; !ok {
-		if dbNamespace := traceutilotel.GetOTelAttrValInResAndSpanAttrs(in, res, false, string(semconv127.DBNamespaceKey)); dbNamespace != "" {
+		if dbNamespace := traceutilotel.LookupSemanticStringFromDualMaps(res.Attributes(), in.Attributes(), semantics.ConceptDBNamespace, false); dbNamespace != "" {
 			transform.SetMetaOTLP(span, "db.name", dbNamespace)
 		}
 	}
@@ -735,17 +744,20 @@ func (o *OTLPReceiver) convertSpan(res pcommon.Resource, lib pcommon.Instrumenta
 // resourceFromTags attempts to deduce a more accurate span resource from the given list of tags meta.
 // If this is not possible, it returns an empty string.
 func resourceFromTags(meta map[string]string) string {
-	// `http.method` was renamed to `http.request.method` in the HTTP stabilization from v1.23.
-	// See https://opentelemetry.io/docs/specs/semconv/http/migration-guide/#summary-of-changes
-	if _, m := transform.GetFirstFromMap(meta, "http.request.method", "http.method"); m != "" {
-		// use the HTTP method + route (if available)
-		if _, route := transform.GetFirstFromMap(meta, string(semconv.HTTPRouteKey), "grpc.path"); route != "" {
+	accessor := semantics.NewStringMapAccessor(meta)
+	reg := semantics.DefaultRegistry()
+	if m := semantics.LookupString(reg, accessor, semantics.ConceptHTTPMethod); m != "" {
+		// use the HTTP method + route (if available). grpc.path is used as a fallback for resource name only (legacy receiveResourceSpansV1 behavior), not as part of the http.route concept.
+		if route := semantics.LookupString(reg, accessor, semantics.ConceptHTTPRoute); route != "" {
+			return m + " " + route
+		}
+		if route := meta["grpc.path"]; route != "" {
 			return m + " " + route
 		}
 		return m
 	} else if m := meta[string(semconv.MessagingOperationKey)]; m != "" {
 		// use the messaging operation
-		if _, dest := transform.GetFirstFromMap(meta, string(semconv.MessagingDestinationKey), string(semconv117.MessagingDestinationNameKey)); dest != "" {
+		if dest := semantics.LookupString(reg, accessor, semantics.ConceptMessagingDest); dest != "" {
 			return m + " " + dest
 		}
 		return m

@@ -13,12 +13,10 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/otel/attribute"
-	semconv117 "go.opentelemetry.io/otel/semconv/v1.17.0"
-	semconv126 "go.opentelemetry.io/otel/semconv/v1.26.0"
-	semconv "go.opentelemetry.io/otel/semconv/v1.6.1"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
 
@@ -149,6 +147,52 @@ func GetOTelAttrValInResAndSpanAttrs(span ptrace.Span, res pcommon.Resource, nor
 	return GetOTelAttrVal(span.Attributes(), normalize, keys...)
 }
 
+// Semantic Registry Lookup Functions
+// These functions use the semantics registry to look up attributes with automatic fallback handling.
+
+// lookupString performs a semantic string lookup using a pre-created accessor,
+// avoiding repeated accessor allocation when multiple lookups share the same attribute maps.
+func lookupString(accessor semantics.Accessor, concept semantics.Concept, shouldNormalize bool) string {
+	val := semantics.LookupString(semantics.DefaultRegistry(), accessor, concept)
+	if shouldNormalize && val != "" {
+		val = normalizeutil.NormalizeTagValue(val)
+	}
+	return val
+}
+
+// LookupSemanticString looks up a semantic concept from a single OTel attribute map.
+// It uses the semantics registry to check all equivalent attribute keys in precedence order.
+// If shouldNormalize is true, normalize the return value with NormalizeTagValue.
+func LookupSemanticString(attrs pcommon.Map, concept semantics.Concept, shouldNormalize bool) string {
+	accessor := semantics.NewPDataMapAccessor(attrs)
+	return lookupString(accessor, concept, shouldNormalize)
+}
+
+// LookupSemanticStringFromDualMaps looks up a semantic concept from two OTel attribute maps.
+// The primary map (typically span attributes) takes precedence over secondary (typically resource attributes).
+// If shouldNormalize is true, normalize the return value with NormalizeTagValue.
+//
+// For functions that perform multiple lookups on the same map pair, prefer creating a single
+// OTelSpanAccessor and calling lookupString directly to avoid repeated accessor allocation.
+func LookupSemanticStringFromDualMaps(primary, secondary pcommon.Map, concept semantics.Concept, shouldNormalize bool) string {
+	accessor := semantics.NewOTelSpanAccessor(primary, secondary)
+	return lookupString(accessor, concept, shouldNormalize)
+}
+
+// LookupSemanticInt64 looks up a semantic concept as an int64 from two OTel attribute maps.
+// The primary map takes precedence over secondary. Uses typed pdata access (no string round-trip).
+func LookupSemanticInt64(primary, secondary pcommon.Map, concept semantics.Concept) (int64, bool) {
+	accessor := semantics.NewOTelSpanAccessor(primary, secondary)
+	return semantics.LookupInt64(semantics.DefaultRegistry(), accessor, concept)
+}
+
+// LookupSemanticFloat64 looks up a semantic concept as a float64 from two OTel attribute maps.
+// The primary map takes precedence over secondary. Uses typed pdata access (no string round-trip).
+func LookupSemanticFloat64(primary, secondary pcommon.Map, concept semantics.Concept) (float64, bool) {
+	accessor := semantics.NewOTelSpanAccessor(primary, secondary)
+	return semantics.LookupFloat64(semantics.DefaultRegistry(), accessor, concept)
+}
+
 // SpanKind2Type returns a span's type based on the given kind and other present properties.
 // This function is used in Resource V1 logic only. See GetOtelSpanType for Resource V2 logic.
 func SpanKind2Type(span ptrace.Span, res pcommon.Resource) string {
@@ -158,7 +202,8 @@ func SpanKind2Type(span ptrace.Span, res pcommon.Resource) string {
 		typ = "web"
 	case ptrace.SpanKindClient:
 		typ = "http"
-		db := GetOTelAttrValInResAndSpanAttrs(span, res, true, string(semconv.DBSystemKey))
+		// Use semantic lookup for db.system (resource attrs take precedence in V1 logic)
+		db := LookupSemanticStringFromDualMaps(res.Attributes(), span.Attributes(), semantics.ConceptDBSystem, true)
 		if db == "" {
 			break
 		}
@@ -179,8 +224,9 @@ func SpanKind2Type(span ptrace.Span, res pcommon.Resource) string {
 func GetOTelSpanType(span ptrace.Span, res pcommon.Resource) string {
 	sattr := span.Attributes()
 	rattr := res.Attributes()
+	accessor := semantics.NewOTelSpanAccessor(sattr, rattr)
 
-	typ := GetOTelAttrFromEitherMap(sattr, rattr, false, "span.type")
+	typ := lookupString(accessor, semantics.ConceptSpanType, false)
 	if typ != "" {
 		return typ
 	}
@@ -188,7 +234,7 @@ func GetOTelSpanType(span ptrace.Span, res pcommon.Resource) string {
 	case ptrace.SpanKindServer:
 		typ = "web"
 	case ptrace.SpanKindClient:
-		db := GetOTelAttrFromEitherMap(sattr, rattr, true, string(semconv.DBSystemKey))
+		db := lookupString(accessor, semantics.ConceptDBSystem, true)
 		if db == "" {
 			typ = "http"
 		} else {
@@ -202,8 +248,9 @@ func GetOTelSpanType(span ptrace.Span, res pcommon.Resource) string {
 
 // GetOTelService returns the DD service name based on OTel span and resource attributes.
 func GetOTelService(span ptrace.Span, res pcommon.Resource, normalize bool) string {
+	// Use semantic lookup for service.name with fallback handling
 	// No need to normalize with NormalizeTagValue since we will do NormalizeService later
-	svc := GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), false, string(semconv.ServiceNameKey))
+	svc := LookupSemanticStringFromDualMaps(span.Attributes(), res.Attributes(), semantics.ConceptServiceName, false)
 	if svc == "" {
 		svc = DefaultOTLPServiceName
 	}
@@ -221,33 +268,38 @@ func GetOTelService(span ptrace.Span, res pcommon.Resource, normalize bool) stri
 }
 
 // GetOTelResourceV1 returns the DD resource name based on OTel span and resource attributes.
+// Note: V1 uses resource-first precedence for backwards compatibility.
 func GetOTelResourceV1(span ptrace.Span, res pcommon.Resource) (resName string) {
-	resName = GetOTelAttrValInResAndSpanAttrs(span, res, false, "resource.name")
+	sattr := span.Attributes()
+	rattr := res.Attributes()
+	// V1 uses resource-first precedence (rattr, sattr order)
+	accessor := semantics.NewOTelSpanAccessor(rattr, sattr)
+
+	resName = lookupString(accessor, semantics.ConceptResourceName, false)
 	if resName == "" {
-		if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, "http.request.method", string(semconv.HTTPMethodKey)); m != "" {
-			// use the HTTP method + route (if available)
+		if m := lookupString(accessor, semantics.ConceptHTTPMethod, false); m != "" {
+			// HTTP: use method + route (resource-first precedence)
 			resName = m
-			if route := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.HTTPRouteKey)); route != "" {
+			if route := lookupString(accessor, semantics.ConceptHTTPRoute, false); route != "" {
 				resName = resName + " " + route
 			}
-		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.MessagingOperationKey)); m != "" {
+		} else if m := lookupString(accessor, semantics.ConceptMessagingOperation, false); m != "" {
+			// Messaging: use operation + destination
 			resName = m
-			// use the messaging operation
-			if dest := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.MessagingDestinationKey), string(semconv117.MessagingDestinationNameKey)); dest != "" {
+			if dest := lookupString(accessor, semantics.ConceptMessagingDest, false); dest != "" {
 				resName = resName + " " + dest
 			}
-		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.RPCMethodKey)); m != "" {
+		} else if m := lookupString(accessor, semantics.ConceptRPCMethod, false); m != "" {
+			// RPC: use method + service
 			resName = m
-			// use the RPC method
-			if svc := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.RPCServiceKey)); m != "" {
-				// ...and service if available
+			if svc := lookupString(accessor, semantics.ConceptRPCService, false); svc != "" {
 				resName = resName + " " + svc
 			}
-		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv117.GraphqlOperationTypeKey)); m != "" {
-			// Enrich GraphQL query resource names.
+		} else if m := lookupString(accessor, semantics.ConceptGraphQLOperationType, false); m != "" {
+			// GraphQL: use operation type + name
 			// See https://github.com/open-telemetry/semantic-conventions/blob/v1.29.0/docs/graphql/graphql-spans.md
 			resName = m
-			if name := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv117.GraphqlOperationNameKey)); name != "" {
+			if name := lookupString(accessor, semantics.ConceptGraphQLOperationName, false); name != "" {
 				resName = resName + " " + name
 			}
 		} else {
@@ -267,67 +319,62 @@ func GetOTelResourceV2(span ptrace.Span, res pcommon.Resource) (resName string) 
 			resName = resName[:normalizeutil.MaxResourceLen]
 		}
 	}()
-	// Use span and resource attributes for lookups
 	sattr := span.Attributes()
 	rattr := res.Attributes()
+	accessor := semantics.NewOTelSpanAccessor(sattr, rattr)
 
-	if m := GetOTelAttrFromEitherMap(sattr, rattr, false, "resource.name"); m != "" {
+	if m := lookupString(accessor, semantics.ConceptResourceName, false); m != "" {
 		resName = m
 		return
 	}
 
-	if m := GetOTelAttrFromEitherMap(sattr, rattr, false, "http.request.method", string(semconv.HTTPMethodKey)); m != "" {
+	// HTTP: use method + route (if available)
+	if m := lookupString(accessor, semantics.ConceptHTTPMethod, false); m != "" {
 		if m == "_OTHER" {
 			m = "HTTP"
 		}
-		// use the HTTP method + route (if available)
 		resName = m
 		if span.Kind() == ptrace.SpanKindServer {
-			if route := GetOTelAttrFromEitherMap(sattr, rattr, false, string(semconv.HTTPRouteKey)); route != "" {
+			if route := lookupString(accessor, semantics.ConceptHTTPRoute, false); route != "" {
 				resName = resName + " " + route
 			}
 		}
 		return
 	}
 
-	if m := GetOTelAttrFromEitherMap(sattr, rattr, false, string(semconv.MessagingOperationKey)); m != "" {
+	// Messaging: use operation + destination
+	if m := lookupString(accessor, semantics.ConceptMessagingOperation, false); m != "" {
 		resName = m
-		// use the messaging operation
-		if dest := GetOTelAttrFromEitherMap(sattr, rattr, false, string(semconv.MessagingDestinationKey), string(semconv117.MessagingDestinationNameKey)); dest != "" {
+		if dest := lookupString(accessor, semantics.ConceptMessagingDest, false); dest != "" {
 			resName = resName + " " + dest
 		}
 		return
 	}
 
-	if m := GetOTelAttrFromEitherMap(sattr, rattr, false, string(semconv.RPCMethodKey)); m != "" {
+	// RPC: use method + service
+	if m := lookupString(accessor, semantics.ConceptRPCMethod, false); m != "" {
 		resName = m
-		// use the RPC method
-		if svc := GetOTelAttrFromEitherMap(sattr, rattr, false, string(semconv.RPCServiceKey)); svc != "" {
-			// ...and service if available
+		if svc := lookupString(accessor, semantics.ConceptRPCService, false); svc != "" {
 			resName = resName + " " + svc
 		}
 		return
 	}
 
-	// Enrich GraphQL query resource names.
+	// GraphQL: use operation type + name
 	// See https://github.com/open-telemetry/semantic-conventions/blob/v1.29.0/docs/graphql/graphql-spans.md
-	if m := GetOTelAttrFromEitherMap(sattr, rattr, false, string(semconv117.GraphqlOperationTypeKey)); m != "" {
+	if m := lookupString(accessor, semantics.ConceptGraphQLOperationType, false); m != "" {
 		resName = m
-		if name := GetOTelAttrFromEitherMap(sattr, rattr, false, string(semconv117.GraphqlOperationNameKey)); name != "" {
+		if name := lookupString(accessor, semantics.ConceptGraphQLOperationName, false); name != "" {
 			resName = resName + " " + name
 		}
 		return
 	}
 
-	if m := GetOTelAttrFromEitherMap(sattr, rattr, false, string(semconv.DBSystemKey)); m != "" {
-		// Since traces are obfuscated by span.Resource in pkg/trace/agent/obfuscate.go, we should use span.Resource as the resource name.
-		// https://github.com/DataDog/datadog-agent/blob/62619a69cff9863f5b17215847b853681e36ff15/pkg/trace/agent/obfuscate.go#L32
-		if dbStatement := GetOTelAttrFromEitherMap(sattr, rattr, false, string(semconv.DBStatementKey)); dbStatement != "" {
+	// Database: use db.statement/db.query.text as resource (for obfuscation)
+	// See https://github.com/DataDog/datadog-agent/blob/62619a69cff9863f5b17215847b853681e36ff15/pkg/trace/agent/obfuscate.go#L32
+	if m := lookupString(accessor, semantics.ConceptDBSystem, false); m != "" {
+		if dbStatement := lookupString(accessor, semantics.ConceptDBStatement, false); dbStatement != "" {
 			resName = dbStatement
-			return
-		}
-		if dbQuery := GetOTelAttrFromEitherMap(sattr, rattr, false, string(semconv126.DBQueryTextKey)); dbQuery != "" {
-			resName = dbQuery
 			return
 		}
 	}
@@ -343,16 +390,17 @@ func GetOTelOperationNameV2(
 ) string {
 	sattr := span.Attributes()
 	rattr := res.Attributes()
+	accessor := semantics.NewOTelSpanAccessor(sattr, rattr)
 
-	if operationName := GetOTelAttrFromEitherMap(sattr, rattr, true, "operation.name"); operationName != "" {
+	if operationName := lookupString(accessor, semantics.ConceptOperationName, true); operationName != "" {
 		return operationName
 	}
 
 	isClient := span.Kind() == ptrace.SpanKindClient
 	isServer := span.Kind() == ptrace.SpanKindServer
 
-	// http
-	if method := GetOTelAttrFromEitherMap(sattr, rattr, false, "http.request.method", string(semconv.HTTPMethodKey)); method != "" {
+	// HTTP
+	if method := lookupString(accessor, semantics.ConceptHTTPMethod, false); method != "" {
 		if isServer {
 			return "http.server.request"
 		}
@@ -361,14 +409,14 @@ func GetOTelOperationNameV2(
 		}
 	}
 
-	// database
-	if v := GetOTelAttrFromEitherMap(sattr, rattr, true, string(semconv.DBSystemKey)); v != "" && isClient {
+	// Database
+	if v := lookupString(accessor, semantics.ConceptDBSystem, true); v != "" && isClient {
 		return v + ".query"
 	}
 
-	// messaging
-	system := GetOTelAttrFromEitherMap(sattr, rattr, true, string(semconv.MessagingSystemKey))
-	op := GetOTelAttrFromEitherMap(sattr, rattr, true, string(semconv.MessagingOperationKey))
+	// Messaging
+	system := lookupString(accessor, semantics.ConceptMessagingSystem, true)
+	op := lookupString(accessor, semantics.ConceptMessagingOperation, true)
 	if system != "" && op != "" {
 		switch span.Kind() {
 		case ptrace.SpanKindClient, ptrace.SpanKindServer, ptrace.SpanKindConsumer, ptrace.SpanKindProducer:
@@ -377,12 +425,12 @@ func GetOTelOperationNameV2(
 	}
 
 	// RPC & AWS
-	rpcValue := GetOTelAttrFromEitherMap(sattr, rattr, true, string(semconv.RPCSystemKey))
+	rpcValue := lookupString(accessor, semantics.ConceptRPCSystem, true)
 	isRPC := rpcValue != ""
 	isAws := isRPC && (rpcValue == "aws-api")
 	// AWS client
 	if isAws && isClient {
-		if service := GetOTelAttrFromEitherMap(sattr, rattr, true, string(semconv.RPCServiceKey)); service != "" {
+		if service := lookupString(accessor, semantics.ConceptRPCService, true); service != "" {
 			return "aws." + service + ".request"
 		}
 		return "aws.client.request"
@@ -398,25 +446,25 @@ func GetOTelOperationNameV2(
 	}
 
 	// FAAS client
-	provider := GetOTelAttrFromEitherMap(sattr, rattr, true, string(semconv.FaaSInvokedProviderKey))
-	invokedName := GetOTelAttrFromEitherMap(sattr, rattr, true, string(semconv.FaaSInvokedNameKey))
+	provider := lookupString(accessor, semantics.ConceptFaaSInvokedProvider, true)
+	invokedName := lookupString(accessor, semantics.ConceptFaaSInvokedName, true)
 	if provider != "" && invokedName != "" && isClient {
 		return provider + "." + invokedName + ".invoke"
 	}
 
 	// FAAS server
-	trigger := GetOTelAttrFromEitherMap(sattr, rattr, true, string(semconv.FaaSTriggerKey))
+	trigger := lookupString(accessor, semantics.ConceptFaaSTrigger, true)
 	if trigger != "" && isServer {
 		return trigger + ".invoke"
 	}
 
 	// GraphQL
-	if GetOTelAttrFromEitherMap(sattr, rattr, true, "graphql.operation.type") != "" {
+	if lookupString(accessor, semantics.ConceptGraphQLOperationType, true) != "" {
 		return "graphql.server.request"
 	}
 
-	// if nothing matches, checking for generic http server/client
-	protocol := GetOTelAttrFromEitherMap(sattr, rattr, true, "network.protocol.name")
+	// If nothing matches, check for generic http server/client
+	protocol := lookupString(accessor, semantics.ConceptNetworkProtocolName, true)
 	if isServer {
 		if protocol != "" {
 			return protocol + ".server.request"
@@ -444,7 +492,7 @@ func GetOTelOperationNameV1(
 	spanNameRemappings map[string]string,
 	normalize bool) string {
 	// No need to normalize with NormalizeTagValue since we will do NormalizeName later
-	name := GetOTelAttrValInResAndSpanAttrs(span, res, false, "operation.name")
+	name := LookupSemanticStringFromDualMaps(res.Attributes(), span.Attributes(), semantics.ConceptOperationName, false)
 	if name == "" {
 		if spanNameAsResourceName {
 			name = span.Name()
