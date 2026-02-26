@@ -1,91 +1,25 @@
-single_machine_performance-regression_detector-merge_base_check:
-  stage: .pre
-  timeout: 10m
-  rules:
-    - !reference [.except_coverage_pipeline]
-    - !reference [.on_main]  # Run on main to compare against parent commit
-    - !reference [.on_dev_branches_smp]  # Run on dev branches when forced or experiments change
-    - !reference [.on_dev_branches_with_artifact_changes]  # Run when artifact-impacting files change (needed for PR sub-pipeline)
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
-  tags: ["arch:amd64", "specific:true"]
-  artifacts:
-    expire_in: 1 day
-    paths:
-      - regression_detector.env
-    reports:
-      dotenv: regression_detector.env  # Expose BASELINE_SHA as a CI variable for the trigger job
-  variables:
-    GIT_DEPTH: 0  # Ensure we can fetch full history for merge-base calculation
-  script:
-    # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
-    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
-    # Fetch origin to ensure we have latest main branch
-    - git fetch origin
-    # Get the base branch from release.json
-    - SMP_BASE_BRANCH=$(dda inv release.get-release-json-value base_branch --no-worktree)
-    # Compute four days before now as UNIX timestamp
-    - FOUR_DAYS_BEFORE_NOW=$(date --date="-4 days +1 hour" "+%s")
-    # Determine baseline SHA based on whether we're on the base branch or a dev branch
-    - |
-      if [[ "$CI_COMMIT_BRANCH" == "$SMP_BASE_BRANCH" ]]; then
-          # On the base branch, use the parent commit as the baseline
-          BASELINE_SHA=$(git rev-parse "${CI_COMMIT_SHA}^")
-          echo "On base branch, using parent commit ${BASELINE_SHA} as initial baseline"
-      else
-          # On a dev branch, compute the merge base with the base branch
-          echo "Looking for merge base for branch ${SMP_BASE_BRANCH}"
-          SMP_MERGE_BASE=$(git merge-base ${CI_COMMIT_SHA} origin/${SMP_BASE_BRANCH})
-          echo "Merge base is ${SMP_MERGE_BASE}"
-          BASELINE_SHA="${SMP_MERGE_BASE}"
-      fi
-    - BASELINE_COMMIT_TIME=$(git -c log.showSignature=false show --no-patch --format=%ct ${BASELINE_SHA})
-    # Check if baseline SHA is too old
-    - |
-      if [[ ${BASELINE_COMMIT_TIME} -le ${FOUR_DAYS_BEFORE_NOW} ]]
-      then
-          echo "ERROR: Merge-base of this branch is too old for SMP. Please update your branch by merging an up-to-date main branch into your branch or by rebasing it on an up-to-date main branch."
-          datadog-ci tag --level job --tags smp_merge_base_failure_reason:"branch_too_old"
-          exit 1
-      fi
-    - echo "Commit ${BASELINE_SHA} is recent enough"
-    # Setup AWS credentials for single-machine-performance AWS account to check ECR images
-    - AWS_NAMED_PROFILE="single-machine-performance"
-    - SMP_ACCOUNT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT account_id) || exit $?
-    - SMP_AGENT_TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT agent_team_id) || exit $?
-    - SMP_BOT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT bot_login) || exit $?
-    - SMP_BOT_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT bot_token) || exit $?
-    - aws configure set aws_access_key_id "$SMP_BOT_ID" --profile ${AWS_NAMED_PROFILE}
-    - aws configure set aws_secret_access_key "$SMP_BOT_KEY" --profile ${AWS_NAMED_PROFILE}
-    - aws configure set region us-west-2 --profile ${AWS_NAMED_PROFILE}
+# Child pipeline for SMP regression detection on PR branches.
+# This pipeline is triggered from regression_detector.yml via
+# trigger-single-machine-performance-regression_detector-pr and runs
+# independently (the parent pipeline does not wait for it).
+#
+# BASELINE_SHA and PARENT_PIPELINE_ID are passed in as CI variables from the
+# parent trigger job.  CI_COMMIT_SHA, CI_COMMIT_BRANCH, and other standard
+# GitLab variables are automatically available in child pipelines.
 
-    # Check if image exists for the baseline SHA
-    - echo "Checking if image exists for commit ${BASELINE_SHA}..."
-    - |
-      while [[ ! $(aws ecr describe-images --region us-west-2 --profile single-machine-performance --registry-id "${SMP_ACCOUNT_ID}" --repository-name "${SMP_AGENT_TEAM_ID}-agent" --image-ids imageTag="${BASELINE_SHA}-7-full-amd64") ]]
-      do
-          echo "No image exists for ${BASELINE_SHA} - checking predecessor of ${BASELINE_SHA} next"
-          BASELINE_SHA=$(git rev-parse ${BASELINE_SHA}^)
-          echo "Checking if commit ${BASELINE_SHA} is recent enough..."
-          BASELINE_COMMIT_TIME=$(git -c log.showSignature=false show --no-patch --format=%ct ${BASELINE_SHA})
-          if [[ ${BASELINE_COMMIT_TIME} -le ${FOUR_DAYS_BEFORE_NOW} ]]
-          then
-              echo "ERROR: Merge-base of this branch is too old for SMP. Please update your branch by merging an up-to-date main branch into your branch or by rebasing it on an up-to-date main branch."
-              datadog-ci tag --level job --tags smp_merge_base_failure_reason:"branch_too_old"
-              exit 1
-          fi
-          echo "Commit ${BASELINE_SHA} is recent enough"
-          echo "Checking if image exists for commit ${BASELINE_SHA}..."
-      done
-    - echo "Image exists for commit ${BASELINE_SHA}"
-    # Save the baseline SHA to an artifact file
-    - echo "BASELINE_SHA=${BASELINE_SHA}" > regression_detector.env
-    - echo "Merge-base check passed. Baseline SHA saved to artifact."
+stages:
+  - functional_test
 
-.single-machine-performance-run_regression_detector:
+single-machine-performance-regression_detector:
   stage: functional_test
   timeout: 1h10m
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64", "specific:true"]
+  # BASELINE_SHA is injected as a CI variable by the parent trigger job.
+  # Write it to regression_detector.env so the script can source it in the
+  # same way as the main-pipeline version of this job.
+  before_script:
+    - echo "BASELINE_SHA=${BASELINE_SHA}" > regression_detector.env
   artifacts:
     expire_in: 1 weeks
     paths:
@@ -98,7 +32,24 @@ single_machine_performance-regression_detector-merge_base_check:
       - outputs/decision_record.md # for posterity, this is appended to final PR comment
     when: always
   # See 'decision_record.md' for the determination of whether this job passes or fails.
-  retry: !reference [.retry_only_infra_failure, retry]
+  retry:
+    max: 2
+    exit_codes:
+      - 42
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - unknown_failure
+      - api_failure
+      - scheduler_failure
+      - stale_schedule
+      - data_integrity_failure
+  variables:
+    SMP_TEAM_NAME: agent
+    SMP_API_URL: api_url
+    SMP_VERSION: v0.25.1
+    BOT_LOGIN: bot_login
+    BOT_TOKEN: bot_token
   script:
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
@@ -162,7 +113,7 @@ single_machine_performance-regression_detector-merge_base_check:
     - echo "${BASELINE_SHA} | ${BASELINE_IMAGE}"
     - COMPARISON_IMAGE=${SMP_ECR_URL}/${SMP_TEAM_ID}-agent:${CI_COMMIT_SHA}-7-full-amd64
     - echo "${CI_COMMIT_SHA} | ${COMPARISON_IMAGE}"
-    - SMP_TAGS="ci_pipeline_id=${CI_PIPELINE_ID},ci_job_id=${CI_JOB_ID},ci_commit_branch=${CI_COMMIT_BRANCH},purpose=agent_ci"
+    - SMP_TAGS="ci_pipeline_id=${PARENT_PIPELINE_ID},ci_job_id=${CI_JOB_ID},ci_commit_branch=${CI_COMMIT_BRANCH},purpose=agent_ci"
     - echo "Tags passed through SMP are ${SMP_TAGS}"
     - RUST_LOG="info,aws_config::profile::credentials=error"
     - RUST_LOG_DEBUG="debug,aws_config::profile::credentials=error"
@@ -310,52 +261,10 @@ single_machine_performance-regression_detector-merge_base_check:
     # If we make it here that means quality gates must not have failed.
     - datadog-ci tag --level job --tags smp_quality_gates:"passed"
 
-single-machine-performance-regression_detector:
-  extends:
-    - .single-machine-performance-run_regression_detector
-  needs:
-    - job: single_machine_performance-regression_detector-merge_base_check
-      artifacts: true
-    - job: single_machine_performance-full-amd64-a7
-      artifacts: false
-  rules:
-    - !reference [.except_coverage_pipeline] # Coverage pipeline creates a duplicate, specialized artifact that is not useful to run through SMP on every PR
-    - !reference [.on_main]  # Run on main only; dev branch execution is handled via trigger-single-machine-performance-regression_detector-pr
-  variables:
-    SMP_TEAM_NAME: agent
-    SMP_API_URL: api_url
-    SMP_VERSION: v0.25.1
-    BOT_LOGIN: bot_login
-    BOT_TOKEN: bot_token
-
-single-machine-performance-metal-runners-regression_detector:
-  extends:
-    - .single-machine-performance-run_regression_detector
-  allow_failure: true
-  needs:
-    - job: single_machine_performance-regression_detector-merge_base_check
-      artifacts: true
-      optional: true
-    - job: single_machine_performance-full-amd64-a7
-      artifacts: false
-      optional: true
-  rules:
-    - !reference [.except_coverage_pipeline] # Coverage pipeline creates a duplicate, specialized artifact that is not useful to run through SMP on every PR
-    - !reference [.manual]
-    - when: on_success
-  variables:
-    SMP_TEAM_NAME: metal-runners
-    SMP_API_URL: metal-runners_api_url
-    SMP_VERSION: dev-pr3796-e7f7a988
-    BOT_LOGIN: bot_login_metal-runners
-    BOT_TOKEN: bot_token_metal-runners
-
 # Shamelessly adapted from golang_deps_commenter job config in
 # golang_deps_diff.yml at commit 01da274032e510d617161cf4e264a53292f44e55.
 single-machine-performance-regression_detector-pr-comment:
   stage: functional_test
-  rules:
-    - when: never  # Moved to smp-regression-child-pipeline.yml; triggered via trigger-single-machine-performance-regression_detector-pr
   image:
     name: "486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:3-jammy"
     entrypoint: [""] # disable entrypoint script for the pr-commenter image
@@ -424,27 +333,3 @@ single-machine-performance-regression_detector-pr-comment:
         exit 0
       fi
       exit $exitcode
-
-# Trigger a child pipeline for SMP regression detection on dev branch PRs.
-# The parent pipeline does NOT wait for this child pipeline (no strategy: depend),
-# so the main pipeline completes without blocking on the ~1h SMP run.
-trigger-single-machine-performance-regression_detector-pr:
-  stage: functional_test
-  rules:
-    - !reference [.except_coverage_pipeline]
-    - !reference [.on_dev_branches_smp]  # Run when forced or regression experiments change
-    - !reference [.on_dev_branches_with_artifact_changes]  # Run when artifact-impacting files change
-  needs:
-    - job: single_machine_performance-regression_detector-merge_base_check
-      artifacts: true  # Passes BASELINE_SHA dotenv variable to child pipeline
-    - job: single_machine_performance-full-amd64-a7
-      artifacts: false  # Ensures comparison image is in ECR before child pipeline starts
-      optional: true  # Build job may not run if triggered only via RUN_E2E_TESTS or experiments
-  variables:
-    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
-    BASELINE_SHA: $BASELINE_SHA  # Forwarded from merge_base_check dotenv artifact
-  trigger:
-    include:
-      - local: .gitlab/test/functional_test/smp-regression-child-pipeline.yml
-    # No strategy: depend — parent pipeline does not wait for the child pipeline to finish
-  allow_failure: true
