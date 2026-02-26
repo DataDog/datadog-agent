@@ -1556,6 +1556,13 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.key_file", "")
 	config.BindEnvAndSetDefault("autoscaling.failover.metrics", []string{"container.memory.usage", "container.cpu.usage"})
 
+	// Spot scheduling
+	config.BindEnvAndSetDefault("autoscaling.workload.spot.enabled", false)
+	config.BindEnvAndSetDefault("autoscaling.workload.spot.percentage", 50)
+	config.BindEnvAndSetDefault("autoscaling.workload.spot.min_on_demand_replicas", 1)
+	config.BindEnvAndSetDefault("autoscaling.workload.spot.schedule_timeout", "1m")
+	config.BindEnvAndSetDefault("autoscaling.workload.spot.disabled_interval", "2m")
+
 	// Cluster autoscaling product
 	config.BindEnvAndSetDefault("autoscaling.cluster.enabled", false)
 }

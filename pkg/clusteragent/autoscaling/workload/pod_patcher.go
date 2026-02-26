@@ -9,6 +9,7 @@ package workload
 
 import (
 	"context"
+	"errors"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,6 +21,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/spot"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -38,6 +40,36 @@ type PodPatcher interface {
 	// It allows to generate events based on the observed pod.
 	observedPodCallback(ctx context.Context, pod *workloadmeta.KubernetesPod)
 }
+
+// PodPatcherDelegate implements PodPatcher.
+// It delegates all calls to Patcher and ApplyRecommendations call to [spot.Scheduler].
+//
+// TODO: refactor PodPatcher interface to remove unexported methods such that spot.Scheduler
+// can implement it and delegate to Patcher making PodPatcherDelegate unnecessary.
+type PodPatcherDelegate struct {
+	Patcher       PodPatcher
+	SpotScheduler *spot.Scheduler
+}
+
+// ApplyRecommendations implements PodPatcher.
+func (p *PodPatcherDelegate) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
+	patcherUpdated, patcherErr := p.Patcher.ApplyRecommendations(pod)
+	spotUpated, spotErr := p.SpotScheduler.ApplyRecommendations(pod)
+
+	return patcherUpdated || spotUpated, errors.Join(patcherErr, spotErr)
+}
+
+// observedPodCallback implements PodPatcher.
+func (p *PodPatcherDelegate) observedPodCallback(ctx context.Context, pod *workloadmeta.KubernetesPod) {
+	p.Patcher.observedPodCallback(ctx, pod)
+}
+
+// shouldObservePod implements PodPatcher.
+func (p *PodPatcherDelegate) shouldObservePod(pod *workloadmeta.KubernetesPod) bool {
+	return p.Patcher.shouldObservePod(pod)
+}
+
+var _ PodPatcher = &PodPatcherDelegate{}
 
 type podPatcher struct {
 	store         *store
