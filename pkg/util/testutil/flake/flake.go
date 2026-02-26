@@ -23,7 +23,7 @@ import (
 	"sync"
 	"testing"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 const flakyTestMessage = "flakytest: this is a known flaky test"

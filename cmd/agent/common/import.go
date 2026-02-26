@@ -17,7 +17,7 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
-	yaml "gopkg.in/yaml.v2"
+	yaml "go.yaml.in/yaml/v2"
 
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	"github.com/DataDog/datadog-agent/pkg/config/legacy"
