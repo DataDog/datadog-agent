@@ -1109,6 +1109,16 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
+.on_windows_fips_compliance_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - <<: *on_build_changes
+    when: on_success
+  - changes:
+      paths:
+        - test/new-e2e/tests/fips-compliance/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
 .on_trace_agent_changes_or_manual:
   - !reference [.except_mergequeue]
   - changes:
