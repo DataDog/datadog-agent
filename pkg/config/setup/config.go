@@ -304,8 +304,9 @@ func InitConfigObjects(cliPath string, defaultDir string) {
 	// We first load the configuration to see which config library should be used.
 	configLib := resolveConfigLibType(cliPath, defaultDir)
 
-	datadog = create.NewConfig("datadog", configLib)
-	systemProbe = create.NewConfig("system-probe", configLib)
+	// Assign the config globals, using locks to make the tests happy
+	SetDatadog(create.NewConfig("datadog", configLib))          // nolint: forbidigo // legitimate use of SetDatadog
+	SetSystemProbe(create.NewConfig("system-probe", configLib)) // nolint: forbidigo // legitimate use of SetDatadog
 
 	// Configuration defaults
 	initConfig()
@@ -1348,7 +1349,7 @@ func agent(config pkgconfigmodel.Setup) {
 	// If enabled, all origin detection mechanisms will be unified to use the same logic.
 	// Will override all other origin detection settings in favor of the unified one.
 	config.BindEnvAndSetDefault("origin_detection_unified", false)
-	config.BindEnv("env") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("env", "")
 	config.BindEnvAndSetDefault("tag_value_split_separator", map[string]string{})
 	config.BindEnvAndSetDefault("conf_path", ".")
 	config.BindEnvAndSetDefault("confd_path", defaultConfdPath)
