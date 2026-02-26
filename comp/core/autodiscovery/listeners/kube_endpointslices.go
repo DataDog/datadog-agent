@@ -396,13 +396,25 @@ func processEndpointSlice(slice *discv1.EndpointSlice, tags []string, filterStor
 
 	// Iterate through endpoints (IP addresses)
 	for _, endpoint := range slice.Endpoints {
+		// Extract pod metadata from TargetRef (if available)
+		var podUID, nodeName string
+		if endpoint.TargetRef != nil && endpoint.TargetRef.Kind == "Pod" {
+			podUID = string(endpoint.TargetRef.UID)
+		}
+		if endpoint.NodeName != nil {
+			nodeName = *endpoint.NodeName
+		}
+
 		for _, ip := range endpoint.Addresses {
 			// Create a separate AD service per IP
 			ep := &KubeEndpointService{
-				entity:   apiserver.EntityForEndpoints(namespace, serviceName, ip),
-				metadata: filterableEndpoint,
-				hosts:    map[string]string{"endpoint": ip},
-				ports:    ports,
+				entity:      apiserver.EntityForEndpoints(namespace, serviceName, ip),
+				serviceName: serviceName,
+				podUID:      podUID,
+				nodeName:    nodeName,
+				metadata:    filterableEndpoint,
+				hosts:       map[string]string{"endpoint": ip},
+				ports:       ports,
 				tags: []string{
 					"kube_service:" + serviceName,
 					"kube_namespace:" + namespace,

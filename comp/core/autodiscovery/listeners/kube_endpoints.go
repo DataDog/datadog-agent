@@ -55,6 +55,9 @@ type KubeEndpointsListener struct {
 // KubeEndpointService represents an endpoint in a Kubernetes Endpoints
 type KubeEndpointService struct {
 	entity          string
+	serviceName     string
+	podUID          string // Pod UID for tagging
+	nodeName        string // Node name for check scheduling
 	metadata        *workloadfilter.KubeEndpoint
 	tags            []string
 	hosts           map[string]string
@@ -439,7 +442,20 @@ func (s *KubeEndpointService) GetServiceID() string {
 
 // GetADIdentifiers returns the service AD identifiers
 func (s *KubeEndpointService) GetADIdentifiers() []string {
-	return []string{s.entity, string(types.CelEndpointIdentifier)}
+	adIdentifiers := []string{
+		s.entity,                            // Specific: kube_endpoint_uid://default/nginx-svc/10.244.0.7
+		string(types.CelEndpointIdentifier), // CEL: cel://kube_endpoint
+	}
+	if s.serviceName != "" {
+		serviceID := fmt.Sprintf("kube_endpoint://%s/%s", s.namespace, s.serviceName)
+		adIdentifiers = append(adIdentifiers, serviceID)
+	}
+	if s.podUID != "" {
+		podEntity := fmt.Sprintf("kubernetes_pod://%s", s.podUID)
+		adIdentifiers = append(adIdentifiers, podEntity)
+	}
+
+	return adIdentifiers
 }
 
 // GetHosts returns the pod hosts
@@ -504,6 +520,16 @@ func (s *KubeEndpointService) GetExtraConfig(key string) (string, error) {
 	switch key {
 	case "namespace":
 		return s.namespace, nil
+	case "node_name":
+		if s.nodeName != "" {
+			return s.nodeName, nil
+		}
+		return "", ErrNotSupported
+	case "pod_uid":
+		if s.podUID != "" {
+			return s.podUID, nil
+		}
+		return "", ErrNotSupported
 	}
 	return "", ErrNotSupported
 }

@@ -133,8 +133,11 @@ func (k *kubeEndpointSlicesConfigProvider) Collect(context.Context) ([]integrati
 			log.Errorf("Cannot get Kubernetes endpointslices: %s", err)
 			continue
 		}
-		for _, slice := range slices {
-			generatedConfigs = append(generatedConfigs, generateConfigFromSlice(conf.tpl, conf.resolveMode, slice, conf.namespace, conf.serviceName)...)
+
+		// Generate ONE config per service (not per endpoint IP)
+		if len(slices) > 0 {
+			config := generateServiceLevelConfig(conf.tpl, conf.namespace, conf.serviceName)
+			generatedConfigs = append(generatedConfigs, config)
 		}
 
 		serviceKey := fmt.Sprintf("%s/%s", conf.namespace, conf.serviceName)
@@ -346,43 +349,25 @@ func hasEndpointSliceAnnotations(svc *v1.Service) bool {
 	return false
 }
 
-// generateConfigFromSlice creates a config template for each endpoint IP across all slices
-func generateConfigFromSlice(tpl integration.Config, resolveMode endpointResolveMode, slice *discv1.EndpointSlice, namespace, serviceName string) []integration.Config {
-	if slice == nil {
-		log.Warnf("EndpointSlice for %s/%s is nil, cannot generate config templates", namespace, serviceName)
-		return []integration.Config{tpl}
+// generateServiceLevelConfig creates ONE config template for a service that matches all its endpoints
+func generateServiceLevelConfig(tpl integration.Config, namespace, serviceName string) integration.Config {
+	// Use service-level ADIdentifier that matches all endpoint services for this service
+	serviceID := fmt.Sprintf("kube_endpoint://%s/%s", namespace, serviceName)
+
+	newConfig := integration.Config{
+		Name:                    tpl.Name,
+		Instances:               tpl.Instances,
+		InitConfig:              tpl.InitConfig,
+		MetricConfig:            tpl.MetricConfig,
+		LogsConfig:              tpl.LogsConfig,
+		ADIdentifiers:           []string{serviceID},
+		ClusterCheck:            true,
+		Provider:                tpl.Provider,
+		Source:                  tpl.Source,
+		IgnoreAutodiscoveryTags: tpl.IgnoreAutodiscoveryTags,
 	}
-	generatedConfigs := make([]integration.Config, 0)
 
-	// Check resolve annotation to know how we should process this endpoint
-	resolveFunc := getEndpointResolveFuncForSlice(resolveMode, namespace, serviceName)
-
-	for _, endpoint := range slice.Endpoints {
-		for _, ip := range endpoint.Addresses {
-			// Set a new entity containing the endpoint's IP
-			entity := apiserver.EntityForEndpoints(namespace, serviceName, ip)
-			newConfig := integration.Config{
-				ServiceID:               entity,
-				Name:                    tpl.Name,
-				Instances:               tpl.Instances,
-				InitConfig:              tpl.InitConfig,
-				MetricConfig:            tpl.MetricConfig,
-				LogsConfig:              tpl.LogsConfig,
-				ADIdentifiers:           []string{entity},
-				ClusterCheck:            true,
-				Provider:                tpl.Provider,
-				Source:                  tpl.Source,
-				IgnoreAutodiscoveryTags: tpl.IgnoreAutodiscoveryTags,
-			}
-
-			if resolveFunc != nil {
-				resolveFunc(&newConfig, endpoint)
-			}
-
-			generatedConfigs = append(generatedConfigs, newConfig)
-		}
-	}
-	return generatedConfigs
+	return newConfig
 }
 
 func (k *kubeEndpointSlicesConfigProvider) cleanErrorsOfDeletedServices(setCurrentServiceKeys map[string]struct{}) {
