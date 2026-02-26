@@ -524,15 +524,6 @@ workflow:
     when: manual
     allow_failure: true
 
-# Run SMP jobs on dev branches when forced via RUN_E2E_TESTS=on,
-# or when the regression experiment definitions themselves change.
-.on_dev_branches_smp:
-  - !reference [.on_dev_branches]
-  - if: $RUN_E2E_TESTS == "on" # We could create a dedicated variable for this in the future, for now let's force it to run on full pipelines.
-  - changes:
-      paths:
-        - test/regression/**/*
-      compare_to: $COMPARE_TO_BRANCH
 
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy

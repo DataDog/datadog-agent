@@ -1,23 +1,27 @@
-# Child pipeline for SMP regression detection on PR branches.
-# This pipeline is triggered from regression_detector.yml via
-# trigger-single-machine-performance-regression_detector-pr and runs
-# independently (the parent pipeline does not wait for it).
+# Child pipeline for SMP regression detection.
+# Triggered from regression_detector.yml via
+# trigger-single-machine-performance-regression_detector. The parent pipeline
+# does not wait for this pipeline (no strategy: depend).
 #
-# BASELINE_SHA and PARENT_PIPELINE_ID are passed in as CI variables from the
-# parent trigger job.  CI_COMMIT_SHA, CI_COMMIT_BRANCH, and other standard
-# GitLab variables are automatically available in child pipelines.
+# BASELINE_SHA and PARENT_PIPELINE_ID are passed as CI variables from the
+# parent trigger job. Standard GitLab variables (CI_COMMIT_SHA,
+# CI_COMMIT_BRANCH, etc.) are automatically available in child pipelines.
+#
+# NOTE: !reference to anchors defined in .gitlab-ci.yml is not available here.
+# Policies that would normally be referenced (e.g. .retry_only_infra_failure)
+# are inlined below.
 
 stages:
   - functional_test
 
-single-machine-performance-regression_detector:
+# Base template shared by all SMP run jobs.
+# BASELINE_SHA is written to regression_detector.env in before_script so the
+# script can source it the same way as if it were a job artifact.
+.single-machine-performance-run_regression_detector:
   stage: functional_test
   timeout: 1h10m
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64", "specific:true"]
-  # BASELINE_SHA is injected as a CI variable by the parent trigger job.
-  # Write it to regression_detector.env so the script can source it in the
-  # same way as the main-pipeline version of this job.
   before_script:
     - echo "BASELINE_SHA=${BASELINE_SHA}" > regression_detector.env
   artifacts:
@@ -32,6 +36,7 @@ single-machine-performance-regression_detector:
       - outputs/decision_record.md # for posterity, this is appended to final PR comment
     when: always
   # See 'decision_record.md' for the determination of whether this job passes or fails.
+  # Inlined from .retry_only_infra_failure in .gitlab-ci.yml (not available in child pipelines).
   retry:
     max: 2
     exit_codes:
@@ -44,12 +49,6 @@ single-machine-performance-regression_detector:
       - scheduler_failure
       - stale_schedule
       - data_integrity_failure
-  variables:
-    SMP_TEAM_NAME: agent
-    SMP_API_URL: api_url
-    SMP_VERSION: v0.25.1
-    BOT_LOGIN: bot_login
-    BOT_TOKEN: bot_token
   script:
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
@@ -260,6 +259,28 @@ single-machine-performance-regression_detector:
       EOF
     # If we make it here that means quality gates must not have failed.
     - datadog-ci tag --level job --tags smp_quality_gates:"passed"
+
+single-machine-performance-regression_detector:
+  extends:
+    - .single-machine-performance-run_regression_detector
+  variables:
+    SMP_TEAM_NAME: agent
+    SMP_API_URL: api_url
+    SMP_VERSION: v0.25.1
+    BOT_LOGIN: bot_login
+    BOT_TOKEN: bot_token
+
+single-machine-performance-metal-runners-regression_detector:
+  extends:
+    - .single-machine-performance-run_regression_detector
+  when: manual
+  allow_failure: true
+  variables:
+    SMP_TEAM_NAME: metal-runners
+    SMP_API_URL: metal-runners_api_url
+    SMP_VERSION: dev-pr3796-e7f7a988
+    BOT_LOGIN: bot_login_metal-runners
+    BOT_TOKEN: bot_token_metal-runners
 
 # Shamelessly adapted from golang_deps_commenter job config in
 # golang_deps_diff.yml at commit 01da274032e510d617161cf4e264a53292f44e55.
