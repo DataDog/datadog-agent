@@ -126,6 +126,15 @@ func (f *MockEthtool) DriverInfo(iface string) (ethtool.DrvInfo, error) {
 		}, nil
 	}
 
+	if iface == "enodev_drvinfo_iface" {
+		return ethtool.DrvInfo{}, unix.ENODEV
+	}
+	if iface == "enodev_stats_iface" {
+		return ethtool.DrvInfo{
+			Driver:  "ena",
+			Version: "mock_version",
+		}, nil
+	}
 	return ethtool.DrvInfo{}, unix.ENOTTY
 }
 
@@ -859,6 +868,9 @@ func (f *MockEthtool) Stats(iface string) (map[string]uint64, error) {
 		}, nil
 	}
 
+	if iface == "enodev_stats_iface" {
+		return nil, unix.ENODEV
+	}
 	return nil, unix.ENOTTY
 }
 
@@ -1901,6 +1913,92 @@ func TestFetchEthtoolStatsENOTTY(t *testing.T) {
 	mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.ena.cpu.rx_xdp_tx", float64(123), "", expectedTagsCPUIfNoError)
 	expectedTagsGlobal := []string{"device:eth0", "driver_name:ena", "driver_version:mock_version", "global"}
 	mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.ena.tx_timeout", float64(456), "", expectedTagsGlobal)
+}
+
+func TestFetchEthtoolStatsENODEVOnDriverInfo(t *testing.T) {
+	mockEthtool := new(MockEthtool)
+
+	mockEthtool.On("getDriverInfo", mock.Anything).Return(ethtool.DrvInfo{}, nil)
+	mockEthtool.On("Stats", mock.Anything).Return(map[string]int{}, nil)
+
+	getNewEthtool = func() (ethtoolInterface, error) {
+		return mockEthtool, nil
+	}
+
+	net := &fakeNetworkStats{
+		counterStats: []net.IOCountersStat{
+			{
+				Name:        "enodev_drvinfo_iface",
+				BytesRecv:   100,
+				BytesSent:   200,
+				PacketsRecv: 300,
+				Dropin:      400,
+				Errin:       500,
+				PacketsSent: 600,
+				Dropout:     700,
+				Errout:      800,
+			},
+		},
+	}
+
+	networkCheck := createTestNetworkCheck(net)
+
+	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(`collect_ethtool_metrics: true`), []byte(``), "test")
+
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	err := networkCheck.Run()
+	assert.Nil(t, err)
+
+	expectedTags := []string{"device:enodev_drvinfo_iface", "driver_name:ena", "driver_version:mock_version", "queue:0"}
+	mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.ena.queue.tx_packets", mock.Anything, "", expectedTags)
+}
+
+func TestFetchEthtoolStatsENODEVOnStats(t *testing.T) {
+	mockEthtool := new(MockEthtool)
+
+	mockEthtool.On("getDriverInfo", mock.Anything).Return(ethtool.DrvInfo{}, nil)
+	mockEthtool.On("Stats", mock.Anything).Return(map[string]int{}, nil)
+
+	getNewEthtool = func() (ethtoolInterface, error) {
+		return mockEthtool, nil
+	}
+
+	net := &fakeNetworkStats{
+		counterStats: []net.IOCountersStat{
+			{
+				Name:        "enodev_stats_iface",
+				BytesRecv:   100,
+				BytesSent:   200,
+				PacketsRecv: 300,
+				Dropin:      400,
+				Errin:       500,
+				PacketsSent: 600,
+				Dropout:     700,
+				Errout:      800,
+			},
+		},
+	}
+
+	networkCheck := createTestNetworkCheck(net)
+
+	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(`collect_ethtool_metrics: true`), []byte(``), "test")
+
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	err := networkCheck.Run()
+	assert.Nil(t, err)
+
+	expectedTags := []string{"device:enodev_stats_iface", "driver_name:ena", "driver_version:mock_version", "queue:0"}
+	mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.ena.queue.tx_packets", mock.Anything, "", expectedTags)
 }
 
 func TestNetstatAndSnmpCountersUsingCorrectMockedProcfsPath(t *testing.T) {
