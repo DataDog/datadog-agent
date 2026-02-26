@@ -88,9 +88,11 @@ func ParseV4Task(task v3or4.Task, seen map[workloadmeta.EntityID]struct{}) []wor
 		entity.LaunchType = workloadmeta.ECSLaunchTypeFargate
 		source = workloadmeta.SourceRuntime
 	}
-	if strings.ToUpper(task.LaunchType) == "MANAGED_INSTANCES" && fargate.IsSidecar() {
-		source = workloadmeta.SourceRuntime
+	if strings.ToUpper(task.LaunchType) == "MANAGED_INSTANCES" {
 		entity.LaunchType = workloadmeta.ECSLaunchTypeManagedInstances
+		if fargate.IsSidecar() {
+			source = workloadmeta.SourceRuntime
+		}
 	}
 
 	events = append(events, containerEvents...)
