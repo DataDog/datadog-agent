@@ -119,37 +119,6 @@ sysprobe_defaults = {
         },
 }
 
-# Fix os based descriptions
-
-core_description = {
-    "apm_config.receiver_socket": {
-        "windows": "Please note that UDS receiver is not available in Windows.\n@ Enabling this setting may result in unexpected behavior.\n\nAccept traces through Unix Domain Sockets.\nSet to \"\" to disable the UDS receiver.",
-        "other": "Accept traces through Unix Domain Sockets.\nSet to \"\" to disable the UDS receiver.",
-        },
-    "runtime_security_config.socket": {
-        "windows": "The local address and port where the security runtime module is accessed",
-        "other": "The full path to the location of the unix socket where security runtime module is accessed.",
-        },
-    "dogstatsd_socket": {
-        "windows": "Please note that UDS receiver is not available in Windows.\n@ Enabling this setting may result in unexpected behavior.\nListen for Dogstatsd metrics on a Unix Socket (*nix only).\nSet to \"\" to disable this feature.",
-        "other": "Listen for Dogstatsd metrics on a Unix Socket (*nix only).\nSet to a valid and existing filesystem path to enable.\nSet to \"\" to disable this feature.",
-        },
-}
-
-system_probe_description = {
-    "system_probe_config.sysprobe_socket": {
-        "windows": "The TCP address where system probes are accessed.",
-        "other": "The full path to the location of the unix socket where system probes are accessed.",
-        },
-    "runtime_security_config.socket": {
-        "windows": "The TCP address where the security runtime module is accessed.",
-        "other": "The full path to the location of the unix socket where security runtime module is accessed.",
-        },
-    # The templates has the same section twice to account for different defaults. We discard it since we generate
-    # defaults from the code values.
-    "runtime_security_config.policies.dir": "Path from where the policy files are loaded",
-}
-
 # extra_tags
 
 core_extra_tags = {
@@ -191,19 +160,6 @@ def fix_defaults(core_schema, sysprobe_schema):
     return core_schema, sysprobe_schema
 
 
-def fix_description(core_schema, sysprobe_schema):
-    for schema, custom_description in [[core_schema, core_description], [sysprobe_schema, system_probe_description]]:
-
-        for key, description in custom_description.items():
-            node = schema
-            for k in key.split("."):
-                node = node["properties"][k]
-
-            node["description"] = description
-            if "example" in node:
-                del node["example"]
-    return core_schema, sysprobe_schema
-
 def fix_tags(core_schema, sysprobe_schema):
     for schema, new_tags in [[core_schema, core_extra_tags], [sysprobe_schema, system_probe_extra_tags]]:
 
@@ -227,22 +183,9 @@ def fix_missing_env_doc(core_schema, sysprobe_schema):
             node["description"] = line +"\n"+node.get("description", "")
     return core_schema, sysprobe_schema
 
-if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print(f"Usage: {sys.argv[0]} core_schema.yaml sysprobe_schema.yaml")
-        sys.exit(1)
-
-    with open(sys.argv[1], "r") as f:
-        core_schema = yaml.safe_load(f)
-    with open(sys.argv[2], "r") as f:
-        sysprobe_schema = yaml.safe_load(f)
-
+def fix_schema(core_schema, sysprobe_schema):
     core_schema, sysprobe_schema = fix_defaults(core_schema, sysprobe_schema)
-    core_schema, sysprobe_schema = fix_description(core_schema, sysprobe_schema)
     core_schema, sysprobe_schema = fix_tags(core_schema, sysprobe_schema)
     core_schema, sysprobe_schema = fix_missing_env_doc(core_schema, sysprobe_schema)
 
-    with open(sys.argv[1], "w") as f:
-        yaml.safe_dump(core_schema, f)
-    with open(sys.argv[2], "w") as f:
-        yaml.safe_dump(sysprobe_schema, f)
+    return core_schema, sysprobe_schema

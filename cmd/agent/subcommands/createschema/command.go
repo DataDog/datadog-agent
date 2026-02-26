@@ -3,12 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package configcheck implements 'agent createschema'.
+// Package createschema implements 'agent createschema'.
 package createschema
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -24,6 +23,7 @@ import (
 // cliParams are the command-line arguments for this subcommand
 type cliParams struct {
 	*command.GlobalParams
+	Target string
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -37,34 +37,42 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Aliases: []string{"createschema"},
 		Short:   "",
 		Long:    ``,
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
+					ConfigParams: config.NewAgentParams(
+						globalParams.ConfFilePath,
+						config.WithExtraConfFiles(cliParams.ExtraConfFilePath),
+						config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath),
+					),
 				}),
 				core.Bundle(),
 			)
 		},
 	}
+	createSchemaCommand.Flags().StringVar(&cliParams.Target, "target", "", "schema to generate: core or system-probe")
 
 	return []*cobra.Command{createSchemaCommand}
 }
 
 func run(cliParams *cliParams) error {
-	data, err := yaml.Marshal(pkgconfigsetup.Datadog().GetSchema())
-	if err == nil {
-		os.WriteFile("core_schema.yaml", data, 0644)
-		fmt.Printf("Wrote core_schema.yaml\n")
+	if cliParams.Target == "core" {
+		data, err := yaml.Marshal(pkgconfigsetup.Datadog().GetSchema())
+		if err != nil {
+			fmt.Printf("error: %s", err.Error())
+			return err
+		}
+		fmt.Print(string(data))
+	} else if cliParams.Target == "system-probe" {
+		data, err := yaml.Marshal(pkgconfigsetup.SystemProbe().GetSchema())
+		if err != nil {
+			fmt.Printf("error: %s", err.Error())
+			return err
+		}
+		fmt.Print(string(data))
+	} else {
+		return fmt.Errorf("unknown target '%s', valid ones are 'core' or 'system-probe'", cliParams.Target)
 	}
-	data, err = yaml.Marshal(pkgconfigsetup.SystemProbe().GetSchema())
-	if err == nil {
-		os.WriteFile("system-probe_schema.yaml", data, 0644)
-		fmt.Printf("Wrote system-probe_schema.yaml\n")
-	}
-
-	fmt.Printf("Exiting...\n")
-	// Exit successfully
-	os.Exit(0)
 	return nil
 }
