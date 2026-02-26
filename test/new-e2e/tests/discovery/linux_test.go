@@ -89,14 +89,7 @@ func (s *linuxTestSuite) SetupSuite() {
 func (s *linuxTestSuite) TestProcessCheckWithServiceDiscovery() {
 	for _, mode := range []discoveryMode{discoveryModeSdAgent, discoveryModeSystemProbe} {
 		s.Run(string(mode), func() {
-			systemProbeConfig := s.getSystemProbeConfigForMode(mode)
-			s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(
-				scenec2.WithAgentOptions(
-					agentparams.WithAgentConfig(agentProcessConfigStr),
-					agentparams.WithSystemProbeConfig(systemProbeConfig)),
-			)))
-			s.validateDiscoveryMode(mode)
-			s.testProcessCheckWithServiceDiscovery(agentProcessConfigStr, systemProbeConfig)
+			s.testProcessCheckWithServiceDiscovery(agentProcessConfigStr, systemProbeConfigByMode[mode], mode)
 		})
 	}
 }
@@ -104,14 +97,7 @@ func (s *linuxTestSuite) TestProcessCheckWithServiceDiscovery() {
 func (s *linuxTestSuite) TestProcessCheckWithServiceDiscoveryProcessCollectionDisabled() {
 	for _, mode := range []discoveryMode{discoveryModeSdAgent, discoveryModeSystemProbe} {
 		s.Run(string(mode), func() {
-			systemProbeConfig := s.getSystemProbeConfigForMode(mode)
-			s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(
-				scenec2.WithAgentOptions(
-					agentparams.WithAgentConfig(agentProcessDisabledConfigStr),
-					agentparams.WithSystemProbeConfig(systemProbeConfig)),
-			)))
-			s.validateDiscoveryMode(mode)
-			s.testProcessCheckWithServiceDiscovery(agentProcessDisabledConfigStr, systemProbeConfig)
+			s.testProcessCheckWithServiceDiscovery(agentProcessDisabledConfigStr, systemProbeConfigByMode[mode], mode)
 		})
 	}
 }
@@ -200,7 +186,7 @@ func (s *linuxTestSuite) dumpDebugInfo(t *testing.T) {
 	t.Log("agent status", status)
 }
 
-func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr string, systemProbeConfigStr string) {
+func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr string, systemProbeConfigStr string, mode discoveryMode) {
 	t := s.T()
 	s.startServices()
 	defer s.stopServices()
@@ -210,6 +196,7 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr str
 			agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
 	)),
 	)
+	s.validateDiscoveryMode(mode)
 	client := s.Env().FakeIntake.Client()
 	err := client.FlushServerAndResetAggregators()
 	require.NoError(t, err)
@@ -551,14 +538,9 @@ func matchingTracerMetadata(expectedTracerMetadata []*agentmodel.TracerMetadata,
 	return diff == ""
 }
 
-func (s *linuxTestSuite) getSystemProbeConfigForMode(mode discoveryMode) string {
-	switch mode {
-	case discoveryModeSdAgent:
-		return systemProbeConfigStr // Only discovery config
-	case discoveryModeSystemProbe:
-		return systemProbeConfigFallbackStr // Discovery + use_sd_agent: false (triggers fallback)
-	}
-	return systemProbeConfigStr
+var systemProbeConfigByMode = map[discoveryMode]string{
+	discoveryModeSdAgent:     systemProbeConfigStr,
+	discoveryModeSystemProbe: systemProbeConfigFallbackStr,
 }
 
 func (s *linuxTestSuite) validateDiscoveryMode(mode discoveryMode) {
