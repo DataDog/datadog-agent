@@ -3,8 +3,8 @@ module github.com/DataDog/datadog-agent/comp/core/tagger/types
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.77.0-rc.2
-	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.77.0-rc.2
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.77.0-rc.3
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.77.0-rc.3
 	github.com/stretchr/testify v1.11.1
 )
 
