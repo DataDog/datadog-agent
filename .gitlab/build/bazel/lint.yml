@@ -50,6 +50,6 @@ bazel:run-gazelle:
 bazel:run-go-mod-tidy:
   extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]
   script:
-    - bazel run //:go mod tidy -- -diff
+    - bazel run //:go_mod_tidy_all -- -diff
   variables:
-    FIX_COMMAND: "bazel run //:go mod tidy"
+    FIX_COMMAND: "bazel run //:go_mod_tidy_all"
