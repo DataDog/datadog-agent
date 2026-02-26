@@ -571,8 +571,9 @@ func (a *Agent) Process(p *api.Payload) {
 
 func (a *Agent) writeChunks(p *writer.SampledChunks) {
 	// Add to observer buffer (before async enrichment to avoid data races)
-	// The buffer is always non-nil (either active or no-op)
-	a.ObserverBuffer.AddTrace(p.TracerPayload)
+	if a.ObserverBuffer != nil {
+		a.ObserverBuffer.AddTrace(p.TracerPayload)
+	}
 
 	// fast path: no container ID or the buffering feature is disabled,
 	if p.TracerPayload.ContainerID == "" || !a.ContainerTagsBuffer.IsEnabled() {

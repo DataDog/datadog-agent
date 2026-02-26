@@ -6,6 +6,7 @@
 package recorderimpl
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"sort"
@@ -102,7 +103,7 @@ func (r *TraceParquetReader) readFile(filePath string, traceMap map[traceKey]*re
 		return
 	}
 
-	table, err := reader.ReadTable(nil)
+	table, err := reader.ReadTable(context.TODO())
 	if err != nil {
 		pkglog.Warnf("Failed to read table from %s: %v", filePath, err)
 		return

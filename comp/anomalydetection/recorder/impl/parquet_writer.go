@@ -362,17 +362,3 @@ func (b *metricBatchBuilder) build() arrow.Record {
 	return record
 }
 
-// parseTagsToMap converts tag array to map for backward compatibility
-// Format: "key:value" -> map["key"] = "value"
-func parseTagsToMap(tags []string) map[string]string {
-	tagMap := make(map[string]string)
-	for _, tag := range tags {
-		parts := strings.SplitN(tag, ":", 2)
-		if len(parts) == 2 {
-			tagMap[parts[0]] = parts[1]
-		} else {
-			tagMap[tag] = "" // Tag without value
-		}
-	}
-	return tagMap
-}
