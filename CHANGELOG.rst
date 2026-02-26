@@ -2,6 +2,46 @@
 Release Notes
 =============
 
+.. _Release Notes_7.76.1:
+
+7.76.1
+======
+
+.. _Release Notes_7.76.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-02-26
+
+- Refer to the `7.76.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7761>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.76.1_Security Notes:
+
+Security Notes
+--------------
+
+- APM: On span tags, add obfuscation for ``ACL`` command.
+
+
+.. _Release Notes_7.76.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes a rare crash in the system-probe process caused by concurrent access to an internal LRU cache.
+
+- Fix a Windows file-permission issue that prevented workload selection
+  policy files from being updated after the initial write.
+
+- Fixed a bug in the disk Go check (diskv2) where custom tags from one
+  check instance would leak into metrics from other instances. Tags are
+  now correctly isolated per instance.
+
+- GPU: ensure ``gpu.nvlink.speed`` metric is emitted in Blackwell or newer devices.
+
+
 .. _Release Notes_7.76.0:
 
 7.76.0
