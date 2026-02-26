@@ -19,15 +19,14 @@ func NewPDataMapAccessor(attrs pcommon.Map) *PDataMapAccessor {
 	return &PDataMapAccessor{attrs: attrs}
 }
 
-// GetString returns the attribute value as a string, or "" if missing.
-// Numeric types are returned via their default string representation so that
-// LookupString can still return a value for any attribute type.
+// GetString returns the attribute value if the underlying pdata type is Str, or "" otherwise.
+// Numeric attributes should be accessed via GetInt64 or GetFloat64 for type safety.
 func (a *PDataMapAccessor) GetString(key string) string {
 	v, ok := a.attrs.Get(key)
-	if !ok {
+	if !ok || v.Type() != pcommon.ValueTypeStr {
 		return ""
 	}
-	return v.AsString()
+	return v.Str()
 }
 
 // GetInt64 returns the attribute value as int64 if the underlying pdata type is Int

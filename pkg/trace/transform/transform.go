@@ -101,8 +101,8 @@ func OtelSpanToDDSpanMinimal(
 		// When enable_otlp_compute_top_level_by_span_kind is true, compute stats for client-side spans
 		traceutil.SetMeasured(ddspan, true)
 	}
+	// TODO(DSEM-658): migrate peer tag lookups to use the semantics library.
 	// Use direct lookup only: peerTagKeys already lists every precursor from peer_tags.ini (semantic-core).
-	// future migration to semantics library
 	for _, peerTagKey := range peerTagKeys {
 		if peerTagVal := traceutilotel.GetOTelAttrFromEitherMap(sattr, rattr, false, peerTagKey); peerTagVal != "" {
 			ddspan.Meta[peerTagKey] = peerTagVal
@@ -211,7 +211,7 @@ func GetOTelContainerOrPodID(span ptrace.Span, res pcommon.Resource) string {
 // GetOTelStatusCode returns the HTTP status code based on OTel span and resource attributes, with span taking precedence.
 func GetOTelStatusCode(span ptrace.Span, res pcommon.Resource) uint32 {
 	code, ok := traceutilotel.LookupSemanticInt64(span.Attributes(), res.Attributes(), semantics.ConceptHTTPStatusCode)
-	if !ok {
+	if !ok || code < 0 {
 		return 0
 	}
 	return uint32(code)

@@ -42,6 +42,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	semconv117 "go.opentelemetry.io/otel/semconv/v1.17.0"
+	semconv127 "go.opentelemetry.io/otel/semconv/v1.27.0"
 	semconv "go.opentelemetry.io/otel/semconv/v1.6.1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -412,17 +413,12 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	if !srcok {
 		hostFromMap(rattr, "_dd.hostname")
 	}
-	rattrAccessor := semantics.NewStringMapAccessor(rattr)
-	reg := semantics.DefaultRegistry()
-	env := semantics.LookupString(reg, rattrAccessor, semantics.ConceptDeploymentEnv)
+	_, env := transform.GetFirstFromMap(rattr, string(semconv127.DeploymentEnvironmentNameKey), string(semconv.DeploymentEnvironmentKey))
 	lang := rattr[string(semconv.TelemetrySDKLanguageKey)]
 	if lang == "" {
 		lang = fastHeaderGet(httpHeader, header.Lang)
 	}
-	containerID := semantics.LookupString(reg, rattrAccessor, semantics.ConceptContainerID)
-	if containerID == "" {
-		containerID = semantics.LookupString(reg, rattrAccessor, semantics.ConceptK8sPodUID)
-	}
+	_, containerID := transform.GetFirstFromMap(rattr, string(semconv.ContainerIDKey), string(semconv.K8SPodUIDKey))
 	if containerID == "" {
 		containerID = o.cidProvider.GetContainerID(ctx, httpHeader)
 	}
@@ -675,15 +671,14 @@ func (o *OTLPReceiver) convertSpan(res pcommon.Resource, lib pcommon.Instrumenta
 		return true
 	})
 	if _, ok := span.Meta["env"]; !ok {
-		metaAccessor := semantics.NewStringMapAccessor(span.Meta)
-		if env := semantics.LookupString(semantics.DefaultRegistry(), metaAccessor, semantics.ConceptDeploymentEnv); env != "" {
+		if _, env := transform.GetFirstFromMap(span.Meta, string(semconv127.DeploymentEnvironmentNameKey), string(semconv.DeploymentEnvironmentKey)); env != "" {
 			transform.SetMetaOTLP(span, "env", normalize.NormalizeTag(env))
 		}
 	}
 
 	// Check for db.namespace and conditionally set db.name
 	if _, ok := span.Meta["db.name"]; !ok {
-		if dbNamespace := traceutilotel.LookupSemanticStringFromDualMaps(res.Attributes(), in.Attributes(), semantics.ConceptDBNamespace, false); dbNamespace != "" {
+		if dbNamespace := traceutilotel.GetOTelAttrValInResAndSpanAttrs(in, res, false, string(semconv127.DBNamespaceKey)); dbNamespace != "" {
 			transform.SetMetaOTLP(span, "db.name", dbNamespace)
 		}
 	}
@@ -744,20 +739,17 @@ func (o *OTLPReceiver) convertSpan(res pcommon.Resource, lib pcommon.Instrumenta
 // resourceFromTags attempts to deduce a more accurate span resource from the given list of tags meta.
 // If this is not possible, it returns an empty string.
 func resourceFromTags(meta map[string]string) string {
-	accessor := semantics.NewStringMapAccessor(meta)
-	reg := semantics.DefaultRegistry()
-	if m := semantics.LookupString(reg, accessor, semantics.ConceptHTTPMethod); m != "" {
-		// use the HTTP method + route (if available). grpc.path is used as a fallback for resource name only (legacy receiveResourceSpansV1 behavior), not as part of the http.route concept.
-		if route := semantics.LookupString(reg, accessor, semantics.ConceptHTTPRoute); route != "" {
-			return m + " " + route
-		}
-		if route := meta["grpc.path"]; route != "" {
+	// `http.method` was renamed to `http.request.method` in the HTTP stabilization from v1.23.
+	// See https://opentelemetry.io/docs/specs/semconv/http/migration-guide/#summary-of-changes
+	if _, m := transform.GetFirstFromMap(meta, "http.request.method", "http.method"); m != "" {
+		// use the HTTP method + route (if available)
+		if _, route := transform.GetFirstFromMap(meta, string(semconv.HTTPRouteKey), "grpc.path"); route != "" {
 			return m + " " + route
 		}
 		return m
 	} else if m := meta[string(semconv.MessagingOperationKey)]; m != "" {
 		// use the messaging operation
-		if dest := semantics.LookupString(reg, accessor, semantics.ConceptMessagingDest); dest != "" {
+		if _, dest := transform.GetFirstFromMap(meta, string(semconv.MessagingDestinationKey), string(semconv117.MessagingDestinationNameKey)); dest != "" {
 			return m + " " + dest
 		}
 		return m

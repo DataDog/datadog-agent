@@ -13,6 +13,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/otel/attribute"
+	semconv117 "go.opentelemetry.io/otel/semconv/v1.17.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.6.1"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -180,14 +182,14 @@ func LookupSemanticStringFromDualMaps(primary, secondary pcommon.Map, concept se
 }
 
 // LookupSemanticInt64 looks up a semantic concept as an int64 from two OTel attribute maps.
-// The primary map takes precedence over secondary. Uses typed pdata access (no string round-trip).
+// The primary map takes precedence over secondary.
 func LookupSemanticInt64(primary, secondary pcommon.Map, concept semantics.Concept) (int64, bool) {
 	accessor := semantics.NewOTelSpanAccessor(primary, secondary)
 	return semantics.LookupInt64(semantics.DefaultRegistry(), accessor, concept)
 }
 
 // LookupSemanticFloat64 looks up a semantic concept as a float64 from two OTel attribute maps.
-// The primary map takes precedence over secondary. Uses typed pdata access (no string round-trip).
+// The primary map takes precedence over secondary.
 func LookupSemanticFloat64(primary, secondary pcommon.Map, concept semantics.Concept) (float64, bool) {
 	accessor := semantics.NewOTelSpanAccessor(primary, secondary)
 	return semantics.LookupFloat64(semantics.DefaultRegistry(), accessor, concept)
@@ -268,38 +270,32 @@ func GetOTelService(span ptrace.Span, res pcommon.Resource, normalize bool) stri
 }
 
 // GetOTelResourceV1 returns the DD resource name based on OTel span and resource attributes.
-// Note: V1 uses resource-first precedence for backwards compatibility.
 func GetOTelResourceV1(span ptrace.Span, res pcommon.Resource) (resName string) {
-	sattr := span.Attributes()
-	rattr := res.Attributes()
-	// V1 uses resource-first precedence (rattr, sattr order)
-	accessor := semantics.NewOTelSpanAccessor(rattr, sattr)
-
-	resName = lookupString(accessor, semantics.ConceptResourceName, false)
+	resName = GetOTelAttrValInResAndSpanAttrs(span, res, false, "resource.name")
 	if resName == "" {
-		if m := lookupString(accessor, semantics.ConceptHTTPMethod, false); m != "" {
-			// HTTP: use method + route (resource-first precedence)
+		if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, "http.request.method", string(semconv.HTTPMethodKey)); m != "" {
+			// use the HTTP method + route (if available)
 			resName = m
-			if route := lookupString(accessor, semantics.ConceptHTTPRoute, false); route != "" {
+			if route := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.HTTPRouteKey)); route != "" {
 				resName = resName + " " + route
 			}
-		} else if m := lookupString(accessor, semantics.ConceptMessagingOperation, false); m != "" {
-			// Messaging: use operation + destination
+		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.MessagingOperationKey)); m != "" {
 			resName = m
-			if dest := lookupString(accessor, semantics.ConceptMessagingDest, false); dest != "" {
+			// use the messaging operation
+			if dest := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.MessagingDestinationKey), string(semconv117.MessagingDestinationNameKey)); dest != "" {
 				resName = resName + " " + dest
 			}
-		} else if m := lookupString(accessor, semantics.ConceptRPCMethod, false); m != "" {
-			// RPC: use method + service
+		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.RPCMethodKey)); m != "" {
 			resName = m
-			if svc := lookupString(accessor, semantics.ConceptRPCService, false); svc != "" {
+			// use the RPC method
+			if svc := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.RPCServiceKey)); svc != "" {
 				resName = resName + " " + svc
 			}
-		} else if m := lookupString(accessor, semantics.ConceptGraphQLOperationType, false); m != "" {
-			// GraphQL: use operation type + name
+		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv117.GraphqlOperationTypeKey)); m != "" {
+			// Enrich GraphQL query resource names.
 			// See https://github.com/open-telemetry/semantic-conventions/blob/v1.29.0/docs/graphql/graphql-spans.md
 			resName = m
-			if name := lookupString(accessor, semantics.ConceptGraphQLOperationName, false); name != "" {
+			if name := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv117.GraphqlOperationNameKey)); name != "" {
 				resName = resName + " " + name
 			}
 		} else {
@@ -492,7 +488,7 @@ func GetOTelOperationNameV1(
 	spanNameRemappings map[string]string,
 	normalize bool) string {
 	// No need to normalize with NormalizeTagValue since we will do NormalizeName later
-	name := LookupSemanticStringFromDualMaps(res.Attributes(), span.Attributes(), semantics.ConceptOperationName, false)
+	name := GetOTelAttrValInResAndSpanAttrs(span, res, false, "operation.name")
 	if name == "" {
 		if spanNameAsResourceName {
 			name = span.Name()

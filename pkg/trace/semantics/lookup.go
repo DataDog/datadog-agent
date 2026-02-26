@@ -115,9 +115,6 @@ func LookupFloat64(r Registry, accessor Accessor, concept Concept) (float64, boo
 				if f, err := strconv.ParseFloat(v, 64); err == nil {
 					return f, true
 				}
-				if i, err := strconv.ParseInt(v, 10, 64); err == nil {
-					return float64(i), true
-				}
 			}
 		}
 	}

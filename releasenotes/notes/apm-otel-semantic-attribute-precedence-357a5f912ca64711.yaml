@@ -12,21 +12,8 @@ upgrade:
 
     **Previous behavior**: When both old and new semantic convention keys existed, the lookup would check ALL keys in span attributes before checking ANY key in resource attributes. So whichever key appeared in span attributes would win, regardless of which key was in resource attributes.
 
-    **New behavior**: The lookup now uses a per-concept precedence order. For each semantic concept, the registry defines an ordered list of attribute keys; the first key that has a value (checked across span and resource attributes according to the function) is returned. Whether an older or newer key wins depends on that concept's list: for some concepts the older key is first (e.g., ``http.status_code`` before ``http.response.status_code``), for others the order may differ. Span vs resource precedence (which map is checked first) is unchanged and still depends on the function.
+    **New behavior**: The lookup now uses a per-concept precedence order. For each semantic concept, the registry defines an ordered list of attribute keys; the first key that has a value is returned. The precedence order (which key takes priority) depends on the concept: for most concepts the newer convention takes priority, but for some (e.g., ``http.status_code`` before ``http.response.status_code``) the older key is checked first. Span vs resource precedence (which map is checked first) is unchanged and still depends on the function.
 
-    **Who is affected**: This change only affects users who have the same concept represented by different keys in span vs resource attributes (e.g., ``http.status_code`` in resource and ``http.response.status_code`` in span). The returned value may now come from a different key or map than before, according to the concept's precedence order.
+    **Who is affected**: This change only affects users who have the same concept represented by different convention-version keys in span vs resource attributes. The returned value may now come from a different key than before, according to the concept's precedence order.
 
     This is an uncommon configuration since most instrumentation libraries use consistent semantic convention versions across span and resource attributes.
-
-    **Functions affected**:
-    
-    - ``GetOTelEnv`` - Environment attribute lookup
-    - ``GetOTelStatusCode`` - HTTP status code lookup
-    - ``GetOTelVersion`` - Service version lookup
-    - ``GetOTelContainerID`` - Container ID lookup
-    - ``GetOTelContainerOrPodID`` - Container ID with K8s pod UID fallback
-    - ``GetOTelResourceV1`` - Resource name lookup (V1 logic)
-    - ``GetOTelOperationNameV1`` - Operation name lookup (V1 logic)
-    - ``Status2Error`` - HTTP status code lookup for error messages
-    - ``db.namespace`` lookup - Now uses semantic registry (resource-first precedence preserved)
-    - ``resourceFromTags`` - HTTP method, route, and messaging destination use semantic registry; HTTP route includes ``grpc.path`` as a fallback
