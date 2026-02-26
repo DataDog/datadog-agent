@@ -135,13 +135,11 @@ func (mr *Resolver) syncCache() error {
 
 // syncCacheFromListMount Snapshots the current mountpoints using procfs
 func (mr *Resolver) syncPidProcfs(pid uint32) error {
-	nrMounts := 0
 	mounts := []*model.Mount{}
 
 	err := GetPidProcfs(kernel.ProcFSRoot(), pid, func(sm *model.Mount) {
 		mr.mounts.Remove(sm.MountID)
 		mounts = append(mounts, sm)
-		nrMounts++
 	})
 
 	for _, m := range mounts {
@@ -151,19 +149,16 @@ func (mr *Resolver) syncPidProcfs(pid uint32) error {
 	if err != nil {
 		return fmt.Errorf("error synchronizing the pid procfs: %v", err)
 	}
-	seclog.Infof("procfs sync pid cache found %d entries", nrMounts)
 	return nil
 }
 
 // syncCacheFromProcfs Snapshots the mounts of the pid namespace using the listmount api
 func (mr *Resolver) syncPidListmount(pid uint32) error {
-	nrMounts := 0
 	mounts := []*model.Mount{}
 
 	err := GetPidListmount(kernel.ProcFSRoot(), pid, func(sm *model.Mount) {
 		mr.mounts.Remove(sm.MountID)
 		mounts = append(mounts, sm)
-		nrMounts++
 	})
 
 	for _, m := range mounts {
@@ -173,7 +168,6 @@ func (mr *Resolver) syncPidListmount(pid uint32) error {
 	if err != nil {
 		return fmt.Errorf("error synchronizing from procfs: %v", err)
 	}
-	seclog.Infof("listmount sync pid found %d entries", nrMounts)
 	return nil
 }
 
