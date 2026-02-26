@@ -150,6 +150,9 @@ func renderAll(destFolder string, tplFolder string) {
 		for _, osName := range []string{"windows", "darwin", "linux"} {
 			destFile := filepath.Join(destFolder, component+"_"+osName+".yaml")
 			render(destFile, filepath.Join(tplFolder, templateName), component, osName)
+			if err := lint(destFile); err != nil {
+				panic(err)
+			}
 			fmt.Println("Successfully wrote", destFile)
 		}
 	}
@@ -217,6 +220,8 @@ func lint(destFile string) error {
 	}
 
 	reencoded := buf.Bytes()
+	reencoded = bytes.TrimSpace(reencoded)
+	normalized = bytes.TrimSpace(normalized)
 
 	if !bytes.Equal(normalized, reencoded) {
 		origLines := difflib.SplitLines(string(normalized))
