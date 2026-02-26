@@ -14,6 +14,11 @@ import (
 	"fmt"
 	"strconv"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
@@ -21,10 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 	k8sutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
 )
 
 type patcher struct {
@@ -131,7 +132,8 @@ func (p *patcher) patchDeployment(req Request) error {
 	}))
 
 	_, err = p.patchClient.Apply(context.TODO(), intent, workloadpatcher.PatchOptions{
-		Caller: "rc_patcher",
+		Caller:    "rc_patcher",
+		PatchType: types.StrategicMergePatchType,
 	})
 	if err != nil {
 		p.telemetryCollector.SendRemoteConfigMutateEvent(req.getApmRemoteConfigEvent(err, telemetry.FailedToMutateConfig))
