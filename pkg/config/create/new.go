@@ -38,6 +38,8 @@ func NewConfig(name string, configLib string) model.BuildableConfig {
 
 	if lib == "enable" {
 		return nodetreemodel.NewNodeTreeConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	} else if lib == "viper" {
+		return viperconfig.NewViperConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	} else if lib == "tee" {
 		viperImpl := viperconfig.NewViperConfig(name, "DD", strings.NewReplacer(".", "_"))         // nolint: forbidigo // legit use case
 		nodetreeImpl := nodetreemodel.NewNodeTreeConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
@@ -55,5 +57,9 @@ func NewConfig(name string, configLib string) model.BuildableConfig {
 			}
 		}
 	}
-	return viperconfig.NewViperConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+
+	// Default case: enable-tee
+	viperImpl := viperconfig.NewViperConfig(name, "DD", strings.NewReplacer(".", "_"))         // nolint: forbidigo // legit use case
+	nodetreeImpl := nodetreemodel.NewNodeTreeConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	return teeconfig.NewTeeConfig(nodetreeImpl, viperImpl)
 }
