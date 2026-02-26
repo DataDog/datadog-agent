@@ -18,7 +18,7 @@ def write_file(filename, content):
 
 
 config_setup_func_names = [
-    'InitConfig',
+    'initCoreAgentFull',
 	'agent',
 	'fips',
 	'dogstatsd',
