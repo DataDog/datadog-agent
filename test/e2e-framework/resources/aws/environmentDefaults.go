@@ -26,11 +26,13 @@ type awsProvider struct {
 	profile string
 }
 
+// FakeintakeLBConfig defines the configuration for a fakeintake load balancer.
 type FakeintakeLBConfig struct {
 	listenerArn string
 	baseHost    string
 }
 
+// SubnetConfig defines a subnet with its macOS compatibility flag.
 type SubnetConfig struct {
 	ID              string `json:"id"`
 	MacOSCompatible bool   `json:"macos_compatible"`
@@ -43,6 +45,7 @@ type ddInfra struct {
 	defaultInstanceType            string
 	defaultInstanceProfileName     string
 	defaultARMInstanceType         string
+	defaultWindowsInstanceType     string
 	defaultInstanceStorageSize     int
 	defaultShutdownBehavior        string
 	defaultInternalRegistry        string
@@ -82,6 +85,7 @@ type ddInfraEKS struct {
 	windowsLTSCNodeGroup                 bool
 }
 
+// DDInfraEKSPodSubnets defines a pod subnet for EKS clusters.
 type DDInfraEKSPodSubnets struct {
 	AZ       string `json:"az"`
 	SubnetID string `json:"subnet"`
@@ -119,6 +123,7 @@ func sandboxDefault() environmentDefault {
 			defaultInstanceType:            "t3.medium",
 			defaultInstanceProfileName:     "ec2InstanceRole",
 			defaultARMInstanceType:         "t4g.medium",
+			defaultWindowsInstanceType:     "c5.large",
 			defaultInstanceStorageSize:     200,
 			defaultShutdownBehavior:        "stop",
 			defaultInternalRegistry:        "669783387624.dkr.ecr.us-east-1.amazonaws.com",
@@ -167,6 +172,7 @@ func agentSandboxDefault() environmentDefault {
 			defaultInstanceType:            "t3.medium",
 			defaultInstanceProfileName:     "ec2InstanceRole",
 			defaultARMInstanceType:         "t4g.medium",
+			defaultWindowsInstanceType:     "c5.large",
 			defaultInstanceStorageSize:     200,
 			defaultShutdownBehavior:        "stop",
 			defaultInternalRegistry:        "669783387624.dkr.ecr.us-east-1.amazonaws.com",
@@ -236,6 +242,7 @@ func agentQADefault() environmentDefault {
 			defaultInstanceType:            "t3.medium",
 			defaultInstanceProfileName:     "ec2InstanceRole",
 			defaultARMInstanceType:         "t4g.medium",
+			defaultWindowsInstanceType:     "c5.large",
 			defaultInstanceStorageSize:     200,
 			defaultShutdownBehavior:        "stop",
 			defaultInternalRegistry:        "669783387624.dkr.ecr.us-east-1.amazonaws.com",
@@ -307,6 +314,7 @@ func tsePlaygroundDefault() environmentDefault {
 			defaultSecurityGroups:      []string{"sg-091a00b0944f04fd2", "sg-073f15b823d4bb39a", "sg-0a3ec6b0ee295e826"},
 			defaultInstanceType:        "t3.medium",
 			defaultARMInstanceType:     "t4g.medium",
+			defaultWindowsInstanceType: "c5.large",
 			defaultInstanceStorageSize: 200,
 			defaultShutdownBehavior:    "stop",
 			useMacosCompatibleSubnets:  false,

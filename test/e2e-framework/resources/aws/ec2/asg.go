@@ -15,6 +15,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+// NewAutoscalingGroup creates an EC2 autoscaling group with the given parameters.
 func NewAutoscalingGroup(e aws.Environment, name string,
 	launchTemplateID pulumi.StringInput,
 	launchTemplateVersion pulumi.IntInput,

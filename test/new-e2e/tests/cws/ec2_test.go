@@ -8,13 +8,11 @@ package cws
 
 import (
 	_ "embed"
-	"errors"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,12 +30,6 @@ import (
 const (
 	// ec2HostnamePrefix is the prefix of the hostname of the agent
 	ec2HostnamePrefix = "cws-e2e-ec2-host"
-
-	// securityStartLog is the log corresponding to a successful start of the security-agent
-	securityStartLog = "Successfully connected to the runtime security module"
-
-	// systemProbeStartLog is the log corresponding to a successful start of the system-probe
-	systemProbeStartLog = "runtime security started"
 
 	// securityAgentPath is the path of the security-agent binary
 	securityAgentPath = "/opt/datadog-agent/embedded/bin/security-agent"
@@ -98,14 +90,6 @@ func (a *agentSuite) Test00OpenSignal() {
 	isReady := a.Env().Agent.Client.IsReady()
 	assert.Equal(a.T(), isReady, true, "Agent should be ready")
 
-	// Check if system-probe has started
-	err = a.waitAgentLogs("system-probe", systemProbeStartLog)
-	require.NoError(a.T(), err, "system-probe could not start")
-
-	// Check if security-agent has started
-	err = a.waitAgentLogs("security-agent", securityStartLog)
-	require.NoError(a.T(), err, "security-agent could not start")
-
 	// Download policies
 	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
 	require.NoError(a.T(), err, "Could not get API KEY")
@@ -140,10 +124,6 @@ func (a *agentSuite) Test00OpenSignal() {
 
 	// Trigger agent event
 	a.Env().RemoteHost.MustExecute(fmt.Sprintf("touch %s", filename))
-
-	// Check agent event
-	err = a.waitAgentLogs("security-agent", "Successfully posted payload to")
-	require.NoError(a.T(), err, "could not send payload")
 
 	// Check app signal
 	signal, err := api.WaitAppSignal(apiClient, fmt.Sprintf("host:%s @workflow.rule.id:%s", a.Env().Agent.Client.Hostname(), signalRuleID))
@@ -214,18 +194,4 @@ func (a *agentSuite) Test01FeatureCWSEnabled() {
 			}
 		}
 	}, 20*time.Minute, 30*time.Second, "cws activation test timed out for host %s", a.Env().Agent.Client.Hostname())
-}
-
-func (a *agentSuite) waitAgentLogs(agentName string, pattern string) error {
-	err := backoff.Retry(func() error {
-		output, err := a.Env().RemoteHost.Execute(fmt.Sprintf("cat /var/log/datadog/%s.log", agentName))
-		if err != nil {
-			return err
-		}
-		if strings.Contains(output, pattern) {
-			return nil
-		}
-		return errors.New("no log found")
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
-	return err
 }

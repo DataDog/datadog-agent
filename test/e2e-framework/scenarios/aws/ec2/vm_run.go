@@ -22,6 +22,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+// VMRun is the Pulumi run function that creates a VM with an optional agent.
 func VMRun(ctx *pulumi.Context) error {
 	env, err := aws.NewEnvironment(ctx)
 	if err != nil {
@@ -97,6 +98,7 @@ func VMRun(ctx *pulumi.Context) error {
 	return nil
 }
 
+// VMRunWithDocker is the Pulumi run function that creates a VM with Docker and an optional agent.
 func VMRunWithDocker(ctx *pulumi.Context) error {
 	env, err := aws.NewEnvironment(ctx)
 	if err != nil {

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
