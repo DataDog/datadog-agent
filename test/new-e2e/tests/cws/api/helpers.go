@@ -26,7 +26,7 @@ func WaitAppLogs(apiClient *Client, query string) (*datadog.LogAttributes, error
 			return nil
 		}
 		return errors.New("no log found")
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(10*time.Second), 24))
 	return resp, err
 }
 
@@ -43,6 +43,6 @@ func WaitAppSignal(apiClient *Client, query string) (*datadog.SecurityMonitoring
 			return nil
 		}
 		return errors.New("no log found")
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(10*time.Second), 24))
 	return resp, err
 }
