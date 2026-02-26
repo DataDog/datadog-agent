@@ -9,12 +9,6 @@ end
 
 dependency 'datadog-agent-data-plane' if linux_target? && !heroku_target?
 
-if (linux_target? && !heroku_target?) || windows_target?
-  build do
-    command_on_repo_root "bazelisk run -- //deps/compile_policy:install --destdir=#{install_dir}"
-  end
-end
-
 # Bundled cacerts file (is this a good idea?)
 dependency 'cacerts'
 
@@ -26,25 +20,9 @@ dependency 'pympler'
 
 dependency "systemd" if linux_target?
 
-if linux_target? and !heroku_target? # system-probe dependency
-  build do
-    command_on_repo_root "bazelisk run -- @libpcap//:install --destdir=#{install_dir}"
-  end
-end
-
-# Include traps db file in snmp.d/traps_db/
-build do
-    command_on_repo_root "bazelisk run -- //deps/snmp_traps:install --destdir=#{install_dir}"
-end
-
 dependency 'datadog-agent-integrations-py3'
 
-# Additional software
-if windows_target?
-  build do
-    command_on_repo_root "bazelisk run -- //packages/windows:install_drivers --destdir=#{install_dir}"
-  end
-end
+command_on_repo_root "bazelisk run -- //packages/agent/dependencies:install --destdir=#{install_dir}"
 
 build do
     # Delete empty folders that can still be present when building
