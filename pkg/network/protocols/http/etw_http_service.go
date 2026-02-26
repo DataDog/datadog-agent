@@ -287,7 +287,10 @@ var (
 	iisTagsCacheMap = make(map[[2]uint16]iisTagsCacheEntry)
 )
 
-const iisTagsCacheTTL = 2 * time.Minute
+const (
+	iisTagsCacheTTL     = 2 * time.Minute
+	iisTagsCacheMaxSize = 1024
+)
 
 type iisTagsCacheEntry struct {
 	tags   []string
@@ -334,9 +337,26 @@ func buildIISTags(h *WinHttpTransaction) []string {
 }
 
 // storeIISTagsCache stores an IIS tags entry with a TTL.
+// If the cache is at capacity, expired entries are swept first.
+// If still at capacity after sweeping, the entry is dropped.
 func storeIISTagsCache(key [2]uint16, tags []string) {
 	iisTagsCacheMu.Lock()
 	defer iisTagsCacheMu.Unlock()
+
+	// Allow updates to existing keys regardless of capacity
+	if _, exists := iisTagsCacheMap[key]; !exists && len(iisTagsCacheMap) >= iisTagsCacheMaxSize {
+		// Sweep expired entries to make room
+		now := time.Now()
+		for k, entry := range iisTagsCacheMap {
+			if now.After(entry.expiry) {
+				delete(iisTagsCacheMap, k)
+			}
+		}
+		if len(iisTagsCacheMap) >= iisTagsCacheMaxSize {
+			return
+		}
+	}
+
 	iisTagsCacheMap[key] = iisTagsCacheEntry{
 		tags:   tags,
 		expiry: time.Now().Add(iisTagsCacheTTL),
@@ -928,7 +948,7 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEventRecord) {
 	}
 
 	// Cache IIS tags for remote service tag enrichment on same-host connections
-	if httpConnLink.http.SiteName != "" {
+	if httpConnLink.http.SiteName != "" && connOpen.conn.tup.LocalAddr == connOpen.conn.tup.RemoteAddr {
 		key := [2]uint16{connOpen.conn.tup.LocalPort, connOpen.conn.tup.RemotePort}
 		storeIISTagsCache(key, buildIISTags(&httpConnLink.http))
 	}
@@ -1088,7 +1108,7 @@ func httpCallbackOnHTTPRequestTraceTaskSrvdFrmCache(eventInfo *etw.DDEventRecord
 		// Cache IIS tags for remote service tag enrichment on same-host connections
 		if httpConnLink.http.SiteName != "" {
 			connOpen, connFound := connOpened[httpConnLink.connActivityId]
-			if connFound {
+			if connFound && connOpen.conn.tup.LocalAddr == connOpen.conn.tup.RemoteAddr {
 				key := [2]uint16{connOpen.conn.tup.LocalPort, connOpen.conn.tup.RemotePort}
 				storeIISTagsCache(key, buildIISTags(&httpConnLink.http))
 			}

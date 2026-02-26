@@ -45,5 +45,10 @@ func (nt *networkTracer) platformRegister(httpMux *module.Router) error {
 		utils.WriteAsJSON(w, cache, utils.CompactOutput)
 	})
 
+	httpMux.HandleFunc("/process_cache_tags", func(w http.ResponseWriter, req *http.Request) {
+		tags := nt.tracer.GetProcessCacheTags()
+		utils.WriteAsJSON(w, tags, utils.CompactOutput)
+	})
+
 	return nil
 }

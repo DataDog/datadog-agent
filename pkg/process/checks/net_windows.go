@@ -67,3 +67,30 @@ func fetchIISTagsCache(client *http.Client) map[string][]string {
 	}
 	return result
 }
+
+// fetchProcessCacheTags retrieves process cache tags from system-probe's /process_cache_tags endpoint.
+// Returns a map of PID (as uint32) -> []string tags, or nil on failure.
+func fetchProcessCacheTags(client *http.Client) map[uint32][]string {
+	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/process_cache_tags")
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		log.Debugf("failed to create process cache tags request: %v", err)
+		return nil
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Debugf("failed to fetch process cache tags from system-probe: %v", err)
+		return nil
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		log.Debugf("process cache tags request failed with status %d", resp.StatusCode)
+		return nil
+	}
+	var result map[uint32][]string
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		log.Debugf("failed to decode process cache tags response: %v", err)
+		return nil
+	}
+	return result
+}

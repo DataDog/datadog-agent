@@ -326,6 +326,11 @@ func (t *Tracer) DebugDumpProcessCache(_ context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
+// GetProcessCacheTags returns a map of PID -> []string tags from the process cache.
+func (t *Tracer) GetProcessCacheTags() map[uint32][]string {
+	return t.processCache.GetAllPIDTags()
+}
+
 func newUSMMonitor(c *config.Config, dh driver.Handle) usm.Monitor {
 	if !c.EnableHTTPMonitoring && !c.EnableNativeTLSMonitoring {
 		return nil

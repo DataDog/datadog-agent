@@ -188,8 +188,9 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	getContainersCB := c.getContainerTagsCallback(c.getContainersForExplicitTagging(conns.Conns))
 	getProcessTagsCB := c.getProcessTagsCallback()
 	iisTags := fetchIISTagsCache(c.sysprobeClient)
+	procCacheTags := fetchProcessCacheTags(c.sysprobeClient)
 	groupID := nextGroupID()
-	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor, iisTags)
+	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor, iisTags, procCacheTags)
 	return StandardRunResult(messages), nil
 }
 
@@ -454,14 +455,15 @@ func batchConnections(
 	agentCfg *model.AgentConfiguration,
 	serviceExtractor *parser.ServiceExtractor,
 	iisTags map[string][]string,
+	procCacheTags map[uint32][]string,
 ) []model.MessageBody {
 	groupSize := groupSize(len(cxs), maxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
 
 	dnsEncoder := model.NewV2DNSEncoder()
 
-	// Build listening port -> PID map from the OS for resolving destination service on same-host connections.
-	// Falls back to building from the connections list if OS-level API is unavailable.
+	// Build listening port -> PID map for fallback remote service resolution
+	// when IIS tags are not available for same-host connections.
 	portToPID := getListeningPortToPIDMap()
 	if portToPID == nil {
 		portToPID = make(map[int32]int32)
@@ -526,30 +528,13 @@ func batchConnections(
 			serviceCtx := serviceExtractor.GetServiceContext(c.Pid)
 			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx...)
 
-			// For same-host connections, resolve and attach the remote service tags
+			// For same-host connections, resolve and attach the remote service tags.
+			// Try IIS ETW cache first; fall back to PID-based process_context resolution.
 			c.RemoteServiceTagsIdx = -1
 			if c.IntraHost {
 				var remoteTags []string
-				var destPID int32
 
-				if pid, ok := portToPID[c.Raddr.Port]; ok && pid != c.Pid {
-					destPID = pid
-
-					// process_context tags from service extractor
-					destServiceCtx := serviceExtractor.GetServiceContext(destPID)
-					remoteTags = append(remoteTags, destServiceCtx...)
-
-					// tagger process tags (service, env, version, tracer metadata)
-					if processTagProvider != nil {
-						if destProcessTags, err := processTagProvider(destPID); err != nil {
-							log.Debugf("error getting process tags for remote pid %d: %v", destPID, err)
-						} else {
-							remoteTags = append(remoteTags, destProcessTags...)
-						}
-					}
-				}
-
-				// Append IIS-specific tags from system-probe ETW cache
+				// Try IIS tags from system-probe ETW cache
 				if iisTags != nil {
 					iisKey := fmt.Sprintf("%d-%d", c.Raddr.Port, c.Laddr.Port)
 					if iisCachedTags, ok := iisTags[iisKey]; ok {
@@ -557,10 +542,34 @@ func batchConnections(
 					}
 				}
 
+				// Fallback: resolve by destination PID using process_context, tagger, and process cache tags
+				if len(remoteTags) == 0 {
+					if destPID, ok := portToPID[c.Raddr.Port]; ok && destPID != c.Pid {
+						destServiceCtx := serviceExtractor.GetServiceContext(destPID)
+						remoteTags = append(remoteTags, destServiceCtx...)
+
+						// tagger process tags (service, env, version, tracer metadata)
+						if processTagProvider != nil {
+							if destProcessTags, err := processTagProvider(destPID); err != nil {
+								log.Debugf("error getting process tags for remote pid %d: %v", destPID, err)
+							} else {
+								remoteTags = append(remoteTags, destProcessTags...)
+							}
+						}
+
+						// process cache tags from system-probe (env vars: DD_SERVICE, DD_ENV, DD_VERSION, etc.)
+						if procCacheTags != nil {
+							if cacheTags, ok := procCacheTags[uint32(destPID)]; ok {
+								remoteTags = append(remoteTags, cacheTags...)
+							}
+						}
+					}
+				}
+
 				if len(remoteTags) > 0 {
 					c.RemoteServiceTagsIdx = int32(tagsEncoder.Encode(remoteTags))
-					log.Debugf("remote service tags: pid=%d -> raddr.port=%d destPID=%d remoteServiceTagsIdx=%d tags=%v",
-						c.Pid, c.Raddr.Port, destPID, c.RemoteServiceTagsIdx, remoteTags)
+					log.Debugf("remote service tags: pid=%d -> raddr.port=%d remoteServiceTagsIdx=%d tags=%v",
+						c.Pid, c.Raddr.Port, c.RemoteServiceTagsIdx, remoteTags)
 				}
 			}
 

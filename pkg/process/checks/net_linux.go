@@ -40,6 +40,11 @@ func fetchIISTagsCache(_ *http.Client) map[string][]string {
 	return nil
 }
 
+// fetchProcessCacheTags is not applicable on Linux; returns nil.
+func fetchProcessCacheTags(_ *http.Client) map[uint32][]string {
+	return nil
+}
+
 // getNetworkID fetches network_id from the current netNS or from the system probe if necessary, where the root netNS is used
 func getNetworkID(sysProbeClient *http.Client) (string, error) {
 	networkID, err := network.GetNetworkID(context.Background())
