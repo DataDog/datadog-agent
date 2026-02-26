@@ -2331,7 +2331,6 @@ core,github.com/stackitcloud/stackit-sdk-go/core/auth,Apache-2.0,Copyright 2025 
 core,github.com/stackitcloud/stackit-sdk-go/core/clients,Apache-2.0,Copyright 2025 Schwarz IT KG
 core,github.com/stackitcloud/stackit-sdk-go/core/config,Apache-2.0,Copyright 2025 Schwarz IT KG
 core,github.com/stackitcloud/stackit-sdk-go/core/oapierror,Apache-2.0,Copyright 2025 Schwarz IT KG
-core,github.com/stoewer/go-strcase,MIT,"Copyright (c) 2017, Adrian Stoewer <adrian.stoewer@rz.ifi.lmu.de>"
 core,github.com/streadway/amqp,BSD-2-Clause,"Copyright (c) 2012-2019, Sean Treadway, SoundCloud Ltd"
 core,github.com/stretchr/objx,MIT,"Copyright (c) 2014 Stretchr, Inc | Copyright (c) 2017-2018 objx contributors"
 core,github.com/stretchr/testify/assert,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"

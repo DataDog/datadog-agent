@@ -81,6 +81,7 @@ variables:
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
   AGENT_BINARIES_DIR: bin/agent
   CLUSTER_AGENT_BINARIES_DIR: bin/datadog-cluster-agent
+  SECRET_GENERIC_CONNECTOR_BINARIES_DIR: bin/secret-generic-connector
   CWS_INSTRUMENTATION_BINARIES_DIR: bin/cws-instrumentation
   CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR: bin/datadog-cluster-agent-cloudfoundry
   SYSTEM_PROBE_BINARIES_DIR: bin/system-probe
@@ -645,8 +646,6 @@ workflow:
   - test/e2e-framework/testing/runner/**/*
   - test/e2e-framework/testing/utils/**/*
   - test/e2e-framework/scenarios/aws/microVMs/**/*
-  - test/new-e2e/go.mod
-  - go.mod
   - tasks/security_agent.py
   - tasks/kmt.py
   - tasks/kernel_matrix_testing/*
@@ -701,8 +700,6 @@ workflow:
   - test/e2e-framework/testing/runner/**/*
   - test/e2e-framework/testing/utils/**/*
   - test/e2e-framework/scenarios/aws/microVMs/**/*
-  - test/new-e2e/go.mod
-  - go.mod
   - tasks/system_probe.py
   - tasks/kmt.py
   - tasks/kernel_matrix_testing/*
@@ -1059,6 +1056,17 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
+.on_otel_components_changes:
+  - !reference [.except_mergequeue]
+  - !reference [.on_main]
+  - changes:
+      paths:
+        - cmd/otel-agent/**/*
+        - comp/otelcol/**/*
+        - test/otel/testdata/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
 .on_ssi_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
@@ -1098,6 +1106,16 @@ workflow:
       paths:
         - test/new-e2e/tests/windows/windows-certificate/**/*
         - pkg/collector/corechecks/system/windowscertificate/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+.on_windows_fips_compliance_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - <<: *on_build_changes
+    when: on_success
+  - changes:
+      paths:
+        - test/new-e2e/tests/fips-compliance/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 

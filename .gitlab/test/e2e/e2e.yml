@@ -487,7 +487,7 @@ new-e2e-windows-fips-compliance-test:
     - windows_msi_and_bosh_zip_x64-a7-fips
     - deploy_windows_testing-a7-fips
   rules:
-    - !reference [.on_arun_or_e2e_changes]
+    - !reference [.on_windows_fips_compliance_or_e2e_changes]
     - !reference [.manual]
   variables:
     TARGETS: ./tests/fips-compliance
@@ -714,11 +714,16 @@ new-e2e-cws:
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
-    EXTRA_PARAMS: --skip "Windows"
     # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
     # ON_NIGHTLY_FIPS: "true"
   # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
   # NOTE: Do not remove this from e2e fips pipeline before remote config is available with fips, you can re-enable on fips pipeline when this test does not rely on remote-configuration
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestAgentSuiteEC2
+      - EXTRA_PARAMS: --run TestAgentSuiteGCP
+      - EXTRA_PARAMS: --run TestECSFargate
+      - EXTRA_PARAMS: --run TestKindSuite
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
@@ -733,8 +738,7 @@ new-e2e-cws-windows:
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
-    EXTRA_PARAMS: --run "Windows"
-    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
+    EXTRA_PARAMS: --run TestAgentWindowsSuite    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
     # ON_NIGHTLY_FIPS: "true"
   # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
   # NOTE: Do not remove this from e2e fips pipeline before remote config is available with fips, you can re-enable on fips pipeline when this test does not rely on remote-configuration

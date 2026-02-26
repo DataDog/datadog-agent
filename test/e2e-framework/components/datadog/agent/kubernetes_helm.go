@@ -10,8 +10,8 @@ import (
 	"os"
 	"strings"
 
+	"go.yaml.in/yaml/v3"
 	"golang.org/x/exp/maps"
-	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
@@ -843,7 +843,7 @@ func (values HelmValues) configureImagePullSecret(secret *corev1.Secret) {
 		return
 	}
 
-	for _, section := range []string{"agents", "clusterAgent", "clusterChecksRunner"} {
+	for _, section := range []string{"agents", "clusterAgent", "clusterChecksRunner", "otelAgentGateway"} {
 		if _, ok := values[section].(pulumi.Map); !ok {
 			continue
 		}
