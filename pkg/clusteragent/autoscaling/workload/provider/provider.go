@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/local"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/profile"
-	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/spot"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -59,11 +59,15 @@ func StartWorkloadAutoscaling(
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
 	workload.InitDumper(store)
 
-	patcher := workloadpatcher.NewPatcher(apiCl.DynamicCl, isLeaderFunc)
-	podPatcher := workload.NewPodPatcher(store, patcher, eventRecorder)
-	podWatcher := workload.NewPodWatcher(wlm, podPatcher)
-
 	clock := clock.RealClock{}
+
+	podPatcher := workload.NewPodPatcher(store, isLeaderFunc, apiCl.DynamicCl, eventRecorder)
+	podWatcher := workload.NewPodWatcher(wlm, podPatcher)
+	var spotScheduler *spot.Scheduler
+	if pkgconfigsetup.Datadog().GetBool("autoscaling.workload.spot.enabled") {
+		spotScheduler = spot.NewScheduler(spot.ReadConfig(pkgconfigsetup.Datadog()), clock, wlm, apiCl.DynamicCl, isLeaderFunc)
+		podPatcher = &workload.PodPatcherDelegate{Patcher: podPatcher, SpotScheduler: spotScheduler}
+	}
 	_, err := workload.NewConfigRetriever(ctx, clock, store, isLeaderFunc, rcClient)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start workload autoscaling config retriever: %w", err)
@@ -130,6 +134,11 @@ func StartWorkloadAutoscaling(
 	go autoscalerSyncer.Run(ctx)
 	go podWatcher.Run(ctx)
 	go controller.Run(ctx, dpaNumWorkers)
+
+	if spotScheduler != nil {
+		go spotScheduler.Run(ctx)
+		<-spotScheduler.WaitSubscribed()
+	}
 
 	// Only start the local recommender if failover metrics collection is enabled
 	if pkgconfigsetup.Datadog().GetBool("autoscaling.failover.enabled") {
