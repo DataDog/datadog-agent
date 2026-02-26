@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+import collections
 import sys
 import yaml
 from pprint import pprint
@@ -74,19 +74,20 @@ def handle_header(block):
 
     return block[1][3:-3]
 
-def get_from_schema(parents, name, schema):
-    node = schema
-    for s in parents:
+def get_from_schema(currpath, field, schemaroot):
+    node = schemaroot
+    for s in currpath:
         if s not in node:
             return None
         node = node[s]["properties"]
-    return node.get(name)
+    return node.get(field)
 
 class Parser(object):
 
     def __init__(self):
         self.current_title = ""
         self.order = 0
+        self.trackorder = collections.defaultdict(list)
         self.parents = []
         self.previous_name = ""
         self.template_section = ""
@@ -139,6 +140,7 @@ class Parser(object):
         node["tags"] = tags
 
         self.order += 1
+        self.trackorder['.'.join(self.parents)].append(name)
 
     def handle_template_section(self, line):
         if line.startswith("{{ end "):
@@ -169,12 +171,56 @@ class Parser(object):
                 if len(block) == 0:
                     continue
 
-                pprint(block)
+                #pprint(block)
                 if block[0].startswith("###"):
                     self.current_title = handle_header(block)
                 else:
                     self.handle_item(block, schema)
                 block = []
+
+
+# Each node should use the same key order
+def nice_key_order(obj):
+    res = {}
+    key_order = ['node_type', 'title', 'type', 'default', 'env_vars', 'items', 'additionalProperties', 'format', 'visibility', 'description', 'example', 'tags', 'properties']
+    for k in key_order:
+        if k in obj:
+            res[k] = obj[k]
+    # validate the keys are the same
+    missing = set(obj.keys()) - set(res.keys())
+    if missing:
+        raise RuntimeError('missing keys: %s' % (missing,))
+    return res
+
+
+def reorder_it(schema, currpath, trackorder):
+    currkey = '.'.join(currpath)
+    obj = schema['properties']
+    res = {}
+    useorder = trackorder[currkey]
+    havekeys = obj.keys()
+    missing_from_want = set(useorder) - set(havekeys)
+    # This should always be empty! Because config_template keys should be a subset of the schema
+    if len(missing_from_want):
+        raise RuntimeError('*** key:%s missing: %s' % (currkey, missing_from_want))
+    # If there are missing from `havekeys` that's okay. These are *undocumented* keys that are
+    # defined in setup.go but not in the config_template.yaml
+    missing_from_have = set(havekeys) - set(useorder)
+    # Iterate the keys in order seen in config_template.yaml
+    for k in useorder:
+        item = obj[k]
+        if item.get('node_type') == 'section':
+            item = reorder_it(item, currpath + [k], trackorder)
+        res[k] = nice_key_order(item)
+    # Iterate the rest of the (undocumented) keys
+    for k in missing_from_have:
+        item = obj[k]
+        if item.get('node_type') == 'section':
+            item = reorder_it(item, currpath + [k], trackorder)
+        res[k] = nice_key_order(item)
+    schema['properties'] = res
+    return schema
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
@@ -190,5 +236,15 @@ if __name__ == "__main__":
     parser = Parser()
     parser.run(template, schema["properties"])
 
+    # Use the `trackorder` collected from the config_template.yaml to reorder
+    # the keys in the dict.
+    schema = reorder_it(schema, [], parser.trackorder)
+
+    # Output the first 10 elements to stdout, for debugging purposes
+    for n,(k,v) in enumerate(schema['properties'].items()):
+        print('%d => %s' % (n,k))
+        if n >= 10:
+            break
+
     with open(sys.argv[3], "w") as f:
-        f.write(yaml.dump(schema))
+        f.write(yaml.dump(schema, sort_keys=False))
