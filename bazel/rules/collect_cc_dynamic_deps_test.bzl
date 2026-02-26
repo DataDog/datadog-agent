@@ -1,5 +1,7 @@
 """Tests for the collect_cc_dynamic_deps aspect and cc_dynamic_deps_filegroup rule."""
 
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
+
 #load("@rules_cc//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
 load("@rules_testing//lib:analysis_test.bzl", "analysis_test", "test_suite")
 load("@rules_testing//lib:truth.bzl", "matching")
@@ -248,24 +250,24 @@ def _test_cc_shared_library_dynamic_deps(name):
     # Inner shared library (the runtime dependency).
     # target_compatible_with propagates: the analysis_test is automatically
     # skipped on platforms where the cc toolchain is not available.
-    native.cc_library(
+    cc_library(
         name = name + "_inner_lib",
         srcs = ["testdata/empty.c"],
         target_compatible_with = ["@platforms//os:linux"],
     )
-    native.cc_shared_library(
+    cc_shared_library(
         name = name + "_inner",
         deps = [":" + name + "_inner_lib"],
         target_compatible_with = ["@platforms//os:linux"],
     )
 
     # Outer shared library that depends on inner at runtime.
-    native.cc_library(
+    cc_library(
         name = name + "_outer_lib",
         srcs = ["testdata/empty.c"],
         target_compatible_with = ["@platforms//os:linux"],
     )
-    native.cc_shared_library(
+    cc_shared_library(
         name = name + "_outer",
         deps = [":" + name + "_outer_lib"],
         dynamic_deps = [":" + name + "_inner"],
