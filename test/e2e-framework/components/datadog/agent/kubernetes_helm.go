@@ -599,28 +599,44 @@ func buildLinuxHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentI
 		},
 	}
 
+	// "useConfigMap" and "customAgentConfig" are used to configure the agent with
+	// settings that cannot be configured via ENV, so we need to use a ConfigMap.
+	agents := helmValues["agents"].(pulumi.Map)
+	agents["useConfigMap"] = pulumi.Bool(true)
+	agents["customAgentConfig"] = pulumi.Map{
+		// Reduce the host metadata early_interval from the default 5 minutes to
+		// the minimum 60 seconds so that the second metadata batch (which includes
+		// Kubernetes tags) is available in the fakeintake well before the testHostTags
+		// test starts polling, reducing its duration from ~3 minutes to ~15 seconds.
+		// - early_interval=60s: 2nd batch sent 1min after start (vs 5min default)
+		// - interval=120s: subsequent batches every 2min (vs 30min default) as a
+		//   safety net in case K8s tags aren't yet available at T+60s.
+		// Backoff sequence (metadata sent at): T+0, T+60s, T+180s, T+300s, T+420s...
+		"metadata_providers": pulumi.Array{
+			pulumi.Map{
+				"name":           pulumi.String("host"),
+				"interval":       pulumi.Int(120),
+				"early_interval": pulumi.Int(60),
+			},
+		},
+	}
+
 	if testingWorkloadsEnabled {
 		// This is only needed when both etcd and the Prometheus app (that the
 		// check in etcd targets) are deployed.
 		//
-		// "useConfigMap" and "customAgentConfig" are used to configure the
-		// agent to get check configurations from etcd. "config_providers"
-		// cannot be configured via ENV, so we need to use a ConfigMap.
-
-		agents := helmValues["agents"].(pulumi.Map)
-
-		agents["useConfigMap"] = pulumi.Bool(true)
-		agents["customAgentConfig"] = pulumi.Map{
-			"config_providers": pulumi.Array{
-				pulumi.Map{
-					"name":         pulumi.String("etcd"),
-					"polling":      pulumi.Bool(true),
-					"template_dir": pulumi.String("/datadog/check_configs"),
-					// This relies on a service exposed by the etcd app
-					"template_url": pulumi.String(
-						fmt.Sprintf("http://%s.%s.svc.cluster.local:2379", etcd.ServiceName, etcd.Namespace),
-					),
-				},
+		// Also configure etcd as a config_provider when testing workloads are deployed.
+		// "config_providers" cannot be configured via ENV, so we need to use a ConfigMap.
+		customAgentConfig := agents["customAgentConfig"].(pulumi.Map)
+		customAgentConfig["config_providers"] = pulumi.Array{
+			pulumi.Map{
+				"name":         pulumi.String("etcd"),
+				"polling":      pulumi.Bool(true),
+				"template_dir": pulumi.String("/datadog/check_configs"),
+				// This relies on a service exposed by the etcd app
+				"template_url": pulumi.String(
+					fmt.Sprintf("http://%s.%s.svc.cluster.local:2379", etcd.ServiceName, etcd.Namespace),
+				),
 			},
 		}
 	}
