@@ -7,17 +7,20 @@ package defaultforwarder
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http/httptrace"
 	"sync"
 	"time"
 
 	"golang.org/x/sync/semaphore"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	agenttracing "github.com/DataDog/datadog-agent/pkg/util/tracing"
 )
 
 // Worker consumes Transaction (aka transactions) from the Forwarder and
@@ -193,16 +196,34 @@ func (w *Worker) callProcess(t transaction.Transaction) error {
 }
 
 func (w *Worker) process(ctx context.Context, t transaction.Transaction) {
+	span, ctx := agenttracing.StartSpanFromContext(ctx, "forwarder.transaction.process",
+		tracer.SpanType("http"),
+		tracer.Tag(agenttracing.TagComponent, agenttracing.ComponentForwarder),
+		tracer.Tag("endpoint", t.GetEndpointName()),
+	)
+	var finishErr error
+	defer func() {
+		if finishErr != nil {
+			span.Finish(tracer.WithError(finishErr))
+		} else {
+			span.Finish()
+		}
+	}()
+
 	// Run the endpoint through our blockedEndpoints circuit breaker
 	target := t.GetTarget()
 	if w.blockedList.isBlockForSend(target, time.Now()) {
 		w.requeue(t)
+		finishErr = errors.New("endpoint blocked: too many errors for " + target)
+		span.SetTag(agenttracing.TagErrorType, "endpoint_blocked")
 		w.log.Warnf("Too many errors for endpoint '%s': retrying later", target)
 	} else if err := t.Process(ctx, w.config, w.log, w.secrets, w.Client.GetClient()); err != nil {
 		w.blockedList.close(target, time.Now())
 		w.requeue(t)
+		finishErr = err
 		w.log.Errorf("Error while processing transaction: %v", err)
 	} else {
+		span.SetTag(agenttracing.TagSuccess, true)
 		w.pointSuccessfullySent.OnPointSuccessfullySent(t.GetPointCount())
 		w.blockedList.recover(target, time.Now())
 	}

@@ -19,11 +19,15 @@ import (
 	"sync"
 	"time"
 
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	agenttracing "github.com/DataDog/datadog-agent/pkg/util/tracing"
 )
 
 var (
@@ -377,6 +381,22 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 	transactionEndpointName := t.GetEndpointName()
 	logURL := scrubber.ScrubLine(url) // sanitized url that can be logged
 
+	span, ctx := agenttracing.StartSpanFromContext(ctx, "forwarder.http_request",
+		tracer.SpanType(ext.SpanTypeHTTP),
+		tracer.Tag(agenttracing.TagComponent, agenttracing.ComponentForwarder),
+		tracer.Tag(ext.HTTPMethod, "POST"),
+		tracer.Tag("endpoint", transactionEndpointName),
+		tracer.Tag(ext.HTTPURL, logURL),
+	)
+	var finishErr error
+	defer func() {
+		if finishErr != nil {
+			span.Finish(tracer.WithError(finishErr))
+		} else {
+			span.Finish()
+		}
+	}()
+
 	req, err := http.NewRequestWithContext(ctx, "POST", url, reader)
 	if err != nil {
 		log.Errorf("Could not create request for transaction to invalid URL %q (dropping transaction): %s", logURL, err)
@@ -397,9 +417,12 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		t.ErrorCount++
 		transactionsErrors.Add(1)
 		tlmTxErrors.Inc(t.Domain, transactionEndpointName, "cant_send")
-		return 0, nil, fmt.Errorf("error while sending transaction, rescheduling it: %s", scrubber.ScrubLine(err.Error()))
+		finishErr = fmt.Errorf("error while sending transaction, rescheduling it: %s", scrubber.ScrubLine(err.Error()))
+		return 0, nil, finishErr
 	}
 	defer func() { _ = resp.Body.Close() }()
+
+	span.SetTag(ext.HTTPCode, strconv.Itoa(resp.StatusCode))
 
 	// Capture intake server time for clock offset monitoring
 	updateIntakeTimeOffset(resp.Header.Get("Date"))
@@ -407,6 +430,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Errorf("Fail to read the response Body: %s", err)
+		finishErr = err
 		return 0, nil, err
 	}
 
@@ -432,6 +456,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
 		TransactionsDropped.Add(1)
 		TlmTxDropped.Inc(t.Domain, transactionEndpointName)
+		finishErr = fmt.Errorf("HTTP %d from %s (dropped)", resp.StatusCode, logURL)
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode == 403 {
 		log.Errorf("API Key invalid (403 response), dropping transaction for %s", logURL)
@@ -444,12 +469,14 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
 		TransactionsDropped.Add(1)
 		TlmTxDropped.Inc(t.Domain, transactionEndpointName)
+		finishErr = fmt.Errorf("HTTP 403 invalid API key from %s (dropped)", logURL)
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode > 400 {
 		t.ErrorCount++
 		transactionsErrors.Add(1)
 		tlmTxErrors.Inc(t.Domain, transactionEndpointName, "gt_400")
-		return resp.StatusCode, body, fmt.Errorf("error %q while sending transaction to %q, rescheduling it: %q", resp.Status, logURL, truncateBodyForLog(body))
+		finishErr = fmt.Errorf("error %q while sending transaction to %q, rescheduling it: %q", resp.Status, logURL, truncateBodyForLog(body))
+		return resp.StatusCode, body, finishErr
 	}
 
 	tlmTxSuccessCount.Inc(t.Domain, transactionEndpointName, resp.Proto)

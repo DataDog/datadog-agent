@@ -143,6 +143,8 @@ import (
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+
+	agenttracing "github.com/DataDog/datadog-agent/pkg/util/tracing"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
@@ -440,8 +442,12 @@ func start(log log.Component,
 			opts = append(opts, tracer.WithGlobalTag("cluster_id", clusterID))
 		}
 		tracer.Start(opts...)
+		agenttracing.SetRunning(true)
 		pkglog.Infof("APM tracing enabled for Cluster Agent (sample_rate=%.2f)", sampleRate)
-		defer tracer.Stop()
+		defer func() {
+			agenttracing.SetRunning(false)
+			tracer.Stop()
+		}()
 	}
 
 	// Initialize and start remote configuration client

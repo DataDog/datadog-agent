@@ -366,6 +366,7 @@ modules:
     used_by_otel: true
   pkg/util/testutil:
     used_by_otel: true
+  pkg/util/tracing: default
   pkg/util/utilizationtracker:
     used_by_otel: true
   pkg/util/uuid:
