@@ -6,15 +6,6 @@
 name 'openscap'
 default_version '1.4.3'
 
-license "LGPL-3.0-or-later"
-license_file "COPYING"
-
-version("1.4.3") { source sha256: "96ebe697aafc83eb297a8f29596d57319278112467c46e6aaf3649b311cf8fba" }
-
-ship_source_offer true
-
-source url: "https://github.com/OpenSCAP/openscap/releases/download/#{version}/openscap-#{version}.tar.gz"
-
 build do
   command_on_repo_root "bazelisk run -- @acl//:install --destdir='#{install_dir}'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \

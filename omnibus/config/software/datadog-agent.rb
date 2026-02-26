@@ -254,30 +254,7 @@ build do
   end
 
   if osx_target?
-    # Launchd service definition
-    erb source: "launchd.plist.example.erb",
-        dest: "#{conf_dir}/com.datadoghq.agent.plist.example",
-        mode: 0644,
-        vars: { install_dir: install_dir }
-
-    erb source: "launchd.sysprobe.plist.example.erb",
-        dest: "#{conf_dir}/com.datadoghq.sysprobe.plist.example",
-        mode: 0644,
-        vars: {
-          # Due to how install_dir actually matches where the Agent is built rather than
-          # its actual final destination, we hardcode here the currently sole supported install location
-          install_dir: "/opt/datadog-agent",
-          conf_dir: "/opt/datadog-agent/etc",
-        }
-
-    erb source: "gui.launchd.plist.erb",
-        dest: "#{conf_dir}/com.datadoghq.gui.plist.example",
-        mode: 0644,
-        vars: {
-          # Due to how install_dir actually matches where the Agent is built rather than
-          # its actual final destination, we hardcode here the currently sole supported install location
-          install_dir: "/opt/datadog-agent",
-        }
+    command_on_repo_root "bazelisk run -- //packages/macos/app:install --destdir='#{install_dir}'", :live_stream => Omnibus.logger.live_stream(:info)
 
     # Systray GUI
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"

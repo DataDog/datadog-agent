@@ -1,0 +1,3 @@
+features:
+  - |
+    ``dd-procmgrd`` can now read process definitions and manage child process lifecycles with graceful shutdown.

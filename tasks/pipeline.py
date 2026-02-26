@@ -545,7 +545,7 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     Trigger a pipeline from an external owner.
     """
 
-    branch_re = re.compile(r'^(?P<owner>[a-zA-Z0-9_-]+):(?P<branch_name>[a-zA-Z0-9_/-]+)$')
+    branch_re = re.compile(r'^(?P<owner>[a-zA-Z0-9_-]+):(?P<branch_name>[a-zA-Z0-9#_/-]+)$')
     match = branch_re.match(owner_branch_name)
 
     assert (
@@ -611,6 +611,7 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     pipeline = f'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Apipeline%20%40ci.provider.name%3Agitlab%20%40git.repository.name%3A%22DataDog%2Fdatadog-agent%22%20%40git.branch%3A%22{owner}%2F{branch}%22&colorBy=meta%5B%27ci.stage.name%27%5D&colorByAttr=meta%5B%27ci.stage.name%27%5D&currentTab=json&fromUser=false&index=cipipeline&sort=time&spanViewType=logs'
 
     print(f'\nBranch {owner}/{branch} pushed to repo: {repo}')
+    ctx.run(f"ddr devflow ddci trigger --owner DataDog --repository datadog-agent --branch {owner}/{branch}")
     print(f'CI-Visibility pipeline link: {pipeline}')
 
 
