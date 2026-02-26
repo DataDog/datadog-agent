@@ -32,6 +32,29 @@ $> go run ./pkg/config/render_config.go /path/to/output/folder ./pkg/config
 $> ./generate_template.py core_schema_enriched.yaml system-probe_schema_enriched.yaml /path/to/output/folder
 ```
 
+---
+
+## Generating declaration of settings
+
+Currently relies on extracting info from declare_settings.go, to get (1) which function to
+output each setting to and (2) the ordering. (1) we don't need to care about (aside from
+full core-agent vs serverless) and (2) is only convenient for now because it makes diffs easier.
+
+NOTE: The order of functions in declare_settings.go doesn't match the order in which they
+are listed up-front, so the diff is messier than it needs to be.
+
+```
+$> python analyzer.py 
+    --source ../setup/declare_settings.go \
+    --outhints hints.json \
+```
+
+```
+$> python generate_declare_settings.py --hints hints.json \
+    --schema core_schema_enriched.yaml \
+    --outsource ../setup/declare_settings_diff.go
+```
+
 # TODO:
 
 Feature not yet supported:
