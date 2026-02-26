@@ -6,7 +6,6 @@
 package traceutil
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -1295,25 +1294,25 @@ func BenchmarkSemanticLookups(b *testing.B) {
 
 	for _, bc := range benchCases {
 		span, res := makeSpanAndResource(bc.kind, bc.spanAttrs, bc.resAttrs)
-		b.Run(fmt.Sprintf("OperationNameV2/%s", bc.name), func(b *testing.B) {
+		b.Run("OperationNameV2/"+bc.name, func(b *testing.B) {
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
 				_ = GetOTelOperationNameV2(span, res)
 			}
 		})
-		b.Run(fmt.Sprintf("ResourceV2/%s", bc.name), func(b *testing.B) {
+		b.Run("ResourceV2/"+bc.name, func(b *testing.B) {
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
 				_ = GetOTelResourceV2(span, res)
 			}
 		})
-		b.Run(fmt.Sprintf("SpanType/%s", bc.name), func(b *testing.B) {
+		b.Run("SpanType/"+bc.name, func(b *testing.B) {
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
 				_ = GetOTelSpanType(span, res)
 			}
 		})
-		b.Run(fmt.Sprintf("Service/%s", bc.name), func(b *testing.B) {
+		b.Run("Service/"+bc.name, func(b *testing.B) {
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
 				_ = GetOTelService(span, res, true)
@@ -1324,7 +1323,7 @@ func BenchmarkSemanticLookups(b *testing.B) {
 	// Combined: simulate full per-span V2 processing (each function creates its own accessor)
 	for _, bc := range benchCases {
 		span, res := makeSpanAndResource(bc.kind, bc.spanAttrs, bc.resAttrs)
-		b.Run(fmt.Sprintf("AllV2Functions/%s", bc.name), func(b *testing.B) {
+		b.Run("AllV2Functions/"+bc.name, func(b *testing.B) {
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
 				_ = GetOTelService(span, res, true)
@@ -1339,7 +1338,7 @@ func BenchmarkSemanticLookups(b *testing.B) {
 	// with a single accessor reused across all functions via WithAccessor variants.
 	for _, bc := range benchCases {
 		span, res := makeSpanAndResource(bc.kind, bc.spanAttrs, bc.resAttrs)
-		b.Run(fmt.Sprintf("AllV2SharedAccessor/%s", bc.name), func(b *testing.B) {
+		b.Run("AllV2SharedAccessor/"+bc.name, func(b *testing.B) {
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
 				accessor := semantics.NewOTelSpanAccessor(span.Attributes(), res.Attributes())
