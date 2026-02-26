@@ -28,7 +28,7 @@ dependency "systemd" if linux_target?
 
 if linux_target? and !heroku_target? # system-probe dependency
   build do
-    command_on_repo_root "bazelisk run -- @libpcap//:install --destdir=#{install_dir}/embedded"
+    command_on_repo_root "bazelisk run -- @libpcap//:install --destdir=#{install_dir}"
   end
 end
 

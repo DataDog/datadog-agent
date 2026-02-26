@@ -217,6 +217,7 @@ pkg_filegroup(
         ":libxmlsec_files",
         ":libxmlsec_openssl_files",
     ],
+    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
