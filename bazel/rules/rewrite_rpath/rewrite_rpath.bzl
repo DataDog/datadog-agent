@@ -1,13 +1,25 @@
+"""Set a binary's rpath to the provided value.
+
+If no rpath is provided, this defaults to <@@//:install_dir>/embedded/lib.
+"""
+
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 
+def _is_os(ctx, constraint):
+    return ctx.target_platform_has_constraint(constraint[platform_common.ConstraintValueInfo])
+
 def _rewrite_rpath_impl(ctx):
-    if ctx.attr.os == "unsupported":
+    is_linux = _is_os(ctx, ctx.attr._linux_constraint)
+    is_macos = _is_os(ctx, ctx.attr._macos_constraint)
+
+    if not is_linux and not is_macos:
         return DefaultInfo(files = depset(ctx.files.inputs))
+
     processed_files = []
     rpath = ctx.attr.rpath.format(install_dir = ctx.attr._install_dir[BuildSettingInfo].value)
     for input in ctx.files.inputs:
         processed_file = ctx.actions.declare_file("patched/" + input.basename)
-        if ctx.attr.os == "linux":
+        if is_linux:
             toolchain = ctx.toolchains["@@//bazel/toolchains/patchelf:patchelf_toolchain_type"].patchelf
             args = ctx.actions.args()
             args.add("--set-rpath", rpath)
@@ -30,33 +42,36 @@ def _rewrite_rpath_impl(ctx):
             ctx.actions.run(
                 inputs = [input],
                 outputs = [processed_file],
-                executable = ctx.file.script,
+                executable = ctx.file._script,
                 arguments = [args],
             )
         processed_files.append(processed_file)
 
     return DefaultInfo(files = depset(processed_files))
 
-_rewrite_rpath = rule(
+rewrite_rpath = rule(
     implementation = _rewrite_rpath_impl,
+    doc = """Set a binary's rpath to the provided value.
+
+    If no rpath is provided, this defaults to <@@//:install_dir>/embedded/lib.""",
     attrs = {
         "inputs": attr.label_list(
             doc = "The binaries to patch",
             mandatory = True,
         ),
-        "os": attr.string(
-            mandatory = True,
-            doc = "Private attribute to dispatch based on the target OS",
-        ),
         "rpath": attr.string(
-            doc = """
-            The new rpath. Defaults to <@@//:install_dir>/embedded/lib
-            This supports '{install_dir}' variable
-            """,
+            doc = """The new rpath. Defaults to <@@//:install_dir>/embedded/lib.
+            Supports '{install_dir}' variable.""",
             default = "{install_dir}/embedded/lib",
         ),
-        "script": attr.label(
-            doc = "A script that will wrap the native tool to update rpath",
+        "_linux_constraint": attr.label(
+            default = "@platforms//os:linux",
+        ),
+        "_macos_constraint": attr.label(
+            default = "@platforms//os:macos",
+        ),
+        "_script": attr.label(
+            default = "@@//bazel/rules/rewrite_rpath:macos.sh",
             allow_single_file = True,
             cfg = "exec",
         ),
@@ -70,27 +85,3 @@ _rewrite_rpath = rule(
         "@@//bazel/toolchains/otool:otool_toolchain_type",
     ],
 )
-
-def rewrite_rpath(name, inputs, rpath = None):
-    """
-    Set a binary's rpath to the provided value.
-
-    If no rpath is provided, this defaults to <@@//:install_dir>/embedded
-    Args:
-        - input: The binary to patch the rpath for
-        - rpath: (optional) The rpath to use f& this binary
-    """
-    _rewrite_rpath(
-        name = name,
-        inputs = inputs,
-        rpath = rpath,
-        script = select({
-            "@platforms//os:macos": "@@//bazel/rules/rewrite_rpath:macos.sh",
-            "//conditions:default": None,
-        }),
-        os = select({
-            "@platforms//os:linux": "linux",
-            "@platforms//os:macos": "macos",
-            "//conditions:default": "unsupported",
-        }),
-    )

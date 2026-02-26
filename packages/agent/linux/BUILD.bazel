@@ -47,26 +47,29 @@ pkg_filegroup(
 # cpython, …) are added to the Bazel build graph, their runtime shared-library
 # dependencies will be discovered here without any manual changes.
 cc_dynamic_deps_filegroup(
-    name = "_auto_cc_dynamic_deps",
+    name = "auto_cc_dynamic_deps",
     srcs = [":agent_components"],
+    visibility = ["//visibility:private"],
 )
 
 # Rewrite the rpath so that we can load our dependencies from their expected locations
 # By default bazel will include a path that points to the sandbox
 rewrite_rpath(
-    name = "_auto_deps_fixed_rpath",
-    inputs = [":_auto_cc_dynamic_deps"],
+    name = "auto_deps_fixed_rpath",
+    inputs = [":auto_cc_dynamic_deps"],
+    visibility = ["//visibility:private"],
 )
 
 pkg_files(
-    name = "_auto_cc_dynamic_deps_pkg",
-    srcs = [":_auto_deps_fixed_rpath"],
+    name = "auto_cc_dynamic_deps_pkg",
+    srcs = [":auto_deps_fixed_rpath"],
     prefix = "embedded/lib",
+    visibility = ["//visibility:private"],
 )
 
 pkg_filegroup(
-    name = "auto_cc_dynamic_deps",
-    srcs = [":_auto_cc_dynamic_deps_pkg"],
+    name = "auto_cc_dynamic_deps_with_fixed_rpath",
+    srcs = [":auto_cc_dynamic_deps_pkg"],
     prefix = "/opt/datadog-agent",
 )
 
@@ -79,7 +82,7 @@ pkg_filegroup(
     name = "everything",
     srcs = [
         ":agent_components",
-        ":auto_cc_dynamic_deps",
+        ":auto_cc_dynamic_deps_with_fixed_rpath",
     ],
 )
 
