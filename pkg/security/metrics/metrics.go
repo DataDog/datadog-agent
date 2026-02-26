@@ -193,10 +193,10 @@ var (
 	// Tags: -
 	MetricProcessInodeError = newRuntimeMetric(".process_resolver.inode_error")
 	// MetricProcessResolverReparentSuccess counts successful process reparenting
-	// Tags: callpath:set_process_context, callpath:do_exit, callpath:dequeue_exited, callpath:event_serialization
+	// Tags: -
 	MetricProcessResolverReparentSuccess = newRuntimeMetric(".process_resolver.reparent.success")
 	// MetricProcessResolverReparentFailed counts failed reparenting attempts (e.g. procfs not updated yet)
-	// Tags: callpath:set_process_context, callpath:do_exit, callpath:dequeue_exited, callpath:event_serialization
+	// Tags: -
 	MetricProcessResolverReparentFailed = newRuntimeMetric(".process_resolver.reparent.failed")
 
 	// Mount resolver metrics
@@ -571,17 +571,6 @@ var (
 	ProcessSourceKernelMapsTags = []string{KernelMapsTag}
 	// ProcessSourceProcTags is assigned to metrics for process cache entries populated from /proc data
 	ProcessSourceProcTags = []string{ProcFSTag}
-
-	// ReparentCallpathSetProcessContext tags a reparent from the setProcessContext path (lazy repair)
-	ReparentCallpathSetProcessContext = "callpath:set_process_context"
-	// ReparentCallpathDoExit tags a reparent from the ApplyExitEntry path (do_exit)
-	ReparentCallpathDoExit = "callpath:do_exit"
-	// ReparentCallpathDequeueExited tags a reparent from the DequeueExited path (cleanup goroutine)
-	ReparentCallpathDequeueExited = "callpath:dequeue_exited"
-	// ReparentCallpathEventSerialization tags a reparent from the event serialization path
-	ReparentCallpathEventSerialization = "callpath:event_serialization"
-	// AllReparentCallpathTags is the list of all reparent callpath tags
-	AllReparentCallpathTags = []string{ReparentCallpathSetProcessContext, ReparentCallpathDoExit, ReparentCallpathDequeueExited, ReparentCallpathEventSerialization}
 )
 
 func newRuntimeMetric(name string) string {

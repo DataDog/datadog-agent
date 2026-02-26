@@ -20,7 +20,6 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
@@ -929,7 +928,7 @@ func TestTryResolveMissingAncestor(t *testing.T) {
 		assert.Nil(t, child.ProcessCacheEntry.Ancestor)
 		assert.Equal(t, uint32(3), child.ProcessCacheEntry.PPid)
 
-		resolver.TryReparentFromProcfs(child.ProcessCacheEntry, metrics.ReparentCallpathEventSerialization)
+		resolver.TryReparentFromProcfs(child.ProcessCacheEntry)
 
 		// init(pid:1)
 		//     |
@@ -937,7 +936,7 @@ func TestTryResolveMissingAncestor(t *testing.T) {
 		//     |
 		// child(pid:4)
 		assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
-		assert.Equal(t, int64(1), resolver.reparentSuccessStats[metrics.ReparentCallpathEventSerialization].Load())
+		assert.Equal(t, int64(1), resolver.reparentSuccessStats.Load())
 		assertChildrenConsistency(t, resolver)
 	})
 
@@ -953,7 +952,7 @@ func TestTryResolveMissingAncestor(t *testing.T) {
 
 		// Build: init(pid:1) -> parent(pid:realPPid)
 		// Insert child(pid:realPid, ppid:0) with no Ancestor.
-		// TryReparentFromProcfs should read /proc/realPid/status to discover
+		// TryReparentFromProcfs should read /proc/<realPid>/status to discover
 		// realPPid, find parent in the cache, and link the Ancestor.
 		//
 		// init(pid:1)
@@ -973,7 +972,7 @@ func TestTryResolveMissingAncestor(t *testing.T) {
 		assert.Nil(t, child.ProcessCacheEntry.Ancestor)
 		assert.Equal(t, uint32(0), child.ProcessCacheEntry.PPid)
 
-		resolver.TryReparentFromProcfs(child.ProcessCacheEntry, metrics.ReparentCallpathEventSerialization)
+		resolver.TryReparentFromProcfs(child.ProcessCacheEntry)
 
 		// init(pid:1)
 		//     |
@@ -981,7 +980,7 @@ func TestTryResolveMissingAncestor(t *testing.T) {
 		//     |
 		// child(pid:realPid)
 		assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
-		assert.Equal(t, int64(1), resolver.reparentSuccessStats[metrics.ReparentCallpathEventSerialization].Load())
+		assert.Equal(t, int64(1), resolver.reparentSuccessStats.Load())
 		assertChildrenConsistency(t, resolver)
 	})
 
@@ -1004,10 +1003,10 @@ func TestTryResolveMissingAncestor(t *testing.T) {
 		assert.Nil(t, child.ProcessCacheEntry.Ancestor)
 		assert.Equal(t, uint32(0), child.ProcessCacheEntry.PPid)
 
-		resolver.TryReparentFromProcfs(child.ProcessCacheEntry, metrics.ReparentCallpathEventSerialization)
+		resolver.TryReparentFromProcfs(child.ProcessCacheEntry)
 
 		assert.Nil(t, child.ProcessCacheEntry.Ancestor)
-		assert.Equal(t, int64(1), resolver.reparentFailedStats[metrics.ReparentCallpathEventSerialization].Load())
+		assert.Equal(t, int64(1), resolver.reparentFailedStats.Load())
 	})
 }
 
@@ -1070,14 +1069,14 @@ func TestTryReparentMaxForkDepth(t *testing.T) {
 
 	allEntries[beyondIdx].Ancestor = nil
 
-	resolver.TryReparentFromProcfs(entry, metrics.ReparentCallpathEventSerialization)
+	resolver.TryReparentFromProcfs(entry)
 
 	// The broken ancestor link beyond the depth limit should NOT be resolved
 	// because the walk stops before reaching it.
 	assert.Nil(t, allEntries[beyondIdx].Ancestor,
 		"ancestor link beyond tryReparentMaxForkDepth should not be resolved")
 	assert.Equal(t, int64(0),
-		resolver.reparentSuccessStats[metrics.ReparentCallpathEventSerialization].Load(),
+		resolver.reparentSuccessStats.Load(),
 		"no missing-ancestor resolution should have occurred")
 }
 
@@ -1120,7 +1119,7 @@ func TestSubreaperReparenting(t *testing.T) {
 	// tryReparentChildrenFromProcfs reads /proc/realPid/status which returns realPPid,
 	// matching grandparent in the cache.
 	resolver.Lock()
-	resolver.tryReparentChildrenFromProcfs(fakeParent.ProcessCacheEntry, metrics.ReparentCallpathDoExit)
+	resolver.tryReparentChildrenFromProcfs(fakeParent.ProcessCacheEntry)
 	resolver.deleteEntry(fakeParentPid, time.Now())
 	resolver.Unlock()
 

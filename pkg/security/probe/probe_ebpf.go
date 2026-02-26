@@ -994,9 +994,6 @@ func (p *EBPFProbe) GetMonitors() *EBPFMonitors {
 // EventMarshallerCtor returns the event marshaller ctor
 func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventMarshaler {
 	return func() events.EventMarshaler {
-		if event.ProcessCacheEntry != nil {
-			p.Resolvers.ProcessResolver.TryReparentFromProcfs(event.ProcessCacheEntry, metrics.ReparentCallpathEventSerialization)
-		}
 		return serializers.NewEventSerializer(event, nil, p.probe.scrubber)
 	}
 }
@@ -1009,9 +1006,6 @@ func (p *EBPFProbe) evalOpts() *eval.Opts {
 // EventMarshallerCtorWithRule returns the event marshaller ctor with a rule for variable serialization
 func (p *EBPFProbe) EventMarshallerCtorWithRule(event *model.Event, rule *rules.Rule) func() events.EventMarshaler {
 	return func() events.EventMarshaler {
-		if event.ProcessCacheEntry != nil {
-			p.Resolvers.ProcessResolver.TryReparentFromProcfs(event.ProcessCacheEntry, metrics.ReparentCallpathEventSerialization)
-		}
 		return serializers.NewEventSerializer(event, rule, p.probe.scrubber)
 	}
 }
@@ -1100,7 +1094,7 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 			// Attempt to repair the lineage of processes that were orphaned
 			// during subreaper reparenting (the exit tracepoint may fire
 			// before the kernel has completed forget_original_parent).
-			p.Resolvers.ProcessResolver.TryReparentFromProcfs(entry, metrics.ReparentCallpathSetProcessContext)
+			p.Resolvers.ProcessResolver.TryReparentFromProcfs(entry)
 
 			if _, err := entry.HasValidLineage(); err != nil {
 				event.Error = &model.ErrProcessBrokenLineage{Err: err}
