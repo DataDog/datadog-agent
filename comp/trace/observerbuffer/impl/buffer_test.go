@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	observerbuffer "github.com/DataDog/datadog-agent/comp/trace/observerbuffer/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/stretchr/testify/assert"
@@ -22,7 +23,7 @@ func newTestBuffer(t *testing.T, enabled bool, traceSize, profileSize int) obser
 		"apm_config.observer.trace_buffer_size":   traceSize,
 		"apm_config.observer.profile_buffer_size": profileSize,
 	})
-	return NewComponent(Requires{Cfg: cfg}).Comp
+	return NewComponent(Requires{Cfg: cfg, Log: logmock.New(t)}).Comp
 }
 
 func TestBufferAddAndDrainTraces(t *testing.T) {

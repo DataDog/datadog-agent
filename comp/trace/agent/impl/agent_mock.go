@@ -52,6 +52,7 @@ func NewMock(deps dependencies, _ testing.TB) traceagent.Component {
 			telemetryCollector,
 			&statsd.NoOpClient{},
 			zstd.NewComponent(),
+			nil,
 		),
 		cancel:             cancel,
 		config:             deps.Config,
