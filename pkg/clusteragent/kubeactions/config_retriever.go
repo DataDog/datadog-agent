@@ -33,12 +33,10 @@ func NewConfigRetriever(ctx context.Context, processor *ActionProcessor, isLeade
 		isLeader:  isLeader,
 	}
 
-	// Subscribe to remote config updates
-	// TODO(KUBEACTIONS-POC): CHANGE TO ProductKubeActions - Using DEBUG product for PoC testing
-	// Once kubeactions track is created in production, change "DEBUG" to ProductKubeActions
-	log.Infof("[KubeActions] Subscribing to DEBUG product for remote config updates...")
-	rcClient.SubscribeIgnoreExpiration("DEBUG", cr.actionsCallback)
-	log.Infof("[KubeActions] Successfully subscribed to DEBUG product, callback registered")
+	// Subscribe to remote config updates for K8S_ACTIONS product
+	log.Infof("[KubeActions] Subscribing to K8S_ACTIONS product for remote config updates...")
+	rcClient.SubscribeIgnoreExpiration("K8S_ACTIONS", cr.actionsCallback)
+	log.Infof("[KubeActions] Successfully subscribed to K8S_ACTIONS product, callback registered")
 
 	log.Infof("[KubeActions] ConfigRetriever created successfully")
 	return cr, nil

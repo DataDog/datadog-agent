@@ -466,10 +466,8 @@ func start(log log.Component,
 			products = append(products, state.ProductClusterAutoscalingValues)
 		}
 		if config.GetBool("kubeactions.enabled") {
-			// TODO: Switch to ProductKubeActions once the track is created
-			// For now, using DEBUG product for PoC/testing in staging
-			products = append(products, "DEBUG")
-			log.Infof("Adding DEBUG product to RC for kubeactions")
+			products = append(products, "K8S_ACTIONS")
+			log.Infof("Adding K8S_ACTIONS product to RC for kubeactions")
 		}
 		if config.GetBool("admission_controller.auto_instrumentation.enabled") || config.GetBool("apm_config.instrumentation.enabled") {
 			products = append(products, state.ProductGradualRollout)

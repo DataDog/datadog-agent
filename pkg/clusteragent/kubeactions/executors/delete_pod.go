@@ -49,10 +49,48 @@ func (e *DeletePodExecutor) Execute(ctx context.Context, action *kubeactions.Kub
 		}
 	}
 
-	log.Infof("Deleting pod %s/%s", namespace, name)
+	// Validate resource_id is provided for UID safety check
+	resourceID := resource.ResourceId
+	if resourceID == "" {
+		return ExecutionResult{
+			Status:  "failed",
+			Message: "resource_id is required for pod deletion (used for UID safety check)",
+		}
+	}
+
+	// Get the pod first to verify UID matches resource_id
+	pod, err := e.clientset.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		log.Errorf("Failed to get pod %s/%s: %v", namespace, name, err)
+		return ExecutionResult{
+			Status:  "failed",
+			Message: fmt.Sprintf("failed to get pod: %v", err),
+		}
+	}
+
+	if string(pod.UID) != resourceID {
+		log.Errorf("Pod %s/%s UID mismatch: expected %s, got %s - pod may have been replaced", namespace, name, resourceID, pod.UID)
+		return ExecutionResult{
+			Status:  "failed",
+			Message: fmt.Sprintf("pod UID mismatch: expected %s, got %s - pod may have been replaced since action was created", resourceID, pod.UID),
+		}
+	}
+
+	// Get delete_pod specific parameters
+	params := action.GetDeletePod()
+
+	// Build delete options
+	deleteOptions := metav1.DeleteOptions{}
+	if params != nil && params.GracePeriodSeconds != nil {
+		gracePeriod := *params.GracePeriodSeconds
+		deleteOptions.GracePeriodSeconds = &gracePeriod
+		log.Infof("Deleting pod %s/%s (uid=%s) with grace period %d seconds", namespace, name, resourceID, gracePeriod)
+	} else {
+		log.Infof("Deleting pod %s/%s (uid=%s) with default grace period", namespace, name, resourceID)
+	}
 
 	// Delete the pod
-	err := e.clientset.CoreV1().Pods(namespace).Delete(ctx, name, metav1.DeleteOptions{})
+	err = e.clientset.CoreV1().Pods(namespace).Delete(ctx, name, deleteOptions)
 	if err != nil {
 		log.Errorf("Failed to delete pod %s/%s: %v", namespace, name, err)
 		return ExecutionResult{

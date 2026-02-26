@@ -21,10 +21,17 @@ type ValidationError struct {
 
 // Error implements the error interface
 func (e *ValidationError) Error() string {
+	actionType := GetActionType(e.Action)
+	resourceKind := ""
+	resourceName := ""
+	if e.Action != nil && e.Action.Resource != nil {
+		resourceKind = e.Action.Resource.Kind
+		resourceName = e.Action.Resource.Name
+	}
 	return fmt.Sprintf("validation error for action %s on %s/%s: %s",
-		e.Action.ActionType,
-		e.Action.Resource.Kind,
-		e.Action.Resource.Name,
+		actionType,
+		resourceKind,
+		resourceName,
 		e.Message)
 }
 
@@ -49,11 +56,12 @@ func (v *ActionValidator) ValidateAction(action *kubeactions.KubeAction) error {
 		}
 	}
 
-	// Validate action type is provided
-	if action.ActionType == "" {
+	// Validate action type is provided (one of the oneof fields must be set)
+	actionType := GetActionType(action)
+	if actionType == ActionTypeUnknown {
 		return &ValidationError{
 			Action:  action,
-			Message: "action_type is required",
+			Message: "action type is required (must specify delete_pod, restart_deployment, etc.)",
 		}
 	}
 
@@ -80,10 +88,40 @@ func (v *ActionValidator) ValidateAction(action *kubeactions.KubeAction) error {
 		}
 	}
 
+	// Action-specific validation
+	switch actionType {
+	case ActionTypeDeletePod:
+		// Validate delete_pod specific requirements
+		if action.Resource.Namespace == "" {
+			return &ValidationError{
+				Action:  action,
+				Message: "resource.namespace is required for delete_pod action",
+			}
+		}
+		if action.Resource.Kind != "Pod" {
+			return &ValidationError{
+				Action:  action,
+				Message: "resource.kind must be 'Pod' for delete_pod action",
+			}
+		}
+	case ActionTypeRestartDeployment:
+		// Validate restart_deployment specific requirements
+		if action.Resource.Namespace == "" {
+			return &ValidationError{
+				Action:  action,
+				Message: "resource.namespace is required for restart_deployment action",
+			}
+		}
+		if action.Resource.Kind != "Deployment" {
+			return &ValidationError{
+				Action:  action,
+				Message: "resource.kind must be 'Deployment' for restart_deployment action",
+			}
+		}
+	}
+
 	// TODO: Add more validation logic here as needed:
-	// - Check if action type is in allowed list
 	// - Check if namespace is allowed
-	// - Check if resource type is allowed
 	// - Rate limiting checks
 	// - Time-based restrictions
 	// - Custom business logic
