@@ -114,8 +114,6 @@ pub fn config_dir() -> PathBuf {
 /// The process name is derived from the filename (without extension).
 /// Files that fail to parse are logged and skipped.
 pub fn load_configs(dir: &Path) -> Result<Vec<(String, ProcessConfig)>> {
-    let mut configs = Vec::new();
-
     let entries = std::fs::read_dir(dir)
         .with_context(|| format!("failed to read config directory: {}", dir.display()))?;
 
@@ -141,6 +139,7 @@ pub fn load_configs(dir: &Path) -> Result<Vec<(String, ProcessConfig)>> {
 
     yaml_files.sort_by_key(|e| e.file_name());
 
+    let mut configs = Vec::new();
     for entry in yaml_files {
         let path = entry.path();
         let name = path
