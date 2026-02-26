@@ -11,6 +11,14 @@ extensions:
 processors:
     batch:
         timeout: 10s
+    filter/dd-hp-drop-internal:
+        metrics:
+            exclude:
+                match_type: regexp
+                metric_names:
+                    - ^scrape_.*$
+                    - ^up$
+                    - ^promhttp_metric_handler_errors_total$
     resource/dd-profiler-internal-metadata:
         attributes:
             - action: upsert
@@ -34,6 +42,19 @@ receivers:
     hostprofiler:
         symbol_uploader:
             enabled: false
+    prometheus/dd-hp-internal:
+        config:
+            scrape_configs:
+                - fallback_scrape_protocol: PrometheusText0.0.4
+                  job_name: host-profiler-internal
+                  metric_name_escaping_scheme: underscores
+                  metric_name_validation_scheme: legacy
+                  scrape_interval: 60s
+                  scrape_protocols:
+                    - PrometheusText0.0.4
+                  static_configs:
+                    - targets:
+                        - 0.0.0.0:8888
 service:
     extensions:
         - custom
