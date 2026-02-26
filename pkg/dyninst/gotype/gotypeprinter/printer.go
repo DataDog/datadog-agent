@@ -16,7 +16,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/goccy/go-yaml"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 )

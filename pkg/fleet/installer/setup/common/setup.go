@@ -57,7 +57,7 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 	start := time.Now()
 	output := &Output{tty: logOutput}
 	output.WriteString(fmt.Sprintf(header, version.AgentVersion, flavor, version.Commit, flavorPath, start.Format(time.RFC3339)))
-	installer, err := installer.NewInstaller(env)
+	installer, err := installer.NewInstaller(ctx, env)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create installer: %w", err)
 	}

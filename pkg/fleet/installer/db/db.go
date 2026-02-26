@@ -7,6 +7,7 @@
 package db
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -51,29 +52,46 @@ func WithTimeout(timeout time.Duration) Option {
 	}
 }
 
-// New creates a new PackagesDB
-func New(dbPath string, opts ...Option) (*PackagesDB, error) {
+// New creates a new PackagesDB. The context can be used to cancel the file lock
+// acquisition if the database is held by another process, allowing the caller
+// to abort instead of waiting for the bbolt timeout (or indefinitely if none is set).
+func New(ctx context.Context, dbPath string, opts ...Option) (*PackagesDB, error) {
 	o := options{}
 	for _, opt := range opts {
 		opt(&o)
 	}
-	db, err := bbolt.Open(dbPath, 0644, &bbolt.Options{
-		Timeout:      o.timeout,
-		FreelistType: bbolt.FreelistArrayType,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("could not open database: %w", err)
+
+	type result struct {
+		db  *bbolt.DB
+		err error
 	}
-	err = db.Update(func(tx *bbolt.Tx) error {
-		_, err := tx.CreateBucketIfNotExists(bucketPackages)
-		return err
-	})
-	if err != nil {
-		return nil, fmt.Errorf("could not create packages bucket: %w", err)
+	ch := make(chan result, 1)
+	go func() {
+		db, err := bbolt.Open(dbPath, 0644, &bbolt.Options{
+			Timeout:      o.timeout,
+			FreelistType: bbolt.FreelistArrayType,
+		})
+		ch <- result{db, err}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case r := <-ch:
+		if r.err != nil {
+			return nil, fmt.Errorf("could not open database: %w", r.err)
+		}
+		err := r.db.Update(func(tx *bbolt.Tx) error {
+			_, err := tx.CreateBucketIfNotExists(bucketPackages)
+			return err
+		})
+		if err != nil {
+			return nil, fmt.Errorf("could not create packages bucket: %w", err)
+		}
+		return &PackagesDB{
+			db: r.db,
+		}, nil
 	}
-	return &PackagesDB{
-		db: db,
-	}, nil
 }
 
 // Close closes the database

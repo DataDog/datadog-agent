@@ -48,7 +48,7 @@ func TestAgentHealthAggregator(t *testing.T) {
 		// Verify host info
 		require.NotNil(t, payload.Host)
 		assert.Equal(t, "test-hostname", payload.Host.Hostname)
-		assert.Equal(t, "7.50.0", payload.Host.AgentVersion)
+		assert.Equal(t, "7.50.0", payload.Host.GetAgentVersion())
 
 		// Verify issues
 		require.NotNil(t, payload.Issues)
