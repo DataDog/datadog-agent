@@ -49,7 +49,8 @@ var tokenizerPool = sync.Pool{
 	},
 }
 
-// Tokenizer implements a finite state automaton for log tokenization
+// Tokenizer implements a finite state automaton for log tokenization.
+// It implements the token.Tokenizer interface.
 type Tokenizer struct {
 	input  string
 	pos    int
@@ -59,15 +60,47 @@ type Tokenizer struct {
 	tokens []token.Token
 }
 
-// NewTokenizer creates a new tokenizer for the given input
-func NewTokenizer(input string) *Tokenizer {
+// AutomatonTokenizer is a stateless wrapper that implements token.Tokenizer interface.
+// It uses the internal sync.Pool for efficiency.
+type AutomatonTokenizer struct{}
+
+// NewTokenizer creates a new automaton tokenizer that implements token.Tokenizer interface.
+// The returned tokenizer is stateless and safe to reuse.
+func NewTokenizer() token.Tokenizer {
+	return &AutomatonTokenizer{}
+}
+
+// Tokenize implements token.Tokenizer.Tokenize.
+// It gets a tokenizer from the pool, processes the log, and returns it to the pool.
+func (at *AutomatonTokenizer) Tokenize(log string) (*token.TokenList, error) {
+	return newTokenizerInternal(log).tokenize(), nil
+}
+
+// TokenizeBatch implements token.Tokenizer.TokenizeBatch.
+// It processes multiple logs sequentially, reusing pool instances for each.
+func (at *AutomatonTokenizer) TokenizeBatch(logs []string) ([]token.TokenizeResult, error) {
+	results := make([]token.TokenizeResult, len(logs))
+	for i, log := range logs {
+		t := newTokenizerInternal(log)
+		tokenList := t.tokenize()
+		t.Release()
+		results[i] = token.TokenizeResult{
+			TokenList: tokenList,
+			Err:       nil,
+		}
+	}
+	return results, nil
+}
+
+// newTokenizerInternal creates a new tokenizer for the given input from the pool (internal use)
+func newTokenizerInternal(input string) *Tokenizer {
 	tokenizer := tokenizerPool.Get().(*Tokenizer)
 	tokenizer.reset(input)
 	return tokenizer
 }
 
-// Tokenize processes the input string and returns a TokenList
-func (t *Tokenizer) Tokenize() *token.TokenList {
+// tokenize processes the input string and returns a TokenList (internal method)
+func (t *Tokenizer) tokenize() *token.TokenList {
 	for t.pos < t.length {
 		if !t.processNextToken() {
 			break

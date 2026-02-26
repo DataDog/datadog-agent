@@ -358,7 +358,8 @@ def get_payload_version():
     """
     Return the Agent payload version (`x.y.z`) found in the go.mod file.
     """
-    with open('go.mod') as f:
+    go_mod_path = get_repo_root() / 'go.mod'
+    with open(go_mod_path) as f:
         for rawline in f:
             line = rawline.strip()
             whitespace_split = line.split(" ")

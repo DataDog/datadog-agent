@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
@@ -365,6 +366,15 @@ func (s *streamWorker) handleBatchAck(ack *batchAck) {
 
 	// Pop the acknowledged payload and send to auditor
 	payload := s.inflight.pop()
+
+	// Update shared agent-level metrics so gRPC sends are reflected in agent status
+	metrics.LogsSent.Add(payload.Count())
+	metrics.TlmLogsSent.Add(float64(payload.Count()))
+	metrics.BytesSent.Add(int64(payload.UnencodedSize))
+	metrics.TlmBytesSent.Add(float64(payload.UnencodedSize), "logs")
+	metrics.EncodedBytesSent.Add(int64(len(payload.Encoded)))
+	metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)), "logs", "grpc")
+
 	if s.outputChan != nil {
 		select {
 		case s.outputChan <- payload:

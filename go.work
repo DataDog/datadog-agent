@@ -111,6 +111,7 @@ use (
 	pkg/logs/patterns/processor
 	pkg/logs/patterns/tags
 	pkg/logs/patterns/token
+	pkg/logs/patterns/tokenizer/rust
 	pkg/logs/pipeline
 	pkg/logs/processor
 	pkg/logs/sender

@@ -64,6 +64,7 @@ ALL_TAGS = {
     "podman",
     "python",
     "requirefips",  # used for Linux FIPS mode to avoid having to set GOFIPS
+    "rust_patterns",  # Rust tokenizer for log pattern clustering
     "serverless",
     "serverlessfips",  # used for FIPS mode in the serverless build in datadog-lambda-extension
     "sharedlibrarycheck",
@@ -104,6 +105,7 @@ AGENT_TAGS = {
     "otlp",
     "podman",
     "python",
+    "rust_patterns",
     "sharedlibrarycheck",
     "systemd",
     "systemprobechecks",
