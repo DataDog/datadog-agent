@@ -88,8 +88,6 @@ func RunDemoWithConfig(config DemoConfig) {
 		},
 		tsAnalyses: []observerdef.TimeSeriesAnalysis{
 			NewCUSUMDetector(),
-		},
-		signalEmitters: []observerdef.SignalEmitter{
 			NewGraphSketchEmitter(DefaultGraphSketchConfig()),
 			NewLightESDEmitter(DefaultLightESDConfig()),
 		},

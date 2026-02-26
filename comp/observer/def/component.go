@@ -90,9 +90,6 @@ type MetricName string
 // SeriesID uniquely identifies a time series (namespace + name + tags).
 type SeriesID string
 
-// SignalSource identifies a signal stream source (metric or event-style source name).
-type SignalSource string
-
 // EventSource identifies a discrete event source.
 type EventSource string
 
@@ -164,7 +161,8 @@ type Point struct {
 }
 
 // TimeSeriesAnalysis analyzes a time series for anomalies.
-// Implementations should be stateless and just do math on the points.
+// Most implementations are stateless. Stateful implementations (e.g., GraphSketch, BOCPD)
+// maintain internal state across calls.
 type TimeSeriesAnalysis interface {
 	// Name returns the analysis name for debugging.
 	Name() string
@@ -186,29 +184,6 @@ type AnomalyProcessor interface {
 	Process(anomaly AnomalyOutput)
 	// Flush processes accumulated anomalies and returns reports.
 	Flush() []ReportOutput
-}
-
-// SignalEmitter produces point signals from time series data.
-// This replaces TimeSeriesAnalysis with a simpler point-based output model.
-// Layer 1: Emitters detect anomalous conditions and emit signals immediately.
-type SignalEmitter interface {
-	// Name returns the emitter name for debugging.
-	Name() string
-	// Emit analyzes a series and returns point signals for anomalous conditions.
-	Emit(series Series) []Signal
-}
-
-// SignalProcessor processes signal streams and maintains internal state.
-// This replaces AnomalyProcessor, using a pull-based model where reporters
-// query state via typed interfaces (e.g., CorrelationState, ClusterState).
-// Layer 2: Processors correlate, cluster, or filter signals.
-type SignalProcessor interface {
-	// Name returns the processor name for debugging.
-	Name() string
-	// Process receives a signal for accumulation/correlation.
-	Process(signal Signal)
-	// Flush updates internal state. Reporters pull state via typed interfaces.
-	Flush()
 }
 
 // EventSignalReceiver is an optional interface for processors that accept discrete event signals.
@@ -256,34 +231,6 @@ type ActiveCorrelation struct {
 	EventSignals []EventSignal   // discrete events (EventSignal-based, for processors using AddEventSignal)
 	FirstSeen    int64           // when pattern first matched (unix seconds, from data)
 	LastUpdated  int64           // most recent contributing signal (unix seconds, from data)
-}
-
-// ClusterState provides read access to clustered signal regions.
-// TimeClusterer implements this interface to expose grouped signals.
-type ClusterState interface {
-	// ActiveRegions returns currently active signal regions.
-	ActiveRegions() []SignalRegion
-}
-
-// SignalRegion represents a time region with grouped point signals.
-// Created by TimeClusterer from point signals that occur close together in time.
-type SignalRegion struct {
-	Source    SignalSource
-	TimeRange TimeRange // start and end of the region
-	Signals   []Signal  // contributing point signals
-}
-
-// Signal represents a point-in-time observation of interest.
-// Signals unify metric anomalies and discrete events into a common type.
-type Signal struct {
-	Source    SignalSource
-	Timestamp int64    // unix timestamp (seconds)
-	Tags      []string // metadata tags
-	Message   string   // optional human-readable description (for events)
-
-	// Optional fields (algorithm-dependent)
-	Value float64  // current metric value (if applicable)
-	Score *float64 // confidence/severity (nil if algorithm doesn't provide)
 }
 
 // RawAnomalyState provides read access to raw anomalies before correlation processing.

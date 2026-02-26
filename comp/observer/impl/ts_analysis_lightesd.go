@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"fmt"
 	"math"
 	"sort"
 
@@ -64,7 +65,7 @@ func DefaultLightESDConfig() LightESDConfig {
 }
 
 // LightESDEmitter detects anomalies using the LightESD algorithm.
-// It implements the SignalEmitter interface for Layer 1 anomaly detection.
+// It implements the TimeSeriesAnalysis interface.
 //
 // Algorithm (from paper):
 //  1. Periodicity Detection: Welch periodogram + permutation-based significance testing
@@ -93,12 +94,10 @@ func (l *LightESDEmitter) Name() string {
 	return "lightesd"
 }
 
-// Emit analyzes a time series and returns point-based anomaly signals.
-// Each signal represents a point identified as an outlier by the robust GESD test
-// after seasonal-trend decomposition.
-func (l *LightESDEmitter) Emit(series observer.Series) []observer.Signal {
+// Analyze examines a time series for outliers using robust GESD after seasonal-trend decomposition.
+func (l *LightESDEmitter) Analyze(series observer.Series) observer.TimeSeriesAnalysisResult {
 	if len(series.Points) < l.config.MinWindowSize {
-		return nil
+		return observer.TimeSeriesAnalysisResult{}
 	}
 
 	// Extract values for processing
@@ -121,24 +120,33 @@ func (l *LightESDEmitter) Emit(series observer.Series) []observer.Signal {
 
 	outlierIndices := robustGeneralizedESD(residual, maxOutliers, l.config.Alpha)
 
-	// Convert outlier indices to Signals
-	var signals []observer.Signal
+	// Convert outlier indices to AnomalyOutput
+	var anomalies []observer.AnomalyOutput
 	for _, idx := range outlierIndices {
 		// Calculate score using robust statistics (median + MAD)
 		median := computeMedian(residual)
 		mad := medianAbsoluteDeviation(residual)
-		score := math.Abs(residual[idx]-median) / (mad*1.4826 + 1e-10) // MAD to stddev conversion
+		sigma := math.Abs(residual[idx]-median) / (mad*1.4826 + 1e-10) // MAD to stddev conversion
 
-		signals = append(signals, observer.Signal{
-			Source:    observer.SignalSource(series.Name),
-			Timestamp: series.Points[idx].Timestamp,
-			Tags:      series.Tags,
-			Value:     series.Points[idx].Value,
-			Score:     &score,
+		ts := series.Points[idx].Timestamp
+		anomalies = append(anomalies, observer.AnomalyOutput{
+			Source:      observer.MetricName(series.Name),
+			Title:       fmt.Sprintf("LightESD: %s", series.Name),
+			Description: fmt.Sprintf("%s (score: %.2f) at timestamp %d", series.Name, sigma, ts),
+			Tags:        series.Tags,
+			Timestamp:   ts,
+			TimeRange: observer.TimeRange{
+				Start: ts,
+				End:   ts,
+			},
+			DebugInfo: &observer.AnomalyDebugInfo{
+				CurrentValue:   series.Points[idx].Value,
+				DeviationSigma: sigma,
+			},
 		})
 	}
 
-	return signals
+	return observer.TimeSeriesAnalysisResult{Anomalies: anomalies}
 }
 
 // robustDecompose extracts trend and optionally seasonal components using robust methods.

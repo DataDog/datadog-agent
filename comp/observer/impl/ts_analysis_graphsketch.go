@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"fmt"
 	"hash/fnv"
 	"math"
 
@@ -59,7 +60,7 @@ func DefaultGraphSketchConfig() GraphSketchConfig {
 }
 
 // GraphSketchEmitter detects edge anomalies using 3D tensor sketching.
-// It implements SignalEmitter for Layer 1 anomaly detection.
+// It implements TimeSeriesAnalysis (stateful — maintains tensor sketch across calls).
 //
 // Algorithm:
 //  1. Extract edges from metric series
@@ -128,13 +129,13 @@ func (g *GraphSketchEmitter) Name() string {
 	return "graphsketch"
 }
 
-// Emit detects edge anomalies in a time series using 3D tensor sketching.
-func (g *GraphSketchEmitter) Emit(series observer.Series) []observer.Signal {
+// Analyze detects edge anomalies in a time series using 3D tensor sketching.
+func (g *GraphSketchEmitter) Analyze(series observer.Series) observer.TimeSeriesAnalysisResult {
 	if len(series.Points) < g.config.MinObservations {
-		return nil
+		return observer.TimeSeriesAnalysisResult{}
 	}
 
-	var signals []observer.Signal
+	var anomalies []observer.AnomalyOutput
 
 	// Extract edges from time series
 	edges := g.extractEdges(series)
@@ -180,14 +181,21 @@ func (g *GraphSketchEmitter) Emit(series observer.Series) []observer.Signal {
 		// Check if anomalous using Z_t vs τ (NOT individual score vs threshold)
 		// Per paper: if Z_t > τ then anomaly
 		if g.ewmaZ > g.adaptiveThreshold && g.totalEdges >= g.config.MinObservations {
-			// Use Z_t (EWMA) as the anomaly score for reporting
 			ewmaScore := g.ewmaZ
-			signals = append(signals, observer.Signal{
-				Source:    observer.SignalSource(series.Name),
-				Timestamp: edge.timestamp,
-				Tags:      series.Tags,
-				Value:     edge.value,
-				Score:     &ewmaScore,
+			anomalies = append(anomalies, observer.AnomalyOutput{
+				Source:      observer.MetricName(series.Name),
+				Title:       fmt.Sprintf("GraphSketch: %s", series.Name),
+				Description: fmt.Sprintf("%s (score: %.2f) at timestamp %d", series.Name, ewmaScore, edge.timestamp),
+				Tags:        series.Tags,
+				Timestamp:   edge.timestamp,
+				TimeRange: observer.TimeRange{
+					Start: edge.timestamp,
+					End:   edge.timestamp,
+				},
+				DebugInfo: &observer.AnomalyDebugInfo{
+					CurrentValue:   edge.value,
+					DeviationSigma: ewmaScore,
+				},
 			})
 		}
 
@@ -199,7 +207,7 @@ func (g *GraphSketchEmitter) Emit(series observer.Series) []observer.Signal {
 		g.pruneInactiveEdges()
 	}
 
-	return signals
+	return observer.TimeSeriesAnalysisResult{Anomalies: anomalies}
 }
 
 // edge represents an interaction or transition in the series.

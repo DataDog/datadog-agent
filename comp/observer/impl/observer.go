@@ -248,15 +248,12 @@ func samplePass(rate float64, n uint64) bool {
 type observerImpl struct {
 	logProcessors     []observerdef.LogProcessor
 	tsAnalyses        []observerdef.TimeSeriesAnalysis
-	anomalyProcessors []observerdef.AnomalyProcessor // Supports both old (AnomalyOutput) and new (Signal via ProcessSignal)
+	anomalyProcessors []observerdef.AnomalyProcessor
 	reporters         []observerdef.Reporter
 	storage           *timeSeriesStorage
 	obsCh             chan observation
 	handleFunc        observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
 
-	// NEW path: Signal-based processing (V2 architecture)
-	signalEmitters   []observerdef.SignalEmitter   // Layer 1: Point-based anomaly detection
-	signalProcessors []observerdef.SignalProcessor // Layer 2: Signal correlation/filtering
 	correlationState observerdef.CorrelationState
 	rcaService       *RCAService
 
@@ -264,9 +261,9 @@ type observerImpl struct {
 	deduplicator     *AnomalyDeduplicator
 	correlationDirty bool // set when anomalies are fed to correlators; cleared after RCA runs
 
-	// eventBuffer stores recent event signals (as unified Signals) for debugging/dumping.
+	// eventBuffer stores recent event signals for debugging/dumping.
 	// Ring buffer with maxEvents capacity.
-	eventBuffer []observerdef.Signal
+	eventBuffer []observerdef.EventSignal
 	maxEvents   int
 
 	// Raw anomaly tracking for test bench display
@@ -304,11 +301,7 @@ func (o *observerImpl) processMetric(source string, m *metricObs) {
 	// Run time series analyses on multiple aggregations
 	for _, agg := range analysisAggregations {
 		if series := o.storage.GetSeries(source, m.name, m.tags, agg); series != nil {
-			// OLD path: Run region-based anomaly detection (TimeSeriesAnalysis)
 			o.runTSAnalyses(*series, agg)
-
-			// NEW path: Run point-based signal emitters
-			o.runSignalEmitters(*series, agg)
 		}
 	}
 
@@ -346,8 +339,8 @@ func (o *observerImpl) processLog(source string, l *logObs) {
 	o.flushAndReport()
 }
 
-// routeEventSignal converts an event log observation to a unified Signal and sends it
-// to all SignalProcessors. Events are used as correlation context, not as inputs for
+// routeEventSignal routes container lifecycle events (OOM, restart, etc.) as event signals
+// to anomaly processors. Events are used as correlation context, not as inputs for
 // metric derivation or anomaly detection.
 func (o *observerImpl) routeEventSignal(l *logObs) {
 	// Extract event type from tags (already standardized at source, e.g., "event_type:agent_startup")
@@ -359,29 +352,24 @@ func (o *observerImpl) routeEventSignal(l *logObs) {
 		}
 	}
 
-	// Create unified Signal with "event:" prefix to distinguish from metric anomalies
-	signal := observerdef.Signal{
-		Source:    observerdef.SignalSource("event:" + eventSource),
+	event := observerdef.EventSignal{
+		Source:    observerdef.EventSource("event:" + eventSource),
 		Timestamp: l.timestamp,
 		Tags:      l.tags,
-		Value:     0,   // Events don't have numeric values
-		Score:     nil, // Events don't have scores
 	}
 
 	// Store in event buffer (ring buffer)
 	if o.maxEvents > 0 {
 		if len(o.eventBuffer) >= o.maxEvents {
-			// Shift out oldest event
 			o.eventBuffer = o.eventBuffer[1:]
 		}
-		o.eventBuffer = append(o.eventBuffer, signal)
+		o.eventBuffer = append(o.eventBuffer, event)
 	}
 
-	// Send to anomaly processors that support signals (new way - use ProcessSignal method)
+	// Send to anomaly processors that accept event signals
 	for _, proc := range o.anomalyProcessors {
-		// If the processor supports the new Signal-based input, send it
-		if sp, ok := proc.(*CrossSignalCorrelator); ok {
-			sp.ProcessSignal(signal)
+		if receiver, ok := proc.(observerdef.EventSignalReceiver); ok {
+			receiver.AddEventSignal(event)
 		}
 	}
 }
@@ -404,57 +392,6 @@ func (o *observerImpl) runTSAnalyses(series observerdef.Series, agg Aggregate) {
 			o.captureRawAnomaly(anomaly)
 			o.processAnomaly(anomaly)
 		}
-	}
-}
-
-// runSignalEmitters runs point-based signal emitters on a series and processes the signals.
-// It appends the aggregation suffix to the series name for distinct Source tracking.
-func (o *observerImpl) runSignalEmitters(series observerdef.Series, agg Aggregate) {
-	// Append aggregation suffix to series name for distinct Source tracking (matches runTSAnalyses)
-	seriesWithAgg := series
-	seriesWithAgg.Name = series.Name + ":" + aggSuffix(agg)
-
-	for _, emitter := range o.signalEmitters {
-		signals := emitter.Emit(seriesWithAgg)
-
-		for _, signal := range signals {
-			// Convert signal to anomaly and send to correlators
-			anomaly := o.signalToAnomaly(signal, emitter.Name())
-			anomaly.SourceSeriesID = observerdef.SeriesID(seriesKey(series.Namespace, seriesWithAgg.Name, series.Tags))
-			o.captureRawAnomaly(anomaly) // For UI display
-			o.processAnomaly(anomaly)    // Send to correlators (GraphSketchCorrelator, etc.)
-
-			// Also send signal to signal processors (Layer 2)
-			o.processSignal(signal)
-		}
-	}
-}
-
-// signalToAnomaly converts a Signal to an AnomalyOutput for use with correlators.
-func (o *observerImpl) signalToAnomaly(signal observerdef.Signal, emitterName string) observerdef.AnomalyOutput {
-	// Build description from signal data
-	desc := fmt.Sprintf("%s signal at timestamp %d", signal.Source, signal.Timestamp)
-	if signal.Score != nil {
-		desc = fmt.Sprintf("%s (score: %.2f) at timestamp %d", signal.Source, *signal.Score, signal.Timestamp)
-	}
-
-	return observerdef.AnomalyOutput{
-		Source:       observerdef.MetricName(signal.Source),
-		Title:        fmt.Sprintf("Signal: %s", signal.Source),
-		Description:  desc,
-		Tags:         signal.Tags,
-		AnalyzerName: emitterName,
-		TimeRange: observerdef.TimeRange{
-			Start: signal.Timestamp,
-			End:   signal.Timestamp, // Point-based: start == end
-		},
-	}
-}
-
-// processSignal sends a signal to all signal processors.
-func (o *observerImpl) processSignal(signal observerdef.Signal) {
-	for _, processor := range o.signalProcessors {
-		processor.Process(signal)
 	}
 }
 
@@ -598,10 +535,6 @@ func (o *observerImpl) flushAndReport() {
 	for _, processor := range o.anomalyProcessors {
 		processor.Flush()
 	}
-	// Flush signal processors (Layer 2)
-	for _, processor := range o.signalProcessors {
-		processor.Flush()
-	}
 	// Update RCA only when correlations have changed (new anomalies were fed to correlators).
 	if o.rcaService != nil && o.correlationState != nil && o.correlationDirty {
 		o.correlationDirty = false
@@ -645,16 +578,16 @@ func (o *observerImpl) DumpEvents(path string) error {
 		Source    string   `json:"source"`
 		Timestamp int64    `json:"timestamp"`
 		Tags      []string `json:"tags,omitempty"`
-		Value     float64  `json:"value"`
+		Message   string   `json:"message,omitempty"`
 	}
 
 	events := make([]dumpEvent, len(o.eventBuffer))
-	for i, signal := range o.eventBuffer {
+	for i, ev := range o.eventBuffer {
 		events[i] = dumpEvent{
-			Source:    string(signal.Source),
-			Timestamp: signal.Timestamp,
-			Tags:      signal.Tags,
-			Value:     signal.Value,
+			Source:    string(ev.Source),
+			Timestamp: ev.Timestamp,
+			Tags:      ev.Tags,
+			Message:   ev.Message,
 		}
 	}
 

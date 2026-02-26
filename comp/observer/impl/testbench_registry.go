@@ -61,6 +61,24 @@ var defaultRegistry = []ComponentRegistration{
 			return NewBOCPDDetector()
 		},
 	},
+	{
+		Name:           "lightesd",
+		DisplayName:    "LightESD",
+		Category:       "analyzer",
+		DefaultEnabled: false,
+		Factory: func(_ *TestBench) interface{} {
+			return NewLightESDEmitter(DefaultLightESDConfig())
+		},
+	},
+	{
+		Name:           "graphsketch_analyzer",
+		DisplayName:    "GraphSketch-Analyzer",
+		Category:       "analyzer",
+		DefaultEnabled: false,
+		Factory: func(_ *TestBench) interface{} {
+			return NewGraphSketchEmitter(DefaultGraphSketchConfig())
+		},
+	},
 	// Correlators
 	{
 		Name:           "time_cluster",

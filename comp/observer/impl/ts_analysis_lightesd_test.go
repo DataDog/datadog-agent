@@ -30,8 +30,8 @@ func TestLightESD_NotEnoughPoints(t *testing.T) {
 		},
 	}
 
-	signals := emitter.Emit(series)
-	assert.Nil(t, signals, "should not detect anomalies with insufficient points")
+	result := emitter.Analyze(series)
+	assert.Empty(t, result.Anomalies, "should not detect anomalies with insufficient points")
 }
 
 func TestLightESD_StableData(t *testing.T) {
@@ -51,8 +51,8 @@ func TestLightESD_StableData(t *testing.T) {
 		Points: points,
 	}
 
-	signals := emitter.Emit(series)
-	assert.Empty(t, signals, "should not detect anomalies in stable data")
+	result := emitter.Analyze(series)
+	assert.Empty(t, result.Anomalies, "should not detect anomalies in stable data")
 }
 
 func TestLightESD_DetectsSingleOutlier(t *testing.T) {
@@ -80,17 +80,17 @@ func TestLightESD_DetectsSingleOutlier(t *testing.T) {
 		Tags:   []string{"env:test"},
 	}
 
-	signals := emitter.Emit(series)
-	require.GreaterOrEqual(t, len(signals), 1, "should detect at least one anomaly")
+	result := emitter.Analyze(series)
+	require.GreaterOrEqual(t, len(result.Anomalies), 1, "should detect at least one anomaly")
 
 	// Verify the outlier was detected
 	found := false
-	for _, sig := range signals {
-		if sig.Timestamp == 1025 && sig.Value == 200.0 {
+	for _, a := range result.Anomalies {
+		if a.Timestamp == 1025 && a.DebugInfo != nil && a.DebugInfo.CurrentValue == 200.0 {
 			found = true
-			assert.Equal(t, "test.metric", string(sig.Source))
-			assert.Equal(t, []string{"env:test"}, sig.Tags)
-			assert.NotNil(t, sig.Score)
+			assert.Equal(t, observer.MetricName("test.metric"), a.Source)
+			assert.Equal(t, []string{"env:test"}, a.Tags)
+			assert.Greater(t, a.DebugInfo.DeviationSigma, 0.0)
 		}
 	}
 	assert.True(t, found, "should detect the planted outlier at timestamp 1025")
@@ -122,8 +122,8 @@ func TestLightESD_DetectsMultipleOutliers(t *testing.T) {
 		Points: points,
 	}
 
-	signals := emitter.Emit(series)
-	assert.GreaterOrEqual(t, len(signals), 2, "should detect multiple outliers")
+	result := emitter.Analyze(series)
+	assert.GreaterOrEqual(t, len(result.Anomalies), 2, "should detect multiple outliers")
 }
 
 func TestLightESD_WithTrend(t *testing.T) {
@@ -149,8 +149,8 @@ func TestLightESD_WithTrend(t *testing.T) {
 		Points: points,
 	}
 
-	signals := emitter.Emit(series)
-	require.GreaterOrEqual(t, len(signals), 1, "should detect outlier despite trend")
+	result := emitter.Analyze(series)
+	require.GreaterOrEqual(t, len(result.Anomalies), 1, "should detect outlier despite trend")
 }
 
 func TestLightESD_WithSeasonality(t *testing.T) {
@@ -179,8 +179,8 @@ func TestLightESD_WithSeasonality(t *testing.T) {
 		Points: points,
 	}
 
-	signals := emitter.Emit(series)
-	require.GreaterOrEqual(t, len(signals), 1, "should detect outlier in seasonal data")
+	result := emitter.Analyze(series)
+	require.GreaterOrEqual(t, len(result.Anomalies), 1, "should detect outlier in seasonal data")
 }
 
 func TestLightESD_IgnoresSmallDeviations(t *testing.T) {
@@ -206,8 +206,8 @@ func TestLightESD_IgnoresSmallDeviations(t *testing.T) {
 		Points: points,
 	}
 
-	signals := emitter.Emit(series)
-	assert.Empty(t, signals, "should not detect anomalies in data with natural variation")
+	result := emitter.Analyze(series)
+	assert.Empty(t, result.Anomalies, "should not detect anomalies in data with natural variation")
 }
 
 func TestLightESD_CustomAlpha(t *testing.T) {
@@ -234,9 +234,9 @@ func TestLightESD_CustomAlpha(t *testing.T) {
 		Points: points,
 	}
 
-	signals := emitter.Emit(series)
+	result := emitter.Analyze(series)
 	// With stricter alpha, moderate outlier might not be detected
-	t.Logf("Detected %d signals with alpha=0.01", len(signals))
+	t.Logf("Detected %d anomalies with alpha=0.01", len(result.Anomalies))
 }
 
 func TestLightESD_MaxOutliersLimit(t *testing.T) {
@@ -266,8 +266,8 @@ func TestLightESD_MaxOutliersLimit(t *testing.T) {
 		Points: points,
 	}
 
-	signals := emitter.Emit(series)
-	assert.LessOrEqual(t, len(signals), config.MaxOutliers,
+	result := emitter.Analyze(series)
+	assert.LessOrEqual(t, len(result.Anomalies), config.MaxOutliers,
 		"should not exceed MaxOutliers limit")
 }
 
@@ -292,11 +292,11 @@ func TestLightESD_TagsPropagated(t *testing.T) {
 		Tags:   []string{"env:prod", "service:api", "host:web-01"},
 	}
 
-	signals := emitter.Emit(series)
-	require.GreaterOrEqual(t, len(signals), 1)
+	result := emitter.Analyze(series)
+	require.GreaterOrEqual(t, len(result.Anomalies), 1)
 
-	for _, sig := range signals {
-		assert.Equal(t, []string{"env:prod", "service:api", "host:web-01"}, sig.Tags)
+	for _, a := range result.Anomalies {
+		assert.Equal(t, []string{"env:prod", "service:api", "host:web-01"}, a.Tags)
 	}
 }
 
@@ -323,16 +323,16 @@ func TestLightESD_ScoreReflectsSeverity(t *testing.T) {
 		Points: points,
 	}
 
-	signals := emitter.Emit(series)
-	require.GreaterOrEqual(t, len(signals), 2)
+	result := emitter.Analyze(series)
+	require.GreaterOrEqual(t, len(result.Anomalies), 2)
 
 	// Find scores for each outlier
 	var moderateScore, severeScore float64
-	for _, sig := range signals {
-		if sig.Value == 300.0 && sig.Score != nil {
-			moderateScore = *sig.Score
-		} else if sig.Value == 600.0 && sig.Score != nil {
-			severeScore = *sig.Score
+	for _, a := range result.Anomalies {
+		if a.DebugInfo != nil && a.DebugInfo.CurrentValue == 300.0 {
+			moderateScore = a.DebugInfo.DeviationSigma
+		} else if a.DebugInfo != nil && a.DebugInfo.CurrentValue == 600.0 {
+			severeScore = a.DebugInfo.DeviationSigma
 		}
 	}
 

@@ -19,7 +19,7 @@ func TestGraphSketch_Name(t *testing.T) {
 	assert.Equal(t, "graphsketch", emitter.Name())
 }
 
-func TestGraphSketch_EmptySeriesNoSignals(t *testing.T) {
+func TestGraphSketch_EmptySeriesNoAnomalies(t *testing.T) {
 	emitter := NewGraphSketchEmitter(DefaultGraphSketchConfig())
 
 	series := observer.Series{
@@ -27,11 +27,11 @@ func TestGraphSketch_EmptySeriesNoSignals(t *testing.T) {
 		Points: []observer.Point{},
 	}
 
-	signals := emitter.Emit(series)
-	assert.Empty(t, signals)
+	result := emitter.Analyze(series)
+	assert.Empty(t, result.Anomalies)
 }
 
-func TestGraphSketch_InsufficientPointsNoSignals(t *testing.T) {
+func TestGraphSketch_InsufficientPointsNoAnomalies(t *testing.T) {
 	config := DefaultGraphSketchConfig()
 	config.MinObservations = 10
 	emitter := NewGraphSketchEmitter(config)
@@ -44,8 +44,8 @@ func TestGraphSketch_InsufficientPointsNoSignals(t *testing.T) {
 		},
 	}
 
-	signals := emitter.Emit(series)
-	assert.Empty(t, signals)
+	result := emitter.Analyze(series)
+	assert.Empty(t, result.Anomalies)
 }
 
 func TestGraphSketch_StableDataNoAnomalies(t *testing.T) {
@@ -68,10 +68,10 @@ func TestGraphSketch_StableDataNoAnomalies(t *testing.T) {
 		Points: points,
 	}
 
-	signals := emitter.Emit(series)
+	result := emitter.Analyze(series)
 	// With stable data and high threshold, should have fewer anomalies than data points
 	// (Early observations may trigger before pattern is learned)
-	assert.Less(t, len(signals), len(points), "Stable data should have fewer anomalies than total points")
+	assert.Less(t, len(result.Anomalies), len(points), "Stable data should have fewer anomalies than total points")
 }
 
 func TestGraphSketch_DetectsSuddenSpike(t *testing.T) {
@@ -103,16 +103,16 @@ func TestGraphSketch_DetectsSuddenSpike(t *testing.T) {
 		Tags:   []string{"env:test"},
 	}
 
-	signals := emitter.Emit(series)
+	result := emitter.Analyze(series)
 
 	// Should detect anomalies in the spike
 	// (May not detect all, as CMS learns adaptively)
-	if len(signals) > 0 {
-		for _, sig := range signals {
-			assert.Equal(t, "test.metric", string(sig.Source))
-			assert.Contains(t, sig.Tags, "env:test")
-			assert.NotNil(t, sig.Score)
-			assert.Greater(t, *sig.Score, 0.0)
+	if len(result.Anomalies) > 0 {
+		for _, a := range result.Anomalies {
+			assert.Equal(t, observer.MetricName("test.metric"), a.Source)
+			assert.Contains(t, a.Tags, "env:test")
+			require.NotNil(t, a.DebugInfo)
+			assert.Greater(t, a.DebugInfo.DeviationSigma, 0.0)
 		}
 	}
 }
@@ -493,12 +493,12 @@ func TestGraphSketch_ScorePresent(t *testing.T) {
 		Points: points,
 	}
 
-	signals := emitter.Emit(series)
+	result := emitter.Analyze(series)
 
-	// If anomalies detected, they should have scores
-	for _, sig := range signals {
-		assert.NotNil(t, sig.Score, "Anomaly signals should have scores")
-		assert.Greater(t, *sig.Score, 0.0)
+	// If anomalies detected, they should have debug info with scores
+	for _, a := range result.Anomalies {
+		require.NotNil(t, a.DebugInfo, "Anomalies should have DebugInfo")
+		assert.Greater(t, a.DebugInfo.DeviationSigma, 0.0)
 	}
 }
 
@@ -530,14 +530,14 @@ func TestGraphSketch_IntegrationWorkflow(t *testing.T) {
 			Tags:   []string{"env:prod"},
 		}
 
-		signals := emitter.Emit(series)
+		result := emitter.Analyze(series)
 
 		// First rounds build the model
 		// Last round should potentially detect anomalies
-		if round == 2 && len(signals) > 0 {
-			for _, sig := range signals {
-				assert.Equal(t, "test.metric", string(sig.Source))
-				assert.NotNil(t, sig.Score)
+		if round == 2 && len(result.Anomalies) > 0 {
+			for _, a := range result.Anomalies {
+				assert.Equal(t, observer.MetricName("test.metric"), a.Source)
+				require.NotNil(t, a.DebugInfo)
 			}
 		}
 	}

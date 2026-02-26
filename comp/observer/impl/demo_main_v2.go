@@ -243,13 +243,9 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 		}
 	}
 
-	// Build signal emitters list based on config
-	var emitters []observerdef.SignalEmitter
-	var emitterNames []string
-
-	// OLD path for TimeSeriesAnalysis (range-based anomaly detection)
-	var tsAnalysesForRanges []observerdef.TimeSeriesAnalysis
-	var tsAnalysisNames []string
+	// Build analyzers list based on config
+	var tsAnalyses []observerdef.TimeSeriesAnalysis
+	var analyzerNames []string
 
 	if config.EnableCUSUM {
 		cusumDetector := NewCUSUMDetector()
@@ -263,8 +259,8 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 		if config.CUSUMThresholdFactor > 0 {
 			cusumDetector.ThresholdFactor = config.CUSUMThresholdFactor
 		}
-		tsAnalysesForRanges = append(tsAnalysesForRanges, cusumDetector)
-		tsAnalysisNames = append(tsAnalysisNames, "CUSUM")
+		tsAnalyses = append(tsAnalyses, cusumDetector)
+		analyzerNames = append(analyzerNames, "CUSUM")
 	}
 	if config.EnableLightESD {
 		lightesdConfig := DefaultLightESDConfig()
@@ -284,16 +280,13 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 		if config.LightESDMaxPeriods > 0 {
 			lightesdConfig.MaxPeriods = config.LightESDMaxPeriods
 		}
-		emitters = append(emitters, NewLightESDEmitter(lightesdConfig))
-		emitterNames = append(emitterNames, "LightESD")
+		tsAnalyses = append(tsAnalyses, NewLightESDEmitter(lightesdConfig))
+		analyzerNames = append(analyzerNames, "LightESD")
 	}
 	if config.EnableGraphSketch {
-		emitters = append(emitters, NewGraphSketchEmitter(DefaultGraphSketchConfig()))
-		emitterNames = append(emitterNames, "GraphSketch")
+		tsAnalyses = append(tsAnalyses, NewGraphSketchEmitter(DefaultGraphSketchConfig()))
+		analyzerNames = append(analyzerNames, "GraphSketch")
 	}
-
-	// Build signal processors list based on config
-	var processors []observerdef.SignalProcessor
 
 	// Optional RCA service (feature-gated, correlator-state based).
 	var rcaService *RCAService
@@ -317,11 +310,8 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 
 	fmt.Println("---")
 	fmt.Println("Enabled algorithms:")
-	if len(emitterNames) > 0 {
-		fmt.Printf("  Detector: %v\n", emitterNames)
-	}
-	if len(tsAnalysisNames) > 0 {
-		fmt.Printf("  Detector (legacy): %v\n", tsAnalysisNames)
+	if len(analyzerNames) > 0 {
+		fmt.Printf("  Detector: %v\n", analyzerNames)
 	}
 	if config.EnableDedup {
 		fmt.Println("  Dedup: Enabled (Stable Bloom Filter)")
@@ -356,14 +346,10 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 		logProcessors: []observerdef.LogProcessor{
 			&ConnectionErrorExtractor{},
 		},
-		// OLD path: Region-based anomaly detection (CUSUM produces time ranges)
-		tsAnalyses: tsAnalysesForRanges,
-		// NEW path Layer 1: Point-based signal emitters
-		signalEmitters: emitters,
+		// Time series analyzers (CUSUM, Z-Score, BOCPD, LightESD, GraphSketch, etc.)
+		tsAnalyses: tsAnalyses,
 		// Anomaly processor for correlation
 		anomalyProcessors: anomalyProcessors,
-		// NEW path Layer 2: Signal processors (optional)
-		signalProcessors: processors,
 		// Deduplication layer (optional)
 		deduplicator:     deduplicator,
 		correlationState: correlationState,
