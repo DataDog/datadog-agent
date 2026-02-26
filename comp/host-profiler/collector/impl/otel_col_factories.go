@@ -16,7 +16,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
-	ddreceiverimpl "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver"
+	profilesreceiver "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver"
 	ddprofilingextensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
@@ -171,7 +171,7 @@ func (e extraFactoriesWithoutAgentCore) GetConverters() []confmap.ConverterFacto
 // createFactories creates a function that returns the factories for the collector.
 func createFactories(extraFactories ExtraFactories) func() (otelcol.Factories, error) {
 	return func() (otelcol.Factories, error) {
-		receiverFactories := []receiver.Factory{ddreceiverimpl.NewFactory(), otlpreceiver.NewFactory()}
+		receiverFactories := []receiver.Factory{profilesreceiver.NewFactory(), otlpreceiver.NewFactory()}
 		receiverFactories = append(receiverFactories, extraFactories.GetReceivers()...)
 		receivers, err := otelcol.MakeFactoryMap(receiverFactories...)
 		if err != nil {
