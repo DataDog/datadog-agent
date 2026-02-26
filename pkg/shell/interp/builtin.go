@@ -33,7 +33,7 @@ func IsBuiltin(name string) bool {
 		"fg", "bg", "getopts", "test", "[",
 		"return", "read", "mapfile", "readarray", "shopt",
 		"ls", "tail", "ping", "find",
-		"head", "cat", "grep", "wc", "sort", "uniq",
+		"head", "cat", "grep", "wc", "sort", "uniq", "sed",
 		"eval", "exec", "source", ".", "trap":
 		return true
 	}
@@ -807,6 +807,8 @@ func (r *Runner) builtin(ctx context.Context, pos syntax.Pos, name string, args 
 		exit = r.builtinSort(ctx, args)
 	case "uniq":
 		exit = r.builtinUniq(ctx, args)
+	case "sed":
+		exit = r.builtinSed(ctx, args)
 	default:
 		// "umask", "fg", "bg",
 		return failf(2, "%s: unimplemented builtin\n", name)

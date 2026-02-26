@@ -412,3 +412,237 @@ func TestPipeline_Integration(t *testing.T) {
 		t.Errorf("pipeline should show 'b' with count 3, got: %q", trimmed)
 	}
 }
+
+// --- Sed safety tests ---
+
+func TestSafety_SedNoInPlace(t *testing.T) {
+	_, stderr, exitCode := runShellScript(t, `echo "test" | sed -i 's/t/T/'`)
+	if exitCode != 2 {
+		t.Errorf("sed -i should return exit code 2, got %d", exitCode)
+	}
+	if !strings.Contains(stderr, "not available in safe shell") {
+		t.Errorf("sed -i stderr should contain 'not available in safe shell', got: %q", stderr)
+	}
+}
+
+func TestSafety_SedNoWriteCmd(t *testing.T) {
+	_, stderr, exitCode := runShellScript(t, `echo "test" | sed 'w /tmp/out'`)
+	if exitCode != 2 {
+		t.Errorf("sed w command should return exit code 2, got %d", exitCode)
+	}
+	if !strings.Contains(stderr, "not available in safe shell") {
+		t.Errorf("sed w stderr should contain 'not available in safe shell', got: %q", stderr)
+	}
+}
+
+func TestSafety_SedNoExecCmd(t *testing.T) {
+	_, stderr, exitCode := runShellScript(t, `echo "test" | sed 'e'`)
+	if exitCode != 2 {
+		t.Errorf("sed e command should return exit code 2, got %d", exitCode)
+	}
+	if !strings.Contains(stderr, "not available in safe shell") {
+		t.Errorf("sed e stderr should contain 'not available in safe shell', got: %q", stderr)
+	}
+}
+
+func TestSafety_SedNoSubWrite(t *testing.T) {
+	_, stderr, exitCode := runShellScript(t, `echo "test" | sed 's/a/b/w /tmp/out'`)
+	if exitCode != 2 {
+		t.Errorf("sed s///w should return exit code 2, got %d", exitCode)
+	}
+	if !strings.Contains(stderr, "not available in safe shell") {
+		t.Errorf("sed s///w stderr should contain 'not available in safe shell', got: %q", stderr)
+	}
+}
+
+func TestSafety_SedNoSubExec(t *testing.T) {
+	_, stderr, exitCode := runShellScript(t, `echo "test" | sed 's/a/b/e'`)
+	if exitCode != 2 {
+		t.Errorf("sed s///e should return exit code 2, got %d", exitCode)
+	}
+	if !strings.Contains(stderr, "not available in safe shell") {
+		t.Errorf("sed s///e stderr should contain 'not available in safe shell', got: %q", stderr)
+	}
+}
+
+func TestSafety_SedNoWriteCmdW(t *testing.T) {
+	_, stderr, exitCode := runShellScript(t, `echo "test" | sed 'W /tmp/out'`)
+	if exitCode != 2 {
+		t.Errorf("sed W command should return exit code 2, got %d", exitCode)
+	}
+	if !strings.Contains(stderr, "not available in safe shell") {
+		t.Errorf("sed W stderr should contain 'not available in safe shell', got: %q", stderr)
+	}
+}
+
+// --- Sed functional tests ---
+
+func TestSed_BasicSubstitute(t *testing.T) {
+	stdout, _, exitCode := runShellScript(t, `echo "hello world" | sed 's/world/there/'`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed, got exit code %d", exitCode)
+	}
+	if strings.TrimSpace(stdout) != "hello there" {
+		t.Errorf("sed substitute unexpected output: %q", stdout)
+	}
+}
+
+func TestSed_GlobalSubstitute(t *testing.T) {
+	stdout, _, exitCode := runShellScript(t, `echo "aaa" | sed 's/a/b/g'`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed, got exit code %d", exitCode)
+	}
+	if strings.TrimSpace(stdout) != "bbb" {
+		t.Errorf("sed global substitute unexpected output: %q", stdout)
+	}
+}
+
+func TestSed_DeleteLines(t *testing.T) {
+	stdout, _, exitCode := runShellScript(t, `printf "a\nb\nc\n" | sed '2d'`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed, got exit code %d", exitCode)
+	}
+	if stdout != "a\nc\n" {
+		t.Errorf("sed delete unexpected output: %q", stdout)
+	}
+}
+
+func TestSed_PrintLineNumbers(t *testing.T) {
+	stdout, _, exitCode := runShellScript(t, `printf "a\nb\n" | sed -n '='`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed, got exit code %d", exitCode)
+	}
+	if stdout != "1\n2\n" {
+		t.Errorf("sed line numbers unexpected output: %q", stdout)
+	}
+}
+
+func TestSed_AddressRange(t *testing.T) {
+	stdout, _, exitCode := runShellScript(t, `printf "a\nb\nc\nd\n" | sed '2,3d'`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed, got exit code %d", exitCode)
+	}
+	if stdout != "a\nd\n" {
+		t.Errorf("sed address range unexpected output: %q", stdout)
+	}
+}
+
+func TestSed_RegexAddress(t *testing.T) {
+	stdout, _, exitCode := runShellScript(t, `printf "foo\nbar\nbaz\n" | sed '/bar/d'`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed, got exit code %d", exitCode)
+	}
+	if stdout != "foo\nbaz\n" {
+		t.Errorf("sed regex address unexpected output: %q", stdout)
+	}
+}
+
+func TestSed_MultipleExpressions(t *testing.T) {
+	stdout, _, exitCode := runShellScript(t, `echo "hello" | sed -e 's/h/H/' -e 's/o/O/'`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed, got exit code %d", exitCode)
+	}
+	if strings.TrimSpace(stdout) != "HellO" {
+		t.Errorf("sed multi-expression unexpected output: %q", stdout)
+	}
+}
+
+func TestSed_Transliterate(t *testing.T) {
+	stdout, _, exitCode := runShellScript(t, `echo "hello" | sed 'y/helo/HELO/'`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed, got exit code %d", exitCode)
+	}
+	if strings.TrimSpace(stdout) != "HELLO" {
+		t.Errorf("sed transliterate unexpected output: %q", stdout)
+	}
+}
+
+func TestSed_SuppressDefault(t *testing.T) {
+	stdout, _, exitCode := runShellScript(t, `printf "a\nb\nc\n" | sed -n '2p'`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed, got exit code %d", exitCode)
+	}
+	if stdout != "b\n" {
+		t.Errorf("sed suppress default unexpected output: %q", stdout)
+	}
+}
+
+func TestSed_ExtendedRegex(t *testing.T) {
+	stdout, _, exitCode := runShellScript(t, `echo "foo123" | sed -E 's/[0-9]+/NUM/'`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed, got exit code %d", exitCode)
+	}
+	if strings.TrimSpace(stdout) != "fooNUM" {
+		t.Errorf("sed extended regex unexpected output: %q", stdout)
+	}
+}
+
+func TestSed_Pipeline(t *testing.T) {
+	stdout, _, exitCode := runShellScript(t, `printf "2026-02-26T10:00:00 ERROR msg\n" | sed 's/^[0-9T:.-]* //'`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed, got exit code %d", exitCode)
+	}
+	if strings.TrimSpace(stdout) != "ERROR msg" {
+		t.Errorf("sed pipeline unexpected output: %q", stdout)
+	}
+}
+
+func TestSed_HoldSpace(t *testing.T) {
+	stdout, _, exitCode := runShellScript(t, `printf "a\nb\n" | sed -n 'H;${x;s/^\n//;s/\n/ /g;p}'`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed, got exit code %d", exitCode)
+	}
+	if strings.TrimSpace(stdout) != "a b" {
+		t.Errorf("sed hold space unexpected output: %q", stdout)
+	}
+}
+
+func TestSed_NegatedAddress(t *testing.T) {
+	stdout, _, exitCode := runShellScript(t, `printf "a\nb\nc\n" | sed '2!d'`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed, got exit code %d", exitCode)
+	}
+	if stdout != "b\n" {
+		t.Errorf("sed negated address unexpected output: %q", stdout)
+	}
+}
+
+func TestSed_PrintCommand(t *testing.T) {
+	stdout, _, exitCode := runShellScript(t, `printf "a\nb\nc\n" | sed -n '/b/p'`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed, got exit code %d", exitCode)
+	}
+	if stdout != "b\n" {
+		t.Errorf("sed print command unexpected output: %q", stdout)
+	}
+}
+
+func TestSed_SubstitutionPrint(t *testing.T) {
+	stdout, _, exitCode := runShellScript(t, `printf "a\nb\nc\n" | sed -n 's/b/B/p'`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed, got exit code %d", exitCode)
+	}
+	if stdout != "B\n" {
+		t.Errorf("sed substitution print unexpected output: %q", stdout)
+	}
+}
+
+func TestSed_QuitCommand(t *testing.T) {
+	stdout, _, _ := runShellScript(t, `printf "a\nb\nc\n" | sed '2q'`)
+	if stdout != "a\nb\n" {
+		t.Errorf("sed quit unexpected output: %q", stdout)
+	}
+}
+
+func TestSed_FullPipelineIntegration(t *testing.T) {
+	// The primary use case: timestamp stripping in a pipeline
+	script := `printf "2026-02-26T10:00:00 ERROR something broke\n2026-02-26T10:00:01 ERROR another issue\n2026-02-26T10:00:02 ERROR something broke\n" | sed 's/^[0-9T:.-]* //' | sort | uniq -c | sort -rn | head -n 1`
+	stdout, _, exitCode := runShellScript(t, script)
+	if exitCode != 0 {
+		t.Errorf("pipeline should succeed, got exit code %d", exitCode)
+	}
+	trimmed := strings.TrimSpace(stdout)
+	if !strings.Contains(trimmed, "2") || !strings.Contains(trimmed, "something broke") {
+		t.Errorf("pipeline should show 'something broke' with count 2, got: %q", trimmed)
+	}
+}
