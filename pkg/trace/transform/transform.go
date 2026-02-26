@@ -95,7 +95,7 @@ func otelSpanToDDSpanMinimal(
 	if isTopLevel {
 		traceutil.SetTopLevel(ddspan, true)
 	}
-	if semantics.LookupString(reg, spanAccessor, semantics.ConceptDDMeasured) == "1" {
+	if v, ok := semantics.LookupInt64(reg, spanAccessor, semantics.ConceptDDMeasured); ok && v == 1 {
 		traceutil.SetMeasured(ddspan, true)
 	} else if topLevelByKind && (spanKind == ptrace.SpanKindClient || spanKind == ptrace.SpanKindProducer) {
 		// When enable_otlp_compute_top_level_by_span_kind is true, compute stats for client-side spans

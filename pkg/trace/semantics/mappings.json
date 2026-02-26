@@ -276,7 +276,7 @@
     "_dd.measured": {
       "canonical": "_dd.measured",
       "fallbacks": [
-        {"name": "_dd.measured", "provider": "datadog", "type": "string"}
+        {"name": "_dd.measured", "provider": "datadog", "type": "int64"}
       ]
     },
     "_dd.top_level": {
