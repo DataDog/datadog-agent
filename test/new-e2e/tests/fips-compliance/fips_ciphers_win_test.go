@@ -175,13 +175,6 @@ func linuxDockerVMProvisioner(ctx *pulumi.Context, awsEnv aws.Environment, env *
 	// copied from docker environment/provisioner
 	//
 
-	// install the ECR credentials helper
-	// required to get pipeline agent images
-	// TODO: cred helper might not be needed? not sure about auth on fips-server image
-	installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, linuxDockerVM)
-	if err != nil {
-		return err
-	}
 	manager, err := docker.NewManager(&awsEnv, linuxDockerVM, utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	if err != nil {
 		return err
