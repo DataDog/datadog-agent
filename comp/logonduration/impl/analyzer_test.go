@@ -286,53 +286,41 @@ func TestParseWinlogon(t *testing.T) {
 	t.Run("event 107 sets ServicesWaitStart", func(t *testing.T) {
 		coll := newCollector()
 		coll.parseWinlogon(nil, 107, ts)
-		assert.Equal(t, ts, coll.timeline.ServicesWaitStart)
+		assert.Equal(t, ts, coll.timeline.LSMStart)
 	})
 
 	t.Run("event 108 sets ServicesReady", func(t *testing.T) {
 		coll := newCollector()
 		coll.parseWinlogon(nil, 108, ts)
-		assert.Equal(t, ts, coll.timeline.ServicesReady)
+		assert.Equal(t, ts, coll.timeline.LSMReady)
 	})
 
-	t.Run("event 3 sets SCMNotifyStart (last-write-wins)", func(t *testing.T) {
-		coll := newCollector()
-		ts2 := ts.Add(5 * time.Second)
-		coll.parseWinlogon(nil, 3, ts)
-		coll.parseWinlogon(nil, 3, ts2)
-		assert.Equal(t, ts2, coll.timeline.SCMNotifyStart)
-	})
-
-	t.Run("event 4 sets SCMNotifyEnd", func(t *testing.T) {
-		coll := newCollector()
-		coll.parseWinlogon(nil, 4, ts)
-		assert.Equal(t, ts, coll.timeline.SCMNotifyEnd)
-	})
-
-	t.Run("event 9 sets ShellStart", func(t *testing.T) {
+	t.Run("event 9 sets ExecuteShellCommandListStart", func(t *testing.T) {
 		coll := newCollector()
 		coll.parseWinlogon(nil, 9, ts)
-		assert.Equal(t, ts, coll.timeline.ShellStart)
+		assert.Equal(t, ts, coll.timeline.ExecuteShellCommandListStart)
 	})
 
-	t.Run("event 10 sets ShellStarted", func(t *testing.T) {
+	t.Run("event 10 sets ExecuteShellCommandListEnd", func(t *testing.T) {
 		coll := newCollector()
 		coll.parseWinlogon(nil, 10, ts)
-		assert.Equal(t, ts, coll.timeline.ShellStarted)
+		assert.Equal(t, ts, coll.timeline.ExecuteShellCommandListEnd)
 	})
 
-	t.Run("event 13 sets LogonScriptsStart (last-write-wins)", func(t *testing.T) {
+	t.Run("event 11 sets ThemesLogonStart (last-write-wins)", func(t *testing.T) {
+		coll := newCollector()
+		ts2 := ts.Add(5 * time.Second)
+		coll.parseWinlogon(nil, 11, ts)
+		coll.parseWinlogon(nil, 11, ts2)
+		assert.Equal(t, ts2, coll.timeline.ThemesLogonStart)
+	})
+
+	t.Run("event 13 sets ThemesLogonEnd (last-write-wins)", func(t *testing.T) {
 		coll := newCollector()
 		ts2 := ts.Add(5 * time.Second)
 		coll.parseWinlogon(nil, 13, ts)
 		coll.parseWinlogon(nil, 13, ts2)
-		assert.Equal(t, ts2, coll.timeline.LogonScriptsStart)
-	})
-
-	t.Run("event 14 sets LogonScriptsEnd", func(t *testing.T) {
-		coll := newCollector()
-		coll.parseWinlogon(nil, 14, ts)
-		assert.Equal(t, ts, coll.timeline.LogonScriptsEnd)
+		assert.Equal(t, ts2, coll.timeline.ThemesLogonEnd)
 	})
 
 	t.Run("event 5001 sets LogonStart", func(t *testing.T) {
@@ -420,10 +408,10 @@ func TestParseWinlogon_SubscriberTracking(t *testing.T) {
 func TestParseUserProfile(t *testing.T) {
 	ts := time.Date(2026, 1, 15, 8, 0, 45, 0, time.UTC)
 
-	t.Run("event 1001 sets ProfileStart", func(t *testing.T) {
+	t.Run("event 1001 sets ProfileCreationStart", func(t *testing.T) {
 		coll := newCollector()
 		coll.parseUserProfile(nil, 1001, ts)
-		assert.Equal(t, ts, coll.timeline.ProfileStart)
+		assert.Equal(t, ts, coll.timeline.ProfileCreationStart)
 	})
 
 	t.Run("event 1001 first-write-wins", func(t *testing.T) {
@@ -431,15 +419,15 @@ func TestParseUserProfile(t *testing.T) {
 		ts2 := ts.Add(5 * time.Second)
 		coll.parseUserProfile(nil, 1001, ts)
 		coll.parseUserProfile(nil, 1001, ts2)
-		assert.Equal(t, ts, coll.timeline.ProfileStart)
+		assert.Equal(t, ts, coll.timeline.ProfileCreationStart)
 	})
 
-	t.Run("event 1002 sets ProfileEnd (last-write-wins)", func(t *testing.T) {
+	t.Run("event 1002 sets ProfileCreationEnd (first-write-wins)", func(t *testing.T) {
 		coll := newCollector()
 		ts2 := ts.Add(5 * time.Second)
 		coll.parseUserProfile(nil, 1002, ts)
 		coll.parseUserProfile(nil, 1002, ts2)
-		assert.Equal(t, ts2, coll.timeline.ProfileEnd)
+		assert.Equal(t, ts, coll.timeline.ProfileCreationEnd)
 	})
 }
 
@@ -537,7 +525,7 @@ func TestProcessEvent(t *testing.T) {
 
 		processEvent(coll, e)
 
-		assert.Equal(t, ts, coll.timeline.ProfileStart)
+		assert.Equal(t, ts, coll.timeline.ProfileCreationStart)
 	})
 
 	t.Run("routes GroupPolicy event to parseGroupPolicy", func(t *testing.T) {
@@ -593,6 +581,7 @@ func TestCollector_FullBootSequence(t *testing.T) {
 		makeEvent(*guidKernelProcess, 1, boot.Add(50*time.Second),
 			etw.EventProperty{Name: "ImageFileName", Value: "explorer.exe"}),
 		makeEvent(*guidShellCore, 62171, boot.Add(60*time.Second)),
+		makeEvent(*guidWinlogon, 5002, boot.Add(60*time.Second)),
 	}
 
 	for _, e := range events {
@@ -603,23 +592,24 @@ func TestCollector_FullBootSequence(t *testing.T) {
 	assert.Equal(t, boot, tl.BootStart)
 	assert.Equal(t, boot.Add(1*time.Second), tl.SmssStart)
 	assert.Equal(t, boot.Add(4*time.Second), tl.WinlogonInit)
-	assert.Equal(t, boot.Add(10*time.Second), tl.ServicesReady)
+	assert.Equal(t, boot.Add(10*time.Second), tl.LSMReady)
 	assert.Equal(t, boot.Add(12*time.Second), tl.MachineGPStart)
 	assert.Equal(t, boot.Add(20*time.Second), tl.MachineGPEnd)
 	assert.Equal(t, boot.Add(25*time.Second), tl.WinlogonStart)
 	assert.Equal(t, boot.Add(30*time.Second), tl.LogonStart)
-	assert.Equal(t, boot.Add(31*time.Second), tl.ProfileStart)
-	assert.Equal(t, boot.Add(35*time.Second), tl.ProfileEnd)
-	assert.Equal(t, boot.Add(40*time.Second), tl.ShellStart)
+	assert.Equal(t, boot.Add(31*time.Second), tl.ProfileCreationStart)
+	assert.Equal(t, boot.Add(35*time.Second), tl.ProfileCreationEnd)
+	assert.Equal(t, boot.Add(40*time.Second), tl.ExecuteShellCommandListStart)
 	assert.Equal(t, boot.Add(42*time.Second), tl.UserinitStart)
-	assert.Equal(t, boot.Add(45*time.Second), tl.ShellStarted)
+	assert.Equal(t, boot.Add(45*time.Second), tl.ExecuteShellCommandListEnd)
 	assert.Equal(t, boot.Add(50*time.Second), tl.ExplorerStart)
 	assert.Equal(t, boot.Add(60*time.Second), tl.DesktopReady)
+	assert.Equal(t, boot.Add(60*time.Second), tl.LogonStop)
 
 	custom := buildCustomPayload(tl)
 	durations := custom["durations"].(map[string]interface{})
 	assert.Equal(t, int64(60000), durations["Total Boot Duration (ms)"])
 	assert.Equal(t, int64(30000), durations["Total Logon Duration (ms)"])
-	assert.Equal(t, int64(4000), durations["Profile Load Duration (ms)"])
+	assert.Equal(t, int64(4000), durations["Profile Creation Duration (ms)"])
 	assert.Equal(t, int64(8000), durations["Machine GP Duration (ms)"])
 }

@@ -92,29 +92,30 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 	t.Run("full timeline includes all milestones in order", func(t *testing.T) {
 		tl := BootTimeline{
-			BootStart:         boot,
-			SmssStart:         boot.Add(1 * time.Second),
-			UserSmssStart:     boot.Add(5 * time.Second),
-			WinlogonStart:     boot.Add(3 * time.Second),
-			WinlogonInit:      boot.Add(4 * time.Second),
-			ServicesReady:     boot.Add(10 * time.Second),
-			MachineGPStart:    boot.Add(12 * time.Second),
-			MachineGPEnd:      boot.Add(20 * time.Second),
-			UserWinlogonStart: boot.Add(25 * time.Second),
-			LogonStart:        boot.Add(30 * time.Second),
-			ProfileStart:      boot.Add(31 * time.Second),
-			ShellStart:        boot.Add(40 * time.Second),
-			UserinitStart:     boot.Add(42 * time.Second),
-			ShellStarted:      boot.Add(45 * time.Second),
-			ExplorerStart:     boot.Add(50 * time.Second),
-			DesktopReady:      boot.Add(60 * time.Second),
-			UserGPStart:       boot.Add(32 * time.Second),
-			UserGPEnd:         boot.Add(38 * time.Second),
+			BootStart:                    boot,
+			SmssStart:                    boot.Add(1 * time.Second),
+			UserSmssStart:                boot.Add(5 * time.Second),
+			WinlogonStart:                boot.Add(3 * time.Second),
+			WinlogonInit:                 boot.Add(4 * time.Second),
+			LSMStart:                     boot.Add(8 * time.Second),
+			LSMReady:                     boot.Add(10 * time.Second),
+			MachineGPStart:               boot.Add(12 * time.Second),
+			MachineGPEnd:                 boot.Add(20 * time.Second),
+			UserGPStart:                  boot.Add(32 * time.Second),
+			UserGPEnd:                    boot.Add(38 * time.Second),
+			UserWinlogonStart:            boot.Add(25 * time.Second),
+			LogonStart:                   boot.Add(30 * time.Second),
+			ProfileLoadStart:             boot.Add(31 * time.Second),
+			ProfileCreationStart:         boot.Add(33 * time.Second),
+			ExecuteShellCommandListStart: boot.Add(40 * time.Second),
+			UserinitStart:                boot.Add(42 * time.Second),
+			ExplorerStart:                boot.Add(50 * time.Second),
+			DesktopReady:                 boot.Add(60 * time.Second),
 		}
 
 		milestones := buildTimelineMilestones(tl)
 
-		assert.Len(t, milestones, 18)
+		assert.Len(t, milestones, 16)
 		assert.Equal(t, "Boot Start", milestones[0].Name)
 		assert.Equal(t, "Desktop Ready", milestones[15].Name)
 	})
@@ -140,6 +141,7 @@ func TestBuildCustomPayload(t *testing.T) {
 		tl := BootTimeline{
 			BootStart:    boot,
 			LogonStart:   boot.Add(30 * time.Second),
+			LogonStop:    boot.Add(90 * time.Second),
 			DesktopReady: boot.Add(90 * time.Second),
 		}
 
@@ -151,10 +153,10 @@ func TestBuildCustomPayload(t *testing.T) {
 
 	t.Run("includes profile load duration", func(t *testing.T) {
 		tl := BootTimeline{
-			BootStart:    boot,
-			ProfileStart: boot.Add(30 * time.Second),
-			ProfileEnd:   boot.Add(35 * time.Second),
-			DesktopReady: boot.Add(90 * time.Second),
+			BootStart:        boot,
+			ProfileLoadStart: boot.Add(30 * time.Second),
+			ProfileLoadEnd:   boot.Add(35 * time.Second),
+			DesktopReady:     boot.Add(90 * time.Second),
 		}
 
 		custom := buildCustomPayload(tl)
@@ -182,9 +184,9 @@ func TestBuildCustomPayload(t *testing.T) {
 
 	t.Run("omits durations when end timestamp is zero", func(t *testing.T) {
 		tl := BootTimeline{
-			BootStart:    boot,
-			ProfileStart: boot.Add(30 * time.Second),
-			// ProfileEnd is zero
+			BootStart:        boot,
+			ProfileLoadStart: boot.Add(30 * time.Second),
+			// ProfileLoadEnd is zero
 		}
 
 		custom := buildCustomPayload(tl)
@@ -216,21 +218,18 @@ func TestBuildCustomPayload(t *testing.T) {
 		assert.True(t, hasTimeline)
 	})
 
-	t.Run("includes SCM notify and logon scripts durations", func(t *testing.T) {
+	t.Run("includes theme loading duration", func(t *testing.T) {
 		tl := BootTimeline{
-			BootStart:         boot,
-			SCMNotifyStart:    boot.Add(20 * time.Second),
-			SCMNotifyEnd:      boot.Add(22 * time.Second),
-			LogonScriptsStart: boot.Add(50 * time.Second),
-			LogonScriptsEnd:   boot.Add(55 * time.Second),
-			DesktopReady:      boot.Add(90 * time.Second),
+			BootStart:        boot,
+			ThemesLogonStart: boot.Add(50 * time.Second),
+			ThemesLogonEnd:   boot.Add(55 * time.Second),
+			DesktopReady:     boot.Add(90 * time.Second),
 		}
 
 		custom := buildCustomPayload(tl)
 
 		durations := custom["durations"].(map[string]interface{})
-		assert.Equal(t, int64(2000), durations["SCM Notify Duration (ms)"])
-		assert.Equal(t, int64(5000), durations["Logon Scripts Duration (ms)"])
+		assert.Equal(t, int64(5000), durations["Theme Loading Duration (ms)"])
 	})
 }
 

@@ -229,10 +229,20 @@ func getDurationMilliseconds(start, end time.Time) int64 {
 	return end.Sub(start).Milliseconds()
 }
 
+// durationBetween returns the duration between start and end.
+// Returns 0 if either timestamp is unavailable (zero).
+func durationBetween(start, end time.Time) time.Duration {
+	if start.IsZero() || end.IsZero() {
+		return 0
+	}
+	return end.Sub(start)
+}
+
 // Milestone represents a single event in the boot/logon timeline.
 type Milestone struct {
 	Name      string  `json:"name"`
 	OffsetS   float64 `json:"offset_s"`
+	DurationS float64 `json:"duration_s"`
 	Timestamp string  `json:"timestamp"`
 }
 
@@ -243,27 +253,27 @@ func buildTimelineMilestones(tl BootTimeline) []Milestone {
 	boot := tl.BootStart
 
 	candidates := []struct {
-		name string
-		ts   time.Time
+		name     string
+		ts       time.Time
+		duration time.Duration
 	}{
-		{"Boot Start", tl.BootStart},
-		{"SMSS Start", tl.SmssStart},
-		{"User Session SMSS Start", tl.UserSmssStart},
-		{"Winlogon Start", tl.WinlogonStart},
-		{"Winlogon Init", tl.WinlogonInit},
-		{"Services Ready", tl.ServicesReady},
-		{"Machine GP Start", tl.MachineGPStart},
-		{"Machine GP Complete", tl.MachineGPEnd},
-		{"User Session Winlogon Start", tl.UserWinlogonStart},
-		{"Logon Start", tl.LogonStart},
-		{"Profile Load Start", tl.ProfileStart},
-		{"Shell Start", tl.ShellStart},
-		{"Userinit Start", tl.UserinitStart},
-		{"Shell Started", tl.ShellStarted},
-		{"Explorer Start", tl.ExplorerStart},
-		{"Desktop Ready", tl.DesktopReady},
-		{"User GP Start", tl.UserGPStart},
-		{"User GP Complete", tl.UserGPEnd},
+		{"Boot Start", tl.BootStart, 0},
+		{"SMSS Start", tl.SmssStart, 0},
+		{"User Session SMSS Start", tl.UserSmssStart, 0},
+		{"Winlogon Start", tl.WinlogonStart, 0},
+		{"Winlogon Init", tl.WinlogonInit, durationBetween(tl.WinlogonInit, tl.WinlogonInitDone)},
+		{"Local Session Manager", tl.LSMStart, durationBetween(tl.LSMStart, tl.LSMReady)},
+		{"Computer Group Policy", tl.MachineGPStart, durationBetween(tl.MachineGPStart, tl.MachineGPEnd)},
+		{"User Group Policy", tl.UserGPStart, durationBetween(tl.UserGPStart, tl.UserGPEnd)},
+		{"User Session Winlogon Start", tl.UserWinlogonStart, 0},
+		{"User Logon", tl.LogonStart, durationBetween(tl.LogonStart, tl.LogonStop)},
+		{"Profile Loaded", tl.ProfileLoadStart, durationBetween(tl.ProfileLoadStart, tl.ProfileLoadEnd)},
+		{"Profile Creation", tl.ProfileCreationStart, durationBetween(tl.ProfileCreationStart, tl.ProfileCreationEnd)},
+		{"Execute Shell Commands", tl.ExecuteShellCommandListStart, durationBetween(tl.ExecuteShellCommandListStart, tl.ExecuteShellCommandListEnd)},
+		{"Theme Loaded", tl.ThemesLogonStart, durationBetween(tl.ThemesLogonStart, tl.ThemesLogonEnd)},
+		{"Userinit.exe", tl.UserinitStart, durationBetween(tl.UserinitStart, tl.ExplorerStart)},
+		{"Explorer.exe Start", tl.ExplorerStart, 0},
+		{"Desktop Ready", tl.DesktopReady, 0},
 	}
 
 	hasBootRef := !boot.IsZero()
@@ -281,6 +291,7 @@ func buildTimelineMilestones(tl BootTimeline) []Milestone {
 			Name:      c.name,
 			OffsetS:   offset,
 			Timestamp: c.ts.UTC().Format(tsFmt),
+			DurationS: c.duration.Seconds(),
 		})
 	}
 	return milestones
@@ -295,11 +306,14 @@ func buildCustomPayload(tl BootTimeline) map[string]interface{} {
 	if !tl.BootStart.IsZero() && !tl.DesktopReady.IsZero() {
 		durations["Total Boot Duration (ms)"] = getDurationMilliseconds(tl.BootStart, tl.DesktopReady)
 	}
-	if !tl.LogonStart.IsZero() && !tl.DesktopReady.IsZero() {
+	if !tl.LogonStart.IsZero() && !tl.LogonStop.IsZero() {
 		durations["Total Logon Duration (ms)"] = getDurationMilliseconds(tl.LogonStart, tl.DesktopReady)
 	}
-	if !tl.ProfileStart.IsZero() && !tl.ProfileEnd.IsZero() {
-		durations["Profile Load Duration (ms)"] = getDurationMilliseconds(tl.ProfileStart, tl.ProfileEnd)
+	if !tl.ProfileLoadStart.IsZero() && !tl.ProfileLoadEnd.IsZero() {
+		durations["Profile Load Duration (ms)"] = getDurationMilliseconds(tl.ProfileLoadStart, tl.ProfileLoadEnd)
+	}
+	if !tl.ProfileCreationStart.IsZero() && !tl.ProfileCreationEnd.IsZero() {
+		durations["Profile Creation Duration (ms)"] = getDurationMilliseconds(tl.ProfileCreationStart, tl.ProfileCreationEnd)
 	}
 	if !tl.MachineGPStart.IsZero() && !tl.MachineGPEnd.IsZero() {
 		durations["Machine GP Duration (ms)"] = getDurationMilliseconds(tl.MachineGPStart, tl.MachineGPEnd)
@@ -307,20 +321,14 @@ func buildCustomPayload(tl BootTimeline) map[string]interface{} {
 	if !tl.UserGPStart.IsZero() && !tl.UserGPEnd.IsZero() {
 		durations["User GP Duration (ms)"] = getDurationMilliseconds(tl.UserGPStart, tl.UserGPEnd)
 	}
-	if !tl.ShellStart.IsZero() && !tl.ShellStarted.IsZero() {
-		durations["Shell Startup Duration (ms)"] = getDurationMilliseconds(tl.ShellStart, tl.ShellStarted)
-	}
-	if !tl.ShellStarted.IsZero() && !tl.ExplorerStart.IsZero() {
-		durations["Shell Launch Duration (ms)"] = getDurationMilliseconds(tl.ShellStarted, tl.ExplorerStart)
+	if !tl.ExecuteShellCommandListStart.IsZero() && !tl.ExecuteShellCommandListEnd.IsZero() {
+		durations["Execute Shell Command List Duration (ms)"] = getDurationMilliseconds(tl.ExecuteShellCommandListStart, tl.ExecuteShellCommandListEnd)
 	}
 	if !tl.ExplorerStart.IsZero() && !tl.DesktopReady.IsZero() {
 		durations["Explorer Launch Duration (ms)"] = getDurationMilliseconds(tl.ExplorerStart, tl.DesktopReady)
 	}
-	if !tl.SCMNotifyStart.IsZero() && !tl.SCMNotifyEnd.IsZero() {
-		durations["SCM Notify Duration (ms)"] = getDurationMilliseconds(tl.SCMNotifyStart, tl.SCMNotifyEnd)
-	}
-	if !tl.LogonScriptsStart.IsZero() && !tl.LogonScriptsEnd.IsZero() {
-		durations["Logon Scripts Duration (ms)"] = getDurationMilliseconds(tl.LogonScriptsStart, tl.LogonScriptsEnd)
+	if !tl.ThemesLogonStart.IsZero() && !tl.ThemesLogonEnd.IsZero() {
+		durations["Theme Loading Duration (ms)"] = getDurationMilliseconds(tl.ThemesLogonStart, tl.ThemesLogonEnd)
 	}
 
 	if len(durations) > 0 {

@@ -35,34 +35,35 @@ var (
 
 // BootTimeline holds all milestone timestamps collected from ETL events.
 type BootTimeline struct {
-	BootStart         time.Time // Kernel-General Event 12
-	SmssStart         time.Time // Kernel-Process Event 1 (first smss.exe)
-	WinlogonStart     time.Time // Kernel-Process Event 1 (first winlogon.exe, Session 1)
-	UserSmssStart     time.Time // Kernel-Process Event 1 (smss.exe, Session 2+)
-	UserWinlogonStart time.Time // Kernel-Process Event 1 (winlogon.exe, Session 2+)
-	LogonStart        time.Time // Winlogon Event 5001
-	SubscribersDone   time.Time // Winlogon Event 802
-	ProfileStart      time.Time // User Profile Service Event 1001
-	ProfileEnd        time.Time // User Profile Service Event 1002
-	MachineGPStart    time.Time // GroupPolicy Event 4000
-	MachineGPEnd      time.Time // GroupPolicy Event 8000
-	UserGPStart       time.Time // GroupPolicy Event 4001
-	UserGPEnd         time.Time // GroupPolicy Event 8001
-	ShellStart        time.Time // Winlogon Event 9
-	ShellStarted      time.Time // Winlogon Event 10
-	UserinitStart     time.Time // Kernel-Process Event 1 (userinit.exe)
-	ExplorerStart     time.Time // Kernel-Process Event 1 (explorer.exe)
-	DesktopReady      time.Time // Shell-Core Event 62171
+	BootStart                    time.Time // Kernel-General Event 12
+	SmssStart                    time.Time // Kernel-Process Event 1 (first smss.exe)
+	WinlogonStart                time.Time // Kernel-Process Event 1 (first winlogon.exe, Session 1)
+	UserSmssStart                time.Time // Kernel-Process Event 1 (smss.exe, Session 2+)
+	UserWinlogonStart            time.Time // Kernel-Process Event 1 (winlogon.exe, Session 2+)
+	LogonStart                   time.Time // Winlogon Event 5001
+	LogonStop                    time.Time // Winlogon Event 5002
+	SubscribersDone              time.Time // Winlogon Event 802
+	ProfileLoadStart             time.Time // User Profile Service Event 1
+	ProfileLoadEnd               time.Time // User Profile Service Event 2
+	ProfileCreationStart         time.Time // User Profile Service Event 1001
+	ProfileCreationEnd           time.Time // User Profile Service Event 1002
+	MachineGPStart               time.Time // GroupPolicy Event 4000
+	MachineGPEnd                 time.Time // GroupPolicy Event 8000
+	UserGPStart                  time.Time // GroupPolicy Event 4001
+	UserGPEnd                    time.Time // GroupPolicy Event 8001
+	ExecuteShellCommandListStart time.Time // Winlogon Event 9
+	ExecuteShellCommandListEnd   time.Time // Winlogon Event 10
+	UserinitStart                time.Time // Kernel-Process Event 1 (userinit.exe)
+	ExplorerStart                time.Time // Kernel-Process Event 1 (explorer.exe)
+	DesktopReady                 time.Time // Shell-Core Event 62171
 
 	// Winlogon sub-events for detailed component timing
-	WinlogonInit      time.Time // Winlogon Event 101
-	WinlogonInitDone  time.Time // Winlogon Event 102
-	ServicesWaitStart time.Time // Winlogon Event 107
-	ServicesReady     time.Time // Winlogon Event 108
-	SCMNotifyStart    time.Time // Winlogon Event 3
-	SCMNotifyEnd      time.Time // Winlogon Event 4
-	LogonScriptsStart time.Time // Winlogon Event 13
-	LogonScriptsEnd   time.Time // Winlogon Event 14
+	WinlogonInit     time.Time // Winlogon Event 101
+	WinlogonInitDone time.Time // Winlogon Event 102
+	LSMStart         time.Time // Winlogon Event 107
+	LSMReady         time.Time // Winlogon Event 108
+	ThemesLogonStart time.Time // Winlogon Event 11
+	ThemesLogonEnd   time.Time // Winlogon Event 13
 }
 
 // SubscriberInfo tracks an individual Winlogon subscriber's timing.
@@ -155,7 +156,7 @@ func analyzeETL(ctx context.Context, etlPath string) (*AnalysisResult, error) {
 		// Winlogon events we care about
 		if er.EventHeader.ProviderId.Equals(guidWinlogon) {
 			switch id {
-			case 3, 4, 9, 10, 13, 14, 101, 102, 107, 108, 802, 805, 806, 5001:
+			case 9, 10, 11, 13, 101, 102, 107, 108, 802, 805, 806, 5001, 5002:
 				return true
 			}
 			return false
@@ -164,7 +165,7 @@ func analyzeETL(ctx context.Context, etlPath string) (*AnalysisResult, error) {
 		// User Profile Service events
 		if er.EventHeader.ProviderId.Equals(guidUserProfile) {
 			switch id {
-			case 1001, 1002:
+			case 1, 2, 1001, 1002:
 				return true
 			}
 			return false
@@ -291,32 +292,32 @@ func (coll *collector) parseWinlogon(e *etw.Event, id uint16, ts time.Time) {
 			coll.timeline.WinlogonInitDone = ts
 		}
 	case 107:
-		if coll.timeline.ServicesWaitStart.IsZero() {
-			coll.timeline.ServicesWaitStart = ts
+		if coll.timeline.LSMStart.IsZero() {
+			coll.timeline.LSMStart = ts
 		}
 	case 108:
-		if coll.timeline.ServicesReady.IsZero() {
-			coll.timeline.ServicesReady = ts
+		if coll.timeline.LSMReady.IsZero() {
+			coll.timeline.LSMReady = ts
 		}
-	case 3:
-		coll.timeline.SCMNotifyStart = ts
-	case 4:
-		coll.timeline.SCMNotifyEnd = ts
 	case 9:
-		if coll.timeline.ShellStart.IsZero() {
-			coll.timeline.ShellStart = ts
+		if coll.timeline.ExecuteShellCommandListStart.IsZero() {
+			coll.timeline.ExecuteShellCommandListStart = ts
 		}
 	case 10:
-		if coll.timeline.ShellStarted.IsZero() {
-			coll.timeline.ShellStarted = ts
+		if coll.timeline.ExecuteShellCommandListEnd.IsZero() {
+			coll.timeline.ExecuteShellCommandListEnd = ts
 		}
+	case 11:
+		coll.timeline.ThemesLogonStart = ts
 	case 13:
-		coll.timeline.LogonScriptsStart = ts
-	case 14:
-		coll.timeline.LogonScriptsEnd = ts
+		coll.timeline.ThemesLogonEnd = ts
 	case 5001:
 		if coll.timeline.LogonStart.IsZero() {
 			coll.timeline.LogonStart = ts
+		}
+	case 5002:
+		if coll.timeline.LogonStop.IsZero() {
+			coll.timeline.LogonStop = ts
 		}
 	case 802:
 		coll.timeline.SubscribersDone = ts
@@ -345,12 +346,22 @@ func (coll *collector) parseWinlogon(e *etw.Event, id uint16, ts time.Time) {
 // parseUserProfile processes User Profile Service events (1001: start, 1002: end).
 func (coll *collector) parseUserProfile(_ *etw.Event, id uint16, ts time.Time) {
 	switch id {
+	case 1:
+		if coll.timeline.ProfileLoadStart.IsZero() {
+			coll.timeline.ProfileLoadStart = ts
+		}
+	case 2:
+		if coll.timeline.ProfileLoadEnd.IsZero() {
+			coll.timeline.ProfileLoadEnd = ts
+		}
 	case 1001:
-		if coll.timeline.ProfileStart.IsZero() {
-			coll.timeline.ProfileStart = ts
+		if coll.timeline.ProfileCreationStart.IsZero() {
+			coll.timeline.ProfileCreationStart = ts
 		}
 	case 1002:
-		coll.timeline.ProfileEnd = ts
+		if coll.timeline.ProfileCreationEnd.IsZero() {
+			coll.timeline.ProfileCreationEnd = ts
+		}
 	}
 }
 
