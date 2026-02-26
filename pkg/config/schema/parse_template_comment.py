@@ -82,6 +82,11 @@ def get_from_schema(currpath, field, schemaroot):
         node = node[s]["properties"]
     return node.get(field)
 
+
+def is_node_section(node):
+    return node.get("node_type", "") == "section"
+
+
 class Parser(object):
 
     def __init__(self):
@@ -129,7 +134,7 @@ class Parser(object):
         if self.current_title != "":
             node["title"] = self.current_title
             self.current_title = ""
-        if node.get("node_type", "") != "section":
+        if not is_node_section(node):
             if example and node.get("default") != example:
                 node["example"] = example
 
