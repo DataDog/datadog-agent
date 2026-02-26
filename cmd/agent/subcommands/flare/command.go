@@ -164,7 +164,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func() serializer.MetricSerializer {
 					return nil
 				}),
-				core.Bundle(core.WithSecrets(), core.WithDelegatedAuth()),
+				core.Bundle(core.WithSecrets()),
 				hostnameimpl.Module(),
 				haagentfx.Module(),
 				logscompressorfx.Module(),

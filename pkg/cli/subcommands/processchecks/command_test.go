@@ -61,7 +61,7 @@ func TestCommand(t *testing.T) {
 	getTestFxOptions := func(cliParams *CliParams, bundleParams core.BundleParams) []fx.Option {
 		return []fx.Option{
 			fx.Supply(cliParams, bundleParams),
-			core.Bundle(core.WithSecrets(), core.WithDelegatedAuth()),
+			core.Bundle(core.WithSecrets()),
 			hostnameimpl.Module(),
 
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),

@@ -67,16 +67,12 @@ func Bundle(options ...Option) fxutil.BundleOptions {
 	)
 }
 
-// WithSecrets adds the secrets module to the bundle
+// WithSecrets adds the secrets module and delegated auth module to the bundle.
+// Delegated auth is included because it may be used to obtain API keys during
+// secret resolution.
 func WithSecrets() Option {
 	return func(params *bundleOptions) {
 		params.secretsModule = secretsfx.Module()
-	}
-}
-
-// WithDelegatedAuth adds the delegated auth module to the bundle
-func WithDelegatedAuth() Option {
-	return func(params *bundleOptions) {
 		params.delegatedAuthModule = delegatedauthfx.Module()
 	}
 }

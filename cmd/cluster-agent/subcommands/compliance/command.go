@@ -56,7 +56,7 @@ func complianceCheckCommand(globalParams *command.GlobalParams) *cobra.Command {
 			return fxutil.OneShot(cli.RunCheck,
 				fx.Supply(checkArgs),
 				fx.Supply(bundleParams),
-				core.Bundle(core.WithSecrets(), core.WithDelegatedAuth()),
+				core.Bundle(core.WithSecrets()),
 				logscompressionfx.Module(),
 				statsd.Module(),
 				ipcfx.ModuleReadOnly(),
