@@ -19,7 +19,6 @@ import (
 	"github.com/go-json-experiment/json"
 	"github.com/go-json-experiment/json/jsontext"
 	"github.com/google/uuid"
-	pkgerrors "github.com/pkg/errors"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
@@ -189,9 +188,9 @@ func (d *Decoder) Decode(
 		switch r := r.(type) {
 		case nil:
 		case error:
-			err = pkgerrors.Wrap(r, "Decode: panic")
+			err = fmt.Errorf("Decode: panic: %w", r)
 		default:
-			err = pkgerrors.Errorf("Decode: panic: %v\n%s", r, debug.Stack())
+			err = fmt.Errorf("Decode: panic: %v\n%s", r, debug.Stack())
 		}
 	}()
 	probe, err = d.message.init(d, event, symbolicator)
@@ -220,7 +219,7 @@ func (d *Decoder) Decode(
 			enc.Reset(b)
 			continue
 		} else if err != nil {
-			return buf, probe, pkgerrors.Wrap(err, "error marshaling snapshot message")
+			return buf, probe, fmt.Errorf("error marshaling snapshot message: %w", err)
 		}
 		break
 	}

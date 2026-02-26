@@ -300,7 +300,7 @@ require (
 	github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pierrec/lz4/v4 v4.1.25
-	github.com/pkg/errors v0.9.1
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
 	github.com/prometheus-community/pro-bing v0.4.1
 	github.com/prometheus/client_golang v1.23.2
