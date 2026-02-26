@@ -286,6 +286,11 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.PeerTags = core.GetStringSlice("apm_config.peer_tags")
 	}
 
+	if core.IsConfigured("apm_config.span_derived_primary_tags") {
+		c.SpanDerivedPrimaryTagKeys = core.GetStringSlice("apm_config.span_derived_primary_tags")
+		log.Infof("span_derived_primary_tags configured: %v", c.SpanDerivedPrimaryTagKeys)
+	}
+
 	if core.IsConfigured("apm_config.extra_sample_rate") {
 		c.ExtraSampleRate = core.GetFloat64("apm_config.extra_sample_rate")
 	}
@@ -542,6 +547,10 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	} else {
 		// Default of 4 was chosen through experimentation, but may not be the optimal value.
 		c.MaxSenderRetries = 4
+	}
+	if core.IsSet("secret_refresh_on_api_key_failure_interval") {
+		// Use the global secret refresh interval for throttling API key refresh at the sender level
+		c.APIKeyRefreshThrottleInterval = time.Duration(core.GetInt("secret_refresh_on_api_key_failure_interval")) * time.Minute
 	}
 	if core.IsConfigured("apm_config.sync_flushing") {
 		c.SynchronousFlushing = core.GetBool("apm_config.sync_flushing")

@@ -7,13 +7,18 @@ if [ -z "${BAZEL_REAL:-}" ] || [ "${BAZELISK_SKIP_WRAPPER:-}" != true ]; then
   exit 2
 fi
 
-# CI specific setup
-if [ -n "${CI:-}" ]; then
-  if [ ! -d "${XDG_CACHE_HOME:-}" ]; then
+# Ensure `XDG_CACHE_HOME` denotes a directory
+if [ ! -d "${XDG_CACHE_HOME:-}" ]; then
+  if [ -n "${CI:-}" ]; then
     >&2 echo "🔴 XDG_CACHE_HOME (${XDG_CACHE_HOME:-}) must denote a directory in CI!"
     exit 2
   fi
-
+  if [[ -e /.dockerenv || -e /run/.containerenv ]]; then
+    >&2 echo "💡 To persist caches across restarts, please set XDG_CACHE_HOME pointing to a mounted directory, e.g.:"
+    # shellcheck disable=SC2016
+    >&2 echo '    docker run --env=XDG_CACHE_HOME=/cache --volume="$HOME/.cache:/cache" ...'
+  fi
+elif [ -n "${CI:-}" ]; then
   # Pass CI-specific options through `.user.bazelrc` so any nested `bazel run` also honor them
   cat >"$(dirname "$(dirname "$0")")/user.bazelrc" <<EOF
 common --config=ci

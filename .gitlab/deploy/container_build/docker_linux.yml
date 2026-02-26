@@ -186,7 +186,7 @@ single_machine_performance-full-amd64-a7:
   rules:
     - !reference [.except_mergequeue]
     # Always publish SMP images on main (needed for baseline comparisons)
-    - !reference [.on_main]
+    - !reference [.on_main_or_release_branch]
     # On dev branches, only publish when artifact-impacting files change.
     # This skips SMP for doc-only, CI-only, or e2e test-only PRs.
     - !reference [.on_dev_branches_with_artifact_changes]
@@ -423,8 +423,11 @@ docker_build_agent7_fips_full_arm64:
   before_script:
     - mkdir -p ${ARTIFACTS_BUILD_CONTEXT}
     - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $ARTIFACTS_BUILD_CONTEXT/
+    - mv -vf $SECRET_GENERIC_CONNECTOR_BINARIES_DIR/secret-generic-connector $ARTIFACTS_BUILD_CONTEXT/
     - mv -vf $CWS_INSTRUMENTATION_BINARIES_DIR $ARTIFACTS_BUILD_CONTEXT/
     - mv -vf Dockerfiles/agent/nosys-seccomp $BUILD_CONTEXT/
+    - mkdir -p ${BUILD_CONTEXT}/private-action-runner
+    - cp -v pkg/privateactionrunner/autoconnections/conf/script-config.yaml ${BUILD_CONTEXT}/private-action-runner/
 
 docker_build_cluster_agent_amd64:
   extends: [.docker_build_amd64, .docker_build_cluster_agent]
