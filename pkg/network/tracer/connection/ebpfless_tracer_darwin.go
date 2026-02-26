@@ -16,14 +16,13 @@ import (
 
 const (
 	// the segment length to read on Darwin
-	// For loopback on Darwin: ip header + tcp header (no ethernet)
-	segmentLen = 60 + 60
+	// For on Darwin: ethernet + ip header + tcp header (no ethernet)
+	segmentLen = 18 + 20 + 20
 )
 
 // createPacketSource creates a Darwin-specific libpcap packet source
 func createPacketSource(_ *config.Config) (filter.PacketSource, error) {
 	packetSrc, err := filter.NewLibpcapSource(
-		8<<20, // 8 MB (not actually used by libpcap, but kept for API compatibility)
 		filter.OptSnapLen(segmentLen))
 	if err != nil {
 		return nil, fmt.Errorf("error creating libpcap source: %w", err)
