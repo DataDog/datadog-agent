@@ -248,7 +248,7 @@ func createFakePodAutoscaler(testTime time.Time) model.FakePodAutoscalerInternal
 			},
 			Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 				MinReplicas: pointer.Ptr(int32(1)),
-				MaxReplicas: int32(10),
+				MaxReplicas: pointer.Ptr(int32(10)),
 				Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
 					{
 						Name:    "app",

@@ -11,14 +11,12 @@ package converters
 import (
 	"context"
 	"fmt"
-	"net/url"
+	"log/slog"
 	"slices"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"go.opentelemetry.io/collector/confmap"
-	"golang.org/x/net/publicsuffix"
 )
 
 type endpoint struct {
@@ -32,26 +30,6 @@ type configManager struct {
 	config    config.Component
 }
 
-func extractSite(s string) string {
-	u, err := url.Parse(s)
-	if err != nil {
-		log.Debugf("Failed to parse URL %s: %v", s, err)
-		return ""
-	}
-
-	hostname := strings.Trim(u.Hostname(), ".")
-	if hostname == "" {
-		return ""
-	}
-	apexDomain, err := publicsuffix.EffectiveTLDPlusOne(hostname)
-	if err != nil {
-		log.Debugf("Failed to extract apex domain from %s: %v", hostname, err)
-		return hostname
-	}
-
-	return apexDomain
-}
-
 func newConfigManager(config config.Component) configManager {
 	profilingDDURL := config.GetString("apm_config.profiling_dd_url")
 	ddSite := config.GetString("site")
@@ -59,7 +37,10 @@ func newConfigManager(config config.Component) configManager {
 
 	var usedURL, usedSite string
 	if profilingDDURL != "" {
-		usedSite = extractSite(profilingDDURL)
+		usedSite = configutils.ExtractSiteFromURL(profilingDDURL)
+		if usedSite == "" {
+			slog.Warn("could not extract site from apm_config.profiling_dd_url, skipping endpoint", slog.String("url", profilingDDURL))
+		}
 		usedURL = profilingDDURL
 	} else if ddSite != "" {
 		usedSite = ddSite
@@ -68,9 +49,9 @@ func newConfigManager(config config.Component) configManager {
 	profilingAdditionalEndpoints := config.GetStringMapStringSlice("apm_config.profiling_additional_endpoints")
 	var endpoints []endpoint
 	for endpointURL, keys := range profilingAdditionalEndpoints {
-		site := extractSite(endpointURL)
+		site := configutils.ExtractSiteFromURL(endpointURL)
 		if site == "" {
-			log.Warnf("Could not extract site from URL %s, skipping endpoint", endpointURL)
+			slog.Warn("could not extract site from URL, skipping endpoint", slog.String("url", endpointURL))
 			continue
 		}
 		endpoints = append(endpoints, endpoint{
@@ -79,17 +60,17 @@ func newConfigManager(config config.Component) configManager {
 			apiKeys: keys,
 		})
 	}
-	log.Infof("Main site inferred from core configuration is %s", usedSite)
+	slog.Info("main site inferred from core configuration", slog.String("site", usedSite))
 
 	// Add main endpoint if we have a valid site
 	if usedSite == "" {
-		log.Warn("Could not determine site from core configuration, no default endpoint will be configured")
+		slog.Warn("could not determine site from core configuration, no default endpoint will be configured")
 	} else {
 		endpoints = append(endpoints, endpoint{site: usedSite, url: usedURL, apiKeys: []string{apiKey}})
 	}
 
 	if len(endpoints) == 0 {
-		log.Warn("No valid endpoints in core agent configured for inference")
+		slog.Warn("no valid endpoints in core agent configured for inference")
 	}
 
 	return configManager{config: config, endpoints: endpoints}
@@ -223,7 +204,7 @@ func (c *converterWithAgent) checkHostProfilerReceiverConfig(hostProfiler confMa
 
 	// If symbol_endpoints is missing, wrong type, or empty, infer from agent config
 	if !ok || len(endpoints) == 0 {
-		log.Info("Symbol uploader enabled but endpoints not configured, inferring from agent config")
+		slog.Info("symbol uploader enabled but endpoints not configured, inferring from agent config")
 		if err := c.inferHostProfilerEndpointConfig(hostProfiler); err != nil {
 			return err
 		}
@@ -259,7 +240,7 @@ func (c *converterWithAgent) ensureOtlpHTTPExporterConfig(conf confMap, exporter
 	}
 
 	if !hasOtlpHTTP {
-		log.Info("No otlphttp exporter configured, inferring from agent config")
+		slog.Info("no otlphttp exporter configured, inferring from agent config")
 		if err := c.inferOtlpHTTPConfig(conf); err != nil {
 			return err
 		}
@@ -304,9 +285,11 @@ func (c *converterWithAgent) inferOtlpHTTPConfig(conf confMap) error {
 
 	const profilesExportersPath = "service::pipelines::profiles::exporters"
 	profilesExporters, _ := Get[[]any](conf, profilesExportersPath)
+	siteCounter := make(map[string]int)
 	for _, endpoint := range c.configManager.endpoints {
-		for i, key := range endpoint.apiKeys {
-			exporterName := fmt.Sprintf(otlpHTTPNameFormat, endpoint.site, i)
+		for _, key := range endpoint.apiKeys {
+			exporterName := fmt.Sprintf(otlpHTTPNameFormat, endpoint.site, siteCounter[endpoint.site])
+			siteCounter[endpoint.site]++
 			if err := Set(conf, pathPrefixExporters+exporterName, createOtlpHTTPFromEndpoint(endpoint.site, key)); err != nil {
 				return err
 			}
@@ -358,9 +341,12 @@ func (c *converterWithAgent) fixProcessorsPipeline(conf confMap, processorNames 
 
 		// Track if we have infraattributes
 		if isComponentType(name, componentTypeInfraAttributes) {
-			// Make sure allow_hostname_override is true
-			if err := Set(processors, name+"::"+fieldAllowHostnameOverride, true); err != nil {
+			ddDefaultValue, err := SetDefault(processors, name+"::"+fieldAllowHostnameOverride, true)
+			if err != nil {
 				return nil, err
+			}
+			if !ddDefaultValue {
+				slog.Warn("allow_hostname_override is required but is disabled by user configuration; preserving user value.")
 			}
 			foundInfraattributes = true
 		}
@@ -371,7 +357,7 @@ func (c *converterWithAgent) fixProcessorsPipeline(conf confMap, processorNames 
 		if err := Set(processors, defaultInfraAttributesName+"::"+fieldAllowHostnameOverride, true); err != nil {
 			return nil, err
 		}
-		log.Warn("Added minimal infraattributes processor to user configuration")
+		slog.Warn("added minimal infraattributes processor to user configuration")
 		processorNames = append(processorNames, defaultInfraAttributesName)
 	}
 

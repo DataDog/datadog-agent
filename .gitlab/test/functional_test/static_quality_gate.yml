@@ -3,6 +3,7 @@ static_quality_gates:
   rules:
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a special artifact that will not pass the quality gate
     - !reference [.on_main_or_release_branch]
+    - !reference [.on_mergequeue]
     - !reference [.on_dev_branches_with_artifact_changes]
     - when: manual
       allow_failure: true
@@ -70,6 +71,7 @@ static_quality_gates:
     expire_in: 1 week
   variables:
     GIT_DEPTH: 0
+    OVERRIDE_GIT_STRATEGY: "clone" # needed because this job uses git merge-base
 
 manual_gate_threshold_update:
   stage: functional_test

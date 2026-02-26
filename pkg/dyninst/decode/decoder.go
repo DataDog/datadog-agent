@@ -44,6 +44,14 @@ type TypeNameResolver interface {
 	ResolveTypeName(typeID gotype.TypeID) (string, error)
 }
 
+// MissingTypeCollector receives notifications about types that were
+// encountered at runtime in interfaces but were not included in the IR
+// program's type registry. Implementations must be safe for use from a
+// single goroutine (the decoder is not thread-safe).
+type MissingTypeCollector interface {
+	RecordMissingType(typeName string)
+}
+
 // GoTypeNameResolver is a TypeNameResolver that uses a gotype.Table to resolve
 // type names.
 type GoTypeNameResolver gotype.Table
@@ -65,6 +73,12 @@ func (r *GoTypeNameResolver) ResolveTypeName(typeID gotype.TypeID) (string, erro
 	// do the conversion.
 	return t.Name().Name(), nil
 }
+
+// noopMissingTypeCollector is a no-op implementation of MissingTypeCollector
+// used when no collector is provided.
+type noopMissingTypeCollector struct{}
+
+func (noopMissingTypeCollector) RecordMissingType(string) {}
 
 // Decoder decodes the output of the BPF program into a JSON format.
 // It is not guaranteed to be thread-safe.
@@ -156,13 +170,20 @@ type typeAndAddr struct {
 
 // Decode decodes the output Event from the BPF program into a JSON format
 // the `output` parameter is appended to and returned as the final output.
-// It is not thread-safe.
+// It is not thread-safe. If missingTypes is nil, missing types are silently
+// ignored.
 func (d *Decoder) Decode(
 	event Event,
 	symbolicator symbol.Symbolicator,
+	missingTypes MissingTypeCollector,
 	buf []byte,
 ) (_ []byte, probe ir.ProbeDefinition, err error) {
 	defer d.resetForNextMessage()
+	if missingTypes == nil {
+		missingTypes = noopMissingTypeCollector{}
+	}
+	d.entryOrLine.missingTypeCollector = missingTypes
+	d._return.missingTypeCollector = missingTypes
 	defer func() {
 		r := recover()
 		switch r := r.(type) {
@@ -209,8 +230,10 @@ func (d *Decoder) Decode(
 func (d *Decoder) resetForNextMessage() {
 	clear(d.entryOrLine.dataItems)
 	d.entryOrLine.clear()
+	d.entryOrLine.missingTypeCollector = nil
 	d.line.clear()
 	d._return.clear()
+	d._return.missingTypeCollector = nil
 	d.messageData = messageData{}
 	d.message = message{}
 }

@@ -91,12 +91,12 @@ type installerImpl struct {
 }
 
 // NewInstaller returns a new Package Manager.
-func NewInstaller(env *env.Env) (Installer, error) {
+func NewInstaller(ctx context.Context, env *env.Env) (Installer, error) {
 	err := ensureRepositoriesExist()
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
 	}
-	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(5*time.Minute))
+	db, err := db.New(ctx, filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(5*time.Minute))
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
@@ -816,7 +816,16 @@ func (i *installerImpl) InstallExtensions(ctx context.Context, url string, exten
 		return fmt.Errorf("package %s is installed at version %s, requested version is %s", pkg.Name, existingPkg.Version, pkg.Version)
 	}
 
-	return extensions.Install(ctx, i.downloader, url, extensionList, false, i.hooks)
+	err = extensions.Install(ctx, i.downloader, url, extensionList, false, i.hooks)
+	if err != nil {
+		return fmt.Errorf("could not install extensions: %w", err)
+	}
+
+	// Special case for Linux & datadog-agent: restart the Agent after installing Agent extensions.
+	if pkg.Name == packageDatadogAgent {
+		return packages.RestartDatadogAgent(ctx)
+	}
+	return nil
 }
 
 // RemoveExtensions removes multiple extensions.
@@ -835,7 +844,16 @@ func (i *installerImpl) RemoveExtensions(ctx context.Context, pkg string, extens
 		span.SetTag("extensions", strings.Join(extensionList, ","))
 	}
 
-	return extensions.Remove(ctx, pkg, extensionList, false, i.hooks)
+	err := extensions.Remove(ctx, pkg, extensionList, false, i.hooks)
+	if err != nil {
+		return fmt.Errorf("could not remove extensions: %w", err)
+	}
+
+	// Special case for Linux & datadog-agent: restart the Agent after removing Agent extensions.
+	if pkg == packageDatadogAgent {
+		return packages.RestartDatadogAgent(ctx)
+	}
+	return nil
 }
 
 // SaveExtensions saves the extensions to a specific location on disk.
@@ -856,7 +874,16 @@ func (i *installerImpl) RestoreExtensions(ctx context.Context, url string, path 
 			fmt.Errorf("could not download package: %w", err),
 		)
 	}
-	return extensions.Restore(ctx, i.downloader, pkg.Name, url, path, false, i.hooks)
+	err = extensions.Restore(ctx, i.downloader, pkg.Name, url, path, false, i.hooks)
+	if err != nil {
+		return fmt.Errorf("could not restore extensions: %w", err)
+	}
+
+	// Special case for datadog-agent: restart the Agent after restoring Agent extensions manually.
+	if pkg.Name == packageDatadogAgent {
+		return packages.RestartDatadogAgent(ctx)
+	}
+	return nil
 }
 
 // Close cleans up the Installer's dependencies, lock must be held by the caller

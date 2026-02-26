@@ -1,5 +1,4 @@
 load("@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
@@ -53,48 +52,17 @@ so_symlink(
     version = VERSION,
 )
 
-expand_template(
-    name = "gen_pkgconfig",
-    out = "sqlite3.pc",
-    substitutions = {
-        "@PACKAGE_VERSION@": VERSION,
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@includedir@": "${prefix}/include",
-        "@libdir@": "${prefix}/lib",
-        "@LDFLAGS_MATH@": "-lm",
-        "@LDFLAGS_ZLIB@": "",
-        "@LDFLAGS_DLOPEN@": "",
-        "@LDFLAGS_PTHREAD@": "",
-        "@LDFLAGS_ICU@": "",
-    },
-    template = "sqlite3.pc.in",
-)
-
-pkg_files(
-    name = "hdr_files",
-    srcs = _SQLITE3_PUBLIC_HEADERS,
-    prefix = "include",
-)
-
-pkg_files(
-    name = "pkgconfig",
-    srcs = [":gen_pkgconfig"],
-    prefix = "lib/pkgconfig",
-)
-
 pkg_filegroup(
     name = "all_files",
     srcs = [
-        ":hdr_files",
         ":lib_files",
     ],
+    prefix = "embedded",
 )
 
 pkg_install(
     name = "install",
     srcs = [
         ":all_files",
-        ":pkgconfig",
     ],
 )

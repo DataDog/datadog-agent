@@ -129,8 +129,8 @@ def add_reviewers(ctx, pr_id, dry_run=False, owner_file=".github/CODEOWNERS"):
             folder = match_folder.group(1).removeprefix("/")
     dependency = match.group(1)
 
-    # Find the responsible person for each file
-    owners = set()
+    # Find the responsible team for each file that uses the dependency; count uses per team.
+    owner_usage_count = {}
     git_files = ctx.run("git ls-files | grep -e \"^.*.go$\"", hide=True).stdout
     for file in git_files.splitlines():
         if not file.startswith(folder):
@@ -147,10 +147,13 @@ def add_reviewers(ctx, pr_id, dry_run=False, owner_file=".github/CODEOWNERS"):
                         break
                     else:
                         if dependency in line:
-                            owners.update(set(search_owners(file, owner_file)))
+                            for owner in search_owners(file, owner_file):
+                                slug = owner.casefold().removeprefix("@datadog/")
+                                owner_usage_count[slug] = owner_usage_count.get(slug, 0) + 1
                             break
     if dry_run:
-        print(f"Owners for {dependency}: {owners}")
+        print(f"Owner usage for {dependency}: {owner_usage_count}")
         return
-    # Teams are added by slug, so we need to remove the @DataDog/ prefix
-    pr.create_review_request(team_reviewers=[owner.casefold().removeprefix("@datadog/") for owner in owners])
+    # Cap reviewers to avoid asking too many teams
+    team_slugs = sorted(owner_usage_count, key=lambda s: -owner_usage_count[s])[:3]
+    pr.create_review_request(team_reviewers=team_slugs)

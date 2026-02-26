@@ -160,6 +160,8 @@
 
 docker_build_agent7:
   extends: [.docker_build_amd64, .docker_build_agent7]
+  rules:
+    - when: on_success
   needs:
     - job: datadog-agent-7-x64
   variables:
@@ -184,7 +186,7 @@ single_machine_performance-full-amd64-a7:
   rules:
     - !reference [.except_mergequeue]
     # Always publish SMP images on main (needed for baseline comparisons)
-    - !reference [.on_main]
+    - !reference [.on_main_or_release_branch]
     # On dev branches, only publish when artifact-impacting files change.
     # This skips SMP for doc-only, CI-only, or e2e test-only PRs.
     - !reference [.on_dev_branches_with_artifact_changes]
@@ -197,6 +199,8 @@ single_machine_performance-full-amd64-a7:
 
 docker_build_agent7_arm64:
   extends: [.docker_build_arm64, .docker_build_agent7]
+  rules:
+    - when: on_success
   needs:
     - job: datadog-agent-7-arm64
   variables:
@@ -224,6 +228,8 @@ docker_build_fips_agent7_arm64:
 # build agent7 jmx image
 docker_build_agent7_jmx:
   extends: [.docker_build_amd64, .docker_build_agent7]
+  rules:
+    - when: on_success
   needs:
     - job: datadog-agent-7-x64
   variables:
@@ -233,6 +239,8 @@ docker_build_agent7_jmx:
 
 docker_build_agent7_jmx_arm64:
   extends: [.docker_build_arm64, .docker_build_agent7]
+  rules:
+    - when: on_success
   needs:
     - job: datadog-agent-7-arm64
   variables:
@@ -415,11 +423,16 @@ docker_build_agent7_fips_full_arm64:
   before_script:
     - mkdir -p ${ARTIFACTS_BUILD_CONTEXT}
     - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $ARTIFACTS_BUILD_CONTEXT/
+    - mv -vf $SECRET_GENERIC_CONNECTOR_BINARIES_DIR/secret-generic-connector $ARTIFACTS_BUILD_CONTEXT/
     - mv -vf $CWS_INSTRUMENTATION_BINARIES_DIR $ARTIFACTS_BUILD_CONTEXT/
     - mv -vf Dockerfiles/agent/nosys-seccomp $BUILD_CONTEXT/
+    - mkdir -p ${BUILD_CONTEXT}/private-action-runner
+    - cp -v pkg/privateactionrunner/autoconnections/conf/script-config.yaml ${BUILD_CONTEXT}/private-action-runner/
 
 docker_build_cluster_agent_amd64:
   extends: [.docker_build_amd64, .docker_build_cluster_agent]
+  rules:
+    - when: on_success
   needs:
     - job: cluster_agent-build_amd64
       artifacts: true
@@ -432,6 +445,8 @@ docker_build_cluster_agent_amd64:
 
 docker_build_cluster_agent_arm64:
   extends: [.docker_build_arm64, .docker_build_cluster_agent]
+  rules:
+    - when: on_success
   needs:
     - job: cluster_agent-build_arm64
       artifacts: true
@@ -474,7 +489,6 @@ docker_build_cluster_agent_fips_arm64:
 .docker_build_cws_instrumentation:
   extends: .docker_build_job_definition
   rules:
-    - !reference [.except_mergequeue]
     - when: on_success
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/cws-instrumentation
@@ -502,7 +516,6 @@ docker_build_cws_instrumentation_arm64:
 .docker_build_dogstatsd:
   extends: [.docker_build_job_definition, .docker_build_s3]
   rules:
-    - !reference [.except_mergequeue]
     - when: on_success
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/dogstatsd

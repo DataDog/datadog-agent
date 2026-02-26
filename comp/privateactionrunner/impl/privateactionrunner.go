@@ -10,14 +10,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secretsutils "github.com/DataDog/datadog-agent/comp/core/secrets/utils"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -40,7 +45,42 @@ const (
 	parSelfEnroll = "private_action_runner.self_enroll"
 	parPrivateKey = "private_action_runner.private_key"
 	parUrn        = "private_action_runner.urn"
+
+	maxStartupWaitTimeout = 15 * time.Second
 )
+
+var (
+	// apiKeyRegex matches valid Datadog API keys (32 hexadecimal characters)
+	apiKeyRegex = regexp.MustCompile(`^[a-fA-F0-9]{32}$`)
+	// appKeyRegex matches valid Datadog application keys (40 hexadecimal characters)
+	appKeyRegex = regexp.MustCompile(`^[a-fA-F0-9]{40}$`)
+)
+
+func validateAPIKey(key string) error {
+	if key == "" {
+		return errors.New("api_key is required but not set")
+	}
+	if isEnc, _ := secretsutils.IsEnc(key); isEnc {
+		return errors.New("api_key contains unresolved secret (ENC[...] format). Check secret_backend_command/secret_backend_type configuration")
+	}
+	if !apiKeyRegex.MatchString(key) {
+		return fmt.Errorf("api_key has invalid format (expected 32 hexadecimal characters, got %d characters)", len(key))
+	}
+	return nil
+}
+
+func validateAppKey(key string) error {
+	if key == "" {
+		return errors.New("app_key is required but not set")
+	}
+	if isEnc, _ := secretsutils.IsEnc(key); isEnc {
+		return errors.New("app_key contains unresolved secret (ENC[...] format). Check secret_backend_command/secret_backend_type configuration")
+	}
+	if !appKeyRegex.MatchString(key) {
+		return fmt.Errorf("app_key has invalid format (expected 40 hexadecimal characters, got %d characters)", len(key))
+	}
+	return nil
+}
 
 // isEnabled checks if the private action runner is enabled in the configuration
 func isEnabled(cfg config.Component) bool {
@@ -49,12 +89,14 @@ func isEnabled(cfg config.Component) bool {
 
 // Requires defines the dependencies for the privateactionrunner component
 type Requires struct {
-	Config    config.Component
-	Log       log.Component
-	Lifecycle compdef.Lifecycle
-	RcClient  rcclient.Component
-	Hostname  hostname.Component
-	Tagger    tagger.Component
+	Config        config.Component
+	Log           log.Component
+	Lifecycle     compdef.Lifecycle
+	RcClient      rcclient.Component
+	Hostname      hostname.Component
+	Tagger        tagger.Component
+	Traceroute    traceroute.Component
+	EventPlatform eventplatform.Component
 }
 
 // Provides defines the output of the privateactionrunner component
@@ -63,9 +105,21 @@ type Provides struct {
 }
 
 type PrivateActionRunner struct {
+	coreConfig     model.ReaderWriter
+	hostnameGetter hostnameinterface.Component
+	rcClient       pkgrcclient.Client
+	logger         log.Component
+	tagger         tagger.Component
+	traceroute     traceroute.Component
+	eventPlatform  eventplatform.Component
+
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
-	drain          func()
+
+	started     bool
+	startOnce   sync.Once
+	startChan   chan struct{}
+	cancelStart context.CancelFunc
 }
 
 // NewComponent creates a new privateactionrunner component
@@ -76,7 +130,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
 
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -88,101 +142,171 @@ func NewComponent(reqs Requires) (Provides, error) {
 }
 
 func NewPrivateActionRunner(
-	ctx context.Context,
+	_ context.Context,
 	coreConfig model.ReaderWriter,
 	hostnameGetter hostnameinterface.Component,
 	rcClient pkgrcclient.Client,
 	logger log.Component,
 	taggerComp tagger.Component,
+	tracerouteComp traceroute.Component,
+	eventPlatform eventplatform.Component,
 ) (*PrivateActionRunner, error) {
-	persistedIdentity, err := enrollment.GetIdentityFromPreviousEnrollment(ctx, coreConfig)
+	return &PrivateActionRunner{
+		coreConfig:     coreConfig,
+		hostnameGetter: hostnameGetter,
+		rcClient:       rcClient,
+		logger:         logger,
+		tagger:         taggerComp,
+		traceroute:     tracerouteComp,
+		eventPlatform:  eventPlatform,
+		startChan:      make(chan struct{}),
+	}, nil
+}
+
+func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.Config, error) {
+	persistedIdentity, err := enrollment.GetIdentityFromPreviousEnrollment(ctx, p.coreConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get identity: %w", err)
 	}
 	if persistedIdentity != nil {
-		coreConfig.Set(parPrivateKey, persistedIdentity.PrivateKey, model.SourceAgentRuntime)
-		coreConfig.Set(parUrn, persistedIdentity.URN, model.SourceAgentRuntime)
+		p.coreConfig.Set(parPrivateKey, persistedIdentity.PrivateKey, model.SourceAgentRuntime)
+		p.coreConfig.Set(parUrn, persistedIdentity.URN, model.SourceAgentRuntime)
 	}
 
-	cfg, err := parconfig.FromDDConfig(coreConfig)
+	cfg, err := parconfig.FromDDConfig(p.coreConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	canSelfEnroll := coreConfig.GetBool(parSelfEnroll)
+	canSelfEnroll := p.coreConfig.GetBool(parSelfEnroll)
 	if cfg.IdentityIsIncomplete() && canSelfEnroll {
-		logger.Info("Identity not found and self-enrollment enabled. Self-enrolling private action runner")
-		updatedCfg, err := performSelfEnrollment(ctx, logger, coreConfig, hostnameGetter, taggerComp, cfg)
+		p.logger.Info("Identity not found and self-enrollment enabled. Self-enrolling private action runner")
+		updatedCfg, err := p.performSelfEnrollment(ctx, cfg)
 		if err != nil {
 			return nil, fmt.Errorf("self-enrollment failed: %w", err)
 		}
-		coreConfig.Set(parPrivateKey, updatedCfg.PrivateKey, model.SourceAgentRuntime)
-		coreConfig.Set(parUrn, updatedCfg.Urn, model.SourceAgentRuntime)
+		p.coreConfig.Set(parPrivateKey, updatedCfg.PrivateKey, model.SourceAgentRuntime)
+		p.coreConfig.Set(parUrn, updatedCfg.Urn, model.SourceAgentRuntime)
 		cfg = updatedCfg
 	} else if cfg.IdentityIsIncomplete() {
 		return nil, errors.New("identity not found and self-enrollment disabled. Please provide a valid URN and private key")
 	}
-	logger.Info("Private action runner starting")
-	logger.Info("==> Version : " + parversion.RunnerVersion)
-	logger.Info("==> Site : " + cfg.DatadogSite)
-	logger.Info("==> URN : " + cfg.Urn)
+	return cfg, nil
+}
 
-	keysManager := taskverifier.NewKeyManager(rcClient)
+func (p *PrivateActionRunner) Start(ctx context.Context) error {
+	var err error
+	p.started = true
+	p.startOnce.Do(func() {
+		defer close(p.startChan)
+		err = p.start(ctx)
+	})
+	return err
+}
+
+func (p *PrivateActionRunner) StartAsync(ctx context.Context) <-chan error {
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- p.Start(ctx)
+		close(errChan)
+	}()
+	return errChan
+}
+
+func (p *PrivateActionRunner) start(ctx context.Context) error {
+	// Keep the parent context's deadline for the startup phase (config, enrollment, etc.)
+	// but allow Stop() to cancel as well.
+	ctx, p.cancelStart = context.WithCancel(ctx)
+	cfg, err := p.getRunnerConfig(ctx)
+	if err != nil {
+		return err
+	}
+	p.logger.Info("Private action runner starting")
+	p.logger.Info("==> Version : " + parversion.RunnerVersion)
+	p.logger.Info("==> Site : " + cfg.DatadogSite)
+	p.logger.Info("==> URN : " + cfg.Urn)
+
+	keysManager := taskverifier.NewKeyManager(p.rcClient)
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(cfg)
 
-	r, err := runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient)
-	if err != nil {
-		return nil, err
-	}
-	runner := &PrivateActionRunner{
-		workflowRunner: r,
-		commonRunner:   runners.NewCommonRunner(cfg),
-	}
-	return runner, nil
-}
-
-func (p *PrivateActionRunner) Start(_ context.Context) error {
-	// Use background context to avoid inheriting any deadlines from component lifecycle which stop the PAR loop
-	ctx, cancel := context.WithCancel(context.Background())
-	p.drain = cancel
-	err := p.commonRunner.Start(ctx)
+	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform)
 	if err != nil {
 		return err
 	}
-	return p.workflowRunner.Start(ctx)
+	p.commonRunner = runners.NewCommonRunner(cfg)
+	err = p.workflowRunner.Start(ctx)
+	if err != nil {
+		return err
+	}
+	return p.commonRunner.Start(ctx)
 }
 
 func (p *PrivateActionRunner) Stop(ctx context.Context) error {
-	err := p.workflowRunner.Stop(ctx)
-	if err != nil {
-		return err
+	if !p.started {
+		return nil // Never started, nothing to stop
 	}
-	p.drain()
+
+	p.cancelStart()
+	waitCtx, cancelWaitCtx := context.WithTimeout(ctx, maxStartupWaitTimeout)
+	defer cancelWaitCtx()
+	err := p.waitForStartup(waitCtx)
+	if err != nil {
+		p.logger.Warn("PAR startup did not complete in time, forcing cleanup")
+		// Don't return - continue to cleanup what we can
+	}
+
+	if p.workflowRunner != nil {
+		err := p.workflowRunner.Stop(ctx)
+		if err != nil {
+			return err
+		}
+	}
+	if p.commonRunner != nil {
+		err := p.commonRunner.Stop(ctx)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
+	select {
+	case <-p.startChan:
+		// Startup completed normally
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 	return nil
 }
 
 // performSelfEnrollment handles the self-registration of a private action runner
-func performSelfEnrollment(ctx context.Context, log log.Component, ddConfig config.Component, hostnameComp hostnameinterface.Component, taggerComp tagger.Component, cfg *parconfig.Config) (*parconfig.Config, error) {
-	ddSite := ddConfig.GetString("site")
-	apiKey := ddConfig.GetString("api_key")
-	appKey := ddConfig.GetString("app_key")
+func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *parconfig.Config) (*parconfig.Config, error) {
+	ddSite := cfg.DatadogSite
+	apiKey := p.coreConfig.GetString("api_key")
+	appKey := p.coreConfig.GetString("app_key")
 
-	runnerHostname, err := hostnameComp.Get(ctx)
+	if err := validateAPIKey(apiKey); err != nil {
+		return nil, fmt.Errorf("invalid api_key: %w", err)
+	}
+
+	if err := validateAppKey(appKey); err != nil {
+		return nil, fmt.Errorf("invalid app_key: %w", err)
+	}
+
+	runnerHostname, err := p.hostnameGetter.Get(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hostname: %w", err)
 	}
-	now := time.Now().UTC()
-	formattedTime := now.Format("20060102150405")
-	runnerName := runnerHostname + "-" + formattedTime
 
-	enrollmentResult, err := enrollment.SelfEnroll(ctx, ddSite, runnerName, apiKey, appKey)
+	enrollmentResult, err := enrollment.SelfEnroll(ctx, ddSite, runnerHostname, apiKey, appKey)
 	if err != nil {
 		return nil, fmt.Errorf("enrollment API call failed: %w", err)
 	}
-	log.Info("Self-enrollment successful")
+	p.logger.Info("Self-enrollment successful")
 
-	if err := enrollment.PersistIdentity(ctx, ddConfig, enrollmentResult); err != nil {
+	if err := enrollment.PersistIdentity(ctx, p.coreConfig, enrollmentResult); err != nil {
 		return nil, fmt.Errorf("failed to persist enrollment identity: %w", err)
 	}
 
@@ -203,15 +327,15 @@ func performSelfEnrollment(ctx context.Context, log log.Component, ddConfig conf
 	}
 
 	if len(actionsAllowlist) > 0 {
-		client, err := autoconnections.NewConnectionsAPIClient(ddConfig, ddSite, apiKey, appKey)
+		client, err := autoconnections.NewConnectionsAPIClient(p.coreConfig, ddSite, apiKey, appKey)
 		if err != nil {
-			log.Warnf("Failed to create connections API client: %v", err)
+			p.logger.Warnf("Failed to create connections API client: %v", err)
 		} else {
-			tagsProvider := autoconnections.NewTagsProvider(taggerComp)
+			tagsProvider := autoconnections.NewTagsProvider(p.tagger)
 			creator := autoconnections.NewConnectionsCreator(*client, tagsProvider)
 
-			if err := creator.AutoCreateConnections(context.Background(), urnParts.RunnerID, runnerHostname, runnerName, actionsAllowlist); err != nil {
-				log.Warnf("Failed to auto-create connections: %v", err)
+			if err := creator.AutoCreateConnections(ctx, urnParts.RunnerID, enrollmentResult, actionsAllowlist); err != nil {
+				p.logger.Warnf("Failed to auto-create connections: %v", err)
 			}
 		}
 	}

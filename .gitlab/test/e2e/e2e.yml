@@ -291,7 +291,6 @@ new-e2e-containers-eks-init:
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
-
 new-e2e-containers-eks:
   extends: .new_e2e_template_needs_container_deploy
   rules:
@@ -307,6 +306,60 @@ new-e2e-containers-eks:
     EXTRA_PARAMS: --run TestEKSSuite
     E2E_PRE_INITIALIZED: "true"
     ON_NIGHTLY_FIPS: "true"
+  retry: !reference [.retry_only_infra_failure, retry]
+
+new-e2e-containers-openshift-init:
+  stage: e2e_init
+  extends: .new_e2e_template
+  needs:
+    - go_e2e_deps
+    - go_tools_deps
+  rules:
+    - !reference [.on_e2e_main_release_or_rc]
+    - changes:
+        paths:
+          - test/new-e2e/tests/containers/**/*
+        compare_to: $COMPARE_TO_BRANCH
+    - !reference [.manual]
+  before_script:
+    # We need to also fetch the OpenShift CRC pull secret and write it to a temp file, so we reference the new_e2e_template before_script first
+    - !reference [.new_e2e_template, before_script]
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CRC_PULL_SECRET > /tmp/crc-pull-secret.json || exit $?
+  variables:
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+    EXTRA_PARAMS: "--run TestOpenShiftVMSuite -c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json"
+    E2E_INIT_ONLY: "true"
+    SHOULD_RUN_IN_FLAKES_FINDER: "false"
+    PRE_BUILT_BINARIES_FLAG: ""
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+  allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+
+new-e2e-containers-openshift:
+  extends: .new_e2e_template_needs_container_deploy_linux
+  rules:
+    - !reference [.on_e2e_main_release_or_rc]
+    - changes:
+        paths:
+          - test/new-e2e/tests/containers/**/*
+        compare_to: $COMPARE_TO_BRANCH
+    - !reference [.manual]
+  needs:
+    - !reference [.new_e2e_template_needs_container_deploy_linux, needs]
+    - new-e2e-containers-openshift-init
+  before_script:
+    # We need to also fetch the OpenShift CRC pull secret and write it to a temp file, so we reference the new_e2e_template before_script first
+    - !reference [.new_e2e_template, before_script]
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CRC_PULL_SECRET > /tmp/crc-pull-secret.json || exit $?
+  variables:
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+    EXTRA_PARAMS: "--run TestOpenShiftVMSuite -c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json"
+    E2E_PRE_INITIALIZED: "true"
+    ON_NIGHTLY_FIPS: "true"
+  allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-remote-config:
@@ -355,7 +408,11 @@ new-e2e-agent-runtimes:
 new-e2e-agent-runtimes-windows:
   extends: .new_e2e_template_needs_windows_x64
   rules:
-    - !reference [.on_arun_or_e2e_changes]
+    - !reference [.on_e2e_main_release_or_rc]
+    - changes:
+        paths:
+          - test/new-e2e/tests/agent-runtimes/**/*
+        compare_to: $COMPARE_TO_BRANCH
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-runtimes
@@ -378,8 +435,11 @@ new-e2e-agent-subcommands:
 new-e2e-agent-subcommands-windows:
   extends: .new_e2e_template_needs_windows_x64
   rules:
-    - !reference [.on_subcommands_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
+    - !reference [.on_e2e_main_release_or_rc]
+    - changes:
+        paths:
+          - test/new-e2e/tests/agent-subcommands/**/*
+        compare_to: $COMPARE_TO_BRANCH
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-subcommands
@@ -387,12 +447,25 @@ new-e2e-agent-subcommands-windows:
     ON_NIGHTLY_FIPS: "true"
     EXTRA_PARAMS: --run "Windows"
 
+new-e2e-agent-health:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7
+  rules:
+    - !reference [.on_healthplatform_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-health
+    TEAM: agent-health
+
 new-e2e-fips-compliance-test:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7-fips
     - qa_agent_fips_linux
+    - qa_dca_fips
   rules:
     - !reference [.on_arun_or_e2e_changes]
     - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
@@ -539,7 +612,6 @@ new-e2e-npm-eks-init:
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
-
 new-e2e-npm-eks:
   extends: .new_e2e_template
   rules:
@@ -557,7 +629,6 @@ new-e2e-npm-eks:
     E2E_PRE_INITIALIZED: "true"
     ON_NIGHTLY_FIPS: "true"
   retry: !reference [.retry_only_infra_failure, retry]
-
 
 new-e2e-npm:
   extends: .new_e2e_template
@@ -643,11 +714,16 @@ new-e2e-cws:
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
-    EXTRA_PARAMS: --skip "Windows"
     # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
     # ON_NIGHTLY_FIPS: "true"
   # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
   # NOTE: Do not remove this from e2e fips pipeline before remote config is available with fips, you can re-enable on fips pipeline when this test does not rely on remote-configuration
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestAgentSuiteEC2
+      - EXTRA_PARAMS: --run TestAgentSuiteGCP
+      - EXTRA_PARAMS: --run TestECSFargate
+      - EXTRA_PARAMS: --run TestKindSuite
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
@@ -662,14 +738,12 @@ new-e2e-cws-windows:
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
-    EXTRA_PARAMS: --run "Windows"
-    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
+    EXTRA_PARAMS: --run TestAgentWindowsSuite    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
     # ON_NIGHTLY_FIPS: "true"
   # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
   # NOTE: Do not remove this from e2e fips pipeline before remote config is available with fips, you can re-enable on fips pipeline when this test does not rely on remote-configuration
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
-
 
 new-e2e-sbom:
   extends: .new_e2e_template_needs_container_deploy_linux
@@ -683,7 +757,6 @@ new-e2e-sbom:
   parallel:
     matrix:
       - EXTRA_PARAMS: --run "TestSBOMKindSuite"
-
 
 new-e2e-discovery:
   extends: .new_e2e_template
@@ -1032,7 +1105,6 @@ new-e2e-otel-eks-init:
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
-
 new-e2e-otel-eks:
   extends: .new_e2e_template
   rules:
@@ -1050,7 +1122,6 @@ new-e2e-otel-eks:
     TEAM: otel
     E2E_PRE_INITIALIZED: "true"
   retry: !reference [.retry_only_infra_failure, retry]
-
 
 new-e2e-otel:
   extends: .new_e2e_template
@@ -1077,7 +1148,6 @@ new-e2e-ssi:
     - !reference [.needs_new_e2e_template]
     - qa_dca
     - qa_agent_linux
-    - qa_agent_full
   variables:
     TARGETS: ./tests/ssi
     TEAM: injection-platform

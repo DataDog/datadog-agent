@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -162,11 +163,13 @@ func TestAutoCreateConnections_AllBundlesSuccess(t *testing.T) {
 
 	creator := NewConnectionsCreator(*testClient, provider)
 
+	enrollmentResult := &enrollment.Result{
+		RunnerName: "runner-abc123",
+		Hostname:   "test-hostname",
+	}
 	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
-	hostname := "test-hostname"
-	runnerName := "runner-abc123"
 
-	err := creator.AutoCreateConnections(context.Background(), runnerID, hostname, runnerName, actionsAllowlist)
+	err := creator.AutoCreateConnections(context.Background(), runnerID, enrollmentResult, actionsAllowlist)
 
 	require.NoError(t, err, "AutoCreateConnections should return nil")
 	assert.Len(t, createdConnections, 2, "Should create 2 connections")
@@ -211,11 +214,13 @@ func TestAutoCreateConnections_PartialFailures(t *testing.T) {
 
 	creator := NewConnectionsCreator(*testClient, provider)
 
+	enrollmentResult := &enrollment.Result{
+		RunnerName: "runner-abc123",
+		Hostname:   "test-hostname",
+	}
 	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
-	hostname := "test-hostname"
-	runnerName := "runner-abc123"
 
-	err := creator.AutoCreateConnections(context.Background(), runnerID, hostname, runnerName, actionsAllowlist)
+	err := creator.AutoCreateConnections(context.Background(), runnerID, enrollmentResult, actionsAllowlist)
 
 	// Should return nil even with failures (non-blocking)
 	require.NoError(t, err, "AutoCreateConnections should not propagate errors")
@@ -247,11 +252,13 @@ func TestAutoCreateConnections_NoRelevantBundles(t *testing.T) {
 
 	creator := NewConnectionsCreator(*testClient, provider)
 
+	enrollmentResult := &enrollment.Result{
+		RunnerName: "runner-abc123",
+		Hostname:   "test-hostname",
+	}
 	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
-	hostname := "test-hostname"
-	runnerName := "runner-abc123"
 
-	err := creator.AutoCreateConnections(context.Background(), runnerID, hostname, runnerName, actionsAllowlist)
+	err := creator.AutoCreateConnections(context.Background(), runnerID, enrollmentResult, actionsAllowlist)
 
 	require.NoError(t, err, "AutoCreateConnections should return nil")
 	assert.Equal(t, 0, requestCount, "Should not make any HTTP requests")
@@ -284,11 +291,13 @@ func TestAutoCreateConnections_PartialAllowlist(t *testing.T) {
 
 	creator := NewConnectionsCreator(*testClient, provider)
 
+	enrollmentResult := &enrollment.Result{
+		RunnerName: "runner-abc123",
+		Hostname:   "test-hostname",
+	}
 	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
-	hostname := "test-hostname"
-	runnerName := "runner-abc123"
 
-	err := creator.AutoCreateConnections(context.Background(), runnerID, hostname, runnerName, actionsAllowlist)
+	err := creator.AutoCreateConnections(context.Background(), runnerID, enrollmentResult, actionsAllowlist)
 
 	require.NoError(t, err, "AutoCreateConnections should return nil")
 	assert.Len(t, createdConnections, 1, "Should create 2 connections")

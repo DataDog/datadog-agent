@@ -1,5 +1,5 @@
 using Datadog.CustomActions;
-using Microsoft.Deployment.WindowsInstaller;
+using WixToolset.Dtf.WindowsInstaller;
 
 namespace Datadog.AgentCustomActions
 {

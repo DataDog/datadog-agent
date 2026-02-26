@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
+	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
 
@@ -318,6 +319,66 @@ func TestConverterWithAgent(t *testing.T) {
 	runSuccessTests(t, conv, tests)
 }
 
+func TestConverterWithAgentDCSite(t *testing.T) {
+	tests := []testCase{
+		{
+			name:     "infers-dc-site-from-profiling-url",
+			provided: "agent/infer-dc-from-url/in.yaml",
+			expected: "agent/infer-dc-from-url/out.yaml",
+		},
+		{
+			name:     "infers-dc-site-from-additional-endpoints",
+			provided: "agent/infer-dc-from-additional-ep/in.yaml",
+			expected: "agent/infer-dc-from-additional-ep/out.yaml",
+		},
+	}
+
+	t.Run("profiling_dd_url", func(t *testing.T) {
+		mockCfg := &mockConfig{
+			values: map[string]interface{}{
+				"apm_config.profiling_dd_url": "https://intake.profile.us3.datadoghq.com/v1/input",
+				"api_key":                     "test_api_key_123",
+			},
+		}
+		conv := newConverterWithAgent(confmap.ConverterSettings{}, mockCfg)
+		runSuccessTests(t, conv, tests[:1])
+	})
+
+	t.Run("duplicate_site_exporters", func(t *testing.T) {
+		mockCfg := &mockConfig{
+			values: map[string]interface{}{
+				"site":    "datadoghq.com",
+				"api_key": "main_api_key",
+				"apm_config.profiling_additional_endpoints": map[string][]string{
+					"https://intake.profile.datadoghq.com/v1/input": {"additional_api_key"},
+				},
+			},
+		}
+		conv := newConverterWithAgent(confmap.ConverterSettings{}, mockCfg)
+		runSuccessTests(t, conv, []testCase{
+			{
+				name:     "unique-exporter-names-for-same-site",
+				provided: "agent/duplicate-site-exporters/in.yaml",
+				expected: "agent/duplicate-site-exporters/out.yaml",
+			},
+		})
+	})
+
+	t.Run("additional_endpoints", func(t *testing.T) {
+		mockCfg := &mockConfig{
+			values: map[string]interface{}{
+				"site":    "datadoghq.com",
+				"api_key": "test_api_key_123",
+				"apm_config.profiling_additional_endpoints": map[string][]string{
+					"https://intake.profile.us3.datadoghq.com/v1/input": {"us3_api_key"},
+				},
+			},
+		}
+		conv := newConverterWithAgent(confmap.ConverterSettings{}, mockCfg)
+		runSuccessTests(t, conv, tests[1:])
+	})
+}
+
 func TestConverterWithAgentErrors(t *testing.T) {
 	tests := []errorTestCase{
 		{
@@ -454,9 +515,34 @@ func TestConverterWithoutAgent(t *testing.T) {
 			provided: "no_agent/headers-wrong-type/in.yaml",
 			expected: "no_agent/headers-wrong-type/out.yaml",
 		},
+		{
+			name:     "preserve-host-arch",
+			provided: "no_agent/preserve-host-arch/in.yaml",
+			expected: "no_agent/preserve-host-arch/out.yaml",
+		},
+		{
+			name:     "preserve-host-name",
+			provided: "no_agent/preserve-host-name/in.yaml",
+			expected: "no_agent/preserve-host-name/out.yaml",
+		},
+		{
+			name:     "preserve-os-type",
+			provided: "no_agent/preserve-os-type/in.yaml",
+			expected: "no_agent/preserve-os-type/out.yaml",
+		},
+		{
+			name:     "preserve-all-res-attrs",
+			provided: "no_agent/preserve-all-res-attrs/in.yaml",
+			expected: "no_agent/preserve-all-res-attrs/out.yaml",
+		},
+		{
+			name:     "preserve-res-attrs-no-system",
+			provided: "no_agent/preserve-res-attrs-no-system/in.yaml",
+			expected: "no_agent/preserve-res-attrs-no-system/out.yaml",
+		},
 	}
 
-	runSuccessTests(t, &converterWithoutAgent{}, tests)
+	runSuccessTests(t, newConverterWithoutAgent(confmap.ConverterSettings{Logger: zap.NewNop()}), tests)
 }
 
 func TestConverterWithoutAgentErrors(t *testing.T) {
@@ -513,5 +599,5 @@ func TestConverterWithoutAgentErrors(t *testing.T) {
 		},
 	}
 
-	runErrorTests(t, &converterWithoutAgent{}, tests)
+	runErrorTests(t, newConverterWithoutAgent(confmap.ConverterSettings{Logger: zap.NewNop()}), tests)
 }

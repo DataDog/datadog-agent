@@ -214,13 +214,17 @@ build do
   end
 
   # sd-agent (service discovery agent)
-  if ENV['SD_AGENT_BIN'] && linux_target?
-    copy ENV['SD_AGENT_BIN'], "#{install_dir}/embedded/bin/sd-agent"
+  if ENV['WITH_SD_AGENT'] == 'true'
+    command_on_repo_root "bazel run --config=sd-agent-release //pkg/discovery/module/rust:install -- --destdir=#{install_dir}/embedded/bin", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+  end
+
+  # dd-procmgrd (process manager daemon)
+  if ENV['WITH_DD_PROCMGRD'] == 'true'
+    command_on_repo_root "bazel run --config=dd-procmgrd-release //pkg/procmgr/rust:install -- --destdir=#{install_dir}/embedded/bin", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
   # Security agent
-  secagent_support = (not heroku_target?) and (not windows_target? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?))
-  if secagent_support
+  unless heroku_target?
     command "dda inv -- -e security-agent.build #{fips_args} --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     if windows_target?
       copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"
