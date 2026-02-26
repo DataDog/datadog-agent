@@ -8,7 +8,6 @@ package recorderimpl
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
@@ -92,7 +91,6 @@ type recorderImpl struct {
 	parquetWriter        *ParquetWriter
 	traceParquetWriter   *TraceParquetWriter
 	profileParquetWriter *ProfileParquetWriter
-	mu                   sync.Mutex
 }
 
 // GetHandle wraps the provided HandleFunc with recording capability.

@@ -6,6 +6,7 @@
 package recorderimpl
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"sort"
@@ -88,7 +89,7 @@ func (r *ProfileParquetReader) readFile(filePath string) []recorderdef.ProfileDa
 		return nil
 	}
 
-	table, err := reader.ReadTable(nil)
+	table, err := reader.ReadTable(context.TODO())
 	if err != nil {
 		pkglog.Warnf("Failed to read table from %s: %v", filePath, err)
 		return nil
