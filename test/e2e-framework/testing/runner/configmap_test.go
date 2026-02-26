@@ -47,7 +47,7 @@ func Test_BuildStackParameters(t *testing.T) {
 		"ddinfra:gcp/defaultPrivateKeyPath":     auto.ConfigValue{Value: "gcp_private_key_path", Secret: false},
 		"ddagent:imagePullRegistry":   			 auto.ConfigValue{Value: "image_pull_registry", Secret: false},
 		"ddagent:imagePullUsername":   			 auto.ConfigValue{Value: "image_pull_username", Secret: false},
-		"ddagent:imagePullPassword":   			 auto.ConfigValue{Value: "image_pull_password", Secret: true},
+		"ddagent:imagePullPassword":   			 auto.ConfigValue{Value: "image_pull_password", Secret: false},
 		"ddinfra:gcp/defaultPrivateKeyPassword": auto.ConfigValue{Value: "gcp_private_key_password", Secret: true},
 		"ddinfra:local/defaultPublicKeyPath":    auto.ConfigValue{Value: "local_public_key_path", Secret: false},
 		"ddagent:pipeline_id":                   auto.ConfigValue{Value: "pipeline_id", Secret: false},

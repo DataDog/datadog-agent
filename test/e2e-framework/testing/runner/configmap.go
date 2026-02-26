@@ -144,6 +144,7 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 		parameters.GCPPrivateKeyPath:   {GCPPrivateKeyPath},
 		parameters.ImagePullRegistry:   {ImagePullRegistry},
 		parameters.ImagePullUsername:   {ImagePullUsername},
+		parameters.ImagePullPassword:   {ImagePullPassword},
 		parameters.LocalPublicKeyPath:  {LocalPublicKeyPath},
 		parameters.ExtraResourcesTags:  {InfraExtraResourcesTags},
 		parameters.PipelineID:          {AgentPipelineID},
@@ -170,7 +171,6 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 		parameters.AWSPrivateKeyPassword:   {AWSPrivateKeyPassword},
 		parameters.AzurePrivateKeyPassword: {AzurePrivateKeyPassword},
 		parameters.GCPPrivateKeyPassword:   {GCPPrivateKeyPassword},
-		parameters.ImagePullPassword:       {ImagePullPassword},
 	}
 
 	for storeKey, configMapKeys := range secretParams {
