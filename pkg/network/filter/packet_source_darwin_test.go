@@ -8,41 +8,66 @@
 package filter
 
 import (
+	"net"
 	"sync"
 	"testing"
 
+	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// buildIPv4Packet constructs a minimal Ethernet + IPv4 packet (14 + 20 bytes).
-// srcIP and dstIP are 4-byte IPv4 addresses. EtherType is set to 0x0800 (IPv4).
+var serializeOpts = gopacket.SerializeOptions{FixLengths: true}
+
+var zeroMAC = net.HardwareAddr{0, 0, 0, 0, 0, 0}
+
+// buildIPv4Packet constructs an Ethernet + IPv4 packet using gopacket.
+// srcIP and dstIP are 4-byte IPv4 addresses.
 func buildIPv4Packet(srcIP, dstIP [4]byte) []byte {
-	// Ethernet: 6 dst MAC + 6 src MAC + 2 ethertype (0x0800)
-	eth := make([]byte, 14)
-	eth[12] = 0x08
-	eth[13] = 0x00
-
-	// IPv4 minimal header: 20 bytes, src at offset 12, dst at offset 16
-	ip := make([]byte, 20)
-	ip[0] = 0x45 // version 4, IHL 5
-	copy(ip[12:16], srcIP[:])
-	copy(ip[16:20], dstIP[:])
-
-	return append(eth, ip...)
+	buf := gopacket.NewSerializeBuffer()
+	err := gopacket.SerializeLayers(buf, serializeOpts,
+		&layers.Ethernet{
+			SrcMAC:       zeroMAC,
+			DstMAC:       zeroMAC,
+			EthernetType: layers.EthernetTypeIPv4,
+		},
+		&layers.IPv4{
+			Version:  4,
+			TTL:      64,
+			Protocol: layers.IPProtocolTCP,
+			SrcIP:    net.IP(srcIP[:]),
+			DstIP:    net.IP(dstIP[:]),
+		},
+	)
+	if err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
 }
 
-// buildIPv6Packet constructs a minimal Ethernet + IPv6 packet (14 + 40 bytes).
+// buildIPv6Packet constructs an Ethernet + IPv6 packet using gopacket.
 // srcIP and dstIP are 16-byte IPv6 addresses.
 func buildIPv6Packet(srcIP, dstIP [16]byte) []byte {
-	eth := make([]byte, 14)
-	eth[12] = 0x86
-	eth[13] = 0xDD
-	ip := make([]byte, 40)
-	copy(ip[8:24], srcIP[:])
-	copy(ip[24:40], dstIP[:])
-	return append(eth, ip...)
+	buf := gopacket.NewSerializeBuffer()
+	err := gopacket.SerializeLayers(buf, serializeOpts,
+		&layers.Ethernet{
+			SrcMAC:       zeroMAC,
+			DstMAC:       zeroMAC,
+			EthernetType: layers.EthernetTypeIPv6,
+		},
+		&layers.IPv6{
+			Version:    6,
+			NextHeader: layers.IPProtocolTCP,
+			HopLimit:   64,
+			SrcIP:      net.IP(srcIP[:]),
+			DstIP:      net.IP(dstIP[:]),
+		},
+	)
+	if err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
 }
 
 func TestDeterminePacketDirection_IPv4_Outgoing(t *testing.T) {
@@ -179,23 +204,44 @@ func TestDeterminePacketDirection_NonIP_EtherType(t *testing.T) {
 // IPv6: src at offset 4+8=12,  dst at 4+24=28
 // ============================================================================
 
-// buildLoopbackIPv4Packet builds a minimal BSD loopback + IPv4 packet.
+// buildLoopbackIPv4Packet builds a BSD loopback (DLT_NULL) + IPv4 packet using gopacket.
+// The 4-byte loopback header encodes AF_INET (2) in little-endian host byte order.
 func buildLoopbackIPv4Packet(srcIP, dstIP [4]byte) []byte {
-	buf := make([]byte, 4+20)
-	buf[0] = 2 // AF_INET (little-endian, first byte only)
-	buf[4] = 0x45
-	copy(buf[16:20], srcIP[:])
-	copy(buf[20:24], dstIP[:])
-	return buf
+	buf := gopacket.NewSerializeBuffer()
+	err := gopacket.SerializeLayers(buf, serializeOpts,
+		&layers.Loopback{Family: layers.ProtocolFamilyIPv4},
+		&layers.IPv4{
+			Version:  4,
+			TTL:      64,
+			Protocol: layers.IPProtocolTCP,
+			SrcIP:    net.IP(srcIP[:]),
+			DstIP:    net.IP(dstIP[:]),
+		},
+	)
+	if err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
 }
 
-// buildLoopbackIPv6Packet builds a minimal BSD loopback + IPv6 packet.
+// buildLoopbackIPv6Packet builds a BSD loopback (DLT_NULL) + IPv6 packet using gopacket.
+// The 4-byte loopback header encodes AF_INET6 as used on FreeBSD/macOS (28) in little-endian.
 func buildLoopbackIPv6Packet(srcIP, dstIP [16]byte) []byte {
-	buf := make([]byte, 4+40)
-	buf[0] = 28 // AF_INET6 on macOS
-	copy(buf[12:28], srcIP[:])
-	copy(buf[28:44], dstIP[:])
-	return buf
+	buf := gopacket.NewSerializeBuffer()
+	err := gopacket.SerializeLayers(buf, serializeOpts,
+		&layers.Loopback{Family: layers.ProtocolFamilyIPv6FreeBSD},
+		&layers.IPv6{
+			Version:    6,
+			NextHeader: layers.IPProtocolTCP,
+			HopLimit:   64,
+			SrcIP:      net.IP(srcIP[:]),
+			DstIP:      net.IP(dstIP[:]),
+		},
+	)
+	if err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
 }
 
 func TestDeterminePacketDirection_Loopback_IPv4_Outgoing(t *testing.T) {
