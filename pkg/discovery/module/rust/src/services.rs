@@ -13,7 +13,7 @@ use crate::injector::is_apm_injector_in_process_maps;
 use crate::language::Language;
 use crate::params::Params;
 use crate::ports::{self, ParsingContext};
-use crate::procfs::{self, fd::OpenFilesInfo, Cmdline, Exe};
+use crate::procfs::{self, Cmdline, Exe, fd::OpenFilesInfo};
 use crate::service_name::ServiceNameSource;
 use crate::tracer_metadata::TracerMetadata;
 use crate::ust::UST;
@@ -98,10 +98,7 @@ pub fn get_services(params: Params) -> ServicesResponse {
 // When no service is found but the fd directory was successfully read,
 // the OpenFilesInfo is returned so the caller can reuse it for GPU detection
 // without reading /proc/pid/fd again.
-fn get_service(
-    pid: i32,
-    context: &mut ParsingContext,
-) -> (Option<Service>, Option<OpenFilesInfo>) {
+fn get_service(pid: i32, context: &mut ParsingContext) -> (Option<Service>, Option<OpenFilesInfo>) {
     let Ok(open_files_info) = procfs::fd::get_open_files_info(pid) else {
         return (None, None);
     };

@@ -697,8 +697,7 @@ mod tests {
         // Verify gpu_pids
         assert!(!result.gpu_pids.is_null());
         assert_eq!(result.gpu_pids_len, 2);
-        let gpu_pids =
-            unsafe { std::slice::from_raw_parts(result.gpu_pids, result.gpu_pids_len) };
+        let gpu_pids = unsafe { std::slice::from_raw_parts(result.gpu_pids, result.gpu_pids_len) };
         assert_eq!(gpu_pids, &[1111, 2222]);
 
         // Free and verify no crash
