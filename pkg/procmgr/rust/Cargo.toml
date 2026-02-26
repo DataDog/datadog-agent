@@ -1,22 +1,16 @@
 [package]
 name = "dd-procmgrd"
 version = "0.1.0"
-edition = "2024"
-license = "Apache-2.0"
-rust-version = "1.91"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
 
 [[bin]]
 name = "dd-procmgrd"
 path = "src/main.rs"
 
 [dependencies]
-anyhow = "1.0.98"
-log = "0.4"
-simple_logger = { version = "5.0", features = ["timestamps"] }
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
-
-[profile.release]
-lto = "fat"
-opt-level = "z"
-strip = "symbols"
-panic = "abort"
+anyhow.workspace = true
+log.workspace = true
+simple_logger = { workspace = true, features = ["timestamps"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
