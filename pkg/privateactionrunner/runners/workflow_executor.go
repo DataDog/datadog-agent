@@ -32,7 +32,12 @@ func NewLoop(runner *WorkflowRunner) *Loop {
 	}
 }
 
-func (l *Loop) Run(ctx context.Context) {
+func (l *Loop) Run(parentCtx context.Context) {
+	// Detach from the parent context's deadline and cancellation so the
+	// polling loop isn't bounded by the startup timeout.
+	// Proper shutdown is handled by the Close method through the shutdownChannel which will let in flight task complete.
+	ctx, cancel := context.WithCancel(context.WithoutCancel(parentCtx))
+	defer cancel()
 	logger := log.FromContext(ctx)
 	l.wg.Add(1) // Increment the WaitGroup counter
 
