@@ -30,12 +30,47 @@ namespace Datadog.CustomActions
             "{30336ED4-E327-447C-9DE0-51B652C86108}"   // Microsoft-Windows-Shell-Core
         };
 
+        /// <summary>
+        /// Resolves the agent user SID. On first install DDAGENTUSER_SID may be empty because
+        /// the user is created by the deferred ConfigureUser action after CustomActionData was
+        /// captured. In that case, fall back to looking up the SID by DDAGENTUSER_PROCESSED_FQ_NAME.
+        /// </summary>
+        private static string ResolveAgentUserSid(ISession session)
+        {
+            var sid = session.Property("DDAGENTUSER_SID");
+            if (!string.IsNullOrEmpty(sid))
+            {
+                return sid;
+            }
+
+            var fqName = session.Property("DDAGENTUSER_PROCESSED_FQ_NAME");
+            if (string.IsNullOrEmpty(fqName))
+            {
+                session.Log("Neither DDAGENTUSER_SID nor DDAGENTUSER_PROCESSED_FQ_NAME is set");
+                return null;
+            }
+
+            try
+            {
+                session.Log($"DDAGENTUSER_SID not set, resolving SID from account name: {fqName}");
+                var account = new NTAccount(fqName);
+                var securityIdentifier = (SecurityIdentifier)account.Translate(typeof(SecurityIdentifier));
+                session.Log($"Resolved SID: {securityIdentifier.Value}");
+                return securityIdentifier.Value;
+            }
+            catch (Exception e)
+            {
+                session.Log($"Failed to resolve SID for {fqName}: {e}");
+                return null;
+            }
+        }
+
         private static ActionResult ConfigureAutoLogger(ISession session)
         {
             try
             {
                 var appDataDir = session.Property("APPLICATIONDATADIRECTORY");
-                var ddAgentUserSidString = session.Property("DDAGENTUSER_SID");
+                var ddAgentUserSidString = ResolveAgentUserSid(session);
 
                 if (string.IsNullOrEmpty(appDataDir))
                 {
@@ -55,7 +90,7 @@ namespace Datadog.CustomActions
                 }
                 else
                 {
-                    session.Log("DDAGENTUSER_SID is not set, skipping registry permission configuration");
+                    session.Log("Could not determine agent user SID, skipping registry permission configuration");
                 }
 
                 session.Log("AutoLogger configuration complete");
@@ -188,28 +223,6 @@ namespace Datadog.CustomActions
             catch (Exception e)
             {
                 session.Log($"Warning: could not remove AutoLogger registry keys: {e}");
-            }
-
-            if (!string.IsNullOrEmpty(appDataDir))
-            {
-                var logonDurationDir = Path.Combine(appDataDir, LogonDurationSubDir);
-                try
-                {
-                    if (Directory.Exists(logonDurationDir))
-                    {
-                        session.Log($"Deleting logon duration directory: {logonDurationDir}");
-                        Directory.Delete(logonDurationDir, true);
-                        session.Log("Logon duration directory removed");
-                    }
-                    else
-                    {
-                        session.Log($"Logon duration directory not found, skipping: {logonDurationDir}");
-                    }
-                }
-                catch (Exception e)
-                {
-                    session.Log($"Warning: could not remove logon duration directory: {e}");
-                }
             }
 
             return ActionResult.Success;

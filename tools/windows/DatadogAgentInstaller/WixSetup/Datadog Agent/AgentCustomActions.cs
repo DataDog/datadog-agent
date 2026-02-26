@@ -737,7 +737,8 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
-                               "DDAGENTUSER_SID=[DDAGENTUSER_SID]");
+                               "DDAGENTUSER_SID=[DDAGENTUSER_SID], " +
+                               "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME]");
 
             RemoveAutoLogger = new CustomAction<CustomActions>(
                     new Id(nameof(RemoveAutoLogger)),
