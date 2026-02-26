@@ -1,7 +1,7 @@
 health_platform:
   enabled: true
   forwarder:
-    interval: 1m
+    interval: 30s
 logs_enabled: true
 logs_config:
   container_collect_all: true

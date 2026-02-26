@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"unsafe"
 
 	"go4.org/mem"
@@ -105,6 +106,11 @@ func (li *linuxImpl) AppendListeningPorts(base []Port) ([]Port, error) {
 	for _, f := range li.procNetFiles {
 		name := f.Name()
 		_, err := f.Seek(0, io.SeekStart)
+		if errors.Is(err, syscall.ESPIPE) {
+			// Some kernels may return `illegal seek` on `/proc/net/tcp`s files, ignore it.
+			// See https://github.com/tailscale/tailscale/issues/16966
+			continue
+		}
 		if err != nil {
 			return nil, err
 		}

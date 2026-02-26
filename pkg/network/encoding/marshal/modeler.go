@@ -51,7 +51,7 @@ func NewConnectionsModeler(conns *network.Connections) (*ConnectionsModeler, err
 		dnsFormatter:        newDNSFormatter(conns, ipc),
 		resolvConfFormatter: newResolvConfFormatter(conns),
 		routeIndex:          make(map[network.Via]RouteIdx),
-		tagsSet:             indexedset.New[string](),
+		tagsSet:             indexedset.New[string](0),
 		sysProbePid:         uint32(nspid),
 	}, nil
 }
