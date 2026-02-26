@@ -16,6 +16,7 @@ import (
 	"slices"
 
 	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/xconfmap"
 	"go.uber.org/zap/exp/zapslog"
 )
 
@@ -55,7 +56,7 @@ func newConverterWithoutAgent(convSettings confmap.ConverterSettings) confmap.Co
 }
 
 func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) error {
-	confStringMap := conf.ToStringMap()
+	confStringMap := xconfmap.ToStringMapRaw(conf)
 
 	profilesPipeline, err := Ensure[confMap](confStringMap, "service::pipelines::profiles")
 	if err != nil {
