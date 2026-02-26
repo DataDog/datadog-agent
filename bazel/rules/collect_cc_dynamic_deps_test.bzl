@@ -90,7 +90,7 @@ def _test_direct_dynamic_dep(name):
 def _test_direct_dynamic_dep_impl(env, target):
     # Exactly one file should be collected: the dynamic dep, not the primary.
     _outputs_of(env, target).contains_exactly([
-        _pkg(target.label.name[: -len("_subject")] + "_dep.fake.so"),
+        _pkg(target.label.name[:-len("_subject")] + "_dep.fake.so"),
     ])
 
 # ── Test 3: aspect propagates through 'srcs' ────────────────────────────────
@@ -121,7 +121,7 @@ def _test_propagation_through_srcs(name):
 def _test_propagation_through_srcs_impl(env, target):
     # The dep file should bubble up through the filegroup.
     _outputs_of(env, target).contains_exactly([
-        _pkg(target.label.name[: -len("_subject")] + "_dep.fake.so"),
+        _pkg(target.label.name[:-len("_subject")] + "_dep.fake.so"),
     ])
 
 # ── Test 4: transitive dynamic deps ─────────────────────────────────────────
@@ -154,7 +154,7 @@ def _test_transitive_collection(name):
     )
 
 def _test_transitive_collection_impl(env, target):
-    prefix = target.label.name[: -len("_subject")]
+    prefix = target.label.name[:-len("_subject")]
 
     # B's own file is collected because A depends on B dynamically.
     # C's file is collected because B depends on C dynamically.
@@ -187,7 +187,7 @@ def _test_multiple_direct_dynamic_deps(name):
     )
 
 def _test_multiple_direct_dynamic_deps_impl(env, target):
-    prefix = target.label.name[: -len("_subject")]
+    prefix = target.label.name[:-len("_subject")]
     _outputs_of(env, target).contains_exactly([
         _pkg(prefix + "_dep1.fake.so"),
         _pkg(prefix + "_dep2.fake.so"),
@@ -226,7 +226,7 @@ def _test_diamond_deduplication(name):
     )
 
 def _test_diamond_deduplication_impl(env, target):
-    prefix = target.label.name[: -len("_subject")]
+    prefix = target.label.name[:-len("_subject")]
 
     # B, C, and D are all reachable; D must not be duplicated.
     _outputs_of(env, target).contains_exactly([
@@ -290,7 +290,7 @@ def _test_cc_shared_library_dynamic_deps_impl(env, target):
     # cc_shared_library places its output under _solib_local/<mangled-pkg>/
     # rather than in the package directory, so we match on the file basename
     # rather than the full path to stay robust against CPU-config changes.
-    prefix = target.label.name[: -len("_subject")]
+    prefix = target.label.name[:-len("_subject")]
     outputs = _outputs_of(env, target)
     outputs.contains_predicate(matching.file_basename_contains("lib" + prefix + "_inner.so"))
     outputs.not_contains_predicate(matching.file_basename_contains(prefix + "_outer"))
