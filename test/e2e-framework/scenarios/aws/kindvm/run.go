@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/operator"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/operatorparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/argorollouts"
@@ -93,7 +94,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 		return err
 	}
 
-	installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
+	installEcrCredsHelperCmd, err := docker.InstallECRCredentialsHelper(awsEnv.CommonNamer(), host)
 	if err != nil {
 		return err
 	}
