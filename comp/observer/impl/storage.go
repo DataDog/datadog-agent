@@ -12,12 +12,14 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
 // timeSeriesStorage is an internal storage for time series data.
 type timeSeriesStorage struct {
+	mu     sync.RWMutex
 	series map[string]*seriesStats
 
 	// Drop accounting for invalid/unsafe input values.
@@ -105,6 +107,9 @@ func newTimeSeriesStorage() *timeSeriesStorage {
 // Add records a data point for a named metric in a namespace.
 // Invalid values are dropped at ingest with accounting and sampled logging.
 func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if math.IsInf(value, 0) || math.IsNaN(value) {
 		s.recordDroppedValue("non_finite", namespace, name, value, timestamp, tags)
 		return
@@ -195,6 +200,9 @@ func (s *timeSeriesStorage) DroppedValueStats() (nonFinite int64, extreme int64,
 // GetSeries returns the series using the specified aggregation.
 // If tags is nil, finds the first series matching namespace and name (ignoring tags).
 func (s *timeSeriesStorage) GetSeries(namespace, name string, tags []string, agg Aggregate) *observer.Series {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	if tags != nil {
 		// Exact match with tags
 		key := seriesKey(namespace, name, tags)
@@ -220,6 +228,9 @@ func (s *timeSeriesStorage) GetSeries(namespace, name string, tags []string, agg
 // GetSeriesSince returns points with timestamp > since (for delta updates).
 // If since is 0, returns all points.
 func (s *timeSeriesStorage) GetSeriesSince(namespace, name string, tags []string, agg Aggregate, since int64) *observer.Series {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	key := seriesKey(namespace, name, tags)
 	stats := s.series[key]
 	if stats == nil {
@@ -267,6 +278,9 @@ func (s *timeSeriesStorage) Namespaces() []string {
 
 // AllSeries returns all series in a namespace using the specified aggregation.
 func (s *timeSeriesStorage) AllSeries(namespace string, agg Aggregate) []observer.Series {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	var result []observer.Series
 	for _, stats := range s.series {
 		if stats.Namespace == namespace {
@@ -349,6 +363,9 @@ func (s *timeSeriesStorage) ListAllSeriesCompact() []seriesCompact {
 
 // DumpToFile writes all series to a JSON file for debugging.
 func (s *timeSeriesStorage) DumpToFile(path string) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	type dumpPoint struct {
 		Timestamp int64   `json:"ts"`
 		Sum       float64 `json:"sum"`
