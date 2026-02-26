@@ -50,6 +50,7 @@ pub fn has_gpu_nvidia_libraries(pid: i32) -> bool {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use super::*;
     use tempfile::TempDir;

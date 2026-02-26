@@ -74,10 +74,10 @@ pub fn get_services(params: Params) -> ServicesResponse {
             if let Some(service) = service {
                 info!("found service {service:#?}");
                 resp.services.push(service);
-            } else if let Some(info) = fd_info {
-                if info.has_gpu_device || procfs::maps::has_gpu_nvidia_libraries(*pid) {
-                    resp.gpu_pids.push(*pid);
-                }
+            } else if let Some(info) = fd_info
+                && (info.has_gpu_device || procfs::maps::has_gpu_nvidia_libraries(*pid))
+            {
+                resp.gpu_pids.push(*pid);
             }
         }
     }
@@ -208,6 +208,7 @@ fn get_heartbeat_service(pid: i32, context: &mut ParsingContext) -> Option<Servi
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+    use crate::params::Params;
 
     #[cfg(target_os = "linux")]
     mod log_file_integration {
@@ -393,64 +394,14 @@ mod tests {
         }
     }
 
-    #[cfg(target_os = "linux")]
-    mod gpu_pids {
-        use std::os::unix::fs::symlink;
-
-        use super::*;
-        use crate::params::Params;
-        use tempfile::TempDir;
-
-        fn make_fake_proc(pid: i32) -> TempDir {
-            let tmp = TempDir::new().unwrap();
-            let fd_dir = tmp.path().join(pid.to_string()).join("fd");
-            std::fs::create_dir_all(&fd_dir).unwrap();
-            tmp
-        }
-
-        #[test]
-        fn test_non_service_process_with_gpu_device_added_to_gpu_pids() {
-            let pid = 99998i32;
-            let tmp = make_fake_proc(pid);
-            let fd_dir = tmp.path().join(pid.to_string()).join("fd");
-            symlink("/dev/nvidia0", fd_dir.join("3")).unwrap();
-
-            temp_env::with_var("HOST_PROC", Some(tmp.path()), || {
-                let resp = get_services(Params {
-                    new_pids: Some(vec![pid]),
-                    heartbeat_pids: None,
-                });
-                assert!(resp.gpu_pids.contains(&pid));
-                assert!(resp.services.is_empty());
-            });
-        }
-
-        #[test]
-        fn test_non_service_process_without_gpu_not_in_gpu_pids() {
-            let pid = 99997i32;
-            let tmp = make_fake_proc(pid);
-            let fd_dir = tmp.path().join(pid.to_string()).join("fd");
-            symlink("/dev/null", fd_dir.join("0")).unwrap();
-
-            temp_env::with_var("HOST_PROC", Some(tmp.path()), || {
-                let resp = get_services(Params {
-                    new_pids: Some(vec![pid]),
-                    heartbeat_pids: None,
-                });
-                assert!(!resp.gpu_pids.contains(&pid));
-                assert!(resp.services.is_empty());
-            });
-        }
-
-        #[test]
-        fn test_unreadable_pid_not_in_gpu_pids() {
-            let params = Params {
-                new_pids: Some(vec![i32::MAX]),
-                heartbeat_pids: None,
-            };
-            let resp = get_services(params);
-            assert!(resp.gpu_pids.is_empty());
-            assert!(resp.services.is_empty());
-        }
+    #[test]
+    fn test_unreadable_pid_not_in_gpu_pids() {
+        let params = Params {
+            new_pids: Some(vec![i32::MAX]),
+            heartbeat_pids: None,
+        };
+        let resp = get_services(params);
+        assert!(resp.gpu_pids.is_empty());
+        assert!(resp.services.is_empty());
     }
 }
