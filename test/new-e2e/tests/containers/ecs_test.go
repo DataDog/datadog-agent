@@ -126,7 +126,9 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 					Cluster:  &suite.ecsClusterName,
 					Services: servicesList.ServiceArns,
 				})
-				require.NoErrorf(c, err, "Failed to describe ECS services %v", servicesList.ServiceArns)
+				if !assert.NoErrorf(c, err, "Failed to describe ECS services %v", servicesList.ServiceArns) {
+					continue
+				}
 
 				for _, serviceDescription := range servicesDescription.Services {
 					assert.NotZerof(c, serviceDescription.DesiredCount, "ECS service %s has no task", *serviceDescription.ServiceName)
@@ -151,7 +153,9 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 							Cluster: &suite.ecsClusterName,
 							Tasks:   tasksList.TaskArns,
 						})
-						require.NoErrorf(c, err, "Failed to describe ECS tasks %v", tasksList.TaskArns)
+						if !assert.NoErrorf(c, err, "Failed to describe ECS tasks %v", tasksList.TaskArns) {
+							continue
+						}
 
 						for _, taskDescription := range tasksDescription.Tasks {
 							assert.Equalf(c, string(awsecstypes.DesiredStatusRunning), *taskDescription.LastStatus,

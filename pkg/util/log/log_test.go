@@ -541,10 +541,14 @@ func TestLoggerScrubbingCount(t *testing.T) {
 			for _, fun := range tc.funcs {
 				val := reflect.ValueOf(fun)
 				funcName, err := getFuncName(val)
-				require.NoError(t, err)
+				if !assert.NoError(t, err) {
+					continue
+				}
 
 				valTy := reflect.TypeOf(fun)
-				require.Equalf(t, valTy.Kind(), reflect.Func, "expected %s to be a function", funcName)
+				if !assert.Equal(t, valTy.Kind(), reflect.Func, "expected %s to be a function", funcName) {
+					continue
+				}
 
 				// create a slice of reflect.Value from the args
 				reflArgs := make([]reflect.Value, 0, len(tc.args))

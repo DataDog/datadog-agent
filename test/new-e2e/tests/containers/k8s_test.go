@@ -1868,7 +1868,10 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 				}),
 			)
 			require.NoErrorf(c, err, "Failed to query fake intake")
-			require.NotEmptyf(c, metrics, "No `kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}` metrics yet", namespace, deployment)
+			if !assert.NotEmptyf(c, metrics, "No `kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}` metrics yet", namespace, deployment) {
+				sendEvent("warning", fmt.Sprintf("No `kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}` metrics yet", namespace, deployment), nil)
+				return
+			}
 
 			// Check HPA is properly scaling up or down
 			// This indirectly tests the cluster-agent external metrics server

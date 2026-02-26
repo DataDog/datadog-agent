@@ -44,10 +44,10 @@ func TestPromCounterInitializer(t *testing.T) {
 	endMetrics, err := promTelemetry.Gather()
 	require.NoError(t, err)
 
-	require.Equal(t, len(endMetrics), 1)
+	require.Len(t, endMetrics, 1)
 
 	metricFamily := endMetrics[0]
-	require.Equal(t, len(metricFamily.GetMetric()), 1)
+	require.Len(t, metricFamily.GetMetric(), 1)
 
 	assert.Equal(t, metricFamily.GetName(), "subsystem_test")
 
