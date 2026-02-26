@@ -4,10 +4,10 @@ go 1.25.0
 
 require (
 	cloud.google.com/go/compute/metadata v0.9.0
-	github.com/DataDog/datadog-agent/pkg/template v0.77.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/log v0.77.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.77.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/version v0.77.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/template v0.77.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log v0.77.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.77.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/version v0.77.0-rc.3
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/fatih/color v1.18.0
@@ -28,7 +28,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.77.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.77.0-rc.3 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.18.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/docker/cli v29.0.3+incompatible // indirect

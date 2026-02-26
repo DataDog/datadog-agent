@@ -3,17 +3,17 @@ module github.com/DataDog/datadog-agent/pkg/util/cgroups
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/log v0.77.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.77.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.77.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.77.0-rc.3
 	github.com/containerd/cgroups/v3 v3.0.5
 	github.com/google/go-cmp v0.7.0
 	github.com/stretchr/testify v1.11.1
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/template v0.77.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.77.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.77.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.77.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.77.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.77.0-rc.3 // indirect
 	github.com/coreos/go-systemd/v22 v22.6.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/docker/go-units v0.5.0 // indirect
