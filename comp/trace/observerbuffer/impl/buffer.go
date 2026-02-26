@@ -62,18 +62,22 @@ func NewComponent(reqs Requires) Provides {
 	cfg := DefaultConfig()
 
 	// Read configuration from apm_config.observer.*
-	cfg.Enabled = reqs.Cfg.GetBool("apm_config.observer.enabled")
-	if traceSize := reqs.Cfg.GetInt("apm_config.observer.trace_buffer_size"); traceSize > 0 {
-		cfg.TraceBufferSize = traceSize
-	}
-	if profileSize := reqs.Cfg.GetInt("apm_config.observer.profile_buffer_size"); profileSize > 0 {
-		cfg.ProfileBufferSize = profileSize
-	}
-	if statsSize := reqs.Cfg.GetInt("apm_config.observer.stats_buffer_size"); statsSize > 0 {
-		cfg.StatsBufferSize = statsSize
+	if reqs.Cfg != nil {
+		cfg.Enabled = reqs.Cfg.GetBool("apm_config.observer.enabled")
+		if traceSize := reqs.Cfg.GetInt("apm_config.observer.trace_buffer_size"); traceSize > 0 {
+			cfg.TraceBufferSize = traceSize
+		}
+		if profileSize := reqs.Cfg.GetInt("apm_config.observer.profile_buffer_size"); profileSize > 0 {
+			cfg.ProfileBufferSize = profileSize
+		}
+		if statsSize := reqs.Cfg.GetInt("apm_config.observer.stats_buffer_size"); statsSize > 0 {
+			cfg.StatsBufferSize = statsSize
+		}
 	}
 
-	reqs.Log.Infof("Observer buffer configured: enabled=%v, trace_buffer_size=%d, profile_buffer_size=%d, stats_buffer_size=%d", cfg.Enabled, cfg.TraceBufferSize, cfg.ProfileBufferSize, cfg.StatsBufferSize)
+	if reqs.Log != nil {
+		reqs.Log.Infof("Observer buffer configured: enabled=%v, trace_buffer_size=%d, profile_buffer_size=%d, stats_buffer_size=%d", cfg.Enabled, cfg.TraceBufferSize, cfg.ProfileBufferSize, cfg.StatsBufferSize)
+	}
 
 	if !cfg.Enabled {
 		return Provides{Comp: &noopBuffer{}}
