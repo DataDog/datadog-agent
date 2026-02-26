@@ -21,8 +21,14 @@ if not exist "%XDG_CACHE_HOME%" (
   )
 )
 
-:: Make `bazel` honor $XDG_CACHE_HOME if set as it does on POSIX OSes: https://github.com/bazelbuild/bazel/issues/27808
+:: Ensure `bazel` & managed toolchains honor `XDG_CACHE_HOME` if set: https://github.com/bazelbuild/bazel/issues/27808
 if defined XDG_CACHE_HOME (
+  :: https://pkg.go.dev/os#UserCacheDir
+  set "GOCACHE=%XDG_CACHE_HOME%\go-build"
+  :: https://wiki.archlinux.org/title/XDG_Base_Directory#Partial
+  set "GOMODCACHE=%XDG_CACHE_HOME%\go\mod"
+  :: https://pip.pypa.io/en/stable/topics/caching/#default-paths
+  set "PIP_CACHE_DIR=%XDG_CACHE_HOME%\pip"
   set "bazel_home=%XDG_CACHE_HOME%\bazel"
   set bazel_home_startup_option="--output_user_root=!bazel_home!"
 ) else (
