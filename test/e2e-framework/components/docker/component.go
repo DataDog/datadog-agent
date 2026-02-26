@@ -169,7 +169,7 @@ func (d *Manager) install() (command.Command, error) {
 	}
 
 	// Install ECR credentials helper to auto-login to (among others) our pull-through ECR cache
-	ecrCredsHelperInstall, err := d.Host.OS.PackageManager().Ensure("amazon-ecr-credential-helper", nil, "docker-credential-ecr-login")
+	ecrCredsHelperInstall, err := InstallECRCredentialsHelper(d.namer, d.Host, opts...)
 	if err != nil {
 		return nil, err
 	}
