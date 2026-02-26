@@ -1021,7 +1021,7 @@ def measure_package_local(
     output_path=None,
     build_job_name="local_test",
     debug=False,
-    filter: Callable[[str], bool] = None,
+    filter: Callable[[str], bool] = lambda _: True,
 ):
     """
     Run the in-place package measurer locally for testing and development.

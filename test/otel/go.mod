@@ -37,7 +37,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.76.0-rc.4 // indirect
 	go.opentelemetry.io/collector/config/configmiddleware v1.51.1-0.20260205185216-81bc641f26c0 // indirect
-	go.opentelemetry.io/collector/confmap/xconfmap v0.145.1-0.20260205185216-81bc641f26c0 // indirect
+	go.opentelemetry.io/collector/confmap/xconfmap v0.146.1 // indirect
 	go.opentelemetry.io/collector/exporter/exporterhelper v0.145.1-0.20260205185216-81bc641f26c0 // indirect
 	go.opentelemetry.io/collector/extension/extensionmiddleware v0.145.1-0.20260205185216-81bc641f26c0 // indirect
 )
@@ -51,7 +51,7 @@ require (
 require (
 	github.com/hashicorp/go-version v1.8.0 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
-	go.opentelemetry.io/collector/featuregate v1.51.1-0.20260205185216-81bc641f26c0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.52.0 // indirect
 )
 
 require (
@@ -76,7 +76,7 @@ require (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.180 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.182 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.76.0-rc.4 // indirect
@@ -208,7 +208,7 @@ require (
 	go.opentelemetry.io/collector/config/configopaque v1.51.1-0.20260205185216-81bc641f26c0 // indirect
 	go.opentelemetry.io/collector/config/configretry v1.51.1-0.20260205185216-81bc641f26c0 // indirect
 	go.opentelemetry.io/collector/config/configtls v1.51.1-0.20260205185216-81bc641f26c0 // indirect
-	go.opentelemetry.io/collector/confmap v1.51.1-0.20260205185216-81bc641f26c0 // indirect
+	go.opentelemetry.io/collector/confmap v1.52.0 // indirect
 	go.opentelemetry.io/collector/consumer v1.51.1-0.20260205185216-81bc641f26c0 // indirect
 	go.opentelemetry.io/collector/exporter v1.51.1-0.20260205185216-81bc641f26c0 // indirect
 	go.opentelemetry.io/collector/extension v1.51.1-0.20260205185216-81bc641f26c0 // indirect

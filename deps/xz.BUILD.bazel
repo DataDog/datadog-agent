@@ -143,12 +143,12 @@ pkg_filegroup(
         ":api_headers",
         ":lib_files",
     ],
+    prefix = "embedded",
 )
+
 pkg_install(
     name = "install",
     srcs = [
-        ":main_header",
-        ":api_headers",
-        ":lib_files",
+        ":all_files",
     ],
 )
