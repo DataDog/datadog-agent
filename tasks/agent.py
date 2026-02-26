@@ -32,6 +32,7 @@ from tasks.libs.common.utils import (
     get_build_flags,
     get_embedded_path,
     get_goenv,
+    get_repo_root,
     get_version,
     gitlab_section,
 )
@@ -468,6 +469,8 @@ def hacky_dev_image_build(
     development=True,
     skip_build=False,
 ):
+    os.chdir(get_repo_root())
+
     if arch is None:
         arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())
 
@@ -506,9 +509,10 @@ def hacky_dev_image_build(
         print("Skipping build step — using existing artifacts in bin/ and dev/lib/")
     else:
         # Extract the python library of the docker image
+        # Use /usr/bin/tar explicitly to avoid dd-source's tar wrapper (which runs bzl from cwd and fails when cwd is datadog-agent)
         with tempfile.TemporaryDirectory() as extracted_python_dir:
             ctx.run(
-                f"docker run --platform linux/{arch} --rm '{base_image}' bash -c 'tar --create /opt/datadog-agent/embedded/{{bin,lib,include}}/*python*' | tar --directory '{extracted_python_dir}' --extract"
+                f"docker run --platform linux/{arch} --rm '{base_image}' bash -c 'tar --create /opt/datadog-agent/embedded/{{bin,lib,include}}/*python*' | /usr/bin/tar --directory '{extracted_python_dir}' --extract"
             )
 
             if development:
@@ -598,7 +602,7 @@ COPY --from=bin /opt/datadog-agent/embedded/share/system-probe/ebpf /opt/datadog
         patchelf_patterns = ""
         copy_patterns_final = ""
 
-    with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
+    with tempfile.NamedTemporaryFile(mode='w', dir='.', suffix='.Dockerfile') as dockerfile:
         dockerfile.write(
             f'''FROM ubuntu:latest AS src
 

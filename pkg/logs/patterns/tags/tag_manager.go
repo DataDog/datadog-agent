@@ -21,10 +21,11 @@ import (
 // It provides thread-safe operations for retrieving/creating IDs and building Tag proto messages
 // that reference those IDs.
 type TagManager struct {
-	stringToEntry map[string]*tagEntry
-	idToEntry     map[uint64]*tagEntry
-	nextID        atomic.Uint64
-	mu            sync.RWMutex
+	stringToEntry    map[string]*tagEntry
+	idToEntry        map[uint64]*tagEntry
+	nextID           atomic.Uint64
+	cachedMemoryBytes atomic.Int64
+	mu               sync.RWMutex
 }
 
 // NewTagManager creates a new TagManager instance
@@ -71,6 +72,7 @@ func (tm *TagManager) AddString(s string) (dictID uint64, isNew bool) {
 	}
 	tm.stringToEntry[s] = entry
 	tm.idToEntry[id] = entry
+	tm.cachedMemoryBytes.Add(entry.EstimatedBytes())
 	return id, true
 }
 

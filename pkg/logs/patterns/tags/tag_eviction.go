@@ -26,6 +26,7 @@ func (tm *TagManager) RemoveEvictable(item eviction.Evictable) {
 	entry := item.(*tagEntry)
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
+	tm.cachedMemoryBytes.Add(-entry.EstimatedBytes())
 	delete(tm.stringToEntry, entry.str)
 	delete(tm.idToEntry, entry.id)
 }
@@ -61,12 +62,5 @@ func (tm *TagManager) EvictToMemoryTarget(targetBytesToFree int64, decayFactor f
 
 // EstimatedMemoryBytes returns the estimated total memory usage of all tag entries
 func (tm *TagManager) EstimatedMemoryBytes() int64 {
-	tm.mu.RLock()
-	defer tm.mu.RUnlock()
-
-	total := int64(0)
-	for _, entry := range tm.stringToEntry {
-		total += entry.EstimatedBytes()
-	}
-	return total
+	return tm.cachedMemoryBytes.Load()
 }
