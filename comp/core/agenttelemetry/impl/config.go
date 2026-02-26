@@ -229,7 +229,9 @@ var defaultProfiles = `
         - name: logs.dropped
         - name: logs.encoded_bytes_sent
           aggregate_tags:
+            - remote_agent
             - compression_kind
+          aggregate_total: true
         - name: logs.http_connectivity_check
           aggregate_tags:
             - status

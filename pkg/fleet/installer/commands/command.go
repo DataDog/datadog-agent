@@ -105,7 +105,7 @@ func newInstallerCmd(operation string) (_ *installerCmd, err error) {
 	if MockInstaller != nil {
 		i = MockInstaller
 	} else {
-		i, err = installer.NewInstaller(cmd.env)
+		i, err = installer.NewInstaller(cmd.ctx, cmd.env)
 	}
 	if err != nil {
 		return nil, err

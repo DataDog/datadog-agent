@@ -9,7 +9,6 @@ package workload
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -17,8 +16,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/clock"
 
@@ -28,6 +25,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
 	k8sutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -44,17 +42,17 @@ const (
 type verticalController struct {
 	clock           clock.Clock
 	eventRecorder   record.EventRecorder
-	dynamicClient   dynamic.Interface
+	patchClient     *workloadpatcher.Patcher
 	podWatcher      PodWatcher
 	progressTracker *rolloutProgressTracker
 }
 
 // newVerticalController creates a new *verticalController
-func newVerticalController(clock clock.Clock, eventRecorder record.EventRecorder, cl dynamic.Interface, pw PodWatcher) *verticalController {
+func newVerticalController(clock clock.Clock, eventRecorder record.EventRecorder, patchClient *workloadpatcher.Patcher, pw PodWatcher) *verticalController {
 	return &verticalController{
 		clock:           clock,
 		eventRecorder:   eventRecorder,
-		dynamicClient:   cl,
+		patchClient:     patchClient,
 		podWatcher:      pw,
 		progressTracker: newRolloutProgressTracker(),
 	}
@@ -150,26 +148,15 @@ func (u *verticalController) triggerRollout(
 	// Generate the patch request which adds the scaling hash annotation to the pod template
 	gvr := targetGVK.GroupVersion().WithResource(strings.ToLower(targetGVK.Kind) + "s")
 	patchTime := u.clock.Now()
-	patchData, err := json.Marshal(map[string]any{
-		"spec": map[string]any{
-			"template": map[string]any{
-				"metadata": map[string]any{
-					"annotations": map[string]string{
-						model.RolloutTimestampAnnotation: patchTime.Format(time.RFC3339),
-						model.RecommendationIDAnnotation: recommendationID,
-					},
-				},
-			},
-		},
-	})
-	if err != nil {
-		err = autoscaling.NewConditionError(autoscaling.ConditionReasonRolloutFailed, fmt.Errorf("Unable to produce JSONPatch : %v", err))
-		autoscalerInternal.UpdateFromVerticalAction(nil, err)
-		return autoscaling.Requeue, err
-	}
+	patchTarget := workloadpatcher.Target{GVR: gvr, Namespace: target.Namespace, Name: target.Name}
+	intent := workloadpatcher.NewPatchIntent(patchTarget).
+		With(workloadpatcher.SetPodTemplateAnnotations(map[string]interface{}{
+			model.RolloutTimestampAnnotation: patchTime.Format(time.RFC3339),
+			model.RecommendationIDAnnotation: recommendationID,
+		}))
 
 	// Apply patch to trigger rollout
-	_, err = u.dynamicClient.Resource(gvr).Namespace(target.Namespace).Patch(ctx, target.Name, types.MergePatchType, patchData, metav1.PatchOptions{})
+	_, err := u.patchClient.Apply(ctx, intent, workloadpatcher.PatchOptions{Caller: "vpa"})
 	if err != nil {
 		err = autoscaling.NewConditionError(autoscaling.ConditionReasonRolloutFailed, fmt.Errorf("failed to trigger rollout for gvk: %s, name: %s, err: %v", targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name, err))
 		telemetryVerticalRolloutTriggered.Inc(target.Namespace, target.Name, autoscalerInternal.Name(), "error", le.JoinLeaderValue)
