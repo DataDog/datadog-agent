@@ -15,14 +15,24 @@
 package metrics
 
 import (
-	"fmt"
 	"sort"
 	"strings"
+	"sync"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/internal/utils"
 )
+
+// dimensionsStringBuilderPool reduces allocations in Dimensions.String()
+var dimensionsStringBuilderPool = sync.Pool{
+	New: func() interface{} { return new(strings.Builder) },
+}
+
+// dimensionsSlicePool reduces slice allocations in Dimensions.String()
+var dimensionsSlicePool = sync.Pool{
+	New: func() interface{} { s := make([]string, 0, 16); return &s },
+}
 
 const (
 	dimensionSeparator = string(byte(0))
@@ -113,7 +123,7 @@ func (d *Dimensions) WithAttributeMap(labels pcommon.Map) *Dimensions {
 // WithSuffix creates a new dimensions struct with an extra name suffix.
 func (d *Dimensions) WithSuffix(suffix string) *Dimensions {
 	return &Dimensions{
-		name:                fmt.Sprintf("%s.%s", d.name, suffix),
+		name:                d.name + "." + suffix,
 		host:                d.host,
 		tags:                d.tags,
 		originID:            d.originID,
@@ -134,18 +144,26 @@ func concatDimensionValue(metricKeyBuilder *strings.Builder, value string) {
 // String maps dimensions to a string to use as an identifier.
 // The tags order does not matter.
 func (d *Dimensions) String() string {
-	var metricKeyBuilder strings.Builder
+	b := dimensionsStringBuilderPool.Get().(*strings.Builder)
+	b.Reset()
 
-	dimensions := make([]string, len(d.tags))
-	copy(dimensions, d.tags)
+	sp := dimensionsSlicePool.Get().(*[]string)
+	dimensions := (*sp)[:0]
 
+	dimensions = append(dimensions, d.tags...)
 	dimensions = append(dimensions, "name:"+d.name)
 	dimensions = append(dimensions, "host:"+d.host)
 	dimensions = append(dimensions, "originID:"+d.originID)
 	sort.Strings(dimensions)
 
 	for _, dim := range dimensions {
-		concatDimensionValue(&metricKeyBuilder, dim)
+		concatDimensionValue(b, dim)
 	}
-	return metricKeyBuilder.String()
+	result := b.String()
+
+	*sp = dimensions
+	dimensionsSlicePool.Put(sp)
+	dimensionsStringBuilderPool.Put(b)
+
+	return result
 }
