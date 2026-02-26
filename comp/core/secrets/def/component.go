@@ -39,8 +39,8 @@ type Component interface {
 	Resolve(data []byte, origin string, imageName string, kubeNamespace string, notify bool) ([]byte, error)
 	// SubscribeToChanges registers a callback to be invoked whenever secrets are resolved or refreshed
 	SubscribeToChanges(callback SecretChangeCallback)
-	// Refresh schedules a throttled asynchronous secret refresh. Returns true if a refresh
-	// was actually triggered, so the caller knows whether to retry.
+	// Refresh schedules a throttled asynchronous secret refresh. Returns true if the
+	// secret refresh mechanism is enabled (backend configured and refresh interval set).
 	Refresh() bool
 	// RefreshNow performs an immediate blocking secret refresh, returning an informative message suitable for user display.
 	RefreshNow() (string, error)

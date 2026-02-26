@@ -87,8 +87,9 @@ type secretResolver struct {
 	// list of handles and where they were found
 	origin handleToContext
 
-	// set of all values ever resolved from the secret backend
-	resolvedValues map[string]struct{}
+	// resolvedSecretValues is an append-only set of all secret values ever returned by the backend.
+	// old values are retained for IsValueFromSecret lookups.
+	resolvedSecretValues map[string]struct{}
 
 	backendType                     string
 	backendConfig                   map[string]interface{}
@@ -142,7 +143,7 @@ func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 	return &secretResolver{
 		cache:                   make(map[string]string),
 		origin:                  make(handleToContext),
-		resolvedValues:          make(map[string]struct{}),
+		resolvedSecretValues:    make(map[string]struct{}),
 		tlmSecretBackendElapsed: telemetry.NewGauge("secret_backend", "elapsed_ms", []string{"command", "exit_code"}, "Elapsed time of secret backend invocation"),
 		tlmSecretUnmarshalError: telemetry.NewCounter("secret_backend", "unmarshal_errors_count", []string{}, "Count of errors when unmarshalling the output of the secret binary"),
 		tlmSecretResolveError:   telemetry.NewCounter("secret_backend", "resolve_errors_count", []string{"error_kind", "handle"}, "Count of errors when resolving a secret"),
@@ -673,7 +674,7 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 	stdmaps.Copy(r.cache, secretResponse)
 	// track all resolved values in an append-only set for IsValueFromSecret lookups
 	for _, secretValue := range secretResponse {
-		r.resolvedValues[secretValue] = struct{}{}
+		r.resolvedSecretValues[secretValue] = struct{}{}
 	}
 	// return info about the handles sorted by their name
 	sort.Slice(handleInfoList, func(i, j int) bool {
@@ -682,8 +683,8 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 	return secretRefreshInfo{Handles: handleInfoList}
 }
 
-// Refresh schedules an asynchronous secret refresh (throttled). Returns true if async refresh is
-// enabled, so the caller knows whether to expect a follow-up retry to succeed.
+// Refresh schedules a throttled asynchronous secret refresh. Returns true if the
+// secret refresh mechanism is enabled (backend configured and refresh interval set).
 func (r *secretResolver) Refresh() bool {
 	if r.apiKeyFailureRefreshInterval == 0 || r.backendCommand == "" {
 		return false
@@ -705,7 +706,7 @@ func (r *secretResolver) RefreshNow() (string, error) {
 func (r *secretResolver) IsValueFromSecret(value string) bool {
 	r.lock.Lock()
 	defer r.lock.Unlock()
-	_, ok := r.resolvedValues[value]
+	_, ok := r.resolvedSecretValues[value]
 	return ok
 }
 
