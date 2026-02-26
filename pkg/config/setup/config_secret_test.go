@@ -8,6 +8,8 @@ package setup
 import (
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -165,4 +167,40 @@ func TestProxyWithSecret(t *testing.T) {
 			c.tests(t, config)
 		})
 	}
+}
+
+func TestAllFlattenedIncludesDottedAdditionalEndpointsKeysAfterSecretResolution(t *testing.T) {
+	config := newTestConf(t)
+
+	path := t.TempDir()
+	configPath := filepath.Join(path, "datadog.yaml")
+	require.NoError(t, os.WriteFile(configPath, testAdditionalEndpointsConf, 0o600))
+	config.SetConfigFile(configPath)
+
+	resolver := secretsmock.New(t)
+	resolver.SetSecrets(map[string]string{
+		"api_key_1": "resolved_api_key_1",
+		"api_key_2": "resolved_api_key_2",
+		"api_key_3": "resolved_api_key_3",
+	})
+
+	require.NoError(t, LoadDatadog(config, resolver, nil))
+
+	flattened, _ := config.AllFlattenedSettingsWithSequenceID()
+	keys := make([]string, 0)
+	for key := range flattened {
+		if strings.HasPrefix(key, "additional_endpoints") {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	t.Logf("additional_endpoints flattened keys: %v", keys)
+
+	_, hasTopLevel := flattened["additional_endpoints"]
+	_, hasURL1 := flattened["additional_endpoints.https://url1.com"]
+	_, hasURL2 := flattened["additional_endpoints.https://url2.eu"]
+
+	assert.True(t, hasTopLevel, "expected top-level additional_endpoints key in flattened map")
+	assert.True(t, hasURL1, "expected dotted child key additional_endpoints.https://url1.com in flattened map")
+	assert.True(t, hasURL2, "expected dotted child key additional_endpoints.https://url2.eu in flattened map")
 }
