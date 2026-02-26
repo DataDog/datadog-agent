@@ -483,11 +483,11 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
         if not os.path.exists(os.path.dirname(modified_file)):
             continue
 
-        # If there are no go files matching the build tags in the folder we do not try to run tests
+        # If there are go file matching the build tags in the folder we do not try to run tests
         res = ctx.run(
-            f'go list -tags "{" ".join(build_tags)}" ./{os.path.dirname(modified_file)}/', hide=True, warn=True
+            f'go list -tags "{" ".join(build_tags)}" ./{os.path.dirname(modified_file)}/...', hide=True, warn=True
         )
-        if res is None or res.return_code != 0:
+        if res.stderr is not None and "matched no packages" in res.stderr:
             continue
 
         relative_target = "./" + os.path.relpath(os.path.dirname(modified_file), best_module_path)
