@@ -95,6 +95,7 @@ func NewComponent(deps Requires) Provides {
 				},
 			},
 			&ConnectionErrorExtractor{},
+			NewPatternLogProcessor([]LogAnomalyDetector{}),
 		},
 		tsAnalyses: []observerdef.TimeSeriesAnalysis{
 			NewCUSUMDetector(),
