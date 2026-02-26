@@ -17,6 +17,28 @@ import (
 	"unicode/utf8"
 )
 
+// Safety and resource limits for the sed builtin.
+const (
+	// sedMaxIterations limits total command executions per input line,
+	// preventing infinite loops from branch commands like ":loop; b loop".
+	sedMaxIterations = 10000
+
+	// sedMaxInputLines caps the number of input lines buffered.
+	sedMaxInputLines = 100000
+
+	// sedMaxSpaceBytes caps pattern space and hold space size (10 MiB).
+	sedMaxSpaceBytes = 10 << 20
+
+	// sedMaxScriptFileBytes caps script file size read via -f (1 MiB).
+	sedMaxScriptFileBytes = 1 << 20
+)
+
+// Synthetic command bytes for flattened group representation.
+const (
+	sedCmdGroupStart byte = 0x01 // address check; jumps to jumpTarget on non-match
+	sedCmdGroupEnd   byte = 0x02 // no-op marker
+)
+
 // sedAddress represents a line address in a sed command.
 type sedAddress struct {
 	lineNum int            // >0 for line number addresses
@@ -37,18 +59,20 @@ type sedSub struct {
 
 // sedCommand represents a single parsed sed command.
 type sedCommand struct {
-	addr1   *sedAddress // nil = no address
-	addr2   *sedAddress // nil = single address or no address
-	negated bool        // ! prefix
-	cmd     byte        // command character
-	sub     *sedSub     // for 's' command
-	transFrom string   // for 'y' command
-	transTo   string   // for 'y' command
-	text     string    // for 'a', 'i', 'c' commands
-	label    string    // for 'b', 't', 'T', ':' commands
-	readFile string    // for 'r', 'R' commands
-	quitCode int       // for 'q', 'Q' commands
-	children []*sedCommand // for '{' grouping
+	addr1      *sedAddress    // nil = no address
+	addr2      *sedAddress    // nil = single address or no address
+	negated    bool           // ! prefix
+	inRange    bool           // runtime state for addr1,addr2 range tracking
+	cmd        byte           // command character
+	sub        *sedSub        // for 's' command
+	transFrom  string         // for 'y' command
+	transTo    string         // for 'y' command
+	text       string         // for 'a', 'i', 'c' commands
+	label      string         // for 'b', 't', 'T', ':' commands
+	readFile   string         // for 'r', 'R' commands
+	quitCode   int            // for 'q', 'Q' commands
+	jumpTarget int            // for sedCmdGroupStart: index of matching group-end
+	children   []*sedCommand  // for '{' grouping (used during parsing, flattened before execution)
 }
 
 // sedState holds the execution state while processing input.
@@ -62,6 +86,10 @@ type sedState struct {
 	quit         bool
 	quitCode     int
 	suppress     bool // -n flag
+
+	// Line access for n/N commands.
+	lines   []string
+	lineIdx *int
 }
 
 // builtinSed implements a safe subset of the POSIX sed command.
@@ -70,13 +98,14 @@ func (r *Runner) builtinSed(ctx context.Context, args []string) exitStatus {
 	var exit exitStatus
 
 	var (
-		suppress   bool // -n
-		extendedRE bool // -E / -r
-		scripts    []string
+		suppress    bool // -n
+		extendedRE  bool // -E / -r
+		scripts     []string
 		scriptFiles []string
 	)
 
-	// Parse options
+	// Parse options — custom parser needed for combined flags like -nE
+	// and -e taking rest-of-arg as script value.
 	i := 0
 	for i < len(args) {
 		arg := args[i]
@@ -102,11 +131,9 @@ func (r *Runner) builtinSed(ctx context.Context, args []string) exitStatus {
 				case 'e':
 					j++
 					if j < len(arg) {
-						// Rest of this arg is the script
 						scripts = append(scripts, arg[j:])
 						j = len(arg)
 					} else {
-						// Next arg is the script
 						i++
 						if i >= len(args) {
 							r.errf("sed: option requires an argument -- 'e'\n")
@@ -144,12 +171,12 @@ func (r *Runner) builtinSed(ctx context.Context, args []string) exitStatus {
 		}
 
 		// Long-ish options
-		switch arg {
-		case "-n":
+		switch {
+		case arg == "-n":
 			suppress = true
-		case "-E", "-r":
+		case arg == "-E" || arg == "-r":
 			extendedRE = true
-		case "-e":
+		case arg == "-e":
 			i++
 			if i >= len(args) {
 				r.errf("sed: option requires an argument -- 'e'\n")
@@ -157,7 +184,7 @@ func (r *Runner) builtinSed(ctx context.Context, args []string) exitStatus {
 				return exit
 			}
 			scripts = append(scripts, args[i])
-		case "-f":
+		case arg == "-f":
 			i++
 			if i >= len(args) {
 				r.errf("sed: option requires an argument -- 'f'\n")
@@ -165,7 +192,7 @@ func (r *Runner) builtinSed(ctx context.Context, args []string) exitStatus {
 				return exit
 			}
 			scriptFiles = append(scriptFiles, args[i])
-		case "-i", "--in-place":
+		case arg == "-i" || strings.HasPrefix(arg, "--in-place"):
 			r.errf("sed: -i (in-place edit) is not available in safe shell\n")
 			exit.code = 2
 			return exit
@@ -179,7 +206,7 @@ func (r *Runner) builtinSed(ctx context.Context, args []string) exitStatus {
 
 	remaining := args[i:]
 
-	// Read script files
+	// Read script files with size limit
 	for _, sf := range scriptFiles {
 		absPath := r.absPath(sf)
 		f, err := r.open(ctx, absPath, os.O_RDONLY, 0, true)
@@ -187,10 +214,15 @@ func (r *Runner) builtinSed(ctx context.Context, args []string) exitStatus {
 			exit.code = 2
 			return exit
 		}
-		data, err := io.ReadAll(f)
+		data, err := io.ReadAll(io.LimitReader(f, sedMaxScriptFileBytes+1))
 		f.Close()
 		if err != nil {
 			r.errf("sed: error reading script file %q: %v\n", sf, err)
+			exit.code = 2
+			return exit
+		}
+		if len(data) > sedMaxScriptFileBytes {
+			r.errf("sed: script file %q too large (>1MB)\n", sf)
 			exit.code = 2
 			return exit
 		}
@@ -208,22 +240,25 @@ func (r *Runner) builtinSed(ctx context.Context, args []string) exitStatus {
 		remaining = remaining[1:]
 	}
 
-	// Combine all scripts with newlines
 	fullScript := strings.Join(scripts, "\n")
 
-	// Compile the script
-	commands, err := sedCompile(fullScript, extendedRE)
+	// Compile: parse then flatten
+	parsed, err := sedCompile(fullScript, extendedRE)
 	if err != nil {
 		r.errf("sed: %v\n", err)
 		exit.code = 2
 		return exit
 	}
+	commands := sedFlatten(parsed)
 
-	// Build label map
+	// Build label map on the flat command list
 	labels := make(map[string]int)
-	sedBuildLabels(commands, labels)
+	for i, cmd := range commands {
+		if cmd.cmd == ':' {
+			labels[cmd.label] = i
+		}
+	}
 
-	// Determine input sources
 	state := &sedState{suppress: suppress}
 
 	if len(remaining) == 0 {
@@ -256,21 +291,68 @@ func (r *Runner) builtinSed(ctx context.Context, args []string) exitStatus {
 	return exit
 }
 
+// sedFlatten converts a parsed command tree into a flat instruction list.
+// Groups ({...}) become sedCmdGroupStart / sedCmdGroupEnd pairs with a
+// jumpTarget on the start pointing to the end. This ensures labels inside
+// groups have correct indices and eliminates recursive execution.
+func sedFlatten(commands []*sedCommand) []*sedCommand {
+	var flat []*sedCommand
+	sedFlattenInto(&flat, commands)
+	return flat
+}
+
+func sedFlattenInto(flat *[]*sedCommand, commands []*sedCommand) {
+	for _, cmd := range commands {
+		if cmd.cmd == '{' {
+			// Insert group-start with the group's address
+			gs := &sedCommand{
+				cmd:     sedCmdGroupStart,
+				addr1:   cmd.addr1,
+				addr2:   cmd.addr2,
+				negated: cmd.negated,
+			}
+			gsIdx := len(*flat)
+			*flat = append(*flat, gs)
+
+			// Recursively flatten children
+			sedFlattenInto(flat, cmd.children)
+
+			// Insert group-end
+			ge := &sedCommand{cmd: sedCmdGroupEnd}
+			geIdx := len(*flat)
+			*flat = append(*flat, ge)
+
+			// Patch jump target
+			gs.jumpTarget = geIdx
+			_ = gsIdx
+		} else {
+			*flat = append(*flat, cmd)
+		}
+	}
+}
+
 // sedProcessInput reads lines from the reader and applies sed commands.
 func (r *Runner) sedProcessInput(ctx context.Context, reader io.Reader, commands []*sedCommand, labels map[string]int, state *sedState) exitStatus {
 	var exit exitStatus
 	scanner := bufio.NewScanner(reader)
 
-	// Collect all lines to know the last line
+	// Collect lines with cap to prevent unbounded memory growth.
 	var lines []string
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
+		if len(lines) >= sedMaxInputLines {
+			r.errf("sed: input truncated at %d lines\n", sedMaxInputLines)
+			break
+		}
 	}
 	if err := scanner.Err(); err != nil {
 		r.errf("sed: read error: %v\n", err)
 		exit.code = 2
 		return exit
 	}
+
+	state.lines = lines
+	state.lineIdx = new(int)
 
 	for idx := 0; idx < len(lines); idx++ {
 		select {
@@ -284,12 +366,17 @@ func (r *Runner) sedProcessInput(ctx context.Context, reader io.Reader, commands
 		}
 
 		state.lineNum++
+		*state.lineIdx = idx
 		state.lastLine = (idx == len(lines)-1)
 		state.patternSpace = lines[idx]
 		state.subMade = false
 		state.appendQueue = state.appendQueue[:0]
 
 		action := r.sedExecCommands(ctx, commands, labels, state)
+
+		// n/N may have advanced lineIdx
+		idx = *state.lineIdx
+		state.lastLine = (idx == len(lines)-1)
 
 		switch action {
 		case sedActionQuit:
@@ -303,19 +390,19 @@ func (r *Runner) sedProcessInput(ctx context.Context, reader io.Reader, commands
 			r.sedFlushAppend(state)
 			state.quit = true
 			return exit
-		case sedActionRestart:
-			// Already handled inside execCommands
+		case sedActionEndCycle:
+			// End of cycle: print (unless suppressed) and advance
 		case sedActionDelete:
 			r.sedFlushAppend(state)
 			continue
 		case sedActionDeleteFirstLine:
-			// Remove up to first newline and restart
 			if nl := strings.IndexByte(state.patternSpace, '\n'); nl >= 0 {
 				state.patternSpace = state.patternSpace[nl+1:]
 				state.subMade = false
 				state.appendQueue = state.appendQueue[:0]
 				action = r.sedExecCommands(ctx, commands, labels, state)
 				if action == sedActionDelete || action == sedActionDeleteFirstLine {
+					r.sedFlushAppend(state)
 					continue
 				}
 			}
@@ -323,12 +410,13 @@ func (r *Runner) sedProcessInput(ctx context.Context, reader io.Reader, commands
 				r.outf("%s\n", state.patternSpace)
 			}
 			r.sedFlushAppend(state)
-		default:
-			if !state.suppress {
-				r.outf("%s\n", state.patternSpace)
-			}
-			r.sedFlushAppend(state)
+			continue
 		}
+
+		if !state.suppress {
+			r.outf("%s\n", state.patternSpace)
+		}
+		r.sedFlushAppend(state)
 	}
 
 	return exit
@@ -346,25 +434,47 @@ const (
 	sedActionContinue       sedAction = iota
 	sedActionQuit                     // q
 	sedActionQuitNoprint              // Q
-	sedActionRestart                  // restart cycle (branch to beginning)
+	sedActionEndCycle                 // end current cycle (b with no label, t/T restart)
 	sedActionDelete                   // d
 	sedActionDeleteFirstLine          // D
-	sedActionBranch                   // b/t/T (label handled separately)
 )
 
-// sedExecCommands executes the command list against the current state.
+// sedExecCommands executes the flat command list against the current state.
+// It enforces an iteration limit and checks for context cancellation to
+// prevent infinite loops from branch commands.
 func (r *Runner) sedExecCommands(ctx context.Context, commands []*sedCommand, labels map[string]int, state *sedState) sedAction {
+	iterations := 0
 	for i := 0; i < len(commands); i++ {
+		iterations++
+		if iterations > sedMaxIterations {
+			r.errf("sed: execution limit exceeded (possible infinite loop)\n")
+			return sedActionEndCycle
+		}
+		select {
+		case <-ctx.Done():
+			return sedActionEndCycle
+		default:
+		}
+
 		cmd := commands[i]
+
+		// Handle synthetic group-start: check address, jump past on non-match
+		if cmd.cmd == sedCmdGroupStart {
+			if !sedMatchAddress(cmd, state) {
+				i = cmd.jumpTarget // jump to group-end
+			}
+			continue
+		}
+		if cmd.cmd == sedCmdGroupEnd {
+			continue
+		}
+
 		if !sedMatchAddress(cmd, state) {
 			continue
 		}
 
-		action := r.sedExecOne(ctx, cmd, commands, labels, state, &i)
-		switch action {
-		case sedActionContinue:
-			continue
-		default:
+		action := r.sedExecOne(ctx, cmd, labels, state, &i)
+		if action != sedActionContinue {
 			return action
 		}
 	}
@@ -372,7 +482,7 @@ func (r *Runner) sedExecCommands(ctx context.Context, commands []*sedCommand, la
 }
 
 // sedExecOne executes a single sed command. It may modify *cmdIdx for branches.
-func (r *Runner) sedExecOne(ctx context.Context, cmd *sedCommand, _ []*sedCommand, labels map[string]int, state *sedState, cmdIdx *int) sedAction {
+func (r *Runner) sedExecOne(ctx context.Context, cmd *sedCommand, labels map[string]int, state *sedState, cmdIdx *int) sedAction {
 	switch cmd.cmd {
 	case 's':
 		made := sedExecSubstitute(cmd.sub, state)
@@ -395,25 +505,55 @@ func (r *Runner) sedExecOne(ctx context.Context, cmd *sedCommand, _ []*sedComman
 		}
 		r.outf("%s\n", line)
 	case 'n':
-		// Print current pattern space (unless suppressed), then read next line
+		// Print current pattern space (unless suppressed), then read next line.
+		// Per POSIX: if no next input line is available, branch to end of script.
 		if !state.suppress {
 			r.outf("%s\n", state.patternSpace)
 		}
-		// Note: in our line-by-line model, 'n' just signals to continue
-		// We can't easily pull the next line here, so we treat it as a no-op
-		// that outputs the current line and continues
+		r.sedFlushAppend(state)
+		state.appendQueue = state.appendQueue[:0]
+		if *state.lineIdx+1 < len(state.lines) {
+			*state.lineIdx++
+			state.lineNum++
+			state.patternSpace = state.lines[*state.lineIdx]
+			state.lastLine = (*state.lineIdx == len(state.lines)-1)
+		} else {
+			return sedActionEndCycle
+		}
 	case 'N':
-		// Append next line to pattern space — in our model, this is complex.
-		// For simplicity, we note this is a best-effort implementation.
-		// In the line-by-line model, N is handled at the execution loop level.
+		// Append next line to pattern space
+		if *state.lineIdx+1 >= len(state.lines) {
+			// No more input — default print and exit
+			if !state.suppress {
+				r.outf("%s\n", state.patternSpace)
+			}
+			state.quit = true
+			return sedActionQuitNoprint
+		}
+		*state.lineIdx++
+		state.lineNum++
+		state.lastLine = (*state.lineIdx == len(state.lines)-1)
+		state.patternSpace = state.patternSpace + "\n" + state.lines[*state.lineIdx]
+		if len(state.patternSpace) > sedMaxSpaceBytes {
+			r.errf("sed: pattern space exceeded size limit\n")
+			return sedActionEndCycle
+		}
 	case 'g':
 		state.patternSpace = state.holdSpace
 	case 'G':
 		state.patternSpace = state.patternSpace + "\n" + state.holdSpace
+		if len(state.patternSpace) > sedMaxSpaceBytes {
+			r.errf("sed: pattern space exceeded size limit\n")
+			return sedActionEndCycle
+		}
 	case 'h':
 		state.holdSpace = state.patternSpace
 	case 'H':
 		state.holdSpace = state.holdSpace + "\n" + state.patternSpace
+		if len(state.holdSpace) > sedMaxSpaceBytes {
+			r.errf("sed: hold space exceeded size limit\n")
+			return sedActionEndCycle
+		}
 	case 'x':
 		state.patternSpace, state.holdSpace = state.holdSpace, state.patternSpace
 	case 'a':
@@ -445,42 +585,38 @@ func (r *Runner) sedExecOne(ctx context.Context, cmd *sedCommand, _ []*sedComman
 		}
 	case 'b':
 		if cmd.label == "" {
-			return sedActionRestart
+			return sedActionEndCycle
 		}
 		if idx, ok := labels[cmd.label]; ok {
 			*cmdIdx = idx - 1 // will be incremented by the loop
 			return sedActionContinue
 		}
-		// Unknown label: restart
-		return sedActionRestart
+		return sedActionEndCycle
 	case 't':
 		if state.subMade {
 			state.subMade = false
 			if cmd.label == "" {
-				return sedActionRestart
+				return sedActionEndCycle
 			}
 			if idx, ok := labels[cmd.label]; ok {
 				*cmdIdx = idx - 1
 				return sedActionContinue
 			}
-			return sedActionRestart
+			return sedActionEndCycle
 		}
 	case 'T':
 		if !state.subMade {
 			if cmd.label == "" {
-				return sedActionRestart
+				return sedActionEndCycle
 			}
 			if idx, ok := labels[cmd.label]; ok {
 				*cmdIdx = idx - 1
 				return sedActionContinue
 			}
-			return sedActionRestart
+			return sedActionEndCycle
 		}
-	case '{':
-		action := r.sedExecCommands(ctx, cmd.children, labels, state)
-		if action != sedActionContinue {
-			return action
-		}
+	case ':':
+		// Label definition — no-op at execution time
 	}
 	return sedActionContinue
 }
@@ -499,30 +635,22 @@ func sedMatchAddressRaw(cmd *sedCommand, state *sedState) bool {
 		return true // no address = match all
 	}
 
-	match1 := sedAddrMatches(cmd.addr1, state)
-
 	if cmd.addr2 == nil {
-		return match1 // single address
+		return sedAddrMatches(cmd.addr1, state) // single address
 	}
 
-	// Range: addr1,addr2
-	if match1 {
+	// Range: addr1,addr2 — proper toggle logic
+	if cmd.inRange {
+		if sedAddrMatches(cmd.addr2, state) {
+			cmd.inRange = false
+		}
 		return true
 	}
-
-	match2 := sedAddrMatches(cmd.addr2, state)
-	// We need to track range state. For simplicity in this implementation,
-	// we check if the line is between addr1 and addr2.
-	// A proper implementation would track inRange state per command.
-	// For now, we use a simpler approach: match any line where addr1 <= line <= addr2
-	if cmd.addr1.lineNum > 0 && cmd.addr2.lineNum > 0 {
-		return state.lineNum >= cmd.addr1.lineNum && state.lineNum <= cmd.addr2.lineNum
+	if sedAddrMatches(cmd.addr1, state) {
+		cmd.inRange = true
+		return true
 	}
-	if cmd.addr1.lineNum > 0 && cmd.addr2.last {
-		return state.lineNum >= cmd.addr1.lineNum
-	}
-
-	return match2
+	return false
 }
 
 func sedAddrMatches(addr *sedAddress, state *sedState) bool {
@@ -554,16 +682,12 @@ func sedExecSubstitute(sub *sedSub, state *sedState) bool {
 		result := re.ReplaceAllString(ps, sedGoReplace(sub.replace))
 		if result != ps {
 			state.patternSpace = result
-			if sub.print {
-				// Print is handled by caller checking subMade
-			}
 			return true
 		}
 		return false
 	}
 
 	if sub.nth > 0 {
-		// Replace the Nth match
 		count := 0
 		result := re.ReplaceAllStringFunc(ps, func(match string) string {
 			count++
@@ -585,15 +709,9 @@ func sedExecSubstitute(sub *sedSub, state *sedState) bool {
 		return false
 	}
 
-	// Use ReplaceAllString on the matched portion to handle backrefs
 	matched := ps[loc[0]:loc[1]]
 	replacement := re.ReplaceAllString(matched, sedGoReplace(sub.replace))
 	state.patternSpace = ps[:loc[0]] + replacement + ps[loc[1]:]
-
-	if sub.print {
-		// The caller will output if needed
-	}
-
 	return true
 }
 
@@ -635,7 +753,6 @@ func sedGoReplace(sedRepl string) string {
 		case '&':
 			b.WriteString("${0}")
 		case '$':
-			// Escape $ so Go's regexp doesn't treat it as a backreference
 			b.WriteString("$$")
 		default:
 			b.WriteByte(ch)
@@ -700,7 +817,7 @@ func sedVisual(s string) string {
 	return b.String()
 }
 
-// sedReadFile reads an entire file for the 'r' command.
+// sedReadFile reads a file for the 'r' command with a size limit.
 func (r *Runner) sedReadFile(ctx context.Context, path string) (string, error) {
 	absPath := r.absPath(path)
 	f, err := r.open(ctx, absPath, os.O_RDONLY, 0, false)
@@ -708,13 +825,14 @@ func (r *Runner) sedReadFile(ctx context.Context, path string) (string, error) {
 		return "", err
 	}
 	defer f.Close()
-	data, err := io.ReadAll(f)
+	data, err := io.ReadAll(io.LimitReader(f, maxOutputBytes+1))
 	if err != nil {
 		return "", err
 	}
-	// Trim trailing newline to avoid double newlines
-	s := string(data)
-	s = strings.TrimSuffix(s, "\n")
+	if len(data) > maxOutputBytes {
+		return "", fmt.Errorf("file too large (>1MB)")
+	}
+	s := strings.TrimSuffix(string(data), "\n")
 	return s, nil
 }
 
@@ -731,18 +849,6 @@ func (r *Runner) sedReadFirstLine(ctx context.Context, path string) (string, err
 		return scanner.Text(), nil
 	}
 	return "", scanner.Err()
-}
-
-// sedBuildLabels walks the command list and records label positions.
-func sedBuildLabels(commands []*sedCommand, labels map[string]int) {
-	for i, cmd := range commands {
-		if cmd.cmd == ':' {
-			labels[cmd.label] = i
-		}
-		if cmd.cmd == '{' {
-			sedBuildLabels(cmd.children, labels)
-		}
-	}
 }
 
 // --- Compiler: parse sed script text into sedCommand list ---
@@ -818,7 +924,6 @@ func (p *sedParser) parseCommands(inGroup bool) ([]*sedCommand, error) {
 		}
 
 		if p.peek() == '#' {
-			// Comment — skip to end of line
 			for p.pos < len(p.script) && p.script[p.pos] != '\n' {
 				p.pos++
 			}
@@ -839,7 +944,6 @@ func (p *sedParser) parseCommands(inGroup bool) ([]*sedCommand, error) {
 func (p *sedParser) parseOneCommand() (*sedCommand, error) {
 	cmd := &sedCommand{}
 
-	// Parse optional address(es)
 	p.skipSpaces()
 
 	addr1, err := p.parseAddress()
@@ -851,7 +955,7 @@ func (p *sedParser) parseOneCommand() (*sedCommand, error) {
 		p.skipSpaces()
 
 		if p.peek() == ',' {
-			p.next() // consume ','
+			p.next()
 			p.skipSpaces()
 			addr2, err := p.parseAddress()
 			if err != nil {
@@ -865,14 +969,12 @@ func (p *sedParser) parseOneCommand() (*sedCommand, error) {
 		}
 	}
 
-	// Parse optional '!'
 	if p.peek() == '!' {
 		cmd.negated = true
 		p.next()
 		p.skipSpaces()
 	}
 
-	// Parse command
 	if p.pos >= len(p.script) {
 		return nil, fmt.Errorf("expected command")
 	}
@@ -932,6 +1034,11 @@ func (p *sedParser) parseOneCommand() (*sedCommand, error) {
 			}
 			n, err := strconv.Atoi(numStr)
 			if err == nil {
+				if n < 0 {
+					n = 0
+				} else if n > 255 {
+					n = 255
+				}
 				code = n
 			}
 		}
@@ -972,7 +1079,6 @@ func (p *sedParser) parseAddress() (*sedAddress, error) {
 	case c >= '0' && c <= '9':
 		num := p.parseNumber()
 		addr := &sedAddress{lineNum: num}
-		// Check for ~step
 		if p.pos < len(p.script) && p.peek() == '~' {
 			p.next()
 			step := p.parseNumber()
@@ -1028,7 +1134,7 @@ func (p *sedParser) parseRegexUntil(delim byte) (*regexp.Regexp, error) {
 			continue
 		}
 		if c == delim {
-			p.pos++ // consume closing delimiter
+			p.pos++
 			patStr := pattern.String()
 			if !p.extendedRE {
 				patStr = sedBREtoERE(patStr)
@@ -1056,7 +1162,6 @@ func sedBREtoERE(pattern string) string {
 			next := pattern[i+1]
 			switch next {
 			case '(', ')', '{', '}', '+', '?', '|':
-				// BRE escaped special -> ERE unescaped special
 				result.WriteByte(next)
 				i++
 			default:
@@ -1067,7 +1172,6 @@ func sedBREtoERE(pattern string) string {
 		} else {
 			switch pattern[i] {
 			case '(', ')', '{', '}', '+', '?', '|':
-				// BRE literal -> ERE needs escaping
 				result.WriteByte('\\')
 				result.WriteByte(pattern[i])
 			default:
@@ -1089,7 +1193,6 @@ func (p *sedParser) parseSubstitution() (*sedSub, error) {
 		return nil, fmt.Errorf("invalid delimiter for 's' command")
 	}
 
-	// Parse regex
 	var patternBuf strings.Builder
 	for p.pos < len(p.script) {
 		c := p.script[p.pos]
@@ -1113,7 +1216,6 @@ func (p *sedParser) parseSubstitution() (*sedSub, error) {
 		p.pos++
 	}
 
-	// Parse replacement
 	var replBuf strings.Builder
 	for p.pos < len(p.script) {
 		c := p.script[p.pos]
@@ -1137,7 +1239,6 @@ func (p *sedParser) parseSubstitution() (*sedSub, error) {
 		p.pos++
 	}
 
-	// Parse flags
 	sub := &sedSub{
 		replace: replBuf.String(),
 	}
@@ -1253,7 +1354,6 @@ func (p *sedParser) readUntilDelim(delim byte) (string, error) {
 // parseText parses text for a/i/c commands.
 // Supports "a\ text" and "a text" syntax.
 func (p *sedParser) parseText() (string, error) {
-	// Skip optional backslash and whitespace
 	if p.pos < len(p.script) && p.peek() == '\\' {
 		p.next()
 	}
@@ -1265,6 +1365,7 @@ func (p *sedParser) parseText() (string, error) {
 
 	var buf strings.Builder
 	first := true
+	trailingBackslash := false
 	for p.pos < len(p.script) {
 		c := p.script[p.pos]
 		if first && (c == '\n' || c == ';') {
@@ -1272,18 +1373,19 @@ func (p *sedParser) parseText() (string, error) {
 		}
 		first = false
 		if c == '\n' {
-			// Check if next line continues (ends with \)
-			if buf.Len() > 0 && buf.String()[buf.Len()-1] == '\\' {
-				// Remove trailing backslash and add newline
+			if trailingBackslash {
+				// Continuation: replace trailing backslash with newline
 				s := buf.String()
 				buf.Reset()
 				buf.WriteString(s[:len(s)-1])
 				buf.WriteByte('\n')
+				trailingBackslash = false
 				p.pos++
 				continue
 			}
 			break
 		}
+		trailingBackslash = (c == '\\')
 		buf.WriteByte(c)
 		p.pos++
 	}

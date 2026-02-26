@@ -646,3 +646,154 @@ func TestSed_FullPipelineIntegration(t *testing.T) {
 		t.Errorf("pipeline should show 'something broke' with count 2, got: %q", trimmed)
 	}
 }
+
+// --- Additional sed tests for review findings ---
+
+func TestSed_RegexRange(t *testing.T) {
+	// Fix 2: regex-to-regex address ranges must work with inRange toggle
+	stdout, _, exitCode := runShellScript(t, `printf "a\nSTART\nb\nc\nEND\nd\n" | sed '/START/,/END/d'`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed, got exit code %d", exitCode)
+	}
+	if stdout != "a\nd\n" {
+		t.Errorf("sed regex range unexpected output: %q", stdout)
+	}
+}
+
+func TestSed_RegexRangeSubstitute(t *testing.T) {
+	stdout, _, exitCode := runShellScript(t, `printf "a\nSTART\nb\nc\nEND\nd\n" | sed '/START/,/END/s/^/>> /'`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed, got exit code %d", exitCode)
+	}
+	expected := "a\n>> START\n>> b\n>> c\n>> END\nd\n"
+	if stdout != expected {
+		t.Errorf("sed regex range substitute unexpected output: %q, want %q", stdout, expected)
+	}
+}
+
+func TestSed_NextLine(t *testing.T) {
+	// Fix 3: n command should output current line and load next
+	stdout, _, exitCode := runShellScript(t, `printf "a\nb\nc\n" | sed -n 'n;p'`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed, got exit code %d", exitCode)
+	}
+	if stdout != "b\n" {
+		t.Errorf("sed n command unexpected output: %q, want %q", stdout, "b\n")
+	}
+}
+
+func TestSed_AppendNextLine(t *testing.T) {
+	// Fix 3: N command should append next line to pattern space
+	stdout, _, exitCode := runShellScript(t, `printf "a\nb\nc\nd\n" | sed 'N;s/\n/ /'`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed, got exit code %d", exitCode)
+	}
+	if stdout != "a b\nc d\n" {
+		t.Errorf("sed N command unexpected output: %q, want %q", stdout, "a b\nc d\n")
+	}
+}
+
+func TestSed_BranchLabel(t *testing.T) {
+	// Branch to named label
+	stdout, _, exitCode := runShellScript(t, `printf "a\nb\nc\n" | sed -n '/b/{p;b end};p;:end'`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed, got exit code %d", exitCode)
+	}
+	if stdout != "a\nb\nc\n" {
+		t.Errorf("sed branch label unexpected output: %q", stdout)
+	}
+}
+
+func TestSed_ConditionalBranch(t *testing.T) {
+	// t command: branch if substitution was made
+	stdout, _, exitCode := runShellScript(t, `printf "aXb\ncXd\n" | sed 's/X/Y/;t done;s/$/!/;:done'`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed, got exit code %d", exitCode)
+	}
+	// Both lines match s/X/Y/ so t branches past s/$/!/ for both
+	if stdout != "aYb\ncYd\n" {
+		t.Errorf("sed t branch unexpected output: %q, want %q", stdout, "aYb\ncYd\n")
+	}
+}
+
+func TestSed_InfiniteLoopProtection(t *testing.T) {
+	// Fix 1: infinite branch loop must be caught by iteration limit
+	_, stderr, exitCode := runShellScriptWithTimeout(t, `echo "test" | sed ':loop; b loop'`, 5*time.Second)
+	// Should terminate due to iteration limit, not hang
+	_ = exitCode
+	if !strings.Contains(stderr, "execution limit exceeded") {
+		t.Errorf("sed infinite loop should produce limit warning, got stderr: %q", stderr)
+	}
+}
+
+func TestSafety_SedInPlaceLongOption(t *testing.T) {
+	// Fix 9: --in-place=.bak should be caught
+	_, stderr, exitCode := runShellScript(t, `echo "test" | sed --in-place=.bak 's/t/T/'`)
+	if exitCode != 2 {
+		t.Errorf("sed --in-place=.bak should return exit code 2, got %d", exitCode)
+	}
+	if !strings.Contains(stderr, "not available in safe shell") {
+		t.Errorf("sed --in-place=.bak stderr should contain 'not available in safe shell', got: %q", stderr)
+	}
+}
+
+func TestSed_GroupWithRegexRange(t *testing.T) {
+	// Fix 7: labels/groups in flattened command list
+	stdout, _, exitCode := runShellScript(t, `printf "a\nb\nc\nd\n" | sed -n '/b/,/c/{p}'`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed, got exit code %d", exitCode)
+	}
+	if stdout != "b\nc\n" {
+		t.Errorf("sed group with regex range unexpected output: %q, want %q", stdout, "b\nc\n")
+	}
+}
+
+func TestSed_ChangeCommand(t *testing.T) {
+	stdout, _, exitCode := runShellScript(t, `printf "a\nb\nc\n" | sed '2c\replaced'`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed, got exit code %d", exitCode)
+	}
+	if stdout != "a\nreplaced\nc\n" {
+		t.Errorf("sed change command unexpected output: %q", stdout)
+	}
+}
+
+func TestSed_InsertCommand(t *testing.T) {
+	stdout, _, exitCode := runShellScript(t, `printf "a\nb\n" | sed '2i\inserted'`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed, got exit code %d", exitCode)
+	}
+	if stdout != "a\ninserted\nb\n" {
+		t.Errorf("sed insert command unexpected output: %q", stdout)
+	}
+}
+
+func TestSed_AppendCommand(t *testing.T) {
+	stdout, _, exitCode := runShellScript(t, `printf "a\nb\n" | sed '1a\appended'`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed, got exit code %d", exitCode)
+	}
+	if stdout != "a\nappended\nb\n" {
+		t.Errorf("sed append command unexpected output: %q", stdout)
+	}
+}
+
+func TestSed_EmptyInput(t *testing.T) {
+	stdout, _, exitCode := runShellScript(t, `printf "" | sed 's/a/b/'`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed on empty input, got exit code %d", exitCode)
+	}
+	if stdout != "" {
+		t.Errorf("sed empty input should produce empty output, got: %q", stdout)
+	}
+}
+
+func TestSed_Comment(t *testing.T) {
+	stdout, _, exitCode := runShellScript(t, `printf "a\nb\n" | sed -e '# comment' -e 's/a/A/'`)
+	if exitCode != 0 {
+		t.Errorf("sed should succeed, got exit code %d", exitCode)
+	}
+	if stdout != "A\nb\n" {
+		t.Errorf("sed comment handling unexpected output: %q", stdout)
+	}
+}
