@@ -174,6 +174,13 @@ func (d *dispatcher) moveCheck(src, dest, checkID string) error {
 }
 
 func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
+	if !d.tracingEnabled {
+		if pkgconfigsetup.Datadog().GetBool("cluster_checks.rebalance_with_utilization") {
+			return d.rebalanceUsingUtilization(force)
+		}
+		return d.rebalanceUsingBusyness()
+	}
+
 	span := tracer.StartSpan("cluster_checks.dispatcher.rebalance",
 		tracer.ResourceName("rebalance_checks"),
 		tracer.SpanType("worker"))

@@ -117,14 +117,17 @@ func (h *Handler) Run(ctx context.Context) {
 
 		// Leading, start warmup
 		log.Infof("Becoming leader, waiting %s for node-agents to report", h.warmupDuration)
-		warmupSpan := tracer.StartSpan("cluster_checks.handler.leader_warmup",
-			tracer.ResourceName("warmup"),
-			tracer.SpanType("worker"))
-		finishWarmupSpan := func(interrupted string) {
-			if interrupted != "" {
-				warmupSpan.SetTag("interrupted", interrupted)
+		finishWarmupSpan := func(_ string) {}
+		if h.dispatcher.tracingEnabled {
+			span := tracer.StartSpan("cluster_checks.handler.leader_warmup",
+				tracer.ResourceName("warmup"),
+				tracer.SpanType("worker"))
+			finishWarmupSpan = func(interrupted string) {
+				if interrupted != "" {
+					span.SetTag("interrupted", interrupted)
+				}
+				span.Finish()
 			}
-			warmupSpan.Finish()
 		}
 		select {
 		case <-ctx.Done():
@@ -164,9 +167,12 @@ func (h *Handler) Run(ctx context.Context) {
 
 			if newState != leader {
 				log.Info("Lost leadership, reverting to follower")
-				tracer.StartSpan("cluster_checks.handler.leadership_lost",
-					tracer.ResourceName("leadership_lost"),
-					tracer.SpanType("worker")).Finish()
+				if h.dispatcher.tracingEnabled {
+					span := tracer.StartSpan("cluster_checks.handler.leadership_lost",
+						tracer.ResourceName("leadership_lost"),
+						tracer.SpanType("worker"))
+					span.Finish()
+				}
 				dispatchCancel()
 				break // Return back to main loop start
 			}
