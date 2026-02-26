@@ -4577,7 +4577,7 @@ api_key:
 #
 #     verbosity: normal
 {{ end -}}
-{{ if .PrivateActionRunner }}
+{{ if .PrivateActionRunner -}}
 
 #########################################
 ## Private Action Runner Configuration ##
