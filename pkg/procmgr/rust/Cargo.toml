@@ -21,9 +21,3 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "
 [dev-dependencies]
 nix = { workspace = true, features = ["signal", "process", "user"] }
 tempfile.workspace = true
-
-[profile.release]
-lto = "fat"
-opt-level = "z"
-strip = "symbols"
-panic = "abort"
