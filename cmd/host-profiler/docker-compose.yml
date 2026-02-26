@@ -12,6 +12,7 @@ services:
       - /proc/:/host/proc/:ro
       - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
       - agent-ipc:/etc/datadog-agent:rw
+      - ../../dev/dist/datadog.yaml:/etc/datadog-agent/datadog.yaml:ro
     secrets:
       - dd-api-key
     entrypoint: [ '/bin/sh', '-c', 'export DD_API_KEY=$$(cat /run/secrets/dd-api-key) ; /bin/entrypoint.sh' ]
@@ -35,6 +36,7 @@ services:
       - ../..:/app
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - agent-ipc:/etc/datadog-agent:ro
+      - ../../dev/dist/datadog.yaml:/etc/datadog-agent/datadog.yaml:ro
     secrets:
       - dd-api-key
       - dd-app-key
