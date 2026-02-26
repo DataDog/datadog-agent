@@ -207,6 +207,45 @@ func (pc *processCache) Get(pid uint32, ts int64) (*events.Process, bool) {
 	return nil, false
 }
 
+// GetAllPIDTags returns a map of PID -> []string tags for all processes in the cache.
+// For each PID, the most recent (latest StartTime) process entry is used.
+func (pc *processCache) GetAllPIDTags() map[uint32][]string {
+	if pc == nil {
+		return nil
+	}
+
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+
+	now := time.Now().Unix()
+	result := make(map[uint32][]string, len(pc.cacheByPid))
+	for pid, pl := range pc.cacheByPid {
+		// pick the most recent entry for this PID
+		var latest *events.Process
+		for _, p := range pl {
+			if now > p.Expiry {
+				continue
+			}
+			if latest == nil || p.StartTime > latest.StartTime {
+				latest = p
+			}
+		}
+		if latest == nil || len(latest.Tags) == 0 {
+			continue
+		}
+		tags := make([]string, 0, len(latest.Tags))
+		for _, t := range latest.Tags {
+			if t != nil {
+				tags = append(tags, t.Get().(string))
+			}
+		}
+		if len(tags) > 0 {
+			result[pid] = tags
+		}
+	}
+	return result
+}
+
 func (pc *processCache) Dump() (interface{}, error) {
 	res := map[uint32]interface{}{}
 	if pc == nil {
