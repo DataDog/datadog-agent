@@ -257,7 +257,9 @@ LOADER_TAGS = set()
 
 FULL_HOST_PROFILER_TAGS = set()
 
-PRIVATEACTIONRUNNER_TAGS = set()
+# Private Action Runner includes event-platform forwarding and logs compression.
+# Keep zstd/zlib enabled to match the default compression configuration.
+PRIVATEACTIONRUNNER_TAGS = {"zlib", "zstd"}
 
 SECRET_GENERIC_CONNECTOR_TAGS = set()
 
