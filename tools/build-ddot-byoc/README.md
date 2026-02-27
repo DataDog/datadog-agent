@@ -10,10 +10,7 @@ Agent while still using the standard Datadog installer for deployment and lifecy
 ## Prerequisites
 
 - Go 1.25+
-- Registry credentials readable by
-  [`authn.DefaultKeychain`](https://github.com/google/go-containerregistry/blob/main/pkg/authn/keychain.go)
-  (i.e. `~/.docker/config.json`, credential helpers, or environment-based auth such as workload
-  identity on GCE).
+- Registry credentials for both the source agent OCI package and the output registry (see [Authentication](#authentication) below).
 
 ## Build
 
@@ -37,6 +34,38 @@ build-ddot-byoc --agent-oci <url> --otel-agent <path> --output-oci <url> [--os <
 | `--arch` | no | current arch | Target architecture (`amd64`, `arm64`) |
 
 The `oci://` prefix on URLs is accepted but optional.
+
+## Authentication
+
+`build-ddot-byoc` uses the same authentication mechanism for both the source agent package and
+the output registry. Select the method via the `REGISTRY_AUTH` environment variable:
+
+| `REGISTRY_AUTH` | Method | Additional env vars |
+|---|---|---|
+| unset / `docker` | Docker config file / credential helpers (`~/.docker/config.json`) | — |
+| `gcr` | Google Application Default Credentials (GCE, Workload Identity, `gcloud auth login`) | — |
+| `password` | Static username and password | `REGISTRY_USERNAME`, `REGISTRY_PASSWORD` |
+
+### Examples
+
+**Docker config (default)** — works automatically if you have run `docker login` or have a
+credential helper configured:
+```bash
+./build-ddot-byoc --agent-oci ... --otel-agent ... --output-oci ...
+```
+
+**Google Cloud (GCR / Artifact Registry)**:
+```bash
+REGISTRY_AUTH=gcr ./build-ddot-byoc --agent-oci ... --otel-agent ... --output-oci ...
+```
+
+**Username / password**:
+```bash
+REGISTRY_AUTH=password \
+REGISTRY_USERNAME=myuser \
+REGISTRY_PASSWORD=mypass \
+  ./build-ddot-byoc --agent-oci ... --otel-agent ... --output-oci ...
+```
 
 ## Example
 

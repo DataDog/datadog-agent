@@ -19,12 +19,47 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/empty"
+	"github.com/google/go-containerregistry/pkg/v1/google"
 	"github.com/google/go-containerregistry/pkg/v1/mutate"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/static"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 	"github.com/klauspost/compress/zstd"
 )
+
+const (
+	// envRegistryAuth selects the authentication method for both pulling the source
+	// agent package and pushing the output. Accepted values:
+	//   "docker"   (default) – Docker config file / credential helpers (~/.docker/config.json)
+	//   "gcr"               – Google Application Default Credentials (GCE, Workload Identity, gcloud ADC)
+	//   "password"          – static username / password via REGISTRY_USERNAME and REGISTRY_PASSWORD
+	envRegistryAuth     = "REGISTRY_AUTH"
+	envRegistryUsername = "REGISTRY_USERNAME"
+	envRegistryPassword = "REGISTRY_PASSWORD"
+)
+
+// usernamePasswordKeychain returns a fixed username/password authenticator for every registry.
+type usernamePasswordKeychain struct{ username, password string }
+
+func (k usernamePasswordKeychain) Resolve(_ authn.Resource) (authn.Authenticator, error) {
+	return authn.FromConfig(authn.AuthConfig{Username: k.username, Password: k.password}), nil
+}
+
+// getKeychain builds a keychain from REGISTRY_AUTH / REGISTRY_USERNAME / REGISTRY_PASSWORD.
+// When REGISTRY_AUTH is unset the standard Docker credential chain is used.
+func getKeychain() authn.Keychain {
+	switch os.Getenv(envRegistryAuth) {
+	case "gcr":
+		return google.Keychain
+	case "password":
+		return usernamePasswordKeychain{
+			username: os.Getenv(envRegistryUsername),
+			password: os.Getenv(envRegistryPassword),
+		}
+	default: // "docker" or unset
+		return authn.DefaultKeychain
+	}
+}
 
 const (
 	extensionAnnotationKey = "com.datadoghq.package.extension.name"
@@ -57,7 +92,7 @@ func main() {
 
 func run(agentOCI, otelAgentPath, outputOCI, targetOS, targetArch string) error {
 	ctx := context.Background()
-	keychain := authn.DefaultKeychain
+	keychain := getKeychain()
 
 	// Parse source reference (strip oci:// prefix if present).
 	srcRef, err := name.ParseReference(strings.TrimPrefix(agentOCI, "oci://"))
