@@ -14,7 +14,7 @@ import (
 	"slices"
 
 	"github.com/hashicorp/go-multierror"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"

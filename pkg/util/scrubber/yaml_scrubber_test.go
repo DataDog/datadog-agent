@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 func TestScrubDataObj(t *testing.T) {
@@ -782,7 +782,7 @@ api_config:
       x-api-key: "primary_api_key_12345"
       x-auth-token: "primary_auth_token_67890"
       x-api-secret: "primary_api_secret_abcdef"
-  
+
   secondary_endpoints:
     - name: "google"
       config:
@@ -802,14 +802,14 @@ services:
         username: "dbuser"
         password: "dbpassword123"
         x-static-token: "static_token_12345"
-  
+
   cache:
     redis:
       auth:
         accesstoken: "redis_access_token_67890"
         session_token: "redis_session_token_abcdef"
         cookie: "redis_cookie_ghijk"
-  
+
   external_apis:
     - name: "sonar"
       config:
@@ -844,7 +844,7 @@ api_config:
       x-api-key: "********"
       x-auth-token: "********"
       x-api-secret: "********"
-  
+
   secondary_endpoints:
     - name: "google"
       config:
@@ -864,14 +864,14 @@ services:
         username: "dbuser"
         password: "********"
         x-static-token: "********"
-  
+
   cache:
     redis:
       auth:
         accesstoken: "********"
         session_token: "********"
         cookie: "********"
-  
+
   external_apis:
     - name: "sonar"
       config:
