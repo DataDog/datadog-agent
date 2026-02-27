@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/apache/arrow-go/v18/arrow/array"
+	"github.com/apache/arrow-go/v18/arrow/memory"
 	"github.com/apache/arrow-go/v18/parquet/file"
 	"github.com/apache/arrow-go/v18/parquet/pqarrow"
 
@@ -97,7 +98,7 @@ func (r *TraceParquetReader) readFile(filePath string, traceMap map[traceKey]*re
 	}
 	defer pf.Close()
 
-	reader, err := pqarrow.NewFileReader(pf, pqarrow.ArrowReadProperties{}, nil)
+	reader, err := pqarrow.NewFileReader(pf, pqarrow.ArrowReadProperties{BatchSize: 1024}, memory.DefaultAllocator)
 	if err != nil {
 		pkglog.Warnf("Failed to create arrow reader for %s: %v", filePath, err)
 		return
