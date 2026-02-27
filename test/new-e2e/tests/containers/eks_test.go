@@ -6,7 +6,6 @@
 package containers
 
 import (
-	"fmt"
 	"regexp"
 	"testing"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	sceneks "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	proveks "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/eks"
@@ -39,9 +39,7 @@ func TestEKSSuite(t *testing.T) {
 	}
 
 	skipWindows, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipWindows, false)
-	if err != nil {
-		fmt.Printf("failed to get %s parameter, defaulting to false: %v\n", parameters.SkipWindows, err)
-	}
+	require.NoError(t, err, "failed to get %s parameter", parameters.SkipWindows)
 	if !skipWindows {
 		eksOptions = append(eksOptions, sceneks.WithWindowsNodeGroup())
 		agentOptions = append(agentOptions, kubernetesagentparams.WithWindowsImage())

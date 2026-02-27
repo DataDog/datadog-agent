@@ -52,7 +52,7 @@ var (
 func Platforms() []e2eos.Descriptor {
 	skipWindows, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipWindows, false)
 	if err != nil {
-		fmt.Printf("failed to get %s parameter, defaulting to false: %v\n", parameters.SkipWindows, err)
+		panic(fmt.Sprintf("failed to get %s parameter, defaulting to false: %v\n", parameters.SkipWindows, err))
 	}
 	if skipWindows {
 		return LinuxPlatforms
