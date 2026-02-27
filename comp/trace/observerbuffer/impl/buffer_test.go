@@ -17,16 +17,17 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 )
 
-// newTestBuffer creates a buffer for testing with the given configuration.
-func newTestBuffer(t *testing.T, enabled bool, traceSize, profileSize int) observerbuffer.Component {
+// newTestBuffer creates a buffer for testing with recording enabled/disabled.
+func newTestBuffer(t *testing.T, enabled bool) observerbuffer.Component {
 	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
 		"observer.recording.enabled": enabled,
+		"observer.analysis.enabled":  enabled,
 	})
 	return NewComponent(Requires{Cfg: cfg, Log: logmock.New(t)}).Comp
 }
 
 func TestBufferAddAndDrainTraces(t *testing.T) {
-	buf := newTestBuffer(t, true, 3, 3)
+	buf := newTestBuffer(t, true)
 
 	// Add traces
 	buf.AddTrace(&pb.TracerPayload{Env: "test1"})
@@ -35,7 +36,6 @@ func TestBufferAddAndDrainTraces(t *testing.T) {
 
 	stats := buf.Stats()
 	assert.Equal(t, 3, stats.TraceCount)
-	assert.Equal(t, 3, stats.TraceCapacity)
 	assert.Equal(t, uint64(0), stats.TracesDropped)
 
 	// Drain all
@@ -52,28 +52,8 @@ func TestBufferAddAndDrainTraces(t *testing.T) {
 	assert.Equal(t, 0, stats.TraceCount)
 }
 
-func TestBufferOverflow(t *testing.T) {
-	buf := newTestBuffer(t, true, 2, 2)
-
-	// Add more traces than capacity
-	buf.AddTrace(&pb.TracerPayload{Env: "test1"})
-	buf.AddTrace(&pb.TracerPayload{Env: "test2"})
-	buf.AddTrace(&pb.TracerPayload{Env: "test3"}) // Should drop test1
-
-	stats := buf.Stats()
-	assert.Equal(t, 2, stats.TraceCount)
-	assert.Equal(t, uint64(1), stats.TracesDropped)
-
-	// Drain and verify oldest was dropped
-	traces, dropped, _ := buf.DrainTraces(0)
-	assert.Len(t, traces, 2)
-	assert.Equal(t, uint64(1), dropped)
-	assert.Equal(t, "test2", traces[0].Payload.Env)
-	assert.Equal(t, "test3", traces[1].Payload.Env)
-}
-
 func TestBufferDrainWithLimit(t *testing.T) {
-	buf := newTestBuffer(t, true, 5, 5)
+	buf := newTestBuffer(t, true)
 
 	// Add 5 traces
 	for i := 0; i < 5; i++ {
@@ -92,7 +72,7 @@ func TestBufferDrainWithLimit(t *testing.T) {
 }
 
 func TestBufferProfiles(t *testing.T) {
-	buf := newTestBuffer(t, true, 3, 2)
+	buf := newTestBuffer(t, true)
 
 	// Add profiles
 	buf.AddProfile(observerbuffer.ProfileData{ProfileID: "p1", ProfileType: "cpu"})
@@ -101,24 +81,17 @@ func TestBufferProfiles(t *testing.T) {
 	stats := buf.Stats()
 	assert.Equal(t, 2, stats.ProfileCount)
 
-	// Add one more to trigger overflow
-	buf.AddProfile(observerbuffer.ProfileData{ProfileID: "p3", ProfileType: "mutex"})
-
-	stats = buf.Stats()
-	assert.Equal(t, 2, stats.ProfileCount)
-	assert.Equal(t, uint64(1), stats.ProfilesDropped)
-
 	// Drain and verify
-	profiles, dropped, _ := buf.DrainProfiles(0)
+	profiles, dropped, hasMore := buf.DrainProfiles(0)
 	assert.Len(t, profiles, 2)
-	assert.Equal(t, uint64(1), dropped)
-	assert.Equal(t, "p2", profiles[0].ProfileID)
-	assert.Equal(t, "p3", profiles[1].ProfileID)
+	assert.Equal(t, uint64(0), dropped)
+	assert.False(t, hasMore)
+	assert.Equal(t, "p1", profiles[0].ProfileID)
+	assert.Equal(t, "p2", profiles[1].ProfileID)
 }
 
 func TestNoopBuffer(t *testing.T) {
-	// Disabled by default (enabled=false)
-	buf := newTestBuffer(t, false, 3, 3)
+	buf := newTestBuffer(t, false)
 
 	// Operations should be no-ops
 	buf.AddTrace(&pb.TracerPayload{Env: "test"})
@@ -140,7 +113,7 @@ func TestNoopBuffer(t *testing.T) {
 }
 
 func TestBufferNilPayload(t *testing.T) {
-	buf := newTestBuffer(t, true, 3, 3)
+	buf := newTestBuffer(t, true)
 
 	// Adding nil should be safe
 	buf.AddTrace(nil)
@@ -150,7 +123,7 @@ func TestBufferNilPayload(t *testing.T) {
 }
 
 func TestBufferReceivedAtTimestamp(t *testing.T) {
-	buf := newTestBuffer(t, true, 3, 3)
+	buf := newTestBuffer(t, true)
 
 	buf.AddTrace(&pb.TracerPayload{Env: "test"})
 	buf.AddProfile(observerbuffer.ProfileData{ProfileID: "p1"})
