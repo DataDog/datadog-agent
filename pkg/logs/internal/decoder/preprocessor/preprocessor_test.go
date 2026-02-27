@@ -23,7 +23,7 @@ type captureSampler struct {
 	emitted []*message.Message
 }
 
-func (s *captureSampler) Process(msg *message.Message) *message.Message {
+func (s *captureSampler) Process(msg *message.Message, _ []Token) *message.Message {
 	s.emitted = append(s.emitted, msg)
 	return msg
 }
@@ -35,11 +35,11 @@ type captureAggregator struct {
 	received []*message.Message
 }
 
-func (a *captureAggregator) Process(msg *message.Message, _ Label) []*message.Message {
+func (a *captureAggregator) Process(msg *message.Message, _ Label, _ []Token) []CompletedMessage {
 	a.received = append(a.received, msg)
-	return []*message.Message{msg}
+	return []CompletedMessage{{Msg: msg}}
 }
-func (a *captureAggregator) Flush() []*message.Message { return nil }
+func (a *captureAggregator) Flush() []CompletedMessage { return nil }
 func (a *captureAggregator) IsEmpty() bool             { return true }
 
 // flushCaptureAggregator tracks flush calls.
@@ -48,17 +48,17 @@ type flushCaptureAggregator struct {
 	pending *message.Message
 }
 
-func (a *flushCaptureAggregator) Process(msg *message.Message, _ Label) []*message.Message {
+func (a *flushCaptureAggregator) Process(msg *message.Message, _ Label, _ []Token) []CompletedMessage {
 	a.pending = msg
 	return nil // buffer the message
 }
 
-func (a *flushCaptureAggregator) Flush() []*message.Message {
+func (a *flushCaptureAggregator) Flush() []CompletedMessage {
 	a.flushed = true
 	if a.pending != nil {
 		msg := a.pending
 		a.pending = nil
-		return []*message.Message{msg}
+		return []CompletedMessage{{Msg: msg}}
 	}
 	return nil
 }
