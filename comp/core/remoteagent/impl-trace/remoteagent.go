@@ -7,6 +7,7 @@
 package traceimpl
 
 import (
+	"context"
 	"net"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -54,6 +55,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 		remoteAgentServer: remoteAgentServer,
 	}
 
+	pbcore.RegisterStatusProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
+
 	provides := Provides{
 		Comp: remoteagentImpl,
 	}
@@ -67,4 +70,10 @@ type remoteagentImpl struct {
 
 	remoteAgentServer *helper.UnimplementedRemoteAgentServer
 	pbcore.UnimplementedTelemetryProviderServer
+	pbcore.UnimplementedStatusProviderServer
+}
+
+// GetStatusDetails returns the status details of the trace agent
+func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
+	return helper.DefaultStatusResponse(), nil
 }

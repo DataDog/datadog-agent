@@ -128,6 +128,7 @@ func (rac *remoteAgentClient) validateSessionID(responseMetadata metadata.MD) er
 func callAgentsForService[PbType any, StructuredType any](
 	registry *remoteAgentRegistry,
 	service remoteAgentServiceName,
+	flavorFilter string,
 	grpcCall func(context.Context, *remoteAgentClient, ...grpc.CallOption) (PbType, error),
 	resultProcessor func(remoteagentregistry.RegisteredAgent, PbType, error) StructuredType,
 ) []StructuredType {
@@ -142,6 +143,10 @@ func callAgentsForService[PbType any, StructuredType any](
 	for _, remoteAgent := range registry.agentMap {
 		// Skip the remoteAgent if the service is not implemented
 		if !slices.Contains(remoteAgent.services, service) {
+			continue
+		}
+		// Skip agents that don't match the flavor filter (empty = all agents)
+		if flavorFilter != "" && remoteAgent.Flavor != flavorFilter {
 			continue
 		}
 		filteredAgents = append(filteredAgents, remoteAgent)

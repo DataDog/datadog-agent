@@ -9,12 +9,31 @@
 package mock
 
 import (
-	"testing"
-
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 )
 
-// Mock returns a mock for remoteagentregistry component.
-func Mock(_ *testing.T) remoteagentregistry.Component {
-	return nil
+// Component is a configurable mock for the remoteagentregistry component.
+type Component struct {
+	Statuses []remoteagentregistry.StatusData
+}
+
+var _ remoteagentregistry.Component = (*Component)(nil)
+
+func (m *Component) RegisterRemoteAgent(_ *remoteagentregistry.RegistrationData) (string, uint32, error) {
+	return "", 0, nil
+}
+
+func (m *Component) RefreshRemoteAgent(_ string) bool { return false }
+
+func (m *Component) GetRegisteredAgents() []remoteagentregistry.RegisteredAgent { return nil }
+
+func (m *Component) GetRegisteredAgentStatuses() []remoteagentregistry.StatusData { return m.Statuses }
+
+func (m *Component) GetStatusByFlavor(flavor string) (remoteagentregistry.StatusData, bool) {
+	for _, s := range m.Statuses {
+		if s.Flavor == flavor {
+			return s, true
+		}
+	}
+	return remoteagentregistry.StatusData{}, false
 }

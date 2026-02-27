@@ -31,38 +31,47 @@ const (
 	remoteAgentMetricTagName = "remote_agent"
 )
 
+func statusResponseProcessor(details remoteagentregistry.RegisteredAgent, in *pb.GetStatusDetailsResponse, err error) remoteagentregistry.StatusData {
+	out := remoteagentregistry.StatusData{
+		RegisteredAgent: details,
+	}
+
+	if err != nil {
+		out.FailureReason = fmt.Sprintf("Failed to query for status: %v", err)
+		return out
+	}
+
+	if in.MainSection != nil {
+		out.MainSection = in.MainSection.Fields
+	}
+
+	sections := make(map[string]remoteagentregistry.StatusSection, len(in.NamedSections))
+	for name, section := range in.NamedSections {
+		if section != nil {
+			sections[name] = section.Fields
+		}
+	}
+	out.NamedSections = sections
+
+	return out
+}
+
 func (ra *remoteAgentRegistry) GetRegisteredAgentStatuses() []remoteagentregistry.StatusData {
 	client := func(ctx context.Context, remoteAgent *remoteAgentClient, opts ...grpc.CallOption) (*pb.GetStatusDetailsResponse, error) {
 		return remoteAgent.GetStatusDetails(ctx, &pb.GetStatusDetailsRequest{}, opts...)
 	}
-	processor := func(details remoteagentregistry.RegisteredAgent, in *pb.GetStatusDetailsResponse, err error) remoteagentregistry.StatusData {
-		out := remoteagentregistry.StatusData{
-			RegisteredAgent: details,
-		}
+	return callAgentsForService(ra, StatusServiceName, "", client, statusResponseProcessor)
+}
 
-		if err != nil {
-			out.FailureReason = fmt.Sprintf("Failed to query for status: %v", err)
-			return out
-		}
-
-		// converting main section
-		if in.MainSection != nil {
-			out.MainSection = in.MainSection.Fields
-		}
-
-		// converting named sections
-		sections := make(map[string]remoteagentregistry.StatusSection, len(in.NamedSections))
-		for name, section := range in.NamedSections {
-			if section != nil {
-				sections[name] = section.Fields
-			}
-		}
-		out.NamedSections = sections
-
-		return out
+func (ra *remoteAgentRegistry) GetStatusByFlavor(flavor string) (remoteagentregistry.StatusData, bool) {
+	client := func(ctx context.Context, remoteAgent *remoteAgentClient, opts ...grpc.CallOption) (*pb.GetStatusDetailsResponse, error) {
+		return remoteAgent.GetStatusDetails(ctx, &pb.GetStatusDetailsRequest{}, opts...)
 	}
-
-	return callAgentsForService(ra, StatusServiceName, client, processor)
+	results := callAgentsForService(ra, StatusServiceName, flavor, client, statusResponseProcessor)
+	if len(results) == 0 {
+		return remoteagentregistry.StatusData{}, false
+	}
+	return results[0], true
 }
 
 func (ra *remoteAgentRegistry) fillFlare(builder flarebuilder.FlareBuilder) error {
@@ -80,7 +89,7 @@ func (ra *remoteAgentRegistry) fillFlare(builder flarebuilder.FlareBuilder) erro
 	}
 
 	// We've collected all the flare data we can, so now we add it to the flare builder.
-	for _, flareData := range callAgentsForService(ra, FlareServiceName, client, processor) {
+	for _, flareData := range callAgentsForService(ra, FlareServiceName, "", client, processor) {
 		if flareData == nil {
 			continue
 		}
@@ -135,7 +144,7 @@ func (c *registryCollector) GetRegisteredAgentsTelemetry(ch chan<- prometheus.Me
 	}
 
 	// We don't need to collect any value since everything is sent through the provided channel
-	callAgentsForService(c.registry, TelemetryServiceName, client, processor)
+	callAgentsForService(c.registry, TelemetryServiceName, "", client, processor)
 }
 
 // Retrieve the telemetry data in exposition format from the remote agent
