@@ -17,7 +17,7 @@ import (
 // PassThroughAggregator is a stateless Aggregator that emits each message immediately
 // after applying truncation handling. It is the equivalent of the decoder's SingleLineHandler.
 type PassThroughAggregator struct {
-	collected      []*message.Message
+	collected      []CompletedMessage
 	shouldTruncate bool
 	lineLimit      int
 }
@@ -29,7 +29,7 @@ func NewPassThroughAggregator(lineLimit int) *PassThroughAggregator {
 
 // Process handles a log line, applying truncation flags if the content exceeds
 // lineLimit, and returns it as a single-element slice. label is unused.
-func (a *PassThroughAggregator) Process(msg *message.Message, _ Label) []*message.Message {
+func (a *PassThroughAggregator) Process(msg *message.Message, _ Label, tokens []Token) []CompletedMessage {
 	lastWasTruncated := a.shouldTruncate
 	content := msg.GetContent()
 	a.shouldTruncate = len(content) > a.lineLimit || msg.ParsingExtra.IsTruncated
@@ -53,12 +53,12 @@ func (a *PassThroughAggregator) Process(msg *message.Message, _ Label) []*messag
 	}
 
 	msg.SetContent(content)
-	a.collected = append(a.collected[:0], msg)
+	a.collected = append(a.collected[:0], CompletedMessage{Msg: msg, Tokens: tokens})
 	return a.collected
 }
 
 // Flush returns nil since PassThroughAggregator has no buffered state.
-func (a *PassThroughAggregator) Flush() []*message.Message {
+func (a *PassThroughAggregator) Flush() []CompletedMessage {
 	return nil
 }
 
