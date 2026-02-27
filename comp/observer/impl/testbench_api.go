@@ -43,6 +43,7 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/series/id/", api.cors(api.handleSeriesDataByID))
 	mux.HandleFunc("/api/series/", api.cors(api.handleSeriesData))
 	mux.HandleFunc("/api/anomalies", api.cors(api.handleAnomalies))
+	mux.HandleFunc("/api/logs", api.cors(api.handleLogs))
 	mux.HandleFunc("/api/log-anomalies", api.cors(api.handleLogAnomalies))
 	mux.HandleFunc("/api/correlations", api.cors(api.handleCorrelations))
 	mux.HandleFunc("/api/leadlag", api.cors(api.handleLeadLag))
@@ -448,6 +449,38 @@ func (api *TestBenchAPI) handleLogAnomalies(w http.ResponseWriter, r *http.Reque
 			Tags:          a.Tags,
 			Timestamp:     a.Timestamp,
 			Score:         a.Score,
+		})
+	}
+
+	api.writeJSON(w, response)
+}
+
+// handleLogs returns raw log entries.
+func (api *TestBenchAPI) handleLogs(w http.ResponseWriter, r *http.Request) {
+	levelFilter := r.URL.Query().Get("level")
+
+	type logEntryResponse struct {
+		Timestamp int64    `json:"timestamp"`
+		Status    string   `json:"status"`
+		Content   string   `json:"content"`
+		Tags      []string `json:"tags"`
+	}
+
+	logs := api.tb.GetRawLogs()
+	response := make([]logEntryResponse, 0, len(logs))
+	for _, l := range logs {
+		if levelFilter != "" && l.Status != levelFilter {
+			continue
+		}
+		tags := l.Tags
+		if tags == nil {
+			tags = []string{}
+		}
+		response = append(response, logEntryResponse{
+			Timestamp: l.Timestamp,
+			Status:    l.Status,
+			Content:   l.Content,
+			Tags:      tags,
 		})
 	}
 

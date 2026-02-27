@@ -94,6 +94,14 @@ export interface Anomaly {
   debugInfo?: AnomalyDebugInfo;
 }
 
+// LogEntry is a raw log entry stored in the testbench.
+export interface LogEntry {
+  timestamp: number;
+  status: string;   // "error", "warn", "info", "debug", etc.
+  content: string;
+  tags: string[];
+}
+
 // LogAnomaly is an anomaly emitted directly by a log processor (not via TS analysis).
 export interface LogAnomaly {
   source: string;
@@ -231,6 +239,11 @@ class ApiClient {
   async getAnomalies(analyzer?: string): Promise<Anomaly[]> {
     const params = analyzer ? `?analyzer=${encodeURIComponent(analyzer)}` : '';
     return this.fetch(`/anomalies${params}`);
+  }
+
+  async getLogs(level?: string): Promise<LogEntry[]> {
+    const params = level ? `?level=${encodeURIComponent(level)}` : '';
+    return this.fetch(`/logs${params}`);
   }
 
   async getLogAnomalies(processor?: string): Promise<LogAnomaly[]> {
