@@ -19,7 +19,7 @@ import (
 )
 
 func ECSLinuxDaemonDefinition(e aws.Environment, name string, apiKeySSMParamName pulumi.StringInput, fakeintake *fakeintake.Fakeintake, clusterArn pulumi.StringInput, options ...ecsagentparams.Option) (*ecs.EC2Service, error) {
-	params, err := ecsagentparams.NewParams(&e, options...)
+	params, err := ecsagentparams.NewParams(options...)
 	if err != nil {
 		return nil, err
 	}
