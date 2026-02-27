@@ -8,9 +8,6 @@ package recorderimpl
 import (
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
-	"sync"
 	"time"
 
 	"github.com/apache/arrow-go/v18/arrow"
@@ -18,7 +15,6 @@ import (
 	"github.com/apache/arrow-go/v18/arrow/memory"
 	"github.com/apache/arrow-go/v18/parquet"
 	"github.com/apache/arrow-go/v18/parquet/compress"
-	"github.com/apache/arrow-go/v18/parquet/pqarrow"
 
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -28,14 +24,8 @@ import (
 // Each span row includes trace-level metadata for easy filtering without joins.
 // Files are only created when there is data to write; empty files are never produced.
 type TraceParquetWriter struct {
-	outputDir         string
-	schema            *arrow.Schema
-	builder           *spanBatchBuilder
-	flushInterval     time.Duration
-	retentionDuration time.Duration
-	stopCh            chan struct{}
-	closed            bool
-	mu                sync.Mutex
+	parquetWriterBase
+	typedBuilder *spanBatchBuilder
 }
 
 // NewTraceParquetWriter creates a writer for trace/span data.
@@ -76,38 +66,6 @@ func NewTraceParquetWriter(outputDir string, flushInterval, retentionDuration ti
 		nil,
 	)
 
-	tw := &TraceParquetWriter{
-		outputDir:         outputDir,
-		schema:            schema,
-		builder:           newSpanBatchBuilder(schema),
-		flushInterval:     flushInterval,
-		retentionDuration: retentionDuration,
-		stopCh:            make(chan struct{}),
-	}
-
-	go tw.flushLoop()
-	if retentionDuration > 0 {
-		go tw.cleanupLoop()
-	}
-
-	pkglog.Infof("Trace parquet writer initialized: dir=%s flush=%v retention=%v", outputDir, flushInterval, retentionDuration)
-
-	return tw, nil
-}
-
-// writeRecord creates a new timestamped file, writes the record, and closes it atomically.
-// Only called when there is data; no file is created for empty batches.
-// Must be called with tw.mu held.
-func (tw *TraceParquetWriter) writeRecord(record arrow.Record) error {
-	timestamp := time.Now().UTC().Format("20060102-150405")
-	filename := fmt.Sprintf("observer-traces-%sZ.parquet", timestamp)
-	filePath := filepath.Join(tw.outputDir, filename)
-
-	file, err := os.Create(filePath)
-	if err != nil {
-		return fmt.Errorf("creating parquet file %s: %w", filePath, err)
-	}
-
 	props := parquet.NewWriterProperties(
 		parquet.WithVersion(parquet.V2_LATEST),
 		parquet.WithCompression(compress.Codecs.Zstd),
@@ -119,25 +77,24 @@ func (tw *TraceParquetWriter) writeRecord(record arrow.Record) error {
 		parquet.WithBloomFilterFPPFor("SpanName", 0.01),
 	)
 
-	arrowProps := pqarrow.NewArrowWriterProperties(pqarrow.WithStoreSchema())
-
-	writer, err := pqarrow.NewFileWriter(tw.schema, file, props, arrowProps)
-	if err != nil {
-		file.Close()
-		return fmt.Errorf("creating parquet writer: %w", err)
+	builder := newSpanBatchBuilder(schema)
+	tw := &TraceParquetWriter{
+		parquetWriterBase: parquetWriterBase{
+			outputDir:         outputDir,
+			filePrefix:        "observer-traces",
+			schema:            schema,
+			writerProps:       props,
+			builder:           builder,
+			flushInterval:     flushInterval,
+			retentionDuration: retentionDuration,
+			stopCh:            make(chan struct{}),
+		},
+		typedBuilder: builder,
 	}
+	tw.start()
 
-	if err := writer.Write(record); err != nil {
-		writer.Close()
-		return fmt.Errorf("writing record to parquet: %w", err)
-	}
-
-	if err := writer.Close(); err != nil {
-		return fmt.Errorf("closing parquet writer: %w", err)
-	}
-
-	pkglog.Debugf("Wrote trace parquet file: %s (%d rows)", filePath, record.NumRows())
-	return nil
+	pkglog.Infof("Trace parquet writer initialized: dir=%s flush=%v retention=%v", outputDir, flushInterval, retentionDuration)
+	return tw, nil
 }
 
 // WriteSpan adds a span to the batch with its trace context.
@@ -158,7 +115,7 @@ func (tw *TraceParquetWriter) WriteSpan(
 	tw.mu.Lock()
 	defer tw.mu.Unlock()
 
-	tw.builder.add(
+	tw.typedBuilder.add(
 		source,
 		traceIDHigh, traceIDLow,
 		env, traceService, hostname, containerID,
@@ -169,115 +126,6 @@ func (tw *TraceParquetWriter) WriteSpan(
 		spanStartNs, spanDurationNs, spanError,
 		spanMeta, spanMetrics,
 	)
-}
-
-func (tw *TraceParquetWriter) flushLoop() {
-	ticker := time.NewTicker(tw.flushInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-tw.stopCh:
-			tw.flush()
-			return
-		case <-ticker.C:
-			tw.flush()
-		}
-	}
-}
-
-// flush writes accumulated spans to a new file if there is data to write.
-// If no spans have been collected since the last flush, no file is created.
-func (tw *TraceParquetWriter) flush() {
-	tw.mu.Lock()
-	defer tw.mu.Unlock()
-
-	if tw.closed {
-		return
-	}
-
-	record := tw.builder.build()
-	if record == nil {
-		return
-	}
-	defer record.Release()
-
-	if err := tw.writeRecord(record); err != nil {
-		pkglog.Errorf("Failed to flush traces to parquet: %v", err)
-	}
-}
-
-func (tw *TraceParquetWriter) cleanupLoop() {
-	ticker := time.NewTicker(5 * time.Minute)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-tw.stopCh:
-			return
-		case <-ticker.C:
-			tw.cleanup()
-		}
-	}
-}
-
-func (tw *TraceParquetWriter) cleanup() {
-	entries, err := os.ReadDir(tw.outputDir)
-	if err != nil {
-		pkglog.Warnf("Failed to read trace parquet output directory for cleanup: %v", err)
-		return
-	}
-
-	cutoff := time.Now().Add(-tw.retentionDuration)
-	removed := 0
-
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasPrefix(entry.Name(), "observer-traces-") || !strings.HasSuffix(entry.Name(), ".parquet") {
-			continue
-		}
-
-		filePath := filepath.Join(tw.outputDir, entry.Name())
-		info, err := entry.Info()
-		if err != nil {
-			continue
-		}
-
-		if info.ModTime().Before(cutoff) {
-			if err := os.Remove(filePath); err != nil {
-				pkglog.Warnf("Failed to remove old trace parquet file %s: %v", filePath, err)
-			} else {
-				removed++
-			}
-		}
-	}
-
-	if removed > 0 {
-		pkglog.Infof("Cleaned up %d old trace parquet file(s)", removed)
-	}
-}
-
-// Close flushes remaining data and closes the writer.
-func (tw *TraceParquetWriter) Close() error {
-	tw.mu.Lock()
-	defer tw.mu.Unlock()
-
-	if tw.closed {
-		return nil
-	}
-	tw.closed = true
-
-	close(tw.stopCh)
-
-	record := tw.builder.build()
-	if record == nil {
-		return nil
-	}
-	defer record.Release()
-
-	if err := tw.writeRecord(record); err != nil {
-		return fmt.Errorf("final flush: %w", err)
-	}
-	return nil
 }
 
 // spanBatchBuilder accumulates spans into Arrow record batches.
