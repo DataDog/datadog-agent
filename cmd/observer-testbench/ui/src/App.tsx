@@ -2,9 +2,9 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useObserver } from './hooks/useObserver';
 import { TSAnalysisView } from './components/TSAnalysisView';
 import { CorrelatorView } from './components/CorrelatorView';
-import { LogAnomalyView } from './components/LogAnomalyView';
+import { LogView } from './components/LogView';
 
-type TabID = 'timeseries' | 'correlators' | 'log-anomalies';
+type TabID = 'timeseries' | 'correlators' | 'logs';
 
 function ConnectionStatus({ state }: { state: string }) {
   const colors: Record<string, string> = {
@@ -125,14 +125,14 @@ function App() {
                 Correlators
               </button>
               <button
-                onClick={() => setActiveTab('log-anomalies')}
+                onClick={() => setActiveTab('logs')}
                 className={`px-3 py-1.5 rounded text-sm transition-colors ${
-                  activeTab === 'log-anomalies'
+                  activeTab === 'logs'
                     ? 'bg-purple-600 text-white'
                     : 'text-slate-400 hover:bg-slate-700'
                 }`}
               >
-                Log Anomalies
+                Logs
               </button>
             </div>
           </div>
@@ -219,8 +219,8 @@ function App() {
             timeRange={activeTimeRange}
           />
         </div>
-        <div className={`flex-1 flex ${activeTab !== 'log-anomalies' ? 'hidden' : ''}`}>
-          <LogAnomalyView
+        <div className={`flex-1 flex ${activeTab !== 'logs' ? 'hidden' : ''}`}>
+          <LogView
             state={state}
             actions={actions}
             sidebarWidth={sidebarWidth}
