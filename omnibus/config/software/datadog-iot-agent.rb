@@ -18,9 +18,7 @@ build do
   license :project_license
 
   if linux_target?
-    build do
-      command_on_repo_root "bazelisk run -- @systemd//:install --destdir='#{install_dir}'"
-    end
+    command_on_repo_root "bazelisk run -- @systemd//:install --destdir='#{install_dir}'"
   end
 
   # set GOPATH on the omnibus source dir for this software
