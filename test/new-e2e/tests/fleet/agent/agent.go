@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/avast/retry-go/v4"
-	"github.com/goccy/go-yaml"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v3"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
