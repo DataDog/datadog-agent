@@ -29,52 +29,28 @@ var percentileQuantiles = []struct {
 	{0.99, "p99"},
 }
 
-// processStatsPayload processes a StatsPayload and emits metrics via ObserveMetric.
-func processStatsPayload(handle observerdef.Handle, payload *pb.StatsPayload) {
-	for _, clientStats := range payload.Stats {
-		for _, bucket := range clientStats.Stats {
-			// Convert bucket start from nanoseconds to seconds for metric timestamp
-			timestamp := float64(bucket.Start) / 1e9
+// processStatsView processes a TraceStatsView and emits derived metrics via ObserveMetric.
+func processStatsView(handle observerdef.Handle, stats observerdef.TraceStatsView) {
+	agentHostname := stats.GetAgentHostname()
+	agentEnv := stats.GetAgentEnv()
 
-			for _, gs := range bucket.Stats {
-				tags := buildStatsTags(payload, clientStats, gs)
+	rows := stats.GetRows()
+	for rows.Next() {
+		row := rows.Row()
+		// Convert bucket start from nanoseconds to seconds for metric timestamp
+		timestamp := float64(row.GetBucketStart()) / 1e9
+		tags := buildStatsTagsFromRow(agentHostname, agentEnv, row)
 
-				// Emit count/duration metrics
-				handle.ObserveMetric(&statsMetricView{
-					name:      "trace.hits",
-					value:     float64(gs.Hits),
-					tags:      tags,
-					timestamp: timestamp,
-				})
-				handle.ObserveMetric(&statsMetricView{
-					name:      "trace.errors",
-					value:     float64(gs.Errors),
-					tags:      tags,
-					timestamp: timestamp,
-				})
-				handle.ObserveMetric(&statsMetricView{
-					name:      "trace.duration",
-					value:     float64(gs.Duration),
-					tags:      tags,
-					timestamp: timestamp,
-				})
-				handle.ObserveMetric(&statsMetricView{
-					name:      "trace.top_level_hits",
-					value:     float64(gs.TopLevelHits),
-					tags:      tags,
-					timestamp: timestamp,
-				})
+		handle.ObserveMetric(&statsMetricView{name: "trace.hits", value: float64(row.GetHits()), tags: tags, timestamp: timestamp})
+		handle.ObserveMetric(&statsMetricView{name: "trace.errors", value: float64(row.GetErrors()), tags: tags, timestamp: timestamp})
+		handle.ObserveMetric(&statsMetricView{name: "trace.duration", value: float64(row.GetDuration()), tags: tags, timestamp: timestamp})
+		handle.ObserveMetric(&statsMetricView{name: "trace.top_level_hits", value: float64(row.GetTopLevelHits()), tags: tags, timestamp: timestamp})
 
-				// Extract and emit percentiles from DDSketch for OK latencies
-				if len(gs.OkSummary) > 0 {
-					emitPercentiles(handle, "trace.latency.ok", gs.OkSummary, tags, timestamp)
-				}
-
-				// Extract and emit percentiles from DDSketch for error latencies
-				if len(gs.ErrorSummary) > 0 {
-					emitPercentiles(handle, "trace.latency.error", gs.ErrorSummary, tags, timestamp)
-				}
-			}
+		if okSummary := row.GetOkSummary(); len(okSummary) > 0 {
+			emitPercentiles(handle, "trace.latency.ok", okSummary, tags, timestamp)
+		}
+		if errSummary := row.GetErrorSummary(); len(errSummary) > 0 {
+			emitPercentiles(handle, "trace.latency.error", errSummary, tags, timestamp)
 		}
 	}
 }
@@ -121,59 +97,50 @@ func decodeSketch(data []byte) (*ddsketch.DDSketch, error) {
 	return ddsketch.FromProto(&sketch)
 }
 
-// buildStatsTags builds the tag list for a stats metric.
-func buildStatsTags(payload *pb.StatsPayload, client *pb.ClientStatsPayload, gs *pb.ClientGroupedStats) []string {
+// buildStatsTagsFromRow builds the tag list for a stat metric row.
+func buildStatsTagsFromRow(agentHostname, agentEnv string, row observerdef.TraceStatRow) []string {
 	tags := make([]string, 0, 12)
 
-	// Core grouping dimensions
-	if gs.Service != "" {
-		tags = append(tags, fmt.Sprintf("service:%s", gs.Service))
+	if row.GetService() != "" {
+		tags = append(tags, "service:"+row.GetService())
 	}
-	if gs.Name != "" {
-		tags = append(tags, fmt.Sprintf("operation:%s", gs.Name))
+	if row.GetName() != "" {
+		tags = append(tags, "operation:"+row.GetName())
 	}
-	if gs.Resource != "" {
-		tags = append(tags, fmt.Sprintf("resource:%s", gs.Resource))
+	if row.GetResource() != "" {
+		tags = append(tags, "resource:"+row.GetResource())
 	}
-	if gs.Type != "" {
-		tags = append(tags, fmt.Sprintf("type:%s", gs.Type))
+	if row.GetType() != "" {
+		tags = append(tags, "type:"+row.GetType())
 	}
-
-	// Client-level tags
-	if client.Env != "" {
-		tags = append(tags, fmt.Sprintf("env:%s", client.Env))
+	if row.GetClientEnv() != "" {
+		tags = append(tags, "env:"+row.GetClientEnv())
 	}
-	if client.Hostname != "" {
-		tags = append(tags, fmt.Sprintf("hostname:%s", client.Hostname))
+	if row.GetClientHostname() != "" {
+		tags = append(tags, "hostname:"+row.GetClientHostname())
 	}
-	if client.Version != "" {
-		tags = append(tags, fmt.Sprintf("version:%s", client.Version))
+	if row.GetClientVersion() != "" {
+		tags = append(tags, "version:"+row.GetClientVersion())
 	}
-	if client.ContainerID != "" {
-		tags = append(tags, fmt.Sprintf("container_id:%s", client.ContainerID))
+	if row.GetClientContainerID() != "" {
+		tags = append(tags, "container_id:"+row.GetClientContainerID())
 	}
-
-	// Agent-level tags
-	if payload.AgentHostname != "" && payload.AgentHostname != client.Hostname {
-		tags = append(tags, fmt.Sprintf("agent_hostname:%s", payload.AgentHostname))
+	if agentHostname != "" && agentHostname != row.GetClientHostname() {
+		tags = append(tags, "agent_hostname:"+agentHostname)
 	}
-	if payload.AgentEnv != "" && payload.AgentEnv != client.Env {
-		tags = append(tags, fmt.Sprintf("agent_env:%s", payload.AgentEnv))
+	if agentEnv != "" && agentEnv != row.GetClientEnv() {
+		tags = append(tags, "agent_env:"+agentEnv)
 	}
-
-	// Additional dimensions from grouped stats
-	if gs.HTTPStatusCode > 0 {
-		tags = append(tags, fmt.Sprintf("http_status_code:%d", gs.HTTPStatusCode))
+	if row.GetHTTPStatusCode() > 0 {
+		tags = append(tags, fmt.Sprintf("http_status_code:%d", row.GetHTTPStatusCode()))
 	}
-	if gs.SpanKind != "" {
-		tags = append(tags, fmt.Sprintf("span_kind:%s", gs.SpanKind))
+	if row.GetSpanKind() != "" {
+		tags = append(tags, "span_kind:"+row.GetSpanKind())
 	}
-
-	// is_trace_root dimension
-	switch gs.IsTraceRoot {
-	case pb.Trilean_TRUE:
+	switch row.GetIsTraceRoot() {
+	case 1:
 		tags = append(tags, "is_trace_root:true")
-	case pb.Trilean_FALSE:
+	case 2:
 		tags = append(tags, "is_trace_root:false")
 	}
 
@@ -193,3 +160,79 @@ func (m *statsMetricView) GetValue() float64      { return m.value }
 func (m *statsMetricView) GetRawTags() []string   { return m.tags }
 func (m *statsMetricView) GetTimestamp() float64  { return m.timestamp }
 func (m *statsMetricView) GetSampleRate() float64 { return 1.0 }
+
+// statsPayloadView adapts a *pb.StatsPayload to the TraceStatsView interface.
+type statsPayloadView struct {
+	payload *pb.StatsPayload
+}
+
+func (v *statsPayloadView) GetAgentHostname() string { return v.payload.AgentHostname }
+func (v *statsPayloadView) GetAgentEnv() string      { return v.payload.AgentEnv }
+func (v *statsPayloadView) GetRows() observerdef.TraceStatsRowIterator {
+	return &statsRowIterator{payload: v.payload, clientIdx: 0, bucketIdx: 0, groupIdx: -1}
+}
+
+// statsRowIterator iterates over denormalized rows of a statsPayloadView.
+type statsRowIterator struct {
+	payload   *pb.StatsPayload
+	clientIdx int
+	bucketIdx int
+	groupIdx  int
+	current   *statsRowView
+}
+
+func (it *statsRowIterator) Next() bool {
+	for it.clientIdx < len(it.payload.Stats) {
+		client := it.payload.Stats[it.clientIdx]
+		for it.bucketIdx < len(client.Stats) {
+			bucket := client.Stats[it.bucketIdx]
+			it.groupIdx++
+			if it.groupIdx < len(bucket.Stats) {
+				it.current = &statsRowView{
+					client: client,
+					bucket: bucket,
+					group:  bucket.Stats[it.groupIdx],
+				}
+				return true
+			}
+			it.bucketIdx++
+			it.groupIdx = -1
+		}
+		it.clientIdx++
+		it.bucketIdx = 0
+		it.groupIdx = -1
+	}
+	return false
+}
+
+func (it *statsRowIterator) Row() observerdef.TraceStatRow { return it.current }
+
+// statsRowView adapts a (ClientStatsPayload, ClientStatsBucket, ClientGroupedStats)
+// triple to the TraceStatRow interface.
+type statsRowView struct {
+	client *pb.ClientStatsPayload
+	bucket *pb.ClientStatsBucket
+	group  *pb.ClientGroupedStats
+}
+
+func (r *statsRowView) GetClientHostname() string    { return r.client.Hostname }
+func (r *statsRowView) GetClientEnv() string         { return r.client.Env }
+func (r *statsRowView) GetClientVersion() string     { return r.client.Version }
+func (r *statsRowView) GetClientContainerID() string { return r.client.ContainerID }
+func (r *statsRowView) GetBucketStart() uint64       { return r.bucket.Start }
+func (r *statsRowView) GetBucketDuration() uint64    { return r.bucket.Duration }
+func (r *statsRowView) GetService() string           { return r.group.Service }
+func (r *statsRowView) GetName() string              { return r.group.Name }
+func (r *statsRowView) GetResource() string          { return r.group.Resource }
+func (r *statsRowView) GetType() string              { return r.group.Type }
+func (r *statsRowView) GetHTTPStatusCode() uint32    { return r.group.HTTPStatusCode }
+func (r *statsRowView) GetSpanKind() string          { return r.group.SpanKind }
+func (r *statsRowView) GetIsTraceRoot() int32        { return int32(r.group.IsTraceRoot) }
+func (r *statsRowView) GetSynthetics() bool          { return r.group.Synthetics }
+func (r *statsRowView) GetHits() uint64              { return r.group.Hits }
+func (r *statsRowView) GetErrors() uint64            { return r.group.Errors }
+func (r *statsRowView) GetTopLevelHits() uint64      { return r.group.TopLevelHits }
+func (r *statsRowView) GetDuration() uint64          { return r.group.Duration }
+func (r *statsRowView) GetOkSummary() []byte         { return r.group.OkSummary }
+func (r *statsRowView) GetErrorSummary() []byte      { return r.group.ErrorSummary }
+func (r *statsRowView) GetPeerTags() []string        { return r.group.PeerTags }
