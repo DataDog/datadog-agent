@@ -1,0 +1,27 @@
+load("@rules_cc//cc:cc_import.bzl", "cc_import")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+# gazelle:map_kind go_test rtloader_go_test //rtloader/test:defs.bzl
+# gazelle:map_kind go_library rtloader_go_library //rtloader/test:defs.bzl
+
+filegroup(
+    name = "python_stubs",
+    srcs = glob(["python/**/*.py"]),
+    visibility = ["//rtloader/test:__subpackages__"],
+)
+
+cc_import(
+    name = "_rtloader_shared",
+    shared_library = "//rtloader:datadog-agent-rtloader",
+)
+
+# Headers + dynamic link against libdatadog-agent-rtloader.so.
+# Use in go_library cdeps instead of //rtloader:rtloader to avoid static linking.
+cc_library(
+    name = "rtloader_dynamic",
+    visibility = ["//rtloader/test:__subpackages__"],
+    deps = [
+        ":_rtloader_shared",
+        "//rtloader:rtloader_headers",
+    ],
+)

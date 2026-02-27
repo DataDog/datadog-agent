@@ -1,0 +1,21 @@
+load("//rtloader/test:defs.bzl", "rtloader_go_library", "rtloader_go_test")
+
+rtloader_go_library(
+    name = "rtloader",
+    srcs = ["rtloader.go"],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/rtloader/test/rtloader",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//rtloader/test/common",
+        "//rtloader/test/helpers",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ],
+)
+
+rtloader_go_test(
+    name = "rtloader_test",
+    srcs = ["rtloader_test.go"],
+    embed = [":rtloader"],
+    deps = ["//rtloader/test/helpers"],
+)

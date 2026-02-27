@@ -1,0 +1,23 @@
+load("//rtloader/test:defs.bzl", "rtloader_go_library", "rtloader_go_test")
+
+rtloader_go_library(
+    name = "uutil",
+    srcs = ["uutil.go"],
+    cgo = True,
+    copts = [
+        "-Wno-deprecated-declarations",  # keep
+    ],
+    importpath = "github.com/DataDog/datadog-agent/rtloader/test/uutil",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//rtloader/test/common",
+        "//rtloader/test/helpers",
+    ],
+)
+
+rtloader_go_test(
+    name = "uutil_test",
+    srcs = ["uutil_test.go"],
+    embed = [":uutil"],
+    deps = ["//rtloader/test/helpers"],
+)
