@@ -296,6 +296,9 @@ func handleEthtoolStats(sender sender.Sender, ethtoolObject ethtoolInterface, in
 	if err != nil {
 		if err == unix.ENOTTY || err == unix.EOPNOTSUPP {
 			log.Debugf("driver info is not supported for interface: %s", interfaceIO.Name)
+		} else if err == unix.ENODEV {
+			log.Debugf("interface is down or device unavailable, skipping ethtool stats: %s", interfaceIO.Name)
+			return nil
 		} else {
 			return fmt.Errorf("failed to get driver info for interface %s: %w", interfaceIO.Name, err)
 		}
@@ -310,6 +313,9 @@ func handleEthtoolStats(sender sender.Sender, ethtoolObject ethtoolInterface, in
 	if err != nil {
 		if err == unix.ENOTTY || err == unix.EOPNOTSUPP {
 			log.Debugf("ethtool stats are not supported for interface: %s", interfaceIO.Name)
+		} else if err == unix.ENODEV {
+			log.Debugf("interface is down or device unavailable, skipping ethtool stats: %s", interfaceIO.Name)
+			return nil
 		} else {
 			return fmt.Errorf("failed to get ethtool stats information for interface %s: %w", interfaceIO.Name, err)
 		}

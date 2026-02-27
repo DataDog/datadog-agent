@@ -289,9 +289,6 @@ func buildLinuxHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentI
 			"appKeyExistingSecret":   pulumi.String(baseName + "-datadog-credentials"),
 			"leaderElectionResource": pulumi.String(""),
 			"checksCardinality":      pulumi.String("high"),
-			"namespaceLabelsAsTags": pulumi.Map{
-				"related_team": pulumi.String("team"),
-			},
 			"namespaceAnnotationsAsTags": pulumi.Map{
 				"related_email": pulumi.String("email"), // should be overridden by kubernetesResourcesAnnotationsAsTags
 			},
