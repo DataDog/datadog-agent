@@ -32,13 +32,7 @@ type injectionModeSuite struct {
 func TestInjectionModeSuite(t *testing.T) {
 	helmValues, err := os.ReadFile("testdata/injection_mode.yaml")
 	require.NoError(t, err, "Could not open helm values file for test")
-	// NOTE: This suite runs on Kubernetes 1.35 because the image_volume injection mode requires
-	// image volume SubPath support, which is only reliably available in the container runtime
-	// bundled with kindest/node:v1.35+. The feature itself is supported on Kubernetes API server
-	// v1.33+, but Kind's containerd version for node images v1.33 and v1.34 does not support
-	// SubPath, so those versions are not covered by this E2E suite.
 	e2e.Run(t, &injectionModeSuite{}, e2e.WithProvisioner(Provisioner(ProvisionerOptions{
-		KubernetesVersion: "1.35",
 		AgentOptions: []kubernetesagentparams.Option{
 			kubernetesagentparams.WithHelmValues(string(helmValues)),
 		},
