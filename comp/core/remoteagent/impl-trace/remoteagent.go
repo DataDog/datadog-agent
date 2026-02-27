@@ -58,7 +58,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 
 	// Register the ObserverProvider gRPC service if the buffer is available
-	if reqs.ObserverBuffer != nil {
+	if reqs.Config.GetBool("observer.analysis.enabled") || reqs.Config.GetBool("observer.recording.enabled") {
 		pbcore.RegisterObserverProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
 	}
 

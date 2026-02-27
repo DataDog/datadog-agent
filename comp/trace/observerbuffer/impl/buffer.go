@@ -63,16 +63,7 @@ func NewComponent(reqs Requires) Provides {
 
 	// Read configuration from apm_config.observer.*
 	if reqs.Cfg != nil {
-		cfg.Enabled = reqs.Cfg.GetBool("apm_config.observer.enabled")
-		if traceSize := reqs.Cfg.GetInt("apm_config.observer.trace_buffer_size"); traceSize > 0 {
-			cfg.TraceBufferSize = traceSize
-		}
-		if profileSize := reqs.Cfg.GetInt("apm_config.observer.profile_buffer_size"); profileSize > 0 {
-			cfg.ProfileBufferSize = profileSize
-		}
-		if statsSize := reqs.Cfg.GetInt("apm_config.observer.stats_buffer_size"); statsSize > 0 {
-			cfg.StatsBufferSize = statsSize
-		}
+		cfg.Enabled = reqs.Cfg.GetBool("observer.analysis.enabled") || reqs.Cfg.GetBool("observer.recording.enabled")
 	}
 
 	if reqs.Log != nil {

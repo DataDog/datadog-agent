@@ -8,20 +8,19 @@ package observerbufferimpl
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	observerbuffer "github.com/DataDog/datadog-agent/comp/trace/observerbuffer/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // newTestBuffer creates a buffer for testing with the given configuration.
 func newTestBuffer(t *testing.T, enabled bool, traceSize, profileSize int) observerbuffer.Component {
 	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
-		"apm_config.observer.enabled":             enabled,
-		"apm_config.observer.trace_buffer_size":   traceSize,
-		"apm_config.observer.profile_buffer_size": profileSize,
+		"observer.recording.enabled": enabled,
 	})
 	return NewComponent(Requires{Cfg: cfg, Log: logmock.New(t)}).Comp
 }
