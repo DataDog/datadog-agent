@@ -7,7 +7,6 @@ package containers
 
 import (
 	"context"
-	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -65,9 +64,7 @@ func TestECSSuite(t *testing.T) {
 	}
 
 	skipWindows, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipWindows, false)
-	if err != nil {
-		fmt.Printf("failed to get %s parameter, defaulting to false: %v\n", parameters.SkipWindows, err)
-	}
+	require.NoError(t, err, "failed to get %s parameter", parameters.SkipWindows)
 	if !skipWindows {
 		// WithWindowsNodeGroup is the dedicated ECS option to opt-in to Windows
 		// infrastructure and workloads (Windows EC2 nodes + Windows Fargate apps).
