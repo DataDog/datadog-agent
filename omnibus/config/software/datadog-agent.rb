@@ -220,7 +220,7 @@ build do
 
   # dd-procmgrd (process manager daemon)
   if ENV['WITH_DD_PROCMGRD'] == 'true'
-    command_on_repo_root "bazel run --config=dd-procmgrd-release //pkg/procmgr/rust:install -- --destdir=#{install_dir}/embedded/bin", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    command_on_repo_root "bazel run --config=dd-procmgrd-release //pkg/procmgr/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
   # Security agent
