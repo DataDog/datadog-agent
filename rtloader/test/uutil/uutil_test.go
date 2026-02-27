@@ -14,25 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
-var (
-	stdout       string
-	stderr       string
-	setException bool
-	exception    string
-	retCode      int
-	args         []string
-	env          []string
-)
-
-func resetTest() {
-	stdout = ""
-	stderr = ""
-	setException = false
-	exception = ""
-	retCode = 0
-	args = nil
-}
-
 func TestMain(m *testing.M) {
 	err := setUp()
 	if err != nil {

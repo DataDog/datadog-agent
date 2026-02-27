@@ -14,7 +14,7 @@ This file and its generated output are temporary and will be removed once all mo
 load("@re.bzl", "re")
 
 def _filter_lines(build_file, go_work):
-    exclusions = set(["."]) | set([m.group(1) for line in build_file for m in [re.search(r"# gazelle:exclude (\S+)", line)] if m])
+    exclusions = set([m.group(1) for line in build_file for m in [re.search(r"# gazelle:exclude (\S+)", line)] if m])
 
     def _is_excluded(path):
         return path in exclusions or any([path.startswith(exclusion + "/") for exclusion in exclusions])
@@ -29,7 +29,7 @@ def _filter_lines(build_file, go_work):
         elif in_use_block and stripped and not stripped.startswith("//"):
             if _is_excluded(stripped):
                 continue
-            symlinks.add(stripped.partition("/")[0])
+            symlinks |= set(["go.mod", "go.sum"]) if stripped == "." else set([stripped.partition("/")[0]])
         lines.append(line)
     return lines, symlinks
 
@@ -38,6 +38,9 @@ def _impl(rctx):
     lines, symlinks = _filter_lines(rctx.read(rctx.attr.build_file).splitlines(), rctx.read(rctx.attr.go_work).splitlines())
     rctx.file("BUILD.bazel", 'exports_files(["go.work"])\n')
     rctx.file("go.work", "\n".join(lines + [""]))
+
+    # prevent `bazel` from following symlinks when evaluating recursive target patterns in the repo directory
+    rctx.file("DONT_FOLLOW_SYMLINKS_WHEN_TRAVERSING_THIS_DIRECTORY_VIA_A_RECURSIVE_TARGET_PATTERN")
     for symlink in symlinks:
         rctx.symlink(rctx.path(rctx.attr.go_work).dirname.get_child(symlink), symlink)
 
