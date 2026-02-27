@@ -278,7 +278,10 @@ impl ManagedProcess {
                     stop.as_secs()
                 );
                 self.send_signal(Signal::SIGKILL);
-                if time::timeout(Self::SIGKILL_TIMEOUT, self.wait()).await.is_err() {
+                if time::timeout(Self::SIGKILL_TIMEOUT, self.wait())
+                    .await
+                    .is_err()
+                {
                     warn!("[{}] still running after SIGKILL, giving up", self.name);
                 }
             }
