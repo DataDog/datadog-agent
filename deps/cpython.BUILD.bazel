@@ -315,6 +315,7 @@ select_file(
     name = "python3_bin",
     srcs = ":python_unix",
     subpath = "bin/python{}".format(VERSION_STR),
+    visibility = ["//visibility:public"],
 )
 
 # Using a copy here is the most convenient way to exclude a bunch of things for the final package
