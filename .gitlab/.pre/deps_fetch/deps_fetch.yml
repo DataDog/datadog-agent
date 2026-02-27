@@ -63,16 +63,16 @@ go_deps:
     expire_in: 1 day
     paths:
       - $CI_PROJECT_DIR/modcache.tar.xz
-  cache:
-    # The `cache:key:files` only accepts up to two paths ([docs](https://docs.gitlab.com/ee/ci/yaml/#cachekeyfiles)).
-    # We should also include the file this job is defined in to invalicate the cache when this job is modified.
-    - key:
-        files:
-          - go.mod
-          - ./**/go.mod
-        prefix: "go_deps_modcache"
-      paths:
-        - modcache.tar.xz
+  # cache:
+  #   # The `cache:key:files` only accepts up to two paths ([docs](https://docs.gitlab.com/ee/ci/yaml/#cachekeyfiles)).
+  #   # We should also include the file this job is defined in to invalicate the cache when this job is modified.
+  #   - key:
+  #       files:
+  #         - go.mod
+  #         - ./**/go.mod
+  #       prefix: "go_deps_modcache"
+  #     paths:
+  #       - modcache.tar.xz
   timeout: 35m
 
 go_tools_deps:
