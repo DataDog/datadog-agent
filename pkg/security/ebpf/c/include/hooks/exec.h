@@ -217,10 +217,12 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
         return 0;
     }
 
-    event->pid_entry.ppid = ppid;
-    // sched::sched_process_fork is triggered from the parent process, update the pid / tid to the child value
+    // sched::sched_process_fork is triggered from the parent process, update the pid / tid to the child value.
+    // Override ppid: fill_process_context set it to the grandparent (parent's real_parent), but for
+    // the child the ppid is the parent PID.
     event->process.pid = pid;
     event->process.tid = pid;
+    event->process.ppid = ppid;
 
     u32 *inum = bpf_map_lookup_elem(&mntns_cache, &ppid);
     if (inum) {

@@ -175,6 +175,36 @@ func (p *EBPFResolver) TryReparentFromProcfs(entry *model.ProcessCacheEntry, cal
 	}
 }
 
+// TryReparentFromKernelPPid compares the live ppid reported by the kernel in
+// the event with the ppid stored in the cache entry. When they differ the
+// kernel has reparented the process (e.g. subreaper) and we update the cache
+// to reflect the new parent. The new parent is resolved from the cache or, as
+// a fallback, from procfs.
+func (p *EBPFResolver) TryReparentFromKernelPPid(entry *model.ProcessCacheEntry, kernelPPid uint32) {
+	if kernelPPid == 0 || entry.Pid <= 1 {
+		return
+	}
+
+	if kernelPPid == entry.PPid {
+		return
+	}
+
+	p.Lock()
+	defer p.Unlock()
+
+	newParent := p.entryCache[kernelPPid]
+	if newParent == nil {
+		newParent = p.resolveFromProcfs(kernelPPid, 0, procResolveMaxDepth, nil)
+	}
+
+	if newParent != nil {
+		entry.Reparent(newParent)
+		p.reparentSuccessStats[metrics.ReparentCallpathKernelPPid].Inc()
+	} else {
+		p.reparentFailedStats[metrics.ReparentCallpathKernelPPid].Inc()
+	}
+}
+
 // tryResolveMissingAncestor attempts to fill a broken ancestor link by
 // resolving the parent from the cache or procfs. Returns the resolved parent
 // or nil if resolution failed.
@@ -1516,7 +1546,7 @@ func (p *EBPFResolver) syncKernelMaps(entry *model.ProcessCacheEntry) {
 			seclog.Errorf("couldn't push proc_cache entry to kernel space: %s", err)
 		}
 	}
-	pidCacheEntryB := make([]byte, 88)
+	pidCacheEntryB := make([]byte, 80)
 	_, err = entry.Process.MarshalPidCache(pidCacheEntryB, bootTime)
 	if err != nil {
 		seclog.Errorf("couldn't marshal pid_cache entry: %s", err)

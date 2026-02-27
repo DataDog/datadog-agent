@@ -133,18 +133,15 @@ func (e *Credentials) MarshalBinary(data []byte) (int, error) {
 // MarshalPidCache marshals a binary representation of itself
 func (e *Process) MarshalPidCache(data []byte, bootTime time.Time) (int, error) {
 	// Marshal pid_cache_t
-	if len(data) < 88 {
+	if len(data) < 80 {
 		return 0, ErrNotEnoughSpace
 	}
 	binary.NativeEndian.PutUint64(data[0:8], e.Cookie)
-	binary.NativeEndian.PutUint32(data[8:12], e.PPid)
 
-	// padding
-
-	marshalTime(data[16:24], e.ForkTime.Sub(bootTime))
-	marshalTime(data[24:32], e.ExitTime.Sub(bootTime))
-	binary.NativeEndian.PutUint64(data[32:40], e.UserSession.K8SSessionID)
-	written := 40
+	marshalTime(data[8:16], e.ForkTime.Sub(bootTime))
+	marshalTime(data[16:24], e.ExitTime.Sub(bootTime))
+	binary.NativeEndian.PutUint64(data[24:32], e.UserSession.K8SSessionID)
+	written := 32
 
 	n, err := MarshalBinary(data[written:], &e.Credentials)
 	if err != nil {
