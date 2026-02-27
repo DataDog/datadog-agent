@@ -223,7 +223,6 @@ func dumpLoadedPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Com
 					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle(),
-				secretsnoopfx.Module(),
 			)
 		},
 	}
