@@ -7,8 +7,13 @@
 
 package run
 
-import "go.uber.org/fx"
+import (
+	logondurationfx "github.com/DataDog/datadog-agent/comp/logonduration/fx"
+	"go.uber.org/fx"
+)
 
 func getPlatformModules() fx.Option {
-	return fx.Options()
+	return fx.Options(
+		logondurationfx.Module(),
+	)
 }
