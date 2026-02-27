@@ -327,7 +327,7 @@ func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
 	}
 
 	// Only wire if capture_metrics.enabled is enabled
-	if !pkgconfigsetup.Datadog().GetBool("observer.capture_metrics.enabled") {
+	if !pkgconfigsetup.Datadog().GetBool("observer.analysis.enabled") || !pkgconfigsetup.Datadog().GetBool("observer.recording.enabled") {
 		d.log.Debug("Observer metric capture disabled by configuration")
 		return
 	}

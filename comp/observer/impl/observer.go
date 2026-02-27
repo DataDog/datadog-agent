@@ -20,6 +20,7 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Requires declares the input types to the observer component constructor.
@@ -30,8 +31,7 @@ type Requires struct {
 
 	// Recorder is an optional component for transparent metric recording.
 	// If provided, all handles will be wrapped to record metrics to parquet files.
-	// If nil, handles operate without recording.
-	Recorder recorderdef.Component
+	Recorder option.Option[recorderdef.Component]
 
 	// RemoteAgentRegistry enables fetching traces/profiles
 	// from remote trace-agents via the ObserverProvider gRPC service.
@@ -165,18 +165,23 @@ func NewComponent(deps Requires) Provides {
 		maxEvents: 1000, // Keep last 1000 events for debugging
 	}
 
-	// Set up handle function with optional recorder wrapping.
-	// If recorder is provided, wrap handles to enable transparent metric recording.
-	// Otherwise, use inner handle directly (no recording).
-	if deps.Recorder != nil {
-		obs.handleFunc = deps.Recorder.GetHandle(obs.innerHandle)
-	} else {
+	cfg := pkgconfigsetup.Datadog()
+
+	// Set up handle function based on recording and analysis configuration.
+	// Recording (observer.recording.enabled) enables parquet writers and the fetcher.
+	// Analysis (observer.analysis.enabled) enables the anomaly detection pipeline.
+	analysisEnabled := cfg.GetBool("observer.analysis.enabled")
+
+	obs.handleFunc = obs.noopHandle
+	if analysisEnabled {
 		obs.handleFunc = obs.innerHandle
 	}
 
-	go obs.run()
+	if recorder, ok := deps.Recorder.Get(); ok {
+		obs.handleFunc = recorder.GetHandle(obs.handleFunc)
+	}
 
-	cfg := pkgconfigsetup.Datadog()
+	go obs.run()
 
 	// Start periodic metric dump if configured
 	dumpPath := cfg.GetString("observer.debug_dump_path")
@@ -205,7 +210,7 @@ func NewComponent(deps Requires) Provides {
 	}
 
 	// Capture agent-internal logs into the observer by default (best-effort, non-blocking).
-	enabled := cfg.GetBool("observer.capture_agent_internal_logs")
+	enabled := cfg.GetBool("observer.capture_agent_internal_logs.enabled")
 	if deps.AgentInternalLogTap.Enabled != nil {
 		enabled = *deps.AgentInternalLogTap.Enabled
 	}
@@ -277,32 +282,14 @@ func NewComponent(deps Requires) Provides {
 	}
 
 	// Start trace/profile fetcher if traces or profiles collection is enabled
-	fetcherConfig := DefaultFetcherConfig()
-	fetcherConfig.Enabled = cfg.GetBool("observer.traces.enabled") || cfg.GetBool("observer.profiles.enabled")
 
-	if fetcherConfig.Enabled {
-		if interval := cfg.GetDuration("observer.traces.fetch_interval"); interval > 0 {
-			fetcherConfig.TraceFetchInterval = interval
-		}
-		if interval := cfg.GetDuration("observer.profiles.fetch_interval"); interval > 0 {
-			fetcherConfig.ProfileFetchInterval = interval
-		}
-		if batch := cfg.GetInt("observer.traces.max_fetch_batch"); batch > 0 {
-			fetcherConfig.MaxTraceBatch = uint32(batch)
-		}
-		if batch := cfg.GetInt("observer.profiles.max_fetch_batch"); batch > 0 {
-			fetcherConfig.MaxProfileBatch = uint32(batch)
-		}
-
-		fetchHandle := obs.GetHandle("trace-agent")
-		obs.fetcher = newObserverFetcher(
-			deps.RemoteAgentRegistry,
-			fetchHandle,
-			fetcherConfig,
-		)
-		obs.fetcher.Start()
-		pkglog.Info("[observer] trace/profile fetcher started")
-	}
+	fetchHandle := obs.GetHandle("trace-agent")
+	obs.fetcher = newObserverFetcher(
+		deps.RemoteAgentRegistry,
+		fetchHandle,
+	)
+	obs.fetcher.Start()
+	pkglog.Info("[observer] trace/profile fetcher started")
 
 	return Provides{Comp: obs}
 }
@@ -714,6 +701,20 @@ func (o *observerImpl) GetHandle(name string) observerdef.Handle {
 func (o *observerImpl) innerHandle(name string) observerdef.Handle {
 	return &handle{ch: o.obsCh, source: name}
 }
+
+// noopHandle returns a handle that discards all observations.
+// Used when analysis is disabled so the analysis pipeline is not started.
+func (o *observerImpl) noopHandle(_ string) observerdef.Handle {
+	return &noopObserveHandle{}
+}
+
+// noopObserveHandle discards all observations.
+type noopObserveHandle struct{}
+
+func (h *noopObserveHandle) ObserveMetric(_ observerdef.MetricView)   {}
+func (h *noopObserveHandle) ObserveLog(_ observerdef.LogView)         {}
+func (h *noopObserveHandle) ObserveTrace(_ observerdef.TraceView)     {}
+func (h *noopObserveHandle) ObserveProfile(_ observerdef.ProfileView) {}
 
 // DumpMetrics writes all stored metrics to the specified file as JSON.
 func (o *observerImpl) DumpMetrics(path string) error {
