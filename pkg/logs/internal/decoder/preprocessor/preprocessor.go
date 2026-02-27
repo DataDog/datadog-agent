@@ -56,14 +56,14 @@ func (p *Preprocessor) Process(msg *message.Message) {
 func (p *Preprocessor) tokenizeLabelAndAggregate(msg *message.Message) {
 	tokens, tokenIndices := p.tokenizer.Tokenize(msg.GetContent())
 	label := p.labeler.Label(msg.GetContent(), tokens, tokenIndices)
-	for _, completed := range p.aggregator.Process(msg, label) {
+	for _, completed := range p.aggregator.Process(msg, label, tokens) {
 		p.sample(completed)
 	}
 }
 
 // Step 5: Sample and emit the log
-func (p *Preprocessor) sample(msg *message.Message) {
-	if out := p.sampler.Process(msg); out != nil {
+func (p *Preprocessor) sample(completed CompletedMessage) {
+	if out := p.sampler.Process(completed.Msg, completed.Tokens); out != nil {
 		p.outputChan <- out
 	}
 }
@@ -81,8 +81,8 @@ func (p *Preprocessor) Flush() {
 	for _, m := range p.jsonAggregator.Flush() {
 		p.tokenizeLabelAndAggregate(m)
 	}
-	for _, completed := range p.aggregator.Flush() {
-		p.sample(completed)
+	for _, c := range p.aggregator.Flush() {
+		p.sample(c)
 	}
 	if out := p.sampler.Flush(); out != nil {
 		p.outputChan <- out
