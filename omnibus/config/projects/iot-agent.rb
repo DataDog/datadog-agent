@@ -65,12 +65,6 @@ else
   # creates required build directories
   dependency 'preparation'
 
-  if linux_target?
-    build do
-      command_on_repo_root "bazelisk run -- @systemd//:install --destdir='#{install_dir}'"
-    end
-  end
-
   # Datadog agent
   dependency 'datadog-iot-agent'
 
