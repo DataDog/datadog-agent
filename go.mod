@@ -25,6 +25,8 @@ replace (
 	// replace go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler datadog
 	// and run `go mod tidy`
 	go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler v0.0.202602-0.20260130121113-9fabd54fb605
+	// remove "security risk" and archived dependencies
+	github.com/wk8/go-ordered-map/v2 => github.com/pb33f/ordered-map/v2 v2.3.0
 )
 
 // FIXME: disk device labeling regression present in v4.25.12 and v4.26.1, waiting on new release
