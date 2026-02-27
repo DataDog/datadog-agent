@@ -104,6 +104,7 @@ trigger-single-machine-performance-regression_detector:
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     BASELINE_SHA: $BASELINE_SHA  # Forwarded from the merge_base_check dotenv artifact
+    FF_KUBERNETES_HONOR_ENTRYPOINT: false
   trigger:
     include:
       - local: .gitlab/childs/smp-regression-child-pipeline.yml
