@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	yaml "gopkg.in/yaml.v3"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

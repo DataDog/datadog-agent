@@ -15,7 +15,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
