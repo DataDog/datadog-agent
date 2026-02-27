@@ -37,4 +37,8 @@ const (
 	// This label was added in Kubernetes 1.22, and won't work on older k8s versions.
 	// See https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/#automatic-labelling
 	NamespaceLabelKey = "kubernetes.io/metadata.name"
+
+	// MutatedByWebhookAnnotationKey is set on pods that have been mutated by the admission webhook.
+	// Its presence indicates the webhook was successfully invoked for the pod.
+	MutatedByWebhookAnnotationKey = "admission.datadoghq.com/mutated"
 )

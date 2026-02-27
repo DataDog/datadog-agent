@@ -73,6 +73,16 @@ func TestStoreGenerators(t *testing.T) {
 			expectedStoresGenerator: []storeGenerator{},
 		},
 		{
+			name: "Admission controller enabled",
+			cfg: map[string]interface{}{
+				"cluster_agent.collect_kubernetes_tags": false,
+				"language_detection.reporting.enabled":  false,
+				"language_detection.enabled":            false,
+				"admission_controller.enabled":          true,
+			},
+			expectedStoresGenerator: []storeGenerator{newPodStore},
+		},
+		{
 			name: "All configurations enabled",
 			cfg: map[string]interface{}{
 				"cluster_agent.collect_kubernetes_tags": true,

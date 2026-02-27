@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	admcommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -40,6 +41,10 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dyn
 	if err != nil {
 		metrics.MutationAttempts.Inc(mutationType, metrics.StatusError, strconv.FormatBool(false), err.Error())
 		return nil, fmt.Errorf("failed to mutate pod: %v", err)
+	}
+
+	if injected {
+		AddAnnotation(&pod, admcommon.MutatedByWebhookAnnotationKey, mutationType)
 	}
 
 	metrics.MutationAttempts.Inc(mutationType, metrics.StatusSuccess, strconv.FormatBool(injected), "")
