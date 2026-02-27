@@ -2,6 +2,8 @@ name 'datadog-agent-dependencies'
 
 description "Enforce building dependencies as soon as possible so they can be cached"
 
+flavor_flag = fips_mode? ? "--//packages/agent:flavor=fips" : ""
+
 # Linux-specific dependencies
 if linux_target?
   dependency 'curl'
@@ -23,7 +25,7 @@ dependency "systemd" if linux_target?
 dependency 'datadog-agent-integrations-py3'
 
 build do
-    command_on_repo_root "bazelisk run -- //packages/agent/dependencies:install --destdir=#{install_dir}"
+    command_on_repo_root "bazelisk run  #{flavor_flag} -- //packages/agent/dependencies:install --destdir=#{install_dir}"
 end
 
 build do
