@@ -292,3 +292,60 @@ type RawAnomalyState interface {
 	// RawAnomalies returns all anomalies detected by TimeSeriesAnalysis implementations.
 	RawAnomalies() []AnomalyOutput
 }
+
+// SeriesFilter specifies criteria for selecting series.
+type SeriesFilter struct {
+	Namespace   string            // exact match (empty = any)
+	NamePattern string            // prefix match (empty = any)
+	TagMatchers map[string]string // required tag key=value pairs
+}
+
+// SeriesKey identifies a specific series.
+type SeriesKey struct {
+	Namespace string
+	Name      string
+	Tags      []string
+}
+
+// StorageReader provides read access to time series data.
+// Analyses use this to pull whatever data they need.
+type StorageReader interface {
+	// ListSeries returns keys of all series matching the filter.
+	ListSeries(filter SeriesFilter) []SeriesKey
+
+	// GetSeriesByKey returns the full series for a key.
+	GetSeriesByKey(key SeriesKey, agg Aggregate) *Series
+
+	// GetSeriesRange returns points within a time range [start, end].
+	GetSeriesRange(key SeriesKey, start, end int64, agg Aggregate) *Series
+
+	// ReadSince returns points with timestamp > cursor, plus the new cursor position.
+	// Use cursor=0 to read all points.
+	ReadSince(key SeriesKey, cursor int64, agg Aggregate) (points []Point, newCursor int64)
+
+	// PointCount returns the number of raw data points for a series without
+	// loading or converting them. Returns 0 if the series is not found.
+	PointCount(key SeriesKey) int
+}
+
+// Aggregate specifies which statistic to extract from summary stats.
+type Aggregate int
+
+const (
+	AggregateAverage Aggregate = iota
+	AggregateSum
+	AggregateCount
+	AggregateMin
+	AggregateMax
+)
+
+// MultiSeriesAnalysis is the flexible analysis interface where analyses pull data from storage.
+// This supports multivariate analysis across multiple series.
+type MultiSeriesAnalysis interface {
+	Name() string
+
+	// Analyze is called periodically by the scheduler.
+	// The analysis queries storage for whatever data it needs.
+	// dataTime is the current data timestamp (for determinism - only read data <= dataTime).
+	Analyze(storage StorageReader, dataTime int64) []AnomalyOutput
+}

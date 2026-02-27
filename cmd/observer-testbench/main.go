@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	"go.uber.org/fx"
@@ -31,35 +30,30 @@ import (
 type CLIParams struct {
 	ScenariosDir      string
 	HTTPAddr          string
-	EnableOverrides   map[string]bool
+	EnableTimeCluster bool
+	EnableLeadLag     bool
+	EnableSurprise    bool
+	EnableGraphSketch bool
+	EnableDedup       bool
+	EnableCUSUM       bool
+	EnableZScore      bool
+	EnableRRCF        bool
 	CUSUMIncludeCount bool
 }
 
 func main() {
 	scenariosDir := flag.String("scenarios-dir", "./scenarios", "Directory containing scenario subdirectories")
 	httpAddr := flag.String("http", ":8080", "HTTP server address for the API")
-	enableStr := flag.String("enable", "", "Comma-separated components to enable (overrides defaults)")
-	disableStr := flag.String("disable", "", "Comma-separated components to disable (overrides defaults)")
+	enableTimeCluster := flag.Bool("time-cluster", true, "Enable TimeCluster correlator (time-based clustering)")
+	enableLeadLag := flag.Bool("lead-lag", true, "Enable LeadLag correlator (temporal causality)")
+	enableSurprise := flag.Bool("surprise", true, "Enable Surprise correlator (lift-based patterns)")
+	enableGraphSketch := flag.Bool("graph-sketch", true, "Enable GraphSketch correlator (co-occurrence learning)")
+	enableDedup := flag.Bool("dedup", false, "Enable anomaly deduplication before correlation")
+	enableCUSUM := flag.Bool("cusum", true, "Enable CUSUM change-point detector")
+	enableZScore := flag.Bool("zscore", true, "Enable Robust Z-Score detector")
+	enableRRCF := flag.Bool("rrcf", false, "Enable RRCF multivariate anomaly detector")
 	cusumIncludeCount := flag.Bool("cusum-include-count", false, "CUSUM: include :count metrics (default: skip them)")
 	flag.Parse()
-
-	overrides := make(map[string]bool)
-	if *enableStr != "" {
-		for _, name := range strings.Split(*enableStr, ",") {
-			name = strings.TrimSpace(name)
-			if name != "" {
-				overrides[name] = true
-			}
-		}
-	}
-	if *disableStr != "" {
-		for _, name := range strings.Split(*disableStr, ",") {
-			name = strings.TrimSpace(name)
-			if name != "" {
-				overrides[name] = false
-			}
-		}
-	}
 
 	fmt.Printf("Observer Test Bench\n")
 	fmt.Printf("  Scenarios dir: %s\n", *scenariosDir)
@@ -77,7 +71,14 @@ func main() {
 		fx.Supply(CLIParams{
 			ScenariosDir:      *scenariosDir,
 			HTTPAddr:          *httpAddr,
-			EnableOverrides:   overrides,
+			EnableTimeCluster: *enableTimeCluster,
+			EnableLeadLag:     *enableLeadLag,
+			EnableSurprise:    *enableSurprise,
+			EnableGraphSketch: *enableGraphSketch,
+			EnableDedup:       *enableDedup,
+			EnableCUSUM:       *enableCUSUM,
+			EnableZScore:      *enableZScore,
+			EnableRRCF:        *enableRRCF,
 			CUSUMIncludeCount: *cusumIncludeCount,
 		}),
 	)
@@ -93,7 +94,14 @@ func run(recorder recorderdef.Component, params CLIParams) error {
 		ScenariosDir:      params.ScenariosDir,
 		HTTPAddr:          params.HTTPAddr,
 		Recorder:          recorder,
-		EnableOverrides:   params.EnableOverrides,
+		EnableTimeCluster: params.EnableTimeCluster,
+		EnableLeadLag:     params.EnableLeadLag,
+		EnableSurprise:    params.EnableSurprise,
+		EnableGraphSketch: params.EnableGraphSketch,
+		EnableDedup:       params.EnableDedup,
+		EnableCUSUM:       params.EnableCUSUM,
+		EnableZScore:      params.EnableZScore,
+		EnableRRCF:        params.EnableRRCF,
 		CUSUMIncludeCount: params.CUSUMIncludeCount,
 	})
 	if err != nil {
@@ -108,59 +116,50 @@ func run(recorder recorderdef.Component, params CLIParams) error {
 
 	fmt.Printf("API server running at http://localhost%s\n", params.HTTPAddr)
 
-	// Print component status from registry
-	components := tb.GetComponents()
-	fmt.Print("Analyzers: ")
-	var analyzers []string
-	for _, c := range components {
-		if c.Category == "analyzer" {
-			status := c.DisplayName
-			if !c.Enabled {
-				status += " (disabled)"
-			}
-			analyzers = append(analyzers, status)
+	// Print enabled detectors
+	fmt.Print("Detectors: ")
+	var detectors []string
+	if params.EnableCUSUM {
+		cusum := "CUSUM"
+		if params.CUSUMIncludeCount {
+			cusum += " (with :count)"
+		} else {
+			cusum += " (skip :count)"
 		}
+		detectors = append(detectors, cusum)
 	}
-	fmt.Println(strings.Join(analyzers, ", "))
-
-	fmt.Print("Correlators: ")
-	var correlators []string
-	for _, c := range components {
-		if c.Category == "correlator" {
-			status := c.DisplayName
-			if !c.Enabled {
-				status += " (disabled)"
-			}
-			correlators = append(correlators, status)
-		}
+	if params.EnableZScore {
+		detectors = append(detectors, "ZScore")
 	}
-	fmt.Println(strings.Join(correlators, ", "))
-
-	fmt.Print("Processing: ")
-	var processing []string
-	for _, c := range components {
-		if c.Category == "processing" && c.Enabled {
-			processing = append(processing, c.DisplayName)
-		}
+	if params.EnableRRCF {
+		detectors = append(detectors, "RRCF")
 	}
-	if len(processing) == 0 {
-		fmt.Println("default")
+	if len(detectors) == 0 {
+		fmt.Println("none")
 	} else {
-		fmt.Println(strings.Join(processing, ", "))
+		for i, d := range detectors {
+			if i > 0 {
+				fmt.Print(", ")
+			}
+			fmt.Print(d)
+		}
+		fmt.Println()
 	}
 
 	fmt.Println("\nEndpoints:")
-	fmt.Println("  GET  /api/status                          - Server status")
-	fmt.Println("  GET  /api/scenarios                       - List scenarios")
-	fmt.Println("  POST /api/scenarios/{name}/load            - Load a scenario")
-	fmt.Println("  GET  /api/components                      - List components")
-	fmt.Println("  POST /api/components/{name}/toggle         - Toggle component")
-	fmt.Println("  GET  /api/series                          - List all series")
-	fmt.Println("  GET  /api/series/{ns}/{name}              - Get series data")
-	fmt.Println("  GET  /api/anomalies                       - Get anomalies")
-	fmt.Println("  GET  /api/correlations                    - Get correlations")
-	fmt.Println("  GET  /api/correlators/{name}              - Get correlator data")
-	fmt.Println("  GET  /api/stats                           - Correlator stats")
+	fmt.Println("  GET  /api/status              - Server status and loaded scenario")
+	fmt.Println("  GET  /api/scenarios           - List available scenarios")
+	fmt.Println("  POST /api/scenarios/{name}/load - Load a scenario")
+	fmt.Println("  GET  /api/components          - List registered components")
+	fmt.Println("  GET  /api/series              - List all series")
+	fmt.Println("  GET  /api/series/{ns}/{name}  - Get series data")
+	fmt.Println("  GET  /api/anomalies           - Get all anomalies")
+	fmt.Println("  GET  /api/correlations        - Get correlation outputs")
+	fmt.Println("  GET  /api/leadlag             - Lead-lag edges (if enabled)")
+	fmt.Println("  GET  /api/surprise            - Surprise edges (if enabled)")
+	fmt.Println("  GET  /api/graphsketch         - GraphSketch edges (if enabled)")
+	fmt.Println("  GET  /api/rrcf-scores          - RRCF score distribution (if enabled)")
+	fmt.Println("  GET  /api/stats               - Correlator statistics")
 	fmt.Println()
 
 	// Wait for interrupt signal

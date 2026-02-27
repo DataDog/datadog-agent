@@ -234,9 +234,10 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 	var emitters []observerdef.SignalEmitter
 	var emitterNames []string
 
-	// OLD path for TimeSeriesAnalysis (range-based anomaly detection)
-	var tsAnalysesForRanges []observerdef.TimeSeriesAnalysis
+	// Multi-series analyses (pull-based, includes wrapped TimeSeriesAnalysis)
+	var multiAnalyses []observerdef.MultiSeriesAnalysis
 	var tsAnalysisNames []string
+	defaultAggregations := []observerdef.Aggregate{observerdef.AggregateAverage, observerdef.AggregateCount}
 
 	if config.EnableCUSUM {
 		cusumDetector := NewCUSUMDetector()
@@ -250,7 +251,7 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 		if config.CUSUMThresholdFactor > 0 {
 			cusumDetector.ThresholdFactor = config.CUSUMThresholdFactor
 		}
-		tsAnalysesForRanges = append(tsAnalysesForRanges, cusumDetector)
+		multiAnalyses = append(multiAnalyses, newTimeSeriesAnalysisAdapter(cusumDetector, defaultAggregations))
 		tsAnalysisNames = append(tsAnalysisNames, "CUSUM")
 	}
 	if config.EnableLightESD {
@@ -316,9 +317,9 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 		logProcessors: []observerdef.LogProcessor{
 			&ConnectionErrorExtractor{},
 		},
-		// OLD path: Region-based anomaly detection (CUSUM produces time ranges)
-		tsAnalyses: tsAnalysesForRanges,
-		// NEW path Layer 1: Point-based signal emitters
+		// Multi-series analyses (CUSUM wrapped in adapter)
+		multiAnalyses: multiAnalyses,
+		// Point-based signal emitters
 		signalEmitters: emitters,
 		// Anomaly processor for correlation
 		anomalyProcessors: anomalyProcessors,
