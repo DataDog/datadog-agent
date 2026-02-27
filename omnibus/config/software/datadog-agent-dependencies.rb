@@ -3,7 +3,7 @@ name 'datadog-agent-dependencies'
 description "Enforce building dependencies as soon as possible so they can be cached"
 
 if heroku_target?
-  flavor_flag = "--//packages/agent:flavor=heroku" : ""
+  flavor_flag = "--//packages/agent:flavor=heroku"
 else
   flavor_flag = fips_mode? ? "--//packages/agent:flavor=fips" : ""
 end
