@@ -23,14 +23,15 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	scaleclient "k8s.io/client-go/scale"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/clock"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstore"
 	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -43,7 +44,7 @@ const (
 	// TODO: evaluate the retry values vs backoff time of the workqueue
 	maxRetry int = 5
 
-	controllerID = "dpa-c"
+	controllerID autoscaling.SenderID = "dpa-c"
 
 	defaultStaleTimestampThreshold = 30 * time.Minute // time to wait before considering a recommendation stale
 )
@@ -81,6 +82,8 @@ type Controller struct {
 	localSender sender.Sender
 
 	isFallbackEnabled bool
+
+	metricsStore *metricsstore.MetricsStore
 }
 
 // NewController returns a new workload autoscaling controller
@@ -97,6 +100,7 @@ func NewController(
 	podWatcher PodWatcher,
 	localSender sender.Sender,
 	limitHeap *limitHeap,
+	globalTagsFunc func() []string,
 ) (*Controller, error) {
 	c := &Controller{
 		clusterID:         clusterID,
@@ -121,12 +125,21 @@ func NewController(
 
 	c.Controller = baseController
 	c.limitHeap = limitHeap
-	store.RegisterObserver(autoscaling.Observer{
-		DeleteFunc: unsetTelemetry,
-	})
 	c.store = store
 	c.podWatcher = podWatcher
 	c.scaler = newScaler(restMapper, scaleClient)
+
+	// Initialize metrics store
+	c.metricsStore = metricsstore.NewMetricsStore(metrics.GeneratePodAutoscalerMetrics, localSender, c.IsLeader, globalTagsFunc)
+	c.store.RegisterObserver(
+		autoscaling.Observer{
+			SetFunc: func(key string, _ autoscaling.SenderID, obj interface{}) {
+				if pai, ok := obj.(model.PodAutoscalerInternal); ok {
+					c.metricsStore.Add(key, &pai)
+				}
+			},
+			DeleteFunc: func(key string, _ autoscaling.SenderID, _ interface{}) { c.metricsStore.Delete(key) },
+		})
 
 	// TODO: Ensure that controllers do not take action before the podwatcher is synced
 	c.horizontalController = newHorizontalReconciler(c.clock, eventRecorder, c.scaler)
@@ -140,6 +153,9 @@ func NewController(
 // PreStart is called before the controller starts
 func (c *Controller) PreStart(ctx context.Context) {
 	autoscaling.StartLocalTelemetry(ctx, c.localSender, "workload", []string{"kube_cluster_id:" + c.clusterID, "crd_api_version:" + podAutoscalerGVR.Version})
+
+	// Start periodic metrics submission (every 30 seconds)
+	go c.metricsStore.WriteAllPeriodically(ctx, 30*time.Second)
 }
 
 // Process implements the Processor interface (so required to be public)
@@ -408,7 +424,6 @@ func (c *Controller) createPodAutoscaler(ctx context.Context, podAutoscalerInter
 		Spec:   *podAutoscalerInternal.Spec().DeepCopy(),
 		Status: podAutoscalerInternal.BuildStatus(metav1.NewTime(c.clock.Now()), nil),
 	}
-	trackPodAutoscalerStatus(autoscalerObj)
 
 	obj, err := autoscaling.ToUnstructured(autoscalerObj)
 	if err != nil {
@@ -457,7 +472,6 @@ func (c *Controller) updatePodAutoscalerStatus(ctx context.Context, podAutoscale
 		ObjectMeta: podAutoscaler.ObjectMeta,
 		Status:     newStatus,
 	}
-	trackPodAutoscalerStatus(autoscalerObj)
 
 	obj, err := autoscaling.ToUnstructured(autoscalerObj)
 	if err != nil {
@@ -534,7 +548,7 @@ func (c *Controller) updateAutoscalerStatusAndUnlock(ctx context.Context, key, n
 	return err
 }
 
-func (c *Controller) updateLocalFallbackEnabled(podAutoscalerInternal *model.PodAutoscalerInternal, activeHorizontalSource *datadoghqcommon.DatadogPodAutoscalerValueSource) {
+func (c *Controller) updateLocalFallbackEnabled(_ *model.PodAutoscalerInternal, activeHorizontalSource *datadoghqcommon.DatadogPodAutoscalerValueSource) {
 	if activeHorizontalSource == nil {
 		return
 	}
@@ -547,17 +561,6 @@ func (c *Controller) updateLocalFallbackEnabled(podAutoscalerInternal *model.Pod
 		log.Debugf("Product horizontal scaling values are stale, activating local fallback")
 		c.isFallbackEnabled = true
 	}
-
-	trackLocalFallbackEnabled(*activeHorizontalSource, *podAutoscalerInternal)
-}
-
-func unsetTelemetry(key, _ string) {
-	ns, autoscalerName, err := cache.SplitMetaNamespaceKey(key)
-	if err != nil {
-		log.Debugf("Unable to split key %s to delete telemetry: %v", key, err)
-		return
-	}
-	deletePodAutoscalerTelemetry(ns, autoscalerName)
 }
 
 func getActiveScalingSources(currentTime time.Time, podAutoscalerInternal *model.PodAutoscalerInternal) (*datadoghqcommon.DatadogPodAutoscalerValueSource, *datadoghqcommon.DatadogPodAutoscalerValueSource) {

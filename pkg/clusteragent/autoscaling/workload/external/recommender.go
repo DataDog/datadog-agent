@@ -22,8 +22,8 @@ import (
 )
 
 const (
-	pollingInterval              = 30 * time.Second
-	externalRecommenderID string = "extr"
+	pollingInterval                            = 30 * time.Second
+	externalRecommenderID autoscaling.SenderID = "extr"
 )
 
 // Recommender is the interface used to fetch external recommendations
@@ -114,6 +114,6 @@ func (r *Recommender) updateAutoscaler(key string, horizontalRecommendation *mod
 		r.store.Unlock(key)
 		return
 	}
-	podAutoscalerInternal.UpdateFromMainValues(recommendation)
+	podAutoscalerInternal.UpdateFromMainValues(recommendation, 0)
 	r.store.UnlockSet(podAutoscalerInternal.ID(), podAutoscalerInternal, externalRecommenderID)
 }

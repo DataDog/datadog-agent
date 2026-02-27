@@ -13,15 +13,16 @@ import (
 
 	"k8s.io/utils/clock"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	configRetrieverStoreID    string        = "cr"
-	settingsReconcileInterval time.Duration = 5 * time.Minute
-	valuesReconcileInterval   time.Duration = 5 * time.Minute
+	configRetrieverStoreID    autoscaling.SenderID = "cr"
+	settingsReconcileInterval time.Duration        = 5 * time.Minute
+	valuesReconcileInterval   time.Duration        = 5 * time.Minute
 )
 
 // RcClient is a subinterface of rcclient.Component to allow mocking

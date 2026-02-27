@@ -59,8 +59,16 @@ func (m *MockSecretResolver) SubscribeToChanges(callback secrets.SecretChangeCal
 	m.subscribers = append(m.subscribers, callback)
 }
 
-func (m *MockSecretResolver) Refresh(_ bool) (string, error) {
+func (m *MockSecretResolver) Refresh() bool {
+	return false
+}
+
+func (m *MockSecretResolver) RefreshNow() (string, error) {
 	return "", nil
+}
+
+func (m *MockSecretResolver) IsValueFromSecret(_ string) bool {
+	return false
 }
 
 func (m *MockSecretResolver) haveAllScenariosBeenCalled() bool {
