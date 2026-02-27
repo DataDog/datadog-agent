@@ -14,7 +14,7 @@ restart: on-failure
 restart_sec: 2
 start_limit_interval_sec: 10
 start_limit_burst: 5
-environment_file: {{.EtcDir}}/environment
+environment_file: -{{.EtcDir}}/environment
 env:
   DD_FLEET_POLICIES_DIR: {{.FleetPoliciesDir}}
 stdout: inherit
