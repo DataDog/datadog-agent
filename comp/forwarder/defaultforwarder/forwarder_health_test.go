@@ -460,11 +460,9 @@ func TestHealthInvalidAPIKeyTriggersSecretRefresh(t *testing.T) {
 	triggered := false
 
 	secrets := secretsmock.New(t)
-	secrets.SetRefreshHook(func(updateNow bool) (string, error) {
-		if !updateNow {
-			triggered = true
-		}
-		return "", nil
+	secrets.SetRefreshHook(func() bool {
+		triggered = true
+		return true
 	})
 
 	// test server that returns 403 for all keys
