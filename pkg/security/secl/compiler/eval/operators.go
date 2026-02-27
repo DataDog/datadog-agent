@@ -780,6 +780,96 @@ func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, state
 	}, nil
 }
 
+// StringArrayMatchesStringArray weak comparison, at least one element of a should be in b. Neither side can contain regexp
+func StringArrayMatchesStringArray(a *StringArrayEvaluator, b *StringArrayEvaluator, state *State) (*BoolEvaluator, error) {
+	isDc := isArithmDeterministic(a, b, state)
+
+	if a.Field != "" {
+		for _, value := range b.Values {
+			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value}); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	arrayOp := func(a []string, b []string) (bool, string) {
+		for _, va := range a {
+			for _, vb := range b {
+				if va == vb {
+					return true, vb
+				}
+			}
+		}
+		return false, ""
+	}
+
+	if a.EvalFnc != nil && b.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.EvalFnc
+
+		evalFnc := func(ctx *Context) bool {
+			va, vb := ea(ctx), eb(ctx)
+			res, vm := arrayOp(va, vb)
+			if res {
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Value: vm, Offset: b.Offset})
+			}
+			return res
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	if a.EvalFnc == nil && b.EvalFnc == nil {
+		ea, eb := a.Values, b.Values
+		res, _ := arrayOp(ea, eb)
+
+		return &BoolEvaluator{
+			Value:           res,
+			Weight:          a.Weight + InArrayWeight*len(eb),
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	if a.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.Values
+
+		evalFnc := func(ctx *Context) bool {
+			va, vb := ea(ctx), eb
+			res, vm := arrayOp(va, vb)
+			if res {
+				ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Value: vm, Offset: b.Offset})
+			}
+			return res
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + InArrayWeight*len(eb),
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	ea, eb := a.Values, b.EvalFnc
+
+	evalFnc := func(ctx *Context) bool {
+		va, vb := ea, eb(ctx)
+		res, vm := arrayOp(va, vb)
+		if res {
+			ctx.AddMatchingSubExpr(MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Field: b.Field, Value: vm, Offset: b.Offset})
+		}
+		return res
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:         evalFnc,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
+	}, nil
+}
+
 // IntArrayMatches weak comparison, a least one element of a should be in b
 func IntArrayMatches(a *IntArrayEvaluator, b *IntArrayEvaluator, state *State) (*BoolEvaluator, error) {
 	isDc := isArithmDeterministic(a, b, state)

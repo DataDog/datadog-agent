@@ -19,10 +19,7 @@ if [ ! -d "${XDG_CACHE_HOME:-}" ]; then
     >&2 echo '    docker run --env=XDG_CACHE_HOME=/cache --volume="$HOME/.cache:/cache" ...'
   fi
 elif [ -n "${CI:-}" ]; then
-  # Pass CI-specific options through `.user.bazelrc` so any nested `bazel run` also honor them
-  cat >"$(dirname "$(dirname "$0")")/user.bazelrc" <<EOF
-common --config=ci
-EOF
+  exec "$BAZEL_REAL" ${1:+"$1" --config=ci} "${@:2}"
 fi
 
 exec "$BAZEL_REAL" "$@"
