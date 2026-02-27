@@ -256,6 +256,16 @@ func (pc *PatternClusterer) GetClusters() []*Cluster {
 	return pc.allClusters
 }
 
+func (pc *PatternClusterer) GetCluster(id int) (*Cluster, error) {
+	// TODO: Optimize with map
+	for _, c := range pc.allClusters {
+		if c.ID == id {
+			return c, nil
+		}
+	}
+	return nil, fmt.Errorf("cluster %d not found", id)
+}
+
 // canMergeTokenLists checks if two token lists can be merged.
 // It requires that all token pairs be type-compatible AND that at least
 // half of the tokens match by value (Drain-style similarity threshold).
