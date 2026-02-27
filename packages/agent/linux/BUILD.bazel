@@ -91,10 +91,6 @@ pkg_tar(
     # compression_threads COMPRESSION_THREADS
     # compression_level COMPRESSION_LEVEL
     owner = "0.0",
-    tags = [
-        "manual",
-        "no-remote",
-    ],
 )
 
 # TODO: Look at omnibus/config/projects/agent.rb for more content here.
@@ -120,17 +116,13 @@ See http://www.datadoghq.com/ for more information
     priority = "extra",
     recommends = ["datadog-signing-keys (>= 1:1.4.0)"],
     section = "utils",
+    # TODO: Stamp in pipeline: 1:7.77.0~devel.git.394.fe0d0bb.pipeline.95313893-1
+    version = "7",
 
     # TODO: pull in target_cpu as arch.
     # architecture = "$(COMPILATION_MODE)",
     # config = "config",
     #distribution = "trusty",
-    tags = [
-        "manual",
-        "no-remote",
-    ],
-    # TODO: Stamp in pipeline: 1:7.77.0~devel.git.394.fe0d0bb.pipeline.95313893-1
-    version = "7",
 )
 
 # Replacement for datadog-agent-installer-symlinks.rb
