@@ -202,7 +202,7 @@ func TestHTTPTransactionSerializerUpdateAPIKeyBeforeSerializing(t *testing.T) {
 func TestHTTPTransactionFieldsCount(t *testing.T) {
 	tr := transaction.HTTPTransaction{}
 	transactionType := reflect.TypeOf(tr)
-	assert.Equalf(t, 13, transactionType.NumField(),
+	assert.Equalf(t, 15, transactionType.NumField(),
 		"A field was added or removed from HTTPTransaction. "+
 			"You probably need to update the implementation of "+
 			"HTTPTransactionsSerializer and then adjust this unit test.")
@@ -235,6 +235,7 @@ func assertTransactionEqual(a *assert.Assertions, tr1 *transaction.HTTPTransacti
 	a.Equal(tr1.Priority, tr2.Priority)
 	a.Equal(tr1.ErrorCount, tr2.ErrorCount)
 	a.Equal(tr1.Destination, tr2.Destination)
+	a.Equal(tr1.APIKeyIndex, tr2.APIKeyIndex)
 
 	a.NotNil(tr1.Payload)
 	a.NotNil(tr2.Payload)
@@ -242,6 +243,152 @@ func assertTransactionEqual(a *assert.Assertions, tr1 *transaction.HTTPTransacti
 
 	// Ignore monotonic clock
 	a.Equal(tr1.CreatedAt.Format(time.RFC3339), tr2.CreatedAt.Format(time.RFC3339))
+}
+
+// TestDeserializedTransactionHasResolver verifies that deserialized transactions have a Resolver set,
+// so Authorize() can be called without panicking.
+func TestDeserializedTransactionHasResolver(t *testing.T) {
+	log := logmock.New(t)
+	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", apiKey1, apiKey2)})
+	require.NoError(t, err)
+	serializer := NewHTTPTransactionsSerializer(log, res)
+
+	tr := createHTTPTransactionTests(domain)
+	require.NoError(t, serializer.Add(tr))
+	bytes, err := serializer.GetBytesAndReset()
+	require.NoError(t, err)
+
+	txns, errorCount, err := serializer.Deserialize(bytes)
+	require.NoError(t, err)
+	require.Equal(t, 0, errorCount)
+	require.Len(t, txns, 1)
+
+	deserialized := txns[0].(*transaction.HTTPTransaction)
+	assert.NotNil(t, deserialized.Resolver, "Resolver must be set on deserialized transactions so Authorize() can be called")
+}
+
+// TestDeserializedTransactionAPIKeyIndexPreserved verifies that the APIKeyIndex stored during
+// serialization is correctly restored so the transaction uses the same API key after restart.
+func TestDeserializedTransactionAPIKeyIndexPreserved(t *testing.T) {
+	log := logmock.New(t)
+	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", apiKey1, apiKey2, apiKey3)})
+	require.NoError(t, err)
+	serializer := NewHTTPTransactionsSerializer(log, res)
+
+	for wantIdx := 0; wantIdx < 3; wantIdx++ {
+		tr := createHTTPTransactionTests(domain)
+		tr.APIKeyIndex = wantIdx
+
+		require.NoError(t, serializer.Add(tr))
+		data, err := serializer.GetBytesAndReset()
+		require.NoError(t, err)
+
+		txns, errorCount, err := serializer.Deserialize(data)
+		require.NoError(t, err)
+		require.Equal(t, 0, errorCount)
+		require.Len(t, txns, 1)
+
+		deserialized := txns[0].(*transaction.HTTPTransaction)
+		assert.Equal(t, wantIdx, deserialized.APIKeyIndex,
+			"APIKeyIndex %d should survive serialization round-trip", wantIdx)
+	}
+}
+
+// TestDeserializedTransactionAuthorize verifies that calling Authorize() on a deserialized
+// transaction correctly sets the DD-Api-Key header based on the stored APIKeyIndex.
+func TestDeserializedTransactionAuthorize(t *testing.T) {
+	log := logmock.New(t)
+	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", apiKey1, apiKey2)})
+	require.NoError(t, err)
+	serializer := NewHTTPTransactionsSerializer(log, res)
+
+	for wantIdx, expectedKey := range []string{apiKey1, apiKey2} {
+		tr := createHTTPTransactionTests(domain)
+		tr.APIKeyIndex = wantIdx
+
+		require.NoError(t, serializer.Add(tr))
+		data, err := serializer.GetBytesAndReset()
+		require.NoError(t, err)
+
+		txns, errorCount, err := serializer.Deserialize(data)
+		require.NoError(t, err)
+		require.Equal(t, 0, errorCount)
+		require.Len(t, txns, 1)
+
+		deserialized := txns[0].(*transaction.HTTPTransaction)
+		// Authorize() is called by internalProcess before sending; simulate that here.
+		assert.NotPanics(t, deserialized.Authorize)
+		assert.Equal(t, expectedKey, deserialized.Headers.Get("DD-Api-Key"),
+			"Authorize() should set DD-Api-Key to the key at index %d", wantIdx)
+	}
+}
+
+// TestDeserializedTransactionAuthorizeMultipleKeys verifies that a batch of transactions
+// with different APIKeyIndex values each gets the correct key after deserialization.
+func TestDeserializedTransactionAuthorizeMultipleKeys(t *testing.T) {
+	log := logmock.New(t)
+	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", apiKey1, apiKey2, apiKey3)})
+	require.NoError(t, err)
+	serializer := NewHTTPTransactionsSerializer(log, res)
+
+	expectedKeys := []string{apiKey1, apiKey2, apiKey3}
+	for idx := range expectedKeys {
+		tr := createHTTPTransactionTests(domain)
+		tr.APIKeyIndex = idx
+		require.NoError(t, serializer.Add(tr))
+	}
+
+	data, err := serializer.GetBytesAndReset()
+	require.NoError(t, err)
+
+	txns, errorCount, err := serializer.Deserialize(data)
+	require.NoError(t, err)
+	require.Equal(t, 0, errorCount)
+	require.Len(t, txns, 3)
+
+	// Build a map of index -> key from the deserialized transactions.
+	gotKeys := make(map[int]string)
+	for _, txn := range txns {
+		d := txn.(*transaction.HTTPTransaction)
+		d.Authorize()
+		gotKeys[d.APIKeyIndex] = d.Headers.Get("DD-Api-Key")
+	}
+
+	for idx, expectedKey := range expectedKeys {
+		assert.Equal(t, expectedKey, gotKeys[idx],
+			"transaction at index %d should authorize with key %s", idx, expectedKey)
+	}
+}
+
+// TestDeserializeV2ResolverSet verifies that transactions serialized in the old V2 format
+// (without APIKeyIndex) still get a Resolver set on deserialization and default to index 0.
+func TestDeserializeV2ResolverSet(t *testing.T) {
+	r := require.New(t)
+	log := logmock.New(t)
+	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", apiKey1, apiKey2)})
+	r.NoError(err)
+	serializer := NewHTTPTransactionsSerializer(log, res)
+
+	// Binary blob of a V2 collection (no APIKeyIndex field).
+	var bytes = []byte{
+		0x8, 0x2, 0x12, 0x45, 0x12, 0x18, 0xa, 0x10, 0x72, 0x6f, 0x75, 0x74, 0x65, 0xfe, 0x41, 0x50, 0x49, 0x5f, 0x4b,
+		0x45, 0x59, 0xfe, 0x30, 0xfe, 0x12, 0x4, 0x6e, 0x61, 0x6d, 0x65, 0x1a, 0x14, 0xa, 0x3, 0x4b, 0x65, 0x79, 0x12,
+		0xd, 0xa, 0xb, 0xfe, 0x41, 0x50, 0x49, 0x5f, 0x4b, 0x45, 0x59, 0xfe, 0x30, 0xfe, 0x22, 0x3, 0x1, 0x2, 0x3, 0x28,
+		0x1, 0x30, 0xae, 0xcc, 0xc3, 0xcb, 0x6, 0x38, 0x1, 0x40, 0x1, 0x48, 0xa, 0x50, 0x1,
+	}
+
+	txns, errorCount, err := serializer.Deserialize(bytes)
+	r.NoError(err)
+	r.Equal(0, errorCount)
+	r.Len(txns, 1)
+
+	deserialized := txns[0].(*transaction.HTTPTransaction)
+	r.NotNil(deserialized.Resolver, "old V2 transactions should still get a Resolver set")
+	r.Equal(0, deserialized.APIKeyIndex, "old V2 transactions without APIKeyIndex should default to index 0")
+
+	// Authorize() must not panic and must set the first key.
+	r.NotPanics(deserialized.Authorize)
+	r.Equal(apiKey1, deserialized.Headers.Get("DD-Api-Key"))
 }
 
 // TestDeserializeV2 ensures that newer agent versions can sufficiently read files created by the old agent versions.

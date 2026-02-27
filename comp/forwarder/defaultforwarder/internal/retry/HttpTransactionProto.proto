@@ -39,6 +39,7 @@ message HttpTransactionProto {
     TransactionPriorityProto priority = 8;
     int32 PointCount = 9;
     TransactionDestinationProto Destination = 10;
+    int32 APIKeyIndex = 11;
 }
 
 message HttpTransactionProtoCollection {

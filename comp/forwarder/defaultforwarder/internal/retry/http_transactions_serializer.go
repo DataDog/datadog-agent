@@ -24,7 +24,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const transactionsSerializerVersion = 2
+const transactionsSerializerVersion = 3
 
 // Use a non US ASCII char as a separator (Should neither appear in an HTTP header value nor in a URL).
 // Note: This is not valid UTF-8, but the proto fields using it are defined as `bytes` to avoid UTF-8 validation.
@@ -115,6 +115,7 @@ func (s *HTTPTransactionsSerializer) Add(transaction *transaction.HTTPTransactio
 		Priority:    priority,
 		PointCount:  pointCount,
 		Destination: destination,
+		APIKeyIndex: int32(transaction.APIKeyIndex),
 	}
 	s.collection.Values = append(s.collection.Values, &transactionProto)
 	return nil
@@ -164,12 +165,25 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 		priority, err := fromTransactionPriorityProto(tr.Priority)
 		if err == nil {
 			route, err = s.restoreAPIKeys(string(e.Route), collection.Version)
-			if err == nil {
+		}
+
+		var resolver resolver.DomainResolver
+		var apiKeyIndex int
+
+		if err == nil {
+			if collection.Version < 3 {
+				// If the version is < 3, this was serialized in a previous version and may
+				// have the (scrubbed) API key in the header. Try to replace it with the real one.
 				proto, err = s.fromHeaderProto(tr.Headers, collection.Version)
-				if err == nil { // TODO: the reason for this nesting pattern is unclear to me
-					destination, err = fromTransactionDestinationProto(tr.Destination)
-				}
+			} else {
+				// Version 3 maintains the key index and resolves just before posting.
+				resolver = s.resolver
+				apiKeyIndex = int(tr.APIKeyIndex)
 			}
+		}
+
+		if err == nil {
+			destination, err = fromTransactionDestinationProto(tr.Destination)
 		}
 
 		if err != nil {
@@ -180,6 +194,7 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 
 		endpoint := transaction.Endpoint{Route: route, Name: e.Name}
 		domain := s.resolver.Resolve(endpoint)
+
 		tr := transaction.HTTPTransaction{
 			Domain:         domain,
 			Endpoint:       endpoint,
@@ -191,6 +206,8 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 			StorableOnDisk: true,
 			Priority:       priority,
 			Destination:    destination,
+			APIKeyIndex:    apiKeyIndex,
+			Resolver:       resolver,
 		}
 		tr.SetDefaultHandlers()
 		httpTransactions = append(httpTransactions, &tr)
@@ -280,9 +297,12 @@ func fromTransactionDestinationProto(destination TransactionDestinationProto) (t
 func (s *HTTPTransactionsSerializer) toHeaderProto(headers http.Header) map[string]*HeaderValuesProto {
 	headersProto := make(map[string]*HeaderValuesProto)
 	for key, headerValues := range headers {
-		// Convert strings to bytes after replacing API keys
-		headerValuesProto := HeaderValuesProto{Values: common.StringSliceTransform(headerValues, s.replaceAPIKeys)}
-		headersProto[key] = &headerValuesProto
+		// Don't include the api key header.
+		if key != "DD-Api-Key" {
+			// Convert strings to bytes after replacing API keys
+			headerValuesProto := HeaderValuesProto{Values: common.StringSliceTransform(headerValues, s.replaceAPIKeys)}
+			headersProto[key] = &headerValuesProto
+		}
 	}
 	return headersProto
 }
