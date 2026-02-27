@@ -19,12 +19,9 @@ import (
 
 // Mock is a mock of the secret Component useful for testing
 type Mock struct {
-	secretsCache          map[string]string
-	callbacks             []secrets.SecretChangeCallback
-	refreshHook           func() bool
-	refreshNowHook        func() (string, error)
-	isValueFromSecretHook func(string) bool
-	isValueFromSecretSet  map[string]struct{}
+	secretsCache map[string]string
+	callbacks    []secrets.SecretChangeCallback
+	refreshHook  func(bool) (string, error)
 }
 
 var _ secrets.Component = (*Mock)(nil)
@@ -92,54 +89,16 @@ func (m *Mock) SubscribeToChanges(callback secrets.SecretChangeCallback) {
 }
 
 // SetRefreshHook sets a hook function that will be called when Refresh is invoked
-func (m *Mock) SetRefreshHook(hook func() bool) {
+func (m *Mock) SetRefreshHook(hook func(bool) (string, error)) {
 	m.refreshHook = hook
 }
 
-// SetRefreshNowHook sets a hook function that will be called when RefreshNow is invoked
-func (m *Mock) SetRefreshNowHook(hook func() (string, error)) {
-	m.refreshNowHook = hook
-}
-
-// Refresh schedules an asynchronous secret refresh
-func (m *Mock) Refresh() bool {
+// Refresh will resolve secret handles again, notifying any subscribers of changed values
+func (m *Mock) Refresh(updateNow bool) (string, error) {
 	if m.refreshHook != nil {
-		return m.refreshHook()
-	}
-	return false
-}
-
-// RefreshNow performs an immediate blocking secret refresh
-func (m *Mock) RefreshNow() (string, error) {
-	if m.refreshNowHook != nil {
-		return m.refreshNowHook()
+		return m.refreshHook(updateNow)
 	}
 	return "", nil
-}
-
-// SetIsValueFromSecretHook sets a hook function that will be called when IsValueFromSecret is invoked
-func (m *Mock) SetIsValueFromSecretHook(hook func(string) bool) {
-	m.isValueFromSecretHook = hook
-}
-
-// SetSecretOriginatedValues sets a predefined set of values that IsValueFromSecret will recognize
-func (m *Mock) SetSecretOriginatedValues(values []string) {
-	m.isValueFromSecretSet = make(map[string]struct{}, len(values))
-	for _, v := range values {
-		m.isValueFromSecretSet[v] = struct{}{}
-	}
-}
-
-// IsValueFromSecret returns true if the given value was ever resolved from a secret handle
-func (m *Mock) IsValueFromSecret(value string) bool {
-	if m.isValueFromSecretHook != nil {
-		return m.isValueFromSecretHook(value)
-	}
-	if m.isValueFromSecretSet != nil {
-		_, ok := m.isValueFromSecretSet[value]
-		return ok
-	}
-	return false
 }
 
 // RemoveOrigin
