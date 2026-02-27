@@ -125,7 +125,7 @@ type EBPFProbe struct {
 	profileManager securityprofile.ProfileManager
 	fieldHandlers  *EBPFFieldHandlers
 	eventPool      *ddsync.TypedPool[model.Event]
-	variableStore  *eval.VariableStore
+	variableStore  atomic.Pointer[eval.VariableStore]
 	numCPU         int
 
 	ctx       context.Context
@@ -1026,7 +1026,7 @@ func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventM
 
 // evalOpts returns the eval options containing the current variable store
 func (p *EBPFProbe) evalOpts() *eval.Opts {
-	return &eval.Opts{VariableStore: p.variableStore}
+	return &eval.Opts{VariableStore: p.variableStore.Load()}
 }
 
 // EventMarshallerCtorWithRule returns the event marshaller ctor with a rule for variable serialization
@@ -2584,7 +2584,7 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, boo
 // OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
 func (p *EBPFProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 	p.processKiller.Reset(rs)
-	p.variableStore = rs.GetVariableStore()
+	p.variableStore.Store(rs.GetVariableStore())
 
 	p.HandleRemediationStatus(rs)
 }
