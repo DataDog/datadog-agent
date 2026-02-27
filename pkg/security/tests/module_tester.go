@@ -28,9 +28,9 @@ import (
 	"time"
 	"unsafe"
 
-	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
+  delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
