@@ -17,10 +17,6 @@ relative_path 'src/github.com/DataDog/datadog-agent'
 build do
   license :project_license
 
-  if linux_target?
-    command_on_repo_root "bazelisk run -- @systemd//:install --destdir='#{install_dir}'"
-  end
-
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
   etc_dir = "/etc/datadog-agent"
