@@ -104,12 +104,18 @@ impl ManagedProcess {
     }
 
     fn transition_to(&mut self, next: ProcessState) {
-        debug_assert!(
-            self.state.can_transition_to(next),
-            "[{}] invalid state transition: {} -> {next}",
-            self.name,
-            self.state
-        );
+        if !self.state.can_transition_to(next) {
+            warn!(
+                "[{}] invalid state transition: {} -> {next}, ignoring",
+                self.name, self.state
+            );
+            debug_assert!(
+                false,
+                "[{}] invalid state transition: {} -> {next}",
+                self.name, self.state
+            );
+            return;
+        }
         self.state = next;
     }
 
