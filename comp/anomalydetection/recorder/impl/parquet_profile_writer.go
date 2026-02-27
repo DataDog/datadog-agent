@@ -23,15 +23,13 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ProfileParquetWriter writes observer profiles to rotating parquet files.
+// ProfileParquetWriter writes observer profiles to parquet files created on each flush.
 // Profile binary data is embedded directly in parquet using a LargeBinary column.
 // This simplifies file management at the cost of slightly larger parquet files,
 // which is acceptable for a recorder/replay use case.
+// Files are only created when there is data to write; empty files are never produced.
 type ProfileParquetWriter struct {
 	outputDir         string
-	currentFilePath   string
-	writer            *pqarrow.FileWriter
-	file              *os.File
 	schema            *arrow.Schema
 	builder           *profileBatchBuilder
 	flushInterval     time.Duration
@@ -77,10 +75,6 @@ func NewProfileParquetWriter(outputDir string, flushInterval, retentionDuration 
 		stopCh:            make(chan struct{}),
 	}
 
-	if err := pw.rotateFile(); err != nil {
-		return nil, fmt.Errorf("creating initial parquet file: %w", err)
-	}
-
 	go pw.flushLoop()
 	if retentionDuration > 0 {
 		go pw.cleanupLoop()
@@ -91,22 +85,17 @@ func NewProfileParquetWriter(outputDir string, flushInterval, retentionDuration 
 	return pw, nil
 }
 
-func (pw *ProfileParquetWriter) rotateFile() error {
-	if pw.writer != nil {
-		if err := pw.writer.Close(); err != nil {
-			pkglog.Warnf("Error closing profile parquet writer during rotation: %v", err)
-		}
-		pw.writer = nil
-	}
-	pw.file = nil
-
+// writeRecord creates a new timestamped file, writes the record, and closes it atomically.
+// Only called when there is data; no file is created for empty batches.
+// Must be called with pw.mu held.
+func (pw *ProfileParquetWriter) writeRecord(record arrow.Record) error {
 	timestamp := time.Now().UTC().Format("20060102-150405")
 	filename := fmt.Sprintf("observer-profiles-%sZ.parquet", timestamp)
-	pw.currentFilePath = filepath.Join(pw.outputDir, filename)
+	filePath := filepath.Join(pw.outputDir, filename)
 
-	file, err := os.Create(pw.currentFilePath)
+	file, err := os.Create(filePath)
 	if err != nil {
-		return fmt.Errorf("creating parquet file %s: %w", pw.currentFilePath, err)
+		return fmt.Errorf("creating parquet file %s: %w", filePath, err)
 	}
 
 	props := parquet.NewWriterProperties(
@@ -126,11 +115,16 @@ func (pw *ProfileParquetWriter) rotateFile() error {
 		return fmt.Errorf("creating parquet writer: %w", err)
 	}
 
-	pw.file = file
-	pw.writer = writer
+	if err := writer.Write(record); err != nil {
+		writer.Close()
+		return fmt.Errorf("writing record to parquet: %w", err)
+	}
 
-	pkglog.Debugf("Rotated to new profile parquet file: %s", pw.currentFilePath)
+	if err := writer.Close(); err != nil {
+		return fmt.Errorf("closing parquet writer: %w", err)
+	}
 
+	pkglog.Debugf("Wrote profile parquet file: %s (%d rows)", filePath, record.NumRows())
 	return nil
 }
 
@@ -166,15 +160,17 @@ func (pw *ProfileParquetWriter) flushLoop() {
 	for {
 		select {
 		case <-pw.stopCh:
-			pw.flushAndRotate()
+			pw.flush()
 			return
 		case <-ticker.C:
-			pw.flushAndRotate()
+			pw.flush()
 		}
 	}
 }
 
-func (pw *ProfileParquetWriter) flushAndRotate() {
+// flush writes accumulated profiles to a new file if there is data to write.
+// If no profiles have been collected since the last flush, no file is created.
+func (pw *ProfileParquetWriter) flush() {
 	pw.mu.Lock()
 	defer pw.mu.Unlock()
 
@@ -183,15 +179,13 @@ func (pw *ProfileParquetWriter) flushAndRotate() {
 	}
 
 	record := pw.builder.build()
-	if record != nil {
-		if err := pw.writer.Write(record); err != nil {
-			pkglog.Errorf("Failed to write profiles to parquet: %v", err)
-		}
-		record.Release()
+	if record == nil {
+		return
 	}
+	defer record.Release()
 
-	if err := pw.rotateFile(); err != nil {
-		pkglog.Errorf("Failed to rotate profile parquet file: %v", err)
+	if err := pw.writeRecord(record); err != nil {
+		pkglog.Errorf("Failed to flush profiles to parquet: %v", err)
 	}
 }
 
@@ -257,22 +251,14 @@ func (pw *ProfileParquetWriter) Close() error {
 	close(pw.stopCh)
 
 	record := pw.builder.build()
-	if record != nil {
-		if err := pw.writer.Write(record); err != nil {
-			pkglog.Errorf("Failed to write final profiles to parquet: %v", err)
-		}
-		record.Release()
+	if record == nil {
+		return nil
 	}
+	defer record.Release()
 
-	if pw.writer != nil {
-		if err := pw.writer.Close(); err != nil {
-			return fmt.Errorf("closing profile parquet writer: %w", err)
-		}
-		pw.writer = nil
+	if err := pw.writeRecord(record); err != nil {
+		return fmt.Errorf("final flush: %w", err)
 	}
-	pw.file = nil
-
-	pkglog.Infof("Profile parquet writer closed: %s", pw.currentFilePath)
 	return nil
 }
 
