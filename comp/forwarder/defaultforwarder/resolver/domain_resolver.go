@@ -431,6 +431,10 @@ func (r *domainResolver) GetAuthorizers() (res []authHeader) {
 	return
 }
 
+func (r *domainResolver) Authorize(apiKeyIdx int, transaction *transaction.HTTPTransaction) {
+	r.GetAuthorizers()[apiKeyIdx].Authorize(transaction)
+}
+
 // GetConfigName returns the base url as it was originally written in the config.
 func (r *domainResolver) GetConfigName() string {
 	return r.configName

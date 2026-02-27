@@ -224,6 +224,10 @@ func (d Destination) String() string {
 	}
 }
 
+type Authorizer interface {
+	Authorize(apiKeyIdx int, transaction *HTTPTransaction)
+}
+
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
 type HTTPTransaction struct {
 	// Domain represents the domain target by the HTTPTransaction.
@@ -256,6 +260,11 @@ type HTTPTransaction struct {
 	Kind Kind
 
 	Destination Destination
+
+	// We don't store the API key directly in the transaction, as it may change.
+	// Instead store the index so it can be resolved prior to sending.
+	APIKeyIndex int
+	Resolver    Authorizer
 }
 
 // TransactionsSerializer serializes Transaction instances.
@@ -368,6 +377,13 @@ func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, 
 	return nil
 }
 
+func (t *HTTPTransaction) Authorize() {
+	if t.Resolver == nil {
+		return
+	}
+	t.Resolver.Authorize(t.APIKeyIndex, t)
+}
+
 // internalProcess does the  work of actually sending the http request to the specified domain
 // This will return  (http status code, response body, error).
 func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Component, log log.Component, secrets secrets.Component, client *http.Client) (int, []byte, error) {
@@ -376,6 +392,8 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 	url := t.Domain + t.Endpoint.Route
 	transactionEndpointName := t.GetEndpointName()
 	logURL := scrubber.ScrubLine(url) // sanitized url that can be logged
+	//t.Resolver.GetAuthorizers()[t.APIKeyIndex].Authorize(t)
+	t.Authorize()
 
 	req, err := http.NewRequestWithContext(ctx, "POST", url, reader)
 	if err != nil {
