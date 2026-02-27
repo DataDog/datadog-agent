@@ -26,7 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/ecsagentparams"
 	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 
@@ -73,9 +72,7 @@ func TestECSSuite(t *testing.T) {
 		// WithWindowsNodeGroup is the dedicated ECS option to opt-in to Windows
 		// infrastructure and workloads (Windows EC2 nodes + Windows Fargate apps).
 		ecsOptions = append(ecsOptions, scenecs.WithWindowsNodeGroup())
-		// WithWindowsImage selects the multi-arch agent image (with Windows),
-		// matching the pattern from kubernetesagentparams.WithWindowsImage().
-		runOptions = append(runOptions, scenecs.WithAgentOptions(ecsagentparams.WithWindowsImage()))
+
 		suite.windowsEnabled = true
 	}
 
