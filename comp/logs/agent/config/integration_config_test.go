@@ -81,6 +81,64 @@ func TestAutoMultilineEnabled(t *testing.T) {
 
 }
 
+func TestAutoMultiLineStatus(t *testing.T) {
+	t.Run("per-source false overrides global true", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", true)
+		enabled, isDefault := decode(`{"auto_multi_line_detection":false}`).AutoMultiLineStatus(mockConfig)
+		assert.False(t, enabled)
+		assert.False(t, isDefault)
+	})
+
+	t.Run("per-source true overrides global false", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", false)
+		enabled, isDefault := decode(`{"auto_multi_line_detection":true}`).AutoMultiLineStatus(mockConfig)
+		assert.True(t, enabled)
+		assert.False(t, isDefault)
+	})
+
+	t.Run("global explicitly true is not default", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", true)
+		enabled, isDefault := decode(`{}`).AutoMultiLineStatus(mockConfig)
+		assert.True(t, enabled)
+		assert.False(t, isDefault)
+	})
+
+	t.Run("global explicitly false is not default", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", false)
+		enabled, isDefault := decode(`{}`).AutoMultiLineStatus(mockConfig)
+		assert.False(t, enabled)
+		assert.False(t, isDefault)
+	})
+
+	t.Run("nothing configured is default", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		enabled, isDefault := decode(`{}`).AutoMultiLineStatus(mockConfig)
+		assert.False(t, enabled)
+		assert.True(t, isDefault)
+	})
+
+	t.Run("deprecated experimental true is not default", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("logs_config.experimental_auto_multi_line_detection", true)
+		enabled, isDefault := decode(`{}`).AutoMultiLineStatus(mockConfig)
+		assert.True(t, enabled)
+		assert.False(t, isDefault)
+	})
+
+	t.Run("deprecated experimental false with auto true is not default", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("logs_config.experimental_auto_multi_line_detection", false)
+		mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", true)
+		enabled, isDefault := decode(`{}`).AutoMultiLineStatus(mockConfig)
+		assert.True(t, enabled)
+		assert.False(t, isDefault)
+	})
+}
+
 func decode(cfg string) *LogsConfig {
 	lc := LogsConfig{}
 	json.Unmarshal([]byte(cfg), &lc)

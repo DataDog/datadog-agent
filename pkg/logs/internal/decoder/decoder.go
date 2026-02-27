@@ -169,9 +169,7 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 
 func getAutoMultilineDetectingHandler(outputFn func(msg *message.Message), tailerInfo *status.InfoRegistry, maxContentSize int, source *sources.ReplaceableSource) LineHandler {
 	cfg := pkgconfigsetup.Datadog()
-	isDefaultPath := source.Config().AutoMultiLine == nil &&
-		!cfg.IsConfigured("logs_config.auto_multi_line_detection") &&
-		!cfg.IsConfigured("logs_config.experimental_auto_multi_line_detection")
+	_, isDefaultPath := source.Config().AutoMultiLineStatus(cfg)
 
 	// JSON aggregation is disabled in detection mode for consistency - we don't want to combine JSON
 	// while only tagging everything else
