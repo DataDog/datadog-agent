@@ -106,24 +106,25 @@ func TestNewServerExtraTags(t *testing.T) {
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	s := deps.Server.(*server)
 	requireStart(t, s)
-	require.Len(s.extraTags, 0, "no tags should have been read")
+	require.Len(*s.extraTags.Load(), 0, "no tags should have been read")
 
 	// when not running in fargate, the tags entry is not used
 	cfg["tags"] = "hello:world"
 	deps = fulfillDepsWithConfigOverride(t, cfg)
 	s = deps.Server.(*server)
 	requireStart(t, s)
-	require.Len(s.extraTags, 0, "no tags should have been read")
+	require.Len(*s.extraTags.Load(), 0, "no tags should have been read")
 
 	// dogstatsd_tag is always pulled in to extra tags
 	cfg["dogstatsd_tags"] = "hello:world2 extra:tags"
 	deps = fulfillDepsWithConfigOverride(t, cfg)
 	s = deps.Server.(*server)
 	requireStart(t, s)
-	require.ElementsMatch([]string{"extra:tags", "hello:world2"}, s.extraTags, "two tags should have been read")
-	require.Len(s.extraTags, 2, "two tags should have been read")
-	require.Equal(s.extraTags[0], "extra:tags", "the tag extra:tags should be set")
-	require.Equal(s.extraTags[1], "hello:world2", "the tag hello:world should be set")
+	loadedTags := *s.extraTags.Load()
+	require.ElementsMatch([]string{"extra:tags", "hello:world2"}, loadedTags, "two tags should have been read")
+	require.Len(loadedTags, 2, "two tags should have been read")
+	require.Equal(loadedTags[0], "extra:tags", "the tag extra:tags should be set")
+	require.Equal(loadedTags[1], "hello:world2", "the tag hello:world should be set")
 
 	// when running in fargate, "tags" and "dogstatsd_tag" configs are conjoined
 	env.SetFeatures(t, env.EKSFargate)
@@ -133,7 +134,7 @@ func TestNewServerExtraTags(t *testing.T) {
 
 	require.ElementsMatch(
 		[]string{"hello:world", "extra:tags", "hello:world2", "kube_distribution:eks"},
-		s.extraTags,
+		*s.extraTags.Load(),
 		"both tag sources should have been combined",
 	)
 }

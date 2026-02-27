@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.uber.org/fx"
@@ -134,7 +135,7 @@ type server struct {
 	health                  *health.Handle
 	histToDist              bool
 	histToDistPrefix        string
-	extraTags               []string
+	extraTags               atomic.Pointer[[]string]
 	Debug                   serverdebug.Component
 	filterList              filterlist.Component
 
@@ -294,7 +295,6 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 		health:                  nil,
 		histToDist:              histToDist,
 		histToDistPrefix:        histToDistPrefix,
-		extraTags:               extraTags,
 		eolTerminationUDP:       eolTerminationUDP,
 		eolTerminationUDS:       eolTerminationUDS,
 		eolTerminationNamedPipe: eolTerminationNamedPipe,
@@ -321,6 +321,7 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 		tlmProcessedError:       dogstatsdTelemetryCount.WithValues("metrics", "error", ""),
 		stringInternerTelemetry: newSiTelemetry(utils.IsTelemetryEnabled(cfg), telemetrycomp),
 	}
+	s.extraTags.Store(&extraTags)
 
 	buckets := getBuckets(cfg, log, "telemetry.dogstatsd.aggregator_channel_latency_buckets")
 	if buckets == nil {
@@ -527,7 +528,7 @@ func (s *server) IsRunning() bool {
 
 // SetExtraTags sets extra tags. All metrics sent to the DogstatsD will be tagged with them.
 func (s *server) SetExtraTags(tags []string) {
-	s.extraTags = tags
+	s.extraTags.Store(&tags)
 }
 
 func (s *server) onFilterListUpdate(filterList utilstrings.Matcher, _ utilstrings.Matcher) {
@@ -837,11 +838,15 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 		s.sharedFloat64List.put(sample.values)
 	}
 
+	var extraTags []string
+	if p := s.extraTags.Load(); p != nil {
+		extraTags = *p
+	}
 	for idx := range metricSamples {
 		// All metricSamples already share the same Tags slice. We can
 		// extends the first one and reuse it for the rest.
 		if idx == 0 {
-			metricSamples[idx].Tags = append(metricSamples[idx].Tags, s.extraTags...)
+			metricSamples[idx].Tags = append(metricSamples[idx].Tags, extraTags...)
 		} else {
 			metricSamples[idx].Tags = metricSamples[0].Tags
 		}
@@ -865,7 +870,9 @@ func (s *server) parseEventMessage(parser *parser, message []byte, origin string
 		return nil, err
 	}
 	event := enrichEvent(sample, origin, processID, s.enrichConfig)
-	event.Tags = append(event.Tags, s.extraTags...)
+	if extraTags := s.extraTags.Load(); extraTags != nil {
+		event.Tags = append(event.Tags, *extraTags...)
+	}
 	s.tlmProcessed.Inc("events", "ok", "")
 	dogstatsdEventPackets.Add(1)
 	return event, nil
@@ -879,7 +886,9 @@ func (s *server) parseServiceCheckMessage(parser *parser, message []byte, origin
 		return nil, err
 	}
 	serviceCheck := enrichServiceCheck(sample, origin, processID, s.enrichConfig)
-	serviceCheck.Tags = append(serviceCheck.Tags, s.extraTags...)
+	if extraTags := s.extraTags.Load(); extraTags != nil {
+		serviceCheck.Tags = append(serviceCheck.Tags, *extraTags...)
+	}
 	dogstatsdServiceCheckPackets.Add(1)
 	s.tlmProcessed.Inc("service_checks", "ok", "")
 	return serviceCheck, nil
