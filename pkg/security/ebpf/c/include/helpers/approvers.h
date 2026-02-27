@@ -103,6 +103,29 @@ int __attribute__((always_inline)) approve_dns_sample(u32 pid) {
     return 1;
 }
 
+int __attribute__((always_inline)) approve_connect_sample(u32 pid, u16 family, u16 port, u16 protocol) {
+    monitor_ad_sample_total(EVENT_CONNECT);
+
+    struct bind_sample_key_t key = {
+        .pid = pid,
+        .family = family,
+        .port = port,
+        .protocol = protocol,
+    };
+
+    u8 value = 0;
+    if (bpf_map_update_elem(&connect_samples, &key, &value, BPF_NOEXIST) < 0) {
+        return 0;
+    }
+
+    if (!global_limiter_allow(CONNECT_SAMPLE_LIMITER, 500, 1)) {
+        return 0;
+    }
+
+    monitor_ad_sample_sampled(EVENT_CONNECT);
+    return 1;
+}
+
 enum SYSCALL_STATE __attribute__((always_inline)) approve_by_auid(struct syscall_cache_t *syscall, u64 event_type) {
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);

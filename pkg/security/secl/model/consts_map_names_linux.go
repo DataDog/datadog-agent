@@ -31,6 +31,7 @@ var bpfMapNames = []string{
 	"cgroup_tracing_",
 	"cgroup_wait_lis",
 	"connect_addr_fa",
+	"connect_samples",
 	"conntrack",
 	"dentry_resolver",
 	"discarders_revi",
