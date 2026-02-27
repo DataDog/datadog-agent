@@ -822,6 +822,7 @@ func initializeRemoteConfigClient(rcService rccomp.Component, config config.Comp
 	rcClient, err := rcclient.NewClient(rcService,
 		rcclient.WithAgent("cluster-agent", version.AgentVersion),
 		rcclient.WithCluster(clusterName, clusterID),
+		rcclient.WithDirectorRootOverride(config.GetString("site"), config.GetString("remote_configuration.director_root")),
 		rcclient.WithProducts(products...),
 		rcclient.WithPollInterval(5*time.Second),
 	)

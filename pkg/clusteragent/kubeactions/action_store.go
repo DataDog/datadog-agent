@@ -17,9 +17,8 @@ import (
 )
 
 const (
-	// TODO(KUBEACTIONS-POC): CHANGE BACK TO 1 MINUTE - Extended to 1 hour for easier PoC testing
-	// ActionTTL is how long actions are valid for execution (1 hour for testing)
-	ActionTTL = 1 * time.Hour
+	// ActionTTL is how long actions are valid for execution
+	ActionTTL = 1 * time.Minute
 	// RecordRetentionTTL is how long action records are kept in memory (24 hours)
 	// This allows for inspection and debugging of executed actions
 	RecordRetentionTTL = 24 * time.Hour
