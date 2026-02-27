@@ -56,6 +56,7 @@ type LogView interface {
 	GetStatus() string
 	GetTags() []string
 	GetHostname() string
+	GetTimestamp() int64
 }
 
 // LogProcessor transforms observed logs into metrics and anomaly events.
@@ -116,9 +117,9 @@ type AnomalyOutput struct {
 	Title        string
 	Description  string
 	Tags         []string
-	Timestamp    int64      // when the anomaly was detected (unix seconds)
-	Score        *float64   // confidence/severity score (nil if not available)
-	TimeRange    TimeRange  // period covered by the analysis that produced this anomaly
+	Timestamp    int64     // when the anomaly was detected (unix seconds)
+	Score        *float64  // confidence/severity score (nil if not available)
+	TimeRange    TimeRange // period covered by the analysis that produced this anomaly
 	// DebugInfo contains analyzer-specific debug information explaining the detection.
 	DebugInfo *AnomalyDebugInfo
 }

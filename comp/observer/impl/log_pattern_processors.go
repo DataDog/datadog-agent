@@ -180,7 +180,7 @@ func (s *SimplePatternLogAD) Name() string {
 // pattern, appends it to the current batch, and finalizes the previous batch when the
 // idle gap exceeds BatchTimeout.
 func (s *SimplePatternLogAD) Process(log observerdef.LogView) observerdef.LogProcessorResult {
-	now := time.Now()
+	now := time.Unix(log.GetTimestamp(), 0)
 
 	// Finalize the pending batch when a log arrives after a long idle gap.
 	var result batchResult
