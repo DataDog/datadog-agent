@@ -35,8 +35,8 @@ import (
 	"github.com/swaggest/jsonschema-go"
 	"github.com/xeipuuv/gojsonschema"
 	"go.uber.org/fx"
+	"go.yaml.in/yaml/v2"
 	"golang.org/x/sys/windows/registry"
-	"gopkg.in/yaml.v2"
 )
 
 const (
