@@ -56,7 +56,12 @@ func ensureCACertConfigMapInNamespace(namespace string, caCertData map[string]st
 	if apierrors.IsNotFound(err) {
 		// Create new ConfigMap
 		log.Infof("Creating CA cert ConfigMap in namespace %s", namespace)
-		return createCACertConfigMap(namespace, caCertData, client)
+		createErr := createCACertConfigMap(namespace, caCertData, client)
+		if createErr != nil && !apierrors.IsAlreadyExists(createErr) {
+			return createErr
+		}
+		// If AlreadyExists, a concurrent admission request created it first — the ConfigMap exists with the correct data.
+		return nil
 	}
 
 	// Update if stale
