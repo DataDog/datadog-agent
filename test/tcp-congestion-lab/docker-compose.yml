@@ -1,0 +1,72 @@
+version: "3.8"
+
+# TCP Congestion Signal Lab
+# Two containers on a shared network for generating TCP traffic and
+# inducing network perturbations to exercise the new congestion signals.
+# The Datadog agent (system-probe) runs on the host, monitoring these flows.
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tcp-lab-server
+    hostname: server
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+    networks:
+      lab:
+        ipv4_address: 172.28.0.10
+    sysctls:
+      - net.ipv4.tcp_ecn=1
+    command: >
+      sh -c "echo 'Server ready on 172.28.0.10' &&
+             iperf3 -s -p 5201 &
+             iperf3 -s -p 5202 &
+             python3 -c \"
+      import socket, time, struct
+      TCP_WINDOW_CLAMP = 10
+      s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+      s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+      s.bind(('0.0.0.0', 9000))
+      s.listen(5)
+      print('Slow-reader server on :9000 (for zero-window tests)')
+      while True:
+          conn, addr = s.accept()
+          print(f'Accepted from {addr}')
+          conn.setsockopt(socket.IPPROTO_TCP, TCP_WINDOW_CLAMP, 1)
+          while True:
+              time.sleep(10)
+              data = conn.recv(1)
+              if not data: break
+          conn.close()
+      \" &
+             sleep infinity"
+
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tcp-lab-client
+    hostname: client
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+    sysctls:
+      - net.ipv4.tcp_ecn=1
+    networks:
+      lab:
+        ipv4_address: 172.28.0.20
+    depends_on:
+      - server
+    command: >
+      sh -c "echo 'Client ready on 172.28.0.20 — run perturbation commands via docker exec' &&
+             sleep infinity"
+
+networks:
+  lab:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
