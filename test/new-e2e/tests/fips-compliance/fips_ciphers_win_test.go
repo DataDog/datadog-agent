@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
@@ -175,7 +174,7 @@ func linuxDockerVMProvisioner(ctx *pulumi.Context, awsEnv aws.Environment, env *
 	// copied from docker environment/provisioner
 	//
 
-	manager, err := docker.NewManager(&awsEnv, linuxDockerVM, utils.PulumiDependsOn(installEcrCredsHelperCmd))
+	manager, err := docker.NewManager(&awsEnv, linuxDockerVM)
 	if err != nil {
 		return err
 	}
