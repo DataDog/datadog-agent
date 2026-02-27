@@ -3,11 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build netbsd || openbsd || solaris || dragonfly || linux || aix
+//go:build aix
 
-package config
+package pinger
 
-const (
-	// DefaultConfPath points to the folder containing datadog.yaml
-	DefaultConfPath = "/etc/datadog-agent"
-)
+import "errors"
+
+// New creates a new pinger; not supported on AIX.
+func New(_ Config) (Pinger, error) {
+	return nil, errors.New("pinger not supported on AIX")
+}

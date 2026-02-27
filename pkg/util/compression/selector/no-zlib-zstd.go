@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !zlib && !zstd
+//go:build !zlib && zstd
 
 // Package selector provides correct compression impl to fx
 package selector
@@ -12,35 +12,32 @@ import (
 	common "github.com/DataDog/datadog-agent/pkg/util/compression"
 	implgzip "github.com/DataDog/datadog-agent/pkg/util/compression/impl-gzip"
 	implnoop "github.com/DataDog/datadog-agent/pkg/util/compression/impl-noop"
+	implzstd "github.com/DataDog/datadog-agent/pkg/util/compression/impl-zstd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// NewCompressor returns a new Compressor based on serializer_compressor_kind
-// This function is called only when there is no zlib or zstd tag
+// NewCompressor returns a new Compressor based on serializer_compressor_kind.
+// This function is called when zstd is included but zlib is not.
 func NewCompressor(kind string, level int) common.Compressor {
 	switch kind {
-	case common.GzipKind:
-		return implgzip.New(implgzip.Requires{
-			Level: level,
+	case common.ZstdKind:
+		return implzstd.New(implzstd.Requires{
+			Level: common.ZstdCompressionLevel(level),
 		})
+	case common.ZlibKind:
+		log.Warn("zlib build tag not included, falling back to gzip")
+		return implgzip.New(implgzip.Requires{Level: level})
+	case common.GzipKind:
+		return implgzip.New(implgzip.Requires{Level: level})
 	case common.NoneKind:
 		return implnoop.New()
-	case common.ZstdKind, common.ZlibKind:
-		// zstd/zlib require CGO or build tags not present in this build; fall back to gzip
-		log.Warnf("compression kind %s is not available in this build, falling back to gzip", kind)
-		return implgzip.New(implgzip.Requires{
-			Level: 6,
-		})
 	default:
 		log.Errorf("unknown compression kind %q, falling back to noop", kind)
 		return implnoop.New()
 	}
 }
 
-// NewNoopCompressor returns a new Noop Compressor. It does not do any
-// compression, but can be used to create a compressor that does at a later
-// point.
-// This function is called only when there is no zlib or zstd tag
+// NewNoopCompressor returns a new Noop Compressor.
 func NewNoopCompressor() common.Compressor {
 	return implnoop.New()
 }

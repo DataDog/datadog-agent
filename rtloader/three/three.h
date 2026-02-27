@@ -6,13 +6,18 @@
 #ifndef DATADOG_AGENT_RTLOADER_THREE_H
 #define DATADOG_AGENT_RTLOADER_THREE_H
 
+// Python.h must be included before any system headers (CPython embedding requirement)
+// On AIX (and other platforms), Python.h sets preprocessor definitions that affect
+// how system headers like unistd.h define their types. Including Python.h after
+// C++ stdlib headers causes conflicting type declarations in GCC's include-fixed headers.
+#include <Python.h>
+
 #include <atomic>
 #include <map>
 #include <mutex>
 #include <string>
 #include <vector>
 
-#include <Python.h>
 #include <rtloader.h>
 
 class Three : public RtLoader
