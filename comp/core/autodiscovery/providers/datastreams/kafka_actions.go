@@ -13,6 +13,8 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	yaml "go.yaml.in/yaml/v2"
 )
@@ -43,11 +44,25 @@ func isConnectedToKafka(ac autodiscovery.Component) bool {
 	return false
 }
 
+// legacyTagReplacer matches the same characters as the Python integration's
+// TAG_REPLACEMENT regex: [,\+\*\-/()\[\]{}\s]
+// This ensures the agent normalizes kafka_connect_str the same way the
+// kafka_consumer Python check normalizes the bootstrap_servers tag value
+// when enable_legacy_tags_normalization is true (the default).
+var legacyTagReplacer = regexp.MustCompile(`[,+*\-/()\[\]{}\s]`)
+var multipleUnderscoreCleanup = regexp.MustCompile(`_+`)
+var dotUnderscoreCleanup = regexp.MustCompile(`\._`)
+
 func normalizeBootstrapServers(servers string) string {
 	if servers == "" {
 		return ""
 	}
-	return normalize.NormalizeTagValue(servers)
+	s := strings.ToLower(servers)
+	s = legacyTagReplacer.ReplaceAllString(s, "_")
+	s = multipleUnderscoreCleanup.ReplaceAllString(s, "_")
+	s = dotUnderscoreCleanup.ReplaceAllString(s, ".")
+	s = strings.Trim(s, "_")
+	return s
 }
 
 type kafkaActionsConfig struct {
@@ -242,14 +257,25 @@ func extractKafkaAuthFromInstance(cfgs []integration.Config, bootstrapServers st
 				continue
 			}
 
-			connectStr, ok := instanceMap["kafka_connect_str"].(string)
-			if !ok || connectStr == "" {
-				continue
+			var connectStrs []string
+			switch v := instanceMap["kafka_connect_str"].(type) {
+			case string:
+				if v != "" {
+					connectStrs = []string{v}
+				}
+			case []interface{}:
+				for _, item := range v {
+					if s, ok := item.(string); ok && s != "" {
+						connectStrs = append(connectStrs, s)
+					}
+				}
 			}
 
-			if normalizeBootstrapServers(connectStr) == bootstrapServers {
-				auth := extractAuthFromInstanceData(instanceData)
-				return auth, &cfg, nil
+			for _, connectStr := range connectStrs {
+				if normalizeBootstrapServers(connectStr) == bootstrapServers {
+					auth := extractAuthFromInstanceData(instanceData)
+					return auth, &cfg, nil
+				}
 			}
 		}
 	}
