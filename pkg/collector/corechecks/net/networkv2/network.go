@@ -11,7 +11,6 @@ package networkv2
 import (
 	"bufio"
 	"bytes"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -23,8 +22,8 @@ import (
 
 	"github.com/shirou/gopsutil/v4/net"
 	"github.com/spf13/afero"
+	yaml "go.yaml.in/yaml/v2"
 	"golang.org/x/sys/unix"
-	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -297,8 +296,11 @@ func handleEthtoolStats(sender sender.Sender, ethtoolObject ethtoolInterface, in
 	if err != nil {
 		if err == unix.ENOTTY || err == unix.EOPNOTSUPP {
 			log.Debugf("driver info is not supported for interface: %s", interfaceIO.Name)
+		} else if err == unix.ENODEV {
+			log.Debugf("interface is down or device unavailable, skipping ethtool stats: %s", interfaceIO.Name)
+			return nil
 		} else {
-			return errors.New("failed to get driver info for interface " + interfaceIO.Name + ": " + fmt.Sprintf("%d", err))
+			return fmt.Errorf("failed to get driver info for interface %s: %w", interfaceIO.Name, err)
 		}
 	}
 
@@ -311,8 +313,11 @@ func handleEthtoolStats(sender sender.Sender, ethtoolObject ethtoolInterface, in
 	if err != nil {
 		if err == unix.ENOTTY || err == unix.EOPNOTSUPP {
 			log.Debugf("ethtool stats are not supported for interface: %s", interfaceIO.Name)
+		} else if err == unix.ENODEV {
+			log.Debugf("interface is down or device unavailable, skipping ethtool stats: %s", interfaceIO.Name)
+			return nil
 		} else {
-			return errors.New("failed to get ethtool stats information for interface " + interfaceIO.Name + ": " + fmt.Sprintf("%d", err))
+			return fmt.Errorf("failed to get ethtool stats information for interface %s: %w", interfaceIO.Name, err)
 		}
 	}
 
@@ -596,8 +601,8 @@ func parseSocketStatsMetrics(protocol, output string) (map[string]*connectionSta
 	// SYN-SENT    0        1           192.168.64.6:56650      169.254.169.254:80
 	// SYN-SENT    0        1           192.168.64.6:53594      100.100.100.200:80
 
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(output, "\n")
+	for line := range lines {
 		fields := strings.Fields(line)
 		// skip malformed ss entry result
 		if len(fields) < 3 {
@@ -667,8 +672,8 @@ func parseNetstatMetrics(protocol, output string) (map[string]*connectionStateEn
 	// udp        0      0 0.0.0.0:123             0.0.0.0:*
 	// udp        0      0 192.168.64.6:68         192.168.64.1:67         ESTABLISHED
 	// udp6       0      0 :::41458                :::*
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(output, "\n")
+	for line := range lines {
 		fields := strings.Fields(line)
 
 		if len(fields) < 5 {
@@ -842,8 +847,8 @@ func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSud
 	//       drop=1 early_drop=0 error=0 search_restart=39936711
 	// cpu=1 found=21960 invalid=17288 ignore=475938848 insert=0 insert_failed=1 \
 	//       drop=1 early_drop=0 error=0 search_restart=36983181
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(output, "\n")
+	for line := range lines {
 		if line == "" {
 			continue
 		}

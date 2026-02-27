@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -78,8 +79,13 @@ func (v *linuxAzureHostnameSuite) TestAgentHostnameStyle() {
 
 			v.UpdateEnv(azurehost.ProvisionerNoFakeIntake(azurehost.WithAgentOptions(agentparams.WithAgentConfig(agentConfig))))
 
-			hostname := v.Env().Agent.Client.Hostname()
-			v.Equal(expected, hostname)
+			// Use Eventually to handle transient IMDS availability issues after agent restart.
+			// The agent's cachedfetch.Fetcher may momentarily return a stale/fallback hostname
+			// if IMDS is slow to respond immediately after restart.
+			assert.Eventually(v.T(), func() bool {
+				hostname := v.Env().Agent.Client.Hostname()
+				return hostname == expected
+			}, 30*time.Second, 2*time.Second, "expected hostname %q but got different value", expected)
 		})
 	}
 }

@@ -955,6 +955,65 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 	}
 }
 
+func TestFilterOpenRdOnlyApprover(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `(open.flags & O_ACCMODE) == O_RDONLY`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	const testFile = "/dev/null"
+
+	// test that O_RDONLY event is approved
+	if err := waitForProbeEvent(test, func() error {
+		fd, err := openTestFile(test, testFile, syscall.O_RDONLY)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd)
+	}, model.FileOpenEventType, []eventKeyValueFilter{
+		{key: "open.file.path", value: testFile},
+		{key: "process.comm", value: "testsuite"},
+	}...); err != nil {
+		t.Error(err)
+	}
+
+	// test that O_RDONLY and O_CLOEXEC event is also approved
+	if err := waitForProbeEvent(test, func() error {
+		fd, err := openTestFile(test, testFile, syscall.O_RDONLY|syscall.O_CLOEXEC)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd)
+	}, model.FileOpenEventType, []eventKeyValueFilter{
+		{key: "open.file.path", value: testFile},
+		{key: "process.comm", value: "testsuite"},
+	}...); err != nil {
+		t.Error(err)
+	}
+
+	// test that O_RDWR event isn't approved
+	if err := waitForProbeEvent(test, func() error {
+		fd, err := openTestFile(test, testFile, syscall.O_RDWR)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd)
+	}, model.FileOpenEventType, []eventKeyValueFilter{
+		{key: "open.file.path", value: testFile},
+		{key: "process.comm", value: "testsuite"},
+	}...); err == nil {
+		t.Error("shouldn't get an event")
+	}
+}
+
 func TestFilterInUpperLayerApprover(t *testing.T) {
 	SkipIfNotAvailable(t)
 

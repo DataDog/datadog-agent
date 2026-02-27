@@ -25,8 +25,8 @@ import (
 
 const (
 	generateConstantsAnnotationPrefix = "// generate_constants:"
-	SECLDocForLength                  = "SECLDoc[length] Definition:`Length of the corresponding element`" // SECLDocForLength defines SECL doc for length
-
+	SECLDocForLength                  = "SECLDoc[length] Definition:`Length of the corresponding element`"           // SECLDocForLength defines SECL doc for length
+	SECLDocForRootDomain              = "SECLDoc[root_domain] Definition:`Root domain of the corresponding element`" // SECLDocForRootDomain defines SECL doc for root_domain
 )
 
 type documentation struct {
@@ -112,8 +112,8 @@ func GenerateDocJSON(module *common.Module, seclModelPath, outputPath string) er
 		var propertyKey string
 		var propertySuffix string
 		var propertyDefinition string
-		if strings.HasPrefix(field.Alias, field.AliasPrefix) {
-			propertySuffix = strings.TrimPrefix(field.Alias, field.AliasPrefix)
+		if after, ok := strings.CutPrefix(field.Alias, field.AliasPrefix); ok {
+			propertySuffix = after
 			propertyKey = field.Struct + propertySuffix
 			propertySuffix = strings.TrimPrefix(propertySuffix, ".")
 		} else {

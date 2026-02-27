@@ -268,8 +268,9 @@ func (p profiler) processAgentEnabled() bool {
 		processChecksEnabled
 	npmEnabled := p.sysProbeCfg.GetBool("network_config.enabled")
 	usmEnabled := p.sysProbeCfg.GetBool("service_monitoring_config.enabled")
+	directSendEnabled := p.sysProbeCfg.GetBool("network_config.direct_send")
 
-	return processChecksInProcessAgent || npmEnabled || usmEnabled
+	return processChecksInProcessAgent || ((npmEnabled || usmEnabled) && !directSendEnabled)
 }
 
 func (p profiler) apmEnabled() bool {

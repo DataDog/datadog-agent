@@ -124,7 +124,19 @@ const (
 	SourceProductNetworkPath SourceProduct = "network_path"
 	// SourceProductSynthetics is the synthetics product.
 	SourceProductSynthetics SourceProduct = "synthetics"
+	// SourceProductEndUserDevice is the end user device monitoring product.
+	SourceProductEndUserDevice SourceProduct = "end_user_device"
 )
+
+// GetSourceProduct returns the appropriate SourceProduct based on infrastructure mode.
+// If infraMode is "end_user_device", returns SourceProductEndUserDevice.
+// Otherwise, returns SourceProductNetworkPath.
+func GetSourceProduct(infraMode string) SourceProduct {
+	if infraMode == "end_user_device" {
+		return SourceProductEndUserDevice
+	}
+	return SourceProductNetworkPath
+}
 
 // CollectorType defines the type of collector
 type CollectorType string
@@ -226,7 +238,7 @@ type NetworkPath struct {
 	Namespace     string                 `json:"namespace"`      // namespace used to resolve NDM resources
 	TestConfigID  string                 `json:"test_config_id"` // ID represent the test configuration created in UI/backend/Agent
 	TestResultID  string                 `json:"test_result_id"` // ID of specific test result (test run)
-	PathtraceID   string                 `json:"pathtrace_id"`   // DEPRECATED
+	TestRunID     string                 `json:"test_run_id"`
 	Origin        PathOrigin             `json:"origin"`
 	TestRunType   TestRunType            `json:"test_run_type"`
 	SourceProduct SourceProduct          `json:"source_product"`

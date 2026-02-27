@@ -63,6 +63,7 @@ type StructField struct {
 	ReturnType       string
 	IsArray          bool
 	IsLength         bool
+	IsRootDomain     bool
 	Event            string
 	Handler          string
 	Helper           bool // specify the handler as just a helper and not a real resolver. It means that this handler won't be called by the ResolveFields function

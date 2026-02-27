@@ -15,7 +15,7 @@
         "redaction": [
           {
             "regex": "<phash>.*?</phash>",
-            "replacement": "<phash><redacted></phash>"
+            "replacement": "<phash><secret hidden></phash>"
           }
         ]
       }

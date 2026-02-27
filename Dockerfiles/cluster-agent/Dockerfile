@@ -1,14 +1,15 @@
 ARG BASE_IMAGE_UBUNTU_VERSION=24.04
 ARG BASE_IMAGE_UBUNTU_NAME=noble
+ARG BASE_IMAGE_REGISTRY=docker.io
 
-FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS nosys-seccomp
+FROM ${BASE_IMAGE_REGISTRY}/ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS nosys-seccomp
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt update && apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
 COPY nosys-seccomp/nosys.c   /tmp/nosys.c
 COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
 RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sym -o /tmp/nosys.so /tmp/nosys.c -lseccomp
 
-FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS release-base
+FROM ${BASE_IMAGE_REGISTRY}/ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS release-base
 ARG BASE_IMAGE_UBUNTU_VERSION=24.04
 ARG BASE_IMAGE_UBUNTU_NAME=noble
 LABEL maintainer "Datadog <package@datadoghq.com>"
@@ -41,13 +42,19 @@ ENV PATH="/opt/datadog-agent/bin/:$PATH" \
 RUN apt-get update \
     && apt full-upgrade -y \
     && apt-get install --no-install-recommends -y ca-certificates curl libseccomp2 tzdata adduser\
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+    && rm -rf \
+      /var/cache/debconf/*-old \
+      /var/lib/apt/lists/* \
+      /var/log/* \
+      /tmp/* \
+      /var/tmp/*
 
 COPY ./conf.d /etc/datadog-agent/conf.d
 COPY ./datadog-cluster.yaml /etc/datadog-agent/datadog-cluster.yaml
 COPY ./security-agent-policies/compliance/containers/cis-kubernetes*.yaml /etc/datadog-agent/compliance.d/
 COPY ./security-agent-policies/compliance/containers/*.rego /etc/datadog-agent/compliance.d/
 COPY ./install_info etc/datadog-agent/install_info
+COPY ./private-action-runner /etc/datadog-agent/private-action-runner
 COPY entrypoint.sh .
 COPY readsecret.sh readsecret_multiple_providers.sh ./
 
@@ -68,11 +75,13 @@ ENV \
 COPY --from=artifacts datadog-cluster-agent /opt/datadog-agent/bin/datadog-cluster-agent
 # CWS Instrumentation
 COPY --from=artifacts --chmod=0755 ./cws-instrumentation/ /opt/datadog-agent/bin/datadog-cws-instrumentation/
+# secret-generic-connector for secret_backend_type / secret_backend_command
+COPY --from=artifacts secret-generic-connector /opt/datadog-agent/bin/secret-generic-connector
 
 RUN addgroup --system secret-manager \
     && chmod 755 entrypoint.sh \
-    && chown root:secret-manager readsecret.sh readsecret_multiple_providers.sh \
-    && chmod 550 readsecret.sh readsecret_multiple_providers.sh \
+    && chown root:secret-manager readsecret.sh readsecret_multiple_providers.sh /opt/datadog-agent/bin/secret-generic-connector \
+    && chmod 550 readsecret.sh readsecret_multiple_providers.sh /opt/datadog-agent/bin/secret-generic-connector \
     && chmod g+r,g+w,g+X -R /etc/datadog-agent/ \
     && chmod +x /opt/datadog-agent/bin/datadog-cluster-agent \
     && ln -s /opt/datadog-agent/bin/datadog-cluster-agent /opt/datadog-agent/bin/agent
@@ -92,7 +101,8 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
     && touch /tmp/.placeholder \
     && chown -R dd-agent:root /etc/datadog-agent/ /var/log/datadog/ /conf.d /tmp/ /opt/datadog-agent/run \
     && chmod g+r,g+w,g+X -R /var/log/datadog/ /conf.d /tmp/ /opt/datadog-agent/run \
-    && chmod g+r,g-w,g+X,o-w -R /etc/datadog-agent/
+    && chmod g+r,g-w,g+X,o-w -R /etc/datadog-agent/ \
+    && chmod u=r,g=,o= /etc/datadog-agent/private-action-runner/*
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported
 COPY --from=nosys-seccomp /tmp/nosys.so /lib/x86_64-linux-gnu/nosys.so

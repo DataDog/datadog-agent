@@ -36,7 +36,7 @@ const (
 	defaultConsumerChanSize = 50
 )
 
-// PlatformProbe defines a platform dependant probe
+// PlatformProbe defines a platform dependent probe
 type PlatformProbe interface {
 	Init() error
 	Start() error
@@ -48,7 +48,7 @@ type PlatformProbe interface {
 	NewModel() *model.Model
 	DumpDiscarders() (string, error)
 	FlushDiscarders() error
-	ApplyRuleSet(_ *rules.RuleSet) (*kfilters.FilterReport, error)
+	ApplyRuleSet(_ *rules.RuleSet) (*kfilters.FilterReport, bool, error)
 	OnNewRuleSetLoaded(_ *rules.RuleSet)
 	OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType)
 	HandleActions(_ *eval.Context, _ *rules.Rule)
@@ -58,6 +58,7 @@ type PlatformProbe interface {
 	AddDiscarderPushedCallback(_ DiscarderPushedCallback)
 	GetEventTags(_ containerutils.ContainerID) []string
 	EnableEnforcement(bool)
+	ReplayEvents()
 }
 
 var probeTelemetry = struct {
@@ -221,7 +222,7 @@ func (p *Probe) FlushDiscarders() error {
 }
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
-func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, error) {
+func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, bool, error) {
 	return p.PlatformProbe.ApplyRuleSet(rs)
 }
 
@@ -409,6 +410,11 @@ func (p *Probe) onRuleActionPerformed(rule *rules.Rule, action *rules.ActionDefi
 	}
 }
 
+// ReplayEvents replays the events from the rule set
+func (p *Probe) ReplayEvents() {
+	p.PlatformProbe.ReplayEvents()
+}
+
 // NewRuleSet returns a new ruleset
 func (p *Probe) NewRuleSet(eventTypeEnabled map[eval.EventType]bool) *rules.RuleSet {
 	ruleOpts, evalOpts := rules.NewBothOpts(eventTypeEnabled)
@@ -417,6 +423,7 @@ func (p *Probe) NewRuleSet(eventTypeEnabled map[eval.EventType]bool) *rules.Rule
 	ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
 	ruleOpts.WithSupportedMultiDiscarder(SupportedMultiDiscarder)
 	ruleOpts.WithRuleActionPerformedCb(p.onRuleActionPerformed)
+	ruleOpts.WithRuleCacheEnabled(p.Config.RuntimeSecurity.RuleCacheEnabled)
 	evalOpts.WithTelemetry(&eval.Telemetry{TotalVariables: probeTelemetry.totalVariables})
 
 	eventCtor := func() eval.Event {

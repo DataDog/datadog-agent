@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
+	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 )
 
@@ -42,8 +43,12 @@ type testPackageManager struct {
 }
 
 func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string) *testPackageManager {
+	extensionsPkg.ExtensionsDBDir = filepath.Join(rootPath, "run")
+	os.MkdirAll(extensionsPkg.ExtensionsDBDir, 0755)
 	packages := repository.NewRepositories(rootPath, nil)
-	db, err := db.New(filepath.Join(rootPath, "packages.db"))
+	err := os.MkdirAll(filepath.Join(rootPath, "run"), 0755)
+	assert.NoError(t, err)
+	db, err := db.New(context.Background(), filepath.Join(rootPath, "packages.db"))
 	assert.NoError(t, err)
 	hooks := &testHooks{}
 	userConfigsDir := t.TempDir()
@@ -164,6 +169,30 @@ func (h *testHooks) PostPromoteConfigExperiment(ctx context.Context, pkg string)
 		return nil
 	}
 	h.Called(ctx, pkg)
+	return nil
+}
+
+func (h *testHooks) PreInstallExtension(ctx context.Context, pkg string, extension string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg, extension)
+	return nil
+}
+
+func (h *testHooks) PreRemoveExtension(ctx context.Context, pkg string, extension string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg, extension)
+	return nil
+}
+
+func (h *testHooks) PostInstallExtension(ctx context.Context, pkg string, extension string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg, extension)
 	return nil
 }
 
@@ -470,6 +499,7 @@ func TestNoOutsideImport(t *testing.T) {
 		"pkg/version",      // TODO: cleanup & remove
 		"pkg/util/log",     // TODO: cleanup & remove
 		"pkg/util/winutil", // Needed for Windows
+		"pkg/config/setup", // Needed for extensions
 		"pkg/template",
 	}
 

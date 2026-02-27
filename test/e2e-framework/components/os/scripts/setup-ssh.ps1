@@ -139,6 +139,15 @@ if (Test-SshInstallationNeeded) {
 Restore-AutoInheritedFlag
 Set-SshFirewallConfiguration
 
+# Disable Edge auto-updates to avoid interference during E2E tests (high resource usage)
+Write-Host "Disabling Edge auto-updates..."
+try {
+  Rename-Item -Path "C:\Program Files (x86)\Microsoft\EdgeUpdate\MicrosoftEdgeUpdate.exe" -NewName "Disabled_MicrosoftEdgeUpdate.exe" -ErrorAction Stop
+  Write-Host "Edge auto-updates disabled"
+} catch {
+  Write-Warning "Failed to disable Edge auto-updates: $($_.Exception.Message)"
+}
+
 Write-Host "Resetting ssh authorized keys"
 $retries = 0
 while (Test-Path $env:ProgramData\ssh\administrators_authorized_keys) { 

@@ -17,9 +17,13 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/dynamic"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -44,7 +48,7 @@ type TargetMutator struct {
 
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
 // efficient internal format for quick lookups.
-func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver ImageResolver) (*TargetMutator, error) {
+func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver) (*TargetMutator, error) {
 	// Determine default disabled namespaces.
 	defaultDisabled := mutatecommon.DefaultDisabledNamespaces()
 
@@ -182,11 +186,17 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	log.Debugf("Mutating pod in target mutator %q", mutatecommon.PodString(pod))
 
 	// The admission can be re-run for the same pod. Fast return if we injected the library already.
+	// Check for the init_container mode's per-language init containers.
 	for _, lang := range supportedLanguages {
 		if containsInitContainer(pod, initContainerName(lang)) {
 			log.Debugf("Init container %q already exists in pod %q", initContainerName(lang), mutatecommon.PodString(pod))
 			return false, nil
 		}
+	}
+	// Check for the image_volume mode's init container.
+	if containsInitContainer(pod, libraryinjection.InjectLDPreloadInitContainerName) {
+		log.Debugf("Init container %q already exists in pod %q", libraryinjection.InjectLDPreloadInitContainerName, mutatecommon.PodString(pod))
+		return false, nil
 	}
 
 	// Get the target to inject. If there is not target, we should not mutate the pod.
@@ -205,19 +215,19 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	}
 
 	// Add the configuration for the security client library.
-	if err := m.core.mutatePodContainers(pod, m.securityClientLibraryMutator); err != nil {
+	if err := m.core.mutatePodContainers(pod, m.securityClientLibraryMutator, true); err != nil {
 		return false, fmt.Errorf("error mutating pod for security client: %w", err)
 	}
 
 	// Add the configuration for profiling.
-	if err := m.core.mutatePodContainers(pod, m.profilingClientLibraryMutator); err != nil {
+	if err := m.core.mutatePodContainers(pod, m.profilingClientLibraryMutator, true); err != nil {
 		return false, fmt.Errorf("error mutating pod for profiling client: %w", err)
 	}
 
 	// Inject the tracer configs. We do this before lib injection to ensure DD_SERVICE is set if the user configures it
 	// in the target.
 	for _, envVar := range target.envVars {
-		_ = m.core.mutatePodContainers(pod, envVarMutator(envVar))
+		_ = m.core.mutatePodContainers(pod, envVarMutator(envVar), true)
 	}
 
 	// Inject the libraries.
@@ -239,10 +249,10 @@ func (m *TargetMutator) addTargetJSONInfo(pod *corev1.Pod, target *targetInterna
 	_ = m.core.mutatePodContainers(pod, envVarMutator(corev1.EnvVar{
 		Name:  AppliedTargetEnvVar,
 		Value: target.json,
-	}))
+	}), true)
 
 	// Add the annotations to the pod.
-	SetAnnotation(pod, AnnotationAppliedTarget, target.json)
+	annotation.Set(pod, annotation.AppliedTarget, target.json)
 }
 
 // ShouldMutatePod determines if a pod would be mutated by the target mutator. It is used by other webhook mutators as
@@ -351,7 +361,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 		}
 	}
 
-	injectAllAnnotation := strings.ToLower(AnnotationLibraryVersion.Format("all"))
+	injectAllAnnotation := strings.ToLower(annotation.LibraryVersion.Format("all"))
 	if _, found := pod.Annotations[injectAllAnnotation]; found {
 		return &annotationResult{
 			shouldContinue: false,
@@ -492,4 +502,60 @@ func getAllLatestDefaultLibraries(containerRegistry string) []libInfo {
 	}
 
 	return libsToInject
+}
+
+func getNamespaceLabels(wmeta workloadmeta.Component, name string) (map[string]string, error) {
+	id := util.GenerateKubeMetadataEntityID("", "namespaces", "", name)
+	ns, err := wmeta.GetKubernetesMetadata(id)
+	if err != nil {
+		return nil, fmt.Errorf("error getting namespace metadata for ns=%s: %w", name, err)
+	}
+
+	return ns.EntityMeta.Labels, nil
+}
+
+func containsInitContainer(pod *corev1.Pod, initContainerName string) bool {
+	for _, container := range pod.Spec.InitContainers {
+		if container.Name == initContainerName {
+			return true
+		}
+	}
+
+	return false
+}
+
+func extractLibrariesFromAnnotations(pod *corev1.Pod, registry string) []libInfo {
+	libs := []libInfo{}
+
+	// Check all supported languages for potential Local SDK Injection.
+	for _, l := range supportedLanguages {
+		// Check for a custom library image.
+		customImage, found := annotation.Get(pod, annotation.LibraryImage.Format(string(l)))
+		if found {
+			libs = append(libs, l.libInfo("", customImage))
+		}
+
+		// Check for a custom library version.
+		libVersion, found := annotation.Get(pod, annotation.LibraryVersion.Format(string(l)))
+		if found {
+			libs = append(libs, l.libInfoWithResolver("", registry, libVersion))
+		}
+
+		// Check all containers in the pod for container specific Local SDK Injection.
+		for _, container := range pod.Spec.Containers {
+			// Check for custom library image.
+			customImage, found := annotation.Get(pod, annotation.LibraryContainerImage.Format(container.Name, string(l)))
+			if found {
+				libs = append(libs, l.libInfo(container.Name, customImage))
+			}
+
+			// Check for custom library version.
+			libVersion, found := annotation.Get(pod, annotation.LibraryContainerVersion.Format(container.Name, string(l)))
+			if found {
+				libs = append(libs, l.libInfoWithResolver(container.Name, registry, libVersion))
+			}
+		}
+	}
+
+	return libs
 }

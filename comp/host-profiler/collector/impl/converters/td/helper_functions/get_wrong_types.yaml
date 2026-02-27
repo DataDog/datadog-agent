@@ -1,0 +1,8 @@
+string_field: "not-a-number"
+number_field: 123
+bool_field: true
+map_field:
+  nested: value
+array_field:
+  - one
+  - two

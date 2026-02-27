@@ -99,7 +99,7 @@ func (m *Manager) getExpiredDumps() []*dump.ActivityDump {
 			// Only remove from ignoreFromSnapshot if expired naturally
 			// Keep manually stopped dumps in ignoreFromSnapshot to prevent re-creation
 			if isExpired && !isStopped {
-				delete(m.ignoreFromSnapshot, ad.Profile.Metadata.CGroupContext.CGroupFile.Inode)
+				delete(m.ignoreFromSnapshot, ad.Profile.Metadata.CGroupContext.CGroupPathKey.Inode)
 			}
 		} else {
 			newDumps = append(newDumps, ad)
@@ -300,9 +300,9 @@ func (m *Manager) enableKernelEventCollection(ad *dump.ActivityDump) error {
 		}
 	}
 
-	if !ad.Profile.Metadata.CGroupContext.CGroupFile.IsNull() {
+	if !ad.Profile.Metadata.CGroupContext.CGroupPathKey.IsNull() {
 		// insert cgroup ID in traced_cgroups map (it might already exist, do not update in that case)
-		if err := m.tracedCgroupsMap.Update(ad.Profile.Metadata.CGroupContext.CGroupFile.Inode, ad.Cookie, ebpf.UpdateNoExist); err != nil {
+		if err := m.tracedCgroupsMap.Update(ad.Profile.Metadata.CGroupContext.CGroupPathKey.Inode, ad.Cookie, ebpf.UpdateNoExist); err != nil {
 			if !errors.Is(err, ebpf.ErrKeyExist) {
 				// delete activity dump load config
 				_ = m.activityDumpsConfigMap.Delete(ad.Cookie)
@@ -347,8 +347,8 @@ func (m *Manager) disableKernelEventCollection(ad *dump.ActivityDump) error {
 		return fmt.Errorf("couldn't delete activity dump load config for dump [%s]: %w", ad.GetSelectorStr(), err)
 	}
 
-	if !ad.Profile.Metadata.CGroupContext.CGroupFile.IsNull() {
-		err := m.tracedCgroupsMap.Delete(ad.Profile.Metadata.CGroupContext.CGroupFile.Inode)
+	if !ad.Profile.Metadata.CGroupContext.CGroupPathKey.IsNull() {
+		err := m.tracedCgroupsMap.Delete(ad.Profile.Metadata.CGroupContext.CGroupPathKey.Inode)
 		if err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
 			return fmt.Errorf("couldn't delete activity dump filter cgroup %s: %v", ad.GetSelectorStr(), err)
 		}
@@ -367,13 +367,13 @@ func (m *Manager) cleanupTracedPids(ad *dump.ActivityDump) {
 	// Try to get workload from cgroup resolver
 	if ad.Profile.Metadata.ContainerID != "" {
 		// Container workload
-		if workload, found := m.resolvers.CGroupResolver.GetContainerWorkload(ad.Profile.Metadata.ContainerID); found {
-			pids = workload.GetPIDs()
+		if cacheEntry := m.resolvers.CGroupResolver.GetCacheEntryContainerID(ad.Profile.Metadata.ContainerID); cacheEntry != nil {
+			pids = cacheEntry.GetPIDs()
 		}
 	} else if ad.Profile.Metadata.CGroupContext.CGroupID != "" {
 		// Host workload
-		if workload, found := m.resolvers.CGroupResolver.GetHostWorkload(ad.Profile.Metadata.CGroupContext.CGroupID); found {
-			pids = workload.GetPIDs()
+		if cachedEntry := m.resolvers.CGroupResolver.GetCacheEntryByCgroupID(ad.Profile.Metadata.CGroupContext.CGroupID); cachedEntry != nil {
+			pids = cachedEntry.GetPIDs()
 		}
 	}
 
@@ -420,7 +420,7 @@ func (m *Manager) finalizeKernelEventCollection(ad *dump.ActivityDump, releaseTr
 	// add the container ID in a tag
 	if len(ad.Profile.Metadata.ContainerID) > 0 {
 		// make sure we are not adding the same tag twice
-		newTag := fmt.Sprintf("container_id:%s", ad.Profile.Metadata.ContainerID)
+		newTag := "container_id:" + string(ad.Profile.Metadata.ContainerID)
 		if !ad.Profile.HasTag(newTag) {
 			ad.Profile.AddTags([]string{newTag})
 		} else {
@@ -523,11 +523,11 @@ workloadLoop:
 		defaultConfig := m.getDefaultLoadConfig()
 
 		// if not a container, check we should trace it
-		if workloads[0].ContainerContext.ContainerID == "" && !m.config.RuntimeSecurity.ActivityDumpTraceSystemdCgroups {
+		if workloads[0].GCroupCacheEntry.IsContainerContextNull() && !m.config.RuntimeSecurity.ActivityDumpTraceSystemdCgroups {
 			continue
 		}
 
-		if err := m.startDumpWithConfig(workloads[0].ContainerContext.ContainerID, workloads[0].CGroupContext, utils.NewCookie(), *defaultConfig); err != nil {
+		if err := m.startDumpWithConfig(workloads[0].GCroupCacheEntry.GetContainerID(), workloads[0].GCroupCacheEntry.GetCGroupContext(), utils.NewCookie(), *defaultConfig); err != nil {
 			seclog.Debugf("%v", err)
 		}
 	}
@@ -566,7 +566,7 @@ func (m *Manager) startDumpWithConfig(containerID containerutils.ContainerID, cg
 func (m *Manager) evictTracedCgroup(cgroup *model.CGroupContext) {
 	// first, retrieve the cookie from the traced cgroup entry
 	var cookie uint64
-	if err := m.tracedCgroupsMap.Lookup(cgroup.CGroupFile.Inode, &cookie); err != nil {
+	if err := m.tracedCgroupsMap.Lookup(cgroup.CGroupPathKey.Inode, &cookie); err != nil {
 		if !errors.Is(err, ebpf.ErrKeyNotExist) {
 			seclog.Errorf("couldn't lookup activity dump cgroup %s cookie: %v", cgroup.CGroupID, err)
 		}
@@ -574,7 +574,7 @@ func (m *Manager) evictTracedCgroup(cgroup *model.CGroupContext) {
 	}
 
 	// second, push the evicted cgroup to the discarded map
-	if err := m.tracedCgroupsDiscardedMap.Put(cgroup.CGroupFile.Inode, uint8(1)); err != nil {
+	if err := m.tracedCgroupsDiscardedMap.Put(cgroup.CGroupPathKey.Inode, uint8(1)); err != nil {
 		if !errors.Is(err, ebpf.ErrKeyNotExist) {
 			seclog.Errorf("couldn't discard activity dump cgroup %s: %v", cgroup.CGroupID, err)
 		}
@@ -597,7 +597,7 @@ func (m *Manager) evictTracedCgroup(cgroup *model.CGroupContext) {
 	}
 
 	// finally, evict it from the traced one
-	if err := m.tracedCgroupsMap.Delete(cgroup.CGroupFile.Inode); err != nil {
+	if err := m.tracedCgroupsMap.Delete(cgroup.CGroupPathKey.Inode); err != nil {
 		if !errors.Is(err, ebpf.ErrKeyNotExist) {
 			seclog.Errorf("couldn't delete activity dump filter cgroup %s: %v", cgroup.CGroupID, err)
 		}
@@ -624,7 +624,7 @@ func (m *Manager) HandleCGroupTracingEvent(event *model.CgroupTracingEvent) {
 
 	// Check if this cgroup is in the discarded map (kernel blacklist)
 	var discarded uint8
-	err := m.tracedCgroupsDiscardedMap.Lookup(event.CGroupContext.CGroupFile.Inode, &discarded)
+	err := m.tracedCgroupsDiscardedMap.Lookup(event.CGroupContext.CGroupPathKey.Inode, &discarded)
 	if err == nil {
 		// Cgroup is in the discarded map, should not trace it
 		m.evictTracedCgroup(&event.CGroupContext)
@@ -635,7 +635,7 @@ func (m *Manager) HandleCGroupTracingEvent(event *model.CgroupTracingEvent) {
 	defer m.m.Unlock()
 
 	// Check if this cgroup should be ignored (e.g., manually stopped dump)
-	if m.ignoreFromSnapshot[event.CGroupContext.CGroupFile.Inode] {
+	if m.ignoreFromSnapshot[event.CGroupContext.CGroupPathKey.Inode] {
 		return
 	}
 
@@ -684,7 +684,7 @@ func (m *Manager) syncTracedCgroups() {
 
 		hasActiveDump := false
 		for _, ad := range m.activeDumps {
-			if ad.Profile.Metadata.CGroupContext.CGroupFile.Inode == cgroupInode {
+			if ad.Profile.Metadata.CGroupContext.CGroupPathKey.Inode == cgroupInode {
 				hasActiveDump = true
 				break
 			}

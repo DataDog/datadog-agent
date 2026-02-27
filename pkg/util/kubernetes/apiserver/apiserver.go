@@ -44,7 +44,7 @@ import (
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -414,7 +414,7 @@ func (c *APIClient) connect() error {
 		c.CertificateSecretInformerFactory = c.GetInformerWithOptions(
 			nil,
 			informers.WithTweakListOptions(optionsForService),
-			informers.WithNamespace(common.GetResourcesNamespace()),
+			informers.WithNamespace(namespace.GetResourcesNamespace()),
 		)
 
 		optionsForWebhook := func(options *metav1.ListOptions) {
@@ -475,11 +475,11 @@ func (c *APIClient) getOrCreateConfigMap(name, namespace string) (cmEvent *v1.Co
 
 // GetTokenFromConfigmap returns the value of the `tokenValue` from the `tokenKey` in the ConfigMap `configMapDCAToken` if its timestamp is less than tokenTimeout old.
 func (c *APIClient) GetTokenFromConfigmap(token string) (string, time.Time, error) {
-	namespace := common.GetResourcesNamespace()
+	ns := namespace.GetResourcesNamespace()
 	nowTs := time.Now()
 
 	configMapDCAToken := pkgconfigsetup.Datadog().GetString("cluster_agent.token_name")
-	cmEvent, err := c.getOrCreateConfigMap(configMapDCAToken, namespace)
+	cmEvent, err := c.getOrCreateConfigMap(configMapDCAToken, ns)
 	if err != nil {
 		// we do not process event if we can't interact with the CM.
 		return "", time.Now(), err
@@ -516,9 +516,9 @@ func (c *APIClient) GetTokenFromConfigmap(token string) (string, time.Time, erro
 // UpdateTokenInConfigmap updates the value of the `tokenValue` from the `tokenKey` and
 // sets its collected timestamp in the ConfigMap `configmaptokendca`
 func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string, timestamp time.Time) error {
-	namespace := common.GetResourcesNamespace()
+	ns := namespace.GetResourcesNamespace()
 	configMapDCAToken := pkgconfigsetup.Datadog().GetString("cluster_agent.token_name")
-	tokenConfigMap, err := c.getOrCreateConfigMap(configMapDCAToken, namespace)
+	tokenConfigMap, err := c.getOrCreateConfigMap(configMapDCAToken, ns)
 	if err != nil {
 		return err
 	}
@@ -531,7 +531,7 @@ func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string, timestamp t
 	eventTokenTS := token + "." + tokenTime
 	tokenConfigMap.Data[eventTokenTS] = timestamp.Format(time.RFC3339) // Timestamps in the ConfigMap should all use the type int.
 
-	_, err = c.Cl.CoreV1().ConfigMaps(namespace).Update(context.TODO(), tokenConfigMap, metav1.UpdateOptions{})
+	_, err = c.Cl.CoreV1().ConfigMaps(ns).Update(context.TODO(), tokenConfigMap, metav1.UpdateOptions{})
 	if err != nil {
 		return err
 	}

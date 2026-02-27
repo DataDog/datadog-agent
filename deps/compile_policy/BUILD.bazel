@@ -28,7 +28,7 @@ pkg_files(
         "//:windows_x86_64": None,  # Windows doesn't use Unix permissions
         "//conditions:default": pkg_attributes(
             group = "root",
-            mode = "0555",
+            mode = "0755",
             owner = "root",
         ),
     }),

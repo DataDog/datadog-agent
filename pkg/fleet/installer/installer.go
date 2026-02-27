@@ -26,6 +26,7 @@ import (
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -61,6 +62,11 @@ type Installer interface {
 	RemoveConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
+	InstallExtensions(ctx context.Context, url string, extensionList []string) error
+	RemoveExtensions(ctx context.Context, pkg string, extensionList []string) error
+	SaveExtensions(ctx context.Context, pkg string, path string) error
+	RestoreExtensions(ctx context.Context, url string, path string) error
+
 	GarbageCollect(ctx context.Context) error
 
 	InstrumentAPMInjector(ctx context.Context, method string) error
@@ -85,12 +91,12 @@ type installerImpl struct {
 }
 
 // NewInstaller returns a new Package Manager.
-func NewInstaller(env *env.Env) (Installer, error) {
+func NewInstaller(ctx context.Context, env *env.Env) (Installer, error) {
 	err := ensureRepositoriesExist()
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
 	}
-	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(5*time.Minute))
+	db, err := db.New(ctx, filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(5*time.Minute))
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
@@ -358,6 +364,10 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	})
 	if err != nil {
 		return fmt.Errorf("could not store package installation in db: %w", err)
+	}
+	err = extensions.SetPackage(ctx, pkg.Name, pkg.Version, false)
+	if err != nil {
+		return fmt.Errorf("could not store package extensions in db: %w", err)
 	}
 	return nil
 }
@@ -681,6 +691,10 @@ func (i *installerImpl) Remove(ctx context.Context, pkg string) error {
 	if err != nil {
 		return fmt.Errorf("could not delete repository: %w", err)
 	}
+	err = extensions.DeletePackage(ctx, pkg, false)
+	if err != nil {
+		return fmt.Errorf("could not remove package from extensions db: %w", err)
+	}
 	err = i.db.DeletePackage(pkg)
 	if err != nil {
 		return fmt.Errorf("could not remove package installation in db: %w", err)
@@ -765,6 +779,109 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 	err = packages.UninstrumentAPMInjector(ctx, method)
 	if err != nil {
 		return fmt.Errorf("could not uninstrument APM: %w", err)
+	}
+	return nil
+}
+
+// InstallExtensions installs multiple extensions.
+func (i *installerImpl) InstallExtensions(ctx context.Context, url string, extensionList []string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	if len(extensionList) == 0 {
+		return nil
+	}
+
+	pkg, err := i.downloader.Download(ctx, url) // Downloads pkg metadata only
+	if err != nil {
+		return installerErrors.Wrap(
+			installerErrors.ErrDownloadFailed,
+			fmt.Errorf("could not download package: %w", err),
+		)
+	}
+	span, ok := telemetry.SpanFromContext(ctx)
+	if ok {
+		span.SetResourceName("install_extensions")
+		span.SetTag("package_name", pkg.Name)
+		span.SetTag("package_version", pkg.Version)
+		span.SetTag("extensions", strings.Join(extensionList, ","))
+		span.SetTag("url", url)
+	}
+
+	existingPkg, err := i.db.GetPackage(pkg.Name)
+	if err != nil && !errors.Is(err, db.ErrPackageNotFound) {
+		return fmt.Errorf("could not get package %s from database: %w", pkg.Name, err)
+	}
+	if existingPkg.Version != pkg.Version && !errors.Is(err, db.ErrPackageNotFound) {
+		return fmt.Errorf("package %s is installed at version %s, requested version is %s", pkg.Name, existingPkg.Version, pkg.Version)
+	}
+
+	err = extensions.Install(ctx, i.downloader, url, extensionList, false, i.hooks)
+	if err != nil {
+		return fmt.Errorf("could not install extensions: %w", err)
+	}
+
+	// Special case for Linux & datadog-agent: restart the Agent after installing Agent extensions.
+	if pkg.Name == packageDatadogAgent {
+		return packages.RestartDatadogAgent(ctx)
+	}
+	return nil
+}
+
+// RemoveExtensions removes multiple extensions.
+func (i *installerImpl) RemoveExtensions(ctx context.Context, pkg string, extensionList []string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	if len(extensionList) == 0 {
+		return nil
+	}
+
+	span, ok := telemetry.SpanFromContext(ctx)
+	if ok {
+		span.SetResourceName("remove_extensions")
+		span.SetTag("package_name", pkg)
+		span.SetTag("extensions", strings.Join(extensionList, ","))
+	}
+
+	err := extensions.Remove(ctx, pkg, extensionList, false, i.hooks)
+	if err != nil {
+		return fmt.Errorf("could not remove extensions: %w", err)
+	}
+
+	// Special case for Linux & datadog-agent: restart the Agent after removing Agent extensions.
+	if pkg == packageDatadogAgent {
+		return packages.RestartDatadogAgent(ctx)
+	}
+	return nil
+}
+
+// SaveExtensions saves the extensions to a specific location on disk.
+func (i *installerImpl) SaveExtensions(ctx context.Context, pkg string, path string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+	return extensions.Save(ctx, pkg, path)
+}
+
+// RestoreExtensions restores the extensions from a specific location on disk.
+func (i *installerImpl) RestoreExtensions(ctx context.Context, url string, path string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+	pkg, err := i.downloader.Download(ctx, url) // Downloads pkg metadata only
+	if err != nil {
+		return installerErrors.Wrap(
+			installerErrors.ErrDownloadFailed,
+			fmt.Errorf("could not download package: %w", err),
+		)
+	}
+	err = extensions.Restore(ctx, i.downloader, pkg.Name, url, path, false, i.hooks)
+	if err != nil {
+		return fmt.Errorf("could not restore extensions: %w", err)
+	}
+
+	// Special case for datadog-agent: restart the Agent after restoring Agent extensions manually.
+	if pkg.Name == packageDatadogAgent {
+		return packages.RestartDatadogAgent(ctx)
 	}
 	return nil
 }

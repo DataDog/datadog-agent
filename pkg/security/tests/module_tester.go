@@ -28,7 +28,7 @@ import (
 	"time"
 	"unsafe"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -61,7 +61,8 @@ const (
 	Skip
 )
 const (
-	getEventTimeout = 10 * time.Second
+	getEventTimeout         = 10 * time.Second
+	functionalTestsHostname = "functional_tests_host"
 )
 
 var (
@@ -801,12 +802,9 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		"ActivityDumpRateLimiter":                    opts.activityDumpRateLimiter,
 		"ActivityDumpTagRules":                       opts.activityDumpTagRules,
 		"ActivityDumpDuration":                       opts.activityDumpDuration,
-		"ActivityDumpLoadControllerPeriod":           opts.activityDumpLoadControllerPeriod,
-		"ActivityDumpLoadControllerTimeout":          opts.activityDumpLoadControllerTimeout,
 		"ActivityDumpCleanupPeriod":                  opts.activityDumpCleanupPeriod,
 		"ActivityDumpTracedCgroupsCount":             opts.activityDumpTracedCgroupsCount,
 		"ActivityDumpCgroupDifferentiateArgs":        opts.activityDumpCgroupDifferentiateArgs,
-		"ActivityDumpAutoSuppressionEnabled":         opts.activityDumpAutoSuppressionEnabled,
 		"TraceSystemdCgroups":                        opts.traceSystemdCgroups,
 		"ActivityDumpTracedEventTypes":               opts.activityDumpTracedEventTypes,
 		"ActivityDumpLocalStorageDirectory":          opts.activityDumpLocalStorageDirectory,
@@ -818,8 +816,6 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		"SecurityProfileDir":                         opts.securityProfileDir,
 		"SecurityProfileWatchDir":                    opts.securityProfileWatchDir,
 		"SecurityProfileNodeEvictionTimeout":         opts.securityProfileNodeEvictionTimeout,
-		"EnableAutoSuppression":                      opts.enableAutoSuppression,
-		"AutoSuppressionEventTypes":                  opts.autoSuppressionEventTypes,
 		"EnableAnomalyDetection":                     opts.enableAnomalyDetection,
 		"AnomalyDetectionEventTypes":                 opts.anomalyDetectionEventTypes,
 		"AnomalyDetectionDefaultMinimumStablePeriod": opts.anomalyDetectionDefaultMinimumStablePeriod,
@@ -881,12 +877,6 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
 	}
-
-	// reset the system-probe config to not be adjusted yet
-	// necessary because the config object is a global, and we want the adjustment
-	// to happen again
-	cfg := pkgconfigsetup.GlobalSystemProbeConfigBuilder()
-	cfg.Set("system_probe_config.adjusted", false, pkgconfigmodel.SourceAgentRuntime)
 
 	_, err = spconfig.New(sysprobeConfigName, "")
 	if err != nil {

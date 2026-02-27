@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -78,7 +79,7 @@ func (c *Check) Run() error {
 	path.Namespace = c.config.Namespace
 	path.Origin = payload.PathOriginNetworkPathIntegration
 	path.TestRunType = payload.TestRunTypeScheduled
-	path.SourceProduct = payload.SourceProductNetworkPath
+	path.SourceProduct = payload.GetSourceProduct(pkgconfigsetup.Datadog().GetString("infrastructure_mode"))
 	path.CollectorType = payload.CollectorTypeAgent
 
 	// Add tags to path

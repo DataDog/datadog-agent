@@ -23,9 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	"github.com/DataDog/datadog-agent/pkg/discovery/core"
+	"github.com/DataDog/datadog-agent/pkg/discovery/language"
+	"github.com/DataDog/datadog-agent/pkg/discovery/model"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -352,8 +352,9 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 				})
 
 				c.collector.lastCollectedProcesses[process.Pid] = &procutil.Process{
-					Pid:   process.Pid,
-					Stats: &procutil.Stats{CreateTime: process.CreationTime.UnixMilli()}, // Use actual creation time from process entity
+					Pid:     process.Pid,
+					Cmdline: []string{"python3", "--version"},
+					Stats:   &procutil.Stats{CreateTime: process.CreationTime.UnixMilli()},
 				}
 			}
 
@@ -569,8 +570,9 @@ func TestServiceStoreLifetime(t *testing.T) {
 				})
 
 				c.collector.lastCollectedProcesses[process.Pid] = &procutil.Process{
-					Pid:   process.Pid,
-					Stats: &procutil.Stats{CreateTime: process.CreationTime.UnixMilli()}, // Use actual creation time from process entity
+					Pid:     process.Pid,
+					Cmdline: []string{"python3", "--version"},
+					Stats:   &procutil.Stats{CreateTime: process.CreationTime.UnixMilli()},
 				}
 
 				// If this is a process whose injection status we've reported (but has no service), add to tracking
@@ -1027,6 +1029,79 @@ func TestConvertModelServiceToService_Normalization(t *testing.T) {
 			result := convertModelServiceToService(tt.inputService)
 			assert.Equal(t, tt.expectedGeneratedName, result.GeneratedName)
 			assert.Equal(t, tt.expectedAdditionalNames, result.AdditionalGeneratedNames)
+		})
+	}
+}
+
+func TestTracerAlreadyCollectsLogs(t *testing.T) {
+	tests := []struct {
+		name             string
+		inputService     *model.Service
+		expectedLogFiles []string
+	}{
+		{
+			name: "logs not collected by tracer passes log files through",
+			inputService: &model.Service{
+				GeneratedName: "my-service",
+				Language:      "python",
+				LogFiles:      []string{"/var/log/app.log", "/tmp/debug.log"},
+				TracerMetadata: []tracermetadata.TracerMetadata{
+					{TracerLanguage: "python", LogsCollected: false},
+				},
+			},
+			expectedLogFiles: []string{"/var/log/app.log", "/tmp/debug.log"},
+		},
+		{
+			name: "logs collected by tracer filters out log files",
+			inputService: &model.Service{
+				GeneratedName: "my-service",
+				Language:      "python",
+				LogFiles:      []string{"/var/log/app.log", "/tmp/debug.log"},
+				TracerMetadata: []tracermetadata.TracerMetadata{
+					{TracerLanguage: "python", LogsCollected: true},
+				},
+			},
+			expectedLogFiles: nil,
+		},
+		{
+			name: "no tracer metadata passes log files through",
+			inputService: &model.Service{
+				GeneratedName: "my-service",
+				Language:      "python",
+				LogFiles:      []string{"/var/log/app.log"},
+			},
+			expectedLogFiles: []string{"/var/log/app.log"},
+		},
+		{
+			name: "logs collected by one of multiple tracers filters out log files",
+			inputService: &model.Service{
+				GeneratedName: "my-service",
+				Language:      "python",
+				LogFiles:      []string{"/var/log/app.log"},
+				TracerMetadata: []tracermetadata.TracerMetadata{
+					{TracerLanguage: "python", LogsCollected: false},
+					{TracerLanguage: "java", LogsCollected: true},
+				},
+			},
+			expectedLogFiles: nil,
+		},
+		{
+			name: "no log files with tracer collecting logs",
+			inputService: &model.Service{
+				GeneratedName: "my-service",
+				Language:      "python",
+				TracerMetadata: []tracermetadata.TracerMetadata{
+					{TracerLanguage: "python", LogsCollected: true},
+				},
+			},
+			expectedLogFiles: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := convertModelServiceToService(tt.inputService)
+			assert.Equal(t, tt.expectedLogFiles, result.LogFiles)
 		})
 	}
 }

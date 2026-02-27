@@ -48,6 +48,7 @@ func Test_NpCollector_StartAndStop(t *testing.T) {
 	// GIVEN
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
+		"network_path.collector.filters":              []map[string]any{},
 	}
 	app, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{}, nil)
 
@@ -102,6 +103,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 		"network_path.collector.flush_interval":            "1s",
 		"network_path.collector.monitor_ip_without_domain": true,
 		"network_devices.namespace":                        "my-ns1",
+		"network_path.collector.filters":                   []map[string]any{},
 	}
 	tr := &tracerouteRunner{func(_ctx context.Context, cfg config.Config) (payload.NetworkPath, error) {
 		var p payload.NetworkPath
@@ -251,7 +253,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "namespace": "my-ns1",
     "test_config_id": "",
     "test_result_id": "",
-    "pathtrace_id": "",
+    "test_run_id": "",
     "origin": "network_traffic",
     "test_run_type": "dynamic",
     "source_product": "network_path",
@@ -331,7 +333,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "namespace": "my-ns1",
     "test_config_id": "",
     "test_result_id": "",
-    "pathtrace_id": "",
+    "test_run_id": "",
     "origin": "network_traffic",
     "test_run_type": "dynamic",
     "source_product": "network_path",
@@ -449,11 +451,12 @@ func Test_NpCollector_stopWithoutPanic(t *testing.T) {
 		"network_path.collector.workers":                   100,
 		"network_path.collector.monitor_ip_without_domain": true,
 		"network_devices.namespace":                        "my-ns1",
+		"network_path.collector.filters":                   []map[string]any{},
 	}
 	tr := &tracerouteRunner{func(_ctx context.Context, cfg config.Config) (payload.NetworkPath, error) {
 		time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond) // simulate slow processing time, to test for panic
 		return payload.NetworkPath{
-			PathtraceID: "pathtrace-id-111-" + cfg.DestHostname,
+			TestRunID:   "test-run-id-111-" + cfg.DestHostname,
 			Protocol:    cfg.Protocol,
 			Source:      payload.NetworkPathSource{Hostname: "abc"},
 			Destination: payload.NetworkPathDestination{Hostname: cfg.DestHostname, Port: cfg.DestPort},
@@ -595,15 +598,18 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests(t *testing.T) {
 	}
 	defaultagentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
+		"network_path.collector.filters":              []map[string]any{},
 	}
 	monitorIPWithoutDomainConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled":      true,
 		"network_path.collector.monitor_ip_without_domain": true,
+		"network_path.collector.filters":                   []map[string]any{},
 	}
 	icmpModeConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled":      true,
 		"network_path.collector.monitor_ip_without_domain": true,
 		"network_path.collector.icmp_mode":                 "all",
+		"network_path.collector.filters":                   []map[string]any{},
 	}
 
 	tests := []struct {
@@ -720,6 +726,7 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests(t *testing.T) {
 				"network_path.connections_monitoring.enabled":      true,
 				"network_path.collector.input_chan_size":           1,
 				"network_path.collector.monitor_ip_without_domain": true,
+				"network_path.collector.filters":                   []map[string]any{},
 			},
 			conns:             createConns(20),
 			expectedPathtests: []*common.Pathtest{},
@@ -854,6 +861,7 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests(t *testing.T) {
 			agentConfigs: map[string]any{
 				"network_path.connections_monitoring.enabled":      true,
 				"network_path.collector.monitor_ip_without_domain": false,
+				"network_path.collector.filters":                   []map[string]any{},
 			},
 			conns: []npmodel.NetworkPathConnection{
 				{
@@ -871,6 +879,7 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests(t *testing.T) {
 			agentConfigs: map[string]any{
 				"network_path.connections_monitoring.enabled":      true,
 				"network_path.collector.monitor_ip_without_domain": true,
+				"network_path.collector.filters":                   []map[string]any{},
 			},
 			conns: []npmodel.NetworkPathConnection{
 				{
@@ -890,10 +899,7 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests(t *testing.T) {
 			agentConfigs: map[string]any{
 				"network_path.connections_monitoring.enabled": true,
 				"network_path.collector.filters": []map[string]any{
-					{
-						"type":         "exclude",
-						"match_domain": "blocked.com",
-					},
+					{"match_domain": "blocked.com", "type": "exclude"},
 				},
 			},
 			conns: []npmodel.NetworkPathConnection{
@@ -1790,9 +1796,15 @@ network_path:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var configs []connfilter.Config
-			cfg := configComponent.NewMockFromYAML(t, tt.filters)
-			err := structure.UnmarshalKey(cfg, "network_path.collector.filters", &configs)
-			require.NoError(t, err)
+			if tt.filters != "" {
+				cfg := configComponent.NewMockFromYAML(t, tt.filters)
+				err := structure.UnmarshalKey(cfg, "network_path.collector.filters", &configs)
+				require.NoError(t, err)
+			}
+			// Ensure we have an empty slice (not nil) to override global defaults
+			if configs == nil {
+				configs = []connfilter.Config{}
+			}
 			agentConfigs := map[string]any{
 				"network_path.connections_monitoring.enabled":         true,
 				"network_path.collector.disable_intra_vpc_collection": true,
@@ -1865,6 +1877,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn_subnets(t *testing.T)
 			agentConfigs := map[string]any{
 				"network_path.connections_monitoring.enabled":         true,
 				"network_path.collector.disable_intra_vpc_collection": true,
+				"network_path.collector.filters":                      []map[string]any{},
 			}
 			stats := &teststatsd.Client{}
 			_, npCollector := newTestNpCollector(t, agentConfigs, stats, nil)

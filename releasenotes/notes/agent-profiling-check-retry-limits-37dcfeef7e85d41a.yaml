@@ -1,0 +1,11 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The agentprofiling check now retries flare generation 2 times with exponential backoff (1 minute after first failure, 5 minutes after second failure) when flare creation or sending fails. This improves reliability when encountering transient failures during flare generation.

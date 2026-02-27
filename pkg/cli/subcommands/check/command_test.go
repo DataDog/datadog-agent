@@ -6,8 +6,11 @@
 package check
 
 import (
+	"bytes"
 	"os"
 	"path"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -100,4 +103,67 @@ instances:
 	require.Len(t, checkConfig.Instances, 2)
 	assert.Equal(t, integration.Data("def: 456\n"), checkConfig.Instances[0])
 	assert.Equal(t, integration.Data("ghi: 789\n"), checkConfig.Instances[1])
+}
+
+func TestCommandWithInstanceID(t *testing.T) {
+	commands := []*cobra.Command{
+		MakeCommand(func() GlobalParams {
+			config := path.Join(t.TempDir(), "datadog.yaml")
+			err := os.WriteFile(config, []byte("hostname: test"), 0644)
+			require.NoError(t, err)
+
+			return GlobalParams{
+				ConfFilePath: config,
+			}
+		}),
+	}
+
+	fxutil.TestOneShotSubcommand(t,
+		commands,
+		[]string{"check", "http_check", "--instance-id", "3e96f922a85e2ab0"},
+		run,
+		func(cliParams *cliParams, _ core.BundleParams) {
+			require.Equal(t, []string{"http_check"}, cliParams.args)
+			require.Equal(t, "3e96f922a85e2ab0", cliParams.instanceID)
+		})
+}
+
+func TestWriteCheckToFileInDir_DirectoryPermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping permission test on Windows")
+	}
+
+	tempDir := t.TempDir()
+	checkDir := filepath.Join(tempDir, "checks")
+
+	// Write a check file to trigger directory creation
+	checkOutput := bytes.NewBufferString("test check output")
+	writeCheckToFileInDir("testcheck", checkOutput, checkDir)
+
+	// Verify the directory was created with correct permissions
+	info, err := os.Stat(checkDir)
+	require.NoError(t, err)
+	assert.True(t, info.IsDir())
+
+	// Verify directory permissions are 0750 (rwxr-x---)
+	expectedPerms := os.FileMode(0750)
+	actualPerms := info.Mode().Perm()
+	assert.Equal(t, expectedPerms, actualPerms, "expected directory permissions %o, got %o", expectedPerms, actualPerms)
+}
+
+func TestWriteCheckToFileInDir_FileCreated(t *testing.T) {
+	tempDir := t.TempDir()
+	checkDir := filepath.Join(tempDir, "checks")
+
+	checkOutput := bytes.NewBufferString("test check output content")
+	writeCheckToFileInDir("mycheck", checkOutput, checkDir)
+
+	// Verify a file was created in the directory
+	entries, err := os.ReadDir(checkDir)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+
+	// Verify filename format: check_<name>_<timestamp>.log
+	assert.Contains(t, entries[0].Name(), "check_mycheck_")
+	assert.Contains(t, entries[0].Name(), ".log")
 }

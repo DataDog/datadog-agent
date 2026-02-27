@@ -1,5 +1,6 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+load(":collect_cc_dynamic_deps_test.bzl", "collect_cc_dynamic_deps_test_suite")
 load(":template_expand_test.bzl", "template_test_suite")
 
 sh_binary(
@@ -26,6 +27,12 @@ bzl_library(
 )
 
 bzl_library(
+    name = "dd_agent_pkg_mklink_bzl",
+    srcs = ["dd_agent_pkg_mklink.bzl"],
+    visibility = ["//visibility:public"],
+)
+
+bzl_library(
     name = "preprocessor_bzl",
     srcs = ["preprocessor.bzl"],
     visibility = ["//visibility:public"],
@@ -36,5 +43,13 @@ bzl_library(
     srcs = ["so_symlink.bzl"],
     visibility = ["//visibility:public"],
 )
+
+bzl_library(
+    name = "collect_cc_dynamic_deps_bzl",
+    srcs = ["collect_cc_dynamic_deps.bzl"],
+    visibility = ["//visibility:public"],
+)
+
+collect_cc_dynamic_deps_test_suite(name = "_collect_cc_dynamic_deps_tests")
 
 template_test_suite(name = "_dd_agent_expand_template_tests")

@@ -96,13 +96,3 @@ func TestSubmitSpanWithValidProcessor(t *testing.T) {
 	assert.Len(t, chunk.Spans, 1)
 	assert.Equal(t, span, chunk.Spans[0])
 }
-
-func TestSubmitSpanWithNonProcessor(_ *testing.T) {
-	span := InitSpan("test-service", "test.operation", "test-resource", "web", time.Now().UnixNano(), nil)
-
-	// Pass something that doesn't implement Processor interface
-	nonProcessor := "not a processor"
-
-	// Should not panic and should log warning
-	SubmitSpan(span, "test-origin", nonProcessor)
-}

@@ -280,7 +280,7 @@ struct syscall_cache_t {
             int option;
             u32 name_size_to_send;
             u32 name_truncated;
-            char name[MAX_PRCTL_NAME_LEN];
+            char name[MAX_PRCTL_NAME_LEN + 1];
         } prctl;
 
         struct {

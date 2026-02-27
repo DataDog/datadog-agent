@@ -31,6 +31,13 @@ module Omnibus
 
     # Override the package_me step to sign the binaries just before the packagers run
     def package_me
+      if @chmod_before_packaging
+        @chmod_before_packaging.each do |file, mode|
+          next unless File.exist?(file)
+
+          File.chmod(mode, file)
+        end
+      end
       if @files_to_sign
         @files_to_sign.each do|file|
           ddwcssign(file)
@@ -93,12 +100,21 @@ module Omnibus
       @files_to_sign ||= []
       @files_to_sign.append(file_path)
     end
+
+    #
+    # Restore final permissions just before packaging.
+    #
+    def chmod_before_packaging(file_path, mode)
+      @chmod_before_packaging ||= []
+      @chmod_before_packaging.append([file_path, mode])
+    end
   end
 
   class Project
     prepend ProjectExtensions
     expose :inspect_binary
     expose :sign_file
+    expose :chmod_before_packaging
   end
 
   # Open the Builder class to allow adding custom DSL methods

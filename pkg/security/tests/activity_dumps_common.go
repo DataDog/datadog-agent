@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
@@ -23,10 +22,6 @@ const (
 	dedicatedADNodeForTestsEnv         = "DEDICATED_ACTIVITY_DUMP_NODE"
 	testActivityDumpRateLimiter        = 200
 	testActivityDumpTracedCgroupsCount = 5
-)
-
-var (
-	testActivityDumpLoadControllerPeriod = time.Second * 10
 )
 
 func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats []string, outputFiles []string,

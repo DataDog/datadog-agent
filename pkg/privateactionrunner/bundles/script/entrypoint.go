@@ -16,9 +16,11 @@ type Script struct {
 func NewScript() *Script {
 	return &Script{
 		actions: map[string]types.Action{
-			"runPredefinedScript": NewRunPredefinedScriptHandler(),
-			"testConnection":      NewTestConnectionHandler(),
-			"enrichScript":        NewEnrichScriptHandler(),
+			"runPredefinedScript":           NewRunPredefinedScriptHandler(),
+			"runPredefinedPowershellScript": NewRunPredefinedPowershellScriptHandler(),
+			"runShellScript":                NewRunShellScriptHandler(),
+			"testConnection":                NewTestConnectionHandler(),
+			"enrichScript":                  NewEnrichScriptHandler(),
 		},
 	}
 }

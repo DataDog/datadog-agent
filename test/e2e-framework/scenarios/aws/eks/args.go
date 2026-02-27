@@ -15,6 +15,8 @@ type Params struct {
 	LinuxARMNodeGroup     bool
 	BottleRocketNodeGroup bool
 	WindowsNodeGroup      bool
+	GPUNodeGroup          bool
+	GPUInstanceType       string
 }
 
 type Option = func(*Params) error
@@ -52,6 +54,20 @@ func WithWindowsNodeGroup() Option {
 	}
 }
 
+// WithGPUNodeGroup enables creation of a GPU-enabled node group.
+// instanceType should be a GPU instance type (e.g., "g4dn.xlarge", "g4dn.12xlarge", "g5.xlarge").
+// If instanceType is empty, it defaults to "g4dn.xlarge" (1x NVIDIA T4 GPU, cheapest option).
+func WithGPUNodeGroup(instanceType string) Option {
+	return func(p *Params) error {
+		p.GPUNodeGroup = true
+		if instanceType == "" {
+			instanceType = "g4dn.xlarge" // Default: 1x T4 GPU, ~$0.526/hr on-demand
+		}
+		p.GPUInstanceType = instanceType
+		return nil
+	}
+}
+
 func buildClusterOptionsFromConfigMap(e aws.Environment) []Option {
 	clusterOptions := []Option{}
 	// Add the cluster options from the config map
@@ -66,6 +82,9 @@ func buildClusterOptionsFromConfigMap(e aws.Environment) []Option {
 	}
 	if e.EKSBottlerocketNodeGroup() {
 		clusterOptions = append(clusterOptions, WithBottlerocketNodeGroup())
+	}
+	if e.EKSGPUNodeGroup() {
+		clusterOptions = append(clusterOptions, WithGPUNodeGroup(e.EKSGPUInstanceType()))
 	}
 	return clusterOptions
 }

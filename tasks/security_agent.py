@@ -351,6 +351,7 @@ def build_functional_tests(
 
     build_tags = build_tags.split(",")
     build_tags.append("test")
+    build_tags.append("seclmax")
     if not is_windows:
         build_tags.append("linux_bpf")
         build_tags.append("trivy")
@@ -569,6 +570,7 @@ def cws_go_generate(ctx, verbose=False):
             "./pkg/security/serializers/serializers_linux_easyjson.go",
         )
 
+    ctx.run("go generate ./pkg/security/probe/remediations_linux.go")
     ctx.run("go generate ./pkg/security/probe/custom_events.go")
     ctx.run("go generate -tags=linux_bpf,cws_go_generate ./pkg/security/...")
 

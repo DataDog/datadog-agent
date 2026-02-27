@@ -14,6 +14,7 @@ The Datadog Agent is a comprehensive monitoring and observability agent written 
   - `system-probe/` - System-level monitoring (eBPF)
   - `security-agent/` - Security monitoring
   - `process-agent/` - Process monitoring
+  - `privateactionrunner/` - Executing actions
 
 - `/pkg/` - Core Go packages and libraries
   - `aggregator/` - Metrics aggregation
@@ -97,6 +98,16 @@ The development configuration file should be placed at `dev/dist/datadog.yaml`. 
 - Check configs: `conf.d/<check_name>.d/conf.yaml`
 - Supports environment variable overrides with `DD_` prefix
 
+### eBPF-based System Checks
+- Checks using eBPF probes require system-probe module running
+- Examples: tcp_queue_length, oom_kill, seccomp_tracer
+- Module code (system-probe): `pkg/collector/corechecks/ebpf/probe/<check>/`
+- Check code (agent): `pkg/collector/corechecks/ebpf/<check>/`
+- System-probe modules: `cmd/system-probe/modules/`
+- Configuration: Set `<check_name>.enabled: true` in system-probe config
+- See `pkg/collector/corechecks/ebpf/AGENTS.md` for detailed structure
+- Quick reference: `.cursor/rules/system_probe_modules.mdc` for common patterns and pitfalls
+
 ## Testing Strategy
 
 ### Unit Tests
@@ -158,6 +169,16 @@ Go build tags control feature inclusion, some examples are:
 - Tests about the pull-request settings or repository configuration
 - Release automation workflows
 
+## Code Review
+
+Code reviewer plugins for Go and Python are available from the
+[Datadog Claude Marketplace](https://github.com/DataDog/claude-marketplace):
+
+- `/go-review`, `/go-improve` - Go code review and iterative improvement
+- `/py-review`, `/py-improve` - Python code review and iterative improvement
+
+See the marketplace README for installation instructions.
+
 ## Security Considerations
 
 ### Sensitive Data
@@ -177,7 +198,6 @@ tasks.
 - **Container**: Docker, Kubernetes, ECS, containerd, and more
 
 ## Best Practices
-
 1. **Always run linters before committing**: `dda inv linter.go`
 2. **Always test your changes**: `dda inv test --targets=<your_package>`
 3. **Follow Go conventions**: Use gofmt, follow project structure
@@ -193,4 +213,3 @@ tasks.
 ### Testing Issues
 - **Flaky tests**: Check `flakes.yaml` for known issues
 - **Coverage issues**: Use `--coverage` flag
-

@@ -154,7 +154,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "create.file.extension":
 		return &eval.StringEvaluator{
-			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp},
+			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp, eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -330,7 +330,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "delete.file.extension":
 		return &eval.StringEvaluator{
-			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp},
+			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp, eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -574,10 +574,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Exec.Process.ContainerContext))
+				return int(ev.Exec.Process.ContainerContext.CreatedAt)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "exec.container.id":
@@ -585,10 +585,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveContainerID(ev, &ev.Exec.Process.ContainerContext)
+				return string(ev.Exec.Process.ContainerContext.ContainerID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "exec.container.tags":
@@ -637,7 +637,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exec.file.extension":
 		return &eval.StringEvaluator{
-			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp},
+			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp, eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -778,10 +778,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Exit.Process.ContainerContext))
+				return int(ev.Exit.Process.ContainerContext.CreatedAt)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "exit.container.id":
@@ -789,10 +789,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveContainerID(ev, &ev.Exit.Process.ContainerContext)
+				return string(ev.Exit.Process.ContainerContext.ContainerID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "exit.container.tags":
@@ -841,7 +841,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exit.file.extension":
 		return &eval.StringEvaluator{
-			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp},
+			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp, eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1074,14 +1074,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &element.ProcessContext.Process.ContainerContext))
+					result := int(element.ProcessContext.Process.ContainerContext.CreatedAt)
 					return []int{result}
 				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
-				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
-					return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &current.ProcessContext.Process.ContainerContext))
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.ContainerContext.CreatedAt)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -1101,14 +1101,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := ev.FieldHandlers.ResolveContainerID(ev, &element.ProcessContext.Process.ContainerContext)
+					result := string(element.ProcessContext.Process.ContainerContext.ContainerID)
 					return []string{result}
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
-				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveContainerID(ev, &current.ProcessContext.Process.ContainerContext)
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return string(current.ProcessContext.Process.ContainerContext.ContainerID)
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -1227,7 +1227,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.ancestors.file.extension":
 		return &eval.StringArrayEvaluator{
-			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp},
+			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp, eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1501,10 +1501,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process.ContainerContext))
+				return int(ev.BaseEvent.ProcessContext.Process.ContainerContext.CreatedAt)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "process.container.id":
@@ -1512,10 +1512,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveContainerID(ev, &ev.BaseEvent.ProcessContext.Process.ContainerContext)
+				return string(ev.BaseEvent.ProcessContext.Process.ContainerContext.ContainerID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "process.container.tags":
@@ -1564,7 +1564,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.file.extension":
 		return &eval.StringEvaluator{
-			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp},
+			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp, eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1645,10 +1645,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.BaseEvent.ProcessContext.Parent.ContainerContext))
+				return int(ev.BaseEvent.ProcessContext.Parent.ContainerContext.CreatedAt)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "process.parent.container.id":
@@ -1659,10 +1659,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveContainerID(ev, &ev.BaseEvent.ProcessContext.Parent.ContainerContext)
+				return string(ev.BaseEvent.ProcessContext.Parent.ContainerContext.ContainerID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "process.parent.container.tags":
@@ -1723,7 +1723,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.parent.file.extension":
 		return &eval.StringEvaluator{
-			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp},
+			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp, eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1916,7 +1916,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rename.file.destination.extension":
 		return &eval.StringEvaluator{
-			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp},
+			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp, eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -2000,7 +2000,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rename.file.extension":
 		return &eval.StringEvaluator{
-			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp},
+			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp, eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -2242,7 +2242,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "write.file.extension":
 		return &eval.StringEvaluator{
-			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp},
+			OpOverrides: []*eval.OpOverrides{eval.CaseInsensitiveCmp, eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -2838,8 +2838,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	if newField, found := GetDefaultLegacyFields(field); found {
 		mappedField = newField
 	}
-	if strings.HasPrefix(mappedField, "process.") || strings.HasPrefix(mappedField, "exec.") || strings.HasPrefix(mappedField, "exit.") {
-		ev.initProcess()
+	if strings.HasPrefix(mappedField, "process.") || strings.HasPrefix(mappedField, "exec.") || strings.HasPrefix(mappedField, "exit.") || strings.HasPrefix(mappedField, "ptrace.") {
+		ev.initPointerFields()
 	}
 	switch mappedField {
 	case "change_permission.new_sd":

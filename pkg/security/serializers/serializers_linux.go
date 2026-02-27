@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"path"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -325,6 +326,8 @@ type ProcessSerializer struct {
 	Syscalls *SyscallsEventSerializer `json:"syscalls,omitempty"`
 	// List of AWS Security Credentials that the process had access to
 	AWSSecurityCredentials []*AWSSecurityCredentialsSerializer `json:"aws_security_credentials,omitempty"`
+	// Tags from an APM tracer instrumentation
+	Tracer map[string]string `json:"tracer,omitempty"`
 }
 
 // FileEventSerializer serializes a file event to JSON
@@ -992,10 +995,21 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			}
 		}
 
+		if len(ps.TracerTags) > 0 {
+			tracerTags := make(map[string]string, len(ps.TracerTags))
+			for _, tag := range ps.TracerTags {
+				key, value, found := strings.Cut(tag, ":")
+				if found {
+					tracerTags[key] = value
+				}
+			}
+			psSerializer.Tracer = tracerTags
+		}
+
 		if len(ps.ContainerContext.ContainerID) != 0 {
 			psSerializer.Container = &ContainerContextSerializer{
 				ID:        string(ps.ContainerContext.ContainerID),
-				CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(e.ProcessContext.ContainerContext.CreatedAt))),
+				CreatedAt: utils.NewEasyjsonTimeIfNotZero(ps.ContainerContext.UnixCreatedAt()),
 			}
 		}
 
@@ -1572,15 +1586,15 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 		s.SecurityProfileContextSerializer = newSecurityProfileContextSerializer(event, &event.SecurityProfileContext)
 	}
 
-	if ctx, exists := event.FieldHandlers.ResolveContainerContext(event); exists {
+	if !event.ProcessContext.ContainerContext.IsNull() {
 		s.ContainerContextSerializer = &ContainerContextSerializer{
-			ID:        string(ctx.ContainerID),
-			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(ctx.CreatedAt))),
+			ID:        string(event.ProcessContext.ContainerContext.ContainerID),
+			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(event.ProcessContext.ContainerContext.CreatedAt))),
 			Variables: newVariablesContext(event, rule, "container."),
 		}
 	}
 
-	if cgroupID := event.FieldHandlers.ResolveCGroupID(event, &event.ProcessContext.CGroup); cgroupID != "" {
+	if !event.ProcessContext.CGroup.IsNull() {
 		s.CGroupContextSerializer = &CGroupContextSerializer{
 			ID:        string(event.ProcessContext.CGroup.CGroupID),
 			Variables: newVariablesContext(event, rule, "cgroup."),

@@ -10,6 +10,7 @@ import tempfile
 import textwrap
 
 import yaml
+from invoke import task
 from invoke.exceptions import Exit
 
 # Files searched for COPYRIGHT_RE
@@ -346,3 +347,39 @@ def find_copyright(ctx, licenses):
             lic['copyright'] = ['UNKNOWN']
 
     return licenses
+
+
+@task
+def lint_rust_licenses(ctx):
+    """
+    Checks that the Rust sd-agent LICENSE-3rdparty.csv file is up-to-date
+    and that all licenses are allowed.
+    """
+    print("Verify Rust licenses")
+
+    rust_dir = 'pkg/discovery/module/rust'
+
+    # Check license compliance with cargo deny
+    result = ctx.run(f'cd {rust_dir} && cargo deny check licenses', warn=True)
+    if result.return_code != 0:
+        print("\nCargo-deny found non-allowed licenses.")
+        raise Exit(code=1)
+
+    # Check LICENSE-3rdparty.csv is up-to-date
+    result = ctx.run(f'cd {rust_dir} && dd-rust-license-tool check', warn=True)
+    if result.return_code != 0:
+        print("\nRust LICENSE-3rdparty.csv is not up-to-date.")
+        print("Please run 'dda inv -e generate-rust-licenses' to update.")
+        raise Exit(code=1)
+
+    print("Rust licenses are ok.")
+
+
+@task
+def generate_rust_licenses(ctx):
+    """
+    Generates the LICENSE-3rdparty.csv file for sd-agent Rust module.
+    """
+    rust_dir = 'pkg/discovery/module/rust'
+    ctx.run(f'cd {rust_dir} && dd-rust-license-tool write')
+    print(f"Generated {rust_dir}/LICENSE-3rdparty.csv")

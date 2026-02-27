@@ -117,7 +117,7 @@ func (s *probeTestSuite) waitForExpectedCudasampleEvents(probe *Probe, pid int) 
 	require.True(t, ok)
 
 	expectedEvents := map[string]int{
-		ebpf.CudaEventTypeKernelLaunch.String():      3,
+		ebpf.CudaEventTypeKernelLaunch.String():      4, // cudaLaunchKernel x2, cuLaunchKernel, cuLaunchKernelEx
 		ebpf.CudaEventTypeSetDevice.String():         1,
 		ebpf.CudaEventTypeMemory.String():            2,
 		ebpf.CudaEventTypeSync.String():              4, // cudaStreamSynchronize, cudaEventQuery, cudaEventSynchronize, cuStreamSynchronize
@@ -176,7 +176,7 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 	require.Equal(t, 2, len(streamPastData.kernels))
 	for i := range 2 {
 		span := streamPastData.kernels[i]
-		require.Equal(t, uint64(2-i), span.numKernels) // first kernel launch has 2 kernels, second has 1
+		require.Equal(t, uint64(3-i*2), span.numKernels) // first kernel launch has 3 kernels, second has 1
 		require.Equal(t, uint64(1*2*3*4*5*6), span.avgThreadCount)
 		require.Greater(t, span.endKtime, span.startKtime)
 	}
@@ -203,14 +203,29 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
 	require.NotNil(t, stats)
-	require.NotEmpty(t, stats.Metrics)
+	require.NotEmpty(t, stats.ProcessMetrics)
 
 	// Ensure the metrics we get are correct
-	metricKey := model.StatsKey{PID: uint32(cmd.Process.Pid), DeviceUUID: testutil.DefaultGpuUUID}
+	metricKey := model.ProcessStatsKey{PID: uint32(cmd.Process.Pid), DeviceUUID: testutil.DefaultGpuUUID}
 	metrics := getMetricsEntry(metricKey, stats)
 	require.NotNil(t, metrics)
 	require.Greater(t, metrics.UsedCores, 0.0) // core usage depends on the time this took to run, so it's not deterministic
 	require.Equal(t, expectedCudaSampleMaxMemory, metrics.Memory.MaxBytes)
+	require.Greater(t, metrics.ActiveTimePct, 0.0) // active time percentage should be > 0 since kernels ran
+	require.LessOrEqual(t, metrics.ActiveTimePct, 100.0)
+
+	// Check device-level metrics
+	require.NotEmpty(t, stats.DeviceMetrics)
+	var foundDevice bool
+	for _, deviceMetric := range stats.DeviceMetrics {
+		if deviceMetric.DeviceUUID == testutil.DefaultGpuUUID {
+			foundDevice = true
+			require.Greater(t, deviceMetric.Metrics.ActiveTimePct, 0.0)
+			require.LessOrEqual(t, deviceMetric.Metrics.ActiveTimePct, 100.0)
+			break
+		}
+	}
+	require.True(t, foundDevice, "device metrics not found for default GPU")
 
 	// Check that the context was updated with the events
 	require.Equal(t, probe.sysCtx.cudaVisibleDevicesPerProcess[cmd.Process.Pid], "42")
@@ -237,12 +252,26 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
 	require.NotNil(t, stats)
-	metricKey := model.StatsKey{PID: uint32(cmd.Process.Pid), DeviceUUID: selectedGPU}
+	metricKey := model.ProcessStatsKey{PID: uint32(cmd.Process.Pid), DeviceUUID: selectedGPU}
 	metrics := getMetricsEntry(metricKey, stats)
 	require.NotNil(t, metrics)
 
 	require.Greater(t, metrics.UsedCores, 0.0) // average core usage depends on the time this took to run, so it's not deterministic
 	require.Equal(t, expectedCudaSampleMaxMemory, metrics.Memory.MaxBytes)
+	require.Greater(t, metrics.ActiveTimePct, 0.0)
+	require.LessOrEqual(t, metrics.ActiveTimePct, 100.0)
+
+	// Check device-level metrics for the selected GPU
+	var foundDevice bool
+	for _, deviceMetric := range stats.DeviceMetrics {
+		if deviceMetric.DeviceUUID == selectedGPU {
+			foundDevice = true
+			require.Greater(t, deviceMetric.Metrics.ActiveTimePct, 0.0)
+			require.LessOrEqual(t, deviceMetric.Metrics.ActiveTimePct, 100.0)
+			break
+		}
+	}
+	require.True(t, foundDevice, "device metrics not found for selected GPU")
 }
 
 func (s *probeTestSuite) TestDetectsContainer() {
@@ -264,13 +293,15 @@ func (s *probeTestSuite) TestDetectsContainer() {
 		require.NoError(c, err)
 		require.NotNil(c, stats)
 
-		key := model.StatsKey{PID: uint32(pid), DeviceUUID: testutil.DefaultGpuUUID, ContainerID: cid}
+		key := model.ProcessStatsKey{PID: uint32(pid), DeviceUUID: testutil.DefaultGpuUUID, ContainerID: cid}
 		pidStats := getMetricsEntry(key, stats)
 		require.NotNil(c, pidStats)
 
 		// core usage depends on the time this took to run, so it's not deterministic
 		require.Greater(c, pidStats.UsedCores, 0.0)
 		require.Equal(c, expectedCudaSampleMaxMemory, pidStats.Memory.MaxBytes)
+		require.Greater(c, pidStats.ActiveTimePct, 0.0)
+		require.LessOrEqual(c, pidStats.ActiveTimePct, 100.0)
 	}, 3*time.Second, 100*time.Millisecond)
 }
 
@@ -456,16 +487,17 @@ func (s *probeTestSuite) TestDebugCollectorEvents() {
 	// Line 33: cudaSetDevice(device) -> CudaEventTypeSetDevice
 	// Line 34: cudaLaunchKernel(...) -> CudaEventTypeKernelLaunch
 	// Line 35: cuLaunchKernel(...) -> CudaEventTypeKernelLaunch
-	// Line 37: cudaMalloc(&ptr, 100) -> CudaEventTypeMemory (alloc)
-	// Line 38: cudaFree(ptr) -> CudaEventTypeMemory (free)
-	// Line 39: cudaStreamSynchronize(stream) -> CudaEventTypeSync
-	// Line 40: cuStreamSynchronize(stream) -> CudaEventTypeSync
-	// Line 45: cudaMemcpy(...) -> CudaEventTypeSyncDevice
-	// Line 48: cudaEventQuery(event) -> CudaEventTypeSync
-	// Line 49: cudaEventSynchronize(event) -> CudaEventTypeSync
-	// Line 53: cudaLaunchKernel(...) -> CudaEventTypeKernelLaunch
-	// Line 55: cudaDeviceSynchronize() -> CudaEventTypeSyncDevice
-	// Line 57: setenv("CUDA_VISIBLE_DEVICES", "42", 1) -> CudaEventTypeVisibleDevicesSet
+	// Line 36-37: cuLaunchKernelEx(...) -> CudaEventTypeKernelLaunch
+	// Line 38: cudaMalloc(&ptr, 100) -> CudaEventTypeMemory (alloc)
+	// Line 39: cudaFree(ptr) -> CudaEventTypeMemory (free)
+	// Line 40: cudaStreamSynchronize(stream) -> CudaEventTypeSync
+	// Line 41: cuStreamSynchronize(stream) -> CudaEventTypeSync
+	// Line 47: cudaMemcpy(...) -> CudaEventTypeSyncDevice
+	// Line 49: cudaEventQuery(event) -> CudaEventTypeSync
+	// Line 50: cudaEventSynchronize(event) -> CudaEventTypeSync
+	// Line 54: cudaLaunchKernel(...) -> CudaEventTypeKernelLaunch
+	// Line 56: cudaDeviceSynchronize() -> CudaEventTypeSyncDevice
+	// Line 58: setenv("CUDA_VISIBLE_DEVICES", "42", 1) -> CudaEventTypeVisibleDevicesSet
 	deviceIdx := int32(0) // default device index used by RunSample
 	kernelAddr := uint64(0x1234)
 	allocSize := uint64(100)
@@ -481,6 +513,13 @@ func (s *probeTestSuite) TestDebugCollectorEvents() {
 			Shared_mem_size: 10,
 		},
 		&ebpf.CudaKernelLaunch{
+			Header:          ebpf.CudaEventHeader{Type: uint32(ebpf.CudaEventTypeKernelLaunch), Stream_id: streamID},
+			Kernel_addr:     kernelAddr,
+			Grid_size:       ebpf.Dim3{X: 1, Y: 2, Z: 3},
+			Block_size:      ebpf.Dim3{X: 4, Y: 5, Z: 6},
+			Shared_mem_size: 10,
+		},
+		&ebpf.CudaKernelLaunch{ // cuLaunchKernelEx
 			Header:          ebpf.CudaEventHeader{Type: uint32(ebpf.CudaEventTypeKernelLaunch), Stream_id: streamID},
 			Kernel_addr:     kernelAddr,
 			Grid_size:       ebpf.Dim3{X: 1, Y: 2, Z: 3},

@@ -14,8 +14,10 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"iter"
 	"log"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -221,25 +223,7 @@ func reviewTestsReaders(jf io.Reader, ff io.Reader, owners *testowners) (*review
 				owner = owners.matchTest(testEvent{Package: pkg, Test: test})
 			}
 
-			if kf.IsFlaky(pkg, test) {
-				flakyTestsOut.WriteString(addOwnerInformation(fmt.Sprintf(flakyFormat, pkg, test), owner))
-				continue
-			}
-
-			// check if a subtest also failed and is marked as flaky
-			hasFlakyChild, hasFailedChild := false, false
-			for _, failedTest := range tests {
-				if strings.HasPrefix(failedTest, test+"/") {
-					if kf.IsFlaky(pkg, failedTest) {
-						hasFlakyChild = true
-					} else {
-						hasFailedChild = true
-					}
-				}
-			}
-
-			// Only mark parent as flaky if all children are flaky/passing, if we have failed childs it's a real failure
-			if hasFlakyChild && !hasFailedChild {
+			if isTestOrChildrenFlaky(tests, test, pkg, kf) {
 				flakyTestsOut.WriteString(addOwnerInformation(fmt.Sprintf(flakyFormat, pkg, test), owner))
 			} else {
 				failedTestsOut.WriteString(addOwnerInformation(fmt.Sprintf(failFormat, pkg, test), owner))
@@ -252,6 +236,33 @@ func reviewTestsReaders(jf io.Reader, ff io.Reader, owners *testowners) (*review
 		ReRuns: rerunTestsOut.String(),
 		Flaky:  flakyTestsOut.String(),
 	}, nil
+}
+
+func childTests(allTests []string, parentTest string) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		for _, t := range allTests {
+			if strings.HasPrefix(t, parentTest+"/") {
+				yield(t)
+			}
+		}
+	}
+}
+
+func isTestOrChildrenFlaky(allFailingTests []string, test string, pkg string, kf *flake.KnownFlakyTests) bool {
+	if kf.IsFlaky(pkg, test) {
+		return true
+	}
+	hasFlakyChild, hasFailedChild := false, false
+	children := slices.Collect(childTests(allFailingTests, test))
+	for _, t := range children {
+		if isTestOrChildrenFlaky(children, t, pkg, kf) {
+			hasFlakyChild = true
+		} else {
+			hasFailedChild = true
+			break
+		}
+	}
+	return hasFlakyChild && !hasFailedChild
 }
 
 func addOwnerInformation(result string, owner string) string {

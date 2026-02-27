@@ -43,9 +43,9 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 	opts = append(opts, utils.PulumiDependsOn(ns))
 
 	// openshift requires a non-default service account tighted to the privileged scc
-	sa, err := corev1.NewServiceAccount(e.Ctx(), fmt.Sprintf("dogstatsd-uds-sa-%d", statsdPort), &corev1.ServiceAccountArgs{
+	sa, err := corev1.NewServiceAccount(e.Ctx(), fmt.Sprintf("dogstatsd-%d", statsdPort), &corev1.ServiceAccountArgs{
 		Metadata: &metav1.ObjectMetaArgs{
-			Name:      pulumi.StringPtr("dogstatsd-uds-sa"),
+			Name:      pulumi.StringPtr("dogstatsd-sa"),
 			Namespace: pulumi.StringPtr(namespace),
 		},
 	}, opts...)
@@ -62,7 +62,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		RoleRef: &rbacv1.RoleRefArgs{
 			ApiGroup: pulumi.String("rbac.authorization.k8s.io"),
 			Kind:     pulumi.String("ClusterRole"),
-			Name:     pulumi.String("system:openshift:scc:hostaccess"),
+			Name:     pulumi.String("system:openshift:scc:privileged"),
 		},
 		Subjects: rbacv1.SubjectArray{
 			rbacv1.SubjectArgs{
@@ -92,9 +92,6 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 			},
 			Template: &corev1.PodTemplateSpecArgs{
 				Metadata: &metav1.ObjectMetaArgs{
-					Annotations: pulumi.StringMap{
-						"openshift.io/required-scc": pulumi.String("hostaccess"),
-					},
 					Labels: pulumi.StringMap{
 						"admission.datadoghq.com/config.mode": pulumi.String("csi"),
 						"app":                                 pulumi.String("dogstatsd-uds-with-csi"),
@@ -216,6 +213,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 					},
 				},
 				Spec: &corev1.PodSpecArgs{
+					ServiceAccountName: sa.Metadata.Name().Elem(),
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("dogstatsd"),
@@ -283,6 +281,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 					},
 				},
 				Spec: &corev1.PodSpecArgs{
+					ServiceAccountName: sa.Metadata.Name().Elem(),
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("dogstatsd"),
@@ -342,6 +341,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 					},
 				},
 				Spec: &corev1.PodSpecArgs{
+					ServiceAccountName: sa.Metadata.Name().Elem(),
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("dogstatsd"),
@@ -414,6 +414,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 					},
 				},
 				Spec: &corev1.PodSpecArgs{
+					ServiceAccountName: sa.Metadata.Name().Elem(),
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("dogstatsd"),

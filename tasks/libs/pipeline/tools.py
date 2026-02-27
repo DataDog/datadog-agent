@@ -173,6 +173,7 @@ def trigger_agent_pipeline(
     e2e_tests=False,
     kmt_tests=False,
     rc_build=False,
+    run_flaky_tests=False,
 ) -> ProjectPipeline:
     """
     Trigger a pipeline on the datadog-agent repositories. Multiple options are available:
@@ -180,6 +181,7 @@ def trigger_agent_pipeline(
     - run a pipeline with all e2e tests,
     - run a pipeline with all end-to-end tests,
     - run a deploy pipeline (includes all builds & e2e tests + uploads artifacts to staging repositories);
+    - run a pipeline that does not skip flaky tests (by default, known flaky tests are skipped).
     """
 
     ref = ref or get_default_branch()
@@ -211,6 +213,9 @@ def trigger_agent_pipeline(
 
     if rc_build:
         args["RC_BUILD"] = "true"
+
+    if run_flaky_tests:
+        args["GO_TEST_SKIP_FLAKE"] = "false"
 
     print(
         "Creating pipeline for datadog-agent on branch/tag {} with args:\n{}".format(  # noqa: FS002

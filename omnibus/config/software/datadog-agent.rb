@@ -4,6 +4,7 @@
 # Copyright 2016-present Datadog, Inc.
 
 require './lib/ostools.rb'
+require './lib/fips.rb'
 require './lib/project_helpers.rb'
 require 'pathname'
 
@@ -59,30 +60,8 @@ build do
   end
 
   env = with_standard_compiler_flags(env)
-
-  # Use msgo toolchain when fips mode is enabled
   if fips_mode?
-    if windows_target?
-      msgoroot = ENV['MSGO_ROOT']
-      if msgoroot.nil? || msgoroot.empty?
-        raise "MSGO_ROOT not set"
-      end
-      if !File.exist?("#{msgoroot}\\bin\\go.exe")
-        raise "msgo go.exe not found at #{msgoroot}\\bin\\go.exe"
-      end
-      env["GOROOT"] = msgoroot
-      env["PATH"] = "#{msgoroot}\\bin;#{env['PATH']}"
-      # also update the global env so that the symbol inspector use the correct go version
-      ENV['GOROOT'] = msgoroot
-      ENV['PATH'] = "#{msgoroot}\\bin;#{ENV['PATH']}"
-    else
-      msgoroot = "/usr/local/msgo"
-      env["GOROOT"] = msgoroot
-      env["PATH"] = "#{msgoroot}/bin:#{env['PATH']}"
-      # also update the global env so that the symbol inspector use the correct go version
-      ENV['GOROOT'] = msgoroot
-      ENV['PATH'] = "#{msgoroot}/bin:#{ENV['PATH']}"
-    end
+    add_msgo_to_env(env)
   end
 
   # we assume the go deps are already installed before running omnibus
@@ -176,6 +155,17 @@ build do
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
   end
 
+  # Private action runner
+  if not heroku_target? and not fips_mode?
+    command "dda inv -- -e privateactionrunner.build --install-path=#{install_dir} --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+
+    if windows_target?
+      copy 'bin/privateactionrunner/privateactionrunner.exe', "#{install_dir}/bin/agent"
+    elsif not heroku_target?
+      copy 'bin/privateactionrunner/privateactionrunner', "#{install_dir}/embedded/bin"
+    end
+  end
+
   # System-probe
   if sysprobe_enabled? || osx_target? || (windows_target? && do_windows_sysprobe != "")
     if linux_target?
@@ -223,9 +213,18 @@ build do
 
   end
 
+  # sd-agent (service discovery agent)
+  if ENV['WITH_SD_AGENT'] == 'true'
+    command_on_repo_root "bazel run --config=sd-agent-release //pkg/discovery/module/rust:install -- --destdir=#{install_dir}/embedded/bin", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+  end
+
+  # dd-procmgrd (process manager daemon)
+  if ENV['WITH_DD_PROCMGRD'] == 'true'
+    command_on_repo_root "bazel run --config=dd-procmgrd-release //pkg/procmgr/rust:install -- --destdir=#{install_dir}/embedded/bin", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+  end
+
   # Security agent
-  secagent_support = (not heroku_target?) and (not windows_target? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?))
-  if secagent_support
+  unless heroku_target?
     command "dda inv -- -e security-agent.build #{fips_args} --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     if windows_target?
       copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"
@@ -242,26 +241,20 @@ build do
     copy 'bin/cws-instrumentation/cws-instrumentation', "#{install_dir}/embedded/bin"
   end
 
+# Secret Generic Connector
+  if !heroku_target?
+    command "dda inv -- -e secret-generic-connector.build #{fips_args}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    if windows_target?
+      copy 'bin/secret-generic-connector/secret-generic-connector.exe', "#{install_dir}/bin/agent"
+    else
+      copy 'bin/secret-generic-connector/secret-generic-connector', "#{install_dir}/embedded/bin"
+    end
+    mkdir "#{install_dir}/LICENSES"
+    copy 'cmd/secret-generic-connector/LICENSE', "#{install_dir}/LICENSES/secret-generic-connector-LICENSE"
+  end
+
   if osx_target?
-    # Launchd service definition
-    erb source: "launchd.plist.example.erb",
-        dest: "#{conf_dir}/com.datadoghq.agent.plist.example",
-        mode: 0644,
-        vars: { install_dir: install_dir }
-
-    erb source: "launchd.sysprobe.plist.example.erb",
-        dest: "#{conf_dir}/com.datadoghq.sysprobe.plist.example",
-        mode: 0644,
-        vars: {
-          # Due to how install_dir actually matches where the Agent is built rather than
-          # its actual final destination, we hardcode here the currently sole supported install location
-          install_dir: "/opt/datadog-agent",
-          conf_dir: "/opt/datadog-agent/etc",
-        }
-
-    erb source: "gui.launchd.plist.erb",
-        dest: "#{conf_dir}/com.datadoghq.gui.plist.example",
-        mode: 0644
+    command_on_repo_root "bazelisk run -- //packages/macos/app:install --destdir='#{install_dir}'", :live_stream => Omnibus.logger.live_stream(:info)
 
     # Systray GUI
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"
@@ -276,8 +269,7 @@ build do
 
   # APM Hands Off config file
   if linux_target?
-    command "dda inv -- agent.generate-config --build-type application-monitoring --output-file ./bin/agent/dist/application_monitoring.yaml", :env => env
-    move 'bin/agent/dist/application_monitoring.yaml', "#{conf_dir}/application_monitoring.yaml.example"
+    copy 'pkg/config/example/application_monitoring.yaml.example', "#{conf_dir}/application_monitoring.yaml.example"
   end
 
   # Allows the agent to be installed in a custom location
@@ -285,34 +277,23 @@ build do
     command "touch #{install_dir}/.install_root"
   end
 
-  # TODO: move this to omnibus-ruby::health-check.rb
-  # check that linux binaries contains OpenSSL symbols when building to support FIPS
   if fips_mode? && linux_target?
-    # Put the ruby code in a block to prevent omnibus from running it directly but rather at build step with the rest of the code above.
+    # Put the ruby code in a block to prevent omnibus from running it directly
+    # but rather at build step with the rest of the code above.
     # If not in a block, it will search for binaries that have not been built yet.
     block do
       LINUX_BINARIES = [
-        "#{install_dir}/bin/agent/agent",
-        "#{install_dir}/embedded/bin/trace-agent",
-        "#{install_dir}/embedded/bin/process-agent",
-        "#{install_dir}/embedded/bin/security-agent",
-        "#{install_dir}/embedded/bin/system-probe",
-        "#{install_dir}/embedded/bin/installer",
+        "bin/agent/agent",
+        "embedded/bin/trace-agent",
+        "embedded/bin/process-agent",
+        "embedded/bin/security-agent",
+        "embedded/bin/system-probe",
+        "embedded/bin/installer",
+        "embedded/bin/secret-generic-connector",
       ]
 
-      symbol = "_Cfunc__mkcgo_OPENSSL"
-      check_block = Proc.new { |binary, symbols|
-        count = symbols.scan(symbol).count
-        if count > 0
-          log.info(log_key) { "Symbol '#{symbol}' found #{count} times in binary '#{binary}'." }
-        else
-          raise FIPSSymbolsNotFound.new("Expected to find '#{symbol}' symbol in #{binary} but did not")
-        end
-      }.curry
-
       LINUX_BINARIES.each do |bin|
-        partially_applied_check = check_block.call(bin)
-        GoSymbolsInspector.new(bin,  &partially_applied_check).inspect()
+        fips_check_binary_for_expected_symbol(File.join(install_dir, bin))
       end
     end
   end

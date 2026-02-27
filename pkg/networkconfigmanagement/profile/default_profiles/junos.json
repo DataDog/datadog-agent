@@ -26,11 +26,11 @@
         "redaction": [
           {
             "regex": "(?m)^(\\s*community) (\\S+) (\\{)",
-            "replacement": "$1 <hidden> {"
+            "replacement": "$1 <secret hidden> {"
           },
           {
             "regex":  " \\\"\\$\\d\\$\\S+; ## SECRET-DATA",
-            "replacement": " <secret removed>;"
+            "replacement": " <secret hidden>;"
           }
         ]
       }

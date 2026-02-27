@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets/utils"
@@ -157,22 +157,21 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 		expBackoff := backoff.NewExponentialBackOff()
 		expBackoff.InitialInterval = wmetaCheckInitialInterval
 		expBackoff.MaxInterval = wmetaCheckMaxInterval
-		expBackoff.MaxElapsedTime = wmetaCheckMaxElapsedTime
-		err := backoff.Retry(func() error {
+		_, err := backoff.Retry(context.Background(), func() (any, error) {
 			instance, found := deps.WMeta.Get()
 			if found {
 				if instance.IsInitialized() {
 					deps.Log.Infof("Workloadmeta collectors are ready, starting autodiscovery scheduler controller")
 					schController.Start()
-					return nil
+					return nil, nil
 				}
 				retries++
 				deps.Log.Debugf("Workloadmeta collectors are not ready, will possibly retry")
-				return errors.New("workloadmeta not initialized")
+				return nil, errors.New("workloadmeta not initialized")
 			}
 			schController.Start()
-			return nil
-		}, expBackoff)
+			return nil, nil
+		}, backoff.WithBackOff(expBackoff), backoff.WithMaxElapsedTime(wmetaCheckMaxElapsedTime))
 		if err != nil {
 			deps.Log.Errorf("Workloadmeta collectors are not ready after %d retries: %s, starting check scheduler controller anyway.", retries, err)
 			schController.Start()
@@ -459,7 +458,7 @@ func (ac *AutoConfig) GetTelemetryStore() *acTelemetry.Store {
 }
 
 func (ac *AutoConfig) initializeConfiguration(config *integration.Config) error {
-	prg, celADID, compileErr, recErr := createMatchingProgram(config.CELSelector)
+	prg, celADID, compileErr, recErr := integration.CreateMatchingProgram(config.CELSelector)
 	if compileErr != nil {
 		return compileErr
 	}
@@ -634,7 +633,7 @@ func (ac *AutoConfig) getActiveServices() []integration.ServiceResponse {
 		containerPorts, err := svc.GetPorts()
 		ports := make([]string, 0)
 		if err == nil {
-			ports = slices.Map(containerPorts, func(port listeners.ContainerPort) string {
+			ports = slices.Map(containerPorts, func(port workloadmeta.ContainerPort) string {
 				return strconv.Itoa(port.Port)
 			})
 		}

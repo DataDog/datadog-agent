@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -47,6 +47,16 @@ func (c *ntmConfig) ReadInConfig() error {
 
 	c.findConfigFile()
 	if err := c.readInConfig(c.configFile); err != nil {
+		// For compatibility with Viper, we wrap the error with ErrConfigFileNotFound. Note
+		// that this case can be reached even if the config file *is* found. For example,
+		// if the config file at the default location (/opt/datadog-agent/etc/datadog.yaml)
+		// contains unparseable data, this branch is reached. This specific return value is
+		// checked during the config.Component constructor here:
+		// https://github.com/DataDog/datadog-agent/blob/31d06e70d70081d166b628efcf6c444b8aef5fbc/comp/core/config/setup.go#L53
+		// Meaning parser errors *won't* prevent the config.Component from initializing.
+		if !errors.Is(err, model.ErrConfigFileNotFound) {
+			return model.NewConfigFileNotFoundError(err) // nolint: forbidigo // needed for compatibility
+		}
 		return err
 	}
 
@@ -167,7 +177,27 @@ func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interfa
 				// Both default and dest have a child but they conflict in type. This should never happen.
 				warnings = append(warnings, errors.New("invalid tree: default and dest tree don't have the same layout"))
 			} else {
-				dest.InsertChildNode(key, newLeafNode(value, source))
+				// If a setting is known and nil we mimic the behavior of viper and ignore the value
+				// to keep the default one. We still insert nil value for unknown settings to keep
+				// track of them and from inner node since this mechanism is used by OTEL to mark
+				// entire section as "existing".
+				//
+				// 'nil' value in YAML file can easily be create by setting a key with no value.
+				//
+				// Example:
+				//
+				//    setting_name_1:      # no value -> nil in Go
+				//    setting name_2: 1234
+				if value != nil {
+					if converted, err := convertToDefaultType(value, schemaChild.Get()); err == nil {
+						value = converted
+					}
+					// normalize YAML v2 map[interface{}]interface{} to map[string]interface{}
+					if normalized, err := ToMapStringInterface(value, currPath); err == nil {
+						value = normalized
+					}
+					dest.InsertChildNode(key, newLeafNode(value, source))
+				}
 			}
 			continue
 		}

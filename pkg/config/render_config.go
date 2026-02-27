@@ -17,117 +17,65 @@ import (
 	"strings"
 
 	"github.com/pmezard/go-difflib/difflib"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // context contains the context used to render the config file template
 type context struct {
-	OS                               string
-	Common                           bool
-	Agent                            bool
-	Python                           bool // Sub-option of Agent
-	Metadata                         bool
-	InternalProfiling                bool
-	Dogstatsd                        bool
-	LogsAgent                        bool
-	JMX                              bool
-	Autoconfig                       bool
-	Logging                          bool
-	Autodiscovery                    bool
-	DockerTagging                    bool
-	Kubelet                          bool
-	KubernetesTagging                bool
-	ECS                              bool
-	Containerd                       bool
-	CRI                              bool
-	ProcessAgent                     bool
-	SystemProbe                      bool
-	KubeApiServer                    bool
-	TraceAgent                       bool
-	ClusterAgent                     bool
-	ClusterChecks                    bool
-	AdmissionController              bool
-	CloudFoundryBBS                  bool
-	CloudFoundryCC                   bool
-	Compliance                       bool
-	SNMP                             bool
-	SecurityModule                   bool
-	SecurityAgent                    bool
-	SBOM                             bool // enables CSM Vulnerability Management
-	NetworkModule                    bool // Sub-module of System Probe
-	UniversalServiceMonitoringModule bool // Sub-module of System Probe
-	DataStreamsModule                bool // Sub-module of System Probe
-	PingModule                       bool // Sub-module of System Probe
-	TracerouteModule                 bool // Sub-module of System Probe
-	PrometheusScrape                 bool
-	OTLP                             bool
-	APMInjection                     bool
-	NetworkPath                      bool
-	ApplicationMonitoring            bool
-	Synthetics                       bool
+	OS                  string
+	Common              bool
+	Agent               bool
+	CoreAgent           bool
+	Dogstatsd           bool
+	LogsAgent           bool
+	Logging             bool
+	DockerTagging       bool
+	Kubelet             bool
+	KubernetesTagging   bool
+	ECS                 bool
+	Containerd          bool
+	KubeApiServer       bool
+	TraceAgent          bool
+	ClusterAgent        bool
+	ClusterChecks       bool
+	AdmissionController bool
+	CloudFoundry        bool
+	PrivateActionRunner bool
 }
 
-func mkContext(buildType string) context {
+func mkContext(buildType string, osName string) context {
 	buildType = strings.ToLower(buildType)
-
-	agentContext := context{
-		OS:                runtime.GOOS,
-		Common:            true,
-		Agent:             true,
-		Python:            true,
-		Metadata:          true,
-		InternalProfiling: false, // NOTE: hidden for now
-		Dogstatsd:         true,
-		LogsAgent:         true,
-		JMX:               true,
-		Autoconfig:        true,
-		Logging:           true,
-		Autodiscovery:     true,
-		DockerTagging:     true,
-		KubernetesTagging: true,
-		ECS:               true,
-		Containerd:        true,
-		CRI:               true,
-		ProcessAgent:      true,
-		TraceAgent:        true,
-		Kubelet:           true,
-		KubeApiServer:     true, // TODO: remove when phasing out from node-agent
-		Compliance:        true,
-		SBOM:              true,
-		SNMP:              true,
-		PrometheusScrape:  true,
-		OTLP:              true,
-		NetworkPath:       true,
-		Synthetics:        true,
-	}
 
 	switch buildType {
 	case "agent-py3":
-		return agentContext
+		return context{
+			OS:                  osName,
+			Common:              true,
+			Agent:               true,
+			CoreAgent:           true,
+			Dogstatsd:           true,
+			LogsAgent:           true,
+			Logging:             true,
+			DockerTagging:       true,
+			KubernetesTagging:   true,
+			ECS:                 true,
+			TraceAgent:          true,
+			Kubelet:             true,
+			KubeApiServer:       true, // TODO: remove when phasing out from node-agent
+			PrivateActionRunner: true,
+		}
 	case "iot-agent":
 		return context{
-			OS:        runtime.GOOS,
+			OS:        osName,
 			Common:    true,
 			Agent:     true,
-			Metadata:  true,
 			Dogstatsd: true,
 			LogsAgent: true,
 			Logging:   true,
 		}
-	case "system-probe":
-		return context{
-			OS:                               runtime.GOOS,
-			SystemProbe:                      true,
-			NetworkModule:                    true,
-			UniversalServiceMonitoringModule: true,
-			DataStreamsModule:                true,
-			SecurityModule:                   true,
-			PingModule:                       true,
-			TracerouteModule:                 true,
-		}
 	case "dogstatsd":
 		return context{
-			OS:                runtime.GOOS,
+			OS:                osName,
 			Common:            true,
 			Dogstatsd:         true,
 			DockerTagging:     true,
@@ -139,7 +87,7 @@ func mkContext(buildType string) context {
 		}
 	case "dca":
 		return context{
-			OS:                  runtime.GOOS,
+			OS:                  osName,
 			ClusterAgent:        true,
 			Common:              true,
 			Logging:             true,
@@ -149,51 +97,37 @@ func mkContext(buildType string) context {
 		}
 	case "dcacf":
 		return context{
-			OS:              runtime.GOOS,
-			ClusterAgent:    true,
-			Common:          true,
-			Logging:         true,
-			ClusterChecks:   true,
-			CloudFoundryBBS: true,
-			CloudFoundryCC:  true,
+			OS:            osName,
+			ClusterAgent:  true,
+			Common:        true,
+			Logging:       true,
+			ClusterChecks: true,
+			CloudFoundry:  true,
 		}
+	// security-agent and system-probe use their own templating file, they only require OS
 	case "security-agent":
 		return context{
-			OS:            runtime.GOOS,
-			SecurityAgent: true,
+			OS: osName,
 		}
-	case "apm-injection":
+	case "system-probe":
 		return context{
-			OS:           runtime.GOOS,
-			APMInjection: true,
-		}
-	case "application-monitoring":
-		return context{
-			OS:                    runtime.GOOS,
-			ApplicationMonitoring: true,
+			OS: osName,
 		}
 	}
 
 	return context{}
 }
 
-func main() {
-	if len(os.Args[1:]) != 3 {
-		panic("please use 'go run render_config.go <component_name> <template_file> <destination_file>'")
-	}
-
-	component := os.Args[1]
-	tplFile, _ := filepath.Abs(os.Args[2])
-	tplFilename := filepath.Base(tplFile)
-	destFile, _ := filepath.Abs(os.Args[3])
-
+func render(destFile string, tplFile string, component string, osName string) {
 	f, err := os.Create(destFile)
 	if err != nil {
 		panic(err)
 	}
 
+	tplFilename := filepath.Base(tplFile)
+
 	t := template.Must(template.New(tplFilename).ParseFiles(tplFile))
-	err = t.Execute(f, mkContext(component))
+	err = t.Execute(f, mkContext(component, osName))
 	if err != nil {
 		panic(err)
 	}
@@ -201,7 +135,40 @@ func main() {
 	if err := f.Close(); err != nil {
 		panic(err)
 	}
+}
 
+func renderAll(destFolder string, tplFolder string) {
+	for component, templateName := range map[string]string{
+		"agent-py3":      "config_template.yaml",
+		"iot-agent":      "config_template.yaml",
+		"dogstatsd":      "config_template.yaml",
+		"dca":            "config_template.yaml",
+		"dcacf":          "config_template.yaml",
+		"system-probe":   "system-probe_template.yaml",
+		"security-agent": "security-agent_template.yaml",
+	} {
+		for _, osName := range []string{"windows", "darwin", "linux"} {
+			destFile := filepath.Join(destFolder, component+"_"+osName+".yaml")
+			render(destFile, filepath.Join(tplFolder, templateName), component, osName)
+			fmt.Println("Successfully wrote", destFile)
+		}
+	}
+}
+
+func main() {
+	if len(os.Args) == 3 {
+		renderAll(os.Args[1], os.Args[2])
+		return
+	}
+	if len(os.Args) != 4 {
+		panic("please use 'go run render_config.go <component_name> <template_file> <destination_file>'\nOr `go run render_config.go <dest_folder> <template_foler>` to generate all possible templates")
+	}
+
+	component := os.Args[1]
+	tplFile, _ := filepath.Abs(os.Args[2])
+	destFile, _ := filepath.Abs(os.Args[3])
+
+	render(destFile, tplFile, component, runtime.GOOS)
 	if err := lint(destFile); err != nil {
 		panic(err)
 	}

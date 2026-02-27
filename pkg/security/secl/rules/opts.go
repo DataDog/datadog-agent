@@ -36,6 +36,7 @@ type Opts struct {
 	StateScopes                map[Scope]VariableProviderFactory
 	Logger                     log.Logger
 	ruleActionPerformedCb      RuleActionPerformedCb
+	RuleCacheEnabled           bool
 }
 
 // WithSupportedDiscarders set supported discarders
@@ -83,6 +84,12 @@ func (o *Opts) WithStateScopes(stateScopes map[Scope]VariableProviderFactory) *O
 // WithRuleActionPerformedCb sets the rule action performed callback
 func (o *Opts) WithRuleActionPerformedCb(cb RuleActionPerformedCb) *Opts {
 	o.ruleActionPerformedCb = cb
+	return o
+}
+
+// WithRuleCacheEnabled sets the rule cache enabled
+func (o *Opts) WithRuleCacheEnabled(ruleCacheEnabled bool) *Opts {
+	o.RuleCacheEnabled = ruleCacheEnabled
 	return o
 }
 

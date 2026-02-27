@@ -1,24 +1,23 @@
 import os
 import random
 import re
-import tempfile
 import traceback
 import typing
+from collections.abc import Callable
+from dataclasses import dataclass
 
-import gitlab
 import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks.git import get_ancestor
 from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr
-from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import color_message
+from tasks.libs.common.datadog_api import query_metrics
 from tasks.libs.common.git import (
     create_tree,
     get_commit_sha,
-    get_common_ancestor,
-    get_current_branch,
     is_a_release_branch,
 )
 from tasks.libs.common.utils import running_in_ci
@@ -43,6 +42,199 @@ FAIL_CHAR = "❌"
 SUCCESS_CHAR = "✅"
 WARNING_CHAR = "⚠️"
 GATE_CONFIG_PATH = "test/static/static_quality_gates.yml"
+
+
+@dataclass
+class GateMetricsData:
+    """Metrics for a single quality gate."""
+
+    current_on_disk_size: int | None = None
+    current_on_wire_size: int | None = None
+    max_on_disk_size: int | None = None
+    max_on_wire_size: int | None = None
+    relative_on_disk_size: int | None = None
+    relative_on_wire_size: int | None = None
+
+
+def _extract_gate_name_from_scope(scope: str) -> str | None:
+    """Extract gate_name from scope string like 'gate_name:static_quality_gate_agent_deb_amd64'."""
+    for part in scope.split(","):
+        if part.startswith("gate_name:"):
+            return part.split(":", 1)[1]
+    return None
+
+
+def _get_latest_value_from_pointlist(pointlist: list) -> float | None:
+    """Get the latest non-null value from a pointlist of Point objects.
+
+    Point.value returns [timestamp, metric_value], so we access index 1.
+    """
+    if not pointlist:
+        return None
+    for point in reversed(pointlist):
+        if point and point.value and point.value[1] is not None:
+            return point.value[1]
+    return None
+
+
+def fetch_pr_metrics(pr_number: int) -> dict[str, GateMetricsData]:
+    """
+    Fetch metrics for a specific PR from Datadog.
+
+    Uses a single API call to fetch all 4 metric types at once.
+
+    Returns a dict mapping gate_name to GateMetricsData.
+    """
+    # Fetch all metrics in a single query using comma-separated metric names
+    metrics_data: dict[str, GateMetricsData] = {}
+
+    # Map metric names to attribute names
+    metric_map = {
+        "on_disk_size": "current_on_disk_size",
+        "on_wire_size": "current_on_wire_size",
+        "max_allowed_on_disk_size": "max_on_disk_size",
+        "max_allowed_on_wire_size": "max_on_wire_size",
+        "relative_on_disk_size": "relative_on_disk_size",
+        "relative_on_wire_size": "relative_on_wire_size",
+    }
+
+    # Single query with all metrics (comma-separated)
+    queries = ",".join(
+        f"avg:datadog.agent.static_quality_gate.{m}{{pr_number:{pr_number}}} by {{gate_name}}" for m in metric_map
+    )
+    result = query_metrics(queries, from_time="now-1d", to_time="now")
+
+    for series in result:
+        gate_name = _extract_gate_name_from_scope(series.get("scope", ""))
+        if not gate_name:
+            continue
+
+        if gate_name not in metrics_data:
+            metrics_data[gate_name] = GateMetricsData()
+
+        # Determine which metric this series is for from the expression
+        expression = series.get("expression", "")
+        for metric_suffix, attr_name in metric_map.items():
+            if f".{metric_suffix}" in expression:
+                latest_value = _get_latest_value_from_pointlist(series.get("pointlist", []))
+                if latest_value is not None:
+                    setattr(metrics_data[gate_name], attr_name, int(latest_value))
+                break
+
+    return metrics_data
+
+
+def fetch_main_headroom(failing_gates: list[str]) -> dict[str, dict[str, int]]:
+    """
+    Fetch main branch metrics to calculate headroom (max - current).
+
+    Only fetches metrics for the specified failing gates to minimize API footprint.
+
+    Returns a dict mapping gate_name to {'disk_headroom': int, 'wire_headroom': int}.
+    """
+    if not failing_gates:
+        return {}
+
+    main_metrics: dict[str, dict[str, int]] = {}
+
+    # Map metric names to keys
+    metric_map = {
+        "on_disk_size": "current_disk",
+        "on_wire_size": "current_wire",
+        "max_allowed_on_disk_size": "max_disk",
+        "max_allowed_on_wire_size": "max_wire",
+    }
+
+    # Build gate filter - only query for failing gates
+    gate_filter = " OR ".join(f"gate_name:{g}" for g in failing_gates)
+
+    # Single query with all metrics for failing gates only
+    queries = ",".join(
+        f"avg:datadog.agent.static_quality_gate.{m}{{git_ref:main AND ({gate_filter})}} by {{gate_name}}"
+        for m in metric_map
+    )
+    result = query_metrics(queries, from_time="now-1d", to_time="now")
+
+    for series in result:
+        gate_name = _extract_gate_name_from_scope(series.get("scope", ""))
+        if not gate_name:
+            continue
+
+        if gate_name not in main_metrics:
+            main_metrics[gate_name] = {}
+
+        # Determine which metric this series is for from the expression
+        expression = series.get("expression", "")
+        for metric_suffix, key in metric_map.items():
+            if f".{metric_suffix}" in expression:
+                latest_value = _get_latest_value_from_pointlist(series.get("pointlist", []))
+                if latest_value is not None:
+                    main_metrics[gate_name][key] = int(latest_value)
+                break
+
+    # Calculate headroom for each gate
+    headroom: dict[str, dict[str, int]] = {}
+    for gate_name, metrics in main_metrics.items():
+        disk_headroom = metrics.get("max_disk", 0) - metrics.get("current_disk", 0)
+        wire_headroom = metrics.get("max_wire", 0) - metrics.get("current_wire", 0)
+        headroom[gate_name] = {
+            "disk_headroom": max(0, disk_headroom),
+            "wire_headroom": max(0, wire_headroom),
+        }
+
+    return headroom
+
+
+def identify_failing_gates(pr_metrics: dict[str, GateMetricsData]) -> dict[str, GateMetricsData]:
+    """
+    Identify gates that are failing (current > max).
+
+    Returns only the gates that need threshold bumps.
+    """
+    failing: dict[str, GateMetricsData] = {}
+
+    for gate_name, metrics in pr_metrics.items():
+        disk_failing = (
+            metrics.current_on_disk_size is not None
+            and metrics.max_on_disk_size is not None
+            and metrics.current_on_disk_size > metrics.max_on_disk_size
+        )
+        wire_failing = (
+            metrics.current_on_wire_size is not None
+            and metrics.max_on_wire_size is not None
+            and metrics.current_on_wire_size > metrics.max_on_wire_size
+        )
+
+        if disk_failing or wire_failing:
+            failing[gate_name] = metrics
+
+    return failing
+
+
+# Threshold for considering a size change as meaningful (not noise)
+# Changes below this threshold are considered neutral and won't trigger a bump
+SIZE_INCREASE_THRESHOLD_BYTES = 2 * 1024  # 2 KiB
+
+
+def identify_gates_with_size_increase(pr_metrics: dict[str, GateMetricsData]) -> dict[str, GateMetricsData]:
+    """
+    Identify all gates that have a meaningful on-disk size increase.
+
+    This is used for exception bumps where we want to bump ALL gates
+    with size increases, not just the ones that are currently failing.
+
+    A gate is included if relative_on_disk_size > SIZE_INCREASE_THRESHOLD_BYTES.
+
+    Returns gates where on_disk_size has increased beyond the noise threshold.
+    """
+    gates_to_bump: dict[str, GateMetricsData] = {}
+
+    for gate_name, metrics in pr_metrics.items():
+        # Check if there's a meaningful size increase
+        if metrics.relative_on_disk_size is not None and metrics.relative_on_disk_size > SIZE_INCREASE_THRESHOLD_BYTES:
+            gates_to_bump[gate_name] = metrics
+
+    return gates_to_bump
 
 
 def get_pr_for_branch(branch: str):
@@ -93,6 +285,25 @@ def get_pr_number_from_commit(ctx) -> str | None:
         return None
     except Exception as e:
         print(color_message(f"[WARN] Failed to extract PR number from commit: {e}", "orange"))
+        return None
+
+
+def get_pr_author(pr_number: str) -> str | None:
+    """
+    Get the author (login) of a PR by its number.
+
+    Args:
+        pr_number: The PR number as a string
+
+    Returns:
+        The PR author's GitHub login, or None if not found.
+    """
+    try:
+        github = GithubAPI()
+        pr = github.get_pr(int(pr_number))
+        return pr.user.login if pr and pr.user else None
+    except Exception as e:
+        print(color_message(f"[WARN] Failed to get PR author for PR #{pr_number}: {e}", "orange"))
         return None
 
 
@@ -180,8 +391,8 @@ def get_change_metrics(
 
     # Build limit bounds string based on whether change is neutral
     if is_neutral:
-        # For neutral changes, just show the current size (bolded)
-        limit_bounds_str = f"**{current_mib:.3f}** MiB"
+        # For neutral changes, show the current size (bolded) → limit
+        limit_bounds_str = f"**{current_mib:.3f}** MiB → {max_mib:.3f}"
     elif baseline_mib is not None:
         # For meaningful changes, show: baseline → current (bold) → limit
         limit_bounds_str = f"{baseline_mib:.3f} → **{current_mib:.3f}** → {max_mib:.3f}"
@@ -270,6 +481,8 @@ def display_pr_comment(
     dashboard_link = (
         "[📊 Static Quality Gates Dashboard](https://app.datadoghq.com/dashboard/5np-man-vak/static-quality-gates)\n"
     )
+    job_url = os.environ.get("CI_JOB_URL", "")
+    job_link = f"[🔗 SQG Job]({job_url})\n" if job_url else ""
 
     # Main tables for on-disk metrics
     body_info = ""
@@ -284,13 +497,17 @@ def display_pr_comment(
     with_non_blocking_error = False
     significant_success_count = 0
     collapsed_success_count = 0
+    has_na_change = False
 
     # Sort gates by error_types to group in between NoError, AssertionError and StackTrace
     for gate in sorted(gate_states, key=lambda x: x["error_type"] is None):
         gate_name = gate['name'].replace("static_quality_gate_", "")
+        gate_metrics = metric_handler.metrics.get(gate['name'], {})
 
         # Get change metrics for on-disk (delta with percentage and limit bounds)
         change_str, limit_bounds, is_neutral = get_change_metrics(gate['name'], metric_handler, metric_type="disk")
+        if change_str == "N/A":
+            has_na_change = True
 
         # Get change metrics for on-wire
         wire_change_str, wire_limit_bounds, _ = get_change_metrics(gate['name'], metric_handler, metric_type="wire")
@@ -298,7 +515,6 @@ def display_pr_comment(
         if gate["error_type"] is None:
             if is_neutral:
                 # Neutral changes go to collapsed section (just show current size)
-                gate_metrics = metric_handler.metrics.get(gate['name'], {})
                 current_disk = gate_metrics.get("current_on_disk_size")
                 if current_disk is not None:
                     current_mib = current_disk / (1024 * 1024)
@@ -321,7 +537,12 @@ def display_pr_comment(
             is_blocking = gate.get("blocking", True)
             status_char = FAIL_CHAR if is_blocking else WARNING_CHAR
 
-            body_error += f"|{status_char}|{gate_name}|{change_str}|{limit_bounds}|\n"
+            # This is probably way more convoluted than it should be, but the best we can do
+            # without refactoring the data structures involved
+            if gate_metrics.get("current_on_wire_size", 0) > gate_metrics.get("max_on_wire_size", float('inf')):
+                body_error += f"|{status_char}|{gate_name} (on wire)|{wire_change_str}|{wire_limit_bounds}|\n"
+            if gate_metrics.get("current_on_disk_size", 0) > gate_metrics.get("max_on_disk_size", float('inf')):
+                body_error += f"|{status_char}|{gate_name} (on disk)|{change_str}|{limit_bounds}|\n"
 
             # Add to wire table for errors too
             body_wire += f"|{status_char}|{gate_name}|{wire_change_str}|{wire_limit_bounds}|\n"
@@ -362,7 +583,12 @@ def display_pr_comment(
         wire_section += body_wire
         wire_section += "\n</details>\n"
 
-    body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{ancestor_info}{dashboard_link}{final_error_body}\n\n{success_section}\n{wire_section}"
+    # Add retry hint if some deltas are N/A (ancestor metrics not yet available due to race condition)
+    retry_hint = ""
+    if has_na_change and job_url:
+        retry_hint = f"SOME SIZE DELTAS ARE N/A (ANCESTOR METRICS NOT YET AVAILABLE). [RETRY JOB]({job_url})\n"
+
+    body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{ancestor_info}{dashboard_link}{job_link}{retry_hint}{final_error_body}\n\n{success_section}\n{wire_section}"
 
     pr_commenter(ctx, title=title, body=body, pr=pr)
 
@@ -415,16 +641,25 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     # Skip for release branches since they don't have associated PRs
     pr = None
     pr_number = None
+    pr_author = None
     if not is_a_release_branch(ctx, branch):
         pr = get_pr_for_branch(branch)
         if pr:
             print(color_message(f"Found PR #{pr.number}: {pr.title}", "cyan"))
             pr_number = str(pr.number)
+            # Extract author directly from PR object
+            if pr.user:
+                pr_author = pr.user.login
+                print(color_message(f"PR author: {pr_author}", "cyan"))
         else:
             # On main branch (or when no open PR), extract PR number from commit message
             pr_number = get_pr_number_from_commit(ctx)
             if pr_number:
                 print(color_message(f"Extracted PR #{pr_number} from commit message", "cyan"))
+                # Fetch author for the PR number
+                pr_author = get_pr_author(pr_number)
+                if pr_author:
+                    print(color_message(f"PR author: {pr_author}", "cyan"))
 
     for gate in gate_list:
         result = None
@@ -478,7 +713,7 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                 }
             )
         finally:
-            # Build tags dict - only include pr_number if we have a PR
+            # Build tags dict - only include pr_number and pr_author if we have a PR
             gate_tags = {
                 "gate_name": gate.config.gate_name,
                 "arch": gate.config.arch,
@@ -489,6 +724,8 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
             }
             if pr_number:
                 gate_tags["pr_number"] = pr_number
+            if pr_author:
+                gate_tags["pr_author"] = pr_author
 
             metric_handler.register_gate_tags(gate.config.gate_name, **gate_tags)
             metric_handler.register_metric(gate.config.gate_name, "max_on_wire_size", gate.config.max_on_wire_size)
@@ -507,29 +744,28 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
 
     # Calculate relative sizes (delta from ancestor) before sending metrics
     # This is done for all branches to include delta metrics in Datadog
-    ancestor = get_common_ancestor(ctx, "HEAD")
+    # Use get_ancestor_base_branch to correctly handle PRs targeting release branches
+    ancestor = get_ancestor(ctx, branch)
     current_commit = get_commit_sha(ctx)
-    # When on main branch, get_common_ancestor returns HEAD itself since merge-base of HEAD and origin/main
-    # is the current commit. In this case, use the parent commit as the ancestor instead.
-    if ancestor == current_commit:
-        ancestor = get_commit_sha(ctx, commit="HEAD~1")
-        print(color_message(f"On main branch, using parent commit {ancestor} as ancestor", "cyan"))
-    metric_handler.generate_relative_size(ctx, ancestor=ancestor, report_path="ancestor_static_gate_report.json")
+    is_on_main_branch = ancestor == current_commit
+    metric_handler.generate_relative_size(ancestor=ancestor)
 
     # Post-process gate failures: mark as non-blocking if delta <= 0
-    # This means the size issue existed before this PR and wasn't introduced by current changes
-    for gate_state in gate_states:
-        if gate_state["state"] is False and gate_state.get("blocking", True):
-            # Only StaticQualityGateFailed errors are eligible for bypass (not StackTrace errors)
-            if gate_state["error_type"] == "StaticQualityGateFailed":
-                if should_bypass_failure(gate_state["name"], metric_handler):
-                    gate_state["blocking"] = False
-                    print(
-                        color_message(
-                            f"Gate {gate_state['name']} failure is non-blocking (size unchanged from ancestor)",
-                            "orange",
+    # This tolerance only applies to PRs - on main branch, failures should always block unconditionally
+    # This means on PRs, the size issue existed before this PR and wasn't introduced by current changes
+    if not is_on_main_branch:
+        for gate_state in gate_states:
+            if gate_state["state"] is False and gate_state.get("blocking", True):
+                # Only StaticQualityGateFailed errors are eligible for bypass (not StackTrace errors)
+                if gate_state["error_type"] == "StaticQualityGateFailed":
+                    if should_bypass_failure(gate_state["name"], metric_handler):
+                        gate_state["blocking"] = False
+                        print(
+                            color_message(
+                                f"Gate {gate_state['name']} failure is non-blocking (size unchanged from ancestor)",
+                                "orange",
+                            )
                         )
-                    )
 
     # Reporting part
     # Send metrics to Datadog (now includes delta metrics)
@@ -668,64 +904,112 @@ def manual_threshold_update(self, filename="static_gate_report.json"):
     notify_threshold_update(pr_url)
 
 
-@task()
-def exception_threshold_bump(ctx, pipeline_id):
+@task(positional=["pr_number"], help={"pr_number": "The PR number to bump thresholds for"})
+def exception_threshold_bump(ctx, pr_number):
     """
-    When a PR is exempt of static quality gates, they have to use this invoke task to adjust the quality gates thresholds accordingly to the exempted added size.
+    Bump quality gate thresholds for a PR that has been granted an exception.
 
-    Note: This invoke task must be run on a pipeline that has finished running static quality gates
-    :param ctx:
-    :param pipeline_id: pipeline ID we want to fetch the artifact from to bump gates
-    :return:
+    This task queries Datadog metrics to:
+    1. Find which gates are failing for this PR
+    2. Get the current headroom on main (max - current)
+    3. Set new thresholds = PR's current size + main's headroom
+
+    Usage:
+        dd-auth -- dda inv quality-gates.exception-threshold-bump <pr_number>
     """
-    current_branch_name = get_current_branch(ctx)
-    repo = get_gitlab_repo()
-    with tempfile.TemporaryDirectory() as extract_dir, ctx.cd(extract_dir):
-        cur_pipeline = repo.pipelines.get(pipeline_id)
-        gate_job_id = next(
-            job.id for job in cur_pipeline.jobs.list(iterator=True) if job.name == "static_quality_gates"
+    pr_number = int(pr_number)
+    print(color_message(f"Fetching metrics for PR #{pr_number}...", "cyan"))
+
+    # Step 1: Fetch PR metrics from Datadog
+    pr_metrics = fetch_pr_metrics(pr_number)
+    if not pr_metrics:
+        print(color_message(f"[ERROR] No metrics found for PR #{pr_number} in the last 24 hours.", "red"))
+        print(color_message("", "red"))
+        print(color_message("This usually means one of the following:", "orange"))
+        print(color_message("  1. The PR branch is stale and needs to be updated", "orange"))
+        print(color_message("  2. The static_quality_gates job hasn't run recently", "orange"))
+        print(color_message("  3. The PR number is incorrect", "orange"))
+        print(color_message("", "red"))
+        print(color_message("Recommended actions:", "cyan"))
+        print(color_message("  - Update your branch: git fetch origin main && git rebase origin/main", "cyan"))
+        print(color_message("  - Push to trigger a new pipeline run", "cyan"))
+        print(color_message("  - Wait for static_quality_gates job to complete", "cyan"))
+        print(color_message("  - Re-run this command", "cyan"))
+        raise Exit(code=1)
+
+    print(color_message(f"Found metrics for {len(pr_metrics)} gates", "cyan"))
+
+    # Step 2: Identify gates with size increase (not just failing gates)
+    gates_to_bump = identify_gates_with_size_increase(pr_metrics)
+    if not gates_to_bump:
+        print(color_message("[INFO] No gates with size increase found - nothing to bump!", "green"))
+        return
+
+    print(color_message(f"Found {len(gates_to_bump)} gates with size increase:", "orange"))
+    for gate_name, metrics in gates_to_bump.items():
+        short_name = gate_name.replace("static_quality_gate_", "")
+        disk_delta = metrics.relative_on_disk_size or 0
+        wire_delta = metrics.relative_on_wire_size or 0
+        print(
+            color_message(
+                f"  - {short_name}: disk +{byte_to_string(disk_delta)}, wire +{byte_to_string(wire_delta)}", "orange"
+            )
         )
-        gate_job = repo.jobs.get(id=gate_job_id)
-        with open(f"{extract_dir}/gate_archive.zip", "wb") as f:
-            try:
-                f.write(gate_job.artifacts())
-            except gitlab.exceptions.GitlabGetError as e:
-                print(
-                    color_message(
-                        "[ERROR] Unable to fetch the last artifact of the static_quality_gates job. Details :", "red"
-                    )
-                )
-                print(repr(e))
-                raise Exit(code=1) from e
-        ctx.run(f"unzip gate_archive.zip -d {extract_dir}", hide=True)
-        static_gate_report_path = f"{extract_dir}/static_gate_report.json"
-        if os.path.isfile(static_gate_report_path):
-            metric_handler = GateMetricHandler(
-                git_ref=current_branch_name, bucket_branch="dev", filename=static_gate_report_path
-            )
-            with open("test/static/static_quality_gates.yml") as f:
-                file_content, total_size_saved = generate_new_quality_gate_config(f, metric_handler, True)
 
-            if total_size_saved == 0:
-                print(color_message("[WARN] No gates needs to be changed.", "orange"))
+    # Step 3: Fetch main branch headroom (for gates with size increase)
+    print(color_message("Fetching main branch metrics for headroom calculation...", "cyan"))
+    main_headroom = fetch_main_headroom(list(gates_to_bump.keys()))
 
-            with open("test/static/static_quality_gates.yml", "w") as f:
-                f.write(yaml.dump(file_content))
+    if not main_headroom:
+        print(color_message("[ERROR] Unable to fetch main branch metrics from Datadog.", "red"))
+        print(color_message("Please check your Datadog API credentials and try again.", "orange"))
+        raise Exit(code=1)
 
-            print(
-                color_message(
-                    f"[SUCCESS] Static Quality gate have been updated ! Total gate threshold impact : {byte_to_string(-total_size_saved)}",
-                    "green",
-                )
-            )
-        else:
-            print(
-                color_message(
-                    "[ERROR] Unable to find static_gate_report.json inside of the last artifact of the static_quality_gates job",
-                    "red",
-                )
-            )
-            raise Exit(code=1)
+    # Step 4: Load current config
+    with open(GATE_CONFIG_PATH) as f:
+        config = yaml.safe_load(f)
+
+    # Step 5: Calculate and apply new thresholds for gates with size increase
+    updated_gates = []
+    for gate_name, pr_gate_metrics in gates_to_bump.items():
+        if gate_name not in config:
+            print(color_message(f"[WARN] Gate {gate_name} not found in config, skipping", "orange"))
+            continue
+
+        headroom = main_headroom.get(gate_name, {"disk_headroom": 0, "wire_headroom": 0})
+
+        # Calculate new thresholds: PR's current + main's headroom
+        short_name = gate_name.replace("static_quality_gate_", "")
+        updates = []
+
+        if pr_gate_metrics.current_on_disk_size is not None:
+            disk_headroom = headroom["disk_headroom"]
+            new_disk_threshold = pr_gate_metrics.current_on_disk_size + disk_headroom
+            old_disk = config[gate_name].get("max_on_disk_size", "N/A")
+            config[gate_name]["max_on_disk_size"] = byte_to_string(new_disk_threshold, unit_power=2)
+            updates.append(f"disk: {old_disk} → {config[gate_name]['max_on_disk_size']}")
+
+        if pr_gate_metrics.current_on_wire_size is not None:
+            wire_headroom = headroom["wire_headroom"]
+            new_wire_threshold = pr_gate_metrics.current_on_wire_size + wire_headroom
+            old_wire = config[gate_name].get("max_on_wire_size", "N/A")
+            config[gate_name]["max_on_wire_size"] = byte_to_string(new_wire_threshold, unit_power=2)
+            updates.append(f"wire: {old_wire} → {config[gate_name]['max_on_wire_size']}")
+
+        if updates:
+            updated_gates.append((short_name, updates))
+
+    # Step 6: Write updated config
+    if updated_gates:
+        with open(GATE_CONFIG_PATH, "w") as f:
+            yaml.dump(config, f)
+
+        print(color_message(f"\n[SUCCESS] Updated {len(updated_gates)} gate thresholds:", "green"))
+        for gate_name, updates in updated_gates:
+            for update in updates:
+                print(color_message(f"  - {gate_name}: {update}", "green"))
+    else:
+        print(color_message("[WARN] No gates were updated", "orange"))
 
 
 @task
@@ -737,6 +1021,7 @@ def measure_package_local(
     output_path=None,
     build_job_name="local_test",
     debug=False,
+    filter: Callable[[str], bool] = lambda _: True,
 ):
     """
     Run the in-place package measurer locally for testing and development.
@@ -763,6 +1048,7 @@ def measure_package_local(
         output_path=output_path,
         build_job_name=build_job_name,
         debug=debug,
+        filter=filter,
     )
 
 

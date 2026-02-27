@@ -147,7 +147,7 @@ func executeAndLogOutput(t *testing.T, vm *components.RemoteHost, command string
 
 	// log the output
 	if assert.NoError(t, err) {
-		for _, line := range strings.Split(string(outbytes[:]), "\n") {
+		for line := range strings.SplitSeq(string(outbytes[:]), "\n") {
 			t.Logf("TestSuite: %s", line)
 		}
 	}

@@ -9,6 +9,7 @@ import (
 	"io"
 	"time"
 
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
@@ -30,7 +31,9 @@ type timeSamplerWorker struct {
 
 	// tagFilterList is used to filter tags for specific metrics during context tracking.
 	// It determines which tags should be kept or stripped for distribution metrics.
-	tagFilterList *TagMatcher
+	tagFilterList filterlist.TagMatcher
+	// use this chan to trigger a tagFilterList reconfiguration
+	tagFilterListChan chan filterlist.TagMatcher
 
 	// flushFilterList is the filter applied when flushing metrics to the serializer.
 	// It's main use-case is to filter out some metrics after their aggregation
@@ -46,7 +49,7 @@ type timeSamplerWorker struct {
 	// use this chan to trigger a flush of the time sampler
 	flushChan chan flushTrigger
 	// use this chan to trigger a filterList reconfiguration
-	filterListChan chan utilstrings.Matcher
+	metricFilterListChan chan utilstrings.Matcher
 	// use this chan to stop the timeSamplerWorker
 	stopChan chan struct{}
 	// channel to trigger interactive dump of the context resolver
@@ -64,21 +67,23 @@ type dumpTrigger struct {
 func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, bufferSize int,
 	metricSamplePool *metrics.MetricSamplePool,
 	parallelSerialization FlushAndSerializeInParallel, tagsStore *tags.Store,
-	tagFilterList *TagMatcher) *timeSamplerWorker {
+	flushFilterList utilstrings.Matcher, tagFilterList filterlist.TagMatcher) *timeSamplerWorker {
 	return &timeSamplerWorker{
 		sampler: sampler,
 
 		metricSamplePool:      metricSamplePool,
 		parallelSerialization: parallelSerialization,
 
-		flushInterval: flushInterval,
-		tagFilterList: tagFilterList,
+		flushInterval:   flushInterval,
+		tagFilterList:   tagFilterList,
+		flushFilterList: flushFilterList,
 
-		samplesChan:    make(chan []metrics.MetricSample, bufferSize),
-		stopChan:       make(chan struct{}),
-		flushChan:      make(chan flushTrigger),
-		dumpChan:       make(chan dumpTrigger),
-		filterListChan: make(chan utilstrings.Matcher),
+		samplesChan:          make(chan []metrics.MetricSample, bufferSize),
+		stopChan:             make(chan struct{}),
+		flushChan:            make(chan flushTrigger),
+		dumpChan:             make(chan dumpTrigger),
+		metricFilterListChan: make(chan utilstrings.Matcher),
+		tagFilterListChan:    make(chan filterlist.TagMatcher),
 
 		tagsStore: tagsStore,
 	}
@@ -102,12 +107,15 @@ func (w *timeSamplerWorker) run() {
 			aggregatorDogstatsdMetricSample.Add(int64(len(ms)))
 			tlmProcessed.Add(float64(len(ms)), shard, "dogstatsd_metrics")
 			t := timeNowNano()
+
 			for i := 0; i < len(ms); i++ {
 				w.sampler.sample(&ms[i], t, w.tagFilterList)
 			}
 			w.metricSamplePool.PutBatch(ms)
-		case matcher := <-w.filterListChan:
+		case matcher := <-w.metricFilterListChan:
 			w.flushFilterList = matcher
+		case matcher := <-w.tagFilterListChan:
+			w.tagFilterList = matcher
 		case trigger := <-w.flushChan:
 			w.triggerFlush(trigger)
 			w.tagsStore.Shrink()

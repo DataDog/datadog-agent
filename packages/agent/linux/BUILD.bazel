@@ -1,22 +1,221 @@
-# agent linux distribution packages
+"""Agent package components specific to linux."""
 
+load("@rules_pkg//pkg:deb.bzl", "pkg_deb")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load(
+    "@rules_pkg//pkg:mappings.bzl",
+    "pkg_attributes",
+    "pkg_filegroup",
+    "pkg_files",
+    "pkg_mkdirs",
+)
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("//bazel/rules:collect_cc_dynamic_deps.bzl", "cc_dynamic_deps_filegroup")
+load("//bazel/rules:dd_agent_pkg_mklink.bzl", "dd_agent_pkg_mklink")
+load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load("//compliance:package_licenses.bzl", "package_licenses")
 
-# This is a placeholder for an eventual group containg (the future) top level binaries
-# such as //cmd/agent:agent
-filegroup(
-    name = "all_deps",
+package(default_visibility = ["//packages:__subpackages__"])
+
+pkg_filegroup(
+    name = "security_agent_components",
     srcs = [
-        "//deps:all_deps",
+        "@openscap//:lib_files",
+    ],
+)
+
+# This is everything in the distro. All the things that were explicit
+# in datadog-agent-dependencies.rb should show up here.
+pkg_filegroup(
+    name = "agent_components",
+    srcs = [
+        "//deps/jmxfetch:all_files",
+        "//deps/snmp_traps:all_files",
+        "//packages/install_dir:embedded",
+        "//packages/install_dir:etc",
+        "@libpcap//:all_files",
+        # This should probably be in its own target instead and aggregated later on
+        # but this is good enough for now so that we can start pulling in dependencies
+        # in the package automatically
+        ":security_agent_components",
+    ],
+    prefix = "/opt/datadog-agent",
+)
+
+# Automatically gather all cc_shared_library files that appear as dynamic_deps
+# of any target reachable from agent_components.  As more targets (agent binary,
+# cpython, …) are added to the Bazel build graph, their runtime shared-library
+# dependencies will be discovered here without any manual changes.
+cc_dynamic_deps_filegroup(
+    name = "auto_cc_dynamic_deps",
+    srcs = [":agent_components"],
+    visibility = ["//visibility:private"],
+)
+
+# Rewrite the rpath so that we can load our dependencies from their expected locations
+# By default bazel will include a path that points to the sandbox
+rewrite_rpath(
+    name = "auto_deps_fixed_rpath",
+    inputs = [":auto_cc_dynamic_deps"],
+    visibility = ["//visibility:private"],
+)
+
+pkg_files(
+    name = "auto_cc_dynamic_deps_pkg",
+    srcs = [":auto_deps_fixed_rpath"],
+    prefix = "embedded/lib",
+    visibility = ["//visibility:private"],
+)
+
+pkg_filegroup(
+    name = "auto_cc_dynamic_deps_with_fixed_rpath",
+    srcs = [":auto_cc_dynamic_deps_pkg"],
+    prefix = "/opt/datadog-agent",
+)
+
+# This is an intermediate node so that have a place to collect all
+# the dependencies so we can walk the aspect to gather the OSS
+# licenses.  This is close to "everything except for licenses"
+# Do not include things that vary per build, like symlinks using
+# the pipeline name.
+pkg_filegroup(
+    name = "everything",
+    srcs = [
+        ":agent_components",
+        ":auto_cc_dynamic_deps_with_fixed_rpath",
+    ],
+)
+
+# Gather licenses for all the pieces of the distribuion
+package_licenses(
+    name = "license_files",
+    src = ":everything",
+)
+
+# Blend the dependencies, the license files and things that vary
+# a build time into the distribution.
+pkg_filegroup(
+    name = "whole_distro",
+    srcs = [
+        ":everything",
+        ":license_files",
     ] + select({
-        "@platforms//os:linux": [
-            "//deps/openscap:all_deps",
+        "//:is_standard_install": [
+            ":datadog_agent_installer_symlinks",
         ],
         "//conditions:default": [],
     }),
 )
 
-package_licenses(
-    name = "license_files",
-    src = ":all_deps",
+pkg_tar(
+    name = "whole_distro_tar",
+    srcs = [":whole_distro"],
+    extension = "tar.xz",
+    # TODO: account for pipeline injected compression level.
+    # https://datadoghq.atlassian.net/browse/ABLD-364
+    # compression_threads COMPRESSION_THREADS
+    # compression_level COMPRESSION_LEVEL
+    owner = "0.0",
+)
+
+# TODO: Look at omnibus/config/projects/agent.rb for more content here.
+pkg_deb(
+    name = "debian",
+    conflicts = ["datadog-iot-agent"],
+    data = ":whole_distro_tar",
+    description = """Datadog Monitoring Agent
+The Datadog Monitoring Agent is a lightweight process that monitors system
+processes and services, and sends information back to your Datadog account.
+.
+This package installs and runs the advanced Agent daemon, which queues and
+forwards metrics from your applications as well as system services.
+.
+See http://www.datadoghq.com/ for more information
+""",
+    homepage = "http://www.datadoghq.com",
+    # epoch 1
+    # vendor = "Datadog <package@datadoghq.com>",
+    license = "Apache License Version 2.0",
+    maintainer = "Datadog Packages <package@datadoghq.com>",
+    package = "datadog-agent",
+    priority = "extra",
+    recommends = ["datadog-signing-keys (>= 1:1.4.0)"],
+    section = "utils",
+    # TODO: Stamp in pipeline: 1:7.77.0~devel.git.394.fe0d0bb.pipeline.95313893-1
+    version = "7",
+
+    # TODO: pull in target_cpu as arch.
+    # architecture = "$(COMPILATION_MODE)",
+    # config = "config",
+    #distribution = "trusty",
+)
+
+# Replacement for datadog-agent-installer-symlinks.rb
+
+pkg_mkdirs(
+    name = "dirs",
+    attributes = pkg_attributes(mode = "755"),
+    dirs = [
+        "opt/datadog-packages",
+        "opt/datadog-packages/datadog-agent",
+        "opt/datadog-packages/run",
+        "opt/datadog-packages/run/datadog-agent",
+    ],
+)
+
+dd_agent_pkg_mklink(
+    name = "experiment_link",
+    attributes = pkg_attributes(mode = "755"),
+    link_name = "/opt/datadog-packages/datadog-agent/experiment",
+    target = "/opt/datadog-packages/datadog-agent/stable",
+)
+
+dd_agent_pkg_mklink(
+    name = "stable_link",
+    attributes = pkg_attributes(mode = "755"),
+    link_name = "/opt/datadog-packages/datadog-agent/stable",
+    target = "/opt/datadog-packages/run/datadog-agent/{build_version}",
+)
+
+dd_agent_pkg_mklink(
+    name = "version_to_install_link",
+    attributes = pkg_attributes(mode = "755"),
+    link_name = "opt/datadog-packages/run/datadog-agent/{build_version}",
+    target = "{install_dir}",
+)
+
+# note that this does not follow the naming pattern of "all_files".
+# Instead, I'm using the name of the omnibus script it will replace.
+# That provides a clearer meaning during the migration than the name
+# of the package (packages/agent/linux) alone. The "all_files" in
+# //deps/... does not have the problem because the intent is obvious
+# from the path.
+pkg_filegroup(
+    name = "datadog_agent_installer_symlinks",
+    srcs = [
+        ":dirs",
+        ":experiment_link",
+        ":stable_link",
+        ":version_to_install_link",
+    ],
+)
+
+# NOTE: These are files that get installed outside of {install_dir}. During the
+# migration we must account for them with extra_package_files in omnibus scripts
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        "//pkg/privateactionrunner/autoconnections/conf:all_files",
+    ] + select({
+        "//:is_standard_install": [
+            ":datadog_agent_installer_symlinks",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+# This target is only for the omnibus install
+pkg_install(
+    name = "install",
+    srcs = [":all_files"],
 )

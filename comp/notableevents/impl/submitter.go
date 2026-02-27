@@ -20,13 +20,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// eventPayload represents a Windows Event Log event to be submitted
-// TODO(WINA-1968): TBD format for event payload, finish with intake.
+// eventPayload represents a notable event to be submitted
 type eventPayload struct {
-	Channel   string
-	Provider  string
-	EventID   uint
 	Timestamp time.Time
+	EventType string                 // Category for grouping (e.g., "Unexpected reboot")
+	Title     string                 // Short title for display
+	Message   string                 // Detailed message
+	Custom    map[string]interface{} // Event-specific data (e.g., windows_event_log JSON)
 }
 
 // submitter receives event payloads from a channel and forwards them to the event platform
@@ -69,43 +69,32 @@ func (s *submitter) run() {
 		}
 	}
 
-	log.Info("Notable events submitter input channel closed, shutting down")
+	log.Debug("Notable events submitter input channel closed, shutting down")
 }
 
 // submitEvent creates a message and submits it to the event platform
 func (s *submitter) submitEvent(payload eventPayload) error {
-	// Get hostname
 	hostnameValue := s.hostname.GetSafe(context.TODO())
-
-	// Create base tags for the event
-	tags := []string{
-		"channel:" + payload.Channel,
-		"provider:" + payload.Provider,
-		fmt.Sprintf("event_id:%d", payload.EventID),
-		"source:windows_event_log",
-	}
+	timestamp := payload.Timestamp.In(time.UTC).Format("2006-01-02T15:04:05.000000Z")
 
 	// Create Event Management v2 API payload
-	timestamp := payload.Timestamp.In(time.UTC).Format("2006-01-02T15:04:05.000000Z")
 	eventData := map[string]interface{}{
 		"data": map[string]interface{}{
 			"type": "event",
 			"attributes": map[string]interface{}{
-				"host":     hostnameValue,
-				"title":    fmt.Sprintf("System Error - Event ID %d - %s", payload.EventID, payload.Provider),
-				"category": "alert",
+				"host":           hostnameValue,
+				"title":          payload.Title,
+				"category":       "alert",
+				"integration_id": "system-notable-events",
+				"system-notable-events": map[string]interface{}{
+					"event_type": payload.EventType,
+				},
 				"attributes": map[string]interface{}{
 					"status":   "error",
 					"priority": "5",
-					"custom": map[string]interface{}{
-						"channel":  payload.Channel,
-						"provider": payload.Provider,
-						"event_id": payload.EventID,
-						"source":   "windows_event_log",
-					},
+					"custom":   payload.Custom,
 				},
-				"message":   fmt.Sprintf("Windows Event Log detected event %d from %s", payload.EventID, payload.Provider),
-				"tags":      tags,
+				"message":   payload.Message,
 				"timestamp": timestamp,
 			},
 		},
@@ -117,7 +106,7 @@ func (s *submitter) submitEvent(payload eventPayload) error {
 		return fmt.Errorf("failed to marshal event payload: %w", err)
 	}
 
-	log.Debugf("Submitting notable event: channel=%s, event_id=%d", payload.Channel, payload.EventID)
+	log.Debugf("Submitting notable event: title=%s, event_type=%s", payload.Title, payload.EventType)
 
 	// Create message for event platform
 	msg := message.NewMessage(jsonData, nil, "", time.Now().UnixNano())
@@ -127,6 +116,6 @@ func (s *submitter) submitEvent(payload eventPayload) error {
 		return fmt.Errorf("failed to send event to platform: %w", err)
 	}
 
-	log.Debugf("Successfully submitted notable event: channel=%s, event_id=%d", payload.Channel, payload.EventID)
+	log.Debugf("Successfully submitted notable event: title=%s", payload.Title)
 	return nil
 }

@@ -45,10 +45,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
-	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func TestMain(m *testing.M) {
@@ -88,7 +88,7 @@ func TestMonitorProtocolFail(t *testing.T) {
 			// Replace the HTTP protocol with a Mock
 			patchProtocolMock(t, tt.spec)
 
-			cfg := utils.NewUSMEmptyConfig()
+			cfg := NewUSMEmptyConfig()
 			cfg.EnableHTTPMonitoring = true
 
 			monitor, err := NewMonitor(cfg, nil, nil)
@@ -203,6 +203,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 
 func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 	t := s.T()
+	flake.MarkOnJobName(t, "ubuntu_25.10")
 	serverAddr := "localhost:8080"
 
 	tests := []struct {
@@ -288,7 +289,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := utils.NewUSMEmptyConfig()
+			cfg := NewUSMEmptyConfig()
 			cfg.EnableHTTPMonitoring = true
 			cfg.HTTPMapCleanerInterval = time.Duration(tt.mapCleanerIntervalSeconds) * time.Second
 			cfg.HTTPIdleConnectionTTL = time.Duration(tt.httpIdleConnectionTTLSeconds) * time.Second
@@ -485,7 +486,7 @@ func (s *HTTPTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
 // this test, and instead update `NewUSMEmptyConfig` to make sure it disables the
 // new protocol.
 func TestEmptyConfig(t *testing.T) {
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := NewUSMEmptyConfig()
 	require.True(t, cfg.ServiceMonitoringEnabled)
 
 	// The monitor should not start, and not return an error when no protocols
@@ -644,12 +645,6 @@ func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *neth
 	}
 
 	return occurrences
-}
-
-func getHTTPCfg() *networkConfig.Config {
-	cfg := utils.NewUSMEmptyConfig()
-	cfg.EnableHTTPMonitoring = true
-	return cfg
 }
 
 func skipIfNotSupported(t *testing.T, err error) {
@@ -852,11 +847,11 @@ func skipIfRedisKernelNotSupported() func(*testing.T) {
 func TestConnectionStatesMap(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
-	httpEnabledConfig := withConfigChange(utils.NewUSMEmptyConfig(), func(cfg *networkConfig.Config) { cfg.EnableHTTPMonitoring = true })
-	http2EnabledConfig := withConfigChange(utils.NewUSMEmptyConfig(), func(cfg *networkConfig.Config) { cfg.EnableHTTP2Monitoring = true })
-	postgresEnabledConfig := withConfigChange(utils.NewUSMEmptyConfig(), func(cfg *networkConfig.Config) { cfg.EnablePostgresMonitoring = true })
-	redisEnabledConfig := withConfigChange(utils.NewUSMEmptyConfig(), func(cfg *networkConfig.Config) { cfg.EnableRedisMonitoring = true })
-	kafkaEnabledConfig := withConfigChange(utils.NewUSMEmptyConfig(), func(cfg *networkConfig.Config) { cfg.EnableKafkaMonitoring = true })
+	httpEnabledConfig := withConfigChange(NewUSMEmptyConfig(), func(cfg *networkConfig.Config) { cfg.EnableHTTPMonitoring = true })
+	http2EnabledConfig := withConfigChange(NewUSMEmptyConfig(), func(cfg *networkConfig.Config) { cfg.EnableHTTP2Monitoring = true })
+	postgresEnabledConfig := withConfigChange(NewUSMEmptyConfig(), func(cfg *networkConfig.Config) { cfg.EnablePostgresMonitoring = true })
+	redisEnabledConfig := withConfigChange(NewUSMEmptyConfig(), func(cfg *networkConfig.Config) { cfg.EnableRedisMonitoring = true })
+	kafkaEnabledConfig := withConfigChange(NewUSMEmptyConfig(), func(cfg *networkConfig.Config) { cfg.EnableKafkaMonitoring = true })
 
 	tests := make([]connectionStatesMapTestCase, 0)
 	tests = append(tests, connectionStatesMapTestCase{

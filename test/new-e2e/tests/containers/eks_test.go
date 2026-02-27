@@ -6,16 +6,21 @@
 package containers
 
 import (
+	_ "embed"
 	"regexp"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	sceneks "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	proveks "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/eks"
 )
+
+//go:embed values.yaml
+var containerHelmValues string
 
 type eksSuite struct {
 	k8sSuite
@@ -32,7 +37,14 @@ func TestEKSSuite(t *testing.T) {
 			),
 			sceneks.WithDeployDogstatsd(),
 			sceneks.WithDeployTestWorkload(),
-			sceneks.WithAgentOptions(kubernetesagentparams.WithDualShipping()),
+			sceneks.WithFakeIntakeOptions(
+				fakeintake.WithRetentionPeriod("31m"),
+			),
+			sceneks.WithAgentOptions(
+				kubernetesagentparams.WithDualShipping(),
+				kubernetesagentparams.WithWindowsImage(),
+				kubernetesagentparams.WithHelmValues(containerHelmValues),
+			),
 			sceneks.WithDeployArgoRollout(),
 		),
 	)))
@@ -270,4 +282,31 @@ func (suite *eksSuite) TestNginxFargate() {
 			Message: `GET / HTTP/1\.1`,
 		},
 	})
+}
+
+func (suite *eksSuite) TestHostTags() {
+	// tag keys that are expected to be found on any k8s env
+	args := &testHostTags{
+		// EKS suite run multiple hosts, with various OS, various CPU architecture
+		// The only common tags are: `stackid`, `kube_distribution`, `kube_node`, `orch_cluster_id`
+		//
+		// the below 4 tags should be present on all nodes
+		ExpectedTags: []string{
+			`^kube_distribution:eks$`,
+			`^kube_node:ip-([0-9]{1,3}-){3}[0-9]{1,3}\.ec2\.internal$`,
+			`^orch_cluster_id:[0-9a-f-]{36}$`,
+			`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+		},
+		// the below list of tags is from various hosts
+		// if the tag is present
+		OptionalTags: []string{
+			`^arch:(amd|arm)64$`,
+			`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+			`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+			`nodegroup-image:ami-[0-9a-f]{17}`,
+			`^os:linux$`,
+		},
+	}
+
+	suite.testHostTags(args)
 }

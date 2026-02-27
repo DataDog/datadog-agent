@@ -23,7 +23,7 @@ import (
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -62,7 +62,7 @@ func newAutoscalersController(client kubernetes.Interface,
 	// Setup the client to process the Ref and metrics
 	h.hpaProc = autoscalers.NewProcessor(dogCl)
 	datadogHPAConfigMap := custommetrics.GetConfigmapName()
-	h.store, err = custommetrics.NewConfigMapStore(client, common.GetResourcesNamespace(), datadogHPAConfigMap)
+	h.store, err = custommetrics.NewConfigMapStore(client, namespace.GetResourcesNamespace(), datadogHPAConfigMap)
 	if err != nil {
 		log.Errorf("Could not instantiate the local store for the External Metrics %v", err)
 		return nil, err

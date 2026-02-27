@@ -42,6 +42,9 @@ func (s *server) writeStats(w http.ResponseWriter, _ *http.Request) {
 	// Weird state that should not happen: dogstatsd is enabled
 	// but the server has not been successfully initialized.
 	// Return no data.
+	s.startedMtx.RLock()
+	defer s.startedMtx.RUnlock()
+
 	if !s.IsRunning() {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{}`))

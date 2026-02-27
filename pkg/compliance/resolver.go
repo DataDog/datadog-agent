@@ -36,8 +36,8 @@ import (
 
 	"github.com/shirou/gopsutil/v4/process"
 
-	yamlv2 "gopkg.in/yaml.v2"
-	yamlv3 "gopkg.in/yaml.v3"
+	yamlv2 "go.yaml.in/yaml/v2"
+	yamlv3 "go.yaml.in/yaml/v3"
 )
 
 // inputsResolveTimeout is the timeout that is applied for inputs resolution of one
@@ -85,6 +85,11 @@ type ResolverOptions struct {
 	// resolver (optional)
 	StatsdClient statsd.ClientInterface
 
+	// ReflectorStore contains kubernetes objects fetched using reflectors. This is
+	// used to avoid calling the kube API server with "list" operations that can
+	// return many objects and cause memory spikes.
+	ReflectorStore *ReflectorStore
+
 	DockerProvider
 	KubernetesProvider
 	LinuxAuditProvider
@@ -120,7 +125,7 @@ type fileMeta struct {
 
 // NewResolver returns the default inputs resolver that is able to resolve any
 // kind of supported inputs. It holds a small cache for loaded file metadata
-// and different client connexions that may be used for inputs resolution.
+// and different client connections that may be used for inputs resolution.
 func NewResolver(ctx context.Context, opts ResolverOptions) Resolver {
 	r := &defaultResolver{
 		opts: opts,
@@ -218,7 +223,7 @@ func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (Resolv
 			result, err = r.resolveDocker(ctx, *spec.Docker)
 		case spec.KubeApiserver != nil:
 			resultType = "kubernetes"
-			result, err = r.k8sapiserverResolver.resolveKubeApiserver(ctx, *spec.KubeApiserver)
+			result, err = r.k8sapiserverResolver.resolveKubeApiserver(ctx, rule.ID, *spec.KubeApiserver)
 			kubernetesCluster = r.k8sapiserverResolver.resolveKubeClusterID(ctx)
 		case spec.Package != nil:
 			resultType = "package"
@@ -734,8 +739,8 @@ func parseEnvironMap(envs, filteredEnvs []string) map[string]string {
 	for _, envValue := range envs {
 		for _, envName := range filteredEnvs {
 			prefix := envName + "="
-			if strings.HasPrefix(envValue, prefix) {
-				envsMap[envName] = strings.TrimPrefix(envValue, prefix)
+			if after, ok := strings.CutPrefix(envValue, prefix); ok {
+				envsMap[envName] = after
 			} else if envValue == envName {
 				envsMap[envName] = ""
 			}

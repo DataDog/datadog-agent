@@ -41,7 +41,11 @@ exceptions:
   - "golang.org/x/mod/..."
   - "golang.org/x/xerrors/..."
   - "github.com/stretchr/testify"
+  # Build tools, not embedded in the software
+  - "github.com/goware/modvendor"
+  - "github.com/go-enry/go-license-detector/..."
+
 
 additional:
   # list here paths to additional licenses
-  golang/go: "raw.githubusercontent.com/golang/go/go1.25.5/LICENSE"
+  golang/go: "raw.githubusercontent.com/golang/go/go1.25.7/LICENSE"

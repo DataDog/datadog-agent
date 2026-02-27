@@ -1,8 +1,67 @@
 # Global build settings
 
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
+load("@gazelle//:def.bzl", "gazelle")
 
 package(default_visibility = ["//visibility:public"])
+
+# TODO(agent-build): remove below `gazelle:exclude` directives and add corresponding paths to bazel/go.work
+# gazelle:exclude cmd
+# gazelle:exclude comp
+# gazelle:exclude internal/remote-agent
+# gazelle:exclude internal/third_party
+# gazelle:exclude internal/tools/gotest-custom
+# gazelle:exclude internal/tools/independent-lint
+# gazelle:exclude internal/tools/modformatter
+# gazelle:exclude pkg
+# gazelle:exclude rtloader/test
+# gazelle:exclude tasks
+# gazelle:exclude test
+# gazelle:exclude tools
+# gazelle:prefix github.com/DataDog/datadog-agent
+gazelle(
+    name = "gazelle",
+    args = ["-external=static"],  # don't use the network: https://github.com/bazel-contrib/bazel-gazelle/issues/1385
+)
+
+# bazel run //:go -- ...
+alias(
+    name = "go",
+    actual = "@rules_go//go",
+)
+
+# bazel run //:go_mod_tidy_all -- -x
+alias(
+    name = "go_mod_tidy_all",
+    actual = "//bazel/tools:go_mod_tidy_all",
+)
+
+run_binary(
+    name = "gen_go_work",
+    srcs = [
+        ":go.work",
+        ":modules.yml",
+    ],
+    outs = ["go.work.new"],
+    args = [
+        "--path",
+        "$(location go.work)",
+        "--modules-file",
+        "$(location modules.yml)",
+        "--output",
+        "$(location go.work.new)",
+    ],
+    tool = "//internal/tools/worksynchronizer",
+)
+
+# bazel run //:write_go_work
+write_source_file(
+    name = "write_go_work",
+    in_file = ":gen_go_work",
+    out_file = "go.work",
+)
 
 filegroup(
     name = "python_version",
@@ -65,6 +124,18 @@ string_flag(
     name = "install_dir",
     build_setting_default = "/opt/datadog-agent",
     make_variable = "INSTALL_DIR",
+)
+
+# Configuration value to determine if we are using the standard install path.
+# This can be used to detect custom builds, where we might not to create some pieces.
+# Currently this is used only for installer symlinks. It is likely that we should not
+# continue to do that. My hunch is that it was only done to prevent disk stomping in
+# developer builds.
+config_setting(
+    name = "is_standard_install",
+    flag_values = {
+        "//:install_dir": "/opt/datadog-agent",
+    },
 )
 
 # This seems to be the base of where to write config files during

@@ -1,11 +1,10 @@
-load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
-load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(default_package_metadata = [":license"])
 
@@ -110,7 +109,6 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-
 cc_library(
     name = "libxmlsec1-openssl",
     srcs = [
@@ -143,8 +141,8 @@ cc_library(
     deps = [
         "@libxslt//:libxslt",
         "@libxml2//:libxml2",
-        "@openssl//:openssl",
-        ":libxmlsec1"
+        "@openssl",
+        ":libxmlsec1",
     ],
     defines = [
         "XMLSEC_NO_FTP=1",
@@ -173,8 +171,15 @@ cc_shared_library(
     dynamic_deps = [
         "@libxslt//:xslt",
         "@libxml2//:xml2",
+        "@openssl//:openssl_shared",
         ":xmlsec1",
     ],
+    user_link_flags = select({
+        "@platforms//os:linux": [
+            "-Wl,-rpath=/opt/datadog-agent/embedded/lib",
+        ],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:public"],
 )
 
@@ -195,7 +200,7 @@ so_symlink(
 pkg_files(
     name = "headers_files",
     srcs = PUBLIC_HEADERS,
-    prefix = "include/xmlsec1/xmlsec"
+    prefix = "include/xmlsec1/xmlsec",
 )
 
 pkg_files(
@@ -204,40 +209,21 @@ pkg_files(
     prefix = "include/xmlsec1/xmlsec/openssl",
 )
 
-expand_template(
-    name = "fixup_pc_xmlsec",
-    template = "xmlsec1.pc",
-    out = "fixed/xmlsec1.pc",
-    substitutions = {
-        "prefix=/usr": "prefix=##PREFIX##",
-    },
-)
-
-expand_template(
-    name = "fixup_pc_xmlsec_openssl",
-    template = "xmlsec1-openssl.pc",
-    out = "fixed/xmlsec1-openssl.pc",
-    substitutions = {
-        "prefix=/usr": "prefix=##PREFIX##",
-    },
-)
-
-pkg_files(
-    name = "pc_files",
-    srcs = [
-        ":fixup_pc_xmlsec",
-        ":fixup_pc_xmlsec_openssl",
-    ],
-    prefix = "lib/pkgconfig",
-)
-
-pkg_install(
-    name = "install",
+pkg_filegroup(
+    name = "all_files",
     srcs = [
         ":headers_files",
         ":openssl_headers_files",
         ":libxmlsec_files",
         ":libxmlsec_openssl_files",
-        ":pc_files",
+    ],
+    prefix = "embedded",
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
     ],
 )

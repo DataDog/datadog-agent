@@ -18,7 +18,7 @@ import (
 	"strings"
 
 	"go.uber.org/fx"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -166,8 +166,8 @@ func (or *multiFilesOIDResolver) updateFromFile(filePath string) error {
 		return err
 	}
 	defer fileReader.Close()
-	if strings.HasSuffix(filePath, ".gz") {
-		filePath = strings.TrimSuffix(filePath, ".gz")
+	if before, ok := strings.CutSuffix(filePath, ".gz"); ok {
+		filePath = before
 		uncompressor, err := gzip.NewReader(fileReader)
 		if err != nil {
 			return fmt.Errorf("unable to uncompress gzip file %s", filePath)

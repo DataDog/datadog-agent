@@ -4,26 +4,26 @@ Description=Datadog Distribution of OpenTelemetry Collector
 After=datadog-agent.service datadog-agent-exp.service
 BindsTo=datadog-agent.service
 Conflicts=datadog-agent-exp.service datadog-agent-ddot-exp.service
-ConditionPathExists={{.InstallDir}}/embedded/bin/otel-agent
 {{- else}}
 Description=Datadog Distribution of OpenTelemetry Collector Experiment
 After=datadog-agent.service datadog-agent-exp.service
 BindsTo=datadog-agent-exp.service
 Conflicts=datadog-agent.service datadog-agent-ddot.service
-ConditionPathExists={{.InstallDir}}/embedded/bin/otel-agent
 {{- end}}
+ConditionPathExists={{.InstallDir}}/ext/ddot/embedded/bin/otel-agent
 
 [Service]
 Type=simple
 PIDFile={{.PIDDir}}/run/otel-agent.pid
 User=dd-agent
 Restart=on-failure
+RestartSec=2
 EnvironmentFile=-{{.EtcDir}}/environment
 Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
 {{- if not .Stable}}
 Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
 {{- end}}
-ExecStart={{.InstallDir}}/embedded/bin/otel-agent run --config {{.EtcDir}}/otel-config.yaml --core-config {{.EtcDir}}/datadog.yaml --pidfile {{.PIDDir}}/run/otel-agent.pid
+ExecStart={{.InstallDir}}/ext/ddot/embedded/bin/otel-agent run --config {{.EtcDir}}/otel-config.yaml --core-config {{.EtcDir}}/datadog.yaml --pidfile {{.PIDDir}}/run/otel-agent.pid
 StartLimitInterval=10
 StartLimitBurst=5
 

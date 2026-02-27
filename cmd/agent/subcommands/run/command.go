@@ -91,7 +91,6 @@ import (
 	flareprofiler "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	remoteagentregistryfx "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/fx"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -112,6 +111,7 @@ import (
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/fx"
 	fleetfx "github.com/DataDog/datadog-agent/comp/fleetstatus/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -120,6 +120,7 @@ import (
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	healthplatformfx "github.com/DataDog/datadog-agent/comp/healthplatform/fx"
+	healthplatformimpl "github.com/DataDog/datadog-agent/comp/healthplatform/impl"
 	hostProfilerFlareFx "github.com/DataDog/datadog-agent/comp/host-profiler/flare/fx"
 	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl"
@@ -133,7 +134,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryotel"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	securityagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/securityagent/def"
@@ -171,7 +171,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -224,7 +223,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.LogFile),
 			}),
-			secretsfx.Module(),
 			fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 			logging.EnableFxLoggingOnDebug[log.Component](),
 			fxinstrumentation.Module(),
@@ -256,7 +254,7 @@ func run(log log.Component,
 	cfg config.Component,
 	flare flare.Component,
 	telemetry telemetry.Component,
-	_ sysprobeconfig.Component,
+	sysprobeConf sysprobeconfig.Component,
 	server dogstatsdServer.Component,
 	_ replay.Component,
 	_ defaultforwarder.Component,
@@ -275,7 +273,6 @@ func run(log log.Component,
 	_ host.Component,
 	_ inventoryagent.Component,
 	_ inventoryhost.Component,
-	_ inventoryotel.Component,
 	_ haagentmetadata.Component,
 	_ secrets.Component,
 	invChecks inventorychecks.Component,
@@ -299,14 +296,14 @@ func run(log log.Component,
 	_ option.Option[gui.Component],
 	agenttelemetryComponent agenttelemetry.Component,
 	_ diagnose.Component,
-	_ healthplatform.Component,
+	healthplatformComp healthplatform.Component,
 	hostname hostnameinterface.Component,
 	ipc ipc.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
 ) error {
 	defer func() {
-		stopAgent()
+		stopAgent(cfg, sysprobeConf)
 	}()
 
 	// Setup a channel to catch OS signals
@@ -358,6 +355,7 @@ func run(log log.Component,
 		logReceiver,
 		collector,
 		cfg,
+		sysprobeConf,
 		jmxlogger,
 		settings,
 		agenttelemetryComponent,
@@ -365,6 +363,7 @@ func run(log log.Component,
 		ipc,
 		snmpScanManager,
 		traceroute,
+		healthplatformComp,
 	); err != nil {
 		return err
 	}
@@ -400,7 +399,7 @@ func getSharedFxOption() fx.Option {
 			defaultpaths.DogstatsDLogFile,
 			defaultpaths.StreamlogsLogFile,
 		)),
-		core.Bundle(),
+		core.Bundle(core.WithSecrets()),
 		hostnameimpl.Module(),
 		flareprofiler.Module(),
 		fx.Provide(func(cfg config.Component) flaretypes.Provider {
@@ -447,6 +446,7 @@ func getSharedFxOption() fx.Option {
 		apiimpl.Module(),
 		grpcAgentfx.Module(),
 		commonendpoints.Module(),
+		filterlist.Module(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig())),
 		demultiplexerendpointfx.Module(),
 		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
@@ -480,11 +480,11 @@ func getSharedFxOption() fx.Option {
 		// Workloadmeta component needs to be initialized before this hook is executed, and thus is included
 		// in the function args to order the execution. This pattern might be worth revising because it is
 		// error prone.
-		fx.Invoke(func(lc fx.Lifecycle, wmeta workloadmeta.Component, tagger tagger.Component, filterStore workloadfilter.Component, ac autodiscovery.Component, secretResolver secrets.Component) {
+		fx.Invoke(func(lc fx.Lifecycle, wmeta workloadmeta.Component, tagger tagger.Component, filterStore workloadfilter.Component, ac autodiscovery.Component, secretResolver secrets.Component, cfg config.Component) {
 			lc.Append(fx.Hook{
 				OnStart: func(_ context.Context) error {
 					//  setup the AutoConfig instance
-					common.LoadComponents(secretResolver, wmeta, tagger, filterStore, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
+					common.LoadComponents(secretResolver, wmeta, tagger, filterStore, ac, cfg.GetString("confd_path"))
 					return nil
 				},
 			})
@@ -538,7 +538,9 @@ func getSharedFxOption() fx.Option {
 					"multi_region_failover.failover_metrics": internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_metrics", "Enable/disable redirection of metrics to failover region."),
 					"multi_region_failover.failover_logs":    internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_logs", "Enable/disable redirection of logs to failover region."),
 					"multi_region_failover.failover_apm":     internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_apm", "Enable/disable redirection of APM to failover region."),
+					"multi_region_failover.metric_allowlist": internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.metric_allowlist", "Allowlist of metrics to be redirected to failover region."),
 					"internal_profiling":                     commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent"),
+					"dogstatsd_stream_log_too_big":           commonsettings.NewDogstatsdStreamLogTooBigSetting(),
 				},
 				Config: config,
 			}
@@ -579,6 +581,7 @@ func startAgent(
 	logReceiver option.Option[integrations.Component],
 	collectorComponent collector.Component,
 	cfg config.Component,
+	sysprobeConf sysprobeconfig.Component,
 	jmxLogger jmxlogger.Component,
 	settings settings.Component,
 	agenttelemetryComponent agenttelemetry.Component,
@@ -586,6 +589,7 @@ func startAgent(
 	ipc ipc.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
+	healthplatformComp healthplatform.Component,
 ) error {
 	var err error
 
@@ -600,17 +604,17 @@ func startAgent(
 		log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 	}
 
-	if err := coredump.Setup(pkgconfigsetup.Datadog()); err != nil {
+	if err := coredump.Setup(cfg); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
-	if v := pkgconfigsetup.Datadog().GetBool("internal_profiling.capture_all_allocations"); v {
+	if v := cfg.GetBool("internal_profiling.capture_all_allocations"); v {
 		runtime.MemProfileRate = 1
 		log.Infof("MemProfileRate set to 1, capturing every single memory allocation!")
 	}
 
 	// Setup Internal Profiling
-	common.SetupInternalProfiling(settings, pkgconfigsetup.Datadog(), "")
+	common.SetupInternalProfiling(settings, cfg, "")
 
 	ctx, _ := pkgcommon.GetMainCtxCancel()
 
@@ -634,7 +638,7 @@ func startAgent(
 		actionsController := datastreams.NewActionsController(ac, rcclient)
 		ac.AddConfigProvider(actionsController, false, 0)
 
-		if pkgconfigsetup.Datadog().GetBool("remote_configuration.agent_integrations.enabled") {
+		if cfg.GetBool("remote_configuration.agent_integrations.enabled") {
 			// Spin up the config provider to schedule integrations through remote-config
 			rcProvider := providers.NewRemoteConfigProvider()
 			rcclient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
@@ -645,7 +649,7 @@ func startAgent(
 
 	// start clc runner server
 	// only start when the cluster agent is enabled and a cluster check runner host is enabled
-	if pkgconfigsetup.Datadog().GetBool("cluster_agent.enabled") && pkgconfigsetup.Datadog().GetBool("clc_runner_enabled") {
+	if cfg.GetBool("cluster_agent.enabled") && cfg.GetBool("clc_runner_enabled") {
 		if err = clcrunnerapi.StartCLCRunnerServer(map[string]http.Handler{
 			"/telemetry": telemetryHandler,
 		}, ac, ipc); err != nil {
@@ -654,7 +658,7 @@ func startAgent(
 	}
 
 	// Create the Leader election engine without initializing it
-	if pkgconfigsetup.Datadog().GetBool("leader_election") {
+	if cfg.GetBool("leader_election") {
 		leaderelection.CreateGlobalLeaderEngine(ctx)
 	}
 
@@ -713,21 +717,28 @@ func startAgent(
 		return firewallscanner.Diagnose(cfg)
 	})
 
+	diagnosecatalog.Register(diagnose.HealthPlatformIssues, func(diagCfg diagnose.Config) []diagnose.Diagnosis {
+		if !cfg.GetBool("health_platform.enabled") {
+			return nil
+		}
+		return healthplatformimpl.Diagnose(healthplatformComp, diagCfg)
+	})
+
 	// start dependent services
 	// must run in background go command because the agent might be in service start pending
 	// and not service running yet, and as such, the call will block or fail
-	go startDependentServices()
+	go startDependentServices(cfg, sysprobeConf)
 
 	return nil
 }
 
 // StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
-func StopAgentWithDefaults() {
-	stopAgent()
+func StopAgentWithDefaults(cfg config.Component, sysprobeConf sysprobeconfig.Component) {
+	stopAgent(cfg, sysprobeConf)
 }
 
 // stopAgent Tears down the agent process
-func stopAgent() {
+func stopAgent(cfg config.Component, sysprobeConf sysprobeconfig.Component) {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
@@ -747,7 +758,7 @@ func stopAgent() {
 	cancel()
 
 	// shutdown dependent services
-	stopDependentServices()
+	stopDependentServices(cfg, sysprobeConf)
 
 	pkglog.Info("See ya!")
 	pkglog.Flush()

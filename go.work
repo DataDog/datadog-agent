@@ -1,4 +1,4 @@
-go 1.25.5
+go 1.25.7
 
 // Disable new post-quantum key exchange mechanism X25519MLKEM768
 // See https://github.com/DataDog/datadog-agent/issues/34323 for historical context.
@@ -13,6 +13,8 @@ use (
 	comp/core/agenttelemetry/impl
 	comp/core/config
 	comp/core/configsync
+	comp/core/delegatedauth
+	comp/core/delegatedauth/api/cloudauth/aws
 	comp/core/flare/builder
 	comp/core/flare/types
 	comp/core/hostname/hostnameinterface
@@ -47,6 +49,7 @@ use (
 	comp/def
 	comp/forwarder/defaultforwarder
 	comp/forwarder/orchestrator/orchestratorinterface
+	comp/logs-library
 	comp/logs/agent/config
 	comp/netflow/payload
 	comp/otelcol/collector-contrib/def
@@ -84,6 +87,7 @@ use (
 	pkg/aggregator/ckey
 	pkg/api
 	pkg/collector/check/defaults
+	pkg/config/basic
 	pkg/config/create
 	pkg/config/env
 	pkg/config/helper
@@ -100,7 +104,6 @@ use (
 	pkg/fips
 	pkg/fleet/installer
 	pkg/gohai
-	pkg/linters/components/pkgconfigusage
 	pkg/logs/client
 	pkg/logs/diagnostic
 	pkg/logs/message
@@ -140,6 +143,11 @@ use (
 	pkg/telemetry
 	pkg/template
 	pkg/trace
+	pkg/trace/log
+	pkg/trace/otel
+	pkg/trace/stats
+	pkg/trace/traceutil
+	pkg/util/aws/creds
 	pkg/util/backoff
 	pkg/util/buf
 	pkg/util/cache
@@ -158,6 +166,7 @@ use (
 	pkg/util/http
 	pkg/util/json
 	pkg/util/jsonquery
+	pkg/util/kubernetes/apiserver/common/namespace
 	pkg/util/log
 	pkg/util/log/setup
 	pkg/util/option
@@ -171,7 +180,6 @@ use (
 	pkg/util/startstop
 	pkg/util/statstracker
 	pkg/util/system
-	pkg/util/system/socket
 	pkg/util/testutil
 	pkg/util/utilizationtracker
 	pkg/util/uuid

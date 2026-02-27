@@ -45,7 +45,7 @@ type trapsConfig struct {
 // we can't use pkg/config/mock here because that package depends upon this one, so
 // this avoids a circular dependency
 func newEmptyMockConf(_ *testing.T) model.BuildableConfig {
-	cfg := create.NewConfig("test")
+	cfg := create.NewConfig("test", "")
 	cfg.SetTestOnlyDynamicSchema(true)
 	return cfg
 }
@@ -1348,7 +1348,7 @@ service:
   foo: bar
 `,
 			wantErr: true,
-			errMsg:  "'' has invalid keys: apikey, foo, name",
+			errMsg:  "has invalid keys: apikey, foo, name",
 		},
 	}
 

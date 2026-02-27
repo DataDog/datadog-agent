@@ -7,11 +7,13 @@ package uptane
 
 import (
 	"fmt"
+	"slices"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/pkg/errors"
 	"go.etcd.io/bbolt"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // dbBucket contains the data of the bucket
@@ -287,7 +289,7 @@ func (t *transaction) get(bucketName string, path string) ([]byte, error) {
 		if bucket == nil {
 			return nil
 		}
-		data = bucket.Get([]byte(path))
+		data = slices.Clone(bucket.Get([]byte(path)))
 		return nil
 	})
 

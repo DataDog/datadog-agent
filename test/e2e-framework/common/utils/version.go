@@ -12,8 +12,8 @@ import "strings"
 // only the version part (e.g., "v1.32.0").
 func ParseKubernetesVersion(version string) string {
 	// Split on @ to remove any SHA suffix
-	if idx := strings.Index(version, "@"); idx != -1 {
-		return version[:idx]
+	if before, _, ok := strings.Cut(version, "@"); ok {
+		return before
 	}
 	return version
 }

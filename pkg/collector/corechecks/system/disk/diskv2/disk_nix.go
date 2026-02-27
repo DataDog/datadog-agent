@@ -49,6 +49,13 @@ func normalizeDeviceTag(deviceName string) string {
 	return deviceName
 }
 
+// isExpectedIOCounterError returns true for errors that are expected and
+// non-fatal for IO counter collection. On Linux/Unix, no such errors are
+// expected so this always returns false.
+func isExpectedIOCounterError(_ error) bool {
+	return false
+}
+
 func (c *Check) configureCreateMounts() {
 }
 
@@ -326,8 +333,8 @@ func (r *rootFsDeviceFinder) askSysDevBlock() (string, error) {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Text()
-		if strings.HasPrefix(line, "DEVNAME=") {
-			name := strings.TrimPrefix(line, "DEVNAME=")
+		if after, ok := strings.CutPrefix(line, "DEVNAME="); ok {
+			name := after
 			if name != "" {
 				return "/dev/" + name, nil
 			}

@@ -200,6 +200,7 @@ require.Equal(t, stats.get, stats.put)  // Balanced get/put
 - One per process, combines data from all streams
 - Generates process-level GPU utilization metrics
 - Tracks memory usage across allocations
+- Computes `ActiveTimePct` by merging kernel execution intervals
 
 ### systemContext (`context.go`)
 - Holds GPU device info (via NVML)
@@ -215,3 +216,22 @@ require.Equal(t, stats.get, stats.put)  // Balanced get/put
 - Safe wrapper around NVIDIA NVML library
 - Handles library loading, error recovery
 - Caches device info to reduce NVML calls
+
+---
+
+## Active Time Metrics (`sm_active` and `process.sm_active`)
+
+### Overview
+
+The GPU monitoring system emits two active time metrics:
+- **`process.sm_active`**: Per-process percentage of time the GPU had active kernels
+- **`sm_active`**: Device-wide percentage of time any GPU kernels were active
+
+Both are emitted with **Low priority** to serve as fallbacks when NVML or GPM-based metrics are unavailable.
+
+### How They Are Generated
+
+Active time is derived from kernel execution intervals captured within each collection window. The system merges overlapping intervals before computing the percentage of the window that was active.
+
+- **Per-process**: Merge intervals for a single process, then compute the percentage of the window that was active.
+- **Device-wide**: Merge intervals across all processes on the device, then compute the percentage of the window that was active.

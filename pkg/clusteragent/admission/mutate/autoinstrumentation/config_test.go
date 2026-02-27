@@ -36,6 +36,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 					"python": "v3",
 				},
 				InjectorImageTag: "foo",
+				InjectionMode:    "auto",
 			},
 		},
 		{
@@ -56,6 +57,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 					"python": "default",
 				},
 				InjectorImageTag: "foo",
+				InjectionMode:    "auto",
 			},
 		},
 		{
@@ -103,6 +105,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 						},
 					},
 				},
+				InjectionMode: "auto",
 			},
 		},
 		{
@@ -159,6 +162,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 						},
 					},
 				},
+				InjectionMode: "auto",
 			},
 		},
 		{
@@ -185,6 +189,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 						},
 					},
 				},
+				InjectionMode: "auto",
 			},
 		},
 		{

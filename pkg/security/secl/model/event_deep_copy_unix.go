@@ -78,6 +78,9 @@ func (e *Event) DeepCopy() *Event {
 	copied.UnshareMountNS = deepCopyUnshareMountNSEvent(e.UnshareMountNS)
 	copied.Utimes = deepCopyUtimesEvent(e.Utimes)
 	copied.VethPair = deepCopyVethPairEvent(e.VethPair)
+	// FieldHandlers is an interface that must be copied by reference (not deep copied)
+	// It provides access to shared resolvers needed for field resolution
+	copied.FieldHandlers = e.FieldHandlers
 	return copied
 }
 func deepCopyAcceptEvent(fieldToCopy AcceptEvent) AcceptEvent {
@@ -183,6 +186,7 @@ func deepCopyPIDContext(fieldToCopy PIDContext) PIDContext {
 	copied := PIDContext{}
 	copied.ExecInode = fieldToCopy.ExecInode
 	copied.IsKworker = fieldToCopy.IsKworker
+	copied.MntNS = fieldToCopy.MntNS
 	copied.NSID = fieldToCopy.NSID
 	copied.NetNS = fieldToCopy.NetNS
 	copied.Pid = fieldToCopy.Pid
@@ -286,8 +290,8 @@ func deepCopyArgsEntryPtr(fieldToCopy *ArgsEntry) *ArgsEntry {
 }
 func deepCopyCGroupContext(fieldToCopy CGroupContext) CGroupContext {
 	copied := CGroupContext{}
-	copied.CGroupFile = deepCopyPathKey(fieldToCopy.CGroupFile)
 	copied.CGroupID = fieldToCopy.CGroupID
+	copied.CGroupPathKey = deepCopyPathKey(fieldToCopy.CGroupPathKey)
 	copied.CGroupVersion = fieldToCopy.CGroupVersion
 	copied.Releasable = deepCopyReleasablePtr(fieldToCopy.Releasable)
 	return copied
@@ -311,7 +315,6 @@ func deepCopyContainerContext(fieldToCopy ContainerContext) ContainerContext {
 	copied.ContainerID = fieldToCopy.ContainerID
 	copied.CreatedAt = fieldToCopy.CreatedAt
 	copied.Releasable = deepCopyReleasablePtr(fieldToCopy.Releasable)
-	copied.Resolved = fieldToCopy.Resolved
 	copied.Tags = deepCopystringArr(fieldToCopy.Tags)
 	return copied
 }
@@ -430,6 +433,7 @@ func deepCopySSHSessionContext(fieldToCopy SSHSessionContext) SSHSessionContext 
 	copied.SSHAuthMethod = fieldToCopy.SSHAuthMethod
 	copied.SSHClientIP = fieldToCopy.SSHClientIP
 	copied.SSHClientPort = fieldToCopy.SSHClientPort
+	copied.SSHDPid = fieldToCopy.SSHDPid
 	copied.SSHPublicKey = fieldToCopy.SSHPublicKey
 	copied.SSHSessionID = fieldToCopy.SSHSessionID
 	return copied
@@ -853,6 +857,7 @@ func deepCopyMount(fieldToCopy Mount) Mount {
 func deepCopyMountReleasedEvent(fieldToCopy MountReleasedEvent) MountReleasedEvent {
 	copied := MountReleasedEvent{}
 	copied.MountID = fieldToCopy.MountID
+	copied.MountIDUnique = fieldToCopy.MountIDUnique
 	return copied
 }
 func deepCopyNetDeviceEvent(fieldToCopy NetDeviceEvent) NetDeviceEvent {

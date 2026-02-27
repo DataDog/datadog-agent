@@ -16,7 +16,7 @@ script
   #
   # setuid is not available in versions of upstart before 1.4. CentOS/RHEL6 use an earlier version of upstart.
   # This is the best way to set the user in the absence of setuid.
-  exec su -s /bin/sh -c 'DD_LOG_TO_CONSOLE=false exec "$0" "$@"' dd-agent -- {install_dir}/embedded/bin/agent-data-plane run --config {etc_dir}/datadog.yaml --pidfile {install_dir}/run/agent-data-plane.pid &>> /var/log/datadog/data-plane-errors.log
+  exec su -s /bin/sh -c 'DD_LOG_TO_CONSOLE=false exec "$0" "$@"' dd-agent -- {install_dir}/embedded/bin/agent-data-plane --config {etc_dir}/datadog.yaml run --pidfile {install_dir}/run/agent-data-plane.pid &>> /var/log/datadog/data-plane-errors.log
 end script
 
 pre-start script

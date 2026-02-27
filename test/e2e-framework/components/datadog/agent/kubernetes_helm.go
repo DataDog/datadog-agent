@@ -10,8 +10,8 @@ import (
 	"os"
 	"strings"
 
+	"go.yaml.in/yaml/v3"
 	"golang.org/x/exp/maps"
-	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
@@ -69,6 +69,10 @@ type HelmInstallationArgs struct {
 	FIPS bool
 	// JMX is used to deploy the agent with the JMX agent image
 	JMX bool
+	// WindowsImage is used to use Windows-compatible image (multi-arch with Windows)
+	WindowsImage bool
+	// TimeoutSeconds is the timeout for Helm operations in seconds (default: 300)
+	TimeoutSeconds int
 }
 
 type HelmComponent struct {
@@ -147,7 +151,7 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 	}
 
 	// Compute some values
-	agentImagePath := dockerAgentFullImagePath(e, "", "", args.OTelAgent, args.FIPS, args.JMX)
+	agentImagePath := dockerAgentFullImagePath(e, "", "", args.OTelAgent, args.FIPS, args.JMX, args.WindowsImage)
 	if args.AgentFullImagePath != "" {
 		agentImagePath = args.AgentFullImagePath
 	}
@@ -182,7 +186,7 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 	values.configureImagePullSecret(imgPullSecret)
 	values.configureFakeintake(e, args.Fakeintake, args.DualShipping)
 
-	defaultYAMLValues := values.toYAMLPulumiAssetOutput()
+	defaultYAMLValues := values.ToYAMLPulumiAssetOutput()
 
 	var valuesYAML pulumi.AssetOrArchiveArray
 	valuesYAML = append(valuesYAML, defaultYAMLValues)
@@ -205,12 +209,13 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 	}
 
 	linux, err := helm.NewInstallation(e, helm.InstallArgs{
-		RepoURL:     args.RepoURL,
-		ChartName:   args.ChartPath,
-		InstallName: linuxInstallName,
-		Namespace:   args.Namespace,
-		ValuesYAML:  valuesYAML,
-		Version:     pulumi.String(HelmVersion),
+		RepoURL:        args.RepoURL,
+		ChartName:      args.ChartPath,
+		InstallName:    linuxInstallName,
+		Namespace:      args.Namespace,
+		ValuesYAML:     valuesYAML,
+		Version:        pulumi.String(HelmVersion),
+		TimeoutSeconds: args.TimeoutSeconds,
 	}, opts...)
 	if err != nil {
 		return nil, err
@@ -228,7 +233,7 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 		values := buildWindowsHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentImagePath, clusterAgentImageTag)
 		values.configureImagePullSecret(imgPullSecret)
 		values.configureFakeintake(e, args.Fakeintake, args.DualShipping)
-		defaultYAMLValues := values.toYAMLPulumiAssetOutput()
+		defaultYAMLValues := values.ToYAMLPulumiAssetOutput()
 
 		var windowsValuesYAML pulumi.AssetOrArchiveArray
 		windowsValuesYAML = append(windowsValuesYAML, defaultYAMLValues)
@@ -284,9 +289,6 @@ func buildLinuxHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentI
 			"appKeyExistingSecret":   pulumi.String(baseName + "-datadog-credentials"),
 			"leaderElectionResource": pulumi.String(""),
 			"checksCardinality":      pulumi.String("high"),
-			"namespaceLabelsAsTags": pulumi.Map{
-				"related_team": pulumi.String("team"),
-			},
 			"namespaceAnnotationsAsTags": pulumi.Map{
 				"related_email": pulumi.String("email"), // should be overridden by kubernetesResourcesAnnotationsAsTags
 			},
@@ -553,6 +555,12 @@ func buildLinuxHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentI
 					"name":  pulumi.String("DD_ADMISSION_CONTROLLER_AGENT_SIDECAR_KUBELET_API_LOGGING_ENABLED"),
 					"value": pulumi.String("true"),
 				},
+				// Use NoOpResolver for injector version in e2e (avoids gradual rollout / bucket tag resolver).
+				// Override in test Helm values (clusterAgent.env) to "true" to exercise gradual rollout.
+				pulumi.StringMap{
+					"name":  pulumi.String("DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_GRADUAL_ROLLOUT_ENABLED"),
+					"value": pulumi.String("false"),
+				},
 			},
 		},
 		"clusterChecksRunner": pulumi.Map{
@@ -675,6 +683,106 @@ func buildLinuxHelmValuesAutopilot(baseName, agentImagePath, agentImageTag, clus
 	}
 }
 
+// BuildOpenShiftHelmValues returns Helm values for deploying the agent on OpenShift clusters.
+func BuildOpenShiftHelmValues() HelmValues {
+	return HelmValues{
+		"datadog": pulumi.Map{
+			"kubelet": pulumi.Map{
+				"tlsVerify": pulumi.Bool(false),
+			},
+			// https://docs.datadoghq.com/containers/troubleshooting/admission-controller/?tab=helm#openshift
+			"apm": pulumi.Map{
+				"portEnabled": pulumi.Bool(true),
+			},
+			"sbom": pulumi.Map{
+				"containerImage": pulumi.Map{
+					"enabled":             pulumi.Bool(true),
+					"overlayFSDirectScan": pulumi.Bool(true),
+				},
+			},
+			"criSocketPath": pulumi.String("/var/run/crio/crio.sock"),
+			"useHostPID":    pulumi.Bool(true),
+			"originDetectionUnified": pulumi.Map{
+				"enabled": pulumi.Bool(true),
+			},
+			"dogstatsd": pulumi.Map{
+				"originDetection": pulumi.Bool(true),
+				"tagCardinality":  pulumi.String("high"),
+			},
+		},
+		"agents": pulumi.Map{
+			"enabled": pulumi.Bool(true),
+			"tolerations": pulumi.MapArray{
+				// Deploy Agents on master nodes
+				pulumi.Map{
+					"effect":   pulumi.String("NoSchedule"),
+					"key":      pulumi.String("node-role.kubernetes.io/master"),
+					"operator": pulumi.String("Exists"),
+				},
+				// Deploy Agents on infra nodes
+				pulumi.Map{
+					"effect":   pulumi.String("NoSchedule"),
+					"key":      pulumi.String("node-role.kubernetes.io/infra"),
+					"operator": pulumi.String("Exists"),
+				},
+				// Tolerate disk pressure
+				pulumi.Map{
+					"effect":   pulumi.String("NoSchedule"),
+					"key":      pulumi.String("node.kubernetes.io/disk-pressure"),
+					"operator": pulumi.String("Exists"),
+				},
+			},
+			"useHostNetwork": pulumi.Bool(true),
+			"replicas":       pulumi.Int(1),
+			"podSecurity": pulumi.Map{
+				"securityContextConstraints": pulumi.Map{
+					"create": pulumi.Bool(true),
+				},
+			},
+			"volumeMounts": pulumi.MapArray{
+				pulumi.Map{
+					"name":      pulumi.String("trivycache"),
+					"mountPath": pulumi.String("/root/.cache/trivy"),
+				},
+				pulumi.Map{
+					"name":      pulumi.String("imageoverlay"),
+					"mountPath": pulumi.String("/var/lib/containers/storage"),
+				},
+			},
+			"volumes": pulumi.MapArray{
+				pulumi.Map{
+					"name":     pulumi.String("trivycache"),
+					"emptyDir": pulumi.Map{},
+				},
+				pulumi.Map{
+					"name": pulumi.String("imageoverlay"),
+					"hostPath": pulumi.Map{
+						"path": pulumi.String("/var/lib/containers/storage"),
+					},
+				},
+			},
+		},
+		"clusterAgent": pulumi.Map{
+			"resources": pulumi.StringMapMap{
+				"limits": pulumi.StringMap{
+					"cpu":    pulumi.String("300m"),
+					"memory": pulumi.String("400Mi"),
+				},
+				"requests": pulumi.StringMap{
+					"cpu":    pulumi.String("150m"),
+					"memory": pulumi.String("300Mi"),
+				},
+			},
+			"enabled": pulumi.Bool(true),
+			"podSecurity": pulumi.Map{
+				"securityContextConstraints": pulumi.Map{
+					"create": pulumi.Bool(true),
+				},
+			},
+		},
+	}
+}
+
 func buildWindowsHelmValues(baseName string, agentImagePath, agentImageTag, _, _ string) HelmValues {
 	return HelmValues{
 		"targetSystem": pulumi.String("windows"),
@@ -732,7 +840,7 @@ func (values HelmValues) configureImagePullSecret(secret *corev1.Secret) {
 		return
 	}
 
-	for _, section := range []string{"agents", "clusterAgent", "clusterChecksRunner"} {
+	for _, section := range []string{"agents", "clusterAgent", "clusterChecksRunner", "otelAgentGateway"} {
 		if _, ok := values[section].(pulumi.Map); !ok {
 			continue
 		}
@@ -792,15 +900,15 @@ func (values HelmValues) configureFakeintake(e config.Env, fakeintake *fakeintak
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_CONTAINER_IMAGE_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s"}]`, fakeintake.Host),
+				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fakeintake.Host, useSSL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_CONTAINER_LIFECYCLE_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s"}]`, fakeintake.Host),
+				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fakeintake.Host, useSSL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_SBOM_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s"}]`, fakeintake.Host),
+				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fakeintake.Host, useSSL),
 			},
 		}
 	} else {
@@ -874,7 +982,7 @@ func (values HelmValues) configureFakeintake(e config.Env, fakeintake *fakeintak
 	}
 }
 
-func (values HelmValues) toYAMLPulumiAssetOutput() pulumi.AssetOutput {
+func (values HelmValues) ToYAMLPulumiAssetOutput() pulumi.AssetOutput {
 	return pulumi.Map(values).ToMapOutput().ApplyT(func(v map[string]any) (pulumi.Asset, error) {
 		yamlValues, err := yaml.Marshal(v)
 		if err != nil {

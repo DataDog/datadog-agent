@@ -1,8 +1,3 @@
-trap {
-    Write-Host "trap: $($_.InvocationInfo.Line.Trim()) - $_" -ForegroundColor Yellow
-    continue
-}
-
 <#
 .SYNOPSIS
 Copies files from C:\mnt into C:\buildroot\datadog-agent and sets the current directory to the buildroot.
@@ -301,19 +296,30 @@ function Invoke-BuildScript {
         }
 
         if ($BuildOutOfSource) {
+            # Expand modcache from c:\mnt to avoid needlessly xcopy'ing large tarballs
+            if ($InstallDeps) {
+                Expand-ModCache -root "c:\mnt" -modcache modcache
+            }
+            if ($InstallTestingDeps) {
+                Expand-ModCache -root "c:\mnt" -modcache modcache_tools
+            }
             Enter-BuildRoot
         } else {
             Enter-RepoRoot
+            # Expand modcache from current directory otherwise
+            if ($InstallDeps) {
+                Expand-ModCache -modcache modcache
+            }
+            if ($InstallTestingDeps) {
+                Expand-ModCache -modcache modcache_tools
+            }
         }
 
         Enable-DevEnv
 
-        # Expand modcache
-        if ($InstallDeps) {
-            Expand-ModCache -modcache modcache
-        }
-        if ($InstallTestingDeps) {
-            Expand-ModCache -modcache modcache_tools
+        # Initialize CI identity if running in CI environment
+        if ($env:CI) {
+            Initialize-CIIdentity
         }
 
         # Install deps
@@ -347,3 +353,24 @@ function Invoke-BuildScript {
         }
     }
 }
+
+<#
+.SYNOPSIS
+Downloads the CI identity client and assumes the CI Identity IAM role.
+
+.DESCRIPTION
+This function downloads the CI identity client from S3 and uses it to assume the CI Identity IAM role.
+It is typically called in CI environments to authenticate with AWS services.
+
+.NOTES
+This function requires AWS CLI to be available and properly configured.
+#>
+function Initialize-CIIdentity() {
+    Write-Host "Assuming CI role..."
+    C:\devtools\ci-identities-gitlab-job-client.exe assume-role
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to assume CI role (exit code: $LASTEXITCODE)"
+        exit 1
+    }
+}
+

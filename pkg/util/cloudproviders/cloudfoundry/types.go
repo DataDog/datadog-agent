@@ -475,8 +475,8 @@ func getVcapApplicationMap(vcap string) (map[string]string, error) {
 
 func extractTagsFromAppMeta(meta map[string]string) (tags []string) {
 	for k, v := range meta {
-		if strings.HasPrefix(k, AutodiscoveryTagsMetaPrefix) {
-			tags = append(tags, fmt.Sprintf("%s:%s", strings.TrimPrefix(k, AutodiscoveryTagsMetaPrefix), v))
+		if after, ok := strings.CutPrefix(k, AutodiscoveryTagsMetaPrefix); ok {
+			tags = append(tags, fmt.Sprintf("%s:%s", after, v))
 		}
 	}
 	return

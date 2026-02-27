@@ -471,7 +471,7 @@ func TestCreateDDSketchFromHistogramOfDuration(t *testing.T) {
 			}
 
 			// Test the function
-			sketch, err := CreateDDSketchFromHistogramOfDuration(dp, tt.unit)
+			sketch, err := CreateDDSketchFromHistogramOfDuration(&dp, tt.unit)
 			if tt.hasError {
 				assert.Error(t, err)
 				return
@@ -496,6 +496,15 @@ func TestCreateDDSketchFromHistogramOfDuration(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCreateDDSketchFromHistogramOfDuration_Nil(t *testing.T) {
+	sketch, err := CreateDDSketchFromHistogramOfDuration(nil, "ms")
+	assert.NoError(t, err)
+	assert.NotNil(t, sketch)
+	assert.Equal(t, 0.0, sketch.GetCount())
+	assert.Equal(t, 0.0, sketch.GetSum())
+	assert.Equal(t, 0.0, sketch.GetZeroCount())
 }
 
 func TestCreateDDSketchFromExponentialHistogramOfDuration(t *testing.T) {
@@ -596,7 +605,7 @@ func TestCreateDDSketchFromExponentialHistogramOfDuration(t *testing.T) {
 			}
 
 			// Test the function
-			sketch, err := CreateDDSketchFromExponentialHistogramOfDuration(dp, tt.unit)
+			sketch, err := CreateDDSketchFromExponentialHistogramOfDuration(&dp, tt.scale, tt.unit)
 			if tt.hasError {
 				assert.Error(t, err)
 				return
@@ -634,6 +643,15 @@ func TestCreateDDSketchFromExponentialHistogramOfDuration(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCreateDDSketchFromExponentialHistogramOfDuration_Nil(t *testing.T) {
+	sketch, err := CreateDDSketchFromExponentialHistogramOfDuration(nil, 0, "ms")
+	assert.NoError(t, err)
+	assert.NotNil(t, sketch)
+	assert.Equal(t, 0.0, sketch.GetCount())
+	assert.Equal(t, 0.0, sketch.GetSum())
+	assert.Equal(t, 0.0, sketch.GetZeroCount())
 }
 
 // PrettyPrintEHDP returns a readable string for one ExponentialHistogramDataPoint.

@@ -21,7 +21,6 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.build_tags import compute_build_tags_for_flavor
-from tasks.collector import OCB_VERSION
 from tasks.coverage import PROFILE_COV, CodecovWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
@@ -45,10 +44,11 @@ from tasks.update_go import PATTERN_MAJOR_MINOR, update_file
 
 WINDOWS_MAX_PACKAGES_NUMBER = 150
 WINDOWS_MAX_CLI_LENGTH = 8000  # Windows has a max command line length of 8192 characters
-TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/source_test/*", ".gitlab-ci.yml"]
-# TODO(songy23): contrib and OCB versions do not match in 0.122. Revert this once 0.123 is released
+TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/build/source_test/*", ".gitlab-ci.yml"]
+# TODO(OTAGENT-857): revert after bumping to otel v0.146.0
+# Check against mainline OTel go version instead of the pinned OCB version
 OTEL_UPSTREAM_GO_MOD_PATH = (
-    f"https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v{OCB_VERSION}/go.mod"
+    "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/main/go.mod"
 )
 
 
@@ -100,12 +100,7 @@ def build_standard_lib(
     """
     args["go_build_tags"] = " ".join(build_tags)
 
-    ctx.run(
-        cmd.format(**args),
-        env=env,
-        out_stream=test_profiler,
-        warn=True,
-    )
+    ctx.run(cmd.format(**args), env=env, out_stream=test_profiler)  # with `warn=True`, errors went unnoticed
 
 
 def test_flavor(
@@ -318,6 +313,14 @@ def test(
         with open(os.environ.get("FLAKY_PATTERNS_CONFIG"), 'w') as f:
             f.write("{}")
 
+    if race:
+        gorace = os.getenv("GORACE", "")
+        if "atexit_sleep_ms" not in gorace:
+            # https://go.dev/doc/articles/race_detector#Options
+            # The default is 1000ms, which adds minutes to the full test run
+            gorace += " atexit_sleep_ms=50"
+            env["GORACE"] = gorace.strip()
+
     if result_json and os.path.isfile(result_json):
         # Remove existing file since we append to it.
         print(f"Removing existing '{result_json}' file")
@@ -325,18 +328,19 @@ def test(
 
     test_run_arg = f"-run {test_run_name}" if test_run_name else ""
 
-    stdlib_build_cmd = 'go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
-    stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} {trimpath_opt} std cmd'
+    # build flags are used both for building the stdlib and to run the tests
+    gobuild_flags = '-mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" {build_cpus} {race_opt} {trimpath_opt}'
+
+    stdlib_build_cmd = f'go build {{verbose}} {gobuild_flags} std cmd'
     rerun_coverage_fix = '--raw-command {cov_test_path}' if coverage else ""
     gotestsum_flags = (
         '{junit_file_flag} {json_flag} --format {gotestsum_format} {rerun_fails} --packages="{packages}" '
         + rerun_coverage_fix
     )
-    gobuild_flags = (
-        '-mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" {build_cpus} {race_opt}'
-    )
     govet_flags = '-vet=off'
-    gotest_flags = '{verbose} {test_cpus} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache} {extra_args} {trimpath_opt}'
+    gotest_flags = (
+        '{verbose} {test_cpus} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache} {extra_args}'
+    )
     cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
     args = {
         "go_mod": go_mod,
@@ -458,6 +462,10 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
 
         assert best_module_path, f"No module found for {modified_file}"
         module = get_module_by_path(best_module_path)
+
+        if not module.should_test():
+            continue
+
         targets = module.lint_targets if lint else module.test_targets
 
         for target in targets:
@@ -695,7 +703,7 @@ def create_dependencies(ctx, build_tags=None):
         for module in batch_modules:
             with ctx.cd(module):
                 cmd = (
-                    'go list '
+                    'go list -buildvcs=false '
                     + f'-tags "{" ".join(build_tags)}" '
                     + '-f "{{.ImportPath}} {{.Imports}} {{.TestImports}}" ./...'
                 )
@@ -807,7 +815,7 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
     for module in modules_to_test:
         with ctx.cd(module):
             res = ctx.run(
-                f'go list -tags "{" ".join(build_tags)}" {" ".join([normpath(os.path.join("github.com/DataDog/datadog-agent", module, target)) for target in modules_to_test[module].test_targets])}',
+                f'go list -buildvcs=false -tags "{" ".join(build_tags)}" {" ".join([normpath(os.path.join("github.com/DataDog/datadog-agent", module, target)) for target in modules_to_test[module].test_targets])}',
                 hide=True,
                 warn=True,
             )
@@ -941,19 +949,20 @@ def check_otel_build(ctx):
 
 @task
 def check_otel_module_versions(ctx, fix=False):
-    # Get Go version from upstream (e.g., "1.24")
-    upstream_pattern = f"^go {PATTERN_MAJOR_MINOR}\r?$"
+    # Get Go version from upstream (e.g., "1.24" or "1.24.0")
+    upstream_pattern = r"^go (1(?:\.\d+){1,2})[\r]?$"
     r = requests.get(OTEL_UPSTREAM_GO_MOD_PATH)
     upstream_matches = re.findall(upstream_pattern, r.text, flags=re.MULTILINE)
     if len(upstream_matches) != 1:
         raise Exit(f"Error parsing upstream go.mod version: {OTEL_UPSTREAM_GO_MOD_PATH}")
-    upstream_major_minor = upstream_matches[0]
+    upstream_go_version = upstream_matches[0]
 
-    # Expected version for local modules is the upstream version with .0 patch (e.g., "1.24.0")
-    expected_local_version = f"{upstream_major_minor}.0"
+    expected_local_version = upstream_go_version
+    if expected_local_version.count('.') == 1:
+        expected_local_version += '.0'
 
     # Pattern to match major.minor.patch format in local modules
-    local_pattern = f"^go {PATTERN_MAJOR_MINOR}\\.\\d+\r?$"
+    local_pattern = f"^go ({PATTERN_MAJOR_MINOR}\\.\\d+)\r?$"
 
     # Collect all errors instead of failing at the first one
     format_errors = []
@@ -980,7 +989,7 @@ def check_otel_module_versions(ctx, fix=False):
                         )
                     else:
                         version_errors.append(
-                            f"{mod_file} version {actual_local_version} does not match expected version: {expected_local_version} (derived from upstream {upstream_major_minor})"
+                            f"{mod_file} version {actual_local_version} does not match expected version: {expected_local_version} (derived from upstream {upstream_go_version})"
                         )
 
     # Report all errors at once if any were found

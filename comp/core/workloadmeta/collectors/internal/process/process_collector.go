@@ -19,7 +19,7 @@ import (
 	"github.com/benbjohnson/clock"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
+	"github.com/DataDog/datadog-agent/pkg/discovery/language"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -29,8 +29,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	"github.com/DataDog/datadog-agent/pkg/discovery/core"
+	"github.com/DataDog/datadog-agent/pkg/discovery/model"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -273,7 +274,8 @@ func deletedProcessesToWorkloadmetaProcesses(deletedProcs []*procutil.Process) [
 	return wlmProcs
 }
 
-// processCacheDifference returns new processes that exist in procCacheA and not in procCacheB
+// processCacheDifference returns new processes that exist in procCacheA and not in procCacheB.
+// It uses PID, creation time, and command line hash to detect new processes
 func processCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB map[int32]*procutil.Process) []*procutil.Process {
 	// attempt to pre-allocate right slice size to reduce number of slice growths
 	diffSize := 0
@@ -284,13 +286,15 @@ func processCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB m
 	}
 	newProcs := make([]*procutil.Process, 0, diffSize)
 	for pid, procA := range procCacheA {
-		procB, exists := procCacheB[pid]
+		procB, pidExists := procCacheB[pid]
 
-		// new process
-		if !exists {
+		// New process - PID not in cache
+		if !pidExists {
 			newProcs = append(newProcs, procA)
-		} else if procB.Stats.CreateTime != procA.Stats.CreateTime {
-			// same process PID exists, but different process due to creation time
+			continue
+		}
+
+		if !procutil.IsSameProcess(procA, procB) {
 			newProcs = append(newProcs, procA)
 		}
 	}
@@ -868,9 +872,26 @@ func normalizeAdditionalServiceNames(names []string) []string {
 	return out
 }
 
+// tracerCollectsLogs checks if any tracer metadata indicates the tracer is already collecting logs.
+func tracerCollectsLogs(tracerMetadata []tracermetadata.TracerMetadata) bool {
+	for _, tm := range tracerMetadata {
+		if tm.LogsCollected {
+			return true
+		}
+	}
+	return false
+}
+
 // convertModelServiceToService converts model.Service to workloadmeta.Service
 func convertModelServiceToService(modelService *model.Service) *workloadmeta.Service {
 	generatedName, additionalNames := normalizeNames(modelService.GeneratedName, modelService.AdditionalGeneratedNames, modelService.Language)
+
+	var logFiles []string
+	if !tracerCollectsLogs(modelService.TracerMetadata) {
+		logFiles = modelService.LogFiles
+	} else {
+		log.Debugf("Skipping log file for pid %d: tracer is already collecting logs, files: %v", modelService.PID, modelService.LogFiles)
+	}
 
 	return &workloadmeta.Service{
 		GeneratedName:            generatedName,
@@ -881,7 +902,7 @@ func convertModelServiceToService(modelService *model.Service) *workloadmeta.Ser
 		UDPPorts:                 modelService.UDPPorts,
 		APMInstrumentation:       modelService.APMInstrumentation,
 		Type:                     modelService.Type,
-		LogFiles:                 modelService.LogFiles,
+		LogFiles:                 logFiles,
 		UST: workloadmeta.UST{
 			Service: modelService.UST.Service,
 			Env:     modelService.UST.Env,

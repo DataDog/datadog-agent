@@ -1,0 +1,35 @@
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("@rules_rust//rust:defs.bzl", "rust_binary")
+
+rust_binary(
+    name = "dd-procmgrd",
+    srcs = glob(["src/**/*.rs"]),
+    edition = "2024",
+    target_compatible_with = [
+        "@platforms//os:linux",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@crates//:anyhow",
+        "@crates//:log",
+        "@crates//:nix",
+        "@crates//:serde",
+        "@crates//:serde_yaml",
+        "@crates//:simple_logger",
+        "@crates//:tokio",
+    ],
+)
+
+pkg_files(
+    name = "dd-procmgrd_pkg",
+    srcs = [":dd-procmgrd"],
+    attributes = pkg_attributes(
+        mode = "0755",
+    ),
+)
+
+pkg_install(
+    name = "install",
+    srcs = [":dd-procmgrd_pkg"],
+)

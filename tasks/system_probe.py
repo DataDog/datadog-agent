@@ -53,7 +53,7 @@ TEST_PACKAGES_LIST = [
     "./pkg/ebpf/...",
     "./pkg/network/...",
     "./pkg/collector/corechecks/ebpf/...",
-    "./pkg/collector/corechecks/servicediscovery/module/...",
+    "./pkg/discovery/module/...",
     "./pkg/process/monitor/...",
     "./pkg/dyninst/...",
     "./pkg/gpu/...",
@@ -92,6 +92,10 @@ CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
 LIBPCAP_VERSION = "1.10.5"
 
 TEST_HELPER_CBINS = ["cudasample"]
+
+RUST_BINARIES = [
+    "pkg/discovery/module/rust",
+]
 
 
 def get_ebpf_build_dir(arch: Arch) -> Path:
@@ -417,19 +421,17 @@ def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str):
         ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": gpu_flags + " -DDEBUG=1"})
 
 
-def ninja_container_integrations_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
-    container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
-    container_integrations_co_re_flags = f"-I{container_integrations_co_re_dir}"
-    container_integrations_co_re_programs = ["oom-kill", "tcp-queue-length", "ebpf"]
+def ninja_corecheck_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
+    corecheck_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
+    corecheck_co_re_flags = f"-I{corecheck_co_re_dir}"
+    corecheck_co_re_programs = ["oom-kill", "tcp-queue-length", "ebpf", "noisy-neighbor"]
 
-    for prog in container_integrations_co_re_programs:
-        infile = os.path.join(container_integrations_co_re_dir, f"{prog}-kern.c")
+    for prog in corecheck_co_re_programs:
+        infile = os.path.join(corecheck_co_re_dir, f"{prog}-kern.c")
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
-        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": container_integrations_co_re_flags})
+        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": corecheck_co_re_flags})
         root, ext = os.path.splitext(outfile)
-        ninja_ebpf_co_re_program(
-            nw, infile, f"{root}-debug{ext}", {"flags": container_integrations_co_re_flags + " -DDEBUG=1"}
-        )
+        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": corecheck_co_re_flags + " -DDEBUG=1"})
 
 
 def ninja_dynamic_instrumentation_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
@@ -593,6 +595,9 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/gpu/ebpf/kprobe_types.go": [
                 "pkg/gpu/ebpf/c/types.h",
             ],
+            "pkg/collector/corechecks/ebpf/probe/noisyneighbor/ebpf_types.go": [
+                "pkg/collector/corechecks/ebpf/c/runtime/noisy-neighbor-kern-user.h"
+            ],
             "pkg/dyninst/output/framing.go": [
                 "pkg/dyninst/ebpf/framing.h",
             ],
@@ -686,7 +691,7 @@ def ninja_generate(
             ninja_kernel_bugs_ebpf_programs(nw)
             ninja_kernel_bug_binaries(nw, arch)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
-            ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
+            ninja_corecheck_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
             ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_gpu_ebpf_programs(nw, co_re_build_dir)
@@ -702,7 +707,7 @@ def build_libpcap(ctx, env: dict, arch: Arch | None = None):
     """
     embedded_path = get_embedded_path(ctx)
     assert embedded_path, "Failed to find embedded path"
-    target_file = os.path.join(embedded_path, "lib", "libpcap.a")
+    target_file = os.path.join(embedded_path, "embedded", "lib", "libpcap.a")
     if os.path.exists(target_file):
         version = ctx.run(f"strings {target_file} | grep -E '^libpcap version' | cut -d ' ' -f 3").stdout.strip()
         if version == LIBPCAP_VERSION:
@@ -727,8 +732,8 @@ def get_libpcap_cgo_flags(ctx, install_path: str = None):
         embedded_path = get_embedded_path(ctx)
         assert embedded_path, "Failed to find embedded path"
         return {
-            'CGO_CFLAGS': f"-I{os.path.join(embedded_path, 'include')}",
-            'CGO_LDFLAGS': f"-L{os.path.join(embedded_path, 'lib')}",
+            'CGO_CFLAGS': f"-I{os.path.join(embedded_path, 'embedded', 'include')}",
+            'CGO_LDFLAGS': f"-L{os.path.join(embedded_path, 'embedded', 'lib')}",
         }
 
 
@@ -1580,6 +1585,8 @@ def build_object_files(
 
     validate_object_file_metadata(ctx, build_dir, verbose=False)
 
+    build_rust_binaries(ctx, arch=arch_obj)
+
     if not is_windows:
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
@@ -1612,6 +1619,27 @@ def build_object_files(
             with ctx.cd(runtime_dir):
                 ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}/runtime")
                 ctx.run(f"{sudo} find ./ -maxdepth 1 -type f -name '*.c' {cp_cmd('runtime')}")
+
+
+def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None, packages: list[str] | None = None):
+    if is_windows or is_macos:
+        return
+
+    platform_map = {
+        "x86_64": "//bazel/platforms:linux_x86_64",
+        "arm64": "//bazel/platforms:linux_arm64",
+    }
+
+    platform_flag = ""
+    if arch.kmt_arch in platform_map:
+        platform_flag = f"--platforms={platform_map[arch.kmt_arch]}"
+
+    for source_path in RUST_BINARIES:
+        if packages and not any(source_path.startswith(package) for package in packages):
+            continue
+
+        install_dest = output_dir / source_path if output_dir else Path(source_path)
+        ctx.run(f"bazelisk run {platform_flag} -- @//{source_path}:install --destdir={install_dest}")
 
 
 def build_cws_object_files(
@@ -1919,6 +1947,7 @@ def _test_docker_image_list():
 
     docker_compose_paths = glob.glob("./pkg/network/protocols/**/*/docker-compose.yml", recursive=True)
     docker_compose_paths.extend(glob.glob("./pkg/network/usm/**/*/docker-compose.yml", recursive=True))
+    docker_compose_paths.append("./pkg/network/protocols/tls/nodejs/testdata/docker-compose-ubuntu.yml")
     # Add relative docker-compose paths
     # For example:
     #   docker_compose_paths.append("./pkg/network/protocols/dockers/testdata/docker-compose.yml")

@@ -25,7 +25,6 @@ import (
 	"cmp"
 	"container/heap"
 	"debug/dwarf"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -86,13 +85,18 @@ func (g *Generator) GenerateIR(
 	programID ir.ProgramID,
 	binaryPath string,
 	probeDefs []ir.ProbeDefinition,
+	options ...Option,
 ) (*ir.Program, error) {
-	elfFile, err := g.config.objectLoader.Load(binaryPath)
+	cfg := g.config
+	for _, option := range options {
+		option.apply(&cfg)
+	}
+	elfFile, err := cfg.objectLoader.Load(binaryPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load elf file: %w", err)
 	}
 	defer elfFile.Close()
-	return generateIR(g.config, programID, elfFile, probeDefs)
+	return generateIR(cfg, programID, elfFile, probeDefs)
 }
 
 // GenerateIR generates an IR program from a binary and a list of probes.
@@ -241,6 +245,14 @@ func generateIR(
 	}
 	defer cleanupCloser(ib, "method index builder")()
 
+	// Build a set of additional type names requested via
+	// WithAdditionalTypes for efficient lookup during the gotype iteration.
+	additionalTypeSet := make(map[string]struct{}, len(cfg.additionalTypes))
+	for _, name := range cfg.additionalTypes {
+		additionalTypeSet[name] = struct{}{}
+	}
+
+	var additionalTypeRoots []explorationRoot
 	var methodBuf []gotype.Method
 	for tid := range typeIndex.allGoTypes() {
 		goType, err := typeTab.ParseGoType(tid)
@@ -262,6 +274,30 @@ func generateIR(
 			)
 			continue
 		}
+
+		// If this type was requested as an additional type, resolve it to
+		// a DWARF offset and add it to the type catalog for exploration.
+		if len(additionalTypeSet) > 0 {
+			name := goType.Name().UnsafeName()
+			if _, requested := additionalTypeSet[name]; requested {
+				if dwarfOffset, ok := typeIndex.resolveDwarfOffset(tid); ok {
+					t, addErr := typeCatalog.addType(dwarfOffset)
+					if addErr != nil {
+						log.Debugf(
+							"failed to add additional type %q at offset %#x: %v",
+							name, dwarfOffset, addErr,
+						)
+					} else {
+						additionalTypeRoots = append(additionalTypeRoots, explorationRoot{
+							typeID: t.GetID(),
+							budget: additionalTypeBudget,
+						})
+					}
+				}
+				delete(additionalTypeSet, name)
+			}
+		}
+
 		methodBuf, err = goType.Methods(methodBuf[:0])
 		if err != nil {
 			return nil, fmt.Errorf("failed to get methods: %w", err)
@@ -289,10 +325,10 @@ func generateIR(
 				pcRange: pcRange,
 			})
 		}
-		for _, inlined := range sp.inlinePCRanges {
-			for _, pcRange := range inlined.RootRanges {
+		for _, inlined := range sp.inlined {
+			for _, pcRange := range inlined.inlinedPCRanges.RootRanges {
 				lineSearchRanges = append(lineSearchRanges, lineSearchRange{
-					unit:    sp.unit,
+					unit:    inlined.unit,
 					pcRange: pcRange,
 				})
 			}
@@ -363,6 +399,9 @@ func generateIR(
 	// Resolve placeholder types by a unified, budgeted expansion from
 	// exploration roots. Container internals are zero-cost.
 	{
+		// Include types discovered at runtime via interface decoding.
+		explorationRoots = append(explorationRoots, additionalTypeRoots...)
+
 		// Specialize any already-added container types before traversal.
 		if err := completeGoTypes(typeCatalog, 1, typeCatalog.idAlloc.alloc); err != nil {
 			return nil, err
@@ -437,6 +476,9 @@ type analyzedExpression struct {
 	// For template segments, the segment reference and index.
 	segment    *ir.JSONSegment
 	segmentIdx int // -1 if not a segment
+
+	// For capture expressions, the user-specified name.
+	captureExprName string
 }
 
 // analyzedProbe holds all analyzed expressions for a single probe.
@@ -488,12 +530,14 @@ func analyzeAllProbes(
 
 	for _, probe := range probes {
 		budget := budgets[probe.Subprogram.ID]
-		isSnapshot := probe.GetKind() == ir.ProbeKindSnapshot
+		kind := probe.GetKind()
+		isSnapshot := kind == ir.ProbeKindSnapshot
+		isCaptureExpression := kind == ir.ProbeKindCaptureExpression
 
 		ap := analyzedProbe{
 			probe:      probe,
 			budget:     budget,
-			isSnapshot: isSnapshot,
+			isSnapshot: isSnapshot || isCaptureExpression,
 		}
 
 		// Build variable lookup for this probe's subprogram.
@@ -583,7 +627,9 @@ func analyzeAllProbes(
 			}
 
 			// For snapshot probes, add variable itself as an expression.
-			if isSnapshot {
+			// Capture expression probes only capture explicitly listed
+			// expressions (handled below), not all variables.
+			if isSnapshot && !isCaptureExpression {
 				ap.expressions = append(ap.expressions, analyzedExpression{
 					expr:         &exprlang.RefExpr{Ref: v.Name},
 					dsl:          v.Name,
@@ -620,12 +666,55 @@ func analyzeAllProbes(
 					segment:      seg.segment,
 					segmentIdx:   seg.index,
 				})
-				// Log probe: add root variable type to exploration roots.
-				if !isSnapshot {
+				// Log/capture-expression probe: add root variable type to exploration roots.
+				// For snapshot probes, the variable was already added above.
+				if !isSnapshot || isCaptureExpression {
 					addRoot(v.Type.GetID(), budget)
 				}
 			}
 			delete(segmentRefs, v.Name)
+		}
+
+		// Process capture expressions.
+		for _, ce := range probe.ProbeDefinition.GetCaptureExpressions() {
+			parsedExpr, err := exprlang.Parse(ce.GetJSON())
+			if err != nil {
+				continue
+			}
+			rootVarName, ok := extractRootVariableName(parsedExpr)
+			if !ok {
+				continue
+			}
+			rootVar := varByName[rootVarName]
+			if rootVar == nil {
+				continue
+			}
+			var evKind ir.EventKind
+			switch {
+			case haveEntry && rootVar.Role == ir.VariableRoleParameter:
+				evKind = ir.EventKindEntry
+			case haveReturn && rootVar.Role == ir.VariableRoleReturn:
+				evKind = ir.EventKindReturn
+			case haveReturn && rootVar.Role == ir.VariableRoleLocal:
+				evKind = ir.EventKindReturn
+			case len(probe.Events) == 1 && probe.Events[0].Kind == ir.EventKindLine:
+				if !variableIsAvailable(probe.Events[0].InjectionPoints, rootVar) {
+					continue
+				}
+				evKind = ir.EventKindLine
+			default:
+				continue
+			}
+			ap.expressions = append(ap.expressions, analyzedExpression{
+				expr:            parsedExpr,
+				dsl:             ce.GetDSL(),
+				rootVariable:    rootVar,
+				eventKind:       evKind,
+				exprKind:        ir.RootExpressionKindCaptureExpression,
+				segmentIdx:      -1,
+				captureExprName: ce.GetName(),
+			})
+			addRoot(rootVar.Type.GetID(), budget)
 		}
 
 		// Mark unmatched segments as invalid.
@@ -709,17 +798,32 @@ func newTemplate(td ir.TemplateDefinition) *ir.Template {
 
 // computeDepthBudgets returns the maximum reference depth per subprogram ID
 // across all probes configured for that subprogram.
+//
+// TODO: Taking the max of all per-expression capture configs as the probe-level
+// limit is a short-term solution. This should be updated with logic to set the
+// depth per expression underneath eBPF.
 func computeDepthBudgets(pending []*pendingSubprogram) map[ir.SubprogramID]uint32 {
 	budgets := make(map[ir.SubprogramID]uint32, len(pending))
 	for _, p := range pending {
 		var maxDepth uint32
 		for _, cfg := range p.probesCfgs {
 			maxDepth = max(maxDepth, cfg.GetCaptureConfig().GetMaxReferenceDepth())
+			for _, ce := range cfg.GetCaptureExpressions() {
+				if ceCfg := ce.GetCaptureConfig(); ceCfg != nil {
+					maxDepth = max(maxDepth, ceCfg.GetMaxReferenceDepth())
+				}
+			}
 		}
 		budgets[p.id] = maxDepth
 	}
 	return budgets
 }
+
+// additionalTypeBudget is the exploration budget assigned to types discovered
+// at runtime through interface decoding and fed back via WithAdditionalTypes.
+// A budget of 3 is enough to resolve fields and one level of indirection
+// without being excessively expensive.
+const additionalTypeBudget = 3
 
 // explorationRoot represents a type that should be explored with a budget.
 type explorationRoot struct {
@@ -1318,7 +1422,12 @@ func materializePending(
 			ID:                p.id,
 			Name:              p.name,
 			OutOfLinePCRanges: p.outOfLinePCRanges,
-			InlinePCRanges:    p.inlinePCRanges,
+		}
+		for _, inlined := range p.inlined {
+			if len(inlined.inlinedPCRanges.Ranges) == 0 {
+				continue
+			}
+			sp.InlinePCRanges = append(sp.InlinePCRanges, inlined.inlinedPCRanges)
 		}
 		// First, create variables defined directly under the subprogram/abstract DIEs.
 		variableByOffset := make(map[dwarf.Offset]*ir.Variable, len(p.variables))
@@ -1672,7 +1781,6 @@ type pendingSubprogram struct {
 	variables         []*dwarf.Entry
 	name              string
 	outOfLinePCRanges []ir.PCRange
-	inlinePCRanges    []ir.InlinePCRanges
 
 	// Inlined instances associated with this (abstract) subprogram.
 	inlined    []*inlinedSubprogram
@@ -2070,7 +2178,6 @@ type abstractSubprogram struct {
 	name       string
 	// Aggregated ranges from out-of-line and inlined instances.
 	outOfLinePCRanges []ir.PCRange
-	inlinePCRanges    []ir.InlinePCRanges
 	// Variables defined under the abstract DIE keyed by DIE offset.
 	variables map[dwarf.Offset]*dwarf.Entry
 	// Inlined instances discovered for this abstract subprogram.
@@ -2102,6 +2209,7 @@ func (v *abstractSubprogramVisitor) pop(_ *dwarf.Entry, _ visitor) error {
 }
 
 type inlinedSubprogram struct {
+	unit           *dwarf.Entry
 	abstractOrigin dwarf.Offset
 	// Exactly one of the following is non-nil. If this is an out-of-line instance,
 	// outOfLinePCRanges are set. Otherwise, inlinedPCRanges are set.
@@ -2197,11 +2305,11 @@ func convertAbstractSubprogramsToPending(
 			RootRanges: ctx.rootRanges,
 		}
 		abs.inlined = append(abs.inlined, &inlinedSubprogram{
+			unit:            ctx.unitEntry,
 			abstractOrigin:  ctx.abstractOrigin,
 			inlinedPCRanges: ranges,
 			variables:       ctx.variables,
 		})
-		abs.inlinePCRanges = append(abs.inlinePCRanges, ranges)
 	}
 
 	for ctx, err := range iterConcreteSubprograms(
@@ -2232,6 +2340,7 @@ func convertAbstractSubprogramsToPending(
 			continue
 		}
 		outOfLine := &inlinedSubprogram{
+			unit:              ctx.unitEntry,
 			abstractOrigin:    ctx.abstractOrigin,
 			outOfLinePCRanges: ctx.entryRanges,
 			variables:         ctx.variables,
@@ -2261,7 +2370,6 @@ func convertAbstractSubprogramsToPending(
 			subprogramEntry:   nil,
 			name:              abs.name,
 			outOfLinePCRanges: abs.outOfLinePCRanges,
-			inlinePCRanges:    abs.inlinePCRanges,
 			inlined:           abs.inlined,
 			variables:         varVars,
 			probesCfgs:        abs.probesCfgs,
@@ -2281,6 +2389,7 @@ func convertAbstractSubprogramsToPending(
 // contains it.
 type concreteSubprogramContext struct {
 	abstractOrigin dwarf.Offset
+	unitEntry      *dwarf.Entry
 	entry          *dwarf.Entry
 	entryRanges    []ir.PCRange
 	reader         *dwarf.Reader
@@ -2338,6 +2447,7 @@ func iterConcreteSubprograms(
 ) iter.Seq2[concreteSubprogramContext, error] {
 	var (
 		unitIdx               int
+		unitEntry             *dwarf.Entry
 		concreteSubprogramIdx int
 		currentSubprogram     struct {
 			offset dwarf.Offset
@@ -2358,6 +2468,7 @@ func iterConcreteSubprograms(
 			(unitIdx+1 >= len(units) || units[unitIdx+1] > refOffset) {
 			return nil // no advancement needed
 		}
+		unitEntry = nil
 		found, _ := slices.BinarySearch(units[unitIdx:], refOffset)
 		if found == 0 {
 			return fmt.Errorf("ref %#x precedes first unit", refOffset)
@@ -2365,7 +2476,8 @@ func iterConcreteSubprograms(
 		unitIdx += found - 1
 		reader = d.Reader()
 		reader.Seek(units[unitIdx])
-		if _, err := reader.Next(); err != nil {
+		var err error
+		if unitEntry, err = reader.Next(); err != nil {
 			return fmt.Errorf("failed to get next entry: %w", err)
 		}
 		return nil
@@ -2489,6 +2601,7 @@ func iterConcreteSubprograms(
 				entry:          entry,
 				entryRanges:    inlinedPCRanges,
 				variables:      variableVisitor.variableEntries,
+				unitEntry:      unitEntry,
 			}, nil) {
 				return
 			}
@@ -3356,8 +3469,12 @@ func populateEventExpressions(
 			seg.EventExpressionIndex = len(expressions)
 		}
 
+		name := expr.dsl
+		if expr.captureExprName != "" {
+			name = expr.captureExprName
+		}
 		expressions = append(expressions, &ir.RootExpression{
-			Name:       expr.dsl,
+			Name:       name,
 			Offset:     uint32(0),
 			Kind:       expr.exprKind,
 			Expression: resolvedExpr,
@@ -3861,7 +3978,9 @@ func disassembleAmd64Function(
 	return returnLocations, ir.Issue{}
 }
 
-// disassembleAmd64Function implemented disassembleFunction for arm64.
+const Arm64InstructionByteLength = 4
+
+// disassembleArm64Function implements disassembleFunction for arm64.
 func disassembleArm64Function(
 	addr uint64,
 	injectionPC uint64,
@@ -3881,18 +4000,17 @@ func disassembleArm64Function(
 	for offset := 0; offset < len(body); {
 		instBytes := body[offset : offset+4]
 		instruction, err := arm64asm.Decode(instBytes)
-		// All-zero instruction fails to parse, but is used as padding and valid.
-		if err != nil && binary.LittleEndian.Uint32(instBytes) != 0 {
-			return nil, ir.Issue{
-				Kind: ir.IssueKindDisassemblyFailed,
-				Message: fmt.Sprintf(
-					"failed to decode arm64 instruction: at offset %d of %#x %#x: %v",
-					offset, addr+uint64(offset), body[offset:min(offset+4, len(body))], err,
-				),
-			}
-		}
 		if offset == int(injectionPC)-int(addr) {
 			validInjectionPC = true
+		}
+		if err != nil {
+			// Skip instructions we can't decode. The arm64asm package doesn't
+			// support all instructions (e.g. arm LSE atomics)
+			// Since we only care about the epilouge, unknown instructions
+			// or padding are skipped. Every instruction is exactly 4 bytes
+			// so we can do this safely, unlike x86.
+			offset += Arm64InstructionByteLength
+			continue
 		}
 		if instruction.Op == arm64asm.RET {
 			retPC := addr + uint64(offset)
@@ -3929,22 +4047,41 @@ func collectLineDataForRange(
 	lineReader *dwarf.LineReader, r ir.PCRange,
 ) lineData {
 	var lineEntry dwarf.LineEntry
+	// Save position before seeking. Line tables are state-machine encoded and
+	// only support efficient forward iteration; seeking backward requires
+	// restarting from the beginning. By saving our position (which is already
+	// in the correct compile unit), we can restore it cheaply if SeekPC fails.
 	prevPos := lineReader.Tell()
-	// In general, SeekPC is not the function we're looking for.  We
-	// want to seek to the next line entry that's in the range but
-	// not necessarily the first one. We add some hacks here that
-	// work unless we're at the beginning of a sequence.
+	// SeekPC finds the line table entry covering a given PC, but we need the
+	// first entry whose address is >= r[0], which may be different. SeekPC
+	// also fails for PCs in "holes" - addresses not covered by any line table
+	// sequence.
 	//
-	// TODO: Find a way to seek to the first entry in a range rather
-	// than just
+	// DWARF line tables consist of sequences, each covering a contiguous PC
+	// range. A sequence is a state-machine-encoded log mapping PCs to source
+	// locations (file, line, column). Holes exist between sequences or at
+	// their boundaries.
+	//
+	// TODO: Find a way to seek to the first entry in a range rather than just
+	// the entry that covers this PC. See https://github.com/golang/go/issues/73996.
 	err := lineReader.SeekPC(r[0], &lineEntry)
-	// If we find that we have a hole, then we'll have our hands on
-	// a reader that's positioned after our PC. We can then seek to
-	// the instruction prior to that which should be in range of a
-	// real sequence. This is grossly inefficient.
+	// Workaround for holes: When SeekPC fails with ErrUnknownPC, the reader
+	// is experimentally observed to be left positioned at a preceding
+	// end_sequence marker. If that marker's address is at or before r[0],
+	// we can recover by:
+	//   1. Reading the next entry to find where the next sequence starts
+	//   2. Restoring the reader to prevPos (since seeking backward through
+	//      line tables is very inefficient - it requires restarting from
+	//      the beginning of the table)
+	//   3. Seeking to (next_address - 1) to land within the prior entry
+	//   4. If that puts us at an address >= r[0], we've found valid data
+	//
+	// The -1 works because lineEntry.Address marks an entry's start, so
+	// (address - 1) falls within the previous entry's range, and SeekPC
+	// will position us at that entry's start (a valid instruction boundary).
 	if err != nil &&
 		errors.Is(err, dwarf.ErrUnknownPC) &&
-		lineEntry.Address < r[0] {
+		lineEntry.Address <= r[0] {
 		nextErr := lineReader.Next(&lineEntry)
 		if nextErr == nil {
 			lineReader.Seek(prevPos)
@@ -3955,9 +4092,9 @@ func collectLineDataForRange(
 		}
 	}
 	if err != nil {
-		// Reset the reader to the previous position which is more efficient
-		// than starting from 0 for the next seek given the caller is exploring
-		// in PC order.
+		// Restore the reader to prevPos so the next call to this function
+		// can seek forward efficiently. The caller explores ranges in PC
+		// order, so prevPos is likely close to the next range we'll query.
 		lineReader.Seek(prevPos)
 		return lineData{err: err}
 	}
@@ -4120,7 +4257,7 @@ func makeInterests(cfg []ir.ProbeDefinition) (interests, []ir.ProbeIssue) {
 	var issues []ir.ProbeIssue
 	for _, probe := range cfg {
 		switch probe.GetKind() {
-		case ir.ProbeKindSnapshot:
+		case ir.ProbeKindSnapshot, ir.ProbeKindCaptureExpression:
 		case ir.ProbeKindLog:
 		default:
 			issues = append(issues, ir.ProbeIssue{

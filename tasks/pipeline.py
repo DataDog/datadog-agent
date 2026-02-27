@@ -14,12 +14,10 @@ from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
     cancel_pipeline,
     get_gitlab_repo,
-    get_gitlab_token,
     gitlab_configuration_is_modified,
     refresh_pipeline,
 )
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.feature_flags import is_enabled
 from tasks.libs.common.git import get_commit_sha, get_current_branch, get_default_branch
 from tasks.libs.common.utils import (
     get_all_allowed_repo_branches,
@@ -157,6 +155,7 @@ def run(
     e2e_tests=True,
     kmt_tests=True,
     rc_build=False,
+    run_flaky_tests=False,
 ):
     """
     Run a pipeline on the given git ref (--git-ref <git ref>), or on the current branch if --here is given.
@@ -166,6 +165,7 @@ def run(
     Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on pipelines on the default branch).
     Use --no-kmt-tests to not run all Kernel Matrix Tests on the pipeline.
     Use --e2e-tests to run all e2e tests on the pipeline.
+    Use --run-flaky-tests to run tests that are marked as flaky (by default, known flaky tests are skipped).
 
     Release Candidate related flags:
     Use --rc-build to mark the build as Release Candidate. Staging k8s deployment PR will be created during the build pipeline.
@@ -191,6 +191,9 @@ def run(
 
     Run a pipeline with e2e tets on the current branch:
       dda inv pipeline.run --here --e2e-tests
+
+    Run a pipeline that includes flaky tests on the current branch:
+      dda inv pipeline.run --here --run-flaky-tests
 
     Run a deploy pipeline on the 7.32.0 tag, uploading the artifacts to the stable branch of the staging repositories:
       dda inv pipeline.run --deploy --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
@@ -248,6 +251,7 @@ def run(
             e2e_tests=e2e_tests,
             kmt_tests=kmt_tests,
             rc_build=rc_build,
+            run_flaky_tests=run_flaky_tests,
         )
     except FilteredOutException:
         print(color_message(f"ERROR: pipeline does not match any workflow rule. Rules:\n{workflow_rules()}", "red"))
@@ -308,10 +312,10 @@ def wait_for_pipeline_from_ref(repo: Project, ref):
 
 
 @task(iterable=['variable'])
-def trigger_child_pipeline(ctx, git_ref, project_name, variable=None, follow=True, timeout=7200):
+def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True, timeout=7200):
     """
     Trigger a child pipeline on a target repository and git ref.
-    Used in CI jobs only (automatically generate a token targeting the target project).
+    Used in CI jobs only (requires CI_JOB_TOKEN).
 
     Use --variable to specify the environment variables that should be passed to the child pipeline.
     You can pass the argument multiple times for each new variable you wish to forward
@@ -325,6 +329,13 @@ def trigger_child_pipeline(ctx, git_ref, project_name, variable=None, follow=Tru
 
     dda inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variable "VAR1" --variable "VAR2" --variable "VAR3"
     """
+
+    if not os.environ.get('CI_JOB_TOKEN'):
+        raise Exit("CI_JOB_TOKEN variable needed to create child pipelines.", 1)
+
+    # Use the CI_JOB_TOKEN which is passed from gitlab
+    token = None if follow else os.environ['CI_JOB_TOKEN']
+    repo = get_gitlab_repo(project_name, token=token)
 
     # Fill the environment variables to pass to the child pipeline.
     variables = {}
@@ -348,28 +359,10 @@ def trigger_child_pipeline(ctx, git_ref, project_name, variable=None, follow=Tru
         flush=True,
     )
 
-    # Feature flag for short lived tokens. When enabled we use short lived tokens to create the pipeline. As a consequence we need to use the "create" pipeline API instead of the "trigger" pipeline API.
-    # When disabled we use the CI_JOB_TOKEN to create the pipeline.
-    # Note: With short-lived tokens enabled we lose the link between the parent and the child pipeline. It should work again when BTI fix the issue, tracked in: CIP-896
-    if is_enabled(ctx, "agent-ci-gitlab-short-lived-tokens"):
-        token = get_gitlab_token(ctx, repo=project_name.split('/')[1], verbose=True)
-        repo = get_gitlab_repo(project_name, token=token)
-        try:
-            # GitLab API expects `variables` as a list of `{key, value}` objects, not a dict.
-            # Sending a dict will result in: `400: variables is invalid`.
-            variables_payload = [{'key': key, 'value': value} for (key, value) in variables.items()]
-            pipeline = repo.pipelines.create({'ref': git_ref, 'variables': variables_payload})
-        except GitlabError as e:
-            raise Exit(f"Failed to create child pipeline: {e}", code=1) from e
-    else:
-        if "CI_JOB_TOKEN" not in os.environ:
-            raise Exit("CI_JOB_TOKEN environment variable is required when short lived tokens are disabled", code=1)
-        token = None if follow else os.environ["CI_JOB_TOKEN"]
-        repo = get_gitlab_repo(project_name, token=token)
-        try:
-            pipeline = repo.trigger_pipeline(git_ref, os.environ['CI_JOB_TOKEN'], variables=variables)
-        except GitlabError as e:
-            raise Exit(f"Failed to create child pipeline: {e}", code=1) from e
+    try:
+        pipeline = repo.trigger_pipeline(git_ref, os.environ['CI_JOB_TOKEN'], variables=variables)
+    except GitlabError as e:
+        raise Exit(f"Failed to create child pipeline: {e}", code=1) from e
 
     print(f"Created a child pipeline with id={pipeline.id}, url={pipeline.web_url}", flush=True)
 
@@ -421,7 +414,10 @@ EMAIL_SLACK_ID_MAP = {
     "guy20495@gmail.com": "U03LJSCAPK2",
     "safchain@gmail.com": "U01009CUG9X",
     "usamasaqib.96@live.com": "U03D807V94J",
-    "leeavital@gmail.com": "UDG2223C1",
+}
+GITHUB_SLACK_ID_MAP = {
+    "gjulianm": "U069N8XCSQ0",
+    "jmw51798": "U05FPPV9ASF",
 }
 
 
@@ -479,6 +475,12 @@ def changelog(ctx, new_commit_sha):
         author_handle = ""
         if author_email in EMAIL_SLACK_ID_MAP:
             author_handle = EMAIL_SLACK_ID_MAP[author_email]
+        elif author_email.endswith("@users.noreply.github.com"):
+            github_username = author_email.removesuffix("@users.noreply.github.com")
+            if "+" in github_username:
+                github_username = github_username.split("+", maxsplit=1)[1]
+            if github_username in GITHUB_SLACK_ID_MAP:
+                author_handle = GITHUB_SLACK_ID_MAP[github_username]
         else:
             try:
                 recipient = client.users_lookupByEmail(email=author_email)
@@ -494,13 +496,12 @@ def changelog(ctx, new_commit_sha):
         messages.append(f"{message_link} {author_handle}")
 
     if messages:
-        slack_message += (
-            "\n".join(messages) + "\n:wave: Authors, please check the "
-            "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98?tpl_var_kube_cluster_name%5B0%5D=stripe"
-            "&tpl_var_kube_cluster_name%5B1%5D=oddish-b&tpl_var_kube_cluster_name%5B2%5D=lagaffe"
-            "&tpl_var_kube_cluster_name%5B3%5D=diglet&tpl_var_kube_cluster_name%5B4%5D=snowver"
-            "&tpl_var_kube_cluster_name%5B5%5D=chillpenguin&tpl_var_kube_cluster_name%5B6%5D=muk|dashboard> for issues"
-        )
+        slack_message += "\n".join(messages)
+        slack_message += "\n:wave: Authors, please check the <https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98?"
+        clusters = ["chillpenguin", "diglet", "lagaffe", "muk", "oddish-b", "snowver", "stripe", "venomoth"]
+        for i, cluster_name in enumerate(clusters):
+            slack_message += f"{"&" if i > 0 else ""}tpl_var_kube_cluster_name%5B{i}%5D={cluster_name}"
+        slack_message += "|dashboard> for issues"
     else:
         slack_message += empty_changelog_msg
 
@@ -544,7 +545,7 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     Trigger a pipeline from an external owner.
     """
 
-    branch_re = re.compile(r'^(?P<owner>[a-zA-Z0-9_-]+):(?P<branch_name>[a-zA-Z0-9_/-]+)$')
+    branch_re = re.compile(r'^(?P<owner>[a-zA-Z0-9_-]+):(?P<branch_name>[a-zA-Z0-9#_/-]+)$')
     match = branch_re.match(owner_branch_name)
 
     assert (
@@ -610,6 +611,7 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     pipeline = f'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Apipeline%20%40ci.provider.name%3Agitlab%20%40git.repository.name%3A%22DataDog%2Fdatadog-agent%22%20%40git.branch%3A%22{owner}%2F{branch}%22&colorBy=meta%5B%27ci.stage.name%27%5D&colorByAttr=meta%5B%27ci.stage.name%27%5D&currentTab=json&fromUser=false&index=cipipeline&sort=time&spanViewType=logs'
 
     print(f'\nBranch {owner}/{branch} pushed to repo: {repo}')
+    ctx.run(f"ddr devflow ddci trigger --owner DataDog --repository datadog-agent --branch {owner}/{branch}")
     print(f'CI-Visibility pipeline link: {pipeline}')
 
 

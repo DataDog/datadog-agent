@@ -6,7 +6,7 @@ load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
     default_package_metadata = [":license"],
@@ -751,39 +751,25 @@ so_symlink(
     version = "20.4.2",
 )
 
-expand_template(
-    name = "gen_pkgconfig",
-    out = "libgcrypt.pc",
-    substitutions = {
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@PACKAGE_VERSION@": "1.11.2",
-        "@LIBGCRYPT_CONFIG_CFLAGS@": "-I${includedir}",
-        "@LIBGCRYPT_CONFIG_LIBS@": "-L${libdir} -lgcrypt",
-        "@LIBGCRYPT_CONFIG_LIBS_PRIVATE@": "",
-    },
-    template = ":src/libgcrypt.pc.in",
-)
-
-pkg_files(
-    name = "pc_file",
-    srcs = [":gen_pkgconfig"],
-    prefix = "lib/pkgconfig",
-)
-
 pkg_files(
     name = "hdr_files",
     srcs = [":gcrypt_h"],
     prefix = "include",
 )
 
-pkg_install(
-    name = "install",
+pkg_filegroup(
+    name = "all_files",
     srcs = [
         ":hdr_files",
         ":lib_files",
-        ":pc_file",
+    ],
+    prefix = "embedded",
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
     ],
 )

@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
+	yaml "go.yaml.in/yaml/v2"
 	"golang.org/x/exp/maps"
-	yaml "gopkg.in/yaml.v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -51,7 +52,7 @@ var newClock = clock.New
 var templatesFS embed.FS
 
 // this is overridden by tests when needed
-var checkRightsFunc = checkRights
+var checkRightsFunc = filesystem.CheckRights
 
 // Provides list the provided interfaces from the secrets Component
 type Provides struct {
@@ -85,6 +86,10 @@ type secretResolver struct {
 
 	// list of handles and where they were found
 	origin handleToContext
+
+	// resolvedSecretValues is an append-only set of all secret values ever returned by the backend.
+	// old values are retained for IsValueFromSecret lookups.
+	resolvedSecretValues map[string]struct{}
 
 	backendType                     string
 	backendConfig                   map[string]interface{}
@@ -138,6 +143,7 @@ func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 	return &secretResolver{
 		cache:                   make(map[string]string),
 		origin:                  make(handleToContext),
+		resolvedSecretValues:    make(map[string]struct{}),
 		tlmSecretBackendElapsed: telemetry.NewGauge("secret_backend", "elapsed_ms", []string{"command", "exit_code"}, "Elapsed time of secret backend invocation"),
 		tlmSecretUnmarshalError: telemetry.NewCounter("secret_backend", "unmarshal_errors_count", []string{}, "Count of errors when unmarshalling the output of the secret binary"),
 		tlmSecretResolveError:   telemetry.NewCounter("secret_backend", "resolve_errors_count", []string{"error_kind", "handle"}, "Count of errors when resolving a secret"),
@@ -211,7 +217,7 @@ func (r *secretResolver) writeDebugInfo(w http.ResponseWriter, _ *http.Request) 
 }
 
 func (r *secretResolver) handleRefresh(w http.ResponseWriter, _ *http.Request) {
-	result, err := r.Refresh(true)
+	result, err := r.RefreshNow()
 	if err != nil {
 		log.Infof("could not refresh secrets: %s", err)
 		setJSONError(w, err, 500)
@@ -284,13 +290,7 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	}
 	r.backendArguments = params.Arguments
 	r.backendTimeout = params.Timeout
-	if r.backendTimeout == 0 {
-		r.backendTimeout = SecretBackendTimeoutDefault
-	}
 	r.responseMaxSize = params.MaxSize
-	if r.responseMaxSize == 0 {
-		r.responseMaxSize = SecretBackendOutputMaxSizeDefault
-	}
 
 	r.refreshInterval = time.Duration(params.RefreshInterval) * time.Second
 	r.refreshIntervalScatter = params.RefreshIntervalScatter
@@ -302,9 +302,6 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	}
 	r.auditFilename = filepath.Join(params.RunPath, auditFileBasename)
 	r.auditFileMaxSize = params.AuditFileMaxSize
-	if r.auditFileMaxSize == 0 {
-		r.auditFileMaxSize = SecretAuditFileMaxSizeDefault
-	}
 
 	r.scopeIntegrationToNamespace = params.ScopeIntegrationToNamespace
 	r.allowedNamespace = params.AllowedNamespace
@@ -407,7 +404,7 @@ func (r *secretResolver) SubscribeToChanges(cb secrets.SecretChangeCallback) {
 // We enforce 3 type of limitation (each giving different level of control to the user). These limitations
 // are active when using either:
 // `k8s_secret@namespace/secret-name/key`
-// `namespace/secret-name;key` (for datadog-secret-backend)
+// `namespace/secret-name;key` (for secret-generic-connector)
 //
 // The levels are:
 // - secret_scope_integration_to_their_k8s_namespace: containers can only access secret from their own namespace
@@ -675,6 +672,10 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 	}
 	// add results to the cache
 	stdmaps.Copy(r.cache, secretResponse)
+	// track all resolved values in an append-only set for IsValueFromSecret lookups
+	for _, secretValue := range secretResponse {
+		r.resolvedSecretValues[secretValue] = struct{}{}
+	}
 	// return info about the handles sorted by their name
 	sort.Slice(handleInfoList, func(i, j int) bool {
 		return handleInfoList[i].Name < handleInfoList[j].Name
@@ -682,21 +683,31 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 	return secretRefreshInfo{Handles: handleInfoList}
 }
 
-// Refresh will resolve secret handles again, notifying any subscribers of changed values.
-// If updateNow is true, the function performs the refresh immediately and blocks, returning an informative message suitable for user display.
-// If updateNow is false, the function will asynchronously perform a refresh, and may fail to refresh due to throttling. No message is returned, just an empty string.
-func (r *secretResolver) Refresh(updateNow bool) (string, error) {
-	if updateNow {
-		// blocking refresh
-		return r.performRefresh()
+// Refresh schedules a throttled asynchronous secret refresh. Returns true if the
+// secret refresh mechanism is enabled (backend configured and refresh interval set).
+func (r *secretResolver) Refresh() bool {
+	if r.apiKeyFailureRefreshInterval == 0 || r.backendCommand == "" {
+		return false
 	}
-
-	// non-blocking refresh, max 1 at a time, others dropped
+	// non-blocking send, max 1 at a time, others dropped
 	select {
 	case r.refreshTrigger <- struct{}{}:
 	default:
 	}
-	return "", nil
+	return true
+}
+
+// RefreshNow performs an immediate blocking secret refresh and returns an informative message suitable for user display.
+func (r *secretResolver) RefreshNow() (string, error) {
+	return r.performRefresh()
+}
+
+// IsValueFromSecret returns true if the given value was ever resolved from a secret handle.
+func (r *secretResolver) IsValueFromSecret(value string) bool {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	_, ok := r.resolvedSecretValues[value]
+	return ok
 }
 
 // RemoveOrigin removes a origin from the cache
@@ -926,7 +937,7 @@ func (r *secretResolver) getDebugInfo(stats map[string]interface{}, includeVersi
 	stats["refreshIntervalEnabled"] = r.refreshInterval > 0
 	if r.refreshInterval > 0 {
 		stats["refreshInterval"] = r.refreshInterval.String()
-		stats["scatterDuration"] = r.scatterDuration.String()
+		stats["scatterDuration"] = fmt.Sprintf("%.2fs", r.scatterDuration.Seconds())
 	}
 
 	stats["unresolvedSecrets"] = r.unresolvedSecrets

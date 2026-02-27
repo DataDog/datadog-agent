@@ -343,13 +343,23 @@ read), and tailing mode for each log file.
 Package integrations adds a go interface for integrations to register and
 send logs.
 
-### [comp/logs/kubehealth](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/kubehealth)
+### [comp/logs-library/kubehealth](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs-library/kubehealth)
 
 Package kubehealth provides a dependency-injectible health object for kubernetes liveness checks
 
 ### [comp/logs/streamlogs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/streamlogs)
 
 Package streamlogs is metadata provider for streamlogs
+
+## [comp/logs-library](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs-library) (Component Bundle)
+
+*Datadog Team*: agent-log-pipelines
+
+Package logslibrary provides the logs library component bundle
+
+### [comp/logs-library/kubehealth](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs-library/kubehealth)
+
+Package kubehealth provides a dependency-injectible health object for kubernetes liveness checks
 
 ## [comp/metadata](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata) (Component Bundle)
 
@@ -386,6 +396,12 @@ Package host implements a component to generate the 'host' metadata payload (als
 
 Package hostgpu exposes the interface for the component to generate the 'host_gpu' metadata payload for inventory.
 
+### [comp/metadata/hostsysteminfo](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/hostsysteminfo)
+
+*Datadog Team*: windows-products
+
+Package hostsysteminfo exposes the interface for the component to generate the 'host_system_info' metadata payload for inventory.
+
 ### [comp/metadata/inventoryagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/inventoryagent)
 
 Package inventoryagent implements a component to generate the 'datadog_agent' metadata payload for inventory.
@@ -397,10 +413,6 @@ Package inventorychecks implements a component to generate the 'check_metadata' 
 ### [comp/metadata/inventoryhost](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/inventoryhost)
 
 Package inventoryhost exposes the interface for the component to generate the 'host_metadata' metadata payload for inventory.
-
-### [comp/metadata/inventoryotel](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/inventoryotel)
-
-Package inventoryotel implements a component to generate the 'datadog_agent' metadata payload for inventory.
 
 ### [comp/metadata/packagesigning](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/packagesigning)
 
@@ -456,7 +468,7 @@ It does not expose any public methods.
 
 ## [comp/networkpath](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkpath) (Component Bundle)
 
-*Datadog Team*: cloud-network-monitoring network-path
+*Datadog Team*: network-path
 
 Package networkpath implements the "networkpath" bundle,
 
@@ -741,6 +753,15 @@ Package connectivitychecker is responsible for running connectivity checks that 
 
 Package etw provides an ETW tracing interface
 
+### [comp/filterlist](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/filterlist)
+
+*Datadog Team*: agent-metric-pipelines
+
+Package filterlist defines a component to handle the metric and tag filterlist
+including any updates from RC. The filter list can be configured to remove metrics
+and tags from metrics as they are being processed to prevent them from being sent
+to DataDog.
+
 ### [comp/fleetstatus](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/fleetstatus)
 
 *Datadog Team*: fleet
@@ -770,7 +791,7 @@ Package client implements a component to send process metadata to the Cluster-Ag
 
 ### [comp/networkdeviceconfig](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkdeviceconfig)
 
-*Datadog Team*: ndm-core ndm-integrations
+*Datadog Team*: ndm-integrations
 
 Package networkdeviceconfig provides the component for retrieving network device configurations.
 

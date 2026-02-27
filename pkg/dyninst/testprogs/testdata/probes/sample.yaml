@@ -200,6 +200,18 @@ probes:
           ref: "x"
         dsl: "x"
     captureSnapshot: true
+  - id: testAtomicAdd
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testAtomicAdd
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: true
   - id: testSingleString
     type: LOG_PROBE
     tags:
@@ -2310,3 +2322,115 @@ probes:
         dsl: "@duration"
       - str: "ms"
     captureSnapshot: true
+  - id: testInlinedFuncFromOtherPackage
+    type: LOG_PROBE
+    where:
+      methodName: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedFunc
+    template: "testInlinedFuncFromOtherPackage"
+    segments:
+      - str: "testInlinedFuncFromOtherPackage"
+    captureSnapshot: true
+  # This test observes that when you have a value receiver on a type that doesn't
+  # do anything with the value it gets wholly inlined into the pointer receiver
+  # and those two methods then have overlapping PC ranges which tickled a bug
+  # in irgen. This test acts as a regression test for that bug.
+  - id: testWhollyInlinedSubroutine
+    type: LOG_PROBE
+    where:
+      methodName: main.firstBehavior.DoSomething
+    template: "testWhollyInlinedSubroutine"
+    segments:
+      - str: "testWhollyInlinedSubroutine"
+    captureSnapshot: true
+  # Capture expression probes
+  - id: testCaptureExprSimple
+    type: LOG_PROBE
+    where:
+      methodName: main.testCombinedString
+    captureSnapshot: false
+    captureExpressions:
+      - name: "x_val"
+        expr:
+          dsl: "x"
+          json:
+            ref: "x"
+      - name: "w_val"
+        expr:
+          dsl: "w"
+          json:
+            ref: "w"
+  - id: testCaptureExprGetmember
+    type: LOG_PROBE
+    tags:
+      - "version_diff:go1.26rc1"
+    where:
+      methodName: main.testStruct
+    captureSnapshot: false
+    captureExpressions:
+      - name: "x.aString"
+        expr:
+          dsl: "x.aString"
+          json:
+            getmember:
+              - ref: "x"
+              - "aString"
+  - id: testCaptureExprWithTemplate
+    type: LOG_PROBE
+    where:
+      methodName: main.testCombinedString
+    template: "x={x}"
+    segments:
+      - str: "x="
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: false
+    captureExpressions:
+      - name: "x_val"
+        expr:
+          dsl: "x"
+          json:
+            ref: "x"
+      - name: "w_val"
+        expr:
+          dsl: "w"
+          json:
+            ref: "w"
+  - id: testCaptureExprLine
+    type: LOG_PROBE
+    where:
+      methodName: main.testInlinedPrint
+      sourceFile: inlined.go
+      lines:
+        - "14"
+    captureSnapshot: false
+    captureExpressions:
+      - name: "x_val"
+        expr:
+          dsl: "x"
+          json:
+            ref: "x"
+    sampling:
+      snapshotsPerSecond: 100
+  - id: testCaptureExprLineWithTemplate
+    type: LOG_PROBE
+    where:
+      methodName: main.testInlinedPrint
+      sourceFile: inlined.go
+      lines:
+        - "14"
+    template: "x={x}"
+    segments:
+      - str: "x="
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: false
+    captureExpressions:
+      - name: "x_val"
+        expr:
+          dsl: "x"
+          json:
+            ref: "x"
+    sampling:
+      snapshotsPerSecond: 100

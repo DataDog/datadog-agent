@@ -1,3 +1,4 @@
+import json
 import unittest
 import unittest.mock
 
@@ -7,15 +8,29 @@ from tasks.python_version import (
     _get_major_minor_version,
     _validate_sha256,
     _validate_version_string,
+    _version_tuple,
 )
 
 
 class TestUpdatePython(unittest.TestCase):
+    def test_version_tuple(self):
+        """Test version string to tuple conversion."""
+        self.assertEqual(_version_tuple("3.13.7"), (3, 13, 7))
+        self.assertEqual(_version_tuple("3.14.0"), (3, 14, 0))
+        self.assertGreater(_version_tuple("3.13.9"), _version_tuple("3.13.7"))
+        self.assertLess(_version_tuple("3.13.7"), _version_tuple("3.14.0"))
+        self.assertEqual(_version_tuple("3.13.7"), _version_tuple("3.13.7"))
+
     def test_get_major_minor_version(self):
         """Test extracting major.minor from full version."""
         self.assertEqual(_get_major_minor_version("3.13.7"), "3.13")
         self.assertEqual(_get_major_minor_version("3.14.0"), "3.14")
         self.assertEqual(_get_major_minor_version("2.7.18"), "2.7")
+
+    def test_get_major_minor_version_invalid(self):
+        """Test error on invalid version."""
+        with self.assertRaises(Exit):
+            _get_major_minor_version("3")
 
     def test_validate_version_string(self):
         """Test version string validation."""
@@ -126,7 +141,7 @@ class TestBazelUpdate(unittest.TestCase):
         """Test preparing version and SHA256 update for Bazel file."""
         from tasks.python_version import _prepare_bazel_update
 
-        original_content = '''http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")
+        original_content = '''http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 PYTHON_VERSION = "3.13.7"
 
@@ -188,28 +203,101 @@ const (
         self.assertIn('ExpectedPythonVersion2 = "2.7.18"', new_content)
 
 
+class TestGetPythonSha256Hash(unittest.TestCase):
+    VALID_SBOM = json.dumps(
+        {
+            "packages": [
+                {
+                    "name": "CPython",
+                    "checksums": [
+                        {
+                            "algorithm": "SHA256",
+                            "checksumValue": "6c9d80839cfa20024f34d9a6dd31ae2a9cd97ff5e980e969209746037a5153b2",
+                        }
+                    ],
+                }
+            ]
+        }
+    )
+
+    @unittest.mock.patch('tasks.python_version._url_get')
+    def test_extracts_sha256_from_sbom(self, mock_url_get):
+        """Test happy path: SHA256 extracted correctly from valid SBOM."""
+        from tasks.python_version import _get_python_sha256_hash
+
+        mock_url_get.return_value = self.VALID_SBOM
+
+        result = _get_python_sha256_hash("3.13.9")
+        self.assertEqual(result, "6c9d80839cfa20024f34d9a6dd31ae2a9cd97ff5e980e969209746037a5153b2")
+
+    @unittest.mock.patch('tasks.python_version._url_get')
+    def test_missing_cpython_package(self, mock_url_get):
+        """Test error when CPython package is not in SBOM."""
+        from tasks.python_version import _get_python_sha256_hash
+
+        mock_url_get.return_value = json.dumps({"packages": [{"name": "other"}]})
+
+        with self.assertRaises(ValueError, msg="Could not find CPython package in SBOM"):
+            _get_python_sha256_hash("3.13.9")
+
+    @unittest.mock.patch('tasks.python_version._url_get')
+    def test_missing_sha256_checksum(self, mock_url_get):
+        """Test error when SHA256 checksum is missing from CPython package."""
+        from tasks.python_version import _get_python_sha256_hash
+
+        mock_url_get.return_value = json.dumps(
+            {"packages": [{"name": "CPython", "checksums": [{"algorithm": "MD5", "checksumValue": "abc"}]}]}
+        )
+
+        with self.assertRaises(ValueError, msg="Could not find SHA256 checksum in SBOM"):
+            _get_python_sha256_hash("3.13.9")
+
+    @unittest.mock.patch('tasks.python_version._url_get')
+    def test_returns_lowercase_hash(self, mock_url_get):
+        """Test that returned hash is lowercased."""
+        from tasks.python_version import _get_python_sha256_hash
+
+        sbom = json.dumps(
+            {
+                "packages": [
+                    {
+                        "name": "CPython",
+                        "checksums": [
+                            {
+                                "algorithm": "SHA256",
+                                "checksumValue": "6C9D80839CFA20024F34D9A6DD31AE2A9CD97FF5E980E969209746037A5153B2",
+                            }
+                        ],
+                    }
+                ]
+            }
+        )
+        mock_url_get.return_value = sbom
+
+        result = _get_python_sha256_hash("3.13.9")
+        self.assertEqual(result, "6c9d80839cfa20024f34d9a6dd31ae2a9cd97ff5e980e969209746037a5153b2")
+
+
 class TestGetLatestPythonVersion(unittest.TestCase):
     def test_get_latest_python_version(self):
         from tasks.python_version import _get_latest_python_version
 
-        mock_response = unittest.mock.MagicMock()
-        mock_response.text = '''<html><body>
+        mock_html = '''<html><body>
 <a href="3.13.0/">3.13.0/</a>
 <a href="3.13.7/">3.13.7/</a>
 <a href="3.13.9/">3.13.9/</a>
 <a href="3.14.0/">3.14.0/</a>
 </body></html>'''
 
-        with unittest.mock.patch('httpx.get', return_value=mock_response):
+        with unittest.mock.patch('tasks.python_version._url_get', return_value=mock_html):
             version = _get_latest_python_version("3.13")
             self.assertEqual(version, "3.13.9")
 
     def test_get_latest_python_version_not_found(self):
         from tasks.python_version import _get_latest_python_version
 
-        mock_response = unittest.mock.MagicMock()
-        mock_response.text = '<html><body><a href="3.14.0/">3.14.0/</a></body></html>'
+        mock_html = '<html><body><a href="3.14.0/">3.14.0/</a></body></html>'
 
-        with unittest.mock.patch('httpx.get', return_value=mock_response):
+        with unittest.mock.patch('tasks.python_version._url_get', return_value=mock_html):
             version = _get_latest_python_version("3.13")
             self.assertIsNone(version)

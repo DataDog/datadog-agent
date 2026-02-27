@@ -190,3 +190,18 @@ func TestFingerprintConfig(t *testing.T) {
 		assert.NotNil(t, err)
 	}
 }
+
+func TestValidateWildcardWithBeginningMode(t *testing.T) {
+	validConfigs := []*LogsConfig{
+		{Type: FileType, Path: "/var/log/*.log", TailingMode: "beginning"},
+		{Type: FileType, Path: "/var/log/app-?.log", TailingMode: "beginning"},
+		{Type: FileType, Path: "/var/log/[abc].log", TailingMode: "beginning"},
+		{Type: FileType, Path: "/var/log/**/*.log", TailingMode: "forceBeginning"},
+		{Type: FileType, Path: "/tmp/test*.log", TailingMode: "forceBeginning"},
+	}
+
+	for _, config := range validConfigs {
+		err := config.Validate()
+		assert.Nil(t, err, "Wildcard path %s with tailing mode %s should be valid", config.Path, config.TailingMode)
+	}
+}

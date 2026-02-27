@@ -427,6 +427,60 @@ external_config:
 	assert.Equal(t, "https://custom.external-agent.datadoghq.eu", externalAgentURL)
 }
 
+func TestExtractSiteFromURL(t *testing.T) {
+	tests := []struct {
+		url      string
+		expected string
+	}{
+		// Standard sites
+		{"https://intake.profile.datadoghq.com/v1/input", "datadoghq.com"},
+		{"https://intake.profile.datadoghq.eu/v1/input", "datadoghq.eu"},
+		{"https://intake.profile.ddog-gov.com/v1/input", "ddog-gov.com"},
+
+		// Datacenter subdomains
+		{"https://intake.profile.us3.datadoghq.com/v1/input", "us3.datadoghq.com"},
+		{"https://intake.profile.us5.datadoghq.com/v1/input", "us5.datadoghq.com"},
+		{"https://intake.profile.ap1.datadoghq.com/v1/input", "ap1.datadoghq.com"},
+		{"https://intake.profile.eu1.datadoghq.eu/v1/input", "eu1.datadoghq.eu"},
+
+		// Staging/alternative domains
+		{"https://intake.profile.datad0g.com/v1/input", "datad0g.com"},
+		{"https://intake.profile.us3.datad0g.com/v1/input", "us3.datad0g.com"},
+
+		// Trailing dots (FQDN)
+		{"https://intake.profile.datadoghq.com./v1/input", "datadoghq.com"},
+		{"https://intake.profile.us3.datadoghq.com./v1/input", "us3.datadoghq.com"},
+
+		// Custom service prefixes
+		{"https://ophzngaa-intake.profile.datadoghq.com/api/v2/profile", "datadoghq.com"},
+		{"https://sourcemap-intake.us3.datadoghq.com/v1/input", "us3.datadoghq.com"},
+
+		// Bare site as URL
+		{"https://datadoghq.com", "datadoghq.com"},
+		{"https://us3.datadoghq.com", "us3.datadoghq.com"},
+
+		// Non-Datadog domains
+		{"https://example.com/foo", ""},
+		{"https://myproxy.internal/intake", ""},
+		{"https://notdatadoghq.com/v1/input", ""},
+		{"https://notdatad0g.eu/v1/input", ""},
+
+		// Case-insensitive hostnames
+		{"https://INTAKE.PROFILE.US3.DATADOGHQ.COM/v1/input", "us3.datadoghq.com"},
+		{"https://intake.profile.Datadoghq.COM/v1/input", "datadoghq.com"},
+
+		// Invalid/empty
+		{"", ""},
+		{"not-a-url", ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.url, func(t *testing.T) {
+			assert.Equal(t, tc.expected, ExtractSiteFromURL(tc.url))
+		})
+	}
+}
+
 func TestAddAgentVersionToDomain(t *testing.T) {
 	appVersionPrefix := getDomainPrefix("app")
 	flareVersionPrefix := getDomainPrefix("flare")
@@ -449,6 +503,11 @@ func TestAddAgentVersionToDomain(t *testing.T) {
 		{ // Gov
 			"https://app.ddog-gov.com",
 			".ddog-gov.com",
+			true,
+		},
+		{ // Gov long-named
+			"https://app.xxxx99.ddog-gov.com",
+			".xxxx99.ddog-gov.com",
 			true,
 		},
 		{ // Additional site

@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+go_library(
+    name = "modparser_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/internal/tools/modparser",
+    visibility = ["//visibility:private"],
+    deps = ["@org_golang_x_mod//modfile"],
+)
+
+go_binary(
+    name = "modparser",
+    embed = [":modparser_lib"],
+    visibility = ["//:__subpackages__"],
+)
+
+go_test(
+    name = "modparser_test",
+    srcs = ["main_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":modparser_lib"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

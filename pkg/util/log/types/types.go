@@ -9,8 +9,6 @@ package types
 import (
 	"fmt"
 	"log/slog"
-
-	"github.com/cihub/seelog"
 )
 
 // LoggerInterface provides basic logging methods that can be used from outside the log package.
@@ -79,61 +77,68 @@ type LoggerInterface interface {
 // LogLevel is the type of log levels
 //
 //nolint:revive // keeping the original type name from seelog
-type LogLevel seelog.LogLevel
+type LogLevel slog.Level
 
 // Log levels
 const (
-	TraceLvl    LogLevel = seelog.TraceLvl
-	DebugLvl    LogLevel = seelog.DebugLvl
-	InfoLvl     LogLevel = seelog.InfoLvl
-	WarnLvl     LogLevel = seelog.WarnLvl
-	ErrorLvl    LogLevel = seelog.ErrorLvl
-	CriticalLvl LogLevel = seelog.CriticalLvl
-	Off         LogLevel = seelog.Off
+	TraceLvl    LogLevel = LogLevel(slog.LevelDebug - 4)
+	DebugLvl    LogLevel = LogLevel(slog.LevelDebug)
+	InfoLvl     LogLevel = LogLevel(slog.LevelInfo)
+	WarnLvl     LogLevel = LogLevel(slog.LevelWarn)
+	ErrorLvl    LogLevel = LogLevel(slog.LevelError)
+	CriticalLvl LogLevel = LogLevel(slog.LevelError + 4)
+	Off         LogLevel = LogLevel(slog.LevelError + 8)
 )
 
 // Log level string representations
 const (
-	TraceStr    = seelog.TraceStr
-	DebugStr    = seelog.DebugStr
-	InfoStr     = seelog.InfoStr
-	WarnStr     = seelog.WarnStr
-	ErrorStr    = seelog.ErrorStr
-	CriticalStr = seelog.CriticalStr
-	OffStr      = seelog.OffStr
+	TraceStr    = "trace"
+	DebugStr    = "debug"
+	InfoStr     = "info"
+	WarnStr     = "warn"
+	ErrorStr    = "error"
+	CriticalStr = "critical"
+	OffStr      = "off"
 )
 
 func (level LogLevel) String() string {
-	return seelog.LogLevel(level).String()
+	switch level {
+	case TraceLvl:
+		return TraceStr
+	case DebugLvl:
+		return DebugStr
+	case InfoLvl:
+		return InfoStr
+	case WarnLvl:
+		return WarnStr
+	case ErrorLvl:
+		return ErrorStr
+	case CriticalLvl:
+		return CriticalStr
+	case Off:
+		return OffStr
+	default:
+		return ""
+	}
 }
-
-const (
-	slogTraceLvl    slog.Level = slog.LevelDebug - 4
-	slogDebugLvl    slog.Level = slog.LevelDebug
-	slogInfoLvl     slog.Level = slog.LevelInfo
-	slogWarnLvl     slog.Level = slog.LevelWarn
-	slogErrorLvl    slog.Level = slog.LevelError
-	slogCriticalLvl slog.Level = slog.LevelError + 4
-	slogOff         slog.Level = slog.LevelError + 8
-)
 
 // ToSlogLevel converts a LogLevel to a slog.Level
 func ToSlogLevel(level LogLevel) slog.Level {
 	switch level {
 	case TraceLvl:
-		return slogTraceLvl
+		return slog.Level(TraceLvl)
 	case DebugLvl:
-		return slogDebugLvl
+		return slog.Level(DebugLvl)
 	case InfoLvl:
-		return slogInfoLvl
+		return slog.Level(InfoLvl)
 	case WarnLvl:
-		return slogWarnLvl
+		return slog.Level(WarnLvl)
 	case ErrorLvl:
-		return slogErrorLvl
+		return slog.Level(ErrorLvl)
 	case CriticalLvl:
-		return slogCriticalLvl
+		return slog.Level(CriticalLvl)
 	case Off:
-		return slogOff
+		return slog.Level(Off)
 	default:
 		// unreachable
 		panic(fmt.Sprintf("unknown log level: %d", level))
@@ -143,19 +148,19 @@ func ToSlogLevel(level LogLevel) slog.Level {
 // FromSlogLevel converts a slog.Level to a LogLevel
 func FromSlogLevel(level slog.Level) LogLevel {
 	switch level {
-	case slogTraceLvl:
+	case slog.Level(TraceLvl):
 		return TraceLvl
-	case slogDebugLvl:
+	case slog.Level(DebugLvl):
 		return DebugLvl
-	case slogInfoLvl:
+	case slog.Level(InfoLvl):
 		return InfoLvl
-	case slogWarnLvl:
+	case slog.Level(WarnLvl):
 		return WarnLvl
-	case slogErrorLvl:
+	case slog.Level(ErrorLvl):
 		return ErrorLvl
-	case slogCriticalLvl:
+	case slog.Level(CriticalLvl):
 		return CriticalLvl
-	case slogOff:
+	case slog.Level(Off):
 		return Off
 	default:
 		// unreachable

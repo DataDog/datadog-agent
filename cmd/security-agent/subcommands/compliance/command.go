@@ -15,10 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
-	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
@@ -35,6 +34,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	complianceCmd.AddCommand(CheckCommand(globalParams))
 	complianceCmd.AddCommand(complianceLoadCommand(globalParams))
+	addPlatformSpecificCommands(complianceCmd, globalParams)
 
 	return []*cobra.Command{complianceCmd}
 }
@@ -61,11 +61,11 @@ func CheckCommand(globalParams *command.GlobalParams) *cobra.Command {
 			return fxutil.OneShot(cli.RunCheck,
 				fx.Supply(checkArgs),
 				fx.Supply(bundleParams),
-				core.Bundle(),
-				secretsfx.Module(),
+				core.Bundle(core.WithSecrets()),
 				logscompressionfx.Module(),
 				statsd.Module(),
 				ipcfx.ModuleInsecure(),
+				remotehostnameimpl.Module(),
 			)
 		},
 	}
@@ -91,7 +91,6 @@ func complianceLoadCommand(globalParams *command.GlobalParams) *cobra.Command {
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true),
 				}),
 				core.Bundle(),
-				secretsnoopfx.Module(),
 			)
 		},
 	}

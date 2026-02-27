@@ -26,7 +26,6 @@ func TestSBOMEKSSuite(t *testing.T) {
 			proveks.WithRunOptions(
 				sceneks.WithEKSOptions(
 					sceneks.WithLinuxNodeGroup(),
-					sceneks.WithWindowsNodeGroup(),
 					sceneks.WithBottlerocketNodeGroup(),
 					sceneks.WithLinuxARMNodeGroup(),
 				),

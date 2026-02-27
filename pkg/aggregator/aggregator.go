@@ -16,6 +16,7 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
@@ -35,7 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -164,6 +164,7 @@ var (
 		[]string{"shard", "metric_type", tags.BytesKindTelemetryKey}, "Estimated count of bytes taken by contexts in the aggregator, by metric type")
 	tlmDogstatsdFilteredMetrics = telemetry.NewSimpleCounter("aggregator", "dogstatsd_filtered_metrics", "How many metrics were filtered in the time samplers")
 	tlmChecksFilteredMetrics    = telemetry.NewSimpleCounter("aggregator", "checks_filtered_metrics", "How many metrics were filtered in the check samplers")
+	tlmFilteredTags             = telemetry.NewSimpleCounter("aggregator", "filtered_tags", "How many tags were filtered from a metric sample")
 	tlmChecksContexts           = telemetry.NewGauge("aggregator", "checks_contexts",
 		[]string{"shard"}, "Count the number of checks contexts in the check aggregator")
 	tlmChecksContextsByMtype = telemetry.NewGauge("aggregator", "checks_contexts_by_mtype",
@@ -277,7 +278,8 @@ type BufferedAggregator struct {
 	filterListChan  chan utilstrings.Matcher
 	flushFilterList utilstrings.Matcher
 
-	tagFilterList *TagMatcher
+	tagfilterListChan chan filterlist.TagMatcher
+	tagFilterList     filterlist.TagMatcher
 }
 
 // FlushAndSerializeInParallel contains options for flushing metrics and serializing in parallel.
@@ -356,36 +358,11 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		tagger:                      tagger,
 		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog()),
 
-		filterListChan: make(chan utilstrings.Matcher),
-		tagFilterList:  loadTagFilterList(),
+		filterListChan:    make(chan utilstrings.Matcher),
+		tagfilterListChan: make(chan filterlist.TagMatcher),
 	}
 
 	return aggregator
-}
-
-func loadTagFilterList() *TagMatcher {
-	tagFilterListInterface := pkgconfigsetup.Datadog().GetStringMap("metric_tag_filterlist")
-
-	tagFilterList := make(map[string]MetricTagList, len(tagFilterListInterface))
-	for metricName, tags := range tagFilterListInterface {
-		// Tags can be configured as an object with fields:
-		// tags - array of tags
-		// action - either `include` or `exclude`.
-		// Roundtrip the struct through yaml to load it.
-		tagBytes, err := yaml.Marshal(tags)
-		if err != nil {
-			log.Errorf("invalid configuration for %q: %s", "metric_tag_filterlist."+metricName, err)
-		} else {
-			var tags MetricTagList
-			err = yaml.Unmarshal(tagBytes, &tags)
-			if err != nil {
-				log.Errorf("error loading configuration for %q: %s", "metric_tag_filterlist."+metricName, err)
-			} else {
-				tagFilterList[metricName] = tags
-			}
-		}
-	}
-	return NewTagMatcher(tagFilterList)
 }
 
 func (agg *BufferedAggregator) addOrchestratorManifest(manifests *senderOrchestratorManifest) {
@@ -825,6 +802,8 @@ func (agg *BufferedAggregator) run() {
 
 		case matcher := <-agg.filterListChan:
 			agg.flushFilterList = matcher
+		case matcher := <-agg.tagfilterListChan:
+			agg.tagFilterList = matcher
 		case <-agg.health.C:
 		case checkItem := <-agg.checkItems:
 			checkItem.handle(agg)

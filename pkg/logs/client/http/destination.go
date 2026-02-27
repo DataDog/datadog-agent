@@ -152,6 +152,8 @@ func newDestination(endpoint config.Endpoint,
 		metrics.DestinationExpVars.Set(destMeta.TelemetryName(), expVars)
 	}
 
+	metrics.DestinationLogsDropped.Set(endpoint.Host, &expvar.Int{})
+
 	workerPool := newDefaultWorkerPool(minConcurrency, maxConcurrency, destMeta)
 
 	return &Destination{
@@ -291,8 +293,15 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			}
 		}
 
-		metrics.LogsSent.Add(payload.Count())
-		metrics.TlmLogsSent.Add(float64(payload.Count()))
+		if err != nil {
+			// Permanent error, increment the logs dropped metric
+			metrics.DestinationLogsDropped.Add(d.host, payload.Count())
+			metrics.TlmLogsDropped.Add(float64(payload.Count()), d.host)
+		} else {
+			metrics.LogsSent.Add(payload.Count())
+			metrics.TlmLogsSent.Add(float64(payload.Count()))
+		}
+
 		output <- payload
 		return result
 	}
@@ -322,9 +331,10 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		sourceTag = "epforwarder"
 	}
 
-	metrics.TlmBytesSent.Add(float64(payload.UnencodedSize), sourceTag)
+	// Use GetAgentIdentityTag() to identify which agent is sending logs
+	metrics.TlmBytesSent.Add(float64(payload.UnencodedSize), metrics.GetAgentIdentityTag(), sourceTag)
 	metrics.EncodedBytesSent.Add(int64(len(payload.Encoded)))
-	metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)), sourceTag, compressionKind)
+	metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)), metrics.GetAgentIdentityTag(), sourceTag, compressionKind)
 
 	req, err := http.NewRequest("POST", d.url, bytes.NewReader(payload.Encoded))
 	if err != nil {

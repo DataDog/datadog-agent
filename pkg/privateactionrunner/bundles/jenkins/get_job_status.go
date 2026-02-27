@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/httpclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -27,9 +28,9 @@ func (h *GetJobStatusHandler) WithHttpClientProvider(httpClientProvider httpclie
 	return h
 }
 
-func NewGetJobStatusHandler() *GetJobStatusHandler {
+func NewGetJobStatusHandler(runnerConfig *config.Config) *GetJobStatusHandler {
 	return &GetJobStatusHandler{
-		httpClientProvider: httpclient.NewDefaultProvider(),
+		httpClientProvider: httpclient.NewDefaultProvider(runnerConfig),
 	}
 }
 

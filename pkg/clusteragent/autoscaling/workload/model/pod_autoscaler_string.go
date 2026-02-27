@@ -15,6 +15,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
@@ -160,7 +161,9 @@ func formatConstraints(constraints *datadoghqcommon.DatadogPodAutoscalerConstrai
 	if constraints.MinReplicas != nil {
 		_, _ = fmt.Fprintln(&sb, "Min Replicas:", *constraints.MinReplicas)
 	}
-	_, _ = fmt.Fprintln(&sb, "Max Replicas:", constraints.MaxReplicas)
+	if constraints.MaxReplicas != nil {
+		_, _ = fmt.Fprintln(&sb, "Max Replicas:", *constraints.MaxReplicas)
+	}
 
 	for _, container := range constraints.Containers {
 		_, _ = fmt.Fprintln(&sb, "Container:", container.Name)
@@ -304,7 +307,7 @@ func (p *PodAutoscalerInternal) MarshalJSON() ([]byte, error) {
 		"name":                                     p.name,
 		"creation_timestamp":                       p.creationTimestamp,
 		"generation":                               p.generation,
-		"spec":                                     p.spec,
+		"spec":                                     p.Spec(),
 		"settings_timestamp":                       p.settingsTimestamp,
 		"scaling_values":                           p.scalingValues,
 		"scaling_values_error":                     errorToString(p.scalingValues.Error),
@@ -387,7 +390,17 @@ func (p *PodAutoscalerInternal) UnmarshalJSON(data []byte) error {
 	p.generation = temp.Generation
 	p.creationTimestamp = temp.CreationTimestamp
 	p.settingsTimestamp = temp.SettingsTimestamp
-	p.spec = temp.Spec
+	if temp.Spec != nil {
+		if p.upstreamCR == nil {
+			p.upstreamCR = &v1alpha2.DatadogPodAutoscaler{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: p.namespace,
+					Name:      p.name,
+				},
+			}
+		}
+		p.upstreamCR.Spec = *temp.Spec
+	}
 	p.deleted = temp.Deleted
 	p.currentReplicas = temp.CurrentReplicas
 	p.scaledReplicas = temp.ScaledReplicas

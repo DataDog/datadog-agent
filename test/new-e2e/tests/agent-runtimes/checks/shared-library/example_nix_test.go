@@ -9,28 +9,37 @@ package sharedlibrary
 import (
 	"testing"
 
+	perms "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams/filepermissions"
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 )
 
+var linuxDefaultPermissions = perms.NewUnixPermissions(perms.WithPermissions("0740"), perms.WithOwner("dd-agent"), perms.WithGroup("dd-agent"))
+
 type linuxSharedLibrarySuite struct {
 	sharedLibrarySuite
 }
 
-func TestLinuxCheckImplementationSuite(t *testing.T) {
+func TestLinuxSharedLibraryCheckSuite(t *testing.T) {
 	t.Parallel()
+
 	suite := &linuxSharedLibrarySuite{
 		sharedLibrarySuite{
 			descriptor:  e2eos.UbuntuDefault,
-			libraryName: "libdatadog-agent-example.so",
 			checksdPath: "/tmp/datadog-agent/checks.d",
 		},
 	}
 
-	e2e.Run(t, suite, suite.getSuiteOptions()...)
+	e2e.Run(t, suite, suite.getSuiteOptions())
 }
 
-func (v *linuxSharedLibrarySuite) TestLinuxCheckExample() {
-	v.testCheckExample()
+func (v *linuxSharedLibrarySuite) TestCheckExample() {
+	v.updateEnvWithCheckConfigAndSharedLibrary("example", checkMinimalConfig, linuxDefaultPermissions)
+	v.testCheckExampleExecutionAndMetrics()
+}
+
+func (v *linuxSharedLibrarySuite) TestCheckWithoutRunSymbol() {
+	v.updateEnvWithCheckConfigAndSharedLibrary("no-run-symbol", checkMinimalConfig, linuxDefaultPermissions)
+	v.testCheckWithoutRunSymbolExecutionError()
 }

@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v5"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
@@ -170,7 +170,6 @@ func (s *UnimplementedRemoteAgentServer) start() {
 		registrationBackoff := backoff.NewExponentialBackOff()
 		registrationBackoff.InitialInterval = 500 * time.Millisecond
 		registrationBackoff.MaxInterval = time.Minute
-		registrationBackoff.MaxElapsedTime = 0 // Retry forever
 		registrationBackoff.Reset()
 
 		// Start with immediate first registration attempt

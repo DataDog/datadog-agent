@@ -113,8 +113,8 @@ func IsUserInGroup(ctx context.Context, userName, groupName string) (bool, error
 
 				// Check if user is in the supplementary group members list
 				if len(groupParts) >= 4 && groupParts[3] != "" {
-					users := strings.Split(groupParts[3], ",")
-					for _, u := range users {
+					users := strings.SplitSeq(groupParts[3], ",")
+					for u := range users {
 						if strings.TrimSpace(u) == userName {
 							return true, nil
 						}

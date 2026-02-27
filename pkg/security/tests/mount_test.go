@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func TestMount(t *testing.T) {
@@ -537,6 +538,7 @@ func TestMountEvent(t *testing.T) {
 
 	t.Run("mount-in-container-root", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+		flake.MarkOnJobName(t, "ubuntu_25.10")
 
 		if _, err := whichNonFatal("docker"); err != nil {
 			t.Skip("Skip test where docker is unavailable")
