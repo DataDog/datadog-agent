@@ -40,6 +40,7 @@ func TestEKSSuite(t *testing.T) {
 
 	agentOptions := []kubernetesagentparams.Option{
 		kubernetesagentparams.WithDualShipping(),
+		kubernetesagentparams.WithHelmValues(containerHelmValues),
 	}
 
 	skipWindows, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipWindows, false)
@@ -57,15 +58,7 @@ func TestEKSSuite(t *testing.T) {
 			sceneks.WithFakeIntakeOptions(
 				fakeintake.WithRetentionPeriod("31m"),
 			),
-<<<<<<< HEAD
 			sceneks.WithAgentOptions(agentOptions...),
-=======
-			sceneks.WithAgentOptions(
-				kubernetesagentparams.WithDualShipping(),
-				kubernetesagentparams.WithWindowsImage(),
-				kubernetesagentparams.WithHelmValues(containerHelmValues),
-			),
->>>>>>> dafa3b74a1c467bddc56e79850cc763a1a2c6ce1
 			sceneks.WithDeployArgoRollout(),
 		),
 	)))

@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 )
 
 // Params defines the parameters for the ECS Agent installation.
@@ -29,7 +28,7 @@ type Params struct {
 
 type Option = func(*Params) error
 
-func NewParams(e config.Env, options ...Option) (*Params, error) {
+func NewParams(options ...Option) (*Params, error) {
 	version := &Params{
 		AgentServiceEnvironment: make(map[string]string),
 		NetworkMode:             "bridge",
