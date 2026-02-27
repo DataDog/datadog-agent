@@ -67,6 +67,7 @@ func computeRawsTable() map[string]uint64 {
 		OffsetNameInodeSuperblock:                 40,
 		OffsetNamePathMnt:                         0,
 		OffsetNameMountMntMountpoint:              24,
+		OffsetNameMountParent:                     16,
 		OffsetNameMountpointDentry:                16,
 		OffsetNameVfsmountMntFlags:                16,
 		OffsetNameSuperblockSType:                 40,
@@ -129,6 +130,9 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 		OffsetNameFlowI4StructProto:           getFlowiProtoOffset,
 		OffsetNameFlowI6StructProto:           getFlowiProtoOffset,
 		OffsetNameMountMntNs:                  getMountMntNsOffset,
+		OffsetNameMountMountpoint:             getMountMountpointOffset,
+		OffsetNameTaskStructRealParent:        getTaskStructRealParentOffset,
+		OffsetNameTaskStructTGID:              getTaskStructTGIDOffset,
 	}
 }
 
@@ -1030,5 +1034,84 @@ func getMountMntNsOffset(kv *kernel.Version) uint64 {
 		return 232
 	default:
 		return 224
+	}
+}
+
+func getMountMountpointOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsSuseKernel():
+		return 240
+	default:
+		return 232
+	}
+}
+
+func getTaskStructRealParentOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsRH7Kernel() && kv.Code < kernel.Kernel4_9:
+		return 1208
+	case kv.IsRH7Kernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
+		return 1336
+	case kv.IsRH7Kernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		return 2240
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
+		return 2240
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_9, kernel.Kernel4_10):
+		return 1152
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_19):
+		return 2232
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		return 2256
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_8, kernel.Kernel5_9):
+		return 2288
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_11, kernel.Kernel5_12):
+		return 2344
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
+		return 1248
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
+		return 2248
+	case kv.IsSLESKernel() && kv.Code != 0 && kv.Code < kernel.Kernel4_12:
+		return 2232
+	case kv.IsSLESKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_12, kernel.Kernel4_13):
+		return 2208
+	case kv.IsSLESKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_4):
+		return 2248
+	default:
+		return ErrorSentinel
+	}
+}
+
+func getTaskStructTGIDOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsRH7Kernel() && kv.Code < kernel.Kernel4_9:
+		return 1192
+	case kv.IsRH7Kernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
+		return 1324
+	case kv.IsRH7Kernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		return 2228
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
+		return 2228
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_9, kernel.Kernel4_10):
+		return 1140
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_19):
+		return 2220
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		return 2244
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_8, kernel.Kernel5_9):
+		return 2276
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_11, kernel.Kernel5_12):
+		return 2332
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
+		return 1236
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
+		return 2236
+	case kv.IsSLESKernel() && kv.Code != 0 && kv.Code < kernel.Kernel4_12:
+		return 2220
+	case kv.IsSLESKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_12, kernel.Kernel4_13):
+		return 2196
+	case kv.IsSLESKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_4):
+		return 2236
+	default:
+		return ErrorSentinel
 	}
 }

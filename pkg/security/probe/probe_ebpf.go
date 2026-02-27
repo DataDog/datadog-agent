@@ -1091,6 +1091,13 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 		if !isResolved {
 			event.Error = model.ErrNoProcessContext
 		} else {
+			// If the kernel reports a different ppid than the one in our
+			// cache, the process was reparented (e.g. subreaper). Update
+			// the cache tree immediately using the authoritative kernel value.
+			if event.PIDContext.PPid != 0 {
+				p.Resolvers.ProcessResolver.TryReparentFromKernelPPid(entry, event.PIDContext.PPid)
+			}
+
 			// Attempt to repair the lineage of processes that were orphaned
 			// during subreaper reparenting (the exit tracepoint may fire
 			// before the kernel has completed forget_original_parent).
@@ -3324,6 +3331,8 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	} else {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructPID, "struct task_struct", "thread_pid")
 	}
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructRealParent, "struct task_struct", "real_parent")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructTGID, "struct task_struct", "tgid")
 
 	// splice event
 	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfPipeBuffer, "struct pipe_buffer")
