@@ -133,11 +133,6 @@ function App() {
                 }`}
               >
                 Log Anomalies
-                {(state.status?.logAnomalyCount ?? 0) > 0 && (
-                  <span className="ml-1.5 text-xs bg-orange-600/80 text-white px-1.5 py-0.5 rounded-full">
-                    {state.status!.logAnomalyCount}
-                  </span>
-                )}
               </button>
             </div>
           </div>

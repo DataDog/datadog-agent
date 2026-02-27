@@ -259,7 +259,7 @@ func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namesp
 	}
 
 	// Get anomalies for this series to include in response
-	anomalies := api.tb.GetAnomaliesForSeries(seriesID)
+	anomalies := api.tb.GetMetricsAnomaliesForSeries(seriesID)
 
 	type anomalyMarker struct {
 		Timestamp         int64  `json:"timestamp"`
@@ -389,7 +389,7 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 
 	if analyzerFilter != "" {
 		// Return only anomalies from specified analyzer
-		byAnalyzer := api.tb.GetAnomaliesByAnalyzer()
+		byAnalyzer := api.tb.GetMetricsAnomaliesByAnalyzer()
 		if anomalies, ok := byAnalyzer[analyzerFilter]; ok {
 			for _, a := range anomalies {
 				if a.AnalyzerName == "" || a.Timestamp == 0 {
@@ -402,7 +402,7 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 		}
 	} else {
 		// Return all anomalies
-		anomalies := api.tb.GetAnomalies()
+		anomalies := api.tb.GetMetricsAnomalies()
 		for _, a := range anomalies {
 			if a.AnalyzerName == "" || a.Timestamp == 0 {
 				log.Printf("skipping malformed anomaly response: analyzer=%q source=%q ts=%d",
