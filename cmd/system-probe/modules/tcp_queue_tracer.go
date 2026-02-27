@@ -50,10 +50,10 @@ type tcpQueueLengthModule struct {
 }
 
 func (t *tcpQueueLengthModule) Register(httpMux *module.Router) error {
-	httpMux.HandleFunc("/check", func(w http.ResponseWriter, _ *http.Request) {
+	httpMux.HandleFunc("/check", func(w http.ResponseWriter, req *http.Request) {
 		t.lastCheck.Store(time.Now().Unix())
 		stats := t.Tracer.GetAndFlush()
-		utils.WriteAsJSON(w, stats, utils.CompactOutput)
+		utils.WriteAsJSON(req, w, stats, utils.CompactOutput)
 	})
 
 	return nil

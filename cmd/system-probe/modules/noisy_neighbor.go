@@ -64,7 +64,7 @@ func (n noisyNeighborModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
 		n.lastCheck.Store(time.Now().Unix())
 		stats := n.Probe.GetAndFlush()
-		utils.WriteAsJSON(w, stats, utils.GetPrettyPrintFromQueryParams(req))
+		utils.WriteAsJSON(req, w, stats, utils.GetPrettyPrintFromQueryParams(req))
 	}))
 
 	return nil
