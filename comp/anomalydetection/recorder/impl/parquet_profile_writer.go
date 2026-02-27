@@ -8,9 +8,6 @@ package recorderimpl
 import (
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
-	"sync"
 	"time"
 
 	"github.com/apache/arrow-go/v18/arrow"
@@ -18,29 +15,22 @@ import (
 	"github.com/apache/arrow-go/v18/arrow/memory"
 	"github.com/apache/arrow-go/v18/parquet"
 	"github.com/apache/arrow-go/v18/parquet/compress"
-	"github.com/apache/arrow-go/v18/parquet/pqarrow"
 
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ProfileParquetWriter writes observer profiles to parquet files created on each flush.
-// Profile binary data is embedded directly in parquet using a LargeBinary column.
+// Profile binary data is embedded directly in parquet using a Binary column.
 // This simplifies file management at the cost of slightly larger parquet files,
 // which is acceptable for a recorder/replay use case.
 // Files are only created when there is data to write; empty files are never produced.
 type ProfileParquetWriter struct {
-	outputDir         string
-	schema            *arrow.Schema
-	builder           *profileBatchBuilder
-	flushInterval     time.Duration
-	retentionDuration time.Duration
-	stopCh            chan struct{}
-	closed            bool
-	mu                sync.Mutex
+	parquetWriterBase
+	typedBuilder *profileBatchBuilder
 }
 
 // NewProfileParquetWriter creates a writer for profile data.
-// Binary profile data is embedded directly in the parquet file using LargeBinary.
+// Binary profile data is embedded directly in the parquet file using Binary.
 func NewProfileParquetWriter(outputDir string, flushInterval, retentionDuration time.Duration) (*ProfileParquetWriter, error) {
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return nil, fmt.Errorf("creating output directory: %w", err)
@@ -66,38 +56,6 @@ func NewProfileParquetWriter(outputDir string, flushInterval, retentionDuration 
 		nil,
 	)
 
-	pw := &ProfileParquetWriter{
-		outputDir:         outputDir,
-		schema:            schema,
-		builder:           newProfileBatchBuilder(schema),
-		flushInterval:     flushInterval,
-		retentionDuration: retentionDuration,
-		stopCh:            make(chan struct{}),
-	}
-
-	go pw.flushLoop()
-	if retentionDuration > 0 {
-		go pw.cleanupLoop()
-	}
-
-	pkglog.Infof("Profile parquet writer initialized: dir=%s flush=%v retention=%v", outputDir, flushInterval, retentionDuration)
-
-	return pw, nil
-}
-
-// writeRecord creates a new timestamped file, writes the record, and closes it atomically.
-// Only called when there is data; no file is created for empty batches.
-// Must be called with pw.mu held.
-func (pw *ProfileParquetWriter) writeRecord(record arrow.Record) error {
-	timestamp := time.Now().UTC().Format("20060102-150405")
-	filename := fmt.Sprintf("observer-profiles-%sZ.parquet", timestamp)
-	filePath := filepath.Join(pw.outputDir, filename)
-
-	file, err := os.Create(filePath)
-	if err != nil {
-		return fmt.Errorf("creating parquet file %s: %w", filePath, err)
-	}
-
 	props := parquet.NewWriterProperties(
 		parquet.WithVersion(parquet.V2_LATEST),
 		parquet.WithCompression(compress.Codecs.Zstd),
@@ -107,25 +65,24 @@ func (pw *ProfileParquetWriter) writeRecord(record arrow.Record) error {
 		parquet.WithBloomFilterFPPFor("ProfileType", 0.01),
 	)
 
-	arrowProps := pqarrow.NewArrowWriterProperties(pqarrow.WithStoreSchema())
-
-	writer, err := pqarrow.NewFileWriter(pw.schema, file, props, arrowProps)
-	if err != nil {
-		file.Close()
-		return fmt.Errorf("creating parquet writer: %w", err)
+	builder := newProfileBatchBuilder(schema)
+	pw := &ProfileParquetWriter{
+		parquetWriterBase: parquetWriterBase{
+			outputDir:         outputDir,
+			filePrefix:        "observer-profiles",
+			schema:            schema,
+			writerProps:       props,
+			builder:           builder,
+			flushInterval:     flushInterval,
+			retentionDuration: retentionDuration,
+			stopCh:            make(chan struct{}),
+		},
+		typedBuilder: builder,
 	}
+	pw.start()
 
-	if err := writer.Write(record); err != nil {
-		writer.Close()
-		return fmt.Errorf("writing record to parquet: %w", err)
-	}
-
-	if err := writer.Close(); err != nil {
-		return fmt.Errorf("closing parquet writer: %w", err)
-	}
-
-	pkglog.Debugf("Wrote profile parquet file: %s (%d rows)", filePath, record.NumRows())
-	return nil
+	pkglog.Infof("Profile parquet writer initialized: dir=%s flush=%v retention=%v", outputDir, flushInterval, retentionDuration)
+	return pw, nil
 }
 
 // WriteProfile writes profile data (metadata + binary) to the parquet batch.
@@ -141,7 +98,7 @@ func (pw *ProfileParquetWriter) WriteProfile(
 	pw.mu.Lock()
 	defer pw.mu.Unlock()
 
-	pw.builder.add(
+	pw.typedBuilder.add(
 		source,
 		timestampNs/1000000, // Convert ns to ms
 		profileID, profileType,
@@ -151,115 +108,6 @@ func (pw *ProfileParquetWriter) WriteProfile(
 		binaryData,
 		tags,
 	)
-}
-
-func (pw *ProfileParquetWriter) flushLoop() {
-	ticker := time.NewTicker(pw.flushInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-pw.stopCh:
-			pw.flush()
-			return
-		case <-ticker.C:
-			pw.flush()
-		}
-	}
-}
-
-// flush writes accumulated profiles to a new file if there is data to write.
-// If no profiles have been collected since the last flush, no file is created.
-func (pw *ProfileParquetWriter) flush() {
-	pw.mu.Lock()
-	defer pw.mu.Unlock()
-
-	if pw.closed {
-		return
-	}
-
-	record := pw.builder.build()
-	if record == nil {
-		return
-	}
-	defer record.Release()
-
-	if err := pw.writeRecord(record); err != nil {
-		pkglog.Errorf("Failed to flush profiles to parquet: %v", err)
-	}
-}
-
-func (pw *ProfileParquetWriter) cleanupLoop() {
-	ticker := time.NewTicker(5 * time.Minute)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-pw.stopCh:
-			return
-		case <-ticker.C:
-			pw.cleanup()
-		}
-	}
-}
-
-func (pw *ProfileParquetWriter) cleanup() {
-	entries, err := os.ReadDir(pw.outputDir)
-	if err != nil {
-		pkglog.Warnf("Failed to read profile parquet output directory for cleanup: %v", err)
-		return
-	}
-
-	cutoff := time.Now().Add(-pw.retentionDuration)
-	removed := 0
-
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasPrefix(entry.Name(), "observer-profiles-") || !strings.HasSuffix(entry.Name(), ".parquet") {
-			continue
-		}
-
-		filePath := filepath.Join(pw.outputDir, entry.Name())
-		info, err := entry.Info()
-		if err != nil {
-			continue
-		}
-
-		if info.ModTime().Before(cutoff) {
-			if err := os.Remove(filePath); err != nil {
-				pkglog.Warnf("Failed to remove old profile parquet file %s: %v", filePath, err)
-			} else {
-				removed++
-			}
-		}
-	}
-
-	if removed > 0 {
-		pkglog.Infof("Cleaned up %d old profile parquet file(s)", removed)
-	}
-}
-
-// Close flushes remaining data and closes the writer.
-func (pw *ProfileParquetWriter) Close() error {
-	pw.mu.Lock()
-	defer pw.mu.Unlock()
-
-	if pw.closed {
-		return nil
-	}
-	pw.closed = true
-
-	close(pw.stopCh)
-
-	record := pw.builder.build()
-	if record == nil {
-		return nil
-	}
-	defer record.Release()
-
-	if err := pw.writeRecord(record); err != nil {
-		return fmt.Errorf("final flush: %w", err)
-	}
-	return nil
 }
 
 // profileBatchBuilder accumulates profile data into Arrow record batches.
