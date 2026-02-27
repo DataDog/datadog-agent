@@ -69,9 +69,9 @@ sh_test(
     ],
     # sha256sum only exists on linux, and we only need to test on a single
     # platform anyway.
-    target_compatible_with = [
-        "@platforms//os:linux",
-    ],
+    #target_compatible_with = [
+    #        "@platforms//os:linux",
+    #    ],
 )
 
 pkg_files(
