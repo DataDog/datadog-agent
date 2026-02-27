@@ -179,10 +179,7 @@ func (agg *aggregator) getRawStats() model.UtilizationMetrics {
 		}
 	}
 
-	memTsBuilders := make(map[memAllocType]*tseriesBuilder)
-	for i := memAllocType(0); i < memAllocTypeCount; i++ {
-		memTsBuilders[memAllocType(i)] = &tseriesBuilder{}
-	}
+	var memTsBuilders [memAllocTypeCount]tseriesBuilder
 
 	for _, alloc := range agg.currentAllocs {
 		memTsBuilders[alloc.allocType].AddEventStart(alloc.startKtime, int64(alloc.size))
@@ -192,8 +189,8 @@ func (agg *aggregator) getRawStats() model.UtilizationMetrics {
 		memTsBuilders[alloc.allocType].AddEvent(alloc.startKtime, alloc.endKtime, int64(alloc.size))
 	}
 
-	for _, memTsBuilder := range memTsBuilders {
-		lastValue, maxValue := memTsBuilder.GetLastAndMax()
+	for allocType := range memTsBuilders {
+		lastValue, maxValue := memTsBuilders[allocType].GetLastAndMax()
 		stats.Memory.CurrentBytes += uint64(lastValue)
 		stats.Memory.MaxBytes += uint64(maxValue)
 	}
