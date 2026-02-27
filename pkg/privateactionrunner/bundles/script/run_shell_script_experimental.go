@@ -8,7 +8,6 @@
 package com_datadoghq_script
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -85,14 +84,17 @@ func (h *RunShellScriptHandler) Run(
 	if err != nil {
 		return nil, fmt.Errorf("invalid command arguments: %w", err)
 	}
-	var stdoutBuffer bytes.Buffer
-	cmd.Stdout = &stdoutBuffer
-	var stderrBuffer bytes.Buffer
-	cmd.Stderr = &stderrBuffer
+	stdoutWriter, stderrWriter := newLimitedStdoutStderrWritersPair(maxOutputSize)
+	cmd.Stdout = stdoutWriter
+	cmd.Stderr = stderrWriter
 	start := time.Now()
 	err = cmd.Run()
 
-	stdErr := sanitizeErrorMessage(scriptFile.Name(), stderrBuffer.String())
+	if stdoutWriter.LimitReached() || stderrWriter.LimitReached() {
+		return nil, newOutputLimitError(defaultMaxOutputSize)
+	}
+
+	stdErr := sanitizeErrorMessage(scriptFile.Name(), stderrWriter.String())
 
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
@@ -106,7 +108,7 @@ func (h *RunShellScriptHandler) Run(
 	return &RunShellScriptOutputs{
 		ExecutedCommand: cmd.String(),
 		ExitCode:        cmd.ProcessState.ExitCode(),
-		Stdout:          formatOutput(stdoutBuffer.String(), inputs.NoStripTrailingNewline),
+		Stdout:          formatOutput(stdoutWriter.String(), inputs.NoStripTrailingNewline),
 		Stderr:          formatOutput(stdErr, inputs.NoStripTrailingNewline),
 		DurationMillis:  int(time.Since(start).Milliseconds()),
 	}, nil
