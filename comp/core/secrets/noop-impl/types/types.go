@@ -24,19 +24,9 @@ func (r *SecretNoop) Resolve(data []byte, _ string, _ string, _ string, _ bool) 
 	return data, nil
 }
 
-// Refresh does nothing and returns false
-func (r *SecretNoop) Refresh() bool {
-	return false
-}
-
-// RefreshNow does nothing
-func (r *SecretNoop) RefreshNow() (string, error) {
+// Refresh does nothing
+func (r *SecretNoop) Refresh(_ bool) (string, error) {
 	return "", nil
-}
-
-// IsValueFromSecret always returns false for noop
-func (r *SecretNoop) IsValueFromSecret(_ string) bool {
-	return false
 }
 
 // RemoveOrigin

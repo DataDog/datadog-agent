@@ -79,19 +79,13 @@ func procBindEnvAndSetDefault(config pkgconfigmodel.Setup, key string, val inter
 	config.BindEnvAndSetDefault(key, val, envs...)
 }
 
-// procBindEnv is a helper function that generates both "DD_PROCESS_CONFIG_" and "DD_PROCESS_AGENT_" prefixes from a key, but does not set a default.
-// We need this helper function because the standard BindEnv can only generate one prefix from a key.
-func procBindEnv(config pkgconfigmodel.Setup, key string) {
-	processConfigKey := "DD_" + strings.ReplaceAll(strings.ToUpper(key), ".", "_")
-	processAgentKey := strings.Replace(processConfigKey, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
-
-	config.BindEnv(key, processConfigKey, processAgentKey) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-}
-
 func setupProcesses(config pkgconfigmodel.Setup) {
 	// "process_config.enabled" is deprecated. We must still be able to detect if it is present, to know if we should use it
 	// or container_collection.enabled and process_collection.enabled.
-	procBindEnv(config, "process_config.enabled")
+	//
+	// It's a string as the possible values are "disabled", "false", "true"...
+	procBindEnvAndSetDefault(config, "process_config.enabled", "false")
+
 	procBindEnvAndSetDefault(config, "process_config.container_collection.enabled", true)
 	procBindEnvAndSetDefault(config, "process_config.process_collection.enabled", false)
 
@@ -104,20 +98,26 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 		"DD_PROCESS_AGENT_URL",
 		"DD_PROCESS_CONFIG_URL",
 	)
-	procBindEnv(config, "process_config.dd_agent_env")
-	procBindEnv(config, "process_config.intervals.process_realtime")
+	procBindEnvAndSetDefault(config, "process_config.dd_agent_env", "")
 	procBindEnvAndSetDefault(config, "process_config.queue_size", DefaultProcessQueueSize)
 	procBindEnvAndSetDefault(config, "process_config.process_queue_bytes", DefaultProcessQueueBytes)
 	procBindEnvAndSetDefault(config, "process_config.rt_queue_size", DefaultProcessRTQueueSize)
 	procBindEnvAndSetDefault(config, "process_config.max_per_message", DefaultProcessMaxPerMessage)
 	procBindEnvAndSetDefault(config, "process_config.max_message_bytes", DefaultProcessMaxMessageBytes)
 	procBindEnvAndSetDefault(config, "process_config.cmd_port", DefaultProcessCmdPort)
-	procBindEnv(config, "process_config.intervals.process")
-	procBindEnv(config, "process_config.blacklist_patterns")
-	procBindEnv(config, "process_config.intervals.container")
-	procBindEnv(config, "process_config.intervals.container_realtime")
+	procBindEnvAndSetDefault(config, "process_config.blacklist_patterns", []string{})
+
+	// The interval, in seconds, at which we will run each check. If you want consistent
+	// behavior between real-time you may set the Container/ProcessRT intervals to 10.
+	// Defaults to 10s for normal checks and 2s for others.
+	procBindEnvAndSetDefault(config, "process_config.intervals.process", 10)
+	procBindEnvAndSetDefault(config, "process_config.intervals.process_realtime", 2)
+	procBindEnvAndSetDefault(config, "process_config.intervals.container", 10)
+	procBindEnvAndSetDefault(config, "process_config.intervals.container_realtime", 2)
+	procBindEnvAndSetDefault(config, "process_config.intervals.connections", 30)
+
 	procBindEnvAndSetDefault(config, "process_config.dd_agent_bin", DefaultDDAgentBin)
-	config.BindEnv("process_config.custom_sensitive_words", //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("process_config.custom_sensitive_words", []string{},
 		"DD_CUSTOM_SENSITIVE_WORDS",
 		"DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS",
 		"DD_PROCESS_AGENT_CUSTOM_SENSITIVE_WORDS")
@@ -134,7 +134,7 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 
 		return strings.Split(val, ",")
 	})
-	config.BindEnv("process_config.scrub_args", //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("process_config.scrub_args", true,
 		"DD_SCRUB_ARGS",
 		"DD_PROCESS_CONFIG_SCRUB_ARGS",
 		"DD_PROCESS_AGENT_SCRUB_ARGS")
@@ -149,7 +149,6 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 		"DD_PROCESS_AGENT_ADDITIONAL_ENDPOINTS",
 		"DD_PROCESS_ADDITIONAL_ENDPOINTS",
 	)
-	procBindEnv(config, "process_config.intervals.connections")
 	procBindEnvAndSetDefault(config, "process_config.expvar_port", DefaultProcessExpVarPort)
 	procBindEnvAndSetDefault(config, "process_config.log_file", DefaultProcessAgentLogFile)
 	procBindEnvAndSetDefault(config, "process_config.internal_profiling.enabled", false)
@@ -190,7 +189,7 @@ func overrideRunInCoreAgentConfig(config pkgconfigmodel.Config) {
 
 // loadProcessTransforms loads transforms associated with process config settings.
 func loadProcessTransforms(config pkgconfigmodel.Config) {
-	if config.IsSet("process_config.enabled") {
+	if config.IsConfigured("process_config.enabled") {
 		log.Warn("process_config.enabled is deprecated, use process_config.container_collection.enabled " +
 			"and process_config.process_collection.enabled instead, " +
 			"see https://docs.datadoghq.com/infrastructure/process#installation for more information")

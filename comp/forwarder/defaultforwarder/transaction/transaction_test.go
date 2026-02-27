@@ -193,9 +193,11 @@ func TestTransaction403TriggersSecretRefresh(t *testing.T) {
 	triggered := false
 
 	secrets := secretsmock.New(t)
-	secrets.SetRefreshHook(func() bool {
-		triggered = true
-		return true
+	secrets.SetRefreshHook(func(updateNow bool) (string, error) {
+		if !updateNow {
+			triggered = true
+		}
+		return "", nil
 	})
 
 	// test server that returns 403 for all reequests
