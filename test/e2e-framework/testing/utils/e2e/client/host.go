@@ -208,9 +208,17 @@ func (h *sshExecutor) startAndReconnectOnError(command string) (*ssh.Session, io
 	return session, stdin, stdout, err
 }
 
+// mustExecuteCommand executes a command over SSH and returns the stdout output.
+// It is a package-level function so that it can be instrumented by Orchestrion via //dd:span.
+//
+//dd:span command:command
+func mustExecuteCommand(executor *sshExecutor, command string, options ...ExecuteOption) (string, error) {
+	return executor.Execute(command, options...)
+}
+
 // MustExecute executes a command and requires no error.
 func (h *sshExecutor) MustExecute(command string, options ...ExecuteOption) string {
-	stdout, err := h.Execute(command, options...)
+	stdout, err := mustExecuteCommand(h, command, options...)
 	require.NoError(h.context.T(), err)
 	return stdout
 }
