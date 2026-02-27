@@ -183,35 +183,41 @@ func (s *SimplePatternLogAD) Process(log observerdef.LogView) observerdef.LogPro
 	now := time.Now()
 
 	// Finalize the pending batch when a log arrives after a long idle gap.
-	var metrics []observerdef.MetricOutput
+	var result batchResult
 	if !s.lastLogTime.IsZero() && now.Sub(s.lastLogTime) >= s.BatchTimeout && len(s.batch) > 0 {
-		metrics = s.finalizeBatch()
+		result = s.finalizeBatch()
 	}
 	s.lastLogTime = now
 
 	content := strings.TrimSpace(string(log.GetContent()))
 	if content == "" {
-		return observerdef.LogProcessorResult{Metrics: metrics}
+		return observerdef.LogProcessorResult{Metrics: result.metrics, Anomalies: result.anomalies}
 	}
 
-	result := s.PatternClusterer.Process(content)
-	if result == nil {
-		return observerdef.LogProcessorResult{Metrics: metrics}
+	clusterResult := s.PatternClusterer.Process(content)
+	if clusterResult == nil {
+		return observerdef.LogProcessorResult{Metrics: result.metrics, Anomalies: result.anomalies}
 	}
 
 	tags := parseLogADTags(log.GetTags())
 	s.batch = append(s.batch, &logADInput{
-		ClusterID: result.Cluster.ID,
+		ClusterID: clusterResult.Cluster.ID,
 		Tags:      &tags,
 	})
 
-	return observerdef.LogProcessorResult{Metrics: metrics}
+	return observerdef.LogProcessorResult{Metrics: result.metrics, Anomalies: result.anomalies}
+}
+
+// batchResult holds the outputs of a finalized batch.
+type batchResult struct {
+	metrics   []observerdef.MetricOutput
+	anomalies []observerdef.AnomalyOutput
 }
 
 // finalizeBatch counts pattern occurrences in the current batch, advances the
 // history snapshot, optionally runs anomaly detection, then applies decay and
-// resets the batch. It returns any metrics to emit.
-func (s *SimplePatternLogAD) finalizeBatch() []observerdef.MetricOutput {
+// resets the batch.
+func (s *SimplePatternLogAD) finalizeBatch() batchResult {
 	// Count occurrences per group key.
 	for _, input := range s.batch {
 		key := &logADGroupByKey{ClusterID: input.ClusterID, Tags: input.Tags}
@@ -237,8 +243,9 @@ func (s *SimplePatternLogAD) finalizeBatch() []observerdef.MetricOutput {
 	}
 
 	// Advance the Preprocess → Eval → Baseline pipeline.
+	var anomalies []observerdef.AnomalyOutput
 	if s.snapshot() {
-		metrics = append(metrics, s.detectAnomalies()...)
+		anomalies = s.detectAnomalies()
 	}
 
 	// Apply exponential decay and evict cold patterns.
@@ -252,7 +259,7 @@ func (s *SimplePatternLogAD) finalizeBatch() []observerdef.MetricOutput {
 		}
 	}
 
-	return metrics
+	return batchResult{metrics: metrics, anomalies: anomalies}
 }
 
 // snapshot appends the current pattern rates to the Preprocess window for each
@@ -310,10 +317,11 @@ func (s *SimplePatternLogAD) snapshot() bool {
 
 // detectAnomalies compares each group key's eval window mean against its baseline
 // distribution using a z-score. When the z-score magnitude exceeds ZThreshold an
-// anomaly metric is emitted (subject to AlertCooldown).
-func (s *SimplePatternLogAD) detectAnomalies() []observerdef.MetricOutput {
-	var metrics []observerdef.MetricOutput
+// AnomalyOutput is emitted (subject to AlertCooldown).
+func (s *SimplePatternLogAD) detectAnomalies() []observerdef.AnomalyOutput {
+	var anomalies []observerdef.AnomalyOutput
 	now := time.Now()
+	ts := now.Unix()
 
 	for h, history := range s.history {
 		if history.Baseline.Len() < s.BaselineLen/2 || history.Eval.Len() < s.EvalLen {
@@ -353,20 +361,34 @@ func (s *SimplePatternLogAD) detectAnomalies() []observerdef.MetricOutput {
 		}
 		s.lastAlerts[h] = now
 
-		// TODO: Return anomaly as well
 		cluster, err := s.PatternClusterer.GetCluster(groupByKey.ClusterID)
 		if err != nil {
-			fmt.Printf("[SimplePatternLogAD] Error getting cluster: %v\n", err)
 			continue
 		}
-		fmt.Printf("[SimplePatternLogAD] Anomaly detected: %f, Pattern: %s, Tags: %v\n", zScore, cluster.PatternString(), groupByKey.Tags.fullTags())
 
-		metrics = append(metrics, observerdef.MetricOutput{
-			Name:  fmt.Sprintf("_.simple_log_ad.anomaly.cluster.%d", groupByKey.ClusterID),
-			Value: zScore,
-			Tags:  groupByKey.Tags.fullTags(),
+		fullTags := groupByKey.Tags.fullTags()
+		patternStr := cluster.PatternString()
+		title := fmt.Sprintf("Log pattern anomaly for pattern: %s", patternStr)
+		description := fmt.Sprintf("%s\nTags: %v\nZ-Score: %.4f", title, fullTags, zScore)
+		source := observerdef.MetricName(fmt.Sprintf("_.simple_log_ad.cluster.%d", groupByKey.ClusterID))
+
+		anomalies = append(anomalies, observerdef.AnomalyOutput{
+			Source:       source,
+			AnalyzerName: s.Name(),
+			Title:        title,
+			Description:  description,
+			Tags:         fullTags,
+			Timestamp:    ts,
+			TimeRange:    observerdef.TimeRange{Start: ts, End: ts},
+			DebugInfo: &observerdef.AnomalyDebugInfo{
+				BaselineMean:   baselineMean,
+				BaselineStddev: baselineStddev,
+				CurrentValue:   evalMean,
+				DeviationSigma: zScore,
+				Threshold:      s.ZThreshold,
+			},
 		})
 	}
 
-	return metrics
+	return anomalies
 }
