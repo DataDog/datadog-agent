@@ -192,9 +192,7 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 	} else if pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line_detection_tagging") {
 		labeler := buildAutoMultilineLabeler(source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, tailerInfo)
 		cfg := pkgconfigsetup.Datadog()
-		isDefaultPath := source.Config().AutoMultiLine == nil &&
-			!cfg.IsConfigured("logs_config.auto_multi_line_detection") &&
-			!cfg.IsConfigured("logs_config.experimental_auto_multi_line_detection")
+		_, isDefaultPath := source.Config().AutoMultiLineStatus(cfg)
 		detectingAggregator := preprocessor.NewDetectingAggregator(tailerInfo, maxContentSize, isDefaultPath)
 		return newPreprocessorHandler(detectingAggregator, tok, labeler, sampler, outputChan, preprocessor.NewNoopJSONAggregator(), flushTimeout)
 	}
