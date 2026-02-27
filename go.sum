@@ -242,8 +242,8 @@ github.com/DataDog/trivy v0.0.0-20251216175138-81422df93657 h1:UuMA1oxXCY6cVoVIG
 github.com/DataDog/trivy v0.0.0-20251216175138-81422df93657/go.mod h1:PTxRTPpO/cM2OqNLPPKVGtLhEBhORyrXT6mAjplzsRA=
 github.com/DataDog/vault/api/auth/aws v0.0.0-20250716193101-44fb30472101 h1:aatle7zFb175XJ6iJvyr9a7Ipr1Dvpw4oy4MqL9v4GA=
 github.com/DataDog/vault/api/auth/aws v0.0.0-20250716193101-44fb30472101/go.mod h1:GRki58GuFuDh0GFVg280DZt3oCYxZG02ldDPtQ5FBoo=
-github.com/DataDog/viper v1.15.0 h1:oV4rbRx+ylrbIAEBCw+8xKyH+eQF1DkVHDGz7RtmKlk=
-github.com/DataDog/viper v1.15.0/go.mod h1:QGomve/3EbYfi58jADS97U2OKfsxqh2pWemuT0azbdk=
+github.com/DataDog/viper v1.15.1 h1:kcdFE+qPndlWkhU4iEf/WpWQMCyVYHTv5HqvVf+SYJs=
+github.com/DataDog/viper v1.15.1/go.mod h1:rDLDREOPd+gpEbA8y4Y/5wTvyLqvUiCmDXX0jRZy8mw=
 github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20250108152814-82e58d0231d1 h1:9hiwoIk8FOsXDkdcdgNJ48iYaPfn+/7bXEwAnnfKjTc=
 github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20250108152814-82e58d0231d1/go.mod h1:57ytxiQR5KMYNeDgNqKn9y1LJMoRamBKHj3nvURhAdQ=
 github.com/DataDog/zstd v1.5.7 h1:ybO8RBeh29qrxIhCA9E8gKY6xfONU9T6G6aP9DTKfLE=

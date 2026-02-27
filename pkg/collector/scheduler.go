@@ -13,9 +13,9 @@ import (
 	"strings"
 	"sync"
 
+	yaml "go.yaml.in/yaml/v2"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"

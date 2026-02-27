@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/google/uuid"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 var (

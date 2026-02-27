@@ -13,8 +13,8 @@ import (
 	"path/filepath"
 	"unicode/utf8"
 
+	"go.yaml.in/yaml/v3"
 	"golang.org/x/text/encoding/unicode"
-	"gopkg.in/yaml.v3"
 )
 
 func writeConfig(path string, config any, perms os.FileMode, merge bool) error {

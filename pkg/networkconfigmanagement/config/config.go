@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 var checkName = "network_config_management"
