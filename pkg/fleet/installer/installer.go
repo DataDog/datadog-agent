@@ -91,12 +91,12 @@ type installerImpl struct {
 }
 
 // NewInstaller returns a new Package Manager.
-func NewInstaller(env *env.Env) (Installer, error) {
+func NewInstaller(ctx context.Context, env *env.Env) (Installer, error) {
 	err := ensureRepositoriesExist()
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
 	}
-	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(5*time.Minute))
+	db, err := db.New(ctx, filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(5*time.Minute))
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
