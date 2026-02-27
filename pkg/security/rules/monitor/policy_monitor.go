@@ -113,7 +113,7 @@ func (pm *PolicyMonitor) Start(ctx context.Context) {
 					for id, status := range pm.rules {
 						tags := []string{
 							"rule_id:" + id,
-							fmt.Sprintf("status:%v", status),
+							"status:" + status,
 							constants.CardinalityTagPrefix + types.LowCardinalityString,
 						}
 
@@ -136,12 +136,6 @@ func NewPolicyMonitor(statsdClient statsd.ClientInterface, perRuleMetricEnabled 
 	}
 }
 
-// RuleSetLoadedReport represents the rule and the custom event related to a RuleSetLoaded event, ready to be dispatched
-type RuleSetLoadedReport struct {
-	Rule  *rules.Rule
-	Event *events.CustomEvent
-}
-
 // ReportRuleSetLoaded reports to Datadog that a new ruleset was loaded
 func ReportRuleSetLoaded(bundle RulesetLoadedEventBundle, sender events.EventSender, statsdClient statsd.ClientInterface) {
 	if err := statsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
@@ -157,7 +151,7 @@ type PolicyMetadata struct {
 	Name string `json:"name"`
 	// Version is the version of the policy
 	Version string `json:"version,omitempty"`
-	// Type is the type of content served by the policy (e.g. "policy" for a default policy, "detection_pack" or empty for others)
+	// Type is the type of content served by the policy (e.g. "policy" for a default policy, "content_pack" or empty for others)
 	Type string `json:"type,omitempty"`
 	// Source is the source of the policy
 	Source string `json:"source"`
@@ -225,7 +219,9 @@ type RuleAction struct {
 // HashAction is used to report 'hash' action
 // easyjson:json
 type HashAction struct {
-	Enabled bool `json:"enabled,omitempty"`
+	Enabled     bool   `json:"enabled,omitempty"`
+	Field       string `json:"field,omitempty"`
+	MaxFileSize int64  `json:"max_file_size,omitempty"`
 }
 
 // RuleSetAction is used to report 'set' action
@@ -362,7 +358,9 @@ func RuleStateFromRule(rule *rules.PolicyRule, policy *rules.PolicyInfo, status 
 			}
 		case action.Def.Hash != nil:
 			ruleAction.Hash = &HashAction{
-				Enabled: true,
+				Enabled:     true,
+				Field:       action.Def.Hash.Field,
+				MaxFileSize: action.Def.Hash.MaxFileSize,
 			}
 		case action.Def.CoreDump != nil:
 			ruleAction.CoreDump = &CoreDumpAction{
@@ -387,8 +385,13 @@ func RuleStateFromRule(rule *rules.PolicyRule, policy *rules.PolicyInfo, status 
 	}
 
 	for _, pInfo := range rule.ModifiedBy {
-		// The policy of an override rule is listed in both the UsedBy and ModifiedBy fields of the rule
-		// In that case we want to avoid reporting the ModifiedBy field for the rule with the override field
+		// let's say we have rule A that's disabled in a default policy D1 but that's being enabled by custom policy C2
+		// in this case rule.ModifiedBy will contain policy C2, and rule A will be reported in both policies (D1 and C2).
+		// -
+		// in the case of D1, rule A should include information about C2 in the modified_by field
+		// but in the case of C2, rule A shouldn't report the same information because it doesn't really makes sense to
+		// say that rule A was mofified by C2 from the point of view of the C2 policy.
+		// (we could decide to include that information for C2 but it is kind of redundant)
 		if policy.Equals(&pInfo) {
 			continue
 		}
@@ -417,7 +420,13 @@ func NewPoliciesState(rs *rules.RuleSet, filteredRules []*rules.PolicyRule, err 
 	var policyState *PolicyState
 	var exists bool
 
+	ruleIDs := make(map[eval.RuleID]struct{})
 	for _, rule := range rs.GetRules() {
+		if _, found := ruleIDs[rule.Def.ID]; found {
+			continue
+		}
+
+		ruleIDs[rule.Def.ID] = struct{}{}
 		for pInfo := range rule.Policies(includeInternalPolicies) {
 			if policyState, exists = mp[pInfo.Name]; !exists {
 				policyState = NewPolicyState(pInfo.Name, pInfo.Source, pInfo.Version, pInfo.Type, pInfo.ReplacePolicyID, PolicyStatusLoaded, "")
@@ -500,7 +509,7 @@ func NewRuleSetLoadedEvent(acc *events.AgentContainerContext, rs *rules.RuleSet,
 	evt.FillCustomEventCommonFields(acc)
 
 	return RulesetLoadedEventBundle{
-		Rule:  events.NewCustomRule(events.RulesetLoadedRuleID, events.RulesetLoadedRuleDesc),
+		Rule:  events.NewCustomRule(events.RulesetLoadedRuleID, events.RulesetLoadedRuleDesc, nil),
 		Event: events.NewCustomEvent(model.CustomEventType, evt),
 	}
 }
@@ -517,7 +526,7 @@ func newHeartbeatEvents(acc *events.AgentContainerContext, policies []*PolicySta
 		evts = append(evts, events.NewCustomEvent(model.CustomEventType, evt))
 	}
 
-	return events.NewCustomRule(events.HeartbeatRuleID, events.HeartbeatRuleDesc),
+	return events.NewCustomRule(events.HeartbeatRuleID, events.HeartbeatRuleDesc, nil),
 		evts
 }
 

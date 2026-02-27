@@ -338,6 +338,8 @@ const (
 	MetricSourceHuggingFaceTgi
 	MetricSourceIbmSpectrumLsf
 	MetricSourceDatadogOperator
+	MetricSourceBattery
+	MetricSourcePinot
 
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
@@ -1126,6 +1128,10 @@ func (ms MetricSource) String() string {
 		return "wlan"
 	case MetricSourceWindowsCertificateStore:
 		return "windows_certificate"
+	case MetricSourceBattery:
+		return "battery"
+	case MetricSourcePinot:
+		return "pinot"
 	default:
 		return "<unknown>"
 	}
@@ -1810,6 +1816,10 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceWlan
 	case "windows_certificate":
 		return MetricSourceWindowsCertificateStore
+	case "battery":
+		return MetricSourceBattery
+	case "pinot":
+		return MetricSourcePinot
 	default:
 		return MetricSourceUnknown
 	}

@@ -215,7 +215,7 @@ func (c *Check) Run() error {
 }
 
 // Interval returns the scheduling time for the check.
-func Interval() time.Duration {
+func (c *Check) Interval() time.Duration {
 	return collectionInterval
 }
 

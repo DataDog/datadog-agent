@@ -27,6 +27,8 @@ const (
 	EKSFargate Feature = "eksfargate"
 	// KubeOrchestratorExplorer can be enabled
 	KubeOrchestratorExplorer Feature = "kube_orchestratorexplorer"
+	// KubeletConfigOrchestratorCheck can be enabled
+	KubeletConfigOrchestratorCheck = "kubelet_config_orchestrator_check"
 	// ECSOrchestratorExplorer can be enabled
 	ECSOrchestratorExplorer Feature = "ecs_orchestratorexplorer"
 	// CloudFoundry socket present

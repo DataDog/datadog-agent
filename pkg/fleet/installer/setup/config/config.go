@@ -89,6 +89,7 @@ type DatadogConfig struct {
 	GPUCheck             GPUCheckConfig             `yaml:"gpu,omitempty"`
 	SBOM                 SBOMConfig                 `yaml:"sbom,omitempty"`
 	InfrastructureMode   string                     `yaml:"infrastructure_mode,omitempty"`
+	APMConfig            DatadogAPMConfig           `yaml:"apm_config,omitempty"`
 }
 
 // GPUCheckConfig represents the configuration for the GPU check
@@ -233,6 +234,22 @@ type LogProcessingRule struct {
 	Pattern string `yaml:"pattern" json:"pattern"`
 }
 
+// DatadogAPMConfig represents the config for the APM agent
+type DatadogAPMConfig struct {
+	ObfuscationConfig *ObfuscationConfig `yaml:"obfuscation,omitempty"`
+}
+
+// ObfuscationConfig represents the configuration for obfuscation
+type ObfuscationConfig struct {
+	CreditCards CreditCardObfuscationConfig `yaml:"credit_cards,omitempty"`
+}
+
+// CreditCardObfuscationConfig represents the configuration for credit card obfuscation
+type CreditCardObfuscationConfig struct {
+	Enabled    *bool    `yaml:"enabled,omitempty"`
+	KeepValues []string `yaml:"keep_values,omitempty"`
+}
+
 // ApplicationMonitoringConfig represents the configuration for the application monitoring
 type ApplicationMonitoringConfig struct {
 	Default APMConfigurationDefault `yaml:"apm_configuration_default,omitempty"`
@@ -253,6 +270,12 @@ type APMConfigurationDefault struct {
 	IastEnabled                   *bool   `yaml:"DD_IAST_ENABLED,omitempty"`
 	DataJobsEnabled               *bool   `yaml:"DD_DATA_JOBS_ENABLED,omitempty"`
 	AppsecScaEnabled              *bool   `yaml:"DD_APPSEC_SCA_ENABLED,omitempty"`
+	LogsCollectionEnabled         *bool   `yaml:"DD_APP_LOGS_COLLECTION_ENABLED,omitempty"`
+	RumEnabled                    *bool   `yaml:"DD_RUM_ENABLED,omitempty"`
+	RumApplicationID              string  `yaml:"DD_RUM_APPLICATION_ID,omitempty"`
+	RumClientToken                string  `yaml:"DD_RUM_CLIENT_TOKEN,omitempty"`
+	RumRemoteConfigurationID      string  `yaml:"DD_RUM_REMOTE_CONFIGURATION_ID,omitempty"`
+	RumSite                       string  `yaml:"DD_RUM_SITE,omitempty"`
 }
 
 // DelayedAgentRestartConfig represents the config to restart the agent with a delay at the end of the install

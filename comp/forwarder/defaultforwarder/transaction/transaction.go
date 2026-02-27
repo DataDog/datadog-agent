@@ -401,6 +401,9 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	// Capture intake server time for clock offset monitoring
+	updateIntakeTimeOffset(resp.Header.Get("Date"))
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Errorf("Fail to read the response Body: %s", err)
@@ -434,7 +437,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		log.Errorf("API Key invalid (403 response), dropping transaction for %s", logURL)
 
 		// Trigger throttled secret refresh based on secret_refresh_on_api_key_failure_interval on API key error
-		_, _ = secrets.Refresh(false)
+		secrets.Refresh()
 
 		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
 		TransactionsDropped.Add(1)

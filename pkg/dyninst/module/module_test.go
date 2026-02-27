@@ -10,6 +10,7 @@ package module_test
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
 	"sync"
@@ -123,7 +124,7 @@ func TestProgramLifecycleFlow(t *testing.T) {
 	require.Equal(t, initialProbeVersions, collectReceived())
 
 	loaded, err := deps.actuator.runtime.Load(
-		program.ID, processUpdate.Executable, procID, processUpdate.Probes,
+		program.ID, processUpdate.Executable, procID, processUpdate.Probes, actuator.LoadOptions{},
 	)
 	require.NoError(t, err)
 
@@ -170,7 +171,7 @@ func TestProgramLifecycleFlow(t *testing.T) {
 	require.Len(t, update.Processes, 1)
 	process := update.Processes[0]
 	loaded2, err := deps.actuator.runtime.Load(
-		program.ID, process.Executable, process.ProcessID, process.Probes,
+		program.ID, process.Executable, process.ProcessID, process.Probes, actuator.LoadOptions{},
 	)
 	require.NoError(t, err)
 
@@ -210,6 +211,7 @@ func TestIRGenerationFailure(t *testing.T) {
 		processUpdate.Executable,
 		processUpdate.ProcessID,
 		processUpdate.Probes,
+		actuator.LoadOptions{},
 	)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), irErr.Error())
@@ -241,6 +243,7 @@ func TestAttachmentFailure(t *testing.T) {
 		processUpdate.Executable,
 		processUpdate.ProcessID,
 		processUpdate.Probes,
+		actuator.LoadOptions{},
 	)
 	require.NoError(t, err)
 
@@ -274,6 +277,7 @@ func TestLoadingFailure(t *testing.T) {
 		processUpdate.Executable,
 		processUpdate.ProcessID,
 		processUpdate.Probes,
+		actuator.LoadOptions{},
 	)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "loading failed")
@@ -301,7 +305,7 @@ func TestDecoderCreationFailure(t *testing.T) {
 	deps.sendUpdates(processUpdate)
 
 	_, err := deps.actuator.runtime.Load(
-		ir.ProgramID(42), processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes,
+		ir.ProgramID(42), processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes, actuator.LoadOptions{},
 	)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "decoder creation failed")
@@ -330,7 +334,7 @@ func TestEventDecodingSuccess(t *testing.T) {
 	deps.sendUpdates(processUpdate)
 
 	loaded, err := deps.actuator.runtime.Load(
-		ir.ProgramID(42), processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes,
+		ir.ProgramID(42), processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes, actuator.LoadOptions{},
 	)
 	require.NoError(t, err)
 	sink := deps.dispatcher.sinks[ir.ProgramID(42)]
@@ -367,7 +371,7 @@ func TestEventDecodingFailure(t *testing.T) {
 	deps.sendUpdates(processUpdate)
 
 	loaded, err := deps.actuator.runtime.Load(
-		ir.ProgramID(42), processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes,
+		ir.ProgramID(42), processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes, actuator.LoadOptions{},
 	)
 	require.NoError(t, err)
 	sink := deps.dispatcher.sinks[ir.ProgramID(42)]
@@ -406,7 +410,7 @@ func TestDecoderErrorHandling(t *testing.T) {
 
 	program := createTestProgram()
 	loaded, err := deps.actuator.runtime.Load(
-		program.ID, processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes,
+		program.ID, processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes, actuator.LoadOptions{},
 	)
 	require.NoError(t, err)
 	sink := deps.dispatcher.sinks[program.ID]
@@ -449,7 +453,7 @@ func TestStackPCsRecordedForEntryEvents(t *testing.T) {
 	deps.sendUpdates(processUpdate)
 
 	loaded, err := deps.actuator.runtime.Load(
-		ir.ProgramID(42), processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes,
+		ir.ProgramID(42), processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes, actuator.LoadOptions{},
 	)
 	require.NoError(t, err)
 	sink := deps.dispatcher.sinks[ir.ProgramID(42)]
@@ -588,7 +592,7 @@ func TestProbeIssueReporting(t *testing.T) {
 	deps.sendUpdates(processUpdate)
 
 	loaded, err := deps.actuator.runtime.Load(
-		program.ID, processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes,
+		program.ID, processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes, actuator.LoadOptions{},
 	)
 	require.NoError(t, err)
 
@@ -619,11 +623,13 @@ func TestProbeIssueReporting(t *testing.T) {
 func TestNoSuccessfulProbes(t *testing.T) {
 	processUpdate := createTestProcessConfig()
 	fakeDeps := newFakeTestingDependencies(t)
-	a := actuator.NewActuator(actuator.CircuitBreakerConfig{
-		Interval:          1 * time.Second,
-		PerProbeCPULimit:  0.1,
-		AllProbesCPULimit: 0.5,
-		InterruptOverhead: 5 * time.Microsecond,
+	a := actuator.NewActuator(actuator.Config{
+		CircuitBreakerConfig: actuator.CircuitBreakerConfig{
+			Interval:          1 * time.Second,
+			PerProbeCPULimit:  0.1,
+			AllProbesCPULimit: 0.5,
+			InterruptOverhead: 2 * time.Microsecond,
+		},
 	})
 	t.Cleanup(func() { require.NoError(t, a.Shutdown()) })
 	deps := fakeDeps.toDeps()
@@ -718,7 +724,7 @@ type fakeIRGenerator struct {
 }
 
 func (f *fakeIRGenerator) GenerateIR(
-	programID ir.ProgramID, _ string, _ []ir.ProbeDefinition,
+	programID ir.ProgramID, _ string, _ []ir.ProbeDefinition, _ ...irgen.Option,
 ) (*ir.Program, error) {
 	if f == nil {
 		return &ir.Program{ID: programID}, nil
@@ -767,9 +773,10 @@ type failOnceDecoder struct {
 func (d *failOnceDecoder) Decode(
 	event decode.Event,
 	symbolicator symbol.Symbolicator,
+	missingTypes decode.MissingTypeCollector,
 	out []byte,
 ) ([]byte, ir.ProbeDefinition, error) {
-	bytes, probe, err := d.inner.Decode(event, symbolicator, out)
+	bytes, probe, err := d.inner.Decode(event, symbolicator, missingTypes, out)
 	if err != nil {
 		return bytes, probe, err
 	}
@@ -799,7 +806,7 @@ type decodeCall struct {
 }
 
 func (f *fakeDecoder) Decode(
-	event decode.Event, symbolicator symbol.Symbolicator, out []byte,
+	event decode.Event, symbolicator symbol.Symbolicator, _ decode.MissingTypeCollector, out []byte,
 ) ([]byte, ir.ProbeDefinition, error) {
 	f.decodeCalls = append(f.decodeCalls, decodeCall{event, symbolicator, out})
 	return []byte(f.output), f.probe, f.err
@@ -886,6 +893,8 @@ func (f *fakeActuator) SetRuntime(runtime actuator.Runtime) {
 	defer f.mu.Unlock()
 	f.runtime = runtime
 }
+
+func (f *fakeActuator) ReportMissingTypes(_ actuator.ProcessID, _ []string) {}
 
 type fakeTestingDependencies struct {
 	actuator          *fakeActuator
@@ -988,4 +997,458 @@ func createTestProgram() *ir.Program {
 			{ProbeDefinition: createTestProbe("probe-2")},
 		},
 	}
+}
+
+// TestDiagnosticRetentionAcrossProgramLoads verifies that diagnostic state is
+// properly retained and cleared when probes are added/removed across program
+// loads. This ensures that when a probe is removed and later re-added, fresh
+// diagnostics are sent.
+func TestDiagnosticRetentionAcrossProgramLoads(t *testing.T) {
+	deps := newFakeTestingDependencies(t)
+	decoder := &fakeDecoder{output: `{"test":"data"}`}
+	deps.decoderFactory.decoder = decoder
+	processUpdate := createTestProcessConfig()
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(deps.toDeps(), tombstoneFilePath)
+
+	collectVersions := func(
+		status uploader.Status,
+	) map[string]int {
+		return collectDiagnosticVersions(deps.diagUploader, status)
+	}
+
+	// Phase 1: Start with p1 and p2, verify diagnostics are sent.
+	program1 := &ir.Program{
+		ID: ir.ProgramID(100),
+		Probes: []*ir.Probe{
+			{ProbeDefinition: processUpdate.Probes[0]},
+			{ProbeDefinition: processUpdate.Probes[1]},
+		},
+	}
+	deps.irGenerator.program = program1
+	deps.sendUpdates(processUpdate)
+
+	require.Equal(
+		t, map[string]int{"probe-1": 1, "probe-2": 1},
+		collectVersions(uploader.StatusReceived),
+		"expected received diagnostics for both probes",
+	)
+
+	loaded1, err := deps.actuator.runtime.Load(
+		program1.ID,
+		processUpdate.Executable,
+		processUpdate.ProcessID,
+		processUpdate.Probes,
+		actuator.LoadOptions{},
+	)
+	require.NoError(t, err)
+
+	_, err = loaded1.Attach(processUpdate.ProcessID, processUpdate.Executable)
+	require.NoError(t, err)
+	require.Equal(
+		t, map[string]int{"probe-1": 1, "probe-2": 1},
+		collectVersions(uploader.StatusInstalled),
+		"expected installed diagnostics for both probes",
+	)
+
+	// Trigger events to generate emitting diagnostics.
+	sink1 := deps.dispatcher.sinks[program1.ID]
+	require.NotNil(t, sink1)
+
+	decoder.probe = processUpdate.Probes[0]
+	require.NoError(
+		t, sink1.HandleEvent(makeFakeEvent(output.EventHeader{}, []byte("event"))),
+	)
+	require.Equal(
+		t, map[string]int{"probe-1": 1},
+		collectVersions(uploader.StatusEmitting),
+		"expected emitting diagnostic for probe-1",
+	)
+
+	decoder.probe = processUpdate.Probes[1]
+	require.NoError(
+		t, sink1.HandleEvent(makeFakeEvent(output.EventHeader{}, []byte("event"))),
+	)
+	require.Equal(
+		t, map[string]int{"probe-1": 1, "probe-2": 1},
+		collectVersions(uploader.StatusEmitting),
+		"expected emitting diagnostics for both probes",
+	)
+
+	// Phase 2: Change to just p1, verify no new diagnostics are sent.
+	require.NoError(t, loaded1.Close())
+
+	processUpdateP1Only := process.Config{
+		Info:      processUpdate.Info,
+		Probes:    []ir.ProbeDefinition{processUpdate.Probes[0]},
+		RuntimeID: processUpdate.RuntimeID,
+	}
+	program2 := &ir.Program{
+		ID: ir.ProgramID(101),
+		Probes: []*ir.Probe{
+			{ProbeDefinition: processUpdate.Probes[0]},
+		},
+	}
+	deps.irGenerator.program = program2
+
+	diagCountBeforeP1Only := len(deps.diagUploader.messages)
+	deps.sendUpdates(processUpdateP1Only)
+
+	// After retainReceived, p2's received state should be cleared but p1
+	// should remain, so no new received diagnostic for p1.
+	diagCountAfterP1Only := len(deps.diagUploader.messages)
+	require.Equal(
+		t, diagCountBeforeP1Only,
+		diagCountAfterP1Only,
+		"expected no new received diagnostic for p1 (already tracked)",
+	)
+
+	loaded2, err := deps.actuator.runtime.Load(
+		program2.ID,
+		processUpdate.Executable,
+		processUpdate.ProcessID,
+		processUpdateP1Only.Probes,
+		actuator.LoadOptions{},
+	)
+	require.NoError(t, err)
+
+	diagCountBeforeAttach2 := len(deps.diagUploader.messages)
+	_, err = loaded2.Attach(
+		processUpdate.ProcessID, processUpdate.Executable,
+	)
+	require.NoError(t, err)
+
+	// No new installed diagnostic for p1 since it was already tracked.
+	diagCountAfterAttach2 := len(deps.diagUploader.messages)
+	require.Equal(
+		t, diagCountBeforeAttach2,
+		diagCountAfterAttach2,
+		"expected no new installed diagnostic for p1 on second attach",
+	)
+
+	// Phase 3: Add back p1 and p2, verify fresh diagnostics for p2.
+	require.NoError(t, loaded2.Close())
+
+	program3 := &ir.Program{
+		ID: ir.ProgramID(102),
+		Probes: []*ir.Probe{
+			{ProbeDefinition: processUpdate.Probes[0]},
+			{ProbeDefinition: processUpdate.Probes[1]},
+		},
+	}
+	deps.irGenerator.program = program3
+
+	diagCountBeforeP2Return := len(deps.diagUploader.messages)
+	deps.sendUpdates(processUpdate)
+
+	// p2's received state was cleared, so it should get a fresh received
+	// diagnostic.
+	diagCountAfterP2Return := len(deps.diagUploader.messages)
+	require.Equal(
+		t, diagCountBeforeP2Return+1,
+		diagCountAfterP2Return,
+		"expected exactly one new received diagnostic for p2",
+	)
+	require.Equal(
+		t, map[string]int{"probe-1": 1, "probe-2": 1},
+		collectVersions(uploader.StatusReceived),
+		"expected p2 to get fresh received diagnostic",
+	)
+
+	loaded3, err := deps.actuator.runtime.Load(
+		program3.ID,
+		processUpdate.Executable,
+		processUpdate.ProcessID,
+		processUpdate.Probes,
+		actuator.LoadOptions{},
+	)
+	require.NoError(t, err)
+
+	_, err = loaded3.Attach(processUpdate.ProcessID, processUpdate.Executable)
+	require.NoError(t, err)
+
+	// p2 should get a fresh installed diagnostic.
+	installedAfterP2Return := collectVersions(uploader.StatusInstalled)
+	require.Equal(
+		t, map[string]int{"probe-1": 1, "probe-2": 1},
+		installedAfterP2Return,
+		"expected p2 to get fresh installed diagnostic",
+	)
+
+	// Verify p2 gets a fresh emitting diagnostic.
+	sink3 := deps.dispatcher.sinks[program3.ID]
+	require.NotNil(t, sink3)
+
+	decoder.probe = processUpdate.Probes[1]
+	require.NoError(
+		t, sink3.HandleEvent(makeFakeEvent(output.EventHeader{}, []byte("event"))),
+	)
+	emittingAfterP2Return := collectVersions(uploader.StatusEmitting)
+	require.Equal(
+		t, map[string]int{"probe-1": 1, "probe-2": 1},
+		emittingAfterP2Return,
+		"expected p2 to get fresh emitting diagnostic",
+	)
+
+	require.NoError(t, loaded3.Close())
+}
+
+// TestDiagnosticRetentionSingleProbeRemoval verifies that when a single probe
+// is removed and then re-added, it receives fresh diagnostics for all lifecycle
+// stages (received, installed, emitting).
+func TestDiagnosticRetentionSingleProbeRemoval(t *testing.T) {
+	deps := newFakeTestingDependencies(t)
+	decoder := &fakeDecoder{output: `{"test":"data"}`}
+	deps.decoderFactory.decoder = decoder
+
+	// Start with just probe-1.
+	processUpdateP1 := process.Config{
+		Info: process.Info{
+			ProcessID:  process.ID{PID: 12345},
+			Executable: process.Executable{Path: "/usr/bin/test"},
+			Service:    "test-service",
+		},
+		Probes:    []ir.ProbeDefinition{createTestProbe("probe-1")},
+		RuntimeID: "runtime-123",
+	}
+
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(deps.toDeps(), tombstoneFilePath)
+
+	collectVersions := func(
+		status uploader.Status,
+	) map[string]int {
+		return collectDiagnosticVersions(deps.diagUploader, status)
+	}
+
+	// Phase 1: Start with p1, verify all diagnostics are sent.
+	program1 := &ir.Program{
+		ID: ir.ProgramID(200),
+		Probes: []*ir.Probe{
+			{ProbeDefinition: processUpdateP1.Probes[0]},
+		},
+	}
+	deps.irGenerator.program = program1
+	deps.sendUpdates(processUpdateP1)
+
+	require.Equal(
+		t, map[string]int{"probe-1": 1},
+		collectVersions(uploader.StatusReceived),
+		"expected received diagnostic for probe-1",
+	)
+
+	loaded1, err := deps.actuator.runtime.Load(
+		program1.ID,
+		processUpdateP1.Executable,
+		processUpdateP1.ProcessID,
+		processUpdateP1.Probes,
+		actuator.LoadOptions{},
+	)
+	require.NoError(t, err)
+
+	_, err = loaded1.Attach(
+		processUpdateP1.ProcessID, processUpdateP1.Executable,
+	)
+	require.NoError(t, err)
+	require.Equal(
+		t, map[string]int{"probe-1": 1},
+		collectVersions(uploader.StatusInstalled),
+		"expected installed diagnostic for probe-1",
+	)
+
+	// Trigger event to generate emitting diagnostic.
+	sink1 := deps.dispatcher.sinks[program1.ID]
+	require.NotNil(t, sink1)
+
+	decoder.probe = processUpdateP1.Probes[0]
+	require.NoError(
+		t,
+		sink1.HandleEvent(makeFakeEvent(output.EventHeader{}, []byte("event"))),
+	)
+	require.Equal(
+		t, map[string]int{"probe-1": 1},
+		collectVersions(uploader.StatusEmitting),
+		"expected emitting diagnostic for probe-1",
+	)
+
+	receivedCountAfterPhase1 := len(deps.diagUploader.messages)
+
+	// Phase 2: Remove p1 (send empty probe list).
+	require.NoError(t, loaded1.Close())
+
+	processUpdateEmpty := process.Config{
+		Info:      processUpdateP1.Info,
+		Probes:    []ir.ProbeDefinition{},
+		RuntimeID: processUpdateP1.RuntimeID,
+	}
+	deps.sendUpdates(processUpdateEmpty)
+
+	// No new diagnostics should be sent for empty update.
+	require.Equal(
+		t, receivedCountAfterPhase1,
+		len(deps.diagUploader.messages),
+		"expected no new diagnostics for empty probe list",
+	)
+
+	// Phase 3: Add p1 back and verify the bug.
+	program2 := &ir.Program{
+		ID: ir.ProgramID(201),
+		Probes: []*ir.Probe{
+			{ProbeDefinition: processUpdateP1.Probes[0]},
+		},
+	}
+	deps.irGenerator.program = program2
+
+	diagCountBeforeP1Return := len(deps.diagUploader.messages)
+	deps.sendUpdates(processUpdateP1)
+
+	// p1's diagnostic state was cleared, so it gets a fresh received
+	// diagnostic.
+	diagCountAfterP1Return := len(deps.diagUploader.messages)
+	require.Equal(
+		t, diagCountBeforeP1Return+1,
+		diagCountAfterP1Return,
+		"expected fresh received diagnostic for probe-1",
+	)
+	require.Equal(
+		t, map[string]int{"probe-1": 1},
+		collectVersions(uploader.StatusReceived),
+		"expected fresh received diagnostic for probe-1",
+	)
+
+	loaded2, err := deps.actuator.runtime.Load(
+		program2.ID,
+		processUpdateP1.Executable,
+		processUpdateP1.ProcessID,
+		processUpdateP1.Probes,
+		actuator.LoadOptions{},
+	)
+	require.NoError(t, err)
+
+	diagCountBeforeAttach2 := len(deps.diagUploader.messages)
+	_, err = loaded2.Attach(
+		processUpdateP1.ProcessID, processUpdateP1.Executable,
+	)
+	require.NoError(t, err)
+
+	// p1's installed state was cleared when it was removed, so a fresh
+	// installed diagnostic is sent.
+	diagCountAfterAttach2 := len(deps.diagUploader.messages)
+	require.Equal(
+		t, diagCountBeforeAttach2+1,
+		diagCountAfterAttach2,
+		"expected fresh installed diagnostic for probe-1",
+	)
+
+	installedAfterP1Return := collectVersions(uploader.StatusInstalled)
+	require.Equal(
+		t, map[string]int{"probe-1": 1},
+		installedAfterP1Return,
+		"expected fresh installed diagnostic for probe-1",
+	)
+
+	// p1's emitting state was cleared when it was removed, so a fresh
+	// emitting diagnostic is sent.
+	sink2 := deps.dispatcher.sinks[program2.ID]
+	require.NotNil(t, sink2)
+
+	diagCountBeforeEvent := len(deps.diagUploader.messages)
+	decoder.probe = processUpdateP1.Probes[0]
+	require.NoError(
+		t,
+		sink2.HandleEvent(makeFakeEvent(output.EventHeader{}, []byte("event"))),
+	)
+
+	diagCountAfterEvent := len(deps.diagUploader.messages)
+	require.Equal(
+		t, diagCountBeforeEvent+1,
+		diagCountAfterEvent,
+		"expected fresh emitting diagnostic for probe-1",
+	)
+
+	emittingAfterP1Return := collectVersions(uploader.StatusEmitting)
+	require.Equal(
+		t, map[string]int{"probe-1": 1},
+		emittingAfterP1Return,
+		"expected fresh emitting diagnostic for probe-1",
+	)
+
+	require.NoError(t, loaded2.Close())
+}
+
+// TestLoadReturnsErrorWhenProcessRemovedDuringLoad verifies that when a process
+// is removed during program loading, perhaps because the process has died,
+// the runtime returns a non-nil error.
+//
+// Previously, we would return nil, nil from runtimeImpl.Load() which was
+// problematic for the actuator.
+func TestLoadReturnsErrorWhenProcessRemovedDuringLoad(t *testing.T) {
+	deps := newFakeTestingDependencies(t)
+	processUpdate := createTestProcessConfig()
+	deps.irGenerator.program = createTestProgram()
+
+	// Create a wrapper actuator that intercepts SetRuntime to inject our
+	// intercepting runtime.
+	wrapper := &interceptingActuator{
+		Actuator: deps.actuator,
+	}
+
+	td := deps.toDeps()
+	td.Actuator = wrapper
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(td, tombstoneFilePath)
+
+	pid := processUpdate.ProcessID
+	deps.sendUpdates(processUpdate)
+
+	// Configure the intercepting runtime to remove the process during Load.
+	wrapper.interceptingRT.onLoad = func() {
+		deps.sendRemovals(processUpdate.ProcessID)
+	}
+
+	// Now try to load - the wrapper will remove the process during load.
+	loaded, err := wrapper.interceptingRT.Load(
+		ir.ProgramID(42),
+		processUpdate.Executable,
+		processUpdate.ProcessID,
+		processUpdate.Probes,
+		actuator.LoadOptions{},
+	)
+
+	// Expect an error because the process has been removed.
+	require.Nil(t, loaded)
+	require.Regexp(t, fmt.Sprintf("process %v not found", pid), err)
+}
+
+// interceptingActuator wraps an actuator to intercept SetRuntime and inject
+// an intercepting runtime.
+type interceptingActuator struct {
+	module.Actuator
+	interceptingRT *interceptingRuntime
+}
+
+func (a *interceptingActuator) SetRuntime(runtime actuator.Runtime) {
+	// Wrap the runtime to intercept Load calls.
+	wrapped := &interceptingRuntime{inner: runtime}
+	a.interceptingRT = wrapped
+	a.Actuator.SetRuntime(wrapped)
+}
+
+// interceptingRuntime wraps a runtime to intercept Load calls.
+type interceptingRuntime struct {
+	inner  actuator.Runtime
+	onLoad func()
+}
+
+func (r *interceptingRuntime) Load(
+	programID ir.ProgramID,
+	executable process.Executable,
+	processID process.ID,
+	probes []ir.ProbeDefinition,
+	opts actuator.LoadOptions,
+) (actuator.LoadedProgram, error) {
+	if r.onLoad != nil {
+		r.onLoad()
+	}
+	return r.inner.Load(programID, executable, processID, probes, opts)
 }

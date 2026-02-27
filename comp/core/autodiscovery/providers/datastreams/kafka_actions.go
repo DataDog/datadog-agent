@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
@@ -24,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	yaml "gopkg.in/yaml.v2"
+	yaml "go.yaml.in/yaml/v2"
 )
 
 const (
@@ -156,9 +157,7 @@ func (c *actionsController) update(updates map[string]state.RawConfig, applyStat
 		}
 
 		// Copy auth fields first
-		for k, v := range auth {
-			actionsMap[k] = v
-		}
+		maps.Copy(actionsMap, auth)
 		actionsMap["run_once"] = true
 		actionsMap["remote_config_id"] = parsed.remoteConfigID
 

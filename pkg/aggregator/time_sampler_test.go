@@ -16,12 +16,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/quantile"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	"github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
@@ -48,6 +49,7 @@ func TestCalculateBucketStart(t *testing.T) {
 
 func testBucketSampling(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
+	matcher := filterlist.NewNoopTagMatcher()
 
 	mSample := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -56,9 +58,9 @@ func testBucketSampling(t *testing.T, store *tags.Store) {
 		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 	}
-	sampler.sample(&mSample, 12345.0)
-	sampler.sample(&mSample, 12355.0)
-	sampler.sample(&mSample, 12365.0)
+	sampler.sample(&mSample, 12345.0, matcher)
+	sampler.sample(&mSample, 12355.0, matcher)
+	sampler.sample(&mSample, 12365.0, matcher)
 
 	series, _ := flushSerie(sampler, 12360.0, false)
 
@@ -82,6 +84,7 @@ func TestBucketSampling(t *testing.T) {
 
 func testContextSampling(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
+	matcher := filterlist.NewNoopTagMatcher()
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name1",
@@ -106,9 +109,9 @@ func testContextSampling(t *testing.T, store *tags.Store) {
 		SampleRate: 1,
 	}
 
-	sampler.sample(&mSample1, 12346.0)
-	sampler.sample(&mSample2, 12346.0)
-	sampler.sample(&mSample3, 12346.0)
+	sampler.sample(&mSample1, 12346.0, matcher)
+	sampler.sample(&mSample2, 12346.0, matcher)
+	sampler.sample(&mSample3, 12346.0, matcher)
 
 	series, _ := flushSerie(sampler, 12360.0, false)
 
@@ -149,6 +152,7 @@ func TestContextSampling(t *testing.T) {
 
 func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
+	matcher := filterlist.NewNoopTagMatcher()
 
 	math.Abs(1)
 	sampleCounter1 := &metrics.MetricSample{
@@ -175,9 +179,9 @@ func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 		SampleRate: 1,
 	}
 
-	sampler.sample(sampleCounter1, 1004.0)
-	sampler.sample(sampleCounter2, 1002.0)
-	sampler.sample(sampleGauge3, 1003.0)
+	sampler.sample(sampleCounter1, 1004.0, matcher)
+	sampler.sample(sampleCounter2, 1002.0, matcher)
+	sampler.sample(sampleGauge3, 1003.0, matcher)
 
 	series, _ := flushSerie(sampler, 1010.0, false)
 
@@ -222,9 +226,9 @@ func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 		SampleRate: 1,
 	}
 
-	sampler.sample(sampleCounter2, 1034.0)
-	sampler.sample(sampleCounter1, 1010.0)
-	sampler.sample(sampleCounter2, 1020.0)
+	sampler.sample(sampleCounter2, 1034.0, matcher)
+	sampler.sample(sampleCounter1, 1010.0, matcher)
+	sampler.sample(sampleCounter2, 1020.0, matcher)
 
 	series, _ = flushSerie(sampler, 1040.0, false)
 
@@ -281,6 +285,7 @@ func testSketch(t *testing.T, store *tags.Store) {
 
 	var (
 		sampler = testTimeSampler(store)
+		matcher = filterlist.NewNoopTagMatcher()
 
 		insert = func(t *testing.T, ts float64, name string, tags []string, host string, values ...float64) {
 			t.Helper()
@@ -292,7 +297,7 @@ func testSketch(t *testing.T, store *tags.Store) {
 					Value:      v,
 					Mtype:      metrics.DistributionType,
 					SampleRate: 1,
-				}, ts)
+				}, ts, matcher)
 			}
 		}
 	)
@@ -349,6 +354,7 @@ func TestSketch(t *testing.T) {
 
 func testSketchBucketSampling(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
+	matcher := filterlist.NewNoopTagMatcher()
 
 	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name",
@@ -364,11 +370,11 @@ func testSketchBucketSampling(t *testing.T, store *tags.Store) {
 		Tags:       []string{"a", "b"},
 		SampleRate: 1,
 	}
-	sampler.sample(&mSample1, 10001)
-	sampler.sample(&mSample2, 10002)
-	sampler.sample(&mSample1, 10011)
-	sampler.sample(&mSample2, 10012)
-	sampler.sample(&mSample1, 10021)
+	sampler.sample(&mSample1, 10001, matcher)
+	sampler.sample(&mSample2, 10002, matcher)
+	sampler.sample(&mSample1, 10011, matcher)
+	sampler.sample(&mSample2, 10012, matcher)
+	sampler.sample(&mSample1, 10021, matcher)
 
 	_, flushed := flushSerie(sampler, 10020.0, false)
 	expSketch := &quantile.Sketch{}
@@ -395,6 +401,7 @@ func TestSketchBucketSampling(t *testing.T) {
 
 func testSketchContextSampling(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
+	matcher := filterlist.NewNoopTagMatcher()
 
 	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name1",
@@ -410,8 +417,8 @@ func testSketchContextSampling(t *testing.T, store *tags.Store) {
 		Tags:       []string{"a", "c"},
 		SampleRate: 1,
 	}
-	sampler.sample(&mSample1, 10011)
-	sampler.sample(&mSample2, 10011)
+	sampler.sample(&mSample1, 10011, matcher)
+	sampler.sample(&mSample2, 10011, matcher)
 
 	_, flushed := flushSerie(sampler, 10020, false)
 	expSketch := &quantile.Sketch{}
@@ -448,6 +455,7 @@ func TestSketchContextSampling(t *testing.T) {
 
 func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
+	matcher := filterlist.NewNoopTagMatcher()
 
 	dSample1 := metrics.MetricSample{
 		Name:       "distribution.metric.name1",
@@ -456,9 +464,9 @@ func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
 		Tags:       []string{"a", "b"},
 		SampleRate: 1,
 	}
-	sampler.sample(&dSample1, 12345.0)
-	sampler.sample(&dSample1, 12355.0)
-	sampler.sample(&dSample1, 12365.0)
+	sampler.sample(&dSample1, 12345.0, matcher)
+	sampler.sample(&dSample1, 12355.0, matcher)
+	sampler.sample(&dSample1, 12365.0, matcher)
 
 	mSample := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -467,9 +475,9 @@ func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
 		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 	}
-	sampler.sample(&mSample, 12345.0)
-	sampler.sample(&mSample, 12355.0)
-	sampler.sample(&mSample, 12365.0)
+	sampler.sample(&mSample, 12345.0, matcher)
+	sampler.sample(&mSample, 12355.0, matcher)
+	sampler.sample(&mSample, 12365.0, matcher)
 
 	series, sketches := flushSerie(sampler, 12360.0, false)
 
@@ -507,18 +515,20 @@ func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 
 func testFlushMissingContext(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
+	matcher := filterlist.NewNoopTagMatcher()
+
 	sampler.sample(&metrics.MetricSample{
 		Name:       "test.gauge",
 		Value:      1,
 		Mtype:      metrics.GaugeType,
 		SampleRate: 1,
-	}, 1000)
+	}, 1000, matcher)
 	sampler.sample(&metrics.MetricSample{
 		Name:       "test.sketch",
 		Value:      1,
 		Mtype:      metrics.DistributionType,
 		SampleRate: 1,
-	}, 1000)
+	}, 1000, matcher)
 
 	// Simulate a sutation where contexts are expired prematurely.
 	sampler.contextResolver.expireContexts(10000)
@@ -535,30 +545,33 @@ func TestFlushMissingContext(t *testing.T) {
 }
 func testFlushFilterList(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
+	matcher := strings.NewMatcher([]string{
+		"test.histogram.avg",
+		"test.histogram.count",
+	}, false)
+
+	tagmatcher := filterlist.NewNoopTagMatcher()
+
 	sampler.sample(&metrics.MetricSample{
 		Name:       "test.gauge",
 		Value:      1,
 		Mtype:      metrics.GaugeType,
 		SampleRate: 1,
-	}, 1000)
+	}, 1000, tagmatcher)
 	sampler.sample(&metrics.MetricSample{
 		Name:       "test.histogram",
 		Value:      1,
 		Mtype:      metrics.HistogramType,
 		SampleRate: 1,
-	}, 1000)
+	}, 1000, tagmatcher)
 	sampler.sample(&metrics.MetricSample{
 		Name:       "test.sketch",
 		Value:      1,
 		Mtype:      metrics.DistributionType,
 		SampleRate: 1,
-	}, 1000)
-	bl := utilstrings.NewMatcher([]string{
-		"test.histogram.avg",
-		"test.histogram.count",
-	}, false)
+	}, 1000, tagmatcher)
 
-	metrics, sketches := flushSerieWithFilterList(sampler, 1100, &bl, false)
+	metrics, sketches := flushSerieWithFilterList(sampler, 1100, &matcher, false)
 
 	assert.Len(t, metrics, 4)
 	assert.Len(t, sketches, 1)
@@ -585,6 +598,8 @@ func TestFlushFilterList(t *testing.T) {
 
 func TestForcedFlush(t *testing.T) {
 	sampler := testTimeSampler(tags.NewStore(false, "test"))
+	matcher := filterlist.NewNoopTagMatcher()
+
 	testMetric1 := &metrics.MetricSample{
 		Name:       "test.count1",
 		Value:      1,
@@ -604,13 +619,13 @@ func TestForcedFlush(t *testing.T) {
 		SampleRate: 1,
 	}
 
-	sampler.sample(testMetric1, 999)
-	sampler.sample(testMetric2, 1010)
-	sampler.sample(testMetric2, 1022)
+	sampler.sample(testMetric1, 999, matcher)
+	sampler.sample(testMetric2, 1010, matcher)
+	sampler.sample(testMetric2, 1022, matcher)
 
-	sampler.sample(testSketch, 999)
-	sampler.sample(testSketch, 1010)
-	sampler.sample(testSketch, 1021)
+	sampler.sample(testSketch, 999, matcher)
+	sampler.sample(testSketch, 1010, matcher)
+	sampler.sample(testSketch, 1021, matcher)
 
 	mSerie, sSerie := flushSerie(sampler, 1000, true)
 
@@ -661,6 +676,7 @@ func TestForcedFlush(t *testing.T) {
 
 func benchmarkTimeSampler(b *testing.B, store *tags.Store) {
 	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
+	matcher := filterlist.NewNoopTagMatcher()
 
 	sample := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -671,9 +687,10 @@ func benchmarkTimeSampler(b *testing.B, store *tags.Store) {
 		Timestamp:  12345.0,
 	}
 	for n := 0; n < b.N; n++ {
-		sampler.sample(&sample, 12345.0)
+		sampler.sample(&sample, 12345.0, matcher)
 	}
 }
+
 func BenchmarkTimeSampler(b *testing.B) {
 	benchWithTagsStore(b, benchmarkTimeSampler)
 }
@@ -686,7 +703,7 @@ func flushSerie(sampler *TimeSampler, timestamp float64, forceFlushAll bool) (me
 	return series, sketches
 }
 
-func flushSerieWithFilterList(sampler *TimeSampler, timestamp float64, filter *utilstrings.Matcher, forceFlushAll bool) (metrics.Series, metrics.SketchSeriesList) {
+func flushSerieWithFilterList(sampler *TimeSampler, timestamp float64, filter *strings.Matcher, forceFlushAll bool) (metrics.Series, metrics.SketchSeriesList) {
 	var series metrics.Series
 	var sketches metrics.SketchSeriesList
 

@@ -11,21 +11,31 @@ alias(
     actual = select({
         "//:linux_arm64": "@compile_policy_arm64//:dd-compile-policy",
         "//:linux_x86_64": "@compile_policy_x86_64//:dd-compile-policy",
+        "//:windows_x86_64": "@compile_policy_windows_x86_64//:dd-compile-policy.exe",
     }),
-    target_compatible_with = [
-        "@platforms//os:linux",
-    ],
+    target_compatible_with = select({
+        "//:linux_arm64": [],
+        "//:linux_x86_64": [],
+        "//:windows_x86_64": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
 )
 
 pkg_files(
     name = "bin_files",
     srcs = [":dd_compile_policy"],
-    attributes = pkg_attributes(
-        group = "root",
-        mode = "0555",
-        owner = "root",
-    ),
-    prefix = "embedded/bin",
+    attributes = select({
+        "//:windows_x86_64": None,  # Windows doesn't use Unix permissions
+        "//conditions:default": pkg_attributes(
+            group = "root",
+            mode = "0755",
+            owner = "root",
+        ),
+    }),
+    prefix = select({
+        "//:windows_x86_64": "bin/agent",
+        "//conditions:default": "embedded/bin",
+    }),
 )
 
 pkg_files(

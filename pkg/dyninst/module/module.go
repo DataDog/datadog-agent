@@ -105,6 +105,7 @@ func newUnstartedModule(deps dependencies, tombstoneFilePath string) *Module {
 	runtime := &runtimeImpl{
 		store:                    store,
 		diagnostics:              diagnostics,
+		actuator:                 deps.Actuator,
 		decoderFactory:           deps.DecoderFactory,
 		irGenerator:              deps.IRGenerator,
 		programCompiler:          deps.ProgramCompiler,
@@ -207,7 +208,9 @@ func makeRealDependencies(
 	if err != nil {
 		return ret, fmt.Errorf("error parsing log uploader URL: %w", err)
 	}
-	ret.logUploader = uploader.NewLogsUploaderFactory(uploader.WithURL(logUploaderURL))
+	ret.logUploader = uploader.NewLogsUploaderFactory(
+		uploader.WithURL(logUploaderURL),
+	)
 
 	diagsUploaderURL, err := url.Parse(config.DiagsUploaderURL)
 	if err != nil {
@@ -223,7 +226,7 @@ func makeRealDependencies(
 			return ret, fmt.Errorf("error parsing SymDB uploader URL: %w", err)
 		}
 	}
-	ret.actuator = actuator.NewActuator(config.CircuitBreakerConfig)
+	ret.actuator = actuator.NewActuator(config.ActuatorConfig)
 
 	var loaderOpts []loader.Option
 	if config.TestingKnobs.LoaderOptions != nil {
@@ -255,7 +258,7 @@ func makeRealDependencies(
 		return ret, fmt.Errorf("error getting monotonic time: %w", err)
 	}
 	ret.dispatcher = dispatcher.NewDispatcher(ret.loader.OutputReader())
-	ret.procSubscriber = procsubscribe.NewRemoteConfigProcessSubscriber(
+	ret.procSubscriber = procsubscribe.NewSubscriber(
 		remoteConfigSubscriber,
 	)
 
@@ -295,6 +298,24 @@ func (m *Module) Register(router *module.Router) error {
 			},
 		),
 	)
+	// Handler for printing debug information about the known Go processes with
+	// the Datadog tracer. These processes are watched for Remote Config updates
+	// related to Dynamic Instrumentation.
+	router.HandleFunc(
+		"/debug/goprocs",
+		utils.WithConcurrencyLimit(
+			utils.DefaultMaxConcurrentRequests,
+			func(w http.ResponseWriter, _ *http.Request) {
+				if m.shutdown.realDependencies.procSubscriber == nil {
+					utils.WriteAsJSON(w, nil, utils.PrettyPrint)
+					return
+				}
+
+				report := m.shutdown.realDependencies.procSubscriber.GetReport()
+				utils.WriteAsJSON(w, report, utils.PrettyPrint)
+			},
+		),
+	)
 	return nil
 }
 
@@ -326,16 +347,23 @@ func (m *Module) handleProcessesUpdate(update process.ProcessesUpdate) {
 				Info:   update.Info,
 				Probes: update.Probes,
 			})
+			m.diagnostics.retain(runtimeID, update.Probes)
 			for _, probe := range update.Probes {
 				m.diagnostics.reportReceived(runtimeID, probe)
 			}
 			if update.ShouldUploadSymDB {
+				// Perform the upload, unless it was already queued previously.
 				if err := m.symdb.queueUpload(runtimeID, update.Executable.Path); err != nil {
 					log.Warnf("Failed to queue SymDB upload for process %v: %v", runtimeID.ID, err)
 				}
-			} else {
-				m.symdb.removeUpload(runtimeID)
 			}
+			// NOTE: we don't do anything if ShouldUploadSymDB is false, even
+			// when it switches from true to false. We could attempt to cancel
+			// an upload if it's in progress, but then would we would probably
+			// also want to re-attempt it if the flag switches back to true
+			// later; this is complicated since, in other cases, we don't want
+			// to re-upload (i.e. after a successful upload), so it's easier to
+			// do nothing.
 		}
 		if m.actuator != nil {
 			m.actuator.HandleUpdate(actuator.ProcessesUpdate{Processes: actuatorUpdates})

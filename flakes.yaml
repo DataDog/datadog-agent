@@ -23,8 +23,16 @@ test/new-e2e/tests/containers:
   - test: TestECSSuite/TestCPU/metric___container.cpu.usage{^ecs_container_name:stress-ng$}
   - test: TestEKSSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
   - test: TestKindSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
+  - test: TestOpenShiftVMSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
   - test: TestKindSuite/TestAdmissionControllerWithAutoDetectedLanguage
   - test: TestEKSSuite/TestAdmissionControllerWithAutoDetectedLanguage
+  - test: TestOpenShiftVMSuite/TestAdmissionControllerWithAutoDetectedLanguage
+
+/tests/installer/windows:
+  - test: TestAgentUpgradesOnDCWithGMSA
+
+test/new-e2e/tests/sbom:
+  - test: TestSBOMKindSuite/TestSBOM
 
 on-log:
   - "panic: Expected to find a single pod" # K8s Agent Executor can be flaky with the current implementation

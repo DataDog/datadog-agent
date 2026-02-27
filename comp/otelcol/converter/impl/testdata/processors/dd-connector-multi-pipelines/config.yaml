@@ -24,6 +24,7 @@ extensions:
   zpages/user-defined:
     endpoint: "localhost:55679"
   ddflare/user-defined:
+  datadog/user-defined:
 
 service:
   telemetry:
@@ -35,6 +36,7 @@ service:
       zpages/user-defined,
       health_check/user-defined,
       ddflare/user-defined,
+      datadog/user-defined,
     ]
   pipelines:
     traces:

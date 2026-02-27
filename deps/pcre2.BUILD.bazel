@@ -1,12 +1,41 @@
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
-load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@bazel_skylib//rules:native_binary.bzl", "native_test")
+load("@package_metadata//licenses/rules:license.bzl", "license")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
-package(default_visibility = ["//packages:__subpackages__"])
+package(
+    default_package_metadata = [":package_metadata"],
+    default_visibility = ["@@//packages:__subpackages__", "@@//deps:__pkg__"],
+)
+
+VERSION = "10.46"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        package = "libsepol",
+        version = VERSION,
+        # It is OK to point to the download URL where you retrieved the file, rather than the
+        # canonical upstream version. It might even be preferable. PURLs are pretty much an
+        # instance of https://xkcd.com/927.
+        download_url = "https://dd-agent-omnibus.s3.amazonaws.com/bazel/pcre2-{version}.tar.bz2",
+    ),
+)
+
+license(
+    name = "license",
+    kind = "@rules_license//licenses/spdx:BSD-3-Clause",
+    text = "LICENCE.md",
+    visibility = ["//visibility:public"],
+)
 
 copy_file(
     name = "config_h_generic",
@@ -30,7 +59,7 @@ copy_file(
 # src/pcre2_tables.c. Also fixed typo: ckdint should be chkdint.
 # PH, 22-March-2023.
 cc_library(
-    name = "pcre2",
+    name = "libpcre2",
     srcs = [
         "src/pcre2_auto_possess.c",
         "src/pcre2_chkdint.c",
@@ -89,7 +118,7 @@ cc_library(
 )
 
 cc_library(
-    name = "pcre2-posix",
+    name = "libpcre2-posix",
     srcs = [
         "src/pcre2posix.c",
         ":config_h_generic",
@@ -107,7 +136,7 @@ cc_library(
     includes = ["src"],
     strip_include_prefix = "src",
     visibility = ["//visibility:public"],
-    deps = [":pcre2"],
+    deps = [":libpcre2"],
 )
 
 # Totally weird issue in Bazel. It won't let you #include any files unless they
@@ -155,7 +184,8 @@ cc_binary(
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
-    deps = [":pcre2test_dotc_headers", ":pcre2", ":pcre2-posix"],
+    deps = [":pcre2test_dotc_headers", ":libpcre2", ":libpcre2-posix"],
+    dynamic_deps = [":pcre2-8", ":pcre2-posix"],
 )
 
 filegroup(
@@ -177,69 +207,29 @@ native_test(
     size = "small",
 )
 
-expand_template(
-    name = "gen_pkgconfig",
-    template = "//:libpcre2-8.pc.in",
-    out = "libpcre2-8.pc",
-    substitutions = {
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@PACKAGE_VERSION@": "10.46",
-        "@LIB_POSTFIX@": "",
-        "@PTHREAD_CFLAGS@": "",
-        "@PTHREAD_LIBS@": "",
-        "@PCRE2_STATIC_CFLAG@": "",
-    },
-)
-
-expand_template(
-    name = "gen_pkgconfig_posix",
-    template = "//:libpcre2-posix.pc.in",
-    out = "libpcre2-posix.pc",
-    substitutions = {
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@PACKAGE_VERSION@": "10.46",
-        "@LIB_POSTFIX@": "",
-        "@PTHREAD_CFLAGS@": "",
-        "@PTHREAD_LIBS@": "",
-        "@PCRE2POSIX_STATIC_CFLAG@": "",
-    },
-)
-
-pkg_files(
-    name = "pkgconfig",
-    srcs = [
-        ":gen_pkgconfig",
-        ":gen_pkgconfig_posix",
-    ],
-    prefix = "lib/pkgconfig",
+cc_shared_library(
+    name = "pcre2-8",
+    deps = [":libpcre2"],
+    visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
-    name = "pcre2_so",
-    deps = [":pcre2"],
-)
-
-cc_shared_library(
-    name = "pcre2posix_so",
-    deps = [":pcre2-posix"],
+    name = "pcre2-posix",
+    deps = [":libpcre2-posix"],
+    dynamic_deps = [":pcre2-8"],
+    visibility = ["//visibility:public"],
 )
 
 so_symlink(
     name = "pcre2_libfiles",
-    src = ":pcre2_so",
+    src = ":pcre2-8",
     libname = "libpcre2-8",
     version = "0.11.2",
 )
 
 so_symlink(
     name = "pcre2posix_libfiles",
-    src = ":pcre2posix_so",
+    src = ":pcre2-posix",
     libname = "libpcre2-posix",
     version = "3.0.4",
 )
@@ -253,12 +243,20 @@ pkg_files(
     prefix = "include",
 )
 
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":headers",
+        ":pcre2_libfiles",
+        ":pcre2posix_libfiles",
+    ],
+    prefix = "embedded",
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+)
+
 pkg_install(
     name = "install",
     srcs = [
-        ":headers",
-        ":pkgconfig",
-        ":pcre2_libfiles",
-        ":pcre2posix_libfiles",
+        ":all_files",
     ],
 )

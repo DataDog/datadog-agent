@@ -15,6 +15,8 @@
 // Package metrics provides runtime metric mappings.
 package metrics
 
+import "maps"
+
 // runtimeMetricPrefixLanguageMap defines the runtime metric prefixes and which languages they map to
 var runtimeMetricPrefixLanguageMap = map[string]string{
 	"process.runtime.go":     "go",
@@ -375,18 +377,10 @@ var javaRuntimeMetricsMappings = runtimeMetricMappingList{
 
 func getRuntimeMetricsMappings() runtimeMetricMappingList {
 	res := runtimeMetricMappingList{}
-	for k, v := range goRuntimeMetricsMappings {
-		res[k] = v
-	}
-	for k, v := range dotnetRuntimeMetricsMappings {
-		res[k] = v
-	}
-	for k, v := range javaRuntimeMetricsMappings {
-		res[k] = v
-	}
-	for k, v := range stableJavaRuntimeMetricsMappings {
-		res[k] = v
-	}
+	maps.Copy(res, goRuntimeMetricsMappings)
+	maps.Copy(res, dotnetRuntimeMetricsMappings)
+	maps.Copy(res, javaRuntimeMetricsMappings)
+	maps.Copy(res, stableJavaRuntimeMetricsMappings)
 	return res
 }
 

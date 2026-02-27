@@ -52,6 +52,7 @@
             "arguments": {
               "xs": {
                 "type": "[]main.structWithNoStrings",
+                "size": "0",
                 "elements": []
               },
               "a": {
@@ -61,7 +62,13 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
     },
     "timestamp": "[ts]",
     "message": "[], 2"

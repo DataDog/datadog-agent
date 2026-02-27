@@ -56,7 +56,7 @@ type usmHTTPSuite struct {
 }
 
 func (s *usmHTTPSuite) getCfg() *config.Config {
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableGoTLSSupport = s.isTLS
 	cfg.GoTLSExcludeSelf = s.isTLS
@@ -244,7 +244,7 @@ func TestGoTLSMapCleanup(t *testing.T) {
 	}
 
 	SetGoTLSPeriodicTerminatedProcessesScanInterval(t, time.Second)
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableGoTLSSupport = true
 	cfg.GoTLSExcludeSelf = false

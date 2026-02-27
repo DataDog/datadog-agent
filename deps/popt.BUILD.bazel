@@ -1,15 +1,16 @@
-load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+
+package(default_package_metadata = [":license"])
 
 license(
     name = "license",
     license_kinds = ["@rules_license//licenses/spdx:MIT"],
-    license_text = "LICENSE",
+    license_text = "COPYING",
     visibility = ["//visibility:public"],
 )
 
@@ -55,6 +56,8 @@ cc_library(
         'PACKAGE=\\"popt\\"',
         'POPT_SYSCONFDIR=\\"/etc/\\"',
     ],
+    strip_include_prefix = "src",
+    visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
@@ -79,38 +82,25 @@ so_symlink(
     version = "0.0.2",
 )
 
-expand_template(
-    name = "gen_pkgconfig",
-    out = "popt.pc",
-    substitutions = {
-        # Prepare the .pc file for our own substitution later
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@VERSION@": "1.19",
-        "@LTLIBICONV@": "",
-    },
-    template = "popt.pc.in",
-)
-
 pkg_files(
     name = "hdr_files",
     srcs = glob(["src/popt.h"]),
     prefix = "include",
 )
 
-pkg_files(
-    name = "pc_file",
-    srcs = [":gen_pkgconfig"],
-    prefix = "lib/pkgconfig",
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":hdr_files",
+        ":lib_files",
+    ],
+    prefix = "embedded",
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
 pkg_install(
     name = "install",
     srcs = [
-        ":hdr_files",
-        ":lib_files",
-        ":pc_file",
+        ":all_files",
     ],
 )

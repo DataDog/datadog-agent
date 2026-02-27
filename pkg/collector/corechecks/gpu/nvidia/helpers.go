@@ -85,11 +85,10 @@ func fieldValueToNumber[V number](valueType nvml.ValueType, value [8]byte) (V, e
 // filterSupportedAPIs tests each API call against the device and returns only the supported ones
 func filterSupportedAPIs(device ddnvml.Device, apiCalls []apiCallInfo) []apiCallInfo {
 	var supportedAPIs []apiCallInfo
-
 	for _, apiCall := range apiCalls {
 		// Test API support by calling the handler with timestamp=0 and ignoring results
 		_, _, err := apiCall.Handler(device, 0)
-		if err == nil || !ddnvml.IsUnsupported(err) {
+		if err == nil || !ddnvml.IsAPIUnsupportedOnDevice(err, device) {
 			supportedAPIs = append(supportedAPIs, apiCall)
 		}
 	}
@@ -112,14 +111,14 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 
 	tagsMapping := make(map[string][]string, devCount)
 
-	allPhysicalDevices, err := deviceCache.AllPhysicalDevices()
+	allDevices, err := deviceCache.All()
 	if err != nil {
 		if logLimiter.ShouldLog() {
 			log.Warnf("Error getting all physical devices: %s", err)
 		}
 		return nil
 	}
-	for _, dev := range allPhysicalDevices {
+	for _, dev := range allDevices {
 		uuid := dev.GetDeviceInfo().UUID
 		entityID := taggertypes.NewEntityID(taggertypes.GPU, uuid)
 		tags, err := tagger.Tag(entityID, taggertypes.ChecksConfigCardinality)
@@ -170,14 +169,17 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 // ]
 func RemoveDuplicateMetrics(allMetrics map[CollectorName][]Metric) []Metric {
 	// Map metric name -> collector ID -> []Metric (with that name)
-	nameToCollectorMetrics := make(map[string]map[CollectorName][]Metric)
+	nameToCollectorMetrics := make(map[string]map[CollectorName]map[MetricPriority][]Metric)
 
 	for collectorID, metrics := range allMetrics {
 		for _, m := range metrics {
 			if _, ok := nameToCollectorMetrics[m.Name]; !ok {
-				nameToCollectorMetrics[m.Name] = make(map[CollectorName][]Metric)
+				nameToCollectorMetrics[m.Name] = make(map[CollectorName]map[MetricPriority][]Metric)
 			}
-			nameToCollectorMetrics[m.Name][collectorID] = append(nameToCollectorMetrics[m.Name][collectorID], m)
+			if _, ok := nameToCollectorMetrics[m.Name][collectorID]; !ok {
+				nameToCollectorMetrics[m.Name][collectorID] = make(map[MetricPriority][]Metric)
+			}
+			nameToCollectorMetrics[m.Name][collectorID][m.Priority] = append(nameToCollectorMetrics[m.Name][collectorID][m.Priority], m)
 		}
 	}
 
@@ -186,17 +188,17 @@ func RemoveDuplicateMetrics(allMetrics map[CollectorName][]Metric) []Metric {
 	// For each metric name, pick all matching metrics from the collector with the highest-priority metric of that name
 	for _, collectorMetrics := range nameToCollectorMetrics {
 		maxPriority := Low
-		var winningCollectorID CollectorName
-		for collectorID, metrics := range collectorMetrics {
-			for _, m := range metrics {
-				if m.Priority >= maxPriority {
-					maxPriority = m.Priority
-					winningCollectorID = collectorID
+		var winningMetrics []Metric
+		for _, priorityMetrics := range collectorMetrics {
+			for priority, metrics := range priorityMetrics {
+				if priority >= maxPriority {
+					maxPriority = priority
+					winningMetrics = metrics
 				}
 			}
 		}
 		// Add all metrics for that name from the winning collector
-		result = append(result, collectorMetrics[winningCollectorID]...)
+		result = append(result, winningMetrics...)
 	}
 
 	return result

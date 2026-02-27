@@ -130,8 +130,10 @@ type kernelSpan struct {
 	// numKernels is the number of kernels that were launched during the span
 	numKernels uint64
 
-	// avgMemoryUsage is the average memory usage during the span, per allocation type
-	avgMemoryUsage map[memAllocType]uint64
+	// avgMemoryUsage is the average memory usage during the span, per allocation type.
+	// Indexed by memAllocType, an enum representing the CUDA memory spaces
+	// tracked by the agent (kernel binary, global, shared, constant).
+	avgMemoryUsage [memAllocTypeCount]uint64
 }
 
 // enrichedKernelLaunch is a structure that wraps a kernel launch event with the code to get
@@ -320,14 +322,8 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
 	span.numKernels = 0
 	span.avgThreadCount = 0
 
-	// Reset the memory usage map
-	for allocType := range span.avgMemoryUsage {
-		span.avgMemoryUsage[allocType] = 0
-	}
-
-	if span.avgMemoryUsage == nil {
-		span.avgMemoryUsage = make(map[memAllocType]uint64)
-	}
+	// Reset the memory usage array
+	span.avgMemoryUsage = [memAllocTypeCount]uint64{}
 
 	sh.kernelLaunchesMutex.RLock()
 	defer sh.kernelLaunchesMutex.RUnlock()
@@ -364,6 +360,7 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
 	}
 
 	if span.numKernels == 0 {
+		memPools.kernelSpanPool.Put(span)
 		return nil
 	}
 
@@ -380,7 +377,7 @@ func getAssociatedAllocations(span *kernelSpan) []*memorySpan {
 		return nil
 	}
 
-	allocations := make([]*memorySpan, 0, len(span.avgMemoryUsage))
+	allocations := make([]*memorySpan, 0, memAllocTypeCount)
 	for allocType, size := range span.avgMemoryUsage {
 		if size == 0 {
 			continue
@@ -391,7 +388,7 @@ func getAssociatedAllocations(span *kernelSpan) []*memorySpan {
 		alloc.endKtime = span.endKtime
 		alloc.size = size
 		alloc.isLeaked = false
-		alloc.allocType = allocType
+		alloc.allocType = memAllocType(allocType)
 		allocations = append(allocations, alloc)
 	}
 
@@ -449,6 +446,10 @@ func (sh *StreamHandler) getCurrentData(now uint64) *streamSpans {
 	}
 
 	for alloc := range sh.memAllocEvents.ValuesIter() {
+		if alloc.Header.Ktime_ns >= now {
+			continue
+		}
+
 		span := memPools.memorySpanPool.Get()
 		span.startKtime = alloc.Header.Ktime_ns
 		span.endKtime = 0
@@ -488,8 +489,54 @@ func (sh *StreamHandler) markEnd() error {
 	return nil
 }
 
+// releasePoolResources releases all pool-allocated objects held by this handler
+// without emitting any spans or data. This is used during cleanup of inactive
+// streams where we don't want to generate metrics from stale data.
+func (sh *StreamHandler) releasePoolResources() {
+	sh.kernelLaunchesMutex.Lock()
+	defer sh.kernelLaunchesMutex.Unlock()
+
+	for _, launch := range sh.kernelLaunches {
+		memPools.enrichedKernelLaunchPool.Put(launch)
+	}
+	sh.kernelLaunches = nil
+
+	// Drain and release pending spans from channels.
+	// Limit iterations to channel capacities to avoid blocking if concurrent writes happen.
+	maxIterations := cap(sh.pendingKernelSpans) + cap(sh.pendingMemorySpans)
+	for i := 0; i < maxIterations; i++ {
+		select {
+		case span := <-sh.pendingKernelSpans:
+			memPools.kernelSpanPool.Put(span)
+		case span := <-sh.pendingMemorySpans:
+			memPools.memorySpanPool.Put(span)
+		default:
+			return
+		}
+	}
+}
+
 func (sh *StreamHandler) isInactive(now int64, maxInactivity time.Duration) bool {
 	// If the stream has no events, it's considered active, we don't want to
 	// delete a stream that has just been created
 	return sh.lastEventKtimeNs > 0 && now-int64(sh.lastEventKtimeNs) > maxInactivity.Nanoseconds()
+}
+
+// String returns a human-readable representation of the StreamHandler. Used for better debugging in tests
+func (sh *StreamHandler) String() string {
+	sh.kernelLaunchesMutex.RLock()
+	kernelLaunchCount := len(sh.kernelLaunches)
+	sh.kernelLaunchesMutex.RUnlock()
+
+	return fmt.Sprintf("StreamHandler{pid=%d, streamID=%d, gpu=%s, container=%s, ended=%t, kernelLaunches=%d, pendingKernelSpans=%d, pendingMemorySpans=%d, memAllocEvents=%d}",
+		sh.metadata.pid,
+		sh.metadata.streamID,
+		sh.metadata.gpuUUID,
+		sh.metadata.containerID,
+		sh.ended,
+		kernelLaunchCount,
+		len(sh.pendingKernelSpans),
+		len(sh.pendingMemorySpans),
+		sh.memAllocEvents.Len(),
+	)
 }

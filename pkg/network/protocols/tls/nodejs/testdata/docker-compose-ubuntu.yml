@@ -1,0 +1,14 @@
+version: '3'
+name: node-ubuntu
+services:
+  node:
+    image: registry.ddbuild.io/images/nodejs:libnode-jammy
+    command: ["node", "/v/server.js"]
+    ports:
+      - ${PORT}:4141
+    environment:
+      - ADDR
+      - CERTS_DIR
+    volumes:
+      - ${TESTDIR}:/v:z
+      - ${CERTSDIR}:/certs:z

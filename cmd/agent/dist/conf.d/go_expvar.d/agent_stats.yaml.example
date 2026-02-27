@@ -3,7 +3,8 @@ instances:
   # Most memstats metrics are exported by default
   # See http://godoc.org/runtime#MemStats for their explanation
   # Note that you can specify a `type` for the metrics. One of:
-  #  * counter
+  #  * count
+  #  * monotonic_counter
   #  * gauge (the default)
   #  * rate (note that this will show up as a gauge in Datadog that is meant to be seen as a "per second rate")
 
@@ -25,7 +26,7 @@ instances:
   #     - path: memstats/Lookups
   #       type: rate                      # metric should be reported as a rate instead of the default gauge
   #     - path: memstats/Mallocs          # with no name specified, the metric name will default to a path based name
-  #       type: counter                   # report as a counter instead of the default gauge
+  #       type: count                     # report as a counter instead of the default gauge
   #     - path: memstats/Frees
   #       type: rate
   #     - path: memstats/BySize/1/Mallocs # You can get nested values by separating them with "/"

@@ -10,6 +10,8 @@ import (
 	"os"
 	"testing"
 
+	"go.yaml.in/yaml/v2"
+
 	infraos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -88,6 +90,80 @@ func (s *testInstallExeSuite) TestInstallAgentPackage() {
 		WithExperimentVersionEqual("")
 
 	wincommonagent.TestAgentHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost)
+}
+
+// TestInstallAgentFails asserts various system state when the installer fails to install the Agent package (it's not available)
+func (s *testInstallExeSuite) TestInstallAgentFails() {
+	// Act
+	_, err := s.InstallScript().Run(installerwindows.WithExtraEnvVars(map[string]string{
+		"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE": "does-not-exist.internal",
+	}))
+	s.Require().Error(err, "expected install to fail because Agent package is not available")
+
+	// Assert
+	configDir := `C:\ProgramData\Datadog`
+	s.Require().Host(s.Env().RemoteHost).
+		DirExists(configDir)
+	// check that config dir is protected even though MSI didn't run
+	security, err := wincommon.GetSecurityInfoForPath(s.Env().RemoteHost, configDir)
+	s.Require().NoError(err)
+	s.Require().True(security.AreAccessRulesProtected, "config dir should be protected")
+	s.Require().Equal(wincommon.GetIdentityForSID(wincommon.AdministratorsSID).GetSID(), security.Owner.GetSID(), "config dir should be owned by Administrators group")
+	s.Require().Equal(wincommon.GetIdentityForSID(wincommon.AdministratorsSID).GetSID(), security.Group.GetSID(), "config dir should be grouped by Administrators group")
+	// Agent is not installed so we can't grab paths from the registry keys, must provide them manually
+	wincommonagent.TestHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost, []string{configDir})
+}
+
+// TestConfigValuesNotOverwrittenByDefaults is a regression test for WINA-2118.
+// It verifies that when an empty datadog.yaml file exists before installation,
+// the installer does not overwrite it with default values from unset environment variables.
+func (s *testInstallExeSuite) TestConfigValuesNotOverwrittenByDefaults() {
+	// Arrange
+	host := s.Env().RemoteHost
+	configDir := `C:\ProgramData\Datadog`
+	configPath := `C:\ProgramData\Datadog\datadog.yaml`
+
+	// Create config directory and empty datadog.yaml
+	err := host.MkdirAll(configDir)
+	s.Require().NoError(err, "failed to create config directory")
+	_, err = host.WriteFile(configPath, []byte{})
+	s.Require().NoError(err, "failed to create empty datadog.yaml")
+
+	// Verify the file is empty before install
+	contentBefore, err := host.ReadFile(configPath)
+	s.Require().NoError(err, "failed to read datadog.yaml before install")
+	s.Require().Empty(contentBefore, "datadog.yaml should be empty before install")
+
+	// Act
+	// Run the installer without any config options to test that default env.Env values
+	// do not overwrite config values (WINA-2118).
+	output, err := s.InstallScript().Run(
+		// explicitly unset some values that are always set by this Run helper method
+		installerwindows.WithExtraEnvVars(map[string]string{
+			"DD_API_KEY":        "",
+			"DD_SITE":           "",
+			"DD_REMOTE_UPDATES": "",
+		}),
+	)
+
+	// Assert
+	s.Require().NoErrorf(err, "failed to run installer: %s", output)
+	s.Require().NoError(s.WaitForInstallerService("Running"))
+
+	// Verify the datadog.yaml file has no configuration values set.
+	// The installer may add comments or an empty YAML object ({}), but should not
+	// write any actual configuration keys when no options are provided.
+	// We use an empty config file to ensure we catch any/all options that may be written to the config
+	// if they are not provided to the installer, so the test should continue working as we add new options.
+	// If later we want to write defaults to the config we can update this test, but we must ensure that
+	// if the option exists in datadog.yaml that it takes precedence over the default value.
+	contentAfter, err := host.ReadFile(configPath)
+	s.Require().NoError(err, "failed to read datadog.yaml after install")
+
+	var configValues map[string]interface{}
+	err = yaml.Unmarshal(contentAfter, &configValues)
+	s.Require().NoError(err, "failed to parse datadog.yaml as YAML")
+	s.Require().Empty(configValues, "datadog.yaml should have no configuration values set - default env values should not overwrite config. Got: %v", configValues)
 }
 
 // proxyEnv provisions a Windows VM (for the installer) and a Linux VM (hosting a Squid proxy)

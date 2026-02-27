@@ -17,8 +17,6 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/atomic"
-
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -41,11 +39,6 @@ type EBPFLessResolver struct {
 	opts         ResolverOpts
 	scrubber     *utils.Scrubber
 	statsdClient statsd.ClientInterface
-
-	// stats
-	cacheSize *atomic.Int64
-
-	processCacheEntryPool *Pool
 }
 
 // NewEBPFLessResolver returns a new process resolver
@@ -54,11 +47,8 @@ func NewEBPFLessResolver(_ *config.Config, statsdClient statsd.ClientInterface, 
 		entryCache:   make(map[CacheResolverKey]*model.ProcessCacheEntry),
 		opts:         *opts,
 		scrubber:     scrubber,
-		cacheSize:    atomic.NewInt64(0),
 		statsdClient: statsdClient,
 	}
-
-	p.processCacheEntryPool = NewProcessCacheEntryPool(func() { p.cacheSize.Dec() })
 
 	return p, nil
 }
@@ -71,7 +61,6 @@ func (p *EBPFLessResolver) deleteEntry(key CacheResolverKey, exitTime time.Time)
 
 	entry.Exit(exitTime)
 	delete(p.entryCache, key)
-	entry.Release()
 }
 
 // DeleteEntry tries to delete an entry in the process cache
@@ -88,7 +77,7 @@ func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32, ts ui
 		return nil
 	}
 
-	entry := p.processCacheEntryPool.Get()
+	entry := model.NewProcessCacheEntry()
 	entry.PIDContext.Pid = key.Pid
 	entry.PPid = ppid
 	entry.ForkTime = time.Unix(0, int64(ts))
@@ -106,7 +95,7 @@ func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32, ts ui
 func (p *EBPFLessResolver) NewEntry(key CacheResolverKey, ppid uint32, file string, argv []string, argsTruncated bool,
 	envs []string, envsTruncated bool, ctrID containerutils.ContainerID, ts uint64, tty string, source uint64) *model.ProcessCacheEntry {
 
-	entry := p.processCacheEntryPool.Get()
+	entry := model.NewProcessCacheEntry()
 	entry.PIDContext.Pid = key.Pid
 	entry.PPid = ppid
 	entry.Source = source
@@ -181,20 +170,13 @@ func (p *EBPFLessResolver) AddProcFSEntry(key CacheResolverKey, ppid uint32, fil
 			entry.SetExecParent(parent)
 		}
 	}
-	p.insertEntry(key, entry, p.entryCache[key])
+	p.insertEntry(key, entry)
 
 	return entry
 }
 
-func (p *EBPFLessResolver) insertEntry(key CacheResolverKey, entry, prev *model.ProcessCacheEntry) {
+func (p *EBPFLessResolver) insertEntry(key CacheResolverKey, entry *model.ProcessCacheEntry) {
 	p.entryCache[key] = entry
-	entry.Retain()
-
-	if prev != nil {
-		prev.Release()
-	}
-
-	p.cacheSize.Inc()
 }
 
 func (p *EBPFLessResolver) insertForkEntry(key CacheResolverKey, entry *model.ProcessCacheEntry) {
@@ -218,7 +200,7 @@ func (p *EBPFLessResolver) insertForkEntry(key CacheResolverKey, entry *model.Pr
 		}
 	}
 
-	p.insertEntry(key, entry, prev)
+	p.insertEntry(key, entry)
 }
 
 func (p *EBPFLessResolver) insertExecEntry(key CacheResolverKey, entry *model.ProcessCacheEntry) {
@@ -239,7 +221,7 @@ func (p *EBPFLessResolver) insertExecEntry(key CacheResolverKey, entry *model.Pr
 		entry.Credentials = prev.Credentials
 	}
 
-	p.insertEntry(key, entry, prev)
+	p.insertEntry(key, entry)
 }
 
 // Resolve returns the cache entry for the given pid
@@ -257,7 +239,7 @@ func (p *EBPFLessResolver) Resolve(key CacheResolverKey) *model.ProcessCacheEntr
 }
 
 // UpdateUID updates the credentials of the provided pid
-func (p *EBPFLessResolver) UpdateUID(key CacheResolverKey, uid int32, euid int32) {
+func (p *EBPFLessResolver) UpdateUser(key CacheResolverKey, uid int32, euid int32, user string, euser string) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -265,15 +247,17 @@ func (p *EBPFLessResolver) UpdateUID(key CacheResolverKey, uid int32, euid int32
 	if entry != nil {
 		if uid != -1 {
 			entry.Credentials.UID = uint32(uid)
+			entry.Credentials.User = user
 		}
 		if euid != -1 {
 			entry.Credentials.EUID = uint32(euid)
+			entry.Credentials.EUser = euser
 		}
 	}
 }
 
 // UpdateGID updates the credentials of the provided pid
-func (p *EBPFLessResolver) UpdateGID(key CacheResolverKey, gid int32, egid int32) {
+func (p *EBPFLessResolver) UpdateGroup(key CacheResolverKey, gid int32, egid int32, group string, egroup string) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -281,9 +265,11 @@ func (p *EBPFLessResolver) UpdateGID(key CacheResolverKey, gid int32, egid int32
 	if entry != nil {
 		if gid != -1 {
 			entry.Credentials.GID = uint32(gid)
+			entry.Credentials.Group = group
 		}
 		if egid != -1 {
 			entry.Credentials.EGID = uint32(egid)
+			entry.Credentials.EGroup = egroup
 		}
 	}
 }

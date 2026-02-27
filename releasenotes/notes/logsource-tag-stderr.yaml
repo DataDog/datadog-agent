@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Container logs now include a `LogSource` tag indicating whether each log
+    message originated from stdout or stderr. This applies to logs parsed via
+    Docker and Kubernetes CRI runtimes.

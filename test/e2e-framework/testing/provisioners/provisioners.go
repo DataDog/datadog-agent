@@ -9,6 +9,7 @@ package provisioners
 import (
 	"context"
 	"io"
+	"maps"
 )
 
 // Diagnosable defines the interface for a diagnosable provisioner.
@@ -27,9 +28,7 @@ type RawResources map[string][]byte
 
 // Merge merges two RawResources maps
 func (rr RawResources) Merge(in RawResources) {
-	for k, v := range in {
-		rr[k] = v
-	}
+	maps.Copy(rr, in)
 }
 
 // UntypedProvisioner defines the interface for a provisioner without env binding
@@ -50,8 +49,6 @@ type ProvisionerMap map[string]Provisioner
 // CopyProvisioners copies a map of provisioners
 func CopyProvisioners(in ProvisionerMap) ProvisionerMap {
 	out := make(ProvisionerMap, len(in))
-	for k, v := range in {
-		out[k] = v
-	}
+	maps.Copy(out, in)
 	return out
 }

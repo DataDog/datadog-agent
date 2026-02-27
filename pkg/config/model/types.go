@@ -33,6 +33,9 @@ const (
 	// SourceUnknown are the values from unknown source. This should only be used in tests when calling
 	// SetWithoutSource.
 	SourceUnknown Source = "unknown"
+	// SourceInfraMode are the values set by infrastructure mode configurations. These values have higher
+	// priority than defaults but lower priority than user configuration (file, env vars, etc.).
+	SourceInfraMode Source = "infra-mode"
 	// SourceFile are the values loaded from configuration file.
 	SourceFile Source = "file"
 	// SourceEnvVar are the values loaded from the environment variables.
@@ -58,6 +61,7 @@ const (
 var Sources = []Source{
 	SourceDefault,
 	SourceUnknown,
+	SourceInfraMode,
 	SourceFile,
 	SourceEnvVar,
 	SourceFleetPolicies,
@@ -73,13 +77,14 @@ var sourcesPriority = map[Source]int{
 	SourceSchema:             -1,
 	SourceDefault:            0,
 	SourceUnknown:            1,
-	SourceFile:               2,
-	SourceEnvVar:             3,
-	SourceFleetPolicies:      4,
-	SourceAgentRuntime:       5,
-	SourceLocalConfigProcess: 6,
-	SourceRC:                 7,
-	SourceCLI:                8,
+	SourceInfraMode:          2,
+	SourceFile:               3,
+	SourceEnvVar:             4,
+	SourceFleetPolicies:      5,
+	SourceAgentRuntime:       6,
+	SourceLocalConfigProcess: 7,
+	SourceRC:                 8,
+	SourceCLI:                9,
 }
 
 // ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
@@ -125,6 +130,9 @@ type NotificationReceiver func(setting string, source Source, oldValue, newValue
 
 // Reader is a subset of Config that only allows reading of configuration
 type Reader interface {
+	// GetLibType returns the lib used to power the configuration (viper / tee / nodetreemodel)
+	GetLibType() string
+
 	Get(key string) interface{}
 	GetString(key string) string
 	GetBool(key string) bool
@@ -155,7 +163,10 @@ type Reader interface {
 	// AllKeysLowercased returns all config keys in the config, no matter how they are set.
 	// Note that it returns the keys lowercased.
 	AllKeysLowercased() []string
-	AllSettingsWithSequenceID() (map[string]interface{}, uint64)
+	// AllFlattenedSettingsWithSequenceID returns all settings as a flattened map (e.g., "logs_config.enabled"
+	// instead of nested {"logs_config": {"enabled": ...}}) along with the current sequence ID.
+	// This provides atomic access to flattened keys, values, and sequence ID under a single lock.
+	AllFlattenedSettingsWithSequenceID() (map[string]interface{}, uint64)
 
 	// SetTestOnlyDynamicSchema is used by tests to disable validation of the config schema
 	// This lets tests use the config is more flexible ways (can add to the schema at any point,

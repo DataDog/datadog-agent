@@ -139,24 +139,20 @@ func (ownersLanguages *OwnersLanguages) merge(other *OwnersLanguages) {
 
 // flush flushes to workloadmeta store containers languages that have dirty flag set to true, and then resets
 // dirty flag to false.
-// This method is not thread-safe.
+// This method acquires the mutex, collects dirty events and marks them as not dirty, releases the mutex,
+// then pushes all events in a single batch.
 func (ownersLanguages *OwnersLanguages) flush(wlm workloadmeta.Component) error {
-	pushErrors := make([]error, 0)
-
+	ownersLanguages.mutex.Lock()
+	var events []workloadmeta.Event
+	var pushErrors []error
 	for owner, containersLanguages := range ownersLanguages.containersLanguages {
-		// Skip if not dirty
 		if !containersLanguages.dirty {
 			continue
 		}
 
-		// Generate push event
 		if event := generatePushEvent(owner, containersLanguages.languages); event != nil {
-			pushError := wlm.Push(workloadmeta.SourceLanguageDetectionServer, *event)
-			if pushError != nil {
-				pushErrors = append(pushErrors, pushError)
-			} else {
-				containersLanguages.dirty = false
-			}
+			events = append(events, *event)
+			containersLanguages.dirty = false
 		} else {
 			pushErrors = append(
 				pushErrors,
@@ -168,6 +164,14 @@ func (ownersLanguages *OwnersLanguages) flush(wlm workloadmeta.Component) error 
 			)
 		}
 	}
+	ownersLanguages.mutex.Unlock()
+
+	if len(events) > 0 {
+		// Push() error is ignored because it only returns an error for invalid event types, and generatePushEvent()
+		// always creates events with valid types (EventTypeSet or EventTypeUnset).
+		// Push staying outsides the mutex prevents deadlock when Push() blocks on workloadmeta's eventCh.
+		_ = wlm.Push(workloadmeta.SourceLanguageDetectionServer, events...)
+	}
 	return errors.Join(pushErrors...)
 }
 
@@ -177,9 +181,8 @@ func (ownersLanguages *OwnersLanguages) flush(wlm workloadmeta.Component) error 
 // This method is thread-safe, and it serves as the unique entrypoint to instances of this type.
 func (ownersLanguages *OwnersLanguages) mergeAndFlush(other *OwnersLanguages, wlm workloadmeta.Component) error {
 	ownersLanguages.mutex.Lock()
-	defer ownersLanguages.mutex.Unlock()
-
 	ownersLanguages.merge(other)
+	ownersLanguages.mutex.Unlock()
 
 	return ownersLanguages.flush(wlm)
 }
@@ -188,23 +191,21 @@ func (ownersLanguages *OwnersLanguages) mergeAndFlush(other *OwnersLanguages, wl
 // This method is thread-safe.
 func (ownersLanguages *OwnersLanguages) cleanExpiredLanguages(wlm workloadmeta.Component) {
 	ownersLanguages.mutex.Lock()
-	defer ownersLanguages.mutex.Unlock()
-
 	for _, containersLanguages := range ownersLanguages.containersLanguages {
 		if containersLanguages.languages.RemoveExpiredLanguages() {
 			containersLanguages.dirty = true
 		}
 	}
+	ownersLanguages.mutex.Unlock()
+
 	_ = ownersLanguages.flush(wlm)
 }
 
 // syncFromInjectableLanguages updates DetectedLanguages to match InjectableLanguages for followers
 // This ensures consistency when a follower becomes leader
 // This method is thread-safe.
-func (ownersLanguages *OwnersLanguages) syncFromInjectableLanguages(wlm workloadmeta.Component, owner langUtil.NamespacedOwnerReference, injectableLanguages languagemodels.ContainersLanguages, ttl time.Duration) {
+func (ownersLanguages *OwnersLanguages) syncFromInjectableLanguages(owner langUtil.NamespacedOwnerReference, injectableLanguages languagemodels.ContainersLanguages, ttl time.Duration) {
 	ownersLanguages.mutex.Lock()
-	defer ownersLanguages.mutex.Unlock()
-
 	// Update the in-memory state to match injectable languages
 	langsWithDirtyFlag := ownersLanguages.getOrInitialize(owner)
 
@@ -224,20 +225,18 @@ func (ownersLanguages *OwnersLanguages) syncFromInjectableLanguages(wlm workload
 	// This ensures DetectedLangs exactly matches InjectableLangs
 	langsWithDirtyFlag.languages = timedLangs
 	langsWithDirtyFlag.dirty = true
-
-	// Always flush to keep workloadmeta in sync
-	_ = ownersLanguages.flush(wlm)
+	ownersLanguages.mutex.Unlock()
 }
 
-// handleKubeApiServerUnsetEvents handles unset events emitted by the kubeapiserver
+// handleKubeAPIServerUnsetEvents handles unset events emitted by the kubeapiserver
 // events with type EventTypeSet are skipped
-// events with type EventTypeUnset are handled by deleted the corresponding owner from OwnersLanguages
+// events with type EventTypeUnset are handled by deleting the corresponding owner from OwnersLanguages
 // and by pushing a new event to workloadmeta that unsets detected languages data for the concerned kubernetes resource
 // This method is thread-safe.
 func (ownersLanguages *OwnersLanguages) handleKubeAPIServerUnsetEvents(events []workloadmeta.Event, wlm workloadmeta.Component) {
-	ownersLanguages.mutex.Lock()
-	defer ownersLanguages.mutex.Unlock()
+	var unsetEvents []workloadmeta.Event
 
+	ownersLanguages.mutex.Lock()
 	for _, event := range events {
 		kind := event.Entity.GetID().Kind
 
@@ -254,11 +253,16 @@ func (ownersLanguages *OwnersLanguages) handleKubeAPIServerUnsetEvents(events []
 			namespace := deploymentIDs[0]
 			deploymentName := deploymentIDs[1]
 			delete(ownersLanguages.containersLanguages, langUtil.NewNamespacedOwnerReference("apps/v1", langUtil.KindDeployment, deploymentName, namespace))
-			_ = wlm.Push(workloadmeta.SourceLanguageDetectionServer, workloadmeta.Event{
+			unsetEvents = append(unsetEvents, workloadmeta.Event{
 				Type:   workloadmeta.EventTypeUnset,
 				Entity: deployment,
 			})
 		}
+	}
+	ownersLanguages.mutex.Unlock()
+
+	if len(unsetEvents) > 0 {
+		_ = wlm.Push(workloadmeta.SourceLanguageDetectionServer, unsetEvents...)
 	}
 }
 

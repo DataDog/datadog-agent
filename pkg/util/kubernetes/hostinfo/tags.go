@@ -90,6 +90,10 @@ func (k KubeNodeTagsProvider) getNodeInfoTags(ctx context.Context) ([]string, er
 		tags = append(tags, kubernetes.ClusterAutoscalerTagName+":datadog")
 	}
 
+	if nodeLabels[kubernetes.KarpenterNodePoolLabelKey] != "" {
+		tags = append(tags, kubernetes.KarpenterNodePoolTagName+":"+nodeLabels[kubernetes.KarpenterNodePoolLabelKey])
+	}
+
 	return tags, nil
 }
 

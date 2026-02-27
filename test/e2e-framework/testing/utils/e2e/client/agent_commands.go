@@ -6,20 +6,23 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/stretchr/testify/require"
 )
 
 type agentCommandExecutor interface {
 	execute(arguments []string) (string, error)
+	restart() error
 }
 
 // agentCommandRunner is an internal type that provides methods to run Agent commands.
@@ -143,6 +146,12 @@ func (agent *agentCommandRunner) Secret(commandArgs ...agentclient.AgentArgsOpti
 	return agent.executeCommand("secret", commandArgs...)
 }
 
+// Restart restarts the Agent service.
+func (agent *agentCommandRunner) Restart() error {
+	agent.isReady = false
+	return agent.executor.restart()
+}
+
 // IsReady runs status command and returns true if the command returns a zero exit code.
 // This function should rarely be used.
 func (agent *agentCommandRunner) IsReady() bool {
@@ -195,13 +204,13 @@ func (agent *agentCommandRunner) WorkloadList() (*agentclient.Status, error) {
 func (agent *agentCommandRunner) waitForReadyTimeout(timeout time.Duration) error {
 	interval := 100 * time.Millisecond
 	maxRetries := timeout.Milliseconds() / interval.Milliseconds()
-	agent.t.Log("Waiting for the agent to be ready")
-	err := backoff.Retry(func() error {
+	utils.Logf(agent.t, "Waiting for the agent to be ready")
+	_, err := backoff.Retry(context.Background(), func() (any, error) {
 		_, err := agent.executor.execute([]string{"status"})
 		if err != nil {
-			return fmt.Errorf("agent not ready: %w", err)
+			return nil, fmt.Errorf("agent not ready: %w", err)
 		}
-		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), uint64(maxRetries)))
+		return nil, nil
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(interval)), backoff.WithMaxTries(uint(maxRetries)))
 	return err
 }

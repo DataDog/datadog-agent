@@ -1,0 +1,14 @@
+test_fuzz:
+  extends: .bazel:defs:cache:ephemeral
+  rules:
+    - !reference [.on_scheduled_main]
+    - !reference [.manual]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  stage: source_test
+  needs: []
+  allow_failure: true
+  script:
+    - dda self dep sync -f legacy-tasks
+    - dda inv -- -e system-probe.object-files
+    - dda inv -- build-and-upload-fuzz

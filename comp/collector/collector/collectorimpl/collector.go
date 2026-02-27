@@ -26,6 +26,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	metadata "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -34,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/sharedlibraryimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -48,11 +50,12 @@ const (
 type dependencies struct {
 	fx.In
 
-	Lc       fx.Lifecycle
-	Config   config.Component
-	Log      log.Component
-	HaAgent  haagent.Component
-	Hostname hostnameinterface.Component
+	Lc             fx.Lifecycle
+	Config         config.Component
+	Log            log.Component
+	HaAgent        haagent.Component
+	HealthPlatform option.Option[healthplatform.Component]
+	Hostname       hostnameinterface.Component
 
 	SenderManager    sender.SenderManager
 	MetricSerializer option.Option[serializer.MetricSerializer]
@@ -60,10 +63,11 @@ type dependencies struct {
 }
 
 type collectorImpl struct {
-	log      log.Component
-	config   config.Component
-	haAgent  haagent.Component
-	hostname hostnameinterface.Component
+	log            log.Component
+	config         config.Component
+	haAgent        haagent.Component
+	healthPlatform option.Option[healthplatform.Component]
+	hostname       hostnameinterface.Component
 
 	senderManager    sender.SenderManager
 	metricSerializer option.Option[serializer.MetricSerializer]
@@ -125,6 +129,7 @@ func newCollector(deps dependencies) *collectorImpl {
 		log:                    deps.Log,
 		config:                 deps.Config,
 		haAgent:                deps.HaAgent,
+		healthPlatform:         deps.HealthPlatform,
 		hostname:               deps.Hostname,
 		senderManager:          deps.SenderManager,
 		metricSerializer:       deps.MetricSerializer,
@@ -139,6 +144,10 @@ func newCollector(deps dependencies) *collectorImpl {
 
 	if !deps.Config.GetBool("python_lazy_loading") {
 		python.InitPython(common.GetPythonPaths()...)
+	}
+
+	if deps.Config.GetBool("shared_library_check.enabled") {
+		sharedlibrarycheck.InitSharedLibraryChecksLoader()
 	}
 
 	deps.Lc.Append(fx.Hook{
@@ -168,7 +177,13 @@ func (c *collectorImpl) start(_ context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	run := runner.NewRunner(c.senderManager, c.haAgent)
+	// Get health platform component (may be nil if not available)
+	var healthPlatformComp healthplatform.Component
+	if hp, ok := c.healthPlatform.Get(); ok {
+		healthPlatformComp = hp
+	}
+
+	run := runner.NewRunner(c.senderManager, c.haAgent, healthPlatformComp)
 	sched := scheduler.NewScheduler(run.GetChan())
 
 	// let the runner some visibility into the scheduler

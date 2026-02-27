@@ -17,7 +17,7 @@ import (
 	"github.com/alecthomas/participle/lexer/ebnf"
 )
 
-// ParsingContext defines a parsing context
+// ParsingContext holds the parsers and optional rule cache; it has no parent (root factory for Rule, Macro, Expression).
 type ParsingContext struct {
 	ruleParser       *participle.Parser
 	macroParser      *participle.Parser
@@ -33,13 +33,14 @@ Comment = ("#" | "//") { "\u0000"…"\uffff"-"\n" } .
 CIDR = IP "/" digit { digit } .
 IP = (ipv4 | ipv6) .
 Variable = "${" (alpha | "_") { "_" | alpha | digit | "." } "}" .
+FieldReference = "%{" (alpha | "_") { "_" | alpha | digit | "." | "[" | "]" } "}" .
 Duration = digit { digit } ("m" | "s" | "m" | "h") { "s" } .
 Regexp = "r\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
 Ident = (alpha | "_") { "_" | alpha | digit | "." | "[" | "]" } .
 String = "\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
 Pattern = "~\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
 Int = [ "-" | "+" ] digit { digit } .
-Punct = ( "!" | "=" | "<" | ">" | "+" | "-" | "[" | "]" | "(" | ")" | "," | "&" | "|" | "~" | "^" ).
+Punct = ( "!" | "=" | "<" | ">" | "+" | "-" | "[" | "]" | "(" | ")" | "," | "&" | "|" | "~" | "^" | "%" ).
 Whitespace = ( " " | "\t" | "\n" ) { " " | "\t" | "\n" } .
 ipv4 = (digit { digit } "." digit { digit } "." digit { digit } "." digit { digit }) .
 ipv6 = ( [hex { hex }] ":" [hex { hex }] ":" [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }]) .
@@ -123,7 +124,11 @@ func (pc *ParsingContext) ParseRule(expr string) (*Rule, error) {
 	return rule, nil
 }
 
-// Rule describes a SECL rule
+// Rule is the root of a SECL rule AST; it has no parent and contains a BooleanExpression.
+//
+// Grammar:
+//
+//	Rule → BooleanExpression
 type Rule struct {
 	Pos  lexer.Position
 	Expr string
@@ -153,7 +158,13 @@ func (pc *ParsingContext) ParseExpression(expr string) (*Expression, error) {
 	return expression, nil
 }
 
-// Macro describes a SECL macro
+// Macro is the root of a SECL macro body; it has no parent and contains an Expression, an Array, or a Primary.
+//
+// Grammar:
+//
+//	Macro → Expression
+//	Macro → Array
+//	Macro → Primary
 type Macro struct {
 	Pos lexer.Position
 
@@ -162,14 +173,28 @@ type Macro struct {
 	Primary    *Primary    `parser:"| @@"`
 }
 
-// BooleanExpression describes a boolean expression
+// BooleanExpression is contained only by Rule; it holds the root Expression of the rule.
+//
+// Grammar:
+//
+//	BooleanExpression → Expression
 type BooleanExpression struct {
 	Pos lexer.Position
 
 	Expression *Expression `parser:"@@"`
 }
 
-// Expression describes an expression
+// Expression is contained by BooleanExpression or by another Expression (via Next in a logical chain).
+//
+// Grammar:
+//
+//	Expression → Comparison
+//	Expression → Comparison LogicalOp BooleanExpression
+//
+//	LogicalOp → "||"
+//	LogicalOp → "or"
+//	LogicalOp → "&&"
+//	LogicalOp → "and"
 type Expression struct {
 	Pos lexer.Position
 
@@ -178,7 +203,13 @@ type Expression struct {
 	Next       *BooleanExpression `parser:"@@ ]"`
 }
 
-// Comparison describes a comparison
+// Comparison is contained only by Expression; it holds the left ArithmeticOperation and optional ScalarComparison or ArrayComparison.
+//
+// Grammar:
+//
+//	Comparison → ArithmeticOperation
+//	Comparison → ArithmeticOperation ScalarComparison
+//	Comparison → ArithmeticOperation ArrayComparison
 type Comparison struct {
 	Pos lexer.Position
 
@@ -187,7 +218,20 @@ type Comparison struct {
 	ArrayComparison     *ArrayComparison     `parser:"| @@ ]"`
 }
 
-// ScalarComparison describes a scalar comparison : the operator with the right operand
+// ScalarComparison is contained only by Comparison; it holds a scalar operator and the right-hand Comparison.
+//
+// Grammar:
+//
+//	ScalarComparison → ScalarOp Comparison
+//
+//	ScalarOp → ">="
+//	ScalarOp → ">"
+//	ScalarOp → "<="
+//	ScalarOp → "<"
+//	ScalarOp → "!="
+//	ScalarOp → "=="
+//	ScalarOp → "=~"
+//	ScalarOp → "!~"
 type ScalarComparison struct {
 	Pos lexer.Position
 
@@ -195,7 +239,15 @@ type ScalarComparison struct {
 	Next *Comparison `parser:"@@"`
 }
 
-// ArrayComparison describes an operation that tests membership in an array
+// ArrayComparison is contained only by Comparison; it holds the array operator and the right-hand Array.
+//
+// Grammar:
+//
+//	ArrayComparison → ArrayOp Array
+//
+//	ArrayOp → "in"
+//	ArrayOp → "notin"
+//	ArrayOp → "allin"
 type ArrayComparison struct {
 	Pos lexer.Position
 
@@ -203,7 +255,16 @@ type ArrayComparison struct {
 	Array *Array  `parser:"@@"`
 }
 
-// BitOperation describes an operation on bits
+// BitOperation is contained by ArithmeticOperation (as First or as Operand inside Rest) or by another BitOperation (via Next).
+//
+// Grammar:
+//
+//	BitOperation → Unary
+//	BitOperation → Unary BitOp BitOperation
+//
+//	BitOp → "&"
+//	BitOp → "|"
+//	BitOp → "^"
 type BitOperation struct {
 	Pos lexer.Position
 
@@ -212,7 +273,15 @@ type BitOperation struct {
 	Next  *BitOperation `parser:"@@ ]"`
 }
 
-// ArithmeticOperation describes an arithmetic operation
+// ArithmeticOperation is contained only by Comparison; it holds the first BitOperation and an optional list of ArithmeticElements.
+//
+// Grammar:
+//
+//	ArithmeticOperation → BitOperation
+//	ArithmeticOperation → BitOperation ArithmeticElementList
+//
+//	ArithmeticElementList → ArithmeticElement
+//	ArithmeticElementList → ArithmeticElement ArithmeticElementList
 type ArithmeticOperation struct {
 	Pos lexer.Position
 
@@ -220,13 +289,25 @@ type ArithmeticOperation struct {
 	Rest  []*ArithmeticElement `parser:"[ @@ { @@ } ]"`
 }
 
-// ArithmeticElement defines an arithmetic element
+// ArithmeticElement defines one element of ArithmeticElementList.
+//
+// Grammar:
+//
+//	ArithmeticElement → ArithOp BitOperation
+//
+//	ArithOp → "+"
+//	ArithOp → "-"
 type ArithmeticElement struct {
 	Op      string        `parser:"@( \"+\" | \"-\" )"`
 	Operand *BitOperation `parser:"@@"`
 }
 
-// Unary describes an unary operation like logical not, binary not, minus
+// Unary is contained by BitOperation or by UnaryWithOp (or recursively by Unary); it holds a Primary or a UnaryWithOp.
+//
+// Grammar:
+//
+//	Unary → Primary
+//	Unary → UnaryOp Unary
 type Unary struct {
 	Pos lexer.Position
 
@@ -234,7 +315,16 @@ type Unary struct {
 	Primary     *Primary     `parser:"| @@"`
 }
 
-// UnaryWithOp describes a unary operation with an operator
+// UnaryWithOp is contained only by Unary; it holds a unary operator and the operand Unary.
+//
+// Grammar:
+//
+//	UnaryWithOp → UnaryOp Unary
+//
+//	UnaryOp → "!"
+//	UnaryOp → "not"
+//	UnaryOp → "-"
+//	UnaryOp → "^"
 type UnaryWithOp struct {
 	Pos lexer.Position
 
@@ -242,24 +332,44 @@ type UnaryWithOp struct {
 	Unary *Unary  `parser:"@@"`
 }
 
-// Primary describes a single operand. It can be a simple identifier, a number,
-// a string or a full expression in parenthesis
+// Primary is contained by Unary or by Macro; it holds a single operand.
+//
+// Grammar:
+//
+//	Primary → Ident
+//	Primary → CIDR
+//	Primary → IP
+//	Primary → Number
+//	Primary → Variable
+//	Primary → String
+//	Primary → Pattern
+//	Primary → Regexp
+//	Primary → Duration
+//	Primary → FieldReference
+//	Primary → "(" Expression ")"
 type Primary struct {
 	Pos lexer.Position
 
-	Ident         *string     `parser:"@Ident"`
-	CIDR          *string     `parser:"| @CIDR"`
-	IP            *string     `parser:"| @IP"`
-	Number        *int        `parser:"| @Int"`
-	Variable      *string     `parser:"| @Variable"`
-	String        *string     `parser:"| @String"`
-	Pattern       *string     `parser:"| @Pattern"`
-	Regexp        *string     `parser:"| @Regexp"`
-	Duration      *int        `parser:"| @Duration"`
-	SubExpression *Expression `parser:"| \"(\" @@ \")\""`
+	Ident          *string     `parser:"@Ident"`
+	CIDR           *string     `parser:"| @CIDR"`
+	IP             *string     `parser:"| @IP"`
+	Number         *int        `parser:"| @Int"`
+	Variable       *string     `parser:"| @Variable"`
+	FieldReference *string     `parser:"| @FieldReference"`
+	String         *string     `parser:"| @String"`
+	Pattern        *string     `parser:"| @Pattern"`
+	Regexp         *string     `parser:"| @Regexp"`
+	Duration       *int        `parser:"| @Duration"`
+	SubExpression  *Expression `parser:"| \"(\" @@ \")\""`
 }
 
-// StringMember describes a String based array member
+// StringMember defines one element of StringMemberList.
+//
+// Grammar:
+//
+//	StringMember → String
+//	StringMember → Pattern
+//	StringMember → Regexp
 type StringMember struct {
 	Pos lexer.Position
 
@@ -268,7 +378,12 @@ type StringMember struct {
 	Regexp  *string `parser:"| @Regexp"`
 }
 
-// CIDRMember describes a CIDR based array member
+// CIDRMember defines one element of CIDRMemberList.
+//
+// Grammar:
+//
+//	CIDRMember → IP
+//	CIDRMember → CIDR
 type CIDRMember struct {
 	Pos lexer.Position
 
@@ -276,15 +391,39 @@ type CIDRMember struct {
 	CIDR *string `parser:"| @CIDR"`
 }
 
-// Array describes an array of values
+// Array is contained only by ArrayComparison or by Macro; it holds the right-hand side of an array membership test.
+//
+// Grammar:
+//
+//	Array → CIDR
+//	Array → Variable
+//	Array → Ident
+//	Array → FieldReference
+//	Array → "[" StringMemberList "]"
+//	Array → "[" CIDRMemberList "]"
+//	Array → "[" NumberList "]"
+//	Array → "[" IdentList "]"
+//
+//	StringMemberList → StringMember
+//	StringMemberList → StringMember "," StringMemberList
+//
+//	CIDRMemberList → CIDRMember
+//	CIDRMemberList → CIDRMember "," CIDRMemberList
+//
+//	NumberList → Number
+//	NumberList → Number "," NumberList
+//
+//	IdentList → Ident
+//	IdentList → Ident "," IdentList
 type Array struct {
 	Pos lexer.Position
 
-	CIDR          *string        `parser:"@CIDR"`
-	Variable      *string        `parser:"| @Variable"`
-	Ident         *string        `parser:"| @Ident"`
-	StringMembers []StringMember `parser:"| \"[\" @@ { \",\" @@ } \"]\""`
-	CIDRMembers   []CIDRMember   `parser:"| \"[\" @@ { \",\" @@ } \"]\""`
-	Numbers       []int          `parser:"| \"[\" @Int { \",\" @Int } \"]\""`
-	Idents        []string       `parser:"| \"[\" @Ident { \",\" @Ident } \"]\""`
+	CIDR           *string        `parser:"@CIDR"`
+	Variable       *string        `parser:"| @Variable"`
+	FieldReference *string        `parser:"| @FieldReference"`
+	Ident          *string        `parser:"| @Ident"`
+	StringMembers  []StringMember `parser:"| \"[\" @@ { \",\" @@ } \"]\""`
+	CIDRMembers    []CIDRMember   `parser:"| \"[\" @@ { \",\" @@ } \"]\""`
+	Numbers        []int          `parser:"| \"[\" @Int { \",\" @Int } \"]\""`
+	Idents         []string       `parser:"| \"[\" @Ident { \",\" @Ident } \"]\""`
 }

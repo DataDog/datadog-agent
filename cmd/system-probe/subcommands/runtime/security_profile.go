@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
@@ -61,10 +60,9 @@ func securityProfileShowCommands(globalParams *command.GlobalParams) []*cobra.Co
 			return fxutil.OneShot(showSecurityProfile,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(""),
+					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
-				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -107,10 +105,9 @@ func listSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 			return fxutil.OneShot(listSecurityProfiles,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(""),
+					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
-				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -221,10 +218,9 @@ func saveSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 			return fxutil.OneShot(saveSecurityProfile,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(""),
+					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
-				secretsnoopfx.Module(),
 			)
 		},
 	}

@@ -12,7 +12,7 @@ import (
 
 	"encoding/json"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 // Configuration file example
@@ -44,6 +44,7 @@ type ConfigParams struct {
 	OutputDir string `yaml:"outputDir"`
 	Pulumi    Pulumi `yaml:"pulumi"`
 	DevMode   string `yaml:"devMode"`
+	DevLocal  string `yaml:"devLocal"`
 }
 
 // AWS instance contains AWS related parameters
@@ -200,6 +201,8 @@ func (s configFileValueStore) get(key StoreKey) (string, error) {
 		value = s.config.ConfigParams.Pulumi.VerboseProgressStreams
 	case DevMode:
 		value = s.config.ConfigParams.DevMode
+	case DevLocal:
+		value = s.config.ConfigParams.DevLocal
 	}
 
 	if value == "" {

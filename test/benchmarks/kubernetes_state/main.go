@@ -19,12 +19,14 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
+	cluster "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
 )
 
@@ -45,6 +47,7 @@ func openOrDie(name string) (file *os.File) {
 }
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
 	fakeClient := fake.NewSimpleClientset()
 
 	/*
@@ -58,7 +61,7 @@ func main() {
 	file.Close()
 
 	for _, namespace := range namespaceList.Items {
-		fakeClient.CoreV1().Namespaces().Create(&namespace)
+		fakeClient.CoreV1().Namespaces().Create(ctx, &namespace, metav1.CreateOptions{})
 	}
 
 	/*
@@ -72,7 +75,7 @@ func main() {
 	file.Close()
 
 	for _, pod := range podList.Items {
-		fakeClient.CoreV1().Pods(pod.Namespace).Create(&pod)
+		fakeClient.CoreV1().Pods(pod.Namespace).Create(ctx, &pod, metav1.CreateOptions{})
 	}
 
 	/*
@@ -86,7 +89,7 @@ func main() {
 	file.Close()
 
 	for _, service := range serviceList.Items {
-		fakeClient.CoreV1().Services(service.Namespace).Create(&service)
+		fakeClient.CoreV1().Services(service.Namespace).Create(ctx, &service, metav1.CreateOptions{})
 	}
 
 	/*
@@ -100,7 +103,7 @@ func main() {
 	file.Close()
 
 	for _, daemonSet := range daemonSetList.Items {
-		fakeClient.AppsV1().DaemonSets(daemonSet.Namespace).Create(&daemonSet)
+		fakeClient.AppsV1().DaemonSets(daemonSet.Namespace).Create(ctx, &daemonSet, metav1.CreateOptions{})
 	}
 
 	/*
@@ -114,7 +117,7 @@ func main() {
 	file.Close()
 
 	for _, deployment := range deploymentList.Items {
-		fakeClient.AppsV1().Deployments(deployment.Namespace).Create(&deployment)
+		fakeClient.AppsV1().Deployments(deployment.Namespace).Create(ctx, &deployment, metav1.CreateOptions{})
 	}
 
 	/*
@@ -128,7 +131,7 @@ func main() {
 	file.Close()
 
 	for _, statefulSet := range statefulSetList.Items {
-		fakeClient.AppsV1().StatefulSets(statefulSet.Namespace).Create(&statefulSet)
+		fakeClient.AppsV1().StatefulSets(statefulSet.Namespace).Create(ctx, &statefulSet, metav1.CreateOptions{})
 	}
 
 	/*
@@ -142,7 +145,7 @@ func main() {
 	file.Close()
 
 	for _, job := range jobList.Items {
-		fakeClient.BatchV1().Jobs(job.Namespace).Create(&job)
+		fakeClient.BatchV1().Jobs(job.Namespace).Create(ctx, &job, metav1.CreateOptions{})
 	}
 
 	/*
@@ -158,14 +161,13 @@ func main() {
 	if err := allowDenyList.Parse(); err != nil {
 		log.Fatalf("allowDenyList.Parse() failed: %v\n", err)
 	}
-	builder.WithAllowDenyList(allowDenyList)
+	builder.WithFamilyGeneratorFilter(allowDenyList)
 	builder.WithKubeClient(fakeClient)
-	ctx, cancel := context.WithCancel(context.Background())
 	builder.WithContext(ctx)
 	builder.WithResync(1 * time.Second)
-	builder.WithGenerateStoreFunc(builder.GenerateStore)
+	builder.WithGenerateStoresFunc(builder.GenerateStores)
 
-	store := builder.Build()
+	store := builder.BuildStores()
 
 	/*
 	 * Create the KSMCheck
@@ -181,7 +183,7 @@ func main() {
 		"label_team":           "team",
 	}
 
-	labelJoins := map[string]*cluster.JoinsConfig{
+	labelJoins := map[string]*cluster.JoinsConfigWithoutLabelsMapping{
 		"kube_daemonset_labels": {
 			LabelsToMatch: []string{"daemonset", "namespace"},
 			LabelsToGet:   []string{"label_service", "label_chart_name", "label_chart_version", "label_team", "label_app"},
@@ -200,14 +202,16 @@ func main() {
 		},
 	}
 
-	kubeStateMetricsCheck := cluster.KubeStateMetricsFactoryWithParam(labelsMapper, labelJoins, store)
+	taggerComponent := nooptagger.NewComponent()
+
+	kubeStateMetricsCheck := cluster.KubeStateMetricsFactoryWithParam(labelsMapper, labelJoins, store, taggerComponent)
 
 	/*
 	 * Initialize the aggregator
 	 * As it has a `nil` serializer, it will panic if it tries to flush the metrics.
 	 * That’s why we need a big enough flush interval
 	 */
-	aggregator.NewBufferedAggregator(nil, "", nil, 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, nil, taggerComponent, "", 1*time.Hour)
 
 	/*
 	 * Wait for informers to get populated

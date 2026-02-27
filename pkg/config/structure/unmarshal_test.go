@@ -12,7 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/spf13/cast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -46,7 +45,7 @@ type trapsConfig struct {
 // we can't use pkg/config/mock here because that package depends upon this one, so
 // this avoids a circular dependency
 func newEmptyMockConf(_ *testing.T) model.BuildableConfig {
-	cfg := create.NewConfig("test")
+	cfg := create.NewConfig("test", "")
 	cfg.SetTestOnlyDynamicSchema(true)
 	return cfg
 }
@@ -1349,7 +1348,7 @@ service:
   foo: bar
 `,
 			wantErr: true,
-			errMsg:  "'' has invalid keys: apikey, foo, name",
+			errMsg:  "has invalid keys: apikey, foo, name",
 		},
 	}
 
@@ -1416,26 +1415,6 @@ service:
 
 	assert.Equal(t, svc["enabled"], true)
 	assert.Equal(t, svc["disabled"], false)
-}
-
-func TestMapGetChildNotFound(t *testing.T) {
-	m := map[string]interface{}{"a": "apple", "b": "banana"}
-	n, err := nodetreemodel.NewNodeTree(m, model.SourceDefault)
-	assert.NoError(t, err)
-
-	val, err := n.GetChild("a")
-	assert.NoError(t, err)
-	str, err := cast.ToStringE(val.(nodetreemodel.LeafNode).Get())
-	assert.NoError(t, err)
-	assert.Equal(t, str, "apple")
-
-	_, err = n.GetChild("c")
-	require.Error(t, err)
-	assert.Equal(t, err.Error(), "not found")
-
-	inner, ok := n.(nodetreemodel.InnerNode)
-	assert.True(t, ok)
-	assert.Equal(t, inner.ChildrenKeys(), []string{"a", "b"})
 }
 
 func TestUnmarshalKeyWithPointerToBool(t *testing.T) {

@@ -40,6 +40,7 @@ import (
 	ddprofilingextension "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
@@ -145,6 +146,10 @@ const tracesToTracesStability = component.StabilityLevel(component.StabilityLeve
 const tracesToMetricsStability = component.StabilityLevel(component.StabilityLevelDevelopment)
 
 func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.GatewayUsage, byoc bool) {
+	serializerexporter.InitTelemetry(reqs.Telemetry)
+	logsagentexporter.InitTelemetry(reqs.Telemetry)
+	datadogexporter.InitTelemetry(reqs.Telemetry)
+
 	store := serializerexporter.TelemetryStore{}
 	if reqs.Telemetry != nil {
 		store.DDOTTraces = reqs.Telemetry.NewGauge(
@@ -162,10 +167,27 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 		store.DDOTGWUsage = reqs.Telemetry.NewGauge(
 			"runtime",
 			"datadog_agent_ddot_gateway_usage",
-			[]string{"version", "command", "host", "task_arn"},
+			[]string{"version", "command"},
 			"Usage metric for GW deployments with DDOT",
 		)
+
+		DDOTGWEnvValue := reqs.Telemetry.NewGauge(
+			"runtime",
+			"datadog_agent_ddot_gateway_configured",
+			[]string{"version", "command"},
+			"The value of DD_OTELCOLLECTOR_GATEWAY_MODE env. var set by Helm Chart or Operator",
+		)
+
+		if DDOTGWEnvValue != nil {
+			gateWayEnvVar := gatewayUsage.EnvVarValue()
+			DDOTGWEnvValue.Set(gateWayEnvVar, buildInfo.Version, buildInfo.Command)
+
+			if gateWayEnvVar == float64(1) {
+				store.DDOTGWUsage.Set(gateWayEnvVar, buildInfo.Version, buildInfo.Command)
+			}
+		}
 	}
+
 	if v, ok := reqs.LogsAgent.Get(); ok {
 		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage, store)
 	} else {
@@ -178,7 +200,7 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 }
 
 var buildInfo = component.BuildInfo{
-	Version:     "v0.140.0",
+	Version:     "v0.145.0",
 	Command:     filepath.Base(os.Args[0]),
 	Description: "Datadog Agent OpenTelemetry Collector",
 }
@@ -196,7 +218,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, err
 	}
-	addFactories(reqs, factories, otel.NewGatewayUsage(), reqs.Params.BYOC)
+
+	addFactories(reqs, factories, otel.NewGatewayUsage(reqs.Config.GetBool("otelcollector.gateway.mode")), reqs.Params.BYOC)
 
 	converterEnabled := reqs.Config.GetBool("otelcollector.converter.enabled")
 	// Replace default core to use Agent logger

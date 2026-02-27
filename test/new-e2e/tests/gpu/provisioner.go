@@ -118,6 +118,19 @@ agents:
           value: "true"
 `
 
+const ddAgentSetup = `#!/bin/bash
+# /var/run/datadog directory is necessary for UDS socket creation
+sudo mkdir -p /var/run/datadog
+sudo groupadd -r dd-agent
+sudo useradd -r -M -g dd-agent dd-agent
+sudo chown dd-agent:dd-agent /var/run/datadog
+
+# Agent must be in the docker group to be able to open and read
+# container info from the docker socket.
+sudo groupadd -f -r docker
+sudo usermod -a -G docker dd-agent
+`
+
 const dockerPullMaxRetries = 3
 
 type provisionerParams struct {
@@ -152,6 +165,7 @@ func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
 		host, err := ec2.NewVM(awsEnv, name,
 			ec2.WithInstanceType(params.instanceType),
 			ec2.WithAMI(params.systemData.ami, params.systemData.os, os.AMD64Arch),
+			ec2.WithUserData(ddAgentSetup),
 		)
 		if err != nil {
 			return fmt.Errorf("ec2.NewVM: %w", err)

@@ -1,0 +1,9 @@
+enhancements:
+  - |
+    Add option to switch on/off Infra-Attribute-Processor for traces in the OTLP ingest pipeline.
+      otlp_config:
+       traces:
+        infra_attributes:
+          enabled: false
+    These settings can be configured in the Agent config file or by using the environment variables.
+    

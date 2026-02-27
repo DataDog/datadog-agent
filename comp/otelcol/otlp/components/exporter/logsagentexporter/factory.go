@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -20,6 +21,7 @@ import (
 
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configretry"
 	exp "go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
@@ -39,7 +41,7 @@ const (
 type Config struct {
 	OtelSource    string
 	LogSourceName string
-	QueueSettings exporterhelper.QueueBatchConfig `mapstructure:"sending_queue"`
+	QueueSettings configoptional.Optional[exporterhelper.QueueBatchConfig] `mapstructure:"sending_queue"`
 
 	// HostMetadata defines the host metadata specific configuration
 	HostMetadata datadogconfig.HostMetadataConfig `mapstructure:"host_metadata"`
@@ -57,14 +59,24 @@ type OrchestratorConfig struct {
 }
 
 type factory struct {
-	logsAgentChannel chan *message.Message
-	gatewayUsage     otel.GatewayUsage
-	reporter         *inframetadata.Reporter
+	logsAgentChannel  chan *message.Message
+	gatewayUsage      otel.GatewayUsage
+	reporter          *inframetadata.Reporter
+	coatGwUsageMetric telemetry.Gauge
 }
 
 // NewFactoryWithType creates a new logsagentexporter factory with the given type.
-func NewFactoryWithType(logsAgentChannel chan *message.Message, typ component.Type, gatewayUsage otel.GatewayUsage, reporter *inframetadata.Reporter) exp.Factory {
-	f := &factory{logsAgentChannel: logsAgentChannel, gatewayUsage: gatewayUsage, reporter: reporter}
+func NewFactoryWithType(
+	logsAgentChannel chan *message.Message,
+	typ component.Type,
+	gatewayUsage otel.GatewayUsage,
+	coatGwUsageMetric telemetry.Gauge,
+	reporter *inframetadata.Reporter) exp.Factory {
+	f := &factory{
+		logsAgentChannel:  logsAgentChannel,
+		gatewayUsage:      gatewayUsage,
+		coatGwUsageMetric: coatGwUsageMetric,
+		reporter:          reporter}
 
 	return exp.NewFactory(
 		typ,
@@ -72,7 +84,7 @@ func NewFactoryWithType(logsAgentChannel chan *message.Message, typ component.Ty
 			return &Config{
 				OtelSource:    otelSource,
 				LogSourceName: LogSourceName,
-				QueueSettings: exporterhelper.NewDefaultQueueConfig(),
+				QueueSettings: configoptional.Some(exporterhelper.NewDefaultQueueConfig()),
 			}
 		},
 		exp.WithLogs(f.createLogsExporter, stability),
@@ -81,7 +93,7 @@ func NewFactoryWithType(logsAgentChannel chan *message.Message, typ component.Ty
 
 // NewFactory creates a new logsagentexporter factory. Should only be used in Agent OTLP ingestion pipelines.
 func NewFactory(logsAgentChannel chan *message.Message, gatewayUsage otel.GatewayUsage) exp.Factory {
-	return NewFactoryWithType(logsAgentChannel, component.MustNewType(TypeStr), gatewayUsage, nil)
+	return NewFactoryWithType(logsAgentChannel, component.MustNewType(TypeStr), gatewayUsage, nil, nil)
 }
 
 func (f *factory) createLogsExporter(
@@ -100,7 +112,7 @@ func (f *factory) createLogsExporter(
 		return nil, err
 	}
 
-	exporter, err := NewExporterWithGatewayUsage(set.TelemetrySettings, cfg, logSource, f.logsAgentChannel, attributesTranslator, f.gatewayUsage)
+	exporter, err := NewExporterWithGatewayUsage(set.TelemetrySettings, cfg, logSource, f.logsAgentChannel, attributesTranslator, f.gatewayUsage, f.coatGwUsageMetric, set.BuildInfo)
 	if err != nil {
 		return nil, err
 	}

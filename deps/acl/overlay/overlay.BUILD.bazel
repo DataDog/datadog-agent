@@ -1,23 +1,18 @@
-# libacl
+"""libacl"""
 
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
-load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "strip_prefix")
 
 package(default_package_metadata = [":package_metadata", ":ship_source_offer"])
 
-_VERSION = "2.3.1"
-
-# This is going to change in the future. Debate the syntax in https://github.com/bazel-contrib/supply-chain/issues/124
-PURL = "pkg:https/download.savannah.nongnu.org/acl@{version}?url=https://download.savannah.nongnu.org/releases/acl/attr-%{version}.tar.xz".format(
-    version = _VERSION,
-)
+VERSION = "2.3.1"
 
 package_metadata(
     name = "package_metadata",
@@ -25,7 +20,11 @@ package_metadata(
         ":license",
         ":ship_source_offer",
     ],
-    purl = PURL,
+    purl = purl_for_generic(
+        package = "acl",
+        version = VERSION,
+        download_url = "https://download.savannah.nongnu.org/releases/acl/acl-{version}.tar.xz",
+    ),
 )
 
 ship_source_offer(name = "ship_source_offer")
@@ -39,33 +38,39 @@ license(
 
 # TODO: We will have to adjust this when we put a dependency on it.
 # It is possible that some of the other files in include are public.
-_PUBLIC_HEADERS = [
-    ":include/sys/acl.h",
-    ":include/acl/libacl.h",
+PUBLIC_HEADERS = [
+    ":fixed/include/sys/acl.h",
+    ":fixed/include/acl/libacl.h",
 ]
 
-# The code sometimes includes "include/acl.h" as <sys/acl.h>
-copy_file(
-    name = "sys_acl_h",
-    src = "include/acl.h",
-    out = "include/sys/acl.h",
-)
+# There are two things going on here
+# 1. The public headers in the source are not in their installed locations.
+#    src = "include/acl.h" => "include/sys/acl.h"
+#    src = "include/libacl.h",  => "include/acl/libacl.h"
+# 2. In the (internal) source headers, external methods are marked EXPORT.
+#    However, the public version should use extern instead. Configure/make
+#    did the rename while copying, so we do the same.
 
-# There is both a libacl/libacl.h and an include/libacl.h
-# libacl/libacl.h is internal to the library build.
-# include/libacl.h is the public one, which they self refernce as
-#   <sys/libacl.h>
-copy_file(
-    name = "sys_libacl_h",
-    src = "include/libacl.h",
-    out = "include/acl/libacl.h",
+genrule(
+    name = "fixed_headers",
+    srcs = [
+        ":include/acl.h",
+        ":include/libacl.h",
+    ],
+    outs = [
+        "fixed/include/sys/acl.h",
+        "fixed/include/acl/libacl.h",
+    ],
+    cmd = ";".join([
+        "sed 's/EXPORT/extern/g' $(location :include/acl.h) > $(location fixed/include/sys/acl.h)",
+        "sed 's/EXPORT/extern/g' $(location :include/libacl.h) > $(location fixed/include/acl/libacl.h)",
+    ]),
 )
 
 cc_library(
     name = "libacl",
     srcs = [
-        ":sys_acl_h",
-        ":sys_libacl_h",
+        ":fixed_headers",
         "include/acl_ea.h",
         "include/acl.h",
         "include/config.h",
@@ -133,14 +138,15 @@ cc_library(
         "libmisc/unquote.c",
         "libmisc/walk_tree.c",
     ],
-    hdrs = _PUBLIC_HEADERS,
+    hdrs = PUBLIC_HEADERS,
     includes = [
         "include",
+        "fixed/include",
     ],
     copts = [
         "-fPIC",
-        # TODO: Does this need speed or size?
-        # "-O2",
+        "-O2",
+        "-g",
         "-Ilibacl",
     ],
     local_defines = [
@@ -159,6 +165,9 @@ cc_library(
 cc_shared_library(
     name = "acl",
     deps = [":libacl"],
+    dynamic_deps = [
+        "@attr//:attr",
+    ],
     additional_linker_inputs = [
         "exports",
     ],
@@ -173,39 +182,28 @@ so_symlink(
     src = ":acl",
     libname = "libacl",
     version = "1.1.2301",
+    prefix = "embedded",
 )
 
 pkg_files(
     name = "hdr_files",
-    srcs = _PUBLIC_HEADERS,
-    prefix = "include/acl/",
+    srcs = [":fixed_headers"],
+    strip_prefix = strip_prefix.from_pkg("fixed"),
+    prefix = "embedded",
 )
 
-expand_template(
-    name = "gen_pkgconfig",
-    out = "libacl.pc",
-    substitutions = {
-        # Prepare the .pc file for our own substitution later
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@PACKAGE_VERSION@": _VERSION,
-    },
-    template = "libacl.pc.in",
-)
-
-pkg_files(
-    name = "pc_file",
-    srcs = [":gen_pkgconfig"],
-    prefix = "lib/pkgconfig",
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":hdr_files",
+        ":lib_files",
+    ],
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
 pkg_install(
     name = "install",
     srcs = [
-        ":hdr_files",
-        ":lib_files",
-        ":pc_file",
+        ":all_files",
     ],
 )

@@ -62,14 +62,14 @@ func (s *fipsServer) Start(t *testing.T, tc cipherTestCase) {
 			envVars["TLS_MIN"] = "--tls-min " + tc.tlsMin
 		}
 
-		cmd := fmt.Sprintf("docker-compose -f %s up --detach --wait --timeout 300", strings.TrimSpace(s.composeFiles))
+		cmd := fmt.Sprintf("docker-compose -f %s up --detach --wait --timeout 120", strings.TrimSpace(s.composeFiles))
 		_, err := s.dockerHost.Execute(cmd, client.WithEnvVariables(envVars))
 		if err != nil {
 			t.Logf("Error starting fips-server: %v", err)
 			require.NoError(c, err)
 		}
 		assert.Nil(c, err)
-	}, 120*time.Second, 10*time.Second, "docker-compose timed out starting server")
+	}, 180*time.Second, 10*time.Second, "docker-compose timed out starting server")
 
 	// Wait for container to start and ensure it's a fresh instance
 	require.EventuallyWithT(t, func(c *assert.CollectT) {

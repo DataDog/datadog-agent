@@ -6,8 +6,11 @@
 package diagnose
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
@@ -21,6 +24,25 @@ func TestDiagnoseCommand(t *testing.T) {
 		[]string{"diagnose"},
 		cmdDiagnose,
 		func(_ *cliParams, _ core.BundleParams) {})
+}
+
+func TestDiagnoseCommandFailsWithoutAPIKey(t *testing.T) {
+	t.Setenv("DD_API_KEY", "")
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "datadog.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte("hostname: test\n"), 0o600))
+
+	root := &cobra.Command{Use: "agent"}
+	for _, c := range Commands(&command.GlobalParams{ConfFilePath: dir}) {
+		root.AddCommand(c)
+	}
+	root.SetArgs([]string{"diagnose"})
+
+	err := root.Execute()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no API key configured")
+	require.Contains(t, err.Error(), "DD_API_KEY")
 }
 
 func TestShowMetadataV5Command(t *testing.T) {
@@ -67,14 +89,6 @@ func TestShowMetadataInventoryChecksCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"diagnose", "show-metadata", "inventory-checks"},
-		printPayload,
-		func(_ core.BundleParams) {})
-}
-
-func TestShowMetadataInventoryOtelCommand(t *testing.T) {
-	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
-		[]string{"diagnose", "show-metadata", "inventory-otel"},
 		printPayload,
 		func(_ core.BundleParams) {})
 }
@@ -128,4 +142,20 @@ func TestShowFullAgentTelemetryCommand(t *testing.T) {
 		printAgentFullTelemetry,
 		func() {},
 	)
+}
+
+func TestShowMetadataHostSystemInfoCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"diagnose", "show-metadata", "host-system-info"},
+		printPayload,
+		func(_ core.BundleParams) {})
+}
+
+func TestShowHealthIssuesCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"diagnose", "show-metadata", "health-issues"},
+		printHealthPlatformIssues,
+		func(_ core.BundleParams) {})
 }

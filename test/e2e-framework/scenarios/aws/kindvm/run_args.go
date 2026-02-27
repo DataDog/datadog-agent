@@ -25,12 +25,13 @@ const csiDriverCommitSHA = "d91af776a15382b030035129e3b93dc8620d787e"
 
 // RunParams collects parameters for the Kind-on-VM scenario
 type RunParams struct {
-	Name              string
-	vmOptions         []ec2.VMOption
-	agentOptions      []kubernetesagentparams.Option
-	fakeintakeOptions []fakeintake.Option
-	ciliumOptions     []cilium.Option
-	workloadAppFuncs  []kubecomp.WorkloadAppFunc
+	Name                string
+	vmOptions           []ec2.VMOption
+	agentOptions        []kubernetesagentparams.Option
+	fakeintakeOptions   []fakeintake.Option
+	ciliumOptions       []cilium.Option
+	workloadAppFuncs    []kubecomp.WorkloadAppFunc
+	depWorkloadAppFuncs []kubecomp.AgentDependentWorkloadAppFunc
 
 	deployOperator     bool
 	operatorDDAOptions []agentwithoperatorparams.Option
@@ -44,15 +45,16 @@ type RunOption = func(*RunParams) error
 
 func GetRunParams(opts ...RunOption) *RunParams {
 	p := &RunParams{
-		Name:               defaultKindName,
-		vmOptions:          []ec2.VMOption{},
-		agentOptions:       []kubernetesagentparams.Option{},
-		fakeintakeOptions:  []fakeintake.Option{},
-		workloadAppFuncs:   []kubecomp.WorkloadAppFunc{},
-		operatorOptions:    []operatorparams.Option{},
-		operatorDDAOptions: []agentwithoperatorparams.Option{},
-		deployDogstatsd:    false,
-		deployOperator:     false,
+		Name:                defaultKindName,
+		vmOptions:           []ec2.VMOption{},
+		agentOptions:        nil, // nil by default - Agent is only deployed when options are explicitly provided
+		fakeintakeOptions:   []fakeintake.Option{},
+		workloadAppFuncs:    []kubecomp.WorkloadAppFunc{},
+		depWorkloadAppFuncs: []kubecomp.AgentDependentWorkloadAppFunc{},
+		operatorOptions:     []operatorparams.Option{},
+		operatorDDAOptions:  nil, // nil by default - DDA is only deployed when options are explicitly provided
+		deployDogstatsd:     false,
+		deployOperator:      false,
 	}
 	if err := optional.ApplyOptions(p, opts); err != nil {
 		panic(fmt.Errorf("unable to apply RunOption, err: %w", err))
@@ -129,9 +131,26 @@ func WithDeployOperator() RunOption {
 	return func(p *RunParams) error { p.deployOperator = true; return nil }
 }
 
-// WithOperatorDDAOptions sets DDA options for operator path
+// WithOperatorDDAOptions sets DDA options for operator path.
+// When called, the DatadogAgent custom resource will be deployed with these options.
 func WithOperatorDDAOptions(opts ...agentwithoperatorparams.Option) RunOption {
-	return func(p *RunParams) error { p.operatorDDAOptions = append(p.operatorDDAOptions, opts...); return nil }
+	return func(p *RunParams) error {
+		if p.operatorDDAOptions == nil {
+			p.operatorDDAOptions = opts
+		} else {
+			p.operatorDDAOptions = append(p.operatorDDAOptions, opts...)
+		}
+		return nil
+	}
+}
+
+// WithoutDDA removes the DatadogAgent custom resource deployment.
+// Use this to deploy only the operator without a DDA instance.
+func WithoutDDA() RunOption {
+	return func(p *RunParams) error {
+		p.operatorDDAOptions = nil
+		return nil
+	}
 }
 
 // WithDeployDogstatsd enables dogstatsd deployment
@@ -147,6 +166,14 @@ func WithDeployTestWorkload() RunOption {
 // WithWorkloadApp adds a workload app to the environment
 func WithWorkloadApp(appFunc kubecomp.WorkloadAppFunc) RunOption {
 	return func(p *RunParams) error { p.workloadAppFuncs = append(p.workloadAppFuncs, appFunc); return nil }
+}
+
+// WithAgentDependentWorkloadApp adds a workload app to the environment with the agent passed in
+func WithAgentDependentWorkloadApp(appFunc kubecomp.AgentDependentWorkloadAppFunc) RunOption {
+	return func(p *RunParams) error {
+		p.depWorkloadAppFuncs = append(p.depWorkloadAppFuncs, appFunc)
+		return nil
+	}
 }
 
 // WithDeployArgoRollout enables Argo Rollout deployment

@@ -1,21 +1,16 @@
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
-load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(default_package_metadata = [":package_metadata", ":ship_source_offer"])
 
 _VERSION = "2.5.1"
-
-# This is going to change in the future. Debate the syntax in https://github.com/bazel-contrib/supply-chain/issues/124
-PURL = "pkg:https/download.savannah.nongnu.org/attr@{version}?url=https://download.savannah.nongnu.org/releases/attr/attr-%{version}.tar.xz".format(
-    version = _VERSION,
-)
 
 package_metadata(
     name = "package_metadata",
@@ -23,7 +18,11 @@ package_metadata(
         ":license",
         ":ship_source_offer",
     ],
-    purl = PURL,
+    purl = purl_for_generic(
+        package = "attr",
+        version = _VERSION,
+        download_url = "https://download.savannah.nongnu.org/releases/attr/attr-{version}.tar.xz",
+    ),
 )
 
 license(
@@ -44,6 +43,13 @@ copy_file(
     out = "config.h",
 )
 
+cc_library(
+    name = "config_h",
+    hdrs = [
+        ":copy_config_h",
+    ],
+)
+
 _PUBLIC_HEADERS = [
     "include/libattr.h",
     "include/attributes.h",
@@ -53,7 +59,6 @@ _PUBLIC_HEADERS = [
 cc_library(
     name = "libattr",
     srcs = [
-        ":copy_config_h",
         "libattr/attr_copy_action.c",
         "libattr/attr_copy_check.c",
         "libattr/attr_copy_fd.c",
@@ -72,6 +77,9 @@ cc_library(
     copts = [
         "-include $(location libattr/libattr.h)",
         "-O2",
+    ],
+    implementation_deps = [
+        ":config_h",
     ],
     local_defines = [
         "HAVE_CONFIG_H",
@@ -106,31 +114,18 @@ pkg_files(
     prefix = "embedded/include/attr/",
 )
 
-expand_template(
-    name = "gen_pkgconfig",
-    out = "libattr.pc",
-    substitutions = {
-        # Prepare the .pc file for our own substitution later
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@PACKAGE_VERSION@": _VERSION,
-    },
-    template = "libattr.pc.in",
-)
-
-pkg_files(
-    name = "pc_file",
-    srcs = [":gen_pkgconfig"],
-    prefix = "embedded/lib/pkgconfig",
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":hdr_files",
+        ":lib_files",
+    ],
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
 pkg_install(
     name = "install",
     srcs = [
-        ":hdr_files",
-        ":lib_files",
-        ":pc_file",
+        ":all_files",
     ],
 )

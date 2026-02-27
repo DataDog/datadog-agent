@@ -83,6 +83,8 @@ type EventContextSerializer struct {
 	Variables Variables `json:"variables,omitempty"`
 	// RuleContext rule context
 	RuleContext RuleContext `json:"rule_context,omitempty"`
+	// Source of the event
+	Source string `json:"source,omitempty"`
 }
 
 // ProcessContextSerializer serializes a process context to JSON
@@ -474,6 +476,7 @@ func NewBaseEventSerializer(event *model.Event, rule *rules.Rule, scrubber *util
 			Name:        eventType.String(),
 			Variables:   newVariablesContext(event, rule, ""),
 			RuleContext: newRuleContext(event, rule, scrubber),
+			Source:      event.Source,
 		},
 		ProcessContextSerializer: newProcessContextSerializer(pc, event),
 		Date:                     utils.NewEasyjsonTime(event.ResolveEventTime()),
@@ -538,7 +541,7 @@ func newRuleContext(e *model.Event, rule *rules.Rule, scrubber *utils.Scrubber) 
 }
 
 func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (variables Variables) {
-	if rule != nil && rule.Opts.VariableStore != nil {
+	if rule != nil && rule.Opts != nil && rule.Opts.VariableStore != nil {
 		store := rule.Opts.VariableStore
 		for name, variable := range store.Variables {
 			// do not serialize hardcoded variables like process.pid

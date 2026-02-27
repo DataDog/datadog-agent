@@ -9,11 +9,13 @@ package webhook
 
 import (
 	"fmt"
+	"time"
 
 	admiv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/informers/admissionregistration"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
@@ -28,14 +30,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	agentsidecar "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/agent_sidecar"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/appsec"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoscaling"
-	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/validate/kubernetesadmissionevents"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
+	kubecommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -58,12 +61,11 @@ func NewController(
 	pa workload.PodPatcher,
 	datadogConfig config.Component,
 	demultiplexer demultiplexer.Component,
-	imageResolver autoinstrumentation.ImageResolver,
 ) Controller {
 	if config.useAdmissionV1() {
-		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pa, datadogConfig, demultiplexer, imageResolver)
+		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pa, datadogConfig, demultiplexer)
 	}
-	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pa, datadogConfig, demultiplexer, imageResolver)
+	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pa, datadogConfig, demultiplexer)
 }
 
 // Webhook represents an admission webhook
@@ -101,7 +103,7 @@ type Webhook interface {
 // The reason is that the volume mount for the APM socket added by the configWebhook webhook
 // doesn't always work on Fargate (one of the envs where we use an agent sidecar), and
 // the agent sidecar webhook needs to remove it.
-func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher, datadogConfig config.Component, demultiplexer demultiplexer.Component, imageResolver autoinstrumentation.ImageResolver) []Webhook {
+func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher, datadogConfig config.Component, demultiplexer demultiplexer.Component) []Webhook {
 	var webhooks []Webhook
 	var validatingWebhooks []Webhook
 
@@ -143,8 +145,22 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 	autoscalingWebhook := autoscaling.NewWebhook(pa, datadogConfig)
 	webhooks = append(webhooks, autoscalingWebhook)
 
+	// Setup appsec proxy webhook.
+	appsecWebhook := appsec.NewWebhook(datadogConfig)
+	webhooks = append(webhooks, appsecWebhook)
+
+	// Fetch Kubernetes server version once for SSI feature gating.
+	var serverVersion *version.Info
+	if c.clientSet != nil {
+		if sv, err := kubecommon.KubeServerVersion(c.clientSet.Discovery(), 10*time.Second); err != nil {
+			log.Warnf("Failed to get Kubernetes server version for SSI feature gating: %v", err)
+		} else {
+			serverVersion = sv
+		}
+	}
+
 	// Setup APM Instrumentation webhook. APM Instrumentation webhook needs to be registered after the config webhook.
-	apmWebhook, err := generateAutoInstrumentationWebhook(wmeta, datadogConfig, imageResolver)
+	apmWebhook, err := autoinstrumentation.NewAutoInstrumentation(datadogConfig, wmeta, serverVersion)
 	if err != nil {
 		log.Errorf("failed to register APM Instrumentation webhook: %v", err)
 	} else {
@@ -181,30 +197,6 @@ func generateTagsFromLabelsWebhook(wmeta workloadmeta.Component, datadogConfig c
 	}
 	mutator := tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(datadogConfig), filter)
 	return tagsfromlabels.NewWebhook(wmeta, datadogConfig, mutator), nil
-}
-
-func generateAutoInstrumentationWebhook(wmeta workloadmeta.Component, datadogConfig config.Component, imageResolver autoinstrumentation.ImageResolver) (*autoinstrumentation.Webhook, error) {
-	config, err := autoinstrumentation.NewConfig(datadogConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create auto instrumentation config: %v", err)
-	}
-
-	apm, err := autoinstrumentation.NewTargetMutator(config, wmeta, imageResolver)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create auto instrumentation namespace mutator: %v", err)
-	}
-
-	labelSelectors := autoinstrumentation.NewLabelSelectors(autoinstrumentation.NewLabelSelectorsConfig(datadogConfig))
-
-	// For auto instrumentation, we need all the mutators to be applied for SSI to function. Specifically, we need
-	// things like the Datadog socket to be mounted from the config webhook and the DD_ENV, DD_SERVICE, and DD_VERSION
-	// env vars to be set from labels if they are available..
-	mutator := mutatecommon.NewMutators(
-		tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(datadogConfig), apm),
-		configWebhook.NewMutator(configWebhook.NewMutatorConfig(datadogConfig), apm),
-		apm,
-	)
-	return autoinstrumentation.NewWebhook(config.Webhook, wmeta, mutator, labelSelectors)
 }
 
 // controllerBase acts as a base class for ControllerV1 and ControllerV1beta1.

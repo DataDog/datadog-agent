@@ -13,46 +13,42 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 )
 
-// SetAncestor sets the ancestor
-func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
+func (pc *ProcessCacheEntry) setAncestor(parent *ProcessCacheEntry) {
 	if pc.Ancestor == parent {
 		return
 	}
 
-	if pc.Ancestor != nil {
-		pc.Ancestor.Release()
-	}
-
-	pc.hasValidLineage = nil
+	pc.validLineageResult = nil
 	pc.Ancestor = parent
 	pc.Parent = &parent.Process
-	parent.Retain()
+
+	// keep some context
+	pc.copyProcessContextFrom(parent)
 }
 
-func hasValidLineage(pc *ProcessCacheEntry) (bool, error) {
+func hasValidLineage(pc *ProcessCacheEntry, result *validLineageResult) (bool, error) {
 	var (
 		pid, ppid uint32
 		ctrID     containerutils.ContainerID
-		err       error
 	)
 
 	for pc != nil {
-		if pc.hasValidLineage != nil {
-			return *pc.hasValidLineage, pc.lineageError
+		if pc.validLineageResult != nil {
+			return pc.validLineageResult.valid, pc.validLineageResult.err
 		}
+		pc.validLineageResult = result
 
 		pid, ppid, ctrID = pc.Pid, pc.PPid, pc.ContainerContext.ContainerID
 
 		if pc.IsParentMissing {
-			err = &ErrProcessMissingParentNode{PID: pid, PPID: ppid, ContainerID: string(ctrID)}
+			return false, &ErrProcessMissingParentNode{PID: pid, PPID: ppid, ContainerID: string(ctrID)}
 		}
 
 		if pc.Pid == 1 {
 			if pc.Ancestor == nil {
-				return err == nil, err
+				return true, nil
 			}
 			return false, &ErrProcessWrongParentNode{PID: pid, PPID: pc.Ancestor.Pid, ContainerID: string(ctrID)}
 		}
@@ -64,8 +60,18 @@ func hasValidLineage(pc *ProcessCacheEntry) (bool, error) {
 
 // HasValidLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1 or if a new is having a missing parent
 func (pc *ProcessCacheEntry) HasValidLineage() (bool, error) {
-	res, err := hasValidLineage(pc)
-	pc.hasValidLineage, pc.lineageError = &res, err
+	vlres := &validLineageResult{
+		valid: false,
+		// if this error is returned, it means that we saw this cache entry in
+		// an ancestor of the current pce, hence a cycle
+		err: ErrCycleInProcessLineage,
+	}
+
+	res, err := hasValidLineage(pc, vlres)
+
+	vlres.valid = res
+	vlres.err = err
+
 	return res, err
 }
 
@@ -74,31 +80,23 @@ func (pc *ProcessCacheEntry) Exit(exitTime time.Time) {
 	pc.ExitTime = exitTime
 }
 
-func copyProcessContext(parent, child *ProcessCacheEntry) {
-	// inherit the container ID from the parent if necessary. If a container is already running when system-probe
-	// starts, the in-kernel process cache will have out of sync container ID values for the processes of that
-	// container (the snapshot doesn't update the in-kernel cache with the container IDs). This can also happen if
-	// the proc_cache LRU ejects an entry.
-	// WARNING: this is why the user space cache should not be used to detect container breakouts. Dedicated
-	// in-kernel probes will need to be added.
-	if len(parent.ContainerContext.ContainerID) > 0 && len(child.ContainerContext.ContainerID) == 0 {
-		child.ContainerContext.ContainerID = parent.ContainerContext.ContainerID
-	}
-
-	if len(parent.CGroup.CGroupID) > 0 && len(child.CGroup.CGroupID) == 0 {
-		child.CGroup = parent.CGroup
-	}
-
-	// Copy the SSH User Session Context from the parent
-	setSSHUserSession(parent, child)
-
-	// AUIDs should be inherited just like container IDs
-	child.Credentials.AUID = parent.Credentials.AUID
+func (pc *ProcessCacheEntry) copyProcessContextFrom(parent *ProcessCacheEntry) {
+	pc.copySSHUserSessionFrom(parent)
+	pc.copyAUIDFrom(parent)
+	pc.copyCGroupFrom(parent)
+	pc.copyContainerContextFrom(parent)
+	pc.copyNSFrom(parent)
 }
 
-func setSSHUserSession(parent *ProcessCacheEntry, child *ProcessCacheEntry) {
-	if parent.ProcessContext.UserSession.SSHSessionID != 0 && parent.ProcessContext.UserSession.SessionType == int(usersession.UserSessionTypeSSH) {
-		child.UserSession = parent.UserSession
+func (pc *ProcessCacheEntry) copyAUIDFrom(parent *ProcessCacheEntry) {
+	if pc.Credentials.AUID == 0 {
+		pc.Credentials.AUID = parent.Credentials.AUID
+	}
+}
+
+func (pc *ProcessCacheEntry) copySSHUserSessionFrom(parent *ProcessCacheEntry) {
+	if parent.ProcessContext.UserSession.SSHSessionID != 0 {
+		pc.UserSession.SSHSessionContext = parent.UserSession.SSHSessionContext
 	}
 }
 
@@ -109,7 +107,7 @@ func (pc *ProcessCacheEntry) ApplyExecTimeOf(entry *ProcessCacheEntry) {
 
 // SetExecParent set the parent of the exec entry
 func (pc *ProcessCacheEntry) SetExecParent(parent *ProcessCacheEntry) {
-	pc.SetAncestor(parent)
+	pc.setAncestor(parent)
 	pc.IsExec = true
 	pc.IsExecExec = pc.Parent != nil && pc.Parent.IsExec
 }
@@ -125,9 +123,6 @@ func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 
 	// use exec time as exit time
 	pc.Exit(entry.ExecTime)
-
-	// keep some context
-	copyProcessContext(pc, entry)
 }
 
 // GetContainerPIDs return the pids
@@ -138,16 +133,40 @@ func (pc *ProcessCacheEntry) GetContainerPIDs() ([]uint32, []string) {
 	)
 
 	for pc != nil {
-		if pc.ContainerContext.ContainerID == "" {
+		if pc.ContainerContext.IsNull() {
 			break
 		}
-		pids = append(pids, pc.Pid)
-		paths = append(paths, pc.FileEvent.PathnameStr)
-
+		if !slices.Contains(pids, pc.Pid) {
+			// add only LAST exec of an unique pid
+			pids = append(pids, pc.Pid)
+			paths = append(paths, pc.FileEvent.PathnameStr)
+		}
 		pc = pc.Ancestor
 	}
 
 	return pids, paths
+}
+
+func (pc *ProcessCacheEntry) copyCGroupFrom(parent *ProcessCacheEntry) {
+	if !parent.CGroup.CGroupPathKey.IsNull() && pc.CGroup.IsNull() {
+		pc.CGroup = parent.CGroup
+	}
+}
+
+func (pc *ProcessCacheEntry) copyContainerContextFrom(parent *ProcessCacheEntry) {
+	if !parent.ContainerContext.IsNull() && pc.ContainerContext.IsNull() {
+		pc.ContainerContext = parent.ContainerContext
+	}
+}
+
+func (pc *ProcessCacheEntry) copyNSFrom(parent *ProcessCacheEntry) {
+	if pc.NetNS == 0 {
+		pc.NetNS = parent.NetNS
+	}
+
+	if pc.MntNS == 0 {
+		pc.MntNS = parent.MntNS
+	}
 }
 
 // GetAncestorsPIDs return the ancestors list PIDs
@@ -165,29 +184,24 @@ func (pc *ProcessCacheEntry) GetAncestorsPIDs() []uint32 {
 
 // SetForkParent set the parent of the fork entry
 func (pc *ProcessCacheEntry) SetForkParent(parent *ProcessCacheEntry) {
-	pc.SetAncestor(parent)
-	if parent != nil {
-		pc.ArgsEntry = parent.ArgsEntry
-		pc.EnvsEntry = parent.EnvsEntry
-	}
+	pc.setAncestor(parent)
+	pc.ArgsEntry = parent.ArgsEntry
+	pc.EnvsEntry = parent.EnvsEntry
 }
 
 // Fork returns a copy of the current ProcessCacheEntry
-func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
-	childEntry.PPid = pc.Pid
-	childEntry.TTYName = pc.TTYName
-	childEntry.Comm = pc.Comm
-	childEntry.FileEvent = pc.FileEvent
-	childEntry.ContainerContext.ContainerID = pc.ContainerContext.ContainerID
-	childEntry.CGroup = pc.CGroup
-	childEntry.ExecTime = pc.ExecTime
-	childEntry.Credentials = pc.Credentials
-	childEntry.LinuxBinprm = pc.LinuxBinprm
-	childEntry.Cookie = pc.Cookie
-	childEntry.TracerTags = pc.TracerTags
+func (pc *ProcessCacheEntry) Fork(child *ProcessCacheEntry) {
+	child.PPid = pc.Pid
+	child.TTYName = pc.TTYName
+	child.Comm = pc.Comm
+	child.FileEvent = pc.FileEvent
+	child.ExecTime = pc.ExecTime
+	child.Credentials = pc.Credentials
+	child.LinuxBinprm = pc.LinuxBinprm
+	child.Cookie = pc.Cookie
+	child.TracerTags = pc.TracerTags
 
-	childEntry.SetForkParent(pc)
-	setSSHUserSession(pc, childEntry)
+	child.SetForkParent(pc)
 }
 
 // Equals returns whether process cache entries share the same values for file and args/envs

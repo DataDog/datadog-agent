@@ -167,8 +167,8 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	consumerKeyAndTokenIDReplacer.LastUpdated = parseVersion("7.70.0") // https://github.com/DataDog/datadog-agent/pull/40345
 
 	snmpReplacer := matchYAMLKey(
-		`(community_string|auth[Kk]ey|priv[Kk]ey|community|authentication_key|privacy_key|Authorization|authorization)`,
-		[]string{"community_string", "authKey", "authkey", "privKey", "privkey", "community", "authentication_key", "privacy_key", "Authorization", "authorization"},
+		`(community_string|auth_?[Kk]ey|priv_?[Kk]ey|community|authentication_key|privacy_key|Authorization|authorization)`,
+		[]string{"community_string", "authKey", "authkey", "auth_key", "privKey", "privkey", "priv_key", "community", "authentication_key", "privacy_key", "Authorization", "authorization"},
 		[]byte(`$1 "********"`),
 	)
 	snmpReplacer.LastUpdated = parseVersion("7.64.0") // https://github.com/DataDog/datadog-agent/pull/33742
@@ -271,6 +271,14 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	)
 	exactKeyReplacer.LastUpdated = parseVersion("7.70.2")
 
+	// Private key replacer (for instance private action runner)
+	privateKeyReplacer := matchYAMLKeyEnding(
+		`private_key`,
+		[]string{"private_key"},
+		[]byte(`$1 "********"`),
+	)
+	privateKeyReplacer.LastUpdated = parseVersion("7.76.0")
+
 	scrubber.AddReplacer(SingleLine, hintedAPIKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedAPPKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedBearerReplacer)
@@ -280,6 +288,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, httpHeaderAuthReplacer)
 	scrubber.AddReplacer(SingleLine, httpHeaderSecretReplacer)
 	scrubber.AddReplacer(SingleLine, exactKeyReplacer)
+	scrubber.AddReplacer(SingleLine, privateKeyReplacer)
 	scrubber.AddReplacer(SingleLine, apiKeyReplacerYAML)
 	scrubber.AddReplacer(SingleLine, apiKeyReplacer)
 	scrubber.AddReplacer(SingleLine, appKeyReplacerYAML)

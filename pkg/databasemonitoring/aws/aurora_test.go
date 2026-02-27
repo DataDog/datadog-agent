@@ -124,6 +124,88 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 					},
 				},
 			},
+		}, {
+			name: "single cluster id returns single endpoint from API with custom DBM tag",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBInstances(gomock.Any(), gomock.Any()).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
+						{
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint"),
+								Port:    aws.Int32(5432),
+							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+							Engine:                           aws.String("aurora-postgresql"),
+							TagList:                          []types.Tag{{Key: aws.String("datadoghq.com/dbm"), Value: aws.String("custom")}},
+						},
+					},
+				}, nil).Times(1)
+			},
+			clusterIDs: []string{"test-cluster"},
+			dbmTag:     aws.String("datadoghq.com/dbm:custom"),
+			expectedAuroraClusterEndpoints: map[string]*AuroraCluster{
+				"test-cluster": {
+					Instances: []*Instance{
+						{
+							ClusterID:  "test-cluster",
+							Endpoint:   "test-endpoint",
+							Port:       5432,
+							IamEnabled: true,
+							Engine:     "aurora-postgresql",
+							DbName:     "postgres",
+							DbmEnabled: true,
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "single cluster id returns single endpoint from API with custom global DB view tag",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBInstances(gomock.Any(), gomock.Any()).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
+						{
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint"),
+								Port:    aws.Int32(5432),
+							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+							Engine:                           aws.String("aurora-postgresql"),
+							TagList: []types.Tag{
+								{
+									Key: aws.String("datadoghq.com/global_view_db"), Value: aws.String("custom"),
+								},
+								{
+									Key: aws.String("datadoghq.com/dbm"), Value: aws.String("true"),
+								},
+							},
+						},
+					},
+				}, nil).Times(1)
+			},
+			clusterIDs: []string{"test-cluster"},
+			expectedAuroraClusterEndpoints: map[string]*AuroraCluster{
+				"test-cluster": {
+					Instances: []*Instance{
+						{
+							ClusterID:    "test-cluster",
+							Endpoint:     "test-endpoint",
+							Port:         5432,
+							IamEnabled:   true,
+							Engine:       "aurora-postgresql",
+							DbName:       "postgres",
+							DbmEnabled:   true,
+							GlobalViewDb: "custom",
+						},
+					},
+				},
+			},
 		},
 		{
 			name: "single cluster id returns single endpoint from API with custom bare DBM tag",
@@ -427,7 +509,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 			if tt.dbmTag != nil {
 				dbmTag = *tt.dbmTag
 			}
-			clusters, err := client.GetAuroraClusterEndpoints(context.Background(), tt.clusterIDs, dbmTag)
+			clusters, err := client.GetAuroraClusterEndpoints(context.Background(), tt.clusterIDs, Config{DbmTag: dbmTag, GlobalViewDbTag: defaultGlobalViewDbTag})
 			if tt.expectedErr != nil {
 				assert.EqualError(t, err, tt.expectedErr.Error())
 				return
@@ -603,7 +685,7 @@ func TestGetAuroraClusterEndpointsDbName(t *testing.T) {
 			mockClient := NewMockrdsService(ctrl)
 			tt.configureClient(mockClient)
 			client := &Client{client: mockClient}
-			clusters, err := client.GetAuroraClusterEndpoints(context.Background(), tt.clusterIDs, defaultDbmTag)
+			clusters, err := client.GetAuroraClusterEndpoints(context.Background(), tt.clusterIDs, Config{DbmTag: defaultDbmTag})
 			if tt.expectedErr != nil {
 				assert.EqualError(t, err, tt.expectedErr.Error())
 				return

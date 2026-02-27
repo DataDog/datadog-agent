@@ -72,7 +72,7 @@ func (p *integrationFileFormat) Parse(msg *message.Message) (*message.Message, e
 
 // normalizeTags removes any whitespace and blank tags from the taglist
 func normalizeTags(tags []string) []string {
-	var normalizedTags []string
+	normalizedTags := make([]string, 0, len(tags))
 	for i, tag := range tags {
 		tags[i] = strings.TrimSpace(tag)
 	}

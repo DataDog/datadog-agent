@@ -6,6 +6,7 @@
 package logging
 
 import (
+	"fmt"
 	"io"
 	"math/rand"
 	"os"
@@ -115,7 +116,10 @@ func (l *FxTracingLogger) handleRun(e *fxevent.Run) {
 	startTime := time.Now().Add(-e.Runtime).UnixNano()
 
 	name := extractShortPathFromFullPath(e.Name)
-
+	if name == "reflect.makeFuncStub()" {
+		// fallback to the module to at least know where this comes from
+		name = fmt.Sprintf("%s(%s)", e.Kind, e.ModuleName) // eg. "provide(comp/core/ipc)"
+	}
 	span := &Span{
 		Service:  serviceName,
 		Name:     constructorName,

@@ -115,6 +115,7 @@ func TestWindowsProbe(t *testing.T) {
 			assert.Equal(t, []string{"powershell.exe", "-c", `"sleep 10; foo bar baz"`}, p.Cmdline)
 			assert.Equal(t, int32(os.Getpid()), p.Ppid)
 			assert.Equal(t, int32(cmd.Process.Pid), p.Pid)
+			assert.Equal(t, "Windows PowerShell", p.Comm)
 
 			assert.WithinRange(t, time.Unix(0, p.Stats.CreateTime*1000_000), now, now.Add(5*time.Second))
 

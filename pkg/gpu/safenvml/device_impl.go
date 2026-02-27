@@ -115,6 +115,14 @@ func (d *safeDeviceImpl) GetGpuInstanceId() (int, error) {
 	return id, NewNvmlAPIErrorOrNil("GetGpuInstanceId", ret)
 }
 
+func (d *safeDeviceImpl) GetGpuInstanceProfileInfo(profile int) (nvml.GpuInstanceProfileInfo, error) {
+	if err := d.lib.lookup(toNativeName("GetGpuInstanceProfileInfo")); err != nil {
+		return nvml.GpuInstanceProfileInfo{}, err
+	}
+	info, ret := d.nvmlDevice.GetGpuInstanceProfileInfo(profile)
+	return info, NewNvmlAPIErrorOrNil("GetGpuInstanceProfileInfo", ret)
+}
+
 func (d *safeDeviceImpl) GetIndex() (int, error) {
 	if err := d.lib.lookup(toNativeName("GetIndex")); err != nil {
 		return 0, err
@@ -317,6 +325,14 @@ func (d *safeDeviceImpl) GpmSampleGet(sample nvml.GpmSample) error {
 	return NewNvmlAPIErrorOrNil("GpmSampleGet", ret)
 }
 
+func (d *safeDeviceImpl) GpmMigSampleGet(migInstanceID int, sample nvml.GpmSample) error {
+	if err := d.lib.lookup("nvmlGpmMigSampleGet"); err != nil {
+		return err
+	}
+	ret := d.nvmlDevice.GpmMigSampleGet(migInstanceID, sample)
+	return NewNvmlAPIErrorOrNil("GpmMigSampleGet", ret)
+}
+
 func (d *safeDeviceImpl) IsMigDeviceHandle() (bool, error) {
 	if err := d.lib.lookup(toNativeName("IsMigDeviceHandle")); err != nil {
 		return false, err
@@ -355,4 +371,12 @@ func (d *safeDeviceImpl) GetMemoryErrorCounter(errorType nvml.MemoryErrorType, e
 	}
 	count, ret := d.nvmlDevice.GetMemoryErrorCounter(errorType, eccCounterType, memoryLocation)
 	return count, NewNvmlAPIErrorOrNil("GetMemoryErrorCounter", ret)
+}
+
+func (d *safeDeviceImpl) GetRunningProcessDetailList() (nvml.ProcessDetailList, error) {
+	if err := d.lib.lookup(toNativeName("GetRunningProcessDetailList")); err != nil {
+		return nvml.ProcessDetailList{}, err
+	}
+	processes, ret := d.nvmlDevice.GetRunningProcessDetailList()
+	return processes, NewNvmlAPIErrorOrNil("GetRunningProcessDetailList", ret)
 }

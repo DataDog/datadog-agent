@@ -6,6 +6,9 @@
 package environments
 
 import (
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/ecs"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
@@ -14,4 +17,28 @@ type ECS struct {
 	// Components
 	ECSCluster *components.ECSCluster
 	FakeIntake *components.FakeIntake
+}
+
+// Ensure ECS implements the ECSOutputs interface
+var _ outputs.ECSOutputs = (*ECS)(nil)
+
+// ECSClusterOutput implements outputs.ECSOutputs
+func (e *ECS) ECSClusterOutput() *ecs.ClusterOutput {
+	if e.ECSCluster == nil {
+		e.ECSCluster = &components.ECSCluster{}
+	}
+	return &e.ECSCluster.ClusterOutput
+}
+
+// FakeIntakeOutput implements outputs.ECSOutputs
+func (e *ECS) FakeIntakeOutput() *fakeintake.FakeintakeOutput {
+	if e.FakeIntake == nil {
+		e.FakeIntake = &components.FakeIntake{}
+	}
+	return &e.FakeIntake.FakeintakeOutput
+}
+
+// DisableFakeIntake implements outputs.ECSOutputs
+func (e *ECS) DisableFakeIntake() {
+	e.FakeIntake = nil
 }

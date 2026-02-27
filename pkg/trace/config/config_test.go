@@ -68,6 +68,26 @@ func TestPeerTagsAggregation(t *testing.T) {
 	})
 }
 
+func TestSpanDerivedPrimaryTagKeys(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		cfg := New()
+		assert.Empty(t, cfg.SpanDerivedPrimaryTagKeys)
+		assert.Empty(t, cfg.ConfiguredSpanDerivedPrimaryTagKeys())
+	})
+
+	t.Run("configured", func(t *testing.T) {
+		cfg := New()
+		cfg.SpanDerivedPrimaryTagKeys = []string{"datacenter", "customer_tier", "availability_zone"}
+		assert.Equal(t, []string{"availability_zone", "customer_tier", "datacenter"}, cfg.ConfiguredSpanDerivedPrimaryTagKeys())
+	})
+
+	t.Run("dedup", func(t *testing.T) {
+		cfg := New()
+		cfg.SpanDerivedPrimaryTagKeys = []string{"datacenter", "customer_tier", "datacenter"}
+		assert.Equal(t, []string{"customer_tier", "datacenter"}, cfg.ConfiguredSpanDerivedPrimaryTagKeys())
+	})
+}
+
 func TestMRFFailoverAPM(t *testing.T) {
 	t.Run("undefined", func(t *testing.T) {
 		cfg := New()
@@ -141,4 +161,11 @@ func TestInECSManagedInstancesSidecar(t *testing.T) {
 	isSidecar := inECSManagedInstancesSidecar()
 
 	assert.True(t, isSidecar)
+}
+
+func TestDefaultAPMMode(t *testing.T) {
+	t.Run("default-empty", func(t *testing.T) {
+		cfg := New()
+		assert.Empty(t, cfg.APMMode)
+	})
 }

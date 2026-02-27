@@ -81,7 +81,7 @@ func TestNewEvaluateRequest(t *testing.T) {
 		{
 			name:        "Service",
 			programName: "test-prog",
-			entity: &workloadfilter.Service{
+			entity: &workloadfilter.KubeService{
 				FilterKubeService: &pb.FilterKubeService{
 					Name:      "svc1",
 					Namespace: "ns1",
@@ -98,7 +98,7 @@ func TestNewEvaluateRequest(t *testing.T) {
 		{
 			name:        "Endpoint",
 			programName: "test-prog",
-			entity: &workloadfilter.Endpoint{
+			entity: &workloadfilter.KubeEndpoint{
 				FilterKubeEndpoint: &pb.FilterKubeEndpoint{
 					Name:      "ep1",
 					Namespace: "ns1",
@@ -204,7 +204,7 @@ func TestExtractFilterable(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, f workloadfilter.Filterable) {
-				s, ok := f.(*workloadfilter.Service)
+				s, ok := f.(*workloadfilter.KubeService)
 				require.True(t, ok)
 				assert.Equal(t, "svc1", s.Name)
 			},
@@ -220,7 +220,7 @@ func TestExtractFilterable(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, f workloadfilter.Filterable) {
-				e, ok := f.(*workloadfilter.Endpoint)
+				e, ok := f.(*workloadfilter.KubeEndpoint)
 				require.True(t, ok)
 				assert.Equal(t, "ep1", e.Name)
 			},

@@ -23,6 +23,11 @@ if [ -z "$PREFIX" ]; then
     exit 1
 fi
 
+patch_text_file() {
+    f="$1"
+    sed -ibak -e "s|^prefix=.*|prefix=$PREFIX|" -e "s|##PREFIX##|$PREFIX|" -e "s|\${EXT_BUILD_DEPS}|$PREFIX|" "$f" && rm -f "${f}bak"
+}
+
 for f in "$@"; do
     if [ ! -f "$f" ]; then
         echo "$f: file not found"
@@ -33,16 +38,16 @@ for f in "$@"; do
     if [ -L "$f" ]; then
         f=$(realpath "$f")
     fi
+
     case $f in
         *.pc)
-            sed -ibak -e "s|^prefix=.*|prefix=$PREFIX|" -e "s|##PREFIX##|$PREFIX|" -e "s|\${EXT_BUILD_DEPS}|$PREFIX|" "$f" && rm -f "${f}bak"
+            patch_text_file "$f"
             ;;
         *)
-            # We can't trust files extensions do determine if we're patching a .so or a .dylib
-            # Python's build generates all modules as .so including on macOS
             if file "$f" | grep -q ELF; then
-                ${PATCHELF} --set-rpath "$PREFIX"/lib "$f"
-            elif file "$f" | grep -q Mach-O; then
+                ${PATCHELF} --force-rpath --set-rpath "$PREFIX"/lib "$f"
+            elif file "$f" | grep -q "Mach-O"; then
+                # Handle macOS binaries (executables and other Mach-O files)
                 install_name_tool -add_rpath "$PREFIX/lib" "$f" 2>/dev/null || true
                 # Get the old install name/ID
                 dylib_name=$(basename "$f")
@@ -60,9 +65,10 @@ for f in "$@"; do
                         install_name_tool -add_rpath "$PREFIX/lib" "$dep" 2>/dev/null || true
                     fi
                 done
+            elif file "$f" | grep -q "ASCII text executable"; then
+                patch_text_file "$f"
             else
                 >&2 echo "Ignoring $f"
             fi
-            ;;
     esac
 done

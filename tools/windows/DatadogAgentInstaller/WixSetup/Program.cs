@@ -40,9 +40,17 @@ namespace WixSetup
                 // Set custom output directory (WixSharp defaults to current directory)
                 cabcachedir = Path.Combine(Environment.GetEnvironmentVariable("AGENT_MSI_OUTDIR"), cabcachedir);
             }
-            Compiler.LightOptions += $"-sval -reusecab -cc \"{cabcachedir}\"";
-            // ServiceConfig functionality is documented in the Windows Installer SDK to "not [work] as expected." Consider replacing ServiceConfig with the WixUtilExtension ServiceConfig element.
-            Compiler.CandleOptions += "-sw1150 -arch x64";
+
+            // WiX 5 migration: LightOptions and CandleOptions are obsolete in WixSharp_wix4.
+            // WiX 5 uses unified 'wix build' command via Compiler.WixOptions.
+            // 
+            // Option migration from WiX 3:
+            // - -sval: NOT NEEDED in WiX 5 (validation is separate: 'wix msi validate')
+            // - -reusecab: Implicit in WiX5's -cabcache behavior (automatic reuse)
+            // - -cc <dir>: Cabinet caching directory (still supported in WiX 5)
+            // - -sw1150: NOT SUPPORTED in WiX 5 command line (warning suppression is MSBuild-only)
+            // - -arch x64: Not needed in WixOptions; handled by project.Platform = Platform.x64
+            Compiler.WixOptions += $"-cc \"{cabcachedir}\" ";
 
             // We don't use WixUI_InstallDir, so disable Wix# auto-handling of the INSTALLDIR property for this UI.
             // If we ever change this and want to use the Wix# auto-detection, we will have to set this value to

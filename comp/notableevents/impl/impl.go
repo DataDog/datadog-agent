@@ -44,7 +44,7 @@ type notableEventsComponent struct {
 func NewComponent(reqs Requires) Provides {
 	// Check if the component is enabled
 	if !reqs.Config.GetBool("notable_events.enabled") {
-		log.Info("Notable events component is disabled")
+		log.Debug("Notable events component is disabled")
 		return Provides{
 			Comp: &notableEventsComponent{},
 		}
@@ -62,7 +62,13 @@ func NewComponent(reqs Requires) Provides {
 	eventChan := make(chan eventPayload)
 
 	// Create collector and submitter
-	collector := newCollector(eventChan)
+	collector, err := newCollector(eventChan)
+	if err != nil {
+		log.Errorf("Failed to create notable events collector: %v", err)
+		return Provides{
+			Comp: &notableEventsComponent{},
+		}
+	}
 	submitter := newSubmitter(forwarder, eventChan, reqs.Hostname)
 
 	comp := &notableEventsComponent{
@@ -82,7 +88,7 @@ func NewComponent(reqs Requires) Provides {
 		},
 	})
 
-	log.Info("Notable events component initialized")
+	log.Debug("Notable events component initialized")
 
 	return Provides{
 		Comp: comp,
@@ -97,7 +103,7 @@ func (c *notableEventsComponent) start(_ context.Context) error {
 		return nil
 	}
 
-	log.Info("Starting notable events component")
+	log.Debug("Starting notable events component")
 
 	// Start submitter first (consumer)
 	c.submitter.start()
@@ -109,7 +115,7 @@ func (c *notableEventsComponent) start(_ context.Context) error {
 		return err
 	}
 
-	log.Info("Notable events component started successfully")
+	log.Debug("Notable events component started successfully")
 	return nil
 }
 
@@ -121,7 +127,7 @@ func (c *notableEventsComponent) stop() {
 		return
 	}
 
-	log.Info("Stopping notable events component")
+	log.Debug("Stopping notable events component")
 
 	// Stop collector first (producer)
 	c.collector.stop()
@@ -132,5 +138,5 @@ func (c *notableEventsComponent) stop() {
 	// Wait for submitter (consumer) to finish draining the channel
 	c.submitter.stop()
 
-	log.Info("Notable events component stopped")
+	log.Debug("Notable events component stopped")
 }

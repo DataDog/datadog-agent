@@ -6,16 +6,19 @@
 package catalog
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
-	"gopkg.in/yaml.v2"
+	"github.com/fatih/color"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/impl/parse"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -29,6 +32,11 @@ type FilterConfig struct {
 	ContainerExcludeMetrics []string `json:"container_exclude_metrics"`
 	ContainerIncludeLogs    []string `json:"container_include_logs"`
 	ContainerExcludeLogs    []string `json:"container_exclude_logs"`
+
+	ContainerRuntimeSecurityInclude []string
+	ContainerRuntimeSecurityExclude []string
+	ContainerComplianceInclude      []string
+	ContainerComplianceExclude      []string
 
 	// Legacy AC filters
 	ACInclude []string `json:"ac_include"`
@@ -66,6 +74,8 @@ func NewFilterConfig(cfg config.Component) (*FilterConfig, error) {
 		processBlacklistPatterns = cfg.GetStringSlice("process_config.blacklist_patterns")
 	}
 
+	systemProbeCfg := pkgconfigsetup.SystemProbe()
+
 	return &FilterConfig{
 		// Legacy container filters
 		ContainerInclude:        cfg.GetStringSlice("container_include"),
@@ -74,6 +84,12 @@ func NewFilterConfig(cfg config.Component) (*FilterConfig, error) {
 		ContainerExcludeMetrics: cfg.GetStringSlice("container_exclude_metrics"),
 		ContainerIncludeLogs:    cfg.GetStringSlice("container_include_logs"),
 		ContainerExcludeLogs:    cfg.GetStringSlice("container_exclude_logs"),
+
+		ContainerComplianceInclude: cfg.GetStringSlice("compliance_config.container_include"),
+		ContainerComplianceExclude: cfg.GetStringSlice("compliance_config.container_exclude"),
+
+		ContainerRuntimeSecurityInclude: systemProbeCfg.GetStringSlice("runtime_security_config.container_include"),
+		ContainerRuntimeSecurityExclude: systemProbeCfg.GetStringSlice("runtime_security_config.container_exclude"),
 
 		// Legacy AC filters
 		ACInclude: cfg.GetStringSlice("ac_include"),
@@ -110,40 +126,12 @@ func (fc *FilterConfig) GetCELRulesForProduct(product workloadfilter.Product, re
 	return ""
 }
 
-// GetLegacyContainerInclude returns the appropriate container include list with fallback to AC include
-func (fc *FilterConfig) GetLegacyContainerInclude() []string {
-	if len(fc.ContainerInclude) > 0 {
-		return fc.ContainerInclude
-	}
-	return fc.ACInclude
-}
-
-// GetLegacyContainerExclude returns the appropriate container exclude list with fallback to AC exclude
-func (fc *FilterConfig) GetLegacyContainerExclude() []string {
-	if len(fc.ContainerExclude) > 0 {
-		return fc.ContainerExclude
-	}
-	return fc.ACExclude
-}
-
 // loadCELConfig loads CEL workload exclude configuration
 func loadCELConfig(cfg config.Component) ([]workloadfilter.RuleBundle, error) {
 	var celConfig []workloadfilter.RuleBundle
 
 	// First try the standard UnmarshalKey method (input defined in datadog.yaml)
-	err := structure.UnmarshalKey(cfg, "cel_workload_exclude", &celConfig)
-	if err == nil {
-		return celConfig, nil
-	}
-
-	// Fallback: try to get raw value and unmarshal manually
-	rawValue := cfg.GetString("cel_workload_exclude")
-	if rawValue == "" {
-		return nil, nil
-	}
-
-	// handles both yaml and json input
-	err = yaml.Unmarshal([]byte(rawValue), &celConfig)
+	err := structure.UnmarshalKey(cfg, "cel_workload_exclude", &celConfig, structure.EnableStringUnmarshal)
 	if err == nil {
 		return celConfig, nil
 	}
@@ -151,12 +139,54 @@ func loadCELConfig(cfg config.Component) ([]workloadfilter.RuleBundle, error) {
 	return nil, err
 }
 
-// String returns a simple string representation of the FilterConfig
-func (fc *FilterConfig) String() (string, error) {
+// String returns a string representation of the FilterConfig
+// If useColor is true, the output will include ANSI color codes.
+func (fc *FilterConfig) String(useColor bool) string {
+	var buffer bytes.Buffer
 	filterConfigJSON, err := json.Marshal(fc)
 	if err != nil {
 		log.Warnf("failed to marshal filter configuration: %v", err)
-		return fmt.Sprintf("%+v", fc), err
+		if useColor {
+			fmt.Fprintf(&buffer, "      %s\n", color.HiRedString("-> Invalid configuration format"))
+			fmt.Fprintf(&buffer, "         %s %+v\n", color.HiRedString("raw config:"), fc)
+		} else {
+			fmt.Fprintf(&buffer, "      -> Invalid configuration format\n")
+			fmt.Fprintf(&buffer, "         raw config: %+v\n", fc)
+		}
+		return buffer.String()
 	}
-	return string(filterConfigJSON), nil
+
+	var filterConfig map[string]any
+	if err := json.Unmarshal(filterConfigJSON, &filterConfig); err != nil {
+		log.Warnf("failed to unmarshal filter configuration: %v", err)
+		if useColor {
+			fmt.Fprintf(&buffer, "      %s\n", color.HiRedString("-> Invalid configuration format"))
+			fmt.Fprintf(&buffer, "         %s %s\n", color.HiRedString("raw config:"), string(filterConfigJSON))
+		} else {
+			fmt.Fprintf(&buffer, "      -> Invalid configuration format\n")
+			fmt.Fprintf(&buffer, "         raw config: %s\n", string(filterConfigJSON))
+		}
+		return buffer.String()
+	}
+
+	sortedKeys := make([]string, 0, len(filterConfig))
+	for key := range filterConfig {
+		sortedKeys = append(sortedKeys, key)
+	}
+	sort.Strings(sortedKeys)
+
+	for _, key := range sortedKeys {
+		value := filterConfig[key]
+		display := fmt.Sprintf("%v", value)
+		if display == "" || display == "[]" || display == "map[]" || display == "<nil>" {
+			if useColor {
+				display = color.HiYellowString("not configured")
+			} else {
+				display = "not configured"
+			}
+		}
+		fmt.Fprintf(&buffer, "      %-28s %s\n", key+":", display)
+	}
+
+	return buffer.String()
 }

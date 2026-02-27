@@ -5,4 +5,4 @@ tags:
 inventories_enabled: false
 inventories_min_interval: 1234
 inventories_max_interval: 3456
-expvar_port: "5678"
+expvar_port: 5678

@@ -7,118 +7,271 @@ package nodetreemodel
 
 import (
 	"errors"
-	"fmt"
-	"reflect"
+	"maps"
+	"slices"
+	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ErrNotFound is an error for when a key is not found
 var ErrNotFound = errors.New("not found")
 
-func mapToMapString(m reflect.Value) map[string]interface{} {
-	if v, ok := m.Interface().(map[string]interface{}); ok {
-		// no need to convert the map
-		return v
+// missingLeafImpl is a none-object representing when a child node is missing
+var missingLeaf = &nodeImpl{source: model.SourceUnknown}
+
+// Node is a inner or leaf node in the config tree
+type Node interface {
+	IsLeafNode() bool
+	IsInnerNode() bool
+	Get() interface{}
+	ChildrenKeys() []string
+}
+
+type nodeImpl struct {
+	children map[string]*nodeImpl
+	val      interface{}
+	source   model.Source
+}
+
+var _ Node = (*nodeImpl)(nil)
+
+func newInnerNode(children map[string]*nodeImpl) *nodeImpl {
+	if children == nil {
+		children = map[string]*nodeImpl{}
+	}
+	return &nodeImpl{children: children}
+}
+
+func newLeafNode(v interface{}, source model.Source) *nodeImpl {
+	return &nodeImpl{val: v, source: source}
+}
+
+// GetChild returns the child node at the given case-insensitive key, or an error if not found
+func (n *nodeImpl) GetChild(key string) (*nodeImpl, error) {
+	if n.IsLeafNode() {
+		return nil, errors.New("cannot GetChild of leaf node")
+	}
+	mkey := strings.ToLower(key)
+	child, found := n.children[mkey]
+	if !found {
+		return nil, ErrNotFound
+	}
+	return child, nil
+}
+
+// HasChild returns true if the node has a child for that given key
+func (n *nodeImpl) HasChild(key string) bool {
+	if n.IsLeafNode() {
+		return false
+	}
+	_, ok := n.children[strings.ToLower(key)]
+	return ok
+}
+
+// Merge merges this node with that and returns the merged result
+func (n *nodeImpl) Merge(that *nodeImpl) (*nodeImpl, error) {
+	if n.IsLeafNode() {
+		return nil, errors.New("cannot Merge into a leaf node")
+	}
+	if that.IsLeafNode() {
+		return nil, errors.New("cannot Merge with a leaf node")
 	}
 
-	res := make(map[string]interface{}, m.Len())
+	newChildren := map[string]*nodeImpl{}
 
-	iter := m.MapRange()
-	for iter.Next() {
-		k := iter.Key()
-		mk := ""
-		if k.Kind() == reflect.String {
-			mk = k.Interface().(string)
-		} else {
-			mk = fmt.Sprintf("%s", k.Interface())
+	// iterate our keys
+	for _, name := range n.ChildrenKeys() {
+		ourChild, _ := n.GetChild(name)
+
+		if !that.HasChild(name) {
+			// if their tree doesn't have the node, use our node
+			newChildren[name] = ourChild
+			continue
 		}
-		res[mk] = iter.Value().Interface()
+		theirChild, _ := that.GetChild(name)
+		ourIsLeaf := ourChild.IsLeafNode()
+		theirIsLeaf := theirChild.IsLeafNode()
+
+		// If subtree shapes differ, take their branch, unless it is an empty leaf
+		if ourIsLeaf != theirIsLeaf {
+			if theirChild.IsLeafNode() && theirChild.Get() == nil {
+				newChildren[name] = ourChild
+				continue
+			}
+			newChildren[name] = theirChild
+			continue
+		}
+
+		if ourIsLeaf && theirIsLeaf {
+			// both are leafs, check the priority by source
+			if ourChild.Source() == theirChild.Source() || theirChild.SourceGreaterThan(ourChild.Source()) {
+				newChildren[name] = theirChild
+			} else {
+				newChildren[name] = ourChild
+			}
+			continue
+		}
+
+		// both are inner nodes, recursively merge
+		result, err := ourChild.Merge(theirChild)
+		if err != nil {
+			log.Errorf("merging config tree: %v\n", err)
+			continue
+		}
+		newChildren[name] = result
+	}
+
+	// iterate their keys
+	for _, name := range that.ChildrenKeys() {
+		if !n.HasChild(name) {
+			newChildren[name], _ = that.GetChild(name)
+		}
+	}
+
+	return newInnerNode(newChildren), nil
+}
+
+// ChildrenKeys returns the list of keys of the children of the given node, if it is a map
+func (n *nodeImpl) ChildrenKeys() []string {
+	mapkeys := slices.Collect(maps.Keys(n.children))
+	// map keys are iterated non-deterministically, sort them
+	slices.Sort(mapkeys)
+	return mapkeys
+}
+
+// setAt sets a value in the tree by either creating a leaf node or updating one if the priority is equal or higher than
+// the existing one. The function returns true if an update was done or false if nothing was changed.
+//
+// The key parts should already be lowercased.
+//
+// This method should only be called on the root of a tree, not on an inner node with parents.
+func (n *nodeImpl) setAt(key []string, value interface{}, source model.Source) error {
+	if len(key) == 0 {
+		return errors.New("empty key given to Set")
+	}
+	newNode, err := setNodeAtPath(n, key, value, source)
+	if newNode != nil && newNode.IsInnerNode() {
+		n.children = newNode.children
+	}
+	return err
+}
+
+// setNodeAtPath allocates a new branch, ending in a leaf at the given path of fields, with the
+// given value, and returns the root of that branch. If a leaf already exists at that path,
+// instead it is modified and no branch is allocated and this returns nil
+func setNodeAtPath(n *nodeImpl, fields []string, value interface{}, source model.Source) (*nodeImpl, error) {
+	if len(fields) == 0 {
+		return newLeafNode(value, source), nil
+	}
+	f := fields[0]
+
+	// Locate the next node down in the tree (or nil if it doesn't exist)
+	var next *nodeImpl
+	if n != nil {
+		if child, _ := n.GetChild(f); child != nil {
+			if child.IsInnerNode() {
+				next = child
+			} else {
+				// If we find a leaf, simply replace its value, and return nil for
+				// the first return value because no node was created
+				return nil, child.ReplaceValue(value)
+			}
+		}
+	}
+
+	// Recursively set the node at the remaining part of the path
+	createdNode, err := setNodeAtPath(next, fields[1:], value, source)
+	if err != nil || createdNode == nil {
+		return nil, err
+	}
+
+	// Create a new inner node using the modified list of child nodes
+	var copyChildren map[string]*nodeImpl
+	if n != nil {
+		copyChildren = maps.Clone(n.children)
+	} else {
+		copyChildren = make(map[string]*nodeImpl)
+	}
+	copyChildren[f] = createdNode
+	return newInnerNode(copyChildren), nil
+}
+
+// InsertChildNode sets a node in the current node
+func (n *nodeImpl) InsertChildNode(name string, node *nodeImpl) {
+	if n.IsLeafNode() {
+		log.Error("cannot InsertChildNode of leaf node")
+		return
+	}
+	n.children[name] = node
+}
+
+// RemoveChild removes a node from the current node
+func (n *nodeImpl) RemoveChild(name string) {
+	if n.IsLeafNode() {
+		log.Error("cannot RemoveChild of leaf node")
+		return
+	}
+	delete(n.children, name)
+}
+
+// dumpSettings clones the entire tree starting from the root into a map[string]interface{}
+//
+// If includeDefaults is false, then leafs with default source will be skipped (only useful for the merged tree)
+func (n *nodeImpl) dumpSettings(includeDefaults bool) map[string]interface{} {
+	res := map[string]interface{}{}
+
+	for _, k := range n.ChildrenKeys() {
+		child, _ := n.GetChild(k)
+		if child.IsLeafNode() {
+			if child.Source() == model.SourceDefault && !includeDefaults {
+				continue
+			}
+			res[k] = child.Get()
+		}
+
+		if child.IsInnerNode() {
+			childDump := child.dumpSettings(includeDefaults)
+			if len(childDump) != 0 {
+				res[k] = childDump
+			}
+		}
 	}
 	return res
 }
 
-// NewNodeTree will recursively create nodes from the input value to construct a tree
-func NewNodeTree(v interface{}, source model.Source) (Node, error) {
-	if helper.IsNilValue(v) {
-		// nil as a value acts as the zero value, and the cast library will correctly
-		// convert it to zero values for the types we handle
-		return newLeafNode(nil, source), nil
-	}
-	switch it := v.(type) {
-	case []interface{}:
-		return newLeafNode(it, source), nil
-	}
-
-	// handle all map types that can be converted to map[string]interface{}
-	if v := reflect.ValueOf(v); v.Kind() == reflect.Map {
-		children, err := makeChildNodeTrees(mapToMapString(v), source)
-		if err != nil {
-			return nil, err
-		}
-		return newInnerNode(children), nil
-	}
-
-	if isScalar(v) {
-		return newLeafNode(v, source), nil
-	}
-	// Finally, try determining node type using reflection, should only be needed for unit tests that
-	// supply data that isn't one of the "plain" types produced by parsing json, yaml, etc
-	node, err := asReflectionNode(v)
-	if err == errUnknownConversion {
-		return nil, fmt.Errorf("could not create node from: %v of type %T", v, v)
-	}
-	return node, err
+// SourceGreaterThan returns true if the source of the current node is greater than the one given as a
+// parameter
+func (n *nodeImpl) SourceGreaterThan(source model.Source) bool {
+	return n.source.IsGreaterThan(source)
 }
 
-func makeChildNodeTrees(input map[string]interface{}, source model.Source) (map[string]Node, error) {
-	children := make(map[string]Node)
-	for k, v := range input {
-		node, err := NewNodeTree(v, source)
-		if err != nil {
-			return nil, err
-		}
-		children[k] = node
+// Get returns the setting value stored by the leaf
+func (n *nodeImpl) Get() interface{} {
+	return n.val
+}
+
+// IsLeafNode returns true if the node is a leaf
+func (n *nodeImpl) IsLeafNode() bool {
+	return n.children == nil
+}
+
+// IsInnerNode returns true if the node is an inner node
+func (n *nodeImpl) IsInnerNode() bool {
+	return n.children != nil
+}
+
+// ReplaceValue replaces the value in the leaf node
+func (n *nodeImpl) ReplaceValue(v interface{}) error {
+	if n.IsInnerNode() {
+		return errors.New("cannot ReplaceValue of innerNode")
 	}
-	return children, nil
+	n.val = v
+	return nil
 }
 
-// NodeType represents node types in the tree (ie: inner or leaf)
-type NodeType int
-
-const (
-	// InnerType is a inner node in the config
-	InnerType NodeType = iota
-	// LeafType is a leaf node in the config
-	LeafType
-	// MissingType is a none-object representing when a child node is missing
-	MissingType
-)
-
-// Node represents a arbitrary node
-type Node interface {
-	Clone() Node
-	GetChild(string) (Node, error)
-}
-
-// InnerNode represents an inner node in the config
-type InnerNode interface {
-	Node
-	HasChild(string) bool
-	ChildrenKeys() []string
-	Merge(InnerNode) (InnerNode, error)
-	SetAt([]string, interface{}, model.Source) error
-	InsertChildNode(string, Node)
-	RemoveChild(string)
-	DumpSettings(func(model.Source) bool) map[string]interface{}
-}
-
-// LeafNode represents a leaf node of the config
-type LeafNode interface {
-	Node
-	Get() interface{}
-	ReplaceValue(v interface{}) error
-	Source() model.Source
-	SourceGreaterThan(model.Source) bool
+// Source returns the source for this leaf
+func (n *nodeImpl) Source() model.Source {
+	return n.source
 }

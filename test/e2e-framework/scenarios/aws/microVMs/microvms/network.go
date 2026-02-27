@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -77,13 +78,7 @@ func getMicroVMGroupSubnetPattern(subnet string) string {
 }
 
 func subnetIsTaken(taken []string, subnet string) bool {
-	for _, t := range taken {
-		if t == subnet {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(taken, subnet)
 }
 
 func getMicroVMGroupSubnet(taken []string) (string, error) {
@@ -209,14 +204,14 @@ func parseBootpDHCPLeases() ([]dhcpLease, error) {
 		// 	lease=0x65ce3cb6
 		// }
 		line := strings.TrimSpace(scanner.Text())
-		if strings.HasPrefix(line, "name=") {
-			parsingLease.name = strings.TrimPrefix(line, "name=")
+		if after, ok := strings.CutPrefix(line, "name="); ok {
+			parsingLease.name = after
 		}
-		if strings.HasPrefix(line, "ip_address=") {
-			parsingLease.ip = strings.TrimPrefix(line, "ip_address=")
+		if after, ok := strings.CutPrefix(line, "ip_address="); ok {
+			parsingLease.ip = after
 		}
-		if strings.HasPrefix(line, "hw_address=") {
-			hwaddr := strings.TrimPrefix(line, "hw_address=")
+		if after, ok := strings.CutPrefix(line, "hw_address="); ok {
+			hwaddr := after
 			parts := strings.Split(hwaddr, ",")
 
 			if len(parts) != 2 {
@@ -252,8 +247,8 @@ func parseArpDhcpLeases() ([]dhcpLease, error) {
 		return nil, fmt.Errorf("cannot run arp command (arp -an): %w", err)
 	}
 
-	lines := strings.Split(string(out), "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(string(out), "\n")
+	for line := range lines {
 		if len(line) == 0 {
 			continue
 		}

@@ -53,7 +53,7 @@ func TestUnlink(t *testing.T) {
 	inode := getInode(t, testFile)
 
 	t.Run("unlink", ifSyscallSupported("SYS_UNLINK", func(t *testing.T, syscallNB uintptr) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, _, err := syscall.Syscall(syscallNB, uintptr(testFilePtr), 0, 0); err != 0 {
 				return error(err)
 			}
@@ -71,7 +71,7 @@ func TestUnlink(t *testing.T) {
 			validateSyscallContext(t, event, "$.syscall.unlink.dirfd")
 			validateSyscallContext(t, event, "$.syscall.unlink.path")
 			validateSyscallContext(t, event, "$.syscall.unlink.flags")
-		})
+		}, "test_rule")
 	}))
 
 	testAtFile, testAtFilePtr, err := test.CreateWithOptions("test-unlinkat", 98, 99, fileMode)
@@ -83,7 +83,7 @@ func TestUnlink(t *testing.T) {
 	inode = getInode(t, testAtFile)
 
 	t.Run("unlinkat", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(testAtFilePtr), 0); err != 0 {
 				return error(err)
 			}
@@ -101,7 +101,7 @@ func TestUnlink(t *testing.T) {
 			validateSyscallContext(t, event, "$.syscall.unlink.dirfd")
 			validateSyscallContext(t, event, "$.syscall.unlink.path")
 			validateSyscallContext(t, event, "$.syscall.unlink.flags")
-		})
+		}, "test_rule")
 	})
 
 	testAtFile, testAtFilePtr, err = test.CreateWithOptions("test-unlinkat", 98, 99, fileMode)
@@ -131,7 +131,7 @@ func TestUnlink(t *testing.T) {
 
 		ch := make(chan iouring.Result, 1)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
 				return err
 			}
@@ -160,7 +160,7 @@ func TestUnlink(t *testing.T) {
 			assert.Equal(t, value.(bool), true)
 
 			assertFieldEqual(t, event, "process.file.path", executable)
-		})
+		}, "test_rule")
 	})
 }
 
@@ -192,11 +192,11 @@ func TestUnlinkInvalidate(t *testing.T) {
 		}
 		f.Close()
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return os.Remove(testFile)
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "unlink", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "unlink.file.path", testFile)
-		})
+		}, "test_rule")
 	}
 }

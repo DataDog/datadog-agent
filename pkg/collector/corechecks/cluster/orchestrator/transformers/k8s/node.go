@@ -140,7 +140,7 @@ func computeNodeStatus(n *corev1.Node) string {
 func convertNodeStatusToTags(nodeStatus string) []string {
 	var tags []string
 	unschedulable := false
-	for _, status := range strings.Split(nodeStatus, ",") {
+	for status := range strings.SplitSeq(nodeStatus, ",") {
 		if status == "" {
 			continue
 		}

@@ -25,13 +25,14 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	dsdconfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
-	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
@@ -39,7 +40,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
@@ -76,15 +76,16 @@ type dependencies struct {
 
 	Demultiplexer aggregator.Demultiplexer
 
-	Log       log.Component
-	Config    configComponent.Component
-	Debug     serverdebug.Component
-	Replay    replay.Component
-	PidMap    pidmap.Component
-	Params    Params
-	WMeta     option.Option[workloadmeta.Component]
-	Telemetry telemetry.Component
-	Hostname  hostnameinterface.Component
+	Log        log.Component
+	Config     configComponent.Component
+	Debug      serverdebug.Component
+	Replay     replay.Component
+	PidMap     pidmap.Component
+	Params     Params
+	WMeta      option.Option[workloadmeta.Component]
+	Telemetry  telemetry.Component
+	Hostname   hostnameinterface.Component
+	FilterList filterlist.Component
 }
 
 type provides struct {
@@ -92,7 +93,6 @@ type provides struct {
 
 	Comp          Component
 	StatsEndpoint api.AgentEndpointProvider
-	RCListener    rctypes.ListenerProvider
 }
 
 // When the internal telemetry is enabled, used to tag the origin
@@ -103,11 +103,6 @@ type cachedOriginCounter struct {
 	err    map[string]string
 	okCnt  telemetry.SimpleCounter
 	errCnt telemetry.SimpleCounter
-}
-
-type localFilterListConfig struct {
-	metricNames []string
-	matchPrefix bool
 }
 
 // Server represent a Dogstatsd server
@@ -134,12 +129,14 @@ type server struct {
 	sharedFloat64List       *float64ListPool
 	Statistics              *statutil.Stats
 	Started                 bool
+	startedMtx              sync.RWMutex
 	stopChan                chan bool
 	health                  *health.Handle
 	histToDist              bool
 	histToDistPrefix        string
 	extraTags               []string
 	Debug                   serverdebug.Component
+	filterList              filterlist.Component
 
 	tCapture                replay.Component
 	pidMap                  pidmap.Component
@@ -169,7 +166,6 @@ type server struct {
 	originTelemetry bool
 
 	enrichConfig
-	localFilterListConfig
 
 	wmeta option.Option[workloadmeta.Component]
 
@@ -179,8 +175,6 @@ type server struct {
 	tlmProcessedOk          telemetry.SimpleCounter
 	tlmProcessedError       telemetry.SimpleCounter
 	tlmChannel              telemetry.Histogram
-	tlmFilterListUpdates    telemetry.SimpleCounter
-	tlmFilterListSize       telemetry.SimpleGauge
 	listernersTelemetry     *listeners.TelemetryStore
 	packetsTelemetry        *packets.TelemetryStore
 	stringInternerTelemetry *stringInternerTelemetry
@@ -206,28 +200,23 @@ func initTelemetry() {
 
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 func newServer(deps dependencies) provides {
-	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList)
 
-	if deps.Config.GetBool("use_dogstatsd") {
+	dsdConfig := dsdconfig.NewConfig(s.config)
+	if dsdConfig.EnabledInternal() {
 		deps.Lc.Append(fx.Hook{
 			OnStart: s.startHook,
 			OnStop:  s.stop,
 		})
 	}
 
-	var rcListener rctypes.ListenerProvider
-	rcListener.ListenerProvider = rctypes.RCListener{
-		state.ProductMetricControl: s.onFilterListUpdateCallback,
-	}
-
 	return provides{
 		Comp:          s,
 		StatsEndpoint: api.NewAgentEndpointProvider(s.writeStats, "/dogstatsd-stats", "GET"),
-		RCListener:    rcListener,
 	}
 }
 
-func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnameinterface.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
+func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnameinterface.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component, filterList filterlist.Component) *server {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry() })
 	var stats *statutil.Stats
@@ -326,6 +315,7 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 		},
 		wmeta:                   wmeta,
 		telemetry:               telemetrycomp,
+		filterList:              filterList,
 		tlmProcessed:            dogstatsdTelemetryCount,
 		tlmProcessedOk:          dogstatsdTelemetryCount.WithValues("metrics", "ok", ""),
 		tlmProcessedError:       dogstatsdTelemetryCount.WithValues("metrics", "error", ""),
@@ -343,12 +333,6 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 		[]string{"shard", "message_type"},
 		"Time in nanosecond to push metrics to the aggregator input buffer",
 		buckets)
-	s.tlmFilterListUpdates = telemetrycomp.NewSimpleCounter("dogstatsd", "filterlist_updates",
-		"Incremented when a reconfiguration of the filterlist happened",
-	)
-	s.tlmFilterListSize = telemetrycomp.NewSimpleGauge("dogstatsd", "filterlist_size",
-		"Filter list size",
-	)
 
 	// Initialize the metric type counters. These metrics are not
 	// per-context but absolute.
@@ -513,9 +497,13 @@ func (s *server) start(context.Context) error {
 }
 
 func (s *server) stop(context.Context) error {
+	s.startedMtx.Lock()
+	defer s.startedMtx.Unlock()
+
 	if !s.IsRunning() {
 		return nil
 	}
+
 	for _, l := range s.listeners {
 		l.Stop()
 	}
@@ -542,59 +530,19 @@ func (s *server) SetExtraTags(tags []string) {
 	s.extraTags = tags
 }
 
-// SetFilterList updates the metric names filter on all running worker.
-func (s *server) SetFilterList(metricNames []string, matchPrefix bool) {
-	s.log.Debugf("SetFilterList with %d metrics", len(metricNames))
+func (s *server) onFilterListUpdate(filterList utilstrings.Matcher, _ utilstrings.Matcher) {
+	s.startedMtx.RLock()
+	defer s.startedMtx.RUnlock()
 
-	// we will use two different filterlists:
-	// - one with all the metrics names, with all values from `metricNames`
-	// - one with only the metric names ending with histogram aggregates suffixes
-
-	// only histogram metric names (including their aggregates suffixes)
-	histoMetricNames := s.createHistogramsFilterList(metricNames)
-	matcher := utilstrings.NewMatcher(metricNames, matchPrefix)
+	if !s.IsRunning() {
+		// The workers have stopped so can't receive updates.
+		return
+	}
 
 	// send the complete filterlist to all workers, the listening part of dogstatsd
 	for _, worker := range s.workers {
-		worker.FilterListUpdate <- matcher
+		worker.FilterListUpdate <- filterList
 	}
-
-	// send the histogram filterlist used right before flushing to the serializer
-	histoMatcher := utilstrings.NewMatcher(histoMetricNames, matchPrefix)
-
-	s.demultiplexer.SetSamplersFilterList(matcher, histoMatcher)
-}
-
-// create a list based on all `metricNames` but only containing metric names
-// with histogram aggregates suffixes.
-// TODO(remy): should we consider moving this in the metrics package instead?
-func (s *server) createHistogramsFilterList(metricNames []string) []string {
-	aggrs := s.config.GetStringSlice("histogram_aggregates")
-
-	percentiles := metrics.ParsePercentiles(s.config.GetStringSlice("histogram_percentiles"))
-	percentileAggrs := make([]string, len(percentiles))
-	for i, percentile := range percentiles {
-		percentileAggrs[i] = fmt.Sprintf("%dpercentile", percentile)
-	}
-
-	histoMetricNames := []string{}
-	for _, metricName := range metricNames {
-		// metric names ending with a histogram aggregates
-		for _, aggr := range aggrs {
-			if strings.HasSuffix(metricName, "."+aggr) {
-				histoMetricNames = append(histoMetricNames, metricName)
-			}
-		}
-		// metric names ending with a percentile
-		for _, percentileAggr := range percentileAggrs {
-			if strings.HasSuffix(metricName, "."+percentileAggr) {
-				histoMetricNames = append(histoMetricNames, metricName)
-			}
-		}
-	}
-
-	s.log.Debugf("SetFilterList created a histograms subsets of %d metric names", len(histoMetricNames))
-	return histoMetricNames
 }
 
 func (s *server) handleMessages() {
@@ -628,31 +576,9 @@ func (s *server) handleMessages() {
 		s.workers = append(s.workers, worker)
 	}
 
-	// init the metric names filterlist
-	filterlist := s.config.GetStringSlice("metric_filterlist")
-	filterlistPrefix := s.config.GetBool("metric_filterlist_match_prefix")
-	if len(filterlist) == 0 {
-		filterlist = s.config.GetStringSlice("statsd_metric_blocklist")
-		filterlistPrefix = s.config.GetBool("statsd_metric_blocklist_match_prefix")
-	}
-
-	s.localFilterListConfig = localFilterListConfig{
-		metricNames: filterlist,
-		matchPrefix: filterlistPrefix,
-	}
-	s.restoreFilterListFromLocalConfig()
-}
-
-func (s *server) restoreFilterListFromLocalConfig() {
-	s.log.Debug("Restoring filterlist with local config.")
-
-	s.tlmFilterListUpdates.Inc()
-	s.tlmFilterListSize.Set(float64(len(s.localFilterListConfig.metricNames)))
-
-	s.SetFilterList(
-		s.localFilterListConfig.metricNames,
-		s.localFilterListConfig.matchPrefix,
-	)
+	// It is important to set this up after the workers are running so they receive
+	// the initial  filterlist and any updates.
+	s.filterList.OnUpdateMetricFilterList(s.onFilterListUpdate)
 }
 
 func (s *server) UDPLocalAddr() string {

@@ -1,4 +1,4 @@
-ARG AGENT_BASE=datadog/agent:latest
+ARG AGENT_BASE=registry.datadoghq.com/agent:latest
 FROM $AGENT_BASE
 ARG CORE_AGENT_DEST
 

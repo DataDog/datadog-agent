@@ -142,6 +142,13 @@ func assertProcessCommandLineArgs(t require.TestingT, processes []*agentmodel.Pr
 	}
 }
 
+func assertCommProperty(t require.TestingT, processes []*agentmodel.Process, expectedComm string) {
+	for _, proc := range processes {
+		// compare the comm property of the process
+		assert.Containsf(t, proc.Command.Comm, expectedComm, "process comm does not match. Expected %s", expectedComm)
+	}
+}
+
 // assertProcesses asserts that the given processes are collected by the process check
 func assertProcesses(t require.TestingT, procs []*agentmodel.Process, withIOStats bool, process string) {
 	// verify process data is populated
@@ -176,6 +183,17 @@ func assertContainersCollectedNew(t assert.TestingT, payloads []*aggregator.Proc
 			}
 		}
 		assert.True(t, found, "%s container not found in payloads: %+v", container, payloads)
+	}
+}
+
+// assertContainerStates asserts that the matched containers have the expected states
+func assertContainerStates(t require.TestingT, payloads []*aggregator.ProcessPayload, expected map[string]agentmodel.ContainerState) {
+	for name, state := range expected {
+		containers := collectContainersByName(payloads, name)
+		assert.NotEmptyf(t, containers, "%s container not found in payloads: %+v", name, payloads)
+		for _, container := range containers {
+			assert.Equalf(t, state, container.State, "%s container has unexpected state", name)
+		}
 	}
 }
 
@@ -332,13 +350,38 @@ func assertContainersNotCollected(t *testing.T, payloads []*aggregator.ProcessPa
 // findContainer returns whether the container with the given name exists in the given list of
 // containers and whether it has the expected data populated
 func findContainer(name string, containers []*agentmodel.Container) bool {
+	for _, container := range containers {
+		if matchContainerName(container, name) {
+			return true
+		}
+	}
+	return false
+}
+
+func collectContainersByName(payloads []*aggregator.ProcessPayload, name string) []*agentmodel.Container {
+	var matched []*agentmodel.Container
+	for _, payload := range payloads {
+		matched = append(matched, filterContainersByName(name, payload.Containers)...)
+	}
+	return matched
+}
+
+func filterContainersByName(name string, containers []*agentmodel.Container) []*agentmodel.Container {
+	var matched []*agentmodel.Container
+	for _, container := range containers {
+		if matchContainerName(container, name) {
+			matched = append(matched, container)
+		}
+	}
+	return matched
+}
+
+func matchContainerName(container *agentmodel.Container, name string) bool {
 	// check if there is a tag for the container. The tag could be `container_name:*` or `short_image:*`
 	containerNameTag := ":" + name
-	for _, container := range containers {
-		for _, tag := range container.Tags {
-			if strings.HasSuffix(tag, containerNameTag) {
-				return true
-			}
+	for _, tag := range container.Tags {
+		if strings.HasSuffix(tag, containerNameTag) {
+			return true
 		}
 	}
 	return false

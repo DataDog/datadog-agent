@@ -1,0 +1,13 @@
+---
+enhancements:
+  - |
+    The `logs.dropped` metric now tracks dropped logs for both TCP and HTTP 
+    log transports. Previously, this metric was only available when using TCP 
+    transport. Customers can now monitor dropped logs with a single unified 
+    metric regardless of which transport protocol is configured, making it 
+    easier to detect and troubleshoot log delivery issues.
+fixes:
+  - |
+    Fixed the ``logs.sent`` metric for the HTTP log transport to no longer 
+    increment when logs are dropped due to non-retryable errors. This ensures 
+    more accurate reporting of successfully delivered logs.

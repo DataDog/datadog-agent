@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
@@ -34,6 +35,8 @@ type Exporter struct {
 	orchestratorConfig OrchestratorConfig
 	reporter           *inframetadata.Reporter
 	cfg                *Config
+	coatGwUsageMetric  telemetry.Gauge
+	buildInfo          component.BuildInfo
 }
 
 // NewExporter initializes a new logs agent exporter with the given parameters
@@ -44,7 +47,7 @@ func NewExporter(
 	logsAgentChannel chan *message.Message,
 	attributesTranslator *attributes.Translator,
 ) (*Exporter, error) {
-	return NewExporterWithGatewayUsage(set, cfg, logSource, logsAgentChannel, attributesTranslator, otel.NewDisabledGatewayUsage())
+	return NewExporterWithGatewayUsage(set, cfg, logSource, logsAgentChannel, attributesTranslator, otel.NewDisabledGatewayUsage(), nil, component.BuildInfo{})
 }
 
 // NewExporterWithGatewayUsage initializes a new logs agent exporter with the given parameters
@@ -55,6 +58,8 @@ func NewExporterWithGatewayUsage(
 	logsAgentChannel chan *message.Message,
 	attributesTranslator *attributes.Translator,
 	gatewaysUsage otel.GatewayUsage,
+	coatGwUsageMetric telemetry.Gauge,
+	buildInfo component.BuildInfo,
 ) (*Exporter, error) {
 	translator, err := logsmapping.NewTranslator(set, attributesTranslator, cfg.OtelSource)
 	if err != nil {
@@ -67,6 +72,8 @@ func NewExporterWithGatewayUsage(
 		logSource:          logSource,
 		translator:         translator,
 		gatewaysUsage:      gatewaysUsage,
+		coatGwUsageMetric:  coatGwUsageMetric,
+		buildInfo:          buildInfo,
 		orchestratorConfig: cfg.OrchestratorConfig,
 		cfg:                cfg,
 	}, nil
@@ -88,6 +95,14 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 
 // consumeRegularLogs maps logs from OTLP to DD format and ingests them through the exporter channel
 func (e *Exporter) consumeRegularLogs(ctx context.Context, ld plog.Logs) (err error) {
+	otelSource := e.cfg.OtelSource
+	if otelSource == "datadog_agent" {
+		OTLPIngestAgentLogsRequests.Inc()
+		OTLPIngestAgentLogsEvents.Add(float64(ld.LogRecordCount()))
+	} else if otelSource == "otel_agent" {
+		OTLPIngestDDOTLogsRequests.Inc()
+		OTLPIngestDDOTLogsEvents.Add(float64(ld.LogRecordCount()))
+	}
 	defer func() {
 		if err != nil {
 			newErr, scrubbingErr := scrubber.ScrubString(err.Error())
@@ -148,6 +163,11 @@ func (e *Exporter) consumeRegularLogs(ctx context.Context, ld plog.Logs) (err er
 		}
 
 		e.logsAgentChannel <- message
+	}
+
+	if e.coatGwUsageMetric != nil {
+		value, _ := e.gatewaysUsage.Gauge()
+		e.coatGwUsageMetric.Set(value, e.buildInfo.Version, e.buildInfo.Command)
 	}
 
 	return nil

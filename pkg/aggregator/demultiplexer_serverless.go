@@ -12,8 +12,9 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logimpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
-	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
+	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -54,7 +55,7 @@ type ServerlessDemultiplexer struct {
 func InitAndStartServerlessDemultiplexer(endpoints utils.EndpointDescriptorSet, forwarderTimeout time.Duration, tagger tagger.Component, shouldForceFlushAllOnForceFlushToSerializer bool) (*ServerlessDemultiplexer, error) {
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 	logger := logimpl.NewTemporaryLoggerWithoutInit()
-	secrets := secretsnoop.NewComponent().Comp
+	secrets := &secretnooptypes.SecretNoop{}
 	forwarder, err := forwarder.NewSyncForwarder(pkgconfigsetup.Datadog(), logger, secrets, endpoints, forwarderTimeout)
 	if err != nil {
 		return nil, err
@@ -68,7 +69,10 @@ func InitAndStartServerlessDemultiplexer(endpoints utils.EndpointDescriptorSet, 
 
 	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore, tagger, "")
 	flushAndSerializeInParallel := NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog())
-	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore)
+	// Serverless doesn't support filterlists, so we pass empty lists into the worker.
+	tagFilterList := filterlist.NewEmptyTagMatcher()
+	metricFilterList := utilstrings.NewMatcher([]string{}, false)
+	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore, metricFilterList, tagFilterList)
 
 	demux := &ServerlessDemultiplexer{
 		log:                         logger,
@@ -188,7 +192,7 @@ func (d *ServerlessDemultiplexer) SendSamplesWithoutAggregation(_ metrics.Metric
 // SetSamplersFilterList is not supported in the Serverless Agent implementation.
 // Serverless does not run checks, so we don't need to set any filter list on checks here.
 func (d *ServerlessDemultiplexer) SetSamplersFilterList(_filterList utilstrings.Matcher, histoFilterList utilstrings.Matcher) {
-	d.statsdWorker.filterListChan <- histoFilterList
+	d.statsdWorker.metricFilterListChan <- histoFilterList
 }
 
 // Serializer returns the shared serializer

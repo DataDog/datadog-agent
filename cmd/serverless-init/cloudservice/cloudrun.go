@@ -149,12 +149,12 @@ func (c *CloudRun) GetSource() metrics.MetricSource {
 }
 
 // Init is empty for CloudRun
-func (c *CloudRun) Init(_ interface{}) error {
+func (c *CloudRun) Init(_ *TracingContext) error {
 	return nil
 }
 
 // Shutdown emits the shutdown metric for CloudRun
-func (c *CloudRun) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ interface{}, _ error) {
+func (c *CloudRun) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ error) {
 	metric.Add(cloudRunPrefix+".enhanced.shutdown", 1.0, c.GetSource(), metricAgent)
 }
 

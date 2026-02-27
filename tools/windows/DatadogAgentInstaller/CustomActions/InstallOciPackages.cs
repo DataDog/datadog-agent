@@ -2,9 +2,10 @@ using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Datadog.CustomActions.Rollback;
-using Microsoft.Deployment.WindowsInstaller;
+using WixToolset.Dtf.WindowsInstaller;
 using System;
 using System.Collections.Generic;
+using System.IO;
 
 namespace Datadog.CustomActions
 {
@@ -71,6 +72,13 @@ namespace Datadog.CustomActions
                 env["DD_INSTALLER_REGISTRY_URL"] = _overrideRegistryUrl;
             }
 
+            // Add DDOT (OpenTelemetry Collector) configuration
+            var otelEnabled = _session.Property("DD_OTELCOLLECTOR_ENABLED");
+            if (!string.IsNullOrEmpty(otelEnabled))
+            {
+                env["DD_OTELCOLLECTOR_ENABLED"] = otelEnabled;
+            }
+
             // Add APM instrumentation configuration
             var instrumentationEnabled = _session.Property("DD_APM_INSTRUMENTATION_ENABLED");
             if (!string.IsNullOrEmpty(instrumentationEnabled))
@@ -112,17 +120,15 @@ namespace Datadog.CustomActions
 
         private ActionResult InstallPackages()
         {
-            if (!ShouldInstall())
-            {
-                _session.Log("Skipping install as FLEET_INSTALL is set to 1");
-                return ActionResult.Success;
-            }
             try
             {
+                if (!ShouldInstall())
+                {
+                    _session.Log("Skipping install as FLEET_INSTALL is set to 1");
+                    return ActionResult.Success;
+                }
+
                 _session.Log("Running datadog-installer setup");
-                var instrumentationEnabled = _session.Property("DD_APM_INSTRUMENTATION_ENABLED");
-                var librariesRaw = _session.Property("DD_APM_INSTRUMENTATION_LIBRARIES");
-                _session.Log($"instrumentationEnabled: {instrumentationEnabled}");
 
                 // add purge command to the rollback data store
                 // this will only be run on first install, not on upgrade

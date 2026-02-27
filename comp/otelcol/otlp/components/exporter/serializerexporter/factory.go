@@ -19,7 +19,7 @@ import (
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.uber.org/zap"
 
-	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -98,7 +98,12 @@ func newFactoryForAgentWithType(
 	ipath ingestionPath,
 ) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
-	if !pkgdatadog.MetricRemappingDisabledFeatureGate.IsEnabled() {
+	switch {
+	case featuregates.DisableMetricRemappingFeatureGate.IsEnabled():
+		options = append(options, otlpmetrics.WithoutRuntimeMetricMappings())
+	case featuregates.MetricRemappingDisabledFeatureGate.IsEnabled():
+		// old gate, no action needed
+	default:
 		options = append(options, otlpmetrics.WithOTelPrefix())
 	}
 
@@ -138,7 +143,12 @@ func newFactoryForAgentWithType(
 // NewFactoryForOSSExporter creates a new serializer exporter factory for the OSS Datadog exporter.
 func NewFactoryForOSSExporter(typ component.Type, statsIn chan []byte) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
-	if !pkgdatadog.MetricRemappingDisabledFeatureGate.IsEnabled() {
+	switch {
+	case featuregates.DisableMetricRemappingFeatureGate.IsEnabled():
+		options = append(options, otlpmetrics.WithoutRuntimeMetricMappings())
+	case featuregates.MetricRemappingDisabledFeatureGate.IsEnabled():
+		// old gate, no action needed
+	default:
 		options = append(options, otlpmetrics.WithRemapping())
 	}
 
@@ -251,7 +261,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		usageMetric = f.store.DDOTMetrics
 	}
 
-	newExp, err := NewExporter(f.s, cfg, hostGetter, f.createConsumer, tr, params, reporter, f.gatewayUsage, usageMetric, f.store.DDOTGWUsage)
+	newExp, err := NewExporter(f.s, cfg, hostGetter, f.createConsumer, tr, params, reporter, f.gatewayUsage, usageMetric, f.store.DDOTGWUsage, f.ipath)
 	if err != nil {
 		return nil, err
 	}

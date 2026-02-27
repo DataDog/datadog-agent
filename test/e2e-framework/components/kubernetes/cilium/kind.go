@@ -12,8 +12,9 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
@@ -25,14 +26,29 @@ import (
 //go:embed kind-cilium-cluster.yaml
 var kindCilumClusterFS embed.FS
 
-func kindKubeClusterConfigFromCiliumParams(params *Params) (string, error) {
+//go:embed kind-cluster-v1.35+.yaml
+var kindCiliumV135ClusterFS embed.FS
+
+//go:embed hosts.toml
+var containerdDockerioHostConfig string
+
+func kindKubeClusterConfigFromCiliumParams(params *Params, kubeVersion string) (string, error) {
 	o := struct {
 		KubeProxyReplacement bool
 	}{
 		KubeProxyReplacement: params.hasKubeProxyReplacement(),
 	}
 
-	kindCiliumClusterTemplate, err := template.ParseFS(kindCilumClusterFS, "kind-cilium-cluster.yaml")
+	var kindCiliumCluster embed.FS = kindCilumClusterFS
+	if index := strings.Index(kubeVersion, "@"); index != -1 {
+		kubeVersion = kubeVersion[:index]
+	}
+
+	if semver.MustParse(kubeVersion).GreaterThanEqual(semver.MustParse("v1.35.0")) {
+		kindCiliumCluster = kindCiliumV135ClusterFS
+	}
+
+	kindCiliumClusterTemplate, err := template.ParseFS(kindCiliumCluster, "kind-cilium-cluster.yaml")
 	if err != nil {
 		return "", err
 	}
@@ -51,12 +67,12 @@ func NewKindCluster(env config.Env, vm *remote.Host, name string, kubeVersion st
 		return nil, fmt.Errorf("could not create cilium params from opts: %w", err)
 	}
 
-	clusterConfig, err := kindKubeClusterConfigFromCiliumParams(params)
+	clusterConfig, err := kindKubeClusterConfigFromCiliumParams(params, kubeVersion)
 	if err != nil {
 		return nil, err
 	}
 
-	cluster, err := kubernetes.NewKindClusterWithConfig(env, vm, name, kubeVersion, clusterConfig, opts...)
+	cluster, err := kubernetes.NewKindClusterWithConfig(env, vm, name, kubeVersion, clusterConfig, containerdDockerioHostConfig, opts...)
 	if err != nil {
 		return nil, err
 	}

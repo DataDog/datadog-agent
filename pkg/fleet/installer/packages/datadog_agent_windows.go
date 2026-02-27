@@ -54,6 +54,10 @@ var datadogAgentPackage = hooks{
 	postStartConfigExperiment:   postStartConfigExperimentDatadogAgent,
 	preStopConfigExperiment:     preStopConfigExperimentDatadogAgent,
 	postPromoteConfigExperiment: postPromoteConfigExperimentDatadogAgent,
+
+	preInstallExtension:  preInstallExtensionDatadogAgent,
+	postInstallExtension: postInstallExtensionDatadogAgent,
+	preRemoveExtension:   preRemoveExtensionDatadogAgent,
 }
 
 const (
@@ -563,7 +567,7 @@ func getenv() *env.Env {
 }
 
 func newInstallerExec(env *env.Env) (*exec.InstallerExec, error) {
-	installerBin, err := os.Executable()
+	installerBin, err := exec.GetExecutable()
 	if err != nil {
 		return nil, fmt.Errorf("could not get installer executable path: %w", err)
 	}
@@ -836,4 +840,39 @@ func launchPackageCommandInBackground(ctx context.Context, env *env.Env, command
 	}
 
 	return nil
+}
+
+// preInstallExtensionDatadogAgent performs pre-installation steps for extensions.
+func preInstallExtensionDatadogAgent(ctx HookContext) error {
+	switch ctx.Extension {
+	case "ddot":
+		return preInstallDDOTExtension(ctx)
+	default:
+		return nil
+	}
+}
+
+// postInstallExtensionDatadogAgent performs post-installation steps for extensions.
+func postInstallExtensionDatadogAgent(ctx HookContext) error {
+	switch ctx.Extension {
+	case "ddot":
+		return postInstallDDOTExtension(ctx)
+	default:
+		return nil
+	}
+}
+
+// preRemoveExtensionDatadogAgent performs pre-removal steps for extensions.
+func preRemoveExtensionDatadogAgent(ctx HookContext) error {
+	switch ctx.Extension {
+	case "ddot":
+		return preRemoveDDOTExtension(ctx)
+	default:
+		return nil
+	}
+}
+
+// RestartDatadogAgent restarts the datadog-agent service if it is running
+func RestartDatadogAgent(ctx context.Context) error {
+	return windowssvc.NewWinServiceManager().RestartAgentServices(ctx)
 }

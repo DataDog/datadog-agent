@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/samber/lo"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/tools/cache"
@@ -237,25 +237,26 @@ type KSMConfig struct {
 // KSMCheck wraps the config and the metric stores needed to run the check
 type KSMCheck struct {
 	core.CheckBase
-	agentConfig              model.Config
-	instance                 *KSMConfig
-	allStores                [][]cache.Store
-	telemetry                *telemetryCache
-	tagger                   tagger.Component
-	cancel                   context.CancelFunc
-	isCLCRunner              bool
-	isRunningOnNodeAgent     bool
-	clusterIDTagValue        string
-	clusterNameTagValue      string
-	clusterNameRFC1123       string
-	metricNamesMapper        map[string]string
-	metricAggregators        map[string]metricAggregator
-	metricTransformers       map[string]metricTransformerFunc
-	metadataMetricsRegex     *regexp.Regexp
-	initRetry                retry.Retrier
-	workloadmetaStore        workloadmeta.Component
-	rolloutTracker           *customresources.RolloutTracker
-	customResourceDiscoverer *ksmDiscovery.CRDiscoverer
+	agentConfig                model.Config
+	instance                   *KSMConfig
+	allStores                  [][]cache.Store
+	telemetry                  *telemetryCache
+	tagger                     tagger.Component
+	cancel                     context.CancelFunc
+	isCLCRunner                bool
+	isRunningOnNodeAgent       bool
+	clusterIDTagValue          string
+	clusterNameTagValue        string
+	clusterNameRFC1123         string
+	metricNamesMapper          map[string]string
+	metricAggregators          map[string]metricAggregator
+	metricTransformers         map[string]metricTransformerFunc
+	metadataMetricsRegex       *regexp.Regexp
+	initRetry                  retry.Retrier
+	workloadmetaStore          workloadmeta.Component
+	rolloutTracker             *customresources.RolloutTracker
+	customResourceDiscoverer   *ksmDiscovery.CRDiscoverer
+	namespaceTagsErrorLogLimit *log.Limit
 }
 
 // JoinsConfigWithoutLabelsMapping contains the config parameters for label joins
@@ -324,7 +325,10 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	// Prepare labels mapper
 	k.mergeLabelsMapper(defaultLabelsMapper())
 
-	k.customResourceDiscoverer = customresources.StartDiscovery()
+	// Start custom resource discovery if not
+	if k.instance.PodCollectionMode != nodeKubeletPodCollection {
+		k.customResourceDiscoverer = customresources.StartDiscovery()
+	}
 
 	// Retry configuration steps related to API Server in check executions if necessary
 	// TODO: extract init configuration attempt function into a struct method
@@ -645,18 +649,21 @@ func (k *KSMCheck) Run() error {
 	}
 
 	// Check if the custom resource discoverer was updated and rebuild KSM if needed
-	wasUpdated := false
-	k.customResourceDiscoverer.SafeRead(func() {
-		wasUpdated = k.customResourceDiscoverer.WasUpdated
-	})
-
-	if wasUpdated {
-		if err := k.buildStores(); err != nil {
-			log.Errorf("Failed to rebuild KSM: %v", err)
-		}
-		k.customResourceDiscoverer.SafeWrite(func() {
-			k.customResourceDiscoverer.WasUpdated = false
+	// Only check if discoverer was initialized (not in node_kubelet mode)
+	if k.customResourceDiscoverer != nil {
+		wasUpdated := false
+		k.customResourceDiscoverer.SafeRead(func() {
+			wasUpdated = k.customResourceDiscoverer.WasUpdated
 		})
+
+		if wasUpdated {
+			if err := k.buildStores(); err != nil {
+				log.Errorf("Failed to rebuild KSM: %v", err)
+			}
+			k.customResourceDiscoverer.SafeWrite(func() {
+				k.customResourceDiscoverer.WasUpdated = false
+			})
+		}
 	}
 
 	// this check uses a "raw" sender, for better performance.  That requires
@@ -874,9 +881,10 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 	}
 
 	if tagErr != nil {
-		log.Errorf("failed to get namespace tags for %q from tagger: %v", resourceNamespace, tagErr)
+		if k.namespaceTagsErrorLogLimit.ShouldLog() {
+			log.Errorf("failed to get namespace tags for %q from tagger: %v", resourceNamespace, tagErr)
+		}
 	} else if len(namespaceTags) > 0 {
-		log.Debugf("obtained tags for namespace %q from tagger: %v", resourceNamespace, namespaceTags)
 		tagList = append(tagList, namespaceTags...)
 	}
 
@@ -1168,16 +1176,17 @@ func KubeStateMetricsFactoryWithParam(labelsMapper map[string]string, labelJoins
 
 func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Component, wmeta workloadmeta.Component) *KSMCheck {
 	k := &KSMCheck{
-		CheckBase:            base,
-		instance:             instance,
-		telemetry:            newTelemetryCache(),
-		tagger:               tagger,
-		isCLCRunner:          pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
-		isRunningOnNodeAgent: flavor.GetFlavor() != flavor.ClusterAgent && !pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
-		metricNamesMapper:    defaultMetricNamesMapper(),
-		metricAggregators:    defaultMetricAggregators(),
-		workloadmetaStore:    wmeta,
-		rolloutTracker:       customresources.NewRolloutTracker(),
+		CheckBase:                  base,
+		instance:                   instance,
+		telemetry:                  newTelemetryCache(),
+		tagger:                     tagger,
+		isCLCRunner:                pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
+		isRunningOnNodeAgent:       flavor.GetFlavor() != flavor.ClusterAgent && !pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
+		metricNamesMapper:          defaultMetricNamesMapper(),
+		metricAggregators:          defaultMetricAggregators(),
+		workloadmetaStore:          wmeta,
+		rolloutTracker:             customresources.NewRolloutTracker(),
+		namespaceTagsErrorLogLimit: log.NewLogLimit(10, 10*time.Minute),
 
 		// metadata metrics are useful for label joins
 		// but shouldn't be submitted to Datadog
@@ -1309,19 +1318,18 @@ func ownerTags(kind, name string) []string {
 		return nil
 	}
 
-	tagList := []string{tagKey + ":" + name}
 	switch kind {
 	case kubernetes.JobKind:
 		if cronjob, _ := kubernetes.ParseCronJobForJob(name); cronjob != "" {
-			return append(tagList, tags.KubeCronjob+":"+cronjob)
+			return []string{tagKey + ":" + name, tags.KubeCronjob + ":" + cronjob}
 		}
 	case kubernetes.ReplicaSetKind:
 		if deployment := kubernetes.ParseDeploymentForReplicaSet(name); deployment != "" {
-			return append(tagList, tags.KubeDeployment+":"+deployment)
+			return []string{tagKey + ":" + name, tags.KubeDeployment + ":" + deployment}
 		}
 	}
 
-	return tagList
+	return []string{tagKey + ":" + name}
 }
 
 // labelsMapperOverride allows overriding the default label mapping for

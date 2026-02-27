@@ -7,6 +7,8 @@ package daemon
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"path/filepath"
 	"runtime"
@@ -17,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/nacl/box"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
@@ -55,19 +58,14 @@ func (m *testPackageManager) State(ctx context.Context, pkg string) (repository.
 	return args.Get(0).(repository.State), args.Error(1)
 }
 
-func (m *testPackageManager) States(ctx context.Context) (map[string]repository.State, error) {
-	args := m.Called(ctx)
-	return args.Get(0).(map[string]repository.State), args.Error(1)
-}
-
 func (m *testPackageManager) ConfigState(ctx context.Context, pkg string) (repository.State, error) {
 	args := m.Called(ctx, pkg)
 	return args.Get(0).(repository.State), args.Error(1)
 }
 
-func (m *testPackageManager) ConfigStates(ctx context.Context) (map[string]repository.State, error) {
+func (m *testPackageManager) ConfigAndPackageStates(ctx context.Context) (*repository.PackageStates, error) {
 	args := m.Called(ctx)
-	return args.Get(0).(map[string]repository.State), args.Error(1)
+	return args.Get(0).(*repository.PackageStates), args.Error(1)
 }
 
 func (m *testPackageManager) Install(ctx context.Context, url string, installArgs []string) error {
@@ -104,8 +102,8 @@ func (m *testPackageManager) PromoteExperiment(ctx context.Context, pkg string) 
 	return args.Error(0)
 }
 
-func (m *testPackageManager) InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations) error {
-	args := m.Called(ctx, pkg, operations)
+func (m *testPackageManager) InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations, decryptedSecrets map[string]string) error {
+	args := m.Called(ctx, pkg, operations, decryptedSecrets)
 	return args.Error(0)
 }
 
@@ -136,6 +134,26 @@ func (m *testPackageManager) InstrumentAPMInjector(ctx context.Context, method s
 
 func (m *testPackageManager) UninstrumentAPMInjector(ctx context.Context, method string) error {
 	args := m.Called(ctx, method)
+	return args.Error(0)
+}
+
+func (m *testPackageManager) InstallExtensions(ctx context.Context, url string, extensions []string) error {
+	args := m.Called(ctx, url, extensions)
+	return args.Error(0)
+}
+
+func (m *testPackageManager) RemoveExtensions(ctx context.Context, pkg string, extensions []string) error {
+	args := m.Called(ctx, pkg, extensions)
+	return args.Error(0)
+}
+
+func (m *testPackageManager) SaveExtensions(ctx context.Context, pkg string, path string) error {
+	args := m.Called(ctx, pkg, path)
+	return args.Error(0)
+}
+
+func (m *testPackageManager) RestoreExtensions(ctx context.Context, url string, path string) error {
+	args := m.Called(ctx, url, path)
 	return args.Error(0)
 }
 
@@ -242,17 +260,26 @@ func newTestInstaller(t *testing.T) *testInstaller {
 	installExperimentFunc = bm.InstallExperiment
 	pm := &testPackageManager{}
 	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
-	pm.On("States", mock.Anything).Return(map[string]repository.State{}, nil)
-	pm.On("ConfigStates", mock.Anything).Return(map[string]repository.State{}, nil)
+	pm.On("ConfigAndPackageStates", mock.Anything).Return(&repository.PackageStates{
+		States:       map[string]repository.State{},
+		ConfigStates: map[string]repository.State{},
+	}, nil)
 	rcc := newTestRemoteConfigClient(t)
 	rc := &remoteConfig{client: rcc}
 	taskDB, err := newTaskDB(filepath.Join(t.TempDir(), "tasks.db"))
 	require.NoError(t, err)
+	secretsPubKey, secretsPrivKey, err := box.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
 	daemon := newDaemon(
 		rc,
 		func(_ *env.Env) installer.Installer { return pm },
 		&env.Env{RemoteUpdates: true},
 		taskDB,
+		30*time.Second,
+		1*time.Hour,
+		secretsPubKey,
+		secretsPrivKey,
 	)
 	i := &testInstaller{
 		daemonImpl: daemon,
@@ -478,11 +505,15 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 	installExperimentFunc = bm.InstallExperiment
 	pm := &testPackageManager{}
 	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
-	pm.On("States", mock.Anything).Return(testPackageStates, nil)
-	pm.On("ConfigStates", mock.Anything).Return(testConfigStates, nil)
+	pm.On("ConfigAndPackageStates", mock.Anything).Return(&repository.PackageStates{
+		States:       testPackageStates,
+		ConfigStates: testConfigStates,
+	}, nil)
 	rcc := newTestRemoteConfigClient(t)
 	rc := &remoteConfig{client: rcc}
 	taskDB, err := newTaskDB(filepath.Join(t.TempDir(), "tasks.db"))
+	require.NoError(t, err)
+	secretsPubKey, secretsPrivKey, err := box.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 
 	testEnv := &env.Env{
@@ -494,6 +525,10 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 		func(_ *env.Env) installer.Installer { return pm },
 		testEnv,
 		taskDB,
+		30*time.Second,
+		1*time.Hour,
+		secretsPubKey,
+		secretsPrivKey,
 	)
 	i := &testInstaller{
 		daemonImpl: daemon,
@@ -526,6 +561,112 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 	assert.Equal(t, "config-exp-1", pkg.ExperimentConfigVersion)
 	assert.Equal(t, version.AgentPackageVersion, pkg.RunningVersion, "RunningVersion should be set to AgentPackageVersion")
 	assert.Equal(t, "test-config-id-123", pkg.RunningConfigVersion, "RunningConfigVersion should be set to env.ConfigID")
+	assert.Equal(t, state.SecretsPubKey, base64.StdEncoding.EncodeToString(secretsPubKey[:]))
 
 	pm.AssertExpectations(t)
+}
+
+func TestDecryptSecrets(t *testing.T) {
+	// Generate test encryption keys
+	pubKey, privKey, err := box.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	// Helper function to encrypt and encode a secret
+	encryptSecret := func(t *testing.T, plaintext string, pubKey *[32]byte) string {
+		encrypted, err := box.SealAnonymous(nil, []byte(plaintext), pubKey, rand.Reader)
+		require.NoError(t, err)
+		return base64.StdEncoding.EncodeToString(encrypted)
+	}
+
+	t.Run("successfully decrypt secrets and skip unreferenced", func(t *testing.T) {
+		d := &daemonImpl{
+			secretsPubKey:  pubKey,
+			secretsPrivKey: privKey,
+		}
+
+		apiKey := "my-api-key"
+		appKey := "my-app-key"
+		encryptedAPI := encryptSecret(t, apiKey, pubKey)
+		encryptedApp := encryptSecret(t, appKey, pubKey)
+		encryptedUnused := encryptSecret(t, "unused", pubKey)
+
+		ops := config.Operations{
+			DeploymentID: "test-config",
+			FileOperations: []config.FileOperation{
+				{
+					Patch: []byte(`api_key: SEC[apikey]`),
+				},
+				{
+					Patch: []byte(`app_key: SEC[appkey]`),
+				},
+			},
+		}
+
+		decryptedSecrets, err := d.decryptSecrets(ops, map[string]string{
+			"apikey": encryptedAPI,
+			"appkey": encryptedApp,
+			"unused": encryptedUnused,
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, apiKey, decryptedSecrets["apikey"])
+		assert.Equal(t, appKey, decryptedSecrets["appkey"])
+		assert.NotContains(t, decryptedSecrets, "unused")
+		assert.Len(t, decryptedSecrets, 2)
+	})
+
+	t.Run("empty secrets map", func(t *testing.T) {
+		d := &daemonImpl{
+			secretsPubKey:  pubKey,
+			secretsPrivKey: privKey,
+		}
+
+		ops := config.Operations{
+			DeploymentID: "test-config",
+			FileOperations: []config.FileOperation{
+				{
+					Patch: []byte(`log_level: debug`),
+				},
+			},
+		}
+
+		decryptedSecrets, err := d.decryptSecrets(ops, map[string]string{})
+
+		require.NoError(t, err)
+		assert.Empty(t, decryptedSecrets)
+	})
+
+	t.Run("decryption errors", func(t *testing.T) {
+		d := &daemonImpl{
+			secretsPubKey:  pubKey,
+			secretsPrivKey: privKey,
+		}
+
+		ops := config.Operations{
+			DeploymentID: "test-config",
+			FileOperations: []config.FileOperation{
+				{
+					Patch: []byte(`api_key: SEC[apikey]`),
+				},
+			},
+		}
+
+		// Invalid base64
+		_, err := d.decryptSecrets(ops, map[string]string{
+			"apikey": "not-valid-base64!!!",
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "could not decode secret")
+
+		// Wrong encryption key
+		wrongPubKey, _, err := box.GenerateKey(rand.Reader)
+		require.NoError(t, err)
+		encryptedWithWrongKey := encryptSecret(t, "secret", wrongPubKey)
+
+		_, err = d.decryptSecrets(ops, map[string]string{
+			"apikey": encryptedWithWrongKey,
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "could not decrypt secret")
+	})
 }

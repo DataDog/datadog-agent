@@ -31,16 +31,18 @@ import (
 const flareFileName = "hostgpu.json"
 
 type gpuDeviceMetadata struct {
-	Index         int    `json:"gpu_index"`
-	Vendor        string `json:"gpu_vendor"`
-	Name          string `json:"gpu_device"`
-	DriverVersion string `json:"gpu_driver_version"`
-	UUID          string `json:"gpu_uuid"`
-	Architecture  string `json:"gpu_architecture"`
-
-	ComputeVersion string `json:"gpu_compute_version"` //e.g: in nvidia this refers to Compute Capability
-	TotalCores     int    `json:"gpu_total_cores"`
-
+	Index              int    `json:"gpu_index"`
+	Vendor             string `json:"gpu_vendor"`
+	Name               string `json:"gpu_device"`
+	DriverVersion      string `json:"gpu_driver_version"`
+	UUID               string `json:"gpu_uuid"`
+	Architecture       string `json:"gpu_architecture"`
+	GPUType            string `json:"gpu_type"`
+	SlicingMode        string `json:"gpu_slicing_mode"`
+	VirtualizationMode string `json:"gpu_virtualization_mode"`
+	ComputeVersion     string `json:"gpu_compute_version"` //e.g: in nvidia this refers to Compute Capability
+	TotalCores         int    `json:"gpu_total_cores"`
+	ParentGPUUUID      string `json:"gpu_parent_uuid"`
 	//Total device memory in bytes
 	TotalMemory        uint64 `json:"device_total_memory"`
 	MaxSMClockRate     uint32 `json:"device_max_sm_clock_rate"`
@@ -136,6 +138,10 @@ func (gh *gpuHost) fillData() {
 			TotalCores:         gpu.TotalCores,
 			TotalMemory:        gpu.TotalMemory,
 			MemoryBusWidth:     gpu.MemoryBusWidth,
+			GPUType:            gpu.GPUType,
+			SlicingMode:        gpu.SlicingMode(),
+			VirtualizationMode: gpu.VirtualizationMode,
+			ParentGPUUUID:      gpu.ParentGPUUUID,
 			MaxSMClockRate:     gpu.MaxClockRates[workloadmeta.GPUSM],
 			MaxMemoryClockRate: gpu.MaxClockRates[workloadmeta.GPUMemory],
 		}

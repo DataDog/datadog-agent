@@ -305,7 +305,7 @@ func (m *metadataController) syncEndpoints(key string) error {
 	case err != nil:
 		log.Debugf("Unable to retrieve endpoints %v from store: %v", key, err)
 	default:
-		err = m.mapEndpoints(endpoints)
+		m.mapEndpoints(endpoints)
 	}
 	return err
 }
@@ -331,53 +331,58 @@ func (m *metadataController) syncEndpointSlices(key string) error {
 }
 
 // mapEndpoints matches pods to services via endpoint TargetRef objects. It supports Kubernetes 1.4+.
-func (m *metadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
+func (m *metadataController) mapEndpoints(endpoints *corev1.Endpoints) {
 	nodeToPods := make(map[string]map[string]sets.Set[string])
 	affectedNodes := sets.New[string]()
 
 	// Loop over the subsets to create a mapping of nodes to pods running on the node.
 	for _, subset := range endpoints.Subsets {
-		for _, address := range subset.Addresses {
-			if address.TargetRef == nil {
-				// Endpoints are also used by the control plane as resource locks for leader election.
-				// These endpoints will not have a TargetRef and can be ignored.
-				log.Tracef("No TargetRef for endpoints %s/%s, skipping", endpoints.Namespace, endpoints.Name)
-				continue
-			}
-			if address.TargetRef.Kind != "Pod" {
-				continue
-			}
-			namespace := address.TargetRef.Namespace
-			podName := address.TargetRef.Name
-			if podName == "" || namespace == "" {
-				log.Tracef("Incomplete reference for object %s on service %s/%s, skipping",
-					address.TargetRef.UID, endpoints.Namespace, endpoints.Name)
-				continue
-			}
-
-			// TODO: Kubernetes 1.3.x does not include `NodeName`
-			if address.NodeName == nil {
-				continue
-			}
-
-			nodeName := *address.NodeName
-
-			affectedNodes.Insert(nodeName)
-
-			if _, ok := nodeToPods[nodeName]; !ok {
-				nodeToPods[nodeName] = make(map[string]sets.Set[string])
-			}
-			if _, ok := nodeToPods[nodeName][namespace]; !ok {
-				nodeToPods[nodeName][namespace] = sets.New[string]()
-			}
-			nodeToPods[nodeName][namespace].Insert(podName)
-		}
+		m.mapEndpointAddresses(subset.Addresses, endpoints.Namespace, endpoints.Name, nodeToPods, affectedNodes)
+		m.mapEndpointAddresses(subset.NotReadyAddresses, endpoints.Namespace, endpoints.Name, nodeToPods, affectedNodes)
 	}
 
 	m.cleanupStaleNodes(endpoints.Namespace, endpoints.Name, affectedNodes)
 	m.updateNodeMetadata(endpoints.Namespace, endpoints.Name, nodeToPods)
+}
 
-	return nil
+func (m *metadataController) mapEndpointAddresses(address []corev1.EndpointAddress, ns, name string,
+	nodeToPods map[string]map[string]sets.Set[string], affectedNodes sets.Set[string],
+) {
+	for _, address := range address {
+		if address.TargetRef == nil {
+			// Endpoints are also used by the control plane as resource locks for leader election.
+			// These endpoints will not have a TargetRef and can be ignored.
+			log.Tracef("No TargetRef for endpoints %s/%s, skipping", ns, name)
+			continue
+		}
+		if address.TargetRef.Kind != "Pod" {
+			continue
+		}
+		namespace := address.TargetRef.Namespace
+		podName := address.TargetRef.Name
+		if podName == "" || namespace == "" {
+			log.Tracef("Incomplete reference for object %s on service %s/%s, skipping",
+				address.TargetRef.UID, ns, name)
+			continue
+		}
+
+		// TODO: Kubernetes 1.3.x does not include `NodeName`
+		if address.NodeName == nil {
+			continue
+		}
+
+		nodeName := *address.NodeName
+
+		affectedNodes.Insert(nodeName)
+
+		if _, ok := nodeToPods[nodeName]; !ok {
+			nodeToPods[nodeName] = make(map[string]sets.Set[string])
+		}
+		if _, ok := nodeToPods[nodeName][namespace]; !ok {
+			nodeToPods[nodeName][namespace] = sets.New[string]()
+		}
+		nodeToPods[nodeName][namespace].Insert(podName)
+	}
 }
 
 // mapEndpointSlice matches pods to services via endpoint TargetRef objects. It supports Kubernetes 1.19+.

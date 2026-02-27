@@ -6,6 +6,8 @@
 package k8s
 
 import (
+	"strconv"
+
 	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
 	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
@@ -25,7 +27,7 @@ func runtimeClassToPulumi(runtimeClass string) pulumi.StringInput {
 }
 
 // NewNginxDeploymentManifest creates a new deployment manifest for Nginx server
-func NewNginxDeploymentManifest(namespace string, mods ...DeploymentModifier) (*appsv1.DeploymentArgs, error) {
+func NewNginxDeploymentManifest(namespace string, nginxPort int, mods ...DeploymentModifier) (*appsv1.DeploymentArgs, error) {
 	manifest := &appsv1.DeploymentArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String("nginx"),
@@ -59,7 +61,7 @@ func NewNginxDeploymentManifest(namespace string, mods ...DeploymentModifier) (*
 									"check_tag_cardinality": "high",
 									"instances": []map[string]interface{}{
 										{
-											"nginx_status_url": "http://%%host%%/nginx_status",
+											"nginx_status_url": "http://%%host%%:" + pulumi.String(strconv.Itoa(nginxPort)) + "/nginx_status",
 										},
 									},
 								},
@@ -85,19 +87,19 @@ func NewNginxDeploymentManifest(namespace string, mods ...DeploymentModifier) (*
 							Ports: &corev1.ContainerPortArray{
 								&corev1.ContainerPortArgs{
 									Name:          pulumi.String("http"),
-									ContainerPort: pulumi.Int(80),
+									ContainerPort: pulumi.Int(nginxPort),
 									Protocol:      pulumi.String("TCP"),
 								},
 							},
 							LivenessProbe: &corev1.ProbeArgs{
 								HttpGet: &corev1.HTTPGetActionArgs{
-									Port: pulumi.Int(80),
+									Port: pulumi.Int(nginxPort),
 								},
 								TimeoutSeconds: pulumi.Int(5),
 							},
 							ReadinessProbe: &corev1.ProbeArgs{
 								HttpGet: &corev1.HTTPGetActionArgs{
-									Port: pulumi.Int(80),
+									Port: pulumi.Int(nginxPort),
 								},
 								TimeoutSeconds: pulumi.Int(5),
 							},
@@ -167,6 +169,8 @@ func NewNginxQueryDeploymentManifest(namespace string, mods ...DeploymentModifie
 							Name:  pulumi.String("query"),
 							Image: pulumi.String("ghcr.io/datadog/apps-http-client:" + apps.Version),
 							Args: pulumi.StringArray{
+								pulumi.String("-url"),
+								pulumi.String("http://nginx"),
 								pulumi.String("-min-tps"),
 								pulumi.String("1"),
 								pulumi.String("-max-tps"),
@@ -202,7 +206,7 @@ func NewNginxQueryDeploymentManifest(namespace string, mods ...DeploymentModifie
 }
 
 // NewNginxServiceManifest creates a new service manifest for the Nginx deployment
-func NewNginxServiceManifest(namespace string) *corev1.ServiceArgs {
+func NewNginxServiceManifest(namespace string, nginxPort int) *corev1.ServiceArgs {
 	return &corev1.ServiceArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String("nginx"),

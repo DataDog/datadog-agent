@@ -16,7 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/utils/ptr"
+	"k8s.io/apimachinery/pkg/version"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -27,6 +27,13 @@ import (
 // Config is a struct to store the configuration for the autoinstrumentation logic. It can be populated using the
 // datadog config through NewConfig.
 type Config struct {
+	staticConfig
+	runtimeConfig
+}
+
+// staticConfig contains configuration derived exclusively from the Datadog Agent config.
+// It should not require any Kubernetes API calls to construct.
+type staticConfig struct {
 	// Webhook is the configuration for the autoinstrumentation webhook
 	Webhook *WebhookConfig
 
@@ -78,6 +85,15 @@ type Config struct {
 	podMetaAsTags podMetaAsTags
 }
 
+// runtimeConfig contains information derived from the runtime environment (e.g. cluster capabilities).
+// It's populated by outer wiring layers (webhook/controller constructors), not from static config.
+type runtimeConfig struct {
+	// kubeServerVersion is the Kubernetes API server version.
+	// It's populated by the webhook constructor (not from static config) and can be used
+	// to gate features that require a minimum Kubernetes version.
+	kubeServerVersion *version.Info
+}
+
 var excludedContainerNames = map[string]bool{
 	"istio-proxy": true, // https://datadoghq.atlassian.net/browse/INPLAT-454
 }
@@ -113,18 +129,20 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 	mutateUnlabelled := datadogConfig.GetBool("admission_controller.mutate_unlabelled")
 
 	return &Config{
-		Webhook:                       NewWebhookConfig(datadogConfig),
-		LanguageDetection:             NewLanguageDetectionConfig(datadogConfig),
-		Instrumentation:               instrumentationConfig,
-		containerRegistry:             containerRegistry,
-		mutateUnlabelled:              mutateUnlabelled,
-		initResources:                 initResources,
-		initSecurityContext:           initSecurityContext,
-		defaultResourceRequirements:   defaultResourceRequirements,
-		securityClientLibraryMutator:  securityClientLibraryConfigMutators(datadogConfig),
-		profilingClientLibraryMutator: profilingClientLibraryConfigMutators(datadogConfig),
-		containerFilter:               excludedContainerNamesContainerFilter,
-		podMetaAsTags:                 getPodMetaAsTags(datadogConfig),
+		staticConfig: staticConfig{
+			Webhook:                       NewWebhookConfig(datadogConfig),
+			LanguageDetection:             NewLanguageDetectionConfig(datadogConfig),
+			Instrumentation:               instrumentationConfig,
+			containerRegistry:             containerRegistry,
+			mutateUnlabelled:              mutateUnlabelled,
+			initResources:                 initResources,
+			initSecurityContext:           initSecurityContext,
+			defaultResourceRequirements:   defaultResourceRequirements,
+			securityClientLibraryMutator:  securityClientLibraryConfigMutators(datadogConfig),
+			profilingClientLibraryMutator: profilingClientLibraryConfigMutators(datadogConfig),
+			containerFilter:               excludedContainerNamesContainerFilter,
+			podMetaAsTags:                 getPodMetaAsTags(datadogConfig),
+		},
 	}, nil
 }
 
@@ -177,6 +195,10 @@ type InstrumentationConfig struct {
 	// used. If no target matches, the auto instrumentation will not be applied. Full config key:
 	// apm_config.instrumentation.targets
 	Targets []Target `mapstructure:"targets" json:"targets"`
+	// InjectionMode determines the default method for injecting libraries into pods.
+	// Possible values: "auto" (default), "init_container" and "csi".
+	// Full config key: apm_config.instrumentation.injection_mode
+	InjectionMode string `mapstructure:"injection_mode" json:"injection_mode"`
 }
 
 // NewInstrumentationConfig creates a new InstrumentationConfig from the datadog config. It returns an error if the
@@ -332,11 +354,6 @@ func (c *TracerConfig) AsEnvVar() corev1.EnvVar {
 	}
 }
 
-var (
-	minimumCPULimit    resource.Quantity = resource.MustParse("0.05")  // 0.05 core, otherwise copying + library initialization is going to take forever
-	minimumMemoryLimit resource.Quantity = resource.MustParse("100Mi") // 100 MB (recommended minimum by Alpine)
-)
-
 type initResourceRequirementConfiguration map[corev1.ResourceName]resource.Quantity
 
 // getOptionalBoolValue returns a pointer to a bool corresponding to the config value if the key is set in the config
@@ -423,17 +440,6 @@ func initDefaultResources(datadogConfig config.Component) (initResourceRequireme
 	return conf, nil
 }
 
-var defaultRestrictedSecurityContext = &corev1.SecurityContext{
-	AllowPrivilegeEscalation: ptr.To(false),
-	RunAsNonRoot:             ptr.To(true),
-	SeccompProfile:           &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
-	Capabilities: &corev1.Capabilities{
-		Drop: []corev1.Capability{
-			"ALL",
-		},
-	},
-}
-
 func parseInitSecurityContext(datadogConfig config.Component) (*corev1.SecurityContext, error) {
 	confKey := "admission_controller.auto_instrumentation.init_security_context"
 	if datadogConfig.IsSet(confKey) {
@@ -448,4 +454,45 @@ func parseInitSecurityContext(datadogConfig config.Component) (*corev1.SecurityC
 	}
 
 	return nil, nil
+}
+
+// The config for ASM/IAST/SCA has three states: <unset> | true | false.
+// * <unset> - product disactivated but can be activated remotely
+// * true - product activated, not overridable remotely
+// * false - product disactivated, not overridable remotely
+func securityClientLibraryConfigMutators(datadogConfig config.Component) containerMutators {
+	asmEnabled := getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.asm.enabled")
+	iastEnabled := getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.iast.enabled")
+	asmScaEnabled := getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.asm_sca.enabled")
+
+	var mutators []containerMutator
+	if asmEnabled != nil {
+		mutators = append(mutators, newConfigEnvVarFromBoolMutator("DD_APPSEC_ENABLED", asmEnabled))
+	}
+
+	if iastEnabled != nil {
+		mutators = append(mutators, newConfigEnvVarFromBoolMutator("DD_IAST_ENABLED", iastEnabled))
+	}
+
+	if asmScaEnabled != nil {
+		mutators = append(mutators, newConfigEnvVarFromBoolMutator("DD_APPSEC_SCA_ENABLED", asmScaEnabled))
+	}
+
+	return mutators
+}
+
+// The config for profiling has four states: <unset> | "auto" | "true" | "false".
+// * <unset> - profiling not activated, but can be activated remotely
+// * "true" - profiling activated unconditionally, not overridable remotely
+// * "false" - profiling deactivated, not overridable remotely
+// * "auto" - profiling activates per-process heuristically, not overridable remotely
+func profilingClientLibraryConfigMutators(datadogConfig config.Component) containerMutators {
+	profilingEnabled := getOptionalStringValue(datadogConfig, "admission_controller.auto_instrumentation.profiling.enabled")
+
+	var mutators []containerMutator
+	if profilingEnabled != nil {
+		mutators = append(mutators, newConfigEnvVarFromStringMutator("DD_PROFILING_ENABLED", profilingEnabled))
+	}
+
+	return mutators
 }

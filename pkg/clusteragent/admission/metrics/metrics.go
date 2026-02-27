@@ -115,6 +115,6 @@ var (
 
 	// Image resolution tracking for gradual rollout monitoring
 	ImageResolutionAttempts = telemetry.NewCounterWithOpts("admission_webhooks", "image_resolution_attempts",
-		[]string{"registry", "repository", "digest_resolution", "outcome"}, "Number of image resolution attempts by registry, repository, digest resolution capability, and outcome (digest/mutable)",
-		telemetry.Options{NoDoubleUnderscoreSep: true})
+		[]string{"repository", "tag", "bucket", "outcome"}, "Number of image resolution attempts by repository, tag, bucket, and resolution outcome",
+		telemetry.Options{})
 )

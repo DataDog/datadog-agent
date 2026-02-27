@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    The logs agent now supports using ``start_position: beginning`` and
+    ``start_position: forceBeginning`` with wildcard file paths. Previously,
+    configurations like ``path: /var/log/*.log`` with ``start_position: beginning``
+    would fail validation. The agent's fingerprinting system when enabled prevents 
+    duplicate log reads during file rotation, making this combination safe to use.

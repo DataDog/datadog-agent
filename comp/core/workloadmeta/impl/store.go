@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
@@ -50,6 +50,7 @@ func (w *workloadmeta) start(ctx context.Context) {
 			case <-health.C:
 
 			case evs := <-w.eventCh:
+				telemetry.PendingEventBundles.Dec()
 				w.handleEvents(evs)
 
 			case <-ctx.Done():
@@ -136,10 +137,11 @@ func (w *workloadmeta) Subscribe(name string, priority wmdef.SubscriberPriority,
 
 			for _, cachedEntity := range entitiesOfKind {
 				entity := cachedEntity.get(sub.filter.Source())
-				if entity != nil && sub.filter.MatchEntity(&entity) {
+				if entity != nil && sub.filter.MatchEntity(entity) {
 					events = append(events, wmdef.Event{
-						Type:   wmdef.EventTypeSet,
-						Entity: entity,
+						Type:       wmdef.EventTypeSet,
+						Entity:     entity,
+						IsComplete: w.isEntityComplete(kind, cachedEntity),
 					})
 				}
 			}
@@ -271,6 +273,17 @@ func (w *workloadmeta) GetKubeletMetrics() (*wmdef.KubeletMetrics, error) {
 	}
 
 	return entity.(*wmdef.KubeletMetrics), nil
+}
+
+func (w *workloadmeta) GetKubeCapabilities() (*wmdef.KubeCapabilities, error) {
+	// There should only be one entity of this kind with the ID used in the
+	// Kubelet collector
+	entity, err := w.getEntityByKind(wmdef.KindKubeCapabilities, wmdef.KubeCapabilitiesID)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.KubeCapabilities), nil
 }
 
 // GetProcess implements Store#GetProcess.
@@ -496,6 +509,7 @@ func (w *workloadmeta) ListGPUs() []*wmdef.GPU {
 // Notify implements Store#Notify
 func (w *workloadmeta) Notify(events []wmdef.CollectorEvent) {
 	if len(events) > 0 {
+		telemetry.PendingEventBundles.Inc()
 		w.eventCh <- events
 	}
 }
@@ -612,26 +626,26 @@ func (w *workloadmeta) startCandidatesWithRetry(ctx context.Context) error {
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = retryCollectorInitialInterval
 	expBackoff.MaxInterval = retryCollectorMaxInterval
-	expBackoff.MaxElapsedTime = 0 // Don't stop trying
 
 	if len(w.candidates) == 0 {
 		// TODO: this should actually probably just be an error?
 		return nil
 	}
 
-	return backoff.Retry(func() error {
+	_, err := backoff.Retry(ctx, func() (any, error) {
 		select {
 		case <-ctx.Done():
-			return &backoff.PermanentError{Err: fmt.Errorf("stopped before all collectors were able to start: %v", w.candidates)}
+			return nil, &backoff.PermanentError{Err: fmt.Errorf("stopped before all collectors were able to start: %v", w.candidates)}
 		default:
 		}
 
 		if w.startCandidates(ctx) {
-			return nil
+			return nil, nil
 		}
 
-		return errors.New("some collectors failed to start. Will retry")
-	}, expBackoff)
+		return nil, errors.New("some collectors failed to start. Will retry")
+	}, backoff.WithBackOff(expBackoff), backoff.WithMaxElapsedTime(0))
+	return err
 }
 
 func (w *workloadmeta) startCandidates(ctx context.Context) bool {
@@ -780,8 +794,25 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 				continue
 			}
 
-			// keep a copy of cachedEntity before removing sources,
-			// as we may need to merge it later
+			// Save a copy of the entity before removing the source. The
+			// original is used below to notify subscribers with the pre-delete
+			// merged state.
+			//
+			// This serves two purposes:
+			//
+			// 1. Subscribers that process deletes (like the container_lifecycle
+			// check) receive the full entity data (exit code, timestamps, etc.)
+			// instead of just an ID. This way collectors don't need to cache
+			// entity state before emitting an unset.
+			//
+			// 2. When one source is removed but others remain, subscribers get
+			// a Set event with all sources still present. This prevents tags
+			// from disappearing when one collector reports a delete before the
+			// others. For example, if containerd reports a container delete
+			// before kubelet, sending the post-delete state would remove the
+			// containerd tags from the tagger. Those tags would stay missing
+			// until kubelet reports the delete too, and then for 5 more minutes
+			// (the tagger's deletedTTL).
 			c := cachedEntity
 			cachedEntity = c.copy()
 
@@ -823,14 +854,15 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 			}
 
 			entity := cachedEntity.get(filter.Source())
-			if !filter.MatchEntity(&entity) {
+			if !filter.MatchEntity(entity) {
 				continue
 			}
 
 			if isEventTypeSet {
 				filteredEvents[sub] = append(filteredEvents[sub], wmdef.Event{
-					Type:   wmdef.EventTypeSet,
-					Entity: entity,
+					Type:       wmdef.EventTypeSet,
+					Entity:     entity,
+					IsComplete: w.isEntityComplete(entityID.Kind, cachedEntity),
 				})
 			} else {
 				entity = entity.DeepCopy()
@@ -843,6 +875,9 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 				filteredEvents[sub] = append(filteredEvents[sub], wmdef.Event{
 					Type:   wmdef.EventTypeUnset,
 					Entity: entity,
+					// Same as with entity, completeness refers to the copy
+					// before the unset took place
+					IsComplete: w.isEntityComplete(entityID.Kind, cachedEntity),
 				})
 			}
 		}
@@ -960,4 +995,24 @@ func classifyByKindAndID(entities []wmdef.Entity) map[wmdef.Kind]map[string]wmde
 	}
 
 	return res
+}
+
+// isEntityComplete checks if an entity is complete, meaning all expected
+// collectors have reported data for it. If no expected sources are defined for
+// the entity kind, it returns true (considered complete by default).
+func (w *workloadmeta) isEntityComplete(kind wmdef.Kind, cachedEntity *cachedEntity) bool {
+	expectedSources, ok := w.expectedSources[kind]
+	if !ok || len(expectedSources) == 0 {
+		// No expected sources defined for this kind, consider it complete
+		return true
+	}
+
+	// Check if all expected sources have reported
+	for _, expectedSource := range expectedSources {
+		if _, reported := cachedEntity.sources[expectedSource]; !reported {
+			return false
+		}
+	}
+
+	return true
 }

@@ -34,6 +34,8 @@ var ErrDuplicateConnection = errors.New("the stream was closed because another c
 
 // GRPCServer implements a gRPC server to expose Process Entities collected with a WorkloadMetaExtractor
 type GRPCServer struct {
+	pbgo.UnimplementedProcessEntityStreamServer
+
 	config    pkgconfigmodel.Reader
 	extractor *WorkloadMetaExtractor
 	server    *grpc.Server

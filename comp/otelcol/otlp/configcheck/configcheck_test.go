@@ -383,6 +383,8 @@ func TestReadConfigSection(t *testing.T) {
 otlp_config:
   traces:
     enabled: true
+    infra_attributes:
+      enabled: false
   logs:
     enabled: true
   receiver:
@@ -415,7 +417,7 @@ otlp_config:
 		"metrics::tag_cardinality":                           "low",
 		"receiver::protocols::grpc::endpoint":                "0.0.0.0:4317",
 		"traces::enabled":                                    true,
-		"traces::ignore_missing_datadog_fields":              false,
+		"traces::infra_attributes::enabled":                  false,
 		"traces::internal_port":                              5003,
 		"traces::probabilistic_sampler::sampling_percentage": float64(100),
 		"traces::span_name_as_resource_name":                 false,
@@ -466,7 +468,7 @@ otlp_config:
 		"metrics::tag_cardinality":                           "low",
 		"receiver":                                           nil,
 		"traces::enabled":                                    true,
-		"traces::ignore_missing_datadog_fields":              false,
+		"traces::infra_attributes::enabled":                  true,
 		"traces::internal_port":                              5003,
 		"traces::probabilistic_sampler::sampling_percentage": float64(100),
 		"traces::span_name_as_resource_name":                 false,
@@ -518,7 +520,7 @@ otlp_config:
 		"metrics::instrumentation_scope_metadata_as_tags":    true,
 		"metrics::tag_cardinality":                           "low",
 		"traces::enabled":                                    true,
-		"traces::ignore_missing_datadog_fields":              false,
+		"traces::infra_attributes::enabled":                  true,
 		"traces::internal_port":                              5003,
 		"traces::probabilistic_sampler::sampling_percentage": float64(100),
 		"traces::span_name_as_resource_name":                 false,

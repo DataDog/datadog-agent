@@ -42,7 +42,6 @@ var (
 		// e2eos.FedoraDefault, // Skipped instead of marked as flaky to avoid useless logs
 		e2eos.CentOS7,
 		e2eos.Suse15,
-		e2eos.WindowsServer2022,
 	}
 	arm64Flavors = []e2eos.Descriptor{
 		e2eos.Ubuntu2404,
@@ -50,10 +49,10 @@ var (
 		e2eos.Suse15,
 	}
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkippedFlavors{
-		{t: testAgent, skippedFlavors: []e2eos.Descriptor{e2eos.WindowsServer2022}},
-		{t: testDDOT, skippedFlavors: []e2eos.Descriptor{e2eos.WindowsServer2022}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
-		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.AmazonLinux2, e2eos.WindowsServer2022}},
-		{t: testUpgradeScenario, skippedFlavors: []e2eos.Descriptor{e2eos.WindowsServer2022}},
+		{t: testAgent},
+		{t: testDDOT, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
+		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.AmazonLinux2}},
+		{t: testUpgradeScenario},
 	}
 )
 
@@ -344,11 +343,13 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
       import_role:
         name: datadog.dd.agent
 `
-	playbookStringSuffix := `
+	var playbookStringSuffix strings.Builder
+	playbookStringSuffix.WriteString(`
   vars:
     datadog_api_key: "abcdef"
     datadog_site: "datadoghq.com"
-`
+    datadog_ssi_script_dir: "/tmp/datadog-installer"
+`)
 
 	aptDefaultKeysOverrideTemplate := `
     datadog_apt_default_keys:
@@ -377,45 +378,45 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
 		key, value := strings.Split(param, "=")[0], strings.Split(param, "=")[1]
 		switch key {
 		case "DD_REMOTE_UPDATES":
-			playbookStringSuffix += fmt.Sprintf("    datadog_remote_updates: %s\n", value)
+			playbookStringSuffix.WriteString(fmt.Sprintf("    datadog_remote_updates: %s\n", value))
 		case "DD_APM_INSTRUMENTATION_ENABLED":
-			playbookStringSuffix += fmt.Sprintf("    datadog_apm_instrumentation_enabled: \"%s\"\n", value)
+			playbookStringSuffix.WriteString(fmt.Sprintf("    datadog_apm_instrumentation_enabled: \"%s\"\n", value))
 		case "DD_APM_INSTRUMENTATION_LIBRARIES":
-			playbookStringSuffix += fmt.Sprintf("    datadog_apm_instrumentation_libraries: [%s]\n", value)
+			playbookStringSuffix.WriteString(fmt.Sprintf("    datadog_apm_instrumentation_libraries: [%s]\n", value))
 		case "DD_INSTALLER":
-			playbookStringSuffix += fmt.Sprintf("    datadog_installer_enabled: %s\n", value)
+			playbookStringSuffix.WriteString(fmt.Sprintf("    datadog_installer_enabled: %s\n", value))
 		case "DD_INSTALLER_REGISTRY_AUTH_INSTALLER_PACKAGE":
-			playbookStringSuffix += fmt.Sprintf("    datadog_installer_auth: %s\n", value)
+			playbookStringSuffix.WriteString(fmt.Sprintf("    datadog_installer_auth: %s\n", value))
 			environments = append(environments, fmt.Sprintf("%s: %s", key, value))
 		case "DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE":
-			playbookStringSuffix += fmt.Sprintf("    datadog_installer_registry: %s\n", value)
+			playbookStringSuffix.WriteString(fmt.Sprintf("    datadog_installer_registry: %s\n", value))
 			environments = append(environments, fmt.Sprintf("%s: %s", key, value))
 		case "TESTING_APT_REPO_VERSION", "TESTING_APT_URL", "TESTING_APT_KEY", "TESTING_YUM_URL", "TESTING_YUM_VERSION_PATH":
 			defaultRepoEnv[key] = value
 			environments = append(environments, fmt.Sprintf("%s: %s", key, value))
 		case "DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_INSTALLER":
-			playbookStringSuffix += fmt.Sprintf("    datadog_installer_version: %s\n", value)
+			playbookStringSuffix.WriteString(fmt.Sprintf("    datadog_installer_version: %s\n", value))
 			environments = append(environments, fmt.Sprintf("%s: \"%s\"", key, value))
 		case "DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT":
-			playbookStringSuffix += fmt.Sprintf("    datadog_apm_inject_version: %s\n", value)
+			playbookStringSuffix.WriteString(fmt.Sprintf("    datadog_apm_inject_version: %s\n", value))
 			environments = append(environments, fmt.Sprintf("%s: \"%s\"", key, value))
 		case "TESTING_KEYS_URL":
-			playbookStringSuffix += fmt.Sprintf(aptDefaultKeysOverrideTemplate, value)
-			playbookStringSuffix += fmt.Sprintf("    datadog_yum_gpgkey_current: https://%s/DATADOG_RPM_KEY_CURRENT.public\n", value)
-			playbookStringSuffix += fmt.Sprintf("    datadog_zypper_gpgkey_current: https://%s/DATADOG_RPM_KEY_CURRENT.public\n", value)
+			playbookStringSuffix.WriteString(fmt.Sprintf(aptDefaultKeysOverrideTemplate, value))
+			playbookStringSuffix.WriteString(fmt.Sprintf("    datadog_yum_gpgkey_current: https://%s/DATADOG_RPM_KEY_CURRENT.public\n", value))
+			playbookStringSuffix.WriteString(fmt.Sprintf("    datadog_zypper_gpgkey_current: https://%s/DATADOG_RPM_KEY_CURRENT.public\n", value))
 		default:
 			environments = append(environments, fmt.Sprintf("%s: \"%s\"", key, value))
 		}
 	}
 	if defaultRepoEnv["TESTING_APT_REPO_VERSION"] != "" {
-		playbookStringSuffix += fmt.Sprintf("    datadog_apt_repo: \"deb [signed-by=%s] https://%s/ %s\"\n", defaultRepoEnv["TESTING_APT_KEY"], defaultRepoEnv["TESTING_APT_URL"], defaultRepoEnv["TESTING_APT_REPO_VERSION"])
+		playbookStringSuffix.WriteString(fmt.Sprintf("    datadog_apt_repo: \"deb [signed-by=%s] https://%s/ %s\"\n", defaultRepoEnv["TESTING_APT_KEY"], defaultRepoEnv["TESTING_APT_URL"], defaultRepoEnv["TESTING_APT_REPO_VERSION"]))
 	}
 	if defaultRepoEnv["TESTING_YUM_VERSION_PATH"] != "" {
 		archi := "x86_64"
 		if s.arch == e2eos.ARM64Arch {
 			archi = "aarch64"
 		}
-		playbookStringSuffix += fmt.Sprintf("    datadog_yum_repo: \"https://%s/%s/%s/\"\n", defaultRepoEnv["TESTING_YUM_URL"], defaultRepoEnv["TESTING_YUM_VERSION_PATH"], archi)
+		playbookStringSuffix.WriteString(fmt.Sprintf("    datadog_yum_repo: \"https://%s/%s/%s/\"\n", defaultRepoEnv["TESTING_YUM_URL"], defaultRepoEnv["TESTING_YUM_VERSION_PATH"], archi))
 	}
 	if len(environments) > 0 {
 		var envBuilder strings.Builder
@@ -426,7 +427,7 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
 		playbookStringPrefix += envBuilder.String()
 	}
 
-	playbookString := playbookStringPrefix + playbookStringSuffix
+	playbookString := playbookStringPrefix + playbookStringSuffix.String()
 
 	// Write the playbook to a file
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf("echo '%s' | sudo tee %s", playbookString, playbookPath))

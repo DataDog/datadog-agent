@@ -1,4 +1,5 @@
 name: wincrashdetect
+fleet_configurable: true
 version: 1.0.0
 files:
 - name: wincrashdetect.yaml
@@ -6,6 +7,7 @@ files:
   - template: instances
     options:
     - name: enabled
+      fleet_configurable: true
       value:
         type: boolean
         example: true
@@ -17,6 +19,7 @@ files:
         of system-probe.yaml to be set to true.
       required: false
     - name: tags
+      fleet_configurable: true
       value:
         type: array
         items:

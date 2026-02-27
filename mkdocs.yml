@@ -74,6 +74,9 @@ nav:
 - Tutorials:
   - Develop:
     - Environment usage: tutorials/dev/env.md
+    - Lab environments:
+      - tutorials/dev/lab/index.md
+      - Kind: tutorials/dev/lab/kind.md
 - Guidelines:
   - Contributing: guidelines/contributing.md
   - Documentation: guidelines/docs.md

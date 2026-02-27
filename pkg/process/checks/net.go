@@ -8,6 +8,7 @@ package checks
 import (
 	"fmt"
 	"net/http"
+	"net/netip"
 	"runtime"
 	"sort"
 	"strconv"
@@ -20,11 +21,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
+	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
+	"github.com/DataDog/datadog-agent/pkg/network/indexedset"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -181,18 +184,68 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 
 	log.Debugf("collected connections in %s", time.Since(start))
 
-	c.npCollector.ScheduleConns(conns)
+	c.scheduleNetworkPath(conns)
 
 	getContainersCB := c.getContainerTagsCallback(c.getContainersForExplicitTagging(conns.Conns))
 	getProcessTagsCB := c.getProcessTagsCallback()
 	groupID := nextGroupID()
-	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
+	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor, conns.ResolvConfs)
 	return StandardRunResult(messages), nil
 }
 
 // Cleanup frees any resource held by the ConnectionsCheck before the agent exits
 func (c *ConnectionsCheck) Cleanup() {
 	c.localresolver.Stop()
+}
+
+func (c *ConnectionsCheck) scheduleNetworkPath(conns *model.Connections) {
+	c.npCollector.ScheduleNetworkPathTests(func(yield func(npmodel.NetworkPathConnection) bool) {
+		for _, conn := range conns.Conns {
+			srcIP, err := netip.ParseAddr(conn.Laddr.GetIp())
+			if err != nil {
+				continue
+			}
+			src := netip.AddrPortFrom(srcIP, uint16(conn.Laddr.Port))
+			dstIP, err := netip.ParseAddr(conn.Raddr.GetIp())
+			if err != nil {
+				continue
+			}
+			dest := netip.AddrPortFrom(dstIP, uint16(conn.Raddr.Port))
+			transDest := dest
+			if conn.IpTranslation != nil && conn.IpTranslation.ReplDstIP != "" {
+				transDestIP, err := netip.ParseAddr(conn.IpTranslation.ReplDstIP)
+				if err == nil {
+					transDest = netip.AddrPortFrom(transDestIP, uint16(conn.Raddr.Port))
+				}
+			}
+
+			npc := npmodel.NetworkPathConnection{
+				Source:            src,
+				Dest:              dest,
+				TranslatedDest:    transDest,
+				SourceContainerID: conn.Laddr.GetContainerId(),
+				Domain:            getDNSNameForIP(conns, conn.Raddr.GetIp()),
+				Type:              conn.Type,
+				Direction:         conn.Direction,
+				Family:            conn.Family,
+				IntraHost:         conn.IntraHost,
+				SystemProbeConn:   conn.SystemProbeConn,
+			}
+			if !yield(npc) {
+				return
+			}
+		}
+	})
+}
+
+func getDNSNameForIP(conns *model.Connections, ip string) string {
+	var domain string
+	if dnsEntry := conns.Dns[ip]; dnsEntry != nil && len(dnsEntry.Names) > 0 {
+		// We are only using the first entry for now, but in the future, if we find a good solution,
+		// we might want to report the other DNS names too if necessary (need more investigation on how to best achieve that).
+		domain = dnsEntry.Names[0]
+	}
+	return domain
 }
 
 // getContainersForExplicitTagging returns all containers that are relevant for explicit tagging based on the current connections.
@@ -400,6 +453,7 @@ func batchConnections(
 	tags []string,
 	agentCfg *model.AgentConfiguration,
 	serviceExtractor *parser.ServiceExtractor,
+	resolvConfs []string,
 ) []model.MessageBody {
 	groupSize := groupSize(len(cxs), maxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
@@ -496,6 +550,16 @@ func batchConnections(
 			c.RouteIdx = newIdx
 		}
 
+		// remap resolv.conf indices for this batch
+		resolvConfSet := indexedset.New[string](0)
+		for _, c := range batchConns {
+			if c.ResolvConfIdx >= 0 && int(c.ResolvConfIdx) < len(resolvConfs) {
+				c.ResolvConfIdx = resolvConfSet.Add(resolvConfs[c.ResolvConfIdx])
+			} else {
+				c.ResolvConfIdx = -1
+			}
+		}
+
 		// EncodeDomainDatabase will take the namedb (a simple slice of strings with each unique
 		// domain string) and convert it into a buffer of all of the strings.
 		// indexToOffset contains the map from the string index to where it occurs in the encodedNameDb
@@ -545,6 +609,7 @@ func batchConnections(
 			EncodedConnectionsTags: connectionsTagsEncoder.Buffer(),
 			EncodedTags:            tagsEncoder.Buffer(),
 			HostTagsIndex:          int32(hostTagsIndex),
+			ResolvConfs:            resolvConfSet.UniqueKeys(),
 		}
 
 		// Add OS telemetry
@@ -581,17 +646,14 @@ func groupSize(total, maxBatchSize int) int32 {
 // converts the tags based on the tagOffsets for encoding. It also enriches it with service context if any
 func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceCtxs ...string) []string {
 	tagCount := len(tagOffsets) + len(serviceCtxs)
+	if tagCount == 0 {
+		return nil
+	}
 	tagsStr := make([]string, 0, tagCount)
 	for _, t := range tagOffsets {
 		tagsStr = append(tagsStr, tags[t])
 	}
-
-	for _, serviceCtx := range serviceCtxs {
-		if serviceCtx != "" {
-			tagsStr = append(tagsStr, serviceCtx)
-		}
-	}
-
+	tagsStr = append(tagsStr, serviceCtxs...)
 	return tagsStr
 }
 

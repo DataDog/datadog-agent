@@ -67,7 +67,13 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
     },
     "timestamp": "[ts]",
     "message": "{s: foo}"
@@ -141,7 +147,13 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
     },
     "timestamp": "[ts]",
     "message": "{s: foo}"
@@ -214,7 +226,13 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
     },
     "timestamp": "[ts]",
     "message": "{i: 42}"
@@ -288,7 +306,13 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
     },
     "timestamp": "[ts]",
     "message": "{i: 42}"
@@ -356,7 +380,13 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
     },
     "timestamp": "[ts]",
     "message": "nil"
@@ -414,16 +444,18 @@
             "arguments": {
               "b": {
                 "type": "main.behavior",
-                "fields": {
-                  "data": {
-                    "isNull": true
-                  }
-                }
+                "isNull": true
               }
             }
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
     },
     "timestamp": "[ts]",
     "message": "nil"

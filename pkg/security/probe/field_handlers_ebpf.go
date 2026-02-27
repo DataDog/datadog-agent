@@ -94,7 +94,7 @@ func (fh *EBPFFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *model.
 // ResolveFilePath resolves the inode to a full path
 func (fh *EBPFFieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent) string {
 	if !f.IsPathnameStrResolved && len(f.PathnameStr) == 0 {
-		path, mountPath, source, origin, err := fh.resolvers.PathResolver.ResolveFileFieldsPath(&f.FileFields, &ev.PIDContext)
+		path, mountPath, source, origin, err := fh.resolvers.PathResolver.ResolveFullFilePath(&f.FileFields, &ev.PIDContext)
 		if err != nil {
 			ev.SetPathResolutionError(f, err)
 		}
@@ -219,36 +219,6 @@ func (fh *EBPFFieldHandlers) ResolveMountRootPath(ev *model.Event, e *model.Moun
 		e.MountRootPath = mountRootPath
 	}
 	return e.MountRootPath
-}
-
-func (fh *EBPFFieldHandlers) containerIDFromCgroupID(cgroupID containerutils.CGroupID) containerutils.ContainerID {
-	if containerID, ok := fh.cgroupIDcache.Get(cgroupID); ok {
-		return containerID
-	}
-
-	cid := containerutils.FindContainerID(cgroupID)
-	fh.cgroupIDcache.Add(cgroupID, cid)
-	return cid
-}
-
-// ResolveContainerContext queries the cgroup resolver to retrieve the ContainerContext of the event
-func (fh *EBPFFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
-	if ev.ProcessContext.ContainerContext.Resolved {
-		return &ev.ProcessContext.ContainerContext, ev.ProcessContext.ContainerContext.Resolved
-	}
-
-	if ev.ProcessContext.Process.ContainerContext.ContainerID == "" {
-		ev.ProcessContext.Process.ContainerContext.ContainerID = fh.containerIDFromCgroupID(ev.ProcessContext.Process.CGroup.CGroupID)
-	}
-
-	if ev.ProcessContext.ContainerContext.ContainerID != "" {
-		if containerContext, _ := fh.resolvers.CGroupResolver.GetWorkload(ev.ProcessContext.ContainerContext.ContainerID); containerContext != nil {
-			ev.ProcessContext.ContainerContext = containerContext.ContainerContext
-			ev.ProcessContext.ContainerContext.Resolved = true
-		}
-	}
-
-	return &ev.ProcessContext.ContainerContext, ev.ProcessContext.ContainerContext.Resolved
 }
 
 // ResolveRights resolves the rights of a file
@@ -393,16 +363,6 @@ func (fh *EBPFFieldHandlers) ResolveSELinuxBoolName(_ *model.Event, e *model.SEL
 		e.BoolName = fh.resolvers.PathResolver.ResolveBasename(&e.File.FileFields)
 	}
 	return e.BoolName
-}
-
-// GetProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
-func (fh *EBPFFieldHandlers) GetProcessCacheEntry(ev *model.Event, newEntryCb func(*model.ProcessCacheEntry, error)) (*model.ProcessCacheEntry, bool) {
-	ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid, ev.PIDContext.ExecInode, false, newEntryCb)
-	if ev.ProcessCacheEntry == nil {
-		ev.ProcessCacheEntry = model.GetPlaceholderProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, false)
-		return ev.ProcessCacheEntry, false
-	}
-	return ev.ProcessCacheEntry, true
 }
 
 // ResolveFileFieldsGroup resolves the group id of the file to a group name
@@ -561,35 +521,18 @@ func (fh *EBPFFieldHandlers) ResolveModuleArgs(_ *model.Event, module *model.Loa
 
 // ResolveHashesFromEvent resolves the hashes of the requested event
 func (fh *EBPFFieldHandlers) ResolveHashesFromEvent(ev *model.Event, f *model.FileEvent) []string {
-	return fh.resolvers.HashResolver.ComputeHashesFromEvent(ev, f)
+	return fh.resolvers.HashResolver.ComputeHashesFromEvent(ev, f, 0)
 }
 
 // ResolveHashes resolves the hashes of the requested file event
 func (fh *EBPFFieldHandlers) ResolveHashes(eventType model.EventType, process *model.Process, file *model.FileEvent) []string {
-	return fh.resolvers.HashResolver.ComputeHashes(eventType, process, file)
-}
-
-// ResolveCGroupID resolves the cgroup ID of the event
-func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, cont *model.CGroupContext) string {
-	if len(cont.CGroupID) == 0 {
-		if entry, _ := fh.ResolveProcessCacheEntry(ev, nil); entry != nil {
-			if entry.CGroup.CGroupID != "" && entry.CGroup.CGroupID != "/" {
-				return string(entry.CGroup.CGroupID)
-			}
-
-			if cgroupContext, _, err := fh.resolvers.ResolveCGroupContext(cont.CGroupFile); err == nil {
-				ev.ProcessContext.CGroup = *cgroupContext
-			}
-		}
-	}
-
-	return string(cont.CGroupID)
+	return fh.resolvers.HashResolver.ComputeHashes(eventType, process, file, 0)
 }
 
 // ResolveCGroupVersion resolves the version of the cgroup API
 func (fh *EBPFFieldHandlers) ResolveCGroupVersion(ev *model.Event, e *model.CGroupContext) int {
 	if e.CGroupVersion == 0 {
-		if filesystem, _ := fh.resolvers.MountResolver.ResolveFilesystem(e.CGroupFile.MountID, ev.PIDContext.Pid); filesystem == "cgroup2" {
+		if filesystem, _ := fh.resolvers.MountResolver.ResolveFilesystem(e.CGroupPathKey.MountID, ev.PIDContext.Pid); filesystem == "cgroup2" {
 			e.CGroupVersion = 2
 		} else {
 			e.CGroupVersion = 1
@@ -607,16 +550,6 @@ func (fh *EBPFFieldHandlers) ResolveContainerID(ev *model.Event, e *model.Contai
 		}
 	}
 	return string(e.ContainerID)
-}
-
-// ResolveContainerCreatedAt resolves the container creation time of the event
-func (fh *EBPFFieldHandlers) ResolveContainerCreatedAt(ev *model.Event, e *model.ContainerContext) int {
-	if e.CreatedAt == 0 {
-		if containerContext, _ := fh.ResolveContainerContext(ev); containerContext != nil {
-			e.CreatedAt = containerContext.CreatedAt
-		}
-	}
-	return int(e.CreatedAt)
 }
 
 // ResolveContainerTags resolves the container tags of the event
@@ -1096,10 +1029,20 @@ func (fh *EBPFFieldHandlers) ResolveSessionIdentity(e *model.Event, evtCtx *mode
 	if evtCtx.K8SUsername != "" {
 		sessionIdentity = evtCtx.K8SUsername
 	} else if evtCtx.SSHClientPort != 0 {
-		sessionIdentity = fmt.Sprintf("%s:%d", evtCtx.SSHClientIP.String(), evtCtx.SSHClientPort)
+		sessionIdentity = evtCtx.SSHClientIP.String() + ":" + strconv.Itoa(evtCtx.SSHClientPort)
 	} else {
 		sessionIdentity = e.ProcessContext.User
 	}
 	evtCtx.Identity = sessionIdentity
 	return sessionIdentity
+}
+
+// ResolveSignature resolves the event signature
+func (fh *EBPFFieldHandlers) ResolveSignature(e *model.Event) string {
+	if e.Signature == "" && e.ProcessContext != nil {
+		if sign, err := fh.resolvers.SignatureResolver.Sign(e.ProcessContext); err == nil && sign != "" {
+			e.Signature = sign
+		}
+	}
+	return e.Signature
 }

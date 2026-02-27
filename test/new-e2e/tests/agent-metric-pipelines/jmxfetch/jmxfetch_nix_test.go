@@ -34,7 +34,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 //go:embed testdata/docker-labels.yaml
@@ -63,9 +63,7 @@ func testJMXFetchNix(t *testing.T, mtls bool, fips bool) {
 		extraManifests = append(extraManifests, *mtlsManifest)
 	}
 
-	// causes all sorts of `suite.go:493: unable to create session output directory:` errors
-	// due to race to create /home/vagrant/e2e-output/latest from every test
-	// t.Parallel()
+	t.Parallel()
 
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(
 		awsdocker.Provisioner(
@@ -308,9 +306,11 @@ type checkInstance struct {
 	KeyStorePassword   *string `json:"key_store_password,omitempty"`
 	TrustStorePath     *string `json:"trust_store_path,omitempty"`
 	TrustStorePassword *string `json:"trust_store_password,omitempty"`
+	JavaOptions        *string `json:"java_options"`
 }
 
 var defaultJavaPassword = "changeit"
+var javaOptionsNoCertCheck = "-Djdk.rmi.ssl.client.enableEndpointIdentification=false"
 
 const adLabelName = "com.datadoghq.ad.checks"
 
@@ -333,6 +333,7 @@ func makeADLabelsManifest(mtls bool, fips bool) (*docker.ComposeInlineManifest, 
 			instance.KeyStorePassword = &defaultJavaPassword
 			instance.TrustStorePath = &truststorePath
 			instance.TrustStorePassword = &defaultJavaPassword
+			instance.JavaOptions = &javaOptionsNoCertCheck
 		})
 		if err != nil {
 			return nil, err

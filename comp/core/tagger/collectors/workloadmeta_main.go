@@ -30,15 +30,17 @@ import (
 const (
 	workloadmetaCollectorName = "workloadmeta"
 
-	staticSource         = workloadmetaCollectorName + "-static"
-	podSource            = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
-	taskSource           = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
-	containerSource      = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
-	containerImageSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainerImageMetadata)
-	processSource        = workloadmetaCollectorName + "-" + string(workloadmeta.KindProcess)
-	kubeMetadataSource   = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesMetadata)
-	deploymentSource     = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesDeployment)
-	gpuSource            = workloadmetaCollectorName + "-" + string(workloadmeta.KindGPU)
+	staticSource           = workloadmetaCollectorName + "-static"
+	podSource              = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
+	taskSource             = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
+	containerSource        = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
+	containerImageSource   = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainerImageMetadata)
+	processSource          = workloadmetaCollectorName + "-" + string(workloadmeta.KindProcess)
+	kubeMetadataSource     = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesMetadata)
+	deploymentSource       = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesDeployment)
+	gpuSource              = workloadmetaCollectorName + "-" + string(workloadmeta.KindGPU)
+	crdSource              = workloadmetaCollectorName + "-" + string(workloadmeta.KindCRD)
+	kubeCapabilitiesSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubeCapabilities)
 
 	clusterTagNamePrefix = tags.KubeClusterName
 )
@@ -66,6 +68,11 @@ type WorkloadMetaCollector struct {
 
 	collectEC2ResourceTags            bool
 	collectPersistentVolumeClaimsTags bool
+
+	// entityCompleteness tracks raw per-entity completeness from workloadmeta
+	// events. This is the completeness of the entity itself, without
+	// considering cross-entity dependencies (for example, a container's pod).
+	entityCompleteness map[workloadmeta.EntityID]bool
 }
 
 func (c *WorkloadMetaCollector) initContainerMetaAsTags(labelsAsTags, envAsTags map[string]string) {
@@ -178,6 +185,7 @@ func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store w
 		staticTags:                        make(map[string][]string),
 		collectEC2ResourceTags:            cfg.GetBool("ecs_collect_resource_tags_ec2"),
 		collectPersistentVolumeClaimsTags: cfg.GetBool("kubernetes_persistent_volume_claims_as_tags"),
+		entityCompleteness:                make(map[workloadmeta.EntityID]bool),
 	}
 
 	containerLabelsAsTags := mergeMaps(

@@ -21,7 +21,7 @@ import (
 	"strings"
 
 	"go.uber.org/multierr"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
@@ -397,6 +397,30 @@ func (a *InjectorInstaller) addLocalStableConfig(ctx context.Context) (err error
 			if a.Env.InstallScript.ProfilingEnabled != "" {
 				hasChanged = true
 				cfg.Default.ProfilingEnabled = &a.Env.InstallScript.ProfilingEnabled
+			}
+			if a.Env.InstallScript.TracerLogsCollectionEnabled != nil {
+				hasChanged = true
+				cfg.Default.LogsCollectionEnabled = a.Env.InstallScript.TracerLogsCollectionEnabled
+			}
+			if a.Env.InstallScript.RumEnabled != nil {
+				hasChanged = true
+				cfg.Default.RumEnabled = a.Env.InstallScript.RumEnabled
+			}
+			if a.Env.InstallScript.RumApplicationID != "" {
+				hasChanged = true
+				cfg.Default.RumApplicationID = a.Env.InstallScript.RumApplicationID
+			}
+			if a.Env.InstallScript.RumClientToken != "" {
+				hasChanged = true
+				cfg.Default.RumClientToken = a.Env.InstallScript.RumClientToken
+			}
+			if a.Env.InstallScript.RumRemoteConfigurationID != "" {
+				hasChanged = true
+				cfg.Default.RumRemoteConfigurationID = a.Env.InstallScript.RumRemoteConfigurationID
+			}
+			if a.Env.InstallScript.RumSite != "" {
+				hasChanged = true
+				cfg.Default.RumSite = a.Env.InstallScript.RumSite
 			}
 
 			// Avoid creating a .backup file and overwriting the existing file if no changes were made

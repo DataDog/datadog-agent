@@ -37,9 +37,9 @@ const (
 )
 
 var (
-	gatewayGVR = schema.GroupVersionResource{Resource: "gatewayclasses", Group: "gateway.networking.k8s.io", Version: "v1"}
-	filterGVR  = schema.GroupVersionResource{Resource: "envoyfilters", Group: "networking.istio.io", Version: "v1alpha3"}
-	crdGVR     = schema.GroupVersionResource{Resource: "customresourcedefinitions", Group: "apiextensions.k8s.io", Version: "v1"}
+	gatewayClassGVR = schema.GroupVersionResource{Resource: "gatewayclasses", Group: "gateway.networking.k8s.io", Version: "v1"}
+	filterGVR       = schema.GroupVersionResource{Resource: "envoyfilters", Group: "networking.istio.io", Version: "v1alpha3"}
+	crdGVR          = schema.GroupVersionResource{Resource: "customresourcedefinitions", Group: "apiextensions.k8s.io", Version: "v1"}
 )
 
 type istioInjectionPattern struct {
@@ -49,59 +49,68 @@ type istioInjectionPattern struct {
 	eventRecorder eventRecorder
 }
 
+func (i *istioInjectionPattern) Mode() appsecconfig.InjectionMode {
+	return i.config.Mode
+}
+
 func (i *istioInjectionPattern) IsInjectionPossible(ctx context.Context) error {
 	gvrToName := func(gvr schema.GroupVersionResource) string {
-		return fmt.Sprintf("%s.%s", gvr.Resource, gvr.Group)
+		return gvr.Resource + "." + gvr.Group
 	}
 
 	// Check if the EnvoyFilter CRD is present
 	_, err := i.client.Resource(crdGVR).Get(ctx, gvrToName(filterGVR), metav1.GetOptions{})
 	if k8serrors.IsNotFound(err) {
-		return fmt.Errorf("%w: EnvoyExtensionPolicy CRD not found, is the Istio CRDs installed in the cluster? Cannot enable appsec proxy injection for istio", err)
+		return fmt.Errorf("%w: EnvoyFilter CRD not found, is the Istio CRDs installed in the cluster? Cannot enable appsec proxy injection for istio", err)
 	}
 
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: error getting EnvoyFilter", err)
 	}
 
 	// Check if the Gateway CRDs is present
-	_, err = i.client.Resource(crdGVR).Get(ctx, gvrToName(gatewayGVR), metav1.GetOptions{})
+	_, err = i.client.Resource(crdGVR).Get(ctx, gvrToName(gatewayClassGVR), metav1.GetOptions{})
 	if k8serrors.IsNotFound(err) {
 		return fmt.Errorf("%w: Gateway CRD not found, are the Istio CRDs installed in the cluster? Cannot enable appsec proxy injection for istio", err)
 	}
 
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: error getting Gateway", err)
 	}
 
-	return err
+	return nil
 }
 
 func (i *istioInjectionPattern) Resource() schema.GroupVersionResource {
-	return gatewayGVR
+	return gatewayClassGVR
 }
 
 func (i *istioInjectionPattern) Namespace() string {
 	return v1.NamespaceAll
 }
 
-func (i *istioInjectionPattern) Added(ctx context.Context, obj *unstructured.Unstructured) error {
+func isGatewayClassFromIstio(obj *unstructured.Unstructured) (bool, error) {
 	controllerName, found, err := unstructured.NestedString(obj.UnstructuredContent(), "spec", "controllerName")
 	if err != nil || !found {
 		if err == nil {
 			err = errors.New("controllerName not found in gateway spec")
 		}
-		return fmt.Errorf("could not get gateway controller name: %w", err)
+		return false, fmt.Errorf("could not get gateway controller name: %w", err)
 	}
 
-	if controllerName != istioGatewayControllerName {
-		return nil // Not an Istio gateway class, skip
+	return controllerName == istioGatewayControllerName, nil
+}
+
+func (i *istioInjectionPattern) Added(ctx context.Context, obj *unstructured.Unstructured) error {
+	if ok, err := isGatewayClassFromIstio(obj); !ok || err != nil {
+		// An error happened or the gateway class is not from istio, either way we bail.
+		return err
 	}
 
 	name := obj.GetName()
 	namespace := i.config.IstioNamespace
 	i.logger.Debugf("Processing added gatewayclass for istio: %s", name)
-	_, err = i.client.Resource(filterGVR).Namespace(namespace).Get(ctx, envoyFilterName, metav1.GetOptions{})
+	_, err := i.client.Resource(filterGVR).Namespace(namespace).Get(ctx, envoyFilterName, metav1.GetOptions{})
 	if err == nil {
 		i.logger.Debug("Envoy Filter already exists")
 		return nil
@@ -165,7 +174,10 @@ func (i *istioInjectionPattern) Deleted(ctx context.Context, obj *unstructured.U
 }
 
 func (i *istioInjectionPattern) createEnvoyFilter(ctx context.Context, namespace string) error {
-	filter := i.newFilter(namespace)
+	filter, err := i.newFilter(namespace)
+	if err != nil {
+		return fmt.Errorf("could not create Envoy Filter: %w", err)
+	}
 
 	unstructuredFilter, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&filter)
 	if err != nil {
@@ -189,20 +201,36 @@ func (i *istioInjectionPattern) createEnvoyFilter(ctx context.Context, namespace
 	return nil
 }
 
-func (i *istioInjectionPattern) newFilter(namespace string) istiov1alpha3.EnvoyFilter {
+func (i *istioInjectionPattern) newFilter(namespace string) (istiov1alpha3.EnvoyFilter, error) {
 	const clusterName = "datadog_appsec_ext_proc_cluster"
-	processorAddress := fmt.Sprintf("%s.%s.svc", i.config.Processor.ServiceName, i.config.Processor.Namespace)
+	var (
+		processorAddress string
+		processorPort    int
+	)
+	switch i.Mode() {
+	case appsecconfig.InjectionModeExternal:
+		if i.config.Processor.Address == "" {
+			processorAddress = i.config.Processor.ServiceName + "." + i.config.Processor.Namespace + ".svc"
+		} else {
+			processorAddress = i.config.Processor.Address
+		}
+		processorPort = i.config.Processor.Port
+	default:
+		i.logger.Warnf("No injection mode defined, defaults to sending traffic to a sidecar")
+		fallthrough
+	case appsecconfig.InjectionModeSidecar:
+		processorAddress = "127.0.0.1"
+		processorPort = i.config.Sidecar.Port
+	}
 
 	httpFilterPatch, err := i.buildHTTPFilterPatch(clusterName)
 	if err != nil {
-		i.logger.Errorf("Failed to build HTTP filter patch: %v", err)
-		// Return empty filter on error - caller will handle
+		return istiov1alpha3.EnvoyFilter{}, fmt.Errorf("could not build Envoy Filter patch: %w", err)
 	}
 
-	clusterPatch, err := i.buildClusterPatch(clusterName, processorAddress)
+	clusterPatch, err := i.buildClusterPatch(clusterName, processorAddress, processorPort)
 	if err != nil {
-		i.logger.Errorf("Failed to build cluster patch: %v", err)
-		// Return empty filter on error - caller will handle
+		return istiov1alpha3.EnvoyFilter{}, fmt.Errorf("could not build Envoy Filter patch: %w", err)
 	}
 
 	return istiov1alpha3.EnvoyFilter{
@@ -222,7 +250,7 @@ func (i *istioInjectionPattern) newFilter(namespace string) istiov1alpha3.EnvoyF
 				clusterPatch,
 			},
 		},
-	}
+	}, nil
 }
 
 // buildHTTPFilterPatch creates the HTTP_FILTER patch for the ext_proc filter
@@ -238,6 +266,10 @@ func (i *istioInjectionPattern) buildHTTPFilterPatch(clusterName string) (*istio
 				"initial_metadata": []any{
 					map[string]any{
 						"key":   "x-datadog-envoy-integration",
+						"value": "1",
+					},
+					map[string]any{
+						"key":   "x-datadog-appsec-injector",
 						"value": "1",
 					},
 				},
@@ -279,7 +311,7 @@ func (i *istioInjectionPattern) buildHTTPFilterPatch(clusterName string) (*istio
 }
 
 // buildClusterPatch creates the CLUSTER patch for the Datadog External Processing service
-func (i *istioInjectionPattern) buildClusterPatch(clusterName, processorAddress string) (*istionetworkingv1alpha3.EnvoyFilter_EnvoyConfigObjectPatch, error) {
+func (i *istioInjectionPattern) buildClusterPatch(clusterName, processorAddress string, processorPort int) (*istionetworkingv1alpha3.EnvoyFilter_EnvoyConfigObjectPatch, error) {
 	patchValue, err := structpb.NewStruct(map[string]any{
 		"name":                   clusterName,
 		"type":                   "STRICT_DNS",
@@ -295,7 +327,7 @@ func (i *istioInjectionPattern) buildClusterPatch(clusterName, processorAddress 
 								"address": map[string]any{
 									"socket_address": map[string]any{
 										"address":    processorAddress,
-										"port_value": i.config.Processor.Port,
+										"port_value": processorPort,
 									},
 								},
 							},
@@ -328,7 +360,7 @@ func (i *istioInjectionPattern) buildClusterPatch(clusterName, processorAddress 
 
 // New returns a new InjectionPattern for Envoy Gateway
 func New(client dynamic.Interface, logger log.Component, config appsecconfig.Config, eventRecorderInstance record.EventRecorder) appsecconfig.InjectionPattern {
-	return &istioInjectionPattern{
+	pattern := &istioInjectionPattern{
 		client: client,
 		logger: logger,
 		config: config,
@@ -336,4 +368,10 @@ func New(client dynamic.Interface, logger log.Component, config appsecconfig.Con
 			recorder: eventRecorderInstance,
 		},
 	}
+
+	if config.Mode == appsecconfig.InjectionModeSidecar {
+		return &istioGatewaySidecarPattern{istioInjectionPattern: pattern}
+	}
+
+	return pattern
 }

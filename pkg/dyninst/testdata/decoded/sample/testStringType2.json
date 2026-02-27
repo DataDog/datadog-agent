@@ -23,7 +23,7 @@
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 287
+            "lineNumber": 290
           },
           {
             "function": "main.main",
@@ -57,7 +57,13 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
     },
     "timestamp": "[ts]",
     "message": "{pointer: not captured at 0x[addr]}"

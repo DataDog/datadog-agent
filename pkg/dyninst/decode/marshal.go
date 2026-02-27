@@ -38,10 +38,11 @@ type debuggerData struct {
 }
 
 type messageData struct {
-	duration    *uint64
-	entryOrLine *captureEvent
-	_return     *captureEvent
-	template    *ir.Template
+	duration              *uint64
+	durationMissingReason *string
+	entryOrLine           *captureEvent
+	_return               *captureEvent
+	template              *ir.Template
 }
 
 func (m *messageData) MarshalJSONTo(enc *jsontext.Encoder) error {
@@ -83,7 +84,11 @@ func (m *messageData) MarshalJSONTo(enc *jsontext.Encoder) error {
 			writeBoundedError(&result, limits, "error", seg.Error)
 		case *ir.DurationSegment:
 			if m.duration == nil {
-				writeBoundedError(&result, limits, "error", "@duration is not available")
+				if m.durationMissingReason != nil {
+					writeBoundedError(&result, limits, "error", *m.durationMissingReason)
+				} else {
+					writeBoundedError(&result, limits, "error", "@duration is not available")
+				}
 			} else {
 				n, _ := fmt.Fprintf(&result, "%f", time.Duration(*m.duration).Seconds()*1000)
 				limits.consume(n)
@@ -298,7 +303,12 @@ func (ce *captureEvent) init(
 			continue
 		}
 		key := typeAndAddr{irType: item.Type(), addr: item.Header().Address}
-		ce.dataItems[key] = item
+		// We may capture dynamically sized objects multiple times with different lengths.
+		// Here we just pick the most data we have, decoder will look at relevant prefix.
+		prev, exists := ce.dataItems[key]
+		if !exists || prev.Header().Length < item.Header().Length {
+			ce.dataItems[key] = item
+		}
 	}
 	if rootType == nil {
 		return errors.New("no root type found")
@@ -386,6 +396,7 @@ func (ce *captureEvent) MarshalJSONTo(enc *jsontext.Encoder) error {
 	}{
 		{kind: ir.RootExpressionKindArgument, token: jsontext.String("arguments")},
 		{kind: ir.RootExpressionKindLocal, token: jsontext.String("locals")},
+		{kind: ir.RootExpressionKindCaptureExpression, token: jsontext.String("captureExpressions")},
 	} {
 		// We iterate over the 'Expressions' of the EventRoot which contains
 		// metadata and raw bytes of the parameters of this function.

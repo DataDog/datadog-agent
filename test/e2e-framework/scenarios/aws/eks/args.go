@@ -15,15 +15,14 @@ type Params struct {
 	LinuxARMNodeGroup     bool
 	BottleRocketNodeGroup bool
 	WindowsNodeGroup      bool
-	UseAL2023Nodes        bool
+	GPUNodeGroup          bool
+	GPUInstanceType       string
 }
 
 type Option = func(*Params) error
 
 func NewParams(options ...Option) (*Params, error) {
-	version := &Params{
-		UseAL2023Nodes: true,
-	}
+	version := &Params{}
 	return common.ApplyOption(version, options)
 }
 
@@ -55,9 +54,16 @@ func WithWindowsNodeGroup() Option {
 	}
 }
 
-func WithUseAL2023Nodes() Option {
+// WithGPUNodeGroup enables creation of a GPU-enabled node group.
+// instanceType should be a GPU instance type (e.g., "g4dn.xlarge", "g4dn.12xlarge", "g5.xlarge").
+// If instanceType is empty, it defaults to "g4dn.xlarge" (1x NVIDIA T4 GPU, cheapest option).
+func WithGPUNodeGroup(instanceType string) Option {
 	return func(p *Params) error {
-		p.UseAL2023Nodes = true
+		p.GPUNodeGroup = true
+		if instanceType == "" {
+			instanceType = "g4dn.xlarge" // Default: 1x T4 GPU, ~$0.526/hr on-demand
+		}
+		p.GPUInstanceType = instanceType
 		return nil
 	}
 }
@@ -76,6 +82,9 @@ func buildClusterOptionsFromConfigMap(e aws.Environment) []Option {
 	}
 	if e.EKSBottlerocketNodeGroup() {
 		clusterOptions = append(clusterOptions, WithBottlerocketNodeGroup())
+	}
+	if e.EKSGPUNodeGroup() {
+		clusterOptions = append(clusterOptions, WithGPUNodeGroup(e.EKSGPUInstanceType()))
 	}
 	return clusterOptions
 }

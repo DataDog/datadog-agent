@@ -218,3 +218,50 @@ func TestSecureCreateTargetDirectoryWithSourcePermissions(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, sourceSD.String(), targetSD.String())
 }
+
+// TestDeploymentIDAfterRollback reproduces the bug where RemoveExperiment incorrectly
+// copies the experiment deployment ID to stable during rollback.
+func TestDeploymentIDAfterRollback(t *testing.T) {
+	stablePath := t.TempDir()
+	experimentPath := t.TempDir()
+
+	dirs := &Directories{
+		StablePath:     stablePath,
+		ExperimentPath: experimentPath,
+	}
+
+	// Initial state: no deployment IDs
+	assertDeploymentID(t, dirs, "", "")
+
+	// Start a config experiment with deployment ID "abc-def-ghi"
+	err := dirs.WriteExperiment(context.Background(), Operations{
+		DeploymentID: "abc-def-ghi",
+		FileOperations: []FileOperation{
+			{FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)},
+		},
+	})
+	assert.NoError(t, err)
+
+	// After WriteExperiment:
+	// - stable should have empty deployment ID (no changes promoted yet)
+	// - experiment should have "abc-def-ghi"
+	assertDeploymentID(t, dirs, "", "abc-def-ghi")
+
+	// Now rollback the experiment
+	err = dirs.RemoveExperiment(context.Background())
+	assert.NoError(t, err)
+
+	// BUG: After RemoveExperiment, stable deployment ID is incorrectly set to "abc-def-ghi"
+	// Expected: stable should remain empty since no config was ever promoted
+	// Actual: stable gets "abc-def-ghi" copied from experiment during restore
+	state, err := dirs.GetState()
+	assert.NoError(t, err)
+
+	// This assertion will FAIL, exposing the bug:
+	// RemoveExperiment calls backupOrRestoreDirectory(experiment -> stable) which copies
+	// the deployment ID from experiment/.deployment-id to stable/.deployment-id
+	assert.Equal(t, "", state.StableDeploymentID,
+		"BUG: stable_config_version should remain empty after rollback, but got: %s",
+		state.StableDeploymentID)
+	assert.Equal(t, "", state.ExperimentDeploymentID, "experiment should be deleted")
+}

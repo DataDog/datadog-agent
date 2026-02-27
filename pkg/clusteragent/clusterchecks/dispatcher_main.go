@@ -9,10 +9,12 @@ package clusterchecks
 
 import (
 	"context"
-	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -43,6 +45,7 @@ type dispatcher struct {
 	ksmSharding                      *ksmShardingManager
 	ksmShardingMutex                 sync.Mutex          // Protects ksmShardedConfigs
 	ksmShardedConfigs                map[string][]string // Maps original config digest -> shard digests, protected by ksmShardingMutex
+	tracingEnabled                   bool
 }
 
 func newDispatcher(tagger tagger.Component) *dispatcher {
@@ -73,7 +76,7 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 	clusterTagName := pkgconfigsetup.Datadog().GetString("cluster_checks.cluster_tag_name")
 	if clusterTagValue != "" {
 		if clusterTagName != "" && !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
-			d.extraTags = append(d.extraTags, fmt.Sprintf("%s:%s", clusterTagName, clusterTagValue))
+			d.extraTags = append(d.extraTags, clusterTagName+":"+clusterTagValue)
 			log.Info("Adding both tags cluster_name and kube_cluster_name. You can use 'disable_cluster_name_tag_key' in the Agent config to keep the kube_cluster_name tag only")
 		}
 		d.extraTags = append(d.extraTags, tags.KubeClusterName+":"+clusterTagValue)
@@ -105,6 +108,7 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 		}
 	}
 
+	d.tracingEnabled = pkgconfigsetup.Datadog().GetBool("cluster_agent.tracing.enabled")
 	d.rebalancingPeriod = pkgconfigsetup.Datadog().GetDuration("cluster_checks.rebalance_period")
 	advancedDispatchingEnabled := pkgconfigsetup.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled")
 	if !advancedDispatchingEnabled {
@@ -147,9 +151,31 @@ func (d *dispatcher) Stop() {
 
 // Schedule implements the scheduler.Scheduler interface
 func (d *dispatcher) Schedule(configs []integration.Config) {
+	var failedConfigs, excludedConfigs int
+	if d.tracingEnabled {
+		span := tracer.StartSpan("cluster_checks.dispatcher.schedule",
+			tracer.ResourceName("schedule_configs"),
+			tracer.SpanType("worker"))
+		span.SetTag("config_count", len(configs))
+		checkNames := make([]string, 0, len(configs))
+		for _, c := range configs {
+			checkNames = append(checkNames, c.Name)
+		}
+		span.SetTag("check_names", strings.Join(checkNames, ","))
+		defer func() {
+			span.SetTag("excluded_configs", excludedConfigs)
+			span.SetTag("failed_configs", failedConfigs)
+			if failedConfigs > 0 {
+				span.SetTag("error", true)
+			}
+			span.Finish()
+		}()
+	}
+
 	for _, c := range configs {
 		if _, found := d.excludedChecks[c.Name]; found {
 			log.Infof("Excluding check due to config: %s", c.Name)
+			excludedConfigs++
 			continue
 		}
 
@@ -167,6 +193,7 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 			patched, err := d.patchEndpointsConfiguration(c)
 			if err != nil {
 				log.Warnf("Cannot patch endpoint configuration %s: %s", c.Digest(), err)
+				failedConfigs++
 				continue
 			}
 			d.addEndpointConfig(patched, c.NodeName)
@@ -182,6 +209,7 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 		patched, err := d.patchConfiguration(c)
 		if err != nil {
 			log.Warnf("Cannot patch configuration %s: %s", c.Digest(), err)
+			failedConfigs++
 			continue
 		}
 		d.add(patched)
@@ -190,6 +218,21 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 
 // Unschedule implements the scheduler.Scheduler interface
 func (d *dispatcher) Unschedule(configs []integration.Config) {
+	var failedConfigs int
+	if d.tracingEnabled {
+		span := tracer.StartSpan("cluster_checks.dispatcher.unschedule",
+			tracer.ResourceName("unschedule_configs"),
+			tracer.SpanType("worker"))
+		span.SetTag("config_count", len(configs))
+		defer func() {
+			span.SetTag("failed_configs", failedConfigs)
+			if failedConfigs > 0 {
+				span.SetTag("error", true)
+			}
+			span.Finish()
+		}()
+	}
+
 	for _, c := range configs {
 		if !c.ClusterCheck {
 			continue // Ignore non cluster-check configs
@@ -204,6 +247,7 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 			patched, err := d.patchEndpointsConfiguration(c)
 			if err != nil {
 				log.Warnf("Cannot patch endpoint configuration %s: %s", c.Digest(), err)
+				failedConfigs++
 				continue
 			}
 			d.removeEndpointConfig(patched, c.NodeName)
@@ -212,6 +256,7 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 		patched, err := d.patchConfiguration(c)
 		if err != nil {
 			log.Warnf("Cannot patch configuration %s: %s", c.Digest(), err)
+			failedConfigs++
 			continue
 		}
 		d.remove(patched)

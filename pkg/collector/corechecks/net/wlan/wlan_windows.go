@@ -9,12 +9,12 @@
 package wlan
 
 import (
-	"errors"
 	"fmt"
-	"strings"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // WLAN API structures and constants
@@ -31,11 +31,13 @@ var (
 	// wlanGetNetworkBssList = wlanAPI.NewProc("WlanGetNetworkBssList")
 	wlanFreeMemory = wlanAPI.NewProc("WlanFreeMemory")
 
-	iphlpapi        = windows.NewLazyDLL("iphlpapi.dll")
-	getAdaptersInfo = iphlpapi.NewProc("GetAdaptersInfo")
+	iphlpapi                   = windows.NewLazyDLL("iphlpapi.dll")
+	getIfEntry2                = iphlpapi.NewProc("GetIfEntry2")
+	convertInterfaceGuidToLuid = iphlpapi.NewProc("ConvertInterfaceGuidToLuid")
 
-	ole32           = windows.NewLazyDLL("ole32.dll")
-	clsidFromString = ole32.NewProc("CLSIDFromString")
+	// getWiFiInfo is a package-level function variable for testability
+	// Tests can reassign this to mock WiFi data retrieval
+	getWiFiInfo func() (wifiInfo, error)
 )
 
 // https://learn.microsoft.com/en-us/windows/win32/api/wlanapi/ne-wlanapi-wlan_interface_state-r1
@@ -162,20 +164,6 @@ const (
 	DOT11_CIPHER_ALGO_IHV_END       DOT11_CIPHER_ALGORITHM = 0xffffffff
 )
 
-// Constants
-const (
-	MAX_ADAPTER_NAME_LENGTH        = 256
-	MAX_ADAPTER_DESCRIPTION_LENGTH = 128
-	MAX_ADAPTER_ADDRESS_LENGTH     = 8
-)
-
-// MIB_IF_TYPE constants (WiFi is usually IF_TYPE_IEEE80211 - 71)
-const (
-	IF_TYPE_OTHER     = 1
-	IF_TYPE_ETHERNET  = 6
-	IF_TYPE_IEEE80211 = 71
-)
-
 // https://learn.microsoft.com/en-us/windows/win32/api/wlanapi/ns-wlanapi-wlan_interface_info
 type WLAN_INTERFACE_INFO struct {
 	InterfaceGUID           windows.GUID
@@ -225,96 +213,12 @@ type WLAN_CONNECTION_ATTRIBUTES struct {
 	wlanSecurityAttributes    WLAN_SECURITY_ATTRIBUTES
 }
 
-// https://learn.microsoft.com/en-us/windows/win32/api/wlanapi/ns-wlanapi-wlan_bss_entry
-// not used now but may be used in future
-// type WLAN_BSS_ENTRY struct {
-// 	dot11Ssid               DOT11_SSID
-// 	uPhyId                  uint32
-// 	dot11Bssid              [6]byte
-// 	dot11BssType            uint32
-// 	dot11BssPhyType         uint32
-// 	lrssi                   int32
-// 	linkQuality             uint32
-// 	bInRegDomain            byte
-// 	usBeaconPeriod          uint16
-// 	ullTimestamp            uint64
-// 	ullHostTimestamp        uint64
-// 	usCapabilityInformation uint16
-// 	ulChCenterFrequency     uint32
-// 	wlanRateSet             [256]byte
-// 	ulIeOffset              uint32
-// 	ulIeSize                uint32
-// }
-
-// type WLAN_BSS_LIST struct {
-// 	dwTotalSize     uint32
-// 	dwNumberOfItems uint32
-// 	wlanBssEntries  [1]WLAN_BSS_ENTRY
-// }
-
-// type BssInfo struct {
-// 	lrssi               int32
-// 	linkQuality         uint32
-// 	ulChCenterFrequency uint32
-// }
-
-// IP_ADDR_STRING
-// https://learn.microsoft.com/en-us/windows/win32/api/iptypes/ns-iptypes-ip_addr_string
-type IP_ADDR_STRING struct {
-	Next      *IP_ADDR_STRING
-	IpAddress [16]byte
-	IpMask    [16]byte
-	Context   uint32
-}
-
-// IP_ADAPTER_INFO
-// https://learn.microsoft.com/en-us/windows/win32/api/iptypes/ns-iptypes-ip_adapter_info
-type IP_ADAPTER_INFO struct {
-	Next                *IP_ADAPTER_INFO
-	ComboIndex          uint32
-	AdapterName         [MAX_ADAPTER_NAME_LENGTH + 4]byte
-	Description         [MAX_ADAPTER_DESCRIPTION_LENGTH + 4]byte
-	AddressLength       uint32
-	Address             [MAX_ADAPTER_ADDRESS_LENGTH]byte
-	Index               uint32
-	Type                uint32
-	DhcpEnabled         uint32
-	CurrentIpAddress    *IP_ADDR_STRING
-	IpAddressList       IP_ADDR_STRING
-	GatewayList         IP_ADDR_STRING
-	DhcpServer          IP_ADDR_STRING
-	HaveWins            uint32
-	PrimaryWinsServer   IP_ADDR_STRING
-	SecondaryWinsServer IP_ADDR_STRING
-	LeaseObtained       uint32
-	LeaseExpires        uint32
-}
-
-type adapterInfo struct {
-	macAddress string
-	ipAddress  string
-}
-
-type wlanInfo struct {
-	ssid       string
-	bssid      string
-	phy        string
-	auth       string
-	rssi       int32
-	rxRate     float64
-	txRate     float64
-	channel    uint32
-	signal     uint32
-	adapterMac string
-	adapterIp  string
-}
-
 // ------------------------------------------------------
 //
 // # U t i l i t y   f u n c t i o n s
 //
 // ------------------------------------------------------
-// determines the WiFi band based on frequency
+// determines the Wi-Fi band based on frequency
 //  Currently not used but may be used in future
 //
 // func formatBand(frequency uint32) string {
@@ -378,6 +282,8 @@ func formatPhy(phy DOT11_PHY_TYPE) string {
 	return phyStr
 }
 
+// Not needed for now but may be used in future
+/*
 func formatAuthAlgo(authAlgo DOT11_AUTH_ALGORITHM) string {
 	authAlgoStr := ""
 	switch authAlgo {
@@ -407,21 +313,7 @@ func formatAuthAlgo(authAlgo DOT11_AUTH_ALGORITHM) string {
 
 	return authAlgoStr
 }
-
-func strToGUID(guidStr string) (*windows.GUID, error) {
-	guidWStr, err := windows.UTF16PtrFromString(guidStr)
-	if err != nil {
-		return nil, err
-	}
-
-	var guid windows.GUID
-	ret, _, _ := clsidFromString.Call(uintptr(unsafe.Pointer(guidWStr)), uintptr(unsafe.Pointer(&guid)))
-	if ret != 0 {
-		return nil, errors.New("clsidFromString failed")
-	}
-
-	return &guid, nil
-}
+*/
 
 // ----------------
 //
@@ -498,144 +390,80 @@ func getWlanInterfacesList(wlanClient uintptr) (*WLAN_INTERFACE_INFO_LIST, error
 	return itfs, nil
 }
 
-// Get BSS information
-// https://learn.microsoft.com/en-us/windows/win32/api/wlanapi/nf-wlanapi-wlangetnetworkbsslist
-// Collects a list of basic service set (BSS) entries from a wireless LAN network,
-// but specific for a given SSID and BSSID and returns the first entry found, which includes
-// the link quality, RSSI, and channel center frequency.
-//
-// Currently not used but may be used in future
-// func getBssInfo(wlanClient uintptr, itfGuid windows.GUID, ssid DOT11_SSID, dot11Bssid []byte) *BssInfo {
-// 	var bssList *WLAN_BSS_LIST
-// 	ret, _, _ := wlanGetNetworkBssList.Call(
-// 		wlanClient, uintptr(unsafe.Pointer(&itfGuid)), 0, uintptr(unsafe.Pointer(&ssid)), 0, 0, uintptr(unsafe.Pointer(&bssList)))
-// 	if ret != 0 {
-// 		return nil
-// 	}
-// 	defer wlanFreeMemory.Call(uintptr(unsafe.Pointer(bssList))) //nolint:errcheck
-//
-// 	if bssList.dwNumberOfItems > 0 {
-// 		base := unsafe.Pointer(&bssList.wlanBssEntries[0])
-// 		size := unsafe.Sizeof(WLAN_BSS_ENTRY{})
-// 		var i uint32 = 0
-// 		for i = 0; i < bssList.dwNumberOfItems; i++ {
-// 			bssEntry := (*WLAN_BSS_ENTRY)(unsafe.Pointer(uintptr(base) + uintptr(i)*size))
-//			bssMac, _ := formatMacAddress(bssEntry.dot11Bssid[:])
-//			itfMac, _ := formatMacAddress(dot11Bssid)
-// 			if bssMac == dot11Bssid && len(itfMac) > 0 {
-// 				return &BssInfo{
-// 					lrssi:               bssEntry.lrssi,
-// 					linkQuality:         bssEntry.linkQuality,
-// 					ulChCenterFrequency: bssEntry.ulChCenterFrequency,
-// 				}
-// 			}
-// 		}
-// 	}
-//
-// 	return nil
-// }
+// https://learn.microsoft.com/en-us/windows/win32/api/netioapi/nf-netioapi-getifentry2
+// https://learn.microsoft.com/en-us/windows/win32/api/netioapi/nf-netioapi-convertinterfaceguidtoluid
+// Use GetIfEntry2() for the wlan Interface GUID
+func getWlanMacAddr(wlanItfGuid windows.GUID) (string, error) {
+	// row will be initialized to 0 (by Go standard)
+	var row windows.MibIfRow2
 
-// ----------------
-//
-// # Adapter wrapper
-//
-// https://learn.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getadaptersinfo
-// Find adapters based on the corresponding Wlan interface GUID/name
-// and return the MAC address and IP address of the adapter.
-func getAdapter(adapterGuid windows.GUID) (*adapterInfo, error) {
-	var size uint32
-	ret, _, _ := getAdaptersInfo.Call(0, uintptr(unsafe.Pointer(&size)))
-	if ret != uintptr(windows.ERROR_BUFFER_OVERFLOW) {
-		return nil, fmt.Errorf("GetAdaptersInfo call failed. Error: %d", ret)
-	}
-
-	buffer := make([]byte, size)
-	ret, _, _ = getAdaptersInfo.Call(uintptr(unsafe.Pointer(&buffer[0])), uintptr(unsafe.Pointer(&size)))
+	// To find Interface details via GetIfEntry2() function, its InterfaceLuid or InterfaceIndex fields need to be set.
+	// We will set InterfaceLuid field by converting passed Interface Guid to its Luid via ConvertInterfaceGuidToLuid.
+	ret, _, _ := convertInterfaceGuidToLuid.Call(
+		uintptr(unsafe.Pointer(&wlanItfGuid)),
+		uintptr(unsafe.Pointer(&row.InterfaceLuid)))
 	if ret != 0 {
-		return nil, fmt.Errorf("GetAdaptersInfo call failed. Error: %d", ret)
+		return "", fmt.Errorf("ConvertInterfaceGuidToLuid call failed. Error: %d", ret)
+	}
+	ret, _, _ = getIfEntry2.Call(uintptr(unsafe.Pointer(&row)))
+	if ret != 0 {
+		return "", fmt.Errorf("GetIfEntry2 call failed. Error: %d", ret)
 	}
 
-	adapter := (*IP_ADAPTER_INFO)(unsafe.Pointer(&buffer[0]))
-	for adapter != nil {
-		adapterName := strings.TrimRight(string(adapter.AdapterName[:]), "\x00")
-		curAdapterGuid, err := strToGUID(adapterName)
-		if err != nil {
-			continue // try next adapter
-		}
-
-		if *curAdapterGuid == adapterGuid {
-			var macAddress string
-			if adapter.AddressLength > 0 && adapter.AddressLength < MAX_ADAPTER_ADDRESS_LENGTH {
-				macAddress, _ = formatMacAddress(adapter.Address[:adapter.AddressLength])
-			}
-
-			var ipAddress string
-			if adapter.IpAddressList.IpAddress[0] != 0 {
-				ipAddress = strings.TrimRight(string(adapter.IpAddressList.IpAddress[:]), "\x00")
-			}
-
-			return &adapterInfo{
-				macAddress: macAddress,
-				ipAddress:  ipAddress,
-			}, nil
-		}
-
-		adapter = adapter.Next
+	if row.Type == windows.IF_TYPE_IEEE80211 && row.PhysicalAddressLength > 0 && row.PhysicalAddressLength <= 32 {
+		return formatMacAddress(row.PhysicalAddress[:row.PhysicalAddressLength])
 	}
 
-	return nil, nil
+	log.Warnf("Cannot get mac address for interface %v", wlanItfGuid)
+	return "", nil
 }
 
 // ----------------
 //
-// WiFi Info Aggregaror
-func getWlanInfo(wlanClient uintptr, itfGuid windows.GUID) (*wlanInfo, error) {
+// Wi-Fi Info Aggregaror
+func getWlanInfo(wlanClient uintptr, wlanItfGuild windows.GUID) (*wifiInfo, error) {
 	// Get connection attributes (if failed no point to continue)
-	connAttribs, err := getWlanConnAttribs(wlanClient, itfGuid)
+	connAttribs, err := getWlanConnAttribs(wlanClient, wlanItfGuild)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get WLAN connection attributes: %v", err)
 	}
 	defer wlanFreeMemory.Call(uintptr(unsafe.Pointer(connAttribs))) //nolint:errcheck
 
-	var wi wlanInfo
+	var wi wifiInfo
 
 	// Get adapter info (if failed will continue without its details)
-	adapterInfo, err := getAdapter(itfGuid)
-	if err == nil {
-		wi.adapterIp = adapterInfo.ipAddress
-		wi.adapterMac = adapterInfo.macAddress
+	macAddr, err := getWlanMacAddr(wlanItfGuild)
+	if err == nil && len(macAddr) > 0 {
+		wi.macAddress = macAddr
+	} else if err != nil {
+		log.Errorf("failed to get WLAN interface mac address: %v", err)
 	}
 
 	// Extract connection attributes
 	wi.ssid = formatSSID(connAttribs.wlanAssociationAttributes.dot11Ssid)
 	wi.bssid, _ = formatMacAddress(connAttribs.wlanAssociationAttributes.dot11Bssid[:])
-	wi.phy = formatPhy(connAttribs.wlanAssociationAttributes.dot11PhyType)
-	wi.auth = formatAuthAlgo(connAttribs.wlanSecurityAttributes.dot11AuthAlgorithm)
-	wi.signal = connAttribs.wlanAssociationAttributes.wlanSignalQuality
+	wi.phyMode = formatPhy(connAttribs.wlanAssociationAttributes.dot11PhyType)
+	// wi.auth = formatAuthAlgo(connAttribs.wlanSecurityAttributes.dot11AuthAlgorithm)
+	// wi.signal = connAttribs.wlanAssociationAttributes.wlanSignalQuality
 
 	//Convert kbps to Mbps
-	wi.rxRate = float64(connAttribs.wlanAssociationAttributes.ulRxRate) / 1000.0
-	wi.txRate = float64(connAttribs.wlanAssociationAttributes.ulTxRate) / 1000.0
+	wi.receiveRate = float64(connAttribs.wlanAssociationAttributes.ulRxRate) / 1000.0
+	wi.transmitRate = float64(connAttribs.wlanAssociationAttributes.ulTxRate) / 1000.0
 
 	// Get channel and RSSI
-	channel, err := getChannel(wlanClient, itfGuid)
+	channel, err := getChannel(wlanClient, wlanItfGuild)
 	if err == nil {
-		wi.channel = channel
+		wi.channel = int(channel)
 	}
-	rssi, err := getRssi(wlanClient, itfGuid)
+	rssi, err := getRssi(wlanClient, wlanItfGuild)
 	if err == nil {
-		wi.rssi = rssi
+		wi.rssi = int(rssi)
 	}
-
-	// Currently will not be used but if we will need band information call getBssInfo
-	// it will also can return duplicative details about lrssi and linkQuality,
-	//
-	// bssInfo := getBssInfo(wlanClient, itfGuid, connAttribs.wlanAssociationAttributes.dot11Ssid, connAttribs.wlanAssociationAttributes.dot11Bssid[:])
 
 	return &wi, nil
 }
 
-func getFirstConnectedWlanInfo() (*wlanInfo, error) {
+func getFirstConnectedWlanInfo() (*wifiInfo, error) {
 	// Get WLAN client handle
 	wlanClient, err := getWlanHandle()
 	if err != nil {
@@ -650,17 +478,19 @@ func getFirstConnectedWlanInfo() (*wlanInfo, error) {
 	}
 	defer wlanFreeMemory.Call(uintptr(unsafe.Pointer(itfs))) //nolint:errcheck
 
-	// Check if any WiFi interfaces found
+	// Check if any Wi-Fi interfaces found
 	if itfs.NumberOfItems == 0 {
+		log.Tracef("No Wi-Fi interfaces are found")
 		return nil, nil
 	}
 
-	// Iterate over WiFi interfaces until one is connected
+	// Iterate over Wi-Fi interfaces until one is connected
 	for i := 0; i < int(itfs.NumberOfItems); i++ {
 		itf := &itfs.InterfaceInfo[i]
 
 		// Check if interface is connected
 		if itf.IsState != uint32(wlanInterfaceStateConnected) {
+			log.Tracef("WLAN interface %d (GUID=%v) not connected (state=%d), skipping", i+1, itf.InterfaceGUID, itf.IsState)
 			continue
 		}
 
@@ -668,33 +498,32 @@ func getFirstConnectedWlanInfo() (*wlanInfo, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to get WLAN info: %v", err)
 		}
+		log.Tracef("Found WLAN connected interface %d (GUID=%v)", i+1, itf.InterfaceGUID)
 		return wi, nil
 	}
 
+	log.Tracef("No connected WLAN interfaces are found")
 	return nil, nil
 }
 
-func GetWiFiInfo() (wifiInfo, error) {
+// GetWiFiInfo retrieves WiFi information on Windows
+func (c *WLANCheck) GetWiFiInfo() (wifiInfo, error) {
+	// Check for test override
+	if getWiFiInfo != nil {
+		return getWiFiInfo()
+	}
+
 	wi, err := getFirstConnectedWlanInfo()
 	if err != nil {
 		return wifiInfo{}, err
 	}
 
-	// If no connected WiFi interface found, return empty wifiInfo
+	// If no connected Wi-Fi interface found, return empty wifiInfo
 	if wi == nil {
 		return wifiInfo{phyMode: "None"}, nil
 	}
 
-	// For majority of cases for connected WiFi interface, return its details
-	return wifiInfo{
-		rssi:             int(wi.rssi),
-		ssid:             wi.ssid,
-		bssid:            wi.bssid,
-		channel:          int(wi.channel),
-		transmitRate:     float64(wi.txRate),
-		receiveRate:      float64(wi.rxRate),
-		receiveRateValid: true,
-		macAddress:       wi.adapterMac,
-		phyMode:          wi.phy,
-	}, nil
+	// For majority of cases for connected Wi-Fi interface, return its details
+	wi.receiveRateValid = true
+	return *wi, nil
 }

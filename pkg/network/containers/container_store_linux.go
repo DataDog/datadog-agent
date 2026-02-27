@@ -62,6 +62,7 @@ type ContainerStore struct {
 
 	warnLimit  *log.Limit
 	errorLimit *log.Limit
+	debugLimit *log.Limit
 
 	containerReader containerReader
 
@@ -77,8 +78,9 @@ func (csi containerStoreItem) isExpired() bool {
 
 // NewContainerStore initializes the container store
 func NewContainerStore(maxContainers int) (*ContainerStore, error) {
-	warnLimit := log.NewLogLimit(5, 10*time.Second)
-	errorLimit := log.NewLogLimit(5, 10*time.Second)
+	warnLimit := log.NewLogLimit(5, 10*time.Minute)
+	errorLimit := log.NewLogLimit(5, 10*time.Minute)
+	debugLimit := log.NewLogLimit(5, time.Minute)
 
 	cache, err := lru.NewWithEvict(maxContainers, func(key *intern.Value, item containerStoreItem) {
 		if log.ShouldLog(log.TraceLvl) {
@@ -103,11 +105,11 @@ func NewContainerStore(maxContainers int) (*ContainerStore, error) {
 
 		warnLimit:  warnLimit,
 		errorLimit: errorLimit,
+		debugLimit: debugLimit,
 
-		containerReader: containerReader{
-			resolvStripper: makeResolvStripper(resolvConfInputMaxSizeBytes),
-		},
+		containerReader: newContainerReader(makeResolvStripper(resolvConfInputMaxSizeBytes)),
 	}
+	// this function is only ever replaced in tests for mocking purposes
 	cs.readContainerItem = cs.containerReader.readContainerItem
 
 	cleanTicker := time.NewTicker(cleanerInterval)
@@ -151,7 +153,7 @@ func (cs *ContainerStore) addProcess(entry *events.Process) {
 	}
 
 	result, err := cs.readContainerItem(cs.ctx, entry)
-	if log.ShouldLog(log.DebugLvl) {
+	if log.ShouldLog(log.DebugLvl) && cs.debugLimit.ShouldLog() {
 		logHandledID(entry.ContainerID, result, err)
 	}
 	if cs.ctx.Err() != nil {
@@ -171,7 +173,7 @@ func (cs *ContainerStore) addProcess(entry *events.Process) {
 		return
 	}
 	if result.noDataReason != "" {
-		if log.ShouldLog(log.DebugLvl) {
+		if log.ShouldLog(log.DebugLvl) && cs.debugLimit.ShouldLog() {
 			logNoData(entry.ContainerID, result.noDataReason)
 		}
 		return
@@ -179,7 +181,7 @@ func (cs *ContainerStore) addProcess(entry *events.Process) {
 
 	item := result.item
 
-	if log.ShouldLog(log.DebugLvl) {
+	if log.ShouldLog(log.DebugLvl) && cs.debugLimit.ShouldLog() {
 		logResolvConfRead(len(item.resolvConf.Get()))
 	}
 
@@ -190,7 +192,9 @@ func (cs *ContainerStore) addProcess(entry *events.Process) {
 func logEvictingID(containerID network.ContainerID) {
 	containerStr := "host"
 	if containerID != nil {
-		containerStr = containerID.Get().(string)
+		if s, ok := containerID.Get().(string); ok {
+			containerStr = s
+		}
 	}
 	log.Tracef("CNM ContainerStore evicting ID %s", containerStr)
 }
@@ -256,6 +260,7 @@ func (cs *ContainerStore) GetResolvConfMap(conns []network.ConnectionStats) map[
 		}
 	}
 
+	// we know this one will only run once per 30s connections check, so no need to use log.Limit
 	log.Debugf("CNM ContainerStore mapped %d out of %d containerIDs", len(resolvConfs), len(allContainers))
 
 	return resolvConfs

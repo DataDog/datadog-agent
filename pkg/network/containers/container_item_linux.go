@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	utilintern "github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var hostRoot = funcs.MemoizeNoError(func() string {
@@ -44,8 +43,21 @@ var hostRoot = funcs.MemoizeNoError(func() string {
 
 var stringInterner = utilintern.NewStringInterner()
 
+type resolvConfReader interface {
+	readResolvConf(entry *events.Process) (string, error)
+}
+
 type containerReader struct {
-	resolvStripper
+	resolvConfReader
+	isProcessStillRunning func(ctx context.Context, entry *events.Process) (bool, error)
+}
+
+func newContainerReader(reader resolvConfReader) containerReader {
+	cr := containerReader{
+		resolvConfReader: reader,
+	}
+	cr.isProcessStillRunning = cr.isProcessStillRunningImpl
+	return cr
 }
 
 type readContainerItemResult struct {
@@ -54,20 +66,21 @@ type readContainerItemResult struct {
 }
 
 func (cr *containerReader) readContainerItem(ctx context.Context, entry *events.Process) (readContainerItemResult, error) {
-	resolvConf, err := cr.readResolvConf(entry)
-	if err != nil {
-		return readContainerItemResult{}, err
-	}
-
+	resolvConf, resolvConfErr := cr.readResolvConf(entry)
 	// we must check this last, to guarantee the result of readResolvConf is valid
-	isRunning, err := isProcessStillRunning(ctx, entry)
-	if err != nil {
-		return readContainerItemResult{}, err
+	isRunning, isRunningErr := cr.isProcessStillRunning(ctx, entry)
+	if isRunningErr != nil {
+		return readContainerItemResult{}, isRunningErr
 	}
 	if !isRunning {
 		return readContainerItemResult{
 			noDataReason: "process not running",
 		}, nil
+	}
+
+	// now that we know the PID was still running when we read resolv.conf, we can check its result
+	if resolvConfErr != nil {
+		return readContainerItemResult{}, resolvConfErr
 	}
 
 	item := containerStoreItem{
@@ -92,12 +105,16 @@ type resolvStripper struct {
 	buf []byte
 }
 
-func makeResolvStripper(size int) resolvStripper {
-	return resolvStripper{
+func makeResolvStripper(size int) *resolvStripper {
+	return &resolvStripper{
 		buf: make([]byte, 0, size),
 	}
 }
 
+// readResolvConf reads and strips a process's resolv.conf.
+// If the resolv.conf is missing, it returns "<missing>" instead of an error.
+// It can return various OS errors when the PID stopped running, so it needs to be
+// followed up by a call to isProcessStillRunning
 func (r *resolvStripper) readResolvConf(entry *events.Process) (string, error) {
 	rootPath := hostRoot()
 	if entry.ContainerID != nil {
@@ -170,37 +187,21 @@ func (r *resolvStripper) stripResolvConf(size int, f io.Reader) (string, error) 
 	return resolvConf, nil
 }
 
-func isProcessStillRunning(ctx context.Context, entry *events.Process) (bool, error) {
-	proc, err := process.NewProcessWithContext(ctx, int32(entry.Pid))
-	if errors.Is(err, process.ErrorProcessNotRunning) {
+// errIsProcessNotRunning checks if an error is a process not running error
+// gopsutil returns various errors when the process is not running, so we need to check for them all
+func errIsProcessNotRunning(err error) bool {
+	return errors.Is(err, process.ErrorProcessNotRunning) ||
+		errors.Is(err, os.ErrProcessDone) ||
+		errors.Is(err, os.ErrNotExist)
+}
+
+func (cr *containerReader) isProcessStillRunningImpl(ctx context.Context, entry *events.Process) (bool, error) {
+	_, err := process.NewProcessWithContext(ctx, int32(entry.Pid))
+	if errIsProcessNotRunning(err) {
 		return false, nil
 	}
 	if err != nil {
 		return false, fmt.Errorf("isProcessStillRunning failed to create NewProcessWithContext: %w", err)
 	}
-
-	createTime, err := proc.CreateTimeWithContext(ctx)
-	if errors.Is(err, process.ErrorProcessNotRunning) {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("isProcessStillRunning failed to get createTime: %w", err)
-	}
-	// StartTime is recorded as nanoseconds by security's EBPFResolver
-	createTime *= int64(time.Millisecond)
-
-	// detect (rare) PID reuse by comparing the StartTime
-	if entry.StartTime != createTime {
-		if log.ShouldLog(log.DebugLvl) {
-			logDetectedProcessReuse(entry, createTime)
-		}
-		return false, nil
-	}
-
 	return true, nil
-}
-
-// logDetectedProcessReuse logs in a separate function to avoid allocation
-func logDetectedProcessReuse(entry *events.Process, newTime int64) {
-	log.Debugf("CNM ContainerStore detected process reuse on pid=%d: timestamps %d vs %d", entry.Pid, entry.StartTime, newTime)
 }

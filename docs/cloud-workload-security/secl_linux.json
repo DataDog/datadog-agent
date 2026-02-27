@@ -38,6 +38,11 @@
           "property_doc_link": "event-service-doc"
         },
         {
+          "name": "event.signature",
+          "definition": "Signature of the process pid and its cgroup with agent secret key",
+          "property_doc_link": "event-signature-doc"
+        },
+        {
           "name": "event.source",
           "definition": "[Experimental] Source of the event. Can be either 'runtime' or 'snapshot'.",
           "property_doc_link": "event-source-doc"
@@ -501,6 +506,16 @@
           "name": "process.ancestors.length",
           "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "process.ancestors.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
+        },
+        {
+          "name": "process.ancestors.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
         },
         {
           "name": "process.ancestors.pid",
@@ -1043,6 +1058,16 @@
           "property_doc_link": "common-process-is_thread-doc"
         },
         {
+          "name": "process.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
+        },
+        {
+          "name": "process.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
+        },
+        {
           "name": "process.parent.args",
           "definition": "Arguments of the process (as a string, excluding argv0)",
           "property_doc_link": "common-process-args-doc"
@@ -1491,6 +1516,16 @@
           "name": "process.parent.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
+        },
+        {
+          "name": "process.parent.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
+        },
+        {
+          "name": "process.parent.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
         },
         {
           "name": "process.parent.pid",
@@ -2582,6 +2617,11 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "dns.question.name.root_domain",
+          "definition": "Root domain of the corresponding element",
+          "property_doc_link": "dns-question-name-root_domain-doc"
+        },
+        {
           "name": "dns.question.type",
           "definition": "a two octet code which specifies the DNS question type",
           "property_doc_link": "dns-question-type-doc"
@@ -2610,6 +2650,11 @@
           "name": "network.device.ifname",
           "definition": "Interface ifname",
           "property_doc_link": "common-networkdevicecontext-ifname-doc"
+        },
+        {
+          "name": "network.device.netns",
+          "definition": "Interface NetNS ID",
+          "property_doc_link": "common-networkdevicecontext-netns-doc"
         },
         {
           "name": "network.l3_protocol",
@@ -3149,6 +3194,16 @@
           "name": "exec.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
+        },
+        {
+          "name": "exec.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
+        },
+        {
+          "name": "exec.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
         },
         {
           "name": "exec.pid",
@@ -3715,6 +3770,16 @@
           "property_doc_link": "common-process-is_thread-doc"
         },
         {
+          "name": "exit.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
+        },
+        {
+          "name": "exit.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
+        },
+        {
           "name": "exit.pid",
           "definition": "Process ID of the process (also called thread group ID)",
           "property_doc_link": "common-pidcontext-pid-doc"
@@ -3872,6 +3937,11 @@
           "name": "network.device.ifname",
           "definition": "Interface ifname",
           "property_doc_link": "common-networkdevicecontext-ifname-doc"
+        },
+        {
+          "name": "network.device.netns",
+          "definition": "Interface NetNS ID",
+          "property_doc_link": "common-networkdevicecontext-netns-doc"
         },
         {
           "name": "network.l3_protocol",
@@ -4807,6 +4877,11 @@
           "property_doc_link": "common-networkdevicecontext-ifname-doc"
         },
         {
+          "name": "network_flow_monitor.device.netns",
+          "definition": "Interface NetNS ID",
+          "property_doc_link": "common-networkdevicecontext-netns-doc"
+        },
+        {
           "name": "network_flow_monitor.flows.destination.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
@@ -5075,6 +5150,11 @@
           "property_doc_link": "common-networkdevicecontext-ifname-doc"
         },
         {
+          "name": "network.device.netns",
+          "definition": "Interface NetNS ID",
+          "property_doc_link": "common-networkdevicecontext-netns-doc"
+        },
+        {
           "name": "network.l3_protocol",
           "definition": "L3 protocol of the network packet",
           "property_doc_link": "common-networkcontext-l3_protocol-doc"
@@ -5133,6 +5213,11 @@
           "name": "packet.device.ifname",
           "definition": "Interface ifname",
           "property_doc_link": "common-networkdevicecontext-ifname-doc"
+        },
+        {
+          "name": "packet.device.netns",
+          "definition": "Interface NetNS ID",
+          "property_doc_link": "common-networkdevicecontext-netns-doc"
         },
         {
           "name": "packet.filter",
@@ -5688,6 +5773,16 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.pid",
           "definition": "Process ID of the process (also called thread group ID)",
           "property_doc_link": "common-pidcontext-pid-doc"
@@ -6228,6 +6323,16 @@
           "property_doc_link": "common-process-is_thread-doc"
         },
         {
+          "name": "ptrace.tracee.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
+        },
+        {
+          "name": "ptrace.tracee.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.args",
           "definition": "Arguments of the process (as a string, excluding argv0)",
           "property_doc_link": "common-process-args-doc"
@@ -6676,6 +6781,16 @@
           "name": "ptrace.tracee.parent.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
         },
         {
           "name": "ptrace.tracee.parent.pid",
@@ -8017,6 +8132,16 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.pid",
           "definition": "Process ID of the process (also called thread group ID)",
           "property_doc_link": "common-pidcontext-pid-doc"
@@ -8557,6 +8682,16 @@
           "property_doc_link": "common-process-is_thread-doc"
         },
         {
+          "name": "setrlimit.target.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
+        },
+        {
+          "name": "setrlimit.target.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
+        },
+        {
           "name": "setrlimit.target.parent.args",
           "definition": "Arguments of the process (as a string, excluding argv0)",
           "property_doc_link": "common-process-args-doc"
@@ -9005,6 +9140,16 @@
           "name": "setrlimit.target.parent.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
         },
         {
           "name": "setrlimit.target.parent.pid",
@@ -9923,6 +10068,16 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "signal.target.ancestors.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
+        },
+        {
+          "name": "signal.target.ancestors.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
+        },
+        {
           "name": "signal.target.ancestors.pid",
           "definition": "Process ID of the process (also called thread group ID)",
           "property_doc_link": "common-pidcontext-pid-doc"
@@ -10463,6 +10618,16 @@
           "property_doc_link": "common-process-is_thread-doc"
         },
         {
+          "name": "signal.target.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
+        },
+        {
+          "name": "signal.target.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
+        },
+        {
           "name": "signal.target.parent.args",
           "definition": "Arguments of the process (as a string, excluding argv0)",
           "property_doc_link": "common-process-args-doc"
@@ -10911,6 +11076,16 @@
           "name": "signal.target.parent.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
+        },
+        {
+          "name": "signal.target.parent.mntns",
+          "definition": "MNTNS ID of the process",
+          "property_doc_link": "common-pidcontext-mntns-doc"
+        },
+        {
+          "name": "signal.target.parent.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
         },
         {
           "name": "signal.target.parent.pid",
@@ -13324,6 +13499,31 @@
       "examples": []
     },
     {
+      "name": "*.mntns",
+      "link": "common-pidcontext-mntns-doc",
+      "type": "int",
+      "definition": "MNTNS ID of the process",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.mode",
       "link": "common-filefields-mode-doc",
       "type": "int",
@@ -13683,6 +13883,45 @@
           "description": "Matches the execution of any file named apt."
         }
       ]
+    },
+    {
+      "name": "*.netns",
+      "link": "common-networkdevicecontext-netns-doc",
+      "type": "int",
+      "definition": "Interface NetNS ID",
+      "prefixes": [
+        "network.device",
+        "network_flow_monitor.device",
+        "packet.device"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.netns",
+      "link": "common-pidcontext-netns-doc",
+      "type": "int",
+      "definition": "NetNS ID of the process",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
     },
     {
       "name": "*.network_direction",
@@ -15230,6 +15469,18 @@
       "examples": []
     },
     {
+      "name": "dns.question.name.root_domain",
+      "link": "dns-question-name-root_domain-doc",
+      "type": "string",
+      "definition": "Root domain of the corresponding element",
+      "prefixes": [
+        "dns.question.name"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "dns.question.type",
       "link": "dns-question-type-doc",
       "type": "int",
@@ -15318,6 +15569,18 @@
       "link": "event-service-doc",
       "type": "string",
       "definition": "Service associated with the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "event.signature",
+      "link": "event-signature-doc",
+      "type": "string",
+      "definition": "Signature of the process pid and its cgroup with agent secret key",
       "prefixes": [
         ""
       ],

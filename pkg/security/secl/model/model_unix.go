@@ -6,16 +6,17 @@
 //go:build unix
 
 //go:generate accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl_linux.json -field-accessors-output field_accessors_unix.go
+//go:generate event_deep_copy -tags unix -types-file model.go -output event_deep_copy_unix.go
 
 // Package model holds model related files
 package model
 
 import (
-	"fmt"
 	"net"
 	"net/netip"
 	"runtime"
 	"time"
+	"unsafe"
 
 	"github.com/google/gopacket"
 
@@ -42,7 +43,9 @@ func (m *Model) NewEvent() eval.Event {
 func NewFakeEvent() *Event {
 	return &Event{
 		BaseEvent: BaseEvent{
-			FieldHandlers:  &FakeFieldHandlers{},
+			FieldHandlers: &FakeFieldHandlers{
+				PCEs: make(map[uint32]*ProcessCacheEntry),
+			},
 			ProcessContext: &ProcessContext{},
 			Os:             runtime.GOOS,
 		},
@@ -51,6 +54,9 @@ func NewFakeEvent() *Event {
 
 // ResolveProcessCacheEntryFromPID stub implementation
 func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *ProcessCacheEntry {
+	if fh.PCEs[pid] != nil {
+		return fh.PCEs[pid]
+	}
 	return GetPlaceholderProcessCacheEntry(pid, pid, false)
 }
 
@@ -75,6 +81,7 @@ func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *Proces
 // gengetter: GetEventService
 type Event struct {
 	BaseEvent
+	Signature string `field:"event.signature,handler:ResolveSignature,weight:500,opts:skip_ad"` // SECLDoc[event.signature] Definition:`Signature of the process pid and its cgroup with agent secret key`
 
 	// globals
 	Async bool `field:"event.async,handler:ResolveAsync"` // SECLDoc[event.async] Definition:`True if the syscall was asynchronous`
@@ -153,10 +160,42 @@ type Event struct {
 
 // NewEventZeroer returns a function that can be used to zero an Event
 func NewEventZeroer() func(*Event) {
-	var eventZero = Event{BaseEvent: BaseEvent{Os: runtime.GOOS, ProcessContext: &ProcessContext{}}}
+	var eventZero = Event{BaseEvent: BaseEvent{Os: runtime.GOOS}}
 
 	return func(e *Event) {
-		*e = eventZero
+		switch e.GetEventType() {
+		case PrCtlEventType:
+
+			e.PrCtl = eventZero.PrCtl
+			e.BaseEvent = eventZero.BaseEvent
+		case FileOpenEventType:
+			e.Open = eventZero.Open
+			e.BaseEvent = eventZero.BaseEvent
+		case SetSockOptEventType:
+			e.SetSockOpt = eventZero.SetSockOpt
+			e.BaseEvent = eventZero.BaseEvent
+		case ArgsEnvsEventType:
+			e.ArgsEnvs = eventZero.ArgsEnvs
+			e.BaseEvent = eventZero.BaseEvent
+		case ConnectEventType:
+			e.Connect = eventZero.Connect
+			e.BaseEvent = eventZero.BaseEvent
+		case MMapEventType:
+			e.MMap = eventZero.MMap
+			e.BaseEvent = eventZero.BaseEvent
+		case DNSEventType:
+			e.DNS = eventZero.DNS
+			e.BaseEvent = eventZero.BaseEvent
+		case FileUnlinkEventType:
+			e.Unlink = eventZero.Unlink
+			e.BaseEvent = eventZero.BaseEvent
+		case AcceptEventType:
+			e.Accept = eventZero.Accept
+			e.BaseEvent = eventZero.BaseEvent
+		default:
+			*e = eventZero
+		}
+
 	}
 }
 
@@ -171,27 +210,31 @@ func (e *Event) GetContainerID() string {
 // CGroupContext holds the cgroup context of an event
 type CGroupContext struct {
 	*Releasable
-	CGroupID      containerutils.CGroupID `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
-	CGroupFile    PathKey                 `field:"file"`
+	CGroupID      containerutils.CGroupID `field:"id"` // SECLDoc[id] Definition:`ID of the cgroup`
+	CGroupPathKey PathKey                 `field:"file"`
 	CGroupVersion int                     `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`[Experimental] Version of the cgroup API`
 }
 
-// Merge two cgroup context
-func (cg *CGroupContext) Merge(cg2 *CGroupContext) {
-	if cg.CGroupID == "" {
-		cg.CGroupID = cg2.CGroupID
-	}
-	if cg.CGroupFile.Inode == 0 {
-		cg.CGroupFile.Inode = cg2.CGroupFile.Inode
-	}
-	if cg.CGroupFile.MountID == 0 {
-		cg.CGroupFile.MountID = cg2.CGroupFile.MountID
-	}
+// IsNull returns true if the cgroup context is null
+func (cg *CGroupContext) IsNull() bool {
+	return cg.CGroupPathKey.IsNull()
+}
+
+// IsResolved returns true if the cgroup context is resolved & not null
+func (cg *CGroupContext) IsResolved() bool {
+	return cg.CGroupID != "" && !cg.CGroupPathKey.IsNull()
+}
+
+// Equals returns true if the two cgroup contexts are equal
+func (cg *CGroupContext) Equals(cg2 *CGroupContext) bool {
+	return cg.CGroupPathKey.Inode == cg2.CGroupPathKey.Inode
 }
 
 // Hash returns a unique key for the entity
-func (cg *CGroupContext) Hash() string {
-	return string(cg.CGroupID)
+func (cg *CGroupContext) Hash() eval.ScopeHashKey {
+	return eval.ScopeHashKey{
+		String: string(cg.CGroupID),
+	}
 }
 
 // ParentScope returns the parent entity scope
@@ -380,10 +423,14 @@ type Process struct {
 	Source uint64 `field:"-"`
 
 	// lineage
-	hasValidLineage *bool `field:"-"`
-	lineageError    error `field:"-"`
+	validLineageResult *validLineageResult `field:"-"`
 
 	IsThroughSymLink bool `field:"-"` // Indicates whether the process is through a symlink
+}
+
+type validLineageResult struct {
+	valid bool
+	err   error
 }
 
 // SetAncestorFields force the process cache entry to be valid
@@ -395,8 +442,10 @@ func SetAncestorFields(pce *ProcessCacheEntry, subField string, _ interface{}) (
 }
 
 // Hash returns a unique key for the entity
-func (pc *ProcessCacheEntry) Hash() string {
-	return fmt.Sprintf("%d/%s", pc.Pid, pc.Comm)
+func (pc *ProcessCacheEntry) Hash() eval.ScopeHashKey {
+	return eval.ScopeHashKey{
+		Uintptr: uintptr(unsafe.Pointer(pc)),
+	}
 }
 
 // ParentScope returns the parent entity scope
@@ -440,7 +489,7 @@ type FileEvent struct {
 	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length" op_override:"ProcessSymlinkPathname,OverlayFSPathname"` // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "/usr/bin/apt"` Description:`Matches the execution of the file located at /usr/bin/apt` Example:`open.file.path == "/etc/passwd"` Description:`Matches any process opening the /etc/passwd file.`
 	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"ProcessSymlinkBasename"`               // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "apt"` Description:`Matches the execution of any file named apt.`
 	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem"`                                                        // SECLDoc[filesystem] Definition:`File's filesystem`
-	Extension   string `field:"extension,handler:ResolveFileExtension"`                                                          // SECLDoc[extension] Definition:`File's extension`
+	Extension   string `field:"extension,handler:ResolveFileExtension" op_override:"eval.ExtensionCmp"`                          // SECLDoc[extension] Definition:`File's extension`
 
 	MountPath               string `field:"-"`
 	MountSource             uint32 `field:"-"`
@@ -475,7 +524,8 @@ type InvalidateDentryEvent struct {
 
 // MountReleasedEvent defines a mount released event
 type MountReleasedEvent struct {
-	MountID uint32
+	MountID       uint32
+	MountIDUnique uint64
 }
 
 // LinkEvent represents a link event
@@ -587,9 +637,10 @@ type SELinuxEvent struct {
 
 // PIDContext holds the process context of a kernel event
 type PIDContext struct {
-	Pid           uint32 `field:"pid"` // SECLDoc[pid] Definition:`Process ID of the process (also called thread group ID)`
-	Tid           uint32 `field:"tid"` // SECLDoc[tid] Definition:`Thread ID of the thread`
-	NetNS         uint32 `field:"-"`
+	Pid           uint32 `field:"pid"`        // SECLDoc[pid] Definition:`Process ID of the process (also called thread group ID)`
+	Tid           uint32 `field:"tid"`        // SECLDoc[tid] Definition:`Thread ID of the thread`
+	NetNS         uint32 `field:"netns"`      // SECLDoc[netns] Definition:`NetNS ID of the process`
+	MntNS         uint32 `field:"mntns"`      // SECLDoc[mntns] Definition:`MNTNS ID of the process`
 	IsKworker     bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker`
 	ExecInode     uint64 `field:"-"`          // used to track exec and event loss
 	UserSessionID uint64 `field:"-"`          // used to track user sessions from kernel space
@@ -784,7 +835,7 @@ type ActivityDumpLoadConfig struct {
 
 // NetworkDeviceContext represents the network device context of a network event
 type NetworkDeviceContext struct {
-	NetNS   uint32 `field:"-"`
+	NetNS   uint32 `field:"netns"` // SECLDoc[netns] Definition:`Interface NetNS ID`
 	IfIndex uint32 `field:"-"`
 	IfName  string `field:"ifname,handler:ResolveNetworkDeviceIfName"` // SECLDoc[ifname] Definition:`Interface ifname`
 }
@@ -1053,4 +1104,18 @@ type PrCtlEvent struct {
 type TracerMemfdSealEvent struct {
 	SyscallEvent
 	Fd uint32
+}
+
+func (e *Event) initPlatformPointerFields() {
+	if e.GetEventType() == PTraceEventType {
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		if e.PTrace.Tracee.Ancestor == nil {
+			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		if e.PTrace.Tracee.Parent == nil {
+			e.PTrace.Tracee.Parent = &e.PTrace.Tracee.Ancestor.ProcessContext.Process
+		}
+	}
 }

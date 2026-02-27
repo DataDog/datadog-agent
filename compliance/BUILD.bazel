@@ -1,9 +1,14 @@
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "filter_directory", "pkg_files")
 load("@rules_python//python:py_binary.bzl", "py_binary")
-load("//compliance:license_csv.bzl", "license_csv")
+load("@rules_python//python:py_library.bzl", "py_library")
+load("@rules_python//python:py_test.bzl", "py_test")
 
 package(default_visibility = ["//visibility:public"])
+
+py_library(
+    name = "gather_licenses_lib",
+    srcs = ["gather_licenses.py"],
+    deps = ["//tasks:licenses"],
+)
 
 py_binary(
     name = "gather_licenses",
@@ -12,67 +17,10 @@ py_binary(
     deps = ["//tasks:licenses"],
 )
 
-# Gather the licenses for dependencies that not built by omnibus any more.
-# The target is a temporary hack. In the future, it should become //distrib:agent.
-license_csv(
-    name = "licenses",
-    csv_out = "licenses.csv",
-    licenses_dir = "licenses_dir",
-    offers_dir = "sources_dir",
-    tags = ["manual"],
-    target = "//deps:all_deps",
-)
-
-# Turn the copied licenses into a target we can feed to other rules.
-filegroup(
-    name = "copied_license_dir",
-    srcs = [":licenses"],
-    output_group = "licenses",
-)
-
-# This silliness is to strip the directory name of the license
-# TreeArtifact.
-filter_directory(
-    name = "license_dir_stripped",
-    src = ":copied_license_dir",
-    outdir_name = "LICENSES",
-    strip_prefix = ".",
-)
-
-# You would expect that filter_directory returns something usuable to pkg_* rules.
-# It does not, so we have to wrap it.
-pkg_files(
-    name = "license_copies",
-    srcs = [":license_dir_stripped"],
-)
-
-# Turn the copied offers into a target we can feed to other rules.
-filegroup(
-    name = "copied_offer_dir",
-    srcs = [":licenses"],
-    output_group = "offers",
-)
-
-# This silliness is to strip the directory name of the offer
-# TreeArtifact.
-filter_directory(
-    name = "offer_dir_stripped",
-    src = ":copied_offer_dir",
-    outdir_name = "sources",
-    strip_prefix = ".",
-)
-
-# You would expect that filter_directory returns something usuable to pkg_* rules.
-# It does not, so we have to wrap it.
-pkg_files(
-    name = "offer_copies",
-    srcs = [":offer_dir_stripped"],
-)
-
-pkg_install(
-    name = "install_licenses",
-    srcs = [
-        ":license_copies",
-        ":offer_copies",
+py_test(
+    name = "gather_licenses_test",
+    srcs = ["gather_licenses_test.py"],
+    deps = [
+        ":gather_licenses_lib",
     ],
 )

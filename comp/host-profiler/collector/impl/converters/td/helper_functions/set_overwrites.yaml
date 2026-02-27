@@ -1,0 +1,8 @@
+processors:
+  batch:
+    timeout: 10s
+    send_batch_size: 100
+
+receivers:
+  hostprofiler:
+    enabled: false

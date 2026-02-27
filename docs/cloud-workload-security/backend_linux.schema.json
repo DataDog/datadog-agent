@@ -430,6 +430,10 @@
         "rule_context": {
           "$ref": "#/$defs/RuleContext",
           "description": "RuleContext rule context"
+        },
+        "source": {
+          "type": "string",
+          "description": "Source of the event"
         }
       },
       "additionalProperties": false,
@@ -1452,6 +1456,13 @@
           },
           "type": "array",
           "description": "List of AWS Security Credentials that the process had access to"
+        },
+        "tracer": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "Tags from an APM tracer instrumentation"
         }
       },
       "additionalProperties": false,
@@ -1609,6 +1620,13 @@
           },
           "type": "array",
           "description": "List of AWS Security Credentials that the process had access to"
+        },
+        "tracer": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "Tags from an APM tracer instrumentation"
         },
         "parent": {
           "$ref": "#/$defs/Process",
@@ -1942,6 +1960,34 @@
       ],
       "description": "SetSockOptEventSerializer defines a setsockopt event serializer"
     },
+    "SetrlimitEvent": {
+      "properties": {
+        "resource": {
+          "type": "string",
+          "description": "Resource being limited"
+        },
+        "rlim_cur": {
+          "type": "integer",
+          "description": "Current limit"
+        },
+        "rlim_max": {
+          "type": "integer",
+          "description": "Maximum limit"
+        },
+        "target": {
+          "$ref": "#/$defs/ProcessContext",
+          "description": "process context of the setrlimit target"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "resource",
+        "rlim_cur",
+        "rlim_max"
+      ],
+      "description": "SetrlimitEventSerializer serializes a setrlimit event"
+    },
     "SignalEvent": {
       "properties": {
         "type": {
@@ -2265,6 +2311,9 @@
     "container": {
       "$ref": "#/$defs/ContainerContext"
     },
+    "signature": {
+      "type": "string"
+    },
     "network": {
       "$ref": "#/$defs/NetworkContext"
     },
@@ -2348,6 +2397,9 @@
     },
     "prctl": {
       "$ref": "#/$defs/PrCtlEvent"
+    },
+    "setrlimit": {
+      "$ref": "#/$defs/SetrlimitEvent"
     }
   },
   "additionalProperties": false,

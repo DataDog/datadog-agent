@@ -34,7 +34,7 @@ func TestGetPorts(t *testing.T) {
 }
 
 func TestProcessResults(t *testing.T) {
-	runner := &Runner{}
+	runner := &Runner{networkID: func() string { return "" }}
 	tts := []struct {
 		description      string
 		inputResults     *result.Results
@@ -55,6 +55,7 @@ func TestProcessResults(t *testing.T) {
 			protocol:         payload.ProtocolUDP,
 			destinationHost:  "test-destination-hostname",
 			inputResults: &result.Results{
+				TestRunID: "test-run-id-1",
 				Source: result.Source{
 					PublicIP: "1.2.3.4",
 				},
@@ -116,6 +117,7 @@ func TestProcessResults(t *testing.T) {
 			},
 			expected: payload.NetworkPath{
 				AgentVersion: version.AgentVersion,
+				TestRunID:    "test-run-id-1",
 				Protocol:     payload.ProtocolUDP,
 				Source: payload.NetworkPathSource{
 					PublicIP: "1.2.3.4",
@@ -465,7 +467,6 @@ func TestProcessResults(t *testing.T) {
 			assert.NotNil(t, actual.Timestamp)
 			diff := cmp.Diff(test.expected, actual,
 				cmpopts.IgnoreFields(payload.NetworkPath{}, "Timestamp"),
-				cmpopts.IgnoreFields(payload.NetworkPath{}, "PathtraceID"),
 				cmpopts.IgnoreFields(payload.NetworkPath{}, "TestResultID"),
 			)
 			assert.Empty(t, diff)

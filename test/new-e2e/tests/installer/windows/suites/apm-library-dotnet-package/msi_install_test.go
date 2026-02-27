@@ -86,8 +86,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestUpgradeWithMSI() {
 		// TODO: remove override once image is published in prod
 		// TODO: support DD_INSTALLER_REGISTRY_URL
 		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
-		// TODO: update to use Version() when stable is updated
-		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:"+oldVersion.PackageVersion()),
+		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:"+oldVersion.Version()),
 		installerwindows.WithMSILogFile("install.log"),
 	)
 
@@ -162,8 +161,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestMSISkipRollbackIfInstalled() {
 		// TODO: remove override once image is published in prod
 		// TODO: support DD_INSTALLER_REGISTRY_URL
 		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
-		// TODO: update to use Version() when stable is updated
-		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:"+oldVersion.PackageVersion()),
+		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:"+oldVersion.Version()),
 		installerwindows.WithMSILogFile("install.log"),
 	)
 
@@ -363,6 +361,43 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestDisableEnableScript() {
 	s.startIISApp(webConfigFile, aspxFile)
 	libraryPath = s.getLibraryPathFromInstrumentedIIS()
 	s.Require().Contains(libraryPath, version.Version())
+}
+
+// TestEnableSSIOnReinstall tests that SSI can be enabled when reinstalling the same version
+// of the agent after an initial installation without SSI enabled
+func (s *testAgentMSIInstallsDotnetLibrary) TestEnableSSIOnReinstall() {
+	version := s.currentDotnetLibraryVersion
+
+	// First install: Install agent without SSI enabled
+	s.installCurrentAgentVersion(
+		// TODO: remove override once image is published in prod
+		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
+		installerwindows.WithMSILogFile("install-no-ssi.log"),
+	)
+
+	// Start IIS and verify instrumentation is not active
+	defer s.stopIISApp()
+	s.startIISApp(webConfigFile, aspxFile)
+	libraryPath := s.getLibraryPathFromInstrumentedIIS()
+	s.Require().Empty(libraryPath, "library should not be loaded when SSI is not enabled")
+
+	// Second install: Reinstall with SSI enabled
+	s.installCurrentAgentVersion(
+		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
+		// TODO: remove override once image is published in prod
+		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
+		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:"+version.Version()),
+		installerwindows.WithMSILogFile("install-with-ssi.log"),
+	)
+
+	// Verify the library package is still at the expected version
+	s.assertSuccessfulPromoteExperiment(version.Version())
+
+	// Restart IIS and verify instrumentation is now active
+	s.stopIISApp()
+	s.startIISApp(webConfigFile, aspxFile)
+	libraryPath = s.getLibraryPathFromInstrumentedIIS()
+	s.Require().Contains(libraryPath, version.Version(), "library should be loaded when SSI is enabled")
 }
 
 func (s *testAgentMSIInstallsDotnetLibrary) installPreviousAgentVersion(opts ...installerwindows.MsiOption) {

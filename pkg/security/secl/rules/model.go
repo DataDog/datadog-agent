@@ -14,7 +14,7 @@ import (
 	"reflect"
 	"time"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -130,7 +130,7 @@ type ActionDefinition struct {
 	CoreDump      *CoreDumpDefinition      `yaml:"coredump,omitempty" json:"coredump,omitempty" jsonschema:"oneof_required=CoreDumpAction"`
 	Hash          *HashDefinition          `yaml:"hash,omitempty" json:"hash,omitempty" jsonschema:"oneof_required=HashAction"`
 	Log           *LogDefinition           `yaml:"log,omitempty" json:"log,omitempty" jsonschema:"oneof_required=LogAction"`
-	NetworkFilter *NetworkFilterDefinition `yaml:"network_filter,omitempty" json:"network_filter,omitempty"`
+	NetworkFilter *NetworkFilterDefinition `yaml:"network_filter,omitempty" json:"network_filter,omitempty" jsonschema:"oneof_required=NetworkFilterAction"`
 }
 
 // Name returns the name of the action
@@ -259,11 +259,11 @@ func (s *SetDefinition) PreCheck(_ PolicyLoaderOpts) error {
 		return fmt.Errorf("failed to infer type for variable '%s', please set 'default_value'", s.Name)
 	}
 
-	if s.Inherited && s.Scope != "process" {
+	if s.Inherited && s.Scope != ScopeProcess {
 		return errors.New("only variables scoped to process can be marked as inherited")
 	}
 
-	if len(s.ScopeField) > 0 && s.Scope != "process" {
+	if len(s.ScopeField) > 0 && s.Scope != ScopeProcess {
 		return errors.New("only variables scoped to process can have a custom scope_field")
 	}
 
@@ -274,7 +274,7 @@ func (s *SetDefinition) PreCheck(_ PolicyLoaderOpts) error {
 type KillDefinition struct {
 	DefaultActionDefinition   `yaml:"-" json:"-"`
 	Signal                    string `yaml:"signal" json:"signal" jsonschema:"description=A valid signal name,example=SIGKILL,example=SIGTERM"`
-	Scope                     string `yaml:"scope,omitempty" json:"scope,omitempty" jsonschema:"enum=process,enum=container"`
+	Scope                     string `yaml:"scope,omitempty" json:"scope,omitempty" jsonschema:"enum=process,enum=container,enum=cgroup"`
 	DisableContainerDisarmer  bool   `yaml:"disable_container_disarmer,omitempty" json:"disable_container_disarmer,omitempty" jsonschema:"description=Set to true to disable the rule kill action automatic container disarmer safeguard"`
 	DisableExecutableDisarmer bool   `yaml:"disable_executable_disarmer,omitempty" json:"disable_executable_disarmer,omitempty" jsonschema:"description=Set to true to disable the rule kill action automatic executable disarmer safeguard"`
 }
@@ -309,6 +309,7 @@ type CoreDumpDefinition struct {
 type HashDefinition struct {
 	DefaultActionDefinition `yaml:"-" json:"-"`
 	Field                   string `yaml:"field,omitempty" json:"field,omitempty"`
+	MaxFileSize             int64  `yaml:"max_file_size,omitempty" json:"max_file_size,omitempty"`
 }
 
 // PostCheck returns an error if the hash action is invalid after parsing
@@ -366,7 +367,7 @@ type LogDefinition struct {
 // PreCheck returns an error if the log action is invalid
 func (l *LogDefinition) PreCheck(_ PolicyLoaderOpts) error {
 	if l.Level == "" {
-		return errors.New("a valid log level must be specified to the the 'log' action")
+		return errors.New("a valid log level must be specified to the 'log' action")
 	}
 
 	return nil
@@ -418,7 +419,7 @@ type HookPointArg struct {
 // PolicyDef represents a policy file definition
 type PolicyDef struct {
 	Version string `yaml:"version,omitempty" json:"version"`
-	// Type is the type of content served by the policy (e.g. "policy" for a default policy, "detection_pack" or empty for others)
+	// Type is the type of content served by the policy (e.g. "policy" for a default policy, "content_pack" or empty for others)
 	Type            string             `yaml:"type,omitempty" json:"type,omitempty"`
 	ReplacePolicyID string             `yaml:"replace_policy_id,omitempty" json:"replace_policy_id,omitempty"`
 	Macros          []*MacroDefinition `yaml:"macros,omitempty" json:"macros,omitempty"`
@@ -471,7 +472,7 @@ func (d *HumanReadableDuration) UnmarshalYAML(n *yaml.Node) error {
 
 // MarshalJSON marshals a duration to a human readable format
 func (d *HumanReadableDuration) MarshalJSON() ([]byte, error) {
-	if d == nil || d.Duration == 0 {
+	if d == nil {
 		return nil, nil
 	}
 	return json.Marshal(d.GetDuration())

@@ -18,12 +18,11 @@ import (
 	"time"
 
 	"github.com/moby/sys/mountinfo"
+	"github.com/stretchr/testify/assert"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-
-	"github.com/stretchr/testify/assert"
-	"golang.org/x/sys/unix"
 )
 
 func openTreeIsSupported() bool {
@@ -249,7 +248,7 @@ func TestOpenTree(t *testing.T) {
 	})
 
 	t.Run("detached-event-captured", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			fd, err := unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE)
 			if err != nil {
 				t.Fatal(err)
@@ -259,7 +258,7 @@ func TestOpenTree(t *testing.T) {
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, true, event.Mount.Detached, "Mount should be detached")
 			assert.Equal(t, false, event.Mount.Visible, "Mount shouldn't be visible")
-		})
+		}, "test_rule3")
 	})
 
 	test.Close()
@@ -279,24 +278,24 @@ func TestOpenTree(t *testing.T) {
 		destPath := fmt.Sprintf("/proc/%d/fd/%d/true", pid, fd)
 		_ = exec.Command("cp", srcPath, destPath).Run()
 		defer unix.Close(fd)
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			err = exec.Command(destPath).Run()
 			return nil
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, true, event.Exec.FileEvent.MountDetached, "Mount should be detached")
 			assert.Equal(t, false, event.Exec.FileEvent.MountVisible, "Mount shouldn't be visible")
-		})
+		}, "test_rule1")
 	})
 
 	t.Run("execution-from-visible-mount", func(t *testing.T) {
 		exePath, _ := exec.LookPath("false")
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			_ = exec.Command(exePath).Run()
 			return nil
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, false, event.Exec.FileEvent.MountDetached, "Mount should be detached")
 			assert.Equal(t, true, event.Exec.FileEvent.MountVisible, "Mount shouldn't be visible")
-		})
+		}, "test_rule2")
 	})
 
 }

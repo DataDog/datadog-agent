@@ -15,12 +15,12 @@ import (
 	"sync"
 	"time"
 
-	backoffticker "github.com/cenkalti/backoff/v4"
-	"github.com/golang/protobuf/ptypes/empty"
+	backoffticker "github.com/cenkalti/backoff/v5"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	empty "google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
@@ -39,6 +39,7 @@ type RuntimeSecurityAgent struct {
 	statsdClient         statsd.ClientInterface
 	hostname             string
 	reporter             common.RawReporter
+	secInfoReporter      common.RawReporter
 	eventClient          *RuntimeSecurityEventClient
 	cmdClient            *RuntimeSecurityCmdClient
 	running              *atomic.Bool
@@ -47,6 +48,7 @@ type RuntimeSecurityAgent struct {
 	eventReceived        *atomic.Uint64
 	activityDumpReceived *atomic.Uint64
 	endpoints            *config.Endpoints
+	secInfoEndpoints     *config.Endpoints
 	cancel               context.CancelFunc
 
 	// activity dump
@@ -119,9 +121,11 @@ func (rsa *RuntimeSecurityAgent) SendActivityDumpStream(stream grpc.ClientStream
 }
 
 // Start the runtime security agent
-func (rsa *RuntimeSecurityAgent) Start(reporter common.RawReporter, endpoints *config.Endpoints) {
+func (rsa *RuntimeSecurityAgent) Start(reporter common.RawReporter, endpoints *config.Endpoints, secInfoReporter common.RawReporter, secInfoEndpoints *config.Endpoints) {
 	rsa.reporter = reporter
 	rsa.endpoints = endpoints
+	rsa.secInfoReporter = secInfoReporter
+	rsa.secInfoEndpoints = secInfoEndpoints
 
 	ctx, cancel := context.WithCancel(context.Background())
 	rsa.cancel = cancel
@@ -253,12 +257,19 @@ func (rsa *RuntimeSecurityAgent) startActivityDumpStreamListener() {
 	}
 }
 
-// DispatchEvent dispatches a security event message to the subsytems of the runtime security agent
+// DispatchEvent dispatches a security event message to the subsystems of the runtime security agent
 func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
-	if rsa.reporter == nil {
-		return
+	if evt.Track == string(common.SecInfo) {
+		if rsa.secInfoReporter == nil {
+			return
+		}
+		rsa.secInfoReporter.ReportRaw(evt.GetData(), evt.Service, evt.Timestamp.AsTime(), evt.GetTags()...)
+	} else {
+		if rsa.reporter == nil {
+			return
+		}
+		rsa.reporter.ReportRaw(evt.GetData(), evt.Service, evt.Timestamp.AsTime(), evt.GetTags()...)
 	}
-	rsa.reporter.ReportRaw(evt.GetData(), evt.Service, evt.Timestamp.AsTime(), evt.GetTags()...)
 }
 
 // DispatchActivityDump forwards an activity dump message to the backend
@@ -281,7 +292,6 @@ func newLogBackoffTicker() *backoffticker.Ticker {
 	expBackoff := backoffticker.NewExponentialBackOff()
 	expBackoff.InitialInterval = 2 * time.Second
 	expBackoff.MaxInterval = 60 * time.Second
-	expBackoff.MaxElapsedTime = 0
 	expBackoff.Reset()
 	return backoffticker.NewTicker(expBackoff)
 }

@@ -76,7 +76,7 @@ func TestChown(t *testing.T) {
 			prevGID = 200
 		}()
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			// fchown syscall
 			if _, _, errno := syscall.Syscall(syscall.SYS_FCHOWN, f.Fd(), 100, 200); errno != 0 {
 				return error(errno)
@@ -99,7 +99,7 @@ func TestChown(t *testing.T) {
 			test.validateChownSchema(t, event)
 			validateSyscallContext(t, event, "$.syscall.chown.uid")
 			validateSyscallContext(t, event, "$.syscall.chown.gid")
-		})
+		}, "test_rule")
 	})
 
 	t.Run("fchownat", func(t *testing.T) {
@@ -108,7 +108,7 @@ func TestChown(t *testing.T) {
 			prevGID = 201
 		}()
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, _, errno := syscall.Syscall6(syscall.SYS_FCHOWNAT, 0, uintptr(testFilePtr), uintptr(101), uintptr(201), 0x100, 0); errno != 0 {
 				return error(errno)
 			}
@@ -131,7 +131,7 @@ func TestChown(t *testing.T) {
 			validateSyscallContext(t, event, "$.syscall.chown.path")
 			validateSyscallContext(t, event, "$.syscall.chown.uid")
 			validateSyscallContext(t, event, "$.syscall.chown.gid")
-		})
+		}, "test_rule")
 	})
 
 	t.Run("lchown", ifSyscallSupported("SYS_LCHOWN", func(t *testing.T, syscallNB uintptr) {
@@ -146,7 +146,7 @@ func TestChown(t *testing.T) {
 
 		defer os.Remove(testSymlink)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testSymlinkPtr), uintptr(102), uintptr(202)); errno != 0 {
 				if errno == unix.ENOSYS {
 					return ErrSkipTest{"lchown is not supported"}
@@ -173,13 +173,13 @@ func TestChown(t *testing.T) {
 			validateSyscallContext(t, event, "$.syscall.chown.path")
 			validateSyscallContext(t, event, "$.syscall.chown.uid")
 			validateSyscallContext(t, event, "$.syscall.chown.gid")
-		})
+		}, "test_rule2")
 	}))
 
 	t.Run("chown", ifSyscallSupported("SYS_CHOWN", func(t *testing.T, syscallNB uintptr) {
 		defer func() { prevUID, prevGID = 103, 203 }()
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), 103, 203); errno != 0 {
 				return error(errno)
 			}
@@ -202,13 +202,13 @@ func TestChown(t *testing.T) {
 			validateSyscallContext(t, event, "$.syscall.chown.path")
 			validateSyscallContext(t, event, "$.syscall.chown.uid")
 			validateSyscallContext(t, event, "$.syscall.chown.gid")
-		})
+		}, "test_rule")
 	}))
 
 	t.Run("chown-no-group", ifSyscallSupported("SYS_CHOWN", func(t *testing.T, syscallNB uintptr) {
 		defer func() { prevUID = 104 }()
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			gid := -1
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), 104, uintptr(gid)); errno != 0 {
 				return error(errno)
@@ -227,13 +227,13 @@ func TestChown(t *testing.T) {
 			validateSyscallContext(t, event, "$.syscall.chown.path")
 			validateSyscallContext(t, event, "$.syscall.chown.uid")
 			validateSyscallContext(t, event, "$.syscall.chown.gid")
-		})
+		}, "test_rule3")
 	}))
 
 	t.Run("chown-no-user", ifSyscallSupported("SYS_CHOWN", func(t *testing.T, syscallNB uintptr) {
 		defer func() { prevGID = 204 }()
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			uid := -1
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(uid), 204); errno != 0 {
 				return error(errno)
@@ -252,7 +252,7 @@ func TestChown(t *testing.T) {
 			validateSyscallContext(t, event, "$.syscall.chown.path")
 			validateSyscallContext(t, event, "$.syscall.chown.uid")
 			validateSyscallContext(t, event, "$.syscall.chown.gid")
-		})
+		}, "test_rule4")
 	}))
 
 	test.RunMultiMode(t, "pipe-chown-discarded", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -337,7 +337,7 @@ func TestChownUserGroup(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			// fchown syscall
 			if _, _, errno := syscall.Syscall(syscall.SYS_FCHOWN, f.Fd(), uintptr(testUID), uintptr(testGID)); errno != 0 {
 				return error(errno)
@@ -353,7 +353,7 @@ func TestChownUserGroup(t *testing.T) {
 			assert.Equal(t, currentUser.Username, event.Chown.File.User, "wrong initial user")
 			assert.Equal(t, currentGroup.Gid, strconv.Itoa(int(event.Chown.File.GID)), "wrong initial group")
 			assert.Equal(t, currentGroup.Name, event.Chown.File.Group, "wrong initial group")
-		})
+		}, "test_rule")
 	})
 
 	t.Run("fchownat", func(t *testing.T) {
@@ -363,7 +363,7 @@ func TestChownUserGroup(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, _, errno := syscall.Syscall6(syscall.SYS_FCHOWNAT, 0, uintptr(testFilePtr), uintptr(testUID), uintptr(testGID), 0x100, 0); errno != 0 {
 				return error(errno)
 			}
@@ -378,7 +378,7 @@ func TestChownUserGroup(t *testing.T) {
 			assert.Equal(t, currentUser.Username, event.Chown.File.User, "wrong initial user")
 			assert.Equal(t, currentGroup.Gid, strconv.Itoa(int(event.Chown.File.GID)), "wrong initial group")
 			assert.Equal(t, currentGroup.Name, event.Chown.File.Group, "wrong initial group")
-		})
+		}, "test_rule")
 	})
 
 	t.Run("lchown", ifSyscallSupported("SYS_LCHOWN", func(t *testing.T, syscallNB uintptr) {
@@ -397,7 +397,7 @@ func TestChownUserGroup(t *testing.T) {
 		}
 		defer os.Remove(testSymlink)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testSymlinkPtr), uintptr(testUID), uintptr(testGID)); errno != 0 {
 				if errno == unix.ENOSYS {
 					return ErrSkipTest{"lchown is not supported"}
@@ -415,7 +415,7 @@ func TestChownUserGroup(t *testing.T) {
 			assert.Equal(t, currentUser.Username, event.Chown.File.User, "wrong initial user")
 			assert.Equal(t, currentGroup.Gid, strconv.Itoa(int(event.Chown.File.GID)), "wrong initial group")
 			assert.Equal(t, currentGroup.Name, event.Chown.File.Group, "wrong initial group")
-		})
+		}, "test_rule2")
 	}))
 
 	t.Run("chown", ifSyscallSupported("SYS_CHOWN", func(t *testing.T, syscallNB uintptr) {
@@ -425,7 +425,7 @@ func TestChownUserGroup(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(testUID), uintptr(testGID)); errno != 0 {
 				return error(errno)
 			}
@@ -440,7 +440,7 @@ func TestChownUserGroup(t *testing.T) {
 			assert.Equal(t, currentUser.Username, event.Chown.File.User, "wrong initial user")
 			assert.Equal(t, currentGroup.Gid, strconv.Itoa(int(event.Chown.File.GID)), "wrong initial group")
 			assert.Equal(t, currentGroup.Name, event.Chown.File.Group, "wrong initial group")
-		})
+		}, "test_rule")
 	}))
 
 	t.Run("chown-no-group", ifSyscallSupported("SYS_CHOWN", func(t *testing.T, syscallNB uintptr) {
@@ -450,7 +450,7 @@ func TestChownUserGroup(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			gid := -1
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(testUID), uintptr(gid)); errno != 0 {
 				return error(errno)
@@ -466,7 +466,7 @@ func TestChownUserGroup(t *testing.T) {
 			assert.Equal(t, currentUser.Username, event.Chown.File.User, "wrong initial user")
 			assert.Equal(t, currentGroup.Gid, strconv.Itoa(int(event.Chown.File.GID)), "wrong initial group")
 			assert.Equal(t, currentGroup.Name, event.Chown.File.Group, "wrong initial group")
-		})
+		}, "test_rule3")
 	}))
 
 	t.Run("chown-no-user", ifSyscallSupported("SYS_CHOWN", func(t *testing.T, syscallNB uintptr) {
@@ -476,7 +476,7 @@ func TestChownUserGroup(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			uid := -1
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(uid), uintptr(testGID)); errno != 0 {
 				return error(errno)
@@ -492,6 +492,6 @@ func TestChownUserGroup(t *testing.T) {
 			assert.Equal(t, currentUser.Username, event.Chown.File.User, "wrong initial user")
 			assert.Equal(t, currentGroup.Gid, strconv.Itoa(int(event.Chown.File.GID)), "wrong initial group")
 			assert.Equal(t, currentGroup.Name, event.Chown.File.Group, "wrong initial group")
-		})
+		}, "test_rule4")
 	}))
 }

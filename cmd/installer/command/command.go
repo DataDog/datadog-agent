@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/commands"
 )
 
 // common constants for all the updater subcommands.
@@ -79,6 +80,10 @@ Datadog Installer installs datadog-packages based on your commands.`,
 			ID:    "apm",
 			Title: "APM Commands",
 		},
+		&cobra.Group{
+			ID:    "extension",
+			Title: "Extensions Commands",
+		},
 	)
 
 	agentCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "path to directory containing installer.yaml")
@@ -111,6 +116,9 @@ Datadog Installer installs datadog-packages based on your commands.`,
 		// TODO: Specific to Windows for now, as Linux needs more testing/validation of
 		//       the additional migration cases, and the main setup entrypoint is
 		//       currently `install.sh` not the `installer` binary.
+		agentCmd.Annotations = map[string]string{
+			commands.AnnotationHumanReadableErrors: "true",
+		}
 		agentCmd.RunE = func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				cmd.SetArgs([]string{"setup", "--flavor", "default"})

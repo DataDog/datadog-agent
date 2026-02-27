@@ -148,6 +148,8 @@ func (r *reflectorStore) Delete(obj interface{}) error {
 	// to be deleted.
 	case *corev1.Pod:
 		uid = v.UID
+	case *MinimalPod:
+		uid = v.UID
 	case *appsv1.Deployment:
 		uid = v.UID
 	case *metav1.PartialObjectMetadata:

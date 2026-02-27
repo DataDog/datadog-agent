@@ -14,6 +14,7 @@ import (
 	"os"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -25,7 +26,6 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -43,7 +43,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
@@ -154,7 +153,7 @@ type Manager struct {
 }
 
 // NewManager returns a new instance of the security profile manager
-func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, newEvent func() *model.Event, dumpHandler backend.ActivityDumpHandler, ipc ipc.Component) (*Manager, error) {
+func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, newEvent func() *model.Event, dumpHandler backend.ActivityDumpHandler, hostname string) (*Manager, error) {
 	tracedPIDs, err := managerhelper.Map(ebpf, "traced_pids")
 	if err != nil {
 		return nil, err
@@ -248,11 +247,6 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		"",
 	))
 
-	hostname, err := hostnameutils.GetHostname(ipc)
-	if err != nil || hostname == "" {
-		hostname = "unknown"
-	}
-
 	contextTags := []string{"host:" + hostname}
 	// merge tags from config
 	for _, tag := range configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), true) {
@@ -277,9 +271,6 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 	}
 
 	var secProfEventTypes []model.EventType
-	if cfg.RuntimeSecurity.SecurityProfileAutoSuppressionEnabled {
-		secProfEventTypes = append(secProfEventTypes, cfg.RuntimeSecurity.SecurityProfileAutoSuppressionEventTypes...)
-	}
 	if cfg.RuntimeSecurity.AnomalyDetectionEnabled {
 		secProfEventTypes = append(secProfEventTypes, cfg.RuntimeSecurity.AnomalyDetectionEventTypes...)
 	}
@@ -520,7 +511,7 @@ func (m *Manager) SendStats() error {
 		}
 
 		t := []string{
-			fmt.Sprintf("in_kernel:%v", profilesLoadedInKernel),
+			"in_kernel:" + strconv.FormatInt(int64(profilesLoadedInKernel), 10),
 		}
 		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileProfiles, float64(len(m.profiles)), t, 1.0); err != nil {
 			return fmt.Errorf("couldn't send MetricSecurityProfileProfiles: %w", err)
@@ -545,7 +536,7 @@ func (m *Manager) SendStats() error {
 		}
 
 		for entry, count := range m.eventFiltering {
-			t := []string{fmt.Sprintf("event_type:%s", entry.eventType), entry.state.ToTag(), entry.result.toTag()}
+			t := []string{"event_type:" + entry.eventType.String(), entry.state.ToTag(), entry.result.toTag()}
 			if value := count.Swap(0); value > 0 {
 				if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), t, 1.0); err != nil {
 					return fmt.Errorf("couldn't send MetricSecurityProfileEventFiltering metric: %w", err)
@@ -635,7 +626,11 @@ func (m *Manager) persist(p *profile.Profile, formatsRequests map[config.Storage
 			if err := storage.Persist(request, p, data); err != nil {
 				seclog.Errorf("couldn't persist [%s] to %s storage: %v", p.GetSelectorStr(), request.Type, err)
 			} else {
-				tags := []string{"format:" + request.Format.String(), "storage_type:" + request.Type.String(), fmt.Sprintf("compression:%v", request.Compression)}
+				tags := []string{
+					"format:" + request.Format.String(),
+					"storage_type:" + request.Type.String(),
+					"compression:" + strconv.FormatBool(request.Compression),
+				}
 				if err := m.statsdClient.Count(metrics.MetricActivityDumpSizeInBytes, int64(data.Len()), tags, 1.0); err != nil {
 					seclog.Warnf("couldn't send %s metric: %v", metrics.MetricActivityDumpSizeInBytes, err)
 				}
@@ -710,22 +705,19 @@ func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]boo
 
 	result := make(map[activity_tree.ImageProcessKey]bool)
 
-	cgr.Iterate(func(cgce *cgroupModel.CacheEntry) bool {
-		cgce.Lock()
-		defer cgce.Unlock()
-
+	cgr.IterateCacheEntries(func(cgce *cgroupModel.CacheEntry) bool {
 		var cgceTags []string
 		var err error
 		var imageName, imageTag string
-		if cgce.ContainerID != "" {
-			cgceTags, err = tagsResolver.ResolveWithErr(cgce.ContainerID)
+		if id := cgce.GetContainerID(); id != "" {
+			cgceTags, err = tagsResolver.ResolveWithErr(id)
 			if err != nil {
 				return false
 			}
 			imageName = utils.GetTagValue("image_name", cgceTags)
 			imageTag = utils.GetTagValue("image_tag", cgceTags)
-		} else if cgce.CGroupID != "" {
-			cgceTags, err = tagsResolver.ResolveWithErr(cgce.CGroupID)
+		} else if cgce.IsCGroupContextResolved() {
+			cgceTags, err = tagsResolver.ResolveWithErr(cgce.GetCGroupID())
 			if err != nil {
 				return false
 			}
@@ -743,9 +735,7 @@ func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]boo
 			imageName: imageName,
 			imageTag:  imageTag,
 		}
-		for pid := range cgce.PIDs {
-			pids[imageTagKey] = append(pids[imageTagKey], pid)
-		}
+		pids[imageTagKey] = append(pids[imageTagKey], cgce.GetPIDs()...)
 
 		return false
 	})

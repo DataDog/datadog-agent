@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -35,11 +35,11 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 		return status
 	}
 
-	ns := common.GetResourcesNamespace()
+	ns := namespace.GetResourcesNamespace()
 	webhookName := pkgconfigsetup.Datadog().GetString("admission_controller.webhook_name")
 	secretName := pkgconfigsetup.Datadog().GetString("admission_controller.certificate.secret_name")
 	status["WebhookName"] = webhookName
-	status["SecretName"] = fmt.Sprintf("%s/%s", ns, secretName)
+	status["SecretName"] = ns + "/" + secretName
 
 	validatingWebhookStatus, err := getValidatingWebhookStatus(webhookName, apiCl)
 	if err != nil {

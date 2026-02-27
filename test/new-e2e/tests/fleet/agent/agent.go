@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/avast/retry-go/v4"
-	"github.com/goccy/go-yaml"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v3"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
@@ -79,7 +79,7 @@ func (a *Agent) InstalledIntegrations() (map[string]string, error) {
 		return nil, err
 	}
 	integrations := make(map[string]string)
-	for _, integration := range strings.Split(rawIntegrations, "\n") {
+	for integration := range strings.SplitSeq(rawIntegrations, "\n") {
 		integration = strings.TrimSpace(integration)
 		if strings.HasPrefix(integration, "datadog-") {
 			parts := strings.Split(integration, "==")
@@ -370,16 +370,16 @@ type Status struct {
 			} `json:"AnalyzedRateByServiceLegacy"`
 			AnalyzedSpansByService struct {
 			} `json:"AnalyzedSpansByService"`
-			AzureServerlessTags      string `json:"AzureServerlessTags"`
-			BucketInterval           int64  `json:"BucketInterval"`
-			ClientStatsFlushInterval int    `json:"ClientStatsFlushInterval"`
-			ComputeStatsBySpanKind   bool   `json:"ComputeStatsBySpanKind"`
-			ConfigPath               string `json:"ConfigPath"`
-			ConnectionLimit          int    `json:"ConnectionLimit"`
-			ConnectionResetInterval  int    `json:"ConnectionResetInterval"`
-			ContainerProcRoot        string `json:"ContainerProcRoot"`
-			DDAgentBin               string `json:"DDAgentBin"`
-			DebugServerPort          int    `json:"DebugServerPort"`
+			AdditionalProfileTags    map[string]string `json:"AdditionalProfileTags"`
+			BucketInterval           int64             `json:"BucketInterval"`
+			ClientStatsFlushInterval int               `json:"ClientStatsFlushInterval"`
+			ComputeStatsBySpanKind   bool              `json:"ComputeStatsBySpanKind"`
+			ConfigPath               string            `json:"ConfigPath"`
+			ConnectionLimit          int               `json:"ConnectionLimit"`
+			ConnectionResetInterval  int               `json:"ConnectionResetInterval"`
+			ContainerProcRoot        string            `json:"ContainerProcRoot"`
+			DDAgentBin               string            `json:"DDAgentBin"`
+			DebugServerPort          int               `json:"DebugServerPort"`
 			DebuggerIntakeProxy      struct {
 				DDURL string `json:"DDURL"`
 			} `json:"DebuggerIntakeProxy"`
@@ -436,14 +436,13 @@ type Status struct {
 			OTLPReceiver          struct {
 				AttributesTranslator struct {
 				} `json:"AttributesTranslator"`
-				BindHost                   string `json:"BindHost"`
-				GRPCPort                   int    `json:"GRPCPort"`
-				GrpcMaxRecvMsgSizeMib      int    `json:"GrpcMaxRecvMsgSizeMib"`
-				IgnoreMissingDatadogFields bool   `json:"IgnoreMissingDatadogFields"`
-				MaxRequestBytes            int    `json:"MaxRequestBytes"`
-				ProbabilisticSampling      int    `json:"ProbabilisticSampling"`
-				SpanNameAsResourceName     bool   `json:"SpanNameAsResourceName"`
-				SpanNameRemappings         struct {
+				BindHost               string `json:"BindHost"`
+				GRPCPort               int    `json:"GRPCPort"`
+				GrpcMaxRecvMsgSizeMib  int    `json:"GrpcMaxRecvMsgSizeMib"`
+				MaxRequestBytes        int    `json:"MaxRequestBytes"`
+				ProbabilisticSampling  int    `json:"ProbabilisticSampling"`
+				SpanNameAsResourceName bool   `json:"SpanNameAsResourceName"`
+				SpanNameRemappings     struct {
 				} `json:"SpanNameRemappings"`
 			} `json:"OTLPReceiver"`
 			Obfuscation struct {
@@ -923,8 +922,13 @@ type Status struct {
 	} `json:"metadata"`
 	NtpOffset float64 `json:"ntpOffset"`
 	OtelAgent struct {
-		Error string `json:"error"`
-		URL   string `json:"url"`
+		// Error state (when DDOT is disabled or not running)
+		Error string `json:"error,omitempty"`
+		URL   string `json:"url,omitempty"`
+
+		// Success state (when DDOT is running)
+		AgentVersion     string `json:"agentVersion,omitempty"`
+		CollectorVersion string `json:"collectorVersion,omitempty"`
 	} `json:"otelAgent"`
 	Otlp struct {
 		OtlpCollectorStatus    string `json:"otlpCollectorStatus"`
@@ -1014,8 +1018,6 @@ type Status struct {
 					Alloc int `json:"alloc"`
 				} `json:"memstats"`
 				Pid                             int    `json:"pid"`
-				PodQueueBytes                   int    `json:"pod_queue_bytes"`
-				PodQueueSize                    int    `json:"pod_queue_size"`
 				ProcessCount                    int    `json:"process_count"`
 				ProcessQueueBytes               int    `json:"process_queue_bytes"`
 				ProcessQueueSize                int    `json:"process_queue_size"`

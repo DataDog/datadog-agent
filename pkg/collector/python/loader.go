@@ -25,6 +25,7 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -103,7 +104,7 @@ type PythonCheckLoader struct {
 
 // NewPythonCheckLoader creates an instance of the Python checks loader
 func NewPythonCheckLoader(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filter workloadfilter.Component) (*PythonCheckLoader, error) {
-	initializeCheckContext(senderManager, logReceiver, tagger, filter)
+	collectoraggregator.InitializeCheckContext(senderManager, logReceiver, tagger, filter)
 	return &PythonCheckLoader{
 		logReceiver: logReceiver,
 	}, nil
@@ -161,10 +162,11 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	modules := []string{fmt.Sprintf("%s.%s", wheelNamespace, moduleName), moduleName}
 	var loadedAsWheel bool
 
-	var name string
+	loadedName := ""
 	var checkModule *C.rtloader_pyobject_t
 	var checkClass *C.rtloader_pyobject_t
 	var loadErrors []string // store errors for each module
+
 	for _, name := range modules {
 		// TrackedCStrings untracked by memory tracker currently
 		moduleName := TrackedCString(name)
@@ -173,6 +175,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 			if strings.HasPrefix(name, wheelNamespace+".") {
 				loadedAsWheel = true
 			}
+			loadedName = name
 			break
 		}
 
@@ -220,10 +223,14 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 			goCheckFilePath = C.GoString(checkFilePath)
 			C.rtloader_free(rtloader, unsafe.Pointer(checkFilePath))
 		} else {
-			log.Debugf("Could not query the __file__ attribute for check %s: %s", name, getRtLoaderError())
+			log.Debugf("Could not query the __file__ attribute for check %s: %s", moduleName, getRtLoaderError())
 		}
 
-		go reportPy3Warnings(name, goCheckFilePath)
+		// Ensure we never emit an empty check_name tag
+		if loadedName == "" {
+			loadedName = moduleName // config.Name (the original check name)
+		}
+		go reportPy3Warnings(loadedName, goCheckFilePath)
 	}
 
 	var goHASupported bool
@@ -235,7 +242,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 		if res := C.get_attr_bool(rtloader, checkClass, haSupportedAttr, &haSupported); res != 0 {
 			goHASupported = haSupported == C.bool(true)
 		} else {
-			log.Debugf("Could not query the HA_SUPPORTED attribute for check %s: %s", name, getRtLoaderError())
+			log.Debugf("Could not query the HA_SUPPORTED attribute for check %s: %s", moduleName, getRtLoaderError())
 		}
 	}
 
@@ -307,6 +314,7 @@ func expvarPy3Warnings() interface{} {
 
 // reportPy3Warnings runs the a7 linter and exports the result in both expvar
 // and the aggregator (as extra series)
+
 func reportPy3Warnings(checkName string, checkFilePath string) {
 	// check if the check has already been linted
 	py3LintedLock.Lock()

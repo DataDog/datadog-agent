@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
@@ -254,7 +254,7 @@ func (hc *HelmCheck) tagsForMetricsAndEvents(release *release, includeRevision b
 			log.Tracef("Value for %s specified in helm_values_as_tags not found", helmValue)
 			continue
 		}
-		tags = append(tags, fmt.Sprintf("%s:%s", tagName, value))
+		tags = append(tags, tagName+":"+value)
 	}
 
 	return tags
@@ -266,7 +266,7 @@ func (hc *HelmCheck) tagsForMetricsAndEvents(release *release, includeRevision b
 func commonTags(release *release, storageDriver helmStorage) []string {
 	tags := []string{
 		"helm_release:" + release.Name,
-		fmt.Sprintf("helm_storage:%s", storageDriver),
+		"helm_storage:" + string(storageDriver),
 		"kube_namespace:" + release.Namespace,
 
 		// "helm_namespace" is just an alias for "kube_namespace".

@@ -463,13 +463,10 @@ waitLoop:
 			return
 		}
 
-		// some other error occurred
-		gle := windows.GetLastError()
-		q.logAndSetError(fmt.Errorf("WaitForMultipleObjects unknown error: wait(%d,%#x) gle(%d,%#x)",
+		// some other unexpected return value
+		q.logAndSetError(fmt.Errorf("WaitForMultipleObjects unexpected return value: %d (%#x)",
 			dwWait,
-			dwWait,
-			gle,
-			gle))
+			dwWait))
 		return
 	}
 }

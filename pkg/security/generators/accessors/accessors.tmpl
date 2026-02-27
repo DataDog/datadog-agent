@@ -52,6 +52,24 @@ func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 }
 
 func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int) (eval.Evaluator, error) {
+	// Handle array index access (e.g., field[0])
+	// This is processed here before the switch to support all array fields
+	baseField, arrayIndex, isArrayAccess, err := eval.ExtractArrayIndexAccess(field)
+	if err != nil {
+		return nil, err
+	}
+
+	if isArrayAccess {
+		// Get the base field evaluator (returns the full array)
+		arrayEvaluator, err := (&Model{}).GetEvaluator(baseField, regID, offset)
+		if err != nil {
+			return nil, err
+		}
+
+		// Wrap it to return only the specific index
+		return eval.WrapEvaluatorWithArrayIndex(arrayEvaluator, arrayIndex, baseField)
+	}
+
 	switch field {
 	{{range $Name, $Field := .Fields}}
 	{{- if $Field.GettersOnly }}
@@ -120,7 +138,13 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 								result := int({{$Return}})
 							{{end}}
 						{{else}}
+							{{if $Field.IsRootDomain}}
+								result := eval.GetPublicTLD({{".root_domain" | TrimSuffix $Return}})
+							{{- else if ne $Field.ReturnType $Field.OrigType}}
+								result := {{$Field.ReturnType}}({{$Return}})
+							{{else}}
 							result := {{$Return}}
+							{{end}}
 						{{end}}
 
 						{{if not $Field.GetArrayPrefix}}
@@ -173,7 +197,13 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 								return int({{$Return}})
 							{{end}}
 						{{else}}
+							{{if $Field.IsRootDomain}}
+							return eval.GetPublicTLD({{".root_domain" | TrimSuffix $Return}})
+							{{- else if ne $Field.ReturnType $Field.OrigType}}
+								return {{$Field.ReturnType}}({{$Return}})
+							{{else}}
 							return {{$Return}}
+							{{end}}
 						{{end}}
 					})
 
@@ -185,7 +215,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				{{- $ReturnType := $Field.ReturnType}}
 				EvalFnc: func(ctx *eval.Context) {{- if not $Field.IsIterator}}{{$Field.GetArrayPrefix}}{{end}}{{$ReturnType}} {
 					ctx.AppendResolvedField(field)
-					{{- if not (and $Field.IsLength $Field.IsIterator)}}
+					{{- if not (and $Field.IsIterator (or $Field.IsLength $Field.IsRootDomain))}}
 						ev := ctx.Event.(*Event)
 					{{end}}
 
@@ -237,7 +267,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 							{{end -}}
 						{{end -}}
 					{{- else}}
-						return {{$Return}}
+						{{- if ne $ReturnType $Field.OrigType}}
+						return {{$ReturnType}}({{$Return}})
+						{{else}}
+							{{if $Field.IsRootDomain}}
+								{{- if not $Field.IsIterator}}
+									return eval.GetPublicTLD({{".root_domain" | TrimSuffix $Return}})
+								{{end}}
+							{{else}}
+								return {{$Return}}
+							{{end}}
+						{{end -}}
 					{{end -}}
 				},
 			{{end}}
@@ -285,6 +325,7 @@ func (ev *Event) GetFields() []eval.Field {
 	return fields
 }
 
+// GetFieldMetadata returns EventType, reflect.Kind, BasicType, IsArray, error
 func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, bool, error) {
 	originalField := field
 	// handle legacy field mapping
@@ -313,8 +354,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		mappedField = newField
 	}
 
-	if strings.HasPrefix(mappedField, "process.") || strings.HasPrefix(mappedField, "exec.") || strings.HasPrefix(mappedField, "exit.") {
-		ev.initProcess()
+	if strings.HasPrefix(mappedField, "process.") || strings.HasPrefix(mappedField, "exec.") || strings.HasPrefix(mappedField, "exit.") || strings.HasPrefix(mappedField, "ptrace.") {
+		ev.initPointerFields()
 	}
 
 	switch mappedField {

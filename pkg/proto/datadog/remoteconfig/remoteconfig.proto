@@ -116,6 +116,7 @@ message ClientUpdater {
   repeated string tags = 1;
   repeated PackageState packages = 2;
   uint64 available_disk_space = 3;
+  string secrets_pub_key = 4;
 }
 
 message PackageState {

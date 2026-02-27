@@ -11,6 +11,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"testing"
 	"time"
@@ -269,9 +270,7 @@ func isSubset(a, b map[string]string) bool {
 }
 
 func mergeFindings(a, b findings) findings {
-	for k, v := range b {
-		a[k] = v
-	}
+	maps.Copy(a, b)
 	return a
 }
 

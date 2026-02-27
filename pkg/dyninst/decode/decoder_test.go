@@ -63,7 +63,7 @@ func FuzzDecoder(f *testing.F) {
 		_, _, _ = decoder.Decode(Event{
 			EntryOrLine: output.Event(item),
 			ServiceName: "foo",
-		}, &noopSymbolicator{}, []byte{})
+		}, &noopSymbolicator{}, nil, []byte{})
 		require.Empty(t, decoder.entryOrLine.dataItems)
 		require.Empty(t, decoder.entryOrLine.currentlyEncoding)
 		require.Empty(t, decoder._return.dataItems)
@@ -99,7 +99,7 @@ func TestDecoderManually(t *testing.T) {
 			buf, probe, err := decoder.Decode(Event{
 				EntryOrLine: output.Event(item),
 				ServiceName: "foo",
-			}, &noopSymbolicator{}, []byte{})
+			}, &noopSymbolicator{}, nil, []byte{})
 			require.NoError(t, err)
 			require.Equal(t, c.probeName, probe.GetID())
 			var e eventCaptures
@@ -131,7 +131,7 @@ func BenchmarkDecoder(b *testing.B) {
 			}
 			b.ResetTimer()
 			for b.Loop() {
-				_, _, err := decoder.Decode(event, symbolicator, []byte{})
+				_, _, err := decoder.Decode(event, symbolicator, nil, []byte{})
 				require.NoError(b, err)
 			}
 		})
@@ -1319,6 +1319,7 @@ func TestDecoderPanics(t *testing.T) {
 		EntryOrLine: output.Event(input),
 		ServiceName: "foo"},
 		&noopSymbolicator{},
+		nil,
 		[]byte{},
 	)
 	require.Error(t, err)
@@ -1348,6 +1349,7 @@ func TestDecoderFailsOnEvaluationError(t *testing.T) {
 		EntryOrLine: output.Event(input),
 		ServiceName: "foo"},
 		&noopSymbolicator{},
+		nil,
 		[]byte{},
 	)
 	require.NoError(t, err)
@@ -1386,7 +1388,7 @@ func TestDecoderIsRobustToDataItemDecodingErrors(t *testing.T) {
 	buf, probe, err := decoder.Decode(Event{
 		EntryOrLine: event,
 		ServiceName: "foo",
-	}, &noopSymbolicator{}, []byte{})
+	}, &noopSymbolicator{}, nil, []byte{})
 	require.NoError(t, err)
 	require.Equal(t, c.probeName, probe.GetID())
 	var e eventCaptures
@@ -1428,6 +1430,7 @@ func TestDecoderFailsOnEvaluationErrorAndRetainsPassedBuffer(t *testing.T) {
 		EntryOrLine: output.Event(input),
 		ServiceName: "foo"},
 		&noopSymbolicator{},
+		nil,
 		buf,
 	)
 	require.NoError(t, err)
@@ -1448,28 +1451,42 @@ func TestDecoderMissingReturnEventEvaluationError(t *testing.T) {
 			name:                    "return pairing expected",
 			pairingExpectation:      output.EventPairingExpectationReturnPairingExpected,
 			expectedErrorExpression: "@duration",
-			expectedErrorMessage:    "no return value available: return event not received",
+			expectedErrorMessage:    "not available: return event not received",
 			shouldHaveError:         true,
 		},
 		{
 			name:                    "buffer full",
 			pairingExpectation:      output.EventPairingExpectationBufferFull,
 			expectedErrorExpression: "@duration",
-			expectedErrorMessage:    "no return value available: userspace buffer capacity exceeded",
+			expectedErrorMessage:    "not available: userspace buffer capacity exceeded",
 			shouldHaveError:         true,
 		},
 		{
 			name:                    "call map full",
 			pairingExpectation:      output.EventPairingExpectationCallMapFull,
 			expectedErrorExpression: "@duration",
-			expectedErrorMessage:    "no return value available: call map capacity exceeded",
+			expectedErrorMessage:    "not available: call map capacity exceeded",
 			shouldHaveError:         true,
 		},
 		{
 			name:                    "call count exceeded",
 			pairingExpectation:      output.EventPairingExpectationCallCountExceeded,
 			expectedErrorExpression: "@duration",
-			expectedErrorMessage:    "no return value available: maximum call count exceeded",
+			expectedErrorMessage:    "not available: maximum call count exceeded",
+			shouldHaveError:         true,
+		},
+		{
+			name:                    "inlined",
+			pairingExpectation:      output.EventPairingExpectationNoneInlined,
+			expectedErrorExpression: "@duration",
+			expectedErrorMessage:    "not available: function was inlined",
+			shouldHaveError:         true,
+		},
+		{
+			name:                    "no body",
+			pairingExpectation:      output.EventPairingExpectationNoneNoBody,
+			expectedErrorExpression: "@duration",
+			expectedErrorMessage:    "not available: function has no body",
 			shouldHaveError:         true,
 		},
 		{
@@ -1501,7 +1518,7 @@ func TestDecoderMissingReturnEventEvaluationError(t *testing.T) {
 				EntryOrLine: newEvent,
 				Return:      nil, // Explicitly no return event
 				ServiceName: "foo",
-			}, &noopSymbolicator{}, []byte{})
+			}, &noopSymbolicator{}, nil, []byte{})
 			require.NoError(t, err)
 			require.Equal(t, "stringArg", probe.GetID())
 

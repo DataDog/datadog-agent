@@ -29,6 +29,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
@@ -42,7 +43,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -166,6 +166,7 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 
 	s := &MockSerializerIterableSerie{}
 	taggerComponent := taggerfxmock.SetupFakeTagger(t)
+
 	agg := NewBufferedAggregator(s, nil, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval)
 
 	agg.addServiceCheck(servicecheck.ServiceCheck{
@@ -728,23 +729,6 @@ func TestAddDJMRecurrentSeries(t *testing.T) {
 	recurrentSeries = metrics.Series{}
 }
 
-// The implementation of MockSerializer.SendIterableSeries uses `s.Called(series).Error(0)`.
-// It calls internaly `Printf` on each field of the real type of `IterableStreamJSONMarshaler` which is `IterableSeries`.
-// It can lead to a race condition, if another goruntine call `IterableSeries.Append` which modifies `series.count`.
-// MockSerializerIterableSerie overrides `SendIterableSeries` to avoid this issue.
-// It also overrides `SendSeries` for simplificy.
-type MockSerializerIterableSerie struct {
-	series []*metrics.Serie
-	serializermock.MetricSerializer
-}
-
-func (s *MockSerializerIterableSerie) SendIterableSeries(seriesSource metrics.SerieSource) error {
-	for seriesSource.MoveNext() {
-		s.series = append(s.series, seriesSource.Current())
-	}
-	return nil
-}
-
 func flushSomeSamples(demux *AgentDemultiplexer) map[string]*metrics.Serie {
 	timeSamplerBucketSize := float64(10)
 	timestamps := []float64{10, 10 + timeSamplerBucketSize}
@@ -831,7 +815,9 @@ func createAggrDeps(t *testing.T) aggregatorDeps {
 		hostnameimpl.MockModule(),
 		logscompressionmock.MockModule(),
 		metricscompressionmock.MockModule(),
-		haagentmock.Module())
+		haagentmock.Module(),
+		filterlistmock.MockModule(),
+	)
 
 	opts := demuxTestOptions()
 	return aggregatorDeps{

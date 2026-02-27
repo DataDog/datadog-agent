@@ -15,9 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/compliance/cli"
@@ -34,12 +34,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	complianceCmd.AddCommand(CheckCommand(globalParams))
 	complianceCmd.AddCommand(complianceLoadCommand(globalParams))
+	addPlatformSpecificCommands(complianceCmd, globalParams)
 
 	return []*cobra.Command{complianceCmd}
 }
 
 // CheckCommand returns the 'compliance check' command
-func CheckCommand(_ *command.GlobalParams) *cobra.Command {
+func CheckCommand(globalParams *command.GlobalParams) *cobra.Command {
 	checkArgs := &cli.CheckParams{}
 
 	cmd := &cobra.Command{
@@ -47,7 +48,7 @@ func CheckCommand(_ *command.GlobalParams) *cobra.Command {
 		Short: "Run compliance check(s)",
 		RunE: func(_ *cobra.Command, args []string) error {
 			bundleParams := core.BundleParams{
-				ConfigParams: config.NewAgentParams(""),
+				ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 				LogParams:    log.ForOneShot(command.LoggerName, "info", true),
 			}
 
@@ -60,10 +61,10 @@ func CheckCommand(_ *command.GlobalParams) *cobra.Command {
 				fx.Supply(checkArgs),
 				fx.Supply(bundleParams),
 				core.Bundle(),
-				secretsnoopfx.Module(),
 				logscompressionfx.Module(),
 				statsd.Module(),
 				ipcfx.ModuleInsecure(),
+				remotehostnameimpl.Module(),
 			)
 		},
 	}
@@ -73,7 +74,7 @@ func CheckCommand(_ *command.GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func complianceLoadCommand(_ *command.GlobalParams) *cobra.Command {
+func complianceLoadCommand(globalParams *command.GlobalParams) *cobra.Command {
 	loadArgs := &cli.LoadParams{}
 
 	loadCmd := &cobra.Command{
@@ -85,11 +86,10 @@ func complianceLoadCommand(_ *command.GlobalParams) *cobra.Command {
 			return fxutil.OneShot(cli.RunLoad,
 				fx.Supply(loadArgs),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(""),
+					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true),
 				}),
 				core.Bundle(),
-				secretsnoopfx.Module(),
 			)
 		},
 	}

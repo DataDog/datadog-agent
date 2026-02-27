@@ -15,8 +15,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
-	"github.com/cenkalti/backoff"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	scenwindows "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
@@ -619,7 +620,7 @@ func (s *baseStartStopSuite) BeforeTest(suiteName, testName string) {
 	entries, err := host.ReadDir(logsFolder)
 	if s.Assert().NoError(err, "should read log folder") {
 		for _, entry := range entries {
-			err = host.Remove(filepath.Join(logsFolder, entry.Name()))
+			err = host.RemoveAll(filepath.Join(logsFolder, entry.Name()))
 			s.Assert().NoError(err, "should remove %s", entry.Name())
 		}
 	}
@@ -678,11 +679,16 @@ func (s *baseStartStopSuite) collectAgentLogs() {
 		return
 	}
 	for _, entry := range entries {
-		s.T().Logf("Found log file: %s", entry.Name())
-		err = host.GetFile(
-			filepath.Join(logsFolder, entry.Name()),
-			filepath.Join(s.SessionOutputDir(), entry.Name()),
-		)
+		sourcePath := filepath.Join(logsFolder, entry.Name())
+		destPath := filepath.Join(s.SessionOutputDir(), entry.Name())
+
+		if entry.IsDir() {
+			s.T().Logf("Found log directory: %s", entry.Name())
+			err = host.GetFolder(sourcePath, destPath)
+		} else {
+			s.T().Logf("Found log file: %s", entry.Name())
+			err = host.GetFile(sourcePath, destPath)
+		}
 		s.Assert().NoError(err, "should download %s", entry.Name())
 	}
 }

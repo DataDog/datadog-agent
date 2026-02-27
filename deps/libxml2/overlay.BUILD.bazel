@@ -4,7 +4,7 @@ load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 VERSION = "2.14.5"
 
@@ -69,9 +69,15 @@ expand_template(
 )
 
 cc_library(
+    name = "xml2_config_h",
+    hdrs = [
+        ":copy_config_h",
+    ],
+)
+
+cc_library(
     name = "libxml2",
     srcs = [
-        ":copy_config_h",
         "buf.c",
         "chvalid.c",
         "dict.c",
@@ -116,6 +122,9 @@ cc_library(
         "c14n.c",
     ] + glob(["include/private/*.h"]),
     hdrs = PUBLIC_HEADERS,
+    implementation_deps = [
+        ":xml2_config_h",
+    ],
     deps = [
         "@zlib//:zlib",
         "@xz//:liblzma",
@@ -143,7 +152,7 @@ cc_shared_library(
     dynamic_deps = [
         "@zlib//:z",
         "@xz//:lzma",
-    ]
+    ],
 )
 
 so_symlink(
@@ -159,42 +168,18 @@ pkg_files(
     prefix = "include/libxml2/libxml",
 )
 
-expand_template(
-    name = "gen_pkgconfig",
-    template = "libxml-2.0.pc.in",
-    out = "libxml-2.0.pc",
-    substitutions = {
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@WITH_MODULES@": "1",
-        "@XML_PC_PRIVATE@": "",
-        "@XML_PC_REQUIRES@": "",
-        "@XML_LIBDIR@": "-L${libdir}",
-        "@XML_LIBS@": "-lxml2",
-        "@XML_PC_LIBS_PRIVATE@": "-lz",
-        "@XML_PC_LIBS@": "",
-        "@LIBS@": "",
-        "@VERSION@": VERSION,
-        "@XML_INCLUDEDIR@": "-I${includedir}",
-        "@XML_PC_CFLAGS_PRIVATE@": "",
-        "@XML_STATIC_CFLAGS@": "",
-    },
-    visibility = ["//visibility:public"],
-)
-
-pkg_files(
-    name = "pkgconfig",
-    srcs = [":gen_pkgconfig"],
-    prefix = "lib/pkgconfig",
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":headers",
+        ":lib_files",
+    ],
+    prefix = "embedded",
 )
 
 pkg_install(
     name = "install",
     srcs = [
-        ":headers",
-        ":pkgconfig",
-        ":lib_files",
+        ":all_files",
     ],
 )

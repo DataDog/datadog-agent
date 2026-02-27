@@ -67,7 +67,7 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 		return fmt.Errorf("error writing deployment ID file: %w", err)
 	}
 	operations.FileOperations = append(buildOperationsFromLegacyInstaller(d.StablePath), operations.FileOperations...)
-	err = operations.Apply(d.StablePath)
+	err = operations.Apply(ctx, d.StablePath)
 	if err != nil {
 		return fmt.Errorf("error applying operations: %w", err)
 	}
@@ -108,6 +108,7 @@ func (d *Directories) RemoveExperiment(ctx context.Context) error {
 	if os.IsNotExist(err) {
 		return nil
 	}
+	// Skip copying deployment ID during rollback - we want to preserve stable's deployment ID
 	err = backupOrRestoreDirectory(ctx, d.ExperimentPath, d.StablePath)
 	if err != nil {
 		return fmt.Errorf("error backing up stable directory: %w", err)
@@ -121,6 +122,7 @@ func (d *Directories) RemoveExperiment(ctx context.Context) error {
 
 // backupOrRestoreDirectory copies YAML files from source to target.
 // It preserves the directory structure and file permissions.
+// If copyDeploymentID is true, also copies the .deployment-id file.
 func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string) error {
 	_, err := os.Stat(sourcePath)
 	if err != nil && !os.IsNotExist(err) {
@@ -137,16 +139,7 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 	if _, err := os.Stat(targetPath); err != nil {
 		return fmt.Errorf("failed to open target directory: %w", err)
 	}
-	deploymentID, err := os.ReadFile(filepath.Join(sourcePath, deploymentIDFile))
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("error reading deployment ID file: %w", err)
-	}
-	if !os.IsNotExist(err) {
-		err = os.WriteFile(filepath.Join(targetPath, deploymentIDFile), deploymentID, 0640)
-		if err != nil {
-			return fmt.Errorf("error writing deployment ID file: %w", err)
-		}
-	}
+
 	cmd := telemetry.CommandContext(
 		ctx,
 		"robocopy",
@@ -181,4 +174,10 @@ func secureCreateTargetDirectoryWithSourcePermissions(sourcePath, targetPath str
 	}
 	sddl := sd.String()
 	return paths.SecureCreateDirectory(targetPath, sddl)
+}
+
+// setFileOwnershipAndPermissions is a no-op on Windows as file ownership and permissions
+// are handled differently through ACLs, not POSIX ownership and modes.
+func setFileOwnershipAndPermissions(_ context.Context, _ *os.Root, _ string, _ *configFileSpec) error {
+	return nil
 }

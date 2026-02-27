@@ -155,7 +155,7 @@ def run(
     e2e_tests=True,
     kmt_tests=True,
     rc_build=False,
-    rc_k8s_deployments=False,
+    run_flaky_tests=False,
 ):
     """
     Run a pipeline on the given git ref (--git-ref <git ref>), or on the current branch if --here is given.
@@ -165,10 +165,10 @@ def run(
     Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on pipelines on the default branch).
     Use --no-kmt-tests to not run all Kernel Matrix Tests on the pipeline.
     Use --e2e-tests to run all e2e tests on the pipeline.
+    Use --run-flaky-tests to run tests that are marked as flaky (by default, known flaky tests are skipped).
 
     Release Candidate related flags:
-    Use --rc-build to mark the build as Release Candidate.
-    Use --rc-k8s-deployments to trigger a child pipeline that will deploy Release Candidate build to staging k8s clusters.
+    Use --rc-build to mark the build as Release Candidate. Staging k8s deployment PR will be created during the build pipeline.
 
     By default, the pipeline builds both Agent 6 and Agent 7.
     Use the --major-versions option to specify a comma-separated string of the major Agent versions to build
@@ -191,6 +191,9 @@ def run(
 
     Run a pipeline with e2e tets on the current branch:
       dda inv pipeline.run --here --e2e-tests
+
+    Run a pipeline that includes flaky tests on the current branch:
+      dda inv pipeline.run --here --run-flaky-tests
 
     Run a deploy pipeline on the 7.32.0 tag, uploading the artifacts to the stable branch of the staging repositories:
       dda inv pipeline.run --deploy --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
@@ -248,7 +251,7 @@ def run(
             e2e_tests=e2e_tests,
             kmt_tests=kmt_tests,
             rc_build=rc_build,
-            rc_k8s_deployments=rc_k8s_deployments,
+            run_flaky_tests=run_flaky_tests,
         )
     except FilteredOutException:
         print(color_message(f"ERROR: pipeline does not match any workflow rule. Rules:\n{workflow_rules()}", "red"))
@@ -411,7 +414,10 @@ EMAIL_SLACK_ID_MAP = {
     "guy20495@gmail.com": "U03LJSCAPK2",
     "safchain@gmail.com": "U01009CUG9X",
     "usamasaqib.96@live.com": "U03D807V94J",
-    "leeavital@gmail.com": "UDG2223C1",
+}
+GITHUB_SLACK_ID_MAP = {
+    "gjulianm": "U069N8XCSQ0",
+    "jmw51798": "U05FPPV9ASF",
 }
 
 
@@ -469,6 +475,12 @@ def changelog(ctx, new_commit_sha):
         author_handle = ""
         if author_email in EMAIL_SLACK_ID_MAP:
             author_handle = EMAIL_SLACK_ID_MAP[author_email]
+        elif author_email.endswith("@users.noreply.github.com"):
+            github_username = author_email.removesuffix("@users.noreply.github.com")
+            if "+" in github_username:
+                github_username = github_username.split("+", maxsplit=1)[1]
+            if github_username in GITHUB_SLACK_ID_MAP:
+                author_handle = GITHUB_SLACK_ID_MAP[github_username]
         else:
             try:
                 recipient = client.users_lookupByEmail(email=author_email)
@@ -484,13 +496,12 @@ def changelog(ctx, new_commit_sha):
         messages.append(f"{message_link} {author_handle}")
 
     if messages:
-        slack_message += (
-            "\n".join(messages) + "\n:wave: Authors, please check the "
-            "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98?tpl_var_kube_cluster_name%5B0%5D=stripe"
-            "&tpl_var_kube_cluster_name%5B1%5D=oddish-b&tpl_var_kube_cluster_name%5B2%5D=lagaffe"
-            "&tpl_var_kube_cluster_name%5B3%5D=diglet&tpl_var_kube_cluster_name%5B4%5D=snowver"
-            "&tpl_var_kube_cluster_name%5B5%5D=chillpenguin&tpl_var_kube_cluster_name%5B6%5D=muk|dashboard> for issues"
-        )
+        slack_message += "\n".join(messages)
+        slack_message += "\n:wave: Authors, please check the <https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98?"
+        clusters = ["chillpenguin", "diglet", "lagaffe", "muk", "oddish-b", "snowver", "stripe", "venomoth"]
+        for i, cluster_name in enumerate(clusters):
+            slack_message += f"{"&" if i > 0 else ""}tpl_var_kube_cluster_name%5B{i}%5D={cluster_name}"
+        slack_message += "|dashboard> for issues"
     else:
         slack_message += empty_changelog_msg
 
@@ -534,7 +545,7 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     Trigger a pipeline from an external owner.
     """
 
-    branch_re = re.compile(r'^(?P<owner>[a-zA-Z0-9_-]+):(?P<branch_name>[a-zA-Z0-9_/-]+)$')
+    branch_re = re.compile(r'^(?P<owner>[a-zA-Z0-9_-]+):(?P<branch_name>[a-zA-Z0-9#_/-]+)$')
     match = branch_re.match(owner_branch_name)
 
     assert (
@@ -600,6 +611,7 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     pipeline = f'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Apipeline%20%40ci.provider.name%3Agitlab%20%40git.repository.name%3A%22DataDog%2Fdatadog-agent%22%20%40git.branch%3A%22{owner}%2F{branch}%22&colorBy=meta%5B%27ci.stage.name%27%5D&colorByAttr=meta%5B%27ci.stage.name%27%5D&currentTab=json&fromUser=false&index=cipipeline&sort=time&spanViewType=logs'
 
     print(f'\nBranch {owner}/{branch} pushed to repo: {repo}')
+    ctx.run(f"ddr devflow ddci trigger --owner DataDog --repository datadog-agent --branch {owner}/{branch}")
     print(f'CI-Visibility pipeline link: {pipeline}')
 
 

@@ -125,6 +125,7 @@ type eventMaskKFilter struct {
 	tableName    string
 	tableKey     any
 	eventMask    uint64
+	isArrayMap   bool
 }
 
 func (e *eventMaskKFilter) Key() any {
@@ -148,7 +149,11 @@ func (e *eventMaskKFilter) Remove(manager *manager.Manager) error {
 	if err := table.Lookup(e.tableKey, &eventMask); err != nil {
 		return err
 	}
-	if eventMask &^= e.eventMask; eventMask == 0 {
+
+	eventMask &^= e.eventMask
+
+	// if the eBPF map is an array map, we cannot delete the entry, so we just clear the event mask
+	if !e.isArrayMap && eventMask == 0 {
 		return table.Delete(e.tableKey)
 	}
 	return table.Put(e.tableKey, eventMask)

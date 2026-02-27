@@ -7,11 +7,8 @@ package dogstatsdstandalone
 
 import (
 	"strconv"
+	"strings"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
-	componentskube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
@@ -19,6 +16,11 @@ import (
 	v1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/rbac/v1"
 	schedulingv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/scheduling/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
+	componentskube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 )
 
 // HostPort defines the port used by the dogstatsd standalone deployment. The
@@ -28,9 +30,8 @@ const HostPort = 8128
 // Socket defines the socket exposed by the dogstatsd standalone deployment.
 // It's not the default to avoid conflict with the agent.
 const Socket = "/run/datadog/dsd-standalone.socket"
-const criSocket = "/run/containerd/containerd.sock"
 
-func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace string, fakeIntake *fakeintake.Fakeintake, kubeletTLSVerify bool, clusterName string, opts ...pulumi.ResourceOption) (*componentskube.Workload, error) {
+func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace string, criSocket string, fakeIntake *fakeintake.Fakeintake, kubeletTLSVerify bool, clusterName string, opts ...pulumi.ResourceOption) (*componentskube.Workload, error) {
 	opts = append(opts, pulumi.Provider(kubeProvider), pulumi.Parent(kubeProvider), pulumi.DeletedWith(kubeProvider))
 
 	k8sComponent := &componentskube.Workload{}
@@ -131,6 +132,107 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		)
 	}
 
+	// Prepare volume mounts
+	volumeMounts := corev1.VolumeMountArray{
+		&corev1.VolumeMountArgs{
+			Name:      pulumi.String("hostvar"),
+			MountPath: pulumi.String("/host/var"),
+			ReadOnly:  pulumi.BoolPtr(true),
+		},
+		&corev1.VolumeMountArgs{
+			Name:      pulumi.String("hostrun"),
+			MountPath: pulumi.String("/host/run"),
+			ReadOnly:  pulumi.BoolPtr(true),
+		},
+		&corev1.VolumeMountArgs{
+			Name:      pulumi.String("logdir"),
+			MountPath: pulumi.String("/var/log/datadog"),
+			ReadOnly:  pulumi.BoolPtr(false),
+		},
+		&corev1.VolumeMountArgs{
+			Name:      pulumi.String("procdir"),
+			MountPath: pulumi.String("/host/proc"),
+			ReadOnly:  pulumi.BoolPtr(true),
+		},
+		&corev1.VolumeMountArgs{
+			Name:      pulumi.String("cgroups"),
+			MountPath: pulumi.String("/host/sys/fs/cgroup"),
+			ReadOnly:  pulumi.BoolPtr(true),
+		},
+		&corev1.VolumeMountArgs{
+			Name:      pulumi.String("datadog"),
+			MountPath: pulumi.String("/run/datadog"),
+		},
+		&corev1.VolumeMountArgs{
+			Name:      pulumi.String("crisocket"),
+			MountPath: pulumi.String(criSocket),
+			ReadOnly:  pulumi.BoolPtr(true),
+		},
+	}
+
+	// Add CRI-O specific volume mount
+	if strings.Contains(criSocket, "crio.sock") {
+		volumeMounts = append(volumeMounts, &corev1.VolumeMountArgs{
+			Name:      pulumi.String("imageoverlay"),
+			MountPath: pulumi.String("/var/lib/containers/storage"),
+		})
+	}
+
+	// Prepare volumes
+	volumes := corev1.VolumeArray{
+		&corev1.VolumeArgs{
+			Name: pulumi.String("hostvar"),
+			HostPath: &corev1.HostPathVolumeSourceArgs{
+				Path: pulumi.String("/var"),
+			},
+		},
+		&corev1.VolumeArgs{
+			Name: pulumi.String("hostrun"),
+			HostPath: &corev1.HostPathVolumeSourceArgs{
+				Path: pulumi.String("/run"),
+			},
+		},
+		&corev1.VolumeArgs{
+			Name:     pulumi.String("logdir"),
+			EmptyDir: &corev1.EmptyDirVolumeSourceArgs{},
+		},
+		&corev1.VolumeArgs{
+			Name: pulumi.String("procdir"),
+			HostPath: &corev1.HostPathVolumeSourceArgs{
+				Path: pulumi.String("/proc"),
+			},
+		},
+		&corev1.VolumeArgs{
+			Name: pulumi.String("cgroups"),
+			HostPath: &corev1.HostPathVolumeSourceArgs{
+				Path: pulumi.String("/sys/fs/cgroup"),
+			},
+		},
+		&corev1.VolumeArgs{
+			Name: pulumi.String("datadog"),
+			HostPath: &corev1.HostPathVolumeSourceArgs{
+				Path: pulumi.String("/run/datadog"),
+			},
+		},
+		&corev1.VolumeArgs{
+			Name: pulumi.String("crisocket"),
+			HostPath: &corev1.HostPathVolumeSourceArgs{
+				Path: pulumi.String(criSocket),
+				Type: pulumi.String("Socket"),
+			},
+		},
+	}
+
+	// Add CRI-O specific volume
+	if strings.Contains(criSocket, "crio.sock") {
+		volumes = append(volumes, &corev1.VolumeArgs{
+			Name: pulumi.String("imageoverlay"),
+			HostPath: &corev1.HostPathVolumeSourceArgs{
+				Path: pulumi.String("/var/lib/containers/storage"),
+			},
+		})
+	}
+
 	daemonSetArgs := appsv1.DaemonSetArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String("dogstatsd-standalone"),
@@ -164,7 +266,8 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 									Protocol:      pulumi.StringPtr("UDP"),
 								},
 							},
-							Env: &envVars,
+							Env:          &envVars,
+							VolumeMounts: &volumeMounts,
 							Resources: &corev1.ResourceRequirementsArgs{
 								Limits: pulumi.StringMap{
 									"cpu":    pulumi.String("100m"),
@@ -175,56 +278,9 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 									"memory": pulumi.String("512Mi"),
 								},
 							},
-							VolumeMounts: &corev1.VolumeMountArray{
-								&corev1.VolumeMountArgs{
-									Name:      pulumi.String("procdir"),
-									MountPath: pulumi.String("/host/proc"),
-									ReadOnly:  pulumi.BoolPtr(true),
-								},
-								&corev1.VolumeMountArgs{
-									Name:      pulumi.String("cgroups"),
-									MountPath: pulumi.String("/host/sys/fs/cgroup"),
-									ReadOnly:  pulumi.BoolPtr(true),
-								},
-								&corev1.VolumeMountArgs{
-									Name:      pulumi.String("datadog"),
-									MountPath: pulumi.String("/run/datadog"),
-								},
-								&corev1.VolumeMountArgs{
-									Name:      pulumi.String("crisocket"),
-									MountPath: pulumi.String(criSocket),
-									ReadOnly:  pulumi.BoolPtr(true),
-								},
-							},
 						},
 					},
-					Volumes: corev1.VolumeArray{
-						&corev1.VolumeArgs{
-							Name: pulumi.String("procdir"),
-							HostPath: &corev1.HostPathVolumeSourceArgs{
-								Path: pulumi.String("/proc"),
-							},
-						},
-						&corev1.VolumeArgs{
-							Name: pulumi.String("cgroups"),
-							HostPath: &corev1.HostPathVolumeSourceArgs{
-								Path: pulumi.String("/sys/fs/cgroup"),
-							},
-						},
-						&corev1.VolumeArgs{
-							Name: pulumi.String("datadog"),
-							HostPath: &corev1.HostPathVolumeSourceArgs{
-								Path: pulumi.String("/run/datadog"),
-							},
-						},
-						&corev1.VolumeArgs{
-							Name: pulumi.String("crisocket"),
-							HostPath: &corev1.HostPathVolumeSourceArgs{
-								Path: pulumi.String(criSocket),
-								Type: pulumi.String("Socket"),
-							},
-						},
-					},
+					Volumes:           volumes,
 					PriorityClassName: pulumi.String("dogstatsd-standalone"),
 				},
 			},
@@ -294,6 +350,67 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		},
 	}
 
+	sccRoleBindingArgs := v1.RoleBindingArgs{
+		Metadata: &metav1.ObjectMetaArgs{
+			Name:      pulumi.String("dogstatsd-standalone-scc-binding"),
+			Namespace: pulumi.String(namespace),
+		},
+		RoleRef: v1.RoleRefArgs{
+			ApiGroup: pulumi.String("rbac.authorization.k8s.io"),
+			Kind:     pulumi.String("ClusterRole"),
+			Name:     pulumi.String("system:openshift:scc:privileged"),
+		},
+		Subjects: v1.SubjectArray{
+			&v1.SubjectArgs{
+				Kind:      pulumi.String("ServiceAccount"),
+				Name:      pulumi.String("dogstatsd-standalone"),
+				Namespace: pulumi.String(namespace),
+			},
+		},
+	}
+
+	// Dogstatsd standalone needs kubelet connectivity to collect node metrics
+	nodeReaderRoleArgs := v1.ClusterRoleArgs{
+		Metadata: &metav1.ObjectMetaArgs{
+			Name: pulumi.String("dogstatsd-node-reader"),
+		},
+		Rules: v1.PolicyRuleArray{
+			&v1.PolicyRuleArgs{
+				ApiGroups: pulumi.StringArray{
+					pulumi.String(""),
+				},
+				Resources: pulumi.StringArray{
+					pulumi.String("nodes"),
+					pulumi.String("nodes/metrics"),
+					pulumi.String("nodes/spec"),
+					pulumi.String("nodes/proxy"),
+					pulumi.String("nodes/stats"),
+				},
+				Verbs: pulumi.StringArray{
+					pulumi.String("get"),
+				},
+			},
+		},
+	}
+
+	nodeReaderBindingArgs := v1.ClusterRoleBindingArgs{
+		Metadata: &metav1.ObjectMetaArgs{
+			Name: pulumi.String("dogstatsd-node-reader-binding"),
+		},
+		RoleRef: v1.RoleRefArgs{
+			ApiGroup: pulumi.String("rbac.authorization.k8s.io"),
+			Kind:     pulumi.String("ClusterRole"),
+			Name:     pulumi.String("dogstatsd-node-reader"),
+		},
+		Subjects: v1.SubjectArray{
+			&v1.SubjectArgs{
+				Kind:      pulumi.String("ServiceAccount"),
+				Name:      pulumi.String("dogstatsd-standalone"),
+				Namespace: pulumi.String(namespace),
+			},
+		},
+	}
+
 	if _, err := corev1.NewServiceAccount(e.Ctx(), "dogstatsd-standalone", &serviceAccountArgs, opts...); err != nil {
 		return nil, err
 	}
@@ -303,6 +420,18 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 	}
 
 	if _, err := v1.NewClusterRoleBinding(e.Ctx(), "dogstatsd-standalone", &clusterRoleBindingArgs, opts...); err != nil {
+		return nil, err
+	}
+
+	if _, err := v1.NewRoleBinding(e.Ctx(), "dogstatsd-standalone-scc-binding", &sccRoleBindingArgs, opts...); err != nil {
+		return nil, err
+	}
+
+	if _, err := v1.NewClusterRole(e.Ctx(), "dogstatsd-node-reader", &nodeReaderRoleArgs, opts...); err != nil {
+		return nil, err
+	}
+
+	if _, err := v1.NewClusterRoleBinding(e.Ctx(), "dogstatsd-node-reader-binding", &nodeReaderBindingArgs, opts...); err != nil {
 		return nil, err
 	}
 

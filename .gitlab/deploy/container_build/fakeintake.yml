@@ -1,0 +1,30 @@
+---
+docker_build_fakeintake:
+  stage: container_build
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.on_fakeintake_changes]
+    - !reference [.on_fakeintake_changes_on_main]
+  needs: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:20.10-py3
+  tags: ["arch:amd64", "specific:true"]
+  variables:
+    TARGET: registry.ddbuild.io/ci/datadog-agent/fakeintake:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
+    DOCKERFILE: test/fakeintake/Dockerfile
+    PLATFORMS: linux/amd64,linux/arm64
+    BUILD_CONTEXT: .
+    BASE_IMAGE_REGISTRY: "registry.ddbuild.io/images/mirror"
+  script:
+    - |
+      GO_VERSION=$(grep -E '^ARG GO_VERSION=' ${DOCKERFILE} | cut -d= -f2)
+      GOLANG_IMAGE="${BASE_IMAGE_REGISTRY}/library/golang:${GO_VERSION}"
+      if docker buildx imagetools inspect "${GOLANG_IMAGE}" > /dev/null 2>&1; then
+        echo "Base image ${GOLANG_IMAGE} found in internal registry, building..."
+        docker buildx build --push --pull --platform ${PLATFORMS} --build-arg=CI --build-arg=BASE_IMAGE_REGISTRY=${BASE_IMAGE_REGISTRY} --file ${DOCKERFILE} --tag ${TARGET} $BUILD_CONTEXT
+        exit 0
+      fi
+    - !reference [.login_to_docker_readonly]
+    - |
+      echo "Base image ${GOLANG_IMAGE} not found in internal registry, falling back to docker.io..."
+      docker buildx build --push --pull --platform ${PLATFORMS} --build-arg=CI --build-arg=BASE_IMAGE_REGISTRY=docker.io --file ${DOCKERFILE} --tag ${TARGET} $BUILD_CONTEXT
+  retry: 2

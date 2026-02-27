@@ -13,65 +13,62 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 
-	"github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 )
 
-var levelToSyslogSeverity = map[seelog.LogLevel]int{
+var levelToSyslogSeverity = map[types.LogLevel]int{
 	// Mapping to RFC 5424 where possible
-	seelog.TraceLvl:    7,
-	seelog.DebugLvl:    7,
-	seelog.InfoLvl:     6,
-	seelog.WarnLvl:     4,
-	seelog.ErrorLvl:    3,
-	seelog.CriticalLvl: 2,
-	seelog.Off:         7,
+	types.TraceLvl:    7,
+	types.DebugLvl:    7,
+	types.InfoLvl:     6,
+	types.WarnLvl:     4,
+	types.ErrorLvl:    3,
+	types.CriticalLvl: 2,
+	types.Off:         7,
 }
 
-// CreateSyslogHeaderFormatter creates a seelog formatter function that formats a message as a syslog header.
-func CreateSyslogHeaderFormatter(params string) seelog.FormatterFunc {
-	facility := 20
-	rfc := false
-
-	ps := strings.Split(params, ",")
-	if len(ps) == 2 {
-		i, err := strconv.Atoi(ps[0])
-		if err == nil && i >= 0 && i <= 23 {
-			facility = i
-		}
-
-		rfc = (ps[1] == "true")
-	} else {
-		fmt.Println("badly formatted syslog header parameters - using defaults")
-	}
-
-	return HeaderFormatter(facility, rfc)
-}
-
-// HeaderFormatter creates a seelog formatter function that formats a message as a syslog header.
-func HeaderFormatter(facility int, rfc bool) seelog.FormatterFunc {
+// HeaderFormatter creates a function that formats a syslog header for the given log level.
+func HeaderFormatter(facility int, rfc bool) func(types.LogLevel) string {
 	pid := os.Getpid()
 	appName := filepath.Base(os.Args[0])
 
 	if rfc { // RFC 5424
-		return func(_ string, level seelog.LogLevel, _ seelog.LogContextInterface) interface{} {
+		return func(level types.LogLevel) string {
 			return fmt.Sprintf("<%d>1 %s %d - -", facility*8+levelToSyslogSeverity[level], appName, pid)
 		}
 	}
 
 	// otherwise old-school logging
-	return func(_ string, level seelog.LogLevel, _ seelog.LogContextInterface) interface{} {
+	return func(level types.LogLevel) string {
 		return fmt.Sprintf("<%d>%s[%d]:", facility*8+levelToSyslogSeverity[level], appName, pid)
 	}
 }
 
-// Receiver implements seelog.CustomReceiver
+// Receiver writes log messages to syslog
 type Receiver struct {
-	enabled bool
-	uri     *url.URL
-	conn    net.Conn
+	uri  *url.URL
+	conn net.Conn
+}
+
+// NewReceiver creates a new syslog receiver with the given URI.
+// The URI should be in the format "udp://host:port", "tcp://host:port", or "unix:///path/to/socket".
+func NewReceiver(uri string) (*Receiver, error) {
+	parsedURI, err := url.ParseRequestURI(uri)
+	if err != nil {
+		return nil, fmt.Errorf("bad syslog receiver configuration: %w", err)
+	}
+
+	conn, err := getSyslogConnection(parsedURI)
+	if err != nil {
+		// Connection failure is not fatal - we'll retry on write
+		fmt.Printf("%v\n", err)
+	}
+
+	return &Receiver{
+		uri:  parsedURI,
+		conn: conn,
+	}, nil
 }
 
 var syslogAddrs = []string{"/dev/log", "/var/run/syslog", "/var/run/log"}
@@ -114,18 +111,8 @@ func getSyslogConnection(uri *url.URL) (net.Conn, error) {
 	return nil, errors.New("Unable to connect to syslog")
 }
 
-// ReceiveMessage process current log message
-func (s *Receiver) ReceiveMessage(message string, _ seelog.LogLevel, _ seelog.LogContextInterface) error {
-	_, err := s.Write([]byte(message))
-	return err
-}
-
 // Write writes the message to the syslog receiver
 func (s *Receiver) Write(message []byte) (int, error) {
-	if !s.enabled {
-		return 0, nil
-	}
-
 	if s.conn != nil {
 		return s.conn.Write(message)
 	}
@@ -144,37 +131,6 @@ func (s *Receiver) Write(message []byte) (int, error) {
 	n, err := s.conn.Write(message)
 	fmt.Printf("Retried: %v\n", message)
 	return n, err
-}
-
-// AfterParse parses the receiver configuration
-func (s *Receiver) AfterParse(initArgs seelog.CustomReceiverInitArgs) error {
-	var conn net.Conn
-	var ok bool
-	var err error
-
-	s.enabled = true
-	uri, ok := initArgs.XmlCustomAttrs["uri"]
-	if ok && uri != "" {
-		url, err := url.ParseRequestURI(uri)
-		if err != nil {
-			s.enabled = false
-		}
-
-		s.uri = url
-	}
-
-	if !s.enabled {
-		return errors.New("bad syslog receiver configuration - disabling")
-	}
-
-	conn, err = getSyslogConnection(s.uri)
-	if err != nil {
-		fmt.Printf("%v\n", err)
-		return nil
-	}
-	s.conn = conn
-
-	return nil
 }
 
 // Flush is a NOP in current implementation

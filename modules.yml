@@ -23,6 +23,12 @@ modules:
   comp/core/config:
     used_by_otel: true
   comp/core/configsync: default
+  comp/core/delegatedauth:
+    independent: false
+    used_by_otel: true
+  comp/core/delegatedauth/api/cloudauth/aws:
+    independent: false
+    used_by_otel: true
   comp/core/flare/builder:
     used_by_otel: true
   comp/core/flare/types:
@@ -89,6 +95,9 @@ modules:
     used_by_otel: true
   comp/forwarder/orchestrator/orchestratorinterface:
     used_by_otel: true
+  comp/host-profiler/symboluploader/testdata: ignored
+  comp/logs-library:
+    used_by_otel: true
   comp/logs/agent/config:
     used_by_otel: true
   comp/netflow/payload: default
@@ -115,8 +124,7 @@ modules:
     used_by_otel: true
   comp/otelcol/otlp/components/metricsclient:
     used_by_otel: true
-  comp/otelcol/otlp/components/processor/infraattributesprocessor: default
-  comp/otelcol/otlp/components/statsprocessor:
+  comp/otelcol/otlp/components/processor/infraattributesprocessor:
     used_by_otel: true
   comp/otelcol/otlp/testutil:
     used_by_otel: true
@@ -172,6 +180,8 @@ modules:
     used_by_otel: true
   pkg/collector/check/defaults:
     used_by_otel: true
+  pkg/config/basic:
+    used_by_otel: true
   pkg/config/create:
     used_by_otel: true
   pkg/config/env:
@@ -204,9 +214,6 @@ modules:
     used_by_otel: true
   pkg/gohai:
     used_by_otel: true
-  pkg/linters/components/pkgconfigusage:
-    independent: false
-    should_tag: false
   pkg/logs/client:
     used_by_otel: true
   pkg/logs/diagnostic:
@@ -219,7 +226,6 @@ modules:
     used_by_otel: true
   pkg/logs/processor:
     used_by_otel: true
-  pkg/logs/sds: default
   pkg/logs/sender:
     used_by_otel: true
   pkg/logs/sources:
@@ -284,6 +290,16 @@ modules:
     used_by_otel: true
   pkg/trace:
     used_by_otel: true
+  pkg/trace/log:
+    used_by_otel: true
+  pkg/trace/otel:
+    used_by_otel: true
+  pkg/trace/stats:
+    used_by_otel: true
+  pkg/trace/traceutil:
+    used_by_otel: true
+  pkg/util/aws/creds:
+    used_by_otel: true
   pkg/util/backoff:
     used_by_otel: true
   pkg/util/buf:
@@ -321,6 +337,8 @@ modules:
     used_by_otel: true
   pkg/util/jsonquery:
     used_by_otel: true
+  pkg/util/kubernetes/apiserver/common/namespace:
+    used_by_otel: true
   pkg/util/log:
     used_by_otel: true
   pkg/util/log/setup:
@@ -345,8 +363,6 @@ modules:
   pkg/util/statstracker:
     used_by_otel: true
   pkg/util/system:
-    used_by_otel: true
-  pkg/util/system/socket:
     used_by_otel: true
   pkg/util/testutil:
     used_by_otel: true

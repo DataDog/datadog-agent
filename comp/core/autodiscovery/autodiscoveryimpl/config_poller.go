@@ -49,7 +49,7 @@ func newConfigPoller(provider types.ConfigProvider, canPoll bool, interval time.
 
 // stop stops the provider descriptor if it's polling
 func (cp *configPoller) stop() {
-	if !cp.canPoll || cp.isRunning {
+	if !cp.canPoll || !cp.isRunning {
 		return
 	}
 	cp.stopChan <- struct{}{}

@@ -6,6 +6,13 @@
 package healthplatformimpl
 
 import (
+	"encoding/json"
+	"net/http"
+	"time"
+
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 )
 
@@ -14,17 +21,22 @@ import (
 type noopHealthPlatform struct{}
 
 // ReportIssue does nothing when the health platform is disabled
-func (n *noopHealthPlatform) ReportIssue(_ string, _ string, _ *healthplatform.IssueReport) error {
+func (n *noopHealthPlatform) ReportIssue(_ string, _ string, _ *healthplatformpayload.IssueReport) error {
+	return nil
+}
+
+// RegisterCheck does nothing when the health platform is disabled
+func (n *noopHealthPlatform) RegisterCheck(_ string, _ string, _ healthplatform.HealthCheckFunc, _ time.Duration) error {
 	return nil
 }
 
 // GetAllIssues returns empty results when the health platform is disabled
-func (n *noopHealthPlatform) GetAllIssues() (int, map[string]*healthplatform.Issue) {
-	return 0, make(map[string]*healthplatform.Issue)
+func (n *noopHealthPlatform) GetAllIssues() (int, map[string]*healthplatformpayload.Issue) {
+	return 0, make(map[string]*healthplatformpayload.Issue)
 }
 
 // GetIssueForCheck returns nil when the health platform is disabled
-func (n *noopHealthPlatform) GetIssueForCheck(_ string) *healthplatform.Issue {
+func (n *noopHealthPlatform) GetIssueForCheck(_ string) *healthplatformpayload.Issue {
 	return nil
 }
 
@@ -34,4 +46,27 @@ func (n *noopHealthPlatform) ClearIssuesForCheck(_ string) {
 
 // ClearAllIssues does nothing when the health platform is disabled
 func (n *noopHealthPlatform) ClearAllIssues() {
+}
+
+// ============================================================================
+// HTTP API Handlers (noop)
+// ============================================================================
+
+// getIssuesHandler handles GET /health-platform/issues when disabled
+func (n *noopHealthPlatform) getIssuesHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	response := struct {
+		Count  int                                     `json:"count"`
+		Issues map[string]*healthplatformpayload.Issue `json:"issues"`
+	}{
+		Count:  0,
+		Issues: make(map[string]*healthplatformpayload.Issue),
+	}
+	_ = json.NewEncoder(w).Encode(response)
+}
+
+// fillFlare does nothing when the health platform is disabled (no file created)
+func (n *noopHealthPlatform) fillFlare(_ flaretypes.FlareBuilder) error {
+	return nil
 }

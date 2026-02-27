@@ -80,17 +80,27 @@ func (o *Origin) TagsToString(processingTags []string) string {
 }
 
 func (o *Origin) tagsToStringArray(processingTags []string) []string {
-	tags := o.tags
-
 	sourceCategory := o.LogSource.Config.SourceCategory
+	configTags := o.LogSource.Config.Tags
+
+	// Calculate total capacity needed
+	totalLen := len(o.tags) + len(configTags) + len(processingTags)
 	if sourceCategory != "" {
-		tags = append(tags, "sourcecategory"+":"+sourceCategory)
+		totalLen++
 	}
 
-	tags = append(tags, o.LogSource.Config.Tags...)
-	tags = append(tags, processingTags...)
+	// Preallocate result slice - don't modify o.tags
+	result := make([]string, 0, totalLen)
+	result = append(result, o.tags...)
 
-	return tags
+	if sourceCategory != "" {
+		result = append(result, "sourcecategory:"+sourceCategory)
+	}
+
+	result = append(result, configTags...)
+	result = append(result, processingTags...)
+
+	return result
 }
 
 // SetTags sets the tags of the origin.

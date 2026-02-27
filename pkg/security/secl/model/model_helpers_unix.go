@@ -117,6 +117,15 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 	return nil
 }
 
+// ValidateRule validates the rule
+func (m *Model) ValidateRule(rule *eval.Rule) error {
+	if m.ExtraValidateRule != nil {
+		return m.ExtraValidateRule(rule)
+	}
+
+	return nil
+}
+
 // IsFakeInode returns whether the given inode is a fake inode
 func IsFakeInode(inode uint64) bool {
 	return inode>>32 == fakeInodeMSW
@@ -252,6 +261,7 @@ const (
 	MountOriginFsmount                      // MountOriginFsmount mount point info from the fsmount syscall
 	MountOriginOpenTree                     // MountOriginOpenTree mount point created from the open_tree syscall
 	MountOriginListmount                    // MountOriginListmount mount point obtained by calling `listmount`
+	MountOriginMoveMount
 )
 
 // MountSource source of the mount
@@ -274,10 +284,11 @@ var MountSources = [...]string{
 type MountEventSource = uint32
 
 const (
-	MountEventSourceInvalid         MountEventSource = iota // MountEventSourceInvalid the source of the mount event is invalid
-	MountEventSourceMountSyscall                            // MountEventSourceMountSyscall the source of the mount event is the `mount` syscall
-	MountEventSourceFsmountSyscall                          // MountEventSourceFsmountSyscall the source of the mount event is the `fsmount` syscall
-	MountEventSourceOpenTreeSyscall                         // MountEventSourceOpenTreeSyscall the source of the mount event is the `open_tree` syscall
+	MountEventSourceInvalid          MountEventSource = iota // MountEventSourceInvalid the source of the mount event is invalid
+	MountEventSourceMountSyscall                             // MountEventSourceMountSyscall the source of the mount event is the `mount` syscall
+	MountEventSourceFsmountSyscall                           // MountEventSourceFsmountSyscall the source of the mount event is the `fsmount` syscall
+	MountEventSourceOpenTreeSyscall                          // MountEventSourceOpenTreeSyscall the source of the mount event is the `open_tree` syscall
+	MountEventSourceMoveMountSyscall                         // MountEventSourceOpenTreeSyscall the source of the mount event is the `open_tree` syscall
 )
 
 // MountSourceToString returns the string corresponding to a mount source
@@ -294,6 +305,7 @@ var MountOrigins = [...]string{
 	"fsmount",
 	"open_tree",
 	"listmount",
+	"move_mount",
 }
 
 // MountOriginToString returns the string corresponding to a mount origin

@@ -138,7 +138,7 @@ func TestCGroup(t *testing.T) {
 	}
 
 	t.Run("cgroup-id", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			fd, _, errno := syscall.Syscall6(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), syscall.O_CREAT, 0711, 0, 0)
 			if errno != 0 {
 				return error(errno)
@@ -153,7 +153,7 @@ func TestCGroup(t *testing.T) {
 			assertFieldIsOneOf(t, event, "process.cgroup.version", []int{1, 2})
 
 			test.validateOpenSchema(t, event)
-		})
+		}, "test_cgroup_id")
 	})
 
 	t.Run("systemd", func(t *testing.T) {
@@ -163,7 +163,7 @@ func TestCGroup(t *testing.T) {
 			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
 		})
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			serviceUnit := `[Service]
 Type=oneshot
 ExecStart=/usr/bin/touch ` + testFile2
@@ -192,7 +192,7 @@ ExecStart=/usr/bin/touch ` + testFile2
 			assertFieldNotEqual(t, event, "process.cgroup.id", "")
 
 			test.validateOpenSchema(t, event)
-		})
+		}, "test_cgroup_systemd")
 	})
 }
 
@@ -269,7 +269,7 @@ func TestCGroupSnapshot(t *testing.T) {
 	}
 
 	var cmd *exec.Cmd
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		cmd = exec.Command(syscallTester, "open", testFile)
 		if err := cmd.Run(); err != nil {
 			t.Fatal(err)
@@ -291,7 +291,7 @@ func TestCGroupSnapshot(t *testing.T) {
 
 		// Check that both testsuite and syscall tester share the same cgroup
 		assert.Equal(t, testsuiteEntry.CGroup.CGroupID, syscallTesterEntry.CGroup.CGroupID)
-		assert.Equal(t, testsuiteEntry.CGroup.CGroupFile, syscallTesterEntry.CGroup.CGroupFile)
+		assert.Equal(t, testsuiteEntry.CGroup.CGroupPathKey, syscallTesterEntry.CGroup.CGroupPathKey)
 
 		// Check that we have the right cgroup inode
 		cgroupFS := utils.DefaultCGroupFS()
@@ -306,7 +306,7 @@ func TestCGroupSnapshot(t *testing.T) {
 			t.Error(err)
 			return
 		}
-		assert.Equal(t, stats.Ino, testsuiteEntry.CGroup.CGroupFile.Inode)
+		assert.Equal(t, stats.Ino, testsuiteEntry.CGroup.CGroupPathKey.Inode)
 
 		// Check we filled the kernel maps correctly with the same values than userspace for the testsuite process
 		var newEntry *model.ProcessCacheEntry
@@ -316,7 +316,7 @@ func TestCGroupSnapshot(t *testing.T) {
 		})
 		assert.NotNil(t, newEntry)
 		if newEntry != nil {
-			assert.Equal(t, stats.Ino, newEntry.CGroup.CGroupFile.Inode)
+			assert.Equal(t, stats.Ino, newEntry.CGroup.CGroupPathKey.Inode)
 		}
 
 		// Check we filled the kernel maps correctly with the same values than userspace for the syscall tester process
@@ -326,9 +326,9 @@ func TestCGroupSnapshot(t *testing.T) {
 		})
 		assert.NotNil(t, newEntry)
 		if newEntry != nil {
-			assert.Equal(t, stats.Ino, newEntry.CGroup.CGroupFile.Inode)
+			assert.Equal(t, stats.Ino, newEntry.CGroup.CGroupPathKey.Inode)
 		}
-	})
+	}, "test_cgroup_snapshot")
 }
 
 func TestCGroupVariables(t *testing.T) {
@@ -337,6 +337,10 @@ func TestCGroupVariables(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -380,7 +384,7 @@ func TestCGroupVariables(t *testing.T) {
 	}
 
 	dockerWrapper.Run(t, "cgroup-variables", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc("touch", []string{testFile}, nil)
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
@@ -389,9 +393,9 @@ func TestCGroupVariables(t *testing.T) {
 			assertFieldNotEmpty(t, event, "process.cgroup.id", "cgroup id shouldn't be empty")
 
 			test.validateOpenSchema(t, event)
-		})
+		}, "test_cgroup_set_variable")
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc("touch", []string{testFile2}, nil)
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
@@ -400,7 +404,7 @@ func TestCGroupVariables(t *testing.T) {
 			assertFieldNotEmpty(t, event, "process.cgroup.id", "cgroup id shouldn't be empty")
 
 			test.validateOpenSchema(t, event)
-		})
+		}, "test_cgroup_check_variable")
 	})
 }
 
@@ -410,6 +414,10 @@ func TestCGroupVariablesReleased(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -442,7 +450,7 @@ func TestCGroupVariablesReleased(t *testing.T) {
 		t.Fatalf("failed to start docker wrapper: %v", err)
 	}
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		return dockerWrapper.Command("touch", []string{"/tmp/test-open"}, nil).Run()
 	}, func(event *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_cgroup_set_variable")
@@ -457,7 +465,7 @@ func TestCGroupVariablesReleased(t *testing.T) {
 		value, ok := variable.GetValue()
 		assert.True(t, ok)
 		assert.Equal(t, 999, value.(int))
-	})
+	}, "test_cgroup_set_variable")
 
 	_, err = dockerWrapper.stop()
 	if err != nil {
@@ -466,7 +474,52 @@ func TestCGroupVariablesReleased(t *testing.T) {
 
 	time.Sleep(500 * time.Millisecond) // wait just a bit of time for the cgroup to be released
 
-	variables := test.ruleEngine.GetRuleSet().GetScopedVariables(rules.ScopeCGroup, "foo")
+	variables := test.ruleEngine.GetRuleSet().GetScopedVariables(rules.ScopeCGroup, "bar")
 	assert.NotNil(t, variables)
 	assert.Len(t, variables, 0)
+}
+
+func TestCGroupWriteEvent(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_cgroup_write_rule",
+			Expression: `cgroup_write.file.path != ""`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
+	if err != nil {
+		t.Fatalf("failed to start docker wrapper: %v", err)
+	}
+
+	testFile, _, err := test.Path("test-cgroup-write")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dockerWrapper.Run(t, "cgroup-write-event", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		test.WaitSignalFromRule(t, func() error {
+			cmd := cmdFunc("touch", []string{testFile}, nil)
+			return cmd.Run()
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_cgroup_write_rule")
+			validateProcessContext(t, event)
+		}, "test_cgroup_write_rule")
+	})
 }

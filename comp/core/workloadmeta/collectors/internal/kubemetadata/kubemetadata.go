@@ -16,8 +16,10 @@ import (
 	"time"
 
 	"go.uber.org/fx"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -32,8 +34,9 @@ import (
 )
 
 const (
-	collectorID   = "kube_metadata"
-	componentName = "workloadmeta-kube_metadata"
+	collectorID          = "kube_metadata"
+	componentName        = "workloadmeta-kube_metadata"
+	namespaceMetadataTTL = 1 * time.Hour
 )
 
 type collector struct {
@@ -41,6 +44,7 @@ type collector struct {
 	store                       workloadmeta.Component
 	catalog                     workloadmeta.AgentType
 	seen                        map[workloadmeta.EntityID]struct{}
+	namespaceLastSeen           map[string]time.Time
 	kubeUtil                    kubelet.KubeUtilInterface
 	apiClient                   *apiserver.APIClient
 	dcaClient                   clusteragent.DCAClientInterface
@@ -55,9 +59,10 @@ type collector struct {
 func NewCollector() (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
-			id:      collectorID,
-			seen:    make(map[workloadmeta.EntityID]struct{}),
-			catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+			id:                collectorID,
+			seen:              make(map[workloadmeta.EntityID]struct{}),
+			namespaceLastSeen: make(map[string]time.Time),
+			catalog:           workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
 		},
 	}, nil
 }
@@ -152,18 +157,19 @@ func (c *collector) Pull(ctx context.Context) error {
 		return err
 	}
 
+	// Create unset events for entities that are no longer seen
 	for seenID := range c.seen {
 		if _, ok := seen[seenID]; ok {
 			continue
 		}
 
-		events = append(events, workloadmeta.CollectorEvent{
-			Type:   workloadmeta.EventTypeUnset,
-			Source: workloadmeta.SourceClusterOrchestrator,
-			Entity: &workloadmeta.KubernetesPod{
-				EntityID: seenID,
-			},
-		})
+		// If the entity is a namespace metadata entity and is within its TTL, skip creating an unset event.
+		if namespaceName, isNsEntity := c.getNamespaceName(seenID); isNsEntity && c.shouldKeepNamespaceAlive(namespaceName) {
+			continue
+		}
+
+		// Unset entities that are no longer seen
+		events = append(events, c.createUnsetEvent(seenID))
 	}
 
 	c.seen = seen
@@ -181,6 +187,56 @@ func (c *collector) GetID() string {
 
 func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
+}
+
+// createUnsetEvent creates an unset event for the appropriate entity type.
+func (c *collector) createUnsetEvent(seenID workloadmeta.EntityID) workloadmeta.CollectorEvent {
+	var entity workloadmeta.Entity
+	switch seenID.Kind {
+	case workloadmeta.KindKubernetesMetadata:
+		entity = &workloadmeta.KubernetesMetadata{EntityID: seenID}
+	case workloadmeta.KindKubernetesPod:
+		entity = &workloadmeta.KubernetesPod{EntityID: seenID}
+	default:
+		log.Errorf("Unknown entity kind: %s", seenID.Kind)
+	}
+
+	return workloadmeta.CollectorEvent{
+		Type:   workloadmeta.EventTypeUnset,
+		Source: workloadmeta.SourceClusterOrchestrator,
+		Entity: entity,
+	}
+}
+
+// getNamespaceName returns the namespace name if seenID is a namespace metadata entity
+func (c *collector) getNamespaceName(seenID workloadmeta.EntityID) (string, bool) {
+	if seenID.Kind != workloadmeta.KindKubernetesMetadata {
+		return "", false
+	}
+
+	group, resource, _, name, err := util.ParseKubeMetadataEntityID(workloadmeta.KubeMetadataEntityID(seenID.ID))
+	if err != nil || group != "" || resource != "namespaces" {
+		return "", false
+	}
+
+	return name, true
+}
+
+// shouldKeepNamespaceAlive checks if a namespace is within its TTL.
+// Returns false for unknown or expired namespaces (also cleans up tracking for expired ones).
+func (c *collector) shouldKeepNamespaceAlive(namespaceName string) bool {
+	lastSeen, ok := c.namespaceLastSeen[namespaceName]
+	if !ok {
+		return false
+	}
+
+	if time.Since(lastSeen) < namespaceMetadataTTL {
+		return true
+	}
+
+	// Expired, remove from tracking
+	delete(c.namespaceLastSeen, namespaceName)
+	return false
 }
 
 // parsePods returns collection events based on a given podlist.
@@ -213,7 +269,6 @@ func (c *collector) parsePods(
 
 	// To get metadata/labels once per namespace.
 	metadataByNS := make(map[string]*clusteragent.Metadata)
-	labelsByNS := make(map[string]map[string]string)
 
 	for _, pod := range pods {
 		if pod.Metadata.UID == "" {
@@ -225,9 +280,14 @@ func (c *collector) parsePods(
 			log.Debugf("Could not fetch metadata for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
 		}
 
-		// Skip `kube_service` label for pods that are not ready (since their endpoint will be disabled from the service)
 		services := []string{}
-		if kubelet.IsPodReady(pod) {
+
+		// collectService if new kube_service bahavior is active
+		// or if not active, use old condition IsPodReady
+
+		collectService := pkgconfigsetup.Datadog().GetBool("kubernetes_kube_service_ignore_readiness") || kubelet.IsPodReady(pod)
+
+		if collectService {
 			for _, data := range metadata {
 				d := strings.Split(data, ":")
 				switch len(d) {
@@ -267,15 +327,21 @@ func (c *collector) parsePods(
 			}
 		} else {
 			// Cluster agent with version older than 7.55
-			var ok bool
-			nsLabels, ok = labelsByNS[pod.Metadata.Namespace]
+			nsMetadata, ok := metadataByNS[pod.Metadata.Namespace]
 			if !ok {
 				nsLabels, err = c.getNamespaceLabels(pod.Metadata.Namespace)
 				if err == nil {
-					labelsByNS[pod.Metadata.Namespace] = nsLabels
+					nsMetadata = &clusteragent.Metadata{
+						Labels: nsLabels,
+					}
+					metadataByNS[pod.Metadata.Namespace] = nsMetadata
 				} else {
 					log.Errorf("Could not fetch namespace labels for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
 				}
+			}
+
+			if nsMetadata != nil {
+				nsLabels = nsMetadata.Labels
 			}
 
 			if c.collectNamespaceAnnotations {
@@ -308,6 +374,21 @@ func (c *collector) parsePods(
 			Type:   workloadmeta.EventTypeSet,
 			Entity: entity,
 		})
+	}
+
+	// Save kubernetes namespace metadata entities for caching
+	for ns, nsMetadata := range metadataByNS {
+		nsEntity := createNamespaceEntity(ns, nsMetadata)
+		nsEntityID := nsEntity.GetID()
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceClusterOrchestrator,
+			Type:   workloadmeta.EventTypeSet,
+			Entity: nsEntity,
+		})
+
+		seen[nsEntityID] = struct{}{}
+		c.namespaceLastSeen[ns] = time.Now()
 	}
 
 	return events, nil
@@ -370,6 +451,38 @@ func (c *collector) isDCAEnabled() bool {
 	}
 
 	return false
+}
+
+// createNamespaceEntity creates a KubernetesMetadata entity for a namespace
+func createNamespaceEntity(namespaceName string, metadata *clusteragent.Metadata) *workloadmeta.KubernetesMetadata {
+	labels := make(map[string]string)
+	annotations := make(map[string]string)
+
+	if metadata != nil {
+		if metadata.Labels != nil {
+			labels = metadata.Labels
+		}
+		if metadata.Annotations != nil {
+			annotations = metadata.Annotations
+		}
+	}
+
+	return &workloadmeta.KubernetesMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesMetadata,
+			ID:   string(util.GenerateKubeMetadataEntityID("", "namespaces", "", namespaceName)),
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        namespaceName,
+			Labels:      labels,
+			Annotations: annotations,
+		},
+		GVR: &schema.GroupVersionResource{
+			Group:    "",
+			Version:  "v1",
+			Resource: "namespaces",
+		},
+	}
 }
 
 // addToCacheMetadataMapping is acting like the DCA at the node level.

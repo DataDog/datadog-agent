@@ -14,7 +14,8 @@ typedef struct probe_params {
   bool has_associated_return;
   char kind; // actually an event_kind_t
   char top_pc_offset;
-  char __padding[4];
+  char no_return_reason;
+  char __padding[3];
 } probe_params_t;
 
 typedef struct throttler_params {
@@ -48,6 +49,16 @@ typedef enum event_kind {
   EVENT_KIND_ENTRY = 1,
   EVENT_KIND_RETURN = 2,
 } event_kind_t;
+
+// To be kept in sync with the ir.NoReturnReason enum in the ir/program.go file.
+typedef enum no_return_reason {
+  NO_RETURN_REASON_NONE = 0,
+  NO_RETURN_REASON_RETURNS_DISABLED = 1,
+  NO_RETURN_REASON_LINE_PROBE = 2,
+  NO_RETURN_REASON_INLINED = 3,
+  NO_RETURN_REASON_NO_BODY = 4,
+  NO_RETURN_REASON_IS_RETURN = 5,
+} no_return_reason_t;
 
 typedef enum sm_opcode {
   SM_OP_INVALID = 0,

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // Copy from https://github.com/itchyny/gojq/blob/main/cli/yaml.go

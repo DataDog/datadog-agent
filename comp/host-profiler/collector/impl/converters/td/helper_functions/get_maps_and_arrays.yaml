@@ -1,0 +1,18 @@
+processors:
+  batch:
+    timeout: 10s
+    send_batch_size: 100
+  infraattributes:
+    allow_hostname_override: true
+
+list_values:
+  - item1
+  - item2
+  - item3
+
+nested_list:
+  items:
+    - name: first
+      value: 1
+    - name: second
+      value: 2

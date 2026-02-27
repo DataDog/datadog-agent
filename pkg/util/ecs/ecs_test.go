@@ -15,9 +15,57 @@ import (
 )
 
 func TestGetRegionAndAWSAccountID(t *testing.T) {
-	region, id := ParseRegionAndAWSAccountID("arn:aws:ecs:us-east-1:123427279990:container-instance/ecs-my-cluster/123412345abcdefgh34999999")
-	require.Equal(t, "us-east-1", region)
-	require.Equal(t, "123427279990", id)
+	tests := []struct {
+		name            string
+		arn             string
+		expectedRegion  string
+		expectedAccount string
+	}{
+		{
+			name:            "standard aws partition",
+			arn:             "arn:aws:ecs:us-east-1:123427279990:container-instance/ecs-my-cluster/123412345abcdefgh34999999",
+			expectedRegion:  "us-east-1",
+			expectedAccount: "123427279990",
+		},
+		{
+			name:            "aws-us-gov partition",
+			arn:             "arn:aws-us-gov:ecs:us-gov-west-1:123456789012:container-instance/ecs-gov-cluster/abcdef123456",
+			expectedRegion:  "us-gov-west-1",
+			expectedAccount: "123456789012",
+		},
+		{
+			name:            "aws-cn partition",
+			arn:             "arn:aws-cn:ecs:cn-north-1:987654321098:container-instance/ecs-china-cluster/xyz789",
+			expectedRegion:  "cn-north-1",
+			expectedAccount: "987654321098",
+		},
+		{
+			name:            "invalid partition returns empty",
+			arn:             "arn:aws-invalid:ecs:us-east-1:123456789012:container-instance/cluster/id",
+			expectedRegion:  "",
+			expectedAccount: "",
+		},
+		{
+			name:            "malformed arn returns empty",
+			arn:             "not-an-arn",
+			expectedRegion:  "",
+			expectedAccount: "",
+		},
+		{
+			name:            "invalid account id length returns empty account",
+			arn:             "arn:aws:ecs:us-east-1:123:task/12345678-1234-1234-1234-123456789012",
+			expectedRegion:  "us-east-1",
+			expectedAccount: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			region, id := ParseRegionAndAWSAccountID(tt.arn)
+			require.Equal(t, tt.expectedRegion, region)
+			require.Equal(t, tt.expectedAccount, id)
+		})
+	}
 }
 
 func TestInitClusterID(t *testing.T) {

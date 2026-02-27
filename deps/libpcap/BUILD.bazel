@@ -1,4 +1,4 @@
-load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
 load("//bazel/tools:generate_module_bazel.bzl", "generate_module_bazel")
 
 VERSION = "1.10.5"
@@ -13,9 +13,8 @@ generate_module_bazel(
     url = "https://www.tcpdump.org/release/libpcap-%s.tar.xz" % VERSION,
 )
 
-diff_test(
-    name = "module_consistency_test",
-    failure_message = "To update: cp bazel-bin/deps/libpcap/libpcap.MODULE.bazel.new libpcap.MODULE.bazel",
-    file1 = ":libpcap.MODULE.bazel.new",
-    file2 = "libpcap.MODULE.bazel",
+write_source_file(
+    name = "module_consistency",
+    in_file = ":libpcap.MODULE.bazel.new",
+    out_file = "libpcap.MODULE.bazel",
 )

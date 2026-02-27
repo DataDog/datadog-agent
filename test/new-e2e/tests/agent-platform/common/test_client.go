@@ -15,7 +15,7 @@ import (
 	componentos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
@@ -91,28 +91,41 @@ func NewTestClient(host *components.RemoteHost, agentClient agentclient.Agent, f
 	}
 }
 
-// SetConfig set config given a key and a path to a yaml config file, support key nested twice at most
+// SetConfig set config given a key and a path to a yaml config file, supports arbitrarily-deep nested keys
 func (c *TestClient) SetConfig(confPath string, key string, value string) error {
 	confYaml := map[string]any{}
 	conf, err := c.FileManager.ReadFile(confPath)
 	if err != nil {
 		fmt.Printf("config file: %s not found, it will be created\n", confPath)
 	}
-	if err := yaml.Unmarshal([]byte(conf), &confYaml); err != nil {
+	if err := yaml.Unmarshal(conf, &confYaml); err != nil {
 		return err
 	}
+
+	// Normalize the map and then recurse through it, creating the necessary structure before
+	// inserting the value at the intended depth.
+	confYaml = normalizeMap(confYaml).(map[string]any)
+
 	keyList := strings.Split(key, ".")
 
-	if len(keyList) == 1 {
-		confYaml[keyList[0]] = value
-	}
-	if len(keyList) == 2 {
-		if confYaml[keyList[0]] == nil {
-			confYaml[keyList[0]] = map[string]any{keyList[1]: value}
+	current := confYaml
+	for i := 0; i < len(keyList)-1; i++ {
+		k := keyList[i]
+		if current[k] == nil {
+			current[k] = map[string]any{}
+			current = current[k].(map[string]any)
 		} else {
-			confYaml[keyList[0]].(map[interface{}]any)[keyList[1]] = value
+			switch v := current[k].(type) {
+			case map[string]any:
+				current = v
+			default:
+				current[k] = map[string]any{}
+				current = current[k].(map[string]any)
+			}
 		}
 	}
+
+	current[keyList[len(keyList)-1]] = value
 
 	confUpdated, err := yaml.Marshal(confYaml)
 	if err != nil {
@@ -120,6 +133,34 @@ func (c *TestClient) SetConfig(confPath string, key string, value string) error 
 	}
 	_, err = c.FileManager.WriteFile(confPath, confUpdated)
 	return err
+}
+
+// normalizeMap converts map[interface{}]any to map[string]any recursively
+func normalizeMap(input any) any {
+	switch v := input.(type) {
+	case map[interface{}]any:
+		result := make(map[string]any)
+		for key, value := range v {
+			if strKey, ok := key.(string); ok {
+				result[strKey] = normalizeMap(value)
+			}
+		}
+		return result
+	case map[string]any:
+		result := make(map[string]any)
+		for key, value := range v {
+			result[key] = normalizeMap(value)
+		}
+		return result
+	case []any:
+		result := make([]any, len(v))
+		for i, item := range v {
+			result[i] = normalizeMap(item)
+		}
+		return result
+	default:
+		return v
+	}
 }
 
 // GetJSONStatus returns the status of the Agent in JSON format

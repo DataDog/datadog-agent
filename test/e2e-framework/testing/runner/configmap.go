@@ -8,6 +8,7 @@ package runner
 import (
 	"encoding/json"
 	"errors"
+	"maps"
 
 	commonconfig "github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	infraaws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
@@ -83,9 +84,7 @@ func (cm ConfigMap) Set(key, val string, secret bool) {
 
 // Merge in ConfigMap into current config map
 func (cm ConfigMap) Merge(in ConfigMap) {
-	for key, val := range in {
-		cm[key] = val
-	}
+	maps.Copy(cm, in)
 }
 
 // ToPulumi casts current config map to a Pulumi auto.ConfigMap

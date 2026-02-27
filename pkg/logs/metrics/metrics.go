@@ -44,8 +44,11 @@ var (
 	// BytesSent is the total number of sent bytes before encoding if any
 	BytesSent = expvar.Int{}
 	// TlmBytesSent is the total number of sent bytes before encoding if any
+	// The remote_agent tag identifies which agent sent the logs. Use GetAgentIdentityTag()
+	// to get the correct value for the current agent. This tag is used by COAT to partition
+	// log bytes by agent type.
 	TlmBytesSent = telemetry.NewCounter("logs", "bytes_sent",
-		[]string{"source"}, "Total number of bytes sent before encoding if any")
+		[]string{"remote_agent", "source"}, "Total number of bytes sent before encoding if any")
 	// RetryCount is the total number of times we have retried payloads that failed to send
 	RetryCount = expvar.Int{}
 	// TlmRetryCount is the total number of times we have retried payloads that failed to send
@@ -56,8 +59,11 @@ var (
 	// EncodedBytesSent is the total number of sent bytes after encoding if any
 	EncodedBytesSent = expvar.Int{}
 	// TlmEncodedBytesSent is the total number of sent bytes after encoding if any
+	// The remote_agent tag identifies which agent sent the logs. Use GetAgentIdentityTag()
+	// to get the correct value for the current agent. This tag is used by COAT to partition
+	// encoded log bytes by agent type.
 	TlmEncodedBytesSent = telemetry.NewCounter("logs", "encoded_bytes_sent",
-		[]string{"source", "compression_kind"}, "Total number of sent bytes after encoding if any")
+		[]string{"remote_agent", "source", "compression_kind"}, "Total number of sent bytes after encoding if any")
 	// BytesMissed is the number of bytes lost before they could be consumed by the agent, such as after a log rotation
 	BytesMissed = expvar.Int{}
 	// TlmBytesMissed is the number of bytes lost before they could be consumed by the agent, such as after log rotation
@@ -119,6 +125,21 @@ var (
 	// TlmRotationSizeDifferences records the absolute file size difference whenever the file size changes between checks
 	TlmRotationSizeDifferences = telemetry.NewHistogram("logs", "rotation_size_differences",
 		nil, "Distribution of absolute file size differences observed between consecutive file rotation checks", []float64{256, 1024, 4096, 16384, 65536, 262144, 1048576, 10485760, 104857600})
+
+	// TlmHTTPConnectivityCheck tracks HTTP connectivity check results
+	// Tags: status (success/failure)
+	TlmHTTPConnectivityCheck = telemetry.NewCounter("logs", "http_connectivity_check",
+		[]string{"status"}, "Count of HTTP connectivity checks with status")
+
+	// TlmHTTPConnectivityRetryAttempt tracks HTTP connectivity retry attempts
+	// Tags: status (success/failure)
+	TlmHTTPConnectivityRetryAttempt = telemetry.NewCounter("logs", "http_connectivity_retry_attempt",
+		[]string{"status"}, "Count of HTTP connectivity retry attempts with success/failure status")
+
+	// TlmRestartAttempt tracks logs agent restart attempts
+	// Tags: status (success/failure/timeout), transport (tcp/http)
+	TlmRestartAttempt = telemetry.NewCounter("logs", "restart_attempt",
+		[]string{"status", "transport"}, "Count of logs agent restart attempts with status and target transport")
 )
 
 func init() {
@@ -136,4 +157,26 @@ func init() {
 	LogsExpvars.Set("SenderLatency", &SenderLatency)
 	LogsExpvars.Set("HttpDestinationStats", &DestinationExpVars)
 	LogsExpvars.Set("LogsTruncated", &LogsTruncated)
+}
+
+// agentIdentityTag holds the remote_agent tag value for this agent process.
+// It must be set once at startup via SetAgentIdentity before any log sending occurs.
+//
+// This mirrors the pattern used by pkg/util/flavor (SetFlavor/GetFlavor) rather than
+// importing it directly, because importing flavor would pull in pkg/config/model and
+// pkg/config/setup, significantly widening the dependency graph for the 40+ files that
+// import pkg/logs/metrics.
+var agentIdentityTag = "agent"
+
+// SetAgentIdentity sets the remote_agent tag value for the current agent process.
+// This must be called once during agent startup, before any logs are sent.
+// Example values: "agent", "system-probe", "trace-agent", etc.
+func SetAgentIdentity(tag string) {
+	agentIdentityTag = tag
+}
+
+// GetAgentIdentityTag returns the remote_agent tag value for the current agent process.
+// The value is set at startup via SetAgentIdentity and defaults to "agent".
+func GetAgentIdentityTag() string {
+	return agentIdentityTag
 }

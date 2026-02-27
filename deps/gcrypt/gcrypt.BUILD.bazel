@@ -1,13 +1,31 @@
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
     default_package_metadata = [":license"],
     default_visibility = ["//packages:__subpackages__"],
+)
+
+VERSION = "1.10.2"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+        ":ship_source_offer",
+    ],
+    purl = purl_for_generic(
+        package = "gpg-error",
+        version = VERSION,
+        download_url = "https://www.gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-{version}.tar.bz2",
+    ),
 )
 
 license(
@@ -17,6 +35,8 @@ license(
     visibility = ["//visibility:public"],
 )
 
+ship_source_offer(name = "ship_source_offer")
+
 copy_file(
     name = "copy_config_h",
     src = select({
@@ -24,6 +44,13 @@ copy_file(
         "@//:linux_arm64": "config-linux-aarch64.h",
     }),
     out = "config.h",
+)
+
+cc_library(
+    name = "config_h",
+    hdrs = [
+        ":copy_config_h",
+    ],
 )
 
 expand_template(
@@ -40,7 +67,6 @@ cc_library(
     name = "libcompat",
     srcs = [
         "compat/compat.c",
-        ":copy_config_h",
         "src/g10lib.h",
         "src/visibility.h",
         "src/types.h",
@@ -54,6 +80,9 @@ cc_library(
     includes = [
         ".",
         "src",
+    ],
+    implementation_deps = [
+        ":config_h",
     ],
     deps = [
         "@gpg-error//:libgpg-error",
@@ -220,7 +249,6 @@ cc_library(
             "mpi/generic/mpih-rshift.c",
         ],
     }) + [
-        ":copy_config_h",
         ":mod-source-info_h",
         ":sysdep_h",
         ":asm-syntax_h",
@@ -240,6 +268,9 @@ cc_library(
             "mpi/aarch64",
         ],
     }),
+    implementation_deps = [
+        ":config_h",
+    ],
     deps = [
         "@gpg-error//:libgpg-error",
         ":libcompat",
@@ -280,7 +311,6 @@ cc_library(
         "src/visibility.h",
         "src/types.h",
         "cipher/bithelp.h",
-        ":copy_config_h",
         ":gcrypt_h",
     ] + _RAND_COMMON_SRCS,
     includes = [
@@ -291,6 +321,9 @@ cc_library(
         # librandom's Makefile.am mentions:
         # `The rndjent module needs to be compiled without optimization.``
         "-O0",
+    ],
+    implementation_deps = [
+        ":config_h",
     ],
     deps = [
         "@gpg-error//:libgpg-error",
@@ -323,11 +356,13 @@ cc_library(
         "cipher/sha1.h",
         "cipher/hash-common.h",
         "cipher/bufhelp.h",
-        ":copy_config_h",
         ":gcrypt_h",
     ] + _RAND_COMMON_SRCS,
     textual_hdrs = _RAND_TEXTUAL_HDRS,
     includes = ["."],
+    implementation_deps = [
+        ":config_h",
+    ],
     deps = [
         "@gpg-error//:libgpg-error",
         ":libcompat",
@@ -339,7 +374,6 @@ cc_library(
 )
 
 _CIPHER_COMMON_SRCS = [
-    ":copy_config_h",
     "src/g10lib.h",
     "src/visibility.h",
     "src/types.h",
@@ -367,6 +401,9 @@ cc_library(
         "src",
         "cipher",
     ],
+    implementation_deps = [
+        ":config_h",
+    ],
     deps = [
         "@gpg-error//:libgpg-error",
         ":libcompat",
@@ -386,6 +423,9 @@ cc_library(
         "cipher/simd-common-aarch64.h",
     ] + _CIPHER_COMMON_SRCS,
     copts = ["-O2", "-march=armv8-a+simd+crypto"],
+    implementation_deps = [
+        ":config_h",
+    ],
     deps = [
         "@gpg-error//:libgpg-error",
         ":libcompat",
@@ -405,6 +445,9 @@ cc_library(
         "cipher/asm-common-aarch64.h",
     ] + _CIPHER_COMMON_SRCS,
     copts = ["-O2", "-march=armv8-a+simd"],
+    implementation_deps = [
+        ":config_h",
+    ],
     deps = [
         "@gpg-error//:libgpg-error",
         ":libcompat",
@@ -613,6 +656,9 @@ cc_library(
                ],
            }),
     includes = ["."],
+    implementation_deps = [
+        ":config_h",
+    ],
     deps = [
         "@gpg-error//:libgpg-error",
         ":libcompat",
@@ -675,6 +721,9 @@ cc_library(
         "@@//:linux_x86_64": ["src/hwf-x86.c"],
         "@@//:linux_arm64": ["src/hwf-arm.c"],
     }),
+    implementation_deps = [
+        ":config_h",
+    ],
     copts = [
         "-O2",
     ],
@@ -702,39 +751,25 @@ so_symlink(
     version = "20.4.2",
 )
 
-expand_template(
-    name = "gen_pkgconfig",
-    out = "libgcrypt.pc",
-    substitutions = {
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@PACKAGE_VERSION@": "1.11.2",
-        "@LIBGCRYPT_CONFIG_CFLAGS@": "-I${includedir}",
-        "@LIBGCRYPT_CONFIG_LIBS@": "-L${libdir} -lgcrypt",
-        "@LIBGCRYPT_CONFIG_LIBS_PRIVATE@": "",
-    },
-    template = ":src/libgcrypt.pc.in",
-)
-
-pkg_files(
-    name = "pc_file",
-    srcs = [":gen_pkgconfig"],
-    prefix = "lib/pkgconfig",
-)
-
 pkg_files(
     name = "hdr_files",
     srcs = [":gcrypt_h"],
     prefix = "include",
 )
 
-pkg_install(
-    name = "install",
+pkg_filegroup(
+    name = "all_files",
     srcs = [
         ":hdr_files",
         ":lib_files",
-        ":pc_file",
+    ],
+    prefix = "embedded",
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
     ],
 )

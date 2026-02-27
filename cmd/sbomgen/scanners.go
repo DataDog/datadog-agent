@@ -46,7 +46,7 @@ func runScanDocker(imageMeta *workloadmeta.ContainerImageMetadata, analyzers []s
 	dockerClient := cl.RawClient()
 
 	ctx := context.Background()
-	report, err := collector.ScanDockerImage(
+	report, _, err := collector.ScanDockerImage(
 		ctx,
 		imageMeta,
 		dockerClient,

@@ -13,7 +13,7 @@ import (
 	"net"
 	"net/url"
 
-	yaml "gopkg.in/yaml.v2"
+	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -82,16 +82,17 @@ func ParseConfigSnmp(c integration.Config) []SNMPConfig {
 
 func parseConfigSnmpMain(conf config.Component) ([]SNMPConfig, error) {
 	snmpConfigs := []SNMPConfig{}
-	configs := []snmplistener.Config{}
+	configs := []snmplistener.UnmarshalledConfig{}
+
 	// the UnmarshalKey stores the result in mapstructures while the snmpConfig is in yaml
 	// so for each result of the Unmarshal key we store the result in a tmp SNMPConfig{} object
-	if conf.IsSet("network_devices.autodiscovery.configs") {
+	if conf.IsConfigured("network_devices.autodiscovery.configs") {
 		err := structure.UnmarshalKey(conf, "network_devices.autodiscovery.configs", &configs, structure.ImplicitlyConvertArrayToMapSet)
 		if err != nil {
 			fmt.Printf("unable to get snmp config from network_devices.autodiscovery: %v", err)
 			return nil, err
 		}
-	} else if conf.IsSet("snmp_listener.configs") {
+	} else if conf.IsConfigured("snmp_listener.configs") {
 		err := structure.UnmarshalKey(conf, "snmp_listener.configs", &configs, structure.ImplicitlyConvertArrayToMapSet)
 		if err != nil {
 			fmt.Printf("unable to get snmp config from snmp_listener: %v", err)

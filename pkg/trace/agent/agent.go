@@ -64,6 +64,9 @@ const (
 
 	// tagDecisionMaker specifies the sampling decision maker
 	tagDecisionMaker = "_dd.p.dm"
+
+	// tagAPMMode specifies whether running APM in "edge" mode (may support other modes in the future)
+	tagAPMMode = "_dd.apm_mode"
 )
 
 // Writer is an interface that provides the base functionality of a writing component
@@ -278,6 +281,10 @@ func (a *Agent) FlushSync() {
 		log.Errorf("Error flushing traces: %s", err.Error())
 		return
 	}
+	if err := a.TraceWriterV1.FlushSync(); err != nil {
+		log.Errorf("Error flushing traces v1: %s", err.Error())
+		return
+	}
 }
 
 // UpdateAPIKey receives the API Key update signal and propagates it across all internal
@@ -289,6 +296,7 @@ func (a *Agent) UpdateAPIKey(oldKey, newKey string) {
 	log.Infof("API Key changed. Updating trace-agent config...")
 	a.Receiver.UpdateAPIKey()
 	a.TraceWriter.UpdateAPIKey(oldKey, newKey)
+	a.TraceWriterV1.UpdateAPIKey(oldKey, newKey)
 	a.StatsWriter.UpdateAPIKey(oldKey, newKey)
 }
 
@@ -337,6 +345,7 @@ func (a *Agent) loop() {
 		a.Concentrator,
 		a.ClientStatsAggregator,
 		a.TraceWriter,
+		a.TraceWriterV1,
 		a.StatsWriter,
 		a.SamplerMetrics,
 		a.EventProcessor,
@@ -673,6 +682,9 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 		a.Replacer.ReplaceV1(chunk)
 
 		a.setRootSpanTagsV1(root)
+		if !p.ClientComputedTopLevel {
+			traceutil.ComputeTopLevelV1(chunk)
+		}
 
 		pt := processedTraceV1(p, chunk, root, imageTag, gitCommitSha)
 		if !p.ClientComputedStats {
@@ -696,28 +708,16 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 			sampledChunks.SpanCount += int64(len(pt.TraceChunk.Spans))
 		}
 		sampledChunks.EventCount += int64(numEvents)
-		// Yes this is the msgpack size of the trace chunk not the protobuf size.
-		// This is still a good approximation of the size of the trace chunk and copies the existing logic.
-		sampledChunks.Size += pt.TraceChunk.Msgsize()
 		i++
-
-		if sampledChunks.Size > writer.MaxPayloadSize {
-			// payload size is getting big; split and flush what we have so far
-			sampledChunks.TracerPayload = p.TracerPayload.Cut(i)
-			i = 0
-			sampledChunks.TracerPayload.Chunks = newChunksArrayV1(sampledChunks.TracerPayload.Chunks)
-			a.TraceWriterV1.WriteChunksV1(sampledChunks)
-			sampledChunks = new(writer.SampledChunksV1)
-		}
 	}
 	sampledChunks.TracerPayload = p.TracerPayload
 	sampledChunks.TracerPayload.Chunks = newChunksArrayV1(p.TracerPayload.Chunks)
-	if sampledChunks.Size > 0 {
-		a.writeChunksV1(sampledChunks)
-	}
 	if len(statsInput.Traces) > 0 {
+		// It's important we send to the concentrator first as the trace writer can async modify the payload,
+		// but the concentrator will sync copy all strings it needs.
 		a.Concentrator.AddV1(statsInput)
 	}
+	a.writeChunksV1(sampledChunks)
 }
 
 func (a *Agent) writeChunksV1(p *writer.SampledChunksV1) {
@@ -732,7 +732,7 @@ func (a *Agent) writeChunksV1(p *writer.SampledChunksV1) {
 		enrichTracesWithCtagsV1(p, cTags, err)
 		a.TraceWriterV1.WriteChunksV1(p)
 	}
-	a.ContainerTagsBuffer.AsyncEnrichment(containerID, fn, int64(p.Size))
+	a.ContainerTagsBuffer.AsyncEnrichment(containerID, fn, int64(p.TracerPayload.Msgsize()))
 }
 
 // enrichTracesWithCtagsV1 modifies the trace payload in-place by overriding container tags.
@@ -757,6 +757,33 @@ func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.Tr
 	}
 	if p.TracerPayload.AppVersion == "" {
 		p.TracerPayload.AppVersion = version.GetAppVersionFromTrace(root, chunk)
+	}
+	if p.TracerPayload.Tags[tagAPMMode] == "" {
+		if mode, ok := root.Meta[tagAPMMode]; ok {
+			if v := normalizeAPMModeSpanTag(mode); v != "" {
+				if p.TracerPayload.Tags == nil {
+					p.TracerPayload.Tags = make(map[string]string)
+				}
+				p.TracerPayload.Tags[tagAPMMode] = mode
+			}
+		}
+	}
+}
+
+// normalizeAPMModeSpanTag validates and normalizes the '_dd.apm_mode' span tag value.
+// Returns the normalized lowercase value if valid (currently only "edge"), or an empty string if invalid.
+// Invalid values are logged at debug level.
+func normalizeAPMModeSpanTag(apmMode string) string {
+	if apmMode == "" {
+		log.Debugf("empty value for '_dd.apm_mode' span tag")
+		return ""
+	}
+	switch strings.ToLower(apmMode) {
+	case "edge":
+		return "edge"
+	default:
+		log.Debugf("invalid value for '_dd.apm_mode' span tag: '%s'", apmMode)
+		return ""
 	}
 }
 
@@ -789,12 +816,11 @@ func processedTraceV1(p *api.PayloadV1, chunk *idx.InternalTraceChunk, root *idx
 		TracerEnv:              p.TracerPayload.Env(),
 		TracerHostname:         p.TracerPayload.Hostname(),
 		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.TracerPayload.Chunks)),
-		GitCommitSha:           version.GetGitCommitShaFromTraceV1(chunk),
+		GitCommitSha:           gitCommitSha,
 	}
 	pt.ImageTag = imageTag
-	// Only override the GitCommitSha if it was not set in the trace.
-	if pt.GitCommitSha == "" {
-		pt.GitCommitSha = gitCommitSha
+	if payloadGitCommitSha, ok := p.TracerPayload.GetAttributeAsString("_dd.git.commit.sha"); ok {
+		pt.GitCommitSha = payloadGitCommitSha
 	}
 	return pt
 }
@@ -1150,19 +1176,25 @@ func (a *Agent) runSamplersV1(now time.Time, ts *info.TagStats, pt traceutil.Pro
 
 	if a.conf.ProbabilisticSamplerEnabled {
 		samplerName = sampler.NameProbabilistic
+		probKeep := false
 		if rare {
 			samplerName = sampler.NameRare
-			return true, true
+			probKeep = true
 		}
 		if a.ProbabilisticSampler.SampleV1(pt.TraceChunk.TraceID, pt.Root) {
 			pt.TraceChunk.SetSamplingMechanism(probabilitySamplingV1)
-			return true, true
+			probKeep = true
 		}
 		if traceContainsErrorV1(pt.TraceChunk.Spans, false) {
 			samplerName = sampler.NameError
-			return a.ErrorsSampler.SampleV1(now, pt.TraceChunk, pt.Root, pt.TracerEnv), true
+			probKeep = a.ErrorsSampler.SampleV1(now, pt.TraceChunk, pt.Root, pt.TracerEnv)
 		}
-		return false, true
+		if probKeep {
+			pt.TraceChunk.Priority = int32(sampler.PriorityAutoKeep)
+		} else {
+			pt.TraceChunk.Priority = int32(sampler.PriorityAutoDrop)
+		}
+		return probKeep, true
 	}
 
 	priority, hasPriority := sampler.GetSamplingPriorityV1(pt.TraceChunk)

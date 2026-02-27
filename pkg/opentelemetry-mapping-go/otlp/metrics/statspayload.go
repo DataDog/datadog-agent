@@ -16,9 +16,9 @@ package metrics
 
 import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/golang/protobuf/proto"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
 )
 
 // keyStatsPayload is the key for the stats payload in the attributes map.

@@ -27,6 +27,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -70,6 +71,8 @@ func TestHandleKubePod(t *testing.T) {
 		Tag:       "latest",
 	}
 
+	t.Setenv("test_envvar", "test_value")
+
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component { return config.NewMock(t) }),
@@ -90,6 +93,10 @@ func TestHandleKubePod(t *testing.T) {
 			"DD_SERVICE": svc,
 			"DD_VERSION": version,
 		},
+		NetworkIPs: map[string]string{
+			"bridge": "172.17.0.2",
+		},
+		PID: 1234,
 	})
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -932,6 +939,140 @@ func TestHandleKubePod(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "pod with template variables in AD annotation",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+					Annotations: map[string]string{
+						"ad.datadoghq.com/tags": `{
+							"pod_namespace":"%%kube_namespace%%",
+							"pod_name":"%%kube_pod_name%%",
+							"+pod_uid": "%%kube_pod_uid%%",
+							"static":"value"
+						}`,
+					},
+				},
+				IP: "10.244.0.15",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:   podSource,
+					EntityID: podTaggerEntityID,
+					HighCardTags: []string{
+						"pod_uid:" + podEntityID.ID,
+					},
+					OrchestratorCardTags: []string{
+						"pod_name:" + podName,
+					},
+					LowCardTags: []string{
+						"kube_namespace:" + podNamespace,
+						"pod_name:" + podName,
+						"pod_namespace:" + podNamespace,
+						"static:value",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "pod with container tag template variables in AD annotation",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+					Annotations: map[string]string{
+						"ad.datadoghq.com/agent.tags": `{
+							"container_host":"%%host%%",
+							"pod_ref":"%%kube_pod_name%%",
+							"namespace":"%%kube_namespace%%",
+							"container_pid":"%%pid%%"
+						}`,
+					},
+				},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:    fullyFleshedContainerID,
+						Name:  containerName,
+						Image: image,
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					EntityID:     podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						"pod_name:" + podName,
+					},
+					LowCardTags: []string{
+						"kube_namespace:" + podNamespace,
+					},
+					StandardTags: []string{},
+				},
+				{
+					Source:   podSource,
+					EntityID: fullyFleshedContainerTaggerEntityID,
+					HighCardTags: []string{
+						"container_id:" + fullyFleshedContainerID,
+						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
+					},
+					OrchestratorCardTags: []string{
+						"pod_name:" + podName,
+					},
+					LowCardTags: append([]string{
+						"kube_namespace:" + podNamespace,
+						"kube_container_name:" + containerName,
+						"container_host:172.17.0.2",
+						"container_pid:1234",
+						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+						"image_name:datadog/agent",
+						"image_tag:latest",
+						"namespace:" + podNamespace,
+						"pod_ref:" + podName,
+						"short_image:agent",
+					}, standardTags...),
+					StandardTags: standardTags,
+				},
+			},
+		},
+		{
+			name: "pod with environment variable in AD annotation is not resolved",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+					Annotations: map[string]string{
+						"ad.datadoghq.com/tags": `{
+							"test":"%%env_test_envvar%%",
+							"static":"value"
+						}`,
+					},
+				},
+				IP: "10.244.0.15",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					EntityID:     podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						"pod_name:" + podName,
+					},
+					LowCardTags: []string{
+						"kube_namespace:" + podNamespace,
+						"test:%%env_test_envvar%%",
+						"static:value",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1308,6 +1449,93 @@ func TestHandleKubeMetadata(t *testing.T) {
 			actual := collector.handleKubeMetadata(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
 				Entity: &test.kubeMetadata,
+			})
+
+			assertTagInfoListEqual(tt, test.expected, actual)
+		})
+	}
+}
+
+func TestHandleKubeCRD(t *testing.T) {
+	const (
+		crdNamespace = "datadog"
+		crdName      = "datadogagent.datadoghq.com"
+		crdGroup     = "datadoghq.com"
+		crdKind      = "DatadogAgent"
+		crdVersion   = "v1alpha1"
+	)
+
+	kubeCRDID := string(util.GenerateKubeMetadataEntityID(crdGroup, crdKind, crdNamespace, crdName))
+
+	kubeCRDEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindCRD,
+		ID:   kubeCRDID,
+	}
+
+	taggerEntityID := types.NewEntityID(types.Crd, kubeCRDEntityID.ID)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	store.Set(&workloadmeta.CRD{
+		EntityID: kubeCRDEntityID,
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      crdName,
+			Namespace: crdNamespace,
+		},
+		Group:   crdGroup,
+		Kind:    crdKind,
+		Version: crdVersion,
+	})
+
+	tests := []struct {
+		name     string
+		kubeCRD  workloadmeta.CRD
+		expected []*types.TagInfo
+	}{
+		{
+			name: "CRD entity",
+			kubeCRD: workloadmeta.CRD{
+				EntityID: kubeCRDEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      crdName,
+					Namespace: crdNamespace,
+				},
+				Version: crdVersion,
+				Group:   crdGroup,
+				Kind:    crdKind,
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               crdSource,
+					EntityID:             taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					StandardTags:         []string{},
+					LowCardTags: []string{
+						"crd_group:" + crdGroup,
+						"crd_kind:" + crdKind,
+						"crd_version:" + crdVersion,
+						"crd_namespace:" + crdNamespace,
+						"crd_name:" + crdName,
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			cfg := configmock.New(t)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+			actual := collector.handleCRD(workloadmeta.Event{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: &test.kubeCRD,
 			})
 
 			assertTagInfoListEqual(tt, test.expected, actual)
@@ -2329,6 +2557,129 @@ func TestHandleContainer(t *testing.T) {
 	}
 }
 
+func TestHandleContainer_IsComplete(t *testing.T) {
+	podID := "test-pod"
+
+	container := workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "test-container",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "agent",
+		},
+		Owner: &workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   podID,
+		},
+	}
+
+	pod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   podID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "test-pod",
+			Namespace: "default",
+		},
+	}
+
+	tests := []struct {
+		name                string
+		isKubernetesEnv     bool
+		podInStore          bool
+		podIsComplete       bool
+		containerIsComplete bool
+		expectedIsComplete  bool
+	}{
+		{
+			name:                "non-Kubernetes: container complete",
+			isKubernetesEnv:     false,
+			containerIsComplete: true,
+			expectedIsComplete:  true,
+		},
+		{
+			name:                "non-Kubernetes: container incomplete",
+			isKubernetesEnv:     false,
+			containerIsComplete: false,
+			expectedIsComplete:  false,
+		},
+		{
+			name:                "kubernetes: container incomplete",
+			isKubernetesEnv:     true,
+			podInStore:          true,
+			podIsComplete:       true,
+			containerIsComplete: false,
+			expectedIsComplete:  false,
+		},
+		{
+			name:                "kubernetes: container complete but pod incomplete",
+			isKubernetesEnv:     true,
+			podInStore:          true,
+			podIsComplete:       false,
+			containerIsComplete: true,
+			expectedIsComplete:  false,
+		},
+		{
+			name:                "kubernetes: both container and pod complete",
+			isKubernetesEnv:     true,
+			podInStore:          true,
+			podIsComplete:       true,
+			containerIsComplete: true,
+			expectedIsComplete:  true,
+		},
+		{
+			name:                "kubernetes: pod not found in store",
+			isKubernetesEnv:     true,
+			podInStore:          false,
+			containerIsComplete: true,
+			expectedIsComplete:  false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.isKubernetesEnv {
+				env.SetFeatures(t, env.Kubernetes)
+			}
+
+			cfg := configmock.New(t)
+
+			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return cfg }),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+
+			wmeta.Set(&container)
+
+			if test.isKubernetesEnv && test.podInStore {
+				wmeta.Set(pod)
+			}
+
+			collector := NewWorkloadMetaCollector(context.TODO(), cfg, wmeta, nil)
+
+			if test.isKubernetesEnv {
+				collector.handleKubePod(workloadmeta.Event{
+					Type:       workloadmeta.EventTypeSet,
+					Entity:     pod,
+					IsComplete: test.podIsComplete,
+				})
+			}
+
+			actual := collector.handleContainer(workloadmeta.Event{
+				Type:       workloadmeta.EventTypeSet,
+				Entity:     &container,
+				IsComplete: test.containerIsComplete,
+			})
+
+			require.Len(t, actual, 1)
+			assert.Equal(t, test.expectedIsComplete, actual[0].IsComplete)
+		})
+	}
+}
+
 func TestHandleContainerImage(t *testing.T) {
 	entityID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindContainerImageMetadata,
@@ -2433,8 +2784,9 @@ func TestHandleGPU(t *testing.T) {
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: entityID.ID,
 				},
-				Vendor: "nvidia",
-				Device: "tesla-v100",
+				Vendor:  "nvidia",
+				Device:  "tesla-v100",
+				GPUType: "v100",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -2445,7 +2797,10 @@ func TestHandleGPU(t *testing.T) {
 					LowCardTags: []string{
 						"gpu_vendor:nvidia",
 						"gpu_device:tesla-v100",
+						"gpu_type:v100",
 						"gpu_uuid:gpu-1234",
+						"gpu_slicing_mode:none",
+						"gpu_parent_uuid:gpu-1234",
 					},
 					StandardTags: []string{},
 				},
@@ -2461,8 +2816,9 @@ func TestHandleGPU(t *testing.T) {
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: "GPU-1234",
 				},
-				Vendor: "Nvidia",
-				Device: "Tesla v100",
+				Vendor:  "Nvidia",
+				Device:  "Tesla v100",
+				GPUType: "V100",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -2473,7 +2829,91 @@ func TestHandleGPU(t *testing.T) {
 					LowCardTags: []string{
 						"gpu_vendor:nvidia",
 						"gpu_device:tesla_v100",
+						"gpu_type:v100",
 						"gpu_uuid:gpu-1234",
+						"gpu_slicing_mode:none",
+						"gpu_parent_uuid:gpu-1234",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "MIG device",
+			gpu: workloadmeta.GPU{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindGPU,
+					ID:   "MIG-432",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "MIG-432",
+				},
+				Vendor:             "nvidia",
+				Device:             "A100-SXM4-40GB MIG 3g.20gb",
+				GPUType:            "a100",
+				DriverVersion:      "525.60.13",
+				DeviceType:         workloadmeta.GPUDeviceTypeMIG,
+				ParentGPUUUID:      "GPU-1234",
+				VirtualizationMode: "none",
+				Architecture:       "ampere",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               gpuSource,
+					EntityID:             types.NewEntityID(types.GPU, "MIG-432"),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"gpu_architecture:ampere",
+						"gpu_device:a100-sxm4-40gb_mig_3g.20gb",
+						"gpu_driver_version:525.60.13",
+						"gpu_parent_uuid:gpu-1234",
+						"gpu_slicing_mode:mig",
+						"gpu_type:a100",
+						"gpu_uuid:mig-432",
+						"gpu_vendor:nvidia",
+						"gpu_virtualization_mode:none",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "MIG parent",
+			gpu: workloadmeta.GPU{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindGPU,
+					ID:   "GPU-1234",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "GPU-1234",
+				},
+				Vendor:             "nvidia",
+				Device:             "A100-SXM4-40GB",
+				GPUType:            "a100",
+				DriverVersion:      "525.60.13",
+				DeviceType:         workloadmeta.GPUDeviceTypePhysical,
+				ParentGPUUUID:      "GPU-1234",
+				VirtualizationMode: "none",
+				Architecture:       "ampere",
+				ChildrenGPUUUIDs:   []string{"MIG-432", "MIG-543"},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               gpuSource,
+					EntityID:             types.NewEntityID(types.GPU, "GPU-1234"),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"gpu_architecture:ampere",
+						"gpu_device:a100-sxm4-40gb",
+						"gpu_driver_version:525.60.13",
+						"gpu_parent_uuid:gpu-1234",
+						"gpu_slicing_mode:mig-parent",
+						"gpu_type:a100",
+						"gpu_uuid:gpu-1234",
+						"gpu_vendor:nvidia",
+						"gpu_virtualization_mode:none",
 					},
 					StandardTags: []string{},
 				},
@@ -2710,14 +3150,6 @@ func TestParseJSONValue(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:  "invalid value",
-			value: `{"key1": "val1", "key2": 0}`,
-			want: []string{
-				"key1:val1",
-			},
-			wantErr: false,
-		},
-		{
 			name:  "strings and arrays",
 			value: `{"key1": "val1", "key2": ["val2"]}`,
 			want: []string{
@@ -2835,6 +3267,7 @@ func TestHandleProcess(t *testing.T) {
 		gpuDevice         = "Tesla V100"
 		gpuDriverVersion  = "525.60.13"
 		gpuVirtMode       = "none"
+		gpuSlicingMode    = "none"
 	)
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
@@ -3185,6 +3618,8 @@ func TestHandleProcess(t *testing.T) {
 					"gpu_uuid:" + strings.ToLower(gpuUUID),
 					"gpu_vendor:" + strings.ToLower(gpuVendor),
 					"gpu_virtualization_mode:" + gpuVirtMode,
+					"gpu_slicing_mode:" + gpuSlicingMode,
+					"gpu_parent_uuid:" + strings.ToLower(gpuUUID),
 				},
 				OrchestratorCardTags: []string{},
 				HighCardTags:         []string{},
@@ -3225,6 +3660,8 @@ func TestHandleProcess(t *testing.T) {
 					"gpu_virtualization_mode:" + gpuVirtMode,
 					"service:" + serviceNameFromDD,
 					"version:" + versionFromDD,
+					"gpu_slicing_mode:" + gpuSlicingMode,
+					"gpu_parent_uuid:" + strings.ToLower(gpuUUID),
 				},
 				OrchestratorCardTags: []string{},
 				HighCardTags:         []string{},

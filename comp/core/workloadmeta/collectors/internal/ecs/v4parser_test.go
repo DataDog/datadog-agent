@@ -90,6 +90,7 @@ func verifyV4ParserResults(t *testing.T, store *fakeWorkloadmetaStore, checkTags
 			}
 		case *workloadmeta.Container:
 			require.Equal(t, "RUNNING", entity.KnownStatus)
+			require.Equal(t, workloadmeta.ContainerStatusRunning, entity.State.Status)
 			require.Equal(t, "HEALTHY", entity.Health.Status)
 			if entity.Image.Name == "datadog/datadog-agent" {
 				require.Equal(t, "7.50.0", entity.Image.Tag)

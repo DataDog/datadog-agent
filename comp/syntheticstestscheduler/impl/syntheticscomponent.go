@@ -12,16 +12,17 @@ import (
 	"context"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	syntheticstestscheduler "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/def"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // Requires defines the dependencies for the syntheticstestscheduler component
@@ -29,7 +30,7 @@ type Requires struct {
 	Lifecycle       compdef.Lifecycle
 	EpForwarder     eventplatform.Component
 	Logger          log.Component
-	Telemetry       telemetry.Component
+	Traceroute      traceroute.Component
 	AgentConfig     agentconfig.Component
 	HostnameService hostname.Component
 	Statsd          statsd.ClientInterface
@@ -58,7 +59,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, reqs.Logger.Errorf("error getting EpForwarder")
 	}
 
-	scheduler := newSyntheticsTestScheduler(configs, epForwarder, reqs.Logger, reqs.HostnameService, time.Now, reqs.Statsd, reqs.Telemetry)
+	scheduler := newSyntheticsTestScheduler(configs, epForwarder, reqs.Logger, reqs.HostnameService, time.Now, reqs.Statsd, reqs.Traceroute)
 
 	var rcListener rctypes.ListenerProvider
 	rcListener.ListenerProvider = rctypes.RCListener{

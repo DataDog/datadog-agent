@@ -37,11 +37,46 @@ INSTALL_USER=$(ps aux | grep "CoreServices/Installer" | grep -v grep | awk '{pri
 # Otherwise, we hope he is using the install script and try to use this user
 # If it fails, no choice but to use root :'(
 if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
-    SCRIPT_INSTALL="yes"
-    INSTALL_USER=`cat /tmp/datadog-install-user || echo 'root'`
+    INSTALL_USER=$(cat /tmp/datadog-install-user || echo 'root')
     rm -v /tmp/datadog-install-user || true
 fi
 echo "INSTALL_USER: $INSTALL_USER"
+
+# Stop any running GUI instances before installation/upgrade
+# This prevents "Load failed" errors when KeepAlive=true
+echo "# Stopping GUI app if running"
+INSTALL_USER_UID=$(id -u "$INSTALL_USER" 2>/dev/null)
+
+if [ -n "$INSTALL_USER_UID" ]; then
+    # Stop GUI for current user
+    launchctl bootout "gui/$INSTALL_USER_UID/com.datadoghq.gui" 2>/dev/null || true
+
+    # Stop GUI for all other logged-in users (system-wide installations)
+    for logged_user in $(who | awk '{print $1}' | sort -u); do
+        logged_uid=$(id -u "$logged_user" 2>/dev/null)
+        if [ -n "$logged_uid" ] && [ "$logged_uid" != "$INSTALL_USER_UID" ]; then
+            launchctl bootout "gui/$logged_uid/com.datadoghq.gui" 2>/dev/null || true
+        fi
+    done
+
+    # Wait for GUI processes to actually terminate (with 10 second timeout to match ExitTimeOut)
+    max_wait=100  # 100 * 0.1s = 10 seconds
+    count=0
+    while [ $count -lt $max_wait ]; do
+        if ! pgrep -f "Datadog Agent.app/Contents/MacOS/gui" > /dev/null 2>&1; then
+            echo "GUI app processes terminated"
+            break
+        fi
+        sleep 0.1
+        count=$((count + 1))
+    done
+
+    if [ $count -ge $max_wait ]; then
+        echo "Warning: GUI processes still running after 10s, proceeding anyway"
+    fi
+else
+    echo "Could not determine user UID, skipping GUI stop"
+fi
 
 echo "# Preparing log dir"
 chown -vR "${INSTALL_USER}:admin" "$LOG_DIR"
@@ -50,9 +85,30 @@ echo "# Installing the app"
 mv -v "$OPT_APP_DIR" /Applications || echo "App already installed"
 
 # Set the run directory for the agent
+# This directory is used for agent runtime files including databases and registries
 mkdir -vp "$RUN_DIR"
 chown -vR "${INSTALL_USER}:admin" "$RUN_DIR"
-chmod -v 755 "$RUN_DIR"
+chmod -v 755 "$RUN_DIR"  # Secure: protects databases and registries
+
+# Create separate world-writable directory ONLY for multi-user GUI sockets
+mkdir -vp "$RUN_DIR/ipc"
+# Remove stale GUI socket files before chown to prevent "Address already in use" on DMG reinstall
+# or installation over a partial installation or partial cleanup of a previous installation.
+# Use find instead of shell glob so removal works when Installer runs postinst (glob may not expand).
+find "$RUN_DIR/ipc" -maxdepth 1 -name 'gui-*.sock' -exec rm -fv {} \;
+chown -vR root:wheel "$RUN_DIR/ipc"
+chmod -v 1777 "$RUN_DIR/ipc"  # Sticky bit: users can create GUI sockets but not delete others' files
+
+# Reset location permission prompt attempt count for all users so each user gets a fresh 2 prompt
+# attempts after each installation (per-installation behavior). UserDefaults key is in
+# ~/Library/Preferences/com.datadoghq.agent.plist and survives reinstall otherwise.
+echo "# Resetting location permission prompt attempt count for all users"
+for user_home in /Users/*; do
+    [ -d "$user_home" ] || continue
+    user=$(basename "$user_home")
+    [ "$user" = "Shared" ] && continue
+    sudo -u "$user" defaults delete com.datadoghq.agent locationPermissionPromptAttemptCount 2>/dev/null || true
+done
 
 echo "# Copying conf"
 mkdir -vp $CONF_DIR/checks.d
@@ -83,44 +139,92 @@ chown -vR "${INSTALL_USER}:admin" $CONF_DIR
 mkdir -vp /usr/local/bin
 ln -vs $INSTALL_DIR/bin/agent/agent /usr/local/bin/datadog-agent
 
-# Link for conf files (let's ease the user's life)
-USER_HOME=$(sudo -Hu "$INSTALL_USER" sh -c 'echo $HOME')
-sudo -Hu "$INSTALL_USER" mkdir -vp "$USER_HOME/.datadog-agent"
-rm -vf "$USER_HOME/.datadog-agent/conf.d" "$USER_HOME/.datadog-agent/datadog.yaml" "$USER_HOME/.datadog-agent/checks.d"
-sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/conf.d "$USER_HOME/.datadog-agent/conf.d"
-sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/datadog.yaml "$USER_HOME/.datadog-agent/datadog.yaml"
-sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/checks.d "$USER_HOME/.datadog-agent/checks.d"
-
-# Error if app not properly installed or root
-if [ "$INSTALL_USER" = "root" ]; then
-    echo 'INSTALL_USER is set to root, Datadog Agent app has been installed'
-    echo 'but is not configured. Running Datadog Agent as root is not advised!'
-    exit 1
-fi
-
-echo "# Configuring the agent as a launchd service for the current user (LaunchAgent)"
-sudo -Hu "$INSTALL_USER" mkdir -vp "$USER_HOME/Library/LaunchAgents"
-sudo -Hu "$INSTALL_USER" cp -vf "$CONF_DIR/com.datadoghq.agent.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
-
 if [ ! -e "$CONF_DIR/datadog.yaml" ]; then
     exit 1
 fi
 
-# Start the tray icon app only when not in system-wide installation
-if [ ! -f "/tmp/install-ddagent/system-wide" ]; then
+# Get the user home directory (needed for both installation modes)
+USER_HOME=$(sudo -Hu "$INSTALL_USER" sh -c 'echo $HOME')
+
+# Create agent plist (both modes need it)
+# For system-wide: install_mac_os.sh will move it to /Library/LaunchDaemons/
+# For per-user: it stays in ~/Library/LaunchAgents/
+echo "# Configuring the agent as a launchd service"
+sudo -Hu "$INSTALL_USER" mkdir -vp "$USER_HOME/Library/LaunchAgents"
+sudo -Hu "$INSTALL_USER" cp -vf "$CONF_DIR/com.datadoghq.agent.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
+
+# Install GUI LaunchAgent based on installation mode
+if [ -f "/tmp/install-ddagent/system-wide" ]; then
+  # System-wide installation: Install GUI app for all users (headless mode)
+  echo "# Configuring GUI app for system-wide installation"
+
+  # Install GUI appfor ALL users (headless mode)
+  cp -vf "$CONF_DIR/com.datadoghq.gui.plist.example" /Library/LaunchAgents/com.datadoghq.gui.plist
+
+  # Add --headless flag to ProgramArguments (inserts before the closing </array> tag)
+  sed -i '' '/<\/array>/i\
+            <string>--headless<\/string>
+' /Library/LaunchAgents/com.datadoghq.gui.plist
+
+  # Set proper ownership and permissions for system-wide LaunchAgent
+  chown root:wheel /Library/LaunchAgents/com.datadoghq.gui.plist
+  chmod 644 /Library/LaunchAgents/com.datadoghq.gui.plist
+
+  # Clean up marker file (no longer needed after configuration)
+  rm -rf /tmp/install-ddagent
+
+  # Inform about GUI and location permission
+  echo ""
+  echo "=========================================="
+  echo "Datadog Agent GUI (System-Wide)"
+  echo "=========================================="
+  echo "The GUI app will launch automatically for each user when they log in."
+  echo ""
+  echo "For WiFi data collection (SSID/BSSID), users must grant Location permission:"
+  echo "  System Settings -> Privacy & Security -> Location Services -> Enable 'Datadog Agent'"
+  echo ""
+  echo "Note: The GUI will prompt for this permission when needed."
+  echo "=========================================="
+  echo ""
+else
+  # Per-user installation: Install GUI for current user
+  echo "# Configuring GUI for per-user installation"
+
+  # Clean up stale system-wide marker if present (prevents headless mode in per-user install)
+  rm -rf /tmp/install-ddagent
+
+  # Error if app not properly installed or root
+  if [ "$INSTALL_USER" = "root" ]; then
+      echo 'INSTALL_USER is set to root, Datadog Agent app has been installed'
+      echo 'but is not configured. Running Datadog Agent as root is not advised!'
+      exit 1
+  fi
+
+  # Link for conf files (let's ease the user's life)
+  sudo -Hu "$INSTALL_USER" mkdir -vp "$USER_HOME/.datadog-agent"
+  rm -vf "$USER_HOME/.datadog-agent/conf.d" "$USER_HOME/.datadog-agent/datadog.yaml" "$USER_HOME/.datadog-agent/checks.d"
+  sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/conf.d "$USER_HOME/.datadog-agent/conf.d"
+  sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/datadog.yaml "$USER_HOME/.datadog-agent/datadog.yaml"
+  sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/checks.d "$USER_HOME/.datadog-agent/checks.d"
+
   # Create the tray icon app launchctl service
   sudo -Hu "$INSTALL_USER" cp -vf "$CONF_DIR/com.datadoghq.gui.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.gui.plist"
   sudo -Hu "$INSTALL_USER" launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
-  # Load the tray app service
+
+  # Load the GUI LaunchAgent
   sudo -Hu "$INSTALL_USER" launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.gui.plist"
-  # Start the app only if it's not a script install
-  if [ -z "$SCRIPT_INSTALL" ]; then
-      echo "# Starting the app"
-      # -a for application, -F for fresh, do not restore old app
-      TMPDIR=$(sudo -u "$INSTALL_USER" getconf DARWIN_USER_TEMP_DIR)
-      export TMPDIR
-      sudo -u "$INSTALL_USER" open -Fa 'Datadog Agent'
-  fi
+
+  # Inform user about location permission requirement
+  echo ""
+  echo "=========================================="
+  echo "Datadog Agent GUI"
+  echo "=========================================="
+  echo "To enable WiFi data collection (SSID/BSSID), grant Location permission:"
+  echo "  System Settings -> Privacy & Security -> Location Services -> Enable 'Datadog Agent'"
+  echo ""
+  echo "Note: The Datadog Agent GUI will prompt for this permission when it starts."
+  echo "=========================================="
+  echo ""
 fi
 
 # A little debriefing won't hurt

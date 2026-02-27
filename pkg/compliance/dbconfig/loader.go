@@ -11,9 +11,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/xml"
 	"fmt"
-	"io"
-	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
 
 	"github.com/shirou/gopsutil/v4/process"
-	yaml "gopkg.in/yaml.v3"
+	yaml "go.yaml.in/yaml/v3"
 )
 
 const (
@@ -33,31 +32,6 @@ const (
 
 	mongoDBConfigPath = "/etc/mongod.conf"
 )
-
-func relPath(hostroot, configPath string) string {
-	if hostroot == "" {
-		return configPath
-	}
-	path, err := filepath.Rel(hostroot, configPath)
-	if err != nil {
-		path = configPath
-	}
-	return filepath.Join("/", path)
-}
-
-func readFileLimit(name string) ([]byte, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	r := io.LimitReader(f, maxFileSize)
-	b, err := io.ReadAll(r)
-	if err != nil {
-		return nil, err
-	}
-	return b, nil
-}
 
 // GetProcResourceType returns the type of database resource associated with
 // the given process.
@@ -113,10 +87,13 @@ func LoadDBResourceFromPID(ctx context.Context, pid int32) (*DBResource, bool) {
 	if !ok {
 		return nil, false
 	}
+	if !checkProcExe(proc) {
+		return nil, false
+	}
 
 	containerID, _ := utils.GetProcessContainerID(pid)
 	hostroot, ok := utils.GetProcessRootPath(pid)
-	if !ok {
+	if !ok || !filepath.IsAbs(hostroot) {
 		return nil, false
 	}
 
@@ -141,18 +118,17 @@ func LoadDBResourceFromPID(ctx context.Context, pid int32) (*DBResource, bool) {
 	}, true
 }
 
+func checkProcExe(proc *process.Process) bool {
+	name, _ := proc.Name()
+	exe, _ := proc.Exe()
+	return name == filepath.Base(exe)
+}
+
 // LoadMongoDBConfig loads and extracts the MongoDB configuration data found
 // on the system.
 func LoadMongoDBConfig(ctx context.Context, hostroot string, proc *process.Process) (*DBConfig, bool) {
 	configLocalPath := mongoDBConfigPath
-	var result DBConfig
-	result.ProcessUser, _ = proc.UsernameWithContext(ctx)
-	result.ProcessName, _ = proc.NameWithContext(ctx)
-	if result.ProcessUser == "" {
-		if uids, _ := proc.UidsWithContext(ctx); len(uids) > 0 {
-			result.ProcessUser = fmt.Sprintf("uid:%d", uids[0]) // RUID
-		}
-	}
+	result := newDBConfig(ctx, proc)
 	cmdline, _ := proc.CmdlineSlice()
 	for i, arg := range cmdline {
 		if arg == "--config" && i+1 < len(cmdline) {
@@ -171,81 +147,65 @@ func LoadMongoDBConfig(ctx context.Context, hostroot string, proc *process.Proce
 		}
 	})
 
-	configPath := filepath.Join(hostroot, configLocalPath)
-	fi, err := os.Stat(configPath)
-	if err != nil || fi.IsDir() {
-		result.ConfigFileUser = "<none>"
-		result.ConfigFileGroup = "<none>"
-		result.ConfigData = map[string]interface{}{}
-		return &result, true
-	}
-
-	var configData mongoDBConfig
-	result.ConfigFileUser = utils.GetFileUser(fi)
-	result.ConfigFileGroup = utils.GetFileGroup(fi)
-	result.ConfigFileMode = uint32(fi.Mode())
-	result.ConfigFilePath = relPath(hostroot, configPath)
-	configRaw, err := readFileLimit(configPath)
+	root, err := os.OpenRoot(hostroot)
 	if err != nil {
 		return nil, false
 	}
+	defer root.Close()
+
+	configRaw, fi, err := utils.ReadProcessFileLimit(proc, root, configLocalPath, maxFileSize)
+	if err != nil {
+		return nil, false
+	}
+	var configData mongoDBConfig
 	if err := yaml.Unmarshal(configRaw, &configData); err != nil {
 		return nil, false
 	}
-	result.ConfigData = &configData
+	setConfigFileMetadata(&result, fi, configLocalPath, &configData)
 	return &result, true
 }
 
 // LoadCassandraConfig loads and extracts the Cassandra configuration data
 // found on the system.
 func LoadCassandraConfig(ctx context.Context, hostroot string, proc *process.Process) (*DBConfig, bool) {
-	var result DBConfig
-	if proc != nil {
-		result.ProcessUser, _ = proc.UsernameWithContext(ctx)
-		result.ProcessName, _ = proc.NameWithContext(ctx)
-	}
-
+	result := newDBConfig(ctx, proc)
 	var configData *cassandraDBConfig
-	matches, _ := filepath.Glob(filepath.Join(hostroot, cassandraConfigGlob))
+	root, err := os.OpenRoot(hostroot)
+	if err != nil {
+		return nil, false
+	}
+	defer root.Close()
+	matches := utils.RootedGlob(hostroot, cassandraConfigGlob)
 	for _, configPath := range matches {
-		fi, err := os.Stat(configPath)
-		if err != nil || fi.IsDir() {
-			continue
-		}
-		result.ConfigFileUser = utils.GetFileUser(fi)
-		result.ConfigFileGroup = utils.GetFileGroup(fi)
-		result.ConfigFileMode = uint32(fi.Mode())
-		result.ConfigFilePath = relPath(hostroot, configPath)
-		configRaw, err := readFileLimit(configPath)
+		configRaw, fi, err := utils.ReadProcessFileLimit(proc, root, configPath, maxFileSize)
 		if err != nil {
 			continue
 		}
 		if err := yaml.Unmarshal(configRaw, &configData); err == nil {
+			setConfigFileMetadata(&result, fi, configPath, configData)
 			break
 		}
 	}
-
 	if configData == nil {
 		return nil, false
 	}
-
-	logback, err := readFileLimit(filepath.Join(hostroot, cassandraLogbackPath))
+	logbackRaw, _, err := utils.ReadProcessFileLimit(proc, root, cassandraLogbackPath, maxFileSize)
 	if err == nil {
 		configData.LogbackFilePath = cassandraLogbackPath
-		configData.LogbackFileContent = string(logback)
+		var logbackConfig cassandraLogback
+		if err := xml.Unmarshal(logbackRaw, &logbackConfig); err == nil {
+			configData.Logback = &logbackConfig
+		}
 	}
-	result.ConfigData = configData
 	return &result, true
 }
 
 // LoadPostgreSQLConfig loads and extracts the PostgreSQL configuration data found on the system.
 func LoadPostgreSQLConfig(ctx context.Context, hostroot string, proc *process.Process) (*DBConfig, bool) {
-	var result DBConfig
+	result := newDBConfig(ctx, proc)
 
 	// Let's try to parse the -D command line argument containing the data
 	// directory of PG. Configuration file may be located in this directory.
-	result.ProcessUser, _ = proc.UsernameWithContext(ctx)
-	result.ProcessName, _ = proc.NameWithContext(ctx)
 
 	var hintPath string
 	cmdline, _ := proc.CmdlineSlice()
@@ -258,37 +218,84 @@ func LoadPostgreSQLConfig(ctx context.Context, hostroot string, proc *process.Pr
 			hintPath = filepath.Clean(cmdline[i+1])
 			break
 		}
-		if strings.HasPrefix(arg, "--config-file=") {
-			hintPath = filepath.Clean(strings.TrimPrefix(arg, "--config-file="))
+		if after, ok := strings.CutPrefix(arg, "--config-file="); ok {
+			hintPath = filepath.Clean(after)
 			break
 		}
 	}
 
-	configPath, ok := locatePGConfigFile(hostroot, hintPath)
-	if !ok {
-		// postgres can be setup without a configuration file.
-		result.ConfigFileUser = "<none>"
-		result.ConfigFileGroup = "<none>"
-		result.ConfigData = map[string]interface{}{}
-		return &result, true
-	}
-	fi, err := os.Stat(filepath.Join(hostroot, configPath))
-	if err != nil || fi.IsDir() {
+	root, err := os.OpenRoot(hostroot)
+	if err != nil {
 		return nil, false
 	}
-	result.ConfigFileUser = utils.GetFileUser(fi)
-	result.ConfigFileGroup = utils.GetFileGroup(fi)
-	result.ConfigFileMode = uint32(fi.Mode())
-	result.ConfigFilePath = configPath
-	configData, ok := parsePGConfig(hostroot, configPath, 0)
-	if ok {
+	defer root.Close()
+
+	configData := make(map[string]string)
+	parseCmdline := func(configData map[string]string) {
+		foreachFlags(cmdline, func(k, v string) {
+			if name, ok := strings.CutPrefix(k, "--"); ok {
+				if _, ok := postgresKnownConfigKeys[name]; ok {
+					configData[name] = v
+				}
+			}
+		})
+	}
+
+	configPath, ok := locatePGConfigFile(root, proc, hintPath)
+	if !ok {
+		// postgres can be setup without a configuration file.
+		parseCmdline(configData)
 		result.ConfigData = configData
 		return &result, true
 	}
-	return nil, false
+	fi, ok := parsePGConfig(proc, root, configPath, configData, 0)
+	if !ok {
+		return nil, false
+	}
+	parseCmdline(configData)
+	setConfigFileMetadata(&result, fi, configPath, configData)
+	return &result, true
 }
 
-func locatePGConfigFile(hostroot, hintPath string) (string, bool) {
+func newDBConfig(ctx context.Context, proc *process.Process) DBConfig {
+	user, _ := proc.UsernameWithContext(ctx)
+	name, _ := proc.NameWithContext(ctx)
+	if user == "" {
+		if uids, _ := proc.UidsWithContext(ctx); len(uids) > 0 {
+			user = fmt.Sprintf("uid:%d", uids[0]) // RUID
+		}
+	}
+	if user == "" {
+		user = "<unknown>"
+	}
+	if name == "" {
+		name = "<unknown>"
+	}
+	return DBConfig{
+		ProcessUser: user,
+		ProcessName: name,
+	}
+}
+
+func setConfigFileMetadata(dbconfig *DBConfig, fi os.FileInfo, configPath string, configData interface{}) {
+	fileUser := utils.GetFileUser(fi)
+	fileGroup := utils.GetFileGroup(fi)
+	fileMode := uint32(fi.Mode())
+	dbconfig.ConfigFileUser = fileUser
+	dbconfig.ConfigFileGroup = fileGroup
+	dbconfig.ConfigFileMode = fileMode
+	dbconfig.ConfigFilePath = configPath
+	dbconfig.ConfigData = configData
+}
+
+func locatePGConfigFile(root *os.Root, proc *process.Process, hintPath string) (string, bool) {
+	if hintPath != "" {
+		if !filepath.IsAbs(hintPath) {
+			cwd, _ := proc.Cwd()
+			hintPath = filepath.Join(cwd, hintPath)
+		}
+		return hintPath, true
+	}
 	var pgConfigGlobs = []string{
 		"/etc/postgresql/postgresql.conf",
 		"/etc/postgresql/*/*/postgresql.conf",
@@ -296,13 +303,10 @@ func locatePGConfigFile(hostroot, hintPath string) (string, bool) {
 		"/var/lib/pgsql/data/postgresql.conf",
 		"/var/lib/postgresql/*/data/postgresql.conf",
 	}
-	if hintPath != "" {
-		pgConfigGlobs = append([]string{hintPath}, pgConfigGlobs...)
-	}
 	for _, pattern := range pgConfigGlobs {
-		files, _ := filepath.Glob(filepath.Join(hostroot, pattern))
+		files := utils.RootedGlob(root.Name(), pattern)
 		if len(files) > 0 {
-			return relPath(hostroot, files[0]), true
+			return files[0], true
 		}
 	}
 	return "", false
@@ -317,23 +321,22 @@ func locatePGConfigFile(hostroot, hintPath string) (string, bool) {
 // references:
 //   - https://www.postgresql.org/docs/current/config-setting.html
 //   - https://github.com/postgres/postgres/blob/5abbd97fef6f18eef91bfed7d2057c39bd204702/src/backend/utils/misc/guc-file.l#L317-L349
-func parsePGConfig(hostroot, configPath string, includeDepth int) (map[string]interface{}, bool) {
+func parsePGConfig(proc *process.Process, root *os.Root, configPath string, config map[string]string, includeDepth int) (os.FileInfo, bool) {
+	if filepath.Ext(configPath) != ".conf" {
+		return nil, false
+	}
+
 	// Let's protect ourselves from circular "includes" by limiting the number
 	//	of possible include to 10. This is the same parameter as postgresql:
 	//	https://github.com/postgres/postgres/blob/5abbd97fef6f18eef91bfed7d2057c39bd204702/src/include/utils/conffiles.h#L18
 	if includeDepth > 10 {
 		return nil, false
 	}
-	if configPath == "" {
-		return nil, false
-	}
 
-	b, err := readFileLimit(filepath.Join(hostroot, configPath))
+	b, fi, err := utils.ReadProcessFileLimit(proc, root, configPath, maxFileSize)
 	if err != nil {
 		return nil, false
 	}
-
-	config := make(map[string]interface{})
 
 	s := bufio.NewScanner(bytes.NewReader(b))
 	s.Split(bufio.ScanLines)
@@ -349,40 +352,35 @@ func parsePGConfig(hostroot, configPath string, includeDepth int) (map[string]in
 				if !filepath.IsAbs(includedPath) {
 					includedPath = filepath.Join(filepath.Dir(configPath), includedPath)
 				}
-				included, ok := parsePGConfig(hostroot, includedPath, includeDepth+1)
-				if ok {
-					maps.Copy(config, included)
-				}
+				_, _ = parsePGConfig(proc, root, includedPath, config, includeDepth+1)
 			} else if key == "include_dir" {
 				includedPath := val
 				if !filepath.IsAbs(includedPath) {
 					includedPath = filepath.Join(filepath.Dir(configPath), includedPath)
 				}
-				glob := filepath.Join(hostroot, includedPath, "*.conf")
-				matches, _ := filepath.Glob(glob)
-				for _, match := range matches {
-					includedFile := relPath(hostroot, match)
-					included, ok := parsePGConfig(hostroot, includedFile, includeDepth+1)
-					if ok {
-						maps.Copy(config, included)
-					}
+				glob := filepath.Join(includedPath, "*.conf")
+				matches := utils.RootedGlob(root.Name(), glob)
+				for _, includedPath := range matches {
+					_, _ = parsePGConfig(proc, root, includedPath, config, includeDepth+1)
 				}
 			} else {
 				if val == "=" { // skip optional equal token
 					val, _ = t.next()
 				}
-				if val == "on" || val == "true" || val == "yes" {
-					config[key] = "on"
-				} else if val == "off" || val == "false" || val == "no" {
-					config[key] = "off"
-				} else {
-					config[key] = val
+				if _, ok := postgresKnownConfigKeys[key]; ok {
+					if val == "on" || val == "true" || val == "yes" {
+						config[key] = "on"
+					} else if val == "off" || val == "false" || val == "no" {
+						config[key] = "off"
+					} else {
+						config[key] = val
+					}
 				}
 			}
 		}
 	}
 
-	return config, true
+	return fi, true
 }
 
 // Simple ASCII lexer for postgresql configuration files (aka. GUC)
@@ -512,7 +510,7 @@ func foreachFlags(cmdline []string, f func(k, v string)) {
 				f(parts[0], "")
 				pendingFlagValue = true
 			}
-		} else {
+		} else if arg != "--" {
 			if pendingFlagValue {
 				pendingFlagValue = false
 				f(cmdline[i-1], arg)

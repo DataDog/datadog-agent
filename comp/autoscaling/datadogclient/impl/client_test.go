@@ -38,15 +38,15 @@ func TestNewFallbackClient(t *testing.T) {
 	cfg.Set("api_key", "apikey123", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.Set("app_key", "appkey456", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.SetWithoutSource(metricsRedundantEndpointConfig,
-		[]endpoint{
+		[]map[string]interface{}{
 			{
-				"api.datadoghq.eu",
-				"https://api.datadoghq.eu",
-				"12345",
-				"67890",
+				"site":    "api.datadoghq.eu",
+				"url":     "https://api.datadoghq.eu",
+				"api_key": "12345",
+				"app_key": "67890",
 			},
 		})
-	assert.True(t, cfg.IsSet(metricsRedundantEndpointConfig))
+	assert.True(t, cfg.IsConfigured(metricsRedundantEndpointConfig))
 	datadogClient, err := createDatadogClient(cfg, logger)
 	assert.NoError(t, err)
 	fallbackCl, ok := datadogClient.(*datadogFallbackClient)

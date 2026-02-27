@@ -6,6 +6,19 @@
 // Package parversion provides an adapter that bridges to the original source code
 package parversion
 
-const (
-	RunnerVersion = "PLACEHOLDER"
+import (
+	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+var RunnerVersion string
+
+func init() {
+	agentVersion, err := version.Agent()
+	if err != nil {
+		log.Error("Failed to get agent version", log.ErrorField(err))
+		RunnerVersion = version.AgentVersion
+	} else {
+		RunnerVersion = agentVersion.String()
+	}
+}

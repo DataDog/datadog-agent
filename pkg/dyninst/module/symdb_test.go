@@ -320,7 +320,7 @@ func TestSymdbManagerRespectsPersistentCache(t *testing.T) {
 				withTestingKnobOnUploadRejectedByPersistentCache(func() {
 					rejectedCalled = true
 				}),
-				withTestingKnobOnUploadQueued(func() {
+				withTestingKnobOnUploadQueued(func(_ queuedUploadInfo) {
 					uploadQueuedCh <- struct{}{}
 				}),
 				withCacheOptions(withProcessExistsCheck(func(p int) bool {
@@ -396,4 +396,88 @@ func TestSymdbManagerRespectsPersistentCache(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSymdbManagerRetryOnNetworkError(t *testing.T) {
+	cfgs := testprogs.MustGetCommonConfigs(t)
+	cfg := cfgs[0]
+	binPath := testprogs.MustGetBinary(t, "rc_tester", cfg)
+
+	// Set up mock SymDB backend that fails the first time, succeeds the second.
+	uploadCount := atomic.Int64{}
+	symdbServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		count := uploadCount.Add(1)
+		if count == 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status": "ok"}`))
+	}))
+	defer symdbServer.Close()
+
+	symdbURL, err := url.Parse(symdbServer.URL)
+	require.NoError(t, err)
+
+	uploadQueuedCh := make(chan queuedUploadInfo, 2)
+	retryDelay := 10 * time.Millisecond
+
+	manager := newSymdbManager(
+		symdbURL,
+		object.NewInMemoryLoader(),
+		"", /* cacheDir - no cache */
+		withTestingKnobOnUploadQueued(func(info queuedUploadInfo) {
+			uploadQueuedCh <- info
+		}),
+		withNetworkErrorRetryDelay(retryDelay),
+	)
+	t.Cleanup(manager.stop)
+
+	runtimeID := procRuntimeID{
+		ID:          process.ID{PID: 12345},
+		service:     "test_service",
+		environment: "test_env",
+		version:     "1.0.0",
+		runtimeID:   "dummy-runtime-id",
+	}
+
+	// Request an upload.
+	err = manager.queueUpload(runtimeID, binPath)
+	require.NoError(t, err)
+
+	// Wait for initial queue notification.
+	select {
+	case <-uploadQueuedCh:
+	case <-time.After(5 * time.Second):
+		t.Fatal("initial upload was not queued")
+	}
+
+	// Wait for the retry to be scheduled (after the upload fails).
+	var retryInfo queuedUploadInfo
+	select {
+	case retryInfo = <-uploadQueuedCh:
+	case <-time.After(30 * time.Second):
+		t.Fatal("retry was not scheduled after network error")
+	}
+	afterRetryScheduled := time.Now()
+
+	// Verify the first upload was attempted.
+	require.Equal(t, int64(1), uploadCount.Load(), "expected 1 upload attempt")
+
+	// Verify the retry is scheduled in the future by approximately the
+	// configured delay. Allow some tolerance since the scheduled time is
+	// computed before we receive the notification.
+	expectedRetryTime := afterRetryScheduled.Add(retryDelay / 2)
+	require.WithinDuration(t, expectedRetryTime, retryInfo.ScheduledTime, time.Second,
+		"retry should be scheduled with the configured delay")
+
+	// Wait for the retry to actually happen.
+	require.Eventually(t, func() bool {
+		return uploadCount.Load() == 2
+	}, 10*time.Second, 10*time.Millisecond, "expected retry upload to succeed")
+
+	// Verify the queue is now empty.
+	require.Eventually(t, func() bool {
+		return manager.queueSize() == 0
+	}, 10*time.Second, 10*time.Millisecond, "expected queue to be empty after successful retry")
 }

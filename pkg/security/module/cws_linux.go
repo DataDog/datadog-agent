@@ -24,6 +24,7 @@ func DisableRuntimeSecurity(config *config.Config) {
 	config.Probe.NetworkEnabled = false
 	config.RuntimeSecurity.ActivityDumpEnabled = false
 	config.RuntimeSecurity.SecurityProfileEnabled = false
+	config.RuntimeSecurity.SysCtlEnabled = false
 }
 
 // platform specific init function

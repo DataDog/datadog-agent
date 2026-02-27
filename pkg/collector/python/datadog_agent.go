@@ -14,11 +14,12 @@ import (
 	"sync"
 	"unsafe"
 
-	yaml "gopkg.in/yaml.v2"
+	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
+	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -225,12 +226,12 @@ func SendLog(logLine, checkID *C.char) {
 	line := C.GoString(logLine)
 	cid := C.GoString(checkID)
 
-	cc, err := getCheckContext()
+	cc, err := collectoraggregator.GetCheckContext()
 	if err != nil {
 		log.Errorf("Log submission failed: %s", err)
 	}
 
-	lr, ok := cc.logReceiver.Get()
+	lr, ok := cc.GetLogReceiver()
 	if !ok {
 		log.Error("Log submission failed: no receiver")
 		return

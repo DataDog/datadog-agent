@@ -7,24 +7,11 @@ package npcollectorimpl
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
-func convertProtocol(connType model.ConnectionType) payload.Protocol {
-	if connType == model.ConnectionType_tcp {
-		return payload.ProtocolTCP
-	} else if connType == model.ConnectionType_udp {
-		return payload.ProtocolUDP
-	}
-	return ""
-}
-
-func getDNSNameForIP(conns *model.Connections, ip string) string {
-	var domain string
-	if dnsEntry := conns.Dns[ip]; dnsEntry != nil && len(dnsEntry.Names) > 0 {
-		// We are only using the first entry for now, but in the future, if we find a good solution,
-		// we might want to report the other DNS names too if necessary (need more investigation on how to best achieve that).
-		domain = dnsEntry.Names[0]
-	}
-	return domain
+var modelProtocolToPayload = map[model.ConnectionType]payload.Protocol{
+	model.ConnectionType_tcp: payload.ProtocolTCP,
+	model.ConnectionType_udp: payload.ProtocolUDP,
 }

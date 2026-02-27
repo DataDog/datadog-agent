@@ -5,8 +5,8 @@
 needs-rules:
   allowed-stages:
     - .pre
+    - .post
     - lint
-    - notify
     - deploy_dca
     - deploy_dca_mutable_tags
     - deploy_containers
@@ -20,7 +20,6 @@ needs-rules:
     - build_dogstatsd_static-binary_x64
     - build_processed_btfhub_archive
     - check_already_deployed_version_7
-    - dynamic_test-evaluate-e2e
     - compute_gitlab_ci_config
     - dogstatsd_x64_size_test
     - go_mod_tidy_check
@@ -64,8 +63,6 @@ job-owners:
     - build_fakeintake
     - build_iot_agent-binary_arm64
     - build_iot_agent-binary_x64
-    - build_otel_agent_binary_arm64
-    - build_otel_agent_binary_x64
     - cancel-prev-pipelines
     - close_failing_tests_stale_issues
     - compute_gitlab_ci_config
@@ -80,6 +77,7 @@ job-owners:
     - go_e2e_deps
     - go_mod_tidy_check
     - go_tools_deps
+    - go_tools_deps_arm64
     - installer-amd64
     - installer-amd64-oci
     - installer-arm64
@@ -94,7 +92,6 @@ job-owners:
     - new-e2e-unit-tests
     - publish_fakeintake
     - publish_fakeintake_latest
-    - rc_kubernetes_deploy
     - revert_latest_7
     - send_pipeline_stats
     - send_pkg_size

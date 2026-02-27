@@ -18,6 +18,8 @@ type CelIdentifier string
 const (
 	// CelContainerIdentifier is the CEL identifier for container resources.
 	CelContainerIdentifier CelIdentifier = CelIdentifierPrefix + "container"
+	// CelProcessIdentifier is the CEL identifier for process resources.
+	CelProcessIdentifier CelIdentifier = CelIdentifierPrefix + "process"
 	// CelServiceIdentifier is the CEL identifier for service resources.
 	CelServiceIdentifier CelIdentifier = CelIdentifierPrefix + "kube_service"
 	// CelEndpointIdentifier is the CEL identifier for endpoint resources.

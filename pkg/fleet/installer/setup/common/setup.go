@@ -57,7 +57,7 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 	start := time.Now()
 	output := &Output{tty: logOutput}
 	output.WriteString(fmt.Sprintf(header, version.AgentVersion, flavor, version.Commit, flavorPath, start.Format(time.RFC3339)))
-	installer, err := installer.NewInstaller(env)
+	installer, err := installer.NewInstaller(ctx, env)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create installer: %w", err)
 	}
@@ -79,9 +79,9 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 		Span:      span,
 		Config: config.Config{
 			DatadogYAML: config.DatadogConfig{
-				APIKey:   env.APIKey,
+				APIKey:   os.Getenv("DD_API_KEY"),
 				Hostname: os.Getenv("DD_HOSTNAME"),
-				Site:     env.Site,
+				Site:     os.Getenv("DD_SITE"),
 				Proxy: config.DatadogConfigProxy{
 					HTTP:    os.Getenv("DD_PROXY_HTTP"),
 					HTTPS:   os.Getenv("DD_PROXY_HTTPS"),
@@ -96,6 +96,13 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 			install: make(map[string]packageWithVersion),
 		},
 	}
+
+	// Map DD_LOGS_ENABLED env var into datadog.yaml
+	if logsEnabledEnv := os.Getenv("DD_LOGS_ENABLED"); logsEnabledEnv != "" {
+		logsEnabled := strings.EqualFold(logsEnabledEnv, "true") || logsEnabledEnv == "1"
+		s.Config.DatadogYAML.LogsEnabled = config.BoolToPtr(logsEnabled)
+	}
+
 	return s, nil
 }
 
@@ -119,7 +126,7 @@ func (s *Setup) Run() (err error) {
 	}
 	s.Out.WriteString("Applying configurations...\n")
 	// ensure config root is created with correct permissions
-	err = paths.EnsureInstallerDataDir()
+	err = paths.SetupInstallerDataDir()
 	if err != nil {
 		return fmt.Errorf("could not create config directory: %w", err)
 	}

@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
@@ -19,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
-	remoteconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/remote-config"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
@@ -31,14 +32,21 @@ type WorkflowRunner struct {
 	opmsClient   opms.Client
 	resolver     resolver.PrivateCredentialResolver
 	config       *config.Config
-	keysManager  remoteconfig.KeysManager
+	keysManager  taskverifier.KeysManager
 	taskVerifier *taskverifier.TaskVerifier
 	taskLoop     *Loop
 }
 
-func NewWorkflowRunner(configuration *config.Config, keysManager remoteconfig.KeysManager, verifier *taskverifier.TaskVerifier, opmsClient opms.Client) (*WorkflowRunner, error) {
+func NewWorkflowRunner(
+	configuration *config.Config,
+	keysManager taskverifier.KeysManager,
+	verifier *taskverifier.TaskVerifier,
+	opmsClient opms.Client,
+	traceroute traceroute.Component,
+	eventPlatform eventplatform.Component,
+) (*WorkflowRunner, error) {
 	return &WorkflowRunner{
-		registry:     privatebundles.NewRegistry(),
+		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform),
 		opmsClient:   opmsClient,
 		resolver:     resolver.NewPrivateCredentialResolver(),
 		config:       configuration,
@@ -47,30 +55,31 @@ func NewWorkflowRunner(configuration *config.Config, keysManager remoteconfig.Ke
 	}, nil
 }
 
-func (n *WorkflowRunner) Start(ctx context.Context) {
+func (n *WorkflowRunner) Start(ctx context.Context) error {
+	log.FromContext(ctx).Info("Starting Workflow runner")
 	if n.taskLoop != nil {
 		log.FromContext(ctx).Warn("WorkflowRunner already started")
-		return
+		return nil
 	}
 	startTime := time.Now()
-	if n.keysManager != nil {
-		n.keysManager.Start()
-	}
+	n.keysManager.Start(ctx)
 	n.taskLoop = NewLoop(n)
 	go func() {
-		if n.keysManager != nil {
-			log.FromContext(ctx).Info("Waiting for KeysManager to be ready")
-			n.keysManager.WaitForReady()
-			observability.ReportKeysManagerReady(n.config.MetricsClient, log.FromContext(ctx), startTime)
-		}
+		log.FromContext(ctx).Info("Waiting for KeysManager to be ready")
+		n.keysManager.WaitForReady()
+		observability.ReportKeysManagerReady(n.config.MetricsClient, log.FromContext(ctx), startTime)
 		n.taskLoop.Run(ctx)
 	}()
+	return nil
 }
 
-func (n *WorkflowRunner) Close(ctx context.Context) {
+func (n *WorkflowRunner) Stop(ctx context.Context) error {
+	log.FromContext(ctx).Info("Stopping Workflow runner")
+
 	if n.taskLoop != nil {
 		n.taskLoop.Close(ctx)
 	}
+	return nil
 }
 
 func (n *WorkflowRunner) RunTask(

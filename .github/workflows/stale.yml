@@ -75,6 +75,8 @@ jobs:
           stale-pr-label: 'stale'
           close-pr-label: 'auto-closed'
 
-          # Exemptions
+          # Exclude/include labels
           exempt-issue-labels: 'kind/bug,kind/feature,kind/security,category/bugfix,category/feature,category/security,pending'
+          any-of-issue-labels: 'waiting-on-author'
           exempt-pr-labels: 'do-not-merge/WIP,do-not-merge/hold'
+          any-of-pr-labels: 'waiting-on-author,internal'

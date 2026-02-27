@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
@@ -29,11 +30,29 @@ const (
 )
 
 //go:embed kind-cluster.yaml
-var kindClusterConfig string
+var kindClusterConfigV131 string
+
+//go:embed kind-cluster-v1.35+.yaml
+var kindClusterConfigV132Plus string
+
+//go:embed hosts.toml
+var containerdDockerioHostConfig string
+
+func GetKindConfig(kubeVersion string) string {
+	if index := strings.Index(kubeVersion, "@"); index != -1 {
+		kubeVersion = kubeVersion[:index]
+	}
+
+	if semver.MustParse(kubeVersion).GreaterThanEqual(semver.MustParse("v1.32.0")) {
+		return kindClusterConfigV132Plus
+	}
+
+	return kindClusterConfigV131
+}
 
 // Install Kind on a Linux virtual machine.
 func NewKindCluster(env config.Env, vm *remote.Host, name string, kubeVersion string, opts ...pulumi.ResourceOption) (*Cluster, error) {
-	return NewKindClusterWithConfig(env, vm, name, kubeVersion, kindClusterConfig, opts...)
+	return NewKindClusterWithConfig(env, vm, name, kubeVersion, GetKindConfig(kubeVersion), containerdDockerioHostConfig, opts...)
 }
 
 func validateKubeVersionFormat(kubeVersion string) error {
@@ -50,7 +69,7 @@ func validateKubeVersionFormat(kubeVersion string) error {
 	return nil
 }
 
-func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name string, kubeVersion, kindConfig string, opts ...pulumi.ResourceOption) (*Cluster, error) {
+func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name string, kubeVersion, kindConfig, containerdOverrideConfig string, opts ...pulumi.ResourceOption) (*Cluster, error) {
 	return components.NewComponent(env, name, func(clusterComp *Cluster) error {
 		kindClusterName := env.CommonNamer().DisplayName(49) // We can have some issues if the name is longer than 50 characters
 		opts = utils.MergeOptions[pulumi.ResourceOption](opts, pulumi.Parent(clusterComp))
@@ -84,8 +103,9 @@ func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name string, kube
 			}
 
 			kindVersionConfig = &KindConfig{
-				KindVersion:      env.KindVersion(),
-				NodeImageVersion: kubeVersion,
+				KindVersion:            env.KindVersion(),
+				NodeImageVersion:       kubeVersion,
+				UseNewContainerdConfig: true,
 			}
 		}
 
@@ -100,6 +120,32 @@ func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name string, kube
 			clusterConfigFilePath, opts...)
 		if err != nil {
 			return err
+		}
+
+		// pre-create the folder architecture for containerd overrides
+		// The kind cluster configuration has a mount point
+		// - host: /tmp/certs.d/
+		// - cluster: /etc/containerd/certs.d/
+		// this way we can place configuration override files in that 'certs.d' folder
+
+		containerdOverrideDir := "/tmp/certs.d/docker.io/"
+		containerdDir, err := vm.OS.FileManager().CreateDirectory(containerdOverrideDir, false, opts...)
+		if err != nil {
+			return err
+		}
+
+		if kindVersionConfig.UseNewContainerdConfig {
+			// for kind versions using containerd > 2.x we need a different config format
+			// kind started using containerd 2.x in kind v0.27.0
+			containerdConfigFilePath := containerdOverrideDir + "hosts.toml"
+			_, err = vm.OS.FileManager().CopyInlineFile(
+				pulumi.String(containerdOverrideConfig),
+				containerdConfigFilePath,
+				utils.MergeOptions(opts, utils.PulumiDependsOn(containerdDir))...,
+			)
+			if err != nil {
+				return err
+			}
 		}
 
 		/*
@@ -170,7 +216,7 @@ func NewLocalKindCluster(env config.Env, name string, kubeVersion string, opts .
 		clusterConfig, err := runner.Command("kind-config", &command.Args{
 			Create: pulumi.Sprintf("cat - | tee %s > /dev/null", clusterConfigFilePath),
 			Delete: pulumi.Sprintf("rm -f %s", clusterConfigFilePath),
-			Stdin:  pulumi.String(kindClusterConfig),
+			Stdin:  pulumi.String(GetKindConfig(kubeVersion)),
 		}, opts...)
 		if err != nil {
 			return err
@@ -182,7 +228,7 @@ func NewLocalKindCluster(env config.Env, name string, kubeVersion string, opts .
 			&command.Args{
 				Create:   pulumi.Sprintf("kind create cluster --name %s --config %s --image %s --wait %s", kindClusterName, clusterConfigFilePath, nodeImage, kindReadinessWait),
 				Delete:   pulumi.Sprintf("kind delete cluster --name %s", kindClusterName),
-				Triggers: pulumi.Array{pulumi.String(kindClusterConfig)},
+				Triggers: pulumi.Array{pulumi.String(GetKindConfig(kubeVersion))},
 			},
 			utils.MergeOptions(opts, utils.PulumiDependsOn(clusterConfig), pulumi.DeleteBeforeReplace(true))...,
 		)

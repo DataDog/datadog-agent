@@ -122,7 +122,7 @@ func skipIfUsingNAT(t *testing.T, ctx testContext) {
 
 // skipIfGoTLSNotSupported skips the test if GoTLS is not supported.
 func skipIfGoTLSNotSupported(t *testing.T, _ testContext) {
-	if !gotlstestutil.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
+	if !gotlstestutil.GoTLSSupported(t, usm.NewUSMEmptyConfig()) {
 		t.Skip("GoTLS is not supported")
 	}
 }
@@ -166,6 +166,7 @@ func (s *USMSuite) TestDisableUSM() {
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTP2Monitoring = kv >= usmhttp2.MinimumKernelVersion
 	cfg.EnableKafkaMonitoring = true
+	cfg.EnableRedisMonitoring = kv >= redis.MinimumKernelVersion
 	cfg.EnablePostgresMonitoring = true
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableNodeJSMonitoring = true
@@ -696,7 +697,7 @@ func TestFullMonitorWithTracer(t *testing.T) {
 		t.Skip("USM is not supported")
 	}
 
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := usm.NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTP2Monitoring = kv >= usmhttp2.MinimumKernelVersion
 	cfg.EnableKafkaMonitoring = true
@@ -2645,7 +2646,7 @@ func (s *USMSuite) TestVerifySketches() {
 	t := s.T()
 	skipIfKernelIsNotSupported(t, usmconfig.MinimumKernelVersion)
 
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := usm.NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTP2Monitoring = kv >= usmhttp2.MinimumKernelVersion
 	cfg.EnableKafkaMonitoring = true

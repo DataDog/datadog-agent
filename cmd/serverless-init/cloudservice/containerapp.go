@@ -65,6 +65,17 @@ func (c *ContainerApp) GetTags() map[string]string {
 	revision := os.Getenv(ContainerAppRevision)
 	replica := os.Getenv(ContainerAppReplicaName)
 
+	// Check ContainerApp struct first, then fall back to environment variables
+	subscriptionID := c.SubscriptionId
+	if subscriptionID == "" {
+		subscriptionID = os.Getenv(AzureSubscriptionIdEnvVar)
+	}
+
+	resourceGroup := c.ResourceGroup
+	if resourceGroup == "" {
+		resourceGroup = os.Getenv(AzureResourceGroupEnvVar)
+	}
+
 	// There are some duplicate tags here because we are updating billing and adding
 	// an abbreviated namespace per Azure environment. We must maintain backwards
 	// compatibility. An example is "replica_name" and "aca.replica.name"
@@ -83,18 +94,18 @@ func (c *ContainerApp) GetTags() map[string]string {
 		"_dd.origin": ContainerAppOrigin,
 	}
 
-	if c.SubscriptionId != "" {
-		tags["subscription_id"] = c.SubscriptionId
-		tags[acaSubscriptionID] = c.SubscriptionId
+	if subscriptionID != "" {
+		tags["subscription_id"] = subscriptionID
+		tags[acaSubscriptionID] = subscriptionID
 	}
 
-	if c.ResourceGroup != "" {
-		tags["resource_group"] = c.ResourceGroup
-		tags[acaResourceGroup] = c.ResourceGroup
+	if resourceGroup != "" {
+		tags["resource_group"] = resourceGroup
+		tags[acaResourceGroup] = resourceGroup
 	}
 
-	if c.SubscriptionId != "" && c.ResourceGroup != "" {
-		resourceID := fmt.Sprintf("/subscriptions/%v/resourcegroups/%v/providers/microsoft.app/containerapps/%v", c.SubscriptionId, c.ResourceGroup, strings.ToLower(appName))
+	if subscriptionID != "" && resourceGroup != "" {
+		resourceID := fmt.Sprintf("/subscriptions/%v/resourcegroups/%v/providers/microsoft.app/containerapps/%v", subscriptionID, resourceGroup, strings.ToLower(appName))
 		tags["resource_id"] = resourceID
 		tags[acaResourceID] = resourceID
 
@@ -128,7 +139,7 @@ func NewContainerApp() *ContainerApp {
 }
 
 // Init initializes ContainerApp specific code
-func (c *ContainerApp) Init(_ interface{}) error {
+func (c *ContainerApp) Init(_ *TracingContext) error {
 	// For ContainerApp, the customers must set DD_AZURE_SUBSCRIPTION_ID
 	// and DD_AZURE_RESOURCE_GROUP.
 	// These environment variables are optional for now. Once we go GA,
@@ -150,7 +161,7 @@ func (c *ContainerApp) Init(_ interface{}) error {
 }
 
 // Shutdown emits the shutdown metric for ContainerApp
-func (c *ContainerApp) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ interface{}, _ error) {
+func (c *ContainerApp) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ error) {
 	metric.Add(containerAppPrefix+".enhanced.shutdown", 1.0, c.GetSource(), metricAgent)
 }
 

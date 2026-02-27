@@ -10,64 +10,54 @@ package languagedetection
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"sync"
 
 	"k8s.io/apimachinery/pkg/api/validation"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 )
 
 const (
 	// subscriber is the workloadmeta subscriber name
 	subscriber    = "language_detection_patcher"
 	statusSuccess = "success"
-	statusRetry   = "retry"
 	statusError   = "error"
 	statusSkip    = "skip"
 )
 
 // LanguagePatcher defines an object that patches kubernetes resources with language annotations
 type languagePatcher struct {
-	ctx                   context.Context
-	cancel                context.CancelFunc
-	k8sClient             dynamic.Interface
-	store                 workloadmeta.Component
-	logger                log.Component
-	queue                 workqueue.TypedRateLimitingInterface[langUtil.NamespacedOwnerReference]
-	leaderElectionEnabled bool
+	ctx             context.Context
+	cancel          context.CancelFunc
+	workloadPatcher *workloadpatcher.Patcher
+	store           workloadmeta.Component
+	logger          log.Component
+	queue           workqueue.TypedRateLimitingInterface[langUtil.NamespacedOwnerReference]
 }
 
 // NewLanguagePatcher initializes and returns a new patcher with a dynamic k8s client
-func newLanguagePatcher(ctx context.Context, store workloadmeta.Component, logger log.Component, datadogConfig config.Component, apiCl *apiserver.APIClient) *languagePatcher {
-
+func newLanguagePatcher(ctx context.Context, isLeader func() bool, store workloadmeta.Component, logger log.Component, datadogConfig config.Component, apiCl *apiserver.APIClient) *languagePatcher {
 	ctx, cancel := context.WithCancel(ctx)
-
 	k8sClient := apiCl.DynamicCl
 
 	return &languagePatcher{
-		ctx:                   ctx,
-		cancel:                cancel,
-		k8sClient:             k8sClient,
-		store:                 store,
-		logger:                logger,
-		leaderElectionEnabled: datadogConfig.GetBool("leader_election"),
+		ctx:             ctx,
+		cancel:          cancel,
+		workloadPatcher: workloadpatcher.NewPatcher(k8sClient, isLeader),
+		store:           store,
+		logger:          logger,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.NewTypedItemExponentialFailureRateLimiter[langUtil.NamespacedOwnerReference](
 				datadogConfig.GetDuration("cluster_agent.language_detection.patcher.base_backoff"),
@@ -87,7 +77,7 @@ var (
 )
 
 // Start initializes and starts the language detection patcher
-func Start(ctx context.Context, store workloadmeta.Component, logger log.Component, datadogConfig config.Component) error {
+func Start(ctx context.Context, isLeader func() bool, store workloadmeta.Component, logger log.Component, datadogConfig config.Component) error {
 
 	if patcher != nil {
 		return errors.New("can't start language detection patcher twice")
@@ -105,7 +95,7 @@ func Start(ctx context.Context, store workloadmeta.Component, logger log.Compone
 
 	languagePatcherOnce.Do(func() {
 		logger.Info("Starting language detection patcher")
-		patcher = newLanguagePatcher(ctx, store, logger, datadogConfig, apiCl)
+		patcher = newLanguagePatcher(ctx, isLeader, store, logger, datadogConfig, apiCl)
 		go patcher.run(ctx)
 	})
 
@@ -227,32 +217,8 @@ func (lp *languagePatcher) startProcessingPatchingRequests(ctx context.Context) 
 	}()
 }
 
-// isLeader checks if the current instance is the leader
-func (lp *languagePatcher) isLeader() bool {
-	if !lp.leaderElectionEnabled {
-		// If leader election is disabled, we're always the leader
-		return true
-	}
-
-	leaderEngine, err := leaderelection.GetLeaderEngine()
-	if err != nil {
-		lp.logger.Errorf("Failed to get leader engine: %v", err)
-		// If we can't determine leader status, don't patch to be safe
-		return false
-	}
-
-	return leaderEngine.IsLeader()
-}
-
 func (lp *languagePatcher) processOwner(ctx context.Context, owner langUtil.NamespacedOwnerReference) error {
 	lp.logger.Tracef("Processing %s: %s/%s", owner.Kind, owner.Namespace, owner.Name)
-
-	// Check if we're the leader before processing patches
-	if !lp.isLeader() {
-		lp.logger.Tracef("Skipping patch for %s: %s/%s - not leader", owner.Kind, owner.Namespace, owner.Name)
-		Patches.Inc(owner.Kind, owner.Name, owner.Namespace, statusSkip)
-		return nil
-	}
 
 	var err error
 
@@ -265,13 +231,14 @@ func (lp *languagePatcher) processOwner(ctx context.Context, owner langUtil.Name
 }
 
 func (lp *languagePatcher) handleDeployment(ctx context.Context, owner langUtil.NamespacedOwnerReference) error {
-	deploymentID := fmt.Sprintf("%s/%s", owner.Namespace, owner.Name)
+	deploymentID := owner.Namespace + "/" + owner.Name
 
 	// get the complete entity
 	deployment, err := lp.store.GetKubernetesDeployment(deploymentID)
 
 	if err != nil {
 		lp.logger.Info("Didn't find deployment in store, skipping")
+		Patches.Inc(owner.Kind, owner.Name, owner.Namespace, statusSkip)
 		// skip if not in store
 		return nil
 	}
@@ -334,29 +301,31 @@ func (lp *languagePatcher) patchOwner(ctx context.Context, namespacedOwnerRef *l
 		return err
 	}
 
-	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		// Serialize the patch data
-		patchData, err := json.Marshal(map[string]interface{}{
-			"metadata": map[string]interface{}{
-				"annotations": annotationsPatch,
-			},
-		})
-		if err != nil {
-			return err
-		}
+	target := workloadpatcher.Target{
+		GVR:       ownerGVR,
+		Namespace: namespacedOwnerRef.Namespace,
+		Name:      namespacedOwnerRef.Name,
+	}
+	intent := workloadpatcher.NewPatchIntent(target).
+		With(workloadpatcher.SetMetadataAnnotations(annotationsPatch))
 
-		_, err = lp.k8sClient.Resource(ownerGVR).Namespace(namespacedOwnerRef.Namespace).Patch(ctx, namespacedOwnerRef.Name, types.MergePatchType, patchData, metav1.PatchOptions{})
-		if err != nil {
-			Patches.Inc(namespacedOwnerRef.Kind, namespacedOwnerRef.Name, namespacedOwnerRef.Namespace, statusRetry)
-		}
-
-		return err
+	isPatched, patchErr := lp.workloadPatcher.Apply(ctx, intent, workloadpatcher.PatchOptions{
+		RetryOnConflict: true,
+		Caller:          "language_detection",
 	})
 
-	if retryErr != nil {
-		return retryErr
+	// Skip: not leader or empty patch request
+	if !isPatched && patchErr == nil {
+		Patches.Inc(namespacedOwnerRef.Kind, namespacedOwnerRef.Name, namespacedOwnerRef.Namespace, statusSkip)
+		return nil
 	}
 
+	// Error: leader failed to patch
+	if patchErr != nil {
+		return patchErr
+	}
+
+	// Success: resource is patched and no error
 	Patches.Inc(namespacedOwnerRef.Kind, namespacedOwnerRef.Name, namespacedOwnerRef.Namespace, statusSuccess)
 	return nil
 }

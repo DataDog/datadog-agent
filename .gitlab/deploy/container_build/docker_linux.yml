@@ -1,0 +1,541 @@
+---
+.docker_build_job_definition:
+  stage: container_build
+  script:
+    - TAG_SUFFIX=${TAG_SUFFIX:-}
+    - BUILD_ARG=${BUILD_ARG:-}
+    - EXTRA_BUILD_CONTEXT=${ARTIFACTS_BUILD_CONTEXT:+"--build-context artifacts=$ARTIFACTS_BUILD_CONTEXT"}
+    - |
+      if [[ "$BUCKET_BRANCH" == "nightly" && ( "$IMAGE" =~ "ci/datadog-agent/agent" || "$IMAGE" =~ "ci/datadog-agent/cluster-agent" || "$IMAGE" =~ "ci/datadog-agent/cws-instrumentation"  || "$IMAGE" =~ "ci/datadog-agent/otel-agent" || "$IMAGE" =~ "ci/datadog-agent/ddot-ebpf" ) ]]; then
+        export ECR_RELEASE_SUFFIX="-nightly"
+      else
+        export ECR_RELEASE_SUFFIX=${CI_COMMIT_TAG+-release}
+      fi
+    - AGENT_BASE_IMAGE_TAG=registry.ddbuild.io/ci/datadog-agent/agent-base-image${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-$ARCH
+    - TARGET_TAG=${IMAGE}${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}$TAG_SUFFIX-$ARCH
+    # Caching setup
+    - DOCKER_CACHE_REGISTRY_TARGET="${IMAGE}${TAG_SUFFIX}-${ARCH}:cache"
+    - CACHE_SOURCE="--cache-from type=registry,ref=${DOCKER_CACHE_REGISTRY_TARGET}"
+    - CACHE_TO=""
+    - CACHE_TARGET=${CACHE_TARGET:-}
+    # Don't use caching on nightlies, to allow for regular cache invalidation,
+    # and update the cache on both main and nightly builds
+    - |
+      if [[ "$BUCKET_BRANCH" == "nightly" ]]; then
+        DOCKER_NO_CACHE="--no-cache"
+        CACHE_SOURCE=""
+        CACHE_TO="--cache-to type=registry,ref=${DOCKER_CACHE_REGISTRY_TARGET},mode=max"
+      fi
+      if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
+        CACHE_TO="--cache-to type=registry,ref=${DOCKER_CACHE_REGISTRY_TARGET},mode=max"
+      fi
+    # Don't use the cache on deploy pipelines to make sure we get the latest of everything
+    - |
+      if [[ "$DEPLOY_AGENT" == "true" ]]; then
+        DOCKER_NO_CACHE="--no-cache"
+        CACHE_SOURCE=""
+      fi
+    - |
+      if [[ -n "${CACHE_TO}" && -n "${CACHE_TARGET}" ]]; then
+        # Build cacheable target to only export certain steps to registry.
+        # Doing this first build separately lets us avoid uploading heavy artifacts (such as Agent packages),
+        # that can't be usefully cached, to the remote cache.
+        echo "Building ${CACHE_TARGET} for cache"
+        # We accept failures on this build, because the build can still succeed, and the only consequence of
+        # failure is that the cache doesn't get updated, which is not critical.
+        # We do send an event to DD to be able to monitor it.
+
+        send_docker_export_failure_event() {
+          DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) && \
+          curl -X POST "https://api.datadoghq.com/api/v1/events" \
+               -H "Content-Type: application/json" \
+               -H "DD-API-KEY: ${DD_API_KEY}" \
+               -d '{
+                "title": "docker cache export failure",
+                "text": "An Agent docker build failed to export the cache to the remote registry",
+                "alert_type": "error",
+                "date_happened": '"$(date +%s)"',
+                "tags": ["team:agent-build", "pipeline:'${CI_PIPELINE_ID}'", "job:'${CI_JOB_NAME}'", "job-id:'${CI_JOB_ID}'"]
+              }'
+        }
+
+        docker buildx build --pull --platform linux/$ARCH \
+          ${CACHE_SOURCE} \
+          ${CACHE_TO} \
+          ${DOCKER_NO_CACHE} \
+          --build-arg AGENT_BASE_IMAGE_TAG=${AGENT_BASE_IMAGE_TAG} \
+          --build-arg CI \
+          --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} \
+          --build-arg DD_GIT_REPOSITORY_URL=https://github.com/DataDog/datadog-agent \
+          --build-arg DD_GIT_COMMIT_SHA=${CI_COMMIT_SHA} \
+          --build-arg BASE_IMAGE_REGISTRY \
+          $BUILD_ARG \
+          ${EXTRA_BUILD_CONTEXT} \
+          --file $BUILD_CONTEXT/Dockerfile \
+          --target ${CACHE_TARGET} \
+          $BUILD_CONTEXT \
+          || send_docker_export_failure_event \
+          || true
+
+        # On non-deploy pipelines we're fine with relying on the cache from this point on
+        DOCKER_NO_CACHE=""
+      fi
+    # Build image, use target none label to avoid replication
+    - |-
+      docker buildx build --push --pull --platform linux/$ARCH \
+        ${CACHE_SOURCE} \
+        ${DOCKER_NO_CACHE} \
+        --build-arg AGENT_BASE_IMAGE_TAG=${AGENT_BASE_IMAGE_TAG} \
+        --build-arg CI \
+        --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} \
+        --build-arg BASE_IMAGE_REGISTRY \
+        $BUILD_ARG \
+        $TARGET_ARG \
+        --build-arg DD_GIT_REPOSITORY_URL=https://github.com/DataDog/datadog-agent \
+        --build-arg DD_GIT_COMMIT_SHA=${CI_COMMIT_SHA} \
+        ${EXTRA_BUILD_CONTEXT} \
+        --file $BUILD_CONTEXT/Dockerfile \
+        --tag ${TARGET_TAG} \
+        --label "org.opencontainers.image.created=$(date --rfc-3339=seconds)" \
+        --label "org.opencontainers.image.authors=Datadog <package@datadoghq.com>" \
+        --label "org.opencontainers.image.source=https://github.com/DataDog/datadog-agent" \
+        --label "org.opencontainers.image.version=$(dda inv agent.version)" \
+        --label "org.opencontainers.image.revision=${CI_COMMIT_SHA}" \
+        --label "org.opencontainers.image.vendor=Datadog, Inc." \
+        --label "target=none" \
+        $BUILD_CONTEXT
+    - FLATTEN_IMAGE=${FLATTEN_IMAGE:-true}
+    # Squash image if FLATTEN_IMAGE is true
+    - |
+      if [[ "$FLATTEN_IMAGE" == "true" ]]; then
+        crane flatten -t ${TARGET_TAG} ${TARGET_TAG}
+      fi
+    - !reference [.static_quality_gate_docker]
+  variables:
+    BASE_IMAGE_REGISTRY: "registry.ddbuild.io/images/mirror"
+  # Workaround for temporary network failures
+  retry: 2
+  timeout: 30m
+
+# Base template for jobs that don't rely on the packaging job artifacts but
+# rather from binaries stored in the 'dd-ci-artefacts-build-stable' bucket
+.docker_build_s3:
+  variables:
+    ARTIFACTS_BUILD_CONTEXT: /tmp/build_artifacts
+  before_script:
+    - aws s3 sync --only-show-errors $S3_ARTIFACTS_URI $ARTIFACTS_BUILD_CONTEXT
+
+# Base template to move the packaged artifact from gitlab into the build
+# context
+.docker_build_artifact:
+  variables:
+    ARTIFACTS_BUILD_CONTEXT: /tmp/build_artifacts
+  before_script:
+    - mkdir -p ${ARTIFACTS_BUILD_CONTEXT}
+    - ls $OMNIBUS_PACKAGE_DIR/*.xz | grep -v -- -dbg- | xargs -I '{}' mv '{}' $ARTIFACTS_BUILD_CONTEXT/
+
+.docker_build_amd64:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
+  tags: ["arch:amd64", "specific:true"]
+  variables:
+    ARCH: amd64
+
+.docker_build_arm64:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_arm64$CI_IMAGE_DOCKER_ARM64_SUFFIX:$CI_IMAGE_DOCKER_ARM64
+  tags: ["arch:arm64", "specific:true"]
+  variables:
+    ARCH: arm64
+
+# build agent7 image
+.docker_build_agent7:
+  extends: [.docker_build_job_definition, .docker_build_artifact]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  variables:
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TARGET_ARG: --target test
+    CACHE_TARGET: release-base
+
+docker_build_agent7:
+  extends: [.docker_build_amd64, .docker_build_agent7]
+  rules:
+    - when: on_success
+  needs:
+    - job: datadog-agent-7-x64
+  variables:
+    TAG_SUFFIX: -7
+    BUILD_ARG: --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-amd64.tar.xz
+    STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_agent_amd64"
+
+# TODO: Move these single-machine-performance jobs to
+# .gitlab/deploy_containers/deploy_containers_a7.yml.
+#
+# This move cannot be done now because of the following reasons:
+#   #### From deploy_containers_a7.yml ####
+#   Notes: this defines a child pipline of the datadog-agent repository.
+#   Therefore:
+#   - Only blocks defined in this file or the included files below can be used.
+#   - In particular, blocks defined in the main .gitlab-ci.yml are unavailable.
+#   - Dependencies / needs on jobs not defined in this file or the included
+#     files cannot be made.
+single_machine_performance-full-amd64-a7:
+  extends: .docker_publish_job_definition
+  stage: container_build
+  rules:
+    - !reference [.except_mergequeue]
+    # Always publish SMP images on main (needed for baseline comparisons)
+    - !reference [.on_main_or_release_branch]
+    # On dev branches, only publish when artifact-impacting files change.
+    # This skips SMP for doc-only, CI-only, or e2e test-only PRs.
+    - !reference [.on_dev_branches_with_artifact_changes]
+  needs:
+    - docker_build_agent7_full
+  variables:
+    IMG_REGISTRIES: smp
+    IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-amd64
+    IMG_DESTINATIONS: 08450328-agent:${CI_COMMIT_SHA}-7-full-amd64,52130853-agent:${CI_COMMIT_SHA}-7-full-amd64
+
+docker_build_agent7_arm64:
+  extends: [.docker_build_arm64, .docker_build_agent7]
+  rules:
+    - when: on_success
+  needs:
+    - job: datadog-agent-7-arm64
+  variables:
+    TAG_SUFFIX: -7
+    BUILD_ARG: --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-arm64.tar.xz
+    STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_agent_arm64"
+
+# build agent7 fips image
+docker_build_fips_agent7:
+  extends: [.docker_build_amd64, .docker_build_agent7]
+  needs:
+    - job: datadog-agent-7-x64-fips
+  variables:
+    TAG_SUFFIX: -7-fips
+    BUILD_ARG: --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-amd64.tar.xz
+
+docker_build_fips_agent7_arm64:
+  extends: [.docker_build_arm64, .docker_build_agent7]
+  needs:
+    - job: datadog-agent-7-arm64-fips
+  variables:
+    TAG_SUFFIX: -7-fips
+    BUILD_ARG: --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-arm64.tar.xz
+
+# build agent7 jmx image
+docker_build_agent7_jmx:
+  extends: [.docker_build_amd64, .docker_build_agent7]
+  rules:
+    - when: on_success
+  needs:
+    - job: datadog-agent-7-x64
+  variables:
+    TAG_SUFFIX: -7-jmx
+    BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-amd64.tar.xz
+    STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_agent_jmx_amd64"
+
+docker_build_agent7_jmx_arm64:
+  extends: [.docker_build_arm64, .docker_build_agent7]
+  rules:
+    - when: on_success
+  needs:
+    - job: datadog-agent-7-arm64
+  variables:
+    TAG_SUFFIX: -7-jmx
+    BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-arm64.tar.xz
+    STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_agent_jmx_arm64"
+
+docker_build_fips_agent7_jmx:
+  extends: [.docker_build_amd64, .docker_build_agent7]
+  needs:
+    - job: datadog-agent-7-x64-fips
+  variables:
+    TAG_SUFFIX: -7-fips-jmx
+    BUILD_ARG: --build-arg WITH_JMX=true --build-arg WITH_JMX_FIPS=true --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-amd64.tar.xz
+
+docker_build_fips_agent7_arm64_jmx:
+  extends: [.docker_build_arm64, .docker_build_agent7]
+  needs:
+    - job: datadog-agent-7-arm64-fips
+  variables:
+    TAG_SUFFIX: -7-fips-jmx
+    BUILD_ARG: --build-arg WITH_JMX=true --build-arg WITH_JMX_FIPS=true --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-arm64.tar.xz
+
+# agent base image: future agent images will be based on this image
+.docker_build_base_image:
+  extends: .docker_build_job_definition
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs: []
+  variables:
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/agent-base-image
+    BUILD_CONTEXT: Dockerfiles/base-image
+    TARGET_ARG: --target release
+    CACHE_TARGET: release
+
+docker_build_base_image_amd64:
+  extends: [.docker_build_base_image, .docker_build_amd64]
+
+docker_build_base_image_arm64:
+  extends: [.docker_build_base_image, .docker_build_arm64]
+
+.docker_build_host_profiler_standalone:
+  extends: .docker_build_job_definition
+  before_script:
+    - cp bin/full-host-profiler/full-host-profiler $BUILD_CONTEXT/
+    - cp cmd/host-profiler/dist/host-profiler-config.yaml $BUILD_CONTEXT/
+    - ls -l $BUILD_CONTEXT/
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  variables:
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/ddot-ebpf
+    BUILD_CONTEXT: Dockerfiles/ddot-ebpf
+    FLATTEN_IMAGE: false
+    BUILD_ARG: --target release
+    TAG_SUFFIX: -7
+
+docker_build_host_profiler_standalone_amd64:
+  extends:
+    [.docker_build_host_profiler_standalone, .docker_build_amd64]
+  needs:
+    - job: docker_build_base_image_amd64
+    - job: build_host_profiler_binary_x64
+
+docker_build_host_profiler_standalone_arm64:
+  extends:
+    [.docker_build_host_profiler_standalone, .docker_build_arm64]
+  needs:
+    - job: docker_build_base_image_arm64
+    - job: build_host_profiler_binary_arm64
+
+.docker_build_ot_agent_standalone:
+  extends: .docker_build_job_definition
+  before_script:
+    - mkdir /tmp/otel
+    - ARCHIVE_NAME=$(find . -name "datadog-*agent-ddot-7*.tar.xz" | head -1) # Only 1 match is expected
+    - |
+      tar --extract --xz --file $ARCHIVE_NAME \
+      --verbose \
+      --directory $BUILD_CONTEXT \
+      --strip-components 4 \
+      opt/datadog-agent/embedded/bin/otel-agent
+    - |
+      tar --extract --xz --file $ARCHIVE_NAME \
+      --verbose \
+      --directory $BUILD_CONTEXT \
+      --strip-components 2 \
+      --transform 's|\.example||' \
+      etc/datadog-agent/otel-config.yaml.example
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  variables:
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/otel-agent
+    BUILD_CONTEXT: Dockerfiles/otel-agent
+    FLATTEN_IMAGE: false
+    BUILD_ARG: --target release
+    TAG_SUFFIX: -7
+
+docker_build_ot_agent_standalone_amd64:
+  extends:
+    [.docker_build_ot_agent_standalone, .docker_build_amd64]
+  needs:
+    - job: docker_build_base_image_amd64
+    - job: datadog-otel-agent-x64
+
+docker_build_ot_agent_standalone_arm64:
+  extends:
+    [.docker_build_ot_agent_standalone, .docker_build_arm64]
+  needs:
+    - job: docker_build_base_image_arm64
+    - job: datadog-otel-agent-arm64
+
+docker_build_ot_agent_standalone_fips_amd64:
+  extends:
+    [.docker_build_ot_agent_standalone, .docker_build_amd64]
+  needs:
+    - job: docker_build_base_image_amd64
+    - job: datadog-otel-agent-x64-fips
+  variables:
+    TAG_SUFFIX: -7-fips
+
+docker_build_ot_agent_standalone_fips_arm64:
+  extends:
+    [.docker_build_ot_agent_standalone, .docker_build_arm64]
+  needs:
+    - job: docker_build_base_image_arm64
+    - job: datadog-otel-agent-arm64-fips
+  variables:
+    TAG_SUFFIX: -7-fips
+
+docker_build_agent7_full:
+  extends: [.docker_build_amd64, .docker_build_agent7]
+  needs:
+    - job: datadog-agent-7-x64
+    - job: datadog-otel-agent-x64
+  variables:
+    TAG_SUFFIX: -7-full
+    BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-amd64.tar.xz
+
+docker_build_agent7_full_arm64:
+  extends: [.docker_build_arm64, .docker_build_agent7]
+  needs:
+    - job: datadog-agent-7-arm64
+    - job: datadog-otel-agent-arm64
+  variables:
+    TAG_SUFFIX: -7-full
+    BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-arm64.tar.xz
+
+docker_build_agent7_fips_full:
+  extends: [.docker_build_amd64, .docker_build_agent7]
+  needs:
+    - job: datadog-agent-7-x64-fips
+    - job: datadog-otel-agent-x64-fips
+  variables:
+    TAG_SUFFIX: -7-fips-full
+    BUILD_ARG: --build-arg WITH_JMX=true --build-arg WITH_JMX_FIPS=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-amd64.tar.xz
+
+docker_build_agent7_fips_full_arm64:
+  extends: [.docker_build_arm64, .docker_build_agent7]
+  needs:
+    - job: datadog-agent-7-arm64-fips
+    - job: datadog-otel-agent-arm64-fips
+  variables:
+    TAG_SUFFIX: -7-fips-full
+    BUILD_ARG: --build-arg WITH_JMX=true --build-arg WITH_JMX_FIPS=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-arm64.tar.xz
+
+# build the cluster-agent image
+.docker_build_cluster_agent:
+  extends: .docker_build_job_definition
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  variables:
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/cluster-agent
+    BUILD_CONTEXT: Dockerfiles/cluster-agent
+    ARTIFACTS_BUILD_CONTEXT: /tmp/build_artifacts
+    CACHE_TARGET: release-base
+  before_script:
+    - mkdir -p ${ARTIFACTS_BUILD_CONTEXT}
+    - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $ARTIFACTS_BUILD_CONTEXT/
+    - mv -vf $SECRET_GENERIC_CONNECTOR_BINARIES_DIR/secret-generic-connector $ARTIFACTS_BUILD_CONTEXT/
+    - mv -vf $CWS_INSTRUMENTATION_BINARIES_DIR $ARTIFACTS_BUILD_CONTEXT/
+    - mv -vf Dockerfiles/agent/nosys-seccomp $BUILD_CONTEXT/
+    - mkdir -p ${BUILD_CONTEXT}/private-action-runner
+    - cp -v pkg/privateactionrunner/autoconnections/conf/script-config.yaml ${BUILD_CONTEXT}/private-action-runner/
+
+docker_build_cluster_agent_amd64:
+  extends: [.docker_build_amd64, .docker_build_cluster_agent]
+  rules:
+    - when: on_success
+  needs:
+    - job: cluster_agent-build_amd64
+      artifacts: true
+    - job: cws_instrumentation-build_injector_amd64
+      artifacts: true
+    - job: cws_instrumentation-build_injector_arm64
+      artifacts: true
+  variables:
+    STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_cluster_agent_amd64"
+
+docker_build_cluster_agent_arm64:
+  extends: [.docker_build_arm64, .docker_build_cluster_agent]
+  rules:
+    - when: on_success
+  needs:
+    - job: cluster_agent-build_arm64
+      artifacts: true
+    - job: cws_instrumentation-build_injector_amd64
+      artifacts: true
+    - job: cws_instrumentation-build_injector_arm64
+      artifacts: true
+  variables:
+    STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_cluster_agent_arm64"
+
+.docker_build_cluster_agent_fips:
+  extends: .docker_build_cluster_agent
+  variables:
+    TAG_SUFFIX: -fips
+  before_script:
+    - !reference [.docker_build_cluster_agent, before_script]
+    - go tool nm $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent-unstripped | grep '_Cfunc__goboringcrypto_'
+
+docker_build_cluster_agent_fips_amd64:
+  extends: [.docker_build_amd64, .docker_build_cluster_agent_fips]
+  needs:
+    - job: cluster_agent_fips-build_amd64
+      artifacts: true
+    - job: cws_instrumentation-build_injector_amd64
+      artifacts: true
+    - job: cws_instrumentation-build_injector_arm64
+      artifacts: true
+
+docker_build_cluster_agent_fips_arm64:
+  extends: [.docker_build_arm64, .docker_build_cluster_agent_fips]
+  needs:
+    - job: cluster_agent_fips-build_arm64
+      artifacts: true
+    - job: cws_instrumentation-build_injector_amd64
+      artifacts: true
+    - job: cws_instrumentation-build_injector_arm64
+      artifacts: true
+
+# build the cws-instrumentation image
+.docker_build_cws_instrumentation:
+  extends: .docker_build_job_definition
+  rules:
+    - when: on_success
+  variables:
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/cws-instrumentation
+    BUILD_CONTEXT: Dockerfiles/cws-instrumentation
+  before_script:
+    - cp $CWS_INSTRUMENTATION_BINARIES_DIR/cws-instrumentation.${ARCH} $BUILD_CONTEXT/
+
+docker_build_cws_instrumentation_amd64:
+  extends: [.docker_build_cws_instrumentation, .docker_build_amd64]
+  needs:
+    - job: cws_instrumentation-build_amd64
+      artifacts: true
+  variables:
+    STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_cws_instrumentation_amd64"
+
+docker_build_cws_instrumentation_arm64:
+  extends: [.docker_build_cws_instrumentation, .docker_build_arm64]
+  needs:
+    - job: cws_instrumentation-build_arm64
+      artifacts: true
+  variables:
+    STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_cws_instrumentation_arm64"
+
+# build the dogstatsd image
+.docker_build_dogstatsd:
+  extends: [.docker_build_job_definition, .docker_build_s3]
+  rules:
+    - when: on_success
+  variables:
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/dogstatsd
+    BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
+    CACHE_TARGET: release-base
+
+docker_build_dogstatsd_amd64:
+  extends: [.docker_build_dogstatsd, .docker_build_amd64, .docker_build_s3]
+  needs:
+    - job: build_dogstatsd_static-binary_x64
+      artifacts: false
+  timeout: 20m
+  variables:
+    STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_dogstatsd_amd64"
+
+docker_build_dogstatsd_arm64:
+  extends: [.docker_build_dogstatsd, .docker_build_arm64, .docker_build_s3]
+  needs:
+    - job: build_dogstatsd_static-binary_arm64
+      artifacts: false
+  timeout: 20m
+  variables:
+    STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_dogstatsd_arm64"

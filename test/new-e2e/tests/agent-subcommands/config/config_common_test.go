@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 type baseConfigSuite struct {
@@ -62,7 +62,7 @@ func (v *baseConfigSuite) TestDefaultConfig() {
 
 	assertConfigValueContains(v.T(), config, "api_key", "*******")
 	assertConfigValueEqual(v.T(), config, "fips.enabled", false)
-	assertConfigValueEqual(v.T(), config, "expvar_port", "5000")
+	assertConfigValueEqual(v.T(), config, "expvar_port", 5000)
 	assertConfigValueEqual(v.T(), config, "network_devices.snmp_traps.forwarder.logs_no_ssl", false)
 	assertConfigValueContains(v.T(), config, "cloud_provider_metadata", "aws")
 }
@@ -84,7 +84,7 @@ func (v *baseConfigSuite) TestNonDefaultConfig() {
 	assertConfigValueEqual(v.T(), config, "inventories_enabled", false)
 	assertConfigValueEqual(v.T(), config, "inventories_min_interval", 1234)
 	assertConfigValueEqual(v.T(), config, "inventories_max_interval", 3456)
-	assertConfigValueEqual(v.T(), config, "expvar_port", "5678")
+	assertConfigValueEqual(v.T(), config, "expvar_port", 5678)
 	assertConfigValueContains(v.T(), config, "tags", "e2e")
 	assertConfigValueContains(v.T(), config, "tags", "test")
 }

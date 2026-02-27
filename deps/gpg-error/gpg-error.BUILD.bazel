@@ -1,13 +1,32 @@
 load("@@//bazel/rules:preprocessor.bzl", "c_preprocessor")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
     default_package_metadata = [":license"],
     default_visibility = ["//packages:__subpackages__"],
+)
+
+VERSION = "1.47"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+        ":ship_source_offer",
+    ],
+    purl = purl_for_generic(
+        package = "gpg-error",
+        version = VERSION,
+        download_url = "https://www.gnupg.org/ftp/gcrypt/libgpg-error/libgpg-error-{version}.tar.bz2",
+    ),
 )
 
 license(
@@ -16,6 +35,8 @@ license(
     license_text = "COPYING.LIB",
     visibility = ["//visibility:public"],
 )
+
+ship_source_offer(name = "ship_source_offer")
 
 genrule(
     name = "code_to_errno_h",
@@ -105,6 +126,13 @@ copy_file(
     out = "src/config.h",
 )
 
+cc_library(
+    name = "config_h",
+    hdrs = [
+        ":copy_config_h",
+    ],
+)
+
 genrule(
     name = "err-codes_h",
     srcs = [
@@ -134,8 +162,11 @@ cc_binary(
 
 cc_binary(
     name = "gen-posix-lock-obj",
-    srcs = ["src/gen-posix-lock-obj.c", "src/posix-lock-obj.h", ":copy_config_h"],
+    srcs = ["src/gen-posix-lock-obj.c", "src/posix-lock-obj.h"],
     local_defines = ["HAVE_CONFIG_H"],
+    deps = [
+        ":config_h",
+    ],
     includes = ["src"],
 )
 
@@ -215,7 +246,6 @@ cc_library(
         "src/argparse.c",
         "src/gettext.h",
         # Generated sources
-        ":copy_config_h",
         ":code_to_errno_h",
         ":code_from_errno_h",
         ":err-codes_h",
@@ -235,6 +265,9 @@ cc_library(
     copts = ["-O2"],
     includes = ["src"],
     visibility = ["//visibility:public"],
+    implementation_deps = [
+        ":config_h",
+    ],
 )
 
 cc_shared_library(
@@ -256,10 +289,18 @@ pkg_files(
     prefix = "include",
 )
 
-pkg_install(
-    name = "install",
+pkg_filegroup(
+    name = "all_files",
     srcs = [
         ":hdr_files",
         ":lib_files",
+    ],
+    prefix = "embedded",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
     ],
 )

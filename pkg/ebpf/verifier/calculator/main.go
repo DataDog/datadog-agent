@@ -99,14 +99,7 @@ func main() {
 		}
 
 		if len(filterFiles) > 0 || hasAbsPaths {
-			found := false
-			for _, f := range filterFiles {
-				if d.Name() == f {
-					found = true
-					break
-				}
-			}
-			if !found {
+			if !slices.Contains(filterFiles, d.Name()) {
 				return nil
 			}
 		}

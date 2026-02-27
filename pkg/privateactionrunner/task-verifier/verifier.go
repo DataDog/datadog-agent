@@ -14,7 +14,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
-	remoteconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/remote-config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
@@ -22,11 +21,11 @@ import (
 )
 
 type TaskVerifier struct {
-	keysManager remoteconfig.KeysManager
+	keysManager KeysManager
 	config      *config.Config
 }
 
-func NewTaskVerifier(keysManager remoteconfig.KeysManager, config *config.Config) *TaskVerifier {
+func NewTaskVerifier(keysManager KeysManager, config *config.Config) *TaskVerifier {
 	return &TaskVerifier{keysManager: keysManager, config: config}
 }
 

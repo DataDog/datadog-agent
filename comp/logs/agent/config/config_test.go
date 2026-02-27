@@ -347,7 +347,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 	}
 
 	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false)
-	endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config))
+	endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), true)
 
 	suite.Nil(err)
 	suite.compareEndpoints(expectedEndpoints, endpoints)
@@ -570,7 +570,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 	}
 
 	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false)
-	endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config))
+	endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), true)
 
 	suite.Nil(err)
 	suite.compareEndpoints(expectedEndpoints, endpoints)
@@ -1128,6 +1128,191 @@ func Test_parseAddressWithScheme(t *testing.T) {
 			if gotUseSSL != tt.wantUseSSL {
 				t.Errorf("parseAddressWithScheme() gotUseSSL = %v, want %v", gotUseSSL, tt.wantUseSSL)
 			}
+		})
+	}
+}
+
+func TestShouldUseTCP(t *testing.T) {
+	tests := []struct {
+		name                string
+		forceTCP            bool
+		socks5Proxy         string
+		additionalEndpoints bool
+		expectedTCPRequired bool
+	}{
+		{
+			name:                "no TCP requirements",
+			forceTCP:            false,
+			socks5Proxy:         "",
+			additionalEndpoints: false,
+			expectedTCPRequired: false,
+		},
+		{
+			name:                "force_use_tcp enabled",
+			forceTCP:            true,
+			socks5Proxy:         "",
+			additionalEndpoints: false,
+			expectedTCPRequired: true,
+		},
+		{
+			name:                "socks5 proxy set",
+			forceTCP:            false,
+			socks5Proxy:         "localhost:1080",
+			additionalEndpoints: false,
+			expectedTCPRequired: true,
+		},
+		{
+			name:                "additional endpoints configured",
+			forceTCP:            false,
+			socks5Proxy:         "",
+			additionalEndpoints: true,
+			expectedTCPRequired: true,
+		},
+		{
+			name:                "all TCP requirements set",
+			forceTCP:            true,
+			socks5Proxy:         "localhost:1080",
+			additionalEndpoints: true,
+			expectedTCPRequired: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.NewMock(t)
+			cfg.SetWithoutSource("api_key", "test-key")
+			cfg.SetWithoutSource("logs_config.force_use_tcp", tt.forceTCP)
+			cfg.SetWithoutSource("logs_config.socks5_proxy_address", tt.socks5Proxy)
+
+			if tt.additionalEndpoints {
+				cfg.SetWithoutSource("logs_config.additional_endpoints", []map[string]interface{}{
+					{
+						"host":    "additional-host.com",
+						"port":    10516,
+						"api_key": "additional-key",
+					},
+				})
+			}
+
+			result := ShouldUseTCP(cfg)
+			if result != tt.expectedTCPRequired {
+				t.Errorf("ShouldUseTCP() = %v, want %v", result, tt.expectedTCPRequired)
+			}
+		})
+	}
+}
+
+func (suite *ConfigTestSuite) TestBatchWaitSubsecondValues() {
+	suite.config.SetWithoutSource("api_key", "123")
+
+	// Test with 0.1 seconds (100ms)
+	suite.config.SetWithoutSource("logs_config.batch_wait", 0.1)
+
+	logsConfig := NewLogsConfigKeys("logs_config.", suite.config)
+	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+	suite.Equal(100*time.Millisecond, endpoints.BatchWait, "BatchWait should be 100ms")
+
+	// Test with 0.5 seconds (500ms)
+	suite.config.SetWithoutSource("logs_config.batch_wait", 0.5)
+	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+	suite.Equal(500*time.Millisecond, endpoints.BatchWait, "BatchWait should be 500ms")
+
+	// Test with 1.5 seconds
+	suite.config.SetWithoutSource("logs_config.batch_wait", 1.5)
+	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+	suite.Equal(1500*time.Millisecond, endpoints.BatchWait, "BatchWait should be 1.5 seconds")
+
+	// Test with integer value for backwards compatibility
+	suite.config.SetWithoutSource("logs_config.batch_wait", 5)
+	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+	suite.Equal(5*time.Second, endpoints.BatchWait, "BatchWait should be 5 seconds (integer value)")
+
+	// Test with value below minimum (should fallback to default)
+	suite.config.SetWithoutSource("logs_config.batch_wait", 0.05) // 50ms, below 100ms minimum
+	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+	suite.Equal(pkgconfigsetup.DefaultBatchWait*time.Second, endpoints.BatchWait, "BatchWait should fallback to default for too-small values")
+
+	// Test with value above maximum (should fallback to default)
+	suite.config.SetWithoutSource("logs_config.batch_wait", 15) // Above 10 second maximum
+	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+	suite.Equal(pkgconfigsetup.DefaultBatchWait*time.Second, endpoints.BatchWait, "BatchWait should fallback to default for too-large values")
+}
+
+func (suite *ConfigTestSuite) TestTCPEndpointsPortLookup() {
+	// This test verifies that TCP endpoints are constructed with the correct ports
+	// when the logsEndpoints map is looked up with hostnames that have trailing dots (FQDNs).
+	// The trailing dots are added by GetMainEndpoint when convert_dd_site_fqdn.enabled is true.
+
+	tests := []struct {
+		name         string
+		site         string
+		expectedHost string
+		expectedPort int
+	}{
+		{
+			name:         "datadoghq.com site",
+			site:         "datadoghq.com",
+			expectedHost: "agent-intake.logs.datadoghq.com.",
+			expectedPort: 10516,
+		},
+		{
+			name:         "datadoghq.eu site",
+			site:         "datadoghq.eu",
+			expectedHost: "agent-intake.logs.datadoghq.eu.",
+			expectedPort: 443,
+		},
+		{
+			name:         "datadoghq.eu with-a-dot site",
+			site:         "datadoghq.eu.",
+			expectedHost: "agent-intake.logs.datadoghq.eu.",
+			expectedPort: 443,
+		},
+		{
+			name:         "datad0g.com site",
+			site:         "datad0g.com",
+			expectedHost: "agent-intake.logs.datad0g.com.",
+			expectedPort: 10516,
+		},
+		{
+			name:         "datad0g.eu site",
+			site:         "datad0g.eu",
+			expectedHost: "agent-intake.logs.datad0g.eu.",
+			expectedPort: 443,
+		},
+	}
+
+	for _, tt := range tests {
+		suite.Run(tt.name, func() {
+			suite.config.SetWithoutSource("api_key", "test-key")
+			suite.config.SetWithoutSource("site", tt.site)
+			suite.config.SetWithoutSource("convert_dd_site_fqdn.enabled", true) // FQDN is enabled by default
+
+			endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), true)
+
+			suite.Nil(err)
+			suite.Equal(tt.expectedHost, endpoints.Main.Host, "Host should match expected FQDN with trailing dot")
+			suite.Equal(tt.expectedPort, endpoints.Main.Port, "Port should match the value from logsEndpoints map")
+
+			suite.config.SetWithoutSource("api_key", "test-key")
+			suite.config.SetWithoutSource("site", tt.site)
+			suite.config.SetWithoutSource("convert_dd_site_fqdn.enabled", false)
+
+			endpoints, err = buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), true)
+
+			suite.Nil(err)
+			suite.Equal(tt.expectedPort, endpoints.Main.Port, "Port should match the value from logsEndpoints map")
 		})
 	}
 }

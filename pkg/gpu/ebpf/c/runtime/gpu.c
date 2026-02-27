@@ -64,13 +64,13 @@ int BPF_UPROBE(uprobe__cudaLaunchKernel, const void *func, __u64 grid_xy, __u64 
     __u64 shared_mem = 0;
     __u64 stream = 0;
 
-    shared_mem = PT_REGS_USER_PARM7(ctx, read_ret);
+    shared_mem = PT_REGS_USER_PARM7_WITH_TELEMETRY(ctx, read_ret);
     if (read_ret < 0) {
         log_debug("cudaLaunchKernel: failed to read shared_mem");
         return 0;
     }
 
-    stream = PT_REGS_USER_PARM8(ctx, read_ret);
+    stream = PT_REGS_USER_PARM8_WITH_TELEMETRY(ctx, read_ret);
     if (read_ret < 0) {
         log_debug("cudaLaunchKernel: failed to read stream");
         return 0;
@@ -84,6 +84,79 @@ int BPF_UPROBE(uprobe__cudaLaunchKernel, const void *func, __u64 grid_xy, __u64 
 
     log_debug("cudaLaunchKernel: EMIT[1/2] pid_tgid=%llu, ts=%llu", launch_data.header.pid_tgid, launch_data.header.ktime_ns);
     log_debug("cudaLaunchKernel: EMIT[2/2] kernel_addr=0x%llx, shared_mem=%llu, stream_id=%llu", launch_data.kernel_addr, launch_data.shared_mem_size, launch_data.header.stream_id);
+
+    bpf_ringbuf_output_with_telemetry(&cuda_events, &launch_data, sizeof(launch_data), get_ringbuf_flags(sizeof(launch_data)));
+
+    return 0;
+}
+
+
+SEC("uprobe/cuLaunchKernel")
+int BPF_UPROBE(uprobe__cuLaunchKernel, const void *func, __u32 grid_x, __u32 grid_y, __u32 grid_z, __u32 block_x, __u32 block_y) {
+    cuda_kernel_launch_t launch_data = { 0 };
+    long read_ret = 0;
+    __u64 shared_mem = 0;
+    __u64 stream = 0;
+    __u32 block_z = 0;
+
+    block_z = PT_REGS_USER_PARM7_WITH_TELEMETRY(ctx, read_ret);
+    if (read_ret < 0) {
+        log_debug("cuLaunchKernel: failed to read block_z");
+        return 0;
+    }
+
+    shared_mem = PT_REGS_USER_PARM8_WITH_TELEMETRY(ctx, read_ret);
+    if (read_ret < 0) {
+        log_debug("cuLaunchKernel: failed to read shared_mem");
+        return 0;
+    }
+
+    stream = PT_REGS_USER_PARM9_WITH_TELEMETRY(ctx, read_ret);
+    if (read_ret < 0) {
+        log_debug("cuLaunchKernel: failed to read stream");
+        return 0;
+    }
+
+    launch_data.grid_size.x = grid_x;
+    launch_data.grid_size.y = grid_y;
+    launch_data.grid_size.z = grid_z;
+    launch_data.block_size.x = block_x;
+    launch_data.block_size.y = block_y;
+    launch_data.block_size.z = block_z;
+    launch_data.kernel_addr = (uint64_t)func;
+    launch_data.shared_mem_size = shared_mem;
+    fill_header(&launch_data.header, stream, cuda_kernel_launch);
+
+    log_debug("cuLaunchKernel: EMIT[1/2] pid_tgid=%llu, ts=%llu", launch_data.header.pid_tgid, launch_data.header.ktime_ns);
+    log_debug("cuLaunchKernel: EMIT[2/2] kernel_addr=0x%llx, shared_mem=%llu, stream_id=%llu", launch_data.kernel_addr, launch_data.shared_mem_size, launch_data.header.stream_id);
+
+    bpf_ringbuf_output_with_telemetry(&cuda_events, &launch_data, sizeof(launch_data), get_ringbuf_flags(sizeof(launch_data)));
+
+    return 0;
+}
+
+SEC("uprobe/cuLaunchKernelEx")
+int BPF_UPROBE(uprobe__cuLaunchKernelEx, const void *config, const void *func) {
+    cuda_kernel_launch_t launch_data = { 0 };
+    cu_launch_config_t cfg = { 0 };
+
+    if (bpf_probe_read_user_with_telemetry(&cfg, sizeof(cfg), config)) {
+        log_debug("cuLaunchKernelEx: failed to read config struct");
+        return 0;
+    }
+
+    launch_data.grid_size.x = cfg.gridDimX;
+    launch_data.grid_size.y = cfg.gridDimY;
+    launch_data.grid_size.z = cfg.gridDimZ;
+    launch_data.block_size.x = cfg.blockDimX;
+    launch_data.block_size.y = cfg.blockDimY;
+    launch_data.block_size.z = cfg.blockDimZ;
+    launch_data.kernel_addr = (uint64_t)func;
+    launch_data.shared_mem_size = cfg.sharedMemBytes;
+    fill_header(&launch_data.header, (uint64_t)cfg.hStream, cuda_kernel_launch);
+
+    log_debug("cuLaunchKernelEx: EMIT[1/2] pid_tgid=%llu, ts=%llu", launch_data.header.pid_tgid, launch_data.header.ktime_ns);
+    log_debug("cuLaunchKernelEx: EMIT[2/2] kernel_addr=0x%llx, shared_mem=%llu, stream_id=%llu", launch_data.kernel_addr, launch_data.shared_mem_size, launch_data.header.stream_id);
 
     bpf_ringbuf_output_with_telemetry(&cuda_events, &launch_data, sizeof(launch_data), get_ringbuf_flags(sizeof(launch_data)));
 

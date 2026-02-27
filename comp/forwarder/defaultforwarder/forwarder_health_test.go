@@ -71,10 +71,11 @@ func TestComputeDomainsURL(t *testing.T) {
 		"https://app.xxxx99.datadoghq.com":       {utils.NewAPIKeys("path", "api_key5")},
 		"https://custom.agent.us2.datadoghq.com": {utils.NewAPIKeys("path", "api_key6")},
 		// debatable whether the next one should be changed to `api.`, preserve pre-existing behavior for now
-		"https://app.datadoghq.internal": {utils.NewAPIKeys("path", "api_key7")},
-		"https://app.myproxy.com":        {utils.NewAPIKeys("path", "api_key8")},
-		"https://app.ddog-gov.com":       {utils.NewAPIKeys("path", "api_key9")},
-		"https://custom.ddog-gov.com":    {utils.NewAPIKeys("path", "api_key10")},
+		"https://app.datadoghq.internal":  {utils.NewAPIKeys("path", "api_key7")},
+		"https://app.myproxy.com":         {utils.NewAPIKeys("path", "api_key8")},
+		"https://app.ddog-gov.com":        {utils.NewAPIKeys("path", "api_key9")},
+		"https://custom.ddog-gov.com":     {utils.NewAPIKeys("path", "api_key10")},
+		"https://app.xxxx99.ddog-gov.com": {utils.NewAPIKeys("path", "api_key11")},
 	}
 
 	expectedMap := map[string][]string{
@@ -86,6 +87,7 @@ func TestComputeDomainsURL(t *testing.T) {
 		"https://api.datadoghq.internal":   {"api_key7"},
 		"https://app.myproxy.com":          {"api_key8"},
 		"https://api.ddog-gov.com":         {"api_key9", "api_key10"},
+		"https://api.xxxx99.ddog-gov.com":  {"api_key11"},
 	}
 
 	// just sort the expected map for easy comparison
@@ -458,11 +460,9 @@ func TestHealthInvalidAPIKeyTriggersSecretRefresh(t *testing.T) {
 	triggered := false
 
 	secrets := secretsmock.New(t)
-	secrets.SetRefreshHook(func(updateNow bool) (string, error) {
-		if !updateNow {
-			triggered = true
-		}
-		return "", nil
+	secrets.SetRefreshHook(func() bool {
+		triggered = true
+		return true
 	})
 
 	// test server that returns 403 for all keys

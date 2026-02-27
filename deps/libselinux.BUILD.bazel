@@ -1,19 +1,46 @@
-load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+
+package(
+    default_package_metadata = [":package_metadata"],
+    default_visibility = ["@@//packages:__subpackages__", "@@//deps:__pkg__"],
+)
+
+VERSION = "3.5"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        package = "attr",
+        version = VERSION,
+        download_url = "https://github.com/SELinuxProject/selinux/releases/download/{version}/libselinux-{version}.tar.gz",
+    ),
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/generic:unencumbered"],
+    license_text = "LICENSE",
+    visibility = ["//visibility:public"],
+)
 
 cc_library(
     name = "libselinux",
     hdrs = glob(["include/selinux/*.h"]),
-    srcs = glob(["src/*.c", "src/*.h"], exclude=[
+    srcs = glob(["src/*.c", "src/*.h"], exclude = [
         "src/audit2why.c",
         "src/label_backends_android.c",
-    ])
-    ,
+    ]),
     deps = [
         "@libsepol//:libsepol",
-        "@pcre2//:pcre2",
+        "@pcre2//:libpcre2",
     ],
     local_defines = [
         "_LARGEFILE_SOURCE",
@@ -30,12 +57,17 @@ cc_library(
     includes = [
         "include",
     ],
+    visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
     name = "selinux",
     deps = [
         ":libselinux",
+    ],
+    dynamic_deps = [
+        "@libsepol//:sepol",
+        "@pcre2//:pcre2-8",
     ],
     additional_linker_inputs = [
         "src/libselinux.map",
@@ -44,20 +76,7 @@ cc_shared_library(
         "-Wl,-soname=libselinux.so",
         "-Wl,--version-script=$(location src/libselinux.map)",
     ],
-)
-
-expand_template(
-    name = "libselinux_pc",
-    out = "libselinux.pc",
-    substitutions = {
-        # Prepare the .pc file for our own substitution later
-        "@prefix@": "##PREFIX##",
-        # and make other values depend on the prefix declared in the .pc file
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@VERSION@": "3.5",
-    },
-    template = ":src/libselinux.pc.in",
+    visibility = ["//visibility:public"],
 )
 
 pkg_files(
@@ -72,17 +91,19 @@ pkg_files(
     prefix = "include/selinux",
 )
 
-pkg_files(
-    name = "pc_file",
-    srcs = [":libselinux_pc"],
-    prefix = "lib/pkgconfig",
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":hdr_files",
+        ":lib_files",
+    ],
+    prefix = "embedded",
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
 pkg_install(
     name = "install",
     srcs = [
-        ":hdr_files",
-        ":lib_files",
-        ":pc_file",
+        ":all_files",
     ],
 )

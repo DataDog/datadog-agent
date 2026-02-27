@@ -154,11 +154,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v5"
+
+	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
-	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -229,7 +230,7 @@ func (bs *BaseSuite[Env]) EventuallyWithT(condition func(*assert.CollectT), time
 	return bs.Suite.EventuallyWithT(func(c *assert.CollectT) {
 		defer func() {
 			if r := recover(); r != nil {
-				bs.T().Errorf("EventuallyWithT, panic: %v", r)
+				utils.Errorf(bs.T(), "EventuallyWithT, panic: %v", r)
 			}
 		}()
 		condition(c)
@@ -240,12 +241,14 @@ func (bs *BaseSuite[Env]) EventuallyWithT(condition func(*assert.CollectT), time
 func (bs *BaseSuite[Env]) EventuallyWithExponentialBackoff(condition func() error, maxElapsedTime, maxInterval time.Duration, msgAndArgs ...interface{}) bool {
 	bs.Suite.T().Helper()
 
-	err := backoff.Retry(condition, backoff.NewExponentialBackOff(
-		backoff.WithInitialInterval(5*time.Second),
-		backoff.WithMultiplier(2),
-		backoff.WithMaxInterval(maxInterval),
-		backoff.WithMaxElapsedTime(maxElapsedTime),
-	))
+	ctx := context.Background()
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = 5 * time.Second
+	expBackoff.Multiplier = 2
+	expBackoff.MaxInterval = maxInterval
+	_, err := backoff.Retry(ctx, func() (any, error) {
+		return nil, condition()
+	}, backoff.WithBackOff(expBackoff), backoff.WithMaxElapsedTime(maxElapsedTime))
 	if err != nil {
 		return bs.Suite.Fail(fmt.Sprintf("Condition never satisfied: %v", err), msgAndArgs...)
 	}
@@ -257,11 +260,11 @@ func (bs *BaseSuite[Env]) EventuallyWithTf(condition func(*assert.CollectT), wai
 	return bs.Suite.EventuallyWithTf(func(c *assert.CollectT) {
 		defer func() {
 			if r := recover(); r != nil {
-				bs.T().Errorf("EventuallyWithTf, panic: %v", r)
+				utils.Errorf(bs.T(), "EventuallyWithTf, panic: %v", r)
 			}
 		}()
 		condition(c)
-	}, waitFor, tick, msg, args)
+	}, waitFor, tick, msg, args...)
 }
 
 // CleanupOnSetupFailure is a helper to cleanup on setup failure
@@ -271,7 +274,7 @@ func (bs *BaseSuite[Env]) CleanupOnSetupFailure() {
 	if err := recover(); err != nil || bs.T().Failed() {
 		bs.firstFailTest = "Initial provisioning SetupSuite" // This is required to handle skipDeleteOnFailure
 		defer func() {
-			bs.T().Logf("Calling TearDownSuite after SetupSuite failed with the following error: %v", err)
+			utils.Logf(bs.T(), "Calling TearDownSuite after SetupSuite failed with the following error: %v", err)
 			bs.TearDownSuite()
 			bs.T().Fatal("TearDownSuite called after SetupSuite failed")
 		}()
@@ -282,9 +285,9 @@ func (bs *BaseSuite[Env]) CleanupOnSetupFailure() {
 				// at least one test failed, diagnose the environment
 				diagnose, diagnoseErr := diagnosableEnv.Diagnose(bs.SessionOutputDir())
 				if diagnoseErr != nil {
-					bs.T().Logf("unable to diagnose environment: %v", diagnoseErr)
+					utils.Logf(bs.T(), "unable to diagnose environment: %v", diagnoseErr)
 				} else {
-					bs.T().Logf("Diagnose result:\n\n%s", diagnose)
+					utils.Logf(bs.T(), "Diagnose result:\n\n%s", diagnose)
 				}
 			}
 		}
@@ -381,11 +384,11 @@ func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
 
 func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.ProvisionerMap) error {
 	if reflect.DeepEqual(bs.currentProvisioners, targetProvisioners) {
-		bs.T().Logf("No change in provisioners, skipping environment update")
+		utils.Logf(bs.T(), "No change in provisioners, skipping environment update")
 		return nil
 	}
 
-	bs.T().Logf("Updating environment with new provisioners")
+	utils.Logf(bs.T(), "Updating environment with new provisioners")
 
 	logger := newTestLogger(bs.T())
 	ctx, cancel := bs.providerContext(createTimeout)
@@ -399,7 +402,7 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 	// Check for removed provisioners, we need to call delete on them first
 	for id, provisioner := range bs.currentProvisioners {
 		if _, found := targetProvisioners[id]; !found {
-			bs.T().Logf("Destroying stack %s with provisioner %s", bs.params.stackName, id)
+			utils.Logf(bs.T(), "Destroying stack %s with provisioner %s", bs.params.stackName, id)
 			if err := provisioner.Destroy(ctx, bs.params.stackName, logger); err != nil {
 				return fmt.Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
 			}
@@ -412,7 +415,7 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 		var provisionerResources provisioners.RawResources
 		var err error
 
-		bs.T().Logf("Provisioning environment stack %s with provisioner %s", bs.params.stackName, id)
+		utils.Logf(bs.T(), "Provisioning environment stack %s with provisioner %s", bs.params.stackName, id)
 		switch pType := provisioner.(type) {
 		case provisioners.TypedProvisioner[Env]:
 			provisionerResources, err = pType.ProvisionEnv(ctx, bs.params.stackName, logger, newEnv)
@@ -426,13 +429,13 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 			if diagnosableProvisioner, ok := provisioner.(provisioners.Diagnosable); ok {
 				stackName, err := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
 				if err != nil {
-					bs.T().Logf("unable to get stack name for diagnose, err: %v", err)
+					utils.Logf(bs.T(), "unable to get stack name for diagnose, err: %v", err)
 				} else {
 					diagnoseResult, diagnoseErr := diagnosableProvisioner.Diagnose(ctx, stackName)
 					if diagnoseErr != nil {
-						bs.T().Logf("WARNING: Diagnose failed: %v", diagnoseErr)
+						utils.Logf(bs.T(), "WARNING: Diagnose failed: %v", diagnoseErr)
 					} else if diagnoseResult != "" {
-						bs.T().Logf("Diagnose result: %s", diagnoseResult)
+						utils.Logf(bs.T(), "Diagnose result: %s", diagnoseResult)
 					}
 				}
 
@@ -441,6 +444,13 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 		}
 
 		resources.Merge(provisionerResources)
+	}
+
+	// After provisioning, refresh field values from newEnv to capture any changes made by provisioners
+	// (e.g., setting fields to nil when certain components aren't deployed)
+	envValue := reflect.ValueOf(newEnv)
+	for idx, field := range newEnvFields {
+		newEnvValues[idx] = envValue.Elem().FieldByIndex(field.Index)
 	}
 
 	// When INIT_ONLY is set, we only partially provision the environment so we do not want initialize the environment
@@ -600,10 +610,14 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 	// Create the root output directory for the test suite session
 	sessionDirectory, err := runner.GetProfile().CreateOutputSubDir(bs.getSuiteSessionSubdirectory())
 	if err != nil {
-		bs.T().Errorf("unable to create session output directory: %v", err)
+		if _, isNonFatalError := err.(runner.NonFatalError); isNonFatalError {
+			utils.Logf(bs.T(), "Non-fatal error encountered creating the session output directory: %v", err)
+		} else {
+			utils.Errorf(bs.T(), "unable to create session output directory: %v", err)
+		}
 	}
 	bs.outputDir = sessionDirectory
-	bs.T().Logf("Suite session output directory: %s", bs.outputDir)
+	utils.Logf(bs.T(), "Suite session output directory: %s", bs.outputDir)
 	// In `SetupSuite` we cannot fail as `TearDownSuite` will not be called otherwise.
 	// Meaning that stack clean up may not be called.
 	// We do implement an explicit recover to handle this manuallay.
@@ -672,7 +686,7 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 		testOutputDir := filepath.Join(bs.SessionOutputDir(), testPart)
 		err := os.MkdirAll(testOutputDir, 0755)
 		if err != nil {
-			bs.T().Logf("unable to create test output directory: %v", err)
+			utils.Logf(bs.T(), "unable to create test output directory: %v", err)
 		} else {
 			// run environment diagnose if the test failed
 			if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok && diagnosableEnv != nil {
@@ -680,9 +694,9 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 				bs.T().Logf("========= Some tests failed, diagnosing environment ==========")
 				diagnose, diagnoseErr := diagnosableEnv.Diagnose(testOutputDir)
 				if diagnoseErr != nil {
-					bs.T().Logf("unable to diagnose environment: %v", diagnoseErr)
+					utils.Logf(bs.T(), "unable to diagnose environment: %v", diagnoseErr)
 				} else {
-					bs.T().Logf("Diagnose result:\n\n%s", diagnose)
+					utils.Logf(bs.T(), "Diagnose result:\n\n%s", diagnose)
 				}
 				bs.T().Logf("========= Environment diagnosed ==========")
 			}
@@ -709,14 +723,14 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 	}
 
 	if bs.initOnly {
-		bs.T().Logf("INIT_ONLY is set, skipping deletion")
+		utils.Logf(bs.T(), "INIT_ONLY is set, skipping deletion")
 		return
 	}
 
 	if bs.coverage && !bs.params.disableCoverage {
 		err := bs.SaveCoverage(bs.coverageOutDir)
 		if err != nil {
-			bs.T().Errorf("fatal errors were encounterned while computing coverage: %v", err)
+			utils.Errorf(bs.T(), "fatal errors were encounterned while computing coverage: %v", err)
 		}
 
 		bs.attachMetadataToCoverage(bs.coverageOutDir)
@@ -735,44 +749,44 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 		// Run provisioner Diagnose before tearing down the stack
 		stackName, err := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
 		if err != nil {
-			bs.T().Logf("unable to get stack name for diagnose, err: %v", err)
+			utils.Logf(bs.T(), "unable to get stack name for diagnose, err: %v", err)
 			continue
 		}
 		if diagnosableProvisioner, ok := provisioner.(provisioners.Diagnosable); ok && !bs.teardownOnly {
-			bs.T().Logf("Running Diagnose for provisioner %s", id)
+			utils.Logf(bs.T(), "Running Diagnose for provisioner %s", id)
 			diagnoseResult, diagnoseErr := diagnosableProvisioner.Diagnose(ctx, stackName)
 			if diagnoseErr != nil {
-				bs.T().Logf("WARNING: Diagnose failed: %v", diagnoseErr)
+				utils.Logf(bs.T(), "WARNING: Diagnose failed: %v", diagnoseErr)
 			} else if diagnoseResult != "" {
-				bs.T().Logf("Diagnose result: %s", diagnoseResult)
+				utils.Logf(bs.T(), "Diagnose result: %s", diagnoseResult)
 			}
 		}
 
 		if bs.IsWithinCI() && os.Getenv("REMOTE_STACK_CLEANING") == "true" {
 			fullStackName := "organization/e2eci/" + stackName
-			bs.T().Logf("Remote stack cleaning enabled for stack %s", fullStackName)
+			utils.Logf(bs.T(), "Remote stack cleaning enabled for stack %s", fullStackName)
 
 			// If we are within CI, we let the stack be destroyed by the stackcleaner-worker service
 			// After 10s, the API will time out without an error, this can happen on high workload but the stack will still be created from the agent-ci-api
 			cmd := exec.Command("dda", "inv", "agent-ci-api", "stackcleaner/stack", "--env", "prod", "--ty", "stackcleaner_workflow_request", "--attrs", fmt.Sprintf("stack_name=%s,job_name=%s,job_id=%s,pipeline_id=%s,ref=%s,ignore_lock=bool:true,ignore_not_found=bool:false,cancel_first=bool:true", fullStackName, os.Getenv("CI_JOB_NAME"), os.Getenv("CI_JOB_ID"), os.Getenv("CI_PIPELINE_ID"), os.Getenv("CI_COMMIT_REF_NAME")), "--timeout", "10", "--ignore-timeout-error")
 			out, err := cmd.CombinedOutput()
 			if err != nil {
-				bs.T().Logf("WARNING: Unable to destroy stack %s: %s", stackName, out)
+				utils.Logf(bs.T(), "WARNING: Unable to destroy stack %s: %s", stackName, out)
 				_, err := bs.datadogClient.PostEvent(&datadog.Event{
 					Title: pointer.Ptr("Unable to destroy stack " + stackName),
 					Text:  pointer.Ptr(fmt.Sprintf("Unable to destroy stack %s: %s", stackName, out)),
 					Tags:  []string{"test:e2e", "stack:destroy", "stack_name:" + stackName, "service:stackcleaner-worker", "ci.job.name:" + os.Getenv("CI_JOB_NAME"), "ci.job.id:" + os.Getenv("CI_JOB_ID"), "ci.pipeline.id:" + os.Getenv("CI_PIPELINE_ID")},
 				})
 				if err != nil {
-					bs.T().Logf("Unable to post event: %v", err)
+					utils.Logf(bs.T(), "Unable to post event: %v", err)
 				}
 			} else {
-				bs.T().Logf("Stack %s will be cleaned up by the stackcleaner-worker service", fullStackName)
+				utils.Logf(bs.T(), "Stack %s will be cleaned up by the stackcleaner-worker service", fullStackName)
 			}
 		} else {
-			bs.T().Logf("Destroying stack %s with provisioner %s", bs.params.stackName, id)
+			utils.Logf(bs.T(), "Destroying stack %s with provisioner %s", bs.params.stackName, id)
 			if err := provisioner.Destroy(ctx, bs.params.stackName, newTestLogger(bs.T())); err != nil {
-				bs.T().Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
+				utils.Errorf(bs.T(), "unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
 			}
 		}
 	}
@@ -790,16 +804,16 @@ func (bs *BaseSuite[Env]) SaveCoverage(coverageDir string) error {
 		if _, err := os.Stat(coverageFolder); os.IsNotExist(err) {
 			err := os.MkdirAll(coverageFolder, 0755)
 			if err != nil {
-				bs.T().Logf("WARNING: Unable to create coverage folder: %v", err)
+				utils.Logf(bs.T(), "WARNING: Unable to create coverage folder: %v", err)
 			}
 		}
 		result, err := coverageEnv.Coverage(coverageFolder)
-		bs.T().Logf("Coverage result: %s", result)
+		utils.Logf(bs.T(), "Coverage result: %s", result)
 		if err != nil {
 			return err
 		}
 	} else {
-		bs.T().Logf("WARNING: Coverage is enabled but the environment does not implement the Coverageable interface")
+		utils.Logf(bs.T(), "WARNING: Coverage is enabled but the environment does not implement the Coverageable interface")
 		return nil
 	}
 	return nil
@@ -809,7 +823,7 @@ func (bs *BaseSuite[Env]) attachMetadataToCoverage(coverageDir string) {
 
 	rootTestName := strings.Split(bs.T().Name(), "/")[0]
 	if _, err := os.Stat(filepath.Join(coverageDir, strings.ToLower(rootTestName))); os.IsNotExist(err) {
-		bs.T().Logf("WARNING: Coverage folder %s does not exist", filepath.Join(coverageDir, strings.ToLower(rootTestName)))
+		utils.Logf(bs.T(), "WARNING: Coverage folder %s does not exist", filepath.Join(coverageDir, strings.ToLower(rootTestName)))
 		return
 	}
 
@@ -821,13 +835,13 @@ func (bs *BaseSuite[Env]) attachMetadataToCoverage(coverageDir string) {
 	metadataFilePath := filepath.Join(coverageDir, strings.ToLower(rootTestName), "metadata.json")
 	metadataFile, err := os.Create(metadataFilePath)
 	if err != nil {
-		bs.T().Logf("WARNING: Unable to create metadata file: %v", err)
+		utils.Logf(bs.T(), "WARNING: Unable to create metadata file: %v", err)
 		return
 	}
 	defer metadataFile.Close()
 	err = json.NewEncoder(metadataFile).Encode(metadata)
 	if err != nil {
-		bs.T().Logf("WARNING: Unable to encode metadata: %v", err)
+		utils.Logf(bs.T(), "WARNING: Unable to encode metadata: %v", err)
 	}
 }
 
@@ -843,7 +857,7 @@ func (bs *BaseSuite[Env]) SessionOutputDir() string {
 func Run[Env any, T Suite[Env]](t *testing.T, s T, options ...SuiteOption) {
 	devMode, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.DevMode, false)
 	if err != nil {
-		t.Logf("Unable to get DevMode value, DevMode will be disabled, error: %v", err)
+		utils.Logf(t, "Unable to get DevMode value, DevMode will be disabled, error: %v", err)
 	} else if devMode {
 		options = append(options, WithDevMode())
 	}

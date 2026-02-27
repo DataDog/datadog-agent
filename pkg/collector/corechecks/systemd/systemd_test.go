@@ -9,6 +9,7 @@ package systemd
 
 import (
 	"fmt"
+	"maps"
 	"math"
 	"slices"
 	"testing"
@@ -91,9 +92,7 @@ func getCreatePropertieWithDefaults(props map[string]interface{}) map[string]int
 		"MemoryAccounting": true,
 		"TasksAccounting":  true,
 	}
-	for k, v := range props {
-		defaultProps[k] = v
-	}
+	maps.Copy(defaultProps, props)
 	return defaultProps
 }
 

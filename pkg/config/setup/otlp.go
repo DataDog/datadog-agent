@@ -11,9 +11,10 @@ import (
 
 // OTLP configuration paths.
 const (
-	OTLPSection       = "otlp_config"
-	OTLPTracePort     = OTLPSection + ".traces.internal_port"
-	OTLPTracesEnabled = OTLPSection + ".traces.enabled"
+	OTLPSection                = "otlp_config"
+	OTLPTracePort              = OTLPSection + ".traces.internal_port"
+	OTLPTracesEnabled          = OTLPSection + ".traces.enabled"
+	OTLPTracesInfraAttrEnabled = OTLPSection + ".traces.infra_attributes.enabled"
 
 	OTLPLogs        = OTLPSection + ".logs"
 	OTLPLogsEnabled = OTLPLogs + ".enabled"
@@ -26,6 +27,17 @@ const (
 	OTLPMetricsBatch   = OTLPMetrics + ".batch"
 
 	OTLPDebug = OTLPSection + "." + "debug"
+
+	DataPlaneSection     = "data_plane"
+	DataPlaneEnabled     = DataPlaneSection + ".enabled"
+	DataPlaneOTLPSection = DataPlaneSection + ".otlp"
+	DataPlaneOTLPEnabled = DataPlaneOTLPSection + ".enabled"
+
+	DataPlaneOTLPProxySection = DataPlaneOTLPSection + ".proxy"
+	DataPlaneOTLPProxyEnabled = DataPlaneOTLPProxySection + ".enabled"
+
+	DataPlaneOTLPProxyReceiverSection               = DataPlaneOTLPProxySection + ".receiver"
+	DataPlaneOTLPProxyReceiverProtocolsGRPCEndpoint = DataPlaneOTLPProxyReceiverSection + ".protocols.grpc.endpoint"
 )
 
 // OTLP related configuration.
@@ -47,7 +59,6 @@ func OTLP(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("otlp_config.traces.enabled", true)
 	config.BindEnvAndSetDefault("otlp_config.traces.span_name_as_resource_name", false)
 	config.BindEnvAndSetDefault("otlp_config.traces.span_name_remappings", map[string]string{})
-	config.BindEnvAndSetDefault("otlp_config.traces.ignore_missing_datadog_fields", false, "DD_OTLP_CONFIG_IGNORE_MISSING_DATADOG_FIELDS")
 	config.BindEnvAndSetDefault("otlp_config.traces.probabilistic_sampler.sampling_percentage", 100.,
 		"DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE")
 	config.BindEnvAndSetDefault("otlp_config.traces.internal_port", 5003)
@@ -88,6 +99,8 @@ func OTLP(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("otlp_config.metrics.batch.min_size", 8192)
 	config.BindEnvAndSetDefault("otlp_config.metrics.batch.max_size", 0)
 	config.BindEnvAndSetDefault("otlp_config.metrics.batch.flush_timeout", "200ms")
+
+	config.BindEnvAndSetDefault("otlp_config.traces.infra_attributes.enabled", true)
 
 	// Debug settings
 	config.BindEnv("otlp_config.debug.verbosity") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'

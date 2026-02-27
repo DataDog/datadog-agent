@@ -58,6 +58,19 @@ var (
 	RunPath string
 )
 
+const (
+	// installerDataSecurityDescriptor is the security descriptor for DatadogInstallerData (C:\ProgramData\Datadog\Installer)
+	//
+	// Desired permissions:
+	//   - OWNER: Administrators
+	//   - GROUP: Administrators
+	//   - SYSTEM: Full Control (propagates to children)
+	//   - Administrators: Full Control (propagates to children)
+	//   - Everyone: 0x1200a9 List folder contents (propagates to container children only, so no access to file content)
+	//   - PROTECTED: does not inherit permissions from parent
+	installerDataSecurityDescriptor = "O:BAG:BAD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;CI;0x1200a9;;;WD)"
+)
+
 // securityInfo holds the security information extracted from a security
 // descriptor for use in Windows API calls such as SetNamedSecurityInfo.
 type securityInfo struct {
@@ -133,19 +146,15 @@ func createDirIfNotExists(path string) error {
 	return nil
 }
 
-// EnsureInstallerDataDir creates/updates the root directory for the installer data and sets permissions
+// SetupInstallerDataDir creates/updates the root directory for the installer data and sets permissions
 // to ensure that only Administrators have write access to the directory tree.
 //
-// bootstrap runs before the MSI, so it must create the directory with the correct permissions.
-func EnsureInstallerDataDir() error {
-	// Desired permissions:
-	// - OWNER: Administrators
-	// - GROUP: Administrators
-	// - SYSTEM: Full Control (propagates to children)
-	// - Administrators: Full Control (propagates to children)
-	// - Everyone: 0x1200a9 List folder contents (propagates to container children only, so no access to file content)
-	// - PROTECTED: does not inherit permissions from parent
-	sddl := "O:BAG:BAD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;CI;0x1200a9;;;WD)"
+// bootstrap/setup run before the MSI, so must create the directory with the correct permissions.
+//
+// This function is intended to be called only during initial setup, it requires special privileges and
+// recursively applies permissions to some subdirectories which can be expensive, see EnsureInstallerDataDir for an alternative.
+func SetupInstallerDataDir() error {
+	sddl := installerDataSecurityDescriptor
 
 	// The following privileges are required to modify the security descriptor,
 	// and are granted to Administrators by default:
@@ -207,6 +216,46 @@ func EnsureInstallerDataDir() error {
 	})
 }
 
+// EnsureInstallerDataDir is a minimal version of SetupInstallerDataDir, ensuring only the root directory is securely created.
+// subdirectories will inherit the secure permissions, but they may be overly restrictive until setup is run.
+//
+// It is meant to be safe to call frequently and outside of initial setup.
+func EnsureInstallerDataDir() error {
+	sddl := installerDataSecurityDescriptor
+
+	// fast path: if DatadogInstallerData exists and is secure
+	if IsDirSecure(DatadogInstallerData) == nil {
+		return nil
+	}
+	// Directory does not exist or is not secure, we need to create it
+
+	// check if DatadogDataDir exists
+	_, err := os.Stat(DatadogDataDir)
+	if errors.Is(err, fs.ErrNotExist) {
+		// DatadogDataDir does not exist, so we need to create it
+		// probably means the MSI has yet to run
+		// we'll create the directory with the restricted permissions
+		// the MSI will run and fix the permissions soon after
+		err = createDirectoryWithSDDL(DatadogDataDir, sddl)
+		if err != nil {
+			return fmt.Errorf("failed to create DatadogDataDir: %w", err)
+		}
+	}
+
+	// Enabling privileges can be audited/noisy and this function may be called frequently,
+	// so try to avoid enabling privileges if possible.
+	err = SecureCreateDirectory(DatadogInstallerData, sddl)
+	if err != nil {
+		// try again with privileges
+		privilegesRequired := []string{"SeTakeOwnershipPrivilege"}
+		return winio.RunWithPrivileges(privilegesRequired, func() error {
+			return SecureCreateDirectory(DatadogInstallerData, sddl)
+		})
+	}
+
+	return nil
+}
+
 // SecureCreateDirectory creates a directory with the specified SDDL string.
 //
 // If the directory already exists and it is owned by Administrators or SYSTEM, the permissions
@@ -259,7 +308,7 @@ func SecureCreateDirectory(path string, sddl string) error {
 // IsInstallerDataDirSecure return nil if the Datadog Installer data directory is owned by Administrators or SYSTEM,
 // otherwise an error is returned.
 //
-// CreateInstallerDataDir sets the owner to Administrators and is called during bootstrap.
+// SetupInstallerDataDir sets the owner to Administrators and is called during bootstrap.
 // Unprivileged users (users without SeTakeOwnershipPrivilege/SeRestorePrivilege) cannot set the owner to Administrators.
 func IsInstallerDataDirSecure() error {
 	targetDir := DatadogInstallerData

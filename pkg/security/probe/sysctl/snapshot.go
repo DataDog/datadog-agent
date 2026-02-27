@@ -95,7 +95,7 @@ func (s *Snapshot) Snapshot(ignoredBaseNames []string, kernelCompilationFlags ma
 	}
 
 	if err := s.snapshotSys(ignoredBaseNames); err != nil {
-		return fmt.Errorf("coudln't snapshot /sys: %w", err)
+		return fmt.Errorf("couldn't snapshot /sys: %w", err)
 	}
 
 	if err := s.snapshotCPUFlags(); err != nil {
@@ -114,17 +114,21 @@ func (s *Snapshot) Snapshot(ignoredBaseNames []string, kernelCompilationFlags ma
 
 // snapshotProcSys recursively reads files in /proc/sys and builds a nested JSON structure.
 func (s *Snapshot) snapshotProcSys(ignoredBaseNames []string) error {
-	return filepath.Walk(kernel.HostProc("/sys"), func(file string, info fs.FileInfo, err error) error {
+	return filepath.WalkDir(kernel.HostProc("/sys"), func(file string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		// Skip directories
-		if info.IsDir() {
+		if d.IsDir() {
 			return nil
 		}
 
 		// Skip if mode doesn't allow reading
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
 		mode := info.Mode()
 		if mode&0444 == 0 {
 			return nil
@@ -159,17 +163,21 @@ func (s *Snapshot) snapshotSys(ignoredBaseNames []string) error {
 	}
 
 	// fetch secure boot status, ignore when missing
-	_ = filepath.Walk(kernel.HostSys("/firmware/efi/efivars/"), func(file string, info fs.FileInfo, err error) error {
+	_ = filepath.WalkDir(kernel.HostSys("/firmware/efi/efivars/"), func(file string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		// Skip directories
-		if info.IsDir() {
+		if d.IsDir() {
 			return nil
 		}
 
 		// Skip if mode doesn't allow reading
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
 		mode := info.Mode()
 		if mode&0444 == 0 {
 			return nil
@@ -197,17 +205,21 @@ func (s *Snapshot) snapshotSys(ignoredBaseNames []string) error {
 	})
 
 	// add CPU vulnerabilities, ignore when missing
-	_ = filepath.Walk(kernel.HostSys("/devices/system/cpu/vulnerabilities"), func(file string, info fs.FileInfo, err error) error {
+	_ = filepath.WalkDir(kernel.HostSys("/devices/system/cpu/vulnerabilities"), func(file string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		// Skip directories
-		if info.IsDir() {
+		if d.IsDir() {
 			return nil
 		}
 
 		// Skip if mode doesn't allow reading
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
 		mode := info.Mode()
 		if mode&0444 == 0 {
 			return nil

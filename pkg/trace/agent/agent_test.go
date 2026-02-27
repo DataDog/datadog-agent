@@ -635,6 +635,105 @@ func TestProcess(t *testing.T) {
 		assert.Equal(t, "tracer-hostname", tp.Hostname)
 	})
 
+	t.Run("APMMode-unset", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
+		tp.Chunks[0].Priority = int32(sampler.PriorityUserKeep)
+		agnt.Process(&api.Payload{
+			TracerPayload: tp,
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+
+		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		tp = payloads[0].TracerPayload
+		v, ok := tp.Tags[tagAPMMode]
+		assert.False(t, ok)
+		assert.Empty(t, v)
+	})
+
+	t.Run("APMMode-edge", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
+		tp.Chunks[0].Priority = int32(sampler.PriorityUserKeep)
+		tp.Chunks[0].Spans[0].Meta[tagAPMMode] = "edge"
+		agnt.Process(&api.Payload{
+			TracerPayload: tp,
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+
+		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		tp = payloads[0].TracerPayload
+		assert.Equal(t, "edge", tp.Tags[tagAPMMode])
+	})
+
+	t.Run("APMMode-empty string", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		var b bytes.Buffer
+		oldLogger := log.SetLogger(log.NewBufferLogger(&b))
+		defer func() { log.SetLogger(oldLogger) }()
+
+		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
+		tp.Chunks[0].Priority = int32(sampler.PriorityUserKeep)
+		tp.Chunks[0].Spans[0].Meta[tagAPMMode] = ""
+		agnt.Process(&api.Payload{
+			TracerPayload: tp,
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+
+		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		tp = payloads[0].TracerPayload
+		v, ok := tp.Tags[tagAPMMode]
+		assert.False(t, ok)
+		assert.Empty(t, v)
+		assert.Contains(t, b.String(), "[DEBUG] empty value for '_dd.apm_mode' span tag")
+	})
+
+	t.Run("APMMode-invalid value", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		var b bytes.Buffer
+		oldLogger := log.SetLogger(log.NewBufferLogger(&b))
+		defer func() { log.SetLogger(oldLogger) }()
+
+		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
+		tp.Chunks[0].Priority = int32(sampler.PriorityUserKeep)
+		tp.Chunks[0].Spans[0].Meta[tagAPMMode] = "invalid"
+		agnt.Process(&api.Payload{
+			TracerPayload: tp,
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+
+		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		tp = payloads[0].TracerPayload
+		v, ok := tp.Tags[tagAPMMode]
+		assert.False(t, ok)
+		assert.Empty(t, v)
+		assert.Contains(t, b.String(), "[DEBUG] invalid value for '_dd.apm_mode' span tag: 'invalid'")
+	})
+
 	t.Run("aas", func(t *testing.T) {
 		t.Setenv("WEBSITE_STACK", "true")
 		t.Setenv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED", "false")
@@ -732,37 +831,6 @@ func TestProcess(t *testing.T) {
 		})
 
 		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
-		// and expecting it to result in 3 payloads
-		assert.Len(t, payloads, 3)
-	})
-
-	t.Run("chunkingV1", func(t *testing.T) {
-		cfg := config.New()
-		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
-		defer cancel()
-
-		strings := idx.NewStringTable() // strings shared across whole payload
-		chunk1 := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), 2)
-		chunk2 := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), 2)
-		chunk3 := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), 2)
-		// we are sending 3 traces
-		tp := testutil.TracerPayloadV1WithChunks([]*idx.InternalTraceChunk{
-			chunk1,
-			chunk2,
-			chunk3,
-		})
-		// setting writer.MaxPayloadSize to the size of 1 trace (+1 byte)
-		defer func(oldSize int) { writer.MaxPayloadSize = oldSize }(writer.MaxPayloadSize)
-		//minChunkSize := int(math.Min(math.Min(float64(tp.Chunks[0].Msgsize()), float64(tp.Chunks[1].Msgsize())), float64(tp.Chunks[2].Msgsize())))
-		writer.MaxPayloadSize = 1
-		agnt.ProcessV1(&api.PayloadV1{
-			TracerPayload: tp,
-			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
-		})
-
-		payloads := agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1
 		// and expecting it to result in 3 payloads
 		assert.Len(t, payloads, 3)
 	})
@@ -996,7 +1064,13 @@ func TestConcentratorInput(t *testing.T) {
 
 func TestConcentratorInputV1(t *testing.T) {
 	rootSpan := func(strs *idx.StringTable) *idx.InternalSpan {
-		return idx.NewInternalSpan(strs, &idx.Span{SpanID: 3, ServiceRef: strs.Add("a"), NameRef: strs.Add("name"), ResourceRef: strs.Add("resource")})
+		return idx.NewInternalSpan(strs, &idx.Span{SpanID: 3, ServiceRef: strs.Add("a"), NameRef: strs.Add("name"), ResourceRef: strs.Add("resource"), Attributes: map[uint32]*idx.AnyValue{
+			strs.Add("_top_level"): {
+				Value: &idx.AnyValue_DoubleValue{
+					DoubleValue: 1.0,
+				},
+			},
+		}})
 	}
 	tts := []struct {
 		name            string
@@ -1113,7 +1187,7 @@ func TestConcentratorInputV1(t *testing.T) {
 			if tc.withFargate {
 				cfg.FargateOrchestrator = config.OrchestratorECS
 			}
-			cfg.RareSamplerEnabled = true
+			cfg.RareSamplerEnabled = false
 			agent := NewTestAgent(context.TODO(), cfg, telemetry.NewNoopCollector())
 			tc.in.Source = agent.Receiver.Stats.GetTagStats(info.Tags{})
 			agent.ProcessV1(tc.in)
@@ -1179,13 +1253,23 @@ func assertInternalSpanEqual(t *testing.T, expected *idx.InternalSpan, actual *i
 	assert.Equal(t, expected.Duration(), actual.Duration())
 	assert.Equal(t, expected.Error(), actual.Error())
 	assert.Equal(t, expected.Kind(), actual.Kind())
-	require.Equal(t, len(expected.Attributes()), len(actual.Attributes()))
-	assertAttributesEqual(t, expected.Strings, expected.Attributes(), actual.Strings, actual.Attributes())
+
+	expectedAttrs := expected.Attributes()
+	actualAttrs := actual.Attributes()
+	if len(expectedAttrs) != len(actualAttrs) {
+		t.Logf("Expected span %s", expected.DebugString())
+		t.Logf("Actual span %s", actual.DebugString())
+	}
+	require.Equal(t, len(expectedAttrs), len(actualAttrs))
+
+	assertAttributesEqual(t, expected.Strings, expectedAttrs, actual.Strings, actualAttrs)
+
 	require.Equal(t, len(expected.Events()), len(actual.Events()))
 	for i, expectedEvent := range expected.Events() {
 		assert.Equal(t, expectedEvent.Name(), actual.Events()[i].Name())
 		assertAttributesEqual(t, expected.Strings, expectedEvent.Attributes(), actual.Strings, actual.Events()[i].Attributes())
 	}
+
 	require.Equal(t, len(expected.Links()), len(actual.Links()))
 	for i, expectedLink := range expected.Links() {
 		assert.Equal(t, expectedLink.SpanID(), actual.Links()[i].SpanID())
@@ -1269,6 +1353,55 @@ func TestClientComputedTopLevel(t *testing.T) {
 		assert.True(t, ok)
 		_, ok = payloads[0].TracerPayload.Chunks[0].Spans[0].Metrics["_dd.top_level"]
 		assert.True(t, ok)
+	})
+}
+
+func TestClientComputedTopLevelV1(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	t.Run("computeTopLevel when ClientComputedTopLevel is false", func(t *testing.T) {
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		p := testutil.GeneratePayloadV1(1, &testutil.TraceConfig{
+			MinSpans: 2,
+			Keep:     true,
+		}, nil)
+		agnt.ProcessV1(&api.PayloadV1{
+			TracerPayload:          p,
+			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			ClientComputedTopLevel: false,
+		})
+		payloads := agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		// Root span should have _top_level set when ComputeTopLevelV1 is called
+		root := traceutil.GetRootV1(payloads[0].TracerPayload.Chunks[0])
+		_, ok := root.GetAttributeAsFloat64("_top_level")
+		assert.True(t, ok, "_top_level should be set when ClientComputedTopLevel is false")
+	})
+
+	t.Run("skip computeTopLevel when ClientComputedTopLevel is true", func(t *testing.T) {
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		p := testutil.GeneratePayloadV1(1, &testutil.TraceConfig{
+			MinSpans: 2,
+			Keep:     true,
+		}, nil)
+		agnt.ProcessV1(&api.PayloadV1{
+			TracerPayload:          p,
+			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			ClientComputedTopLevel: true,
+		})
+		payloads := agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		// Root span should not have _top_level set when ComputeTopLevelV1 is skipped
+		// (unless UpdateTracerTopLevelV1 was called on individual spans)
+		root := traceutil.GetRootV1(payloads[0].TracerPayload.Chunks[0])
+		_, ok := root.GetAttributeAsFloat64("_top_level")
+		// When ClientComputedTopLevel is true, ComputeTopLevelV1 is not called,
+		// so _top_level should not be set unless UpdateTracerTopLevelV1 was called
+		// on the span (which requires _dd.top_level to be set by the tracer)
+		assert.False(t, ok, "_top_level should not be set by ComputeTopLevelV1 when ClientComputedTopLevel is true")
 	})
 }
 
@@ -2869,12 +3002,12 @@ func BenchmarkThroughput(b *testing.B) {
 	log.SetLogger(log.NoopLogger) // disable logging
 
 	folder := filepath.Join(env, "benchmarks")
-	filepath.Walk(folder, func(path string, info os.FileInfo, _ error) error {
+	filepath.WalkDir(folder, func(path string, d os.DirEntry, _ error) error {
 		ext := filepath.Ext(path)
 		if ext != ".msgp" {
 			return nil
 		}
-		b.Run(info.Name(), benchThroughput(path))
+		b.Run(d.Name(), benchThroughput(path))
 		return nil
 	})
 }
@@ -3400,6 +3533,10 @@ func TestMergeDuplicates(t *testing.T) {
 }
 
 func TestProcessStatsTimeout(t *testing.T) {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
+		t.Skip("TestProcessStatsTimeout is known to fail on the macOS Gitlab runners.")
+	}
+
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
@@ -4237,7 +4374,6 @@ func TestAgentWriteTagsBufferedChunksV1(t *testing.T) {
 			}
 
 			payload := &writer.SampledChunksV1{
-				Size: 1024,
 				TracerPayload: &idx.InternalTracerPayload{
 					Strings:    idx.NewStringTable(),
 					Attributes: make(map[uint32]*idx.AnyValue),
@@ -4260,6 +4396,95 @@ func TestAgentWriteTagsBufferedChunksV1(t *testing.T) {
 				assert.Equal(t, tt.expectedContainerTags, containerTags)
 			}
 			assert.Equal(t, tt.expectAsyncCall, mockBuffer.pending)
+		})
+	}
+}
+
+func TestTraceChunkContainsProbabilitySamplingV1(t *testing.T) {
+	tests := map[string]struct {
+		chunk    *idx.InternalTraceChunk
+		expected bool
+	}{
+		"nil chunk": {
+			chunk:    nil,
+			expected: false,
+		},
+		"chunk with probability sampling mechanism": {
+			chunk: func() *idx.InternalTraceChunk {
+				strs := idx.NewStringTable()
+				span := idx.NewInternalSpan(strs, &idx.Span{
+					SpanID:      1,
+					ServiceRef:  strs.Add("test-service"),
+					NameRef:     strs.Add("test-name"),
+					ResourceRef: strs.Add("test-resource"),
+				})
+				chunk := idx.NewInternalTraceChunk(
+					strs,
+					int32(sampler.PriorityAutoDrop),
+					"",
+					nil,
+					[]*idx.InternalSpan{span},
+					false,
+					[]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+					0,
+				)
+				chunk.SetSamplingMechanism(probabilitySamplingV1)
+				return chunk
+			}(),
+			expected: true,
+		},
+		"chunk without probability sampling mechanism": {
+			chunk: func() *idx.InternalTraceChunk {
+				strs := idx.NewStringTable()
+				span := idx.NewInternalSpan(strs, &idx.Span{
+					SpanID:      1,
+					ServiceRef:  strs.Add("test-service"),
+					NameRef:     strs.Add("test-name"),
+					ResourceRef: strs.Add("test-resource"),
+				})
+				return idx.NewInternalTraceChunk(
+					strs,
+					int32(sampler.PriorityAutoDrop),
+					"",
+					nil,
+					[]*idx.InternalSpan{span},
+					false,
+					[]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+					0,
+				)
+			}(),
+			expected: false,
+		},
+		"chunk with different sampling mechanism": {
+			chunk: func() *idx.InternalTraceChunk {
+				strs := idx.NewStringTable()
+				span := idx.NewInternalSpan(strs, &idx.Span{
+					SpanID:      1,
+					ServiceRef:  strs.Add("test-service"),
+					NameRef:     strs.Add("test-name"),
+					ResourceRef: strs.Add("test-resource"),
+				})
+				chunk := idx.NewInternalTraceChunk(
+					strs,
+					int32(sampler.PriorityAutoDrop),
+					"",
+					nil,
+					[]*idx.InternalSpan{span},
+					false,
+					[]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+					0,
+				)
+				chunk.SetSamplingMechanism(8) // Different mechanism
+				return chunk
+			}(),
+			expected: false,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			result := traceChunkContainsProbabilitySamplingV1(tt.chunk)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }

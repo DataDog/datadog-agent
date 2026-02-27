@@ -1,0 +1,53 @@
+---
+# internal_kubernetes_deploy stage
+# Contains jobs to trigger a pipeline in our k8s-datadog-agent-ops repo
+
+internal_kubernetes_deploy_experimental:
+  stage: internal_kubernetes_deploy
+  rules:
+    - if: '$DDR_WORKFLOW_ID != null && $CI_COMMIT_BRANCH == "main" && $CONDUCTOR_TARGET == "beta-build-staging"'
+      when: on_success
+  needs:
+    - job: publish_internal_container_image-jmx
+      artifacts: false
+    - job: publish_internal_container_image-ot_standalone
+      artifacts: false
+    - job: publish_internal_container_image-fips
+      artifacts: false
+    - job: publish_internal_dca_container_image
+      artifacts: false
+    - job: docker_build_agent7_windows
+      artifacts: false
+    - job: k8s-e2e-main # Currently only require container Argo workflow
+      artifacts: false
+      optional: true
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  retry: 0
+  variables:
+    BUNDLE_VERSION_OVERRIDE: "v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
+    AGENT_NIGHTLY_IMAGE_TAG: "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}"
+  script:
+    - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/k8s-datadog-agent-ops --git-ref main
+      --variable APPS
+      --variable BAZEL_TARGET
+      --variable DDR
+      --variable DDR_WORKFLOW_ID
+      --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS
+      --variable BUNDLE_VERSION_OVERRIDE
+      --variable AGENT_NIGHTLY_IMAGE_TAG"
+
+notify-slack:
+  stage: internal_kubernetes_deploy
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  rules:
+    - if: '$DDR_WORKFLOW_ID != null && $CI_COMMIT_BRANCH == "main" && $CONDUCTOR_TARGET == "beta-build-staging"'
+      when: on_success
+  tags: ["arch:arm64", "specific:true"]
+  needs: ["internal_kubernetes_deploy_experimental"]
+  allow_failure: true
+  script:
+    - export SDM_JWT=$(vault read -field=token identity/oidc/token/sdm)
+    - dda self dep sync -f legacy-tasks -f legacy-notifications
+    - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
+    - dda inv -- pipeline.changelog ${CI_COMMIT_SHORT_SHA} || exit $?

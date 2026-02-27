@@ -30,10 +30,10 @@ func newOptsWithParams(constants map[string]interface{}, legacyFields map[Field]
 	}
 
 	variables := map[string]SECLVariable{
-		"pid": NewScopedIntVariable(func(_ *Context) (int, bool) {
+		"pid": NewScopedIntVariable(func(_ *Context, _ bool) (int, bool) {
 			return os.Getpid(), true
 		}, nil),
-		"str": NewScopedStringVariable(func(_ *Context) (string, bool) {
+		"str": NewScopedStringVariable(func(_ *Context, _ bool) (string, bool) {
 			return "aaa", true
 		}, nil),
 	}
@@ -502,7 +502,7 @@ func TestPartial(t *testing.T) {
 
 	variables := make(map[string]SECLVariable)
 	variables["var"] = NewScopedBoolVariable(
-		func(_ *Context) (bool, bool) {
+		func(_ *Context, _ bool) (bool, bool) {
 			return false, true
 		},
 		func(_ *Context, _ interface{}) error {
@@ -942,6 +942,12 @@ func TestRegister(t *testing.T) {
 		{Expr: `process.list[A].value not in [~"ZZ*", "nnnnn"]`, Expected: true},
 		{Expr: `process.list[A].value not in [~"ZZ*", "AAA", "nnnnn"]`, Expected: true},
 		{Expr: `process.list[A].value not in [~"ZZ*", ~"AA*", "nnnnn"]`, Expected: true},
+
+		// StringArrayEvaluator in/not in StringArrayEvaluator — previously unhandled, would fail at compile time
+		{Expr: `process.list.value in process.array.value`, Expected: false}, // ["AAA","BBB","CCC"] ∩ ["EEEE","DDDD"] = ∅
+		{Expr: `process.list.value not in process.array.value`, Expected: true},
+		{Expr: `process.array.value in process.list.value`, Expected: false},
+		{Expr: `process.array.value not in process.list.value`, Expected: true},
 
 		{Expr: `process.list[A].key == 10 && process.list[A].value == "AAA"`, Expected: true},
 		{Expr: `process.list[A].key == 9999 && process.list[A].value == "AAA"`, Expected: false},
@@ -1473,6 +1479,85 @@ func TestFieldValues(t *testing.T) {
 		if values[0].Type != test.Expected.Type || values[0].Value != test.Expected.Value {
 			t.Errorf("field values differ %+v != %+v", test.Expected, values[0])
 		}
+	}
+}
+
+func TestFieldReferenceSyntax(t *testing.T) {
+	// Test the new %{field} syntax for explicit field references
+	event := &testEvent{
+		process: testProcess{
+			name: "test",
+			uid:  1000,
+			pid:  42,
+		},
+		open: testOpen{
+			filename: "/tmp/test",
+		},
+	}
+
+	tests := []struct {
+		Expr        string
+		Expected    bool
+		ShouldError bool
+		Desc        string
+	}{
+		{
+			Expr:     `%{process.name} == "test"`,
+			Expected: true,
+			Desc:     "field reference with %{} syntax",
+		},
+		{
+			Expr:     `%{process.uid} == 1000`,
+			Expected: true,
+			Desc:     "numeric field with %{} syntax",
+		},
+		{
+			Expr:     `"%{process.name}" == "test"`,
+			Expected: true,
+			Desc:     "field reference in string interpolation",
+		},
+		{
+			Expr:     `"%{process.name}:%{process.uid}" == "test:1000"`,
+			Expected: true,
+			Desc:     "multiple field references in string",
+		},
+		{
+			Expr:        `${process.pid} > 0`,
+			ShouldError: true,
+			Desc:        "variable syntax without variable should fail (no fallback)",
+		},
+		{
+			Expr:        `${nonexistent.variable} == "test"`,
+			ShouldError: true,
+			Desc:        "nonexistent variable should fail",
+		},
+		{
+			Expr:        `%{nonexistent.field} == "test"`,
+			ShouldError: true,
+			Desc:        "nonexistent field should fail",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Desc, func(t *testing.T) {
+			ctx := NewContext(event)
+
+			result, _, err := eval(ctx, test.Expr)
+			if test.ShouldError {
+				if err == nil {
+					t.Fatalf("expected error for `%s` but got none", test.Expr)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error while evaluating `%s`: %s", test.Expr, err)
+			}
+
+			if result != test.Expected {
+				t.Fatalf("expected result `%t` for `%s`, got `%t`", test.Expected, test.Expr, result)
+			}
+		})
 	}
 }
 

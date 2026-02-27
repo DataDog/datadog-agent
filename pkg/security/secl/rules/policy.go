@@ -14,7 +14,7 @@ import (
 	"slices"
 
 	"github.com/hashicorp/go-multierror"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
@@ -53,9 +53,12 @@ type PolicyRule struct {
 	Accepted bool
 	Error    error
 	// FilterType is used to keep track of the type of filter that caused the rule to be filtered out
-	FilterType  FilterType
-	Policy      PolicyInfo
-	ModifiedBy  []PolicyInfo
+	FilterType FilterType
+	// Policy includes policy information that might be updated when merging rules coming from multiple policies
+	Policy PolicyInfo
+	// ModifiedBy includes policy information of the rules that modified this rule (e.g. rule overrides or default rule activation)
+	ModifiedBy []PolicyInfo
+	// UsedBy includes policy information for all the policies that this rule is part of. These shouldn't change based when a rule is modified.
 	UsedBy      []PolicyInfo
 	EnableCount int // tracks the number of times the rule was enabled/disabled.It is only updated when merging conflicting rules.
 }
@@ -73,11 +76,6 @@ func (r *PolicyRule) AreActionsSupported(eventTypeEnabled map[eval.EventType]boo
 // Policies returns an iterator over the policies that this rule is part of.
 func (r *PolicyRule) Policies(includeInternalPolicies bool) iter.Seq[*PolicyInfo] {
 	return func(yield func(*PolicyInfo) bool) {
-		if !r.Policy.IsInternal || includeInternalPolicies {
-			if !yield(&r.Policy) {
-				return
-			}
-		}
 		for _, policy := range r.UsedBy {
 			if !policy.IsInternal || includeInternalPolicies {
 				if !yield(&policy) {
@@ -191,6 +189,8 @@ const (
 	DefaultPolicyType InternalPolicyType = "default"
 	// CustomPolicyType is the custom policy type
 	CustomPolicyType InternalPolicyType = "custom"
+	// RemediationPolicyType is the remediation policy type
+	RemediationPolicyType InternalPolicyType = "remediation"
 	// BundledPolicyType is the policy for internal use (bundled_policy_provider)
 	BundledPolicyType InternalPolicyType = "internal"
 	// SelftestPolicyType is the policy for self tests
@@ -205,7 +205,7 @@ type PolicyInfo struct {
 	Source string
 	// InternalType is the internal type of the policy
 	InternalType InternalPolicyType
-	// Type is the type of content served by the policy (e.g. "policy" for a default policy, "detection_pack" or empty for others)
+	// Type is the type of content served by the policy (e.g. "policy" for a default policy, "content_pack" or empty for others)
 	Type string
 	// Version is the version of the policy, this field is copied from the policy definition
 	Version string
@@ -322,7 +322,8 @@ RULES:
 		rule := &PolicyRule{
 			Def:      ruleDef,
 			Accepted: true,
-			Policy:   p.Info, // copy the policy information as it can be modified on a per-rule basis when merging rules from different policies
+			Policy:   p.Info,
+			UsedBy:   []PolicyInfo{p.Info}, // get a copy of the policy information in the UsedBy field as well as the Policy field can be modified on a per-rule basis when merging rules from different policies
 		}
 		p.Rules = append(p.Rules, rule)
 		for _, filter := range ruleFilters {

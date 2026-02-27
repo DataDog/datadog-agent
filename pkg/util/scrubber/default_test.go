@@ -380,11 +380,17 @@ func TestSNMPConfig(t *testing.T) {
 		`authkey: password`,
 		`authkey: "********"`)
 	assertClean(t,
+		`auth_key: password`,
+		`auth_key: "********"`)
+	assertClean(t,
 		`privKey: password`,
 		`privKey: "********"`)
 	assertClean(t,
 		`privkey: password`,
 		`privkey: "********"`)
+	assertClean(t,
+		`priv_key: password`,
+		`priv_key: "********"`)
 	assertClean(t,
 		`community_string: p@ssw0r)`,
 		`community_string: "********"`)
@@ -979,4 +985,11 @@ func TestNewHTTPHeaderAndExactKeys(t *testing.T) {
 	assertClean(t,
 		`some-other-key: also_not_scrubbed`,
 		`some-other-key: also_not_scrubbed`)
+}
+
+func TestPrivateActionRunnerPrivateKey(t *testing.T) {
+	// Test private action runner key configuration
+	assertClean(t,
+		`private_key: abc123def456`,
+		`private_key: "********"`)
 }

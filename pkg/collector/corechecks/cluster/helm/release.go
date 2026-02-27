@@ -42,7 +42,7 @@ type namespacedName string
 type revision int
 
 func (rel *release) namespacedName() namespacedName {
-	return namespacedName(fmt.Sprintf("%s/%s", rel.Namespace, rel.Name))
+	return namespacedName(rel.Namespace + "/" + rel.Name)
 }
 
 func (rel *release) revision() revision {

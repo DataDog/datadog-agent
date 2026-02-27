@@ -12,7 +12,7 @@ import (
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
@@ -26,17 +26,18 @@ import (
 )
 
 const (
-	provisionerBaseID = "aws-kind-"
+	provisionerBaseID = "local-kind-"
 	defaultVMName     = "kind"
 )
 
 // ProvisionerParams contains all the parameters needed to create the environment
 type ProvisionerParams struct {
-	name              string
-	agentOptions      []kubernetesagentparams.Option
-	fakeintakeOptions []fakeintake.Option
-	extraConfigParams runner.ConfigMap
-	workloadAppFuncs  []WorkloadAppFunc
+	name                string
+	agentOptions        []kubernetesagentparams.Option
+	fakeintakeOptions   []fakeintake.Option
+	extraConfigParams   runner.ConfigMap
+	workloadAppFuncs    []kubeComp.WorkloadAppFunc
+	depWorkloadAppFuncs []kubeComp.AgentDependentWorkloadAppFunc
 }
 
 func newProvisionerParams() *ProvisionerParams {
@@ -47,9 +48,6 @@ func newProvisionerParams() *ProvisionerParams {
 		extraConfigParams: runner.ConfigMap{},
 	}
 }
-
-// WorkloadAppFunc is a function that deploys a workload app to a kube provider
-type WorkloadAppFunc func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error)
 
 // ProvisionerOption is a function that modifies the ProvisionerParams
 type ProvisionerOption func(*ProvisionerParams) error
@@ -95,9 +93,17 @@ func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
 }
 
 // WithWorkloadApp adds a workload app to the environment
-func WithWorkloadApp(appFunc WorkloadAppFunc) ProvisionerOption {
+func WithWorkloadApp(appFunc kubeComp.WorkloadAppFunc) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.workloadAppFuncs = append(params.workloadAppFuncs, appFunc)
+		return nil
+	}
+}
+
+// WithAgentDependentWorkloadApp adds a workload app to the environment with the agent passed in
+func WithAgentDependentWorkloadApp(appFunc kubeComp.AgentDependentWorkloadAppFunc) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.depWorkloadAppFuncs = append(params.depWorkloadAppFuncs, appFunc)
 		return nil
 	}
 }
@@ -185,6 +191,13 @@ agents:
 		err = agent.Export(ctx, &env.Agent.KubernetesAgentOutput)
 		if err != nil {
 			return err
+		}
+		dependsOnDDAgent := utils.PulumiDependsOn(agent)
+		for _, appFunc := range params.depWorkloadAppFuncs {
+			_, err := appFunc(&localEnv, kubeProvider, dependsOnDDAgent)
+			if err != nil {
+				return err
+			}
 		}
 	} else {
 		env.Agent = nil

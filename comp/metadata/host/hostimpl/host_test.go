@@ -22,7 +22,6 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
-	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -61,15 +60,15 @@ func TestNewHostProviderIntervalValidation(t *testing.T) {
 		},
 		{
 			name:                 "both intervals invalid - too low",
-			mainInterval:         100,
-			earlyInterval:        50,
+			mainInterval:         30,
+			earlyInterval:        30,
 			expectedMaxInterval:  defaultCollectInterval,
 			expectedInitInterval: defaultEarlyInterval, // main invalid means whole provider ignored
 		},
 		{
 			name:                 "main valid, early invalid - too low",
 			mainInterval:         1800,
-			earlyInterval:        100,
+			earlyInterval:        30,
 			expectedMaxInterval:  1800 * time.Second,
 			expectedInitInterval: defaultEarlyInterval,
 		},
@@ -89,7 +88,7 @@ func TestNewHostProviderIntervalValidation(t *testing.T) {
 		},
 		{
 			name:                 "main invalid, early valid",
-			mainInterval:         100,
+			mainInterval:         30,
 			earlyInterval:        600,
 			expectedMaxInterval:  defaultCollectInterval,
 			expectedInitInterval: defaultEarlyInterval, // main invalid means whole provider ignored
@@ -106,11 +105,11 @@ func TestNewHostProviderIntervalValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			overrides := map[string]any{
-				"metadata_providers": []configUtils.MetadataProviders{
+				"metadata_providers": []map[string]interface{}{
 					{
-						Name:          "host",
-						Interval:      tt.mainInterval,
-						EarlyInterval: tt.earlyInterval,
+						"name":           "host",
+						"interval":       tt.mainInterval,
+						"early_interval": tt.earlyInterval,
 					},
 				},
 			}
@@ -138,9 +137,11 @@ func TestNewHostProviderIntervalValidation(t *testing.T) {
 
 func TestBackoffWhenEarlyIntervalEqualsCollectionInterval(t *testing.T) {
 	overrides := map[string]any{
-		"metadata_providers": []configUtils.MetadataProviders{{
-			Name: "host", Interval: 300, EarlyInterval: 300,
-		}},
+		"metadata_providers": []map[string]interface{}{
+			{
+				"name": "host", "interval": 300, "early_interval": 300,
+			},
+		},
 	}
 	ret := newHostProvider(fxutil.Test[dependencies](t,
 		fx.Provide(func() log.Component { return logmock.New(t) }),

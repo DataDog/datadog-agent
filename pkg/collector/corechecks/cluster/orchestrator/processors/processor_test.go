@@ -82,6 +82,8 @@ func (s *ProcessorTestSuite) testProcessScenario(scenario testProcessScenario) {
 					ClusterId:    scenario.inputProcessorContext.GetClusterID(),
 					GroupId:      scenario.inputProcessorContext.GetMsgGroupID(),
 					GroupSize:    1,
+					HostName:     scenario.inputProcessorContext.GetHostName(),
+					SystemInfo:   scenario.inputProcessorContext.GetSystemInfo(),
 					Manifests: []*model.Manifest{
 						{
 							ApiVersion:      "apiGroup/v1",

@@ -1,0 +1,67 @@
+# secret-connector - make the prebuilt compiler part of the distribution.
+
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+# Pull from the right repo, depending on build architecture.
+alias(
+    name = "secret_connector",
+    actual = select({
+        "//:linux_arm64": "@secret_connector_linux_arm64//:datadog-secret-backend",
+        "//:linux_x86_64": "@secret_connector_linux_x86_64//:datadog-secret-backend",
+        "//:macos_arm64": "@secret_connector_macos_arm64//:datadog-secret-backend",
+        "//:macos_x86_64": "@secret_connector_macos_x86_64//:datadog-secret-backend",
+        "//:windows_x86_64": "@secret_connector_windows_x86_64//:datadog-secret-backend.exe",
+    }),
+)
+
+posix_attributes = pkg_attributes(
+    group = "root",
+    mode = "0755",
+    owner = "root",
+)
+
+pkg_files(
+    name = "bin_files",
+    srcs = [":secret_connector"],
+    attributes = select({
+        "@platforms//os:windows": None,
+        "//conditions:default": posix_attributes,
+    }),
+    prefix = select({
+        "@platforms//os:windows": "bin/agent",
+        "//conditions:default": "embedded/bin",
+    }),
+    renames = select({
+        "@platforms//os:windows": {
+            ":secret_connector": "secret-generic-connector.exe",
+        },
+        "//conditions:default": {
+            ":secret_connector": "secret-generic-connector",
+        },
+    }),
+)
+
+pkg_files(
+    name = "license_file",
+    srcs = [":LICENSE"],
+    prefix = "LICENSES",
+    renames = {
+        "LICENSE": "secret-generic-connector-LICENSE",
+    },
+)
+
+pkg_filegroup(
+    name = "all_deps",
+    srcs = [
+        ":bin_files",
+        ":license_file",
+    ],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [":all_deps"],
+)

@@ -1,0 +1,9 @@
+issuer: https://vault.us1.staging.dog/v1/identity/oidc
+
+# ddtool auth whois --datacenter us1.staging.dog agent-delivery-agentrelease-worker --format json | jq -r .id
+subject_pattern: "20398f5e-272c-2812-8f22-f084f07f951c"
+claim_pattern:
+  name: "agent-delivery-agentrelease-worker"
+
+permissions:
+  contents: read

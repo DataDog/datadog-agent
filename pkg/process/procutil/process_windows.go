@@ -16,6 +16,8 @@ import (
 
 	"golang.org/x/sys/windows"
 
+	lru "github.com/hashicorp/golang-lru/v2"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pdhutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -43,6 +45,41 @@ var (
 	// PIDBufferIncrement is how much to increase the buffer size when it's too small
 	PIDBufferIncrement uint32 = 1024
 )
+
+var fileDescCache *lru.Cache[string, string]
+
+func init() {
+	var err error
+	fileDescCache, err = lru.New[string, string](512)
+	if err != nil {
+		log.Errorf("Failed to create file description cache: %v", err)
+	}
+}
+
+// getFileDescriptionCached gets the file description for a given executable path
+func getFileDescriptionCached(exePath string) string {
+	if exePath == "" {
+		return ""
+	}
+
+	// Check cache first
+	if cached, ok := fileDescCache.Get(exePath); ok {
+		return cached
+	}
+
+	// Cache miss - get from Windows API
+	desc, err := winutil.GetFileDescription(exePath)
+	if err != nil {
+		log.Debugf("Could not get file description for %s: %v", exePath, err)
+		// for now cache these as a blank string as it could mean they
+		// don't have a description
+		desc = ""
+	}
+
+	// Cache the result
+	fileDescCache.Add(exePath, desc)
+	return desc
+}
 
 // NewProcessProbe returns a Probe object
 func NewProcessProbe(...Option) Probe {
@@ -520,6 +557,7 @@ func fillProcessDetails(pid int32, proc *Process) error {
 		if processCmdParams != nil {
 			proc.Cmdline = ParseCmdLineArgs(processCmdParams.CmdLine)
 			proc.Exe = processCmdParams.ImagePath
+			proc.Comm = getFileDescriptionCached(processCmdParams.ImagePath)
 			if len(processCmdParams.CmdLine) > 0 && len(proc.Cmdline) == 0 {
 				log.Warnf("Failed to parse the cmdline:%s for pid:%d", processCmdParams.CmdLine, pid)
 			}

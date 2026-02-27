@@ -1,0 +1,45 @@
+- offset: "0x00012e80"
+  size: 8
+  kind: struct
+  nameEntry: main.aStructNotUsedAsAnArgument
+  name: main.aStructNotUsedAsAnArgument
+  pkg: main
+  ptrToThis: "0x00007420"
+  struct:
+    fields:
+    - name: a
+      type: int
+      offset: 0
+- offset: "0x00020e60"
+  size: 184
+  kind: struct
+  nameEntry: main.bigStruct
+  name: main.bigStruct
+  pkg: main
+  ptrToThis: "0x00007460"
+  struct:
+    fields:
+    - name: Field1 (exported)
+      type: int
+      offset: 0
+    - name: Field2 (exported)
+      type: int
+      offset: 8
+    - name: Field3 (exported)
+      type: int
+      offset: 16
+    - name: Field4 (exported)
+      type: int
+      offset: 24
+    - name: Field5 (exported)
+      type: int
+      offset: 32
+    - name: Field6 (exported)
+      type: int
+      offset: 40
+    - name: Field7 (exported)
+      type: int
+      offset: 48
+    - name: data
+      type: "[128]uint8"
+      offset: 56

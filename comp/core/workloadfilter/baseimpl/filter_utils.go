@@ -9,6 +9,7 @@ package baseimpl
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // filterSelection stores pre-computed filter lists to avoid recalculating them on every call
@@ -21,17 +22,19 @@ type filterSelection struct {
 	containerSharedMetric         [][]workloadfilter.ContainerFilter
 	containerPaused               [][]workloadfilter.ContainerFilter
 	containerSBOM                 [][]workloadfilter.ContainerFilter
+	containerCompliance           [][]workloadfilter.ContainerFilter
+	containerRuntimeSecurity      [][]workloadfilter.ContainerFilter
 
 	// Pod filters
 	podSharedMetric [][]workloadfilter.PodFilter
 
 	// Service filters
-	serviceAutodiscoveryGlobal  [][]workloadfilter.ServiceFilter
-	serviceAutodiscoveryMetrics [][]workloadfilter.ServiceFilter
+	serviceAutodiscoveryGlobal  [][]workloadfilter.KubeServiceFilter
+	serviceAutodiscoveryMetrics [][]workloadfilter.KubeServiceFilter
 
 	// Endpoint filters
-	endpointAutodiscoveryGlobal  [][]workloadfilter.EndpointFilter
-	endpointAutodiscoveryMetrics [][]workloadfilter.EndpointFilter
+	endpointAutodiscoveryGlobal  [][]workloadfilter.KubeEndpointFilter
+	endpointAutodiscoveryMetrics [][]workloadfilter.KubeEndpointFilter
 }
 
 // newFilterSelection creates a new filterSelection instance
@@ -50,6 +53,9 @@ func (pf *filterSelection) initializeSelections(cfg config.Component) {
 	pf.containerAutodiscoveryLogs = pf.computeContainerAutodiscoveryFilters(cfg, workloadfilter.LogsFilter)
 	pf.containerSharedMetric = pf.computeContainerSharedMetricFilters(cfg)
 
+	pf.containerCompliance = pf.computeContainerComplianceFilters(cfg)
+	pf.containerRuntimeSecurity = pf.computeContainerRuntimeSecurityFilters(pkgconfigsetup.SystemProbe())
+
 	// Initialize container paused and SBOM filters
 	pf.containerPaused = pf.computeContainerPausedFilters(cfg)
 	pf.containerSBOM = pf.computeContainerSBOMFilters(cfg)
@@ -58,12 +64,12 @@ func (pf *filterSelection) initializeSelections(cfg config.Component) {
 	pf.podSharedMetric = pf.computePodSharedMetricFilters(cfg)
 
 	// Initialize service filters
-	pf.serviceAutodiscoveryGlobal = pf.computeServiceAutodiscoveryFilters(cfg, workloadfilter.GlobalFilter)
-	pf.serviceAutodiscoveryMetrics = pf.computeServiceAutodiscoveryFilters(cfg, workloadfilter.MetricsFilter)
+	pf.serviceAutodiscoveryGlobal = pf.computeKubeServiceAutodiscoveryFilters(cfg, workloadfilter.GlobalFilter)
+	pf.serviceAutodiscoveryMetrics = pf.computeKubeServiceAutodiscoveryFilters(cfg, workloadfilter.MetricsFilter)
 
 	// Initialize endpoint filters
-	pf.endpointAutodiscoveryGlobal = pf.computeEndpointAutodiscoveryFilters(cfg, workloadfilter.GlobalFilter)
-	pf.endpointAutodiscoveryMetrics = pf.computeEndpointAutodiscoveryFilters(cfg, workloadfilter.MetricsFilter)
+	pf.endpointAutodiscoveryGlobal = pf.computeKubeEndpointAutodiscoveryFilters(cfg, workloadfilter.GlobalFilter)
+	pf.endpointAutodiscoveryMetrics = pf.computeKubeEndpointAutodiscoveryFilters(cfg, workloadfilter.MetricsFilter)
 }
 
 // GetContainerAutodiscoveryFilters returns pre-computed container autodiscovery filters
@@ -80,28 +86,8 @@ func (pf *filterSelection) GetContainerAutodiscoveryFilters(filterScope workload
 	}
 }
 
-// GetContainerSharedMetricFilters returns pre-computed container shared metric filters
-func (pf *filterSelection) GetContainerSharedMetricFilters() [][]workloadfilter.ContainerFilter {
-	return pf.containerSharedMetric
-}
-
-// GetContainerPausedFilters returns pre-computed container paused filters
-func (pf *filterSelection) GetContainerPausedFilters() [][]workloadfilter.ContainerFilter {
-	return pf.containerPaused
-}
-
-// GetContainerSBOMFilters returns pre-computed container SBOM filters
-func (pf *filterSelection) GetContainerSBOMFilters() [][]workloadfilter.ContainerFilter {
-	return pf.containerSBOM
-}
-
-// GetPodSharedMetricFilters returns pre-computed pod shared metric filters
-func (pf *filterSelection) GetPodSharedMetricFilters() [][]workloadfilter.PodFilter {
-	return pf.podSharedMetric
-}
-
-// GetServiceAutodiscoveryFilters returns pre-computed service autodiscovery filters
-func (pf *filterSelection) GetServiceAutodiscoveryFilters(filterScope workloadfilter.Scope) [][]workloadfilter.ServiceFilter {
+// GetKubeServiceAutodiscoveryFilters returns pre-computed service autodiscovery filters
+func (pf *filterSelection) GetServiceAutodiscoveryFilters(filterScope workloadfilter.Scope) [][]workloadfilter.KubeServiceFilter {
 	switch filterScope {
 	case workloadfilter.GlobalFilter:
 		return pf.serviceAutodiscoveryGlobal
@@ -112,8 +98,8 @@ func (pf *filterSelection) GetServiceAutodiscoveryFilters(filterScope workloadfi
 	}
 }
 
-// GetEndpointAutodiscoveryFilters returns pre-computed endpoint autodiscovery filters
-func (pf *filterSelection) GetEndpointAutodiscoveryFilters(filterScope workloadfilter.Scope) [][]workloadfilter.EndpointFilter {
+// GetKubeEndpointAutodiscoveryFilters returns pre-computed endpoint autodiscovery filters
+func (pf *filterSelection) GetEndpointAutodiscoveryFilters(filterScope workloadfilter.Scope) [][]workloadfilter.KubeEndpointFilter {
 	switch filterScope {
 	case workloadfilter.GlobalFilter:
 		return pf.endpointAutodiscoveryGlobal
@@ -204,19 +190,19 @@ func (pf *filterSelection) computePodSharedMetricFilters(_ config.Component) [][
 	return [][]workloadfilter.PodFilter{{workloadfilter.PodADAnnotations, workloadfilter.PodADAnnotationsMetrics}, {workloadfilter.PodLegacyMetrics, workloadfilter.PodLegacyGlobal, workloadfilter.PodCELGlobal, workloadfilter.PodCELMetrics}}
 }
 
-// computeServiceAutodiscoveryFilters computes service autodiscovery filters
-func (pf *filterSelection) computeServiceAutodiscoveryFilters(_ config.Component, filterScope workloadfilter.Scope) [][]workloadfilter.ServiceFilter {
-	flist := make([][]workloadfilter.ServiceFilter, 2)
+// computeKubeServiceAutodiscoveryFilters computes service autodiscovery filters
+func (pf *filterSelection) computeKubeServiceAutodiscoveryFilters(_ config.Component, filterScope workloadfilter.Scope) [][]workloadfilter.KubeServiceFilter {
+	flist := make([][]workloadfilter.KubeServiceFilter, 2)
 
-	high := []workloadfilter.ServiceFilter{workloadfilter.ServiceADAnnotations}
-	low := []workloadfilter.ServiceFilter{workloadfilter.ServiceCELGlobal}
+	high := []workloadfilter.KubeServiceFilter{workloadfilter.KubeServiceADAnnotations}
+	low := []workloadfilter.KubeServiceFilter{workloadfilter.KubeServiceCELGlobal}
 
 	switch filterScope {
 	case workloadfilter.MetricsFilter:
-		high = append(high, workloadfilter.ServiceADAnnotationsMetrics)
-		low = append(low, workloadfilter.ServiceLegacyMetrics, workloadfilter.ServiceCELMetrics)
+		high = append(high, workloadfilter.KubeServiceADAnnotationsMetrics)
+		low = append(low, workloadfilter.KubeServiceLegacyMetrics, workloadfilter.KubeServiceCELMetrics)
 	case workloadfilter.GlobalFilter:
-		low = append(low, workloadfilter.ServiceLegacyGlobal)
+		low = append(low, workloadfilter.KubeServiceLegacyGlobal)
 	}
 
 	flist[0] = high // highPrecedence
@@ -225,19 +211,19 @@ func (pf *filterSelection) computeServiceAutodiscoveryFilters(_ config.Component
 	return flist
 }
 
-// computeEndpointAutodiscoveryFilters computes endpoint autodiscovery filters
-func (pf *filterSelection) computeEndpointAutodiscoveryFilters(_ config.Component, filterScope workloadfilter.Scope) [][]workloadfilter.EndpointFilter {
-	flist := make([][]workloadfilter.EndpointFilter, 2)
+// computeKubeEndpointAutodiscoveryFilters computes endpoint autodiscovery filters
+func (pf *filterSelection) computeKubeEndpointAutodiscoveryFilters(_ config.Component, filterScope workloadfilter.Scope) [][]workloadfilter.KubeEndpointFilter {
+	flist := make([][]workloadfilter.KubeEndpointFilter, 2)
 
-	high := []workloadfilter.EndpointFilter{workloadfilter.EndpointADAnnotations}
-	low := []workloadfilter.EndpointFilter{workloadfilter.EndpointCELGlobal}
+	high := []workloadfilter.KubeEndpointFilter{workloadfilter.KubeEndpointADAnnotations}
+	low := []workloadfilter.KubeEndpointFilter{workloadfilter.KubeEndpointCELGlobal}
 
 	switch filterScope {
 	case workloadfilter.MetricsFilter:
-		high = append(high, workloadfilter.EndpointADAnnotationsMetrics)
-		low = append(low, workloadfilter.EndpointLegacyMetrics, workloadfilter.EndpointCELMetrics)
+		high = append(high, workloadfilter.KubeEndpointADAnnotationsMetrics)
+		low = append(low, workloadfilter.KubeEndpointLegacyMetrics, workloadfilter.KubeEndpointCELMetrics)
 	case workloadfilter.GlobalFilter:
-		low = append(low, workloadfilter.EndpointLegacyGlobal)
+		low = append(low, workloadfilter.KubeEndpointLegacyGlobal)
 	default:
 	}
 
@@ -245,4 +231,22 @@ func (pf *filterSelection) computeEndpointAutodiscoveryFilters(_ config.Componen
 	flist[1] = low  // lowPrecedence
 
 	return flist
+}
+
+// computeContainerComplianceFilters computes container compliance filters
+func (pf *filterSelection) computeContainerComplianceFilters(cfg config.Component) [][]workloadfilter.ContainerFilter {
+	flist := []workloadfilter.ContainerFilter{workloadfilter.ContainerLegacyCompliance}
+	if cfg.GetBool("compliance_config.exclude_pause_container") {
+		flist = append(flist, workloadfilter.ContainerPaused)
+	}
+	return [][]workloadfilter.ContainerFilter{flist}
+}
+
+// computeContainerRuntimeSecurityFilters computes container runtime security filters
+func (pf *filterSelection) computeContainerRuntimeSecurityFilters(cfg config.Component) [][]workloadfilter.ContainerFilter {
+	flist := []workloadfilter.ContainerFilter{workloadfilter.ContainerLegacyRuntimeSecurity}
+	if cfg.GetBool("runtime_security_config.exclude_pause_container") {
+		flist = append(flist, workloadfilter.ContainerPaused)
+	}
+	return [][]workloadfilter.ContainerFilter{flist}
 }

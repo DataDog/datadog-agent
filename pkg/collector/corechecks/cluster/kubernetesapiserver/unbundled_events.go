@@ -76,7 +76,7 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 		collectedByDefault := false
 		if c.filteringEnabled {
 			if !shouldCollectByDefault(ev) {
-				source = fmt.Sprintf("%s_%s", source, customEventSourceSuffix)
+				source = source + "_" + customEventSourceSuffix
 			} else {
 				collectedByDefault = true
 			}

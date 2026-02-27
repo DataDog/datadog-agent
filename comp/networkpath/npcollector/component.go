@@ -6,11 +6,15 @@
 // Package npcollector used to manage network paths
 package npcollector
 
-import model "github.com/DataDog/agent-payload/v5/process"
+import (
+	"iter"
 
-// team: cloud-network-monitoring network-path
+	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
+)
+
+// team: network-path
 
 // Component is the component type.
 type Component interface {
-	ScheduleConns(conns *model.Connections)
+	ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection])
 }

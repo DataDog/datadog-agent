@@ -7,13 +7,14 @@ package config
 
 import (
 	"crypto/ecdsa"
-	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -21,46 +22,42 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
-const (
-	maxBackoff                   = 3 * time.Minute
-	minBackoff                   = 1 * time.Second
-	maxAttempts                  = 20
-	waitBeforeRetry              = 5 * time.Minute
-	loopInterval                 = 1 * time.Second
-	opmsRequestTimeout           = 30_000
-	runnerPoolSize               = 1
-	defaultHealthCheckEndpoint   = "/healthz"
-	healthCheckInterval          = 30_000
-	defaultHTTPServerReadTimeout = 10_000
-	// defaultHTTPServerWriteTimeout defines how long a request is allowed to run for after the HTTP connection is established. If actions are timing out often, `httpServerWriteTimeout` can be adjusted in config.yaml to override this value. See the Golang docs under `WriteTimeout` for more information about how the server uses this value - https://pkg.go.dev/net/http#Server
-	defaultHTTPServerWriteTimeout = 60_000
-	runnerAccessTokenHeader       = "X-Datadog-Apps-On-Prem-Runner-Access-Token"
-	runnerAccessTokenIDHeader     = "X-Datadog-Apps-On-Prem-Runner-Access-Token-ID"
-	defaultPort                   = 9016
-	defaultJwtRefreshInterval     = 15 * time.Second
-	heartbeatInterval             = 20 * time.Second
-)
-
 func FromDDConfig(config config.Component) (*Config, error) {
-	ddSite := config.GetString("site")
-	encodedPrivateKey := config.GetString("privateactionrunner.private_key")
-	urn := config.GetString("privateactionrunner.urn")
+	mainEndpoint := configutils.GetMainEndpoint(config, "https://api.", "dd_url")
+	ddHost := getDatadogHost(mainEndpoint)
+	ddSite := configutils.ExtractSiteFromURL(mainEndpoint)
+	encodedPrivateKey := config.GetString(setup.PARPrivateKey)
+	urn := config.GetString(setup.PARUrn)
 
-	if encodedPrivateKey == "" {
-		return nil, errors.New("private action runner not configured: either run enrollment or provide privateactionrunner.private_key")
-	}
-	privateKey, err := util.Base64ToJWK(encodedPrivateKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode privateactionrunner.private_key: %w", err)
-	}
-
-	if urn == "" {
-		return nil, errors.New("private action runner not configured: URN is required")
+	var privateKey *ecdsa.PrivateKey
+	if encodedPrivateKey != "" {
+		jwk, err := util.Base64ToJWK(encodedPrivateKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode %s: %w", setup.PARPrivateKey, err)
+		}
+		privateKey = jwk.Key.(*ecdsa.PrivateKey)
 	}
 
-	orgID, runnerID, err := parseURN(urn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse URN: %w", err)
+	var orgID int64
+	var runnerID string
+	// allow empty urn for self-enrollment
+	if urn != "" {
+		urnParts, err := util.ParseRunnerURN(urn)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse URN: %w", err)
+		}
+		orgID = urnParts.OrgID
+		runnerID = urnParts.RunnerID
+	}
+
+	var taskTimeoutSeconds *int32
+	if v := config.GetInt32(setup.PARTaskTimeoutSeconds); v != 0 {
+		taskTimeoutSeconds = &v
+	}
+
+	httpTimeout := defaultHTTPClientTimeout
+	if v := config.GetInt32(setup.PARHttpTimeoutSeconds); v != 0 {
+		httpTimeout = time.Duration(v) * time.Second
 	}
 
 	return &Config{
@@ -70,10 +67,12 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		WaitBeforeRetry:           waitBeforeRetry,
 		LoopInterval:              loopInterval,
 		OpmsRequestTimeout:        opmsRequestTimeout,
-		RunnerPoolSize:            runnerPoolSize,
+		RunnerPoolSize:            config.GetInt32(setup.PARTaskConcurrency),
 		HealthCheckInterval:       healthCheckInterval,
 		HttpServerReadTimeout:     defaultHTTPServerReadTimeout,
 		HttpServerWriteTimeout:    defaultHTTPServerWriteTimeout,
+		HTTPTimeout:               httpTimeout,
+		TaskTimeoutSeconds:        taskTimeoutSeconds,
 		RunnerAccessTokenHeader:   runnerAccessTokenHeader,
 		RunnerAccessTokenIdHeader: runnerAccessTokenIDHeader,
 		Port:                      defaultPort,
@@ -82,40 +81,73 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		HeartbeatInterval:         heartbeatInterval,
 		Version:                   version.AgentVersion,
 		MetricsClient:             &statsd.NoOpClient{},
-		ActionsAllowlist:          make(map[string]sets.Set[string]),
-		Allowlist:                 strings.Split(config.GetString("privateactionrunner.allowlist"), ","),
-		AllowIMDSEndpoint:         config.GetBool("privateactionrunner.allow_imds_endpoint"),
-		DDHost:                    strings.Join([]string{"api", ddSite}, "."),
+		ActionsAllowlist:          makeActionsAllowlist(config),
+		Allowlist:                 config.GetStringSlice(setup.PARHttpAllowlist),
+		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
+		DDHost:                    ddHost,
+		DDApiHost:                 ddHost,
 		Modes:                     []modes.Mode{modes.ModePull},
 		OrgId:                     orgID,
-		PrivateKey:                privateKey.Key.(*ecdsa.PrivateKey),
+		PrivateKey:                privateKey,
 		RunnerId:                  runnerID,
 		Urn:                       urn,
 		DatadogSite:               ddSite,
 	}, nil
 }
 
-// parseURN parses a URN in the format urn:dd:apps:on-prem-runner:{region}:{org_id}:{runner_id}
-// and returns the org_id and runner_id
-func parseURN(urn string) (int64, string, error) {
-	parts := strings.Split(urn, ":")
-	if len(parts) != 7 {
-		return 0, "", fmt.Errorf("invalid URN format: expected 6 parts separated by ':', got %d", len(parts))
+func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
+	allowlist := make(map[string]sets.Set[string])
+	actionFqns := config.GetStringSlice(setup.PARActionsAllowlist)
+	for _, fqn := range actionFqns {
+		bundleName, actionName := actions.SplitFQN(fqn)
+		previous, ok := allowlist[bundleName]
+		if !ok {
+			previous = sets.New[string]()
+		}
+		allowlist[bundleName] = previous.Insert(actionName)
 	}
 
-	if parts[0] != "urn" || parts[1] != "dd" || parts[2] != "apps" || parts[3] != "on-prem-runner" {
-		return 0, "", fmt.Errorf("invalid URN format: expected 'urn:dd:apps:on-prem-runner', got '%s:%s:%s:%s'", parts[0], parts[1], parts[2], parts[3])
+	bundleInheritedActions := GetBundleInheritedAllowedActions(allowlist)
+	for bundleID, actionsSet := range bundleInheritedActions {
+		allowlist[bundleID] = allowlist[bundleID].Union(actionsSet)
 	}
 
-	orgID, err := strconv.ParseInt(parts[5], 10, 64)
-	if err != nil {
-		return 0, "", fmt.Errorf("invalid org_id in URN: %w", err)
+	return allowlist
+}
+
+// getDatadogHost extracts and normalizes the Datadog host from the main endpoint.
+// It removes the "https://" prefix and any trailing "." from the endpoint URL.
+func getDatadogHost(endpoint string) string {
+	host := strings.TrimSuffix(endpoint, ".")
+	host = strings.TrimPrefix(host, "https://")
+	return host
+}
+
+func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[string]) map[string]sets.Set[string] {
+	result := make(map[string]sets.Set[string])
+
+	for _, inheritedAction := range BundleInheritedAllowedActions {
+		actionBundleID, actionName := actions.SplitFQN(inheritedAction.ActionFQN)
+		actionBundleID = strings.ToLower(actionBundleID)
+		prefix := strings.ToLower(inheritedAction.ExpectedPrefix)
+
+		matched := false
+		for bundleID, actionsSet := range actionsAllowlist {
+			if actionsSet.Len() > 0 && strings.HasPrefix(bundleID, prefix) {
+				matched = true
+				break
+			}
+		}
+
+		if !matched {
+			continue
+		}
+
+		if _, exists := result[actionBundleID]; !exists {
+			result[actionBundleID] = sets.New[string]()
+		}
+		result[actionBundleID].Insert(actionName)
 	}
 
-	runnerID := parts[6]
-	if runnerID == "" {
-		return 0, "", errors.New("runner_id cannot be empty in URN")
-	}
-
-	return orgID, runnerID, nil
+	return result
 }

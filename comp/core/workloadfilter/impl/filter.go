@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	implbase "github.com/DataDog/datadog-agent/comp/core/workloadfilter/baseimpl"
@@ -36,15 +37,17 @@ type Requires struct {
 type Provides struct {
 	compdef.Out
 
-	Comp workloadfilter.Component
+	Comp          workloadfilter.Component
+	FlareProvider flaretypes.Provider
 }
 
 // NewComponent returns a new local workloadfilter client
 func NewComponent(req Requires) (Provides, error) {
-	filterInstance := newFilter(req.Config, req.Log, req.Telemetry)
+	localFilter := newFilter(req.Config, req.Log, req.Telemetry)
 
 	return Provides{
-		Comp: filterInstance,
+		Comp:          localFilter,
+		FlareProvider: flaretypes.NewProvider(localFilter.FlareCallback),
 	}, nil
 }
 
@@ -60,26 +63,26 @@ func newFilter(cfg config.Component, logger logcomp.Component, telemetry coretel
 	// Register filter programs that can only be computed locally on the the core Agent.
 
 	// Container Filters
-	localFilter.RegisterFactory(workloadfilter.ContainerType, string(workloadfilter.ContainerCELMetrics), catalog.ContainerCELMetricsProgram)
-	localFilter.RegisterFactory(workloadfilter.ContainerType, string(workloadfilter.ContainerCELLogs), catalog.ContainerCELLogsProgram)
-	localFilter.RegisterFactory(workloadfilter.ContainerType, string(workloadfilter.ContainerCELSBOM), catalog.ContainerCELSBOMProgram)
-	localFilter.RegisterFactory(workloadfilter.ContainerType, string(workloadfilter.ContainerCELGlobal), catalog.ContainerCELGlobalProgram)
+	localFilter.RegisterFactory(workloadfilter.ContainerCELMetrics, catalog.ContainerCELMetricsProgram)
+	localFilter.RegisterFactory(workloadfilter.ContainerCELLogs, catalog.ContainerCELLogsProgram)
+	localFilter.RegisterFactory(workloadfilter.ContainerCELSBOM, catalog.ContainerCELSBOMProgram)
+	localFilter.RegisterFactory(workloadfilter.ContainerCELGlobal, catalog.ContainerCELGlobalProgram)
 
 	// Service Filters
-	localFilter.RegisterFactory(workloadfilter.ServiceType, string(workloadfilter.ServiceCELMetrics), catalog.ServiceCELMetricsProgram)
-	localFilter.RegisterFactory(workloadfilter.ServiceType, string(workloadfilter.ServiceCELGlobal), catalog.ServiceCELGlobalProgram)
+	localFilter.RegisterFactory(workloadfilter.KubeServiceCELMetrics, catalog.ServiceCELMetricsProgram)
+	localFilter.RegisterFactory(workloadfilter.KubeServiceCELGlobal, catalog.ServiceCELGlobalProgram)
 
 	// Endpoints Filters
-	localFilter.RegisterFactory(workloadfilter.EndpointType, string(workloadfilter.EndpointCELMetrics), catalog.EndpointCELMetricsProgram)
-	localFilter.RegisterFactory(workloadfilter.EndpointType, string(workloadfilter.EndpointCELGlobal), catalog.EndpointCELGlobalProgram)
+	localFilter.RegisterFactory(workloadfilter.KubeEndpointCELMetrics, catalog.EndpointCELMetricsProgram)
+	localFilter.RegisterFactory(workloadfilter.KubeEndpointCELGlobal, catalog.EndpointCELGlobalProgram)
 
 	// Pod Filters
-	localFilter.RegisterFactory(workloadfilter.PodType, string(workloadfilter.PodCELMetrics), catalog.PodCELMetricsProgram)
-	localFilter.RegisterFactory(workloadfilter.PodType, string(workloadfilter.PodCELGlobal), catalog.PodCELGlobalProgram)
+	localFilter.RegisterFactory(workloadfilter.PodCELMetrics, catalog.PodCELMetricsProgram)
+	localFilter.RegisterFactory(workloadfilter.PodCELGlobal, catalog.PodCELGlobalProgram)
 
 	// Process Filters
-	localFilter.RegisterFactory(workloadfilter.ProcessType, string(workloadfilter.ProcessCELLogs), catalog.ProcessCELLogsProgram)
-	localFilter.RegisterFactory(workloadfilter.ProcessType, string(workloadfilter.ProcessCELGlobal), catalog.ProcessCELGlobalProgram)
+	localFilter.RegisterFactory(workloadfilter.ProcessCELLogs, catalog.ProcessCELLogsProgram)
+	localFilter.RegisterFactory(workloadfilter.ProcessCELGlobal, catalog.ProcessCELGlobalProgram)
 
 	return localFilter
 }

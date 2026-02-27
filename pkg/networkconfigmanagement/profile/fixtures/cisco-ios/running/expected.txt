@@ -1,0 +1,115 @@
+version 15.7
+service timestamps debug datetime msec
+service timestamps log datetime msec
+service password-encryption
+no service pad
+!
+hostname LAB-EDGE-01
+!
+boot-start-marker
+boot-end-marker
+!
+enable secret 5 <secret hidden>
+enable password 7 <secret hidden>
+!
+username admin privilege 15 secret 5 <secret hidden>
+username ops password 0 <secret hidden>
+username guest password 7 <secret hidden>
+!
+aaa new-model
+aaa authentication login default local
+!
+ip domain-name lab.example.net
+crypto key generate rsa modulus 2048
+ip ssh version 2
+!
+! ---- SNMP (communities and hosts) ------------------------------------
+snmp-server community <secret hidden>
+snmp-server community <secret hidden>
+snmp-server host 10.0.0.5 version 2c <secret hidden>
+snmp-server host 10.0.0.6 vrf Mgmt-vrf informs version 2c <secret hidden> udp-port 162
+snmp-server location LAB-DC
+snmp-server contact netops@lab.example.net
+!
+! ---- RADIUS / TACACS -------------------------------------------------
+radius-server host 192.0.2.10 auth-port 1812 acct-port 1813 key 7 <secret hidden>
+tacacs-server host 192.0.2.20 key <secret hidden>
+!
+! ---- ISAKMP / IPsec --------------------------------------------------
+crypto isakmp policy 10
+ encr aes
+ hash sha
+ authentication pre-share
+ group 14
+ lifetime 86400
+crypto isakmp key <secret hidden> address 203.0.113.1
+!
+! ---- Key chains (includes a “key 7 …” style) -------------------------
+key chain OSPF-CHAIN
+ key 1
+  key-string <secret hidden>
+ accept-lifetime 00:00:00 Jan 1 2024 infinite
+ send-lifetime 00:00:00 Jan 1 2024 infinite
+!
+! ---- Wireless / WPA-PSK ASCII ---------------------------------------
+dot11 ssid CorpWiFi
+   vlan 20
+   authentication open
+   authentication key-management wpa version 2
+   wpa-psk ascii 0 <secret hidden>
+!
+interface GigabitEthernet0/0
+ description Uplink to ISP
+ ip address 198.51.100.2 255.255.255.252
+ no shutdown
+!
+interface GigabitEthernet0/1
+ description LAN
+ ip address 10.10.10.1 255.255.255.0
+ ip helper-address 10.10.20.10
+!
+interface Vlan20
+ description CorpWiFi VLAN
+ ip address 10.20.20.1 255.255.255.0
+!
+! ---- Lines (indented “password|secret …” should be caught) -----------
+line con 0
+ exec-timeout 0 0
+ logging synchronous
+ password <secret hidden>
+line vty 0 4
+ transport input ssh
+ login local
+ password <secret hidden>
+!
+! ---- Misc secrets sprinkled in indented contexts ---------------------
+router bgp 65001
+ bgp log-neighbor-changes
+ neighbor 203.0.113.1 remote-as 65002
+ neighbor 203.0.113.1 password <secret hidden>
+!
+ip ftp username backupuser
+ip ftp password 0 clear-ftp-pass
+!
+ip http server
+ip http authentication local
+!
+!
+! ---- Certificates/keys (commonly present; OK to exist as test data) --
+crypto pki trustpoint TP-LAB
+ enrollment terminal
+ subject-name CN=LAB-EDGE-01.lab.example.net
+ revocation-check none
+crypto pki certificate chain TP-LAB
+ certificate 01
+  3082030A30820272A003020102020900D2B29D7A3F3E4F2E300D06092A864886F70D01010B0500
+  300E310C300A060355040313034C4142...
+  quit
+!
+ip route 0.0.0.0 0.0.0.0 198.51.100.1
+!
+logging host 10.0.0.50
+ntp server 192.0.2.123 prefer
+!
+end
+!

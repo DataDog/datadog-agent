@@ -18,6 +18,8 @@ import (
 	"syscall"
 	"time"
 
+	"code.cloudfoundry.org/bbs"
+	"github.com/cloudfoundry-community/go-cfclient/v2"
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 
@@ -43,7 +45,6 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -56,12 +57,14 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
+	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	dcametadata "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	dcametadatafx "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/fx"
@@ -103,10 +106,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
 					LogParams:    log.ForDaemon(command.LoggerName, "log_file", defaultpaths.DCALogFile),
 				}),
-				core.Bundle(),
+				core.Bundle(core.WithSecrets()),
 				hostnameimpl.Module(),
-				secretsfx.Module(),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers())),
+				filterlistfx.Module(),
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDisabledParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
@@ -128,6 +131,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				fx.Provide(func() option.Option[agenttelemetry.Component] {
 					return option.None[agenttelemetry.Component]()
+				}),
+				fx.Provide(func() option.Option[healthplatform.Component] {
+					return option.None[healthplatform.Component]()
 				}),
 				// The cluster-agent-cloudfoundry agent do not have a status command
 				// so there is no need to initialize the status component
@@ -214,12 +220,14 @@ func run(
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
 
 	// initialize CC Cache
-	if err = initializeCCCache(mainCtx); err != nil {
+	var ccCache cloudfoundry.CCCacheI
+	ccCache, err = initializeCCCache(mainCtx)
+	if err != nil {
 		_ = pkglog.Errorf("Error initializing Cloud Foundry CCAPI cache, some advanced tagging features may be missing: %v", err)
 	}
 
-	// initialize BBS Cache before starting provider/listener
-	if err = initializeBBSCache(mainCtx); err != nil {
+	// initialize BBS Cache before starting provider/listener, passing the CC cache for enrichment
+	if err = initializeBBSCache(mainCtx, ccCache); err != nil {
 		return err
 	}
 
@@ -268,29 +276,36 @@ func run(
 	return nil
 }
 
-func initializeCCCache(ctx context.Context) error {
+func initializeCCCache(ctx context.Context) (cloudfoundry.CCCacheI, error) {
 	pollInterval := time.Second * time.Duration(pkgconfigsetup.Datadog().GetInt("cloud_foundry_cc.poll_interval"))
-	_, err := cloudfoundry.ConfigureGlobalCCCache(
-		ctx,
-		pkgconfigsetup.Datadog().GetString("cloud_foundry_cc.url"),
-		pkgconfigsetup.Datadog().GetString("cloud_foundry_cc.client_id"),
-		pkgconfigsetup.Datadog().GetString("cloud_foundry_cc.client_secret"),
-		pkgconfigsetup.Datadog().GetBool("cloud_foundry_cc.skip_ssl_validation"),
-		pollInterval,
-		pkgconfigsetup.Datadog().GetInt("cloud_foundry_cc.apps_batch_size"),
-		pkgconfigsetup.Datadog().GetBool("cluster_agent.refresh_on_cache_miss"),
-		pkgconfigsetup.Datadog().GetBool("cluster_agent.serve_nozzle_data"),
-		pkgconfigsetup.Datadog().GetBool("cluster_agent.sidecars_tags"),
-		pkgconfigsetup.Datadog().GetBool("cluster_agent.isolation_segments_tags"),
-		nil,
-	)
+
+	// Create the CF client
+	ccClient, err := cloudfoundry.NewCFClient(&cfclient.Config{
+		ApiAddress:        pkgconfigsetup.Datadog().GetString("cloud_foundry_cc.url"),
+		ClientID:          pkgconfigsetup.Datadog().GetString("cloud_foundry_cc.client_id"),
+		ClientSecret:      pkgconfigsetup.Datadog().GetString("cloud_foundry_cc.client_secret"),
+		SkipSslValidation: pkgconfigsetup.Datadog().GetBool("cloud_foundry_cc.skip_ssl_validation"),
+	})
 	if err != nil {
-		return fmt.Errorf("failed to initialize CC Cache: %v", err)
+		return nil, fmt.Errorf("failed to create CC client: %v", err)
 	}
-	return nil
+
+	ccCache, err := cloudfoundry.ConfigureGlobalCCCache(ctx, cloudfoundry.CCCacheConfig{
+		CCAPIClient:        ccClient,
+		PollInterval:       pollInterval,
+		AppsBatchSize:      pkgconfigsetup.Datadog().GetInt("cloud_foundry_cc.apps_batch_size"),
+		RefreshCacheOnMiss: pkgconfigsetup.Datadog().GetBool("cluster_agent.refresh_on_cache_miss"),
+		ServeNozzleData:    pkgconfigsetup.Datadog().GetBool("cluster_agent.serve_nozzle_data"),
+		SidecarsTags:       pkgconfigsetup.Datadog().GetBool("cluster_agent.sidecars_tags"),
+		SegmentsTags:       pkgconfigsetup.Datadog().GetBool("cluster_agent.isolation_segments_tags"),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize CC Cache: %v", err)
+	}
+	return ccCache, nil
 }
 
-func initializeBBSCache(ctx context.Context) error {
+func initializeBBSCache(ctx context.Context, ccCache cloudfoundry.CCCacheI) error {
 	pollInterval := time.Second * time.Duration(pkgconfigsetup.Datadog().GetInt("cloud_foundry_bbs.poll_interval"))
 	// NOTE: we can't use GetPollInterval in ConfigureGlobalBBSCache, as that causes import cycle
 
@@ -316,17 +331,26 @@ func initializeBBSCache(ctx context.Context) error {
 		excludeList[i] = re
 	}
 
-	bc, err := cloudfoundry.ConfigureGlobalBBSCache(
-		ctx,
+	// Create the BBS client
+	bbsClient, err := bbs.NewClient(
 		pkgconfigsetup.Datadog().GetString("cloud_foundry_bbs.url"),
 		pkgconfigsetup.Datadog().GetString("cloud_foundry_bbs.ca_file"),
 		pkgconfigsetup.Datadog().GetString("cloud_foundry_bbs.cert_file"),
 		pkgconfigsetup.Datadog().GetString("cloud_foundry_bbs.key_file"),
-		pollInterval,
-		includeList,
-		excludeList,
-		nil,
+		0, // clientSessionCacheSize
+		0, // maxIdleConnsPerHost
 	)
+	if err != nil {
+		return fmt.Errorf("failed to create BBS client: %s", err.Error())
+	}
+
+	bc, err := cloudfoundry.ConfigureGlobalBBSCache(ctx, cloudfoundry.BBSCacheConfig{
+		BBSClient:    bbsClient,
+		PollInterval: pollInterval,
+		IncludeList:  includeList,
+		ExcludeList:  excludeList,
+		CCCache:      ccCache,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to initialize BBS Cache: %s", err.Error())
 	}

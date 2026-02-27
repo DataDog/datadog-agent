@@ -107,6 +107,7 @@ dev_branch*                            @Datadog/agent-delivery
 dev_master*                            @Datadog/agent-delivery
 dev_nightly*                           @Datadog/agent-delivery
 qa_agent*                              @DataDog/agent-devx
+qa_ot_agent*                           @DataDog/agent-devx
 qa_cws_instrumentation*                @DataDog/agent-devx
 qa_dca*                                @DataDog/agent-devx
 qa_dogstatsd*                          @DataDog/agent-devx
@@ -163,6 +164,7 @@ trace_agent_integration_tests @DataDog/agent-apm
 # Functional test
 static_quality_gates                           @DataDog/agent-build
 manual_gate_threshold_update                   @DataDog/agent-build
+files_inventory_check                          @DataDog/agent-build
 
 oracle*                                        @DataDog/database-monitoring
 
@@ -174,7 +176,6 @@ k8s-e2e-cspm-*                    @DataDog/agent-security
 e2e_pre_test*                     @DataDog/agent-devx
 new-e2e*                          @DataDog/multiple
 go_e2e_test_binaries              @DataDog/agent-devx
-dynamic_test-evaluate-e2e         @DataDog/agent-devx
 all-artifacts                     @DataDog/agent-devx
 
 # Kernel matrix testing

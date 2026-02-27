@@ -224,6 +224,21 @@ func GetServicePID(host *components.RemoteHost, service string) (int, error) {
 	return strconv.Atoi(out)
 }
 
+// GetProcessStartTimeAsFileTimeUtc returns the start time of the process as a FileTimeUtc
+//
+// A Windows file time is a 64-bit value that represents the number of 100-nanosecond intervals that have elapsed since 12:00 midnight, January 1, 1601 A.D. (C.E.) Coordinated Universal Time (UTC).
+//
+// https://learn.microsoft.com/en-us/dotnet/api/system.datetime.tofiletimeutc
+func GetProcessStartTimeAsFileTimeUtc(host *components.RemoteHost, pid int) (int64, error) {
+	cmd := fmt.Sprintf("(Get-Process -Id %d).StartTime.ToFileTimeUtc()", pid)
+	out, err := host.Execute(cmd)
+	if err != nil {
+		return 0, err
+	}
+	out = strings.TrimSpace(out)
+	return strconv.ParseInt(out, 10, 64)
+}
+
 // GetServiceImagePath returns the image path (command line) of the service
 func GetServiceImagePath(host *components.RemoteHost, service string) (string, error) {
 	return GetRegistryValue(host, "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\"+service, "ImagePath")

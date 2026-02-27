@@ -33,7 +33,7 @@ func makeOneShotCommand(
 				runFunc,
 				fx.Supply(globalParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(""),
+					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					SysprobeConfigParams: sysconfigimpl.NewParams(
 						sysconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath),
 						sysconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),

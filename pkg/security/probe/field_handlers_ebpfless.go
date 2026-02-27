@@ -147,19 +147,6 @@ func (fh *EBPFLessFieldHandlers) ResolveProcessIsThread(_ *model.Event, process 
 	return !process.IsExec
 }
 
-// GetProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
-func (fh *EBPFLessFieldHandlers) GetProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
-	ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(sprocess.CacheResolverKey{
-		Pid:  ev.PIDContext.Pid,
-		NSID: ev.PIDContext.NSID,
-	})
-	if ev.ProcessCacheEntry == nil {
-		ev.ProcessCacheEntry = model.GetPlaceholderProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Pid, false)
-		return ev.ProcessCacheEntry, false
-	}
-	return ev.ProcessCacheEntry, true
-}
-
 // ResolveEventTime resolves the monolitic kernel event timestamp to an absolute time
 func (fh *EBPFLessFieldHandlers) ResolveEventTime(ev *model.Event, _ *model.BaseEvent) time.Time {
 	if ev.Timestamp.IsZero() {
@@ -431,12 +418,12 @@ func (fh *EBPFLessFieldHandlers) ResolveXAttrNamespace(_ *model.Event, e *model.
 
 // ResolveHashes resolves the hash of the provided file
 func (fh *EBPFLessFieldHandlers) ResolveHashes(eventType model.EventType, process *model.Process, file *model.FileEvent) []string {
-	return fh.resolvers.HashResolver.ComputeHashes(eventType, process, file)
+	return fh.resolvers.HashResolver.ComputeHashes(eventType, process, file, 0)
 }
 
 // ResolveHashesFromEvent resolves the hashes of the requested event
 func (fh *EBPFLessFieldHandlers) ResolveHashesFromEvent(ev *model.Event, f *model.FileEvent) []string {
-	return fh.resolvers.HashResolver.ComputeHashesFromEvent(ev, f)
+	return fh.resolvers.HashResolver.ComputeHashesFromEvent(ev, f, 0)
 }
 
 // ResolveK8SUserSessionContext resolves and updates the provided user session context
@@ -647,4 +634,14 @@ func (fh *EBPFLessFieldHandlers) ResolveSessionID(_ *model.Event, _ *model.UserS
 // ResolveSessionIdentity resolves the user of the event
 func (fh *EBPFLessFieldHandlers) ResolveSessionIdentity(_ *model.Event, _ *model.UserSessionContext) string {
 	return ""
+}
+
+// ResolveSignature resolves the event signature
+func (fh *EBPFLessFieldHandlers) ResolveSignature(e *model.Event) string {
+	if e.Signature == "" && e.ProcessContext != nil {
+		if sign, err := fh.resolvers.SignatureResolver.Sign(e.ProcessContext); err != nil && sign != "" {
+			e.Signature = sign
+		}
+	}
+	return e.Signature
 }

@@ -18,6 +18,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"maps"
 	"strconv"
 	"strings"
 
@@ -120,9 +121,7 @@ func transform(lr plog.LogRecord, host, service string, res pcommon.Resource, sc
 			l.Ddtags = datadog.PtrString(tagStr)
 		default:
 			m := flattenAttribute(k, v, 1)
-			for k, v := range m {
-				l.AdditionalProperties[k] = v
-			}
+			maps.Copy(l.AdditionalProperties, m)
 		}
 		return true
 	})
@@ -186,6 +185,21 @@ func transform(lr plog.LogRecord, host, service string, res pcommon.Resource, sc
 func flattenAttribute(key string, val pcommon.Value, depth int) map[string]any {
 	result := make(map[string]any)
 
+	if val.Type() == pcommon.ValueTypeSlice {
+		slice := val.Slice()
+		flattened := make([]any, slice.Len())
+		for i := 0; i < slice.Len(); i++ {
+			elemResult := flattenAttribute("", slice.At(i), depth+1)
+			if val, ok := elemResult[""]; ok {
+				flattened[i] = val
+			} else {
+				flattened[i] = elemResult
+			}
+		}
+		result[key] = flattened
+		return result
+	}
+
 	if val.Type() != pcommon.ValueTypeMap || depth == 10 {
 		if val.Type() == pcommon.ValueTypeStr ||
 			val.Type() == pcommon.ValueTypeInt ||
@@ -199,11 +213,12 @@ func flattenAttribute(key string, val pcommon.Value, depth int) map[string]any {
 	}
 
 	val.Map().Range(func(k string, v pcommon.Value) bool {
-		newKey := key + "." + k
-		nestedResult := flattenAttribute(newKey, v, depth+1)
-		for nk, nv := range nestedResult {
-			result[nk] = nv
+		newKey := k
+		if key != "" {
+			newKey = key + "." + k
 		}
+		nestedResult := flattenAttribute(newKey, v, depth+1)
+		maps.Copy(result, nestedResult)
 		return true
 	})
 
