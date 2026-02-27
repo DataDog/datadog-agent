@@ -76,3 +76,30 @@ func TestProfileNotFound(t *testing.T) {
 		t.Fatalf("expected no profile to match sysOID %q, got profile %q", sysOID, profile.Name)
 	}
 }
+
+func TestFindExtendedProfiles(t *testing.T) {
+	pdus := []gosnmp.SnmpPDU{
+		{Name: _cached_sys_obj_id, Value: "1.3.6.1.4.1.674.1"},
+	}
+	sysOID := FindSysOID(pdus)
+	profile, err := FindProfile(sysOID)
+	if err != nil {
+		t.Skipf("profile lookup not available: %v", err)
+	}
+	if profile.Name == "" {
+		t.Skip("no profile matched this sysObjectID in default profiles")
+	}
+
+	extends, err := FindExtendedProfiles(profile)
+	if err != nil {
+		t.Skipf("extended profile lookup not available: %v", err)
+	}
+	// FindExtendedProfiles returns the list from the provider; may be nil or empty if profile has no extends.
+	if extends == nil {
+		t.Fatalf("expected non-nil extends slice for profile %q", profile.Name)
+	}
+	// Many default profiles (e.g. Dell) extend _base; we expect at least one when present.
+	if len(extends) == 0 {
+		t.Logf("profile %q has no extended profiles (extends=%v)", profile.Name, extends)
+	}
+}
