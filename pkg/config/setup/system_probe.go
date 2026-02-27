@@ -357,6 +357,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// Privileged Logs config
 	cfg.BindEnvAndSetDefault("privileged_logs.enabled", false)
 
+	// Logon Duration config (macOS)
+	cfg.BindEnvAndSetDefault("logon_duration.enabled", false)
+
 	// Fleet policies
 	cfg.BindEnv("fleet_policies_dir") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
