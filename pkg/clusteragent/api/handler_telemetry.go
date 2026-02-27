@@ -55,8 +55,7 @@ func (t *TelemetryHandler) handle(w http.ResponseWriter, r *http.Request) {
 			tracer.Tag("http.url", r.URL.Path))
 		wrapper.setSpanTags = func(statusCode int) {
 			span.SetTag("http.status_code", statusCode)
-			span.SetTag("error", statusCode >= 500)
-			span.SetTag("http.client_error", statusCode >= 400 && statusCode < 500)
+			span.SetTag("error", statusCode >= 400)
 		}
 		defer func() {
 			if p := recover(); p != nil {
