@@ -1,0 +1,25 @@
+---
+# Shared bash helper functions for CI Visibility custom spans.
+# These allow wrapping any shell block with datadog-ci span calls
+# to create custom spans visible in CI Visibility flamegraphs.
+#
+# Usage in before_script:
+#   - !reference [.setup_datadog_ci_sections]
+#   - datadog-ci-start-section
+#   - <your commands>
+#   - datadog-ci-end-section --category e2e-setup "Span Name"
+
+.setup_datadog_ci_sections:
+  - DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DATADOG_API_KEY
+  - |
+    datadog-ci-start-section() {
+      export _ci_section_start="$(date '+%s%N' | cut -b1-13)"
+    }
+    datadog-ci-end-section() {
+      _end="$(date '+%s%N' | cut -b1-13)"
+      _category=""
+      if [ "$1" = "--category" ]; then shift; _category="--tags agent-category:$1"; shift; fi
+      _name="$1"
+      datadog-ci span --name "$_name" --start-time "$_ci_section_start" --end-time "$_end" \
+        --tags agent-custom-span:true $_category || true
+    }
