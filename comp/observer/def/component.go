@@ -104,21 +104,38 @@ type TimeRange struct {
 	End   int64 // latest timestamp in analyzed data (unix seconds)
 }
 
+// AnomalyType distinguishes the source type of an anomaly.
+type AnomalyType string
+
+const (
+	// AnomalyTypeMetric is a metric-based anomaly detected by time series analysis.
+	AnomalyTypeMetric AnomalyType = "metric"
+	// AnomalyTypeLog is a log-based anomaly emitted directly by a log processor,
+	// bypassing the metrics→TSAnalysis pipeline.
+	AnomalyTypeLog AnomalyType = "log"
+)
+
 // AnomalyOutput is a detected anomaly event.
 // Anomalies represent a point in time where something anomalous was detected.
 type AnomalyOutput struct {
-	// Source identifies which metric/signal the anomaly is about (e.g., "network.retransmits").
+	// Type distinguishes log-based anomalies from metric-based ones.
+	// Defaults to AnomalyTypeMetric if not set.
+	Type AnomalyType
+	// Source identifies which metric/signal or log source the anomaly is about.
+	// For metric anomalies: the metric name (e.g., "network.retransmits:avg").
+	// For log anomalies: a descriptive source identifier (e.g., "logs").
 	Source MetricName
 	// SourceSeriesID uniquely identifies the source series (namespace + name + tags).
+	// Empty for log anomalies.
 	SourceSeriesID SeriesID
 	// AnalyzerName identifies which TimeSeriesAnalysis or LogProcessor produced this anomaly.
 	AnalyzerName string
 	Title        string
 	Description  string
 	Tags         []string
-	Timestamp    int64      // when the anomaly was detected (unix seconds)
-	Score        *float64   // confidence/severity score (nil if not available)
-	TimeRange    TimeRange  // period covered by the analysis that produced this anomaly
+	Timestamp    int64     // when the anomaly was detected (unix seconds)
+	Score        *float64  // confidence/severity score (nil if not available)
+	TimeRange    TimeRange // period covered by the analysis that produced this anomaly
 	// DebugInfo contains analyzer-specific debug information explaining the detection.
 	DebugInfo *AnomalyDebugInfo
 }

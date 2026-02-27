@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../api/client';
 import type {
-  StatusResponse, ScenarioInfo, ComponentInfo, SeriesInfo, Anomaly, Correlation,
+  StatusResponse, ScenarioInfo, ComponentInfo, SeriesInfo, Anomaly, LogAnomaly, Correlation,
   CompressedGroup, CorrelatorDataResponse, CorrelatorStats
 } from '../api/client';
 
@@ -14,6 +14,7 @@ export interface ObserverState {
   components: ComponentInfo[];
   series: SeriesInfo[];
   anomalies: Anomaly[];
+  logAnomalies: LogAnomaly[];
   correlations: Correlation[];
   // Generic correlator data keyed by correlator name
   correlatorData: Map<string, CorrelatorDataResponse>;
@@ -38,6 +39,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
   const [components, setComponents] = useState<ComponentInfo[]>([]);
   const [series, setSeries] = useState<SeriesInfo[]>([]);
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
+  const [logAnomalies, setLogAnomalies] = useState<LogAnomaly[]>([]);
   const [correlations, setCorrelations] = useState<Correlation[]>([]);
   const [correlatorData, setCorrelatorData] = useState<Map<string, CorrelatorDataResponse>>(new Map());
   const [compressedGroups, setCompressedGroups] = useState<CompressedGroup[]>([]);
@@ -62,13 +64,14 @@ export function useObserver(): [ObserverState, ObserverActions] {
       // First fetch components and basic data
       const [
         statusData, scenariosData, componentsData, seriesData,
-        anomaliesData, correlationsData, compressedGroupsData, statsData
+        anomaliesData, logAnomaliesData, correlationsData, compressedGroupsData, statsData
       ] = await Promise.all([
           api.getStatus(),
           api.getScenarios(),
           api.getComponents(),
           api.getSeries(),
           api.getAnomalies(),
+          api.getLogAnomalies(),
           api.getCorrelations(),
           api.getCompressedCorrelations(),
           api.getStats(),
@@ -95,6 +98,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
       setComponents(componentsData);
       setSeries(seriesData);
       setAnomalies(anomaliesData);
+      setLogAnomalies(logAnomaliesData);
       setCorrelations(correlationsData);
       setCompressedGroups(compressedGroupsData);
       setCorrelatorData(new Map(correlatorResults));
@@ -204,6 +208,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
       components,
       series,
       anomalies,
+      logAnomalies,
       correlations,
       correlatorData,
       compressedGroups,

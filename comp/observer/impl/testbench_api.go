@@ -43,6 +43,7 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/series/id/", api.cors(api.handleSeriesDataByID))
 	mux.HandleFunc("/api/series/", api.cors(api.handleSeriesData))
 	mux.HandleFunc("/api/anomalies", api.cors(api.handleAnomalies))
+	mux.HandleFunc("/api/log-anomalies", api.cors(api.handleLogAnomalies))
 	mux.HandleFunc("/api/correlations", api.cors(api.handleCorrelations))
 	mux.HandleFunc("/api/leadlag", api.cors(api.handleLeadLag))
 	mux.HandleFunc("/api/surprise", api.cors(api.handleSurprise))
@@ -258,7 +259,7 @@ func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namesp
 	}
 
 	// Get anomalies for this series to include in response
-	anomalies := api.tb.GetAnomaliesForSeries(seriesID)
+	anomalies := api.tb.GetMetricsAnomaliesForSeries(seriesID)
 
 	type anomalyMarker struct {
 		Timestamp         int64  `json:"timestamp"`
@@ -388,7 +389,7 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 
 	if analyzerFilter != "" {
 		// Return only anomalies from specified analyzer
-		byAnalyzer := api.tb.GetAnomaliesByAnalyzer()
+		byAnalyzer := api.tb.GetMetricsAnomaliesByAnalyzer()
 		if anomalies, ok := byAnalyzer[analyzerFilter]; ok {
 			for _, a := range anomalies {
 				if a.AnalyzerName == "" || a.Timestamp == 0 {
@@ -401,7 +402,7 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 		}
 	} else {
 		// Return all anomalies
-		anomalies := api.tb.GetAnomalies()
+		anomalies := api.tb.GetMetricsAnomalies()
 		for _, a := range anomalies {
 			if a.AnalyzerName == "" || a.Timestamp == 0 {
 				log.Printf("skipping malformed anomaly response: analyzer=%q source=%q ts=%d",
@@ -410,6 +411,44 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 			}
 			response = append(response, toResponse(a))
 		}
+	}
+
+	api.writeJSON(w, response)
+}
+
+// handleLogAnomalies returns anomalies emitted directly by log processors.
+func (api *TestBenchAPI) handleLogAnomalies(w http.ResponseWriter, r *http.Request) {
+	processorFilter := r.URL.Query().Get("processor")
+
+	type logAnomalyResponse struct {
+		Source        string   `json:"source"`
+		ProcessorName string   `json:"processorName"`
+		Title         string   `json:"title"`
+		Description   string   `json:"description"`
+		Tags          []string `json:"tags"`
+		Timestamp     int64    `json:"timestamp"`
+		Score         *float64 `json:"score,omitempty"`
+	}
+
+	var anomalies []observerdef.AnomalyOutput
+	if processorFilter != "" {
+		byProcessor := api.tb.GetLogAnomaliesByProcessor()
+		anomalies = byProcessor[processorFilter]
+	} else {
+		anomalies = api.tb.GetLogAnomalies()
+	}
+
+	response := make([]logAnomalyResponse, 0, len(anomalies))
+	for _, a := range anomalies {
+		response = append(response, logAnomalyResponse{
+			Source:        string(a.Source),
+			ProcessorName: a.AnalyzerName,
+			Title:         a.Title,
+			Description:   a.Description,
+			Tags:          a.Tags,
+			Timestamp:     a.Timestamp,
+			Score:         a.Score,
+		})
 	}
 
 	api.writeJSON(w, response)

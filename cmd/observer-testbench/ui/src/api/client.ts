@@ -15,6 +15,7 @@ export interface StatusResponse {
   scenario: string | null;
   seriesCount: number;
   anomalyCount: number;
+  logAnomalyCount: number;
   componentCount: number;
   correlatorsProcessing: boolean;
   scenarioStart?: number;
@@ -91,6 +92,17 @@ export interface Anomaly {
   tags: string[];
   timestamp: number;
   debugInfo?: AnomalyDebugInfo;
+}
+
+// LogAnomaly is an anomaly emitted directly by a log processor (not via TS analysis).
+export interface LogAnomaly {
+  source: string;
+  processorName: string;
+  title: string;
+  description: string;
+  tags: string[];
+  timestamp: number;
+  score?: number;
 }
 
 export interface Correlation {
@@ -219,6 +231,11 @@ class ApiClient {
   async getAnomalies(analyzer?: string): Promise<Anomaly[]> {
     const params = analyzer ? `?analyzer=${encodeURIComponent(analyzer)}` : '';
     return this.fetch(`/anomalies${params}`);
+  }
+
+  async getLogAnomalies(processor?: string): Promise<LogAnomaly[]> {
+    const params = processor ? `?processor=${encodeURIComponent(processor)}` : '';
+    return this.fetch(`/log-anomalies${params}`);
   }
 
   async getCorrelations(): Promise<Correlation[]> {
