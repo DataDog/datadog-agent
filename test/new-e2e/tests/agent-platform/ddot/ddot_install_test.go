@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -144,7 +145,10 @@ func (is *ddotInstallSuite) ConfigureAndRunAgentService(VMclient *common.TestCli
 		ddotUnit := is.host.State().Units["datadog-agent-ddot.service"]
 		require.NotNil(t, ddotUnit, "DDOT unit should be present after installation")
 		require.Equal(t, "datadog-agent-ddot.service", ddotUnit.Name, "DDOT unit name should be datadog-agent-ddot.service")
-		require.Equal(t, "active", ddotUnit.Active, "DDOT unit should be active because of dependency on datadog-agent")
+		require.Eventually(t, func() bool {
+			ddotUnit = is.host.State().Units["datadog-agent-ddot.service"]
+			return ddotUnit.Active == "active"
+		}, 3*time.Second, 100*time.Millisecond, "DDOT unit should be active because of dependency on datadog-agent")
 		require.Equal(t, "enabled", ddotUnit.Enabled, "DDOT unit should be enabled when running")
 		require.Equal(t, host.Loaded, ddotUnit.LoadState, "DDOT unit should be loaded")
 		require.Equal(t, host.Running, ddotUnit.SubState, "DDOT unit should be started when datadog-agent is started")
