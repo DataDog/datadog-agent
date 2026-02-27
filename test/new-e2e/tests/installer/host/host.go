@@ -107,13 +107,13 @@ func (h *Host) InstallDocker() {
 	case "apt":
 		h.remote.MustExecute("sudo apt-get update -qq")
 		h.remote.MustExecute("sudo apt-get install -y docker.io")
-		h.remote.MustExecute("sudo apt-get install -y docker-credential-ecr-login")
+		h.remote.MustExecute("sudo apt-get install -y amazon-ecr-credential-helper")
 	case "yum":
 		h.remote.MustExecute("sudo yum install -y docker")
-		h.remote.MustExecute("sudo yum install -y docker-credential-ecr-login")
+		h.remote.MustExecute("sudo yum install -y amazon-ecr-credential-helper")
 	case "zypper":
 		h.remote.MustExecute("sudo zypper install -y docker")
-		h.remote.MustExecute("sudo zypper install -y docker-credential-ecr-login")
+		h.remote.MustExecute("sudo zypper install -y amazon-ecr-credential-helper")
 	default:
 		h.t().Fatalf("unsupported package manager: %s", h.pkgManager)
 	}
