@@ -3,25 +3,27 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package com_datadoghq_ddagent
+package shell
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type AgentActions struct {
+// ShellBundle provides the runShell action for safe shell execution.
+type ShellBundle struct {
 	actions map[string]types.Action
 }
 
-func NewAgentActions() *AgentActions {
-	return &AgentActions{
+// NewShellBundle creates a new ShellBundle.
+func NewShellBundle() *ShellBundle {
+	return &ShellBundle{
 		actions: map[string]types.Action{
-			"agentInfo":      NewAgentInfoHandler(),
-			"testConnection": NewTestConnectionHandler(),
+			"runShell": NewRunShellHandler(),
 		},
 	}
 }
 
-func (h *AgentActions) GetAction(actionName string) types.Action {
+// GetAction returns the action handler for the given name.
+func (h *ShellBundle) GetAction(actionName string) types.Action {
 	return h.actions[actionName]
 }
