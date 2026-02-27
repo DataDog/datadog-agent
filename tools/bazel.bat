@@ -23,6 +23,11 @@ if not exist "%XDG_CACHE_HOME%" (
 
 :: Ensure `bazel` & managed toolchains honor `XDG_CACHE_HOME` if set: https://github.com/bazelbuild/bazel/issues/27808
 if defined XDG_CACHE_HOME (
+  set "XDG_CACHE_HOME=!XDG_CACHE_HOME:/=\!"
+  if "!XDG_CACHE_HOME:~1,2!" neq ":\" if "!XDG_CACHE_HOME:~0,2!" neq "\\" (
+    >&2 echo 🔴 XDG_CACHE_HOME ^(!XDG_CACHE_HOME!^) must denote an absolute path!
+    exit /b 2
+  )
   :: https://pkg.go.dev/os#UserCacheDir
   set "GOCACHE=%XDG_CACHE_HOME%\go-build"
   :: https://wiki.archlinux.org/title/XDG_Base_Directory#Partial
