@@ -12,16 +12,25 @@ struct WiFiIPCResponse: Codable {
     let error: String?
 }
 
+/// Response structure for desktop ready IPC
+struct DesktopReadyIPCResponse: Codable {
+    let success: Bool
+    let data: DesktopReadyTracker.DesktopReadyData?
+    let error: String?
+}
+
 /// WiFiIPCServer handles Unix socket communication for WiFi data
 class WiFiIPCServer {
     private let wifiDataProvider: WiFiDataProvider
+    private weak var desktopReadyTracker: DesktopReadyTracker?
     private var socketFileDescriptor: Int32 = -1
     private var isRunning = false
     private var acceptQueue: DispatchQueue
     private let socketPath: String
 
-    init(wifiDataProvider: WiFiDataProvider) {
+    init(wifiDataProvider: WiFiDataProvider, desktopReadyTracker: DesktopReadyTracker?) {
         self.wifiDataProvider = wifiDataProvider
+        self.desktopReadyTracker = desktopReadyTracker
 
         // Get installation path from environment (set by LaunchAgent) or use default
         let installPath = ProcessInfo.processInfo.environment["DD_INSTALL_PATH"] ?? "/opt/datadog-agent"
@@ -217,6 +226,16 @@ class WiFiIPCServer {
             let response = WiFiIPCResponse(success: true, data: wifiData, error: nil)
             sendResponse(clientFD, response: response)
 
+        case "get_desktop_ready":
+            if let tracker = desktopReadyTracker {
+                let data = tracker.getDesktopReadyData()
+                let response = DesktopReadyIPCResponse(success: true, data: data, error: nil)
+                sendDesktopReadyResponse(clientFD, response: response)
+            } else {
+                let response = DesktopReadyIPCResponse(success: false, data: nil, error: "Desktop ready tracker not initialized")
+                sendDesktopReadyResponse(clientFD, response: response)
+            }
+
         default:
             Logger.error("Unknown command: \(request.command)", context: "WiFiIPCServer")
             sendErrorResponse(clientFD, error: "Unknown command: \(request.command)")
@@ -280,6 +299,24 @@ class WiFiIPCServer {
     private func sendErrorResponse(_ clientFD: Int32, error: String) {
         let response = WiFiIPCResponse(success: false, data: nil, error: error)
         sendResponse(clientFD, response: response)
+    }
+
+    private func sendDesktopReadyResponse(_ clientFD: Int32, response: DesktopReadyIPCResponse) {
+        guard let responseData = try? JSONEncoder().encode(response) else {
+            Logger.error("Failed to encode desktop ready response", context: "WiFiIPCServer")
+            return
+        }
+
+        var data = responseData
+        data.append(contentsOf: [UInt8(ascii: "\n")]) // Add newline delimiter
+
+        data.withUnsafeBytes { ptr in
+            guard let bytesPtr = ptr.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return }
+            let bytesWritten = write(clientFD, bytesPtr, data.count)
+            if bytesWritten < 0 && errno != EPIPE {
+                Logger.error("Write failed: \(String(cString: strerror(errno)))", context: "WiFiIPCServer")
+            }
+        }
     }
 
     deinit {

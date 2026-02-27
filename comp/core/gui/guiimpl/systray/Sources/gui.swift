@@ -23,17 +23,24 @@ class AgentGUI: NSObject, NSUserInterfaceValidations {
     var wifiDataProvider: WiFiDataProvider?
     var wifiIPCServer: WiFiIPCServer?
 
+    // Desktop ready tracking for boot/logon duration metrics
+    var desktopReadyTracker: DesktopReadyTracker?
+
     override init() {
         // make sure the first evaluation of menu item validity actually updates the items
         countUpdate = numberItems
 
         super.init()
 
+        // Initialize desktop ready tracking (must be done early to capture Finder launch)
+        Logger.info("Initializing desktop ready tracker...", context: "AgentGUI")
+        desktopReadyTracker = DesktopReadyTracker()
+
         // Initialize WiFi components
         Logger.info("Initializing WiFi IPC components...", context: "AgentGUI")
         wifiDataProvider = WiFiDataProvider()
         if let provider = wifiDataProvider {
-            wifiIPCServer = WiFiIPCServer(wifiDataProvider: provider)
+            wifiIPCServer = WiFiIPCServer(wifiDataProvider: provider, desktopReadyTracker: desktopReadyTracker)
         }
 
         // Create menu items
