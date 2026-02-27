@@ -191,9 +191,11 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 		return newPreprocessorHandler(combiningAggregator, tok, labeler, sampler, outputChan, jsonAgg, flushTimeout)
 	} else if pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line_detection_tagging") {
 		labeler := buildAutoMultilineLabeler(source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, tailerInfo)
-		// JSON aggregation is disabled in detection mode — we don't want to combine JSON
-		// while only tagging everything else.
-		detectingAggregator := preprocessor.NewDetectingAggregator(tailerInfo)
+		cfg := pkgconfigsetup.Datadog()
+		isDefaultPath := source.Config().AutoMultiLine == nil &&
+			!cfg.IsConfigured("logs_config.auto_multi_line_detection") &&
+			!cfg.IsConfigured("logs_config.experimental_auto_multi_line_detection")
+		detectingAggregator := preprocessor.NewDetectingAggregator(tailerInfo, maxContentSize, isDefaultPath)
 		return newPreprocessorHandler(detectingAggregator, tok, labeler, sampler, outputChan, preprocessor.NewNoopJSONAggregator(), flushTimeout)
 	}
 	return newPreprocessorHandler(preprocessor.NewPassThroughAggregator(maxContentSize), tok, preprocessor.NewNoopLabeler(), sampler, outputChan, preprocessor.NewNoopJSONAggregator(), flushTimeout)

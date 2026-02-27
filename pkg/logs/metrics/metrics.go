@@ -140,6 +140,26 @@ var (
 	// Tags: status (success/failure/timeout), transport (tcp/http)
 	TlmRestartAttempt = telemetry.NewCounter("logs", "restart_attempt",
 		[]string{"status", "transport"}, "Count of logs agent restart attempts with status and target transport")
+
+	// COAT telemetry for auto multiline default-on impact analysis.
+	// These counters only increment for sources that rely on the default value of
+	// auto_multi_line_detection (i.e. sources where changing the default would alter behavior).
+
+	// TlmAutoMultilineTotalLines counts all lines processed by the detecting aggregator
+	// for sources on the default path. Used as the denominator for both X% and Y% metrics.
+	TlmAutoMultilineTotalLines = telemetry.NewCounter("logs", "auto_multi_line_default_total_lines",
+		nil, "Total lines processed by the detecting aggregator for default-path sources")
+
+	// TlmAutoMultilineWouldCombine counts lines that would be merged into a preceding
+	// startGroup message if auto multiline were enabled by default.
+	TlmAutoMultilineWouldCombine = telemetry.NewCounter("logs", "auto_multi_line_default_would_combine",
+		nil, "Lines that would be combined if auto multiline were the default")
+
+	// TlmAutoMultilineWouldTruncateLines counts raw input lines belonging to multiline
+	// groups that would exceed maxContentSize due to combining. Single lines that are
+	// individually oversized are excluded (they'd be truncated regardless).
+	TlmAutoMultilineWouldTruncateLines = telemetry.NewCounter("logs", "auto_multi_line_default_would_truncate_lines",
+		nil, "Lines belonging to groups that would be truncated if auto multiline were the default")
 )
 
 func init() {
