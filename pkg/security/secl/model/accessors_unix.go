@@ -3339,7 +3339,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.Exec.Process.PPid)
+				return int(ev.Exec.Process.PIDContext.PPid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -4742,7 +4742,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.Exit.Process.PPid)
+				return int(ev.Exit.Process.PIDContext.PPid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -10929,14 +10929,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := int(element.ProcessContext.Process.PPid)
+					result := int(element.ProcessContext.Process.PIDContext.PPid)
 					return []int{result}
 				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
-					return int(current.ProcessContext.Process.PPid)
+					return int(current.ProcessContext.Process.PIDContext.PPid)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -14007,7 +14007,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				return int(ev.BaseEvent.ProcessContext.Parent.PPid)
+				return int(ev.BaseEvent.ProcessContext.Parent.PIDContext.PPid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -14253,7 +14253,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.ProcessContext.Process.PPid)
+				return int(ev.BaseEvent.ProcessContext.Process.PIDContext.PPid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -17300,14 +17300,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := int(element.ProcessContext.Process.PPid)
+					result := int(element.ProcessContext.Process.PIDContext.PPid)
 					return []int{result}
 				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
-					return int(current.ProcessContext.Process.PPid)
+					return int(current.ProcessContext.Process.PIDContext.PPid)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -20378,7 +20378,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.PTrace.Tracee.HasParent() {
 					return 0
 				}
-				return int(ev.PTrace.Tracee.Parent.PPid)
+				return int(ev.PTrace.Tracee.Parent.PIDContext.PPid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -20624,7 +20624,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.PTrace.Tracee.Process.PPid)
+				return int(ev.PTrace.Tracee.Process.PIDContext.PPid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -25099,14 +25099,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := int(element.ProcessContext.Process.PPid)
+					result := int(element.ProcessContext.Process.PIDContext.PPid)
 					return []int{result}
 				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
-					return int(current.ProcessContext.Process.PPid)
+					return int(current.ProcessContext.Process.PIDContext.PPid)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -28177,7 +28177,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.Setrlimit.Target.HasParent() {
 					return 0
 				}
-				return int(ev.Setrlimit.Target.Parent.PPid)
+				return int(ev.Setrlimit.Target.Parent.PIDContext.PPid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -28423,7 +28423,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.Setrlimit.Target.Process.PPid)
+				return int(ev.Setrlimit.Target.Process.PIDContext.PPid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -31992,14 +31992,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := int(element.ProcessContext.Process.PPid)
+					result := int(element.ProcessContext.Process.PIDContext.PPid)
 					return []int{result}
 				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
-					return int(current.ProcessContext.Process.PPid)
+					return int(current.ProcessContext.Process.PIDContext.PPid)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -35070,7 +35070,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.Signal.Target.HasParent() {
 					return 0
 				}
-				return int(ev.Signal.Target.Parent.PPid)
+				return int(ev.Signal.Target.Parent.PIDContext.PPid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -35316,7 +35316,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.Signal.Target.Process.PPid)
+				return int(ev.Signal.Target.Process.PIDContext.PPid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -44193,7 +44193,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exec.pid":
 		return ev.setUint32FieldValue("exec.pid", &ev.Exec.Process.PIDContext.Pid, value)
 	case "exec.ppid":
-		return ev.setUint32FieldValue("exec.ppid", &ev.Exec.Process.PPid, value)
+		return ev.setUint32FieldValue("exec.ppid", &ev.Exec.Process.PIDContext.PPid, value)
 	case "exec.syscall.path":
 		return ev.setStringFieldValue("exec.syscall.path", &ev.Exec.SyscallContext.StrArg1, value)
 	case "exec.tid":
@@ -44534,7 +44534,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exit.pid":
 		return ev.setUint32FieldValue("exit.pid", &ev.Exit.Process.PIDContext.Pid, value)
 	case "exit.ppid":
-		return ev.setUint32FieldValue("exit.ppid", &ev.Exit.Process.PPid, value)
+		return ev.setUint32FieldValue("exit.ppid", &ev.Exit.Process.PIDContext.PPid, value)
 	case "exit.tid":
 		return ev.setUint32FieldValue("exit.tid", &ev.Exit.Process.PIDContext.Tid, value)
 	case "exit.tty_name":
@@ -45472,7 +45472,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.ancestors.pid":
 		return ev.setUint32FieldValue("process.ancestors.pid", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Pid, value)
 	case "process.ancestors.ppid":
-		return ev.setUint32FieldValue("process.ancestors.ppid", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PPid, value)
+		return ev.setUint32FieldValue("process.ancestors.ppid", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.PPid, value)
 	case "process.ancestors.tid":
 		return ev.setUint32FieldValue("process.ancestors.tid", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Tid, value)
 	case "process.ancestors.tty_name":
@@ -46101,7 +46101,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.parent.pid":
 		return ev.setUint32FieldValue("process.parent.pid", &ev.BaseEvent.ProcessContext.Parent.PIDContext.Pid, value)
 	case "process.parent.ppid":
-		return ev.setUint32FieldValue("process.parent.ppid", &ev.BaseEvent.ProcessContext.Parent.PPid, value)
+		return ev.setUint32FieldValue("process.parent.ppid", &ev.BaseEvent.ProcessContext.Parent.PIDContext.PPid, value)
 	case "process.parent.tid":
 		return ev.setUint32FieldValue("process.parent.tid", &ev.BaseEvent.ProcessContext.Parent.PIDContext.Tid, value)
 	case "process.parent.tty_name":
@@ -46142,7 +46142,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "process.pid":
 		return ev.setUint32FieldValue("process.pid", &ev.BaseEvent.ProcessContext.Process.PIDContext.Pid, value)
 	case "process.ppid":
-		return ev.setUint32FieldValue("process.ppid", &ev.BaseEvent.ProcessContext.Process.PPid, value)
+		return ev.setUint32FieldValue("process.ppid", &ev.BaseEvent.ProcessContext.Process.PIDContext.PPid, value)
 	case "process.tid":
 		return ev.setUint32FieldValue("process.tid", &ev.BaseEvent.ProcessContext.Process.PIDContext.Tid, value)
 	case "process.tty_name":
@@ -46483,7 +46483,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "ptrace.tracee.ancestors.pid":
 		return ev.setUint32FieldValue("ptrace.tracee.ancestors.pid", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.Pid, value)
 	case "ptrace.tracee.ancestors.ppid":
-		return ev.setUint32FieldValue("ptrace.tracee.ancestors.ppid", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.PPid, value)
+		return ev.setUint32FieldValue("ptrace.tracee.ancestors.ppid", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.PPid, value)
 	case "ptrace.tracee.ancestors.tid":
 		return ev.setUint32FieldValue("ptrace.tracee.ancestors.tid", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.Tid, value)
 	case "ptrace.tracee.ancestors.tty_name":
@@ -47112,7 +47112,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "ptrace.tracee.parent.pid":
 		return ev.setUint32FieldValue("ptrace.tracee.parent.pid", &ev.PTrace.Tracee.Parent.PIDContext.Pid, value)
 	case "ptrace.tracee.parent.ppid":
-		return ev.setUint32FieldValue("ptrace.tracee.parent.ppid", &ev.PTrace.Tracee.Parent.PPid, value)
+		return ev.setUint32FieldValue("ptrace.tracee.parent.ppid", &ev.PTrace.Tracee.Parent.PIDContext.PPid, value)
 	case "ptrace.tracee.parent.tid":
 		return ev.setUint32FieldValue("ptrace.tracee.parent.tid", &ev.PTrace.Tracee.Parent.PIDContext.Tid, value)
 	case "ptrace.tracee.parent.tty_name":
@@ -47153,7 +47153,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "ptrace.tracee.pid":
 		return ev.setUint32FieldValue("ptrace.tracee.pid", &ev.PTrace.Tracee.Process.PIDContext.Pid, value)
 	case "ptrace.tracee.ppid":
-		return ev.setUint32FieldValue("ptrace.tracee.ppid", &ev.PTrace.Tracee.Process.PPid, value)
+		return ev.setUint32FieldValue("ptrace.tracee.ppid", &ev.PTrace.Tracee.Process.PIDContext.PPid, value)
 	case "ptrace.tracee.tid":
 		return ev.setUint32FieldValue("ptrace.tracee.tid", &ev.PTrace.Tracee.Process.PIDContext.Tid, value)
 	case "ptrace.tracee.tty_name":
@@ -48320,7 +48320,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Setrlimit.Target.Ancestor == nil {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
-		return ev.setUint32FieldValue("setrlimit.target.ancestors.ppid", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.PPid, value)
+		return ev.setUint32FieldValue("setrlimit.target.ancestors.ppid", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.PIDContext.PPid, value)
 	case "setrlimit.target.ancestors.tid":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -49885,7 +49885,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Setrlimit.Target.Parent == nil {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
-		return ev.setUint32FieldValue("setrlimit.target.parent.ppid", &ev.Setrlimit.Target.Parent.PPid, value)
+		return ev.setUint32FieldValue("setrlimit.target.parent.ppid", &ev.Setrlimit.Target.Parent.PIDContext.PPid, value)
 	case "setrlimit.target.parent.tid":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -50028,7 +50028,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
-		return ev.setUint32FieldValue("setrlimit.target.ppid", &ev.Setrlimit.Target.Process.PPid, value)
+		return ev.setUint32FieldValue("setrlimit.target.ppid", &ev.Setrlimit.Target.Process.PIDContext.PPid, value)
 	case "setrlimit.target.tid":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -51091,7 +51091,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
-		return ev.setUint32FieldValue("signal.target.ancestors.ppid", &ev.Signal.Target.Ancestor.ProcessContext.Process.PPid, value)
+		return ev.setUint32FieldValue("signal.target.ancestors.ppid", &ev.Signal.Target.Ancestor.ProcessContext.Process.PIDContext.PPid, value)
 	case "signal.target.ancestors.tid":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -52656,7 +52656,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
-		return ev.setUint32FieldValue("signal.target.parent.ppid", &ev.Signal.Target.Parent.PPid, value)
+		return ev.setUint32FieldValue("signal.target.parent.ppid", &ev.Signal.Target.Parent.PIDContext.PPid, value)
 	case "signal.target.parent.tid":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -52799,7 +52799,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
-		return ev.setUint32FieldValue("signal.target.ppid", &ev.Signal.Target.Process.PPid, value)
+		return ev.setUint32FieldValue("signal.target.ppid", &ev.Signal.Target.Process.PIDContext.PPid, value)
 	case "signal.target.tid":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}

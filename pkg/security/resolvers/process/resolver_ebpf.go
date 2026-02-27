@@ -1516,7 +1516,7 @@ func (p *EBPFResolver) syncKernelMaps(entry *model.ProcessCacheEntry) {
 			seclog.Errorf("couldn't push proc_cache entry to kernel space: %s", err)
 		}
 	}
-	pidCacheEntryB := make([]byte, 88)
+	pidCacheEntryB := make([]byte, 80)
 	_, err = entry.Process.MarshalPidCache(pidCacheEntryB, bootTime)
 	if err != nil {
 		seclog.Errorf("couldn't marshal pid_cache entry: %s", err)

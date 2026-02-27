@@ -3324,6 +3324,8 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	} else {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructPID, "struct task_struct", "thread_pid")
 	}
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructRealParent, "struct task_struct", "real_parent")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructTGID, "struct task_struct", "tgid")
 
 	// splice event
 	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfPipeBuffer, "struct pipe_buffer")
