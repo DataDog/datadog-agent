@@ -118,9 +118,7 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 					MaxResults: pointer.Ptr(int32(10)), // Because `DescribeServices` takes at most 10 services in input
 					NextToken:  nextToken,
 				})
-				if !assert.NoErrorf(c, err, "Failed to list ECS services") {
-					return
-				}
+				require.NoErrorf(c, err, "Failed to list ECS services")
 
 				nextToken = servicesList.NextToken
 
@@ -147,9 +145,7 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 							MaxResults:    pointer.Ptr(int32(100)), // Because `DescribeTasks` takes at most 100 tasks in input
 							NextToken:     nextToken,
 						})
-						if !assert.NoErrorf(c, err, "Failed to list ECS tasks for service %s", *serviceDescription.ServiceName) {
-							break
-						}
+						require.NoErrorf(c, err, "Failed to list ECS tasks for service %s", *serviceDescription.ServiceName)
 
 						nextToken = tasksList.NextToken
 
@@ -613,9 +609,7 @@ func (suite *ecsSuite) TestTraceTCP() {
 func (suite *ecsSuite) testTrace(taskName string) {
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
 		traces, cerr := suite.Fakeintake.GetTraces()
-		if !assert.NoErrorf(c, cerr, "Failed to query fake intake") {
-			return
-		}
+		require.NoErrorf(c, cerr, "Failed to query fake intake")
 
 		var err error
 		// Iterate starting from the most recent traces
