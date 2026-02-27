@@ -505,6 +505,36 @@ fn test_child_does_not_inherit_parent_env() {
     assert!(status.success());
 }
 
+#[test]
+fn test_optional_environment_file_skipped_when_missing() {
+    let dir = tempfile::tempdir().unwrap();
+    write_config(
+        dir.path(),
+        "opt-env",
+        concat!(
+            "command: /bin/sh\n",
+            "args:\n",
+            "  - '-c'\n",
+            "  - 'exit 0'\n",
+            "environment_file: -/nonexistent/env\n",
+            "restart: never\n",
+        ),
+    );
+
+    let mut daemon = DaemonHandle::start(dir.path());
+    assert!(
+        daemon.wait_for_log_default("optional environment file not found, skipping"),
+        "daemon should log that optional env file was skipped"
+    );
+    assert!(
+        daemon.wait_for_log_default("exited with exit status: 0"),
+        "process should still run successfully"
+    );
+
+    let status = daemon.stop();
+    assert!(status.success());
+}
+
 // ===========================================================================
 // Group 9: Error handling
 // ===========================================================================
