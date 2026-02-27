@@ -20,8 +20,6 @@ import (
 
 // FetcherConfig contains configuration for the observer fetcher.
 type FetcherConfig struct {
-	// Enabled controls whether fetching is active.
-	Enabled bool
 	// TraceFetchInterval is how often to fetch traces from remote agents.
 	TraceFetchInterval time.Duration
 	// ProfileFetchInterval is how often to fetch profiles from remote agents.
@@ -35,7 +33,6 @@ type FetcherConfig struct {
 // DefaultFetcherConfig returns the default fetcher configuration.
 func DefaultFetcherConfig() FetcherConfig {
 	return FetcherConfig{
-		Enabled:              false, // Disabled by default
 		TraceFetchInterval:   5 * time.Second,
 		ProfileFetchInterval: 10 * time.Second,
 		MaxTraceBatch:        100,
@@ -59,19 +56,18 @@ type observerFetcher struct {
 func newObserverFetcher(
 	registry remoteagentregistry.Component,
 	handle observerdef.Handle,
-	config FetcherConfig,
 ) *observerFetcher {
 	return &observerFetcher{
 		registry: registry,
 		handle:   handle,
-		config:   config,
+		config:   DefaultFetcherConfig(),
 	}
 }
 
 // Start begins the periodic fetching goroutines.
 func (f *observerFetcher) Start() {
-	if !f.config.Enabled || f.registry == nil {
-		pkglog.Debug("[observer] fetcher not started: disabled or no registry")
+	if f.registry == nil {
+		pkglog.Debug("[observer] fetcher not started: no registry")
 		return
 	}
 

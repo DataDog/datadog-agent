@@ -439,7 +439,7 @@ func (sp *checkSenderPool) mkSender(id checkid.ID) (sender.Sender, error) {
 
 	// If observer high-frequency collection is enabled, wrap sender with AggregatingSender
 	var finalSender sender.Sender = backendSender
-	if highFreqInterval := pkgconfigsetup.Datadog().GetDuration("observer.high_frequency_interval"); highFreqInterval > 0 && sp.agg.observerHandle != nil {
+	if highFreqInterval := pkgconfigsetup.Datadog().GetDuration("observer.metrics.high_frequency_interval"); highFreqInterval > 0 && sp.agg.observerHandle != nil {
 		// Get original check interval (default to 15s as per common check default)
 		// TODO: In the future, we could look this up from check configuration
 		originalInterval := 15 * time.Second

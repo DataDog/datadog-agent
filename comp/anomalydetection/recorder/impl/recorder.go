@@ -7,6 +7,7 @@
 package recorderimpl
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -31,23 +32,22 @@ func NewComponent(req Requires) (Provides, error) {
 	r := &recorderImpl{}
 
 	// Check if recording is enabled
-	if !req.Config.GetBool("observer.recording") {
-		pkglog.Debug("Recorder disabled (observer.recording=false)")
+	if !req.Config.GetBool("observer.recording.enabled") {
+		pkglog.Debug("Recorder disabled (observer.recording.enabled=false)")
 		return Provides{Comp: r}, nil
 	}
 
-	parquetDir := req.Config.GetString("observer.parquet_output_dir")
+	parquetDir := req.Config.GetString("observer.recording.parquet_output_dir")
 	if parquetDir == "" {
-		pkglog.Debug("Recorder parquet writers disabled (observer.parquet_output_dir not set)")
-		return Provides{Comp: r}, nil
+		return Provides{Comp: r}, errors.New("observer.recording.parquet_output_dir not set")
 	}
 
-	flushInterval := req.Config.GetDuration("observer.parquet_flush_interval")
+	flushInterval := req.Config.GetDuration("observer.recording.parquet_flush_interval")
 	if flushInterval == 0 {
 		flushInterval = 60 * time.Second
 	}
 
-	retentionDuration := req.Config.GetDuration("observer.parquet_retention")
+	retentionDuration := req.Config.GetDuration("observer.recording.parquet_retention")
 	if retentionDuration <= 0 {
 		retentionDuration = 24 * time.Hour
 	}
@@ -61,26 +61,22 @@ func NewComponent(req Requires) (Provides, error) {
 		pkglog.Infof("Recorder metrics writer started: dir=%s", parquetDir)
 	}
 
-	// Initialize traces writer if enabled
-	if req.Config.GetBool("observer.traces.enabled") {
-		traceWriter, err := NewTraceParquetWriter(parquetDir, flushInterval, retentionDuration)
-		if err != nil {
-			pkglog.Errorf("Failed to create trace parquet writer: %v", err)
-		} else {
-			r.traceParquetWriter = traceWriter
-			pkglog.Infof("Recorder trace writer started: dir=%s", parquetDir)
-		}
+	// Initialize traces writer (always enabled when recording is on)
+	traceWriter, err := NewTraceParquetWriter(parquetDir, flushInterval, retentionDuration)
+	if err != nil {
+		pkglog.Errorf("Failed to create trace parquet writer: %v", err)
+	} else {
+		r.traceParquetWriter = traceWriter
+		pkglog.Infof("Recorder trace writer started: dir=%s", parquetDir)
 	}
 
-	// Initialize profiles writer if enabled
-	if req.Config.GetBool("observer.profiles.enabled") {
-		profileWriter, err := NewProfileParquetWriter(parquetDir, flushInterval, retentionDuration)
-		if err != nil {
-			pkglog.Errorf("Failed to create profile parquet writer: %v", err)
-		} else {
-			r.profileParquetWriter = profileWriter
-			pkglog.Infof("Recorder profile writer started: dir=%s", parquetDir)
-		}
+	// Initialize profiles writer (always enabled when recording is on)
+	profileWriter, err := NewProfileParquetWriter(parquetDir, flushInterval, retentionDuration)
+	if err != nil {
+		pkglog.Errorf("Failed to create profile parquet writer: %v", err)
+	} else {
+		r.profileParquetWriter = profileWriter
+		pkglog.Infof("Recorder profile writer started: dir=%s", parquetDir)
 	}
 
 	return Provides{Comp: r}, nil

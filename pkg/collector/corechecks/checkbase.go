@@ -197,7 +197,7 @@ func (c *CheckBase) Cancel() {
 // If observer high-frequency collection is enabled, returns that interval instead.
 func (c *CheckBase) Interval() time.Duration {
 	// Check if observer high-frequency mode is enabled
-	if highFreqInterval := pkgconfigsetup.Datadog().GetDuration("observer.high_frequency_interval"); highFreqInterval > 0 {
+	if highFreqInterval := pkgconfigsetup.Datadog().GetDuration("observer.metrics.high_frequency_interval"); highFreqInterval > 0 {
 		return highFreqInterval
 	}
 
