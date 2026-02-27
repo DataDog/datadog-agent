@@ -73,7 +73,7 @@ async fn main() -> Result<()> {
 fn spawn_watcher(index: usize, proc: &mut ManagedProcess, tx: mpsc::UnboundedSender<ExitEvent>) {
     if let Some(child) = proc.take_child() {
         let name = proc.name.clone();
-        tokio::spawn(async move {
+        let handle = tokio::spawn(async move {
             let mut child = child;
             match child.wait().await {
                 Ok(status) => {
@@ -85,6 +85,7 @@ fn spawn_watcher(index: usize, proc: &mut ManagedProcess, tx: mpsc::UnboundedSen
                 }
             }
         });
+        proc.set_watcher_handle(handle);
     }
 }
 

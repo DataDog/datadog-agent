@@ -12,7 +12,8 @@ use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 use std::process::Stdio;
 use tokio::process::{Child, Command};
-use tokio::time::{Duration, Instant};
+use tokio::task::JoinHandle;
+use tokio::time::{self, Duration, Instant};
 
 // ---------------------------------------------------------------------------
 // RestartTracker
@@ -82,10 +83,13 @@ pub struct ManagedProcess {
     state: ProcessState,
     pid: Option<u32>,
     child: Option<Child>,
+    watcher_handle: Option<JoinHandle<()>>,
     restarts: RestartTracker,
 }
 
 impl ManagedProcess {
+    const SIGKILL_TIMEOUT: Duration = Duration::from_secs(10);
+
     pub fn new(name: String, config: ProcessConfig) -> Self {
         let restarts = RestartTracker::new(config.restart_delay());
         Self {
@@ -94,6 +98,7 @@ impl ManagedProcess {
             state: ProcessState::Created,
             pid: None,
             child: None,
+            watcher_handle: None,
             restarts,
         }
     }
@@ -190,8 +195,16 @@ impl ManagedProcess {
         self.child.take()
     }
 
-    pub fn has_child_handle(&self) -> bool {
+    fn has_child_handle(&self) -> bool {
         self.child.is_some()
+    }
+
+    pub(crate) fn set_watcher_handle(&mut self, handle: JoinHandle<()>) {
+        self.watcher_handle = Some(handle);
+    }
+
+    fn take_watcher_handle(&mut self) -> Option<JoinHandle<()>> {
+        self.watcher_handle.take()
     }
 
     /// Record that the child exited. Transitions state to Exited or Failed.
@@ -200,6 +213,14 @@ impl ManagedProcess {
             self.transition_to(ProcessState::Exited);
         } else {
             self.transition_to(ProcessState::Failed);
+        }
+    }
+
+    /// Send SIGTERM if the process is running.
+    pub fn request_stop(&self) {
+        if self.is_running() {
+            info!("[{}] sending SIGTERM", self.name);
+            self.send_signal(Signal::SIGTERM);
         }
     }
 
@@ -225,12 +246,47 @@ impl ManagedProcess {
         Ok(status)
     }
 
-    pub fn stop_timeout(&self) -> Duration {
+    fn stop_timeout(&self) -> Duration {
         self.config.stop_timeout()
     }
 
-    /// Transition to Stopped and clear PID. Used by shutdown.
-    pub fn mark_stopped(&mut self) {
+    /// Wait for the process to stop after SIGTERM has been sent.
+    /// Escalates to SIGKILL if the process doesn't exit within `stop_timeout`.
+    pub async fn wait_for_stop(&mut self) {
+        if !self.is_running() {
+            return;
+        }
+        let stop = self.stop_timeout();
+        if let Some(handle) = self.take_watcher_handle() {
+            tokio::pin!(handle);
+            if time::timeout(stop, &mut handle).await.is_err() {
+                warn!(
+                    "[{}] stop timeout ({}s) reached, sending SIGKILL",
+                    self.name,
+                    stop.as_secs()
+                );
+                self.send_signal(Signal::SIGKILL);
+                if time::timeout(Self::SIGKILL_TIMEOUT, handle).await.is_err() {
+                    warn!("[{}] still running after SIGKILL, giving up", self.name);
+                }
+            }
+        } else if self.has_child_handle() {
+            if time::timeout(stop, self.wait()).await.is_err() {
+                warn!(
+                    "[{}] stop timeout ({}s) reached, sending SIGKILL",
+                    self.name,
+                    stop.as_secs()
+                );
+                self.send_signal(Signal::SIGKILL);
+                if time::timeout(Self::SIGKILL_TIMEOUT, self.wait()).await.is_err() {
+                    warn!("[{}] still running after SIGKILL, giving up", self.name);
+                }
+            }
+        }
+        self.mark_stopped();
+    }
+
+    fn mark_stopped(&mut self) {
         self.transition_to(ProcessState::Stopped);
         self.pid = None;
     }

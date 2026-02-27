@@ -4,43 +4,14 @@
 // Copyright 2026-present Datadog, Inc.
 
 use crate::process::ManagedProcess;
-use log::{info, warn};
-use nix::sys::signal::Signal;
-use tokio::time::{Duration, timeout};
-
-const SIGKILL_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Send SIGTERM to all running processes, wait per-process `stop_timeout`, then SIGKILL stragglers.
 pub async fn shutdown_all(processes: &mut [ManagedProcess]) {
     for proc in processes.iter() {
-        if proc.is_running() {
-            info!("[{}] sending SIGTERM", proc.name);
-            proc.send_signal(Signal::SIGTERM);
-        }
+        proc.request_stop();
     }
-
     for proc in processes.iter_mut() {
-        if !proc.is_running() {
-            continue;
-        }
-        if !proc.has_child_handle() {
-            // Child handle is with the watcher task; SIGTERM was sent by PID above.
-            proc.mark_stopped();
-            continue;
-        }
-        let stop = proc.stop_timeout();
-        if timeout(stop, proc.wait()).await.is_err() {
-            warn!(
-                "[{}] stop timeout ({}s) reached, sending SIGKILL",
-                proc.name,
-                stop.as_secs()
-            );
-            proc.send_signal(Signal::SIGKILL);
-            if timeout(SIGKILL_TIMEOUT, proc.wait()).await.is_err() {
-                warn!("[{}] still running after SIGKILL, giving up", proc.name);
-            }
-        }
-        proc.mark_stopped();
+        proc.wait_for_stop().await;
     }
 }
 
