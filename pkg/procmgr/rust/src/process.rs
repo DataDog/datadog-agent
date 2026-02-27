@@ -270,20 +270,18 @@ impl ManagedProcess {
                     warn!("[{}] still running after SIGKILL, giving up", self.name);
                 }
             }
-        } else if self.has_child_handle() {
-            if time::timeout(stop, self.wait()).await.is_err() {
-                warn!(
-                    "[{}] stop timeout ({}s) reached, sending SIGKILL",
-                    self.name,
-                    stop.as_secs()
-                );
-                self.send_signal(Signal::SIGKILL);
-                if time::timeout(Self::SIGKILL_TIMEOUT, self.wait())
-                    .await
-                    .is_err()
-                {
-                    warn!("[{}] still running after SIGKILL, giving up", self.name);
-                }
+        } else if self.has_child_handle() && time::timeout(stop, self.wait()).await.is_err() {
+            warn!(
+                "[{}] stop timeout ({}s) reached, sending SIGKILL",
+                self.name,
+                stop.as_secs()
+            );
+            self.send_signal(Signal::SIGKILL);
+            if time::timeout(Self::SIGKILL_TIMEOUT, self.wait())
+                .await
+                .is_err()
+            {
+                warn!("[{}] still running after SIGKILL, giving up", self.name);
             }
         }
         self.mark_stopped();
