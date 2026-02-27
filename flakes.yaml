@@ -18,6 +18,9 @@
 # * Note:
 # If you mute a parent test it will ignore all the subtests as well.
 
+test/new-e2e/tests/agent-platform/ddot:
+  - test: TestDDOTInstallScript
+
 # TODO: https://datadoghq.atlassian.net/browse/CONTINT-4143
 test/new-e2e/tests/containers:
   - test: TestECSSuite/TestCPU/metric___container.cpu.usage{^ecs_container_name:stress-ng$}
