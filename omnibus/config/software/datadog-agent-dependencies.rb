@@ -22,7 +22,9 @@ dependency "systemd" if linux_target?
 
 dependency 'datadog-agent-integrations-py3'
 
-command_on_repo_root "bazelisk run -- //packages/agent/dependencies:install --destdir=#{install_dir}"
+build do
+    command_on_repo_root "bazelisk run -- //packages/agent/dependencies:install --destdir=#{install_dir}"
+end
 
 build do
     # Delete empty folders that can still be present when building
