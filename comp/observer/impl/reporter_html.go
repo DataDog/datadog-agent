@@ -1109,6 +1109,7 @@ type anomalyOutput struct {
 	Description string   `json:"description"`
 	Tags        []string `json:"tags"`
 	Timestamp   int64    `json:"timestamp"`
+	Score       *float64 `json:"score,omitempty"`
 }
 
 // rawAnomalyOutput is the JSON structure for raw anomaly API responses.
@@ -1119,6 +1120,7 @@ type rawAnomalyOutput struct {
 	Description  string   `json:"description"`
 	Tags         []string `json:"tags"`
 	Timestamp    int64    `json:"timestamp"`
+	Score        *float64 `json:"score,omitempty"`
 }
 
 // handleAPICorrelations returns currently active correlations.
@@ -1140,6 +1142,7 @@ func (r *HTMLReporter) handleAPICorrelations(w http.ResponseWriter, req *http.Re
 					Description: a.Description,
 					Tags:        a.Tags,
 					Timestamp:   a.Timestamp,
+					Score:       a.Score,
 				}
 			}
 			correlations[i] = correlationOutput{
@@ -1188,6 +1191,7 @@ func (r *HTMLReporter) handleAPIRawAnomalies(w http.ResponseWriter, req *http.Re
 				Description:  a.Description,
 				Tags:         a.Tags,
 				Timestamp:    a.Timestamp,
+				Score:        a.Score,
 			}
 		}
 	}

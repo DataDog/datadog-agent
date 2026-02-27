@@ -333,6 +333,11 @@ func (o *observerImpl) processLog(source string, l *logObs) {
 			}
 		}
 
+		// Route directly emitted anomalies through the standard pipeline
+		for _, anomaly := range result.Anomalies {
+			o.captureRawAnomaly(anomaly)
+			o.processAnomaly(anomaly)
+		}
 	}
 
 	o.flushAndReport()
@@ -436,6 +441,7 @@ func (o *observerImpl) signalToAnomaly(signal observerdef.Signal, emitterName st
 		Description:  desc,
 		Tags:         signal.Tags,
 		AnalyzerName: emitterName,
+		Score:        signal.Score,
 		TimeRange: observerdef.TimeRange{
 			Start: signal.Timestamp,
 			End:   signal.Timestamp, // Point-based: start == end

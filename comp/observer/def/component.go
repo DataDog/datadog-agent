@@ -72,6 +72,8 @@ type LogProcessor interface {
 type LogProcessorResult struct {
 	// Metrics are timeseries values derived from the log.
 	Metrics []MetricOutput
+	// Anomalies are directly detected anomalies (bypassing the metrics→TSAnalysis path).
+	Anomalies []AnomalyOutput
 }
 
 // MetricOutput is a timeseries value derived from log analysis.
@@ -114,8 +116,9 @@ type AnomalyOutput struct {
 	Title        string
 	Description  string
 	Tags         []string
-	Timestamp    int64     // when the anomaly was detected (unix seconds)
-	TimeRange    TimeRange // period covered by the analysis that produced this anomaly
+	Timestamp    int64      // when the anomaly was detected (unix seconds)
+	Score        *float64   // confidence/severity score (nil if not available)
+	TimeRange    TimeRange  // period covered by the analysis that produced this anomaly
 	// DebugInfo contains analyzer-specific debug information explaining the detection.
 	DebugInfo *AnomalyDebugInfo
 }
