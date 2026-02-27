@@ -133,7 +133,6 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 				},
 			},
 			&ConnectionErrorExtractor{},
-			&ErrorPatternDetector{},
 		},
 
 		components:              make(map[string]*registeredComponent),
@@ -291,9 +290,6 @@ func (tb *TestBench) LoadScenario(name string) error {
 		}
 	}
 	fmt.Printf("  Event loading took %s\n", time.Since(eventsStart))
-
-	// TODO: remove once real log anomaly loading is verified end-to-end
-	tb.injectDummyLogAnomaly()
 
 	// Run analyses on all loaded data (analyzers sync, correlators async)
 	analysisStart := time.Now()
@@ -758,24 +754,6 @@ func (tb *TestBench) GetMetricsAnomaliesForSeries(seriesID observerdef.SeriesID)
 	return result
 }
 
-// injectDummyLogAnomaly appends a hardcoded log anomaly so the Log Anomalies tab
-// always shows at least one entry during development.
-// TODO: remove once real log anomaly loading is verified end-to-end.
-func (tb *TestBench) injectDummyLogAnomaly() {
-	score := 0.95
-	dummy := observerdef.AnomalyOutput{
-		Type:         observerdef.AnomalyTypeLog,
-		Source:       "logs",
-		AnalyzerName: "dummy_detector",
-		Title:        "[DUMMY] Critical pattern detected",
-		Description:  "panic: runtime error: index out of range [42] with length 10\ngoroutine 1 [running]:\nmain.processRequest(0xc000012480)\n\t/app/main.go:87 +0x1a4",
-		Timestamp:    time.Now().Unix(),
-		Score:        &score,
-	}
-	tb.logAnomalies = append(tb.logAnomalies, dummy)
-	tb.logAnomaliesByProcessor["dummy_detector"] = append(tb.logAnomaliesByProcessor["dummy_detector"], dummy)
-}
-
 // GetLogAnomalies returns all anomalies emitted directly by log processors.
 func (tb *TestBench) GetLogAnomalies() []observerdef.AnomalyOutput {
 	tb.mu.RLock()
@@ -1025,9 +1003,6 @@ func (tb *TestBench) loadDemoScenario() error {
 	}
 
 	fmt.Printf("  Generated %d seconds of demo data\n", totalSeconds)
-
-	// TODO: remove once real log anomaly loading is verified end-to-end
-	tb.injectDummyLogAnomaly()
 
 	// Run analyses on all loaded data (analyzers sync, correlators async)
 	tb.rerunAnalysesLocked()
