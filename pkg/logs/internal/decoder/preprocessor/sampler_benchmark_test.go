@@ -20,9 +20,7 @@ var (
 
 	// A realistic INFO log pattern
 	benchTokensINFO, _ = benchTok.Tokenize([]byte("2024-01-15 10:30:45.123 INFO [service-a] Request processed user_id=12345 duration_ms=42"))
-	// A realistic ERROR log pattern (different structure)
-	benchTokensERROR, _ = benchTok.Tokenize([]byte("2024-01-15 10:30:45.456 ERROR [service-b] Database connection failed host=db-01 attempt=3"))
-	// Patterns that won't match INFO or ERROR at 0.75 threshold
+	// Patterns that won't match benchTokensINFO at 0.75 threshold
 	benchFillPatterns     = makeFillPatterns(100)
 	benchFillPatterns1000 = makeFillPatterns(1000)
 )
