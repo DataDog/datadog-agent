@@ -1,7 +1,7 @@
 generator:
   - container:
-      repository: public.ecr.aws/docker/library/busybox
-      tag: latest
+      repository: 669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/library/busybox
+      tag: 1.37.0
       args:
         - sleep
         - infinity

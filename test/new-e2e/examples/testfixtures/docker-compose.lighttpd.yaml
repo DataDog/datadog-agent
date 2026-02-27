@@ -2,7 +2,7 @@ version: '3.9'
 
 services:
   lighttpd:
-    image: ghcr.io/rtsp/docker-lighttpd:1.4.73
+    image: 669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/rtsp/lighttpd:1.4.73
     ports:
       - "9449:9449"
     volumes:

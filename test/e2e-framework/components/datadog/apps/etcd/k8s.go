@@ -133,12 +133,15 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 				},
 				Spec: &corev1.PodSpecArgs{
 					ServiceAccountName: sa.Metadata.Name().Elem(),
+					ImagePullSecrets: &corev1.LocalObjectReferenceArray{
+						corev1.LocalObjectReferenceArgs{Name: e.ImagePullPassword()},
+					},
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name: pulumi.String("etcd"),
 							// The agent only supports the v2 API, which is not
 							// supported anymore in newer versions of etcd.
-							Image: pulumi.String("quay.io/coreos/etcd:v3.5.1"),
+							Image: pulumi.String("669783387624.dkr.ecr.us-east-1.amazonaws.com/quay/coreos/etcd:v3.5.1"),
 							Command: pulumi.StringArray{
 								pulumi.String("etcd"),
 							},

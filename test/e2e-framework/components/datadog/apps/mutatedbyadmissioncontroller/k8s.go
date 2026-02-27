@@ -210,11 +210,14 @@ func k8sDeploymentWithLibInjection(e config.Env, namespace string, name string, 
 				},
 				Spec: &corev1.PodSpecArgs{
 					ServiceAccountName: sa.Metadata.Name().Elem(),
+					ImagePullSecrets: &corev1.LocalObjectReferenceArray{
+						corev1.LocalObjectReferenceArgs{Name: e.ImagePullPassword()},
+					},
 					Containers: corev1.ContainerArray{
 						corev1.ContainerArgs{
 							Name: pulumi.String(name),
 							// Python is one of the languages supported by APM lib injection
-							Image: pulumi.String("public.ecr.aws/docker/library/python:3.12-slim"), // TODO: Change to using private mirror
+							Image: pulumi.String("669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/library/python:3.12-slim-bullseye"),
 							Command: pulumi.ToStringArray([]string{
 								"python", "-c", "while True: import time; time.sleep(60)",
 							}),
