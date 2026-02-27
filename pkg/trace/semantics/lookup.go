@@ -25,13 +25,13 @@ type StringMapAccessor struct {
 	m map[string]string
 }
 
-// NewStringMapAccessor returns an Accessor for a map[string]string (e.g. DD span meta).
-func NewStringMapAccessor(m map[string]string) *StringMapAccessor {
-	return &StringMapAccessor{m: m}
+// NewStringMapAccessor returns a StringMapAccessor for a map[string]string (e.g. DD span meta).
+func NewStringMapAccessor(m map[string]string) StringMapAccessor {
+	return StringMapAccessor{m: m}
 }
 
 // GetString returns the value for key, or "" if missing or nil map.
-func (a *StringMapAccessor) GetString(key string) string {
+func (a StringMapAccessor) GetString(key string) string {
 	if a.m == nil {
 		return ""
 	}
@@ -39,7 +39,7 @@ func (a *StringMapAccessor) GetString(key string) string {
 }
 
 // GetInt64 parses the string value as int64.
-func (a *StringMapAccessor) GetInt64(key string) (int64, bool) {
+func (a StringMapAccessor) GetInt64(key string) (int64, bool) {
 	v := a.GetString(key)
 	if v == "" {
 		return 0, false
@@ -52,7 +52,7 @@ func (a *StringMapAccessor) GetInt64(key string) (int64, bool) {
 }
 
 // GetFloat64 parses the string value as float64.
-func (a *StringMapAccessor) GetFloat64(key string) (float64, bool) {
+func (a StringMapAccessor) GetFloat64(key string) (float64, bool) {
 	v := a.GetString(key)
 	if v == "" {
 		return 0, false
@@ -74,7 +74,7 @@ type LookupResult struct {
 // For string-typed tags it uses GetString; for numeric-typed tags it uses the typed getter and
 // formats the result as a string, so LookupString works correctly on any concept regardless of
 // the underlying pdata storage type.
-func Lookup(r Registry, accessor Accessor, concept Concept) (LookupResult, bool) {
+func Lookup[A Accessor](r Registry, accessor A, concept Concept) (LookupResult, bool) {
 	tags := r.GetAttributePrecedence(concept)
 	if tags == nil {
 		return LookupResult{}, false
@@ -99,7 +99,7 @@ func Lookup(r Registry, accessor Accessor, concept Concept) (LookupResult, bool)
 }
 
 // LookupString returns the first matching string value for the concept, or "" if not found.
-func LookupString(r Registry, accessor Accessor, concept Concept) string {
+func LookupString[A Accessor](r Registry, accessor A, concept Concept) string {
 	result, ok := Lookup(r, accessor, concept)
 	if !ok {
 		return ""
@@ -110,7 +110,7 @@ func LookupString(r Registry, accessor Accessor, concept Concept) string {
 // LookupFloat64 returns the first matching value as float64, or (0, false) if not found or unparseable.
 // Uses typed access (GetFloat64/GetInt64) for tags with known numeric types, and falls back
 // to string parsing for tags with unspecified type.
-func LookupFloat64(r Registry, accessor Accessor, concept Concept) (float64, bool) {
+func LookupFloat64[A Accessor](r Registry, accessor A, concept Concept) (float64, bool) {
 	tags := r.GetAttributePrecedence(concept)
 	if tags == nil {
 		return 0, false
@@ -139,7 +139,7 @@ func LookupFloat64(r Registry, accessor Accessor, concept Concept) (float64, boo
 // LookupInt64 returns the first matching value as int64, or (0, false) if not found or unparseable.
 // Uses typed access (GetInt64/GetFloat64) for tags with known numeric types, and falls back
 // to string parsing for tags with unspecified type.
-func LookupInt64(r Registry, accessor Accessor, concept Concept) (int64, bool) {
+func LookupInt64[A Accessor](r Registry, accessor A, concept Concept) (int64, bool) {
 	tags := r.GetAttributePrecedence(concept)
 	if tags == nil {
 		return 0, false

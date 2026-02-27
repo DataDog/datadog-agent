@@ -14,7 +14,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
-func newTestAccessor(raw map[string]any) *PDataMapAccessor {
+func newTestAccessor(raw map[string]any) PDataMapAccessor {
 	m := pcommon.NewMap()
 	_ = m.FromRaw(raw)
 	return NewPDataMapAccessor(m)

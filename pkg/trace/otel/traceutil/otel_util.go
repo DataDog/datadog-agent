@@ -154,7 +154,7 @@ func GetOTelAttrValInResAndSpanAttrs(span ptrace.Span, res pcommon.Resource, nor
 
 // lookupString performs a semantic string lookup using a pre-created accessor,
 // avoiding repeated accessor allocation when multiple lookups share the same attribute maps.
-func lookupString(accessor semantics.Accessor, concept semantics.Concept, shouldNormalize bool) string {
+func lookupString[A semantics.Accessor](accessor A, concept semantics.Concept, shouldNormalize bool) string {
 	val := semantics.LookupString(semantics.DefaultRegistry(), accessor, concept)
 	if shouldNormalize && val != "" {
 		val = normalizeutil.NormalizeTagValue(val)
@@ -173,7 +173,7 @@ func LookupSemanticString(attrs pcommon.Map, concept semantics.Concept, shouldNo
 // LookupSemanticStringWithAccessor looks up a semantic concept using a pre-created accessor.
 // Use this when performing multiple lookups on the same attribute maps to avoid repeated accessor allocation.
 // If shouldNormalize is true, normalize the return value with NormalizeTagValue.
-func LookupSemanticStringWithAccessor(accessor semantics.Accessor, concept semantics.Concept, shouldNormalize bool) string {
+func LookupSemanticStringWithAccessor[A semantics.Accessor](accessor A, concept semantics.Concept, shouldNormalize bool) string {
 	return lookupString(accessor, concept, shouldNormalize)
 }
 

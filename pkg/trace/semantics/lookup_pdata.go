@@ -15,13 +15,13 @@ type PDataMapAccessor struct {
 }
 
 // NewPDataMapAccessor returns a PDataMapAccessor for a pcommon.Map.
-func NewPDataMapAccessor(attrs pcommon.Map) *PDataMapAccessor {
-	return &PDataMapAccessor{attrs: attrs}
+func NewPDataMapAccessor(attrs pcommon.Map) PDataMapAccessor {
+	return PDataMapAccessor{attrs: attrs}
 }
 
 // GetString returns the attribute value if the underlying pdata type is Str, or "" otherwise.
 // Numeric attributes should be accessed via GetInt64 or GetFloat64 for type safety.
-func (a *PDataMapAccessor) GetString(key string) string {
+func (a PDataMapAccessor) GetString(key string) string {
 	v, ok := a.attrs.Get(key)
 	if !ok || v.Type() != pcommon.ValueTypeStr {
 		return ""
@@ -30,7 +30,7 @@ func (a *PDataMapAccessor) GetString(key string) string {
 }
 
 // GetInt64 returns the attribute value as int64 if the underlying pdata type is Int.
-func (a *PDataMapAccessor) GetInt64(key string) (int64, bool) {
+func (a PDataMapAccessor) GetInt64(key string) (int64, bool) {
 	v, ok := a.attrs.Get(key)
 	if !ok || v.Type() != pcommon.ValueTypeInt {
 		return 0, false
@@ -39,7 +39,7 @@ func (a *PDataMapAccessor) GetInt64(key string) (int64, bool) {
 }
 
 // GetFloat64 returns the attribute value as float64 if the underlying pdata type is Double.
-func (a *PDataMapAccessor) GetFloat64(key string) (float64, bool) {
+func (a PDataMapAccessor) GetFloat64(key string) (float64, bool) {
 	v, ok := a.attrs.Get(key)
 	if !ok || v.Type() != pcommon.ValueTypeDouble {
 		return 0, false
@@ -56,15 +56,15 @@ type OTelSpanAccessor struct {
 
 // NewOTelSpanAccessor returns an OTelSpanAccessor for OTel span and resource attributes.
 // Span attributes take precedence over resource attributes.
-func NewOTelSpanAccessor(spanAttrs, resAttrs pcommon.Map) *OTelSpanAccessor {
-	return &OTelSpanAccessor{
+func NewOTelSpanAccessor(spanAttrs, resAttrs pcommon.Map) OTelSpanAccessor {
+	return OTelSpanAccessor{
 		primary:   PDataMapAccessor{attrs: spanAttrs},
 		secondary: PDataMapAccessor{attrs: resAttrs},
 	}
 }
 
 // GetString returns the first non-empty string value, checking primary then secondary.
-func (a *OTelSpanAccessor) GetString(key string) string {
+func (a OTelSpanAccessor) GetString(key string) string {
 	if v := a.primary.GetString(key); v != "" {
 		return v
 	}
@@ -72,7 +72,7 @@ func (a *OTelSpanAccessor) GetString(key string) string {
 }
 
 // GetInt64 returns the first found int64 value, checking primary then secondary.
-func (a *OTelSpanAccessor) GetInt64(key string) (int64, bool) {
+func (a OTelSpanAccessor) GetInt64(key string) (int64, bool) {
 	if v, ok := a.primary.GetInt64(key); ok {
 		return v, true
 	}
@@ -80,7 +80,7 @@ func (a *OTelSpanAccessor) GetInt64(key string) (int64, bool) {
 }
 
 // GetFloat64 returns the first found float64 value, checking primary then secondary.
-func (a *OTelSpanAccessor) GetFloat64(key string) (float64, bool) {
+func (a OTelSpanAccessor) GetFloat64(key string) (float64, bool) {
 	if v, ok := a.primary.GetFloat64(key); ok {
 		return v, true
 	}
