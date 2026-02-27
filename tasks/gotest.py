@@ -313,6 +313,14 @@ def test(
         with open(os.environ.get("FLAKY_PATTERNS_CONFIG"), 'w') as f:
             f.write("{}")
 
+    if race:
+        gorace = os.getenv("GORACE", "")
+        if "atexit_sleep_ms" not in gorace:
+            # https://go.dev/doc/articles/race_detector#Options
+            # The default is 1000ms, which adds minutes to the full test run
+            gorace += " atexit_sleep_ms=50"
+            env["GORACE"] = gorace.strip()
+
     if result_json and os.path.isfile(result_json):
         # Remove existing file since we append to it.
         print(f"Removing existing '{result_json}' file")

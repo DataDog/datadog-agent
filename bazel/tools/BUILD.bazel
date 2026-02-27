@@ -5,9 +5,12 @@ load("@rules_python//python:py_binary.bzl", "py_binary")
 check_bazel_version()
 
 py_binary(
-    name = "bazelify_go_work",
-    srcs = ["bazelify_go_work.py"],
+    name = "go_mod_tidy_all",
+    srcs = ["go_mod_tidy_all.py"],
+    args = ["$(rlocationpath @rules_go//go)"],
+    data = ["@rules_go//go"],
     visibility = ["//:__pkg__"],
+    deps = ["@rules_python//python/runfiles"],
 )
 
 py_binary(

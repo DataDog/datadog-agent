@@ -37,7 +37,7 @@ run_codeql_scan:
     - $CODEQL database analyze datadog-agent.codeql/go codeql/go-queries $SCAN_CONFIGS --sarif-category="go" --output="/tmp/go.sarif" --verbosity=progress+++
     - $CODEQL database analyze datadog-agent.codeql/python codeql/python-queries $SCAN_CONFIGS --sarif-category="python" --output="/tmp/python.sarif" --verbosity=progress+++
     - $CODEQL database analyze datadog-agent.codeql/cpp codeql/cpp-queries $SCAN_CONFIGS --sarif-category="cpp" --output="/tmp/cpp.sarif" --verbosity=progress+++
-    - export GITHUB_TOKEN="$(DD_TRACE_ENABLED=false dd-octo-sts token --scope DataDog/datadog-agent --policy codeql)"        
+    - export GITHUB_TOKEN="$(DD_TRACE_ENABLED=false dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.security-events-write)"        
     - GOPRIVATE=github.com/DataDog GOBIN=/usr/local/go/bin go install github.com/DataDog/codescanning@main
     - CODEQL_SARIF="/tmp/go.sarif" codescanning $UPLOAD_CONFIGS -scan_started_time="$CI_JOB_STARTED_AT"
     - CODEQL_SARIF="/tmp/javascript.sarif" codescanning $UPLOAD_CONFIGS -scan_started_time="$CI_JOB_STARTED_AT"

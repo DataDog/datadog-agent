@@ -42,9 +42,10 @@ bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "gazelle", version = "0.47.0")
 bazel_dep(name = "libarchive", version = "3.8.1")
 bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "re.bzl", version = "0.2.0")
 bazel_dep(name = "rules_go", version = "0.60.0")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
-bazel_dep(name = "rules_python", version = "1.8.4")
+bazel_dep(name = "rules_python", version = "1.8.5")
 bazel_dep(name = "rules_shell", version = "0.6.1")
 bazel_dep(name = "supply_chain_tools", version = "0.0.1")
 
@@ -54,7 +55,6 @@ bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 git_override(
     module_name = "gazelle",
     commit = "6b2aeccd77d2668a21202f5b60e10b035419c61a",  # master as of Feb 13, 2026
-    patches = ["//bazel/patches:gazelle-expects-bazelified-go-work.patch"],
     remote = "https://github.com/bazel-contrib/bazel-gazelle.git",
 )
 
@@ -70,13 +70,6 @@ git_override(
     module_name = "rules_pkg",
     commit = "2bd928123ad46f5b96970f537af073e0acb5b654",  # main as of Feb 10, 2026
     remote = "https://github.com/bazelbuild/rules_pkg.git",
-)
-
-# Temporary until rules_python > 1.8.4 with Windows runfiles fix is in BCR
-git_override(
-    module_name = "rules_python",
-    commit = "f78add7f273bc2fe54ce9187da44abd68588961a",  # main as of Feb 11, 2026
-    remote = "https://github.com/bazel-contrib/rules_python.git",
 )
 
 #########################
@@ -214,7 +207,7 @@ bazel_dep(name = "rules_rust", version = "0.68.1")
 
 rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
 rust.toolchain(
-    edition = "2021",
+    edition = "2024",
     versions = ["1.92.0"],
 )
 use_repo(rust, "rust_toolchains")

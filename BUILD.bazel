@@ -32,6 +32,12 @@ alias(
     actual = "@rules_go//go",
 )
 
+# bazel run //:go_mod_tidy_all -- -x
+alias(
+    name = "go_mod_tidy_all",
+    actual = "//bazel/tools:go_mod_tidy_all",
+)
+
 run_binary(
     name = "gen_go_work",
     srcs = [
@@ -55,31 +61,6 @@ write_source_file(
     name = "write_go_work",
     in_file = ":gen_go_work",
     out_file = "go.work",
-)
-
-run_binary(
-    name = "gen_bazelified_go_work",
-    srcs = [
-        ":BUILD.bazel",
-        ":go.work",
-    ],
-    outs = ["bazelified.go.work"],
-    args = [
-        "--build-file",
-        "$(location :BUILD.bazel)",
-        "--go-work",
-        "$(location :go.work)",
-        "--output",
-        "$(location bazelified.go.work)",
-    ],
-    tool = "//bazel/tools:bazelify_go_work",
-)
-
-# bazel run //:write_bazelified_go_work
-write_source_file(
-    name = "write_bazelified_go_work",
-    in_file = ":gen_bazelified_go_work",
-    out_file = ".bazelified.go.work",
 )
 
 filegroup(

@@ -8,7 +8,7 @@ package kubernetesagentparams
 import (
 	"fmt"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
@@ -306,6 +306,25 @@ datadog:
 %s
 `, utils.IndentMultilineString(string(tagsYAML), 4), utils.IndentMultilineString(string(tagsYAML), 6))
 		return WithHelmValues(tagsHelmValues)(p)
+	}
+}
+
+// WithStackIDTag sets the stackid tag on the agent using a pulumi.StringInput.
+func WithStackIDTag(stackID pulumi.StringInput) func(*Params) error {
+	return func(p *Params) error {
+		values := pulumi.Sprintf(`
+datadog:
+  tags:
+    - stackid:%s
+  dogstatsd:
+    tags:
+      - stackid:%s
+`, stackID, stackID)
+
+		p.HelmValues = append(p.HelmValues, values.ApplyT(func(s string) (pulumi.Asset, error) {
+			return pulumi.NewStringAsset(s), nil
+		}).(pulumi.AssetOutput))
+		return nil
 	}
 }
 
