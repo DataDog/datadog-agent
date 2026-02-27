@@ -129,7 +129,8 @@ type vDatabase struct {
 func handleServiceCheck(c *Check, err error) {
 	sender, errSender := c.GetSender()
 	if errSender != nil {
-		log.Errorf("%s failed to get sender for service check %s", c.logPrompt, err)
+		log.Errorf("%s failed to get sender for service check: %s", c.logPrompt, errSender)
+		return
 	}
 
 	message := ""
