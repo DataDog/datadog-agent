@@ -1,0 +1,81 @@
+# Install setuptools into the embedded Python's site-packages.
+#
+# Mirrors the logic in omnibus/config/software/setuptools3.rb:
+#   python -m pip install .
+#
+# Usage:
+#   bazel run //deps/setuptools:install -- <prefix>
+
+load("@//deps/cpython:version.bzl", "PYTHON_VERSION_STR")
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("@bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_filegroup", "pkg_files")
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+
+sh_binary(
+    name = "pip_install_sh",
+    srcs = ["pip_install.sh"],
+)
+
+# Run `python -m pip install .` using the cpython runtime we built.
+# out_dirs = ["site_packages"] declares the output as a directory artifact,
+# which copy_to_directory and pkg_files can consume.
+run_binary(
+    name = "setuptools_site_packages",
+    srcs = [
+        "@cpython//:python3_bin",
+        "@cpython//:python_lib_dir_unix",
+        "@cpython//:python_lib_unix",
+        "@setuptools//:pyproject_toml",
+        "@setuptools//:srcs",
+    ],
+    args = [
+        "$(execpath @cpython//:python3_bin)",
+        "$(execpath @cpython//:python_lib_dir_unix)",
+        "$(execpath @cpython//:python_lib_unix)",
+        "$(execpath @setuptools//:pyproject_toml)",
+        "$(RULEDIR)/site_packages",
+    ],
+    out_dirs = ["site_packages"],
+    target_compatible_with = select({
+        "@platforms//os:macos": [],
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    tool = ":pip_install_sh",
+)
+
+# Strip the "site_packages/" directory level so that the installed packages
+# (setuptools/, _distutils_hack/, pkg_resources/, etc.) sit at the root of
+# the copy_to_directory output.
+copy_to_directory(
+    name = "site_packages_dir",
+    srcs = [":setuptools_site_packages"],
+    out = "sp",
+    root_paths = ["site_packages"],
+)
+
+# Map files into embedded/lib/python3.x/site-packages/.
+# REMOVE_BASE_DIRECTORY strips the copy_to_directory output dir name ("sp/")
+# so packages land directly under the prefix.
+pkg_files(
+    name = "package_files",
+    srcs = [":site_packages_dir"],
+    prefix = "lib/python{}/site-packages".format(PYTHON_VERSION_STR),
+    strip_prefix = REMOVE_BASE_DIRECTORY,
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [":package_files"],
+    prefix = select({
+        "@platforms//os:windows": "embedded3",
+        "//conditions:default": "embedded",
+    }),
+)
+
+pkg_install(
+    name = "install",
+    srcs = [":all_files"],
+)
