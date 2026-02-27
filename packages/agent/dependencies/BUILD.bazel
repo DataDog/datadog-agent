@@ -32,10 +32,16 @@ pkg_filegroup(
             # This is really part of system-probe
             "@libpcap//:all_files",
         ],
+        "//packages/agent:linux_fips": [
+            "@libpcap//:all_files",
+        ],
         "//packages/agent:linux_heroku": [],
         "//conditions:default": [],
     }) + select({
         "//packages/agent:linux_default": [
+            "//deps/compile_policy:all_files",
+        ],
+        "//packages/agent:linux_fips": [
             "//deps/compile_policy:all_files",
         ],
         "//packages/agent:linux_heroku": [],

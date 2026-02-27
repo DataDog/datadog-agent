@@ -25,7 +25,7 @@ dependency "systemd" if linux_target?
 dependency 'datadog-agent-integrations-py3'
 
 build do
-    command_on_repo_root "bazelisk run  #{flavor_flag} -- //packages/agent/dependencies:install --destdir=#{install_dir}"
+    command_on_repo_root "bazelisk run #{flavor_flag} -- //packages/agent/dependencies:install --destdir=#{install_dir}"
 end
 
 build do
