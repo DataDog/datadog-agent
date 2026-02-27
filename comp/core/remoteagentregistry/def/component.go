@@ -15,4 +15,6 @@ type Component interface {
 	RefreshRemoteAgent(sessionID string) bool
 	GetRegisteredAgents() []RegisteredAgent
 	GetRegisteredAgentStatuses() []StatusData
+	// GetStatusByFlavor returns the status of the registered agent with the given flavor, or false if not found.
+	GetStatusByFlavor(flavor string) (StatusData, bool)
 }
