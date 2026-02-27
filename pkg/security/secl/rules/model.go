@@ -14,7 +14,7 @@ import (
 	"reflect"
 	"time"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -259,11 +259,11 @@ func (s *SetDefinition) PreCheck(_ PolicyLoaderOpts) error {
 		return fmt.Errorf("failed to infer type for variable '%s', please set 'default_value'", s.Name)
 	}
 
-	if s.Inherited && s.Scope != "process" {
+	if s.Inherited && s.Scope != ScopeProcess {
 		return errors.New("only variables scoped to process can be marked as inherited")
 	}
 
-	if len(s.ScopeField) > 0 && s.Scope != "process" {
+	if len(s.ScopeField) > 0 && s.Scope != ScopeProcess {
 		return errors.New("only variables scoped to process can have a custom scope_field")
 	}
 

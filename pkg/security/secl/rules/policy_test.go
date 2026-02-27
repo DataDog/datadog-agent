@@ -28,7 +28,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 	yamlk8s "sigs.k8s.io/yaml"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -1097,21 +1097,10 @@ func stringPtr(input string) *string {
 	return &input
 }
 
-func fakeOpenEvent(path string, pid uint32, ancestor *model.ProcessCacheEntry) *model.Event {
+func fakeOpenEvent(path string, pce *model.ProcessCacheEntry) *model.Event {
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.FileOpenEventType)
-	event.ProcessCacheEntry = &model.ProcessCacheEntry{
-		ProcessContext: model.ProcessContext{
-			Process: model.Process{
-				PIDContext: model.PIDContext{
-					Pid: pid,
-				},
-			},
-		},
-	}
-	if ancestor != nil {
-		event.ProcessCacheEntry.ProcessContext.Ancestor = ancestor
-	}
+	event.ProcessCacheEntry = pce
 	event.SetFieldValue("open.file.path", path)
 	return event
 }
@@ -1186,6 +1175,19 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 					},
 				},
 			},
+			{
+				ID:         "variable_noise",
+				Expression: `open.file.path == "/tmp/noise"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:  "noise",
+							Value: "noise",
+							Scope: "process",
+						},
+					},
+				},
+			},
 		},
 	}
 
@@ -1222,7 +1224,9 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 	assert.NotNil(t, parentCorrelationKeysScopedVariable)
 	assert.True(t, ok)
 
-	event := fakeOpenEvent("/tmp/first", 1, nil)
+	pce1 := newFakeProcessCacheEntry(1, nil)
+
+	event := fakeOpenEvent("/tmp/first", pce1)
 	ctx := eval.NewContext(event)
 
 	// test correlation key initial value
@@ -1245,8 +1249,16 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 
 	correlationKeyFromFirstRule := correlationKeyValue.(string)
 
+	pce2 := newFakeProcessCacheEntry(2, pce1)
+
+	// trigger the variable_noise rule
+	eventNoise := fakeOpenEvent("/tmp/noise", pce2)
+	if !rs.Evaluate(eventNoise) {
+		t.Errorf("Expected event to match rule")
+	}
+
 	// trigger the first rule again, and make sure nothing changes
-	event2 := fakeOpenEvent("/tmp/first", 2, event.ProcessCacheEntry)
+	event2 := fakeOpenEvent("/tmp/first", pce2)
 	ctx = eval.NewContext(event2)
 
 	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx, false)
@@ -1269,7 +1281,8 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 	// jump to the third rule, check:
 	//  - that the correlation key is updated with the pattern from the third rule
 	//  - that the first correlation key is now in the "parent correlation keys" variable
-	event3 := fakeOpenEvent("/tmp/third", 3, event2.ProcessCacheEntry)
+	pce3 := newFakeProcessCacheEntry(3, pce2)
+	event3 := fakeOpenEvent("/tmp/third", pce3)
 	ctx = eval.NewContext(event3)
 
 	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx, false)
@@ -1292,7 +1305,8 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 	correlationKeyFromThirdRule := correlationKeyValue.(string)
 
 	// trigger the second rule, make sure nothing changes
-	event4 := fakeOpenEvent("/tmp/second", 4, event3.ProcessCacheEntry)
+	pce4 := newFakeProcessCacheEntry(4, pce3)
+	event4 := fakeOpenEvent("/tmp/second", pce4)
 	ctx = eval.NewContext(event4)
 
 	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx, false)
@@ -1313,21 +1327,23 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 	assert.True(t, len(parentCorrelationKeysValue.([]string)) == 1 && slices.Contains(parentCorrelationKeysValue.([]string), correlationKeyFromFirstRule))
 }
 
-func newFakeCGroupWrite(cgroupWritePID int, path string, pid uint32, ancestor *model.ProcessCacheEntry) *model.Event {
-	event := model.NewFakeEvent()
-	event.Type = uint32(model.CgroupWriteEventType)
-	event.ProcessCacheEntry = &model.ProcessCacheEntry{
+func newFakeProcessCacheEntry(pid uint32, ancestor *model.ProcessCacheEntry) *model.ProcessCacheEntry {
+	return &model.ProcessCacheEntry{
 		ProcessContext: model.ProcessContext{
 			Process: model.Process{
 				PIDContext: model.PIDContext{
 					Pid: pid,
 				},
 			},
+			Ancestor: ancestor,
 		},
 	}
-	if ancestor != nil {
-		event.ProcessCacheEntry.ProcessContext.Ancestor = ancestor
-	}
+}
+
+func newFakeCGroupWrite(cgroupWritePID int, path string, pce *model.ProcessCacheEntry) *model.Event {
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.CgroupWriteEventType)
+	event.ProcessCacheEntry = pce
 	event.SetFieldValue("cgroup_write.pid", cgroupWritePID)
 	event.SetFieldValue("cgroup_write.file.path", path)
 	return event
@@ -1482,11 +1498,19 @@ func TestActionSetVariableScopeField(t *testing.T) {
 	assert.NotNil(t, parentCorrelationKeysScopedVariable)
 	assert.True(t, ok)
 
+	pce1 := newFakeProcessCacheEntry(1, nil)
+	pce2 := newFakeProcessCacheEntry(2, nil)
+	pce3 := newFakeProcessCacheEntry(3, pce2)
+
 	// create cgroup_write event
-	event1 := newFakeCGroupWrite(2, "/tmp/one", 1, nil)
-	event2 := newFakeCGroupWrite(2, "/tmp/two", 1, nil)
-	eventPID2 := newFakeCGroupWrite(0, "", 2, nil)
-	event3 := fakeOpenEvent("/tmp/third", 3, eventPID2.ProcessCacheEntry)
+	event1 := newFakeCGroupWrite(2, "/tmp/one", pce1)
+	event1.FieldHandlers.(*model.FakeFieldHandlers).PCEs[2] = pce2
+
+	event2 := newFakeCGroupWrite(2, "/tmp/two", pce1)
+	event2.FieldHandlers.(*model.FakeFieldHandlers).PCEs[2] = pce2
+
+	event3 := fakeOpenEvent("/tmp/third", pce3)
+
 	ctx1 := eval.NewContext(event1)
 	ctx3 := eval.NewContext(event3)
 
@@ -2369,6 +2393,201 @@ func TestActionSetVariableValidation(t *testing.T) {
 			t.Error("expected policy to fail to load")
 		} else {
 			assert.ErrorContains(t, err, "value and field have different types for variable 'connection_id_pid' (string != int)")
+		}
+	})
+
+	t.Run("incompatible-default-value-and-expression-types", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `exec.file.path == "/usr/bin/date"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "date_executed",
+							DefaultValue: 99,               // int
+							Expression:   "exec.file.name", // string
+							Scope:        "cgroup",
+						},
+					},
+				},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+			t.Error("expected policy to fail to load")
+		} else {
+			assert.ErrorContains(t, err, "expression 'exec.file.name' for variable 'date_executed': incompatible types: expression returns string but default_value is int")
+		}
+	})
+
+	t.Run("compatible-default-value-and-expression-types", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `exec.file.path == "/usr/bin/date"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "date_executed",
+							DefaultValue: "",               // string
+							Expression:   "exec.file.name", // string
+							Scope:        "cgroup",
+						},
+					},
+				},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("failed to load policy: %s", err)
+		}
+	})
+
+	t.Run("compatible-default-value-and-expression-types-concat", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `exec.file.path == "/usr/bin/date"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "exec_info",
+							DefaultValue: "",                     // string
+							Expression:   `"cmd_${process.pid}"`, // string concatenation
+							Scope:        "process",
+						},
+					},
+				},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("failed to load policy: %s", err)
+		}
+	})
+
+	t.Run("incompatible-default-value-and-expression-types-concat", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `exec.file.path == "/usr/bin/date"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "exec_info",
+							DefaultValue: 0,                      // int
+							Expression:   `"cmd_${process.pid}"`, // string concatenation (incompatible)
+							Scope:        "process",
+						},
+					},
+				},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+			t.Error("expected policy to fail to load")
+		} else {
+			assert.ErrorContains(t, err, `incompatible types: expression returns string but default_value is int`)
+		}
+	})
+
+	t.Run("compatible-default-value-and-expression-types-concat-append", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `exec.file.path == "/usr/bin/date"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "exec_history",
+							DefaultValue: []string{""},           // []string
+							Expression:   `"cmd_${process.pid}"`, // string concatenation (appending to slice)
+							Scope:        "process",
+							Append:       true,
+						},
+					},
+				},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("failed to load policy: %s", err)
+		}
+	})
+
+	t.Run("compatible-default-value-and-expression-types-append", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `exec.file.path == "/usr/bin/date"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "executed_files",
+							DefaultValue: []string{""},     // []string
+							Expression:   "exec.file.name", // string (scalar to append)
+							Scope:        "cgroup",
+							Append:       true,
+						},
+					},
+				},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("failed to load policy: %s", err)
+		}
+	})
+
+	t.Run("incompatible-default-value-and-expression-types-append", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `exec.file.path == "/usr/bin/date"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "executed_files",
+							DefaultValue: []int{0},         // []int (slice of int) - needs element for YAML type inference
+							Expression:   "exec.file.name", // string (incompatible element type)
+							Scope:        "cgroup",
+							Append:       true,
+						},
+					},
+				},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+			t.Error("expected policy to fail to load")
+		} else {
+			assert.ErrorContains(t, err, "expression 'exec.file.name' for variable 'executed_files': incompatible types: expression returns string but default_value element type is int")
+		}
+	})
+
+	t.Run("incompatible-default-value-and-expression-slice-element-types", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "file_hashes",
+							DefaultValue: []int{0},           // []int - needs element for YAML type inference
+							Expression:   "open.file.hashes", // []string (incompatible slice element type)
+							Scope:        "process",
+						},
+					},
+				},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+			t.Error("expected policy to fail to load")
+		} else {
+			assert.ErrorContains(t, err, "expression 'open.file.hashes' for variable 'file_hashes': incompatible slice element types: expression returns string but default_value element type is int")
 		}
 	})
 

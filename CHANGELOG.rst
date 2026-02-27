@@ -2,6 +2,318 @@
 Release Notes
 =============
 
+.. _Release Notes_7.76.1:
+
+7.76.1
+======
+
+.. _Release Notes_7.76.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-02-26
+
+- Refer to the `7.76.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7761>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.76.1_Security Notes:
+
+Security Notes
+--------------
+
+- APM: On span tags, add obfuscation for ``ACL`` command.
+
+
+.. _Release Notes_7.76.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes a rare crash in the system-probe process caused by concurrent access to an internal LRU cache.
+
+- Fix a Windows file-permission issue that prevented workload selection
+  policy files from being updated after the initial write.
+
+- Fixed a bug in the disk Go check (diskv2) where custom tags from one
+  check instance would leak into metrics from other instances. Tags are
+  now correctly isolated per instance.
+
+- GPU: ensure ``gpu.nvlink.speed`` metric is emitted in Blackwell or newer devices.
+
+
+.. _Release Notes_7.76.0:
+
+7.76.0
+======
+
+.. _Release Notes_7.76.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-02-23
+
+- Please refer to the `7.76.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7760>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.76.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- DDOT now submits Fleet Automation metadata through the upstream datadogextension, which is enabled by default. As a result, your DDOT configuration will now appear under the OTel Collector tab.
+  If you configured ``otelcollector.converter.features``, you may need to add the ``datadog`` feature to enable Fleet Automation, as DDOT Fleet Automation metadata is no longer submitted through the ``ddflareextension``.
+
+
+.. _Release Notes_7.76.0_New Features:
+
+New Features
+------------
+
+- Allow users to filter agent check instances using a new --instance-filter parameter, which filters by the instance hash found in the agent status.
+
+- Add ``privateactionrunner`` binary in Agent artifacts to allow running actions using the Agent,
+  and enable running it on Linux. The binary is disabled by default. To enable it, set
+  ``privateactionrunner.enabled: true`` in your configuration file.
+
+- Integration check failures are now automatically reported to the Agent Health Platform component
+  when enabled via ``health_platform.enabled: true``. This provides structured health issue tracking with:
+  
+  * Detailed error context including check name, error message, and configuration source
+  * Actionable remediation steps for debugging check failures
+  * Automatic issue resolution when checks recover
+  * Integration with the health platform telemetry and reporting system
+  
+  This feature helps users proactively identify and troubleshoot integration issues across their fleet.
+
+- The Agent Profiling check now supports automatic Agent termination after flare generation when memory or CPU thresholds are exceeded. This feature is useful in resource-constrained environments where the Agent needs to be restarted after generating diagnostic information.
+  
+  Enable this feature by setting ``terminate_agent_on_threshold: true`` in the Agent Profiling check configuration. When enabled, the Agent uses its established shutdown mechanism to trigger graceful shutdown after successfully generating a flare, ensuring proper cleanup before exit.
+  
+  **Warning**: This feature will cause the Agent to exit. This feature is disabled by default and should be used with caution.
+
+- Experimental support the ConfigSync HTTP endpoints over unix sockets with
+  ``agent_ipc.use_socket: true`` (defaults to false).
+
+- Implements the ``flare`` command for the otel-agent binary.
+  Now you can run ``otel-agent flare`` directly in the otel-agent container to get OTel flares.
+
+- Adds system info metadata collection for macOS end-user devices.
+
+- Adds system info metadata collection for Windows end-user devices.
+
+- Added GPU runtime discovery support for ECS EC2 environments. The Datadog Agent
+  can now detect GPU device UUIDs assigned to containers by extracting the
+  ``NVIDIA_VISIBLE_DEVICES`` environment variable from the Docker container configuration.
+  This enables GPU-to-container mapping for GPU metrics without requiring the
+  Kubernetes PodResources API, which is not available in ECS environments.
+
+- After falling back to TCP, the Logs Agent periodically retries to establish HTTP and upgrades the connection once HTTP connectivity is available.
+
+- Container logs now include a ``LogSource`` tag indicating whether each log
+  message originated from stdout or stderr. This applies to logs parsed via
+  Docker and Kubernetes CRI runtimes.
+
+- Added paging file metrics to the Windows memory check for ``pagefile.sys`` usage.
+
+
+.. _Release Notes_7.76.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add a new ``global_view_db`` variable to AWS Autodisovery templates. By default this is the value of the ``datadoghq.com/global_view_db`` tag on the instance or cluster.
+
+- Add NotReady endpoint processing to be on par with EndpointSlices processing.
+
+- The agentprofiling check now retries flare generation 2 times with exponential backoff (1 minute after first failure, 5 minutes after second failure) when flare creation or sending fails. This improves reliability when encountering transient failures during flare generation.
+
+- Adds a ``kubernetes_kube_service_new_behavior`` flag (default false) to alter ``kube_service`` tag behavior.
+  If the flag is set to true, ``kube_service`` tag is attached unconditionally.
+  Previously, the tag was only attached when the Kubernetes service has the status ``Ready``.
+
+- APM: Add custom protobuf encoder for trace writer v1 with string compaction to reduce payload size.
+
+- Extended the autodiscovery secret resolver to support refreshing secrets.
+
+- Agents are now built with Go ``1.25.7``.
+
+- The datadog-installer ``setup`` command now prints human-readable errors instead of mixing JSON and text.
+
+- Added ``GPUDeviceIDs`` field to the workloadmeta Container entity to store
+  GPU device UUIDs. This field is populated by the Docker collector in ECS
+  environments from the ``NVIDIA_VISIBLE_DEVICES`` environment variable
+  (e.g., ``GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx``).
+
+- The GPU collector now uses ``GPUDeviceIDs`` from workloadmeta as the primary
+  source for GPU-to-container mapping in ECS, with fallback to procfs for
+  regular Docker environments and PodResources API for Kubernetes.
+
+- GPU: add new tag ``gpu_type`` to the GPU metrics to identify the type of GPU (e.g., ``a100``, ``h100``).
+
+- Improve eBPF conntracker support by using alternate probes when the primary probe is unavailable, enabling compatibility with GKE Autopilot and other environments running Google COS.
+
+- The ``logs.dropped`` metric now tracks dropped logs for both TCP and HTTP
+  log transports. Previously, this metric was only available when using TCP
+  transport. Customers can now monitor dropped logs with a single unified
+  metric regardless of which transport protocol is configured, making it
+  easier to detect and troubleshoot log delivery issues.
+
+- The logs agent now supports using ``start_position: beginning`` and
+  ``start_position: forceBeginning`` with wildcard file paths. Previously,
+  configurations like ``path: /var/log/*.log`` with ``start_position: beginning``
+  would fail validation. The agent's fingerprinting system when enabled prevents 
+  duplicate log reads during file rotation, making this combination safe to use.
+
+- Site config URLs are now lowercased for consistent handling.
+
+- APM: Add tags ``databricks_job_id``, ``databricks_job_run_id``, ``databricks_task_run_id``, ``config.spark_app_startTime``, ``config.spark_databricks_job_parentRunId``
+  to the default list of tags that are known to not be credit card numbers so they are skipped by the credit card obfuscator.
+
+- Add option to switch on/off Infra-Attribute-Processor for traces in the OTLP ingest pipeline.
+    otlp_config:
+     traces:
+      infra_attributes:
+        enabled: false
+  These settings can be configured in the Agent config file or by using the environment variables.
+
+- The Datadog Agent now collects AWS Spot preemption events (requires IMDS access) as Datadog events.
+
+- Added ``network_config.dns_monitoring_ports``, which is a list of DNS ports Cloud Network Monitoring will use to monitor DNS traffic on.
+
+- Automatically tag, but don't aggregate, multiline logs.
+  Logs are tagged with the number of other logs they could
+  potentially be aggregated with.
+
+- Update the histogram helpers API in the ``pkg/opentelemetry-mapping-go/otlp/metrics`` package. The API now accepts accept pointers to the OTLP data points, and returns blank DDSketches when the pointer is nil.
+
+- Update image resolution attempt telemetry to include the ``tag`` specified
+  in the configuration, and remove the ``registry`` and ``digest_resolution`` tags.
+
+- Windows: Add a new flare artifact ``agent_loaded_modules.json`` listing loaded DLLs with metadata
+  (full path, timestamp, size, perms) and version info (CompanyName, ProductName, OriginalFilename,
+  FileVersion, ProductVersion, InternalName). Keeps ``<flavor>_open_files.txt`` for compatibility.
+
+
+.. _Release Notes_7.76.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- The command ``agent diagnose show-metadata inventory-otel`` has been removed. To display DDOT metadata, you can query the datadog extension endpoint: ``http://localhost:9875/metadata``.
+
+
+.. _Release Notes_7.76.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Properly scrub sensitive information from Kubernetes pod specifications in agent flares.
+  Environment variables with sensitive names are now redacted.
+
+- Fixed a bug where long Kubernetes event bundles were being truncated by dogweb. 
+
+- APM: Fix a bug where the Agent would log a warning when the ``DD_APM_MODE`` environment variable was unset.
+
+- Properly parse the ``image_tag`` tag when defining a container spec
+  that uses both an image tag and a digest like ``nginx:1.23@sha256:xxx``.
+
+- Updates tag enrichment logic to retry on failed tag resolution attempts.
+  This regression was introduced in #41587 on Agent v7.73+.
+  Impacts origin detection on cgroup v2 runtimes with DogStatsD, which led
+  to tags not being enriched, even if origin detection was possible by
+  using other methods like container ID from socket or ExternalData.
+
+- Fixed a regression in the Go-native disk check (diskv2) where a failure
+  in IO counter collection (e.g. ``ERROR_INVALID_FUNCTION`` from
+  ``DeviceIoControl`` on Windows Server 2016) caused all disk metrics to be
+  discarded, including successfully collected partition/usage metrics such as
+  ``system.disk.total``, ``system.disk.used``, and ``system.disk.free``.
+  IO counter collection is now best-effort: known errors such as
+  ``ERROR_INVALID_FUNCTION`` are logged at debug level, while unexpected
+  errors are logged as warnings. Neither prevent partition metrics from
+  being reported.
+
+- Fleet installer: ensure the ``DD_LOGS_ENABLED`` environment variable is honored again
+  when running setup scripts, so Windows installs using the new installer flow properly.
+  Sets ``logs_enabled`` in ``datadog.yaml``.
+
+- Fixes a bug introduced in 7.73.0 that can cause a remote Agent update through Fleet Automation to fail to restore the previous version if the MSI fails and
+  the ``C:\Windows\SystemTemp\datadog-installer\rollback\InstallOciPackages.json`` file is present.
+
+- Fix Flux API groups, split fluxcd.io into source.toolkit.fluxcd.io and kustomize.toolkit.fluxcd.io.
+
+- Fixes repetitive 'Could not make file tailer' warning logs when short lived
+  pods are terminated and the Agent attempts to create a file tailer for the
+  deleted containers in a pod. Now the Agent will not create container services
+  for pods that have been deleted and no-longer have containers to tail.
+
+- GPU: MIG devices and parents are now reporting correct core and memory limits.
+
+- GPUm: fix gpu.memory.limit being duplicated in Hopper devices
+
+- Fixed the ``logs.sent`` metric for the HTTP log transport to no longer 
+  increment when logs are dropped due to non-retryable errors. This ensures 
+  more accurate reporting of successfully delivered logs.
+
+- Fix WLAN check failure on macOS systems.
+
+- Fix ``datadog.agent.check_ready`` to always include the ``check_name`` tag value for Python checks.
+
+- Rename ``kubernetes_kube_service_new_behavior`` to ``kubernetes_kube_service_ignore_readiness`` to
+  better reflect the behavior.
+
+- Prevent a deadlock from occurring in the otel-agent when its internal telemetry Prometheus endpoint is scraped.
+
+- [oracle] Updates the oracle.d/conf.yaml.example file to include all supported sql obfuscator options.
+  [DBM] Bump go-sqllexer to v0.1.12:
+  - Fixes a normalization bug for Oracle queries with positional bind parameters.
+  - Fixes a memory leak in the go-sqllexer package.
+
+
+.. _Release Notes_7.76.0_Other Notes:
+
+Other Notes
+-----------
+
+- Add metrics origins for battery integration.
+
+- Remove procps-ng and associated tools from Agent packages.
+
+
+.. _Release Notes_7.75.4:
+
+7.75.4
+======
+
+.. _Release Notes_7.75.4_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-02-17
+
+- Please refer to the `7.75.4 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7754>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.75.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.25.7``.
+
+
+.. _Release Notes_7.75.4_Security Notes:
+
+Security Notes
+--------------
+
+- APM: On span tags, add obfuscation for ``HELLO`` and ``MIGRATE`` Redis commands.
+    Similar to ``AUTH``, all arguments passed to these commands will be obfuscated
+    and replaced with ``?``.
+
 .. _Release Notes_7.75.3:
 
 7.75.3

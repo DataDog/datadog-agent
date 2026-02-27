@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	ServiceName = "datadog-private-action-runner"
+	ServiceName = "datadog-agent-action"
 )
 
 var (

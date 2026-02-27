@@ -21,7 +21,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
@@ -33,6 +33,7 @@ type stateUpdate struct {
 	QueuedPrograms   string            `yaml:"queued_programs,omitempty"`
 	Processes        map[any]string    `yaml:"processes,omitempty"`
 	Programs         map[int]string    `yaml:"programs,omitempty"`
+	DiscoveredTypes  map[string]string `yaml:"discovered_types,omitempty"`
 	Stats            map[string]string `yaml:"stats,omitempty"`
 }
 
@@ -95,8 +96,27 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 		}
 	}()
 
+	// Check if the first event is a config event; if so, extract settings
+	// and remove it from the events list.
+	discoveredTypesLimit := defaultDiscoveredTypesLimit
+	var recompilationRateLimit float64
+	var recompilationRateBurst int
+	if len(events) > 0 {
+		if cfg, ok := events[0].event.(eventConfig); ok {
+			discoveredTypesLimit = cfg.discoveredTypesLimit
+			recompilationRateLimit = cfg.recompilationRateLimit
+			recompilationRateBurst = cfg.recompilationRateBurst
+			events = events[1:]
+			eventNodes = eventNodes[1:]
+		}
+	}
+
 	// Process each event
-	s := newState(CircuitBreakerConfig{})
+	s := newState(Config{
+		DiscoveredTypesLimit:   discoveredTypesLimit,
+		RecompilationRateLimit: recompilationRateLimit,
+		RecompilationRateBurst: recompilationRateBurst,
+	})
 	effects := effectRecorder{}
 	for i, ev := range events {
 
@@ -362,6 +382,27 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 			}
 		}
 
+	}
+	{
+		allServices := make(map[string]bool)
+		for svc := range before.discoveredTypes {
+			allServices[svc] = true
+		}
+		for svc := range after.discoveredTypes {
+			allServices[svc] = true
+		}
+		for svc := range allServices {
+			beforeTypes := fmt.Sprintf("%v", before.discoveredTypes[svc])
+			afterTypes := fmt.Sprintf("%v", after.discoveredTypes[svc])
+			if beforeTypes != afterTypes {
+				if update.DiscoveredTypes == nil {
+					update.DiscoveredTypes = make(map[string]string)
+				}
+				update.DiscoveredTypes[svc] = fmt.Sprintf(
+					"%v -> %v", beforeTypes, afterTypes,
+				)
+			}
+		}
 	}
 	{
 		before, after := before.Metrics().AsStats(), after.Metrics().AsStats()

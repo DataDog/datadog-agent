@@ -13,9 +13,13 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
@@ -25,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	actionsclientpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient"
 	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 const (
@@ -128,7 +133,7 @@ func NewClient(cfg *config.Config) Client {
 func (c *client) DequeueTask(ctx context.Context) (*types.Task, error) {
 	u := &url.URL{
 		Scheme: "https",
-		Host:   c.config.DDHost,
+		Host:   c.config.DDApiHost,
 		Path:   dequeuePath,
 	}
 
@@ -172,7 +177,7 @@ func (c *client) PublishSuccess(
 
 	u := &url.URL{
 		Scheme: "https",
-		Host:   c.config.DDHost,
+		Host:   c.config.DDApiHost,
 		Path:   taskUpdatePath,
 	}
 
@@ -214,7 +219,7 @@ func (c *client) PublishFailure(
 ) error {
 	u := &url.URL{
 		Scheme: "https",
-		Host:   c.config.DDHost,
+		Host:   c.config.DDApiHost,
 		Path:   taskUpdatePath,
 	}
 
@@ -282,14 +287,18 @@ func createHealthCheckData(headers http.Header) *HealthCheckData {
 func (c *client) HealthCheck(ctx context.Context) (*HealthCheckData, error) {
 	u := &url.URL{
 		Scheme: "https",
-		Host:   c.config.DDHost,
+		Host:   c.config.DDApiHost,
 		Path:   healthCheckPath,
 	}
 
 	query := u.Query()
-	query.Add("runnerVersion", c.config.Version)
+	query.Add(app.RunnerVersionQueryParam, c.config.Version)
 	modesStr := modes.ToStrings(c.config.Modes)
-	query.Add("modes", strings.Join(modesStr, ","))
+	query.Add(app.ModesQueryParam, strings.Join(modesStr, ","))
+	query.Add(app.PlatformQueryParam, runtime.GOOS)
+	query.Add(app.ArchitectureQueryParam, runtime.GOARCH)
+	query.Add(app.FlavorQueryParam, flavor.GetFlavor())
+	query.Add(app.ContainerizedQueryParam, strconv.FormatBool(env.IsContainerized()))
 	u.RawQuery = query.Encode()
 
 	_, resHeaders, err := c.makeRequest(ctx, http.MethodGet, u.String(), nil, nil, http.StatusOK)
@@ -305,7 +314,7 @@ func (c *client) HealthCheck(ctx context.Context) (*HealthCheckData, error) {
 func (c *client) Heartbeat(ctx context.Context, client actionsclientpb.Client, taskID, actionFQN, jobID string) error {
 	u := &url.URL{
 		Scheme: "https",
-		Host:   c.config.DDHost,
+		Host:   c.config.DDApiHost,
 		Path:   heartbeat,
 	}
 
@@ -376,6 +385,10 @@ func (c *client) makeRequest(
 	req.Header.Set(app.VersionHeaderName, c.config.Version)
 	modesStr := modes.ToStrings(c.config.Modes)
 	req.Header.Set(app.ModeHeaderName, strings.Join(modesStr, ","))
+	req.Header.Set(app.PlatformHeaderName, runtime.GOOS)
+	req.Header.Set(app.ArchitectureHeaderName, runtime.GOARCH)
+	req.Header.Set(app.FlavorHeaderName, flavor.GetFlavor())
+	req.Header.Set(app.ContainerizedHeaderName, strconv.FormatBool(env.IsContainerized()))
 	res, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error making HTTP request: %w", err)

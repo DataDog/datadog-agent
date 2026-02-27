@@ -28,13 +28,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 
 	cache "github.com/patrickmn/go-cache"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 type configFormat struct {
 	ADIdentifiers           []string                           `yaml:"ad_identifiers,omitempty"`
 	AdvancedADIdentifiers   []integration.AdvancedADIdentifier `yaml:"advanced_ad_identifiers,omitempty"`
-	CELSelector             workloadfilter.Rules               `yaml:"cel_selector"`
+	CELSelector             workloadfilter.Rules               `yaml:"cel_selector,omitempty"`
 	ClusterCheck            bool                               `yaml:"cluster_check,omitempty"`
 	InitConfig              interface{}                        `yaml:"init_config,omitempty"`
 	MetricConfig            interface{}                        `yaml:"jmx_metrics,omitempty"`
@@ -121,8 +121,11 @@ var WithAdvancedADOnly FilterFunc = func(c integration.Config) bool {
 	return len(c.AdvancedADIdentifiers) > 0 || len(c.CELSelector.KubeServices) > 0 || len(c.CELSelector.KubeEndpoints) > 0
 }
 
-// WithoutAdvancedAD makes ReadConfigFiles return the all configurations except the ones with AdvancedADIdentifiers.
-var WithoutAdvancedAD FilterFunc = func(c integration.Config) bool { return len(c.AdvancedADIdentifiers) == 0 }
+// WithoutAdvancedAD makes ReadConfigFiles return the all configurations except the ones with AdvancedADIdentifiers
+// or CEL selectors targeting kubernetes services or endpoints.
+var WithoutAdvancedAD FilterFunc = func(c integration.Config) bool {
+	return len(c.AdvancedADIdentifiers) == 0 && len(c.CELSelector.KubeServices) == 0 && len(c.CELSelector.KubeEndpoints) == 0
+}
 
 // ReadConfigFiles returns integration configs read from config files, a mapping integration config error strings and an error.
 // The filter argument allows returing a subset of configs depending on the caller preferences.

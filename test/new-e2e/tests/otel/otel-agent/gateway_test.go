@@ -10,6 +10,9 @@ import (
 	_ "embed"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	scenkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
@@ -72,6 +75,15 @@ func (s *gatewayTestSuite) SetupSuite() {
 
 func (s *gatewayTestSuite) TestOTLPTraces() {
 	utils.TestTraces(s, gatewayParams)
+
+	// In gateway mode, the agent hostname should be empty (not set)
+	// because the gateway agent acts as a forwarder and doesn't represent a specific host.
+	traces, err := s.Env().FakeIntake.Client().GetTraces()
+	require.NoError(s.T(), err)
+	require.NotEmpty(s.T(), traces)
+	for _, trace := range traces {
+		assert.Empty(s.T(), trace.HostName, "agent hostname should be empty in gateway mode")
+	}
 }
 
 func (s *gatewayTestSuite) TestOTLPMetrics() {

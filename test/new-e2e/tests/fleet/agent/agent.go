@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/avast/retry-go/v4"
-	"github.com/goccy/go-yaml"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v3"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
@@ -922,8 +922,13 @@ type Status struct {
 	} `json:"metadata"`
 	NtpOffset float64 `json:"ntpOffset"`
 	OtelAgent struct {
-		Error string `json:"error"`
-		URL   string `json:"url"`
+		// Error state (when DDOT is disabled or not running)
+		Error string `json:"error,omitempty"`
+		URL   string `json:"url,omitempty"`
+
+		// Success state (when DDOT is running)
+		AgentVersion     string `json:"agentVersion,omitempty"`
+		CollectorVersion string `json:"collectorVersion,omitempty"`
 	} `json:"otelAgent"`
 	Otlp struct {
 		OtlpCollectorStatus    string `json:"otlpCollectorStatus"`
