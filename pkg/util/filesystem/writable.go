@@ -12,10 +12,15 @@ import (
 	"syscall"
 )
 
-// IsWritable is used to verify if a directory is writable by the current process.
-// It will create a temp file in the directory and delete it after the check.
-func IsWritable(dir string) (bool, error) {
+// IsReadOnly is used to verify if a path is mounted as a read-only filesystem by
+// creating a temp file in the directory then deleting it after the check.
+//
+// Using os.Stat() is not a reliable way to check if a path is writable since it
+// ignores how the backing filesystem is mounted (e.g. read-only). Instead, attempting
+// a write operation is more reliable.
+func IsReadOnly(dir string) (bool, error) {
 	if !FileExists(dir) {
+		// A missing directory does not mean the path is read-only.
 		err := os.Mkdir(dir, 0755)
 		// If we can't create the directory, it's not writable.
 		if os.IsPermission(err) || errors.Is(err, syscall.EROFS) {

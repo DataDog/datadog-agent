@@ -38,14 +38,13 @@ func Check(cfg config.Component) (*healthplatform.IssueReport, error) {
 			continue
 		}
 
-		writable, err := filesystem.IsWritable(dir)
+		writable, err := filesystem.IsReadOnly(dir)
 		if err != nil {
-			log.Warnf("Write permission check failed for %s: %v", dir, err)
+			log.Warnf("Could not check if %s is writable: %v", dir, err)
 			continue
 		}
 
 		if !writable {
-			log.Warnf("Directory '%s' is not writable", dir)
 			nonWritableDirs = append(nonWritableDirs, dir)
 		}
 	}
