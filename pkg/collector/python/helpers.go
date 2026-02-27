@@ -14,7 +14,7 @@ import (
 	"unsafe"
 
 	"go.uber.org/atomic"
-	yaml "gopkg.in/yaml.v2"
+	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -93,8 +93,6 @@ var (
 // the GIL. It also sticks the goroutine to the current thread so that a
 // subsequent call to `Unlock` will unregister the very same thread.
 func newStickyLock() (*stickyLock, error) {
-	runtime.LockOSThread()
-
 	pyDestroyLock.RLock()
 	defer pyDestroyLock.RUnlock()
 
@@ -103,6 +101,7 @@ func newStickyLock() (*stickyLock, error) {
 		return nil, fmt.Errorf("error acquiring the GIL: %w", ErrNotInitialized)
 	}
 
+	runtime.LockOSThread()
 	state := C.ensure_gil(rtloader)
 
 	return &stickyLock{

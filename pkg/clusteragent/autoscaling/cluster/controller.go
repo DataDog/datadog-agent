@@ -40,7 +40,7 @@ var (
 	// Only support EC2 for now
 	nodeClassGVR = schema.GroupVersionResource{Group: "karpenter.k8s.aws", Version: "v1", Resource: "ec2nodeclasses"}
 
-	controllerID = "dca-c"
+	controllerID autoscaling.SenderID = "dca-c"
 )
 
 type Controller struct {
