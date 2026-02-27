@@ -7,8 +7,8 @@
 package recorderimpl
 
 import (
+	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
@@ -31,31 +31,70 @@ type Provides struct {
 func NewComponent(req Requires) (Provides, error) {
 	r := &recorderImpl{}
 
-	// Initialize recording if both capture_metrics.enabled AND parquet_output_dir are configured.
-	captureMetricsEnabled := req.Config.GetBool("observer.capture_metrics.enabled")
-	if captureMetricsEnabled {
-		if parquetDir := req.Config.GetString("observer.parquet_output_dir"); parquetDir != "" {
-			flushInterval := req.Config.GetDuration("observer.parquet_flush_interval")
-			if flushInterval == 0 {
-				flushInterval = 60 * time.Second
-			}
+	// Check if recording is enabled
+	if !req.Config.GetBool("observer.recording.enabled") {
+		pkglog.Debug("Recorder disabled (observer.recording.enabled=false)")
+		return Provides{Comp: r}, nil
+	}
 
-			retentionDuration := req.Config.GetDuration("observer.parquet_retention")
-			if retentionDuration <= 0 {
-				retentionDuration = 24 * time.Hour
-			}
+	parquetDir := req.Config.GetString("observer.recording.parquet_output_dir")
+	if parquetDir == "" {
+		return Provides{Comp: r}, errors.New("observer.recording.parquet_output_dir not set")
+	}
 
-			// Create parquet writer
-			writer, err := NewParquetWriter(parquetDir, flushInterval, retentionDuration)
-			if err != nil {
-				pkglog.Errorf("Failed to create parquet writer: %v", err)
-			} else {
-				r.parquetWriter = writer
-				pkglog.Infof("Recorder started with parquet output: dir=%s flush=%v retention=%v", parquetDir, flushInterval, retentionDuration)
-			}
-		}
+	flushInterval := req.Config.GetDuration("observer.recording.parquet_flush_interval")
+	if flushInterval == 0 {
+		flushInterval = 60 * time.Second
+	}
+
+	retentionDuration := req.Config.GetDuration("observer.recording.parquet_retention")
+	if retentionDuration <= 0 {
+		retentionDuration = 24 * time.Hour
+	}
+
+	// Initialize metrics writer (always enabled when recording is on)
+	writer, err := NewParquetWriter(parquetDir, flushInterval, retentionDuration)
+	if err != nil {
+		pkglog.Errorf("Failed to create metrics parquet writer: %v", err)
 	} else {
-		pkglog.Debug("Recorder parquet writer disabled (observer.capture_metrics.enabled is false)")
+		r.parquetWriter = writer
+		pkglog.Infof("Recorder metrics writer started: dir=%s", parquetDir)
+	}
+
+	// Initialize traces writer (always enabled when recording is on)
+	traceWriter, err := NewTraceParquetWriter(parquetDir, flushInterval, retentionDuration)
+	if err != nil {
+		pkglog.Errorf("Failed to create trace parquet writer: %v", err)
+	} else {
+		r.traceParquetWriter = traceWriter
+		pkglog.Infof("Recorder trace writer started: dir=%s", parquetDir)
+	}
+
+	// Initialize profiles writer (always enabled when recording is on)
+	profileWriter, err := NewProfileParquetWriter(parquetDir, flushInterval, retentionDuration)
+	if err != nil {
+		pkglog.Errorf("Failed to create profile parquet writer: %v", err)
+	} else {
+		r.profileParquetWriter = profileWriter
+		pkglog.Infof("Recorder profile writer started: dir=%s", parquetDir)
+	}
+
+	// Initialize logs writer (always enabled when recording is on)
+	logWriter, err := NewLogParquetWriter(parquetDir, flushInterval, retentionDuration)
+	if err != nil {
+		pkglog.Errorf("Failed to create log parquet writer: %v", err)
+	} else {
+		r.logParquetWriter = logWriter
+		pkglog.Infof("Recorder log writer started: dir=%s", parquetDir)
+	}
+
+	// Initialize trace stats writer (always enabled when recording is on)
+	traceStatsWriter, err := NewTraceStatsParquetWriter(parquetDir, flushInterval, retentionDuration)
+	if err != nil {
+		pkglog.Errorf("Failed to create trace stats parquet writer: %v", err)
+	} else {
+		r.traceStatsParquetWriter = traceStatsWriter
+		pkglog.Infof("Recorder trace stats writer started: dir=%s", parquetDir)
 	}
 
 	return Provides{Comp: r}, nil
@@ -63,8 +102,11 @@ func NewComponent(req Requires) (Provides, error) {
 
 // recorderImpl implements the recorder component
 type recorderImpl struct {
-	parquetWriter *ParquetWriter
-	mu            sync.Mutex
+	parquetWriter           *ParquetWriter
+	traceParquetWriter      *TraceParquetWriter
+	profileParquetWriter    *ProfileParquetWriter
+	logParquetWriter        *LogParquetWriter
+	traceStatsParquetWriter *TraceStatsParquetWriter
 }
 
 // GetHandle wraps the provided HandleFunc with recording capability.
@@ -72,8 +114,8 @@ func (r *recorderImpl) GetHandle(handleFunc observer.HandleFunc) observer.Handle
 	return func(name string) observer.Handle {
 		innerHandle := handleFunc(name)
 
-		// If recording is enabled, wrap with recording handle
-		if r.parquetWriter != nil {
+		// If any recording is enabled, wrap with recording handle
+		if r.parquetWriter != nil || r.traceParquetWriter != nil || r.profileParquetWriter != nil || r.logParquetWriter != nil || r.traceStatsParquetWriter != nil {
 			return &recordingHandle{
 				inner:    innerHandle,
 				recorder: r,
@@ -140,6 +182,67 @@ func (r *recorderImpl) ReadAllMetrics(inputDir string) ([]recorderdef.MetricData
 	return metrics, nil
 }
 
+// ReadAllTraces reads all traces from parquet files and returns them as a slice.
+// Traces are reconstructed from denormalized span rows grouped by trace ID.
+func (r *recorderImpl) ReadAllTraces(inputDir string) ([]recorderdef.TraceData, error) {
+	reader, err := NewTraceParquetReader(inputDir)
+	if err != nil {
+		return nil, fmt.Errorf("creating trace parquet reader: %w", err)
+	}
+
+	pkglog.Infof("ReadAllTraces: loading traces from %s", inputDir)
+
+	traces := reader.ReadAll()
+
+	pkglog.Infof("ReadAllTraces: loaded %d traces", len(traces))
+	return traces, nil
+}
+
+// ReadAllProfiles reads all profiles from parquet files and returns them as a slice.
+func (r *recorderImpl) ReadAllProfiles(inputDir string) ([]recorderdef.ProfileData, error) {
+	reader, err := NewProfileParquetReader(inputDir)
+	if err != nil {
+		return nil, fmt.Errorf("creating profile parquet reader: %w", err)
+	}
+
+	pkglog.Infof("ReadAllProfiles: loading profiles from %s", inputDir)
+
+	profiles := reader.ReadAll()
+
+	pkglog.Infof("ReadAllProfiles: loaded %d profiles", len(profiles))
+	return profiles, nil
+}
+
+// ReadAllTraceStats reads all APM trace stats from parquet files and returns them as a slice.
+func (r *recorderImpl) ReadAllTraceStats(inputDir string) ([]recorderdef.TraceStatsData, error) {
+	reader, err := NewTraceStatsParquetReader(inputDir)
+	if err != nil {
+		return nil, fmt.Errorf("creating trace stats parquet reader: %w", err)
+	}
+
+	pkglog.Infof("ReadAllTraceStats: loading trace stats from %s", inputDir)
+
+	stats := reader.ReadAll()
+
+	pkglog.Infof("ReadAllTraceStats: loaded %d stat rows", len(stats))
+	return stats, nil
+}
+
+// ReadAllLogs reads all logs from parquet files and returns them as a slice.
+func (r *recorderImpl) ReadAllLogs(inputDir string) ([]recorderdef.LogData, error) {
+	reader, err := NewLogParquetReader(inputDir)
+	if err != nil {
+		return nil, fmt.Errorf("creating log parquet reader: %w", err)
+	}
+
+	pkglog.Infof("ReadAllLogs: loading logs from %s", inputDir)
+
+	logs := reader.ReadAll()
+
+	pkglog.Infof("ReadAllLogs: loaded %d logs", len(logs))
+	return logs, nil
+}
+
 // recordingHandle wraps an observer handle to record observations.
 type recordingHandle struct {
 	inner    observer.Handle
@@ -168,9 +271,127 @@ func (h *recordingHandle) ObserveMetric(sample observer.MetricView) {
 	}
 }
 
-// ObserveLog forwards the log to the inner handle.
-// Log recording is not implemented yet but the hook is in place.
+// ObserveLog forwards the log to the inner handle and records it.
 func (h *recordingHandle) ObserveLog(msg observer.LogView) {
 	h.inner.ObserveLog(msg)
-	// TODO: Optionally record logs to parquet (future enhancement)
+
+	// Record to parquet if writer is available
+	if h.recorder.logParquetWriter != nil {
+		content := msg.GetContent()
+		contentCopy := make([]byte, len(content))
+		copy(contentCopy, content)
+
+		h.recorder.logParquetWriter.WriteLog(
+			h.name,
+			contentCopy,
+			msg.GetStatus(),
+			msg.GetHostname(),
+			msg.GetTags(),
+			time.Now().UnixMilli(),
+		)
+	}
+}
+
+// ObserveTraceStats forwards stats to the inner handle and records them to the
+// dedicated trace-stats parquet file (not to the metrics parquet file).
+func (h *recordingHandle) ObserveTraceStats(stats observer.TraceStatsView) {
+	h.inner.ObserveTraceStats(stats)
+
+	if h.recorder.traceStatsParquetWriter == nil {
+		return
+	}
+
+	agentHostname := stats.GetAgentHostname()
+	agentEnv := stats.GetAgentEnv()
+	rows := stats.GetRows()
+	for rows.Next() {
+		row := rows.Row()
+		h.recorder.traceStatsParquetWriter.WriteStatRow(
+			h.name,
+			agentHostname, agentEnv,
+			row.GetClientHostname(), row.GetClientEnv(), row.GetClientVersion(), row.GetClientContainerID(),
+			row.GetBucketStart(), row.GetBucketDuration(),
+			row.GetService(), row.GetName(), row.GetResource(), row.GetType(),
+			row.GetHTTPStatusCode(), row.GetSpanKind(), row.GetIsTraceRoot(), row.GetSynthetics(),
+			row.GetHits(), row.GetErrors(), row.GetTopLevelHits(), row.GetDuration(),
+			row.GetOkSummary(), row.GetErrorSummary(),
+			row.GetPeerTags(),
+		)
+	}
+}
+
+// ObserveTrace forwards the trace to the inner handle and records it.
+func (h *recordingHandle) ObserveTrace(trace observer.TraceView) {
+	h.inner.ObserveTrace(trace)
+
+	// Record to parquet if writer is available
+	if h.recorder.traceParquetWriter != nil {
+		traceIDHigh, traceIDLow := trace.GetTraceID()
+		traceService := trace.GetService()
+		traceTags := mapToTagSlice(trace.GetTags())
+
+		// Iterate over all spans and write each one with trace context
+		iter := trace.GetSpans()
+		for iter.Next() {
+			span := iter.Span()
+			h.recorder.traceParquetWriter.WriteSpan(
+				h.name,
+				traceIDHigh, traceIDLow,
+				trace.GetEnv(), traceService, trace.GetHostname(), trace.GetContainerID(),
+				trace.GetTimestamp(), trace.GetDuration(),
+				trace.GetPriority(), trace.IsError(), traceTags,
+				span.GetSpanID(), span.GetParentID(),
+				span.GetService(), span.GetName(), span.GetResource(), span.GetType(),
+				span.GetStart(), span.GetDuration(), span.GetError(),
+				mapToTagSlice(span.GetMeta()), mapToMetricSlice(span.GetMetrics()),
+			)
+		}
+	}
+}
+
+// ObserveProfile forwards the profile to the inner handle and records it.
+func (h *recordingHandle) ObserveProfile(profile observer.ProfileView) {
+	h.inner.ObserveProfile(profile)
+
+	// Record to parquet if writer is available
+	if h.recorder.profileParquetWriter != nil {
+		h.recorder.profileParquetWriter.WriteProfile(
+			h.name,
+			profile.GetProfileID(), profile.GetProfileType(),
+			profile.GetService(), profile.GetEnv(), profile.GetVersion(),
+			profile.GetHostname(), profile.GetContainerID(),
+			profile.GetTimestamp(), profile.GetDuration(),
+			profile.GetContentType(),
+			profile.GetRawData(),
+			mapToTagSlice(profile.GetTags()),
+		)
+	}
+}
+
+// mapToTagSlice converts a map to a slice of "key:value" strings.
+func mapToTagSlice(m map[string]string) []string {
+	if m == nil {
+		return nil
+	}
+	result := make([]string, 0, len(m))
+	for k, v := range m {
+		if v != "" {
+			result = append(result, k+":"+v)
+		} else {
+			result = append(result, k)
+		}
+	}
+	return result
+}
+
+// mapToMetricSlice converts a float64 map to a slice of "key:value" strings.
+func mapToMetricSlice(m map[string]float64) []string {
+	if m == nil {
+		return nil
+	}
+	result := make([]string, 0, len(m))
+	for k, v := range m {
+		result = append(result, fmt.Sprintf("%s:%g", k, v))
+	}
+	return result
 }

@@ -6,6 +6,7 @@ go 1.25.6
 godebug tlsmlkem=0
 
 use (
+
 	.
 	comp/api/api/def
 	comp/core/agenttelemetry/def
@@ -49,6 +50,7 @@ use (
 	comp/forwarder/orchestrator/orchestratorinterface
 	comp/logs/agent/config
 	comp/netflow/payload
+	comp/observer/def
 	comp/otelcol/collector-contrib/def
 	comp/otelcol/collector-contrib/impl
 	comp/otelcol/converter/def
@@ -74,6 +76,7 @@ use (
 	comp/trace/compression/def
 	comp/trace/compression/impl-gzip
 	comp/trace/compression/impl-zstd
+	comp/trace/observerbuffer/def
 	internal/tools
 	internal/tools/gotest-custom
 	internal/tools/independent-lint

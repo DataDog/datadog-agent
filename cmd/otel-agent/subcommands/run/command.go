@@ -61,6 +61,7 @@ import (
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
 	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
+	observerbufferfx "github.com/DataDog/datadog-agent/comp/trace/observerbuffer/fx"
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -247,6 +248,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			DisableInternalProfiling: true,
 		}),
 		payloadmodifierfx.NilModule(),
+		observerbufferfx.Module(),
 		traceagentfx.Module(),
 		agenttelemetryfx.Module(),
 		fxinstrumentation.Module(),

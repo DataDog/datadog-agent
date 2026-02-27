@@ -6,7 +6,7 @@
 package recorderimpl
 
 import (
-	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -83,7 +83,7 @@ func TestParquetWriteReadMultipleMetrics(t *testing.T) {
 		tags := []string{
 			"host:server1",
 			"env:prod",
-			"index:" + fmt.Sprintf("%d", i),
+			"index:" + strconv.Itoa(i),
 		}
 		writer.WriteMetric("test", "metric.test", float64(i), tags, int64(i*1000))
 	}

@@ -125,7 +125,7 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
 			tc.AdditionalProfileTags = args.AdditionalProfileTags
-			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent())
+			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent(), nil)
 
 			// Check if trace stats should be disabled for serverless
 			if disabled, _ := strconv.ParseBool(os.Getenv(disableTraceStatsEnvVar)); disabled {

@@ -1,0 +1,92 @@
+syntax = "proto3";
+
+package datadog.remoteagent.observer.v1;
+
+option go_package = "pkg/proto/pbgo/core";
+
+// ObserverProvider is implemented by trace-agent to serve buffered traces/profiles to core-agent.
+// Core-agent periodically pulls data from trace-agent via this service.
+service ObserverProvider {
+    // GetTraces returns buffered trace data since last fetch.
+    rpc GetTraces(GetTracesRequest) returns (GetTracesResponse);
+
+    // GetProfiles returns buffered profile metadata since last fetch.
+    rpc GetProfiles(GetProfilesRequest) returns (GetProfilesResponse);
+}
+
+// GetTracesRequest is sent by core-agent to request buffered traces.
+message GetTracesRequest {
+    // max_items limits the number of traces returned (0 = no limit).
+    uint32 max_items = 1;
+}
+
+// GetTracesResponse contains buffered traces from trace-agent.
+message GetTracesResponse {
+    // traces contains the buffered trace data.
+    repeated TraceChunkData traces = 1;
+    // dropped_count indicates how many traces were dropped due to buffer overflow.
+    uint64 dropped_count = 2;
+    // has_more indicates if there is more data available in the buffer.
+    bool has_more = 3;
+    // stats_payloads contains msgpack-encoded StatsPayload objects (trace stats/metrics).
+    repeated bytes stats_payloads = 4;
+    // stats_dropped_count indicates how many stats payloads were dropped due to buffer overflow.
+    uint64 stats_dropped_count = 5;
+}
+
+// TraceChunkData wraps a serialized TracerPayload with metadata about when it was received.
+message TraceChunkData {
+    // payload_data contains the msgpack-serialized TracerPayload.
+    // Use pb.TracerPayload.Unmarshal() to deserialize.
+    bytes payload_data = 1;
+    // received_at_ns is when trace-agent received this trace (nanoseconds since epoch).
+    int64 received_at_ns = 2;
+}
+
+// GetProfilesRequest is sent by core-agent to request buffered profiles.
+message GetProfilesRequest {
+    // max_items limits the number of profiles returned (0 = no limit).
+    uint32 max_items = 1;
+}
+
+// GetProfilesResponse contains buffered profiles from trace-agent.
+message GetProfilesResponse {
+    // profiles contains the buffered profile data.
+    repeated ProfileData profiles = 1;
+    // dropped_count indicates how many profiles were dropped due to buffer overflow.
+    uint64 dropped_count = 2;
+    // has_more indicates if there is more data available in the buffer.
+    bool has_more = 3;
+}
+
+// ProfileData contains profile metadata and optionally inline data.
+// Profile format is language-agnostic (pprof for Go/Python, JFR for Java, etc.).
+// The observer stores profiles as opaque binary blobs without parsing or transforming them.
+message ProfileData {
+    // profile_id is a unique identifier for this profile.
+    string profile_id = 1;
+    // profile_type identifies the kind of profile (cpu, heap, mutex, etc.).
+    string profile_type = 2;
+    // service is the name of the service that produced this profile.
+    string service = 3;
+    // env is the environment tag.
+    string env = 4;
+    // version is the application version.
+    string version = 5;
+    // hostname is where the profile was collected.
+    string hostname = 6;
+    // container_id is the container where the profile was collected.
+    string container_id = 7;
+    // timestamp_ns is when the profile was collected (nanoseconds since epoch).
+    int64 timestamp_ns = 8;
+    // duration_ns is the profile duration (nanoseconds).
+    int64 duration_ns = 9;
+    // tags are additional profile tags.
+    map<string, string> tags = 10;
+    // content_type is the original Content-Type header (format is language-specific).
+    string content_type = 11;
+    // inline_data contains the opaque binary profile data (may be empty if too large).
+    bytes inline_data = 12;
+    // received_at_ns is when trace-agent received this profile (nanoseconds since epoch).
+    int64 received_at_ns = 13;
+}
