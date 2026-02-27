@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/operator"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/operatorparams"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/argorollouts"
@@ -94,16 +93,11 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 		return err
 	}
 
-	installEcrCredsHelperCmd, err := docker.InstallECRCredentialsHelper(awsEnv.CommonNamer(), host)
-	if err != nil {
-		return err
-	}
-
 	var kindCluster *kubeComp.Cluster
 	if len(params.ciliumOptions) > 0 {
-		kindCluster, err = cilium.NewKindCluster(&awsEnv, host, params.Name, awsEnv.KubernetesVersion(), params.ciliumOptions, utils.PulumiDependsOn(installEcrCredsHelperCmd))
+		kindCluster, err = cilium.NewKindCluster(&awsEnv, host, params.Name, awsEnv.KubernetesVersion(), params.ciliumOptions)
 	} else {
-		kindCluster, err = kubeComp.NewKindCluster(&awsEnv, host, params.Name, awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
+		kindCluster, err = kubeComp.NewKindCluster(&awsEnv, host, params.Name, awsEnv.KubernetesVersion())
 	}
 
 	if err != nil {
