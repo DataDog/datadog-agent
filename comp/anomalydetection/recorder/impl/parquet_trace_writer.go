@@ -23,14 +23,12 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// TraceParquetWriter writes observer traces to rotating parquet files.
+// TraceParquetWriter writes observer traces to parquet files created on each flush.
 // Traces are stored as denormalized spans (one row per span) for efficient columnar queries.
 // Each span row includes trace-level metadata for easy filtering without joins.
+// Files are only created when there is data to write; empty files are never produced.
 type TraceParquetWriter struct {
 	outputDir         string
-	currentFilePath   string
-	writer            *pqarrow.FileWriter
-	file              *os.File
 	schema            *arrow.Schema
 	builder           *spanBatchBuilder
 	flushInterval     time.Duration
@@ -87,10 +85,6 @@ func NewTraceParquetWriter(outputDir string, flushInterval, retentionDuration ti
 		stopCh:            make(chan struct{}),
 	}
 
-	if err := tw.rotateFile(); err != nil {
-		return nil, fmt.Errorf("creating initial parquet file: %w", err)
-	}
-
 	go tw.flushLoop()
 	if retentionDuration > 0 {
 		go tw.cleanupLoop()
@@ -101,22 +95,17 @@ func NewTraceParquetWriter(outputDir string, flushInterval, retentionDuration ti
 	return tw, nil
 }
 
-func (tw *TraceParquetWriter) rotateFile() error {
-	if tw.writer != nil {
-		if err := tw.writer.Close(); err != nil {
-			pkglog.Warnf("Error closing trace parquet writer during rotation: %v", err)
-		}
-		tw.writer = nil
-	}
-	tw.file = nil
-
+// writeRecord creates a new timestamped file, writes the record, and closes it atomically.
+// Only called when there is data; no file is created for empty batches.
+// Must be called with tw.mu held.
+func (tw *TraceParquetWriter) writeRecord(record arrow.Record) error {
 	timestamp := time.Now().UTC().Format("20060102-150405")
 	filename := fmt.Sprintf("observer-traces-%sZ.parquet", timestamp)
-	tw.currentFilePath = filepath.Join(tw.outputDir, filename)
+	filePath := filepath.Join(tw.outputDir, filename)
 
-	file, err := os.Create(tw.currentFilePath)
+	file, err := os.Create(filePath)
 	if err != nil {
-		return fmt.Errorf("creating parquet file %s: %w", tw.currentFilePath, err)
+		return fmt.Errorf("creating parquet file %s: %w", filePath, err)
 	}
 
 	props := parquet.NewWriterProperties(
@@ -138,11 +127,16 @@ func (tw *TraceParquetWriter) rotateFile() error {
 		return fmt.Errorf("creating parquet writer: %w", err)
 	}
 
-	tw.file = file
-	tw.writer = writer
+	if err := writer.Write(record); err != nil {
+		writer.Close()
+		return fmt.Errorf("writing record to parquet: %w", err)
+	}
 
-	pkglog.Debugf("Rotated to new trace parquet file: %s", tw.currentFilePath)
+	if err := writer.Close(); err != nil {
+		return fmt.Errorf("closing parquet writer: %w", err)
+	}
 
+	pkglog.Debugf("Wrote trace parquet file: %s (%d rows)", filePath, record.NumRows())
 	return nil
 }
 
@@ -184,15 +178,17 @@ func (tw *TraceParquetWriter) flushLoop() {
 	for {
 		select {
 		case <-tw.stopCh:
-			tw.flushAndRotate()
+			tw.flush()
 			return
 		case <-ticker.C:
-			tw.flushAndRotate()
+			tw.flush()
 		}
 	}
 }
 
-func (tw *TraceParquetWriter) flushAndRotate() {
+// flush writes accumulated spans to a new file if there is data to write.
+// If no spans have been collected since the last flush, no file is created.
+func (tw *TraceParquetWriter) flush() {
 	tw.mu.Lock()
 	defer tw.mu.Unlock()
 
@@ -201,15 +197,13 @@ func (tw *TraceParquetWriter) flushAndRotate() {
 	}
 
 	record := tw.builder.build()
-	if record != nil {
-		if err := tw.writer.Write(record); err != nil {
-			pkglog.Errorf("Failed to write traces to parquet: %v", err)
-		}
-		record.Release()
+	if record == nil {
+		return
 	}
+	defer record.Release()
 
-	if err := tw.rotateFile(); err != nil {
-		pkglog.Errorf("Failed to rotate trace parquet file: %v", err)
+	if err := tw.writeRecord(record); err != nil {
+		pkglog.Errorf("Failed to flush traces to parquet: %v", err)
 	}
 }
 
@@ -275,22 +269,14 @@ func (tw *TraceParquetWriter) Close() error {
 	close(tw.stopCh)
 
 	record := tw.builder.build()
-	if record != nil {
-		if err := tw.writer.Write(record); err != nil {
-			pkglog.Errorf("Failed to write final traces to parquet: %v", err)
-		}
-		record.Release()
+	if record == nil {
+		return nil
 	}
+	defer record.Release()
 
-	if tw.writer != nil {
-		if err := tw.writer.Close(); err != nil {
-			return fmt.Errorf("closing trace parquet writer: %w", err)
-		}
-		tw.writer = nil
+	if err := tw.writeRecord(record); err != nil {
+		return fmt.Errorf("final flush: %w", err)
 	}
-	tw.file = nil
-
-	pkglog.Infof("Trace parquet writer closed: %s", tw.currentFilePath)
 	return nil
 }
 

@@ -23,14 +23,11 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ParquetWriter writes observer metrics to rotating parquet files.
-// Files are rotated at the flush interval to ensure they remain valid and readable.
+// ParquetWriter writes observer metrics to parquet files created on each flush.
+// Files are only created when there is data to write; empty files are never produced.
 // Schema is compatible with FGM (Flare Graph Metrics) format for consistency.
 type ParquetWriter struct {
 	outputDir         string
-	currentFilePath   string
-	writer            *pqarrow.FileWriter
-	file              *os.File
 	schema            *arrow.Schema
 	builder           *metricBatchBuilder
 	flushInterval     time.Duration
@@ -71,11 +68,6 @@ func NewParquetWriter(outputDir string, flushInterval, retentionDuration time.Du
 		stopCh:            make(chan struct{}),
 	}
 
-	// Create initial file
-	if err := pw.rotateFile(); err != nil {
-		return nil, fmt.Errorf("creating initial parquet file: %w", err)
-	}
-
 	// Start flush and cleanup loops
 	go pw.flushLoop()
 	if retentionDuration > 0 {
@@ -87,31 +79,21 @@ func NewParquetWriter(outputDir string, flushInterval, retentionDuration time.Du
 	return pw, nil
 }
 
-// rotateFile closes the current file and opens a new timestamped one
-func (pw *ParquetWriter) rotateFile() error {
-	// Close existing writer (this also closes the underlying file)
-	if pw.writer != nil {
-		if err := pw.writer.Close(); err != nil {
-			pkglog.Warnf("Error closing parquet writer during rotation: %v", err)
-		}
-		pw.writer = nil
-	}
-	// File is already closed by writer.Close(), just nil it out
-	pw.file = nil
-
-	// Generate timestamped filename with UTC timezone: observer-metrics-20260129-133045Z.parquet
+// writeRecord creates a new timestamped file, writes the record, and closes it atomically.
+// Only called when there is data; no file is created for empty batches.
+// Must be called with pw.mu held.
+func (pw *ParquetWriter) writeRecord(record arrow.Record) error {
 	timestamp := time.Now().UTC().Format("20060102-150405")
 	filename := fmt.Sprintf("observer-metrics-%sZ.parquet", timestamp)
-	pw.currentFilePath = filepath.Join(pw.outputDir, filename)
+	filePath := filepath.Join(pw.outputDir, filename)
 
-	// Create new file
-	file, err := os.Create(pw.currentFilePath)
+	file, err := os.Create(filePath)
 	if err != nil {
-		return fmt.Errorf("creating parquet file %s: %w", pw.currentFilePath, err)
+		return fmt.Errorf("creating parquet file %s: %w", filePath, err)
 	}
 
-	// Configure parquet writer with compression and bloom filters
-	// Bloom filters enable fast tag queries without reading all data
+	// Configure parquet writer with compression and bloom filters.
+	// Bloom filters enable fast tag queries without reading all data.
 	props := parquet.NewWriterProperties(
 		parquet.WithVersion(parquet.V2_LATEST),
 		parquet.WithCompression(compress.Codecs.Zstd),
@@ -133,11 +115,16 @@ func (pw *ParquetWriter) rotateFile() error {
 		return fmt.Errorf("creating parquet writer: %w", err)
 	}
 
-	pw.file = file
-	pw.writer = writer
+	if err := writer.Write(record); err != nil {
+		writer.Close()
+		return fmt.Errorf("writing record to parquet: %w", err)
+	}
 
-	pkglog.Debugf("Rotated to new parquet file: %s", pw.currentFilePath)
+	if err := writer.Close(); err != nil {
+		return fmt.Errorf("closing parquet writer: %w", err)
+	}
 
+	pkglog.Debugf("Wrote parquet file: %s (%d rows)", filePath, record.NumRows())
 	return nil
 }
 
@@ -149,7 +136,7 @@ func (pw *ParquetWriter) WriteMetric(source, name string, value float64, tags []
 	pw.builder.add(source, name, value, tags, timestamp)
 }
 
-// flushLoop periodically flushes metrics and rotates files
+// flushLoop periodically flushes accumulated metrics to disk
 func (pw *ParquetWriter) flushLoop() {
 	ticker := time.NewTicker(pw.flushInterval)
 	defer ticker.Stop()
@@ -157,36 +144,32 @@ func (pw *ParquetWriter) flushLoop() {
 	for {
 		select {
 		case <-pw.stopCh:
-			pw.flushAndRotate()
+			pw.flush()
 			return
 		case <-ticker.C:
-			pw.flushAndRotate()
+			pw.flush()
 		}
 	}
 }
 
-// flushAndRotate writes accumulated metrics, closes file, and opens a new one
-func (pw *ParquetWriter) flushAndRotate() {
+// flush writes accumulated metrics to a new file if there is data to write.
+// If no metrics have been collected since the last flush, no file is created.
+func (pw *ParquetWriter) flush() {
 	pw.mu.Lock()
 	defer pw.mu.Unlock()
 
-	// Don't rotate if we're closing - Close() will handle final flush
 	if pw.closed {
 		return
 	}
 
-	// Write accumulated metrics to current file
 	record := pw.builder.build()
-	if record != nil {
-		if err := pw.writer.Write(record); err != nil {
-			pkglog.Errorf("Failed to write metrics to parquet: %v", err)
-		}
-		record.Release()
+	if record == nil {
+		return
 	}
+	defer record.Release()
 
-	// Rotate to new file (closes current file, making it valid and readable)
-	if err := pw.rotateFile(); err != nil {
-		pkglog.Errorf("Failed to rotate parquet file: %v", err)
+	if err := pw.writeRecord(record); err != nil {
+		pkglog.Errorf("Failed to flush metrics to parquet: %v", err)
 	}
 }
 
@@ -258,26 +241,16 @@ func (pw *ParquetWriter) Close() error {
 	// Signal background goroutines to stop
 	close(pw.stopCh)
 
-	// Final flush
+	// Final flush: write any remaining data, skip if nothing accumulated
 	record := pw.builder.build()
-	if record != nil {
-		if err := pw.writer.Write(record); err != nil {
-			pkglog.Errorf("Failed to write final metrics to parquet: %v", err)
-		}
-		record.Release()
+	if record == nil {
+		return nil
 	}
+	defer record.Release()
 
-	// Close writer (this also closes the underlying file)
-	if pw.writer != nil {
-		if err := pw.writer.Close(); err != nil {
-			return fmt.Errorf("closing parquet writer: %w", err)
-		}
-		pw.writer = nil
+	if err := pw.writeRecord(record); err != nil {
+		return fmt.Errorf("final flush: %w", err)
 	}
-	// File is already closed by writer.Close()
-	pw.file = nil
-
-	pkglog.Infof("Parquet writer closed: %s", pw.currentFilePath)
 	return nil
 }
 
@@ -361,4 +334,3 @@ func (b *metricBatchBuilder) build() arrow.Record {
 
 	return record
 }
-
