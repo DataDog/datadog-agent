@@ -102,20 +102,31 @@ func newContextResolver(tagger tagger.Component, cache *tags.Store, id string) *
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
 func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSampleContext, timestamp int64, filterList filterlist.TagMatcher) ckey.ContextKey {
+	if metricSampleContext.GetMetricType() == metrics.DistributionType {
+		if tagMatcher, strip := filterList.ShouldStripTags(metricSampleContext.GetName()); strip {
+			cr.taggerBuffer.IncludeAll = false
+			cr.taggerBuffer.IncludeTag = tagMatcher
+			cr.metricBuffer.IncludeAll = false
+			cr.metricBuffer.IncludeTag = tagMatcher
+		}
+	}
+
 	metricSampleContext.GetTags(cr.taggerBuffer, cr.metricBuffer, cr.tagger) // tags here are not sorted and can contain duplicates
 
 	defer cr.taggerBuffer.Reset()
 	defer cr.metricBuffer.Reset()
 
-	if metricSampleContext.GetMetricType() == metrics.DistributionType {
-		if tagMatcher, strip := filterList.ShouldStripTags(metricSampleContext.GetName()); strip {
-			// Currently only distributions are supported, strip out tags if it is configured to remove tags for this given
-			// metric.
-			removedTagger := cr.taggerBuffer.RetainFunc(tagMatcher)
-			removedMetric := cr.metricBuffer.RetainFunc(tagMatcher)
-			tlmFilteredTags.Add(float64(removedTagger + removedMetric))
+	/*
+		if metricSampleContext.GetMetricType() == metrics.DistributionType {
+			if tagMatcher, strip := filterList.ShouldStripTags(metricSampleContext.GetName()); strip {
+				// Currently only distributions are supported, strip out tags if it is configured to remove tags for this given
+				// metric.
+				removedTagger := cr.taggerBuffer.RetainFunc(tagMatcher)
+				removedMetric := cr.metricBuffer.RetainFunc(tagMatcher)
+				tlmFilteredTags.Add(float64(removedTagger + removedMetric))
+			}
 		}
-	}
+	*/
 
 	contextKey, taggerKey, metricKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates (and doesn't mind the order)
 
