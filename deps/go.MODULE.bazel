@@ -228,7 +228,6 @@ use_repo(
     "com_github_elastic_go_libaudit_v2",
     "com_github_elastic_go_seccomp_bpf",
     "com_github_envoyproxy_gateway",
-    "com_github_evanphx_json_patch",
     "com_github_fatih_color",
     "com_github_fatih_structtag",
     "com_github_favadi_protoc_go_inject_tag",
