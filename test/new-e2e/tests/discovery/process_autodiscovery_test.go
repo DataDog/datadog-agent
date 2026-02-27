@@ -110,23 +110,38 @@ func (s *processAutodiscoverySuite) verifyRedisCheckScheduledViaProcess(c *asser
 	// Verify check configuration via config-check
 	configCheckOutput := s.Env().RemoteHost.MustExecute("sudo datadog-agent configcheck")
 
-	require.Contains(c, configCheckOutput, "=== redisdb check ===", "redisdb check should be configured")
+	if !assert.Contains(c, configCheckOutput, "=== redisdb check ===", "redisdb check should be configured") {
+		t.Logf("config-check output: %s", configCheckOutput)
+		return
+	}
 
 	// Verify the check has cel://process AD identifier
-	require.Contains(c, configCheckOutput, "cel://process", "redisdb check should have cel://process AD identifier")
+	if !assert.Contains(c, configCheckOutput, "cel://process", "redisdb check should have cel://process AD identifier") {
+		t.Logf("config-check output: %s", configCheckOutput)
+		return
+	}
 
 	// Verify host was resolved to localhost
-	require.Contains(c, configCheckOutput, "host: 127.0.0.1", "redisdb check should have host resolved to 127.0.0.1")
+	if !assert.Contains(c, configCheckOutput, "host: 127.0.0.1", "redisdb check should have host resolved to 127.0.0.1") {
+		t.Logf("config-check output: %s", configCheckOutput)
+		return
+	}
 
 	// Verify the check is running via collector status
 	statusOutput := s.Env().RemoteHost.MustExecute("sudo datadog-agent status collector --json")
 
 	var status collectorStatus
 	err := json.Unmarshal([]byte(statusOutput), &status)
-	require.NoError(c, err, "failed to parse agent status")
+	if !assert.NoError(c, err, "failed to parse agent status") {
+		t.Logf("Failed to parse status output: %s", statusOutput)
+		return
+	}
 
 	instances, exists := status.RunnerStats.Checks["redisdb"]
-	require.True(c, exists, "redisdb check should be running")
+	if !assert.True(c, exists, "redisdb check should be running") {
+		t.Logf("Available checks: %v", getCheckNames(status.RunnerStats.Checks))
+		return
+	}
 
 	// Verify the check has executed successfully
 	for instanceName, checkStat := range instances {
@@ -163,20 +178,32 @@ func (s *processAutodiscoverySuite) verifyNginxCheckScheduledViaProcess(c *asser
 	// Verify check configuration via config-check
 	configCheckOutput := s.Env().RemoteHost.MustExecute("sudo datadog-agent configcheck")
 
-	require.Contains(c, configCheckOutput, "=== nginx check ===", "nginx check should be configured")
+	if !assert.Contains(c, configCheckOutput, "=== nginx check ===", "nginx check should be configured") {
+		t.Logf("config-check output: %s", configCheckOutput)
+		return
+	}
 
 	// Verify the check has cel://process AD identifier
-	require.Contains(c, configCheckOutput, "cel://process", "nginx check should have cel://process AD identifier")
+	if !assert.Contains(c, configCheckOutput, "cel://process", "nginx check should have cel://process AD identifier") {
+		t.Logf("config-check output: %s", configCheckOutput)
+		return
+	}
 
 	// Verify the check is running via collector status
 	statusOutput := s.Env().RemoteHost.MustExecute("sudo datadog-agent status collector --json")
 
 	var status collectorStatus
 	err := json.Unmarshal([]byte(statusOutput), &status)
-	require.NoError(c, err, "failed to parse agent status")
+	if !assert.NoError(c, err, "failed to parse agent status") {
+		t.Logf("Failed to parse status output: %s", statusOutput)
+		return
+	}
 
 	instances, exists := status.RunnerStats.Checks["nginx"]
-	require.True(c, exists, "nginx check should be running")
+	if !assert.True(c, exists, "nginx check should be running") {
+		t.Logf("Available checks: %v", getCheckNames(status.RunnerStats.Checks))
+		return
+	}
 
 	// Key assertion: exactly 1 nginx check instance despite multiple nginx processes
 	assert.Equal(c, 1, len(instances), "expected exactly 1 nginx check instance, got %d", len(instances))
@@ -190,4 +217,13 @@ func (s *processAutodiscoverySuite) verifyNginxCheckScheduledViaProcess(c *asser
 	}
 
 	assert.Fail(c, "Nginx check is configured but has not run yet")
+}
+
+// getCheckNames returns the names of all scheduled checks
+func getCheckNames(checks map[checkName]map[instanceName]checkStatus) []string {
+	names := make([]string, 0, len(checks))
+	for name := range checks {
+		names = append(names, name)
+	}
+	return names
 }
