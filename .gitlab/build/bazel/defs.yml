@@ -16,13 +16,9 @@
       policy: pull$BAZEL_CACHE_POLICY_SUFFIX
       when: on_success
     - &bazel_cache
-      key:
-        prefix: bazel-$CI_RUNNER_DESCRIPTION
-        files: [ .go-version, .python-version ]
+      key: bazel-$CI_RUNNER_DESCRIPTION
       paths:
         - .cache/bazel/*/cache
-        - .cache/go-build
-        - .cache/go/mod
         - .cache/pip
       policy: pull$BAZEL_CACHE_POLICY_SUFFIX
       when: on_success
