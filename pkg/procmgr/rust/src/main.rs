@@ -80,7 +80,8 @@ fn spawn_watcher(index: usize, proc: &mut ManagedProcess, tx: mpsc::UnboundedSen
                     let _ = tx.send(ExitEvent { index, status });
                 }
                 Err(e) => {
-                    warn!("[{name}] wait error: {e}");
+                    warn!("[{name}] wait error: {e}, killing process");
+                    let _ = child.kill().await;
                 }
             }
         });
