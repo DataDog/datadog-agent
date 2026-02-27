@@ -11,8 +11,8 @@ import (
 )
 
 // Accessor provides attribute access for semantic lookups.
-// Implementations must supply all three methods. For string-only backends
-// (e.g. map[string]string), the numeric methods parse from GetString.
+// Implementations may return not-found from GetInt64/GetFloat64 when the
+// underlying store has no numeric type information (e.g. map[string]string).
 type Accessor interface {
 	GetString(key string) string
 	GetInt64(key string) (int64, bool)
@@ -20,7 +20,8 @@ type Accessor interface {
 }
 
 // StringMapAccessor adapts a map[string]string into an Accessor.
-// Numeric methods parse from the string values.
+// GetInt64 and GetFloat64 always return not-found; numeric attributes must be
+// registered with type "string" in mappings.json to be reachable via this accessor.
 type StringMapAccessor struct {
 	m map[string]string
 }
@@ -38,30 +39,16 @@ func (a StringMapAccessor) GetString(key string) string {
 	return a.m[key]
 }
 
-// GetInt64 parses the string value as int64.
-func (a StringMapAccessor) GetInt64(key string) (int64, bool) {
-	v := a.GetString(key)
-	if v == "" {
-		return 0, false
-	}
-	i, err := strconv.ParseInt(v, 10, 64)
-	if err != nil {
-		return 0, false
-	}
-	return i, true
+// GetInt64 always returns (0, false). map[string]string has no numeric type information,
+// so numeric registry entries are intentionally skipped. Use the string-typed entry for
+// the same attribute (e.g. http.status_code as "string" in mappings.json) instead.
+func (a StringMapAccessor) GetInt64(_ string) (int64, bool) {
+	return 0, false
 }
 
-// GetFloat64 parses the string value as float64.
-func (a StringMapAccessor) GetFloat64(key string) (float64, bool) {
-	v := a.GetString(key)
-	if v == "" {
-		return 0, false
-	}
-	f, err := strconv.ParseFloat(v, 64)
-	if err != nil {
-		return 0, false
-	}
-	return f, true
+// GetFloat64 always returns (0, false) for the same reason as GetInt64.
+func (a StringMapAccessor) GetFloat64(_ string) (float64, bool) {
+	return 0, false
 }
 
 // LookupResult contains the result of a semantic attribute lookup.

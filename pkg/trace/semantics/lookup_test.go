@@ -111,6 +111,16 @@ func TestStringMapAccessor(t *testing.T) {
 		assert.Equal(t, "", accessor.GetString("key"))
 	})
 
+	t.Run("numeric accessors always return not-found", func(t *testing.T) {
+		// StringMapAccessor is strictly typed: numeric registry entries are skipped
+		// so that we never do a string→int→string round-trip (e.g. in LookupString).
+		accessor := NewStringMapAccessor(map[string]string{"key": "42"})
+		_, ok := accessor.GetInt64("key")
+		assert.False(t, ok, "StringMapAccessor.GetInt64 should not parse strings")
+		_, ok = accessor.GetFloat64("key")
+		assert.False(t, ok, "StringMapAccessor.GetFloat64 should not parse strings")
+	})
+
 	t.Run("with semantic lookup", func(t *testing.T) {
 		r, err := NewEmbeddedRegistry()
 		require.NoError(t, err)
