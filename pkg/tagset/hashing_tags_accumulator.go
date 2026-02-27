@@ -17,6 +17,9 @@ import (
 // This type implements TagsAccumulator.
 type HashingTagsAccumulator struct {
 	hashedTags
+
+	IncludeAll bool
+	IncludeTag func(string) bool
 }
 
 // RetainFunc keeps tags if `keep` returns true, otherwise the tag and associated
@@ -42,6 +45,7 @@ func (h *HashingTagsAccumulator) RetainFunc(keep func(tag string) bool) int {
 func NewHashingTagsAccumulator() *HashingTagsAccumulator {
 	return &HashingTagsAccumulator{
 		hashedTags: newHashedTagsWithCapacity(128),
+		IncludeAll: true,
 	}
 }
 
@@ -55,15 +59,27 @@ func NewHashingTagsAccumulatorWithTags(tags []string) *HashingTagsAccumulator {
 // Append appends tags to the builder
 func (h *HashingTagsAccumulator) Append(tags ...string) {
 	for _, t := range tags {
-		h.data = append(h.data, t)
-		h.hash = append(h.hash, murmur3.StringSum64(t))
+		if h.IncludeAll || h.IncludeTag(t) {
+			h.data = append(h.data, t)
+			h.hash = append(h.hash, murmur3.StringSum64(t))
+		}
 	}
 }
 
 // AppendHashed appends tags and corresponding hashes to the builder
 func (h *HashingTagsAccumulator) AppendHashed(src HashedTags) {
-	h.data = append(h.data, src.data...)
-	h.hash = append(h.hash, src.hash...)
+	if h.IncludeAll {
+		h.data = append(h.data, src.data...)
+		h.hash = append(h.hash, src.hash...)
+	} else {
+		for idx := range h.data {
+			if h.IncludeTag(src.data[idx]) {
+				h.data = append(h.data, src.data[idx])
+				h.hash = append(h.hash, src.hash[idx])
+			}
+		}
+
+	}
 }
 
 // SortUniq sorts and remove duplicate in place
@@ -103,6 +119,8 @@ func (h *HashingTagsAccumulator) Reset() {
 	// we keep the internal buffer but reset size
 	h.data = h.data[0:0]
 	h.hash = h.hash[0:0]
+
+	h.IncludeAll = true
 }
 
 // Truncate retains first n tags in the buffer without discarding the internal buffer
@@ -127,7 +145,11 @@ func (h *HashingTagsAccumulator) Swap(i, j int) {
 
 // Dup returns a complete copy of HashingTagsAccumulator
 func (h *HashingTagsAccumulator) Dup() *HashingTagsAccumulator {
-	return &HashingTagsAccumulator{h.dup()}
+	return &HashingTagsAccumulator{
+		hashedTags: h.dup(),
+		IncludeAll: h.IncludeAll,
+		IncludeTag: h.IncludeTag,
+	}
 }
 
 // Hash returns combined hashes of all tags in the accumulator.
