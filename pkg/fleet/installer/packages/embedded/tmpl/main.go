@@ -76,24 +76,6 @@ func generate(outputDir string) error {
 			return fmt.Errorf("failed to write %s: %w", unit, err)
 		}
 	}
-	for name, content := range procmgrdConfigsOCI {
-		filePath := filepath.Join(outputDir, "oci", "processes.d", name)
-		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
-			return fmt.Errorf("failed to create directory for %s: %w", name, err)
-		}
-		if err := os.WriteFile(filePath, content, 0644); err != nil {
-			return fmt.Errorf("failed to write %s: %w", name, err)
-		}
-	}
-	for name, content := range procmgrdConfigsDebRpm {
-		filePath := filepath.Join(outputDir, "debrpm", "processes.d", name)
-		if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
-			return fmt.Errorf("failed to create directory for %s: %w", name, err)
-		}
-		if err := os.WriteFile(filePath, content, 0644); err != nil {
-			return fmt.Errorf("failed to write %s: %w", name, err)
-		}
-	}
 	return nil
 }
 
@@ -133,12 +115,6 @@ func mustRenderTemplate(name string, data systemdTemplateData, ambiantCapabiliti
 
 func mustReadSystemdUnit(name string, data systemdTemplateData, ambiantCapabilitiesSupported bool) []byte {
 	return mustRenderTemplate(name+".tmpl", data, ambiantCapabilitiesSupported)
-}
-
-func procmgrdConfigs(stableData systemdTemplateData) map[string][]byte {
-	return map[string][]byte{
-		"datadog-agent-ddot.yaml": mustRenderTemplate("datadog-agent-ddot.yaml.tmpl", stableData, false),
-	}
 }
 
 func systemdUnits(stableData, expData systemdTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
@@ -203,7 +179,4 @@ var (
 
 	systemdUnitsOCILegacyKernel    = systemdUnits(stableDataOCI, expDataOCI, false)
 	systemdUnitsDebRpmLegacyKernel = systemdUnits(stableDataDebRpm, expDataDebRpm, false)
-
-	procmgrdConfigsOCI    = procmgrdConfigs(stableDataOCI)
-	procmgrdConfigsDebRpm = procmgrdConfigs(stableDataDebRpm)
 )
