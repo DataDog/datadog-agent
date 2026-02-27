@@ -4582,27 +4582,27 @@ api_key:
 #
 # private_action_runner:
 
-#   # @param enabled - boolean - optional - default: false
-#   # @env DD_PRIVATE_ACTION_RUNNER_ENABLED - boolean - optional - default: false
-#   # Set to true to enable the Private Action Runner.
+## @param enabled - boolean - optional - default: false
+## @env DD_PRIVATE_ACTION_RUNNER_ENABLED - boolean - optional - default: false
+## Set to true to enable the Private Action Runner.
 #
-#   enabled: true
+# enabled: true
 
-#   # @param self_enroll - boolean - optional - default: true
-#   # @env DD_PRIVATE_ACTION_RUNNER_SELF_ENROLL - boolean - optional - default: true
-#   # Automatically enroll the Private Action Runner on startup.
-#   # Requires an app_key with Actions API Enable and the following permissions:
-#   #   - Connection Write
-#   #   - Private Action Write
+## @param self_enroll - boolean - optional - default: true
+## @env DD_PRIVATE_ACTION_RUNNER_SELF_ENROLL - boolean - optional - default: true
+## Automatically enroll the Private Action Runner on startup.
+## Requires an app_key with Actions API Enable and the following permissions:
+##   - Connection Write
+##   - Private Action Write
 #
-#   self_enroll: true
+# self_enroll: true
 
-#   # @param actions_allowlist - list of strings - optional
-#   # @env DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST - comma separated list of strings - optional
-#   # List of actions that the Private Action Runner is allowed to execute.
-#   # See http://docs.datadoghq.com/fr/actions/private_actions/use_private_actions#change-the-allowlist-of-a-runner
-#   # for the list of available actions.
+## @param actions_allowlist - list of strings - optional
+## @env DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST - comma separated list of strings - optional
+## List of actions that the Private Action Runner is allowed to execute.
+## See http://docs.datadoghq.com/fr/actions/private_actions/use_private_actions#change-the-allowlist-of-a-runner
+## for the list of available actions.
 #
-#   actions_allowlist:
-#     - com.datadoghq.script.runPredefinedScript
+# actions_allowlist:
+#   - com.datadoghq.script.runPredefinedScript
 {{ end -}}
