@@ -167,23 +167,22 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 			route, err = s.restoreAPIKeys(string(e.Route), collection.Version)
 		}
 
-		var resolver resolver.DomainResolver
+		var resolverAuth transaction.Authorizer
 		var apiKeyIndex int
 
 		if err == nil {
-			if collection.Version < 3 {
-				// If the version is < 3, this was serialized in a previous version and may
-				// have the (scrubbed) API key in the header. Try to replace it with the real one.
-				proto, err = s.fromHeaderProto(tr.Headers, collection.Version)
-			} else {
-				// Version 3 maintains the key index and resolves just before posting.
-				resolver = s.resolver
-				apiKeyIndex = int(tr.APIKeyIndex)
-			}
+			proto, err = s.fromHeaderProto(tr.Headers, collection.Version)
 		}
 
 		if err == nil {
 			destination, err = fromTransactionDestinationProto(tr.Destination)
+		}
+
+		if err == nil && collection.Version >= 3 {
+			// Version 3+ stores the API key index so Authorize() can set DD-Api-Key
+			// at send time rather than embedding the key in the serialized headers.
+			resolverAuth = s.resolver
+			apiKeyIndex = int(tr.APIKeyIndex)
 		}
 
 		if err != nil {
@@ -207,7 +206,7 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 			Priority:       priority,
 			Destination:    destination,
 			APIKeyIndex:    apiKeyIndex,
-			Resolver:       resolver,
+			Resolver:       resolverAuth,
 		}
 		tr.SetDefaultHandlers()
 		httpTransactions = append(httpTransactions, &tr)

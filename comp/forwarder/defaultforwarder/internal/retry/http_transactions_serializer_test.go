@@ -360,9 +360,10 @@ func TestDeserializedTransactionAuthorizeMultipleKeys(t *testing.T) {
 	}
 }
 
-// TestDeserializeV2ResolverSet verifies that transactions serialized in the old V2 format
-// (without APIKeyIndex) still get a Resolver set on deserialization and default to index 0.
-func TestDeserializeV2ResolverSet(t *testing.T) {
+// TestDeserializeV2BackwardCompat verifies that transactions serialized in the old V2 format
+// are correctly deserialized: the API key was stored directly in the headers (old design),
+// Resolver is nil (not needed), and Authorize() is a safe no-op.
+func TestDeserializeV2BackwardCompat(t *testing.T) {
 	r := require.New(t)
 	log := logmock.New(t)
 	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", apiKey1, apiKey2)})
@@ -383,12 +384,17 @@ func TestDeserializeV2ResolverSet(t *testing.T) {
 	r.Len(txns, 1)
 
 	deserialized := txns[0].(*transaction.HTTPTransaction)
-	r.NotNil(deserialized.Resolver, "old V2 transactions should still get a Resolver set")
-	r.Equal(0, deserialized.APIKeyIndex, "old V2 transactions without APIKeyIndex should default to index 0")
 
-	// Authorize() must not panic and must set the first key.
+	// V2 transactions do not use the Resolver/APIKeyIndex mechanism: the API key was
+	// stored directly in the headers at serialization time and is restored on deserialization.
+	r.Nil(deserialized.Resolver, "V2 transactions should not have a Resolver; key is already in headers")
+	r.Equal(0, deserialized.APIKeyIndex, "APIKeyIndex defaults to 0 for V2 format")
+
+	// The API key placeholder was restored into the application header "Key".
+	r.Equal(apiKey1, deserialized.Headers.Get("Key"))
+
+	// Authorize() must be a safe no-op when Resolver is nil.
 	r.NotPanics(deserialized.Authorize)
-	r.Equal(apiKey1, deserialized.Headers.Get("DD-Api-Key"))
 }
 
 // TestDeserializeV2 ensures that newer agent versions can sufficiently read files created by the old agent versions.
