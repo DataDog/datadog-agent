@@ -33,8 +33,67 @@ type Handle interface {
 	// ObserveTrace observes a trace (collection of spans with the same trace ID).
 	ObserveTrace(trace TraceView)
 
+	// ObserveTraceStats observes an APM stats payload (aggregated counts and
+	// latency distributions computed by the trace concentrator).
+	ObserveTraceStats(stats TraceStatsView)
+
 	// ObserveProfile observes a profiling sample.
 	ObserveProfile(profile ProfileView)
+}
+
+// TraceStatsView provides read-only access to an APM stats payload.
+// Stats represent aggregated counts and latency distributions per (service, resource, operation)
+// group over a time bucket. The view iterates over denormalized rows combining payload-,
+// client-, bucket-, and group-level fields.
+//
+// This interface exists to prevent data races. Implementations must not store the view.
+// Copy any needed values synchronously before ObserveTraceStats returns.
+type TraceStatsView interface {
+	// GetAgentHostname returns the agent hostname that processed these stats.
+	GetAgentHostname() string
+	// GetAgentEnv returns the agent environment.
+	GetAgentEnv() string
+	// GetRows returns an iterator over denormalized stat rows.
+	// Each row combines payload, client, bucket, and grouped-stats fields.
+	GetRows() TraceStatsRowIterator
+}
+
+// TraceStatsRowIterator iterates over denormalized rows of a TraceStatsView.
+type TraceStatsRowIterator interface {
+	// Next advances to the next row. Returns false when exhausted.
+	Next() bool
+	// Row returns the current row. Only valid after Next() returns true.
+	Row() TraceStatRow
+}
+
+// TraceStatRow represents one aggregated stat group with its context.
+// It combines fields from ClientStatsPayload, ClientStatsBucket, and ClientGroupedStats.
+type TraceStatRow interface {
+	// Client-level context (from ClientStatsPayload)
+	GetClientHostname() string
+	GetClientEnv() string
+	GetClientVersion() string
+	GetClientContainerID() string
+	// Time bucket window (from ClientStatsBucket)
+	GetBucketStart() uint64    // nanoseconds since epoch
+	GetBucketDuration() uint64 // nanoseconds
+	// Aggregation dimensions (from ClientGroupedStats)
+	GetService() string
+	GetName() string // operation name
+	GetResource() string
+	GetType() string
+	GetHTTPStatusCode() uint32
+	GetSpanKind() string
+	GetIsTraceRoot() int32 // 0=NOT_SET, 1=TRUE, 2=FALSE
+	GetSynthetics() bool
+	// Aggregated values (from ClientGroupedStats)
+	GetHits() uint64
+	GetErrors() uint64
+	GetTopLevelHits() uint64
+	GetDuration() uint64     // total duration in nanoseconds
+	GetOkSummary() []byte    // DDSketch encoded latency distribution for ok spans
+	GetErrorSummary() []byte // DDSketch encoded latency distribution for error spans
+	GetPeerTags() []string
 }
 
 // HandleFunc is a function that returns a handle for a named source.

@@ -41,6 +41,10 @@ type Component interface {
 
 	// ReadAllLogs reads all logs from parquet files and returns them as a slice.
 	ReadAllLogs(inputDir string) ([]LogData, error)
+
+	// ReadAllTraceStats reads all APM trace stats from parquet files and returns them as a slice.
+	// Each element corresponds to one aggregated stat group (ClientGroupedStats).
+	ReadAllTraceStats(inputDir string) ([]TraceStatsData, error)
 }
 
 // MetricData represents a single metric read from parquet files.
@@ -111,6 +115,35 @@ type ProfileData struct {
 	ContentType string   // Original Content-Type header
 	BinaryData  []byte   // Embedded profile binary (pprof, JFR, etc.)
 	Tags        []string // Profile tags in "key:value" format
+}
+
+// TraceStatsData represents one aggregated stat group read from parquet.
+// It corresponds to one ClientGroupedStats entry with its payload/client/bucket context.
+type TraceStatsData struct {
+	Source            string   // Source/namespace (RunID in parquet)
+	AgentHostname     string   // Agent hostname that processed these stats
+	AgentEnv          string   // Agent environment
+	ClientHostname    string   // Tracer hostname
+	ClientEnv         string   // Tracer environment
+	ClientVersion     string   // Application version
+	ClientContainerID string   // Container ID
+	BucketStart       uint64   // Bucket start time in nanoseconds since epoch
+	BucketDuration    uint64   // Bucket duration in nanoseconds
+	Service           string   // Service name (aggregation dimension)
+	Name              string   // Operation name (aggregation dimension)
+	Resource          string   // Resource name (aggregation dimension)
+	Type              string   // Span type (aggregation dimension)
+	HTTPStatusCode    uint32   // HTTP status code (aggregation dimension)
+	SpanKind          string   // Span kind (aggregation dimension)
+	IsTraceRoot       int32    // 0=NOT_SET, 1=TRUE, 2=FALSE (aggregation dimension)
+	Synthetics        bool     // Whether this is a synthetic trace
+	Hits              uint64   // Total request count
+	Errors            uint64   // Error count
+	TopLevelHits      uint64   // Top-level span count
+	Duration          uint64   // Total duration in nanoseconds
+	OkSummary         []byte   // DDSketch encoded latency distribution for ok spans
+	ErrorSummary      []byte   // DDSketch encoded latency distribution for error spans
+	PeerTags          []string // Peer entity tags (e.g., "db.hostname:...")
 }
 
 // LogData represents a log entry read from parquet files.

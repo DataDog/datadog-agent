@@ -51,6 +51,7 @@ func (h *mockHandle) ObserveLog(msg observer.LogView) {
 	})
 }
 
+func (h *mockHandle) ObserveTraceStats(_ observer.TraceStatsView) {}
 func (h *mockHandle) ObserveTrace(_ observer.TraceView) {
 	// No-op for test mock - traces not used in demo generator tests
 }

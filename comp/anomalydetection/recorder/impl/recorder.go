@@ -79,7 +79,7 @@ func NewComponent(req Requires) (Provides, error) {
 		pkglog.Infof("Recorder profile writer started: dir=%s", parquetDir)
 	}
 
-	// Initialize logs writer if enabled
+	// Initialize logs writer (always enabled when recording is on)
 	logWriter, err := NewLogParquetWriter(parquetDir, flushInterval, retentionDuration)
 	if err != nil {
 		pkglog.Errorf("Failed to create log parquet writer: %v", err)
@@ -88,15 +88,25 @@ func NewComponent(req Requires) (Provides, error) {
 		pkglog.Infof("Recorder log writer started: dir=%s", parquetDir)
 	}
 
+	// Initialize trace stats writer (always enabled when recording is on)
+	traceStatsWriter, err := NewTraceStatsParquetWriter(parquetDir, flushInterval, retentionDuration)
+	if err != nil {
+		pkglog.Errorf("Failed to create trace stats parquet writer: %v", err)
+	} else {
+		r.traceStatsParquetWriter = traceStatsWriter
+		pkglog.Infof("Recorder trace stats writer started: dir=%s", parquetDir)
+	}
+
 	return Provides{Comp: r}, nil
 }
 
 // recorderImpl implements the recorder component
 type recorderImpl struct {
-	parquetWriter        *ParquetWriter
-	traceParquetWriter   *TraceParquetWriter
-	profileParquetWriter *ProfileParquetWriter
-	logParquetWriter     *LogParquetWriter
+	parquetWriter           *ParquetWriter
+	traceParquetWriter      *TraceParquetWriter
+	profileParquetWriter    *ProfileParquetWriter
+	logParquetWriter        *LogParquetWriter
+	traceStatsParquetWriter *TraceStatsParquetWriter
 }
 
 // GetHandle wraps the provided HandleFunc with recording capability.
@@ -105,7 +115,7 @@ func (r *recorderImpl) GetHandle(handleFunc observer.HandleFunc) observer.Handle
 		innerHandle := handleFunc(name)
 
 		// If any recording is enabled, wrap with recording handle
-		if r.parquetWriter != nil || r.traceParquetWriter != nil || r.profileParquetWriter != nil || r.logParquetWriter != nil {
+		if r.parquetWriter != nil || r.traceParquetWriter != nil || r.profileParquetWriter != nil || r.logParquetWriter != nil || r.traceStatsParquetWriter != nil {
 			return &recordingHandle{
 				inner:    innerHandle,
 				recorder: r,
@@ -203,6 +213,21 @@ func (r *recorderImpl) ReadAllProfiles(inputDir string) ([]recorderdef.ProfileDa
 	return profiles, nil
 }
 
+// ReadAllTraceStats reads all APM trace stats from parquet files and returns them as a slice.
+func (r *recorderImpl) ReadAllTraceStats(inputDir string) ([]recorderdef.TraceStatsData, error) {
+	reader, err := NewTraceStatsParquetReader(inputDir)
+	if err != nil {
+		return nil, fmt.Errorf("creating trace stats parquet reader: %w", err)
+	}
+
+	pkglog.Infof("ReadAllTraceStats: loading trace stats from %s", inputDir)
+
+	stats := reader.ReadAll()
+
+	pkglog.Infof("ReadAllTraceStats: loaded %d stat rows", len(stats))
+	return stats, nil
+}
+
 // ReadAllLogs reads all logs from parquet files and returns them as a slice.
 func (r *recorderImpl) ReadAllLogs(inputDir string) ([]recorderdef.LogData, error) {
 	reader, err := NewLogParquetReader(inputDir)
@@ -263,6 +288,34 @@ func (h *recordingHandle) ObserveLog(msg observer.LogView) {
 			msg.GetHostname(),
 			msg.GetTags(),
 			time.Now().UnixMilli(),
+		)
+	}
+}
+
+// ObserveTraceStats forwards stats to the inner handle and records them to the
+// dedicated trace-stats parquet file (not to the metrics parquet file).
+func (h *recordingHandle) ObserveTraceStats(stats observer.TraceStatsView) {
+	h.inner.ObserveTraceStats(stats)
+
+	if h.recorder.traceStatsParquetWriter == nil {
+		return
+	}
+
+	agentHostname := stats.GetAgentHostname()
+	agentEnv := stats.GetAgentEnv()
+	rows := stats.GetRows()
+	for rows.Next() {
+		row := rows.Row()
+		h.recorder.traceStatsParquetWriter.WriteStatRow(
+			h.name,
+			agentHostname, agentEnv,
+			row.GetClientHostname(), row.GetClientEnv(), row.GetClientVersion(), row.GetClientContainerID(),
+			row.GetBucketStart(), row.GetBucketDuration(),
+			row.GetService(), row.GetName(), row.GetResource(), row.GetType(),
+			row.GetHTTPStatusCode(), row.GetSpanKind(), row.GetIsTraceRoot(), row.GetSynthetics(),
+			row.GetHits(), row.GetErrors(), row.GetTopLevelHits(), row.GetDuration(),
+			row.GetOkSummary(), row.GetErrorSummary(),
+			row.GetPeerTags(),
 		)
 	}
 }

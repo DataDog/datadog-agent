@@ -711,10 +711,11 @@ func (o *observerImpl) noopHandle(_ string) observerdef.Handle {
 // noopObserveHandle discards all observations.
 type noopObserveHandle struct{}
 
-func (h *noopObserveHandle) ObserveMetric(_ observerdef.MetricView)   {}
-func (h *noopObserveHandle) ObserveLog(_ observerdef.LogView)         {}
-func (h *noopObserveHandle) ObserveTrace(_ observerdef.TraceView)     {}
-func (h *noopObserveHandle) ObserveProfile(_ observerdef.ProfileView) {}
+func (h *noopObserveHandle) ObserveMetric(_ observerdef.MetricView)         {}
+func (h *noopObserveHandle) ObserveLog(_ observerdef.LogView)               {}
+func (h *noopObserveHandle) ObserveTrace(_ observerdef.TraceView)           {}
+func (h *noopObserveHandle) ObserveTraceStats(_ observerdef.TraceStatsView) {}
+func (h *noopObserveHandle) ObserveProfile(_ observerdef.ProfileView)       {}
 
 // DumpMetrics writes all stored metrics to the specified file as JSON.
 func (o *observerImpl) DumpMetrics(path string) error {
@@ -872,6 +873,14 @@ func (h *handle) ObserveTrace(trace observerdef.TraceView) {
 	case h.ch <- obs:
 	default:
 	}
+}
+
+// ObserveTraceStats processes APM stats by deriving in-memory metrics.
+// Note: metrics are emitted directly on h (the inner observer handle), not on any
+// outer recording handle, so derived metrics live in memory only and are never
+// written to the metrics parquet file.
+func (h *handle) ObserveTraceStats(stats observerdef.TraceStatsView) {
+	processStatsView(h, stats)
 }
 
 // ObserveProfile observes a profiling sample.

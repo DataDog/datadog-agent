@@ -159,7 +159,7 @@ func (f *observerFetcher) fetchTraces() {
 			}
 		}
 
-		// Process stats payloads as metrics
+		// Process stats payloads
 		for _, statsBytes := range result.StatsPayloads {
 			if len(statsBytes) == 0 {
 				continue
@@ -169,7 +169,7 @@ func (f *observerFetcher) fetchTraces() {
 				pkglog.Warnf("[observer] failed to unmarshal stats payload: %v", err)
 				continue
 			}
-			processStatsPayload(f.handle, &statsPayload)
+			f.handle.ObserveTraceStats(&statsPayloadView{payload: &statsPayload})
 		}
 
 		if result.HasMore {
