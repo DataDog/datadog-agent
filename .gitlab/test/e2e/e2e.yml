@@ -459,6 +459,18 @@ new-e2e-agent-health:
     TARGETS: ./tests/agent-health
     TEAM: agent-health
 
+new-e2e-privateactionrunner:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7
+  rules:
+    - !reference [.on_privateactionrunner_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/privateactionrunner
+    TEAM: action-platform
+
 new-e2e-fips-compliance-test:
   extends: .new_e2e_template
   needs:

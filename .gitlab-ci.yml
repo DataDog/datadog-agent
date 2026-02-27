@@ -1179,6 +1179,20 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
+.on_privateactionrunner_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - cmd/privateactionrunner/**/*
+        - comp/privateactionrunner/**/*
+        - pkg/privateactionrunner/**/*
+        - pkg/config/setup/privateactionrunner.go
+        - pkg/proto/datadog/privateactionrunner/**/*
+        - pkg/proto/pbgo/privateactionrunner/**/*
+        - test/new-e2e/tests/privateactionrunner/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
 .on_scheduled_main:
   - <<: *if_scheduled_main
     when: always
