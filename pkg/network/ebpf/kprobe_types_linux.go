@@ -36,6 +36,7 @@ type TCPCongestionStats struct {
 	Max_ca_state    uint8
 	Ecn_negotiated  uint8
 	X_pad           [2]uint8
+	Pad_cgo_0       [4]byte
 }
 type TCPRTORecoveryStats struct {
 	Rto_count                 uint32

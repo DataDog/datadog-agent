@@ -172,8 +172,8 @@ func (c *ConnectionStats) FromTCPCongestionStats(cs *netebpf.TCPCongestionStats)
 	c.TCPBytesRetrans = cs.Bytes_retrans
 	c.TCPDSACKDups = cs.Dsack_dups
 	c.TCPReordSeen = cs.Reord_seen
-	c.TCPSndWnd = cs.Snd_wnd
-	c.TCPRcvWnd = cs.Rcv_wnd
+	c.TCPMinSndWnd = cs.Snd_wnd
+	c.TCPMinRcvWnd = cs.Rcv_wnd
 	c.TCPMaxCAState = cs.Max_ca_state
 	c.TCPECNNegotiated = cs.Ecn_negotiated
 }

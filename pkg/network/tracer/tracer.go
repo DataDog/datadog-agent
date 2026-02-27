@@ -514,8 +514,8 @@ func (t *Tracer) emitCongestionMetrics(conns []network.ConnectionStats) {
 		t.statsd.Gauge("network.tcp.congestion.max_sacked_out", float64(c.TCPMaxSackedOut), tags, 1)                      //nolint:errcheck
 		t.statsd.Gauge("network.tcp.congestion.max_retrans_out", float64(c.TCPMaxRetransOut), tags, 1)                    //nolint:errcheck
 		t.statsd.Gauge("network.tcp.congestion.max_ca_state", float64(c.TCPMaxCAState), tags, 1)                          //nolint:errcheck
-		t.statsd.Gauge("network.tcp.congestion.snd_wnd", float64(c.TCPSndWnd), tags, 1)                                   //nolint:errcheck
-		t.statsd.Gauge("network.tcp.congestion.rcv_wnd", float64(c.TCPRcvWnd), tags, 1)                                   //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.min_snd_wnd", float64(c.TCPMinSndWnd), tags, 1)                            //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.min_rcv_wnd", float64(c.TCPMinRcvWnd), tags, 1)                            //nolint:errcheck
 		t.statsd.Gauge("network.tcp.congestion.ecn_negotiated", float64(c.TCPECNNegotiated), tags, 1)                     //nolint:errcheck
 		t.statsd.Count("network.tcp.congestion.delivered", int64(c.TCPDelivered), tags, 1)                                //nolint:errcheck
 		t.statsd.Count("network.tcp.congestion.delivered_ce", int64(c.TCPDeliveredCE), tags, 1)                           //nolint:errcheck

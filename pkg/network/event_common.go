@@ -300,8 +300,8 @@ type ConnectionStats struct {
 	TCPBytesRetrans  uint64 // cumulative bytes retransmitted (counter, 4.19+)
 	TCPDSACKDups     uint32 // DSACK-detected spurious retransmits (counter)
 	TCPReordSeen     uint32 // reordering events detected (counter, 4.19+)
-	TCPSndWnd        uint32 // peer's advertised receive window (0 = zero-window from peer)
-	TCPRcvWnd        uint32 // local advertised receive window (0 = we are zero-windowing)
+	TCPMinSndWnd     uint32 // min peer's advertised receive window during interval (0 = zero-window)
+	TCPMinRcvWnd     uint32 // min local advertised receive window during interval (0 = zero-windowing)
 	// TODO: before productionizing, move TCPMaxCAState and TCPECNNegotiated to the
 	// trailing single-byte section (near SPortIsEphemeral) to avoid alignment padding.
 	TCPMaxCAState    uint8 // worst CA state seen during interval (0=Open..4=Loss)

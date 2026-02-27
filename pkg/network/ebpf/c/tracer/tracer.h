@@ -109,8 +109,8 @@ typedef struct {
     __u64 bytes_retrans;    // cumulative bytes retransmitted (counter, 4.19+)
     __u32 dsack_dups;       // DSACK-detected spurious retransmits (counter)
     __u32 reord_seen;       // reordering events detected (counter, 4.19+)
-    __u32 snd_wnd;          // peer's advertised receive window (0 = zero-window from peer)
-    __u32 rcv_wnd;          // local advertised receive window (0 = we are zero-windowing)
+    __u32 snd_wnd;          // min peer's advertised receive window (0 = zero-window from peer)
+    __u32 rcv_wnd;          // min local advertised receive window (0 = we are zero-windowing)
     __u8  max_ca_state;     // worst CA state seen during interval (0=Open..4=Loss)
     __u8  ecn_negotiated;   // 1 if ECN was negotiated on this connection, 0 otherwise
     __u8  _pad[2];          // explicit padding to maintain 4-byte alignment

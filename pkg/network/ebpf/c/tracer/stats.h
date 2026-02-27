@@ -315,6 +315,10 @@ static __always_inline int handle_retransmit(struct sock *sk, int count) {
 static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock *sk) {
 #if !defined(COMPILE_PREBUILT)
     tcp_congestion_stats_t empty = {};
+    // Initialize min-tracked window fields to UINT32_MAX so any real value
+    // becomes the min. BPF_NOEXIST ensures this only applies on first insert.
+    empty.snd_wnd = 0xFFFFFFFF;
+    empty.rcv_wnd = 0xFFFFFFFF;
     // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for
     // EEXIST here spams metrics and does not provide any useful signal since the key
     // is expected to be present sometimes.
@@ -351,10 +355,14 @@ static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock
     BPF_CORE_READ_INTO(&val->reord_seen,   tcp_sk(sk), reord_seen);
 #endif
 
-    // Window fields: snapshot of advertised windows (0 = zero-window condition).
+    // Window fields: track min-over-interval to detect zero-window conditions.
     // snd_wnd is the peer's advertised receive window; rcv_wnd is our local window.
-    BPF_CORE_READ_INTO(&val->snd_wnd, tcp_sk(sk), snd_wnd);
-    BPF_CORE_READ_INTO(&val->rcv_wnd, tcp_sk(sk), rcv_wnd);
+    // Initialized to UINT32_MAX on first insert so any real value becomes the min.
+    // A min of 0 means a zero-window condition occurred during this interval.
+    BPF_CORE_READ_INTO(&tmp, tcp_sk(sk), snd_wnd);
+    if (tmp < val->snd_wnd) { val->snd_wnd = tmp; }
+    BPF_CORE_READ_INTO(&tmp, tcp_sk(sk), rcv_wnd);
+    if (tmp < val->rcv_wnd) { val->rcv_wnd = tmp; }
 
     // ECN negotiation: ecn_flags bit 0 (TCP_ECN_OK) indicates ECN was negotiated.
     // Prerequisite for interpreting delivered_ce.
