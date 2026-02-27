@@ -13,6 +13,8 @@ target:
     DD_HOSTNAME: smp-regression
     DD_AUTH_TOKEN_FILE_PATH: /tmp/agent-auth-token
     DD_OTELCOLLECTOR_ENABLED: true
+    # Set to 80% of memory_limiter.limit_mib (400 MiB).
+    GOMEMLIMIT: 320MiB
 
   profiling_environment:
     DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000
