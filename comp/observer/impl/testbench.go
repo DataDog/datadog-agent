@@ -346,8 +346,6 @@ func (tb *TestBench) loadLogsDir(dir string) error {
 		return err
 	}
 
-	fmt.Printf("  loadLogsDir: found %d file(s) in %s\n", len(files), dir)
-
 	totalLogs := 0
 	for _, file := range files {
 		info, err := os.Stat(file)
@@ -371,10 +369,6 @@ func (tb *TestBench) loadLogsDir(dir string) error {
 			// Process through log processors
 			for _, processor := range tb.logProcessors {
 				result := processor.Process(log)
-				if len(result.Anomalies) > 0 {
-					fmt.Printf("  processor %q returned %d anomaly(ies) for log ts=%d\n",
-						processor.Name(), len(result.Anomalies), timestamp)
-				}
 				for _, m := range result.Metrics {
 					tb.storage.Add("logs", m.Name, m.Value, timestamp, m.Tags)
 				}
@@ -397,8 +391,6 @@ func (tb *TestBench) loadLogsDir(dir string) error {
 					tb.logAnomalies = append(tb.logAnomalies, anomaly)
 					tb.logAnomaliesByProcessor[anomaly.AnalyzerName] = append(
 						tb.logAnomaliesByProcessor[anomaly.AnalyzerName], anomaly)
-					fmt.Printf("  Log anomaly #%d: analyzer=%q title=%q ts=%d\n",
-						len(tb.logAnomalies), anomaly.AnalyzerName, anomaly.Title, anomaly.Timestamp)
 				}
 			}
 		}
