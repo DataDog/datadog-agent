@@ -76,6 +76,8 @@ func NewComponent(deps Requires) Provides {
 	// Connect the reporter to the correlator's state
 	reporter.SetCorrelationState(correlator)
 
+	obsCh := make(chan observation, 1000)
+	signalCh := make(chan observerdef.Signal, 1000)
 	obs := &observerImpl{
 		logProcessors: []observerdef.LogProcessor{
 			&LogTimeSeriesAnalysis{
@@ -104,7 +106,8 @@ func NewComponent(deps Requires) Provides {
 			reporter,
 		},
 		storage:   newTimeSeriesStorage(),
-		obsCh:     make(chan observation, 1000),
+		obsCh:     obsCh,
+		signalCh:  signalCh,
 		maxEvents: 1000, // Keep last 1000 events for debugging
 	}
 
@@ -246,7 +249,8 @@ type observerImpl struct {
 	reporters         []observerdef.Reporter
 	storage           *timeSeriesStorage
 	obsCh             chan observation
-	handleFunc        observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
+	signalCh          chan observerdef.Signal // Anomaly events sent from anomaly detectors to be processed by signal processors
+	handleFunc        observerdef.HandleFunc  // Handle factory (may wrap with recorder middleware)
 
 	// NEW path: Signal-based processing (V2 architecture)
 	signalEmitters   []observerdef.SignalEmitter   // Layer 1: Point-based anomaly detection
@@ -273,12 +277,17 @@ type observerImpl struct {
 
 // run is the main dispatch loop, processing all observations sequentially.
 func (o *observerImpl) run() {
-	for obs := range o.obsCh {
-		if obs.metric != nil {
-			o.processMetric(obs.source, obs.metric)
-		}
-		if obs.log != nil {
-			o.processLog(obs.source, obs.log)
+	for {
+		select {
+		case signal := <-o.signalCh: // New anomaly signal
+			o.processSignal(signal)
+		case obs := <-o.obsCh: // New input
+			if obs.metric != nil {
+				o.processMetric(obs.source, obs.metric)
+			}
+			if obs.log != nil {
+				o.processLog(obs.source, obs.log)
+			}
 		}
 	}
 }
@@ -421,7 +430,7 @@ func (o *observerImpl) runSignalEmitters(series observerdef.Series, agg Aggregat
 			o.processAnomaly(anomaly)    // Send to correlators (GraphSketchCorrelator, etc.)
 
 			// Also send signal to signal processors (Layer 2)
-			o.processSignal(signal)
+			o.signalCh <- signal
 		}
 	}
 }
