@@ -33,6 +33,8 @@ modules:
     used_by_otel: true
   comp/core/flare/types:
     used_by_otel: true
+  comp/core/hostname/def:
+    used_by_otel: true
   comp/core/hostname/hostnameinterface:
     used_by_otel: true
   comp/core/ipc/def:

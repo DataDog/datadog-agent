@@ -7,20 +7,17 @@
 
 package hostnameinterface
 
-const (
-	// ConfigProvider is the default provider value from the configuration file
-	ConfigProvider = "configuration"
+import hostnamedef "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 
-	// FargateProvider is the default provider value from Fargate
-	FargateProvider = "fargate"
+// Re-exported constants from comp/core/hostname/def for backward compatibility.
+// Deprecated: import comp/core/hostname/def directly.
+const (
+	// ConfigProvider is the provider name used when the hostname is found in the configuration file.
+	ConfigProvider = hostnamedef.ConfigProvider
+
+	// FargateProvider is the provider name used when running in Fargate/sidecar mode.
+	FargateProvider = hostnamedef.FargateProvider
 )
 
-// FromConfiguration returns true if the hostname was found through the configuration file
-func (h Data) FromConfiguration() bool {
-	return h.Provider == ConfigProvider
-}
-
-// FromFargate returns true if the hostname was found through Fargate
-func (h Data) FromFargate() bool {
-	return h.Provider == FargateProvider
-}
+// Note: FromConfiguration() and FromFargate() methods are defined on hostnamedef.Data
+// and are automatically available on hostnameinterface.Data (type alias).

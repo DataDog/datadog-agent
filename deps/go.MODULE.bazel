@@ -62,6 +62,7 @@ use_repo(
     "com_github_datadog_datadog_agent_comp_core_configsync",
     "com_github_datadog_datadog_agent_comp_core_flare_builder",
     "com_github_datadog_datadog_agent_comp_core_flare_types",
+    "com_github_datadog_datadog_agent_comp_core_hostname_def",
     "com_github_datadog_datadog_agent_comp_core_hostname_hostnameinterface",
     "com_github_datadog_datadog_agent_comp_core_ipc_def",
     "com_github_datadog_datadog_agent_comp_core_ipc_httphelpers",

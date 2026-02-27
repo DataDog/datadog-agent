@@ -5,13 +5,14 @@
 
 //go:build linux || windows || darwin
 
-package hostname
+package hostnameimpl
 
 import (
 	"context"
 	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
@@ -19,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// for testing purposes
+// These variables are overridable for testing.
 var (
 	configIsContainerized  = env.IsContainerized
 	configIsFeaturePresent = env.IsFeaturePresent
@@ -29,35 +30,33 @@ var (
 	kubeletGetHostname                 = kubelet.GetHostname
 )
 
-// callContainerProvider returns the hostname for a specific Provider
 func callContainerProvider(ctx context.Context, provider func(context.Context) (string, error), providerName string) string {
-	log.Debugf("GetHostname trying provider '%s' ...", providerName)
+	log.Debugf("GetHostname trying container provider '%s' ...", providerName)
 	hostname, err := provider(ctx)
 	if err != nil {
-		log.Debugf("error calling provider '%s': %s", providerName, err)
+		log.Debugf("error calling container provider '%s': %s", providerName, err)
 		return ""
 	}
 	if validate.ValidHostname(hostname) != nil {
-		log.Debugf("provider '%s' return invalid hostname '%s'", providerName, hostname)
+		log.Debugf("container provider '%s' returned invalid hostname '%s'", providerName, hostname)
 		return ""
 	}
 	return hostname
 }
 
-// for testing purposes
-func fromContainer(ctx context.Context, _ string) (string, error) {
+func fromContainer(ctx context.Context, _ pkgconfigmodel.Reader, _ string) (string, error) {
 	if !configIsContainerized() {
 		return "", errors.New("the agent is not containerized")
 	}
 
-	// Cluster-agent logic: Kube apiserver
+	// Cluster-agent: Kube API server
 	if configIsFeaturePresent(env.Kubernetes) {
 		if hostname := callContainerProvider(ctx, kubernetesGetKubeAPIServerHostname, "kube_apiserver"); hostname != "" {
 			return hostname, nil
 		}
 	}
 
-	// Node-agent logic: docker or kubelet
+	// Node-agent: Docker or kubelet
 	if configIsFeaturePresent(env.Docker) {
 		if hostname := callContainerProvider(ctx, dockerGetHostname, "docker"); hostname != "" {
 			return hostname, nil
