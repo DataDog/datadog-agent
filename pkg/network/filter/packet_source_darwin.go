@@ -270,15 +270,14 @@ func (p *LibpcapSource) addInterface(ifaceName string) error {
 }
 
 // getBuffer retrieves a snapLen-capacity buffer from the pool.
-// The returned slice always has len == cap == snapLen.
+// The returned slice  has len == cap == snapLen.
 func (p *LibpcapSource) getBuffer() []byte {
 	return p.bufPool.Get().([]byte)
 }
 
-// putBuffer returns a buffer to the pool. The slice is always reset to its
-// full capacity before pooling so that the next caller always receives a
-// slice with len == cap == snapLen, preventing a panic when a future
-// caller tries to reslice to a length larger than the stored len.
+// putBuffer returns a buffer to the pool. The slice is  reset to its
+// full capacity before pooling so that the next caller receives a
+// slice with len == cap == snapLen
 func (p *LibpcapSource) putBuffer(buf []byte) {
 	p.bufPool.Put(buf[:cap(buf)])
 }
