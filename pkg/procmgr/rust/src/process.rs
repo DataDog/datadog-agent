@@ -170,7 +170,10 @@ impl ManagedProcess {
                 (false, raw_path.as_str())
             };
             if optional && !std::path::Path::new(path).exists() {
-                info!("[{}] optional environment file not found, skipping: {path}", self.name);
+                info!(
+                    "[{}] optional environment file not found, skipping: {path}",
+                    self.name
+                );
             } else {
                 let vars = parse_environment_file(path).with_context(|| {
                     format!("[{}] failed to read environment file: {path}", self.name)
