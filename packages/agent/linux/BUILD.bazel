@@ -6,23 +6,13 @@ load(
     "@rules_pkg//pkg:mappings.bzl",
     "pkg_attributes",
     "pkg_filegroup",
-    "pkg_files",
     "pkg_mkdirs",
 )
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
-load("//bazel/rules:collect_cc_dynamic_deps.bzl", "cc_dynamic_deps_filegroup")
 load("//bazel/rules:dd_agent_pkg_mklink.bzl", "dd_agent_pkg_mklink")
-load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load("//compliance:package_licenses.bzl", "package_licenses")
 
 package(default_visibility = ["//packages:__subpackages__"])
-
-pkg_filegroup(
-    name = "security_agent_components",
-    srcs = [
-        "@openscap//:lib_files",
-    ],
-)
 
 # This is everything in the distro. All the things that were explicit
 # in datadog-agent-dependencies.rb should show up here.
@@ -34,42 +24,27 @@ pkg_filegroup(
         "//packages/install_dir:embedded",
         "//packages/install_dir:etc",
         "@libpcap//:all_files",
-        # This should probably be in its own target instead and aggregated later on
-        # but this is good enough for now so that we can start pulling in dependencies
-        # in the package automatically
-        ":security_agent_components",
     ],
     prefix = "/opt/datadog-agent",
 )
 
-# Automatically gather all cc_shared_library files that appear as dynamic_deps
-# of any target reachable from agent_components.  As more targets (agent binary,
-# cpython, …) are added to the Bazel build graph, their runtime shared-library
-# dependencies will be discovered here without any manual changes.
-cc_dynamic_deps_filegroup(
-    name = "auto_cc_dynamic_deps",
-    srcs = [":agent_components"],
-    visibility = ["//visibility:private"],
-)
-
-# Rewrite the rpath so that we can load our dependencies from their expected locations
-# By default bazel will include a path that points to the sandbox
-rewrite_rpath(
-    name = "auto_deps_fixed_rpath",
-    inputs = [":auto_cc_dynamic_deps"],
-    visibility = ["//visibility:private"],
-)
-
-pkg_files(
-    name = "auto_cc_dynamic_deps_pkg",
-    srcs = [":auto_deps_fixed_rpath"],
-    prefix = "embedded/lib",
-    visibility = ["//visibility:private"],
-)
-
+# This is the list of things we depend on transitively. It is temporary.
+# They are really deps of things that the agent binary or python3 depends
+# on. We should pick up the dependencies from the build graph.
+# https://datadoghq.atlassian.net/browse/ABLD-363 will resolve that.
+# This is good enough for today.
 pkg_filegroup(
-    name = "auto_cc_dynamic_deps_with_fixed_rpath",
-    srcs = [":auto_cc_dynamic_deps_pkg"],
+    name = "transitive_deps",
+    srcs = [
+        "//deps/gstatus:bin_files",
+        "//deps/msodbcsql18:all_files",
+        "//deps/nfsiostat:all_files",
+        "//deps/openscap:all_files",
+        "@freetds//:all_files",
+        "@krb5//:all_files",
+        "@nghttp2//:all_files",
+        "@xz//:all_files",
+    ],
     prefix = "/opt/datadog-agent",
 )
 
@@ -82,7 +57,7 @@ pkg_filegroup(
     name = "everything",
     srcs = [
         ":agent_components",
-        ":auto_cc_dynamic_deps_with_fixed_rpath",
+        ":transitive_deps",
     ],
 )
 
@@ -116,6 +91,7 @@ pkg_tar(
     # compression_threads COMPRESSION_THREADS
     # compression_level COMPRESSION_LEVEL
     owner = "0.0",
+    tags = ["no-remote", "manual"],
 )
 
 # TODO: Look at omnibus/config/projects/agent.rb for more content here.
@@ -148,6 +124,7 @@ See http://www.datadoghq.com/ for more information
     # architecture = "$(COMPILATION_MODE)",
     # config = "config",
     #distribution = "trusty",
+    tags = ["no-remote", "manual"],
 )
 
 # Replacement for datadog-agent-installer-symlinks.rb
