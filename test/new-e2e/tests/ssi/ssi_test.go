@@ -11,7 +11,6 @@ package ssi
 
 import (
 	_ "embed"
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -128,11 +127,6 @@ func (v *ssiSuite) TestInjectionMode() {
 			}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", tc.name)
 		})
 	}
-}
-
-func mustJSON(v any) string {
-	b, _ := json.Marshal(v)
-	return string(b)
 }
 
 func (v *ssiSuite) TestLocalSDKInjection() {
