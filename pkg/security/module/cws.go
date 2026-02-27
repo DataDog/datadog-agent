@@ -357,8 +357,6 @@ func (c *CWSConsumer) HandleCustomEvent(rule *rules.Rule, event *events.CustomEv
 func (c *CWSConsumer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() ([]string, bool), service string) {
 	if c.rateLimiter.Allow(rule.ID, event) {
 		c.eventSender.SendEvent(rule, event, extTagsCb, service)
-	} else {
-		seclog.Tracef("Event on rule %s was dropped due to rate limiting", rule.ID)
 	}
 }
 
