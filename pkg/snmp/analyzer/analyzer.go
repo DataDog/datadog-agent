@@ -25,7 +25,6 @@ func FindSysOID(pdus []gosnmp.SnmpPDU) string {
 }
 
 // FindProfile returns the profile definition for a device given its sysObjectID.
-// It uses the public SNMP check API (no internal packages).
 func FindProfile(sysOID string) (profiledefinition.ProfileDefinition, error) {
 	var empty profiledefinition.ProfileDefinition
 	if sysOID == "" {
@@ -35,7 +34,6 @@ func FindProfile(sysOID string) (profiledefinition.ProfileDefinition, error) {
 }
 
 // FindExtendedProfiles returns the list of extended profile names for the given profile definition.
-// It uses the public SNMP check API (no internal packages).
 func FindExtendedProfiles(profileDef profiledefinition.ProfileDefinition) ([]string, error) {
 	return snmp.GetExtendedProfileNames(profileDef.Name)
 }
