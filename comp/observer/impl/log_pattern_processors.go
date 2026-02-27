@@ -10,6 +10,7 @@ package observerimpl
 
 import (
 	"encoding/binary"
+	"hash"
 	"hash/fnv"
 	"runtime"
 	"strings"
@@ -102,15 +103,7 @@ func (key *LogADGroupByKey) Hash() int64 {
 	hash := fnv.New64()
 	binary.Write(hash, binary.LittleEndian, int32(key.ClusterID))
 	hash.Write([]byte{0})
-	hash.Write([]byte(key.Tags.Env))
-	hash.Write([]byte{0})
-	hash.Write([]byte(key.Tags.PodName))
-	hash.Write([]byte{0})
-	hash.Write([]byte(key.Tags.Service))
-	hash.Write([]byte{0})
-	hash.Write([]byte(key.Tags.Source))
-	hash.Write([]byte{0})
-	hash.Write([]byte(key.Tags.DirName))
+	key.Tags.WriteHash(hash)
 
 	key.computedHash = int64(hash.Sum64())
 
@@ -119,30 +112,30 @@ func (key *LogADGroupByKey) Hash() int64 {
 
 // Tags that are used to group anomalies
 // Tags could be empty
+// TODO(celian): Verify that we can get these tags from the observer (not present when run locally)
 type LogADTags struct {
-	// /!\ Don't forget to update the Hash method when adding a new tag
-	// TODO(celian): Verify that we can get these tags from the observer (not present when run locally)
-	Env     string
-	PodName string
-	Service string
-	Source  string
-	// TODO(celian): Should we prefer dirname over filepath? Use both?
-	DirName string
+	// We use a fixed length array to avoid allocations
+	TagValues [len(logADAllTags)]string
+}
+
+// All the tags used to group anomalies
+var logADAllTags = [...]string{
+	"dirname",
+	"env",
+	"filename",
+	"pod_name",
+	"service",
+	"source",
 }
 
 func ParseTags(tags []string) LogADTags {
 	result := LogADTags{}
 	for _, tag := range tags {
-		if strings.HasPrefix(tag, "env:") {
-			result.Env = strings.TrimPrefix(tag, "env:")
-		} else if strings.HasPrefix(tag, "pod_name:") {
-			result.PodName = strings.TrimPrefix(tag, "pod_name:")
-		} else if strings.HasPrefix(tag, "service:") {
-			result.Service = strings.TrimPrefix(tag, "service:")
-		} else if strings.HasPrefix(tag, "source:") {
-			result.Source = strings.TrimPrefix(tag, "source:")
-		} else if strings.HasPrefix(tag, "dirname:") {
-			result.DirName = strings.TrimPrefix(tag, "dirname:")
+		for i, tagName := range logADAllTags {
+			if strings.HasPrefix(tag, tagName+":") {
+				result.TagValues[i] = strings.TrimPrefix(tag, tagName+":")
+				break
+			}
 		}
 	}
 
@@ -150,23 +143,23 @@ func ParseTags(tags []string) LogADTags {
 }
 
 func (tags *LogADTags) FullTags() []string {
-	res := make([]string, 0, 10)
+	res := make([]string, 0, len(logADAllTags))
 
-	if tags.Env != "" {
-		res = append(res, "env:"+tags.Env)
-	}
-	if tags.PodName != "" {
-		res = append(res, "pod_name:"+tags.PodName)
-	}
-	if tags.Service != "" {
-		res = append(res, "service:"+tags.Service)
-	}
-	if tags.Source != "" {
-		res = append(res, "source:"+tags.Source)
-	}
-	if tags.DirName != "" {
-		res = append(res, "dirname:"+tags.DirName)
+	for i, tagName := range logADAllTags {
+		if tags.TagValues[i] != "" {
+			res = append(res, tagName+":"+tags.TagValues[i])
+		}
 	}
 
 	return res
+}
+
+func (tags *LogADTags) WriteHash(hash hash.Hash64) {
+	for i := range len(logADAllTags) {
+		if tags.TagValues[i] != "" {
+			hash.Write([]byte(tags.TagValues[i]))
+		}
+		// Separator even if empty
+		hash.Write([]byte{0})
+	}
 }
