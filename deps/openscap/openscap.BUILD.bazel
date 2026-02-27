@@ -1,14 +1,14 @@
 """BUILD for openscap."""
 
+load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files", "pkg_filegroup")
-load("@@//compliance/rules:purl.bzl", "purl_for_generic")
-load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
-load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
 
 package(
     default_package_metadata = [":package_metadata"],
@@ -143,29 +143,28 @@ dd_agent_expand_template(
     template = "config.h.in",
     out = "config.h",
     substitutions = {
-        "@OPENSCAP_VERSION@": VERSION,
-        "@OPENSCAP_VERSION_MAJOR@": VERSION.split('.')[0],
-        "@OPENSCAP_VERSION_MINOR@": VERSION.split('.')[1],
-        "@OPENSCAP_VERSION_PATCH@": VERSION.split('.')[2],
-        "#cmakedefine LT_CURRENT_MINUS_AGE @LT_CURRENT_MINUS_AGE@": "#define LT_CURRENT_MINUS_AGE 33",
-        "#cmakedefine CMAKE_USE_PTHREADS_INIT @CMAKE_USE_PTHREADS_INIT@": "#define CMAKE_USE_PTHREADS_INIT 1",
-        "#cmakedefine SEAP_MSGID_BITS @SEAP_MSGID_BITS@": "#define SEAP_MSGID_BITS 32",
-        "#cmakedefine PREFERRED_PYTHON_PATH \"@PREFERRED_PYTHON_PATH@\"": "/* #undef PREFERRED_PYTHON_PATH */",
-        "#cmakedefine PYTHON2_PATH \"@PYTHON2_PATH@\"": "/* #undef PYTHON2_PATH */",
-        "#cmakedefine PYTHON3_PATH \"@PYTHON3_PATH@\"": "/* #undef PYTHON3_PATH */",
-        "@OSCAP_DEFAULT_SCHEMA_PATH@": "{install_dir}/embedded/share/openscap/schemas",
-        "@OSCAP_DEFAULT_XSLT_PATH@": "{install_dir}/embedded/share/openscap/xsl",
-        "@OSCAP_DEFAULT_CPE_PATH@": "{install_dir}/embedded/share/openscap/cpe",
-        "@OSCAP_TEMP_DIR@": "/tmp",
-        "#cmakedefine OPENSCAP_PROBE_UNIX_PROCESS58": "/* #undef OPENSCAP_PROBE_UNIX_PROCESS */",
-    }
-    | { "#cmakedefine {}".format(key): "#define {} 1".format(key) for key in ENABLED_FEATURES }
-    # whatever cmakedefine are left after we processed everyting above, we want them to be #undef
-    | { "#cmakedefine": "#undef" },
+                        "@OPENSCAP_VERSION@": VERSION,
+                        "@OPENSCAP_VERSION_MAJOR@": VERSION.split(".")[0],
+                        "@OPENSCAP_VERSION_MINOR@": VERSION.split(".")[1],
+                        "@OPENSCAP_VERSION_PATCH@": VERSION.split(".")[2],
+                        "#cmakedefine LT_CURRENT_MINUS_AGE @LT_CURRENT_MINUS_AGE@": "#define LT_CURRENT_MINUS_AGE 33",
+                        "#cmakedefine CMAKE_USE_PTHREADS_INIT @CMAKE_USE_PTHREADS_INIT@": "#define CMAKE_USE_PTHREADS_INIT 1",
+                        "#cmakedefine SEAP_MSGID_BITS @SEAP_MSGID_BITS@": "#define SEAP_MSGID_BITS 32",
+                        "#cmakedefine PREFERRED_PYTHON_PATH \"@PREFERRED_PYTHON_PATH@\"": "/* #undef PREFERRED_PYTHON_PATH */",
+                        "#cmakedefine PYTHON2_PATH \"@PYTHON2_PATH@\"": "/* #undef PYTHON2_PATH */",
+                        "#cmakedefine PYTHON3_PATH \"@PYTHON3_PATH@\"": "/* #undef PYTHON3_PATH */",
+                        "@OSCAP_DEFAULT_SCHEMA_PATH@": "{install_dir}/embedded/share/openscap/schemas",
+                        "@OSCAP_DEFAULT_XSLT_PATH@": "{install_dir}/embedded/share/openscap/xsl",
+                        "@OSCAP_DEFAULT_CPE_PATH@": "{install_dir}/embedded/share/openscap/cpe",
+                        "@OSCAP_TEMP_DIR@": "/tmp",
+                        "#cmakedefine OPENSCAP_PROBE_UNIX_PROCESS58": "/* #undef OPENSCAP_PROBE_UNIX_PROCESS */",
+                    } | {"#cmakedefine {}".format(key): "#define {} 1".format(key) for key in ENABLED_FEATURES} |
+                    # whatever cmakedefine are left after we processed everyting above, we want them to be #undef
+                    {"#cmakedefine": "#undef"},
 )
 
 PUBLIC_HEADERS = glob(["src/**/public/*.h"])
-PUBLIC_HEADERS_DIRS = list(set([ header.rpartition('/')[0] for header in PUBLIC_HEADERS ]))
+PUBLIC_HEADERS_DIRS = list(set([header.rpartition("/")[0] for header in PUBLIC_HEADERS]))
 
 COMMON_INCLUDE_DIRS = [
     "src/common/public",
@@ -192,7 +191,7 @@ cc_library(
         "compat/oscap_platforms.h",
     ],
     includes = [
-        "compat"
+        "compat",
     ],
 )
 
@@ -213,7 +212,7 @@ cc_library(
     includes = COMMON_INCLUDE_DIRS + [
         "compat/",
         ".",
-    ]
+    ],
 )
 
 cc_library(
@@ -410,20 +409,20 @@ cc_library(
     ],
     hdrs = PUBLIC_HEADERS,
     deps = [
-        '@attr//:libattr',
-        '@bzip2//:libbz2',
-        '@curl//:curl_static',
-        '@dbus//:dbus-1',
-        '@gcrypt//:libgcrypt',
-        '@libselinux//:libselinux',
-        '@libsepol//:libsepol',
-        '@libxslt//:libexslt',
-        '@libyaml//:libyaml',
-        '@pcre2//:libpcre2',
-        '@popt//:libpopt',
-        '@rpm//:librpm',
-        '@rpm//:librpmio',
-        '@util-linux//:libblkid',
+        "@attr//:libattr",
+        "@bzip2//:libbz2",
+        "@curl//:curl_static",
+        "@dbus//:dbus-1",
+        "@gcrypt//:libgcrypt",
+        "@libselinux//:libselinux",
+        "@libsepol//:libsepol",
+        "@libxslt//:libexslt",
+        "@libyaml//:libyaml",
+        "@pcre2//:libpcre2",
+        "@popt//:libpopt",
+        "@rpm//:librpm",
+        "@rpm//:librpmio",
+        "@util-linux//:libblkid",
         "@libxml2//:libxml2",
         "@xmlsec//:libxmlsec1",
         "@xmlsec//:libxmlsec1-openssl",
@@ -450,12 +449,14 @@ cc_library(
 
 cc_library(
     name = "libopenscap_sce",
-    srcs = glob([
+    srcs = glob(
+        [
             "src/SCE/*.c",
             "src/SCE/**/*.h",
             "src/common/*.h",
             # exclude the public folder which is already part of PUBLIC_HEADERS
-        ], exclude=["src/SCE/public/*.h"]
+        ],
+        exclude = ["src/SCE/public/*.h"],
     ) + [
         "src/common/error.c",
         "src/common/err_queue.c",
@@ -487,25 +488,25 @@ cc_shared_library(
         ":libopenscap",
     ],
     dynamic_deps = [
-        '@attr//:attr',
-        '@bzip2//:bz2',
+        "@attr//:attr",
+        "@bzip2//:bz2",
         "@curl//:curl",
         # dbus is only needed by openscap and is linked statically
-        '@gcrypt//:gcrypt',
-        '@libselinux//:selinux',
-        '@libsepol//:sepol',
-        '@libxslt//:exslt',
-        '@libyaml//:yaml',
-        '@pcre2//:pcre2-8',
-        '@popt//:popt',
-        '@rpm//:rpm',
-        '@rpm//:rpmio',
-        '@util-linux//:blkid',
+        "@gcrypt//:gcrypt",
+        "@libselinux//:selinux",
+        "@libsepol//:sepol",
+        "@libxslt//:exslt",
+        "@libyaml//:yaml",
+        "@pcre2//:pcre2-8",
+        "@popt//:popt",
+        "@rpm//:rpm",
+        "@rpm//:rpmio",
+        "@util-linux//:blkid",
         "@libxml2//:xml2",
         "@xmlsec//:xmlsec1",
         "@xmlsec//:xmlsec1-openssl",
         "@acl//:acl",
-    ]
+    ],
 )
 
 cc_shared_library(
@@ -532,21 +533,21 @@ cc_binary(
     ],
     dynamic_deps = [
         ":openscap",
-        '@attr//:attr',
-        '@bzip2//:bz2',
+        "@attr//:attr",
+        "@bzip2//:bz2",
         "@curl//:curl",
         # dbus is only needed by openscap and is linked statically
-        '@gcrypt//:gcrypt',
-        '@libselinux//:selinux',
-        '@libsepol//:sepol',
-        '@libxslt//:xslt',
-        '@libxslt//:exslt',
-        '@libyaml//:yaml',
-        '@pcre2//:pcre2-8',
-        '@popt//:popt',
-        '@rpm//:rpm',
-        '@rpm//:rpmio',
-        '@util-linux//:blkid',
+        "@gcrypt//:gcrypt",
+        "@libselinux//:selinux",
+        "@libsepol//:sepol",
+        "@libxslt//:xslt",
+        "@libxslt//:exslt",
+        "@libyaml//:yaml",
+        "@pcre2//:pcre2-8",
+        "@popt//:popt",
+        "@rpm//:rpm",
+        "@rpm//:rpmio",
+        "@util-linux//:blkid",
         "@libxml2//:xml2",
         "@xmlsec//:xmlsec1",
         "@xmlsec//:xmlsec1-openssl",
@@ -577,20 +578,20 @@ cc_binary(
     ],
     dynamic_deps = [
         ":openscap",
-        '@attr//:attr',
-        '@bzip2//:bz2',
+        "@attr//:attr",
+        "@bzip2//:bz2",
         "@curl//:curl",
-        '@gcrypt//:gcrypt',
-        '@libselinux//:selinux',
-        '@libsepol//:sepol',
-        '@libxslt//:xslt',
-        '@libxslt//:exslt',
-        '@libyaml//:yaml',
-        '@pcre2//:pcre2-8',
-        '@popt//:popt',
-        '@rpm//:rpm',
-        '@rpm//:rpmio',
-        '@util-linux//:blkid',
+        "@gcrypt//:gcrypt",
+        "@libselinux//:selinux",
+        "@libsepol//:sepol",
+        "@libxslt//:xslt",
+        "@libxslt//:exslt",
+        "@libyaml//:yaml",
+        "@pcre2//:pcre2-8",
+        "@popt//:popt",
+        "@rpm//:rpm",
+        "@rpm//:rpmio",
+        "@util-linux//:blkid",
         "@libxml2//:xml2",
         "@xmlsec//:xmlsec1",
         "@xmlsec//:xmlsec1-openssl",
@@ -651,12 +652,20 @@ pkg_files(
     attributes = pkg_attributes("0644"),
 )
 
-pkg_install(
-    name = "install",
+pkg_filegroup(
+    name = "all_files",
     srcs = [
         ":bin_files",
         ":lib_files",
         ":xccdf-resources",
         ":cpe_files",
+    ],
+    prefix = "embedded",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
     ],
 )

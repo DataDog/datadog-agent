@@ -22,6 +22,13 @@ common --incompatible_strict_action_env # Do not leak local environment variable
 common --test_output=errors # Print test errors to console output instead of only capturing them in buried test.log
 common --verbose_failures
 
+# Lint config (static code analyzers) ----------------------------------------------------------------------------------
+# Go -TODO(agent-build)
+# Python -TODO(agent-build)
+# Rust
+common:lint --aspects=@rules_rust//rust:defs.bzl%rust_clippy_aspect --output_groups=+clippy_checks
+common:lint --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect --output_groups=+rustfmt_checks
+
 # Linux config ---------------------------------------------------------------------------------------------------------
 common:linux --strategy=sandboxed
 common:linux --remote_local_fallback_strategy=sandboxed
@@ -34,8 +41,6 @@ common:macos --remote_local_fallback_strategy=sandboxed
 
 # Windows config -------------------------------------------------------------------------------------------------------
 common:windows --strategy=standalone # Valid values are: [dynamic_worker, standalone, dynamic, remote, worker, local]
-# For whatever reason if convenience symlinks are present, the build fails on Windows.
-common:windows --noexperimental_convenience_symlinks
 # Neither repo_env nor shell_executable affect action keys. It can be both an advantage and a disadvantage.
 # For instance, if we need to have some special behavior in bash we can add it, however, in some cases
 # it may lead to cache poisoning.
@@ -56,13 +61,8 @@ common:cache --remote_timeout=60
 # CI config ------------------------------------------------------------------------------------------------------------
 common:ci --config=adms
 common:ci --config=cache
+common:ci --config=lint
 common:ci --noexperimental_convenience_symlinks # not CI-suitable: "These symlinks are only for the user's convenience"
-
-# For Rust targets, enable clippy and rustfmt checks during the build
-build:ci --aspects=@rules_rust//rust:defs.bzl%rust_clippy_aspect
-build:ci --output_groups=+clippy_checks
-build:ci --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect
-build:ci --output_groups=+rustfmt_checks
 
 # Project configs --------------------------------------------------------------------------------------
 import %workspace%/bazel/configs/sdagent.bazelrc

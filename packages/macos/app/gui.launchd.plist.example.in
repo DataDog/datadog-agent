@@ -11,7 +11,7 @@
         <key>EnvironmentVariables</key>
         <dict>
             <key>DD_INSTALL_PATH</key>
-            <string><%= install_dir %></string>
+            <string>{install_dir}</string>
         </dict>
         <key>ProgramArguments</key>
         <array>
@@ -20,9 +20,9 @@
             <!-- <string>--use-file-logging</string> -->
         </array>
         <key>StandardOutPath</key>
-        <string><%= install_dir %>/logs/gui.log</string>
+        <string>{install_dir}/logs/gui.log</string>
         <key>StandardErrorPath</key>
-        <string><%= install_dir %>/logs/gui.log</string>
+        <string>{install_dir}/logs/gui.log</string>
         <key>ExitTimeOut</key>
         <integer>10</integer>
     </dict>

@@ -48,7 +48,7 @@ func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string) *t
 	packages := repository.NewRepositories(rootPath, nil)
 	err := os.MkdirAll(filepath.Join(rootPath, "run"), 0755)
 	assert.NoError(t, err)
-	db, err := db.New(filepath.Join(rootPath, "packages.db"))
+	db, err := db.New(context.Background(), filepath.Join(rootPath, "packages.db"))
 	assert.NoError(t, err)
 	hooks := &testHooks{}
 	userConfigsDir := t.TempDir()

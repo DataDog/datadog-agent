@@ -211,6 +211,7 @@ pkg_filegroup(
         ":xslt_lib_files",
         ":exslt_lib_files",
     ],
+    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
