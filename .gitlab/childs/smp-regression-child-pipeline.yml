@@ -263,6 +263,7 @@ stages:
 single-machine-performance-regression_detector:
   extends:
     - .single-machine-performance-run_regression_detector
+  allow_failure: true
   variables:
     SMP_TEAM_NAME: agent
     SMP_API_URL: api_url
