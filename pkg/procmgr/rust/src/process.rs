@@ -14,8 +14,6 @@ use std::process::Stdio;
 use tokio::process::{Child, Command};
 use tokio::time::{Duration, Instant};
 
-const RESTART_BACKOFF_MULTIPLIER: f64 = 2.0;
-
 // ---------------------------------------------------------------------------
 // RestartTracker
 // ---------------------------------------------------------------------------
@@ -28,6 +26,9 @@ struct RestartTracker {
 }
 
 impl RestartTracker {
+    const BACKOFF_MULTIPLIER: f64 = 2.0;
+    const MAX_TIMESTAMPS: usize = 100;
+
     fn new(initial_delay: f64) -> Self {
         Self {
             count: 0,
@@ -57,10 +58,13 @@ impl RestartTracker {
         }
         self.count += 1;
         self.timestamps.push(Instant::now());
+        if self.timestamps.len() > Self::MAX_TIMESTAMPS {
+            self.timestamps.remove(0);
+        }
     }
 
     fn advance_backoff(&mut self, max_delay: f64) {
-        self.current_delay = (self.current_delay * RESTART_BACKOFF_MULTIPLIER).min(max_delay);
+        self.current_delay = (self.current_delay * Self::BACKOFF_MULTIPLIER).min(max_delay);
     }
 
     fn delay(&self) -> Duration {
