@@ -51,8 +51,8 @@ needs-rules:
     - installer_trigger_manual_prod_release
     - index-consolidation
     - single-machine-performance-regression_detector
-    - single-machine-performance-regression_detector-merge_base_check
     - single-machine-performance-metal-runners-regression_detector
+    - single-machine-performance-regression_detector-pr-comment
 
 # Lists jobs that are allowed to not be within JOBOWNERS
 job-owners:
