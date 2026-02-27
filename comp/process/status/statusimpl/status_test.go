@@ -8,49 +8,53 @@ package statusimpl
 import (
 	"bytes"
 	"embed"
-	"net/http"
-	"net/http/httptest"
+	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
+	rarmock "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/mock"
 )
 
 //go:embed fixtures
 var fixturesTemplates embed.FS
 
-func fakeStatusServer(t *testing.T, errCode int, response []byte) *httptest.Server {
-	handler := func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
+func makeProcessAgentRAR(t *testing.T) *rarmock.Component {
+	jsonBytes, err := fixturesTemplates.ReadFile("fixtures/expvar_response.tmpl")
+	require.NoError(t, err)
 
-		if errCode != 200 {
-			http.NotFound(w, r)
-		} else {
-			_, err := w.Write(response)
-			require.NoError(t, err)
-		}
+	var full map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(jsonBytes, &full))
+
+	return &rarmock.Component{
+		Statuses: []remoteagentregistry.StatusData{
+			{
+				RegisteredAgent: remoteagentregistry.RegisteredAgent{
+					Flavor:      "process_agent",
+					DisplayName: "Process Agent",
+					LastSeen:    time.Now(),
+				},
+				MainSection: remoteagentregistry.StatusSection{
+					"process_agent": string(full["process_agent"]),
+				},
+			},
+		},
 	}
-
-	return httptest.NewServer(http.HandlerFunc(handler))
 }
 
 func TestStatus(t *testing.T) {
-	jsonBytes, err := fixturesTemplates.ReadFile("fixtures/expvar_response.tmpl")
-	assert.NoError(t, err)
-
-	server := fakeStatusServer(t, 200, jsonBytes)
-	defer server.Close()
-
 	configComponent := config.NewMock(t)
 
 	headerProvider := statusProvider{
-		testServerURL: server.URL,
-		config:        configComponent,
-		hostname:      hostnameimpl.NewHostnameService(),
+		config:   configComponent,
+		hostname: hostnameimpl.NewHostnameService(),
+		rar:      makeProcessAgentRAR(t),
 	}
 
 	tests := []struct {
@@ -94,17 +98,26 @@ func TestStatus(t *testing.T) {
 }
 
 func TestStatusError(t *testing.T) {
-	server := fakeStatusServer(t, 500, []byte{})
-	defer server.Close()
-
 	errorResponse, err := fixturesTemplates.ReadFile("fixtures/text_error_response.tmpl")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	configComponent := config.NewMock(t)
 
+	rar := &rarmock.Component{
+		Statuses: []remoteagentregistry.StatusData{
+			{
+				RegisteredAgent: remoteagentregistry.RegisteredAgent{
+					Flavor:   "process_agent",
+					LastSeen: time.Now(),
+				},
+				FailureReason: "connection refused",
+			},
+		},
+	}
+
 	headerProvider := statusProvider{
-		testServerURL: server.URL,
-		config:        configComponent,
+		config: configComponent,
+		rar:    rar,
 	}
 
 	tests := []struct {

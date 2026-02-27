@@ -89,6 +89,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	flareprofiler "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	remoteagentregistryfx "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/fx"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
@@ -426,8 +427,12 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(config config.Component) status.InformationProvider {
 			return status.NewInformationProvider(clusteragentStatus.GetProvider(config))
 		}),
-		fx.Provide(func(sysprobeconfig sysprobeconfig.Component) status.InformationProvider {
-			return status.NewInformationProvider(systemprobeStatus.GetProvider(sysprobeconfig))
+		fx.Provide(func(deps struct {
+			fx.In
+			SysProbeConfig sysprobeconfig.Component
+			RAR            remoteagentregistry.Component `optional:"true"`
+		}) status.InformationProvider {
+			return status.NewInformationProvider(systemprobeStatus.GetProvider(deps.SysProbeConfig, deps.RAR))
 		}),
 		fx.Provide(func(config config.Component) status.InformationProvider {
 			return status.NewInformationProvider(httpproxyStatus.GetProvider(config))
