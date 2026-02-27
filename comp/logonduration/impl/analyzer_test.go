@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/tekert/goetw/etw"
 )
 
@@ -28,9 +27,7 @@ func makeEvent(providerGUID etw.GUID, eventID uint16, ts time.Time, eventData ..
 }
 
 func newCollector() *collector {
-	c := &collector{
-		currentSubs: make(map[string]time.Time),
-	}
+	c := &collector{}
 	c.initParseFunctions()
 	return c
 }
@@ -78,49 +75,6 @@ func TestGetEventPropString(t *testing.T) {
 			},
 		}
 		assert.Equal(t, "1234", getEventPropString(e, "PID"))
-	})
-}
-
-func TestFindSubscriberName(t *testing.T) {
-	t.Run("finds named SubscriberName property", func(t *testing.T) {
-		e := &etw.Event{
-			EventData: []etw.EventProperty{
-				{Name: "SubscriberName", Value: "GPClient"},
-			},
-		}
-		assert.Equal(t, "GPClient", findSubscriberName(e))
-	})
-
-	t.Run("finds Name property as fallback", func(t *testing.T) {
-		e := &etw.Event{
-			EventData: []etw.EventProperty{
-				{Name: "Name", Value: "Profiles"},
-			},
-		}
-		assert.Equal(t, "Profiles", findSubscriberName(e))
-	})
-
-	t.Run("falls back to known subscriber name in values", func(t *testing.T) {
-		e := &etw.Event{
-			EventData: []etw.EventProperty{
-				{Name: "SomeOtherProp", Value: "something with SessionEnv in it"},
-			},
-		}
-		assert.Equal(t, "SessionEnv", findSubscriberName(e))
-	})
-
-	t.Run("returns empty when no subscriber info found", func(t *testing.T) {
-		e := &etw.Event{
-			EventData: []etw.EventProperty{
-				{Name: "UnrelatedProp", Value: "unrelated_value"},
-			},
-		}
-		assert.Equal(t, "", findSubscriberName(e))
-	})
-
-	t.Run("returns empty for event with no properties", func(t *testing.T) {
-		e := &etw.Event{}
-		assert.Equal(t, "", findSubscriberName(e))
 	})
 }
 
@@ -283,16 +237,16 @@ func TestParseWinlogon(t *testing.T) {
 		assert.Equal(t, ts, coll.timeline.WinlogonInitDone)
 	})
 
-	t.Run("event 107 sets ServicesWaitStart", func(t *testing.T) {
+	t.Run("event 103 sets LoginUIStart", func(t *testing.T) {
 		coll := newCollector()
-		coll.parseWinlogon(nil, 107, ts)
-		assert.Equal(t, ts, coll.timeline.LSMStart)
+		coll.parseWinlogon(nil, 103, ts)
+		assert.Equal(t, ts, coll.timeline.LoginUIStart)
 	})
 
-	t.Run("event 108 sets ServicesReady", func(t *testing.T) {
+	t.Run("event 104 sets LoginUIDone", func(t *testing.T) {
 		coll := newCollector()
-		coll.parseWinlogon(nil, 108, ts)
-		assert.Equal(t, ts, coll.timeline.LSMReady)
+		coll.parseWinlogon(nil, 104, ts)
+		assert.Equal(t, ts, coll.timeline.LoginUIDone)
 	})
 
 	t.Run("event 9 sets ExecuteShellCommandListStart", func(t *testing.T) {
@@ -307,102 +261,12 @@ func TestParseWinlogon(t *testing.T) {
 		assert.Equal(t, ts, coll.timeline.ExecuteShellCommandListEnd)
 	})
 
-	t.Run("event 11 sets ThemesLogonStart (last-write-wins)", func(t *testing.T) {
-		coll := newCollector()
-		ts2 := ts.Add(5 * time.Second)
-		coll.parseWinlogon(nil, 11, ts)
-		coll.parseWinlogon(nil, 11, ts2)
-		assert.Equal(t, ts2, coll.timeline.ThemesLogonStart)
-	})
-
-	t.Run("event 13 sets ThemesLogonEnd (last-write-wins)", func(t *testing.T) {
-		coll := newCollector()
-		ts2 := ts.Add(5 * time.Second)
-		coll.parseWinlogon(nil, 13, ts)
-		coll.parseWinlogon(nil, 13, ts2)
-		assert.Equal(t, ts2, coll.timeline.ThemesLogonEnd)
-	})
-
 	t.Run("event 5001 sets LogonStart", func(t *testing.T) {
 		coll := newCollector()
 		coll.parseWinlogon(nil, 5001, ts)
 		assert.Equal(t, ts, coll.timeline.LogonStart)
 	})
 
-	t.Run("event 802 sets SubscribersDone", func(t *testing.T) {
-		coll := newCollector()
-		coll.parseWinlogon(nil, 802, ts)
-		assert.Equal(t, ts, coll.timeline.SubscribersDone)
-	})
-}
-
-func TestParseWinlogon_SubscriberTracking(t *testing.T) {
-	ts := time.Date(2026, 1, 15, 8, 0, 30, 0, time.UTC)
-
-	t.Run("805/806 pair produces SubscriberInfo", func(t *testing.T) {
-		coll := newCollector()
-		startEvent := makeEvent(*guidWinlogon, 805, ts,
-			etw.EventProperty{Name: "SubscriberName", Value: "GPClient"},
-		)
-		endEvent := makeEvent(*guidWinlogon, 806, ts.Add(2*time.Second),
-			etw.EventProperty{Name: "SubscriberName", Value: "GPClient"},
-		)
-
-		coll.parseWinlogon(startEvent, 805, ts)
-		coll.parseWinlogon(endEvent, 806, ts.Add(2*time.Second))
-
-		require.Len(t, coll.subscribers, 1)
-		assert.Equal(t, "GPClient", coll.subscribers[0].Name)
-		assert.Equal(t, ts, coll.subscribers[0].Start)
-		assert.Equal(t, ts.Add(2*time.Second), coll.subscribers[0].End)
-		assert.Equal(t, 2*time.Second, coll.subscribers[0].Duration)
-	})
-
-	t.Run("806 without prior 805 is ignored", func(t *testing.T) {
-		coll := newCollector()
-		endEvent := makeEvent(*guidWinlogon, 806, ts,
-			etw.EventProperty{Name: "SubscriberName", Value: "GPClient"},
-		)
-
-		coll.parseWinlogon(endEvent, 806, ts)
-
-		assert.Empty(t, coll.subscribers)
-	})
-
-	t.Run("multiple subscriber pairs tracked independently", func(t *testing.T) {
-		coll := newCollector()
-
-		coll.parseWinlogon(makeEvent(*guidWinlogon, 805, ts,
-			etw.EventProperty{Name: "SubscriberName", Value: "GPClient"},
-		), 805, ts)
-		coll.parseWinlogon(makeEvent(*guidWinlogon, 805, ts.Add(1*time.Second),
-			etw.EventProperty{Name: "SubscriberName", Value: "Profiles"},
-		), 805, ts.Add(1*time.Second))
-
-		coll.parseWinlogon(makeEvent(*guidWinlogon, 806, ts.Add(3*time.Second),
-			etw.EventProperty{Name: "SubscriberName", Value: "GPClient"},
-		), 806, ts.Add(3*time.Second))
-		coll.parseWinlogon(makeEvent(*guidWinlogon, 806, ts.Add(4*time.Second),
-			etw.EventProperty{Name: "SubscriberName", Value: "Profiles"},
-		), 806, ts.Add(4*time.Second))
-
-		require.Len(t, coll.subscribers, 2)
-		assert.Equal(t, "GPClient", coll.subscribers[0].Name)
-		assert.Equal(t, 3*time.Second, coll.subscribers[0].Duration)
-		assert.Equal(t, "Profiles", coll.subscribers[1].Name)
-		assert.Equal(t, 3*time.Second, coll.subscribers[1].Duration)
-	})
-
-	t.Run("subscriber with empty name is skipped", func(t *testing.T) {
-		coll := newCollector()
-		e := makeEvent(*guidWinlogon, 805, ts,
-			etw.EventProperty{Name: "SomeUnknownProp", Value: "unknown_value"},
-		)
-
-		coll.parseWinlogon(e, 805, ts)
-
-		assert.Empty(t, coll.currentSubs)
-	})
 }
 
 func TestParseUserProfile(t *testing.T) {
@@ -472,18 +336,82 @@ func TestParseGroupPolicy(t *testing.T) {
 func TestParseShellCore(t *testing.T) {
 	ts := time.Date(2026, 1, 15, 8, 1, 30, 0, time.UTC)
 
-	t.Run("sets DesktopReady", func(t *testing.T) {
+	makeShellCoreEvent := func(id uint16, timestamp time.Time, props ...etw.EventProperty) *etw.Event {
+		return makeEvent(*guidShellCore, id, timestamp, props...)
+	}
+
+	t.Run("event 9601 sets ExplorerInitStart", func(t *testing.T) {
 		coll := newCollector()
-		coll.parseShellCore(nil, 62171, ts)
-		assert.Equal(t, ts, coll.timeline.DesktopReady)
+		coll.parseShellCore(makeShellCoreEvent(9601, ts), 9601, ts)
+		assert.Equal(t, ts, coll.timeline.ExplorerInitStart)
 	})
 
-	t.Run("first-write-wins", func(t *testing.T) {
+	t.Run("event 9601 first-write-wins", func(t *testing.T) {
 		coll := newCollector()
 		ts2 := ts.Add(5 * time.Second)
-		coll.parseShellCore(nil, 62171, ts)
-		coll.parseShellCore(nil, 62171, ts2)
-		assert.Equal(t, ts, coll.timeline.DesktopReady)
+		coll.parseShellCore(makeShellCoreEvent(9601, ts), 9601, ts)
+		coll.parseShellCore(makeShellCoreEvent(9601, ts2), 9601, ts2)
+		assert.Equal(t, ts, coll.timeline.ExplorerInitStart)
+	})
+
+	t.Run("event 9602 sets ExplorerInitEnd", func(t *testing.T) {
+		coll := newCollector()
+		coll.parseShellCore(makeShellCoreEvent(9602, ts), 9602, ts)
+		assert.Equal(t, ts, coll.timeline.ExplorerInitEnd)
+	})
+
+	t.Run("event 9611 sets DesktopCreateStart", func(t *testing.T) {
+		coll := newCollector()
+		coll.parseShellCore(makeShellCoreEvent(9611, ts), 9611, ts)
+		assert.Equal(t, ts, coll.timeline.DesktopCreateStart)
+	})
+
+	t.Run("event 9612 sets DesktopCreateEnd", func(t *testing.T) {
+		coll := newCollector()
+		coll.parseShellCore(makeShellCoreEvent(9612, ts), 9612, ts)
+		assert.Equal(t, ts, coll.timeline.DesktopCreateEnd)
+	})
+
+	t.Run("event 9648 WaitForDesktopVisuals sets DesktopVisibleStart", func(t *testing.T) {
+		coll := newCollector()
+		e := makeShellCoreEvent(9648, ts, etw.EventProperty{Name: "psz", Value: "WaitForDesktopVisuals"})
+		coll.parseShellCore(e, 9648, ts)
+		assert.Equal(t, ts, coll.timeline.DesktopVisibleStart)
+	})
+
+	t.Run("event 9649 WaitForDesktopVisuals sets DesktopVisibleEnd", func(t *testing.T) {
+		coll := newCollector()
+		e := makeShellCoreEvent(9649, ts, etw.EventProperty{Name: "psz", Value: "WaitForDesktopVisuals"})
+		coll.parseShellCore(e, 9649, ts)
+		assert.Equal(t, ts, coll.timeline.DesktopVisibleEnd)
+	})
+
+	t.Run("event 9648 Finalize sets DesktopReadyStart", func(t *testing.T) {
+		coll := newCollector()
+		e := makeShellCoreEvent(9648, ts, etw.EventProperty{Name: "psz", Value: "Finalize"})
+		coll.parseShellCore(e, 9648, ts)
+		assert.Equal(t, ts, coll.timeline.DesktopReadyStart)
+	})
+
+	t.Run("event 9649 Finalize sets DesktopReadyEnd", func(t *testing.T) {
+		coll := newCollector()
+		e := makeShellCoreEvent(9649, ts, etw.EventProperty{Name: "psz", Value: "Finalize"})
+		coll.parseShellCore(e, 9649, ts)
+		assert.Equal(t, ts, coll.timeline.DesktopReadyEnd)
+	})
+
+	t.Run("event 9648 DesktopStartupApps sets DesktopStartupAppsStart", func(t *testing.T) {
+		coll := newCollector()
+		e := makeShellCoreEvent(9648, ts, etw.EventProperty{Name: "psz", Value: "DesktopStartupApps"})
+		coll.parseShellCore(e, 9648, ts)
+		assert.Equal(t, ts, coll.timeline.DesktopStartupAppsStart)
+	})
+
+	t.Run("event 9649 DesktopStartupApps sets DesktopStartupAppsEnd", func(t *testing.T) {
+		coll := newCollector()
+		e := makeShellCoreEvent(9649, ts, etw.EventProperty{Name: "psz", Value: "DesktopStartupApps"})
+		coll.parseShellCore(e, 9649, ts)
+		assert.Equal(t, ts, coll.timeline.DesktopStartupAppsEnd)
 	})
 }
 
@@ -539,11 +467,11 @@ func TestProcessEvent(t *testing.T) {
 
 	t.Run("routes Shell-Core event to parseShellCore", func(t *testing.T) {
 		coll := newCollector()
-		e := makeEvent(*guidShellCore, 62171, ts)
+		e := makeEvent(*guidShellCore, 9601, ts)
 
 		processEvent(coll, e)
 
-		assert.Equal(t, ts, coll.timeline.DesktopReady)
+		assert.Equal(t, ts, coll.timeline.ExplorerInitStart)
 	})
 
 	t.Run("ignores event with unknown provider GUID", func(t *testing.T) {
@@ -566,7 +494,8 @@ func TestCollector_FullBootSequence(t *testing.T) {
 		makeEvent(*guidKernelProcess, 1, boot.Add(1*time.Second),
 			etw.EventProperty{Name: "ImageFileName", Value: "smss.exe"}),
 		makeEvent(*guidWinlogon, 101, boot.Add(4*time.Second)),
-		makeEvent(*guidWinlogon, 108, boot.Add(10*time.Second)),
+		makeEvent(*guidWinlogon, 103, boot.Add(8*time.Second)),
+		makeEvent(*guidWinlogon, 104, boot.Add(10*time.Second)),
 		makeEvent(*guidGroupPolicy, 4000, boot.Add(12*time.Second)),
 		makeEvent(*guidGroupPolicy, 8000, boot.Add(20*time.Second)),
 		makeEvent(*guidKernelProcess, 1, boot.Add(25*time.Second),
@@ -580,8 +509,17 @@ func TestCollector_FullBootSequence(t *testing.T) {
 		makeEvent(*guidWinlogon, 10, boot.Add(45*time.Second)),
 		makeEvent(*guidKernelProcess, 1, boot.Add(50*time.Second),
 			etw.EventProperty{Name: "ImageFileName", Value: "explorer.exe"}),
-		makeEvent(*guidShellCore, 62171, boot.Add(60*time.Second)),
+		makeEvent(*guidShellCore, 9601, boot.Add(51*time.Second)),
+		makeEvent(*guidShellCore, 9602, boot.Add(53*time.Second)),
+		makeEvent(*guidShellCore, 9648, boot.Add(55*time.Second),
+			etw.EventProperty{Name: "psz", Value: "WaitForDesktopVisuals"}),
+		makeEvent(*guidShellCore, 9649, boot.Add(60*time.Second),
+			etw.EventProperty{Name: "psz", Value: "WaitForDesktopVisuals"}),
 		makeEvent(*guidWinlogon, 5002, boot.Add(60*time.Second)),
+		makeEvent(*guidShellCore, 9648, boot.Add(61*time.Second),
+			etw.EventProperty{Name: "psz", Value: "Finalize"}),
+		makeEvent(*guidShellCore, 9649, boot.Add(65*time.Second),
+			etw.EventProperty{Name: "psz", Value: "Finalize"}),
 	}
 
 	for _, e := range events {
@@ -592,7 +530,8 @@ func TestCollector_FullBootSequence(t *testing.T) {
 	assert.Equal(t, boot, tl.BootStart)
 	assert.Equal(t, boot.Add(1*time.Second), tl.SmssStart)
 	assert.Equal(t, boot.Add(4*time.Second), tl.WinlogonInit)
-	assert.Equal(t, boot.Add(10*time.Second), tl.LSMReady)
+	assert.Equal(t, boot.Add(8*time.Second), tl.LoginUIStart)
+	assert.Equal(t, boot.Add(10*time.Second), tl.LoginUIDone)
 	assert.Equal(t, boot.Add(12*time.Second), tl.MachineGPStart)
 	assert.Equal(t, boot.Add(20*time.Second), tl.MachineGPEnd)
 	assert.Equal(t, boot.Add(25*time.Second), tl.WinlogonStart)
@@ -603,13 +542,17 @@ func TestCollector_FullBootSequence(t *testing.T) {
 	assert.Equal(t, boot.Add(42*time.Second), tl.UserinitStart)
 	assert.Equal(t, boot.Add(45*time.Second), tl.ExecuteShellCommandListEnd)
 	assert.Equal(t, boot.Add(50*time.Second), tl.ExplorerStart)
-	assert.Equal(t, boot.Add(60*time.Second), tl.DesktopReady)
+	assert.Equal(t, boot.Add(51*time.Second), tl.ExplorerInitStart)
+	assert.Equal(t, boot.Add(53*time.Second), tl.ExplorerInitEnd)
+	assert.Equal(t, boot.Add(55*time.Second), tl.DesktopVisibleStart)
+	assert.Equal(t, boot.Add(60*time.Second), tl.DesktopVisibleEnd)
 	assert.Equal(t, boot.Add(60*time.Second), tl.LogonStop)
+	assert.Equal(t, boot.Add(61*time.Second), tl.DesktopReadyStart)
+	assert.Equal(t, boot.Add(65*time.Second), tl.DesktopReadyEnd)
 
 	custom := buildCustomPayload(tl)
 	durations := custom["durations"].(map[string]interface{})
-	assert.Equal(t, int64(60000), durations["Total Boot Duration (ms)"])
-	assert.Equal(t, int64(30000), durations["Total Logon Duration (ms)"])
-	assert.Equal(t, int64(4000), durations["Profile Creation Duration (ms)"])
-	assert.Equal(t, int64(8000), durations["Machine GP Duration (ms)"])
+	assert.Equal(t, int64(65000), durations["Total Boot Duration (ms)"])
+	assert.Equal(t, int64(8000), durations["Boot Duration (ms)"])
+	assert.Equal(t, int64(25000), durations["Logon Duration (ms)"])
 }

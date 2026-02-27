@@ -42,7 +42,6 @@ type BootTimeline struct {
 	UserWinlogonStart            time.Time // Kernel-Process Event 1 (winlogon.exe, Session 2+)
 	LogonStart                   time.Time // Winlogon Event 5001
 	LogonStop                    time.Time // Winlogon Event 5002
-	SubscribersDone              time.Time // Winlogon Event 802
 	ProfileLoadStart             time.Time // User Profile Service Event 1
 	ProfileLoadEnd               time.Time // User Profile Service Event 2
 	ProfileCreationStart         time.Time // User Profile Service Event 1001
@@ -55,23 +54,24 @@ type BootTimeline struct {
 	ExecuteShellCommandListEnd   time.Time // Winlogon Event 10
 	UserinitStart                time.Time // Kernel-Process Event 1 (userinit.exe)
 	ExplorerStart                time.Time // Kernel-Process Event 1 (explorer.exe)
-	DesktopReady                 time.Time // Shell-Core Event 62171
+	ExplorerInitStart            time.Time // Shell-Core Event 9601 (Explorer_InitializingExplorerStart)
+	ExplorerInitEnd              time.Time // Shell-Core Event 9602 (Explorer_InitializingExplorerStop)
+	DesktopCreateStart           time.Time // Shell-Core Event 9611 (Explorer_CreateDesktopStart)
+	DesktopCreateEnd             time.Time // Shell-Core Event 9612 (Explorer_CreateDesktopStop)
+	DesktopVisibleStart          time.Time // Shell-Core Event 9648 (waitfordesktopvisuals step)
+	DesktopVisibleEnd            time.Time // Shell-Core Event 9649 (waitfordesktopvisuals step)
+	DesktopReadyStart            time.Time // Shell-Core Event 9648 (finalize step)
+	DesktopReadyEnd              time.Time // Shell-Core Event 9649 (finalize step)
 
 	// Winlogon sub-events for detailed component timing
 	WinlogonInit     time.Time // Winlogon Event 101
 	WinlogonInitDone time.Time // Winlogon Event 102
-	LSMStart         time.Time // Winlogon Event 107
-	LSMReady         time.Time // Winlogon Event 108
-	ThemesLogonStart time.Time // Winlogon Event 11
-	ThemesLogonEnd   time.Time // Winlogon Event 13
-}
+	LoginUIStart     time.Time // Winlogon Event 103
+	LoginUIDone      time.Time // Winlogon Event 104
 
-// SubscriberInfo tracks an individual Winlogon subscriber's timing.
-type SubscriberInfo struct {
-	Name     string
-	Start    time.Time
-	End      time.Time
-	Duration time.Duration
+	// Shell-Core sub-events for detailed component timing
+	DesktopStartupAppsStart time.Time // Shell-Core Event 9648 (desktopstartupapps step)
+	DesktopStartupAppsEnd   time.Time // Shell-Core Event 9649 (desktopstartupapps step)
 }
 
 // eventHandlerFunc processes an accepted event for a specific provider.
@@ -82,8 +82,6 @@ type collector struct {
 	timeline       BootTimeline
 	smssCount      int
 	winlogonCount  int
-	subscribers    []SubscriberInfo
-	currentSubs    map[string]time.Time
 	parseFunctions map[etw.GUID]eventHandlerFunc
 }
 
@@ -101,8 +99,7 @@ func (coll *collector) initParseFunctions() {
 
 // AnalysisResult holds the structured output from ETL analysis.
 type AnalysisResult struct {
-	Timeline    BootTimeline
-	Subscribers []SubscriberInfo
+	Timeline BootTimeline
 }
 
 // analyzeETL opens an ETL file, processes events, and returns a structured
@@ -121,9 +118,7 @@ func analyzeETL(ctx context.Context, etlPath string) (*AnalysisResult, error) {
 
 	log.Debugf("Analyzing ETL file: %s", absPath)
 
-	coll := &collector{
-		currentSubs: make(map[string]time.Time),
-	}
+	coll := &collector{}
 	coll.initParseFunctions()
 
 	var totalEvents atomic.Int64
@@ -153,10 +148,10 @@ func analyzeETL(ctx context.Context, etlPath string) (*AnalysisResult, error) {
 			return true
 		}
 
-		// Winlogon events we care about
+		// Winlogon events
 		if er.EventHeader.ProviderId.Equals(guidWinlogon) {
 			switch id {
-			case 9, 10, 11, 13, 101, 102, 107, 108, 802, 805, 806, 5001, 5002:
+			case 9, 10, 101, 102, 103, 104, 5001, 5002:
 				return true
 			}
 			return false
@@ -180,11 +175,14 @@ func analyzeETL(ctx context.Context, etlPath string) (*AnalysisResult, error) {
 			return false
 		}
 
-		// Shell-Core Event 62171: Desktop Ready
-		if er.EventHeader.ProviderId.Equals(guidShellCore) && id == 62171 {
-			return true
+		// Shell-Core events
+		if er.EventHeader.ProviderId.Equals(guidShellCore) {
+			switch id {
+			case 9601, 9602, 9611, 9612, 9648, 9649:
+				return true
+			}
+			return false
 		}
-
 		return false
 	}
 
@@ -220,8 +218,7 @@ func analyzeETL(ctx context.Context, etlPath string) (*AnalysisResult, error) {
 	}
 
 	return &AnalysisResult{
-		Timeline:    coll.timeline,
-		Subscribers: coll.subscribers,
+		Timeline: coll.timeline,
 	}, nil
 }
 
@@ -281,7 +278,7 @@ func (coll *collector) parseKernelProcess(e *etw.Event, _ uint16, ts time.Time) 
 }
 
 // parseWinlogon processes Winlogon events for logon lifecycle tracking.
-func (coll *collector) parseWinlogon(e *etw.Event, id uint16, ts time.Time) {
+func (coll *collector) parseWinlogon(_ *etw.Event, id uint16, ts time.Time) {
 	switch id {
 	case 101:
 		if coll.timeline.WinlogonInit.IsZero() {
@@ -291,13 +288,13 @@ func (coll *collector) parseWinlogon(e *etw.Event, id uint16, ts time.Time) {
 		if coll.timeline.WinlogonInitDone.IsZero() {
 			coll.timeline.WinlogonInitDone = ts
 		}
-	case 107:
-		if coll.timeline.LSMStart.IsZero() {
-			coll.timeline.LSMStart = ts
+	case 103:
+		if coll.timeline.LoginUIStart.IsZero() {
+			coll.timeline.LoginUIStart = ts
 		}
-	case 108:
-		if coll.timeline.LSMReady.IsZero() {
-			coll.timeline.LSMReady = ts
+	case 104:
+		if coll.timeline.LoginUIDone.IsZero() {
+			coll.timeline.LoginUIDone = ts
 		}
 	case 9:
 		if coll.timeline.ExecuteShellCommandListStart.IsZero() {
@@ -307,10 +304,6 @@ func (coll *collector) parseWinlogon(e *etw.Event, id uint16, ts time.Time) {
 		if coll.timeline.ExecuteShellCommandListEnd.IsZero() {
 			coll.timeline.ExecuteShellCommandListEnd = ts
 		}
-	case 11:
-		coll.timeline.ThemesLogonStart = ts
-	case 13:
-		coll.timeline.ThemesLogonEnd = ts
 	case 5001:
 		if coll.timeline.LogonStart.IsZero() {
 			coll.timeline.LogonStart = ts
@@ -319,31 +312,10 @@ func (coll *collector) parseWinlogon(e *etw.Event, id uint16, ts time.Time) {
 		if coll.timeline.LogonStop.IsZero() {
 			coll.timeline.LogonStop = ts
 		}
-	case 802:
-		coll.timeline.SubscribersDone = ts
-	case 805:
-		subName := findSubscriberName(e)
-		if subName != "" {
-			coll.currentSubs[subName] = ts
-		}
-	case 806:
-		subName := findSubscriberName(e)
-		if subName != "" {
-			if start, ok := coll.currentSubs[subName]; ok {
-				dur := ts.Sub(start)
-				coll.subscribers = append(coll.subscribers, SubscriberInfo{
-					Name:     subName,
-					Start:    start,
-					End:      ts,
-					Duration: dur,
-				})
-				delete(coll.currentSubs, subName)
-			}
-		}
 	}
 }
 
-// parseUserProfile processes User Profile Service events (1001: start, 1002: end).
+// parseUserProfile processes User Profile Service events
 func (coll *collector) parseUserProfile(_ *etw.Event, id uint16, ts time.Time) {
 	switch id {
 	case 1:
@@ -387,10 +359,55 @@ func (coll *collector) parseGroupPolicy(_ *etw.Event, id uint16, ts time.Time) {
 	}
 }
 
-// parseShellCore processes Shell-Core events (Event 62171: Desktop Ready).
-func (coll *collector) parseShellCore(_ *etw.Event, _ uint16, ts time.Time) {
-	if coll.timeline.DesktopReady.IsZero() {
-		coll.timeline.DesktopReady = ts
+// parseShellCore processes Shell-Core events
+func (coll *collector) parseShellCore(e *etw.Event, id uint16, ts time.Time) {
+	switch id {
+	case 9601:
+		if coll.timeline.ExplorerInitStart.IsZero() {
+			coll.timeline.ExplorerInitStart = ts
+		}
+	case 9602:
+		if coll.timeline.ExplorerInitEnd.IsZero() {
+			coll.timeline.ExplorerInitEnd = ts
+		}
+	case 9611:
+		if coll.timeline.DesktopCreateStart.IsZero() {
+			coll.timeline.DesktopCreateStart = ts
+		}
+	case 9612:
+		if coll.timeline.DesktopCreateEnd.IsZero() {
+			coll.timeline.DesktopCreateEnd = ts
+		}
+	case 9648:
+		stepName := explorerStepName(e)
+		if strings.ToLower(stepName) == "waitfordesktopvisuals" {
+			if coll.timeline.DesktopVisibleStart.IsZero() {
+				coll.timeline.DesktopVisibleStart = ts
+			}
+		} else if strings.ToLower(stepName) == "finalize" {
+			if coll.timeline.DesktopReadyStart.IsZero() {
+				coll.timeline.DesktopReadyStart = ts
+			}
+		} else if strings.ToLower(stepName) == "desktopstartupapps" {
+			if coll.timeline.DesktopStartupAppsStart.IsZero() {
+				coll.timeline.DesktopStartupAppsStart = ts
+			}
+		}
+	case 9649:
+		stepName := explorerStepName(e)
+		if strings.ToLower(stepName) == "waitfordesktopvisuals" {
+			if coll.timeline.DesktopVisibleEnd.IsZero() {
+				coll.timeline.DesktopVisibleEnd = ts
+			}
+		} else if strings.ToLower(stepName) == "finalize" {
+			if coll.timeline.DesktopReadyEnd.IsZero() {
+				coll.timeline.DesktopReadyEnd = ts
+			}
+		} else if strings.ToLower(stepName) == "desktopstartupapps" {
+			if coll.timeline.DesktopStartupAppsEnd.IsZero() {
+				coll.timeline.DesktopStartupAppsEnd = ts
+			}
+		}
 	}
 }
 
@@ -409,24 +426,8 @@ func getEventPropString(e *etw.Event, name string) string {
 	return ""
 }
 
-// findSubscriberName extracts the subscriber name from a Winlogon 805/806 event.
-func findSubscriberName(e *etw.Event) string {
-	for _, key := range []string{"SubscriberName", "subscriberName", "Name", "name", "Description"} {
-		if v := getEventPropString(e, key); v != "" {
-			return v
-		}
-	}
-	knownSubs := []string{"SessionEnv", "Profiles", "GPClient", "TermSrv", "Sens", "TrustedInstaller"}
-	allProps := make([]etw.EventProperty, 0, len(e.EventData)+len(e.UserData))
-	allProps = append(allProps, e.EventData...)
-	allProps = append(allProps, e.UserData...)
-	for _, prop := range allProps {
-		val := fmt.Sprintf("%v", prop.Value)
-		for _, sub := range knownSubs {
-			if strings.Contains(val, sub) {
-				return sub
-			}
-		}
-	}
-	return ""
+// explorerStepName extracts the step name from the "psz" property of a
+// Shell-Core 9648/9649 Explorer_Startup_Step event.
+func explorerStepName(e *etw.Event) string {
+	return getEventPropString(e, "psz")
 }

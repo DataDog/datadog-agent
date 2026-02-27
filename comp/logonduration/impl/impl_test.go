@@ -29,9 +29,9 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 	t.Run("includes only non-zero timestamps", func(t *testing.T) {
 		tl := BootTimeline{
-			BootStart:    boot,
-			SmssStart:    boot.Add(1 * time.Second),
-			DesktopReady: boot.Add(90 * time.Second),
+			BootStart:         boot,
+			SmssStart:         boot.Add(1 * time.Second),
+			DesktopReadyStart: boot.Add(90 * time.Second),
 		}
 
 		milestones := buildTimelineMilestones(tl)
@@ -44,9 +44,9 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 	t.Run("computes correct offsets from boot start", func(t *testing.T) {
 		tl := BootTimeline{
-			BootStart:    boot,
-			SmssStart:    boot.Add(2 * time.Second),
-			DesktopReady: boot.Add(90 * time.Second),
+			BootStart:         boot,
+			SmssStart:         boot.Add(2 * time.Second),
+			DesktopReadyStart: boot.Add(90 * time.Second),
 		}
 
 		milestones := buildTimelineMilestones(tl)
@@ -77,8 +77,8 @@ func TestBuildTimelineMilestones(t *testing.T) {
 
 	t.Run("zero BootStart produces zero offsets", func(t *testing.T) {
 		tl := BootTimeline{
-			SmssStart:    boot.Add(1 * time.Second),
-			DesktopReady: boot.Add(90 * time.Second),
+			SmssStart:         boot.Add(1 * time.Second),
+			DesktopReadyStart: boot.Add(90 * time.Second),
 		}
 
 		milestones := buildTimelineMilestones(tl)
@@ -97,8 +97,8 @@ func TestBuildTimelineMilestones(t *testing.T) {
 			UserSmssStart:                boot.Add(5 * time.Second),
 			WinlogonStart:                boot.Add(3 * time.Second),
 			WinlogonInit:                 boot.Add(4 * time.Second),
-			LSMStart:                     boot.Add(8 * time.Second),
-			LSMReady:                     boot.Add(10 * time.Second),
+			LoginUIStart:                 boot.Add(8 * time.Second),
+			LoginUIDone:                  boot.Add(10 * time.Second),
 			MachineGPStart:               boot.Add(12 * time.Second),
 			MachineGPEnd:                 boot.Add(20 * time.Second),
 			UserGPStart:                  boot.Add(32 * time.Second),
@@ -110,14 +110,18 @@ func TestBuildTimelineMilestones(t *testing.T) {
 			ExecuteShellCommandListStart: boot.Add(40 * time.Second),
 			UserinitStart:                boot.Add(42 * time.Second),
 			ExplorerStart:                boot.Add(50 * time.Second),
-			DesktopReady:                 boot.Add(60 * time.Second),
+			ExplorerInitStart:            boot.Add(51 * time.Second),
+			DesktopCreateStart:           boot.Add(53 * time.Second),
+			DesktopVisibleStart:          boot.Add(55 * time.Second),
+			DesktopStartupAppsStart:      boot.Add(58 * time.Second),
+			DesktopReadyStart:            boot.Add(59 * time.Second),
 		}
 
 		milestones := buildTimelineMilestones(tl)
 
-		assert.Len(t, milestones, 16)
+		assert.Len(t, milestones, 20)
 		assert.Equal(t, "Boot Start", milestones[0].Name)
-		assert.Equal(t, "Desktop Ready", milestones[15].Name)
+		assert.Equal(t, "Desktop Ready", milestones[19].Name)
 	})
 }
 
@@ -126,8 +130,8 @@ func TestBuildCustomPayload(t *testing.T) {
 
 	t.Run("includes total boot duration", func(t *testing.T) {
 		tl := BootTimeline{
-			BootStart:    boot,
-			DesktopReady: boot.Add(90 * time.Second),
+			BootStart:       boot,
+			DesktopReadyEnd: boot.Add(90 * time.Second),
 		}
 
 		custom := buildCustomPayload(tl)
@@ -137,63 +141,43 @@ func TestBuildCustomPayload(t *testing.T) {
 		assert.Equal(t, int64(90000), durations["Total Boot Duration (ms)"])
 	})
 
-	t.Run("includes total logon duration", func(t *testing.T) {
+	t.Run("includes logon duration", func(t *testing.T) {
+		tl := BootTimeline{
+			BootStart:           boot,
+			LogonStart:          boot.Add(30 * time.Second),
+			DesktopVisibleStart: boot.Add(90 * time.Second),
+		}
+
+		custom := buildCustomPayload(tl)
+
+		durations := custom["durations"].(map[string]interface{})
+		assert.Equal(t, int64(60000), durations["Logon Duration (ms)"])
+	})
+
+	t.Run("includes boot duration", func(t *testing.T) {
 		tl := BootTimeline{
 			BootStart:    boot,
-			LogonStart:   boot.Add(30 * time.Second),
-			LogonStop:    boot.Add(90 * time.Second),
-			DesktopReady: boot.Add(90 * time.Second),
+			LoginUIStart: boot.Add(8 * time.Second),
 		}
 
 		custom := buildCustomPayload(tl)
 
-		durations := custom["durations"].(map[string]interface{})
-		assert.Equal(t, int64(60000), durations["Total Logon Duration (ms)"])
-	})
-
-	t.Run("includes profile load duration", func(t *testing.T) {
-		tl := BootTimeline{
-			BootStart:        boot,
-			ProfileLoadStart: boot.Add(30 * time.Second),
-			ProfileLoadEnd:   boot.Add(35 * time.Second),
-			DesktopReady:     boot.Add(90 * time.Second),
-		}
-
-		custom := buildCustomPayload(tl)
-
-		durations := custom["durations"].(map[string]interface{})
-		assert.Equal(t, int64(5000), durations["Profile Load Duration (ms)"])
-	})
-
-	t.Run("includes group policy durations", func(t *testing.T) {
-		tl := BootTimeline{
-			BootStart:      boot,
-			MachineGPStart: boot.Add(10 * time.Second),
-			MachineGPEnd:   boot.Add(18 * time.Second),
-			UserGPStart:    boot.Add(30 * time.Second),
-			UserGPEnd:      boot.Add(33 * time.Second),
-			DesktopReady:   boot.Add(90 * time.Second),
-		}
-
-		custom := buildCustomPayload(tl)
-
-		durations := custom["durations"].(map[string]interface{})
-		assert.Equal(t, int64(8000), durations["Machine GP Duration (ms)"])
-		assert.Equal(t, int64(3000), durations["User GP Duration (ms)"])
+		durations, ok := custom["durations"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, int64(8000), durations["Boot Duration (ms)"])
 	})
 
 	t.Run("omits durations when end timestamp is zero", func(t *testing.T) {
 		tl := BootTimeline{
-			BootStart:        boot,
-			ProfileLoadStart: boot.Add(30 * time.Second),
-			// ProfileLoadEnd is zero
+			BootStart:  boot,
+			LogonStart: boot.Add(30 * time.Second),
 		}
 
 		custom := buildCustomPayload(tl)
 
 		if durations, ok := custom["durations"].(map[string]interface{}); ok {
-			_, hasProfile := durations["Profile Load Duration (ms)"]
-			assert.False(t, hasProfile)
+			_, hasLogon := durations["Logon Duration (ms)"]
+			assert.False(t, hasLogon)
 		}
 	})
 
@@ -218,19 +202,6 @@ func TestBuildCustomPayload(t *testing.T) {
 		assert.True(t, hasTimeline)
 	})
 
-	t.Run("includes theme loading duration", func(t *testing.T) {
-		tl := BootTimeline{
-			BootStart:        boot,
-			ThemesLogonStart: boot.Add(50 * time.Second),
-			ThemesLogonEnd:   boot.Add(55 * time.Second),
-			DesktopReady:     boot.Add(90 * time.Second),
-		}
-
-		custom := buildCustomPayload(tl)
-
-		durations := custom["durations"].(map[string]interface{})
-		assert.Equal(t, int64(5000), durations["Theme Loading Duration (ms)"])
-	})
 }
 
 func TestSubmitEvent_PayloadFormat(t *testing.T) {
@@ -246,9 +217,9 @@ func TestSubmitEvent_PayloadFormat(t *testing.T) {
 	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
 	result := &AnalysisResult{
 		Timeline: BootTimeline{
-			BootStart:    boot,
-			LogonStart:   boot.Add(30 * time.Second),
-			DesktopReady: boot.Add(90 * time.Second),
+			BootStart:           boot,
+			LogonStart:          boot.Add(30 * time.Second),
+			DesktopVisibleStart: boot.Add(90 * time.Second),
 		},
 	}
 
@@ -304,8 +275,9 @@ func TestSubmitEvent_MessageIncludesTotalDuration(t *testing.T) {
 	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
 	result := &AnalysisResult{
 		Timeline: BootTimeline{
-			BootStart:    boot,
-			DesktopReady: boot.Add(90 * time.Second),
+			BootStart:           boot,
+			LogonStart:          boot.Add(30 * time.Second),
+			DesktopVisibleStart: boot.Add(90 * time.Second),
 		},
 	}
 
@@ -322,7 +294,7 @@ func TestSubmitEvent_MessageIncludesTotalDuration(t *testing.T) {
 
 	data := payload["data"].(map[string]interface{})
 	attrs := data["attributes"].(map[string]interface{})
-	assert.Equal(t, "Windows logon took 90000 ms", attrs["message"])
+	assert.Equal(t, "Windows logon took 60000 ms", attrs["message"])
 }
 
 func TestSubmitEvent_FallbackMessageWhenNoDuration(t *testing.T) {
