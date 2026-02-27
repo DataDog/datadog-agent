@@ -123,7 +123,7 @@ func sandboxDefault() environmentDefault {
 			defaultARMInstanceType:         "t4g.medium",
 			defaultInstanceStorageSize:     200,
 			defaultShutdownBehavior:        "stop",
-			defaultInternalRegistry:        "registry.datadoghq.com", // TODO: revert to 669783387624.dkr.ecr.us-east-1.amazonaws.com after 1 month
+			defaultInternalRegistry:        "669783387624.dkr.ecr.us-east-1.amazonaws.com",
 			defaultInternalDockerhubMirror: "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub",
 			useMacosCompatibleSubnets:      false,
 
@@ -240,7 +240,7 @@ func agentQADefault() environmentDefault {
 			defaultARMInstanceType:         "t4g.medium",
 			defaultInstanceStorageSize:     200,
 			defaultShutdownBehavior:        "stop",
-			defaultInternalRegistry:        "registry.datadoghq.com",
+			defaultInternalRegistry:        "669783387624.dkr.ecr.us-east-1.amazonaws.com",
 			defaultInternalDockerhubMirror: "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub",
 			useMacosCompatibleSubnets:      false,
 			ecs: ddInfraECS{
