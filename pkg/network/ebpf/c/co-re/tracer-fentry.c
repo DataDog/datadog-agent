@@ -637,6 +637,16 @@ int kprobe__tcp_enter_loss(struct pt_regs *ctx) {
     tcp_rto_recovery_stats_t *val = bpf_map_lookup_elem(&tcp_rto_recovery_stats, &t);
     if (val) {
         __sync_fetch_and_add(&val->rto_count, 1);
+        BPF_CORE_READ_INTO(&val->cwnd_at_last_rto, tcp_sk(sk), snd_cwnd);
+        BPF_CORE_READ_INTO(&val->ssthresh_at_last_rto, tcp_sk(sk), snd_ssthresh);
+        u32 srtt = 0;
+        BPF_CORE_READ_INTO(&srtt, tcp_sk(sk), srtt_us);
+        val->srtt_at_last_rto = srtt >> 3;
+        u8 retransmits = 0;
+        BPF_CORE_READ_INTO(&retransmits, tcp_sk(sk), inet_conn.icsk_retransmits);
+        if (retransmits > val->max_consecutive_rtos) {
+            val->max_consecutive_rtos = retransmits;
+        }
     }
     return 0;
 }
@@ -654,6 +664,11 @@ int kprobe__tcp_enter_recovery(struct pt_regs *ctx) {
     tcp_rto_recovery_stats_t *val = bpf_map_lookup_elem(&tcp_rto_recovery_stats, &t);
     if (val) {
         __sync_fetch_and_add(&val->recovery_count, 1);
+        BPF_CORE_READ_INTO(&val->cwnd_at_last_recovery, tcp_sk(sk), snd_cwnd);
+        BPF_CORE_READ_INTO(&val->ssthresh_at_last_recovery, tcp_sk(sk), snd_ssthresh);
+        u32 srtt = 0;
+        BPF_CORE_READ_INTO(&srtt, tcp_sk(sk), srtt_us);
+        val->srtt_at_last_recovery = srtt >> 3;
     }
     return 0;
 }

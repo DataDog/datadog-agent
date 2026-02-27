@@ -172,7 +172,10 @@ func (c *ConnectionStats) FromTCPCongestionStats(cs *netebpf.TCPCongestionStats)
 	c.TCPBytesRetrans = cs.Bytes_retrans
 	c.TCPDSACKDups = cs.Dsack_dups
 	c.TCPReordSeen = cs.Reord_seen
+	c.TCPSndWnd = cs.Snd_wnd
+	c.TCPRcvWnd = cs.Rcv_wnd
 	c.TCPMaxCAState = cs.Max_ca_state
+	c.TCPECNNegotiated = cs.Ecn_negotiated
 }
 
 // FromTCPRTORecoveryStats populates the RTO and fast-recovery event counter fields on ConnectionStats.
@@ -184,6 +187,13 @@ func (c *ConnectionStats) FromTCPRTORecoveryStats(rs *netebpf.TCPRTORecoveryStat
 	c.TCPRTOCount = rs.Rto_count
 	c.TCPRecoveryCount = rs.Recovery_count
 	c.TCPProbe0Count = rs.Probe0_count
+	c.TCPCwndAtLastRTO = rs.Cwnd_at_last_rto
+	c.TCPSsthreshAtLastRTO = rs.Ssthresh_at_last_rto
+	c.TCPSRTTAtLastRTOUs = rs.Srtt_at_last_rto
+	c.TCPCwndAtLastRecovery = rs.Cwnd_at_last_recovery
+	c.TCPSsthreshAtLastRecovery = rs.Ssthresh_at_last_recovery
+	c.TCPSRTTAtLastRecoveryUs = rs.Srtt_at_last_recovery
+	c.TCPMaxConsecRTOs = rs.Max_consecutive_rtos
 }
 
 // FromTCPStats populates relevant fields on ConnectionStats from the arguments

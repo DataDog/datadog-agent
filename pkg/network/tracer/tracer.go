@@ -509,19 +509,29 @@ func (t *Tracer) emitCongestionMetrics(conns []network.ConnectionStats) {
 			fmt.Sprintf("srcip:%s", c.Source),
 			fmt.Sprintf("destip:%s", c.Dest),
 		}
-		t.statsd.Gauge("network.tcp.congestion.max_packets_out", float64(c.TCPMaxPacketsOut), tags, 1) //nolint:errcheck
-		t.statsd.Gauge("network.tcp.congestion.max_lost_out", float64(c.TCPMaxLostOut), tags, 1)       //nolint:errcheck
-		t.statsd.Gauge("network.tcp.congestion.max_sacked_out", float64(c.TCPMaxSackedOut), tags, 1)   //nolint:errcheck
-		t.statsd.Gauge("network.tcp.congestion.max_retrans_out", float64(c.TCPMaxRetransOut), tags, 1) //nolint:errcheck
-		t.statsd.Gauge("network.tcp.congestion.max_ca_state", float64(c.TCPMaxCAState), tags, 1)       //nolint:errcheck
-		t.statsd.Count("network.tcp.congestion.delivered", int64(c.TCPDelivered), tags, 1)             //nolint:errcheck
-		t.statsd.Count("network.tcp.congestion.delivered_ce", int64(c.TCPDeliveredCE), tags, 1)        //nolint:errcheck
-		t.statsd.Count("network.tcp.congestion.bytes_retrans", int64(c.TCPBytesRetrans), tags, 1)      //nolint:errcheck
-		t.statsd.Count("network.tcp.congestion.dsack_dups", int64(c.TCPDSACKDups), tags, 1)            //nolint:errcheck
-		t.statsd.Count("network.tcp.congestion.reord_seen", int64(c.TCPReordSeen), tags, 1)            //nolint:errcheck
-		t.statsd.Count("network.tcp.congestion.rto_count", int64(c.TCPRTOCount), tags, 1)              //nolint:errcheck
-		t.statsd.Count("network.tcp.congestion.recovery_count", int64(c.TCPRecoveryCount), tags, 1)    //nolint:errcheck
-		t.statsd.Count("network.tcp.congestion.probe0_count", int64(c.TCPProbe0Count), tags, 1)        //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.max_packets_out", float64(c.TCPMaxPacketsOut), tags, 1)                    //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.max_lost_out", float64(c.TCPMaxLostOut), tags, 1)                          //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.max_sacked_out", float64(c.TCPMaxSackedOut), tags, 1)                      //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.max_retrans_out", float64(c.TCPMaxRetransOut), tags, 1)                    //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.max_ca_state", float64(c.TCPMaxCAState), tags, 1)                          //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.snd_wnd", float64(c.TCPSndWnd), tags, 1)                                   //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.rcv_wnd", float64(c.TCPRcvWnd), tags, 1)                                   //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.ecn_negotiated", float64(c.TCPECNNegotiated), tags, 1)                     //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.delivered", int64(c.TCPDelivered), tags, 1)                                //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.delivered_ce", int64(c.TCPDeliveredCE), tags, 1)                           //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.bytes_retrans", int64(c.TCPBytesRetrans), tags, 1)                         //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.dsack_dups", int64(c.TCPDSACKDups), tags, 1)                               //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.reord_seen", int64(c.TCPReordSeen), tags, 1)                               //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.rto_count", int64(c.TCPRTOCount), tags, 1)                                 //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.recovery_count", int64(c.TCPRecoveryCount), tags, 1)                       //nolint:errcheck
+		t.statsd.Count("network.tcp.congestion.probe0_count", int64(c.TCPProbe0Count), tags, 1)                           //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.cwnd_at_last_rto", float64(c.TCPCwndAtLastRTO), tags, 1)                   //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.ssthresh_at_last_rto", float64(c.TCPSsthreshAtLastRTO), tags, 1)           //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.srtt_at_last_rto", float64(c.TCPSRTTAtLastRTOUs), tags, 1)                 //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.cwnd_at_last_recovery", float64(c.TCPCwndAtLastRecovery), tags, 1)         //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.ssthresh_at_last_recovery", float64(c.TCPSsthreshAtLastRecovery), tags, 1) //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.srtt_at_last_recovery", float64(c.TCPSRTTAtLastRecoveryUs), tags, 1)       //nolint:errcheck
+		t.statsd.Gauge("network.tcp.congestion.max_consec_rtos", float64(c.TCPMaxConsecRTOs), tags, 1)                    //nolint:errcheck
 	}
 }
 

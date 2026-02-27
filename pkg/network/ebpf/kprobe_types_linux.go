@@ -31,14 +31,24 @@ type TCPCongestionStats struct {
 	Bytes_retrans   uint64
 	Dsack_dups      uint32
 	Reord_seen      uint32
+	Snd_wnd         uint32
+	Rcv_wnd         uint32
 	Max_ca_state    uint8
-	X_pad           [3]uint8
-	Pad_cgo_0       [4]byte
+	Ecn_negotiated  uint8
+	X_pad           [2]uint8
 }
 type TCPRTORecoveryStats struct {
-	Rto_count      uint32
-	Recovery_count uint32
-	Probe0_count   uint32
+	Rto_count                 uint32
+	Recovery_count            uint32
+	Probe0_count              uint32
+	Cwnd_at_last_rto          uint32
+	Ssthresh_at_last_rto      uint32
+	Srtt_at_last_rto          uint32
+	Cwnd_at_last_recovery     uint32
+	Ssthresh_at_last_recovery uint32
+	Srtt_at_last_recovery     uint32
+	Max_consecutive_rtos      uint8
+	X_pad                     [3]uint8
 }
 type ConnStats struct {
 	Sent_bytes     uint64

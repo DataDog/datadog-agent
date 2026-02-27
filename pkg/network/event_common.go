@@ -300,16 +300,26 @@ type ConnectionStats struct {
 	TCPBytesRetrans  uint64 // cumulative bytes retransmitted (counter, 4.19+)
 	TCPDSACKDups     uint32 // DSACK-detected spurious retransmits (counter)
 	TCPReordSeen     uint32 // reordering events detected (counter, 4.19+)
-	// TODO: before productionizing, move TCPMaxCAState to the trailing single-byte
-	// section (near SPortIsEphemeral) to avoid 3 bytes of alignment padding.
-	TCPMaxCAState uint8 // worst CA state seen during interval (0=Open..4=Loss)
-	// TCP RTO/recovery event counters (CO-RE/runtime tracer only; 0 on prebuilt)
-	TCPRTOCount      uint32 // number of RTO loss events (tcp_enter_loss invocations)
-	TCPRecoveryCount uint32 // number of fast-recovery events (tcp_enter_recovery invocations)
-	TCPProbe0Count   uint32 // number of zero-window probe events (tcp_send_probe0 invocations)
-	StaticTags       uint64
-	ProtocolStack    protocols.Stack
-	TLSTags          tls.Tags
+	TCPSndWnd        uint32 // peer's advertised receive window (0 = zero-window from peer)
+	TCPRcvWnd        uint32 // local advertised receive window (0 = we are zero-windowing)
+	// TODO: before productionizing, move TCPMaxCAState and TCPECNNegotiated to the
+	// trailing single-byte section (near SPortIsEphemeral) to avoid alignment padding.
+	TCPMaxCAState    uint8 // worst CA state seen during interval (0=Open..4=Loss)
+	TCPECNNegotiated uint8 // 1 if ECN was negotiated on this connection
+	// TCP RTO/recovery event counters and loss-moment context (CO-RE/runtime only; 0 on prebuilt)
+	TCPRTOCount               uint32 // number of RTO loss events (tcp_enter_loss invocations)
+	TCPRecoveryCount          uint32 // number of fast-recovery events (tcp_enter_recovery invocations)
+	TCPProbe0Count            uint32 // number of zero-window probe events (tcp_send_probe0 invocations)
+	TCPCwndAtLastRTO          uint32 // snd_cwnd when most recent RTO fired
+	TCPSsthreshAtLastRTO      uint32 // snd_ssthresh when most recent RTO fired
+	TCPSRTTAtLastRTOUs        uint32 // smoothed RTT in µs at most recent RTO
+	TCPCwndAtLastRecovery     uint32 // snd_cwnd when most recent fast recovery started
+	TCPSsthreshAtLastRecovery uint32 // snd_ssthresh when most recent fast recovery started
+	TCPSRTTAtLastRecoveryUs   uint32 // smoothed RTT in µs at most recent fast recovery
+	TCPMaxConsecRTOs          uint8  // peak consecutive RTOs (1=minor, 3+=black hole)
+	StaticTags                uint64
+	ProtocolStack             protocols.Stack
+	TLSTags                   tls.Tags
 
 	// keep these fields last because they are 1 byte each and otherwise inflate the struct size due to alignment
 	SPortIsEphemeral EphemeralPortType

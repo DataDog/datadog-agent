@@ -3402,13 +3402,20 @@ func (s *TracerSuite) TestTCPCongestionSignals() {
 		if !assert.True(ct, ok, "connection not found") {
 			return
 		}
-		t.Logf("Congestion signals: delivered=%d max_packets_out=%d max_lost_out=%d max_sacked_out=%d max_retrans_out=%d delivered_ce=%d bytes_retrans=%d dsack_dups=%d reord_seen=%d max_ca_state=%d rto_count=%d recovery_count=%d probe0_count=%d",
+		t.Logf("Congestion: delivered=%d max_packets_out=%d max_lost_out=%d max_sacked_out=%d max_retrans_out=%d delivered_ce=%d bytes_retrans=%d dsack_dups=%d reord_seen=%d snd_wnd=%d rcv_wnd=%d max_ca_state=%d ecn_negotiated=%d",
 			conn.TCPDelivered, conn.TCPMaxPacketsOut, conn.TCPMaxLostOut, conn.TCPMaxSackedOut,
 			conn.TCPMaxRetransOut, conn.TCPDeliveredCE, conn.TCPBytesRetrans, conn.TCPDSACKDups,
-			conn.TCPReordSeen, conn.TCPMaxCAState, conn.TCPRTOCount, conn.TCPRecoveryCount, conn.TCPProbe0Count)
+			conn.TCPReordSeen, conn.TCPSndWnd, conn.TCPRcvWnd, conn.TCPMaxCAState, conn.TCPECNNegotiated)
+		t.Logf("Loss context: rto_count=%d recovery_count=%d probe0_count=%d cwnd_at_rto=%d ssthresh_at_rto=%d srtt_at_rto=%d cwnd_at_recovery=%d ssthresh_at_recovery=%d srtt_at_recovery=%d max_consec_rtos=%d",
+			conn.TCPRTOCount, conn.TCPRecoveryCount, conn.TCPProbe0Count,
+			conn.TCPCwndAtLastRTO, conn.TCPSsthreshAtLastRTO, conn.TCPSRTTAtLastRTOUs,
+			conn.TCPCwndAtLastRecovery, conn.TCPSsthreshAtLastRecovery, conn.TCPSRTTAtLastRecoveryUs,
+			conn.TCPMaxConsecRTOs)
 		assert.Greater(ct, conn.TCPDelivered, uint32(0), "delivered should be > 0 after successful send")
 		assert.Greater(ct, conn.TCPRTOCount, uint32(0), "rto_count should be > 0 after RTO")
 		assert.Greater(ct, conn.TCPBytesRetrans, uint64(0), "bytes_retrans should be > 0 after retransmits")
+		assert.Greater(ct, conn.TCPCwndAtLastRTO, uint32(0), "cwnd_at_last_rto should be > 0 after RTO")
+		assert.Greater(ct, conn.TCPSRTTAtLastRTOUs, uint32(0), "srtt_at_last_rto should be > 0 after RTO")
 	}, 5*time.Second, 100*time.Millisecond)
 }
 

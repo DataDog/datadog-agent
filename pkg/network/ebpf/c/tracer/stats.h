@@ -351,6 +351,17 @@ static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock
     BPF_CORE_READ_INTO(&val->reord_seen,   tcp_sk(sk), reord_seen);
 #endif
 
+    // Window fields: snapshot of advertised windows (0 = zero-window condition).
+    // snd_wnd is the peer's advertised receive window; rcv_wnd is our local window.
+    BPF_CORE_READ_INTO(&val->snd_wnd, tcp_sk(sk), snd_wnd);
+    BPF_CORE_READ_INTO(&val->rcv_wnd, tcp_sk(sk), rcv_wnd);
+
+    // ECN negotiation: ecn_flags bit 0 (TCP_ECN_OK) indicates ECN was negotiated.
+    // Prerequisite for interpreting delivered_ce.
+    u16 ecn_flags = 0;
+    BPF_CORE_READ_INTO(&ecn_flags, tcp_sk(sk), ecn_flags);
+    val->ecn_negotiated = (ecn_flags & 1) ? 1 : 0;
+
     // BPF_CORE_READ_BITFIELD_PROBED requires __builtin_preserve_field_info which is
     // only available with full CO-RE support. The runtime compiler's clang does not
     // provide this builtin, so ca_state is read only on CO-RE (stays 0 on runtime).

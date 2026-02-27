@@ -109,8 +109,11 @@ typedef struct {
     __u64 bytes_retrans;    // cumulative bytes retransmitted (counter, 4.19+)
     __u32 dsack_dups;       // DSACK-detected spurious retransmits (counter)
     __u32 reord_seen;       // reordering events detected (counter, 4.19+)
+    __u32 snd_wnd;          // peer's advertised receive window (0 = zero-window from peer)
+    __u32 rcv_wnd;          // local advertised receive window (0 = we are zero-windowing)
     __u8  max_ca_state;     // worst CA state seen during interval (0=Open..4=Loss)
-    __u8  _pad[3];          // explicit padding to maintain 4-byte alignment
+    __u8  ecn_negotiated;   // 1 if ECN was negotiated on this connection, 0 otherwise
+    __u8  _pad[2];          // explicit padding to maintain 4-byte alignment
 } tcp_congestion_stats_t;
 
 // Per-connection RTO and fast-recovery event counters. Stored in a separate BPF map
@@ -119,9 +122,18 @@ typedef struct {
 // tcp_enter_recovery fire in kernel context without a reliable userspace PID.
 // CO-RE/runtime only; prebuilt returns 0.
 typedef struct {
-    __u32 rto_count;       // number of tcp_enter_loss() invocations
-    __u32 recovery_count;  // number of tcp_enter_recovery() invocations
-    __u32 probe0_count;    // number of tcp_send_probe0() invocations (zero-window probes)
+    __u32 rto_count;                  // number of tcp_enter_loss() invocations
+    __u32 recovery_count;             // number of tcp_enter_recovery() invocations
+    __u32 probe0_count;               // number of tcp_send_probe0() invocations (zero-window probes)
+    // Loss-moment context: snapshot of congestion state at the time of the event.
+    __u32 cwnd_at_last_rto;           // snd_cwnd when most recent RTO fired
+    __u32 ssthresh_at_last_rto;       // snd_ssthresh when most recent RTO fired
+    __u32 srtt_at_last_rto;           // srtt_us >> 3 at most recent RTO (µs)
+    __u32 cwnd_at_last_recovery;      // snd_cwnd when most recent fast recovery started
+    __u32 ssthresh_at_last_recovery;  // snd_ssthresh when most recent fast recovery started
+    __u32 srtt_at_last_recovery;      // srtt_us >> 3 at most recent fast recovery (µs)
+    __u8  max_consecutive_rtos;       // peak icsk_retransmits seen (1=minor, 3+=black hole)
+    __u8  _pad[3];                    // explicit padding to maintain 4-byte alignment
 } tcp_rto_recovery_stats_t;
 
 // Full data for a tcp connection
