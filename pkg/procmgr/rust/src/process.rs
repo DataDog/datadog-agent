@@ -130,12 +130,13 @@ impl ManagedProcess {
             .spawn()
             .with_context(|| format!("[{}] failed to spawn: {}", self.name, self.config.command))?;
 
-        let pid = child.id().unwrap_or(0);
+        self.pid = child.id();
         info!(
             "[{}] spawned (pid={}, cmd={})",
-            self.name, pid, self.config.command
+            self.name,
+            self.pid.map_or("unknown".to_string(), |p| p.to_string()),
+            self.config.command
         );
-        self.pid = Some(pid);
         self.child = Some(child);
         self.transition_to(ProcessState::Running);
         self.restarts.mark_spawned();
