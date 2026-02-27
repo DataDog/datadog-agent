@@ -20,6 +20,7 @@ type bucket struct {
 	maxContentSize   int
 
 	message         *message.Message
+	firstLineTokens []Token
 	originalDataLen int
 	buffer          *bytes.Buffer
 	lineCount       int
@@ -27,9 +28,10 @@ type bucket struct {
 	needsTruncation bool
 }
 
-func (b *bucket) add(msg *message.Message) {
+func (b *bucket) add(msg *message.Message, tokens []Token) {
 	if b.message == nil {
 		b.message = msg
+		b.firstLineTokens = tokens
 	}
 	if b.originalDataLen > 0 {
 		b.buffer.Write(message.EscapedLineFeed)
@@ -46,12 +48,13 @@ func (b *bucket) isEmpty() bool {
 func (b *bucket) reset() {
 	b.buffer.Reset()
 	b.message = nil
+	b.firstLineTokens = nil
 	b.lineCount = 0
 	b.originalDataLen = 0
 	b.needsTruncation = false
 }
 
-func (b *bucket) flush() *message.Message {
+func (b *bucket) flush() CompletedMessage {
 	defer b.reset()
 
 	lastWasTruncated := b.shouldTruncate
@@ -100,12 +103,12 @@ func (b *bucket) flush() *message.Message {
 	}
 
 	metrics.TlmAutoMultilineAggregatorFlush.Inc(tlmTags...)
-	return msg
+	return CompletedMessage{Msg: msg, Tokens: b.firstLineTokens}
 }
 
 // combiningAggregator aggregates multiline logs with a given label.
 type combiningAggregator struct {
-	collected          []*message.Message
+	collected          []CompletedMessage
 	bucket             *bucket
 	maxContentSize     int
 	multiLineMatchInfo *status.CountInfo
@@ -145,21 +148,21 @@ func (a *combiningAggregator) flushToCollected() {
 }
 
 // Process processes a multiline log using a label and returns any completed messages.
-func (a *combiningAggregator) Process(msg *message.Message, label Label) []*message.Message {
+func (a *combiningAggregator) Process(msg *message.Message, label Label, tokens []Token) []CompletedMessage {
 	a.collected = a.collected[:0]
 
 	// If `noAggregate` - flush the bucket immediately and then flush the next message.
 	if label == noAggregate {
 		a.flushToCollected()
 		a.bucket.shouldTruncate = false // noAggregate messages should never be truncated at the beginning (Could break JSON formatted messages)
-		a.bucket.add(msg)
+		a.bucket.add(msg, tokens)
 		a.flushToCollected()
 		return a.collected
 	}
 
 	// If `aggregate` and the bucket is empty - flush the next message.
 	if label == aggregate && a.bucket.isEmpty() {
-		a.bucket.add(msg)
+		a.bucket.add(msg, tokens)
 		a.flushToCollected()
 		return a.collected
 	}
@@ -168,7 +171,7 @@ func (a *combiningAggregator) Process(msg *message.Message, label Label) []*mess
 	if label == startGroup {
 		a.flushToCollected()
 		a.multiLineMatchInfo.Add(1)
-		a.bucket.add(msg)
+		a.bucket.add(msg, tokens)
 		if msg.RawDataLen >= a.maxContentSize {
 			// Start group is too big to append anything to, flush it and reset.
 			a.flushToCollected()
@@ -186,19 +189,19 @@ func (a *combiningAggregator) Process(msg *message.Message, label Label) []*mess
 		a.flushToCollected()
 
 		a.bucket.lineCount++ // Account for the previous (now flushed) message being part of the same log
-		a.bucket.add(msg)
+		a.bucket.add(msg, tokens)
 		a.flushToCollected()
 		return a.collected
 	}
 
 	// We're an aggregate label within a startGroup and within the maxContentSize. Append new multiline
 	a.linesCombinedInfo.Add(1)
-	a.bucket.add(msg)
+	a.bucket.add(msg, nil) // continuation lines don't need tokens
 	return a.collected
 }
 
 // Flush flushes the aggregator and returns any pending messages.
-func (a *combiningAggregator) Flush() []*message.Message {
+func (a *combiningAggregator) Flush() []CompletedMessage {
 	a.collected = a.collected[:0]
 	a.flushToCollected()
 	return a.collected

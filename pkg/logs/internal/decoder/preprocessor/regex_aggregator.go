@@ -30,12 +30,13 @@ type RegexAggregator struct {
 	isBufferTruncated bool
 	linesLen          int
 	msg               *message.Message
+	firstLineTokens   []Token
 	linesCombined     int
 	telemetryEnabled  bool
 	multiLineTagValue string
 	countInfo         *status.CountInfo
 	linesCombinedInfo *status.CountInfo
-	collected         []*message.Message
+	collected         []CompletedMessage
 	// patternMatchedOnce tracks whether the regex has ever matched.
 	// Before the first match, lines are sent individually to prevent a misconfigured
 	// pattern from silently joining all lines into a single message.
@@ -56,7 +57,7 @@ func NewRegexAggregator(newContentRe *regexp.Regexp, lineLimit int, telemetryEna
 		multiLineTagValue: multiLineTagValue,
 		countInfo:         status.NewCountInfo("MultiLine matches"),
 		linesCombinedInfo: status.NewCountInfo("Lines Combined"),
-		collected:         make([]*message.Message, 0, 1),
+		collected:         make([]CompletedMessage, 0, 1),
 	}
 }
 
@@ -84,15 +85,18 @@ func (a *RegexAggregator) SetLinesCombinedInfo(info *status.CountInfo) {
 
 // Process aggregates log lines using the regex to detect new log entry boundaries.
 // Returns any completed messages (may be empty if the current line is buffered). label is unused.
-func (a *RegexAggregator) Process(msg *message.Message, _ Label) []*message.Message {
+func (a *RegexAggregator) Process(msg *message.Message, _ Label, tokens []Token) []CompletedMessage {
 	a.collected = a.collected[:0]
 
 	if a.newContentRe.Match(msg.GetContent()) {
 		a.countInfo.Add(1)
 		a.patternMatchedOnce = true
 		a.sendBuffer()
+		// This line starts a new group; capture its tokens as the first-line tokens.
+		a.firstLineTokens = tokens
 	} else if !a.patternMatchedOnce {
 		a.sendBuffer()
+		a.firstLineTokens = tokens
 	}
 
 	isTruncated := a.shouldTruncate
@@ -125,7 +129,7 @@ func (a *RegexAggregator) Process(msg *message.Message, _ Label) []*message.Mess
 }
 
 // Flush returns any buffered content as a completed message and resets state.
-func (a *RegexAggregator) Flush() []*message.Message {
+func (a *RegexAggregator) Flush() []CompletedMessage {
 	a.collected = a.collected[:0]
 	a.sendBuffer()
 	return a.collected
@@ -143,6 +147,7 @@ func (a *RegexAggregator) sendBuffer() {
 		a.linesCombined = 0
 		a.shouldTruncate = false
 		a.isBufferTruncated = false
+		a.firstLineTokens = nil
 	}()
 
 	data := bytes.TrimSpace(a.buffer.Bytes())
@@ -180,5 +185,5 @@ func (a *RegexAggregator) sendBuffer() {
 		}
 	}
 	metrics.TlmAutoMultilineAggregatorFlush.Inc(tlmTags...)
-	a.collected = append(a.collected, msg)
+	a.collected = append(a.collected, CompletedMessage{Msg: msg, Tokens: a.firstLineTokens})
 }
