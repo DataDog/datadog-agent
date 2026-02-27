@@ -90,6 +90,8 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction ConfigureAutoLogger { get; }
 
+        public ManagedAction ConfigureAutoLoggerRollback { get; }
+
         public ManagedAction RemoveAutoLogger { get; }
 
         /// <summary>
@@ -739,6 +741,20 @@ namespace WixSetup.Datadog_Agent
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                                "DDAGENTUSER_SID=[DDAGENTUSER_SID], " +
                                "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME]");
+
+            ConfigureAutoLoggerRollback = new CustomAction<CustomActions>(
+                    new Id(nameof(ConfigureAutoLoggerRollback)),
+                    CustomActions.ConfigureAutoLoggerRollback,
+                    Return.ignore,
+                    When.Before,
+                    new Step(ConfigureAutoLogger.Id),
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+                )
+            {
+                Execute = Execute.rollback,
+                Impersonate = false
+            }
+                .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
             RemoveAutoLogger = new CustomAction<CustomActions>(
                     new Id(nameof(RemoveAutoLogger)),

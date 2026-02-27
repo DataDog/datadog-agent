@@ -225,6 +225,31 @@ namespace Datadog.CustomActions
                 session.Log($"Warning: could not remove AutoLogger registry keys: {e}");
             }
 
+            if (!string.IsNullOrEmpty(appDataDir))
+            {
+                var logonDurationDir = Path.Combine(appDataDir, LogonDurationSubDir);
+                try
+                {
+                    if (Directory.Exists(logonDurationDir))
+                    {
+                        session.Log($"Cleaning logon duration directory: {logonDurationDir}");
+                        foreach (var file in Directory.GetFiles(logonDurationDir))
+                        {
+                            File.Delete(file);
+                        }
+                        session.Log("Logon duration directory cleaned");
+                    }
+                    else
+                    {
+                        session.Log($"Logon duration directory not found, skipping: {logonDurationDir}");
+                    }
+                }
+                catch (Exception e)
+                {
+                    session.Log($"Warning: could not clean logon duration directory: {e}");
+                }
+            }
+
             return ActionResult.Success;
         }
 
@@ -270,6 +295,11 @@ namespace Datadog.CustomActions
         public static ActionResult ConfigureAutoLogger(Session session)
         {
             return ConfigureAutoLogger(new SessionWrapper(session));
+        }
+
+        public static ActionResult ConfigureAutoLoggerRollback(Session session)
+        {
+            return RemoveAutoLogger(new SessionWrapper(session));
         }
 
         public static ActionResult RemoveAutoLogger(Session session)

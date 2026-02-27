@@ -234,6 +234,12 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
+        public static ActionResult ConfigureAutoLoggerRollback(Session session)
+        {
+            return Datadog.CustomActions.AutoLoggerCustomAction.ConfigureAutoLoggerRollback(session);
+        }
+
+        [CustomAction]
         public static ActionResult RemoveAutoLogger(Session session)
         {
             return Datadog.CustomActions.AutoLoggerCustomAction.RemoveAutoLogger(session);
