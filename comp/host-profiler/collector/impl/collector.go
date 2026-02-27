@@ -10,11 +10,13 @@ package collectorimpl
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collector "github.com/DataDog/datadog-agent/comp/host-profiler/collector/def"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/oom"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
@@ -88,6 +90,15 @@ func NewComponent(reqs Requires) (Provides, error) {
 }
 
 func (c *collectorImpl) Run() error {
+	currentScore, err := oom.GetOOMScoreAdj(0)
+	if err != nil {
+		slog.Warn("Failed to get OOM score adjustment", slog.String("error", err.Error()))
+	} else if currentScore > 0 {
+		if err = oom.SetOOMScoreAdj(0, 0); err != nil {
+			slog.Warn("Could not adjust OOM score", slog.String("error", err.Error()))
+		}
+	}
+
 	return c.collector.Run(context.Background())
 }
 
