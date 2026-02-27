@@ -41,8 +41,6 @@ common:macos --remote_local_fallback_strategy=sandboxed
 
 # Windows config -------------------------------------------------------------------------------------------------------
 common:windows --strategy=standalone # Valid values are: [dynamic_worker, standalone, dynamic, remote, worker, local]
-# For whatever reason if convenience symlinks are present, the build fails on Windows.
-common:windows --noexperimental_convenience_symlinks
 # Neither repo_env nor shell_executable affect action keys. It can be both an advantage and a disadvantage.
 # For instance, if we need to have some special behavior in bash we can add it, however, in some cases
 # it may lead to cache poisoning.
