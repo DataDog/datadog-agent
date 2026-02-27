@@ -411,3 +411,165 @@ func TestAutoMultilineHandler_CombiningMode_EnablesJSONAggregation(t *testing.T)
 	// Verify JSON aggregation is enabled
 	assert.True(t, handler.enableJSONAggregation, "JSON aggregation should be enabled in combining mode")
 }
+
+func TestAutoMultilineHandler_GoPanicStartsNewGroup(t *testing.T) {
+	outputChan := make(chan *message.Message, 10)
+	outputFn := func(m *message.Message) {
+		outputChan <- m
+	}
+
+	handler := newCombiningHandler(outputFn, 4096, 10*time.Second)
+
+	handler.process(newTestMessage("2024-03-28 13:45:30 INFO Starting server"))
+	handler.process(newTestMessage("2024-03-28 13:45:31 INFO Listening on :8080"))
+
+	// Go panic without timestamp - should start a new group
+	handler.process(newTestMessage("goroutine 1 [running]:"))
+	handler.process(newTestMessage("main.handler(0xc0000b2000, 0x3, 0x5)"))
+	handler.process(newTestMessage("\t/home/user/project/main.go:12 +0x1c0"))
+
+	// Next timestamped line flushes the panic group
+	handler.process(newTestMessage("2024-03-28 13:45:32 INFO Recovered"))
+	handler.flush()
+
+	msg1 := <-outputChan
+	assert.Equal(t, []byte("2024-03-28 13:45:30 INFO Starting server"), msg1.GetContent())
+
+	msg2 := <-outputChan
+	assert.Equal(t, []byte("2024-03-28 13:45:31 INFO Listening on :8080"), msg2.GetContent())
+
+	// The goroutine line and its frames should be combined.
+	// EscapedLineFeed is literal `\n` (two chars), tab is a real 0x09 byte.
+	msg3 := <-outputChan
+	expected3 := []byte("goroutine 1 [running]:\\nmain.handler(0xc0000b2000, 0x3, 0x5)\\n\t/home/user/project/main.go:12 +0x1c0")
+	assert.Equal(t, expected3, msg3.GetContent())
+	assert.True(t, msg3.ParsingExtra.IsMultiLine)
+
+	msg4 := <-outputChan
+	assert.Equal(t, []byte("2024-03-28 13:45:32 INFO Recovered"), msg4.GetContent())
+}
+
+func TestAutoMultilineHandler_GoPanicPrefixStartsNewGroup(t *testing.T) {
+	outputChan := make(chan *message.Message, 10)
+	outputFn := func(m *message.Message) {
+		outputChan <- m
+	}
+
+	handler := newCombiningHandler(outputFn, 4096, 10*time.Second)
+
+	handler.process(newTestMessage("2024-03-28 13:45:30 INFO Starting server"))
+
+	// panic: prefix should start a new group, and goroutine also starts a new group.
+	// Both are recognized start markers, so they form separate groups.
+	handler.process(newTestMessage("panic: runtime error: index out of range"))
+	handler.process(newTestMessage("goroutine 1 [running]:"))
+	handler.process(newTestMessage("\t/home/user/project/main.go:12 +0x1c0"))
+
+	handler.process(newTestMessage("2024-03-28 13:45:32 INFO Next"))
+	handler.flush()
+
+	msg1 := <-outputChan
+	assert.Equal(t, []byte("2024-03-28 13:45:30 INFO Starting server"), msg1.GetContent())
+
+	// panic: line is its own group (flushed when goroutine startGroup arrives)
+	msg2 := <-outputChan
+	assert.Equal(t, []byte("panic: runtime error: index out of range"), msg2.GetContent())
+
+	// goroutine line starts a new group with the frame
+	msg3 := <-outputChan
+	expected3 := []byte("goroutine 1 [running]:\\n\t/home/user/project/main.go:12 +0x1c0")
+	assert.Equal(t, expected3, msg3.GetContent())
+	assert.True(t, msg3.ParsingExtra.IsMultiLine)
+
+	msg4 := <-outputChan
+	assert.Equal(t, []byte("2024-03-28 13:45:32 INFO Next"), msg4.GetContent())
+}
+
+func TestAutoMultilineHandler_JavaExceptionStartsNewGroup(t *testing.T) {
+	outputChan := make(chan *message.Message, 10)
+	outputFn := func(m *message.Message) {
+		outputChan <- m
+	}
+
+	handler := newCombiningHandler(outputFn, 4096, 10*time.Second)
+
+	handler.process(newTestMessage("2024-03-28 13:45:30 INFO Processing request"))
+
+	// Java UncaughtExceptionHandler output to stderr - should start a new group
+	handler.process(newTestMessage(`Exception in thread "main" java.lang.NullPointerException`))
+	handler.process(newTestMessage("\tat com.example.MyClass.doSomething(MyClass.java:42)"))
+	handler.process(newTestMessage("\tat com.example.Main.main(Main.java:15)"))
+
+	handler.process(newTestMessage("2024-03-28 13:45:32 INFO Next"))
+	handler.flush()
+
+	msg1 := <-outputChan
+	assert.Equal(t, []byte("2024-03-28 13:45:30 INFO Processing request"), msg1.GetContent())
+
+	msg2 := <-outputChan
+	expected2 := []byte("Exception in thread \"main\" java.lang.NullPointerException\\n\tat com.example.MyClass.doSomething(MyClass.java:42)\\n\tat com.example.Main.main(Main.java:15)")
+	assert.Equal(t, expected2, msg2.GetContent())
+	assert.True(t, msg2.ParsingExtra.IsMultiLine)
+
+	msg3 := <-outputChan
+	assert.Equal(t, []byte("2024-03-28 13:45:32 INFO Next"), msg3.GetContent())
+}
+
+func TestAutoMultilineHandler_RustPanicStartsNewGroup(t *testing.T) {
+	outputChan := make(chan *message.Message, 10)
+	outputFn := func(m *message.Message) {
+		outputChan <- m
+	}
+
+	handler := newCombiningHandler(outputFn, 4096, 10*time.Second)
+
+	handler.process(newTestMessage("2024-03-28 13:45:30 INFO Starting"))
+
+	// Rust panic - should start a new group
+	handler.process(newTestMessage("thread 'main' panicked at 'index out of bounds', src/main.rs:4:5"))
+	handler.process(newTestMessage("stack backtrace:"))
+	handler.process(newTestMessage("   0: rust_begin_unwind"))
+
+	handler.process(newTestMessage("2024-03-28 13:45:32 INFO Next"))
+	handler.flush()
+
+	msg1 := <-outputChan
+	assert.Equal(t, []byte("2024-03-28 13:45:30 INFO Starting"), msg1.GetContent())
+
+	msg2 := <-outputChan
+	expected2 := []byte("thread 'main' panicked at 'index out of bounds', src/main.rs:4:5\\nstack backtrace:\\n   0: rust_begin_unwind")
+	assert.Equal(t, expected2, msg2.GetContent())
+	assert.True(t, msg2.ParsingExtra.IsMultiLine)
+
+	msg3 := <-outputChan
+	assert.Equal(t, []byte("2024-03-28 13:45:32 INFO Next"), msg3.GetContent())
+}
+
+func TestAutoMultilineHandler_TimestampedStackTraceNotSevered(t *testing.T) {
+	outputChan := make(chan *message.Message, 10)
+	outputFn := func(m *message.Message) {
+		outputChan <- m
+	}
+
+	handler := newCombiningHandler(outputFn, 4096, 10*time.Second)
+
+	// A timestamped error followed by its stack trace should stay together.
+	// The continuation lines (without timestamps) must NOT be severed.
+	handler.process(newTestMessage("2024-03-28 13:45:30 ERROR Something failed"))
+	handler.process(newTestMessage("java.lang.NullPointerException: Cannot invoke method on null"))
+	handler.process(newTestMessage("\tat com.example.MyClass.doSomething(MyClass.java:42)"))
+	handler.process(newTestMessage("\tat com.example.Main.main(Main.java:15)"))
+
+	handler.process(newTestMessage("2024-03-28 13:45:31 INFO Next"))
+	handler.flush()
+
+	msg1 := <-outputChan
+	content := string(msg1.GetContent())
+	assert.Contains(t, content, "2024-03-28 13:45:30 ERROR Something failed")
+	assert.Contains(t, content, "java.lang.NullPointerException")
+	assert.Contains(t, content, "com.example.MyClass.doSomething")
+	assert.True(t, msg1.ParsingExtra.IsMultiLine)
+
+	msg2 := <-outputChan
+	assert.Equal(t, []byte("2024-03-28 13:45:31 INFO Next"), msg2.GetContent())
+}
