@@ -415,7 +415,7 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 			},
 			Pid:            pid,
 			InjectionState: injectionState,
-			HasNvidiaGPU:   gpuPids.Has(pid) || (service != nil && service.HasNvidiaGPU),
+			UsesGPU:        gpuPids.Has(pid),
 		}
 
 		if service != nil {
@@ -455,6 +455,7 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 		preservedService.UDPPorts = newService.UDPPorts
 		preservedService.LogFiles = newService.LogFiles
 
+		// The following fields are preserved across the lifetime of the process.
 		entity := &workloadmeta.Process{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindProcess,
@@ -464,7 +465,7 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 			Service:        &preservedService,
 			InjectionState: existingProcess.InjectionState,
 			Language:       existingProcess.Language,
-			HasNvidiaGPU:   existingProcess.HasNvidiaGPU,
+			UsesGPU:        existingProcess.UsesGPU,
 		}
 
 		entities = append(entities, entity)

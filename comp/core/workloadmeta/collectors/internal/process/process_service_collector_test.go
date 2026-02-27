@@ -332,7 +332,7 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 			},
 			expectStored: func() []*workloadmeta.Process {
 				e := makeProcessEntity(pidGPUOnly, baseTime.Add(-2*time.Minute), nil, workloadmeta.InjectionNotInjected, "")
-				e.HasNvidiaGPU = true
+				e.UsesGPU = true
 				return []*workloadmeta.Process{e}
 			}(),
 		},
@@ -342,16 +342,13 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 				pidNewService: makeProcess(pidNewService, baseTime.Add(-2*time.Minute).UnixMilli(), nil),
 			},
 			httpResponse: &model.ServicesResponse{
-				Services: []model.Service{func() model.Service {
-					s := makeModelService(pidNewService, "gpu-service")
-					s.HasNvidiaGPU = true
-					return s
-				}()},
+				Services: []model.Service{makeModelService(pidNewService, "gpu-service")},
+				GPUPIDs:  []int{int(pidNewService)},
 			},
 			expectStored: func() []*workloadmeta.Process {
 				e := makeProcessEntity(pidNewService, baseTime.Add(-2*time.Minute), nil, workloadmeta.InjectionNotInjected, "")
 				e.Service = makeProcessEntityService(pidNewService, "gpu-service", workloadmeta.InjectionNotInjected).Service
-				e.HasNvidiaGPU = true
+				e.UsesGPU = true
 				return []*workloadmeta.Process{e}
 			}(),
 		},
@@ -359,7 +356,7 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 			name: "gpu status preserved across heartbeat",
 			existingProcesses: func() []*workloadmeta.Process {
 				e := makeProcessEntityWithService(pidStaleService, baseTime.Add(-20*time.Minute), nil, "stale-gpu-service", workloadmeta.InjectionNotInjected, "")
-				e.HasNvidiaGPU = true
+				e.UsesGPU = true
 				return []*workloadmeta.Process{e}
 			}(),
 			processesToCollect: map[int32]*procutil.Process{
@@ -374,7 +371,7 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 			expectStored: func() []*workloadmeta.Process {
 				e := makeProcessEntity(pidStaleService, baseTime.Add(-20*time.Minute), nil, workloadmeta.InjectionNotInjected, "")
 				e.Service = makeProcessEntityService(pidStaleService, "stale-gpu-service", workloadmeta.InjectionNotInjected).Service
-				e.HasNvidiaGPU = true
+				e.UsesGPU = true
 				return []*workloadmeta.Process{e}
 			}(),
 		},
@@ -935,7 +932,7 @@ func assertStoredServices(t *testing.T, store workloadmetamock.Mock, expected []
 			entity, err := store.GetProcess(expectedProcess.Pid)
 			require.NoError(collectT, err)
 			require.NotNil(collectT, entity)
-			assert.Equal(collectT, expectedProcess.HasNvidiaGPU, entity.HasNvidiaGPU)
+			assert.Equal(collectT, expectedProcess.UsesGPU, entity.UsesGPU)
 			if expectedProcess.Service == nil {
 				assert.Nil(collectT, entity.Service)
 			} else {
@@ -1015,7 +1012,7 @@ func assertProcessData(t *testing.T, store workloadmetamock.Mock, expectedProces
 			assert.Equal(collectT, expectedProcess.Language, entity.Language)
 			assert.Equal(collectT, expectedProcess.Owner, entity.Owner)
 			assert.Equal(collectT, expectedProcess.InjectionState, entity.InjectionState)
-			assert.Equal(collectT, expectedProcess.HasNvidiaGPU, entity.HasNvidiaGPU)
+			assert.Equal(collectT, expectedProcess.UsesGPU, entity.UsesGPU)
 		}
 	}, 1*time.Second, 100*time.Millisecond)
 }

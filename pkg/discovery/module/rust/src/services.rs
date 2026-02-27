@@ -52,7 +52,6 @@ pub struct Service {
     pub apm_instrumentation: bool,
     pub language: Language,
     pub service_type: String,
-    pub has_nvidia_gpu: bool,
 }
 
 // getServices processes categorized PID lists and returns service information
@@ -70,14 +69,17 @@ pub fn get_services(params: Params) -> ServicesResponse {
                 resp.injected_pids.push(*pid);
             }
 
-            let (service, fd_info) = get_service(*pid, &mut context);
-            if let Some(service) = service {
+            let Ok(open_files_info) = procfs::fd::get_open_files_info(*pid) else {
+                continue;
+            };
+
+            if is_using_gpu(*pid, &open_files_info) {
+                resp.gpu_pids.push(*pid);
+            }
+
+            if let Some(service) = get_service(*pid, &mut context, &open_files_info) {
                 info!("found service {service:#?}");
                 resp.services.push(service);
-            } else if let Some(info) = fd_info
-                && (info.has_gpu_device || procfs::maps::has_gpu_nvidia_libraries(*pid))
-            {
-                resp.gpu_pids.push(*pid);
             }
         }
     }
@@ -94,23 +96,11 @@ pub fn get_services(params: Params) -> ServicesResponse {
     resp
 }
 
-// get_service reads /proc/pid/fd, then tries to build a Service.
-// When no service is found but the fd directory was successfully read,
-// the OpenFilesInfo is returned so the caller can reuse it for GPU detection
-// without reading /proc/pid/fd again.
-fn get_service(pid: i32, context: &mut ParsingContext) -> (Option<Service>, Option<OpenFilesInfo>) {
-    let Ok(open_files_info) = procfs::fd::get_open_files_info(pid) else {
-        return (None, None);
-    };
-    let service = try_build_service(pid, context, &open_files_info);
-    if service.is_some() {
-        (service, None)
-    } else {
-        (None, Some(open_files_info))
-    }
+fn is_using_gpu(pid: i32, open_files_info: &OpenFilesInfo) -> bool {
+    open_files_info.has_gpu_device || procfs::maps::has_gpu_nvidia_libraries(pid)
 }
 
-fn try_build_service(
+fn get_service(
     pid: i32,
     context: &mut ParsingContext,
     open_files_info: &OpenFilesInfo,
@@ -156,10 +146,6 @@ fn try_build_service(
     let apm_instrumentation =
         tracer_metadata.is_some() || apm::detect(&language, pid, &cmdline, &envs);
 
-    // Detect GPU usage: Fast path (devices) already checked, fallback to libraries
-    let has_nvidia_gpu =
-        open_files_info.has_gpu_device || procfs::maps::has_gpu_nvidia_libraries(pid);
-
     Some(Service {
         pid,
         generated_name: name_metadata.as_ref().map(|meta| meta.name.clone()),
@@ -175,7 +161,6 @@ fn try_build_service(
         apm_instrumentation,
         language,
         service_type: String::new(),
-        has_nvidia_gpu,
     })
 }
 

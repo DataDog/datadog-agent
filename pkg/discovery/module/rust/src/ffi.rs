@@ -89,7 +89,6 @@ pub struct dd_service {
     pub apm_instrumentation: bool,
     pub language: dd_str,
     pub service_type: dd_str,
-    pub has_nvidia_gpu: bool,
 }
 
 #[repr(C)]
@@ -238,7 +237,6 @@ impl From<Service> for dd_service {
             apm_instrumentation: svc.apm_instrumentation,
             language: dd_str::from_str(svc.language.as_str()),
             service_type: dd_str::from(svc.service_type),
-            has_nvidia_gpu: svc.has_nvidia_gpu,
         }
     }
 }
@@ -404,7 +402,6 @@ unsafe fn free_dd_service(service: &dd_service) {
         apm_instrumentation: _,
         language,
         service_type,
-        has_nvidia_gpu: _,
     } = service;
     // SAFETY: Caller guarantees pointers are from `Box::into_raw` or NULL.
     unsafe {
@@ -605,7 +602,6 @@ mod tests {
                 apm_instrumentation: true,
                 language: Language::Python,
                 service_type: "web_service".to_string(),
-                has_nvidia_gpu: true,
             }],
             injected_pids: vec![5678, 9012],
             gpu_pids: vec![1111, 2222],
@@ -634,7 +630,6 @@ mod tests {
             unsafe { dd_str_to_str(&service.service_type) },
             "web_service"
         );
-        assert_eq!(service.has_nvidia_gpu, true);
 
         // Verify additional_generated_names
         assert!(!service.additional_generated_names.data.is_null());
@@ -725,7 +720,6 @@ mod tests {
                 apm_instrumentation: false,
                 language: Language::Unknown,
                 service_type: "unknown".to_string(),
-                has_nvidia_gpu: false,
             }],
             injected_pids: vec![],
             gpu_pids: vec![],
@@ -756,7 +750,6 @@ mod tests {
         assert!(service.log_files.data.is_null());
         assert_eq!(service.log_files.len, 0);
         assert_eq!(service.apm_instrumentation, false);
-        assert_eq!(service.has_nvidia_gpu, false);
 
         assert!(result.injected_pids.is_null());
         assert_eq!(result.injected_pids_len, 0);
