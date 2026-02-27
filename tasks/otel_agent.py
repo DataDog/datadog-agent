@@ -65,19 +65,15 @@ def build(ctx, byoc=False, flavor=AgentFlavor.base.name):
         gcflags = ""
 
     # generate windows resources
-    if sys.platform == 'win32' or os.environ.get('GOOS') == 'windows':
+    if sys.platform == 'win32' or cross_compiling_windows:
         build_messagetable(ctx)
-        if sys.platform == 'win32':
-            # otel-agent.rc embeds an icon via a Windows-style relative path that is
-            # incompatible with Linux cross-compilation. Skip it when cross-compiling;
-            # the binary works without the embedded version info and icon.
-            vars = versioninfo_vars(ctx)
-            build_rc(
-                ctx,
-                "cmd/otel-agent/windows_resources/otel-agent.rc",
-                vars=vars,
-                out="cmd/otel-agent/rsrc.syso",
-            )
+        vars = versioninfo_vars(ctx)
+        build_rc(
+            ctx,
+            "cmd/otel-agent/windows_resources/otel-agent.rc",
+            vars=vars,
+            out="cmd/otel-agent/rsrc.syso",
+        )
 
     go_build(
         ctx,
