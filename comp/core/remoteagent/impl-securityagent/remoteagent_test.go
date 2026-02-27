@@ -52,3 +52,16 @@ func TestGetStatusDetails_IncludesExpvarAndStatus(t *testing.T) {
 	require.NotNil(t, resp.MainSection)
 	assert.Equal(t, string(statusJSON), resp.MainSection.Fields["status"])
 }
+
+func TestGetFlareFiles_StatusFileMatchesStatusComponent(t *testing.T) {
+	statusJSON := []byte(`{"agent":"security-agent","status":"running"}`)
+	impl := &remoteagentImpl{
+		cfg:        config.NewMock(t),
+		statusComp: &statusMock{statusJSON: statusJSON},
+	}
+
+	resp, err := impl.GetFlareFiles(context.Background(), &pbcore.GetFlareFilesRequest{})
+
+	require.NoError(t, err)
+	assert.Equal(t, statusJSON, resp.Files["security_agent_status.json"])
+}
