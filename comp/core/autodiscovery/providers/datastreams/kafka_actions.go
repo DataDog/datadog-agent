@@ -257,25 +257,26 @@ func extractKafkaAuthFromInstance(cfgs []integration.Config, bootstrapServers st
 				continue
 			}
 
-			var connectStrs []string
+			// The Python kafka_consumer check joins list entries with ","
+			// into a single string before using it as a tag value.
+			// Mirror that behavior here so normalization matches.
+			var connectStr string
 			switch v := instanceMap["kafka_connect_str"].(type) {
 			case string:
-				if v != "" {
-					connectStrs = []string{v}
-				}
+				connectStr = v
 			case []interface{}:
+				parts := make([]string, 0, len(v))
 				for _, item := range v {
 					if s, ok := item.(string); ok && s != "" {
-						connectStrs = append(connectStrs, s)
+						parts = append(parts, s)
 					}
 				}
+				connectStr = strings.Join(parts, ",")
 			}
 
-			for _, connectStr := range connectStrs {
-				if normalizeBootstrapServers(connectStr) == bootstrapServers {
-					auth := extractAuthFromInstanceData(instanceData)
-					return auth, &cfg, nil
-				}
+			if connectStr != "" && normalizeBootstrapServers(connectStr) == bootstrapServers {
+				auth := extractAuthFromInstanceData(instanceData)
+				return auth, &cfg, nil
 			}
 		}
 	}
