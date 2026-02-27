@@ -341,7 +341,7 @@ func OtelSpanToDDSpan(
 	// db.namespace is a resource-level attribute; check resource attrs first, then span attrs.
 	if _, ok := ddspan.Meta["db.name"]; !ok {
 		if dbNamespace := traceutilotel.LookupSemanticStringWithAccessor(
-			semantics.NewOTelSpanAccessor(otelres.Attributes(), otelspan.Attributes()),
+			semantics.NewOTelSpanAccessor(otelspan.Attributes(), otelres.Attributes()),
 			semantics.ConceptDBNamespace, false,
 		); dbNamespace != "" {
 			ddspan.Meta["db.name"] = dbNamespace

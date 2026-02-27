@@ -357,10 +357,10 @@ func TestOtelSpanToDDSpanDBNameMapping(t *testing.T) {
 			shouldMap:    true,
 		},
 		{
-			name:         "db.namespace in both, resource takes precedence",
+			name:         "db.namespace in both, span takes precedence",
 			sattrs:       map[string]string{string(semconv127.DBNamespaceKey): "span-db"},
 			rattrs:       map[string]string{string(semconv127.DBNamespaceKey): "resource-db"},
-			expectedName: "resource-db",
+			expectedName: "span-db",
 			shouldMap:    true,
 		},
 		{
@@ -1005,8 +1005,7 @@ func TestFallbackInconsistency_HTTPStatusCodePrecedence(t *testing.T) {
 	}
 }
 
-// TestFallbackInconsistency_DBNamespacePrecedence documents that db.namespace lookup
-// uses GetOTelAttrValInResAndSpanAttrs which has RESOURCE precedence (opposite of most other lookups).
+// TestFallbackInconsistency_DBNamespacePrecedence documents the precedence behavior for db.namespace.
 func TestFallbackInconsistency_DBNamespacePrecedence(t *testing.T) {
 	cfg := &config.AgentConfig{}
 	cfg.OTLPReceiver = &config.OTLP{}
@@ -1020,15 +1019,15 @@ func TestFallbackInconsistency_DBNamespacePrecedence(t *testing.T) {
 		note         string
 	}{
 		{
-			name: "CURRENT: resource db.namespace takes precedence over span db.namespace",
+			name: "span db.namespace takes precedence over resource db.namespace",
 			sattrs: map[string]string{
 				string(semconv127.DBNamespaceKey): "span-db",
 			},
 			rattrs: map[string]string{
 				string(semconv127.DBNamespaceKey): "resource-db",
 			},
-			expectedName: "resource-db",
-			note:         "Uses GetOTelAttrValInResAndSpanAttrs which has resource-first precedence (inconsistent with most other lookups).",
+			expectedName: "span-db",
+			note:         "Uses OTelSpanAccessor which has span-first precedence (consistent with other lookups).",
 		},
 		{
 			name: "db.namespace only in span - works correctly",

@@ -12,7 +12,7 @@ upgrade:
 
     **Previous behavior**: When both old and new semantic convention keys existed, the lookup would check ALL keys in span attributes before checking ANY key in resource attributes. So whichever key appeared in span attributes would win, regardless of which key was in resource attributes.
 
-    **New behavior**: The lookup now uses a per-concept precedence order. For each semantic concept, the registry defines an ordered list of attribute keys; the first key that has a value is returned. The precedence order (which key takes priority) depends on the concept: for most concepts the newer convention takes priority, but for some (e.g., ``http.status_code`` before ``http.response.status_code``) the older key is checked first. Span vs resource precedence (which map is checked first) is unchanged and still depends on the function.
+    **New behavior**: The lookup now uses a per-concept precedence order. For each semantic concept, the registry defines an ordered list of attribute keys; the first key that has a value is returned. The precedence order (which key takes priority) depends on the concept and may prefer either the newer or the older convention key. Span vs resource precedence (which map is checked first) is unchanged and still depends on the function.
 
     **Who is affected**: This change only affects users who have the same concept represented by different convention-version keys in span vs resource attributes. The returned value may now come from a different key than before, according to the concept's precedence order.
 
