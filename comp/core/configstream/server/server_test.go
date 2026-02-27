@@ -78,6 +78,10 @@ func (m *mockRemoteAgentRegistry) GetRegisteredAgentStatuses() []remoteagentregi
 	return nil
 }
 
+func (m *mockRemoteAgentRegistry) GetStatusByFlavor(_ string) (remoteagentregistry.StatusData, bool) {
+	return remoteagentregistry.StatusData{}, false
+}
+
 func setupTest(ctx context.Context, t *testing.T, sessionID string) (*Server, *mockComp, *mockStream, chan *pb.ConfigEvent) {
 	cfg := configmock.New(t)
 	cfg.Set("config_stream.sleep_interval", 10*time.Millisecond, model.SourceAgentRuntime)
