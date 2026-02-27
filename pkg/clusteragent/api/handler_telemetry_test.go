@@ -42,7 +42,8 @@ func TestWithTelemetryWrapper_TracingEnabled(t *testing.T) {
 	assert.Equal(t, "GET", span.Tag("http.method"))
 	assert.Equal(t, "/clusterchecks/configs/node1", span.Tag("http.url"))
 	assert.Equal(t, 200, span.Tag("http.status_code"))
-	assert.Nil(t, span.Tag("error"))
+	assert.Equal(t, false, span.Tag("error"))
+	assert.Equal(t, false, span.Tag("http.client_error"))
 }
 
 func TestWithTelemetryWrapper_5xxSetsErrorTag(t *testing.T) {
@@ -65,4 +66,28 @@ func TestWithTelemetryWrapper_5xxSetsErrorTag(t *testing.T) {
 	require.Len(t, spans, 1)
 	assert.Equal(t, 500, spans[0].Tag("http.status_code"))
 	assert.Equal(t, true, spans[0].Tag("error"))
+	assert.Equal(t, false, spans[0].Tag("http.client_error"))
+}
+
+func TestWithTelemetryWrapper_4xxSetsClientErrorTag(t *testing.T) {
+	mt := mocktracer.Start()
+	defer mt.Stop()
+
+	th := &TelemetryHandler{
+		handlerName: "notFoundHandler",
+		handler: func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		},
+		tracingEnabled: true,
+	}
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	rec := httptest.NewRecorder()
+	th.handle(rec, req)
+
+	spans := mt.FinishedSpans()
+	require.Len(t, spans, 1)
+	assert.Equal(t, 404, spans[0].Tag("http.status_code"))
+	assert.Equal(t, false, spans[0].Tag("error"))
+	assert.Equal(t, true, spans[0].Tag("http.client_error"))
 }
