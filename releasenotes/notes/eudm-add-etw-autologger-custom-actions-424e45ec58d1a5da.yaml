@@ -1,0 +1,3 @@
+features:
+  - |
+    Add custom actions to configure and remove the AutoLogger session for EUDM's Logon Duration monitoring.
