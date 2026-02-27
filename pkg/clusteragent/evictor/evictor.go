@@ -12,7 +12,7 @@ package evictor
 
 import (
 	"context"
-	"net/http"
+	"fmt"
 
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -48,7 +48,7 @@ type Client struct {
 }
 
 // NewClient creates a Client with the given dynamic client and an optional
-// leader check function. If isLeader is non-nil, Evict returns ResultSkipped
+// leader check function. If isLeader is non-nil, Evict returns Skipped
 // when the current instance is not the leader.
 func NewClient(client dynamic.Interface, isLeader func() bool) *Client {
 	return &Client{client: client, isLeader: isLeader}
@@ -56,10 +56,10 @@ func NewClient(client dynamic.Interface, isLeader func() bool) *Client {
 
 // Evict creates a policy/v1 Eviction for the named pod.
 //
-// Returns (ResultSkipped, nil) if the current instance is not the leader.
-// Returns (ResultPDBBlocked, nil) if a PodDisruptionBudget rejected the eviction (HTTP 429).
-// Returns (ResultEvicted, nil) on success.
-// Returns (ResultError, err) on any other error.
+// Returns (Skipped, nil) if the current instance is not the leader.
+// Returns (PDBBlocked, nil) if a PodDisruptionBudget rejected the eviction (HTTP 429).
+// Returns (Evicted, nil) on success.
+// Returns (Error, err) on any other error.
 func (c *Client) Evict(ctx context.Context, namespace, name string) (EvictResult, error) {
 	if c.isLeader != nil && !c.isLeader() {
 		log.Debugf("[evictor] not leader, skipping eviction for %s/%s", namespace, name)
@@ -87,12 +87,10 @@ func (c *Client) Evict(ctx context.Context, namespace, name string) (EvictResult
 		return Evicted, nil
 	}
 
-	if statusErr, ok := createErr.(*k8serrors.StatusError); ok {
-		if statusErr.ErrStatus.Code == http.StatusTooManyRequests {
-			log.Debugf("[evictor] eviction of pod %s/%s blocked by PodDisruptionBudget", namespace, name)
-			return PDBBlocked, nil
-		}
+	if k8serrors.IsTooManyRequests(createErr) {
+		log.Debugf("[evictor] eviction of pod %s/%s blocked by PodDisruptionBudget", namespace, name)
+		return PDBBlocked, nil
 	}
 
-	return Error, createErr
+	return Error, fmt.Errorf("failed to evict pod %s/%s: %w", namespace, name, createErr)
 }
