@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
@@ -91,6 +92,7 @@ import (
 func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pidfilePath string) (*fx.App, error) {
 	return fxutil.TestRunWithApp(
 		forwarder.Bundle(defaultforwarder.NewParams()),
+		delegatedauthfx.Module(),
 		logtrace.Module(),
 		inventoryagentimpl.Module(),
 		workloadmetafx.Module(workloadmeta.NewParams()),

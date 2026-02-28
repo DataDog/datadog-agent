@@ -8,6 +8,7 @@
 '@datadog/container-platform': CONTP
 '@datadog/agent-onboarding': AGENTONB
 '@datadog/container-autoscaling': CASCL
+'@datadog/core-authn': AUTHN
 '@datadog/agent-security': CWS
 '@datadog/agent-apm': APMSP
 '@datadog/ndm-core': NDMC

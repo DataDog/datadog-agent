@@ -7,6 +7,7 @@
 package setup
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,6 +23,9 @@ import (
 
 	"go.yaml.in/yaml/v2"
 
+	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/config/create"
@@ -32,6 +36,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
+)
+
+// registeredDelegatedAuthConfigs tracks which prefixes have been registered for delegated auth.
+// Maps config prefix to API key config key (e.g., "" -> "api_key", "logs_config" -> "logs_config.api_key").
+// Using a map ensures each prefix is only registered once.
+// Protected by registeredDelegatedAuthConfigsMu for thread-safe access during concurrent tests.
+var (
+	registeredDelegatedAuthConfigs   = make(map[string]string)
+	registeredDelegatedAuthConfigsMu sync.Mutex
 )
 
 const (
@@ -328,6 +341,11 @@ func initCommonWithServerless(config pkgconfigmodel.Setup) {
 // InitConfig initializes the config defaults on a config used by all agents
 // (in particular more than just the serverless agent).
 func InitConfig(config pkgconfigmodel.Setup) {
+	// Reset registeredDelegatedAuthConfigs to avoid state leaking between tests
+	registeredDelegatedAuthConfigsMu.Lock()
+	registeredDelegatedAuthConfigs = make(map[string]string)
+	registeredDelegatedAuthConfigsMu.Unlock()
+
 	initCommonWithServerless(config)
 
 	// Auto exit configuration
@@ -1197,6 +1215,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnv("evp_proxy_config.additional_endpoints") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnv("evp_proxy_config.max_payload_size")     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnv("evp_proxy_config.receiver_timeout")     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	// Delegated authentication for evp_proxy
+	bindDelegatedAuthConfig(config, "evp_proxy_config")
 
 	// trace-agent's ol_proxy
 	config.BindEnvAndSetDefault("ol_proxy_config.enabled", true)
@@ -1204,6 +1224,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnv("ol_proxy_config.api_key")              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnv("ol_proxy_config.additional_endpoints") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnvAndSetDefault("ol_proxy_config.api_version", 2)
+	// Delegated authentication for ol_proxy_config
+	bindDelegatedAuthConfig(config, "ol_proxy_config")
 
 	// command line options
 	config.SetDefault("cmd.check.fullsketches", false)
@@ -1315,6 +1337,11 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Vsock
 	config.BindEnvAndSetDefault("vsock_addr", "")
+
+	// Delegated authentication (global)
+	// Cloud provider and region are auto-detected if not specified
+	// Enabled automatically when org_uuid is specified
+	bindDelegatedAuthConfig(config, "")
 
 	// Filterlist
 	config.BindEnvAndSetDefault("metric_filterlist", []string{})
@@ -1545,6 +1572,8 @@ func remoteconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_configuration.key", "")
 	config.BindEnv("remote_configuration.api_key")   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnv("remote_configuration.rc_dd_url") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	// Delegated authentication for remote_configuration
+	bindDelegatedAuthConfig(config, "remote_configuration")
 	config.BindEnvAndSetDefault("remote_configuration.no_tls", false)
 	config.BindEnvAndSetDefault("remote_configuration.no_tls_validation", false)
 	config.BindEnvAndSetDefault("remote_configuration.config_root", "")
@@ -1913,6 +1942,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.fingerprint_strategy", DefaultFingerprintStrategy)
 	// specific logs-agent api-key
 	config.BindEnv("logs_config.api_key") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	// Delegated authentication for logs
+	bindDelegatedAuthConfig(config, "logs_config")
 
 	// Duration during which the host tags will be submitted with log events.
 	config.BindEnvAndSetDefault("logs_config.expected_tags_duration", time.Duration(0)) // duration-formatted string (parsed by `time.ParseDuration`)
@@ -2478,7 +2509,7 @@ func checkConflictingOptions(config pkgconfigmodel.Config) error {
 }
 
 // LoadDatadog reads config files and initializes config with decrypted secrets
-func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, additionalEnvVars []string) error {
+func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, delegatedAuthComp delegatedauth.Component, additionalEnvVars []string) error {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
@@ -2501,6 +2532,14 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 
 	if err := resolveSecrets(config, secretResolver, "datadog.yaml"); err != nil {
 		return err
+	}
+
+	// Configure delegated auth after secrets are resolved but before other components initialize
+	// Cloud provider detection happens automatically within the delegatedauth component
+	// Use a background context since LoadDatadog doesn't take a context parameter.
+	// The context is still useful for cancellation during cloud provider detection and initial API key fetch.
+	if err := configureDelegatedAuth(context.Background(), config, delegatedAuthComp); err != nil {
+		log.Errorf("Failed to configure delegated authentication: %v. Agent will continue without delegated auth.", err)
 	}
 
 	// Verify 'DD_URL' and 'DD_DD_URL' conflicts
@@ -2530,6 +2569,141 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 	}
 
 	return setupFipsEndpoints(config)
+}
+
+// configureDelegatedAuth initializes the delegated auth component with configuration parameters.
+// This allows the component to fetch API keys from cloud providers and write them to the config
+// before other components are initialized.
+// Delegated auth can be configured for any config prefix that has an api_key.
+// Delegated auth is automatically enabled when org_uuid is specified for a given prefix.
+// Cloud provider detection happens automatically within the delegatedauth component.
+// The context is used for cloud provider detection and initial API key fetch.
+func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component) error {
+	// Use the list of registered delegated auth configs that were set up via bindDelegatedAuthConfig
+	// To add delegated auth support for a new config prefix, call bindDelegatedAuthConfig(config, prefix)
+	// during config initialization (see bindDelegatedAuthConfig for examples)
+
+	// Get global provider config from delegated_auth prefix (used for all instances)
+	var providerConfig common.ProviderConfig
+	provider := config.GetString("delegated_auth.provider")
+	switch provider {
+	case "aws":
+		providerConfig = &cloudauthconfig.AWSProviderConfig{
+			Region: config.GetString("delegated_auth.aws.region"),
+		}
+	case "":
+		// Empty provider means auto-detect; ProviderConfig stays nil
+		// But if aws config is present, we can still use it when auto-detect picks AWS
+		if awsRegion := config.GetString("delegated_auth.aws.region"); awsRegion != "" {
+			providerConfig = &cloudauthconfig.AWSProviderConfig{
+				Region: awsRegion,
+			}
+		}
+	}
+
+	// Track if any instances were configured
+	configured := false
+
+	// Copy the registered configs map while holding the lock to avoid races during iteration
+	registeredDelegatedAuthConfigsMu.Lock()
+	configsCopy := make(map[string]string, len(registeredDelegatedAuthConfigs))
+	for k, v := range registeredDelegatedAuthConfigs {
+		configsCopy[k] = v
+	}
+	registeredDelegatedAuthConfigsMu.Unlock()
+
+	// Scan all registered prefixes to find which ones have delegated auth enabled
+	for prefix, apiKeyConfigKey := range configsCopy {
+		// Build the config key prefix for delegated_auth settings
+		var configPrefix string
+		if prefix == "" {
+			configPrefix = "delegated_auth"
+		} else {
+			configPrefix = prefix + ".delegated_auth"
+		}
+
+		// Check if org_uuid is set for this prefix
+		orgUUID := config.GetString(configPrefix + ".org_uuid")
+		if orgUUID == "" {
+			continue
+		}
+
+		// Build description for logging
+		description := "global"
+		if prefix != "" {
+			description = prefix
+		}
+
+		log.Infof("Configuring delegated authentication for '%s'", description)
+
+		// Call AddInstance - the component auto-initializes on the first call
+		// Config and ProviderConfig are only used on the first call
+		err := delegatedAuthComp.AddInstance(ctx, delegatedauth.InstanceParams{
+			Config:          config,
+			ProviderConfig:  providerConfig,
+			OrgUUID:         orgUUID,
+			RefreshInterval: config.GetInt(configPrefix + ".refresh_interval_mins"),
+			APIKeyConfigKey: apiKeyConfigKey,
+		})
+		if err != nil {
+			log.Errorf("Failed to configure delegated auth for '%s': %v", description, err)
+			continue
+		}
+		configured = true
+	}
+
+	if !configured {
+		log.Debug("Delegated authentication is not configured")
+		return nil
+	}
+
+	log.Info("Finished configuring delegated authentication")
+	return nil
+}
+
+// bindDelegatedAuthConfig binds all delegated authentication configuration keys for a given prefix.
+// This utility function allows any config prefix that has an api_key to also support delegated_auth configuration.
+//
+// Parameters:
+//   - config: The config object to bind keys to
+//   - prefix: The config prefix (e.g., "" for global, "logs_config" for logs, "apm_config" for APM)
+//
+// Example usage:
+//
+//	bindDelegatedAuthConfig(config, "")             // For global api_key
+//	bindDelegatedAuthConfig(config, "logs_config")  // For logs_config.api_key
+//	bindDelegatedAuthConfig(config, "apm_config")   // For apm_config.api_key
+func bindDelegatedAuthConfig(config pkgconfigmodel.Setup, prefix string) {
+	// Build the config key prefix
+	var configPrefix string
+	if prefix == "" {
+		configPrefix = "delegated_auth"
+	} else {
+		configPrefix = prefix + ".delegated_auth"
+	}
+
+	// Bind all delegated auth config keys
+	config.BindEnvAndSetDefault(configPrefix+".org_uuid", "")
+	config.BindEnvAndSetDefault(configPrefix+".refresh_interval_mins", 60)
+	config.BindEnvAndSetDefault(configPrefix+".provider", "")
+
+	// Provider-specific configuration (nested under provider name)
+	config.BindEnvAndSetDefault(configPrefix+".aws.region", "")
+
+	// Register this prefix for use in configureDelegatedAuth
+	// Build the API key config key
+	var apiKeyConfigKey string
+	if prefix == "" {
+		apiKeyConfigKey = "api_key"
+	} else {
+		apiKeyConfigKey = prefix + ".api_key"
+	}
+
+	// Map automatically handles duplicates - repeated registrations just overwrite with same value
+	// Use mutex to protect concurrent access during tests
+	registeredDelegatedAuthConfigsMu.Lock()
+	registeredDelegatedAuthConfigs[prefix] = apiKeyConfigKey
+	registeredDelegatedAuthConfigsMu.Unlock()
 }
 
 // LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe

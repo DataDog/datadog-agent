@@ -14,6 +14,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -125,6 +126,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			defaultConfPath,
 			configOptions...,
 		)),
+		delegatedauthfx.Module(),
 		telemetryimpl.Module(),
 		fx.Supply(log.ForDaemon(string(loggerName), "log_file", params.DefaultLogFile)),
 		config.Module(),
