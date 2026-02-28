@@ -18,19 +18,8 @@ if [ ! -d "${XDG_CACHE_HOME:-}" ]; then
     # shellcheck disable=SC2016
     >&2 echo '    docker run --env=XDG_CACHE_HOME=/cache --volume="$HOME/.cache:/cache" ...'
   fi
-fi
-
-# Ensure `bazel` & managed toolchains honor `XDG_CACHE_HOME` as per https://wiki.archlinux.org/title/XDG_Base_Directory
-if [ -n "${XDG_CACHE_HOME:-}" ]; then
-  if [[ "$XDG_CACHE_HOME" != /* ]]; then
-    >&2 echo "🔴 XDG_CACHE_HOME ($XDG_CACHE_HOME) must denote an absolute path!"
-    exit 2
-  fi
-  unset GOCACHE                              # https://pkg.go.dev/os#UserCacheDir
-  export GOMODCACHE="$XDG_CACHE_HOME"/go/mod # https://wiki.archlinux.org/title/XDG_Base_Directory#Partial
-  unset PIP_CACHE_DIR                        # https://pip.pypa.io/en/stable/topics/caching/#default-paths
-
-  [ -n "${CI:-}" ] && exec "$BAZEL_REAL" ${1:+"$1" --config=ci} "${@:2}"
+elif [ -n "${CI:-}" ]; then
+  exec "$BAZEL_REAL" ${1:+"$1" --config=ci} "${@:2}"
 fi
 
 exec "$BAZEL_REAL" "$@"
