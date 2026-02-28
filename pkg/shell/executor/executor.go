@@ -3,18 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package executor provides safe shell script execution. It verifies scripts
-// using the verifier package before executing them via /bin/sh.
+// Package executor provides safe shell script execution using a restricted
+// interpreter that directly executes allowed commands without invoking /bin/sh.
 package executor
 
 import (
 	"bytes"
 	"context"
-	"fmt"
-	"os/exec"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/shell/verifier"
+	"github.com/DataDog/datadog-agent/pkg/shell/interp"
 )
 
 const (
@@ -63,16 +61,9 @@ func WithEnv(env []string) Option {
 	}
 }
 
-// Execute verifies and executes a shell script.
-// The script is first verified for safety using the verifier package.
-// If verification passes, the script is executed via /bin/sh -c.
+// Execute interprets a shell script using the restricted interpreter.
+// Only allowed commands, pipes, &&/||, and for-in loops are supported.
 func Execute(ctx context.Context, script string, opts ...Option) (*Result, error) {
-	// Verify the script first.
-	if err := verifier.Verify(script); err != nil {
-		return nil, fmt.Errorf("script verification failed: %w", err)
-	}
-
-	// Apply options.
 	o := &options{
 		timeout:       DefaultTimeout,
 		maxOutputSize: DefaultMaxOutputBytes,
@@ -81,8 +72,7 @@ func Execute(ctx context.Context, script string, opts ...Option) (*Result, error
 		opt(o)
 	}
 
-	// Create a timeout context if the parent doesn't already have a deadline
-	// that's sooner than our timeout.
+	// Create a timeout context.
 	execCtx := ctx
 	if o.timeout > 0 {
 		if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > o.timeout {
@@ -92,33 +82,26 @@ func Execute(ctx context.Context, script string, opts ...Option) (*Result, error
 		}
 	}
 
-	// Execute via /bin/sh.
-	start := time.Now()
-	cmd := exec.CommandContext(execCtx, "/bin/sh", "-c", script)
-
 	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &limitedWriter{buf: &stdout, limit: o.maxOutputSize}
-	cmd.Stderr = &limitedWriter{buf: &stderr, limit: o.maxOutputSize}
+	runner := interp.New(
+		interp.WithStdout(&limitedWriter{buf: &stdout, limit: o.maxOutputSize}),
+		interp.WithStderr(&limitedWriter{buf: &stderr, limit: o.maxOutputSize}),
+		interp.WithEnv(o.env),
+	)
 
-	if o.env != nil {
-		cmd.Env = o.env
-	}
-
-	err := cmd.Run()
+	start := time.Now()
+	err := runner.Run(execCtx, script)
 	duration := time.Since(start)
 
 	result := &Result{
+		ExitCode:       runner.ExitCode(),
 		Stdout:         stdout.String(),
 		Stderr:         stderr.String(),
 		DurationMillis: duration.Milliseconds(),
 	}
 
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			result.ExitCode = exitErr.ExitCode()
-		} else {
-			return result, fmt.Errorf("execution failed: %w", err)
-		}
+		return result, err
 	}
 
 	return result, nil
@@ -134,7 +117,6 @@ type limitedWriter struct {
 func (w *limitedWriter) Write(p []byte) (int, error) {
 	remaining := w.limit - w.written
 	if remaining <= 0 {
-		// Silently discard — we've hit the cap.
 		return len(p), nil
 	}
 	toWrite := p
@@ -146,7 +128,5 @@ func (w *limitedWriter) Write(p []byte) (int, error) {
 	if err != nil {
 		return n, err
 	}
-	// Always report all bytes as consumed to satisfy io.Writer contract
-	// and prevent io.Copy from returning ErrShortWrite.
 	return len(p), nil
 }

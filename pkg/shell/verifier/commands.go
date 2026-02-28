@@ -479,3 +479,15 @@ func DangerousEnvVars() []string {
 	sort.Strings(result)
 	return result
 }
+
+// IsBlockedBuiltin returns true if the command name is an explicitly blocked builtin.
+func IsBlockedBuiltin(name string) bool {
+	return blockedBuiltins[name]
+}
+
+// AllowedCommandFlags returns the allowed flags for a command, and whether the
+// command is in the allowlist at all.
+func AllowedCommandFlags(name string) (map[string]bool, bool) {
+	flags, ok := allowedCommands[name]
+	return flags, ok
+}
