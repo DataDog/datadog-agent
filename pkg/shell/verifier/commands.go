@@ -9,23 +9,89 @@ package verifier
 // Only commands in this map may appear as the first literal word of a simple command.
 // An empty slice means no flags are permitted for that command.
 var allowedCommands = map[string]map[string]bool{
-	"ls":   toSet("-l", "-a", "-h", "-t", "-R", "-r", "-1", "-d"),
-	"tail": toSet("-n", "-c", "--lines", "--bytes"),
-	"head": toSet("-n", "-c", "--lines", "--bytes"),
+	// ls - List directory contents
+	"ls": toSet(
+		"-l", // long listing format
+		"-a", // include entries starting with .
+		"-h", // human-readable sizes
+		"-t", // sort by modification time
+		"-R", // list subdirectories recursively
+		"-r", // reverse order while sorting
+		"-1", // one entry per line
+		"-d", // list directories themselves, not contents
+	),
+	// tail - Output the last part of files
+	"tail": toSet(
+		"-n",      // output the last N lines
+		"-c",      // output the last N bytes
+		"--lines", // output the last N lines (long form)
+		"--bytes", // output the last N bytes (long form)
+	),
+	// head - Output the first part of files
+	"head": toSet(
+		"-n",      // output the first N lines
+		"-c",      // output the first N bytes
+		"--lines", // output the first N lines (long form)
+		"--bytes", // output the first N bytes (long form)
+	),
+	// find - Search for files in a directory hierarchy
 	"find": toSet(
-		"-name", "-iname", "-type", "-maxdepth", "-mindepth",
-		"-size", "-mtime", "-mmin", "-print", "-path", "-not",
-		"-empty", "-newer",
+		"-name",     // match filename pattern
+		"-iname",    // case-insensitive filename match
+		"-type",     // match file type (f=file, d=dir, l=link)
+		"-maxdepth", // limit search depth
+		"-mindepth", // minimum search depth
+		"-size",     // match by file size
+		"-mtime",    // match by modification time (days)
+		"-mmin",     // match by modification time (minutes)
+		"-print",    // print pathname
+		"-path",     // match full path pattern
+		"-not",      // negate expression
+		"-empty",    // match empty files/directories
+		"-newer",    // match files newer than reference
 	),
+	// grep - Search for patterns in files
 	"grep": toSet(
-		"-i", "-v", "-c", "-l", "-n", "-r",
-		"-e", "-w", "-E", "-F", "-m",
-		"-A", "-B", "-C",
-		"--include", "--exclude", "--exclude-dir",
+		"-i",            // case-insensitive matching
+		"-v",            // invert match (select non-matching lines)
+		"-c",            // count matching lines
+		"-l",            // list files with matches
+		"-n",            // show line numbers
+		"-r",            // recursive search
+		"-e",            // specify pattern
+		"-w",            // match whole words only
+		"-E",            // extended regular expressions
+		"-F",            // fixed string matching
+		"-m",            // stop after N matches
+		"-A",            // print N lines after match
+		"-B",            // print N lines before match
+		"-C",            // print N lines of context
+		"--include",     // search only matching files
+		"--exclude",     // skip matching files
+		"--exclude-dir", // skip matching directories
 	),
-	"wc":   toSet("-l", "-w", "-c"),
-	"sort": toSet("-r", "-n", "-u", "-k", "-t", "-f", "-h"),
-	"uniq": toSet("-c", "-d", "-i"),
+	// wc - Print newline, word, and byte counts
+	"wc": toSet(
+		"-l", // print line count
+		"-w", // print word count
+		"-c", // print byte count
+	),
+	// sort - Sort lines of text files
+	"sort": toSet(
+		"-r", // reverse sort order
+		"-n", // numeric sort
+		"-u", // unique (remove duplicates)
+		"-k", // sort by key
+		"-t", // field separator
+		"-f", // ignore case
+		"-h", // human-numeric sort
+	),
+	// uniq - Report or omit repeated lines
+	"uniq": toSet(
+		"-c", // prefix lines by occurrence count
+		"-d", // only print duplicate lines
+		"-i", // ignore case when comparing
+	),
 }
 
 // blockedBuiltins are shell builtins that are explicitly forbidden even though
