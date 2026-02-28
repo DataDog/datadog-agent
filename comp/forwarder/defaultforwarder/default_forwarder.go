@@ -580,7 +580,11 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 
 	now := time.Now()
 	for _, t := range transactions {
-		forwarder := f.domainForwarders[t.Domain]
+		forwarder, ok := f.domainForwarders[t.Domain]
+		if !ok {
+			f.log.Errorf("No domain forwarder for domain %q, dropping transaction", t.Domain)
+			continue
+		}
 
 		forwarder.sendHTTPTransactions(t)
 
