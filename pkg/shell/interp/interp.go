@@ -227,8 +227,8 @@ func (r *Runner) callExpr(ctx context.Context, c *syntax.CallExpr) error {
 		return bErr
 	}
 
-	// External command.
-	return r.execCommand(ctx, cmdName, args)
+	// No external commands allowed — only builtins are supported.
+	return r.rejectCommand(cmdName)
 }
 
 // binaryCmd handles &&, ||, and |.

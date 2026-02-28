@@ -15,6 +15,7 @@ import (
 )
 
 // builtins is the set of commands implemented directly in the interpreter.
+// All commands are builtins — the interpreter never executes host binaries.
 var builtins = map[string]bool{
 	"echo":     true,
 	"true":     true,
@@ -26,6 +27,14 @@ var builtins = map[string]bool{
 	"exit":     true,
 	"cd":       true,
 	"pwd":      true,
+	"ls":       true,
+	"head":     true,
+	"tail":     true,
+	"find":     true,
+	"grep":     true,
+	"wc":       true,
+	"sort":     true,
+	"uniq":     true,
 }
 
 // builtin executes a builtin command. Returns (true, err) if the command is
@@ -57,6 +66,22 @@ func (r *Runner) builtin(_ context.Context, name string, args []string) (bool, e
 		err = r.builtinCd(args)
 	case "pwd":
 		err = r.builtinPwd(args)
+	case "ls":
+		err = r.builtinLs(args)
+	case "head":
+		err = r.builtinHead(args)
+	case "tail":
+		err = r.builtinTail(args)
+	case "find":
+		err = r.builtinFind(args)
+	case "grep":
+		err = r.builtinGrep(args)
+	case "wc":
+		err = r.builtinWc(args)
+	case "sort":
+		err = r.builtinSort(args)
+	case "uniq":
+		err = r.builtinUniq(args)
 	}
 
 	return true, err
