@@ -104,19 +104,6 @@ var blockedBuiltins = map[string]bool{
 	"trap":   true,
 }
 
-// dangerousEnvVars are environment variables that must not be set in prefix
-// assignments (e.g., PATH=/evil cmd), as they could alter command resolution
-// or inject code.
-var dangerousEnvVars = map[string]bool{
-	"PATH":            true,
-	"LD_PRELOAD":      true,
-	"LD_LIBRARY_PATH": true,
-	"IFS":             true,
-	"CDPATH":          true,
-	"ENV":             true,
-	"BASH_ENV":        true,
-}
-
 // toSet converts a slice of strings to a set (map[string]bool) for O(1) lookup.
 func toSet(flags ...string) map[string]bool {
 	s := make(map[string]bool, len(flags))
