@@ -409,12 +409,12 @@ require (
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	istio.io/api v1.27.3
 	istio.io/client-go v1.27.3
-	k8s.io/api v0.35.1
+	k8s.io/api v0.35.2
 	k8s.io/apiextensions-apiserver v0.35.0
-	k8s.io/apimachinery v0.35.1
+	k8s.io/apimachinery v0.35.2
 	k8s.io/autoscaler/vertical-pod-autoscaler v1.2.2
 	k8s.io/cli-runtime v0.34.1
-	k8s.io/client-go v0.35.1
+	k8s.io/client-go v0.35.2
 	k8s.io/component-base v0.35.0
 	k8s.io/cri-api v0.34.1
 	k8s.io/cri-client v0.34.1
@@ -423,7 +423,7 @@ require (
 	k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f
 	k8s.io/kubectl v0.34.1
 	k8s.io/kubelet v0.34.1
-	k8s.io/metrics v0.34.1
+	k8s.io/metrics v0.35.2
 	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4
 	pgregory.net/rapid v1.2.0
 	sigs.k8s.io/custom-metrics-apiserver v1.33.0
