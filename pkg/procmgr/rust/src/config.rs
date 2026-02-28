@@ -8,6 +8,7 @@ use log::{debug, warn};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 const DEFAULT_CONFIG_DIR: &str = "/etc/datadog-agent/processes.d";
 
@@ -17,6 +18,19 @@ fn default_true() -> bool {
 
 fn default_inherit() -> String {
     "inherit".to_string()
+}
+
+fn default_restart() -> RestartPolicy {
+    RestartPolicy::Never
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum RestartPolicy {
+    Always,
+    OnFailure,
+    OnSuccess,
+    Never,
 }
 
 #[derive(Debug, Deserialize)]
@@ -41,6 +55,53 @@ pub struct ProcessConfig {
     pub auto_start: bool,
     pub condition_path_exists: Option<String>,
     pub stop_timeout: Option<u64>,
+    #[serde(default = "default_restart")]
+    pub restart: RestartPolicy,
+    pub restart_sec: Option<f64>,
+    pub restart_max_delay_sec: Option<f64>,
+    pub start_limit_burst: Option<u32>,
+    pub start_limit_interval_sec: Option<u64>,
+    pub runtime_success_sec: Option<u64>,
+}
+
+const DEFAULT_STOP_TIMEOUT_SECS: u64 = 90;
+const DEFAULT_RESTART_SEC: f64 = 1.0;
+const DEFAULT_RESTART_MAX_DELAY_SEC: f64 = 60.0;
+const DEFAULT_START_LIMIT_BURST: u32 = 5;
+const DEFAULT_START_LIMIT_INTERVAL_SEC: u64 = 10;
+const DEFAULT_RUNTIME_SUCCESS_SEC: u64 = 1;
+
+impl ProcessConfig {
+    pub fn stop_timeout(&self) -> Duration {
+        Duration::from_secs(self.stop_timeout.unwrap_or(DEFAULT_STOP_TIMEOUT_SECS))
+    }
+
+    pub fn restart_delay(&self) -> f64 {
+        self.restart_sec.unwrap_or(DEFAULT_RESTART_SEC)
+    }
+
+    pub fn max_restart_delay(&self) -> f64 {
+        self.restart_max_delay_sec
+            .unwrap_or(DEFAULT_RESTART_MAX_DELAY_SEC)
+    }
+
+    pub fn burst_limit(&self) -> u32 {
+        self.start_limit_burst.unwrap_or(DEFAULT_START_LIMIT_BURST)
+    }
+
+    pub fn burst_interval(&self) -> Duration {
+        Duration::from_secs(
+            self.start_limit_interval_sec
+                .unwrap_or(DEFAULT_START_LIMIT_INTERVAL_SEC),
+        )
+    }
+
+    pub fn runtime_success(&self) -> Duration {
+        Duration::from_secs(
+            self.runtime_success_sec
+                .unwrap_or(DEFAULT_RUNTIME_SUCCESS_SEC),
+        )
+    }
 }
 
 pub fn config_dir() -> PathBuf {
@@ -53,8 +114,6 @@ pub fn config_dir() -> PathBuf {
 /// The process name is derived from the filename (without extension).
 /// Files that fail to parse are logged and skipped.
 pub fn load_configs(dir: &Path) -> Result<Vec<(String, ProcessConfig)>> {
-    let mut configs = Vec::new();
-
     let entries = std::fs::read_dir(dir)
         .with_context(|| format!("failed to read config directory: {}", dir.display()))?;
 
@@ -80,6 +139,7 @@ pub fn load_configs(dir: &Path) -> Result<Vec<(String, ProcessConfig)>> {
 
     yaml_files.sort_by_key(|e| e.file_name());
 
+    let mut configs = Vec::new();
     for entry in yaml_files {
         let path = entry.path();
         let name = path
@@ -234,14 +294,19 @@ condition_path_exists: /usr/bin/sleep
     #[cfg(unix)]
     #[test]
     fn test_load_configs_unreadable_directory() {
+        use nix::unistd::Uid;
         use std::os::unix::fs::PermissionsExt;
+
+        if Uid::effective().is_root() {
+            eprintln!("skipping test_load_configs_unreadable_directory: running as root");
+            return;
+        }
 
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join("proc.yaml"), "command: /a\n").unwrap();
         fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o000)).unwrap();
 
         let result = load_configs(dir.path());
-        // Restore permissions so tempdir cleanup succeeds.
         fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o755)).unwrap();
         assert!(result.is_err());
     }
