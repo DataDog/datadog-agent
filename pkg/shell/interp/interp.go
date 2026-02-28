@@ -25,6 +25,15 @@ var (
 	errContinue = errors.New("continue")
 )
 
+// exitError signals an explicit exit with a code.
+type exitError struct {
+	code int
+}
+
+func (e *exitError) Error() string {
+	return fmt.Sprintf("exit status %d", e.code)
+}
+
 // Runner interprets a restricted subset of shell scripts.
 type Runner struct {
 	vars      map[string]string // only for-loop variables

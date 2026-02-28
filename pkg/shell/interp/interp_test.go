@@ -145,6 +145,116 @@ func TestInterp_FalseCommand(t *testing.T) {
 	assert.Equal(t, 1, r.ExitCode())
 }
 
+func TestInterp_ExitCommand(t *testing.T) {
+	_, _, err := runScript(t, `exit 42`)
+	require.Error(t, err)
+	exitErr, ok := err.(*exitError)
+	require.True(t, ok)
+	assert.Equal(t, 42, exitErr.code)
+}
+
+func TestInterp_TestFileExists(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "exists.txt"), []byte("data"), 0644)
+
+	var out bytes.Buffer
+	r := New(WithStdout(&out), WithStderr(&bytes.Buffer{}), WithDir(dir))
+	err := r.Run(context.Background(), `test -f exists.txt`)
+	require.NoError(t, err)
+	assert.Equal(t, 0, r.ExitCode())
+
+	err = r.Run(context.Background(), `test -f missing.txt`)
+	require.NoError(t, err)
+	assert.Equal(t, 1, r.ExitCode())
+}
+
+func TestInterp_TestDirectory(t *testing.T) {
+	dir := t.TempDir()
+	os.Mkdir(filepath.Join(dir, "subdir"), 0755)
+
+	var out bytes.Buffer
+	r := New(WithStdout(&out), WithStderr(&bytes.Buffer{}), WithDir(dir))
+	err := r.Run(context.Background(), `test -d subdir`)
+	require.NoError(t, err)
+	assert.Equal(t, 0, r.ExitCode())
+}
+
+func TestInterp_TestNonEmptyFile(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "nonempty.txt"), []byte("data"), 0644)
+	os.WriteFile(filepath.Join(dir, "empty.txt"), []byte(""), 0644)
+
+	var out bytes.Buffer
+	r := New(WithStdout(&out), WithStderr(&bytes.Buffer{}), WithDir(dir))
+
+	err := r.Run(context.Background(), `test -s nonempty.txt`)
+	require.NoError(t, err)
+	assert.Equal(t, 0, r.ExitCode())
+
+	err = r.Run(context.Background(), `test -s empty.txt`)
+	require.NoError(t, err)
+	assert.Equal(t, 1, r.ExitCode())
+}
+
+func TestInterp_TestStringEquals(t *testing.T) {
+	stdout, _, err := runScript(t, `test hello = hello && echo match`)
+	require.NoError(t, err)
+	assert.Equal(t, "match\n", stdout)
+}
+
+func TestInterp_TestStringNotEquals(t *testing.T) {
+	stdout, _, err := runScript(t, `test hello != world && echo diff`)
+	require.NoError(t, err)
+	assert.Equal(t, "diff\n", stdout)
+}
+
+func TestInterp_TestNumericComparison(t *testing.T) {
+	stdout, _, err := runScript(t, `test 5 -gt 3 && echo bigger`)
+	require.NoError(t, err)
+	assert.Equal(t, "bigger\n", stdout)
+}
+
+func TestInterp_TestNegation(t *testing.T) {
+	stdout, _, err := runScript(t, `test ! -f /nonexistent && echo ok`)
+	require.NoError(t, err)
+	assert.Equal(t, "ok\n", stdout)
+}
+
+func TestInterp_BracketSyntax(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "file.txt"), []byte("data"), 0644)
+
+	var out bytes.Buffer
+	r := New(WithStdout(&out), WithStderr(&bytes.Buffer{}), WithDir(dir))
+	err := r.Run(context.Background(), `[ -f file.txt ]`)
+	require.NoError(t, err)
+	assert.Equal(t, 0, r.ExitCode())
+}
+
+func TestInterp_BracketMissingClose(t *testing.T) {
+	_, _, err := runScript(t, `[ -f /tmp`)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "missing closing ]")
+}
+
+func TestInterp_TestWithForLoop(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "a.log"), []byte("data"), 0644)
+	os.WriteFile(filepath.Join(dir, "b.txt"), []byte("data"), 0644)
+	os.Mkdir(filepath.Join(dir, "subdir"), 0755)
+
+	var out bytes.Buffer
+	r := New(
+		WithStdout(&out),
+		WithStderr(&bytes.Buffer{}),
+		WithDir(dir),
+		WithEnv([]string{"PATH=/usr/bin:/bin:/usr/local/bin"}),
+	)
+	err := r.Run(context.Background(), `for f in a.log b.txt subdir; do test -f $f && echo $f; done`)
+	require.NoError(t, err)
+	assert.Equal(t, "a.log\nb.txt\n", out.String())
+}
+
 func TestInterp_CdAndPwd(t *testing.T) {
 	dir := t.TempDir()
 	var out bytes.Buffer

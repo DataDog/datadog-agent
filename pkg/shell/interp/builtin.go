@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -18,8 +19,11 @@ var builtins = map[string]bool{
 	"echo":     true,
 	"true":     true,
 	"false":    true,
+	"test":     true,
+	"[":        true,
 	"break":    true,
 	"continue": true,
+	"exit":     true,
 	"cd":       true,
 	"pwd":      true,
 }
@@ -39,10 +43,16 @@ func (r *Runner) builtin(_ context.Context, name string, args []string) (bool, e
 		r.exitCode = 0
 	case "false":
 		r.exitCode = 1
+	case "test":
+		err = r.builtinTest(args)
+	case "[":
+		err = r.builtinBracket(args)
 	case "break":
 		err = r.builtinBreak()
 	case "continue":
 		err = r.builtinContinue()
+	case "exit":
+		err = r.builtinExit(args)
 	case "cd":
 		err = r.builtinCd(args)
 	case "pwd":
@@ -128,6 +138,99 @@ func interpretEchoEscapes(s string) string {
 	return b.String()
 }
 
+func (r *Runner) builtinBracket(args []string) error {
+	if len(args) == 0 || args[len(args)-1] != "]" {
+		return fmt.Errorf("[: missing closing ]")
+	}
+	return r.builtinTest(args[:len(args)-1])
+}
+
+func (r *Runner) builtinTest(args []string) error {
+	result := evalTest(args, r.dir)
+	if result {
+		r.exitCode = 0
+	} else {
+		r.exitCode = 1
+	}
+	return nil
+}
+
+// evalTest evaluates a test expression and returns true/false.
+func evalTest(args []string, dir string) bool {
+	if len(args) == 0 {
+		return false
+	}
+
+	// Handle negation: ! expr
+	if args[0] == "!" {
+		return !evalTest(args[1:], dir)
+	}
+
+	// Unary file tests: -e/-f/-d/-s file
+	if len(args) == 2 {
+		path := args[1]
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(dir, path)
+		}
+		switch args[0] {
+		case "-e":
+			_, err := os.Stat(path)
+			return err == nil
+		case "-f":
+			info, err := os.Stat(path)
+			return err == nil && info.Mode().IsRegular()
+		case "-d":
+			info, err := os.Stat(path)
+			return err == nil && info.IsDir()
+		case "-s":
+			info, err := os.Stat(path)
+			return err == nil && info.Size() > 0
+		case "-z":
+			return args[1] == ""
+		case "-n":
+			return args[1] != ""
+		}
+	}
+
+	// Single arg: test string (true if non-empty)
+	if len(args) == 1 {
+		return args[0] != ""
+	}
+
+	// Binary operators: string = string, string != string, int -eq int, etc.
+	if len(args) == 3 {
+		left, op, right := args[0], args[1], args[2]
+		switch op {
+		case "=":
+			return left == right
+		case "!=":
+			return left != right
+		case "-eq", "-ne", "-lt", "-le", "-gt", "-ge":
+			l, err1 := strconv.Atoi(left)
+			r, err2 := strconv.Atoi(right)
+			if err1 != nil || err2 != nil {
+				return false
+			}
+			switch op {
+			case "-eq":
+				return l == r
+			case "-ne":
+				return l != r
+			case "-lt":
+				return l < r
+			case "-le":
+				return l <= r
+			case "-gt":
+				return l > r
+			case "-ge":
+				return l >= r
+			}
+		}
+	}
+
+	return false
+}
+
 func (r *Runner) builtinBreak() error {
 	if r.loopDepth == 0 {
 		return fmt.Errorf("break: not in a loop")
@@ -140,6 +243,18 @@ func (r *Runner) builtinContinue() error {
 		return fmt.Errorf("continue: not in a loop")
 	}
 	return errContinue
+}
+
+func (r *Runner) builtinExit(args []string) error {
+	code := r.exitCode
+	if len(args) > 0 {
+		var err error
+		code, err = strconv.Atoi(args[0])
+		if err != nil {
+			return fmt.Errorf("exit: invalid exit code %q", args[0])
+		}
+	}
+	return &exitError{code: code}
 }
 
 func (r *Runner) builtinCd(args []string) error {
