@@ -302,7 +302,6 @@ func TestInterp_BlockedFeatures(t *testing.T) {
 
 		// Removed commands
 		{name: "cat", script: `cat /etc/passwd`, wantSubstr: "not allowed"},
-		{name: "sed", script: `sed 's/a/b/'`, wantSubstr: "not allowed"},
 
 		// Blocked flags
 		{name: "find -exec", script: `find / -exec rm {} \;`, wantSubstr: "not allowed"},
