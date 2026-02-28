@@ -12,6 +12,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/trace v0.76.0-rc.4
 	github.com/DataDog/datadog-go/v5 v5.8.3
+	github.com/DataDog/dd-trace-go/v2 v2.7.0-rc.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.145.1-0.20260210100259-090c2f881d1f
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/component v1.51.1-0.20260205185216-81bc641f26c0
@@ -19,7 +20,6 @@ require (
 	go.opentelemetry.io/collector/component/componenttest v0.145.1-0.20260205185216-81bc641f26c0
 	go.opentelemetry.io/collector/extension v1.51.1-0.20260205185216-81bc641f26c0
 	go.opentelemetry.io/collector/pdata v1.51.1-0.20260205185216-81bc641f26c0
-	gopkg.in/DataDog/dd-trace-go.v1 v1.72.2
 )
 
 require (
@@ -41,7 +41,6 @@ require (
 
 require (
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
-	github.com/DataDog/appsec-internal-go v1.14.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.76.0-rc.4 // indirect
@@ -90,8 +89,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.54.0 // indirect
-	github.com/DataDog/go-libddwaf/v3 v3.5.4 // indirect
-	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20250721125240-fdf1ef85b633 // indirect
 	github.com/DataDog/go-sqllexer v0.1.13 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee // indirect
@@ -148,13 +145,12 @@ require (
 	github.com/google/pprof v0.0.0-20260111202518-71be6bfdd440 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
-	github.com/hashicorp/go-secure-stdlib/parseutil v0.2.0 // indirect
-	github.com/hashicorp/go-sockaddr v1.0.7 // indirect
 	github.com/hashicorp/go-version v1.8.0 // indirect
 	github.com/hectane/go-acl v0.0.0-20230225031251-cdfc9e3acf94 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.18.3 // indirect
+	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/knadh/koanf/maps v0.1.2 // indirect
 	github.com/knadh/koanf/providers/confmap v1.0.0 // indirect
 	github.com/knadh/koanf/v2 v2.3.2 // indirect
@@ -190,6 +186,7 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/procfs v0.19.2 // indirect
+	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/richardartoul/molecule v1.0.1-0.20240531184615-7ca0df43c0b3 // indirect
 	github.com/rs/cors v1.11.1 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.9.0 // indirect

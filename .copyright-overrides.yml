@@ -460,3 +460,5 @@ istio.io/*: Copyright Istio Authors
 
 # Copyright information is in the source file headers
 github.com/petermattis/goid: "Copyright 2016 Peter Mattis."
+
+github.com/minio/simdjson-go: "MinIO Cloud Storage, (C) 2020 MinIO, Inc."

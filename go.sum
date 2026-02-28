@@ -183,8 +183,6 @@ github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7Oputl
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
 github.com/DataDog/agent-payload/v5 v5.0.182 h1:FooubUrLkVwCduW33MJv2dlnyDZQNhUtFw7AhlKoNHk=
 github.com/DataDog/agent-payload/v5 v5.0.182/go.mod h1:MScePfb6eN9vN9GqPhCXTeqq1V0TlCpnjrN4OujCaQs=
-github.com/DataDog/appsec-internal-go v1.14.0 h1:MIEZ015kdpeSZSFYBQteSmg8f7zkQTWbMDHbSL9zBx8=
-github.com/DataDog/appsec-internal-go v1.14.0/go.mod h1:9YppRCpElfGX+emXOKruShFYsdPq7WEPq/Fen4tYYpk=
 github.com/DataDog/aptly v1.5.3 h1:oLsRvjuXSVM4ia0N83dU3KiQeiJ6BaszYbTZOkSfDlw=
 github.com/DataDog/aptly v1.5.3/go.mod h1:ZL5TfCso+z4enH03N+s3z8tYUJHhL6DlxIvnnP2TbY4=
 github.com/DataDog/cast v1.8.0 h1:uooY8bMzq+cjgiNP1VTquCWve5emgk8fRspZojJwQa8=
@@ -200,6 +198,8 @@ github.com/DataDog/datadog-operator/api v0.0.0-20260218132256-6fb0dc76eec6 h1:UX
 github.com/DataDog/datadog-operator/api v0.0.0-20260218132256-6fb0dc76eec6/go.mod h1:lejC6AK61CXsAj6kfQI8/ByZly9xvsdBNODJfC+EutQ=
 github.com/DataDog/datadog-traceroute v1.0.8 h1:VZkBnNt5OFmusPALd/d4sNEPJ75lmTZxIihx7ZZYBHM=
 github.com/DataDog/datadog-traceroute v1.0.8/go.mod h1:ywOVt342keSUAzy1Aa47td4+2yl8WJsYQ+m7PlEDy8o=
+github.com/DataDog/dd-trace-go/v2 v2.7.0-rc.1 h1:4un+pQmyM3S6xQ4kAxYbNvoocXKuIyGYOBMDNBzfuvs=
+github.com/DataDog/dd-trace-go/v2 v2.7.0-rc.1/go.mod h1:RQxqBP+xYfpvy8qRUlreI3yQODieMMRqyZtfQuE7pRc=
 github.com/DataDog/ddtrivy v0.0.0-20260115083325-07614fb0b8d5 h1:R6uhWnfvq23xRAoV3vK9sc6D5pDHxEEDYBgs2YbcX8s=
 github.com/DataDog/ddtrivy v0.0.0-20260115083325-07614fb0b8d5/go.mod h1:oz6zVBIVeK9I/AFP9k7TljSGtA9Opslmay0FcXg0fuQ=
 github.com/DataDog/ebpf-manager v0.7.15 h1:14PbnvXFQccV3zexENfNuADAxCuwHNori7sK55CP0SU=
@@ -208,10 +208,10 @@ github.com/DataDog/go-cmp v0.0.0-20250605161605-8f326bf2ab9d h1:ErpIQikDqtpE21af
 github.com/DataDog/go-cmp v0.0.0-20250605161605-8f326bf2ab9d/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
 github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe h1:RO40ywnX/vZLi4Pb4jRuFGgQQBYGIIoQ6u+P2MIgFOA=
 github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe/go.mod h1:90sqV0j7E8wYCyqIp5d9HmYWLTFQttqPFFtNYDyAybQ=
-github.com/DataDog/go-libddwaf/v3 v3.5.4 h1:cLV5lmGhrUBnHG50EUXdqPQAlJdVCp9n3aQ5bDWJEAg=
-github.com/DataDog/go-libddwaf/v3 v3.5.4/go.mod h1:HoLUHdj0NybsPBth/UppTcg8/DKA4g+AXuk8cZ6nuoo=
-github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20250721125240-fdf1ef85b633 h1:ZRLR9Lbym748e8RznWzmSoK+OfV+8qW6SdNYA4/IqdA=
-github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20250721125240-fdf1ef85b633/go.mod h1:YFoTl1xsMzdSRFIu33oCSPS/3+HZAPGpO3oOM96wXCM=
+github.com/DataDog/go-libddwaf/v4 v4.8.0 h1:m6Bl1lS2RtVN4MtdTYhR5vJ2fWQ3WmNy4FiNBpzrp6w=
+github.com/DataDog/go-libddwaf/v4 v4.8.0/go.mod h1:/AZqP6zw3qGJK5mLrA0PkfK3UQDk1zCI2fUNCt4xftE=
+github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20260217080614-b0f4edc38a6d h1:cH9Bm0tJ8FEQbA4FRi0iRm7Zr/5Lata/Or31c+Dth0E=
+github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20260217080614-b0f4edc38a6d/go.mod h1:yDuvU+Ak1TKwgd4K8DNcpJmUrrK8ONLkBMGNAppmBRk=
 github.com/DataDog/go-sqllexer v0.1.13 h1:HhT2G21y7SDZYQx9i1b+3Sy/CHhESHet/YKMSm06XcE=
 github.com/DataDog/go-sqllexer v0.1.13/go.mod h1:vOw7Ia7z+z6nl3zGZlLIZe0vQlPtCPR906WIPBJadxc=
 github.com/DataDog/go-tuf v1.1.1-0.5.2 h1:YWvghV4ZvrQsPcUw8IOUMSDpqc3W5ruOIC+KJxPknv0=
@@ -515,6 +515,7 @@ github.com/bhmj/jsonslice v1.1.3 h1:aVYmtuQ8Gg1L3mAOFq3NMtfip8teUvC+DNArhv7IRDY=
 github.com/bhmj/jsonslice v1.1.3/go.mod h1:O3ZoA0zdEefdbk1dkU5aWPOA36zQhhS/HV6RQFLTlnU=
 github.com/bhmj/xpression v0.9.1 h1:N7bX/nWx9oFi/zsiMTx2ehoRApTDAWdQadq/5o2wMGk=
 github.com/bhmj/xpression v0.9.1/go.mod h1:j9oYmEXJjeL9mrgW1+ZDBKJXnbupsCPGhlO9J5YhS1Q=
+github.com/bitly/go-hostpool v0.0.0-20171023180738-a3a6125de932/go.mod h1:NOuUCSz6Q9T7+igc/hlvDOUdtWKryOrtFyIVABv/p7k=
 github.com/bitnami/go-version v0.0.0-20231130084017-bb00604d650c h1:C4UZIaS+HAw+X6jGUsoP2ZbM99PuqhCttjomg1yhNAI=
 github.com/bitnami/go-version v0.0.0-20231130084017-bb00604d650c/go.mod h1:9iglf1GG4oNRJ39bZ5AZrjgAFD2RwQbXw6Qf7Cs47wo=
 github.com/blabber/go-freebsd-sysctl v0.0.0-20201130114544-503969f39d8f h1:gMH+lz/KRpSqdoL+IQjgd91bP1LB8vrVEfNxr47GYC8=
@@ -525,6 +526,7 @@ github.com/blang/semver/v4 v4.0.0 h1:1PFHFE6yCCTv8C1TeyNNarDzntLi7wMI5i/pzqYIsAM
 github.com/blang/semver/v4 v4.0.0/go.mod h1:IbckMUScFkM3pff0VJDNKRiT6TG/YpiHIM2yvyW5YoQ=
 github.com/bmatcuk/doublestar/v4 v4.10.0 h1:zU9WiOla1YA122oLM6i4EXvGW62DvKZVxIe6TYWexEs=
 github.com/bmatcuk/doublestar/v4 v4.10.0/go.mod h1:xBQ8jztBU6kakFMg+8WGxn0c6z1fTSPVIjEY1Wr7jzc=
+github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869/go.mod h1:Ekp36dRnpXw/yCqJaO+ZrUyxD+3VXMFFr56k5XYrpB4=
 github.com/bmizerany/pat v0.0.0-20170815010413-6226ea591a40 h1:y4B3+GPxKlrigF1ha5FFErxK+sr6sWxQovRMzwMhejo=
 github.com/bmizerany/pat v0.0.0-20170815010413-6226ea591a40/go.mod h1:8rLXio+WjiTceGBHIoTvn60HIbs7Hm7bcHjyrSqYB9c=
 github.com/boltdb/bolt v1.3.1 h1:JQmyP4ZBrce+ZQu0dY660FMfatumYDLun9hBCUVIkF4=
@@ -611,8 +613,8 @@ github.com/containerd/cgroups/v3 v3.0.5 h1:44na7Ud+VwyE7LIoJ8JTNQOa549a8543BmzaJ
 github.com/containerd/cgroups/v3 v3.0.5/go.mod h1:SA5DLYnXO8pTGYiAHXz94qvLQTKfVM5GEVisn4jpins=
 github.com/containerd/containerd v1.7.30 h1:/2vezDpLDVGGmkUXmlNPLCCNKHJ5BbC5tJB5JNzQhqE=
 github.com/containerd/containerd v1.7.30/go.mod h1:fek494vwJClULlTpExsmOyKCMUAbuVjlFsJQc4/j44M=
-github.com/containerd/containerd/api v1.8.0 h1:hVTNJKR8fMc/2Tiw60ZRijntNMd1U+JVMyTRdsD2bS0=
-github.com/containerd/containerd/api v1.8.0/go.mod h1:dFv4lt6S20wTu/hMcP4350RL87qPWLVa/OHOwmmdnYc=
+github.com/containerd/containerd/api v1.9.0 h1:HZ/licowTRazus+wt9fM6r/9BQO7S0vD5lMcWspGIg0=
+github.com/containerd/containerd/api v1.9.0/go.mod h1:GhghKFmTR3hNtyznBoQ0EMWr9ju5AqHjcZPsSpTKutI=
 github.com/containerd/containerd/v2 v2.1.3 h1:eMD2SLcIQPdMlnlNF6fatlrlRLAeDaiGPGwmRKLZKNs=
 github.com/containerd/containerd/v2 v2.1.3/go.mod h1:8C5QV9djwsYDNhxfTCFjWtTBZrqjditQ4/ghHSYjnHM=
 github.com/containerd/continuity v0.4.5 h1:ZRoN1sXq9u7V6QoHMcVWGhOwDFqZ4B9i5H6un1Wh0x4=
@@ -753,8 +755,6 @@ github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkp
 github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
 github.com/dvsekhvalnov/jose2go v1.7.0 h1:bnQc8+GMnidJZA8zc6lLEAb4xNrIqHwO+9TzqvtQZPo=
 github.com/dvsekhvalnov/jose2go v1.7.0/go.mod h1:QsHjhyTlD/lAVqn/NSbVZmSCGeDehTB/mPZadG+mhXU=
-github.com/eapache/queue/v2 v2.0.0-20230407133247-75960ed334e4 h1:8EXxF+tCLqaVk8AOC29zl2mnhQjwyLxxOTuhUazWRsg=
-github.com/eapache/queue/v2 v2.0.0-20230407133247-75960ed334e4/go.mod h1:I5sHm0Y0T1u5YjlyqC5GVArM7aNZRUYtTjmJ8mPJFds=
 github.com/ebitengine/purego v0.9.1 h1:a/k2f2HQU3Pi399RPW1MOaZyhKJL9w/xFpKAg4q1s0A=
 github.com/ebitengine/purego v0.9.1/go.mod h1:iIjxzd6CiRiOG0UyXP+V1+jWqUXVjPKLAI0mRfJZTmQ=
 github.com/edsrzf/mmap-go v1.2.0 h1:hXLYlkbaPzt1SaQk+anYwKSRNhufIDCchSPkUD6dD84=
@@ -1076,6 +1076,7 @@ github.com/golang/protobuf v1.5.2/go.mod h1:XVQd3VNwM+JqD3oG2Ue2ip4fOMUkwXdXDdiu
 github.com/golang/protobuf v1.5.4 h1:i7eJL8qZTpSEXOPTxNKhASYpMn+8e5Q6AdndVa1dWek=
 github.com/golang/protobuf v1.5.4/go.mod h1:lnTiLA8Wa4RWRcIUkrtSVa5nRhsEGBg48fD6rSs7xps=
 github.com/golang/snappy v0.0.1/go.mod h1:/XxbfmMg8lxefKM7IXC3fBNl/7bRcc72aCRzEWrmP2Q=
+github.com/golang/snappy v0.0.3/go.mod h1:/XxbfmMg8lxefKM7IXC3fBNl/7bRcc72aCRzEWrmP2Q=
 github.com/golang/snappy v1.0.0 h1:Oy607GVXHs7RtbggtPBnr2RmDArIsAefDwvrdWvRhGs=
 github.com/golang/snappy v1.0.0/go.mod h1:/XxbfmMg8lxefKM7IXC3fBNl/7bRcc72aCRzEWrmP2Q=
 github.com/google/btree v0.0.0-20180813153112-4030bb1f1f0c/go.mod h1:lNA+9X1NB3Zf8V7Ke586lFgjr2dZNuvo3lPJSGZ5JPQ=
@@ -1688,6 +1689,8 @@ github.com/libp2p/go-reuseport v0.2.0 h1:18PRvIMlpY6ZK85nIAicSBuXXvrYoSw3dsBAR7z
 github.com/libp2p/go-reuseport v0.2.0/go.mod h1:bvVho6eLMm6Bz5hmU0LYN3ixd3nPPvtIlaURZZgOY4k=
 github.com/lightstep/go-expohisto v1.0.0 h1:UPtTS1rGdtehbbAF7o/dhkWLTDI73UifG8LbfQI7cA4=
 github.com/lightstep/go-expohisto v1.0.0/go.mod h1:xDXD0++Mu2FOaItXtdDfksfgxfV0z1TMPa+e/EUd0cs=
+github.com/linkdata/deadlock v0.5.5 h1:d6O+rzEqasSfamGDA8u7bjtaq7hOX8Ha4Zn36Wxrkvo=
+github.com/linkdata/deadlock v0.5.5/go.mod h1:tXb28stzAD3trzEEK0UJWC+rZKuobCoPktPYzebb1u0=
 github.com/linode/go-metadata v0.2.3 h1:tGTVXJdVYI2e50jljW81C1Anmux7NfVX0MC6CgiJTyc=
 github.com/linode/go-metadata v0.2.3/go.mod h1:gud2Gs3kl83jVNv8po33Oa/riZ6ZEvUYhQPP8Bh69Q4=
 github.com/linode/linodego v1.63.0 h1:MdjizfXNJDVJU6ggoJmMO5O9h4KGPGivNX0fzrAnstk=
@@ -1806,6 +1809,8 @@ github.com/minio/c2goasm v0.0.0-20190812172519-36a3d3bbc4f3 h1:+n/aFZefKZp7spd8D
 github.com/minio/c2goasm v0.0.0-20190812172519-36a3d3bbc4f3/go.mod h1:RagcQ7I8IeTMnF8JTXieKnO4Z6JCsikNEzj0DwauVzE=
 github.com/minio/sha256-simd v1.0.1 h1:6kaan5IFmwTNynnKKpDHe6FWHohJOHhCPchzK49dzMM=
 github.com/minio/sha256-simd v1.0.1/go.mod h1:Pz6AKMiUdngCLpeTL/RJY1M9rUuPMYujV5xJjtbRSN8=
+github.com/minio/simdjson-go v0.4.5 h1:r4IQwjRGmWCQ2VeMc7fGiilu1z5du0gJ/I/FsKwgo5A=
+github.com/minio/simdjson-go v0.4.5/go.mod h1:eoNz0DcLQRyEDeaPr4Ru6JpjlZPzbA0IodxVJk8lO8E=
 github.com/mitchellh/cli v1.1.0/go.mod h1:xcISNoH86gajksDmfB23e/pu+B+GeFRMYmoHXxx3xhI=
 github.com/mitchellh/copystructure v1.0.0/go.mod h1:SNtv71yrdKgLRyLFxmLdkAbkKEFWgYaq1OVrnRcwhnw=
 github.com/mitchellh/copystructure v1.2.0 h1:vpKXTN4ewci03Vljg/q9QvCGUDttBOGBIa15WveJJGw=
@@ -2491,6 +2496,8 @@ github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75 h1:6fotK7
 github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75/go.mod h1:KO6IkyS8Y3j8OdNO85qEYBsRPuteD+YciPomcXdrMnk=
 github.com/tmthrgd/go-hex v0.0.0-20190904060850-447a3041c3bc h1:9lRDQMhESg+zvGYmW5DyG0UqvY96Bu5QYsTLvCHdrgo=
 github.com/tmthrgd/go-hex v0.0.0-20190904060850-447a3041c3bc/go.mod h1:bciPuU6GHm1iF1pBvUfxfsH0Wmnc2VbpgvbI9ZWuIRs=
+github.com/trailofbits/go-mutexasserts v0.0.0-20250514102930-c1f3d2e37561 h1:qqa3P9AtNn6RMe90l/lxd3eJWnIRxjI4eb5Rx8xqCLA=
+github.com/trailofbits/go-mutexasserts v0.0.0-20250514102930-c1f3d2e37561/go.mod h1:GA3+Mq3kt3tYAfM0WZCu7ofy+GW9PuGysHfhr+6JX7s=
 github.com/transparency-dev/merkle v0.0.2 h1:Q9nBoQcZcgPamMkGn7ghV8XiTZ/kRxn1yCG81+twTK4=
 github.com/transparency-dev/merkle v0.0.2/go.mod h1:pqSy+OXefQ1EDUVmAJ8MUhHB9TXGuzVAT58PqBoHz1A=
 github.com/tv42/httpunix v0.0.0-20150427012821-b75d8614f926/go.mod h1:9ESjWnEqriFuLhtthL60Sar/7RFoluCcXsuvEwTV5KM=
@@ -2518,8 +2525,8 @@ github.com/ugorji/go v1.2.7/go.mod h1:nF9osbDWLy6bDVv/Rtoh6QgnvNDpmCalQV5urGCCS6
 github.com/ugorji/go/codec v0.0.0-20181204163529-d75b2dcb6bc8/go.mod h1:VFNgLljTbGfSG7qAOspJ7OScBnGdDN/yBr0sguwnwf0=
 github.com/ugorji/go/codec v1.1.7/go.mod h1:Ax+UKWsSmolVDwsd+7N3ZtXu+yMGCf907BLYF3GoBXY=
 github.com/ugorji/go/codec v1.2.7/go.mod h1:WGN1fab3R1fzQlVQTkfxVtIBhWDRqOviHU95kRgeqEY=
-github.com/ugorji/go/codec v1.2.11 h1:BMaWp1Bb6fHwEtbplGBGJ498wD+LKlNSl25MjdZY4dU=
-github.com/ugorji/go/codec v1.2.11/go.mod h1:UNopzCgEMSXjBc6AOMqYvWC1ktqTAfzJZUZgYf6w6lg=
+github.com/ugorji/go/codec v1.2.12 h1:9LC83zGrHhuUA9l16C9AHXAqEV/2wBQ4nkvumAE65EE=
+github.com/ugorji/go/codec v1.2.12/go.mod h1:UNopzCgEMSXjBc6AOMqYvWC1ktqTAfzJZUZgYf6w6lg=
 github.com/ulikunitz/xz v0.5.15 h1:9DNdB5s+SgV3bQ2ApL10xRc35ck0DuIX/isZvIk+ubY=
 github.com/ulikunitz/xz v0.5.15/go.mod h1:nbz6k7qbPmH4IRqmfOplQw/tblSgqTqBwxkY0oWt/14=
 github.com/uptrace/bun v1.2.16 h1:QlObi6ZIK5Ao7kAALnh91HWYNZUBbVwye52fmlQM9kc=
@@ -3458,8 +3465,6 @@ google.golang.org/protobuf v1.30.0/go.mod h1:HV8QOd/L58Z+nl8r43ehVNZIU/HEI6OcFqw
 google.golang.org/protobuf v1.33.0/go.mod h1:c6P6GXX6sHbq/GpV6MGZEdwhWPcYBgnhAHhKbcUYpos=
 google.golang.org/protobuf v1.36.11 h1:fV6ZwhNocDyBLK0dj+fg8ektcVegBBuEolpbTQyBNVE=
 google.golang.org/protobuf v1.36.11/go.mod h1:HTf+CrKn2C3g5S8VImy6tdcUvCska2kB7j23XfzDpco=
-gopkg.in/DataDog/dd-trace-go.v1 v1.72.2 h1:SLcih9LB+I1l76Wd7aUSpzISemewzjq6djntMnBnzkA=
-gopkg.in/DataDog/dd-trace-go.v1 v1.72.2/go.mod h1:XqDhDqsLpThFnJc4z0FvAEItISIAUka+RHwmQ6EfN1U=
 gopkg.in/Knetic/govaluate.v3 v3.0.0 h1:18mUyIt4ZlRlFZAAfVetz4/rzlJs9yhN+U02F4u1AOc=
 gopkg.in/Knetic/govaluate.v3 v3.0.0/go.mod h1:csKLBORsPbafmSCGTEh3U7Ozmsuq8ZSIlKk1bcqph0E=
 gopkg.in/alecthomas/kingpin.v2 v2.2.6/go.mod h1:FMv+mEhP44yOT+4EoQTLFTRgOQ1FBLkstjWtayDeSgw=
