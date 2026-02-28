@@ -289,6 +289,68 @@ func TestInterp_ExternalCommandLs(t *testing.T) {
 	assert.Contains(t, out.String(), "test.txt")
 }
 
+func TestInterp_CatSingleFile(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "hello.txt"), []byte("hello\nworld\n"), 0644)
+
+	var out bytes.Buffer
+	r := New(WithStdout(&out), WithStderr(&bytes.Buffer{}), WithDir(dir))
+	err := r.Run(context.Background(), `cat hello.txt`)
+	require.NoError(t, err)
+	assert.Equal(t, "hello\nworld\n", out.String())
+}
+
+func TestInterp_CatMultipleFiles(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("aaa\n"), 0644)
+	os.WriteFile(filepath.Join(dir, "b.txt"), []byte("bbb\n"), 0644)
+
+	var out bytes.Buffer
+	r := New(WithStdout(&out), WithStderr(&bytes.Buffer{}), WithDir(dir))
+	err := r.Run(context.Background(), `cat a.txt b.txt`)
+	require.NoError(t, err)
+	assert.Equal(t, "aaa\nbbb\n", out.String())
+}
+
+func TestInterp_CatStdin(t *testing.T) {
+	stdout, _, err := runScript(t, `echo hello | cat`)
+	require.NoError(t, err)
+	assert.Equal(t, "hello\n", stdout)
+}
+
+func TestInterp_CatLineNumbers(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "lines.txt"), []byte("a\nb\nc\n"), 0644)
+
+	var out bytes.Buffer
+	r := New(WithStdout(&out), WithStderr(&bytes.Buffer{}), WithDir(dir))
+	err := r.Run(context.Background(), `cat -n lines.txt`)
+	require.NoError(t, err)
+	assert.Contains(t, out.String(), "1\ta")
+	assert.Contains(t, out.String(), "2\tb")
+	assert.Contains(t, out.String(), "3\tc")
+}
+
+func TestInterp_CatSqueezeBlank(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "blanks.txt"), []byte("a\n\n\n\nb\n"), 0644)
+
+	var out bytes.Buffer
+	r := New(WithStdout(&out), WithStderr(&bytes.Buffer{}), WithDir(dir))
+	err := r.Run(context.Background(), `cat -s blanks.txt`)
+	require.NoError(t, err)
+	assert.Equal(t, "a\n\nb\n", out.String())
+}
+
+func TestInterp_CatMissingFile(t *testing.T) {
+	var out, errOut bytes.Buffer
+	r := New(WithStdout(&out), WithStderr(&errOut), WithDir(t.TempDir()))
+	err := r.Run(context.Background(), `cat nonexistent.txt`)
+	require.NoError(t, err)
+	assert.Equal(t, 1, r.ExitCode())
+	assert.Contains(t, errOut.String(), "No such file or directory")
+}
+
 func TestInterp_Negation(t *testing.T) {
 	var out bytes.Buffer
 	r := New(WithStdout(&out), WithStderr(&bytes.Buffer{}))
@@ -396,9 +458,6 @@ func TestInterp_BlockedFeatures(t *testing.T) {
 		{name: "exec", script: `exec /bin/sh`, wantSubstr: "not allowed"},
 		{name: "source", script: `source /etc/profile`, wantSubstr: "not allowed"},
 		{name: "trap", script: `trap "echo" EXIT`, wantSubstr: "not allowed"},
-
-		// Removed commands
-		{name: "cat", script: `cat /etc/passwd`, wantSubstr: "not allowed"},
 
 		// Blocked flags
 		{name: "find -exec", script: `find / -exec rm {} \;`, wantSubstr: "not allowed"},

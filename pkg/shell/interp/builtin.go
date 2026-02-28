@@ -27,6 +27,7 @@ var builtins = map[string]bool{
 	"exit":     true,
 	"cd":       true,
 	"pwd":      true,
+	"cat":      true,
 	"ls":       true,
 	"head":     true,
 	"tail":     true,
@@ -66,6 +67,8 @@ func (r *Runner) builtin(_ context.Context, name string, args []string) (bool, e
 		err = r.builtinCd(args)
 	case "pwd":
 		err = r.builtinPwd(args)
+	case "cat":
+		err = r.builtinCat(args)
 	case "ls":
 		err = r.builtinLs(args)
 	case "head":
