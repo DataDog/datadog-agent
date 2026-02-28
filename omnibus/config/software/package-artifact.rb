@@ -13,6 +13,7 @@ build do
   block "Extract intermediate build artifacts" do
     Dir.glob("*.tar.xz", base: input_dir).each do |input|
       path = File.join(input_dir, input)
+      shellout! "tar tvf #{path}", :live_stream => Omnibus.logger.live_stream(:info)
       shellout! "tar xf #{path} -C /"
       FileUtils.rm path
     end
