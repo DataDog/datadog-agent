@@ -192,12 +192,6 @@ func TestInterp_ExternalCommandLs(t *testing.T) {
 	assert.Contains(t, out.String(), "test.txt")
 }
 
-func TestInterp_SedBasic(t *testing.T) {
-	stdout, _, err := runScript(t, `echo hello | sed 's/hello/world/'`)
-	require.NoError(t, err)
-	assert.Equal(t, "world\n", stdout)
-}
-
 func TestInterp_Negation(t *testing.T) {
 	var out bytes.Buffer
 	r := New(WithStdout(&out), WithStderr(&bytes.Buffer{}))
@@ -260,8 +254,8 @@ func TestInterp_BlockedFeatures(t *testing.T) {
 		// Variable assignment
 		{name: "variable assignment", script: `x=value`, wantSubstr: "variable assignment"},
 		{name: "prefix assignment", script: `FOO=bar echo hello`, wantSubstr: "variable assignment"},
-		{name: "standalone PATH assignment", script: `PATH=/tmp; cat /etc/passwd`, wantSubstr: "variable assignment"},
-		{name: "IFS assignment", script: `IFS=/; cat /etc/passwd`, wantSubstr: "variable assignment"},
+		{name: "standalone PATH assignment", script: `PATH=/tmp; ls /`, wantSubstr: "variable assignment"},
+		{name: "IFS assignment", script: `IFS=/; ls /`, wantSubstr: "variable assignment"},
 
 		// Command substitution
 		{name: "command substitution dollar", script: `echo $(whoami)`, wantSubstr: "command substitution"},
@@ -294,7 +288,7 @@ func TestInterp_BlockedFeatures(t *testing.T) {
 
 		// Redirections
 		{name: "output redirect", script: `echo hello > /tmp/file`, wantSubstr: "redirect"},
-		{name: "input redirect", script: `cat < /tmp/file`, wantSubstr: "redirect"},
+		{name: "input redirect", script: `grep pattern < /tmp/file`, wantSubstr: "redirect"},
 		{name: "append redirect", script: `echo hello >> /tmp/file`, wantSubstr: "redirect"},
 
 		// Blocked commands
@@ -306,11 +300,14 @@ func TestInterp_BlockedFeatures(t *testing.T) {
 		{name: "source", script: `source /etc/profile`, wantSubstr: "not allowed"},
 		{name: "trap", script: `trap "echo" EXIT`, wantSubstr: "not allowed"},
 
+		// Removed commands
+		{name: "cat", script: `cat /etc/passwd`, wantSubstr: "not allowed"},
+		{name: "sed", script: `sed 's/a/b/'`, wantSubstr: "not allowed"},
+
 		// Blocked flags
 		{name: "find -exec", script: `find / -exec rm {} \;`, wantSubstr: "not allowed"},
 		{name: "find -delete", script: `find / -delete`, wantSubstr: "not allowed"},
 		{name: "tail -f", script: `tail -f /var/log/syslog`, wantSubstr: "not allowed"},
-		{name: "sed -i", script: `sed -i 's/a/b/' file.txt`, wantSubstr: "not allowed"},
 
 		// Dynamic command name
 		{name: "dynamic command", script: `$CMD arg1`, wantSubstr: "literal string"},
@@ -330,12 +327,6 @@ func TestInterp_BlockedFeatures(t *testing.T) {
 		{name: "time", script: `time ls`, wantSubstr: "not supported"},
 		{name: "coproc", script: `coproc cat`, wantSubstr: "not supported"},
 		{name: "arithmetic command", script: `(( x = 1 + 2 ))`, wantSubstr: "not supported"},
-
-		// Sed dangerous
-		{name: "sed e command", script: `sed 'e'`, wantSubstr: "sed"},
-		{name: "sed s///e flag", script: `echo test | sed 's/a/b/e'`, wantSubstr: "sed"},
-		{name: "sed w command", script: `sed 'w /tmp/output'`, wantSubstr: "sed"},
-		{name: "sed r command", script: `sed 'r /etc/passwd'`, wantSubstr: "sed"},
 
 		// NOTE: brace expansion (echo {a,b,c}) is not tested here because the
 		// default mvdan/sh parser treats it as a literal string. If BraceExp
@@ -370,10 +361,6 @@ func TestInterp_SecurityRegression_FlagInjection(t *testing.T) {
 			script: `x=-delete; find /important/data -type f $x`,
 		},
 		{
-			name:   "sed -i via variable",
-			script: `x=-i; sed $x -e 's/secure/insecure/' /etc/app.conf`,
-		},
-		{
 			name:   "grep -f via variable",
 			script: `x=-f; grep $x /etc/shadow /dev/null`,
 		},
@@ -395,9 +382,9 @@ func TestInterp_SecurityRegression_PathManipulation(t *testing.T) {
 		name   string
 		script string
 	}{
-		{name: "standalone PATH", script: `PATH=/tmp; cat /etc/passwd`},
-		{name: "standalone IFS", script: `IFS=/; cat /etc/passwd`},
-		{name: "standalone LD_PRELOAD", script: `LD_PRELOAD=/tmp/evil.so; cat /etc/hostname`},
+		{name: "standalone PATH", script: `PATH=/tmp; ls /`},
+		{name: "standalone IFS", script: `IFS=/; ls /`},
+		{name: "standalone LD_PRELOAD", script: `LD_PRELOAD=/tmp/evil.so; ls /`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -414,9 +401,9 @@ func TestInterp_SecurityRegression_ExportBypass(t *testing.T) {
 		script string
 	}{
 		{name: "export PATH", script: `export PATH=/tmp:/usr/bin; grep pattern file`},
-		{name: "export LD_PRELOAD", script: `export LD_PRELOAD=/tmp/evil.so; cat /etc/hostname`},
+		{name: "export LD_PRELOAD", script: `export LD_PRELOAD=/tmp/evil.so; ls /`},
 		{name: "export BASH_ENV", script: `export BASH_ENV=/tmp/evil.sh; grep pattern file`},
-		{name: "declare -x PATH", script: `declare -x PATH=/tmp:/usr/bin; cat /etc/passwd`},
+		{name: "declare -x PATH", script: `declare -x PATH=/tmp:/usr/bin; ls /`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -553,7 +540,7 @@ func TestInterp_ForLoopVarCleanup(t *testing.T) {
 }
 
 func TestInterp_NestedPipe(t *testing.T) {
-	stdout, _, err := runScript(t, `echo hello | grep hello | cat`)
+	stdout, _, err := runScript(t, `echo hello | grep hello | wc -l`)
 	require.NoError(t, err)
-	assert.Equal(t, "hello\n", stdout)
+	assert.Contains(t, strings.TrimSpace(stdout), "1")
 }

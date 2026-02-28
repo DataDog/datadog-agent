@@ -71,6 +71,7 @@ func (h *GetManualHandler) Run(
 			"let, time, coproc",
 			"brace expansion",
 			"extended glob patterns",
+			"cat, sed, echo, pwd, cd, man and all other commands not in allowedCommands",
 		},
 		Limits: map[string]string{
 			"defaultTimeout": "30s",

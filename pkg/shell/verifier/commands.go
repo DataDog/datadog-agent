@@ -15,44 +15,18 @@ type CommandInfo struct {
 
 // commandDescriptions provides human-readable descriptions for each allowed command.
 var commandDescriptions = map[string]string{
-	"echo":     "Print text to stdout",
-	"pwd":      "Print working directory",
-	"cd":       "Change directory",
-	"ls":       "List directory contents",
-	"tail":     "Output the last part of files",
-	"head":     "Output the first part of files",
-	"find":     "Search for files in a directory hierarchy",
-	"cat":      "Concatenate and print files",
-	"grep":     "Search for patterns in files",
-	"wc":       "Print newline, word, and byte counts",
-	"sort":     "Sort lines of text files",
-	"uniq":     "Report or omit repeated lines",
-	"sed":      "Stream editor for filtering and transforming text",
-	"true":     "Do nothing, successfully",
-	"false":    "Do nothing, return failure",
-	"break":    "Exit from a loop",
-	"continue": "Continue to next loop iteration",
-	":":        "Null command (no-op)",
-	"exit":     "Exit the shell",
-	"test":     "Evaluate conditional expression",
-	"[":        "Evaluate conditional expression (bracket form)",
+	"ls":   "List directory contents",
+	"tail": "Output the last part of files",
+	"head": "Output the first part of files",
+	"find": "Search for files in a directory hierarchy",
+	"grep": "Search for patterns in files",
+	"wc":   "Print newline, word, and byte counts",
+	"sort": "Sort lines of text files",
+	"uniq": "Report or omit repeated lines",
 }
 
 // flagDescriptions provides human-readable descriptions for each allowed flag.
 var flagDescriptions = map[string]map[string]string{
-	"echo": {
-		"-n": "do not output trailing newline",
-		"-e": "enable backslash escapes",
-		"-E": "disable backslash escapes",
-	},
-	"pwd": {
-		"-L": "use PWD from environment (logical)",
-		"-P": "avoid all symlinks (physical)",
-	},
-	"cd": {
-		"-L": "follow symlinks (logical)",
-		"-P": "use physical directory structure",
-	},
 	"ls": {
 		"-l": "long listing format",
 		"-a": "include entries starting with .",
@@ -127,24 +101,6 @@ var flagDescriptions = map[string]map[string]string{
 		"-inum":       "match by inode number",
 		"-samefile":   "match files with same inode",
 		"-xtype":      "match type after symlink resolution",
-	},
-	"cat": {
-		"-n":                   "number all output lines",
-		"-b":                   "number nonblank output lines",
-		"-s":                   "squeeze consecutive blank lines",
-		"-v":                   "show nonprinting characters",
-		"-e":                   "equivalent to -vE",
-		"-t":                   "equivalent to -vT",
-		"-E":                   "display $ at end of each line",
-		"-T":                   "display TAB as ^I",
-		"-A":                   "equivalent to -vET",
-		"--number":             "number all output lines (long form)",
-		"--number-nonblank":    "number nonblank lines (long form)",
-		"--squeeze-blank":      "squeeze blank lines (long form)",
-		"--show-ends":          "show $ at end of lines (long form)",
-		"--show-tabs":          "show TAB as ^I (long form)",
-		"--show-all":           "show all (long form)",
-		"--show-nonprinting":   "show nonprinting chars (long form)",
 	},
 	"grep": {
 		"-i":            "case-insensitive matching",
@@ -234,26 +190,12 @@ var flagDescriptions = map[string]map[string]string{
 		"--ignore-case":  "ignore case (long form)",
 		"--check-chars":  "compare N chars (long form)",
 	},
-	"sed": {
-		"-n":                 "suppress automatic printing",
-		"-e":                 "add script expression",
-		"-E":                 "use extended regular expressions",
-		"-r":                 "use extended regular expressions (alias)",
-		"--quiet":            "suppress printing (long form)",
-		"--silent":           "suppress printing (long form)",
-		"--regexp-extended":  "extended regex (long form)",
-		"--posix":            "disable GNU extensions",
-	},
 }
 
 // allowedCommands maps each permitted command name to its allowed flags.
 // Only commands in this map may appear as the first literal word of a simple command.
 // An empty slice means no flags are permitted for that command.
 var allowedCommands = map[string]map[string]bool{
-	// -- Standard POSIX / GNU utilities --
-	"echo": toSet("-n", "-e", "-E"),
-	"pwd":  toSet("-L", "-P"),
-	"cd":   toSet("-L", "-P"),
 	"ls": toSet(
 		"-l", "-a", "-A", "-R", "-r", "-t", "-S", "-h", "-d", "-1",
 		"-F", "-p", "-i", "-s", "-n", "-g", "-o", "-G", "-T", "-U",
@@ -268,11 +210,6 @@ var allowedCommands = map[string]map[string]bool{
 		"-group", "-mtime", "-atime", "-ctime", "-mmin", "-amin",
 		"-cmin", "-depth", "-prune", "-true", "-false", "-readable",
 		"-writable", "-executable", "-links", "-inum", "-samefile", "-xtype",
-	),
-	"cat": toSet(
-		"-n", "-b", "-s", "-v", "-e", "-t", "-E", "-T", "-A",
-		"--number", "--number-nonblank", "--squeeze-blank",
-		"--show-ends", "--show-tabs", "--show-all", "--show-nonprinting",
 	),
 	"grep": toSet(
 		"-i", "-v", "-c", "-l", "-L", "-n", "-H", "-h", "-r", "-R",
@@ -297,22 +234,6 @@ var allowedCommands = map[string]map[string]bool{
 		"--count", "--repeated", "--unique", "--skip-fields",
 		"--skip-chars", "--ignore-case", "--check-chars",
 	),
-	"sed": toSet(
-		"-n", "-e", "-E", "-r",
-		"--quiet", "--silent", "--regexp-extended", "--posix",
-	),
-	"true":     toSet(),
-	"false":    toSet(),
-	"break":    toSet(),
-	"continue": toSet(),
-
-	// -- Shell builtins handled by the interpreter --
-	":":    toSet(),
-	"exit": toSet(),
-
-	// -- External binaries that also exist as builtins on some systems --
-	"test": toSet(),
-	"[":    toSet(),
 }
 
 // blockedBuiltins are shell builtins that are explicitly forbidden even though

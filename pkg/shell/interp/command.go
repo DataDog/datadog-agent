@@ -36,13 +36,6 @@ func (r *Runner) execCommand(ctx context.Context, name string, args []string) er
 		return err
 	}
 
-	// Special handling for sed: validate scripts.
-	if name == "sed" {
-		if err := verifier.ValidateSedArgs(args); err != nil {
-			return err
-		}
-	}
-
 	// Resolve to absolute path using safe PATH.
 	absPath, err := resolveCommand(name)
 	if err != nil {
