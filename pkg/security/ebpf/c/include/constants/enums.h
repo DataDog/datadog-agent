@@ -128,6 +128,7 @@ enum SYSCALL_STATE
     ACCEPTED = 0,    // approved and can't be discarded later
     APPROVED,        // approved but can be discarded later
     DISCARDED,       // discarded
+    SAMPLED,         // sampled
 };
 
 enum MONITOR_KEYS
