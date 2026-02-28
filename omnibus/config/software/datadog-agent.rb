@@ -10,6 +10,13 @@ require 'pathname'
 
 name 'datadog-agent'
 
+# Flavor flag for bazel actions
+if heroku_target?
+  flavor_flag = "--//packages/agent:flavor=heroku"
+else
+  flavor_flag = fips_mode? ? "--//packages/agent:flavor=fips" : ""
+end
+
 # We don't want to build any dependencies in "repackaging mode" so all usual dependencies
 # need to go under this guard.
 unless do_repackage?
@@ -215,12 +222,12 @@ build do
 
   # sd-agent (service discovery agent)
   if ENV['WITH_SD_AGENT'] == 'true'
-    command_on_repo_root "bazel run --config=sd-agent-release //pkg/discovery/module/rust:install -- --destdir=#{install_dir}/embedded/bin", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    command_on_repo_root "bazel run --config=sd-agent-release #{flavor_flag} //pkg/discovery/module/rust:install -- --destdir=#{install_dir}/embedded/bin", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
   # dd-procmgrd (process manager daemon)
   if ENV['WITH_DD_PROCMGRD'] == 'true'
-    command_on_repo_root "bazel run --config=dd-procmgrd-release //pkg/procmgr/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    command_on_repo_root "bazel run --config=dd-procmgrd-release #{flavor_flag} //pkg/procmgr/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
   # Security agent
@@ -254,7 +261,7 @@ build do
   end
 
   if osx_target?
-    command_on_repo_root "bazelisk run -- //packages/macos/app:install --destdir='#{install_dir}'", :live_stream => Omnibus.logger.live_stream(:info)
+    command_on_repo_root "bazelisk run #{flavor_flag} -- //packages/macos/app:install --destdir='#{install_dir}'", :live_stream => Omnibus.logger.live_stream(:info)
 
     # Systray GUI
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"
