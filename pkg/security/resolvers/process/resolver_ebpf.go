@@ -107,6 +107,32 @@ type EBPFResolver struct {
 	procFallbackLimiter *utils.Limiter[uint32]
 
 	exitedQueue []uint32
+
+	// activeTrace is set by the caller before Resolve and cleared after.
+	// It is safe to use because the write lock is held during resolution
+	// and the ring buffer dispatcher is single-goroutine.
+	activeTrace     *[]model.ProcessingCheckpoint
+	activeStartTime time.Time
+}
+
+// traceCheckpoint appends a checkpoint to the active trace if set
+func (p *EBPFResolver) traceCheckpoint(name string) {
+	if p.activeTrace != nil && !p.activeStartTime.IsZero() {
+		*p.activeTrace = append(*p.activeTrace, model.ProcessingCheckpoint{
+			Name:      name,
+			ElapsedUs: time.Since(p.activeStartTime).Microseconds(),
+		})
+	}
+}
+
+// SetActiveTrace sets the trace target for subsequent Resolve calls.
+// Must be called before Resolve and cleared (with nil) after.
+func (p *EBPFResolver) SetActiveTrace(trace *[]model.ProcessingCheckpoint, startTime time.Time) {
+	p.activeTrace = trace
+	p.activeStartTime = startTime
+	if pr, ok := p.pathResolver.(*spath.Resolver); ok {
+		pr.SetActiveTrace(trace, startTime)
+	}
 }
 
 // DequeueExited dequeue exited process
@@ -291,6 +317,7 @@ func (p *EBPFResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
 
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
 func (p *EBPFResolver) AddForkEntry(event *model.Event, cgroupContext model.CGroupContext, newEntryCb func(*model.ProcessCacheEntry, error)) error {
+	p.traceCheckpoint("fork_apply_boot_time")
 	p.ApplyBootTime(event.ProcessCacheEntry)
 	event.ProcessCacheEntry.SetSpan(event.SpanContext.SpanID, event.SpanContext.TraceID)
 
@@ -301,18 +328,23 @@ func (p *EBPFResolver) AddForkEntry(event *model.Event, cgroupContext model.CGro
 		return errors.New("process is kthread")
 	}
 
+	p.traceCheckpoint("fork_lock")
 	p.Lock()
 	defer p.Unlock()
+	p.traceCheckpoint("fork_insert")
 	p.insertForkEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode, cgroupContext, model.ProcessCacheEntryFromEvent, newEntryCb)
+	p.traceCheckpoint("fork_done")
 	return nil
 }
 
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
 func (p *EBPFResolver) AddExecEntry(event *model.Event, cgroupContext model.CGroupContext) error {
+	p.traceCheckpoint("exec_lock")
 	p.Lock()
 	defer p.Unlock()
 
 	var err error
+	p.traceCheckpoint("exec_resolve_new_entry")
 	if err := p.ResolveNewProcessCacheEntry(event.ProcessCacheEntry); err != nil {
 		var errResolution *spath.ErrPathResolution
 		if errors.As(err, &errResolution) {
@@ -360,6 +392,7 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 
 	// Get process filename and pre-fill the cache
 	procExecPath := utils.ProcExePath(pid)
+	p.traceCheckpoint(fmt.Sprintf("enrich_%d_readlink_exe", pid))
 	pathnameStr, err := os.Readlink(procExecPath)
 	if err != nil {
 		return fmt.Errorf("snapshot failed for %d: couldn't readlink binary: %w", proc.Pid, err)
@@ -369,6 +402,7 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 	}
 
 	// Get the file fields of the process binary
+	p.traceCheckpoint(fmt.Sprintf("enrich_%d_stat_file", pid))
 	info, err := p.RetrieveFileFieldsFromProcfs(procExecPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -377,7 +411,7 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 
 		// log the error and insert anyway the entry with the pathnameStr. This will avoid later broken lineage detection.
 		seclog.Errorf("snapshot failed for %d: couldn't retrieve file info of `%s`(%s): %s ", proc.Pid, procExecPath, pathnameStr, err)
-
+		p.traceCheckpoint(fmt.Sprintf("enrich_%d_stat_file_done", pid))
 		// try to collect more information about the mount point
 		if seclog.DefaultLogger.IsDebugging() || seclog.DefaultLogger.IsTracing() {
 			var (
@@ -414,6 +448,7 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 		entry.FileEvent.MountVisible = true
 		entry.FileEvent.MountDetached = false
 		// resolve container path with the MountEBPFResolver
+		p.traceCheckpoint(fmt.Sprintf("enrich_%d_resolve_filesystem", pid))
 		entry.FileEvent.Filesystem, err = p.mountResolver.ResolveFilesystem(entry.Process.FileEvent.MountID, entry.Process.Pid)
 		if err != nil {
 			seclog.Debugf("snapshot failed for mount %d with pid %d : couldn't get the filesystem: %s", entry.Process.FileEvent.MountID, proc.Pid, err)
@@ -424,6 +459,7 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 	entry.ForkTime = entry.ExecTime
 	entry.Comm = filledProc.Name
 	entry.PPid = uint32(filledProc.Ppid)
+	p.traceCheckpoint(fmt.Sprintf("enrich_%d_tty", pid))
 	entry.TTYName = utils.PidTTY(uint32(filledProc.Pid))
 	entry.ProcessContext.Pid = pid
 	entry.ProcessContext.Tid = pid
@@ -438,11 +474,13 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 		entry.Credentials.FSGID = filledProc.Gids[3]
 	}
 	// fetch login_uid
+	p.traceCheckpoint(fmt.Sprintf("enrich_%d_loginuid", pid))
 	entry.Credentials.AUID, err = utils.GetLoginUID(uint32(proc.Pid))
 	if err != nil {
 		return fmt.Errorf("snapshot failed for %d: couldn't get login UID: %w", proc.Pid, err)
 	}
 
+	p.traceCheckpoint(fmt.Sprintf("enrich_%d_capabilities", pid))
 	entry.Credentials.CapEffective, entry.Credentials.CapPermitted, err = utils.CapEffCapEprm(uint32(proc.Pid))
 	if err != nil {
 		return fmt.Errorf("snapshot failed for %d: couldn't parse kernel capabilities: %w", proc.Pid, err)
@@ -455,6 +493,7 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 		entry.ArgsEntry.Values = filledProc.Cmdline
 	}
 
+	p.traceCheckpoint(fmt.Sprintf("enrich_%d_envvars", pid))
 	entry.EnvsEntry = &model.EnvsEntry{}
 	if envs, truncated, err := p.envVarsResolver.ResolveEnvVars(uint32(proc.Pid)); err == nil {
 		entry.EnvsEntry.Values = envs
@@ -497,14 +536,17 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 	}
 
 	// add namespace ids
+	p.traceCheckpoint(fmt.Sprintf("enrich_%d_netns", pid))
 	entry.NetNS, _ = utils.NewNSPathFromPid(pid, utils.NetNsType).GetNSID()
 	entry.MntNS, _ = utils.NewNSPathFromPid(pid, utils.MntNsType).GetNSID()
 
 	if p.config.NetworkEnabled {
 		// snapshot pid routes in kernel space
+		p.traceCheckpoint(fmt.Sprintf("enrich_%d_openfiles", pid))
 		_, _ = proc.OpenFiles()
 	}
 
+	p.traceCheckpoint(fmt.Sprintf("enrich_%d_done", pid))
 	return nil
 }
 
@@ -627,6 +669,7 @@ func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uin
 				seclog.Debugf("parent is present but with different inodes (%d/%d), parent:%s and entry:%s",
 					parent.FileEvent.Inode, inode, parent.FileEvent.PathnameStr, entry.FileEvent.PathnameStr)
 			}
+			p.traceCheckpoint("fork_resolve_parent")
 			if candidate := p.resolve(entry.PPid, entry.PPid, inode, true, newEntryCb); candidate != nil {
 				parent = candidate
 			} else {
@@ -706,35 +749,47 @@ func (p *EBPFResolver) Resolve(pid, tid uint32, inode uint64, useProcFS bool, ne
 }
 
 func (p *EBPFResolver) resolve(pid, tid uint32, inode uint64, useProcFS bool, newEntryCb func(*model.ProcessCacheEntry, error)) *model.ProcessCacheEntry {
+	p.traceCheckpoint("resolve_cache_lookup")
 	if entry := p.resolveFromCache(pid, tid, inode); entry != nil {
 		p.hitsStats[metrics.CacheTag].Inc()
+		p.traceCheckpoint("resolve_cache_hit")
 		return entry
 	}
 
 	if p.state.Load() != Snapshotted {
+		p.traceCheckpoint("resolve_not_snapshotted")
 		return nil
 	}
 
 	// fallback to the kernel maps directly, the perf event may be delayed / may have been lost
+	p.traceCheckpoint("resolve_kernelmaps_lookup")
 	if entry := p.resolveFromKernelMaps(pid, tid, inode, newEntryCb); entry != nil {
 		p.hitsStats[metrics.KernelMapsTag].Inc()
+		p.traceCheckpoint("resolve_kernelmaps_hit")
 		return entry
 	}
 
 	if !useProcFS {
 		p.missStats.Inc()
+		p.traceCheckpoint("resolve_miss_no_procfs")
 		return nil
 	}
 
 	if p.procFallbackLimiter.Allow(pid) {
 		// fallback to /proc, the in-kernel LRU may have deleted the entry
+		p.traceCheckpoint("resolve_procfs_start")
 		if entry := p.resolveFromProcfs(pid, inode, procResolveMaxDepth, newEntryCb); entry != nil {
 			p.hitsStats[metrics.ProcFSTag].Inc()
+			p.traceCheckpoint("resolve_procfs_hit")
 			return entry
 		}
+		p.traceCheckpoint("resolve_procfs_miss")
+	} else {
+		p.traceCheckpoint("resolve_procfs_rate_limited")
 	}
 
 	p.missStats.Inc()
+	p.traceCheckpoint("resolve_miss")
 	return nil
 }
 
@@ -777,7 +832,9 @@ func (p *EBPFResolver) SetProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 	if fileEvent.Inode == 0 {
 		return onError("", &model.ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID})
 	}
+	p.traceCheckpoint("set_path_resolve_fields")
 	pathnameStr, mountPath, source, origin, err := p.resolveFullFilePath(&fileEvent.FileFields, pce)
+	p.traceCheckpoint("set_path_resolve_fields_done")
 	if err != nil {
 		return onError(pathnameStr, err)
 	}
@@ -785,7 +842,9 @@ func (p *EBPFResolver) SetProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 	fileEvent.MountPath = mountPath
 	fileEvent.MountSource = source
 	fileEvent.MountOrigin = origin
+	p.traceCheckpoint("set_path_resolve_mount_attrs")
 	err = p.pathResolver.ResolveMountAttributes(fileEvent, &pce.PIDContext)
+	p.traceCheckpoint("set_path_resolve_mount_attrs_done")
 	if err != nil {
 		seclog.Warnf("Failed to resolve mount attributes for mount id %d: %s", fileEvent.MountID, err)
 	}
@@ -855,14 +914,18 @@ func (p *EBPFResolver) resolveFromCache(pid, tid uint32, inode uint64) *model.Pr
 
 // ResolveNewProcessCacheEntry resolves the context fields of a new process cache entry parsed from kernel data
 func (p *EBPFResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntry) error {
+	p.traceCheckpoint("new_entry_set_process_path")
 	if _, err := p.SetProcessPath(&entry.FileEvent, entry); err != nil {
 		return &spath.ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path: %w", err)}
 	}
+	p.traceCheckpoint("new_entry_set_process_path_done")
 
 	if entry.HasInterpreter() {
+		p.traceCheckpoint("new_entry_set_interpreter_path")
 		if _, err := p.SetProcessPath(&entry.LinuxBinprm.FileEvent, entry); err != nil {
 			return &spath.ErrPathResolution{Err: fmt.Errorf("failed to resolve interpreter path: %w", err)}
 		}
+		p.traceCheckpoint("new_entry_set_interpreter_path_done")
 	} else {
 		// mark it as resolved to avoid abnormal path later in the call flow
 		entry.LinuxBinprm.FileEvent.SetPathnameStr("")
@@ -876,7 +939,9 @@ func (p *EBPFResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntr
 	p.ApplyBootTime(entry)
 	p.SetProcessSymlink(entry)
 
+	p.traceCheckpoint("new_entry_set_filesystem")
 	_, err := p.SetProcessFilesystem(entry)
+	p.traceCheckpoint("new_entry_done")
 
 	return err
 }
@@ -893,6 +958,7 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 		return nil
 	}
 
+	p.traceCheckpoint("kernelmaps_pid_lookup")
 	pidb := make([]byte, 4)
 	binary.NativeEndian.PutUint32(pidb, pid)
 
@@ -905,6 +971,7 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 		return nil
 	}
 
+	p.traceCheckpoint("kernelmaps_proc_lookup")
 	// first 4 bytes are the actual cookie
 	procCache, err := p.procCacheMap.LookupBytes(pidCache[0:model.SizeOfCookie])
 	if err != nil {
@@ -935,6 +1002,7 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 		return nil
 	}
 
+	p.traceCheckpoint("kernelmaps_resolve_new_entry")
 	if err = p.ResolveNewProcessCacheEntry(entry); err != nil {
 		if newEntryCb != nil {
 			newEntryCb(entry, err)
@@ -964,8 +1032,12 @@ func (p *EBPFResolver) ResolveFromProcfs(pid uint32, inode uint64, newEntryCb fu
 }
 
 func (p *EBPFResolver) resolveFromProcfs(pid uint32, inode uint64, maxDepth int, newEntryCb func(*model.ProcessCacheEntry, error)) *model.ProcessCacheEntry {
+	depth := procResolveMaxDepth - maxDepth
+	p.traceCheckpoint(fmt.Sprintf("procfs_level_%d_start_pid_%d", depth, pid))
+
 	if maxDepth < 1 {
 		seclog.Tracef("max depth reached during procfs resolution: %d", pid)
+		p.traceCheckpoint(fmt.Sprintf("procfs_level_%d_max_depth", depth))
 		return nil
 	}
 
@@ -974,12 +1046,14 @@ func (p *EBPFResolver) resolveFromProcfs(pid uint32, inode uint64, maxDepth int,
 		return nil
 	}
 
+	p.traceCheckpoint(fmt.Sprintf("procfs_level_%d_new_process", depth))
 	proc, err := process.NewProcess(int32(pid))
 	if err != nil {
 		seclog.Tracef("unable to find pid: %d", pid)
 		return nil
 	}
 
+	p.traceCheckpoint(fmt.Sprintf("procfs_level_%d_get_filled", depth))
 	filledProc, err := utils.GetFilledProcess(proc)
 	if err != nil {
 		seclog.Tracef("unable to get a filled process for pid %d: %d", pid, err)
@@ -998,7 +1072,10 @@ func (p *EBPFResolver) resolveFromProcfs(pid uint32, inode uint64, maxDepth int,
 		p.resolveFromProcfs(ppid, 0, maxDepth-1, newEntryCb)
 	}
 
-	return p.newEntryFromProcfs(proc, filledProc, inode, model.ProcessCacheEntryFromProcFS, newEntryCb)
+	p.traceCheckpoint(fmt.Sprintf("procfs_level_%d_enrich_start", depth))
+	entry := p.newEntryFromProcfs(proc, filledProc, inode, model.ProcessCacheEntryFromProcFS, newEntryCb)
+	p.traceCheckpoint(fmt.Sprintf("procfs_level_%d_done", depth))
+	return entry
 }
 
 // SetProcessArgs set arguments to cache entry

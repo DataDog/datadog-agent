@@ -247,8 +247,6 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg, retry bool) 
 	queueSize := len(a.queue)
 
 	a.queue = slicesDeleteUntilFalse(a.queue, func(msg *pendingMsg) bool {
-		seclog.Tracef("dequeueing message, queue size: %d", queueSize)
-
 		// apply the delay only if the queue is not full
 		if queueSize < a.cfg.EventRetryQueueThreshold && msg.sendAfter.After(now) {
 			return false
@@ -373,8 +371,6 @@ func (a *APIServer) start(ctx context.Context) {
 					return true
 				}
 
-				seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", msg.ruleID, string(data))
-
 				m := &api.SecurityEventMessage{
 					RuleID:    msg.ruleID,
 					Data:      data,
@@ -454,8 +450,6 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 		},
 	}
 
-	seclog.Tracef("Prepare event message for rule `%s`", groupRuleID)
-
 	// no retention if there is no ext tags to resolve
 	retention := a.retention
 	if extTagsCb == nil {
@@ -531,8 +525,6 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 			return
 		}
 
-		seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", groupRuleID, string(data))
-
 		// for custom events, we can use the current time as timestamp
 		timestamp := time.Now()
 
@@ -562,19 +554,12 @@ func (a *APIServer) expireEvent(msg *api.SecurityEventMessage) {
 	if ok {
 		count.Inc()
 	}
-	seclog.Tracef("the event server channel is full, an event of ID %v was dropped", msg.RuleID)
 }
 
 // expireDump updates the count of expired dumps
 func (a *APIServer) expireDump(dump *api.ActivityDumpStreamMessage) {
 	// update metric
 	a.expiredDumps.Inc()
-
-	selectorStr := "<unknown>"
-	if sel := dump.GetSelector(); sel != nil {
-		selectorStr = sel.GetName() + ":" + sel.GetTag()
-	}
-	seclog.Tracef("the activity dump server channel is full, a dump of [%s] was dropped\n", selectorStr)
 }
 
 // getStats returns a map indexed by ruleIDs that describes the amount of events

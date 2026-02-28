@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -42,6 +43,10 @@ type PatternLogger struct {
 	tags     []string
 	patterns []string
 	nodes    [][]string
+
+	// Atomic cache for fast log level checks in hot paths
+	isTracingCached atomic.Bool
+	isDebuggingCached atomic.Bool
 }
 
 func (l *PatternLogger) match(els []string) bool {
@@ -117,7 +122,8 @@ func (l *PatternLogger) TraceTag(tag fmt.Stringer, v interface{}) {
 
 // TraceTagf is used to print a trace level log
 func (l *PatternLogger) TraceTagf(tag fmt.Stringer, format string, params ...interface{}) {
-	if !l.IsTracing() {
+	// Fast atomic check - no RWMutex lock
+	if !l.isTracingCached.Load() {
 		return
 	}
 
@@ -126,27 +132,38 @@ func (l *PatternLogger) TraceTagf(tag fmt.Stringer, format string, params ...int
 
 // Tracef is used to print a trace level log
 func (l *PatternLogger) Tracef(format string, params ...interface{}) {
-	if !l.IsTracing() {
+	// Fast atomic check - no RWMutex lock
+	if !l.isTracingCached.Load() {
 		return
 	}
 
 	l.trace(&TagStringer{}, format, params...)
 }
 
-// IsTracing is used to check if TraceF would actually log
-func (l *PatternLogger) IsTracing() bool {
-	if logLevel, err := log.GetLogLevel(); err != nil || logLevel != log.TraceLvl {
-		return false
+// updateLogLevelCache updates the atomic cache of log levels
+// This should be called when the log level changes
+func (l *PatternLogger) updateLogLevelCache() {
+	logLevel, err := log.GetLogLevel()
+	if err != nil {
+		// If we can't get log level, assume not tracing
+		l.isTracingCached.Store(false)
+		l.isDebuggingCached.Store(false)
+		return
 	}
-	return true
+	l.isTracingCached.Store(logLevel == log.TraceLvl)
+	l.isDebuggingCached.Store(logLevel == log.DebugLvl || logLevel == log.TraceLvl)
+}
+
+// IsTracing is used to check if TraceF would actually log
+// Uses lock-free atomic read for performance in hot paths
+func (l *PatternLogger) IsTracing() bool {
+	return l.isTracingCached.Load()
 }
 
 // IsDebugging returns true if the debug level is enabled
+// Uses lock-free atomic read for performance in hot paths
 func (l *PatternLogger) IsDebugging() bool {
-	if logLevel, err := log.GetLogLevel(); err != nil || logLevel != log.DebugLvl {
-		return false
-	}
-	return true
+	return l.isDebuggingCached.Load()
 }
 
 // Debugf is used to print a trace level log
@@ -280,6 +297,14 @@ func SetPatterns(patterns ...string) []string {
 	return DefaultLogger.SetPatterns(patterns...)
 }
 
+// RefreshLogLevelCache updates the cached log level values
+// Call this after changing the global log level to ensure the cache is up-to-date
+func RefreshLogLevelCache() {
+	DefaultLogger.updateLogLevelCache()
+}
+
 func init() {
 	DefaultLogger = &PatternLogger{}
+	// Initialize the atomic cache for fast log level checks
+	DefaultLogger.updateLogLevelCache()
 }

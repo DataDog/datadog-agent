@@ -17,6 +17,8 @@ import (
 	"math/rand"
 	"os"
 	"strings"
+	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -70,6 +72,31 @@ type Resolver struct {
 
 	hitsCounters map[counterEntry]*atomic.Int64
 	missCounters map[counterEntry]*atomic.Int64
+
+	// debug tracing
+	traceMu         sync.Mutex
+	activeTrace     *[]model.ProcessingCheckpoint
+	activeStartTime time.Time
+}
+
+// traceCheckpoint appends a checkpoint to the active trace if set
+func (dr *Resolver) traceCheckpoint(name string) {
+	dr.traceMu.Lock()
+	if dr.activeTrace != nil && !dr.activeStartTime.IsZero() {
+		*dr.activeTrace = append(*dr.activeTrace, model.ProcessingCheckpoint{
+			Name:      name,
+			ElapsedUs: time.Since(dr.activeStartTime).Microseconds(),
+		})
+	}
+	dr.traceMu.Unlock()
+}
+
+// SetActiveTrace sets the trace target for subsequent calls
+func (dr *Resolver) SetActiveTrace(trace *[]model.ProcessingCheckpoint, startTime time.Time) {
+	dr.traceMu.Lock()
+	dr.activeTrace = trace
+	dr.activeStartTime = startTime
+	dr.traceMu.Unlock()
 }
 
 // ErrEntryNotFound is thrown when a path key was not found in the cache
@@ -180,7 +207,7 @@ func (dr *Resolver) DelCacheEntriesForMountID(mountID uint32) {
 }
 
 func (dr *Resolver) lookupInodeFromCache(pathKey model.PathKey) (PathEntry, error) {
-	entry, exists := dr.cache.Get(pathKey.MountID, pathKey)
+	entry, exists := dr.cache.GetReadOnly(pathKey.MountID, pathKey)
 	if !exists {
 		return PathEntry{}, ErrEntryNotFound
 	}
@@ -567,13 +594,18 @@ func (dr *Resolver) Resolve(pathKey model.PathKey, cache bool) (string, error) {
 	var err = ErrEntryNotFound
 
 	if cache {
+		dr.traceCheckpoint("dentry_cache")
 		path, err = dr.ResolveFromCache(pathKey)
 	}
 	if err != nil && dr.config.ERPCDentryResolutionEnabled {
+		dr.traceCheckpoint("dentry_erpc")
 		path, err = dr.ResolveFromERPC(pathKey, cache)
+		dr.traceCheckpoint("dentry_erpc_done")
 	}
 	if err != nil && err != errTruncatedParentsERPC && dr.config.MapDentryResolutionEnabled {
+		dr.traceCheckpoint("dentry_map")
 		path, err = dr.ResolveFromMap(pathKey, cache)
+		dr.traceCheckpoint("dentry_map_done")
 	}
 	return path, err
 }

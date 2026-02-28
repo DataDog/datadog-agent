@@ -654,8 +654,47 @@ func (e *RuleEngine) SetRulesetLoadedCallback(cb func(es *rules.RuleSet, err *mu
 	e.rulesLoaded = cb
 }
 
+type slowProcessingEvent struct {
+	EventType       string                       `json:"event_type"`
+	DurationUs      int64                        `json:"duration_us"`
+	ProcessingTrace []model.ProcessingCheckpoint `json:"processing_trace,omitempty"`
+}
+
+func (e *slowProcessingEvent) GetWorkloadID() string {
+	return ""
+}
+
+func (e *slowProcessingEvent) GetTags() []string {
+	return []string{"type:slow_event_processing"}
+}
+
+func (e *slowProcessingEvent) GetType() string {
+	return "slow_event_processing"
+}
+
+func (e *slowProcessingEvent) GetActionReports() []model.ActionReport {
+	return nil
+}
+
+func (e *slowProcessingEvent) GetFieldValue(_ eval.Field) (interface{}, error) {
+	return "", eval.ErrFieldNotFound{}
+}
+
+func newSlowProcessingEvent(event *model.Event) *slowProcessingEvent {
+	return &slowProcessingEvent{
+		EventType:       event.GetEventType().String(),
+		DurationUs:      time.Since(event.StartTime).Microseconds(),
+		ProcessingTrace: append([]model.ProcessingCheckpoint(nil), event.ProcessingTrace...),
+	}
+}
+
 // HandleEvent is called by the probe when an event arrives from the kernel
 func (e *RuleEngine) HandleEvent(event *model.Event) {
+	if event.StartTime.IsZero() {
+		// StartTime is set by the probe for kernel events, but keep a safe fallback to avoid bogus processing times.
+		event.StartTime = time.Now()
+	}
+
 	// don't eval event originating from myself
 	if !e.probe.Opts.DontDiscardRuntime && event.ProcessContext != nil && event.ProcessContext.Pid == e.pid {
 		return
@@ -672,13 +711,28 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 	}
 
 	if ruleSet := e.GetRuleSet(); ruleSet != nil {
-		if !ruleSet.Evaluate(event) {
+		event.RecordCheckpoint("rule_evaluate_start")
+		matched := ruleSet.Evaluate(event)
+		event.RecordCheckpoint("rule_evaluate_done")
+		if !matched {
 			evtType := int(event.GetEventType())
 			if evtType >= 0 && evtType < len(e.noMatchCounters) {
 				e.noMatchCounters[evtType].Inc()
 			}
+			event.RecordCheckpoint("rule_evaluate_discarders_start")
 			ruleSet.EvaluateDiscarders(event)
+			event.RecordCheckpoint("rule_evaluate_discarders_done")
 		}
+	}
+
+	// Debug-only: report events that took too long to process, even if no rule matched.
+	if event.Flags&model.EventFlagsSlowProcessingReported == 0 && time.Since(event.StartTime) > 1*time.Second {
+		event.AddToFlags(model.EventFlagsSlowProcessingReported)
+
+		originalRuleID := fmt.Sprintf("event_%s", event.GetEventType())
+		slowRule := events.NewSlowEventProcessingRule(originalRuleID, "")
+		slowEvent := newSlowProcessingEvent(event)
+		e.eventSender.SendEvent(slowRule, slowEvent, nil, "")
 	}
 }
 

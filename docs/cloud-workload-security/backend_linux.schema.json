@@ -1743,6 +1743,22 @@
       ],
       "description": "ProcessCredentialsSerializer serializes the process credentials to JSON"
     },
+    "ProcessingCheckpoint": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "elapsed_us": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "elapsed_us"
+      ]
+    },
     "RawPacket": {
       "properties": {
         "device": {
@@ -2299,6 +2315,15 @@
       "type": "string",
       "format": "date-time"
     },
+    "processingtime_microsec": {
+      "type": "integer"
+    },
+    "processing_trace": {
+      "items": {
+        "$ref": "#/$defs/ProcessingCheckpoint"
+      },
+      "type": "array"
+    },
     "file": {
       "$ref": "#/$defs/FileEvent"
     },
@@ -2406,6 +2431,7 @@
   "type": "object",
   "required": [
     "agent",
-    "title"
+    "title",
+    "processingtime_microsec"
   ]
 }

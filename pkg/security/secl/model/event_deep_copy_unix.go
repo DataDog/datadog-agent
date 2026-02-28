@@ -55,6 +55,7 @@ func (e *Event) DeepCopy() *Event {
 	copied.Open = deepCopyOpenEvent(e.Open)
 	copied.PTrace = deepCopyPTraceEvent(e.PTrace)
 	copied.PrCtl = deepCopyPrCtlEvent(e.PrCtl)
+	copied.ProcessingTrace = deepCopyProcessingCheckpointArr(e.ProcessingTrace)
 	copied.RawPacket = deepCopyRawPacketEvent(e.RawPacket)
 	copied.RemoveXAttr = deepCopySetXAttrEvent(e.RemoveXAttr)
 	copied.Rename = deepCopyRenameEvent(e.Rename)
@@ -69,6 +70,7 @@ func (e *Event) DeepCopy() *Event {
 	copied.Signature = e.Signature
 	copied.SpanContext = deepCopySpanContext(e.SpanContext)
 	copied.Splice = deepCopySpliceEvent(e.Splice)
+	copied.StartTime = e.StartTime
 	copied.SysCtl = deepCopySysCtlEvent(e.SysCtl)
 	copied.Syscalls = deepCopySyscallsEvent(e.Syscalls)
 	copied.TracerMemfdSeal = deepCopyTracerMemfdSealEvent(e.TracerMemfdSeal)
@@ -974,6 +976,22 @@ func deepCopyPrCtlEvent(fieldToCopy PrCtlEvent) PrCtlEvent {
 	copied.NewName = fieldToCopy.NewName
 	copied.Option = fieldToCopy.Option
 	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent)
+	return copied
+}
+func deepCopyProcessingCheckpointArr(fieldToCopy []ProcessingCheckpoint) []ProcessingCheckpoint {
+	if fieldToCopy == nil {
+		return nil
+	}
+	copied := make([]ProcessingCheckpoint, len(fieldToCopy))
+	for i := range fieldToCopy {
+		copied[i] = deepCopyProcessingCheckpoint(fieldToCopy[i])
+	}
+	return copied
+}
+func deepCopyProcessingCheckpoint(fieldToCopy ProcessingCheckpoint) ProcessingCheckpoint {
+	copied := ProcessingCheckpoint{}
+	copied.ElapsedUs = fieldToCopy.ElapsedUs
+	copied.Name = fieldToCopy.Name
 	return copied
 }
 func deepCopyRawPacketEvent(fieldToCopy RawPacketEvent) RawPacketEvent {
