@@ -1,31 +1,54 @@
 <div class="stat">
   <span class="stat_title">Software Inventory Metadata</span>
-  <div class="stat_data inventory-scrollbox" style="max-height: 400px; overflow-y: auto;">
-    {{- $swMap := index . "software_inventory_metadata" }}
-    {{- if index $swMap "error" }}
-      <div>Error refreshing software inventory: {{ index $swMap "error" }}</div>
-    {{- else }}
-      {{- range $productCode, $meta := $swMap }}
-        <details>
-          <summary>
-          {{- if $meta.DisplayName }}{{ $meta.DisplayName }}{{ if $meta.Version }} {{ $meta.Version }}{{ end }}{{- else }}{{ $meta.ProductCode }}{{- end }}
-          {{- if contains $meta.Status "broken" }}
-            <span class="source-bubble broken">broken</span>
-          {{- end }}
-          </summary>
-          <ul style="margin:1em 0; padding-left:2em;">
-            {{- if $meta.DisplayName }}<li><strong>Display Name:</strong> {{ $meta.DisplayName }}</li>{{- end }}
-            {{- if $meta.Version }}<li><strong>Version:</strong> {{ $meta.Version }}</li>{{- end }}
-            {{- if $meta.InstallDate }}<li><strong>Install Date:</strong> {{ $meta.InstallDate }}</li>{{- end }}
-            {{- if $meta.Publisher }}<li><strong>Publisher:</strong> {{ $meta.Publisher }}</li>{{- end }}
-            {{- if $meta.ProductCode }}<li><strong>Product code:</strong> {{ $meta.ProductCode }}</li>{{- end }}
-            {{- if $meta.Source }}<li><strong>Source:</strong> {{ $meta.Source }}</li>{{- end }}
-            {{- if $meta.Status }}<li><strong>Status:</strong> {{ $meta.Status }}</li>{{- end }}
-            {{- if $meta.UserSID }}<li><strong>User SID:</strong> {{ $meta.UserSID }}</li>{{- end }}
-            <li><strong>64-bit:</strong> {{ $meta.Is64Bit }}</li>
-          </ul>
-        </details>
+  {{- $swSlice := .software_inventory_metadata }}
+  {{- $total := .software_inventory_total }}
+  {{- $stats := .software_inventory_stats }}
+  {{- $broken := .software_inventory_broken }}
+  {{- if .error }}
+    <div>Error refreshing software inventory: {{ .error }}</div>
+  {{- else }}
+  <div style="margin-bottom: 1em; padding: 0.5em; background: #f5f5f5; border-radius: 4px;">
+    <strong>Summary:</strong> {{ $total }} entries{{- if $broken }} (<span style="color: #d00;">{{ $broken }} broken</span>){{- end }}
+    <br/>
+    <strong>By type:</strong>
+    <ul style="margin: 0.5em 0; padding-left: 2em; list-style: none;">
+      {{- range $type, $count := $stats }}
+      <li>{{ $type }}: {{ $count }}</li>
       {{- end }}
+    </ul>
+  </div>
+  <div style="margin-bottom: 1em;">
+    <label for="sw-type-filter"><strong>Filter by type:</strong></label>
+    <select id="sw-type-filter" style="margin-left: 0.5em; padding: 0.25em 0.5em; border-radius: 4px; border: 1px solid #ccc;">
+      <option value="">All ({{ $total }})</option>
+      {{- range $type, $count := $stats }}
+      <option value="{{ $type }}">{{ $type }} ({{ $count }})</option>
+      {{- end }}
+    </select>
+    <span id="sw-filter-count" style="margin-left: 1em; color: #666;"></span>
+  </div>
+  <div id="sw-entries-container" class="stat_data inventory-scrollbox" style="max-height: 400px; overflow-y: auto;">
+    {{- range $meta := $swSlice }}
+      <details class="sw-entry" data-sw-type="{{ $meta.Source }}">
+        <summary>
+        {{- if $meta.DisplayName }}{{ $meta.DisplayName }}{{ if $meta.Version }} {{ $meta.Version }}{{ end }}{{- else }}{{ $meta.ProductCode }}{{- end }}
+        {{- if contains $meta.Status "broken" }}
+          <span class="source-bubble broken">broken</span>
+        {{- end }}
+        </summary>
+        <ul style="margin:1em 0; padding-left:2em;">
+          {{- if $meta.DisplayName }}<li><strong>Display Name:</strong> {{ $meta.DisplayName }}</li>{{- end }}
+          {{- if $meta.Version }}<li><strong>Version:</strong> {{ $meta.Version }}</li>{{- end }}
+          {{- if $meta.InstallDate }}<li><strong>Install Date:</strong> {{ $meta.InstallDate }}</li>{{- end }}
+          {{- if $meta.Publisher }}<li><strong>Publisher:</strong> {{ $meta.Publisher }}</li>{{- end }}
+          {{- if $meta.ProductCode }}<li><strong>Product code:</strong> {{ $meta.ProductCode }}</li>{{- end }}
+          {{- if $meta.Source }}<li><strong>Source:</strong> {{ $meta.Source }}</li>{{- end }}
+          {{- if $meta.Status }}<li><strong>Status:</strong> {{ $meta.Status }}</li>{{- end }}
+          {{- if $meta.UserSID }}<li><strong>User SID:</strong> {{ $meta.UserSID }}</li>{{- end }}
+          <li><strong>64-bit:</strong> {{ $meta.Is64Bit }}</li>
+        </ul>
+      </details>
     {{- end }}
   </div>
+  {{- end }}
 </div>
