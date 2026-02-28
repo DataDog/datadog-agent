@@ -217,7 +217,7 @@ variables:
   DDA_FEATURE_FLAGS_CI_VAULT_PATH: k8s/gitlab-runner-datadog-agent/datadog-agent/$DDA_CLIENT_TOKEN
 
   DD_PKG_VERSION: "latest"
-  DD_PKG_GITLAB_URL: "https://artifact-gateway.us1.ddbuild.io/internal/artifact-gateway/api/v4"
+  DD_PKG_GITLAB_URL: "https://artifact-gateway.us1.ddbuild.staging.dog/internal/artifact-gateway/api/v4"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
   # Job cloning strategy
