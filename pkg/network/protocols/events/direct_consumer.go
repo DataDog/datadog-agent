@@ -217,6 +217,14 @@ func (c *DirectConsumer[V]) Stop() {
 	log.Debugf("DirectConsumer: stopping for protocol %s", c.proto)
 }
 
+// GetTelemetry returns a summary of the consumer's telemetry
+func (c *DirectConsumer[V]) GetTelemetry() string {
+	if c.metricGroup == nil {
+		return "DirectConsumer telemetry not available"
+	}
+	return c.metricGroup.Summary()
+}
+
 // flushCoordinator coordinates synchronous flushes based on tcp_close_consumer pattern
 func (c *DirectConsumer[V]) flushCoordinator() {
 	for {

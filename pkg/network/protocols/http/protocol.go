@@ -301,6 +301,22 @@ func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 	return true
 }
 
+// GetConsumerTelemetry returns the consumer telemetry summary
+func (p *protocol) GetConsumerTelemetry() string {
+	if p.consumer == nil {
+		return "HTTP consumer not initialized"
+	}
+	return p.consumer.GetTelemetry()
+}
+
+// GetHTTPTelemetrySummary returns HTTP-specific telemetry including joiner stats
+func (p *protocol) GetHTTPTelemetrySummary() string {
+	if p.telemetry == nil {
+		return "HTTP telemetry not initialized"
+	}
+	return p.telemetry.GetJoinerSummary()
+}
+
 // createAdaptiveConsumer creates the appropriate consumer based on configuration and kernel version
 // and determines which callback method to use internally
 func (p *protocol) createAdaptiveConsumer() error {
