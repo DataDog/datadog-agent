@@ -85,9 +85,11 @@ func validateFlags(cmdName string, args []string, allowed map[string]bool) error
 			continue
 		}
 
-		// Handle "--" (end of flags).
+		// Skip "--" itself but keep validating remaining args.
+		// We do NOT return early because some commands (e.g. find) parse
+		// expression arguments like -exec even after --.
 		if arg == "--" {
-			return nil
+			continue
 		}
 
 		// Handle long flags (--foo or --foo=bar).

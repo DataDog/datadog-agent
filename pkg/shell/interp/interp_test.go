@@ -448,6 +448,62 @@ func TestInterp_SecurityRegression_ArbitraryCommandExecution(t *testing.T) {
 	}
 }
 
+func TestInterp_SecurityRegression_DoubleDashBypass(t *testing.T) {
+	tests := []struct {
+		name   string
+		script string
+	}{
+		{name: "find -- -exec", script: `find /tmp -- -exec id \;`},
+		{name: "find -- -delete", script: `find /tmp -- -delete`},
+		{name: "find -- -execdir", script: `find /tmp -- -execdir id \;`},
+		{name: "find -- -fprint", script: `find /tmp -- -fprint /tmp/output`},
+		{name: "find -- -ok", script: `find /tmp -- -ok rm {} \;`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, err := runScript(t, tt.script)
+			require.Error(t, err, "bypass should be blocked: %s", tt.script)
+			assert.Contains(t, err.Error(), "not allowed")
+		})
+	}
+}
+
+func TestInterp_DoubleDashAllowedForLiteralArgs(t *testing.T) {
+	// -- itself is allowed; args after it that don't look like flags are fine.
+	stdout, _, err := runScript(t, `echo -- hello`)
+	require.NoError(t, err)
+	assert.Equal(t, "-- hello\n", stdout)
+}
+
+func TestInterp_SecurityRegression_ManRemoved(t *testing.T) {
+	_, _, err := runScript(t, `man ls`)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not allowed")
+}
+
+func TestInterp_SecurityRegression_RemovedBuiltins(t *testing.T) {
+	tests := []struct {
+		name   string
+		script string
+	}{
+		{name: "set", script: `set -e`},
+		{name: "declare", script: `declare -a arr`},
+		{name: "local", script: `local x`},
+		{name: "export", script: `export -p`},
+		{name: "readonly", script: `readonly -p`},
+		{name: "read", script: `read x`},
+		{name: "shift", script: `shift`},
+		{name: "unset", script: `unset x`},
+		{name: "return", script: `return 0`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, err := runScript(t, tt.script)
+			require.Error(t, err, "removed builtin should be blocked: %s", tt.script)
+		})
+	}
+}
+
 // =============================================================================
 // Edge cases
 // =============================================================================

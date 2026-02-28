@@ -231,12 +231,40 @@ func (s *sedScanner) skipSubstitutionValidate() error {
 func (s *sedScanner) skipUntilDelim(delim byte) {
 	for s.pos < len(s.script) && s.script[s.pos] != delim {
 		if s.script[s.pos] == '\\' && s.pos+1 < len(s.script) {
+			s.pos++ // skip escaped char
+		} else if s.script[s.pos] == '[' {
+			s.skipBracketExpr()
+			continue // skipBracketExpr already advanced pos
+		}
+		s.pos++
+	}
+	if s.pos < len(s.script) {
+		s.pos++ // skip closing delimiter
+	}
+}
+
+// skipBracketExpr skips past a POSIX bracket expression [...] in a regex.
+// Handles leading ] (e.g. []abc]) and negation [^ (e.g. [^]abc]).
+func (s *sedScanner) skipBracketExpr() {
+	s.pos++ // skip opening [
+	if s.pos >= len(s.script) {
+		return
+	}
+	// A ] immediately after [ (or [^) is treated as a literal, not closing.
+	if s.script[s.pos] == '^' {
+		s.pos++
+	}
+	if s.pos < len(s.script) && s.script[s.pos] == ']' {
+		s.pos++ // literal ]
+	}
+	for s.pos < len(s.script) && s.script[s.pos] != ']' {
+		if s.script[s.pos] == '\\' && s.pos+1 < len(s.script) {
 			s.pos++
 		}
 		s.pos++
 	}
 	if s.pos < len(s.script) {
-		s.pos++
+		s.pos++ // skip closing ]
 	}
 }
 
@@ -257,6 +285,9 @@ func (s *sedScanner) skipDelimitedPattern(delim byte) {
 	for s.pos < len(s.script) && s.script[s.pos] != delim {
 		if s.script[s.pos] == '\\' && s.pos+1 < len(s.script) {
 			s.pos++
+		} else if s.script[s.pos] == '[' {
+			s.skipBracketExpr()
+			continue
 		}
 		s.pos++
 	}

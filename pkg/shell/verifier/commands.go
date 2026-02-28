@@ -34,18 +34,8 @@ var commandDescriptions = map[string]string{
 	"continue": "Continue to next loop iteration",
 	":":        "Null command (no-op)",
 	"exit":     "Exit the shell",
-	"set":      "Set or unset shell options",
-	"shift":    "Shift positional parameters",
-	"unset":    "Unset variables",
-	"return":   "Return from a function",
-	"read":     "Read a line from stdin",
-	"declare":  "Declare variables and attributes",
-	"local":    "Define local variables",
-	"export":   "Set environment variables",
-	"readonly": "Mark variables as read-only",
 	"test":     "Evaluate conditional expression",
 	"[":        "Evaluate conditional expression (bracket form)",
-	"man":      "Display manual pages (use to look up detailed flag docs)",
 }
 
 // flagDescriptions provides human-readable descriptions for each allowed flag.
@@ -254,69 +244,6 @@ var flagDescriptions = map[string]map[string]string{
 		"--regexp-extended":  "extended regex (long form)",
 		"--posix":            "disable GNU extensions",
 	},
-	"set": {
-		"-e": "exit on error",
-		"-u": "treat unset variables as error",
-		"-x": "print commands before execution",
-		"-o": "set option by name",
-		"-f": "disable filename globbing",
-		"-n": "read commands but do not execute",
-		"-v": "print input lines as read",
-		"-h": "remember command locations",
-		"-b": "report background job status immediately",
-		"-C": "prevent output redirection from overwriting",
-		"+e": "disable exit on error",
-		"+u": "allow unset variables",
-		"+x": "disable command printing",
-		"+o": "unset option by name",
-		"+f": "enable filename globbing",
-		"+n": "execute commands",
-		"+v": "disable input line printing",
-		"+h": "disable command location cache",
-		"+b": "disable background job reporting",
-		"+C": "allow output redirection overwriting",
-	},
-	"read": {
-		"-r": "do not allow backslashes to escape",
-		"-p": "prompt string",
-		"-n": "read at most N characters",
-		"-t": "timeout in seconds",
-		"-d": "delimiter character",
-		"-a": "read into array",
-		"-s": "silent mode (no echo)",
-	},
-	"declare": {
-		"-a": "indexed array",
-		"-A": "associative array",
-		"-f": "display functions",
-		"-i": "integer attribute",
-		"-l": "lowercase attribute",
-		"-r": "readonly attribute",
-		"-t": "trace attribute",
-		"-u": "uppercase attribute",
-		"-x": "export attribute",
-		"-g": "global scope",
-		"-p": "display attributes and values",
-	},
-	"local": {
-		"-a": "indexed array",
-		"-A": "associative array",
-		"-i": "integer attribute",
-		"-l": "lowercase attribute",
-		"-r": "readonly attribute",
-		"-u": "uppercase attribute",
-		"-x": "export attribute",
-	},
-	"export": {
-		"-n": "remove export attribute",
-		"-p": "display exported variables",
-	},
-	"readonly": {
-		"-a": "indexed array",
-		"-A": "associative array",
-		"-f": "display readonly functions",
-		"-p": "display readonly variables",
-	},
 }
 
 // allowedCommands maps each permitted command name to its allowed flags.
@@ -379,25 +306,13 @@ var allowedCommands = map[string]map[string]bool{
 	"break":    toSet(),
 	"continue": toSet(),
 
-	// -- Shell builtins needed for allowed control flow features --
-	":":        toSet(),
-	"exit":     toSet(),
-	"set":      toSet("-e", "-u", "-x", "-o", "-f", "-n", "-v", "-h", "-b", "-C", "+e", "+u", "+x", "+o", "+f", "+n", "+v", "+h", "+b", "+C"),
-	"shift":    toSet(),
-	"unset":    toSet(),
-	"return":   toSet(),
-	"read":     toSet("-r", "-p", "-n", "-t", "-d", "-a", "-s"),
-	"declare":  toSet("-a", "-A", "-f", "-i", "-l", "-r", "-t", "-u", "-x", "-g", "-p"),
-	// NOTE: -n intentionally excluded from declare/local — creates namerefs (indirect variable manipulation)
-	"local":    toSet("-a", "-A", "-i", "-l", "-r", "-u", "-x"),
-	"export":   toSet("-n", "-p"),
-	// NOTE: -f intentionally excluded from export — exports functions, ShellShock-related risk
-	"readonly": toSet("-a", "-A", "-f", "-p"),
-	"test":     toSet(),
-	"[":        toSet(),
+	// -- Shell builtins handled by the interpreter --
+	":":    toSet(),
+	"exit": toSet(),
 
-	// -- Read-only informational utilities --
-	"man": toSet(),
+	// -- External binaries that also exist as builtins on some systems --
+	"test": toSet(),
+	"[":    toSet(),
 }
 
 // blockedBuiltins are shell builtins that are explicitly forbidden even though

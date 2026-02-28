@@ -8,6 +8,7 @@ package shell
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -57,6 +58,7 @@ func (h *RunShellHandler) Run(
 	if inputs.Timeout > 0 {
 		opts = append(opts, executor.WithTimeout(time.Duration(inputs.Timeout)*time.Second))
 	}
+	opts = append(opts, executor.WithEnv(safeEnv()))
 
 	result, err := executor.Execute(ctx, inputs.Script, opts...)
 	if err != nil {
@@ -69,4 +71,38 @@ func (h *RunShellHandler) Run(
 		Stderr:         result.Stderr,
 		DurationMillis: result.DurationMillis,
 	}, nil
+}
+
+// safeEnvVars is the allowlist of environment variable names that are safe
+// to pass through to child processes. Everything else is excluded to prevent
+// attacks via LD_PRELOAD, PAGER, BASH_ENV, GREP_OPTIONS, etc.
+var safeEnvVars = map[string]bool{
+	"PATH":    true,
+	"HOME":    true,
+	"LANG":    true,
+	"LC_ALL":  true,
+	"TERM":    true,
+	"TMPDIR":  true,
+	"TZ":      true,
+	"USER":    true,
+	"LOGNAME": true,
+}
+
+// safeEnv builds a minimal environment from the current process environment,
+// keeping only variables in the safeEnvVars allowlist and overriding PATH
+// with a hardcoded safe value.
+func safeEnv() []string {
+	env := []string{"PATH=/usr/bin:/bin:/usr/local/bin"}
+	for _, e := range os.Environ() {
+		for i := 0; i < len(e); i++ {
+			if e[i] == '=' {
+				name := e[:i]
+				if name != "PATH" && safeEnvVars[name] {
+					env = append(env, e)
+				}
+				break
+			}
+		}
+	}
+	return env
 }
