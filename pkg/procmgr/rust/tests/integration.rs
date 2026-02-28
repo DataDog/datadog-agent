@@ -546,8 +546,7 @@ fn render_ddot_template(
     pid_dir: &str,
     fleet_dir: &str,
 ) -> String {
-    let tmpl_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../fleet/installer/packages/embedded/tmpl/datadog-agent-ddot.yaml.tmpl");
+    let tmpl_path = std::path::PathBuf::from(env!("DDOT_TEMPLATE_PATH"));
     let tmpl = std::fs::read_to_string(&tmpl_path)
         .unwrap_or_else(|e| panic!("failed to read {}: {e}", tmpl_path.display()));
     tmpl.replace("{{.InstallDir}}", install_dir)

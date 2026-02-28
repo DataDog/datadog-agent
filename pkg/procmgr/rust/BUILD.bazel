@@ -54,10 +54,14 @@ rust_test(
         "tests/integration.rs",
     ],
     crate_root = "tests/integration.rs",
-    data = [":dd-procmgrd"],
+    data = [
+        ":dd-procmgrd",
+        "//pkg/fleet/installer/packages/embedded/tmpl:datadog-agent-ddot.yaml.tmpl",
+    ],
     edition = "2024",
     rustc_env = {
         "CARGO_BIN_EXE_dd-procmgrd": "$(rootpath :dd-procmgrd)",
+        "DDOT_TEMPLATE_PATH": "$(rootpath //pkg/fleet/installer/packages/embedded/tmpl:datadog-agent-ddot.yaml.tmpl)",
     },
     deps = [
         "@crates//:nix",
