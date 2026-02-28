@@ -11,15 +11,12 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/pkg/shell/executor"
-	"github.com/DataDog/datadog-agent/pkg/shell/verifier"
 )
 
 type cliParams struct {
@@ -27,7 +24,6 @@ type cliParams struct {
 	command string
 	file    string
 	timeout time.Duration
-	manual  bool
 }
 
 // Commands returns the 'shell' subcommand.
@@ -50,17 +46,11 @@ before execution via /bin/sh.`,
 	shellCmd.Flags().StringVar(&params.command, "command", "", "command string to execute")
 	shellCmd.Flags().StringVar(&params.file, "file", "", "script file to execute")
 	shellCmd.Flags().DurationVar(&params.timeout, "timeout", executor.DefaultTimeout, "execution timeout")
-	shellCmd.Flags().BoolVar(&params.manual, "manual", false, "print the safe shell manual (allowed commands, features, limits)")
 
 	return []*cobra.Command{shellCmd}
 }
 
 func runShell(params *cliParams, args []string) error {
-	if params.manual {
-		printManual()
-		return nil
-	}
-
 	ctx := context.Background()
 	opts := []executor.Option{
 		executor.WithTimeout(params.timeout),
@@ -145,69 +135,4 @@ func runInteractive(ctx context.Context, opts []executor.Option) error {
 	}
 
 	return scanner.Err()
-}
-
-func printManual() {
-	fmt.Println("Datadog Agent Safe Shell — Manual")
-	fmt.Println()
-	fmt.Println("Use 'man <command>' for detailed flag documentation on this host.")
-	fmt.Println()
-
-	commands := verifier.AllowedCommandsWithDescriptions()
-
-	// Sort command names for stable output.
-	names := make([]string, 0, len(commands))
-	for name := range commands {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-
-	fmt.Println("ALLOWED COMMANDS:")
-	fmt.Println()
-	for _, name := range names {
-		info := commands[name]
-		if info.Description != "" {
-			fmt.Printf("  %s - %s\n", name, info.Description)
-		} else {
-			fmt.Printf("  %s\n", name)
-		}
-
-		// Sort flags for stable output.
-		flags := make([]string, 0, len(info.Flags))
-		for f := range info.Flags {
-			flags = append(flags, f)
-		}
-		sort.Strings(flags)
-
-		for _, f := range flags {
-			if desc := info.Flags[f]; desc != "" {
-				fmt.Printf("    %-20s %s\n", f, desc)
-			} else {
-				fmt.Printf("    %s\n", f)
-			}
-		}
-		if len(flags) > 0 {
-			fmt.Println()
-		}
-	}
-
-	fmt.Println("ALLOWED SHELL FEATURES:")
-	fmt.Println("  Pipes (|, &&, ||), for/while/until loops, if/elif/else, case statements,")
-	fmt.Println("  variable assignment, parameter expansion ($VAR, ${VAR:-default}),")
-	fmt.Println("  arithmetic expansion ($((expr))), block commands ({ ...; })")
-	fmt.Println()
-
-	fmt.Println("BLOCKED:")
-	fmt.Printf("  Builtins: %s\n", strings.Join(verifier.BlockedBuiltins(), ", "))
-	fmt.Println("  Redirections (>, >>, <, heredocs), command substitution ($(cmd), backticks),")
-	fmt.Println("  process substitution, subshells, function declarations, background (&), coprocesses")
-	fmt.Println()
-
-	fmt.Printf("DANGEROUS ENV VARS (blocked in prefix assignments): %s\n",
-		strings.Join(verifier.DangerousEnvVars(), ", "))
-	fmt.Println()
-
-	fmt.Println("LIMITS:")
-	fmt.Printf("  Default timeout: %s | Max output: %d bytes\n",
-		executor.DefaultTimeout, executor.DefaultMaxOutputBytes)
 }

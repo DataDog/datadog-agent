@@ -18,8 +18,7 @@ type ShellBundle struct {
 func NewShellBundle() *ShellBundle {
 	return &ShellBundle{
 		actions: map[string]types.Action{
-			"runShell":  NewRunShellHandler(),
-			"getManual": NewGetManualHandler(),
+			"runShell": NewRunShellHandler(),
 		},
 	}
 }
