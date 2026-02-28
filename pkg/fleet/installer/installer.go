@@ -860,7 +860,7 @@ func (i *installerImpl) RemoveExtensions(ctx context.Context, pkg string, extens
 func (i *installerImpl) SaveExtensions(ctx context.Context, pkg string, path string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	return extensions.Save(ctx, pkg, path)
+	return extensions.Save(ctx, pkg, path, false)
 }
 
 // RestoreExtensions restores the extensions from a specific location on disk.

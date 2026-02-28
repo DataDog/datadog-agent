@@ -29,7 +29,7 @@ var ExtensionsDBDir = paths.RunPath
 type ExtensionHooks interface {
 	PreInstallExtension(ctx context.Context, pkg string, extension string) error
 	PreRemoveExtension(ctx context.Context, pkg string, extension string) error
-	PostInstallExtension(ctx context.Context, pkg string, extension string) error
+	PostInstallExtension(ctx context.Context, pkg string, extension string, isExperiment bool) error
 }
 
 // SetPackage sets the version of a package in the database.
@@ -114,7 +114,7 @@ func Install(ctx context.Context, downloader *oci.Downloader, url string, extens
 			continue
 		}
 
-		err := installSingle(ctx, pkg, extension, hooks)
+		err := installSingle(ctx, pkg, extension, isExperiment, hooks)
 		if err != nil {
 			fmt.Printf("Failed to install extension %s: %v\n", extension, err)
 			continue
@@ -134,14 +134,14 @@ func Install(ctx context.Context, downloader *oci.Downloader, url string, extens
 }
 
 // installSingle installs a single extension for a package.
-func installSingle(ctx context.Context, pkg *oci.DownloadedPackage, extension string, hooks ExtensionHooks) (err error) {
+func installSingle(ctx context.Context, pkg *oci.DownloadedPackage, extension string, isExperiment bool, hooks ExtensionHooks) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "extensions.install_single")
 	defer func() { span.Finish(err) }()
 	span.SetTag("extension", extension)
 	span.SetTag("package_name", pkg.Name)
 	span.SetTag("package_version", pkg.Version)
 
-	// TODO: Nuke previous extension if it exists
+	// TODO: Remove previous extension if it exists
 
 	// Pre-install hook
 	err = hooks.PreInstallExtension(ctx, pkg.Name, extension)
@@ -200,7 +200,7 @@ func installSingle(ctx context.Context, pkg *oci.DownloadedPackage, extension st
 	}
 
 	// Post-install hook
-	err = hooks.PostInstallExtension(ctx, pkg.Name, extension)
+	err = hooks.PostInstallExtension(ctx, pkg.Name, extension, isExperiment)
 	if err != nil {
 		return fmt.Errorf("could not install extension: %w", err)
 	}
@@ -348,11 +348,12 @@ func Promote(ctx context.Context, pkg string) (err error) {
 }
 
 // Save saves the extensions for a package upgrade
-func Save(ctx context.Context, pkg string, saveDir string) (err error) {
+func Save(ctx context.Context, pkg string, saveDir string, isExperiment bool) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "extensions.save")
 	defer func() { span.Finish(err) }()
 	span.SetTag("package_name", pkg)
 	span.SetTag("save_dir", saveDir)
+	span.SetTag("is_experiment", isExperiment)
 
 	// Open & lock the extensions database
 	db, err := newExtensionsDB(filepath.Join(ExtensionsDBDir, "extensions.db"))
@@ -362,11 +363,11 @@ func Save(ctx context.Context, pkg string, saveDir string) (err error) {
 	defer db.Close()
 
 	// Get package from database
-	dbPkg, err := db.GetPackage(pkg, false)
+	dbPkg, err := db.GetPackage(pkg, isExperiment)
 	if err != nil && !errors.Is(err, errPackageNotFound) {
 		return fmt.Errorf("could not get package %s from db: %w", pkg, err)
 	} else if err != nil && errors.Is(err, errPackageNotFound) {
-		return fmt.Errorf("package %s is not installed, cannot save extensions", pkg)
+		return fmt.Errorf("package %s is not installed, cannot save extensions: %w", pkg, errPackageNotFound)
 	}
 
 	if len(dbPkg.Extensions) == 0 {
@@ -409,21 +410,27 @@ func Restore(ctx context.Context, downloader *oci.Downloader, pkg string, downlo
 		return fmt.Errorf("could not install extensions: %w", err)
 	}
 
-	return os.RemoveAll(savePath)
+	// On non-Windows platforms the save file lives in a transient tmp directory and should
+	// be cleaned up after a successful restore to avoid phantom-restoring stale extensions
+	// on the next upgrade. On Windows, the save file is kept in ProtectedDir so that it
+	// survives the MSI upgrade process (it is only written once, before prerm).
+	if runtime.GOOS != "windows" {
+		if err := os.Remove(savePath); err != nil && !os.IsNotExist(err) {
+			log.Warnf("could not remove extension save file %s: %v", savePath, err)
+		}
+	}
+
+	return nil
 }
 
 // getExtensionsPath returns the path to the extensions for a package.
+// For OCI-installed agents, extensions live under the OCI packages directory.
+// For DEB/RPM-installed agents on Linux, the OCI directory doesn't exist, so we fall back to /opt/datadog-agent.
 func getExtensionsPath(pkg, version string) string {
 	basePath := filepath.Join(paths.PackagesPath, pkg, version)
-	if pkg == "datadog-agent" {
-		// Check if basePath exists, if not, return the install path of the Agent
+	if pkg == "datadog-agent" && runtime.GOOS == "linux" {
 		if _, err := os.Stat(basePath); os.IsNotExist(err) {
-			if runtime.GOOS == "windows" {
-				// This is a bit hacky but it allows us to not import pkg/config/setup
-				basePath = paths.DatadogProgramFilesDir
-			} else {
-				basePath = "/opt/datadog-agent"
-			}
+			basePath = "/opt/datadog-agent"
 		}
 	}
 	return filepath.Join(basePath, "ext")
