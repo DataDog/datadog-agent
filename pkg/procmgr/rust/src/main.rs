@@ -4,13 +4,22 @@
 // Copyright 2026-present Datadog, Inc.
 
 mod config;
+mod env;
 mod process;
+mod shutdown;
+mod state;
 
 use crate::config::ProcessConfig;
 use anyhow::Result;
 use log::{info, warn};
 use process::ManagedProcess;
 use tokio::signal::unix::{SignalKind, signal};
+use tokio::sync::mpsc;
+
+struct ExitEvent {
+    index: usize,
+    status: std::process::ExitStatus,
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -23,18 +32,61 @@ async fn main() -> Result<()> {
     let configs = load_configs();
     let mut processes = start_processes(configs);
 
+    let (exit_tx, mut exit_rx) = mpsc::unbounded_channel::<ExitEvent>();
+    for (i, proc) in processes.iter_mut().enumerate() {
+        if proc.is_running() {
+            spawn_watcher(i, proc, exit_tx.clone());
+        }
+    }
+
     let mut sigterm = signal(SignalKind::terminate())?;
     let mut sigint = signal(SignalKind::interrupt())?;
 
-    tokio::select! {
-        _ = sigterm.recv() => info!("received SIGTERM"),
-        _ = sigint.recv() => info!("received SIGINT"),
+    loop {
+        tokio::select! {
+            _ = sigterm.recv() => {
+                info!("received SIGTERM");
+                break;
+            }
+            _ = sigint.recv() => {
+                info!("received SIGINT");
+                break;
+            }
+            Some(event) = exit_rx.recv() => {
+                let proc = &mut processes[event.index];
+                info!("[{}] exited with {}", proc.name, event.status);
+                proc.set_last_status(event.status);
+                if proc.handle_restart().await {
+                    spawn_watcher(event.index, proc, exit_tx.clone());
+                }
+            }
+        }
     }
 
     info!("dd-procmgrd shutting down");
-    process::shutdown_all(&mut processes).await;
+    shutdown::shutdown_all(&mut processes).await;
     info!("dd-procmgrd stopped");
     Ok(())
+}
+
+/// Spawn a background task that awaits the child's exit and sends the result.
+fn spawn_watcher(index: usize, proc: &mut ManagedProcess, tx: mpsc::UnboundedSender<ExitEvent>) {
+    if let Some(child) = proc.take_child() {
+        let name = proc.name.clone();
+        let handle = tokio::spawn(async move {
+            let mut child = child;
+            match child.wait().await {
+                Ok(status) => {
+                    let _ = tx.send(ExitEvent { index, status });
+                }
+                Err(e) => {
+                    warn!("[{name}] wait error: {e}, killing process");
+                    let _ = child.kill().await;
+                }
+            }
+        });
+        proc.set_watcher_handle(handle);
+    }
 }
 
 fn load_configs() -> Vec<(String, ProcessConfig)> {
