@@ -505,8 +505,157 @@ fn test_child_does_not_inherit_parent_env() {
     assert!(status.success());
 }
 
+#[test]
+fn test_optional_environment_file_skipped_when_missing() {
+    let dir = tempfile::tempdir().unwrap();
+    write_config(
+        dir.path(),
+        "opt-env",
+        concat!(
+            "command: /bin/sh\n",
+            "args:\n",
+            "  - '-c'\n",
+            "  - 'exit 0'\n",
+            "environment_file: -/nonexistent/env\n",
+            "restart: never\n",
+        ),
+    );
+
+    let mut daemon = DaemonHandle::start(dir.path());
+    assert!(
+        daemon.wait_for_log_default("optional environment file not found, skipping"),
+        "daemon should log that optional env file was skipped"
+    );
+    assert!(
+        daemon.wait_for_log_default("exited with exit status: 0"),
+        "process should still run successfully"
+    );
+
+    let status = daemon.stop();
+    assert!(status.success());
+}
+
 // ===========================================================================
-// Group 9: Error handling
+// Group 9: DDOT template config
+// ===========================================================================
+
+/// Read the real DDOT yaml template and render it with the given paths.
+fn render_ddot_template(
+    install_dir: &str,
+    etc_dir: &str,
+    pid_dir: &str,
+    fleet_dir: &str,
+) -> String {
+    let tmpl_path = std::path::PathBuf::from(env!("DDOT_TEMPLATE_PATH"));
+    let tmpl = std::fs::read_to_string(&tmpl_path)
+        .unwrap_or_else(|e| panic!("failed to read {}: {e}", tmpl_path.display()));
+    tmpl.replace("{{.InstallDir}}", install_dir)
+        .replace("{{.EtcDir}}", etc_dir)
+        .replace("{{.PIDDir}}", pid_dir)
+        .replace("{{.FleetPoliciesDir}}", fleet_dir)
+}
+
+#[test]
+fn test_ddot_template_starts_with_env_and_optional_envfile() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let install_dir = dir.path().join("install");
+    let bin_dir = install_dir.join("ext/ddot/embedded/bin");
+    std::fs::create_dir_all(&bin_dir).unwrap();
+
+    let script = bin_dir.join("otel-agent");
+    std::fs::write(
+        &script,
+        concat!(
+            "#!/bin/sh\n",
+            "if [ \"$DD_FLEET_POLICIES_DIR\" = \"/etc/dd/policies\" ]; then\n",
+            "  exit 0\n",
+            "else\n",
+            "  echo \"DD_FLEET_POLICIES_DIR=$DD_FLEET_POLICIES_DIR\" >&2\n",
+            "  exit 1\n",
+            "fi\n",
+        ),
+    )
+    .unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    let etc_dir = dir.path().join("etc");
+    std::fs::create_dir_all(&etc_dir).unwrap();
+    let pid_dir = dir.path().join("pid");
+    std::fs::create_dir_all(pid_dir.join("run")).unwrap();
+
+    let config_dir = dir.path().join("processes.d");
+    std::fs::create_dir_all(&config_dir).unwrap();
+
+    let yaml = render_ddot_template(
+        install_dir.to_str().unwrap(),
+        etc_dir.to_str().unwrap(),
+        pid_dir.to_str().unwrap(),
+        "/etc/dd/policies",
+    );
+    std::fs::write(config_dir.join("datadog-agent-ddot.yaml"), &yaml).unwrap();
+
+    let mut daemon = DaemonHandle::start(&config_dir);
+    assert!(
+        daemon.wait_for_log_default(
+            "[datadog-agent-ddot] optional environment file not found, skipping"
+        ),
+        "daemon should skip the missing optional env file for ddot"
+    );
+    assert!(
+        daemon.wait_for_log_default("[datadog-agent-ddot] spawned (pid="),
+        "ddot process should be spawned with the otel-agent binary"
+    );
+    assert!(
+        daemon.wait_for_log_default("[datadog-agent-ddot] exited with exit status: 0"),
+        "ddot process should exit 0 (DD_FLEET_POLICIES_DIR env var was set correctly)"
+    );
+    assert!(
+        daemon.wait_for_log_default(
+            "[datadog-agent-ddot] exit does not match restart policy, not restarting"
+        ),
+        "on-failure restart should not trigger on exit 0"
+    );
+
+    let status = daemon.stop();
+    assert!(status.success());
+}
+
+#[test]
+fn test_ddot_template_skipped_when_binary_missing() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_dir = dir.path().join("processes.d");
+    std::fs::create_dir_all(&config_dir).unwrap();
+
+    let yaml = render_ddot_template(
+        "/nonexistent/install",
+        "/nonexistent/etc",
+        "/nonexistent/pid",
+        "/nonexistent/policies",
+    );
+    std::fs::write(config_dir.join("datadog-agent-ddot.yaml"), &yaml).unwrap();
+
+    let mut daemon = DaemonHandle::start(&config_dir);
+    assert!(
+        daemon.wait_for_log_default("[datadog-agent-ddot] condition_path_exists not met"),
+        "daemon should skip ddot when otel-agent binary is missing"
+    );
+    assert_eq!(
+        daemon.count_log_matches("[datadog-agent-ddot] spawned"),
+        0,
+        "ddot should NOT be spawned when condition_path_exists is not met"
+    );
+
+    let status = daemon.stop();
+    assert!(status.success());
+}
+
+// ===========================================================================
+// Group 10: Error handling
 // ===========================================================================
 
 #[test]

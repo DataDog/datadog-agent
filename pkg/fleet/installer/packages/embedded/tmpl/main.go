@@ -98,8 +98,8 @@ type templateData struct {
 	AmbiantCapabilitiesSupported bool
 }
 
-func mustReadSystemdUnit(name string, data systemdTemplateData, ambiantCapabilitiesSupported bool) []byte {
-	tmpl, err := template.ParseFS(embedded, name+".tmpl")
+func mustRenderTemplate(name string, data systemdTemplateData, ambiantCapabilitiesSupported bool) []byte {
+	tmpl, err := template.ParseFS(embedded, name)
 	if err != nil {
 		panic(err)
 	}
@@ -111,6 +111,10 @@ func mustReadSystemdUnit(name string, data systemdTemplateData, ambiantCapabilit
 		panic(err)
 	}
 	return buf.Bytes()
+}
+
+func mustReadSystemdUnit(name string, data systemdTemplateData, ambiantCapabilitiesSupported bool) []byte {
+	return mustRenderTemplate(name+".tmpl", data, ambiantCapabilitiesSupported)
 }
 
 func systemdUnits(stableData, expData systemdTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
