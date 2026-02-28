@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	HelmVersion = "3.155.1"
+	HelmVersion = "3.164.1"
 )
 
 // HelmInstallationArgs is the set of arguments for creating a new HelmInstallation component
