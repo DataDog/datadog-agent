@@ -23,6 +23,7 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ErrCannotMatchDevice is returned when a device cannot be matched to a container
@@ -36,7 +37,8 @@ const (
 
 // HasGPUs returns true if the container has GPUs assigned to it.
 func HasGPUs(container *workloadmeta.Container) bool {
-	// ECS: Check GPUDeviceIDs (populated by Docker collector for ECS only)
+	// Primary: Check GPUDeviceIDs extracted from container runtime (ECS, K8s with Docker/containerd)
+	// This is populated by workloadmeta collectors when NVIDIA_VISIBLE_DEVICES is in container config
 	if len(container.GPUDeviceIDs) > 0 {
 		return true
 	}
@@ -61,10 +63,17 @@ func HasGPUs(container *workloadmeta.Container) bool {
 
 // MatchContainerDevices matches the devices assigned to a container to the list of available devices
 // It returns a list of devices that are assigned to the container, and an error if any of the devices cannot be matched
+//
+// Priority:
+//  1. GPUDeviceIDs from container runtime (NVIDIA_VISIBLE_DEVICES in container config)
+//     - Works for: ECS, Kubernetes (Docker/containerd) with standard NVIDIA device plugin
+//     - Not available for: GKE (gVisor ignores env var), standalone Docker (runtime injection)
+//  2. Fallback for Kubernetes: PodResources API (ResolvedAllocatedResources)
+//  3. Fallback for standalone Docker: procfs (/proc/PID/environ)
 func MatchContainerDevices(container *workloadmeta.Container, devices []ddnvml.Device) ([]ddnvml.Device, error) {
-	// ECS: Use GPUDeviceIDs (UUID format) extracted from container config at discovery time
-	// This is checked first because ECS uses Docker runtime but needs UUID-based matching
+	// Primary: Use GPUDeviceIDs (UUID format) extracted from container config at discovery time
 	if len(container.GPUDeviceIDs) > 0 {
+		log.Debugf("GPU device source for container %s: runtime (NVIDIA_VISIBLE_DEVICES from config)", container.ID)
 		return matchByGPUDeviceIDs(container.GPUDeviceIDs, devices)
 	}
 
@@ -74,6 +83,7 @@ func MatchContainerDevices(container *workloadmeta.Container, devices []ddnvml.D
 	default:
 		// We have no specific support for other runtimes, so fall back to the Kubernetes device
 		// assignment if it's there
+		log.Debugf("GPU device source for container %s: pod_resources_api", container.ID)
 		return matchKubernetesDevices(container, devices)
 	}
 }
@@ -140,8 +150,9 @@ func matchDockerDevices(container *workloadmeta.Container, devices []ddnvml.Devi
 }
 
 // matchByGPUDeviceIDs matches devices using GPUDeviceIDs from workloadmeta.
-// This is used for ECS containers where GPU UUIDs are provided in the format
-// "GPU-aec058b1-c18e-236e-c14d-49d2990fda0f".
+// This is used for containers where GPU UUIDs are extracted from NVIDIA_VISIBLE_DEVICES
+// in the container config (ECS, Kubernetes with Docker/containerd).
+// Format: "GPU-aec058b1-c18e-236e-c14d-49d2990fda0f" or comma-separated UUIDs.
 // Special values:
 //   - "all" returns all available devices (GPU sharing)
 //   - "none", "void" returns empty slice (no GPU access)
@@ -162,7 +173,7 @@ func matchByGPUDeviceIDs(gpuDeviceIDs []string, devices []ddnvml.Device) ([]ddnv
 	var multiErr error
 
 	for _, id := range gpuDeviceIDs {
-		// ECS provides GPU UUIDs in format "GPU-xxxx-xxxx-xxxx-xxxx"
+		// ECS/k8s provides GPU UUIDs in format "GPU-xxxx-xxxx-xxxx-xxxx"
 		matchingDevice, err := findDeviceByUUID(devices, id)
 		if err != nil {
 			multiErr = errors.Join(multiErr, err)
