@@ -37,6 +37,62 @@ func TestClients(t *testing.T) {
 	assert.Empty(t, clients.clients)
 }
 
+func TestHasNewProducts(t *testing.T) {
+	testTTL := time.Second * 30
+	clock := clock.NewMock()
+	clock.Set(time.Now())
+	clients := newClients(clock, testTTL)
+
+	// A client that has never been seen has no new products (hasNewProducts
+	// returns false for unknown clients — the new-client bypass handles that case).
+	unknownClient := &pbgo.Client{
+		Id:       "unknown",
+		Products: []string{"APM_TRACING"},
+	}
+	assert.False(t, clients.hasNewProducts(unknownClient))
+
+	// Register a client with APM_TRACING
+	client := &pbgo.Client{
+		Id:       "client1",
+		Products: []string{"APM_TRACING"},
+	}
+	clients.seen(client)
+
+	// Same products → no new products
+	assert.False(t, clients.hasNewProducts(&pbgo.Client{
+		Id:       "client1",
+		Products: []string{"APM_TRACING"},
+	}))
+
+	// Adding FFE_FLAGS → has new products
+	assert.True(t, clients.hasNewProducts(&pbgo.Client{
+		Id:       "client1",
+		Products: []string{"APM_TRACING", "FFE_FLAGS"},
+	}))
+
+	// After seen() with the new product set, no longer has new products
+	clients.seen(&pbgo.Client{
+		Id:       "client1",
+		Products: []string{"APM_TRACING", "FFE_FLAGS"},
+	})
+	assert.False(t, clients.hasNewProducts(&pbgo.Client{
+		Id:       "client1",
+		Products: []string{"APM_TRACING", "FFE_FLAGS"},
+	}))
+
+	// Removing a product is NOT considered a "new product" — no bypass needed
+	assert.False(t, clients.hasNewProducts(&pbgo.Client{
+		Id:       "client1",
+		Products: []string{"APM_TRACING"},
+	}))
+
+	// Adding a different new product triggers again
+	assert.True(t, clients.hasNewProducts(&pbgo.Client{
+		Id:       "client1",
+		Products: []string{"APM_TRACING", "FFE_FLAGS", "LIVE_DEBUGGING"},
+	}))
+}
+
 func TestCacheBypassClientsRateLimit(t *testing.T) {
 	clock := clock.NewMock()
 	cacheBypassClients := rateLimiter{

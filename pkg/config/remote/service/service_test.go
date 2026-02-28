@@ -1523,3 +1523,95 @@ func TestWithOrgStatusPollingIntervalConfigPassed(t *testing.T) {
 	assert.NotNil(t, service)
 	service.Stop()
 }
+
+// TestBypassTriggersOnNewProducts verifies that when an already-active client
+// adds a new product (e.g., FFE_FLAGS after initially connecting for APM), the
+// cache bypass fires. This is the fix for the startup latency issue where the
+// bypass only fired for new clients, not new products.
+func TestBypassTriggersOnNewProducts(t *testing.T) {
+	api := &mockAPI{}
+	uptaneClient := &mockCoreAgentUptane{}
+	clk := clock.NewMock()
+	clk.Set(time.Now())
+
+	service := newTestService(t, api, uptaneClient, clk, WithAgentPollLoopDisabled())
+
+	lastConfigResponse := &pbgo.LatestConfigsResponse{
+		TargetFiles: []*pbgo.File{{Path: "test"}},
+	}
+
+	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
+	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
+	uptaneClient.On("TargetsCustom").Return([]byte{}, nil)
+	api.On("Fetch", mock.Anything, mock.Anything).Return(lastConfigResponse, nil)
+	uptaneClient.On("Update", lastConfigResponse).Return(nil)
+
+	service.Start()
+
+	// First request: new client with APM_TRACING.
+	// This should trigger a bypass (new client).
+	clientAPM := &pbgo.Client{
+		Id: "tracer-1",
+		State: &pbgo.ClientState{
+			RootVersion: 1,
+		},
+		IsTracer:     true,
+		ClientTracer: &pbgo.ClientTracer{},
+		Products:     []string{string(rdata.ProductAPMSampling)},
+	}
+	_, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: clientAPM})
+	require.NoError(t, err)
+
+	// Advance the clock past the 1-second minimum between refreshes
+	clk.Add(2 * time.Second)
+
+	// The client is now active. Verify that the same products do NOT trigger a bypass.
+	// We check this by counting Fetch calls: there should be exactly 1 from the first bypass.
+	fetchCountBefore := countFetchCalls(api)
+
+	clientSameProducts := &pbgo.Client{
+		Id: "tracer-1",
+		State: &pbgo.ClientState{
+			RootVersion: 1,
+		},
+		IsTracer:     true,
+		ClientTracer: &pbgo.ClientTracer{},
+		Products:     []string{string(rdata.ProductAPMSampling)},
+	}
+	_, err = service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: clientSameProducts})
+	require.NoError(t, err)
+
+	fetchCountAfterSame := countFetchCalls(api)
+	assert.Equal(t, fetchCountBefore, fetchCountAfterSame, "same products should NOT trigger bypass")
+
+	// Advance the clock past the 1-second minimum between refreshes
+	clk.Add(2 * time.Second)
+
+	// Now the client adds FFE_FLAGS. This should trigger a bypass because
+	// the product set changed — even though the client is still active.
+	clientWithFFE := &pbgo.Client{
+		Id: "tracer-1",
+		State: &pbgo.ClientState{
+			RootVersion: 1,
+		},
+		IsTracer:     true,
+		ClientTracer: &pbgo.ClientTracer{},
+		Products:     []string{string(rdata.ProductAPMSampling), "FFE_FLAGS"},
+	}
+	_, err = service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: clientWithFFE})
+	require.NoError(t, err)
+
+	fetchCountAfterFFE := countFetchCalls(api)
+	assert.Greater(t, fetchCountAfterFFE, fetchCountAfterSame, "new product FFE_FLAGS should trigger bypass and call Fetch")
+}
+
+// countFetchCalls returns the number of times api.Fetch was called.
+func countFetchCalls(api *mockAPI) int {
+	count := 0
+	for _, call := range api.Calls {
+		if call.Method == "Fetch" {
+			count++
+		}
+	}
+	return count
+}

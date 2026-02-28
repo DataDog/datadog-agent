@@ -17,6 +17,7 @@ import (
 type client struct {
 	lastSeen time.Time
 	pbClient *pbgo.Client
+	products map[string]struct{}
 }
 
 // rateLimiter limits the number of requests that can be made in a given window.
@@ -70,15 +71,20 @@ func newClients(clock clock.Clock, clientsTTL time.Duration) *clients {
 	}
 }
 
-// seen marks the given client as active
+// seen marks the given client as active and updates its tracked product set
 func (c *clients) seen(pbClient *pbgo.Client) {
 	c.m.Lock()
 	defer c.m.Unlock()
 	now := c.clock.Now().UTC()
 	pbClient.LastSeen = uint64(now.UnixMilli())
+	products := make(map[string]struct{}, len(pbClient.Products))
+	for _, p := range pbClient.Products {
+		products[p] = struct{}{}
+	}
 	c.clients[pbClient.Id] = &client{
 		lastSeen: now,
 		pbClient: pbClient,
+		products: products,
 	}
 }
 
@@ -89,6 +95,25 @@ func (c *clients) active(pbClient *pbgo.Client) bool {
 		return false
 	}
 	return !client.expired(c.clock, c.clientsTTL)
+}
+
+// hasNewProducts checks whether the client's request contains products that
+// were not present when the client was last seen. This detects the case where
+// a tracer adds a new RC product (e.g., FFE_FLAGS) after the initial connection,
+// which should trigger a cache bypass so the Agent fetches configs for the new product.
+func (c *clients) hasNewProducts(pbClient *pbgo.Client) bool {
+	c.m.Lock()
+	defer c.m.Unlock()
+	existing, ok := c.clients[pbClient.Id]
+	if !ok {
+		return false
+	}
+	for _, product := range pbClient.Products {
+		if _, seen := existing.products[product]; !seen {
+			return true
+		}
+	}
+	return false
 }
 
 // activeClients returns the list of active clients
