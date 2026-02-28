@@ -39,13 +39,10 @@ type Component interface {
 	Resolve(data []byte, origin string, imageName string, kubeNamespace string, notify bool) ([]byte, error)
 	// SubscribeToChanges registers a callback to be invoked whenever secrets are resolved or refreshed
 	SubscribeToChanges(callback SecretChangeCallback)
-	// Refresh schedules a throttled asynchronous secret refresh. Returns true if the
-	// secret refresh mechanism is enabled (backend configured and refresh interval set).
-	Refresh() bool
-	// RefreshNow performs an immediate blocking secret refresh, returning an informative message suitable for user display.
-	RefreshNow() (string, error)
-	// IsValueFromSecret returns true if the given value was ever resolved from a secret handle.
-	IsValueFromSecret(value string) bool
+	// Refresh will resolve secret handles again, notifying any subscribers of changed values.
+	// If updateNow is true, the function performs the refresh immediately and blocks, returning an informative message suitable for user display.
+	// If updateNow is false, the function will asynchronously perform a refresh, and may fail to refresh due to throttling. No message is returned, just an empty string.
+	Refresh(updateNow bool) (string, error)
 	// RemoveOrigin removes a origin from the internal cache of the secret component. This does not remove secrets
 	// from the cache but the reference where those secrets are used.
 	RemoveOrigin(origin string)
