@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 )
 
@@ -21,8 +20,6 @@ var builtins = map[string]bool{
 	"false":    true,
 	"break":    true,
 	"continue": true,
-	"exit":     true,
-	":":        true,
 	"cd":       true,
 	"pwd":      true,
 }
@@ -46,10 +43,6 @@ func (r *Runner) builtin(_ context.Context, name string, args []string) (bool, e
 		err = r.builtinBreak()
 	case "continue":
 		err = r.builtinContinue()
-	case "exit":
-		err = r.builtinExit(args)
-	case ":":
-		r.exitCode = 0
 	case "cd":
 		err = r.builtinCd(args)
 	case "pwd":
@@ -147,18 +140,6 @@ func (r *Runner) builtinContinue() error {
 		return fmt.Errorf("continue: not in a loop")
 	}
 	return errContinue
-}
-
-func (r *Runner) builtinExit(args []string) error {
-	code := r.exitCode
-	if len(args) > 0 {
-		var err error
-		code, err = strconv.Atoi(args[0])
-		if err != nil {
-			return fmt.Errorf("exit: invalid exit code %q", args[0])
-		}
-	}
-	return &exitError{code: code}
 }
 
 func (r *Runner) builtinCd(args []string) error {

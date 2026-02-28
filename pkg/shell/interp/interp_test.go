@@ -145,19 +145,6 @@ func TestInterp_FalseCommand(t *testing.T) {
 	assert.Equal(t, 1, r.ExitCode())
 }
 
-func TestInterp_ColonNoOp(t *testing.T) {
-	_, _, err := runScript(t, `:`)
-	require.NoError(t, err)
-}
-
-func TestInterp_ExitCommand(t *testing.T) {
-	_, _, err := runScript(t, `exit 42`)
-	require.Error(t, err)
-	exitErr, ok := err.(*exitError)
-	require.True(t, ok)
-	assert.Equal(t, 42, exitErr.code)
-}
-
 func TestInterp_CdAndPwd(t *testing.T) {
 	dir := t.TempDir()
 	var out bytes.Buffer
