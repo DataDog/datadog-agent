@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed a memory leak in the SQL obfuscator cache where cached queries
+    retained over-sized backing arrays from ``strings.Builder``. The fix
+    clones the query string before caching to release the excess memory.
