@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux && nvml
+//go:build linux && nvml && test
 
 package integrationtests
 
@@ -96,5 +96,48 @@ func TestDeviceBasicProperties(t *testing.T) {
 
 		t.Logf("GPU %d: %s (SM %d.%d, Memory: %d MB)",
 			i, name, major, minor, memInfo.Total/1024/1024)
+	}
+}
+
+// TestGPUUUIDsMatchNVML validates that the UUIDs reported by the CUDA runtime
+// (via the gpuuuids sample binary) match the UUIDs reported by NVML.
+// This ensures consistency between what CUDA applications see and what we
+// detect via NVML for device identification.
+func TestGPUUUIDsMatchNVML(t *testing.T) {
+	testutil.RequireGPU(t)
+
+	// Get device UUIDs from NVML via the device cache
+	lib := initNVML(t)
+	deviceCache := safenvml.NewDeviceCache(safenvml.WithDeviceCacheLib(lib))
+
+	nvmlDevices, err := deviceCache.All()
+	require.NoError(t, err)
+	require.NotEmpty(t, nvmlDevices, "Should have at least one GPU device")
+
+	nvmlUUIDs := make([]string, len(nvmlDevices))
+	for i, device := range nvmlDevices {
+		nvmlUUIDs[i] = device.GetDeviceInfo().UUID
+		t.Logf("NVML Device %d: %s", i, nvmlUUIDs[i])
+	}
+
+	// Run the gpuuuids sample to get UUIDs from CUDA runtime
+	output := testutil.RunSample(t, testutil.GPUUUIDsSample)
+	require.NoError(t, err, "Failed to run gpuuuids sample")
+
+	cudaUUIDs := testutil.ParseGPUUUIDsOutput(output.Output)
+	require.NotEmpty(t, cudaUUIDs, "gpuuuids sample should report at least one GPU")
+
+	t.Logf("CUDA reported %d device(s), NVML reported %d device(s)", len(cudaUUIDs), len(nvmlUUIDs))
+	for i, uuid := range cudaUUIDs {
+		t.Logf("CUDA Device %d: %s", i, uuid)
+	}
+
+	// Verify the UUIDs match in count and order
+	require.Len(t, cudaUUIDs, len(nvmlUUIDs),
+		"CUDA and NVML should report the same number of devices")
+
+	for i := range nvmlUUIDs {
+		require.Equal(t, nvmlUUIDs[i], cudaUUIDs[i],
+			"Device %d UUID mismatch: NVML=%s, CUDA=%s", i, nvmlUUIDs[i], cudaUUIDs[i])
 	}
 }

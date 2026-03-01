@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf && test
+//go:build linux && test
 
 package testutil
 
@@ -33,6 +33,16 @@ type Sample struct {
 	StartPattern    *regexp.Regexp
 	FinishedPattern *regexp.Regexp
 	DefaultArgs     SampleArgs
+	// RequiresCUDA indicates whether the sample needs to be built with nvcc (real CUDA)
+	RequiresCUDA bool
+}
+
+// SampleOutput represents the output of a sample binary
+type SampleOutput struct {
+	PID         int
+	ContainerID string
+	Output      []string
+	Command     *exec.Cmd
 }
 
 // CudaSample is a binary that calls all the CUDA functions we probe for
@@ -49,6 +59,16 @@ var RateSample = Sample{
 	StartPattern:    regexp.MustCompile("Starting CudaRateSample program"),
 	FinishedPattern: regexp.MustCompile("CUDA calls made."),
 	DefaultArgs:     defaultRateSampleArgs(),
+}
+
+// GPUUUIDsSample is a binary that prints the UUIDs of all CUDA-visible GPUs.
+// It requires real CUDA runtime libraries to be installed on the system.
+var GPUUUIDsSample = Sample{
+	Name:            "gpuuuids",
+	StartPattern:    regexp.MustCompile("Starting GPU UUID printer"),
+	FinishedPattern: regexp.MustCompile("GPU UUIDs printed."),
+	DefaultArgs:     defaultGPUUUIDsSampleArgs(),
+	RequiresCUDA:    true,
 }
 
 // dockerImage represents the Docker image to use for running the sample binary.
@@ -134,28 +154,63 @@ func defaultRateSampleArgs() *RateSampleArgs {
 	}
 }
 
-// RunSampleWithArgs executes the sample binary and returns the command. Cleanup is configured automatically
+// GPUUUIDsSampleArgs holds arguments for the GPU UUIDs sample binary
+type GPUUUIDsSampleArgs struct {
+	// CudaVisibleDevicesEnv represents the value of the CUDA_VISIBLE_DEVICES environment variable
+	CudaVisibleDevicesEnv string
+}
+
+// Env returns the environment variables for the GPU UUIDs sample binary
+func (a *GPUUUIDsSampleArgs) Env() []string {
+	if a.CudaVisibleDevicesEnv != "" {
+		return []string{"CUDA_VISIBLE_DEVICES=" + a.CudaVisibleDevicesEnv}
+	}
+	return nil
+}
+
+// CLIArgs returns the command line arguments for the GPU UUIDs sample binary
+func (a *GPUUUIDsSampleArgs) CLIArgs() []string {
+	return nil // No CLI args needed
+}
+
+// defaultGPUUUIDsSampleArgs returns the default arguments for the GPU UUIDs sample binary
+func defaultGPUUUIDsSampleArgs() *GPUUUIDsSampleArgs {
+	return &GPUUUIDsSampleArgs{
+		CudaVisibleDevicesEnv: "",
+	}
+}
+
+// getBuiltSamplePath builds the sample binary and returns the path to it
 func getBuiltSamplePath(t testing.TB, sample Sample) string {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
 
-	sourceFile := filepath.Join(curDir, "..", "testdata", sample.Name+".c")
+	// CUDA samples use .cu extension, regular C samples use .c
+	ext := ".c"
+	if sample.RequiresCUDA {
+		ext = ".cu"
+	}
+
+	sourceFile := filepath.Join(curDir, "..", "testdata", sample.Name+ext)
 	binaryFile := filepath.Join(curDir, "..", "testdata", sample.Name)
 
-	builtBin, err := buildCBinary(sourceFile, binaryFile)
+	opts := BuildOptions{
+		UseCUDA: sample.RequiresCUDA,
+	}
+	builtBin, err := buildCBinary(sourceFile, binaryFile, opts)
 	require.NoError(t, err)
 
 	return builtBin
 }
 
-func runCommandAndPipeOutput(t testing.TB, command []string, sample Sample, args SampleArgs) (cmd *exec.Cmd, err error) {
+func runCommandAndPipeOutput(t testing.TB, command []string, sample Sample, args SampleArgs) (cmd *exec.Cmd, output []string, err error) {
 	command = append(command, args.CLIArgs()...)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
 	cmd = exec.CommandContext(ctx, command[0], command[1:]...)
 	t.Cleanup(func() {
-		if cmd.Process != nil {
+		if cmd != nil && cmd.Process != nil {
 			_ = cmd.Process.Kill()
 			_ = cmd.Wait()
 		}
@@ -176,48 +231,67 @@ func runCommandAndPipeOutput(t testing.TB, command []string, sample Sample, args
 
 	err = cmd.Start()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	for {
 		select {
 		case <-ctx.Done():
 			if err = ctx.Err(); err != nil {
-				return nil, fmt.Errorf("failed to start the process %s due to: %w", command[0], err)
+				return nil, nil, fmt.Errorf("failed to start the process %s due to: %w", command[0], err)
 			}
 		case <-scanner.DoneChan:
 			t.Logf("%s command succeeded", command)
-			return cmd, nil
+			return cmd, scanner.Lines(), nil
 		case <-time.After(dockerutils.DefaultTimeout):
 			//setting the error explicitly to trigger the defer function
 			err = fmt.Errorf("%s execution attempt reached timeout %v ", sample.Name, dockerutils.DefaultTimeout)
-			return nil, err
+			return nil, scanner.Lines(), err
 		}
 	}
 }
 
 // RunSample executes the sample binary and returns the command. Cleanup is configured automatically
-func RunSample(t testing.TB, sample Sample) (*exec.Cmd, error) {
+func RunSample(t testing.TB, sample Sample) SampleOutput {
 	return RunSampleWithArgs(t, sample, sample.DefaultArgs)
 }
 
 // RunSampleWithArgs executes the sample binary with args and returns the command. Cleanup is configured automatically
-func RunSampleWithArgs(t testing.TB, sample Sample, args SampleArgs) (*exec.Cmd, error) {
+func RunSampleWithArgs(t testing.TB, sample Sample, args SampleArgs) SampleOutput {
+	var output SampleOutput
 	builtBin := getBuiltSamplePath(t, sample)
-	return runCommandAndPipeOutput(t, []string{builtBin}, sample, args)
+	cmd, lines, err := runCommandAndPipeOutput(t, []string{builtBin}, sample, args)
+	require.NoError(t, err, "failed to run command")
+
+	output.Output = lines
+	if cmd.Process != nil {
+		output.PID = cmd.Process.Pid
+		output.Command = cmd
+	}
+
+	return output
 }
 
 // RunSampleInDocker executes the sample binary in a Docker container and returns the PID of the main container process, and the container ID
-func RunSampleInDocker(t testing.TB, sample Sample, image dockerImage) (int, string) {
+func RunSampleInDocker(t testing.TB, sample Sample, image dockerImage) SampleOutput {
 	return RunSampleInDockerWithArgs(t, sample, image, sample.DefaultArgs)
 }
 
 // RunSampleInDockerWithArgs executes the sample binary in a Docker container and returns the PID of the main container process, and the container ID
-func RunSampleInDockerWithArgs(t testing.TB, sample Sample, image dockerImage, args SampleArgs) (int, string) {
+func RunSampleInDockerWithArgs(t testing.TB, sample Sample, image dockerImage, args SampleArgs) SampleOutput {
 	builtBin := getBuiltSamplePath(t, sample)
 	containerName := "gpu-testutil-" + utils.RandString(10)
 	scanner, err := procutil.NewScanner(sample.StartPattern, sample.FinishedPattern)
 	require.NoError(t, err, "failed to create pattern scanner")
+
+	extraArgs := []dockerutils.RunConfigOption{
+		dockerutils.WithBinaryArgs(args.CLIArgs()),
+		dockerutils.WithMounts(map[string]string{builtBin: builtBin}),
+	}
+
+	if sample.RequiresCUDA {
+		extraArgs = append(extraArgs, dockerutils.WithGPUs("all"))
+	}
 
 	dockerConfig := dockerutils.NewRunConfig(
 		dockerutils.NewBaseConfig(
@@ -227,8 +301,7 @@ func RunSampleInDockerWithArgs(t testing.TB, sample Sample, image dockerImage, a
 		),
 		string(image),
 		builtBin,
-		dockerutils.WithBinaryArgs(args.CLIArgs()),
-		dockerutils.WithMounts(map[string]string{builtBin: builtBin}))
+		extraArgs...)
 
 	require.NoError(t, dockerutils.Run(t, dockerConfig))
 
@@ -242,5 +315,27 @@ func RunSampleInDockerWithArgs(t testing.TB, sample Sample, image dockerImage, a
 
 	log.Debugf("Sample binary %s running in Docker container %s (CID=%s) with PID %d", sample.Name, containerName, dockerContainerID, dockerPID)
 
-	return int(dockerPID), dockerContainerID
+	return SampleOutput{
+		PID:         int(dockerPID),
+		ContainerID: dockerContainerID,
+		Output:      scanner.Lines(),
+		Command:     nil,
+	}
+}
+
+// ParseGPUUUIDsOutput parses the output from the gpuuuids binary and returns
+// the list of GPU UUIDs, taking only into account the lines that only have the
+// GPU The binary prints one UUID per line to stdout in the format
+// GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+func ParseGPUUUIDsOutput(output []string) []string {
+	gpuUUIDPattern := regexp.MustCompile(`^(GPU|MIG)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+
+	var uuids []string
+	for _, line := range output {
+		match := gpuUUIDPattern.FindString(line)
+		if match != "" {
+			uuids = append(uuids, match)
+		}
+	}
+	return uuids
 }

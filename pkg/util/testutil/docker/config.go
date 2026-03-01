@@ -104,6 +104,7 @@ type runConfig struct {
 	NetworkMode string            // Network mode to use for the container. If empty, the docker default will apply
 	PIDMode     string            // PID mode to use for the container. If empty, the docker default will apply
 	Privileged  bool              // Whether to run the container in privileged mode.
+	GPUs        string            // GPUs to use for the container
 }
 
 func (r runConfig) command() string {
@@ -137,6 +138,10 @@ func (r runConfig) commandArgs(t subCommandType) []string {
 
 		if r.PIDMode != "" {
 			args = append(args, "--pid", r.PIDMode)
+		}
+
+		if r.GPUs != "" {
+			args = append(args, "--gpus", r.GPUs)
 		}
 
 		//append container name and container image name
@@ -264,6 +269,12 @@ func WithRetries(retries int) BaseConfigOption {
 func WithEnv(env []string) BaseConfigOption {
 	return func(c *BaseConfig) {
 		c.env = env
+	}
+}
+
+func WithGPUs(gpus string) RunConfigOption {
+	return func(c *runConfig) {
+		c.GPUs = gpus
 	}
 }
 
