@@ -37,6 +37,8 @@ const (
 	defaultStatsdSocket = ""
 	// defaultReceiverSocket is the default Unix Domain Socket path on which Trace agent will listen
 	defaultReceiverSocket = ""
+	// defaultInjectorTelemetrySocket is the default SOCK_DGRAM UDS path for injector telemetry
+	defaultInjectorTelemetrySocket = ""
 	//DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
 	DefaultStreamlogsLogFile = "/opt/datadog-agent/logs/streamlogs_info/streamlogs.log"
 )

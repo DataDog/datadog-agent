@@ -56,6 +56,8 @@ const (
 	defaultStatsdSocket = "/var/run/datadog/dsd.socket"
 	// defaultReceiverSocket is the default Unix Domain Socket path on which Trace agent will listen
 	defaultReceiverSocket = "/var/run/datadog/apm.socket"
+	// defaultInjectorTelemetrySocket is the default SOCK_DGRAM UDS path for injector telemetry
+	defaultInjectorTelemetrySocket = "/var/run/datadog/injection/telemetry.sock"
 	//DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
 	DefaultStreamlogsLogFile = "/var/log/datadog/streamlogs_info/streamlogs.log"
 )

@@ -109,8 +109,9 @@ type HTTPReceiver struct {
 	statsProcessor      StatsProcessor
 	containerIDProvider IDProvider
 
-	telemetryCollector telemetry.TelemetryCollector
-	telemetryForwarder *TelemetryForwarder
+	telemetryCollector          telemetry.TelemetryCollector
+	telemetryForwarder          *TelemetryForwarder
+	injectorTelemetryReceiver   *InjectorTelemetryReceiver
 
 	rateLimiterResponse int // HTTP status code when refusing
 
@@ -392,6 +393,15 @@ func (r *HTTPReceiver) Start() {
 		log.Infof("Listening for traces on Windows pipe %q. Security descriptor is %q", pipepath, secdec)
 	}
 
+	// Start the injector telemetry receiver (SOCK_DGRAM UDS for lightweight
+	// telemetry from the auto-inject injector).
+	if path := r.conf.InjectorTelemetrySocket; path != "" {
+		r.injectorTelemetryReceiver = NewInjectorTelemetryReceiver(r.conf, r.telemetryForwarder, r.statsd)
+		if err := r.injectorTelemetryReceiver.Start(); err != nil {
+			log.Errorf("Failed to start injector telemetry receiver: %v", err)
+		}
+	}
+
 	go func() {
 		defer watchdog.LogOnPanic(r.statsd)
 		r.loop()
@@ -427,6 +437,9 @@ func (r *HTTPReceiver) Stop() error {
 		return err
 	}
 	r.wg.Wait()
+	if r.injectorTelemetryReceiver != nil {
+		r.injectorTelemetryReceiver.Stop()
+	}
 	r.telemetryForwarder.Stop()
 	return nil
 }
