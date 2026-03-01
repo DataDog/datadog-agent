@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/updater/localapi"
-	"github.com/DataDog/datadog-agent/comp/updater/telemetry"
+	telemetry "github.com/DataDog/datadog-agent/comp/updater/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
