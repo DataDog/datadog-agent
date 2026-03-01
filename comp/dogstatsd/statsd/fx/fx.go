@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package statsd
+// Package fx provides the fx module for the statsd component.
+package fx
 
 import (
 	statsdimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/impl"
@@ -11,7 +12,6 @@ import (
 )
 
 // Module defines the fx options for this component.
-// Deprecated: Use comp/dogstatsd/statsd/fx.Module() instead.
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
