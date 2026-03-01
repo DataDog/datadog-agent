@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -201,11 +200,7 @@ func NewSSLCertsProgram(mgr *manager.Manager, cfg *config.Config) (*SSLCertsProg
 		return nil, fmt.Errorf("error creating cert info map cleaner: %w", err)
 	}
 
-	program.attacher, err = uprobes.NewUprobeAttacher(CNMModuleName, CNMTLSAttacherName, attacherConfig, mgr, uprobes.NopOnAttachCallback, uprobes.AttacherDependencies{
-		Inspector:      &uprobes.NativeBinaryInspector{},
-		ProcessMonitor: monitor.GetProcessMonitor(),
-		Telemetry:      telemetry.GetCompatComponent(),
-	})
+	program.attacher, err = uprobes.NewUprobeAttacher(CNMModuleName, CNMTLSAttacherName, attacherConfig, mgr, uprobes.NopOnAttachCallback, &uprobes.NativeBinaryInspector{}, monitor.GetProcessMonitor())
 	if err != nil {
 		return nil, fmt.Errorf("error initializing uprobes attacher: %w", err)
 	}

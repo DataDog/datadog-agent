@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -173,11 +172,7 @@ func newGoTLS(mgr *manager.Manager, c *config.Config) (protocols.Protocol, error
 	}
 
 	prog.procMon = monitor.GetProcessMonitor()
-	attacher, err := uprobes.NewUprobeAttacher(consts.USMModuleName, GoTLSAttacherName, attacherCfg, mgr, uprobes.NopOnAttachCallback, uprobes.AttacherDependencies{
-		Inspector:      prog.inspector,
-		ProcessMonitor: prog.procMon,
-		Telemetry:      telemetry.GetCompatComponent(),
-	})
+	attacher, err := uprobes.NewUprobeAttacher(consts.USMModuleName, GoTLSAttacherName, attacherCfg, mgr, uprobes.NopOnAttachCallback, prog.inspector, prog.procMon)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create uprobe attacher: %w", err)
 	}

@@ -24,7 +24,6 @@ import (
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -173,11 +172,7 @@ func newIstioMonitor(mgr *manager.Manager, c *config.Config) (protocols.Protocol
 		ExcludeTargets:                 uprobes.ExcludeSelf | uprobes.ExcludeInternal | uprobes.ExcludeBuildkit | uprobes.ExcludeContainerdTmp,
 		EnablePeriodicScanNewProcesses: true,
 	}
-	attacher, err := uprobes.NewUprobeAttacher(consts.USMModuleName, istioAttacherName, attachCfg, mgr, nil, uprobes.AttacherDependencies{
-		Inspector:      &uprobes.NativeBinaryInspector{},
-		ProcessMonitor: m.processMonitor,
-		Telemetry:      telemetry.GetCompatComponent(),
-	})
+	attacher, err := uprobes.NewUprobeAttacher(consts.USMModuleName, istioAttacherName, attachCfg, mgr, nil, &uprobes.NativeBinaryInspector{}, m.processMonitor)
 	if err != nil {
 		return nil, fmt.Errorf("Cannot create uprobe attacher: %w", err)
 	}

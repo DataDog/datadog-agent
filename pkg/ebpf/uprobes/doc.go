@@ -37,11 +37,7 @@ and which probes to attach to them. Example usage:
 		EbpfConfig:     ebpfCfg,
 	}
 
-	ua, err := NewUprobeAttacher("test", "test", attacherCfg, &mgr, callback, AttacherDependencies{
-		Inspector:      &NativeBinaryInspector{},
-		ProcessMonitor: processMonitor,
-		Telemetry:      telemetry,
-	})
+	ua, err := NewUprobeAttacher("test", attacherCfg, &mgr, callback, &NativeBinaryInspector{}, processMonitor)
 	ua.Start()
 
 Once started, the attacher monitors new processes and `open` calls for new

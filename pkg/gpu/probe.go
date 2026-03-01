@@ -197,11 +197,7 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	}
 
 	attachCfg := getAttacherConfig(cfg)
-	p.attacher, err = uprobes.NewUprobeAttacher(consts.GpuModuleName, consts.GpuAttacherName, attachCfg, p.m, nil, uprobes.AttacherDependencies{
-		Inspector:      &uprobes.NativeBinaryInspector{},
-		ProcessMonitor: deps.ProcessMonitor,
-		Telemetry:      deps.Telemetry,
-	})
+	p.attacher, err = uprobes.NewUprobeAttacher(consts.GpuModuleName, consts.GpuAttacherName, attachCfg, p.m, nil, &uprobes.NativeBinaryInspector{}, deps.ProcessMonitor)
 	if err != nil {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
 	}

@@ -22,7 +22,6 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"golang.org/x/exp/maps"
 
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
@@ -191,14 +190,6 @@ type ProcessMonitor interface {
 	// receives the PID of the process. Returns a function that can be called to
 	// unsubscribe from the event.
 	SubscribeExit(func(uint32)) func()
-}
-
-// AttacherDependencies groups runtime dependencies for the uprobe attacher.
-// Telemetry is optional (can be nil).
-type AttacherDependencies struct {
-	Inspector      BinaryInspector
-	ProcessMonitor ProcessMonitor
-	Telemetry      telemetryComponent.Component
 }
 
 // AttacherConfig defines the configuration for the attacher
@@ -397,8 +388,6 @@ type UprobeAttacher struct {
 
 	// attachLimiter is used to limit the number of times we log warnings about attachment errors
 	attachLimiter *log.Limit
-
-	telemetry *uprobeAttacherTelemetry
 }
 
 // NewUprobeAttacher creates a new UprobeAttacher. Receives as arguments
@@ -408,14 +397,12 @@ type UprobeAttacher struct {
 //     attacher would make those caches incoherent. This way we ensure that the attacher is always consistent with the configuration it was created with.
 //   - The eBPF probe manager (ebpf.Manager usually)
 //   - A callback to be called whenever a probe is attached (optional, can be nil)
-//   - The dependencies for the attacher:
 //   - The binary inspector to be used (e.g., while we usually want NativeBinaryInspector here,
 //     we might want the GoBinaryInspector to attach to Go functions in a different
 //     way).
 //   - The process monitor to be used to subscribe to process start and exit events. The lifecycle of the process monitor is managed by the caller, the attacher
 //     will not stop the monitor when it stops.
-//   - The telemetry component to be used to collect telemetry data.
-func NewUprobeAttacher(moduleName, name string, config AttacherConfig, mgr ProbeManager, onAttachCallback AttachCallback, deps AttacherDependencies) (*UprobeAttacher, error) {
+func NewUprobeAttacher(moduleName, name string, config AttacherConfig, mgr ProbeManager, onAttachCallback AttachCallback, inspector BinaryInspector, processMonitor ProcessMonitor) (*UprobeAttacher, error) {
 	config.SetDefaults()
 
 	if err := config.Validate(); err != nil {
@@ -430,11 +417,10 @@ func NewUprobeAttacher(moduleName, name string, config AttacherConfig, mgr Probe
 		onAttachCallback:       onAttachCallback,
 		fileIDToAttachedProbes: make(map[utils.PathIdentifier][]manager.ProbeIdentificationPair),
 		done:                   make(chan struct{}),
-		inspector:              deps.Inspector,
-		processMonitor:         deps.ProcessMonitor,
+		inspector:              inspector,
+		processMonitor:         processMonitor,
 		scansPerPid:            make(map[uint32]int),
 		attachLimiter:          log.NewLogLimit(10, 10*time.Minute),
-		telemetry:              newUprobeAttacherTelemetry(deps.Telemetry, name),
 	}
 
 	utils.AddAttacher(moduleName, name, ua)
@@ -657,7 +643,6 @@ func (ua *UprobeAttacher) shouldLogRegistryError(err error) bool {
 // handleProcessStart is called when a new process is started, wraps AttachPIDWithOptions but ignoring the error
 // for API compatibility with processMonitor
 func (ua *UprobeAttacher) handleProcessStart(pid uint32) {
-	ua.telemetry.eventsHandledProcess.Inc()
 	err := ua.AttachPIDWithOptions(pid, false) // Do not try to attach to libraries on process start, it hasn't loaded them yet
 	if ua.shouldLogRegistryError(err) {
 		log.Warnf("could not attach to process %d: %v", pid, err)
@@ -667,12 +652,10 @@ func (ua *UprobeAttacher) handleProcessStart(pid uint32) {
 // handleProcessExit is called when a process finishes, wraps DetachPID but ignoring the error
 // for API compatibility with processMonitor
 func (ua *UprobeAttacher) handleProcessExit(pid uint32) {
-	ua.telemetry.exitsHandled.Inc()
 	_ = ua.DetachPID(pid)
 }
 
 func (ua *UprobeAttacher) handleLibraryOpen(libpath sharedlibraries.LibPath) {
-	ua.telemetry.eventsHandledLibrary.Inc()
 	path := sharedlibraries.ToBytes(&libpath)
 
 	err := ua.AttachLibrary(string(path), libpath.Pid)
@@ -701,15 +684,7 @@ func (ua *UprobeAttacher) buildRegisterCallbacks(matchingRules []*AttachRule, pr
 }
 
 // AttachLibrary attaches the probes to the given library, opened by a given PID
-func (ua *UprobeAttacher) AttachLibrary(path string, pid uint32) (err error) {
-	defer func() {
-		if err != nil {
-			ua.telemetry.libraryAttachmentsFailure.Inc()
-		} else {
-			ua.telemetry.libraryAttachmentsSuccess.Inc()
-		}
-	}()
-
+func (ua *UprobeAttacher) AttachLibrary(path string, pid uint32) error {
 	if (ua.config.ExcludeTargets&ExcludeSelf) != 0 && int(pid) == os.Getpid() {
 		return ErrSelfExcluded
 	}
@@ -765,14 +740,7 @@ func (ua *UprobeAttacher) AttachPID(pid uint32) error {
 }
 
 // AttachPIDWithOptions attaches the corresponding probes to a given pid
-func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) (err error) {
-	defer func() {
-		if err != nil {
-			ua.telemetry.processAttachmentsFailure.Inc()
-		} else {
-			ua.telemetry.processAttachmentsSuccess.Inc()
-		}
-	}()
+func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) error {
 	if (ua.config.ExcludeTargets&ExcludeSelf) != 0 && int(pid) == os.Getpid() {
 		return ErrSelfExcluded
 	}
@@ -783,6 +751,7 @@ func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) (e
 	// (which are cheap, the handlesExecutables function is cached) than to do the syscall
 	// every time
 	var binPath string
+	var err error
 	if ua.handlesExecutables() || (ua.config.ExcludeTargets&ExcludeInternal) != 0 {
 		binPath, err = procInfo.Exe()
 		if err != nil {
@@ -880,9 +849,7 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 		return utils.NewUnknownAttachmentError(fmt.Errorf("error computing symbols to request for rules %+v: %w", matchingRules, err))
 	}
 
-	inspectStart := time.Now()
 	inspectResult, err := ua.inspector.Inspect(fpath, symbolsToRequest)
-	ua.telemetry.binaryInspectionNs.Observe(float64(time.Since(inspectStart).Nanoseconds()))
 	if err != nil {
 		return utils.NewUnknownAttachmentError(fmt.Errorf("error inspecting %s: %w", fpath.HostPath, err))
 	}
@@ -979,10 +946,8 @@ func (ua *UprobeAttacher) attachProbeSelector(selector manager.ProbesSelector, f
 				if !probe.IsRunning() {
 					err := probe.Attach()
 					if err != nil {
-						ua.telemetry.probeAttachErrorsAttachExisting.Inc()
 						return fmt.Errorf("cannot attach running probe %v: %w", newProbeID, err)
 					}
-					ua.telemetry.attachedProbes.Inc()
 				}
 				if ua.config.EnableDetailedLogging {
 					log.Debugf("Probe %v already attached to %s", newProbeID, fpath.HostPath)
@@ -998,11 +963,8 @@ func (ua *UprobeAttacher) attachProbeSelector(selector manager.ProbesSelector, f
 			}
 			err = ua.manager.AddHook("", newProbe)
 			if err != nil {
-				ua.telemetry.probeAttachErrorsAddHook.Inc()
 				return fmt.Errorf("error attaching probe %+v: %w", newProbe, err)
 			}
-			ua.telemetry.createdProbes.Inc()
-			ua.telemetry.attachedProbes.Inc()
 
 			ebpf.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, ua.name)
 			ua.fileIDToAttachedProbes[fpath.ID] = append(ua.fileIDToAttachedProbes[fpath.ID], newProbeID)
@@ -1024,7 +986,6 @@ func (ua *UprobeAttacher) attachProbeSelector(selector manager.ProbesSelector, f
 	manager, ok := ua.manager.(*manager.Manager)
 	if ok {
 		if err := selector.RunValidator(manager); err != nil {
-			ua.telemetry.probeAttachErrorsValidate.Inc()
 			return fmt.Errorf("error validating probes: %w", err)
 		}
 	}
