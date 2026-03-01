@@ -438,7 +438,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 
 		// Trigger throttled secret refresh based on secret_refresh_on_api_key_failure_interval on API key error
 		if secrets != nil {
-			_, _ = secrets.Refresh(false)
+			secrets.Refresh()
 		}
 
 		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
