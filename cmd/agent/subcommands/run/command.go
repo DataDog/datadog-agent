@@ -122,8 +122,8 @@ import (
 	healthplatformfx "github.com/DataDog/datadog-agent/comp/healthplatform/fx"
 	healthplatformimpl "github.com/DataDog/datadog-agent/comp/healthplatform/impl"
 	hostProfilerFlareFx "github.com/DataDog/datadog-agent/comp/host-profiler/flare/fx"
-	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client"
-	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl"
+	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client/def"
+	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/fx"
 	"github.com/DataDog/datadog-agent/comp/logs"
 	"github.com/DataDog/datadog-agent/comp/logs/adscheduler/adschedulerimpl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
@@ -279,7 +279,7 @@ func run(log log.Component,
 	logReceiver option.Option[integrations.Component],
 	_ netflowServer.Component,
 	_ snmptrapsServer.Component,
-	_ langDetectionCl.Component,
+	_ option.Option[langDetectionCl.Component],
 	_ internalAPI.Component,
 	_ packagesigning.Component,
 	_ systemprobemetadata.Component,
