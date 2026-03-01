@@ -12,6 +12,7 @@ import (
 	"math"
 	"net"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
@@ -54,6 +55,7 @@ var gatewayLookupTelemetry = struct {
 type gatewayLookup struct {
 	rootNetNs   netns.NsHandle
 	routeCache  RouteCache
+	subnetMu    sync.Mutex
 	subnetCache *simplelru.LRU[int, any] // interface index to subnet cache
 }
 
@@ -137,67 +139,96 @@ func (g *gatewayLookup) LookupWithIPs(source util.Address, dest util.Address, ne
 	}
 
 	gatewayLookupTelemetry.subnetCacheLookups.Inc()
+	g.subnetMu.Lock()
 	v, ok := g.subnetCache.Get(r.IfIndex)
-	if !ok {
-		gatewayLookupTelemetry.subnetCacheMisses.Inc()
-
-		via := &Via{}
-		err := netnsutil.WithNS(g.rootNetNs, func() error {
-			ifi, err := net.InterfaceByIndex(r.IfIndex)
-			if err != nil {
-				log.Debugf("error getting interface for interface index %d: %s", r.IfIndex, err)
-				// negative cache for 1 minute
-				g.subnetCache.Add(r.IfIndex, time.Now().Add(1*time.Minute))
-				gatewayLookupTelemetry.subnetCacheSize.Inc()
-				return err
-			}
-
-			if ifi.Flags&net.FlagLoopback != 0 {
-				// negative cache loopback interfaces
-				g.subnetCache.Add(r.IfIndex, nil)
-				gatewayLookupTelemetry.subnetCacheSize.Inc()
-				return err
-			}
-
-			via.Interface.HardwareAddr = ifi.HardwareAddr.String()
-
-			gatewayLookupTelemetry.subnetLookups.Inc()
-			if via.Subnet, err = SubnetForHwAddrFunc(ifi.HardwareAddr); err != nil {
-				log.Debugf("error getting subnet info for interface index %d: %s", r.IfIndex, err)
-
-				// cache an empty result so that we don't keep hitting the
-				// ec2 metadata endpoint for this interface
-				if os.IsTimeout(err) {
-					// retry after a minute if we timed out
-					g.subnetCache.Add(r.IfIndex, time.Now().Add(time.Minute))
-					gatewayLookupTelemetry.subnetLookupErrors.Inc("timeout")
-				} else {
-					g.subnetCache.Add(r.IfIndex, nil)
-					gatewayLookupTelemetry.subnetLookupErrors.Inc("general error")
-				}
-				gatewayLookupTelemetry.subnetCacheSize.Inc()
-				return err
-			}
-
-			return nil
-		})
-
-		if err != nil {
+	if ok {
+		if v == nil {
+			g.subnetMu.Unlock()
 			return nil
 		}
+		switch cv := v.(type) {
+		case time.Time:
+			if time.Now().After(cv) {
+				g.subnetCache.Remove(r.IfIndex)
+				gatewayLookupTelemetry.subnetCacheSize.Dec()
+			}
+			g.subnetMu.Unlock()
+			return nil
+		case *Via:
+			g.subnetMu.Unlock()
+			return cv
+		default:
+			g.subnetMu.Unlock()
+			return nil
+		}
+	}
+	gatewayLookupTelemetry.subnetCacheMisses.Inc()
+	g.subnetMu.Unlock()
 
-		g.subnetCache.Add(r.IfIndex, via)
-		gatewayLookupTelemetry.subnetCacheSize.Inc()
-		v = via
-	} else if v == nil {
+	via := &Via{}
+	err := netnsutil.WithNS(g.rootNetNs, func() error {
+		ifi, err := net.InterfaceByIndex(r.IfIndex)
+		if err != nil {
+			log.Debugf("error getting interface for interface index %d: %s", r.IfIndex, err)
+			// negative cache for 1 minute
+			g.subnetMu.Lock()
+			g.subnetCache.Add(r.IfIndex, time.Now().Add(1*time.Minute))
+			gatewayLookupTelemetry.subnetCacheSize.Inc()
+			g.subnetMu.Unlock()
+			return err
+		}
+
+		if ifi.Flags&net.FlagLoopback != 0 {
+			// negative cache loopback interfaces
+			g.subnetMu.Lock()
+			g.subnetCache.Add(r.IfIndex, nil)
+			gatewayLookupTelemetry.subnetCacheSize.Inc()
+			g.subnetMu.Unlock()
+			return err
+		}
+
+		via.Interface.HardwareAddr = ifi.HardwareAddr.String()
+
+		gatewayLookupTelemetry.subnetLookups.Inc()
+		if via.Subnet, err = SubnetForHwAddrFunc(ifi.HardwareAddr); err != nil {
+			log.Debugf("error getting subnet info for interface index %d: %s", r.IfIndex, err)
+
+			// cache an empty result so that we don't keep hitting the
+			// ec2 metadata endpoint for this interface
+			g.subnetMu.Lock()
+			if os.IsTimeout(err) {
+				// retry after a minute if we timed out
+				g.subnetCache.Add(r.IfIndex, time.Now().Add(time.Minute))
+				gatewayLookupTelemetry.subnetLookupErrors.Inc("timeout")
+			} else {
+				g.subnetCache.Add(r.IfIndex, nil)
+				gatewayLookupTelemetry.subnetLookupErrors.Inc("general error")
+			}
+			gatewayLookupTelemetry.subnetCacheSize.Inc()
+			g.subnetMu.Unlock()
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
 		return nil
 	}
+
+	g.subnetMu.Lock()
+	g.subnetCache.Add(r.IfIndex, via)
+	gatewayLookupTelemetry.subnetCacheSize.Inc()
+	g.subnetMu.Unlock()
+	v = via
 
 	switch cv := v.(type) {
 	case time.Time:
 		if time.Now().After(cv) {
+			g.subnetMu.Lock()
 			g.subnetCache.Remove(r.IfIndex)
 			gatewayLookupTelemetry.subnetCacheSize.Dec()
+			g.subnetMu.Unlock()
 		}
 		return nil
 	case *Via:
@@ -216,6 +247,8 @@ func (g *gatewayLookup) Close() {
 }
 
 func (g *gatewayLookup) purge() {
+	g.subnetMu.Lock()
+	defer g.subnetMu.Unlock()
 	g.subnetCache.Purge()
 	gatewayLookupTelemetry.subnetCacheSize.Set(0)
 }
