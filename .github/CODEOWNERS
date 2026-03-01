@@ -381,6 +381,7 @@
 /comp/haagent @DataDog/ndm-core
 /comp/healthplatform @DataDog/agent-health
 /comp/languagedetection/client @DataDog/container-platform
+/comp/logonduration @DataDog/windows-products
 /comp/networkdeviceconfig @DataDog/ndm-integrations
 /comp/notableevents @DataDog/windows-products
 /comp/privateactionrunner @DataDog/action-platform
