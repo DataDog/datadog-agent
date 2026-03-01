@@ -29,7 +29,7 @@ docker_image_build_otel:
     - cp comp/otelcol/collector-contrib/impl/manifest.yaml /tmp/otel-ci/
     - cp Dockerfiles/agent-ddot/Dockerfile.agent-otel /tmp/otel-ci/
     - cp test/integration/docker/otel_agent_build_tests.py /tmp/otel-ci/
-    - export OTELCOL_VERSION=v$(yq eval '.dist.version' /tmp/otel-ci/manifest.yaml)
+    - export OTELCOL_VERSION=$(yq eval '.processors[] | select(.gomod | test("opentelemetry-collector-contrib")) | .gomod' /tmp/otel-ci/manifest.yaml | head -1 | awk '{print $NF}')
     - >-
       yq eval -i
       '.receivers += [{"gomod": "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver " + env(OTELCOL_VERSION)}]'

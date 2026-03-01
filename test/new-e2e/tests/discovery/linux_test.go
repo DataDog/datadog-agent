@@ -44,6 +44,16 @@ var agentProcessConfigStr string
 //go:embed testdata/config/agent_process_disabled_config.yaml
 var agentProcessDisabledConfigStr string
 
+//go:embed testdata/config/system_probe_config_fallback.yaml
+var systemProbeConfigFallbackStr string
+
+type discoveryMode string
+
+const (
+	discoveryModeSdAgent     discoveryMode = "sd-agent"
+	discoveryModeSystemProbe discoveryMode = "system-probe"
+)
+
 type linuxTestSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
@@ -77,11 +87,19 @@ func (s *linuxTestSuite) SetupSuite() {
 }
 
 func (s *linuxTestSuite) TestProcessCheckWithServiceDiscovery() {
-	s.testProcessCheckWithServiceDiscovery(agentProcessConfigStr, systemProbeConfigStr)
+	for _, mode := range []discoveryMode{discoveryModeSdAgent, discoveryModeSystemProbe} {
+		s.Run(string(mode), func() {
+			s.testProcessCheckWithServiceDiscovery(agentProcessConfigStr, systemProbeConfigByMode[mode], mode)
+		})
+	}
 }
 
 func (s *linuxTestSuite) TestProcessCheckWithServiceDiscoveryProcessCollectionDisabled() {
-	s.testProcessCheckWithServiceDiscovery(agentProcessDisabledConfigStr, systemProbeConfigStr)
+	for _, mode := range []discoveryMode{discoveryModeSdAgent, discoveryModeSystemProbe} {
+		s.Run(string(mode), func() {
+			s.testProcessCheckWithServiceDiscovery(agentProcessDisabledConfigStr, systemProbeConfigByMode[mode], mode)
+		})
+	}
 }
 
 func (s *linuxTestSuite) TestProcessCheckWithServiceDiscoveryPrivilegedLogs() {
@@ -158,7 +176,7 @@ func (s *linuxTestSuite) dumpDebugInfo(t *testing.T) {
 	// This is very useful for debugging, but we probably don't want to decode
 	// and assert based on this in this E2E test since this is an internal
 	// interface between the agent and system-probe.
-	discoveredServices := s.Env().RemoteHost.MustExecute("sudo curl -s --unix /opt/datadog-agent/run/sysprobe.sock http://unix/discovery/debug")
+	discoveredServices := s.Env().RemoteHost.MustExecute("sudo curl -s --unix-socket /opt/datadog-agent/run/sysprobe.sock http://unix/discovery/debug")
 	t.Log("system-probe services", discoveredServices)
 
 	workloadmetaStore := s.Env().RemoteHost.MustExecute("sudo datadog-agent workload-list --verbose")
@@ -168,7 +186,7 @@ func (s *linuxTestSuite) dumpDebugInfo(t *testing.T) {
 	t.Log("agent status", status)
 }
 
-func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr string, systemProbeConfigStr string) {
+func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr string, systemProbeConfigStr string, mode discoveryMode) {
 	t := s.T()
 	s.startServices()
 	defer s.stopServices()
@@ -178,6 +196,7 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr str
 			agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
 	)),
 	)
+	s.validateDiscoveryMode(mode)
 	client := s.Env().FakeIntake.Client()
 	err := client.FlushServerAndResetAggregators()
 	require.NoError(t, err)
@@ -517,6 +536,27 @@ func matchingTracerMetadata(expectedTracerMetadata []*agentmodel.TracerMetadata,
 
 	diff := cmp.Diff(expectedTracerMetadata, actualTracerMetadata, cmpopts.EquateEmpty(), ignoreID, sortByName)
 	return diff == ""
+}
+
+var systemProbeConfigByMode = map[discoveryMode]string{
+	discoveryModeSdAgent:     systemProbeConfigStr,
+	discoveryModeSystemProbe: systemProbeConfigFallbackStr,
+}
+
+func (s *linuxTestSuite) validateDiscoveryMode(mode discoveryMode) {
+	ps := s.Env().RemoteHost.MustExecute("ps aux | grep -E '(system-probe|sd-agent)' | grep -v grep")
+	s.T().Logf("Process list:\n%s", ps)
+
+	// sd-agent execs into system-probe (process replacement), they don't run simultaneously
+	if mode == discoveryModeSdAgent {
+		// In sd-agent mode, sd-agent runs its own server (no exec)
+		require.Contains(s.T(), ps, "sd-agent", "sd-agent should be running in sd-agent mode")
+		s.T().Logf("Found sd-agent process (mode: %s)", mode)
+	} else if mode == discoveryModeSystemProbe {
+		// In system-probe mode, sd-agent exec'd into system-probe (replaced itself)
+		require.Contains(s.T(), ps, "system-probe", "system-probe should be running in system-probe mode")
+		s.T().Logf("Found system-probe process (mode: %s)", mode)
+	}
 }
 
 func (s *linuxTestSuite) provisionServer() {

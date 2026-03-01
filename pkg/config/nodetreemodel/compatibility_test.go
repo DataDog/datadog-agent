@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -450,7 +450,7 @@ log:
 	t.Run("Includes unknown YAML keys", func(t *testing.T) {
 		dataYaml := `
 port: 8080
-host: 
+host:
 customKey1:
 customKey2: unused
 `

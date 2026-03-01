@@ -234,6 +234,7 @@ variables:
   FF_KUBERNETES_HONOR_ENTRYPOINT: true # Honor the entrypoint in the Docker image when running Kubernetes jobs
   FF_TIMESTAMPS: true
   FF_USE_FASTZIP: true
+  FF_USE_WINDOWS_JOB_OBJECT: true # Prevent orphaned processes from holding file handles, see https://gitlab.com/gitlab-org/gitlab-runner/-/merge_requests/4525
   CACHE_COMPRESSION_LEVEL: slowest
   # Force python to print to stdout immediately, otherwise gitlab sections might not be displayed properly and we can miss some logs
   PYTHONUNBUFFERED: 1
@@ -1106,6 +1107,16 @@ workflow:
       paths:
         - test/new-e2e/tests/windows/windows-certificate/**/*
         - pkg/collector/corechecks/system/windowscertificate/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+.on_windows_fips_compliance_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - <<: *on_build_changes
+    when: on_success
+  - changes:
+      paths:
+        - test/new-e2e/tests/fips-compliance/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
