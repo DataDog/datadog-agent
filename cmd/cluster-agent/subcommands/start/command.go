@@ -583,7 +583,7 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("private_action_runner.enabled") {
-		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform)
+		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, wmeta, tracerouteComp, eventPlatform)
 		if err != nil {
 			log.Errorf("Cannot start private action runner: %v", err)
 		} else {
@@ -720,6 +720,7 @@ func startPrivateActionRunner(
 	le *leaderelection.LeaderEngine,
 	log log.Component,
 	tagger tagger.Component,
+	wmeta workloadmeta.Component,
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
 ) (func(), error) {
@@ -730,7 +731,7 @@ func startPrivateActionRunner(
 		return nil, errors.New("leader election is not enabled on the Cluster Agent. The private action runner needs leader election for identity coordination across replicas")
 	}
 	le.StartLeaderElectionRun()
-	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform)
+	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, wmeta, tracerouteComp, eventPlatform)
 	if err != nil {
 		return nil, err
 	}
