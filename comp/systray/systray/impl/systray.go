@@ -25,15 +25,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/systray/systray"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	systray "github.com/DataDog/datadog-agent/comp/systray/systray/def"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/lxn/walk"
 	"github.com/lxn/win"
-	"go.uber.org/fx"
 	"golang.org/x/sys/windows"
 )
 
@@ -41,17 +40,10 @@ var (
 	procLoadImageW = moduser32.NewProc("LoadImageW")
 )
 
-// Module for ddtray
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newSystray))
-}
-
-type dependencies struct {
-	fx.In
-
-	Lc         fx.Lifecycle
-	Shutdowner fx.Shutdowner
+// Requires defines the dependencies for the systray component
+type Requires struct {
+	Lifecycle  compdef.Lifecycle
+	Shutdowner compdef.Shutdowner
 
 	Log      log.Component
 	Config   config.Component
@@ -61,9 +53,14 @@ type dependencies struct {
 	Client   ipc.HTTPClient
 }
 
+// Provides defines the output of the systray component
+type Provides struct {
+	Comp systray.Component
+}
+
 type systrayImpl struct {
 	// For triggering Shutdown
-	shutdowner fx.Shutdowner
+	shutdowner compdef.Shutdowner
 
 	log      log.Component
 	config   config.Component
@@ -114,33 +111,33 @@ var (
 	}
 )
 
-// newSystray creates a new systray component, which will start and stop based on
+// NewComponent creates a new systray component, which will start and stop based on
 // the fx Lifecycle
-func newSystray(deps dependencies) (systray.Component, error) {
+func NewComponent(reqs Requires) (Provides, error) {
 	// init vars
 	isAdmin, err := winutil.IsUserAnAdmin()
 	if err != nil {
-		return nil, fmt.Errorf("failed to call IsUserAnAdmin %v", err)
+		return Provides{}, fmt.Errorf("failed to call IsUserAnAdmin %v", err)
 	}
 	if !isAdmin {
-		return nil, errors.New("not running as an admin, systray requires administrative privileges")
+		return Provides{}, errors.New("not running as an admin, systray requires administrative privileges")
 	}
 
 	// fx init
 	s := &systrayImpl{
-		log:        deps.Log,
-		config:     deps.Config,
-		flare:      deps.Flare,
-		diagnose:   deps.Diagnose,
-		params:     deps.Params,
-		client:     deps.Client,
-		shutdowner: deps.Shutdowner,
+		log:        reqs.Log,
+		config:     reqs.Config,
+		flare:      reqs.Flare,
+		diagnose:   reqs.Diagnose,
+		params:     reqs.Params,
+		client:     reqs.Client,
+		shutdowner: reqs.Shutdowner,
 	}
 
 	// fx lifecycle hooks
-	deps.Lc.Append(fx.Hook{OnStart: s.start, OnStop: s.stop})
+	reqs.Lifecycle.Append(compdef.Hook{OnStart: s.start, OnStop: s.stop})
 
-	return s, nil
+	return Provides{Comp: s}, nil
 }
 
 // start hook has a fx enforced timeout, so don't do long running things
