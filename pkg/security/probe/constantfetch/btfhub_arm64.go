@@ -10,5 +10,5 @@ package constantfetch
 
 import _ "embed" // for go:embed
 
-//go:embed btfhub/constants_arm64.json
+//go:embed btfhub/constants_arm64.json.gz
 var btfhubConstants []byte
