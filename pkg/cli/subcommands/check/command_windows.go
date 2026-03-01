@@ -8,8 +8,8 @@
 package check
 
 import (
-	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog"
-	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl"
+	windowseventlog "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/def"
+	windowseventlogfx "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/fx"
 	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
 	winregistryimpl "github.com/DataDog/datadog-agent/comp/checks/winregistry/impl"
 	publishermetadatacachefx "github.com/DataDog/datadog-agent/comp/publishermetadatacache/fx"
@@ -18,7 +18,7 @@ import (
 
 func getPlatformModules() fx.Option {
 	return fx.Options(
-		windowseventlogimpl.Module(),
+		windowseventlogfx.Module(),
 		fx.Invoke(func(_ windowseventlog.Component) {}),
 		winregistryimpl.Module(),
 		fx.Invoke(func(_ winregistry.Component) {}),
