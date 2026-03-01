@@ -278,8 +278,10 @@ func (r *Runner) ShouldAddCheckStats(id checkid.ID) bool {
 	r.schedulerLock.RLock()
 	defer r.schedulerLock.RUnlock()
 
-	sc := r.getScheduler()
-	if sc == nil || sc.IsCheckScheduled(id) {
+	// Access r.scheduler directly; calling getScheduler() here would try to
+	// acquire schedulerLock.RLock() a second time on the same goroutine, which
+	// deadlocks when a writer is waiting for the lock.
+	if r.scheduler == nil || r.scheduler.IsCheckScheduled(id) {
 		return true
 	}
 
