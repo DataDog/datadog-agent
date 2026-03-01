@@ -407,3 +407,15 @@ http_archive(
         "https://www.openssl.org/source/openssl-3.0.9.tar.gz",
     ],
 )
+
+http_archive(
+    name = "systemd",
+    files = {
+        "BUILD.bazel": "//deps:systemd/systemd.BUILD.bazel",
+    },
+    sha256 = "acbd86d42ebc2b443722cb469ad215a140f504689c7a9133ecf91b235275a491",
+    strip_prefix = "systemd-253",
+    urls = [
+        "https://github.com/systemd/systemd/archive/refs/tags/v253.tar.gz",
+    ],
+)
