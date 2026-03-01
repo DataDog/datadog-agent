@@ -31,6 +31,27 @@ func TestFleetUpgrade(t *testing.T) {
 	suite.Run(t, newUpgradeSuite, suite.AllPlatforms)
 }
 
+func (s *upgradeSuite) TestUpgrade() {
+	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
+	defer s.Agent.MustUninstall()
+
+	targetVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
+	originalVersion, err := s.Agent.Version()
+	s.Require().NoError(err)
+
+	err = s.Backend.StartExperiment("datadog-agent", targetVersion)
+	s.Require().NoError(err)
+	version, err := s.Agent.Version()
+	s.Require().NoError(err)
+	s.Require().NotEqual(originalVersion, version)
+	err = s.Backend.PromoteExperiment("datadog-agent")
+	s.Require().NoError(err)
+
+	version, err = s.Agent.Version()
+	s.Require().NoError(err)
+	s.Require().Equal(targetVersion, version)
+}
+
 func (s *upgradeSuite) TestUpgradeFailureTimeout() {
 	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
 	defer s.Agent.MustUninstall()
