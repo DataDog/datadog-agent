@@ -26,6 +26,7 @@ def build(ctx):
     env = {"GO111MODULE": "on"}
     build_tags = get_default_build_tags(build="full-host-profiler")
     ldflags = get_version_ldflags(ctx)
+    ldflags += "-extldflags='-static'"
     if os.environ.get("DELVE"):
         gcflags = "all=-N -l"
     else:
