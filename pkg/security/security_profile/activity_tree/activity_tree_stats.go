@@ -10,10 +10,10 @@ package activitytree
 
 import (
 	"fmt"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -30,41 +30,18 @@ type Stats struct {
 	FlowNodes       int64
 	CapabilityNodes int64
 
-	counts map[model.EventType]*statsPerEventType
+	counts [model.MaxKernelEventType]statsPerEventType
 }
 
 type statsPerEventType struct {
-	processedCount *atomic.Uint64
-	addedCount     map[NodeGenerationType]*atomic.Uint64
-	droppedCount   map[NodeDroppedReason]*atomic.Uint64
+	processedCount atomic.Uint64
+	addedCount     [MaxNodeGenerationType + 1]atomic.Uint64
+	droppedCount   [nodeDroppedReasonCount]atomic.Uint64
 }
 
 // NewActivityTreeNodeStats returns a new activity tree stats
 func NewActivityTreeNodeStats() *Stats {
-	ats := &Stats{
-		counts: make(map[model.EventType]*statsPerEventType),
-	}
-
-	// generate counters
-	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
-		spet := &statsPerEventType{
-			processedCount: atomic.NewUint64(0),
-			addedCount: map[NodeGenerationType]*atomic.Uint64{
-				Unknown:        atomic.NewUint64(0),
-				Runtime:        atomic.NewUint64(0),
-				Snapshot:       atomic.NewUint64(0),
-				ProfileDrift:   atomic.NewUint64(0),
-				WorkloadWarmup: atomic.NewUint64(0),
-			},
-			droppedCount: make(map[NodeDroppedReason]*atomic.Uint64),
-		}
-
-		for reason := minNodeDroppedReason; reason <= maxNodeDroppedReason; reason++ {
-			spet.droppedCount[reason] = atomic.NewUint64(0)
-		}
-		ats.counts[i] = spet
-	}
-	return ats
+	return &Stats{}
 }
 
 // ApproximateSize returns an approximation of the size of the tree
@@ -86,7 +63,8 @@ func (stats *Stats) SendStats(client statsd.ClientInterface, treeType string) er
 	treeTypeTag := "tree_type:" + treeType
 
 	tags := []string{treeTypeTag, "", ""}
-	for evtType, count := range stats.counts {
+	for evtType := model.EventType(0); evtType < model.MaxKernelEventType; evtType++ {
+		count := &stats.counts[evtType]
 		evtTypeTag := "event_type:" + evtType.String()
 
 		tags[1] = evtTypeTag
@@ -96,18 +74,18 @@ func (stats *Stats) SendStats(client statsd.ClientInterface, treeType string) er
 			}
 		}
 
-		for generationType, count := range count.addedCount {
+		for generationType := NodeGenerationType(0); generationType <= MaxNodeGenerationType; generationType++ {
 			tags[2] = generationType.Tag()
-			if value := count.Swap(0); value > 0 {
+			if value := count.addedCount[generationType].Swap(0); value > 0 {
 				if err := client.Count(metrics.MetricActivityDumpEventAdded, int64(value), tags, 1.0); err != nil {
 					return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventAdded, err)
 				}
 			}
 		}
 
-		for reason, count := range count.droppedCount {
+		for reason := minNodeDroppedReason; reason <= maxNodeDroppedReason; reason++ {
 			tags[2] = reason.Tag()
-			if value := count.Swap(0); value > 0 {
+			if value := count.droppedCount[reason].Swap(0); value > 0 {
 				if err := client.Count(metrics.MetricActivityDumpEventDropped, int64(value), tags, 1.0); err != nil {
 					return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventDropped, err)
 				}
