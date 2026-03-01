@@ -74,7 +74,7 @@ def _build_single_binary(ctx, pkg, build_tags, output_path, print_lock):
         binary_path = output_path / binary_name
 
         # Build test binary
-        cmd = f"orchestrion go test -c -tags '{build_tags}' -ldflags='-w -s -X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={get_commit_sha(ctx, short=True)}' -o {binary_path} ./{pkg}"
+        cmd = f"go test -c -tags '{build_tags}' -ldflags='-w -s -X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={get_commit_sha(ctx, short=True)}' -o {binary_path} ./{pkg}"
 
         result = ctx.run(cmd, hide=True)
         if result.ok:
