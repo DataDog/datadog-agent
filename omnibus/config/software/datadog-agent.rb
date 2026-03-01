@@ -80,13 +80,27 @@ build do
     end
     command "dda inv -- -e rtloader.clean", :live_stream => Omnibus.logger.live_stream(:info)
     command "dda inv -- -e rtloader.make --install-prefix \"#{windows_safe_path(python_3_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\" \\\"-DPython3_EXECUTABLE=#{windows_safe_path(python_3_embedded)}\\python.exe\\\" \\\"-DCMAKE_BUILD_TYPE=RelWithDebInfo\\\"\"", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
-    command "mv rtloader/bin/*.dll  #{install_dir}/bin/agent/"
+    
+    # For lite flavor, save Python components as separate artifacts
+    if ENV['AGENT_FLAVOR'] == 'lite'
+      mkdir "#{install_dir}/python-runtime"
+      copy "rtloader/bin/*", "#{install_dir}/python-runtime/"
+    else
+      command "mv rtloader/bin/*.dll  #{install_dir}/bin/agent/"
+    end
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     command "dda inv -- -e systray.build", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   else
     command "dda inv -- -e rtloader.clean", :live_stream => Omnibus.logger.live_stream(:info)
     command "dda inv -- -e rtloader.make --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER -DPython3_EXECUTABLE=#{install_dir}/embedded/bin/python3'", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
-    command "dda inv -- -e rtloader.install", :live_stream => Omnibus.logger.live_stream(:info)
+    
+    # For lite flavor, save Python runtime as separate artifact
+    if ENV['AGENT_FLAVOR'] == 'lite'
+      mkdir "#{install_dir}/python-runtime"
+      command "dda inv -- -e rtloader.install --install-prefix \"#{install_dir}/python-runtime\"", :live_stream => Omnibus.logger.live_stream(:info)
+    else
+      command "dda inv -- -e rtloader.install", :live_stream => Omnibus.logger.live_stream(:info)
+    end
 
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   end
@@ -307,10 +321,21 @@ build do
 
   block do
     python_scripts_dir = "#{project_dir}/omnibus/python-scripts"
-    mkdir "#{install_dir}/python-scripts"
-    Dir.glob("#{python_scripts_dir}/*").each do |file|
-      unless File.basename(file).end_with?('_tests.py')
-        copy file, "#{install_dir}/python-scripts"
+    
+    # For lite flavor, put Python scripts with Python runtime artifacts
+    if ENV['AGENT_FLAVOR'] == 'lite'
+      mkdir "#{install_dir}/python-runtime/scripts"
+      Dir.glob("#{python_scripts_dir}/*").each do |file|
+        unless File.basename(file).end_with?('_tests.py')
+          copy file, "#{install_dir}/python-runtime/scripts"
+        end
+      end
+    else
+      mkdir "#{install_dir}/python-scripts"
+      Dir.glob("#{python_scripts_dir}/*").each do |file|
+        unless File.basename(file).end_with?('_tests.py')
+          copy file, "#{install_dir}/python-scripts"
+        end
       end
     end
   end
