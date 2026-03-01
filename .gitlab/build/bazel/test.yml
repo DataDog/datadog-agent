@@ -26,6 +26,10 @@ bazel:test:macos-arm64:
 
 bazel:test:windows-amd64:
   extends: [ .bazel:test, .bazel:runner:windows-amd64 ]
+  rules:
+    - if: $SKIP_WINDOWS == "true"
+      when: never
+    - !reference [.bazel:test, rules]
   variables:
     POWERSHELL_SCRIPT: |-
       bazel test //bazel/tests/...
