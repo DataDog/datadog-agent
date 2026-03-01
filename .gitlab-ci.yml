@@ -369,6 +369,7 @@ variables:
   changes:
     paths:
       - omnibus/**/*
+      - pkg/config/config_template.yaml
     compare_to: $COMPARE_TO_BRANCH
 
 #
