@@ -6,6 +6,7 @@
 package kubernetes
 
 import (
+	_ "embed"
 	"regexp"
 	"strings"
 
@@ -18,6 +19,9 @@ import (
 	oscomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 )
+
+//go:embed openshift-control-plane-checks.sh
+var OpenShiftControlPlaneChecksScriptContent string
 
 func NewLocalOpenShiftCluster(env config.Env, name string, pullSecretPath string, opts ...pulumi.ResourceOption) (*Cluster, error) {
 	return components.NewComponent(env, name, func(clusterComp *Cluster) error {
@@ -65,11 +69,7 @@ func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, pullSecre
 		runner := vm.OS.Runner()
 		commonEnvironment := env
 
-		openShiftInstallBinary, err := InstallOpenShiftBinary(env, vm, opts...)
-		if err != nil {
-			return err
-		}
-
+		// Read and copy the pull secret file to the VM
 		pullSecretContent, err := utils.ReadSecretFile(pullSecretPath)
 		if err != nil {
 			return err
@@ -82,24 +82,30 @@ func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, pullSecre
 			return err
 		}
 
-		installLibvirt, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("install-libvirt"), &command.Args{
+		// Install crc dependencies and the crc binary
+		installCRCDependencies, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("install-libvirt"), &command.Args{
 			Create: pulumi.String(`
 		sudo dnf install -y libvirt NetworkManager`),
-		}, utils.MergeOptions(opts, utils.PulumiDependsOn(openShiftInstallBinary))...)
+		}, opts...)
 		if err != nil {
 			return err
 		}
+		installCRC, err := InstallCRCBinary(env, vm, utils.MergeOptions(opts, utils.PulumiDependsOn(installCRCDependencies))...)
+		if err != nil {
+			return err
+		}
+
 		// To avoid the crc-daemon.service being stopped when the user session ends, we enable linger for the user
 		enableLinger, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("enable-linger"), &command.Args{
 			Create: pulumi.String("loginctl enable-linger"),
-		}, utils.MergeOptions(opts, utils.PulumiDependsOn(installLibvirt))...)
+		}, utils.MergeOptions(opts, utils.PulumiDependsOn(installCRCDependencies))...)
 		if err != nil {
 			return err
 		}
 
 		setupCRC, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("crc-setup"), &command.Args{
-			Create: pulumi.String("crc config set disk-size 100 && crc config set cpus 6 && crc config set memory 16384 && crc setup"),
-		}, utils.MergeOptions(opts, utils.PulumiDependsOn(pullSecretFile, enableLinger))...)
+			Create: pulumi.String("crc config set preset microshift && crc config set disk-size 100 && crc config set cpus 6 && crc config set memory 16384 && crc setup"),
+		}, utils.MergeOptions(opts, utils.PulumiDependsOn(pullSecretFile, enableLinger, installCRC))...)
 		if err != nil {
 			return err
 		}
@@ -114,6 +120,7 @@ func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, pullSecre
 		if err != nil {
 			return err
 		}
+
 		socatInstall, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("install-socat"), &command.Args{
 			Create: pulumi.String("sudo dnf install -y socat"),
 		}, utils.MergeOptions(opts, utils.PulumiDependsOn(startCRC))...)
@@ -132,57 +139,14 @@ func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, pullSecre
 
 		kubeConfig, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("get-kubeconfig"), &command.Args{
 			Create: pulumi.String("cat ~/.crc/machines/crc/kubeconfig"),
-		}, utils.MergeOptions(opts, utils.PulumiDependsOn(socatForwarding))...)
+		}, utils.MergeOptions(opts, utils.PulumiDependsOn(startCRC, socatForwarding))...)
 		if err != nil {
 			return err
 		}
 
 		// Wait for the control plane to be fully ready before proceeding
 		waitControlPlane, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("wait-control-plane-ready"), &command.Args{
-			Create: pulumi.String(`
-# Wait for API server to be responsive
-for i in {1..30}; do
-  if curl -sk https://127.0.0.1:6443/healthz 2>/dev/null | grep -q ok; then
-    echo "API server responsive"
-    break
-  fi
-  echo "Waiting for API server (attempt $i/30)..."
-  sleep 10
-done
-
-export KUBECONFIG=~/.crc/machines/crc/kubeconfig
-
-# Wait for nodes to be ready
-echo "Waiting for nodes to be Ready..."
-for i in {1..60}; do
-  ready_nodes=$(kubectl get nodes --no-headers 2>/dev/null | grep -c ' Ready ')
-  if [ "$ready_nodes" -gt 0 ]; then
-    echo "Found $ready_nodes Ready nodes"
-    break
-  fi
-  echo "Waiting for nodes (attempt $i/60)..."
-  sleep 5
-done
-
-# Wait for some system pods to be running
-echo "Waiting for system pods to be running..."
-for namespace in openshift-kube-apiserver openshift-kube-controller-manager; do
-  for i in {1..60}; do
-    running_pods=$(kubectl get pods -n "$namespace" --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l)
-    if [ "$running_pods" -gt 0 ]; then
-      echo "Namespace $namespace has $running_pods running pod(s)"
-      break
-    fi
-    if [ $i -lt 60 ]; then
-      echo "Waiting for $namespace pods (attempt $i/60)..."
-      sleep 5
-    fi
-  done
-done
-
-echo "Control plane is ready"
-exit 0
-`),
+			Create: pulumi.String(OpenShiftControlPlaneChecksScriptContent),
 		}, utils.MergeOptions(opts, utils.PulumiDependsOn(kubeConfig))...)
 		if err != nil {
 			return err
@@ -201,7 +165,7 @@ exit 0
 	}, opts...)
 }
 
-func InstallOpenShiftBinary(env config.Env, vm *remote.Host, opts ...pulumi.ResourceOption) (pulumi.Resource, error) {
+func InstallCRCBinary(env config.Env, vm *remote.Host, opts ...pulumi.ResourceOption) (pulumi.Resource, error) {
 	openShiftArch := vm.OS.Descriptor().Architecture
 	if openShiftArch == oscomp.AMD64Arch {
 		openShiftArch = "amd64"
