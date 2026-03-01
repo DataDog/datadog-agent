@@ -1751,41 +1751,40 @@ api_key:
 
 #   # @param process_collection - custom object - optional
 #   # Specifies settings for collecting processes.
+#
 #   process_collection:
+
 #     # @param enabled - boolean - optional - default: false
+#     # @env DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED - boolean - optional - default: false
 #     # Enables collection of information about running processes.
+#
 #     enabled: false
 
 #   # @param container_collection - custom object - optional
 #   # Specifies settings for collecting containers.
+#
 #   container_collection:
+
 #     # @param enabled - boolean - optional - default: true
+#     # @env DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED - boolean - optional - default: true
 #     # Enables collection of information about running containers.
+#
 #     enabled: true
 
-#   # Deprecated - use `process_collection.enabled` and `container_collection.enabled` instead
-#   # @param enabled - string - optional - default: "false"
-#   # @env DD_PROCESS_CONFIG_ENABLED - string - optional - default: "false"
-#   #  A string indicating the enabled state of the Process Agent:
-#   #    * "false"    : The Agent collects only containers information.
-#   #    * "true"     : The Agent collects containers and processes information.
-#   #    * "disabled" : The Agent process collection is disabled.
-#
-#   enabled: "true"
-
-#   # @param expvar_port - string - optional - default: 6062
-#   # @env DD_PROCESS_CONFIG_EXPVAR_PORT - string - optional - default: 6062
+#   # @param expvar_port - integer - optional - default: 6062
+#   # @env DD_PROCESS_CONFIG_EXPVAR_PORT - integer - optional - default: 6062
 #   # Port for the debug endpoints for the process Agent.
 #
 #   expvar_port: 6062
 
-#   # @param cmd_port - string - optional - default: 6162
+#   # @param cmd_port - integer - optional - default: 6162
+#   # @env DD_PROCESS_CONFIG_CMD_PORT - integer - optional - default: 6162
 #   # Port for configuring runtime settings for the process Agent.
 #
 #   cmd_port: 6162
 
-#   # @param log_file - string - optional
-#   # @env DD_PROCESS_CONFIG_LOG_FILE - string - optional
+#   # @param log_file - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/process-agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\process-agent.log"{{else}}"/opt/datadog-agent/logs/process-agent.log"{{ end }}
+#   # @env DD_PROCESS_CONFIG_LOG_FILE - string - optional - default: {{ if (eq .OS "linux") }}"/var/log/datadog/process-agent.log"{{ else if ((eq .OS "windows")) }}"c:\\programdata\\datadog\\logs\\process-agent.log"{{else}}"/opt/datadog-agent/logs/process-agent.log"{{ end }}
 #   # The full path to the file where process Agent logs are written.
 #
 #   log_file: <PROCESS_LOG_FILE_PATH>
@@ -1799,24 +1798,47 @@ api_key:
 #   # behavior between real-time, set the `container_realtime` and `process_realtime` intervals to 10.
 #
 #   intervals:
+
+#     # @param container - integer - optional - default: 10
+#     # @env DD_PROCESS_CONFIG_INTERVALS_CONTAINER - integer - optional - default: 10
+#
 #     container: 10
+
+#     # @param container_realtime - integer - optional - default: 2
+#     # @env DD_PROCESS_CONFIG_INTERVALS_CONTAINER_REALTIME - integer - optional - default: 2
+#
 #     container_realtime: 2
+
+#     # @param process - integer - optional - default: 10
+#     # @env DD_PROCESS_CONFIG_INTERVALS_PROCESS - integer - optional - default: 10
+#
 #     process: 10
+
+#     # @param process_realtime - integer - optional - default: 2
+#     # @env DD_PROCESS_CONFIG_INTERVALS_PROCESS_REALTIME - integer - optional - default: 2
+#
 #     process_realtime: 2
 
 #   # @param process_discovery - custom object - optional
 #   # Specifies custom settings for the `process_discovery` object.
+#
 #   process_discovery:
+
 #     # @param enabled - boolean - optional - default: true
+#     # @env DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED - boolean - optional - default: true
+#     # @env DD_PROCESS_CONFIG_DISCOVERY_ENABLED - boolean - optional - default: true
 #     # Toggles the `process_discovery` check. If enabled, this check gathers information about running integrations.
+#
 #     enabled: true
 
-#     # @param interval - duration - optional - default: 4h - minimum: 10m
-#     # An interval in hours that specifies how often the process discovery check should run.
+#     # @param interval - duration - optional - default: "4h0m0s"
+#     # @env DD_PROCESS_CONFIG_PROCESS_DISCOVERY_INTERVAL - duration - optional - default: "4h0m0s"
+#     # An interval in hours that specifies how often the process discovery check should run (minimum is 10min).
+#
 #     interval: 4h
 
-#   # @param blacklist_patterns - list of strings - optional
-#   # @env DD_PROCESS_CONFIG_BLACKLIST_PATTERNS - space separated list of strings - optional
+#   # @param blacklist_patterns - list of strings - optional - default: []
+#   # @env DD_PROCESS_CONFIG_BLACKLIST_PATTERNS - space separated list of strings - optional - default: []
 #   # A list of regex patterns that exclude processes if matched.
 #
 #   blacklist_patterns:
@@ -1846,10 +1868,10 @@ api_key:
 #
 #   max_per_message: 100
 
-#   # @param dd_agent_bin - string - optional
-#   # @env DD_PROCESS_CONFIG_DD_AGENT_BIN - string - optional
+#   # @param dd_agent_bin - string - optional - default: {{ if ((eq .OS "windows")) }}"c:\\program files\\datadog\\datadog agent\\bin\\agent.exe"{{else}}"/opt/datadog-agent/bin/agent/agent"{{ end }}
+#   # @env DD_PROCESS_CONFIG_DD_AGENT_BIN - string - optional - default: {{ if ((eq .OS "windows")) }}"c:\\program files\\datadog\\datadog agent\\bin\\agent.exe"{{else}}"/opt/datadog-agent/bin/agent/agent"{{ end }}
 #   # Overrides the path to the Agent bin used for getting the hostname. Defaults are:
-#   #   * Windows: <AGENT_DIRECTORY>\embedded\\agent.exe
+#   #   * Windows: <AGENT_DIRECTORY>\\embedded\\agent.exe
 #   #   * Unix: /opt/datadog-agent/bin/agent/agent
 #
 #   dd_agent_bin: <AGENT_BIN_PATH>
@@ -1861,13 +1883,15 @@ api_key:
 #   dd_agent_env: ""
 
 #   # @param scrub_args - boolean - optional - default: true
+#   # @env DD_SCRUB_ARGS - boolean - optional - default: true
 #   # @env DD_PROCESS_CONFIG_SCRUB_ARGS - boolean - optional - default: true
 #   # Hide sensitive data on the Live Processes page.
 #
 #   scrub_args: true
 
-#   # @param custom_sensitive_words - list of strings - optional
-#   # @env DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS - space separated list of strings - optional
+#   # @param custom_sensitive_words - list of strings - optional - default: []
+#   # @env DD_CUSTOM_SENSITIVE_WORDS - space separated list of strings - optional - default: []
+#   # @env DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS - space separated list of strings - optional - default: []
 #   # Define your own list of sensitive data to be merged with the default one.
 #   # Read more on Datadog documentation:
 #   # https://docs.datadoghq.com/graphing/infrastructure/process/#process-arguments-scrubbing
@@ -1879,7 +1903,7 @@ api_key:
 #     - '*pass*d*'
 
 #   # @param disable_realtime_checks - boolean - optional - default: false
-#   # @env DD_PROCESS_CONFIG_DISABLE_REALTIME - boolean - optional - default: false
+#   # @env DD_PROCESS_CONFIG_DISABLE_REALTIME_CHECKS - boolean - optional - default: false
 #   # Disable realtime process and container checks
 #
 #   disable_realtime_checks: false
