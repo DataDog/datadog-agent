@@ -86,6 +86,15 @@ func (v *ssiSuite) TestInjectionMode() {
 								"admission.datadoghq.com/apm-inject.injection-mode": "init_container",
 							},
 						},
+						{
+							Name:    "injection-mode-app-image-volume",
+							Image:   "registry.datadoghq.com/injector-dev/python",
+							Version: "16ad9d4b",
+							Port:    8080,
+							PodAnnotations: map[string]string{
+								"admission.datadoghq.com/apm-inject.injection-mode": "image_volume",
+							},
+						},
 					},
 				},
 			}, dependsOnAgent)
@@ -98,6 +107,7 @@ func (v *ssiSuite) TestInjectionMode() {
 	}{
 		{"injection-mode-app-csi", testutils.InjectionModeCSI},
 		{"injection-mode-app-init-container", testutils.InjectionModeInitContainer},
+		{"injection-mode-app-image-volume", testutils.InjectionModeImageVolume},
 	}
 
 	k8s := v.Env().KubernetesCluster.Client()

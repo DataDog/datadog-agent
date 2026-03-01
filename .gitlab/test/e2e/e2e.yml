@@ -1151,6 +1151,13 @@ new-e2e-ssi:
   variables:
     TARGETS: ./tests/ssi
     TEAM: injection-platform
+  parallel:
+    matrix:
+      # TestInjectionModeSuite includes the image_volume injection mode, which requires image volume
+      # SubPath support. Kind's kindest/node:v1.34 ships with a containerd version that lacks this,
+      # so we run this suite on v1.35 where it works out of the box.
+      - EXTRA_PARAMS: "--run TestInjectionModeSuite -c ddinfra:kubernetesVersion=1.35"
+      - EXTRA_PARAMS: "--skip TestInjectionModeSuite"
 
 .new-e2e_package_signing:
   variables:
