@@ -68,6 +68,7 @@ var _ size.HasSizeInBytes = &Context{}
 type contextResolver struct {
 	id               string
 	contextsByKey    map[ckey.ContextKey]resolverEntry
+	contextsCap      int
 	seendByMtype     []bool
 	countsByMtype    []uint64
 	bytesByMtype     []uint64
@@ -88,6 +89,7 @@ func newContextResolver(tagger tagger.Component, cache *tags.Store, id string) *
 	return &contextResolver{
 		id:               id,
 		contextsByKey:    make(map[ckey.ContextKey]resolverEntry),
+		contextsCap:      0,
 		seendByMtype:     make([]bool, metrics.NumMetricTypes),
 		countsByMtype:    make([]uint64, metrics.NumMetricTypes),
 		bytesByMtype:     make([]uint64, metrics.NumMetricTypes),
@@ -134,6 +136,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 			lastSeen: timestamp,
 			context:  context,
 		}
+		cr.contextsCap++
 
 		cr.seendByMtype[mtype] = true
 		cr.countsByMtype[mtype]++
@@ -191,6 +194,22 @@ func (cr *contextResolver) updateMetrics(countsByMTypeGauge telemetry.Gauge, byt
 func (cr *contextResolver) release() {
 	for _, c := range cr.contextsByKey {
 		c.context.release()
+	}
+}
+
+// shrink reduces the map capacity if it has dropped significantly below
+// the peak capacity, similar to tags.Store.Shrink(). This reclaims memory
+// after contexts expire.
+func (cr *contextResolver) shrink() {
+	currentSize := len(cr.contextsByKey)
+	// If the map has shrunk to less than half its capacity, reallocate with the current size
+	if currentSize < cr.contextsCap/2 && cr.contextsCap > 0 {
+		newMap := make(map[ckey.ContextKey]resolverEntry, currentSize)
+		for k, v := range cr.contextsByKey {
+			newMap[k] = v
+		}
+		cr.contextsByKey = newMap
+		cr.contextsCap = currentSize
 	}
 }
 
@@ -271,6 +290,8 @@ func (cr *timestampContextResolver) expireContexts(timestamp int64) {
 			cr.resolver.remove(ck)
 		}
 	}
+	// Shrink the map if it has dropped significantly below peak capacity
+	cr.resolver.shrink()
 }
 
 func (cr *timestampContextResolver) sendOriginTelemetry(timestamp float64, series metrics.SerieSink, hostname string, tags []string) {
@@ -332,6 +353,8 @@ func (cr *countBasedContextResolver) expireContexts() []ckey.ContextKey {
 		}
 	}
 	cr.expireCount++
+	// Shrink the map if it has dropped significantly below peak capacity
+	cr.resolver.shrink()
 	return keys
 }
 
