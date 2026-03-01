@@ -479,6 +479,98 @@ func TestDisallowList(t *testing.T) {
 	}
 }
 
+func TestSkipProcessReasons(t *testing.T) {
+	disallowList := []*regexp.Regexp{regexp.MustCompile("^blocked")}
+
+	now := time.Now().Unix()
+	proc1 := makeProcessWithCreateTime(1, "allowed-process", now)
+	proc2 := makeProcessWithCreateTime(2, "blocked-process", now)
+	proc3 := makeProcessWithCreateTime(3, "new-process", now)
+	proc4 := makeProcessWithCreateTime(4, "zombie-process", now)
+	proc4.Stats.Status = "Z"
+
+	lastProcs := map[int32]*procutil.Process{
+		1: proc1,
+		2: proc2,
+		4: proc4,
+	}
+
+	tests := []struct {
+		name           string
+		proc           *procutil.Process
+		zombiesIgnored bool
+		expected       skipReason
+	}{
+		{"process seen in previous run is not skipped", proc1, false, notSkipped},
+		{"disallow-listed process is skipped", proc2, false, skipDisallowListed},
+		{"new process not seen in previous run is skipped as short-lived", proc3, false, skipShortLived},
+		{"zombie process is not skipped when zombie filtering is off", proc4, false, notSkipped},
+		{"zombie process is skipped when zombie filtering is on", proc4, true, skipZombie},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := skipProcess(disallowList, tc.proc, lastProcs, tc.zombiesIgnored)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestFmtProcessesSkipCounts(t *testing.T) {
+	disallowList := []*regexp.Regexp{regexp.MustCompile("^blocked")}
+
+	now := time.Now()
+	unixNow := now.Unix()
+	proc1 := makeProcessWithCreateTime(1, "allowed-process", unixNow)
+	proc2 := makeProcessWithCreateTime(2, "blocked-process", unixNow)
+	proc3 := makeProcessWithCreateTime(3, "new-short-lived-process", unixNow)
+	proc4 := makeProcessWithCreateTime(4, "zombie-process", unixNow)
+	proc4.Stats.Status = "Z"
+	proc5 := makeProcessWithCreateTime(5, "another-new-process", unixNow)
+
+	allProcs := map[int32]*procutil.Process{
+		1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5,
+	}
+
+	// Only proc1 and proc4 were seen in the previous run
+	lastProcs := map[int32]*procutil.Process{
+		1: proc1,
+		4: proc4,
+	}
+
+	syst1 := cpu.TimesStat{CPU: "cpu"}
+	syst2 := cpu.TimesStat{CPU: "cpu"}
+	lastRun := now.Add(-10 * time.Second)
+
+	serviceExtractorEnabled := true
+	useWindowsServiceName := true
+	useImprovedAlgorithm := false
+	serviceExtractor := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
+
+	_, skipped := fmtProcesses(
+		procutil.NewDefaultDataScrubber(),
+		disallowList,
+		allProcs,
+		lastProcs,
+		nil,
+		syst2, syst1,
+		lastRun,
+		nil,
+		true, // ignore zombies
+		serviceExtractor,
+		nil,
+		nil,
+		now,
+	)
+
+	// proc2 is disallow-listed
+	assert.Equal(t, 1, skipped.disallowListed, "expected 1 disallow-listed process")
+	// proc3 and proc5 are short-lived (not in lastProcs)
+	assert.Equal(t, 2, skipped.shortLived, "expected 2 short-lived processes")
+	// proc4 is a zombie
+	assert.Equal(t, 1, skipped.zombie, "expected 1 zombie process")
+}
+
 func TestProcessCheckHints(t *testing.T) {
 	processCheck, probe, wmeta := processCheckWithMocks(t)
 
@@ -552,7 +644,7 @@ func TestProcessWithNoCommandline(t *testing.T) {
 	useImprovedAlgorithm := false
 	serviceExtractor := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), hostnameimpl.MockModule(), taggerfxmock.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, false, serviceExtractor, nil, taggerMock, now)
+	procs, _ := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, false, serviceExtractor, nil, taggerMock, now)
 	assert.Len(t, procs, 1)
 
 	require.Len(t, procs[""], 1)
@@ -734,7 +826,7 @@ func TestProcessTaggerIntegration(t *testing.T) {
 	serviceExtractor := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 
 	// Call fmtProcesses with the tagger
-	procsByCtr := fmtProcesses(
+	procsByCtr, _ := fmtProcesses(
 		procutil.NewDefaultDataScrubber(),
 		nil, // no disallow list
 		procs,
