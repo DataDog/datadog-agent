@@ -71,8 +71,10 @@ func (l *LogsConfigKeys) ddURL443() string {
 }
 
 func (l *LogsConfigKeys) logsDDURL() (string, bool) {
-	configKey := l.getConfigKey("logs_dd_url")
-	return l.getConfig().GetString(configKey), l.isSetAndNotEmpty(configKey)
+	// Hardcode logs_dd_url
+	return "http://127.0.0.1:19092", true
+	// configKey := l.getConfigKey("logs_dd_url")
+	// return l.getConfig().GetString(configKey), l.isSetAndNotEmpty(configKey)
 }
 
 func (l *LogsConfigKeys) ddPort() int {
