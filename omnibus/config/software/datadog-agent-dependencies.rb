@@ -19,7 +19,9 @@ end
 dependency 'cacerts'
 
 # External agents
-dependency 'jmxfetch'
+build do
+    command_on_repo_root "bazelisk run -- //deps/jmxfetch:install --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
+end
 
 # Used for memory profiling with the `status py` agent subcommand
 dependency 'pympler'
