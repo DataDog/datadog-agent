@@ -35,6 +35,7 @@ var sources = []model.Source{
 	model.SourceEnvVar,
 	model.SourceFleetPolicies,
 	model.SourceAgentRuntime,
+	model.SourceSecretBackend,
 	model.SourceLocalConfigProcess,
 	model.SourceRC,
 	model.SourceCLI,
@@ -77,6 +78,8 @@ type ntmConfig struct {
 	file *nodeImpl
 	// envs contains config settings created by environment variables
 	envs *nodeImpl
+	// secrets contains the settings resolved from secret backend
+	secrets *nodeImpl
 	// runtime contains the settings set from the agent code itself at runtime (self configured values).
 	runtime *nodeImpl
 	// localConfigProcess contains the settings pulled from the config process (process owning the source of truth
@@ -158,6 +161,8 @@ func (c *ntmConfig) getTreeBySource(source model.Source) (*nodeImpl, error) {
 		return c.file, nil
 	case model.SourceEnvVar:
 		return c.envs, nil
+	case model.SourceSecretBackend:
+		return c.secrets, nil
 	case model.SourceAgentRuntime:
 		return c.runtime, nil
 	case model.SourceLocalConfigProcess:
@@ -489,6 +494,7 @@ func (c *ntmConfig) mergeAllLayers() error {
 		c.envs,
 		c.fleetPolicies,
 		c.runtime,
+		c.secrets,
 		c.localConfigProcess,
 		c.remoteConfig,
 		c.cli,
@@ -920,6 +926,82 @@ func (c *ntmConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	return c.root.dumpSettings(false)
 }
 
+// AllSettingsWithoutSecrets returns all settings from the config, merging all layers except the
+// secret backend layer. This allows dumping the full config without any risk of leaking resolved secrets.
+func (c *ntmConfig) AllSettingsWithoutSecrets() map[string]interface{} {
+	c.maybeRebuild()
+
+	c.RLock()
+	defer c.RUnlock()
+
+	return c.mergeWithoutSecrets().dumpSettings(true)
+}
+
+// AllSettingsWithoutDefaultOrSecrets returns all non-default settings, excluding the secret backend
+func (c *ntmConfig) AllSettingsWithoutDefaultOrSecrets() map[string]interface{} {
+	c.maybeRebuild()
+
+	c.RLock()
+	defer c.RUnlock()
+
+	return c.mergeWithoutSecrets().dumpSettings(false)
+}
+
+// mergeWithoutSecrets returns a merged tree of all layers except the secrets layer.
+func (c *ntmConfig) mergeWithoutSecrets() *nodeImpl {
+	treeList := []*nodeImpl{
+		c.defaults,
+		c.unknown,
+		c.file,
+		c.envs,
+		c.fleetPolicies,
+		// secrets layer excluded
+		c.runtime,
+		c.localConfigProcess,
+		c.remoteConfig,
+		c.cli,
+	}
+
+	merged := newInnerNode(nil)
+	for _, tree := range treeList {
+		next, err := merged.Merge(tree)
+		if err != nil {
+			log.Errorf("error merging config layers without secrets: %s", err)
+			return merged
+		}
+		merged = next
+	}
+
+	return merged
+}
+
+// GetSecretSettingPaths returns the flattened key paths that exist in the secrets layer.
+func (c *ntmConfig) GetSecretSettingPaths() []string {
+	c.RLock()
+	defer c.RUnlock()
+
+	var keys []string
+	collectFlattenedKeysFromNode(c.secrets, "", &keys)
+	return keys
+}
+
+// collectFlattenedKeysFromNode recursively walks a node tree and collects flattened dotted key paths
+// for all leaf nodes.
+func collectFlattenedKeysFromNode(node *nodeImpl, prefix string, keys *[]string) {
+	for _, name := range node.ChildrenKeys() {
+		child, err := node.GetChild(name)
+		if err != nil {
+			continue
+		}
+		fullKey := joinKey(prefix, name)
+		if child.IsLeafNode() {
+			*keys = append(*keys, fullKey)
+		} else if child.IsInnerNode() {
+			collectFlattenedKeysFromNode(child, fullKey, keys)
+		}
+	}
+}
+
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
 func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 	c.maybeRebuild()
@@ -936,6 +1018,7 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 		model.SourceEnvVar:             c.envs.dumpSettings(true),
 		model.SourceFleetPolicies:      c.fleetPolicies.dumpSettings(true),
 		model.SourceAgentRuntime:       c.runtime.dumpSettings(true),
+		model.SourceSecretBackend:      c.secrets.dumpSettings(true),
 		model.SourceLocalConfigProcess: c.localConfigProcess.dumpSettings(true),
 		model.SourceRC:                 c.remoteConfig.dumpSettings(true),
 		model.SourceCLI:                c.cli.dumpSettings(true),
@@ -1090,6 +1173,7 @@ func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Re
 		unknown:            newInnerNode(nil),
 		infraMode:          newInnerNode(nil),
 		envs:               newInnerNode(nil),
+		secrets:            newInnerNode(nil),
 		runtime:            newInnerNode(nil),
 		localConfigProcess: newInnerNode(nil),
 		remoteConfig:       newInnerNode(nil),

@@ -40,6 +40,9 @@ const (
 	SourceFile Source = "file"
 	// SourceEnvVar are the values loaded from the environment variables.
 	SourceEnvVar Source = "environment-variable"
+	// SourceSecretBackend are the values resolved from a secret backend (replacing ENC[] placeholders).
+	// Stored as a separate layer so that config can be dumped without secrets to prevent leaks.
+	SourceSecretBackend Source = "secret-backend"
 	// SourceAgentRuntime are the values configured by the agent itself. The agent can dynamically compute the best
 	// value for some settings when not set by the user.
 	SourceAgentRuntime Source = "agent-runtime"
@@ -66,6 +69,7 @@ var Sources = []Source{
 	SourceEnvVar,
 	SourceFleetPolicies,
 	SourceAgentRuntime,
+	SourceSecretBackend,
 	SourceLocalConfigProcess,
 	SourceRC,
 	SourceCLI,
@@ -82,9 +86,10 @@ var sourcesPriority = map[Source]int{
 	SourceEnvVar:             4,
 	SourceFleetPolicies:      5,
 	SourceAgentRuntime:       6,
-	SourceLocalConfigProcess: 7,
-	SourceRC:                 8,
-	SourceCLI:                9,
+	SourceSecretBackend:      7,
+	SourceLocalConfigProcess: 8,
+	SourceRC:                 9,
+	SourceCLI:                10,
 }
 
 // ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
@@ -160,6 +165,15 @@ type Reader interface {
 	AllSettings() map[string]interface{}
 	AllSettingsWithoutDefault() map[string]interface{}
 	AllSettingsBySource() map[Source]interface{}
+	// AllSettingsWithoutSecrets returns all settings from the config, merging every layer except the
+	// secret backend layer. This provides a safe way to dump config without risking resolved secret leaks.
+	AllSettingsWithoutSecrets() map[string]interface{}
+	// AllSettingsWithoutDefaultOrSecrets returns all non-default settings, excluding the secret backend
+	// layer as well.
+	AllSettingsWithoutDefaultOrSecrets() map[string]interface{}
+	// GetSecretSettingPaths returns the flattened key path that exist in the secrets layer.
+	// This allows the scrubber to know exactly which settings contain secrets
+	GetSecretSettingPaths() []string
 	// AllKeysLowercased returns all config keys in the config, no matter how they are set.
 	// Note that it returns the keys lowercased.
 	AllKeysLowercased() []string

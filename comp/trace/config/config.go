@@ -177,7 +177,7 @@ func (c *cfg) GetConfigHandler() http.Handler {
 				return
 			}
 
-			runtimeConfig, err := yaml.Marshal(c.coreConfig.AllSettings())
+			runtimeConfig, err := yaml.Marshal(c.coreConfig.AllSettingsWithoutSecrets())
 			if err != nil {
 				log.Errorf("Unable to marshal runtime config response: %s", err)
 				body, _ := json.Marshal(map[string]string{"error": err.Error()})
