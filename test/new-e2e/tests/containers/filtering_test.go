@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx"
@@ -46,43 +47,61 @@ func (suite *k8sFilteringSuiteBase) SetupSuite() {
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
 }
 
-// TestWorkloadExcludeNoMetrics verifies that the container core check does not collect
+// Test01Parallel runs all filtering subtests in parallel
+func (suite *k8sFilteringSuiteBase) Test01Parallel() {
+	t := suite.T()
+	for _, tt := range []struct {
+		name string
+		fn   func(t *testing.T)
+	}{
+		{"WorkloadExcludeNoMetrics", suite.testWorkloadExcludeNoMetrics},
+		{"WorkloadExcludeForAutodiscovery", suite.testWorkloadExcludeForAutodiscovery},
+		{"UnfilteredWorkloadsHaveTelemetry", suite.testUnfilteredWorkloadsHaveTelemetry},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tt.fn(t)
+		})
+	}
+}
+
+// testWorkloadExcludeNoMetrics verifies that the container core check does not collect
 // telemetry for workloads that match the exclusion filter
-func (suite *k8sFilteringSuiteBase) TestWorkloadExcludeNoMetrics() {
+func (suite *k8sFilteringSuiteBase) testWorkloadExcludeNoMetrics(t *testing.T) {
 	// nginx workload in filtered namespace should never have metrics
-	suite.Never(func() bool {
+	assert.Never(t, func() bool {
 		metrics, err := suite.Fakeintake.FilterMetrics(
 			"container.cpu.usage",
 			fakeintake.WithTags[*aggregator.MetricSeries]([]string{
 				`kube_namespace:` + filteredNamespace,
 			}),
 		)
-		suite.NoError(err, "Error querying metrics")
+		assert.NoError(t, err, "Error querying metrics")
 		return len(metrics) > 0
 	}, 1*time.Minute, 5*time.Second, "Metrics were found for a workload in a filtered namespace")
 }
 
-// TestWorkloadExcludeForAutodiscovery verifies that integrations are NOT auto-discovered
+// testWorkloadExcludeForAutodiscovery verifies that integrations are NOT auto-discovered
 // on workloads that match the exclusion filter, even for auto config enabled integrations
-func (suite *k8sFilteringSuiteBase) TestWorkloadExcludeForAutodiscovery() {
+func (suite *k8sFilteringSuiteBase) testWorkloadExcludeForAutodiscovery(t *testing.T) {
 	// redis workload is excluded and should not have auto-config metrics
-	suite.Never(func() bool {
+	assert.Never(t, func() bool {
 		metrics, err := suite.Fakeintake.FilterMetrics(
 			"redis.net.instantaneous_ops_per_sec",
 			fakeintake.WithTags[*aggregator.MetricSeries]([]string{
 				`container_name:` + filteredAppName,
 			}),
 		)
-		suite.NoError(err, "Error querying metrics")
+		assert.NoError(t, err, "Error querying metrics")
 		return len(metrics) > 0
 	}, 1*time.Minute, 5*time.Second, "Metrics were found for filtered redis workload")
 }
 
-// TestUnfilteredWorkloadsHaveTelemetry confirms that workloads not matched by the exclude filter
+// testUnfilteredWorkloadsHaveTelemetry confirms that workloads not matched by the exclude filter
 // continue to run and collect telemetry.
-func (suite *k8sFilteringSuiteBase) TestUnfilteredWorkloadsHaveTelemetry() {
+func (suite *k8sFilteringSuiteBase) testUnfilteredWorkloadsHaveTelemetry(t *testing.T) {
 	// nginx workload in default namespace should have metrics
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "container.memory.usage",
 			Tags: []string{

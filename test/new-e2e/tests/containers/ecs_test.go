@@ -98,15 +98,16 @@ func (suite *ecsSuite) TearDownSuite() {
 // The 00 in Test00UpAndRunning is here to guarantee that this test, waiting for all tasks to be ready
 // is run first.
 func (suite *ecsSuite) Test00UpAndRunning() {
+	t := suite.T()
 	ctx := context.Background()
 
 	cfg, err := awsconfig.LoadDefaultConfig(ctx)
-	suite.Require().NoErrorf(err, "Failed to load AWS config")
+	require.NoErrorf(t, err, "Failed to load AWS config")
 
 	client := awsecs.NewFromConfig(cfg)
 
-	suite.Run("ECS tasks are ready", func() {
-		suite.EventuallyWithTf(func(c *assert.CollectT) {
+	t.Run("ECS tasks are ready", func(t *testing.T) {
+		require.EventuallyWithTf(t, func(c *assert.CollectT) {
 			var initToken string
 			for nextToken := &initToken; nextToken != nil; {
 				if nextToken == &initToken {
@@ -175,10 +176,36 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 	})
 }
 
-func (suite *ecsSuite) TestNginxECS() {
+func (suite *ecsSuite) Test01Parallel() {
+	t := suite.T()
+	for _, tt := range []struct {
+		name string
+		fn   func(t *testing.T)
+	}{
+		{"NginxECS", suite.testNginxECS},
+		{"RedisECS", suite.testRedisECS},
+		{"NginxFargate", suite.testNginxFargate},
+		{"RedisFargate", suite.testRedisFargate},
+		{"WindowsFargate", suite.testWindowsFargate},
+		{"CPU", suite.testCPU},
+		{"DogtstatsdUDS", suite.testDogtstatsdUDS},
+		{"DogtstatsdUDP", suite.testDogtstatsdUDP},
+		{"Prometheus", suite.testPrometheus},
+		{"TraceUDS", suite.testTraceUDS},
+		{"TraceTCP", suite.testTraceTCP},
+		{"HostTags", suite.testHostTags},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tt.fn(t)
+		})
+	}
+}
+
+func (suite *ecsSuite) testNginxECS(t *testing.T) {
 	// `nginx` check is configured via docker labels
 	// Test it is properly scheduled
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "nginx.net.request_per_s",
 			Tags: []string{"^ecs_launch_type:ec2$"},
@@ -214,7 +241,7 @@ func (suite *ecsSuite) TestNginxECS() {
 		},
 	})
 
-	suite.testLog(&testLogArgs{
+	suite.testLog(t, &testLogArgs{
 		Filter: testLogFilterArgs{
 			Service: "apps-nginx-server",
 			Tags:    []string{"^ecs_launch_type:ec2$"},
@@ -250,10 +277,10 @@ func (suite *ecsSuite) TestNginxECS() {
 	})
 }
 
-func (suite *ecsSuite) TestRedisECS() {
+func (suite *ecsSuite) testRedisECS(t *testing.T) {
 	// `redis` check is auto-configured due to image name
 	// Test it is properly scheduled
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "redis.net.instantaneous_ops_per_sec",
 			Tags: []string{"^ecs_launch_type:ec2$"},
@@ -288,7 +315,7 @@ func (suite *ecsSuite) TestRedisECS() {
 		},
 	})
 
-	suite.testLog(&testLogArgs{
+	suite.testLog(t, &testLogArgs{
 		Filter: testLogFilterArgs{
 			Service: "redis",
 			Tags:    []string{"^ecs_launch_type:ec2$"},
@@ -324,10 +351,10 @@ func (suite *ecsSuite) TestRedisECS() {
 	})
 }
 
-func (suite *ecsSuite) TestNginxFargate() {
+func (suite *ecsSuite) testNginxFargate(t *testing.T) {
 	// `nginx` check is configured via docker labels
 	// Test it is properly scheduled
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "nginx.net.request_per_s",
 			Tags: []string{"^ecs_launch_type:fargate$"},
@@ -362,10 +389,10 @@ func (suite *ecsSuite) TestNginxFargate() {
 	})
 }
 
-func (suite *ecsSuite) TestRedisFargate() {
+func (suite *ecsSuite) testRedisFargate(t *testing.T) {
 	// `redis` check is auto-configured due to image name
 	// Test it is properly scheduled
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "redis.net.instantaneous_ops_per_sec",
 			Tags: []string{"^ecs_launch_type:fargate$"},
@@ -399,8 +426,8 @@ func (suite *ecsSuite) TestRedisFargate() {
 	})
 }
 
-func (suite *ecsSuite) TestWindowsFargate() {
-	suite.testCheckRun(&testCheckRunArgs{
+func (suite *ecsSuite) testWindowsFargate(t *testing.T) {
+	suite.testCheckRun(t, &testCheckRunArgs{
 		Filter: testCheckRunFilterArgs{
 			Name: "http.can_connect",
 			Tags: []string{
@@ -439,7 +466,7 @@ func (suite *ecsSuite) TestWindowsFargate() {
 	})
 
 	// Test container check
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "container.cpu.usage",
 			Tags: []string{
@@ -476,9 +503,9 @@ func (suite *ecsSuite) TestWindowsFargate() {
 	})
 }
 
-func (suite *ecsSuite) TestCPU() {
+func (suite *ecsSuite) testCPU(t *testing.T) {
 	// Test CPU metrics
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "container.cpu.usage",
 			Tags: []string{
@@ -519,16 +546,16 @@ func (suite *ecsSuite) TestCPU() {
 	})
 }
 
-func (suite *ecsSuite) TestDogtstatsdUDS() {
-	suite.testDogstatsd(taskNameDogstatsdUDS)
+func (suite *ecsSuite) testDogtstatsdUDS(t *testing.T) {
+	suite.testDogstatsd(t, taskNameDogstatsdUDS)
 }
 
-func (suite *ecsSuite) TestDogtstatsdUDP() {
-	suite.testDogstatsd(taskNameDogstatsdUDP)
+func (suite *ecsSuite) testDogtstatsdUDP(t *testing.T) {
+	suite.testDogstatsd(t, taskNameDogstatsdUDP)
 }
 
-func (suite *ecsSuite) testDogstatsd(taskName string) {
-	suite.testMetric(&testMetricArgs{
+func (suite *ecsSuite) testDogstatsd(t *testing.T, taskName string) {
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
 			Tags: []string{
@@ -565,9 +592,9 @@ func (suite *ecsSuite) testDogstatsd(taskName string) {
 	})
 }
 
-func (suite *ecsSuite) TestPrometheus() {
+func (suite *ecsSuite) testPrometheus(t *testing.T) {
 	// Test Prometheus check
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "prometheus.prom_gauge",
 		},
@@ -602,17 +629,17 @@ func (suite *ecsSuite) TestPrometheus() {
 	})
 }
 
-func (suite *ecsSuite) TestTraceUDS() {
-	suite.testTrace(taskNameTracegenUDS)
+func (suite *ecsSuite) testTraceUDS(t *testing.T) {
+	suite.testTrace(t, taskNameTracegenUDS)
 }
 
-func (suite *ecsSuite) TestTraceTCP() {
-	suite.testTrace(taskNameTracegenTCP)
+func (suite *ecsSuite) testTraceTCP(t *testing.T) {
+	suite.testTrace(t, taskNameTracegenTCP)
 }
 
 // testTrace verifies that traces are tagged with container and pod tags.
-func (suite *ecsSuite) testTrace(taskName string) {
-	suite.EventuallyWithTf(func(c *assert.CollectT) {
+func (suite *ecsSuite) testTrace(t *testing.T, taskName string) {
+	require.EventuallyWithTf(t, func(c *assert.CollectT) {
 		traces, cerr := suite.Fakeintake.GetTraces()
 		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 		if !assert.NoErrorf(c, cerr, "Failed to query fake intake") {
@@ -652,11 +679,11 @@ func (suite *ecsSuite) testTrace(taskName string) {
 	}, 2*time.Minute, 10*time.Second, "Failed finding trace with proper tags")
 }
 
-func (suite *ecsSuite) TestHostTags() {
+func (suite *ecsSuite) testHostTags(t *testing.T) {
 	// tag keys that are expected to be found on this docker env
 	args := &testHostTags{
 		ExpectedTags: []string{},
 	}
 
-	suite.testHostTags(args)
+	suite.baseSuite.testHostTags(t, args)
 }
