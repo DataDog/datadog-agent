@@ -183,6 +183,12 @@ linters:
             - "!**/comp/trace/config/hostname.go"
             - "!**/comp/trace/config/remote.go"
             - "!**/comp/trace/config/setup.go"
+            - "!**/comp/trace/config/impl/config.go"
+            - "!**/comp/trace/config/impl/config_nix.go"
+            - "!**/comp/trace/config/impl/config_test.go"
+            - "!**/comp/trace/config/impl/hostname.go"
+            - "!**/comp/trace/config/impl/remote.go"
+            - "!**/comp/trace/config/impl/setup.go"
           deny:
             - pkg: "github.com/DataDog/datadog-agent/pkg/config/setup"
               desc: "github.com/DataDog/datadog-agent/pkg/config/setup should not be used inside comp folder. Use the config component instead, by declaring it as part of your component's dependencies."
