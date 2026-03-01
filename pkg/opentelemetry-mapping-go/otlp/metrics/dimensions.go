@@ -15,7 +15,6 @@
 package metrics
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 
@@ -113,7 +112,7 @@ func (d *Dimensions) WithAttributeMap(labels pcommon.Map) *Dimensions {
 // WithSuffix creates a new dimensions struct with an extra name suffix.
 func (d *Dimensions) WithSuffix(suffix string) *Dimensions {
 	return &Dimensions{
-		name:                fmt.Sprintf("%s.%s", d.name, suffix),
+		name:                d.name + "." + suffix,
 		host:                d.host,
 		tags:                d.tags,
 		originID:            d.originID,
@@ -134,9 +133,18 @@ func concatDimensionValue(metricKeyBuilder *strings.Builder, value string) {
 // String maps dimensions to a string to use as an identifier.
 // The tags order does not matter.
 func (d *Dimensions) String() string {
-	var metricKeyBuilder strings.Builder
+	// Estimate capacity to pre-grow the builder and avoid reallocations.
+	totalLen := len(d.name) + 5 + // "name:" + sep
+		len(d.host) + 5 + // "host:" + sep
+		len(d.originID) + 9 // "originID:" + sep
+	for _, t := range d.tags {
+		totalLen += len(t) + 1
+	}
 
-	dimensions := make([]string, len(d.tags))
+	var metricKeyBuilder strings.Builder
+	metricKeyBuilder.Grow(totalLen)
+
+	dimensions := make([]string, len(d.tags), len(d.tags)+3)
 	copy(dimensions, d.tags)
 
 	dimensions = append(dimensions, "name:"+d.name)
