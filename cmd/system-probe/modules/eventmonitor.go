@@ -64,7 +64,7 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 	}
 
 	if secconfig.RuntimeSecurity.IsRuntimeEnabled() {
-		cws, err := secmodule.NewCWSConsumer(evm, secconfig.RuntimeSecurity, deps.WMeta, deps.FilterStore, secmoduleOpts, deps.Compression, deps.Ipc, hostname)
+		cws, err := secmodule.NewCWSConsumer(evm, secconfig.RuntimeSecurity, deps.WMeta, deps.FilterStore, secmoduleOpts, deps.Compression, deps.Ipc, hostname, deps.Secrets)
 		if err != nil {
 			return nil, err
 		}

@@ -19,6 +19,8 @@ import (
 	"sync"
 	"time"
 
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -89,6 +91,9 @@ type Destination struct {
 	shouldRetry    bool
 	lastRetryError error
 
+	// Secrets
+	secrets secrets.Component
+
 	// Telemetry
 	expVars         *expvar.Map
 	destMeta        *client.DestinationMetadata
@@ -100,6 +105,7 @@ type Destination struct {
 // NewDestination returns a new Destination.
 // minConcurrency denotes the minimum number of concurrent http requests the pipeline will allow at once.
 // maxConcurrency represents the maximum number of concurrent http requests, reachable when the client is experiencing a large latency in sends.
+// secretsComp is used to trigger an API key refresh on 403 responses; pass a SecretNoop when no secrets backend is available.
 func NewDestination(endpoint config.Endpoint,
 	contentType string,
 	destinationsContext *client.DestinationsContext,
@@ -109,7 +115,8 @@ func NewDestination(endpoint config.Endpoint,
 	minConcurrency int,
 	maxConcurrency int,
 	pipelineMonitor metrics.PipelineMonitor,
-	instanceID string) *Destination {
+	instanceID string,
+	secretsComp secrets.Component) *Destination {
 
 	return newDestination(endpoint,
 		contentType,
@@ -121,7 +128,8 @@ func NewDestination(endpoint config.Endpoint,
 		minConcurrency,
 		maxConcurrency,
 		pipelineMonitor,
-		instanceID)
+		instanceID,
+		secretsComp)
 }
 
 func newDestination(endpoint config.Endpoint,
@@ -134,7 +142,8 @@ func newDestination(endpoint config.Endpoint,
 	minConcurrency int,
 	maxConcurrency int,
 	pipelineMonitor metrics.PipelineMonitor,
-	instanceID string) *Destination {
+	instanceID string,
+	secretsComp secrets.Component) *Destination {
 
 	policy := backoff.NewExpBackoffPolicy(
 		endpoint.BackoffFactor,
@@ -171,6 +180,7 @@ func newDestination(endpoint config.Endpoint,
 		lastRetryError:      nil,
 		retryLock:           sync.Mutex{},
 		shouldRetry:         shouldRetry,
+		secrets:             secretsComp,
 		expVars:             expVars,
 		destMeta:            destMeta,
 		isMRF:               endpoint.IsMRF,
@@ -391,17 +401,17 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	if resp.StatusCode >= http.StatusBadRequest {
 		log.Warnf("failed to post http payload. code=%d, url=%s, EvP track type=%s, content type=%s, EvP category=%s, origin=%s, response=%s", resp.StatusCode, d.url, d.endpoint.TrackType, d.contentType, d.destMeta.EvpCategory(), d.origin, string(response))
 	}
-	if resp.StatusCode == http.StatusBadRequest ||
+	if resp.StatusCode == http.StatusForbidden &&
+		d.secrets.IsValueFromSecret(d.endpoint.GetAPIKey()) &&
+		d.secrets.Refresh() {
+		return client.NewRetryableError(errServer)
+	} else if resp.StatusCode == http.StatusBadRequest ||
 		resp.StatusCode == http.StatusUnauthorized ||
 		resp.StatusCode == http.StatusForbidden ||
 		resp.StatusCode == http.StatusRequestEntityTooLarge {
-		// the logs-agent is likely to be misconfigured,
-		// the URL or the API key may be wrong.
 		tlmDropped.Inc()
 		return errClient
 	} else if resp.StatusCode > http.StatusBadRequest {
-		// the server could not serve the request, most likely because of an
-		// internal error. We should retry these requests.
 		return client.NewRetryableError(errServer)
 	}
 	d.pipelineMonitor.ReportComponentEgress(payload, d.destMeta.MonitorTag(), d.instanceID)
@@ -502,7 +512,7 @@ func getMessageTimestamp(messages []*message.MessageMetadata) int64 {
 func prepareCheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) (*client.DestinationsContext, *Destination) {
 	ctx := client.NewDestinationsContext()
 	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
-	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, false, client.NewNoopDestinationMetadata(), cfg, 1, 1, metrics.NewNoopPipelineMonitor(""), "")
+	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, false, client.NewNoopDestinationMetadata(), cfg, 1, 1, metrics.NewNoopPipelineMonitor(""), "", &secretnooptypes.SecretNoop{})
 
 	return ctx, destination
 }
