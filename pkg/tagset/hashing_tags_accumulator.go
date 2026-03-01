@@ -38,6 +38,46 @@ func (h *HashingTagsAccumulator) RetainFunc(keep func(tag string) bool) int {
 	return oldLen - idx
 }
 
+// RetainWithTagNameFilter is an optimized version of RetainFunc for filtering based on tag names.
+// It takes a map of tag name hashes and an exclude flag, avoiding redundant string operations.
+// If exclude is true, tags with names in the map are removed. If false, only those tags are kept.
+func (h *HashingTagsAccumulator) RetainWithTagNameFilter(tagNameHashes map[uint64]struct{}, exclude bool) int {
+	idx := 0
+	for arridx, tag := range h.data {
+		// Find the colon separator using a manual loop (faster than strings.Index for short strings)
+		colonPos := -1
+		for i := range len(tag) {
+			if tag[i] == ':' {
+				colonPos = i
+				break
+			}
+		}
+
+		// Hash just the tag name portion
+		var tagNameHash uint64
+		if colonPos >= 0 {
+			tagNameHash = murmur3.StringSum64(tag[:colonPos])
+		} else {
+			tagNameHash = murmur3.StringSum64(tag)
+		}
+
+		// Check if we should keep this tag
+		_, found := tagNameHashes[tagNameHash]
+		keep := (found != exclude) // XOR logic: keep if (found AND !exclude) OR (!found AND exclude)
+
+		if keep {
+			h.data[idx] = h.data[arridx]
+			h.hash[idx] = h.hash[arridx]
+			idx++
+		}
+	}
+	len := len(h.data)
+	h.data = h.data[0:idx]
+	h.hash = h.hash[0:idx]
+
+	return len - idx
+}
+
 // NewHashingTagsAccumulator returns a new empty HashingTagsAccumulator
 func NewHashingTagsAccumulator() *HashingTagsAccumulator {
 	return &HashingTagsAccumulator{

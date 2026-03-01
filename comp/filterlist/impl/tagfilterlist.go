@@ -6,7 +6,6 @@
 package filterlistimpl
 
 import (
-	"slices"
 	"strings"
 
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
@@ -41,7 +40,8 @@ const (
 
 // HashedMetricTagList contains the list of tags hashed using murmur3.
 type hashedMetricTagList struct {
-	tags   []uint64
+	tags   []uint64            // kept for backwards compatibility if needed
+	tagMap map[uint64]struct{} // O(1) lookup map
 	action action
 }
 
@@ -67,8 +67,11 @@ func newTagMatcher(metrics map[string]MetricTagList) tagMatcher {
 	hashed := make(map[string]hashedMetricTagList, len(metrics))
 	for k, v := range metrics {
 		tags := make([]uint64, 0, len(v.Tags))
+		tagMap := make(map[uint64]struct{}, len(v.Tags))
 		for _, tag := range v.Tags {
-			tags = append(tags, murmur3.StringSum64(tag))
+			h := murmur3.StringSum64(tag)
+			tags = append(tags, h)
+			tagMap[h] = struct{}{}
 		}
 
 		var action action
@@ -85,6 +88,7 @@ func newTagMatcher(metrics map[string]MetricTagList) tagMatcher {
 		}
 		hashed[k] = hashedMetricTagList{
 			tags:   tags,
+			tagMap: tagMap,
 			action: action,
 		}
 	}
@@ -115,8 +119,18 @@ func (m *tagMatcher) ShouldStripTags(metricName string) (func(tag string) bool, 
 
 	keepTag := func(tag string) bool {
 		hashedTag := murmur3.StringSum64(tagName(tag))
-		return slices.Contains(tm.tags, hashedTag) != bool(tm.action)
+		_, found := tm.tagMap[hashedTag]
+		return found != bool(tm.action)
 	}
 
 	return keepTag, ok
+}
+
+// GetTagNameFilter returns the tag name hash map and exclude flag for optimized filtering.
+func (m *tagMatcher) GetTagNameFilter(metricName string) (map[uint64]struct{}, bool, bool) {
+	tm, ok := m.MetricTags[metricName]
+	if !ok {
+		return nil, false, false
+	}
+	return tm.tagMap, bool(tm.action), true
 }

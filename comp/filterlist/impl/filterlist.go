@@ -223,6 +223,7 @@ func (fl *FilterList) SetTagFilterList(metricTags map[string]MetricTagList) {
 		hashedTags[name] = hashedMetricTagList{
 			action: action,
 			tags:   hashed,
+			tagMap: hashTagsToMap(hashed),
 		}
 	}
 

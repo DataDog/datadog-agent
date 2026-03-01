@@ -194,6 +194,7 @@ func (fl *FilterList) buildTagFilterListConfig(tagFilterListUpdates []filteredTa
 				tags[metric.Name] = hashedMetricTagList{
 					action: rcAction,
 					tags:   hashedTags,
+					tagMap: hashTagsToMap(hashedTags),
 				}
 
 				// Store unhashed entry
@@ -220,7 +221,13 @@ func (fl *FilterList) mergeMetricTagListEntry(metric tagEntry, currentHashed has
 
 	if (currentHashed.action == Exclude) == metric.ExcludeTag {
 		// Both metrics define the same action so we can just merge the list.
-		currentHashed.tags = append(currentHashed.tags, hashTags(metric.Tags)...)
+		newTags := hashTags(metric.Tags)
+		currentHashed.tags = append(currentHashed.tags, newTags...)
+
+		// Also update the tagMap with the new tags
+		for _, h := range newTags {
+			currentHashed.tagMap[h] = struct{}{}
+		}
 
 		// Merge unhashed tags too
 		currentEntry.Tags = append(currentEntry.Tags, metric.Tags...)
@@ -233,6 +240,7 @@ func (fl *FilterList) mergeMetricTagListEntry(metric tagEntry, currentHashed has
 		hashed := hashedMetricTagList{
 			action: Exclude,
 			tags:   hashedTags,
+			tagMap: hashTagsToMap(hashedTags),
 		}
 
 		entry := MetricTagListEntry{
@@ -257,4 +265,13 @@ func hashTags(tags []string) []uint64 {
 	}
 
 	return hashed
+}
+
+// hashTagsToMap converts a slice of hashed tags to a map for O(1) lookup
+func hashTagsToMap(hashedTags []uint64) map[uint64]struct{} {
+	tagMap := make(map[uint64]struct{}, len(hashedTags))
+	for _, h := range hashedTags {
+		tagMap[h] = struct{}{}
+	}
+	return tagMap
 }
