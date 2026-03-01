@@ -267,6 +267,40 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_by_flags(struct s
     return DISCARDED;
 }
 
+enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct dentry *dentry, struct file_t *file) {
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
+    if (IS_KTHREAD(pid, pid)) {
+        return DISCARDED;
+    }
+
+    // Discard sampled open events from procfs, sysfs, cgroupfs, or devpts
+    if (is_procfs(dentry) || is_sysfs(dentry) || is_cgroupfs(dentry) || is_cgroup2fs(dentry) || is_devpts(dentry)) {
+        return DISCARDED;
+    }
+
+    struct path_key_t *process_path_key = bpf_map_lookup_elem(&pid_path_keys, &pid);
+    if (process_path_key != NULL) {
+        struct process_path_key_t key = {
+            // NOTE should add the parent pid here
+
+            .process_path_key = *process_path_key,
+            .file_path_key = file->path_key,
+        };
+
+        u8 value = 0;
+        if (bpf_map_update_elem(&open_samples, &key, &value, BPF_NOEXIST) < 0) {
+            return DISCARDED;
+        }
+    }
+
+    if (!global_limiter_allow(OPEN_SAMPLE_LIMITER, 100, 1)) {
+        return DISCARDED;
+    }
+
+    return SAMPLED;
+}
+
+
 enum SYSCALL_STATE __attribute__((always_inline)) open_approvers(struct syscall_cache_t *syscall) {
     enum SYSCALL_STATE state = approve_by_basename(syscall->open.dentry, EVENT_OPEN);
     if (state == DISCARDED) {
@@ -277,6 +311,10 @@ enum SYSCALL_STATE __attribute__((always_inline)) open_approvers(struct syscall_
     }
     if (state == DISCARDED) {
         state = approve_by_in_upper_layer(EVENT_OPEN, &syscall->open.file);
+    }
+
+    if (approve_open_sample(syscall->open.dentry, &syscall->open.file) == SAMPLED) {
+        return SAMPLED;
     }
 
     return state;

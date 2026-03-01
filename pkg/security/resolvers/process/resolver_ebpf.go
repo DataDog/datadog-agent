@@ -82,6 +82,7 @@ type EBPFResolver struct {
 	inodeFileMap ebpf.Map
 	procCacheMap ebpf.Map
 	pidCacheMap  ebpf.Map
+	pathIdMap    ebpf.Map
 	opts         ResolverOpts
 
 	// stats
@@ -1268,6 +1269,10 @@ func (p *EBPFResolver) Start(ctx context.Context) error {
 		return err
 	}
 
+	if p.pathIdMap, err = managerhelper.Map(p.manager, "pid_path_keys"); err != nil {
+		return err
+	}
+
 	go p.cacheFlush(ctx)
 
 	return nil
@@ -1347,6 +1352,14 @@ func (p *EBPFResolver) syncKernelMaps(entry *model.ProcessCacheEntry) {
 	} else {
 		if err = p.pidCacheMap.Put(entry.PIDContext.Pid, pidCacheEntryB); err != nil {
 			seclog.Errorf("couldn't push pid_cache entry to kernel space: %s", err)
+		}
+	}
+
+	// update the path id
+	if !entry.FileEvent.PathKey.IsNull() {
+		buffer, err := entry.FileEvent.PathKey.MarshalBinary()
+		if err = p.pathIdMap.Put(entry.PIDContext.Pid, buffer); err != nil {
+			seclog.Errorf("couldn't push path_id entry to kernel space: %s", err)
 		}
 	}
 }
