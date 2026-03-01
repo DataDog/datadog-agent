@@ -782,6 +782,154 @@ func TestProcessCacheSameCmdline(t *testing.T) {
 	assert.Len(t, diff, 0, "Expected no processes in diff when cmdline is the same")
 }
 
+func TestProcessesWithNewContainerID(t *testing.T) {
+	pid1 := int32(100)
+	pid2 := int32(200)
+	pid3 := int32(300)
+	pid4 := int32(400)
+
+	procs := map[int32]*procutil.Process{
+		pid1: {Pid: pid1, Cmdline: []string{"nginx"}},
+		pid2: {Pid: pid2, Cmdline: []string{"redis"}},
+		pid3: {Pid: pid3, Cmdline: []string{"bash"}},
+		pid4: {Pid: pid4, Cmdline: []string{"java"}},
+	}
+
+	for _, tc := range []struct {
+		description     string
+		currentPidToCid map[int]string
+		lastPidToCid    map[int]string
+		alreadyInDiff   map[int32]bool
+		expectedPids    []int32
+	}{
+		{
+			description:     "CID becomes available for a process",
+			currentPidToCid: map[int]string{int(pid1): "cid-abc"},
+			lastPidToCid:    map[int]string{},
+			alreadyInDiff:   map[int32]bool{},
+			expectedPids:    []int32{pid1},
+		},
+		{
+			description:     "CID changes for a process",
+			currentPidToCid: map[int]string{int(pid1): "cid-new"},
+			lastPidToCid:    map[int]string{int(pid1): "cid-old"},
+			alreadyInDiff:   map[int32]bool{},
+			expectedPids:    []int32{pid1},
+		},
+		{
+			description:     "CID unchanged - no diff",
+			currentPidToCid: map[int]string{int(pid1): "cid-abc"},
+			lastPidToCid:    map[int]string{int(pid1): "cid-abc"},
+			alreadyInDiff:   map[int32]bool{},
+			expectedPids:    nil,
+		},
+		{
+			description:     "skip process already in diff",
+			currentPidToCid: map[int]string{int(pid1): "cid-abc"},
+			lastPidToCid:    map[int]string{},
+			alreadyInDiff:   map[int32]bool{pid1: true},
+			expectedPids:    nil,
+		},
+		{
+			description: "multiple CID changes, one unchanged, one already in diff",
+			currentPidToCid: map[int]string{
+				int(pid1): "cid-1",
+				int(pid2): "cid-2",
+				int(pid3): "cid-3",
+				int(pid4): "cid-4",
+			},
+			lastPidToCid: map[int]string{
+				int(pid2): "cid-2",
+				int(pid3): "cid-old-3",
+			},
+			alreadyInDiff: map[int32]bool{pid4: true},
+			expectedPids:  []int32{pid1, pid3},
+		},
+		{
+			description:     "both maps empty - no diff",
+			currentPidToCid: map[int]string{},
+			lastPidToCid:    map[int]string{},
+			alreadyInDiff:   map[int32]bool{},
+			expectedPids:    nil,
+		},
+		{
+			description:     "host process (no CID) - no diff",
+			currentPidToCid: map[int]string{},
+			lastPidToCid:    map[int]string{},
+			alreadyInDiff:   map[int32]bool{},
+			expectedPids:    nil,
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			result := processesWithNewContainerID(procs, tc.currentPidToCid, tc.lastPidToCid, tc.alreadyInDiff)
+
+			resultPids := make([]int32, len(result))
+			for i, proc := range result {
+				resultPids[i] = proc.Pid
+			}
+
+			assert.ElementsMatch(t, tc.expectedPids, resultPids)
+		})
+	}
+}
+
+// TestContainerIDRaceCondition tests that a process initially collected without a container ID
+// gets re-emitted with the correct container ID on the next collection cycle.
+func TestContainerIDRaceCondition(t *testing.T) {
+	collectionInterval := time.Second * 10
+	creationTime1 := time.Now().Unix()
+	pid1 := int32(1234)
+	proc1 := createTestPythonProcess(pid1, creationTime1)
+
+	cfg := config.NewMock(t)
+	cfg.SetWithoutSource("process_config.process_collection.enabled", true)
+	cfg.SetWithoutSource("process_config.intervals.process", 10)
+
+	c := setUpCollectorTest(t, cfg, nil, nil)
+	defer c.cleanup()
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	// Cycle 1: process exists but container ID is not yet available
+	c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(map[int32]*procutil.Process{
+		proc1.Pid: proc1,
+	}, nil).Times(1)
+	c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(map[int]string{}).Times(1)
+
+	// Cycle 2: same process, now container ID is available
+	c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(map[int32]*procutil.Process{
+		proc1.Pid: proc1,
+	}, nil).Times(1)
+	c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(map[int]string{
+		int(proc1.Pid): "container-abc",
+	}).Times(1)
+
+	err := c.collector.Start(ctx, c.mockStore)
+	assert.NoError(t, err)
+
+	// After cycle 1: process should exist without container ID
+	assert.EventuallyWithT(t, func(cT *assert.CollectT) {
+		actualProc, err := c.mockStore.GetProcess(pid1)
+		assert.NoError(cT, err)
+		assert.Equal(cT, "", actualProc.ContainerID)
+		assert.Nil(cT, actualProc.Owner)
+	}, time.Second, time.Millisecond*100)
+
+	// Trigger cycle 2
+	c.mockClock.Add(collectionInterval)
+
+	// After cycle 2: process should now have the container ID
+	assert.EventuallyWithT(t, func(cT *assert.CollectT) {
+		actualProc, err := c.mockStore.GetProcess(pid1)
+		assert.NoError(cT, err)
+		assert.Equal(cT, "container-abc", actualProc.ContainerID)
+		assert.Equal(cT, &workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "container-abc",
+		}, actualProc.Owner)
+	}, time.Second, time.Millisecond*100)
+}
+
 func setUpCollectorTest(t *testing.T, cfg config.Component, sysProbeConfigOverrides map[string]interface{}, wlmConfigOverrides map[string]interface{}) collectorTest {
 	// mock workloadmeta store
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
