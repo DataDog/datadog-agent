@@ -106,7 +106,7 @@ pkg_install(
 Omit `cc_library`, `pkg_files`, `pkg_filegroup`, and `pkg_install` if this dep builds a library
 rather than just exposing headers — those targets will be added in a later step.
 
-Only omit `ship_source_offer` if the omnibus file does not set `ship_source_offer true`.
+Only add `ship_source_offer` if the omnibus file sets `ship_source_offer true`.
 
 ### 4. Add `http_archive` to `deps/repos.MODULE.bazel`
 
@@ -139,6 +139,8 @@ bazel query @<name>//:all
 The output must include at minimum:
 - `@<name>//:license`
 - `@<name>//:package_metadata`
+
+If ship_source_offer was set in the omnibus script, it must include
 - `@<name>//:ship_source_offer`
 
 ### 6. Update omnibus scripts
