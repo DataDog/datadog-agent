@@ -48,6 +48,12 @@ go_deps:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
   script:
+    # ADMS diagnostic: compare the shell GOPROXY value with what `go env` reports.
+    # If they differ, the Docker image has a go env -w override baked in.
+    # If both show proxy.golang.org, the GitLab CI variable is not injected on this runner.
+    - echo "Shell GOPROXY=${GOPROXY}"
+    - go env GOPROXY GONOSUMDB GOENV
+    - cat "$(go env GOENV)" 2>/dev/null || echo "(no GOENV file)"
     # If the cache already contains the dependencies, don't redownload them
     # but still provide the artifact that's expected for the other jobs to run
     - if [ -f modcache.tar.xz  ]; then exit 0; fi
@@ -57,16 +63,16 @@ go_deps:
     expire_in: 1 day
     paths:
       - $CI_PROJECT_DIR/modcache.tar.xz
-  cache:
-    # The `cache:key:files` only accepts up to two paths ([docs](https://docs.gitlab.com/ee/ci/yaml/#cachekeyfiles)).
-    # We should also include the file this job is defined in to invalicate the cache when this job is modified.
-    - key:
-        files:
-          - go.mod
-          - ./**/go.mod
-        prefix: "go_deps_modcache"
-      paths:
-        - modcache.tar.xz
+  # cache:
+  #   # The `cache:key:files` only accepts up to two paths ([docs](https://docs.gitlab.com/ee/ci/yaml/#cachekeyfiles)).
+  #   # We should also include the file this job is defined in to invalicate the cache when this job is modified.
+  #   - key:
+  #       files:
+  #         - go.mod
+  #         - ./**/go.mod
+  #       prefix: "go_deps_modcache"
+  #     paths:
+  #       - modcache.tar.xz
   timeout: 35m
 
 go_tools_deps:

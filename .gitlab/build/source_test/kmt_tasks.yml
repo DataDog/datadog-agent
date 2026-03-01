@@ -24,6 +24,12 @@ test_kmt_local_setup_linux:
   extends: .test_kmt_local_setup
   before_script:
     - !reference [.setup_agent_github_app]
+    # ADMS diagnostic: verify that GOPROXY/GOTOOLCHAIN are correctly set on the arm64 runner.
+    # The go_deps diagnostic confirmed GOPROXY works on amd64 specific:true runners, but
+    # test-kmt-local-setup-linux runs on standard arm64 runners with a different Docker image.
+    - echo "Shell GOPROXY=${GOPROXY}"
+    - go env GOPROXY GONOSUMDB GOTOOLCHAIN GOENV
+    - cat "$(go env GOENV)" 2>/dev/null || echo "(no GOENV file)"
   variables:
     # Some requirements cannot be tested in the CI yet:
     # - Docker,Compiler,UserInDockerGroup: no docker-in-docker support in these jobs yet

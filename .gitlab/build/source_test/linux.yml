@@ -27,6 +27,10 @@
     TEST_OUTPUT_FILE: test_output.json
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
   before_script:
+    # Restore both the main module cache (needed by agent.build / go test) and the
+    # tools cache. Previously only tools were restored here, causing agent.build and
+    # go test to re-download all dependencies via GOPROXY on every run.
+    - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
   script:
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
@@ -118,6 +122,7 @@ tests_linux-arm64-py3:
     - .linux_tests
   needs: ["go_deps", "go_tools_deps_arm64"]
   before_script:
+    - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps_arm64]
   after_script:
     - !reference [.upload_junit_source]
@@ -166,6 +171,11 @@ go_mod_tidy_check:
     KUBERNETES_MEMORY_REQUEST: "16Gi"
     KUBERNETES_MEMORY_LIMIT: "16Gi"
     KUBERNETES_CPU_REQUEST: 4
+    # ADMS test: this job shows near-zero proxy.golang.org traffic (GOPROXY works) but high
+    # sum.golang.org traffic (GONOSUMDB too narrow). Setting GONOSUMDB=* should eliminate
+    # sum.golang.org calls if ADMS verifies checksums server-side.
+    # TODO: if confirmed, request GONOSUMDB: "*" update from the ADMS team.
+    GONOSUMDB: "*"
 
 new-e2e-unit-tests:
   extends: .linux_tests
@@ -207,6 +217,7 @@ tests_gpu:
   allow_failure: true
   before_script:
     - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
   after_script:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
