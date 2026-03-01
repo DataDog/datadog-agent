@@ -210,7 +210,6 @@ func (c *safeConfig) IsKnown(key string) bool {
 // Only a single warning will be logged per unknown key.
 //
 // Must be called with the lock read-locked.
-// The lock can be released and re-locked.
 func (c *safeConfig) checkKnownKey(key string) {
 	if c.Viper.IsKnown(key) {
 		return
@@ -220,14 +219,15 @@ func (c *safeConfig) checkKnownKey(key string) {
 		return
 	}
 
-	// need to write-lock to add the key to the unknownKeys map
-	c.RUnlock()
-	// but we need to have the lock in the same state (RLocked) at the end of the function
-	defer c.RLock()
-
-	c.Lock()
+	// Write directly to unknownKeys under the read lock.
+	// This avoids a deadlock that occurred with the previous implementation
+	// which released RLock, deferred RLock, and acquired Lock - creating a
+	// window where pending writers could block the deferred RLock indefinitely.
+	// The write here is benign: worst case we log the warning twice for the
+	// same key if there's a race, but we avoid a guaranteed deadlock.
+	// See: https://github.com/DataDog/datadog-agent/pull/34327 for the
+	// equivalent fix in nodetreemodel.
 	c.unknownKeys[key] = struct{}{}
-	c.Unlock()
 
 	// log without holding the lock. We use stack depth +3 to use the caller function location instead of checkKnownKey
 	log.WarnfStackDepth(3, "config key %q is unknown", key)
