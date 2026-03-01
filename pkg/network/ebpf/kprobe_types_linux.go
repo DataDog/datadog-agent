@@ -21,6 +21,36 @@ type TCPStats struct {
 	State_transitions uint16
 	Failure_reason    uint16
 }
+type TCPCongestionStats struct {
+	Max_packets_out uint32
+	Max_lost_out    uint32
+	Max_sacked_out  uint32
+	Delivered       uint32
+	Max_retrans_out uint32
+	Delivered_ce    uint32
+	Bytes_retrans   uint64
+	Dsack_dups      uint32
+	Reord_seen      uint32
+	Snd_wnd         uint32
+	Rcv_wnd         uint32
+	Max_ca_state    uint8
+	Ecn_negotiated  uint8
+	X_pad           [2]uint8
+	Pad_cgo_0       [4]byte
+}
+type TCPRTORecoveryStats struct {
+	Rto_count                 uint32
+	Recovery_count            uint32
+	Probe0_count              uint32
+	Cwnd_at_last_rto          uint32
+	Ssthresh_at_last_rto      uint32
+	Srtt_at_last_rto          uint32
+	Cwnd_at_last_recovery     uint32
+	Ssthresh_at_last_recovery uint32
+	Srtt_at_last_recovery     uint32
+	Max_consecutive_rtos      uint8
+	X_pad                     [3]uint8
+}
 type ConnStats struct {
 	Sent_bytes     uint64
 	Recv_bytes     uint64

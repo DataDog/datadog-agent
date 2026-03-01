@@ -155,6 +155,47 @@ func (c *ConnectionStats) FromTupleAndStats(t *netebpf.ConnTuple, s *netebpf.Con
 	}
 }
 
+// FromTCPCongestionStats populates the TCP congestion fields on ConnectionStats.
+// Gauge fields contain the max value seen over the polling interval; counter
+// fields contain the latest (highest) monotonically-increasing value.
+func (c *ConnectionStats) FromTCPCongestionStats(cs *netebpf.TCPCongestionStats) {
+	if c.Type != TCP || cs == nil {
+		return
+	}
+
+	c.TCPMaxPacketsOut = cs.Max_packets_out
+	c.TCPMaxLostOut = cs.Max_lost_out
+	c.TCPMaxSackedOut = cs.Max_sacked_out
+	c.TCPDelivered = cs.Delivered
+	c.TCPMaxRetransOut = cs.Max_retrans_out
+	c.TCPDeliveredCE = cs.Delivered_ce
+	c.TCPBytesRetrans = cs.Bytes_retrans
+	c.TCPDSACKDups = cs.Dsack_dups
+	c.TCPReordSeen = cs.Reord_seen
+	c.TCPMinSndWnd = cs.Snd_wnd
+	c.TCPMinRcvWnd = cs.Rcv_wnd
+	c.TCPMaxCAState = cs.Max_ca_state
+	c.TCPECNNegotiated = cs.Ecn_negotiated
+}
+
+// FromTCPRTORecoveryStats populates the RTO and fast-recovery event counter fields on ConnectionStats.
+func (c *ConnectionStats) FromTCPRTORecoveryStats(rs *netebpf.TCPRTORecoveryStats) {
+	if c.Type != TCP || rs == nil {
+		return
+	}
+
+	c.TCPRTOCount = rs.Rto_count
+	c.TCPRecoveryCount = rs.Recovery_count
+	c.TCPProbe0Count = rs.Probe0_count
+	c.TCPCwndAtLastRTO = rs.Cwnd_at_last_rto
+	c.TCPSsthreshAtLastRTO = rs.Ssthresh_at_last_rto
+	c.TCPSRTTAtLastRTOUs = rs.Srtt_at_last_rto
+	c.TCPCwndAtLastRecovery = rs.Cwnd_at_last_recovery
+	c.TCPSsthreshAtLastRecovery = rs.Ssthresh_at_last_recovery
+	c.TCPSRTTAtLastRecoveryUs = rs.Srtt_at_last_recovery
+	c.TCPMaxConsecRTOs = rs.Max_consecutive_rtos
+}
+
 // FromTCPStats populates relevant fields on ConnectionStats from the arguments
 func (c *ConnectionStats) FromTCPStats(tcpStats *netebpf.TCPStats) {
 	if c.Type != TCP || tcpStats == nil {
