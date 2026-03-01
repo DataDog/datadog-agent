@@ -29,8 +29,9 @@ pkg_filegroup(
 pkg_filegroup(
     name = "agent_components",
     srcs = [
+        # TODO: remove jmxfetch when it is part of //packages/agent/dependencies:all_files
         "//deps/jmxfetch:all_files",
-        "//deps/snmp_traps:all_files",
+        "//packages/agent/dependencies:all_files",
         "//packages/install_dir:embedded",
         "//packages/install_dir:etc",
         "@libpcap//:all_files",
