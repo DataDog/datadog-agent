@@ -182,7 +182,7 @@ func (d *DockerCheck) Run() error {
 		_ = d.Warnf("Error collecting metrics: %s", err)
 	}
 
-	return d.runDockerCustom(sender, du, rawContainerList)
+	return d.runDockerCustom(sender, du, rawContainerList, collectContainerSize)
 }
 
 func (d *DockerCheck) runProcessor(sender sender.Sender) error {
@@ -196,7 +196,7 @@ type containersPerTags struct {
 	stopped int64
 }
 
-func (d *DockerCheck) runDockerCustom(sender sender.Sender, du docker.Client, rawContainerList []container.Summary) error {
+func (d *DockerCheck) runDockerCustom(sender sender.Sender, du docker.Client, rawContainerList []container.Summary, collectContainerSize bool) error {
 	// Container metrics
 	var containersRunning, containersStopped uint64
 	containerGroups := map[string]*containersPerTags{}
