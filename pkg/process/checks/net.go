@@ -532,7 +532,7 @@ func batchConnections(
 			// For same-host connections, resolve and attach the remote service tags.
 			// Try IIS ETW cache first; fall back to PID-based process_context resolution.
 			c.RemoteServiceTagsIdx = -1
-			if c.IntraHost {
+			if c.IntraHost && c.Laddr.ContainerId == "" {
 				var remoteTags []string
 
 				// Try IIS tags from system-probe ETW cache
@@ -543,26 +543,15 @@ func batchConnections(
 					}
 				}
 
-				// Fallback: resolve by destination PID using process_context, tagger, and process cache tags
+				// Fallback: resolve by destination PID using process_context and platform-specific process tags
 				if len(remoteTags) == 0 {
 					if destPID, ok := portToPID[c.Raddr.Port]; ok && destPID != c.Pid {
 						destServiceCtx := serviceExtractor.GetServiceContext(destPID)
 						remoteTags = append(remoteTags, destServiceCtx...)
 
-						// tagger process tags (service, env, version, tracer metadata)
-						if processTagProvider != nil {
-							if destProcessTags, err := processTagProvider(destPID); err != nil {
-								log.Debugf("error getting process tags for remote pid %d: %v", destPID, err)
-							} else {
-								remoteTags = append(remoteTags, destProcessTags...)
-							}
-						}
-
-						// process cache tags from system-probe (env vars: DD_SERVICE, DD_ENV, DD_VERSION, etc.)
-						if procCacheTags != nil {
-							if cacheTags, ok := procCacheTags[uint32(destPID)]; ok {
-								remoteTags = append(remoteTags, cacheTags...)
-							}
+						// platform-specific: process cache on Windows, tagger on Linux
+						if pidTags := getRemoteProcessTags(destPID, procCacheTags, processTagProvider); len(pidTags) > 0 {
+							remoteTags = append(remoteTags, pidTags...)
 						}
 					}
 				}

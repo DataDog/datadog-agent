@@ -27,6 +27,11 @@ func fetchProcessCacheTags(_ *http.Client) map[uint32][]string {
 	return nil
 }
 
+// getRemoteProcessTags is not implemented on this platform; returns nil.
+func getRemoteProcessTags(_ int32, _ map[uint32][]string, _ func(int32) ([]string, error)) []string {
+	return nil
+}
+
 // getNetworkID fetches network_id
 func getNetworkID(_ *http.Client) (string, error) {
 	return "", errors.New("unsupported on this platform")
