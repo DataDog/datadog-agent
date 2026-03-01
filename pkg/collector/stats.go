@@ -64,6 +64,13 @@ func (ce *collectorErrors) setRunError(checkID checkid.ID, err string) {
 	ce.run[checkID] = err
 }
 
+func (ce *collectorErrors) removeRunError(checkID checkid.ID) {
+	ce.m.Lock()
+	defer ce.m.Unlock()
+
+	delete(ce.run, checkID)
+}
+
 func (ce *collectorErrors) getRunErrors() map[checkid.ID]string {
 	ce.m.RLock()
 	defer ce.m.RUnlock()
