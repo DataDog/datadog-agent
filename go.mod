@@ -207,7 +207,7 @@ require (
 	github.com/clbanning/mxj v1.8.4
 	github.com/cloudflare/cbpfc v0.0.0-20240920015331-ff978e94500b
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
-	github.com/containerd/cgroups/v3 v3.0.5
+	github.com/containerd/cgroups/v3 v3.1.3
 	github.com/containerd/containerd v1.7.30
 	github.com/containerd/containerd/api v1.8.0
 	github.com/containerd/errdefs v1.0.0
@@ -295,7 +295,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.146.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
-	github.com/opencontainers/runtime-spec v1.2.1
+	github.com/opencontainers/runtime-spec v1.3.0
 	github.com/openshift/api v3.9.0+incompatible
 	github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be
 	github.com/patrickmn/go-cache v2.1.0+incompatible
