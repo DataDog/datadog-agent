@@ -273,6 +273,9 @@ enum link_target_dentry_origin {
 enum global_rate_limiter_type {
     RAW_PACKET_FILTER_LIMITER = 0,
     RAW_PACKET_ACTION_LIMITER,
+    BIND_SAMPLE_LIMITER,
+    DNS_SAMPLE_LIMITER,
+    CONNECT_SAMPLE_LIMITER,
 };
 
 enum PATH_ID_INVALIDATE_TYPE {

@@ -20,6 +20,11 @@ struct approver_stats_t {
     u64 event_approved_by_in_upper_layer;
 };
 
+struct activity_dump_sample_stats_t {
+    u64 events_total;
+    u64 events_sampled;
+};
+
 struct basename_t {
     char value[BASENAME_FILTER_SIZE];
 };
