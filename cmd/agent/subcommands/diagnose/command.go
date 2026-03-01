@@ -9,6 +9,7 @@ package diagnose
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -415,6 +416,11 @@ func cmdDiagnose(cliParams *cliParams,
 			fmt.Fprintf(w, "  %d. %s\n", idx+1, suiteName)
 		}
 		return nil
+	}
+
+	// API key is required to run diagnose; without it no checks can run and the command would exit successfully with no useful output
+	if !config.IsConfigured("api_key") {
+		return errors.New("no API key configured: diagnose requires an API key to run checks. Set the API key in datadog.yaml or use the DD_API_KEY environment variable")
 	}
 
 	// Run command
