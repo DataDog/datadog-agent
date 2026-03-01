@@ -316,7 +316,7 @@ def locate_implementation_folders(comp):
             continue
 
         if to_posix_path(entry) in components_missing_implementation_folder:
-            return 'skip'
+            continue  # subfolder is a standalone component without impl, skip it and keep looking
 
         if comp.version == 2:
             # Check for component implementation using the new-style folder structure: comp/<component>/impl[-suffix]
