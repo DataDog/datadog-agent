@@ -85,6 +85,7 @@ func RunServerNodeJS(t *testing.T, key, cert, serverPort string) error {
 func GetNodeJSDockerPID() (int64, error) {
 	return dockerutils.GetMainPID("node-node-1")
 }
+<<<<<<< HEAD
 
 // RunServerNodeJSUbuntu launches an HTTPs server written in NodeJS using the Ubuntu-based image.
 // Ubuntu 22.04's nodejs package has SSL symbols bundled in libnode.so (not imported from libssl.so).
@@ -158,3 +159,5 @@ func GetNodeJSUbuntuDockerPID() (int64, error) {
 	}
 	return int64(children[0].Pid), nil
 }
+=======
+>>>>>>> parent of 7faa46c86b ([USM] Support Node.js TLS monitoring when nodejs with libnode.so (#45393))

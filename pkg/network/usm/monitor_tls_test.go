@@ -1078,6 +1078,7 @@ func testNodeJSNormalMonitoring(t *testing.T, usmMonitor *Monitor, nodeJSPID uin
 	verifyAllRequestsEventuallyCaptured(t, usmMonitor, protocols.HTTP, requests, 3*time.Second, 100*time.Millisecond, "Expected all NodeJS container requests to be captured")
 }
 
+<<<<<<< HEAD
 // TestNodeJSTLSWithLibnode tests Node.js TLS monitoring when Node.js is installed via
 // apt-get (e.g., `apt install nodejs` on Debian/Ubuntu). In this case, SSL symbols are
 // in libnode.so rather than statically linked in the node binary, unlike the official
@@ -1126,6 +1127,8 @@ func (s *tlsSuite) TestNodeJSTLSWithLibnode() {
 	verifyAllRequestsEventuallyCaptured(t, usmMonitor, protocols.HTTP, requests, 3*time.Second, 100*time.Millisecond, "Expected all NodeJS (apt-get installed, libnode.so) requests to be captured")
 }
 
+=======
+>>>>>>> parent of 7faa46c86b ([USM] Support Node.js TLS monitoring when nodejs with libnode.so (#45393))
 func (s *tlsSuite) TestOpenSSLTLSContainer() {
 	t := s.T()
 
