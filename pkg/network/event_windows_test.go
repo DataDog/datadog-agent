@@ -155,6 +155,46 @@ func TestFlowToConnStatWithIPv6TcpMonotonic(t *testing.T) {
 	assert.Equal(t, cs.ProtocolStack.Encryption, protocols.TLS)
 }
 
+// TestFlowToConnStatTCPFailureAlwaysSetsClosed verifies that when the Windows
+// driver reports a TCP failure via ConnectionStatus (RST, timeout, refused),
+// TCPClosed is always set to 1 — even if the driver's FlowClosedMask flag is
+// not set in flow.Flags.
+func TestFlowToConnStatTCPFailureAlwaysSetsClosed(t *testing.T) {
+	tests := []struct {
+		name             string
+		connectionStatus driver.ConnectionStatus
+		expectedErrno    uint16
+	}{
+		{"RecvRst", driver.ConnectionStatusRecvRst, 104},
+		{"SentRst", driver.ConnectionStatusSentRst, 104},
+		{"ACKRST", driver.ConnectionStatusACKRST, 111},
+		{"Timeout", driver.ConnectionStatusTimeout, 110},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Deliberately omit FlowClosedMask from Flags to simulate the
+			// driver not marking the flow as closed for failure cases.
+			flow := &driver.PerFlowData{
+				AddressFamily: syscall.AF_INET,
+				Protocol:      syscall.IPPROTO_TCP,
+				Flags:         driver.FlowDirectionOutbound << driver.FlowDirectionBits, // NO FlowClosedMask
+			}
+
+			flowData := (*driver.TCPFlowData)(unsafe.Pointer(&flow.Protocol_u[0]))
+			flowData.ConnectionStatus = uint32(tc.connectionStatus)
+
+			cs := &ConnectionStats{}
+			FlowToConnStat(cs, flow, false)
+
+			assert.Equal(t, uint32(1), cs.TCPFailures[tc.expectedErrno],
+				"expected failure errno %d to be set", tc.expectedErrno)
+			assert.Equal(t, uint16(1), cs.Monotonic.TCPClosed,
+				"expected TCPClosed to be set when a TCP failure is reported")
+		})
+	}
+}
+
 func TestFlowToConnStatWithIPv4UdpNoMonotonicc(t *testing.T) {
 	flow := &driver.PerFlowData{
 		FlowHandle:               1,
