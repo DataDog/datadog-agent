@@ -1,0 +1,4 @@
+init_config:
+instances:
+  - name: "My first service"
+    url: http://localhost:9095
