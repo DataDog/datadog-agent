@@ -21,7 +21,6 @@ import (
 	"net/netip"
 	"os"
 	"runtime"
-	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -62,14 +61,6 @@ func TestMain(m *testing.M) {
 
 type TracerSuite struct {
 	suite.Suite
-}
-
-func SupportedNetworkBuildModes() []ebpftest.BuildMode {
-	modes := ebpftest.SupportedBuildModes()
-	if !slices.Contains(modes, ebpftest.Ebpfless) {
-		modes = append(modes, ebpftest.Ebpfless)
-	}
-	return modes
 }
 
 func TestTracerSuite(t *testing.T) {
