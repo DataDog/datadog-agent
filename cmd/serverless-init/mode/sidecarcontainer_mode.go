@@ -17,7 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Run is the entrypoint of the init process. It will spawn the customer process
+// RunSidecar is the entrypoint for sidecar mode. It blocks until a termination
+// signal (SIGINT/SIGTERM) is received.
 func RunSidecar(_ *serverlessLog.Config) error {
 	stopCh := make(chan struct{})
 	go handleTerminationSignals(stopCh, signal.Notify)

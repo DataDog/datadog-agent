@@ -7,7 +7,6 @@ package cloudservice
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"strings"
 
@@ -138,24 +137,21 @@ func NewContainerApp() *ContainerApp {
 	}
 }
 
-// Init initializes ContainerApp specific code
+// Init initializes ContainerApp specific code.
+// Requires DD_AZURE_SUBSCRIPTION_ID and DD_AZURE_RESOURCE_GROUP to be set.
 func (c *ContainerApp) Init(_ *TracingContext) error {
-	// For ContainerApp, the customers must set DD_AZURE_SUBSCRIPTION_ID
-	// and DD_AZURE_RESOURCE_GROUP.
-	// These environment variables are optional for now. Once we go GA,
-	// return an error if these are not set.
 	//nolint:revive // TODO(SERV) Fix revive linter
-	if subscriptionId, exists := os.LookupEnv(AzureSubscriptionIdEnvVar); exists {
-		c.SubscriptionId = subscriptionId
-	} else {
-		log.Fatalf("Must set Subscription ID as an environment variable. Please set the %v value to your Subscription ID your App Container is in.", AzureSubscriptionIdEnvVar)
+	subscriptionId, exists := os.LookupEnv(AzureSubscriptionIdEnvVar)
+	if !exists {
+		return fmt.Errorf("missing required environment variable %s: set this to your Azure Container App's Subscription ID", AzureSubscriptionIdEnvVar)
 	}
+	c.SubscriptionId = subscriptionId
 
-	if resourceGroup, exists := os.LookupEnv(AzureResourceGroupEnvVar); exists {
-		c.ResourceGroup = resourceGroup
-	} else {
-		log.Fatalf("Must set Resource Group as an environment variable. Please set the %v value to your Resource Group your App Container is in.", AzureResourceGroupEnvVar)
+	resourceGroup, exists := os.LookupEnv(AzureResourceGroupEnvVar)
+	if !exists {
+		return fmt.Errorf("missing required environment variable %s: set this to your Azure Container App's Resource Group", AzureResourceGroupEnvVar)
 	}
+	c.ResourceGroup = resourceGroup
 
 	return nil
 }

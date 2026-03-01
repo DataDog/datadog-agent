@@ -44,10 +44,10 @@ func TestTagsSetup(t *testing.T) {
 
 	allTags := append(ddTags, ddExtraTags...)
 
-	_, _, tracingCtx, metricAgent, _ := setup(secretsmock.New(t), mode.Conf{}, fakeTagger, fakeCompression, fakeHostname)
-	defer tracingCtx.TraceAgent.Stop()
-	defer metricAgent.Stop()
-	assert.Subset(t, metricAgent.GetExtraTags(), allTags)
+	result, cleanup, err := setup(secretsmock.New(t), mode.Conf{}, fakeTagger, fakeCompression, fakeHostname)
+	defer cleanup(err)
+	assert.NoError(t, err)
+	assert.Subset(t, result.agents.metric.GetExtraTags(), allTags)
 }
 
 func TestFxApp(t *testing.T) {
