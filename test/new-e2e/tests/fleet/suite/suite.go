@@ -27,18 +27,18 @@ var (
 	// LinuxPlatforms is the list of supported Linux platforms.
 	LinuxPlatforms = []e2eos.Descriptor{
 		e2eos.Ubuntu2404,
-		e2eos.AmazonLinux2,
-		e2eos.Debian12,
-		e2eos.RedHat9,
-		// e2eos.CentOS7,
-		e2eos.Suse15,
+		// e2eos.AmazonLinux2,
+		// e2eos.Debian12,
+		// e2eos.RedHat9,
+		// // e2eos.CentOS7,
+		// e2eos.Suse15,
 	}
 	// WindowsPlatforms is the list of supported Windows platforms.
 	WindowsPlatforms = []e2eos.Descriptor{
-		e2eos.WindowsServer2016,
-		e2eos.WindowsServer2019,
+		// e2eos.WindowsServer2016,
+		// e2eos.WindowsServer2019,
 		e2eos.WindowsServer2022,
-		e2eos.WindowsServer2025,
+		// e2eos.WindowsServer2025,
 	}
 	// AllPlatforms is the list of all supported platforms.
 	AllPlatforms = append(LinuxPlatforms, WindowsPlatforms...)
