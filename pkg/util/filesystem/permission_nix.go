@@ -14,16 +14,25 @@ import (
 	"os"
 	"os/user"
 	"strconv"
+	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Permission handles permissions for Unix and Windows
-type Permission struct{}
+type Permission struct {
+	ddUserUID uint32
+}
 
 // NewPermission creates a new instance of `Permission`
 func NewPermission() (*Permission, error) {
-	return &Permission{}, nil
+	perms := &Permission{}
+
+	if ddUserUID, err := getDatadogUserUID(); err == nil {
+		perms.ddUserUID = ddUserUID
+	}
+
+	return perms, nil
 }
 
 // RestrictAccessToUser sets the file user and group to the same as 'dd-agent' user. If the function fails to lookup
@@ -69,4 +78,57 @@ func (p *Permission) RemoveAccessToOtherUsers(path string) error {
 	// We keep the original 'user' rights but set 'group' and 'other' to zero.
 	newPerm := fperm.Mode().Perm() & 0700
 	return os.Chmod(path, fs.FileMode(newPerm))
+}
+
+func getDatadogUserUID() (uint32, error) {
+	if ddAgentUser, err := user.Lookup("dd-agent"); err == nil {
+		ddAgentUID, err := strconv.Atoi(ddAgentUser.Uid)
+		if err != nil {
+			return 0, err
+		}
+		return uint32(ddAgentUID), nil
+	}
+
+	return 0, errors.New("user 'dd-agent' not found")
+}
+
+func (p *Permission) isAllowedOwner(uid uint32) bool {
+	// check if its 'root'
+	if uid == 0 {
+		return true
+	}
+
+	// check if it's the current user
+	if uid == uint32(os.Getuid()) {
+		return true
+	}
+
+	// check if it's the dd user if it exists
+	if p.ddUserUID != 0 && uid == p.ddUserUID {
+		return true
+	}
+	return false
+}
+
+// checkOwner verifies that the file/directory is owned by either 'root', 'dd-agent' or current user
+func (p *Permission) checkOwner(path string) error {
+	var stat syscall.Stat_t
+	if err := syscall.Stat(path, &stat); err != nil {
+		return err
+	}
+
+	if !p.isAllowedOwner(stat.Uid) {
+		return errors.New("file owner is neither `root`, `dd-agent` or current user")
+	}
+
+	return nil
+}
+
+// CheckOwnerAndPermissions verifies that the owner and permissions of a file/directory correspond to the expected restrictions
+func (p *Permission) CheckOwnerAndPermissions(path string) error {
+	if err := p.checkOwner(path); err != nil {
+		return err
+	}
+
+	return CheckRights(path, true)
 }
