@@ -29,8 +29,9 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
-	"github.com/DataDog/datadog-agent/comp/core/pid"
-	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
+	pidfx "github.com/DataDog/datadog-agent/comp/core/pid/fx"
+	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-optional-remote"
@@ -128,7 +129,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			logfx.Module(),
 			ipcfx.ModuleReadWrite(),
 			configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
-			pidimpl.Module(),
+			pidfx.Module(),
 			fx.Supply(pidimpl.NewParams(params.pidfilePath)),
 			converterfx.Module(),
 			fx.Provide(func(cp converter.Component, _ configsync.Component) confmap.Converter {
@@ -216,7 +217,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			return hn, nil
 		}),
 
-		pidimpl.Module(),
+		pidfx.Module(),
 		fx.Supply(pidimpl.NewParams(params.pidfilePath)),
 		fx.Provide(func(c defaultforwarder.Component) (defaultforwarder.Forwarder, error) {
 			return defaultforwarder.Forwarder(c), nil

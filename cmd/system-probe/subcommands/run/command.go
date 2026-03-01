@@ -38,8 +38,9 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	systemprobeloggerfx "github.com/DataDog/datadog-agent/comp/core/log/fx-systemprobe"
-	"github.com/DataDog/datadog-agent/comp/core/pid"
-	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
+	pidfx "github.com/DataDog/datadog-agent/comp/core/pid/fx"
+	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-systemprobe"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
@@ -127,7 +128,7 @@ func getSharedFxOption() fx.Option {
 		sysprobeconfigimpl.Module(),
 		systemprobeloggerfx.Module(),
 		telemetryimpl.Module(),
-		pidimpl.Module(),
+		pidfx.Module(),
 		fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion, IsSystemProbe: true}),
 		secretsnoopfx.Module(),
 		statsd.Module(),

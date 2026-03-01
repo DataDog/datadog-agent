@@ -4,26 +4,18 @@
 // Copyright 2024-present Datadog, Inc.
 
 // Package pidimpl writes the current PID to a file, ensuring that the file
+// doesn't exist or doesn't contain a PID for a running process.
 package pidimpl
 
 import (
 	"context"
 	"os"
 
-	"go.uber.org/fx"
-
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/pid"
+	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newPID),
-	)
-}
 
 // Params are the input parameters for the component.
 type Params struct {
@@ -37,32 +29,39 @@ func NewParams(pidfilePath string) Params {
 	}
 }
 
-type dependencies struct {
-	fx.In
-	Lc     fx.Lifecycle
+// Requires defines the dependencies for the pid component.
+type Requires struct {
+	Lc     compdef.Lifecycle
 	Log    log.Component
 	Params Params
 }
 
-func newPID(deps dependencies) (pid.Component, error) {
-	pidfilePath := deps.Params.PIDfilePath
+// Provides defines the output of the pid component.
+type Provides struct {
+	Comp pid.Component
+}
+
+// NewComponent creates a new pid component.
+func NewComponent(reqs Requires) (Provides, error) {
+	pidfilePath := reqs.Params.PIDfilePath
 	if pidfilePath != "" {
 		err := pidfile.WritePID(pidfilePath)
 		if err != nil {
-			return struct{}{}, deps.Log.Errorf("Error while writing PID file, exiting: %v", err)
+			return Provides{}, reqs.Log.Errorf("Error while writing PID file, exiting: %v", err)
 		}
-		deps.Log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), pidfilePath)
+		reqs.Log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), pidfilePath)
 
-		deps.Lc.Append(fx.Hook{
+		reqs.Lc.Append(compdef.Hook{
 			OnStop: func(context.Context) error {
 				err = os.Remove(pidfilePath)
 				if err != nil {
-					deps.Log.Errorf("Error while removing PID file: %v", err)
+					reqs.Log.Errorf("Error while removing PID file: %v", err)
 				} else {
-					deps.Log.Infof("Removed PID file: %s", pidfilePath)
+					reqs.Log.Infof("Removed PID file: %s", pidfilePath)
 				}
 				return nil
-			}})
+			},
+		})
 	}
-	return struct{}{}, nil
+	return Provides{Comp: struct{}{}}, nil
 }
