@@ -1543,6 +1543,7 @@ func TestBypassTriggersOnNewProducts(t *testing.T) {
 	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
 	uptaneClient.On("TargetsCustom").Return([]byte{}, nil)
+	uptaneClient.On("TimestampExpires").Return(clk.Now().Add(1*time.Hour), nil)
 	api.On("Fetch", mock.Anything, mock.Anything).Return(lastConfigResponse, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 
@@ -1555,9 +1556,12 @@ func TestBypassTriggersOnNewProducts(t *testing.T) {
 		State: &pbgo.ClientState{
 			RootVersion: 1,
 		},
-		IsTracer:     true,
-		ClientTracer: &pbgo.ClientTracer{},
-		Products:     []string{string(rdata.ProductAPMSampling)},
+		IsTracer: true,
+		ClientTracer: &pbgo.ClientTracer{
+			RuntimeId: "runtime-1",
+			Language:  "go",
+		},
+		Products: []string{string(rdata.ProductAPMSampling)},
 	}
 	_, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: clientAPM})
 	require.NoError(t, err)
@@ -1574,9 +1578,12 @@ func TestBypassTriggersOnNewProducts(t *testing.T) {
 		State: &pbgo.ClientState{
 			RootVersion: 1,
 		},
-		IsTracer:     true,
-		ClientTracer: &pbgo.ClientTracer{},
-		Products:     []string{string(rdata.ProductAPMSampling)},
+		IsTracer: true,
+		ClientTracer: &pbgo.ClientTracer{
+			RuntimeId: "runtime-1",
+			Language:  "go",
+		},
+		Products: []string{string(rdata.ProductAPMSampling)},
 	}
 	_, err = service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: clientSameProducts})
 	require.NoError(t, err)
@@ -1594,9 +1601,12 @@ func TestBypassTriggersOnNewProducts(t *testing.T) {
 		State: &pbgo.ClientState{
 			RootVersion: 1,
 		},
-		IsTracer:     true,
-		ClientTracer: &pbgo.ClientTracer{},
-		Products:     []string{string(rdata.ProductAPMSampling), "FFE_FLAGS"},
+		IsTracer: true,
+		ClientTracer: &pbgo.ClientTracer{
+			RuntimeId: "runtime-1",
+			Language:  "go",
+		},
+		Products: []string{string(rdata.ProductAPMSampling), "FFE_FLAGS"},
 	}
 	_, err = service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: clientWithFFE})
 	require.NoError(t, err)
