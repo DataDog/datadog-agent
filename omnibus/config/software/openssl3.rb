@@ -18,7 +18,6 @@ name "openssl3"
 
 skip_transitive_dependency_licensing true
 
-dependency "zlib" unless windows?
 dependency "cacerts"
 
 default_version "3.5.5"
