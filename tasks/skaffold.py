@@ -2,6 +2,8 @@
 Skaffold related tasks
 """
 
+from pathlib import Path
+
 from invoke import UnexpectedExit, task
 from invoke.exceptions import Exit
 
@@ -133,9 +135,20 @@ def create(ctx, path=".") -> None:
     if not is_devcontainer_running(ctx):
         devcontainer_start(ctx)
 
+    # Skaffold helm deployement will include '.skaffold/values.yaml'
+    # so it must at least exists, it can be empty or filled by the user
+    helm_values = Path(".skaffold/values.yaml")
+    if not helm_values.exists():
+        helm_values.touch()
 
-@task
-def dev(ctx) -> None:
+
+@task(
+    help={
+        "tail": "Tail all containers logs if set (very verbose, tailing all agent processes). Default False",
+        "log_level": "Skaffold log level (matches 'logrus' levels). Default warn",
+    },
+)
+def dev(ctx, tail: bool = False, log_level: str = "warn") -> None:
     """
     Start the Skaffold cluster
     """
@@ -155,19 +168,19 @@ def dev(ctx) -> None:
         )
         raise Exit(code=1)
 
-    # Create Minikube Cluster and devcontainer if they are not running.
-    create(ctx)
-
     # Create Skaffold Dev command
     skaffold_command = [
         "skaffold",
         "dev",
-        "--filename skaffold.yaml",
         "--auto-build=false",
         "--auto-deploy=false",
         "--auto-sync=false",
-        "--port-forward=true",
-        "--status-check=true",
-        "--verbosity warn",
+        "--port-forward=off",
+        f"--verbosity {log_level}",
+        f"--tail={tail}",
     ]
-    ctx.run(" ".join(generate_minikube_env(ctx) + skaffold_command))
+
+    if is_minikube_running(ctx):
+        ctx.run(" ".join(generate_minikube_env(ctx) + skaffold_command))
+    else:
+        ctx.run(" ".join(skaffold_command))
