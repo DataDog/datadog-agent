@@ -10,8 +10,9 @@ process_config:
 # enable the datadog-installer, needs an API KEY
 remote_updates: true
 
-# enable the private action runner
+# disable the private action runner
 private_action_runner:
-  enabled: true
+  enabled: false
 
 # trace-agent is running by default
+
