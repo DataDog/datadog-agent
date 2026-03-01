@@ -231,15 +231,63 @@ dev_nightly-host-profiler-standalone:
     IMG_SOURCES: ${SRC_DDOT_EBPF}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64,${SRC_DDOT_EBPF}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-arm64
     IMG_DESTINATIONS: ddot-ebpf-dev:nightly-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA},ddot-ebpf-dev:nightly-${CI_COMMIT_REF_SLUG},ddot-ebpf-dev:nightly-latest
 
-dev_branch-host-profiler-standalone:
+.publish_host_profiler_base:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules:
-    - !reference [.manual]
   needs:
-    - docker_build_host_profiler_standalone_amd64
-    - docker_build_host_profiler_standalone_arm64
+    - job: docker_build_host_profiler_standalone_amd64
+      optional: true
+    - job: docker_build_host_profiler_standalone_arm64
+      optional: true
+  before_script:
+    - |
+      if [ "${DEVTEST:-}" = "1" ]; then
+        export IMG_DESTINATIONS="ddot-ebpf-dev:devtest-latest"
+      else
+        export IMG_DESTINATIONS="ddot-ebpf-dev:${CI_COMMIT_REF_SLUG}"
+      fi
   variables:
     IMG_REGISTRIES: dev
     IMG_SOURCES: ${SRC_DDOT_EBPF}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64,${SRC_DDOT_EBPF}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-arm64
-    IMG_DESTINATIONS: ddot-ebpf-dev:${CI_COMMIT_REF_SLUG}
+
+dev_branch-host-profiler-standalone:
+  extends: .publish_host_profiler_base
+  rules:
+    - when: manual
+      allow_failure: true
+
+dev_deploy-host-profiler-devtest:
+  extends: .publish_host_profiler_base
+  rules:
+    - when: manual
+      allow_failure: true
+  variables:
+    DEVTEST: "1"
+
+.trigger_relenv_base:
+  stage: dev_container_deploy
+  trigger:
+    project: DataDog/apm-reliability/datadog-reliability-env
+  variables:
+    UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME
+    UPSTREAM_PROJECT_ID: $CI_PROJECT_ID
+    UPSTREAM_PROJECT_NAME: ddot-ebpf-dev
+    UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA
+
+deploy_host_profiler_to_reliability_env_nightly:
+  extends: .trigger_relenv_base
+  rules:
+    - !reference [.on_deploy_nightly_repo_branch]
+  needs:
+    - dev_nightly-host-profiler-standalone
+  trigger:
+    branch: master
+
+deploy_host_profiler_to_reliability_env_devtest:
+  extends: .trigger_relenv_base
+  rules:
+    - when: on_success
+  needs:
+    - dev_deploy-host-profiler-devtest
+  trigger:
+    branch: theomagellan/add-host-profiler
