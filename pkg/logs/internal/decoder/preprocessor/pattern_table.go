@@ -3,21 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package automultilinedetection contains auto multiline detection and aggregation logic.
-package automultilinedetection
+// Package preprocessor contains auto multiline detection and aggregation logic.
+package preprocessor
 
 import (
 	"fmt"
 	"slices"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type row struct {
-	tokens          []tokens.Token
+	tokens          []Token
 	label           Label
 	labelAssignedBy string
 	count           int64
@@ -69,7 +68,7 @@ func (p *PatternTable) insert(context *messageContext) int {
 	p.index++
 	foundIdx := -1
 	for i, r := range p.table {
-		if isMatch(r.tokens, context.tokens, p.matchThreshold) {
+		if IsMatch(r.tokens, context.tokens, p.matchThreshold) {
 			r.count++
 			r.label = context.label
 			r.labelAssignedBy = context.labelAssignedBy
@@ -133,7 +132,7 @@ func (p *PatternTable) DumpTable() []DiagnosticRow {
 	debug := make([]DiagnosticRow, 0, len(p.table))
 	for _, r := range p.table {
 		debug = append(debug, DiagnosticRow{
-			TokenString:     tokensToString(r.tokens),
+			TokenString:     TokensToString(r.tokens),
 			LabelString:     labelToString(r.label),
 			labelAssignedBy: r.labelAssignedBy,
 			Count:           r.count,

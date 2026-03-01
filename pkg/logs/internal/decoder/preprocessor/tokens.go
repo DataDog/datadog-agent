@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package tokens contains the token definitions for the tokenizer.
-package tokens
+// Package preprocessor contains the logic for tokenizing, aggregating, and sampling logs.
+package preprocessor
 
 // Token is the type that represents a single token.
 type Token byte

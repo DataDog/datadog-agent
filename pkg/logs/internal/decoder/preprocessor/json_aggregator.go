@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package automultilinedetection
+package preprocessor
 
 import (
 	"bytes"
@@ -13,8 +13,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
-// JSONAggregator aggregates pretty printed JSON messages into single line JSON messages.
-type JSONAggregator struct {
+// JSONAggregator is the interface for the JSON aggregation stage of the Preprocessor.
+// Implementations receive raw log lines and return zero or more complete messages.
+type JSONAggregator interface {
+	// Process handles one incoming message. It may buffer the message and return
+	// nothing (incomplete JSON), return it unchanged (non-JSON or already complete),
+	// or return a compacted single-line version (multi-part JSON).
+	Process(msg *message.Message) []*message.Message
+
+	// Flush returns any messages still buffered inside the aggregator.
+	Flush() []*message.Message
+
+	// IsEmpty reports whether the aggregator has no buffered state.
+	IsEmpty() bool
+}
+
+// jsonAggregator aggregates pretty-printed JSON messages into single-line JSON.
+type jsonAggregator struct {
 	decoder         *IncrementalJSONValidator
 	messageBuf      []*message.Message
 	currentSize     int
@@ -25,8 +40,8 @@ type JSONAggregator struct {
 }
 
 // NewJSONAggregator creates a new JSONAggregator.
-func NewJSONAggregator(tagCompleteJSON bool, maxContentSize int) *JSONAggregator {
-	return &JSONAggregator{
+func NewJSONAggregator(tagCompleteJSON bool, maxContentSize int) JSONAggregator {
+	return &jsonAggregator{
 		decoder:         NewIncrementalJSONValidator(),
 		messageBuf:      make([]*message.Message, 0),
 		tagCompleteJSON: tagCompleteJSON,
@@ -39,7 +54,7 @@ func NewJSONAggregator(tagCompleteJSON bool, maxContentSize int) *JSONAggregator
 // Process processes a message. If the message is a complete JSON message, it will be aggregated into a single line JSON message.
 // If the message is an incomplete JSON message, it will be added to the buffer and processed later.
 // If the message is not a JSON message, it will be returned as is, and any buffered messages will be flushed (unmodified).
-func (r *JSONAggregator) Process(msg *message.Message) []*message.Message {
+func (r *jsonAggregator) Process(msg *message.Message) []*message.Message {
 	content := msg.GetContent()
 
 	// If buffer is empty and content is likely complete single-line JSON,
@@ -98,7 +113,7 @@ func (r *JSONAggregator) Process(msg *message.Message) []*message.Message {
 }
 
 // Flush flushes the buffer and returns the messages.
-func (r *JSONAggregator) Flush() []*message.Message {
+func (r *jsonAggregator) Flush() []*message.Message {
 	if len(r.messageBuf) > 1 {
 		metrics.TlmAutoMultilineJSONAggregatorFlush.Inc("false")
 	}
@@ -111,6 +126,35 @@ func (r *JSONAggregator) Flush() []*message.Message {
 }
 
 // IsEmpty returns true if the buffer is empty.
-func (r *JSONAggregator) IsEmpty() bool {
+func (r *jsonAggregator) IsEmpty() bool {
 	return len(r.messageBuf) == 0
+}
+
+// NoopJSONAggregator is a pass-through JSONAggregator that never buffers messages.
+// Use this for pipeline paths where JSON aggregation is not needed
+// (e.g. pass-through, regex multiline, detecting mode).
+type NoopJSONAggregator struct {
+	collected []*message.Message
+}
+
+// NewNoopJSONAggregator returns a new NoopJSONAggregator.
+func NewNoopJSONAggregator() *NoopJSONAggregator {
+	return &NoopJSONAggregator{}
+}
+
+// Process passes the message through unchanged. The returned slice is reused
+// on each call — callers must not retain it across calls.
+func (n *NoopJSONAggregator) Process(msg *message.Message) []*message.Message {
+	n.collected = append(n.collected[:0], msg)
+	return n.collected
+}
+
+// Flush is a no-op since NoopJSONAggregator never buffers.
+func (n *NoopJSONAggregator) Flush() []*message.Message {
+	return nil
+}
+
+// IsEmpty always returns true since NoopJSONAggregator never buffers.
+func (n *NoopJSONAggregator) IsEmpty() bool {
+	return true
 }

@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package automultilinedetection contains auto multiline detection and aggregation logic.
-package automultilinedetection
+// Package preprocessor contains auto multiline detection and aggregation logic.
+package preprocessor
 
 import "regexp"
 

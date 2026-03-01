@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package automultilinedetection contains auto multiline detection and aggregation logic.
-package automultilinedetection
+package preprocessor
 
 import (
 	"fmt"
@@ -92,7 +92,7 @@ func TestCorrectLabelIsAssigned(t *testing.T) {
 			label:      aggregate,
 		}
 
-		assert.True(t, tokenizer.ProcessAndContinue(context))
+		context.tokens, context.tokenIndicies = tokenizer.Tokenize(context.rawMessage)
 		assert.True(t, timestampDetector.ProcessAndContinue(context))
 		match := timestampDetector.tokenGraph.MatchProbability(context.tokens)
 		assert.Equal(t, testInput.label, context.label, fmt.Sprintf("input: %s had the wrong label with probability: %f", testInput.input, match.probability))

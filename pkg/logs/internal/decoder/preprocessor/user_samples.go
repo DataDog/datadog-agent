@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package automultilinedetection contains auto multiline detection and aggregation logic.
-package automultilinedetection
+// Package preprocessor contains auto multiline detection and aggregation logic.
+package preprocessor
 
 import (
 	"regexp"
@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -21,7 +20,7 @@ const defaultMatchThreshold = 0.75
 // UserSample represents a user-defined sample for auto multi-line detection.
 type UserSample struct {
 	// Parse fields
-	tokens         []tokens.Token
+	tokens         []Token
 	matchThreshold float64
 	label          Label
 	compiledRegex  *regexp.Regexp
@@ -63,7 +62,7 @@ func NewUserSamples(cfgRdr model.Reader, sourceSamples []*config.AutoMultilineSa
 	for _, configSample := range configSamples {
 		parsedSample := &UserSample{}
 		if configSample.Sample != "" {
-			parsedSample.tokens, _ = tokenizer.tokenize([]byte(configSample.Sample))
+			parsedSample.tokens, _ = tokenizer.Tokenize([]byte(configSample.Sample))
 
 			if configSample.MatchThreshold != nil {
 				if *configSample.MatchThreshold <= 0 || *configSample.MatchThreshold > 1 {
@@ -125,7 +124,7 @@ func (j *UserSamples) ProcessAndContinue(context *messageContext) bool {
 				context.labelAssignedBy = "user_sample"
 				return false
 			}
-		} else if isMatch(sample.tokens, context.tokens, sample.matchThreshold) {
+		} else if IsMatch(sample.tokens, context.tokens, sample.matchThreshold) {
 			context.label = sample.label
 			context.labelAssignedBy = "user_sample"
 			return false
