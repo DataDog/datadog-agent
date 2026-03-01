@@ -68,6 +68,12 @@ filegroup(
     srcs = [".python-version"],
 )
 
+filegroup(
+    name = "release_json",
+    srcs = ["release.json"],
+    visibility = ["//bazel:__subpackages__"],
+)
+
 config_setting(
     name = "macos_arm64",
     constraint_values = [
