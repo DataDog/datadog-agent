@@ -576,6 +576,18 @@ func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protoco
 	return o, nil
 }
 
+func (o *sslProgram) RegisterConnectionClosedCB(conTermMgr *ConnectionTerminationManager) {
+	conTermMgr.RegisterCallback(o.cb, FilterByProtocol(protocols.TLS))
+}
+
+func (o *sslProgram) cb(event *EbpfConnectionCloseEvent) {
+	// Second pass: Clean ssl_sock_by_ctx map and add more dead SSL contexts
+	o.sslSockByCtxMapCleaner.Clean(nil, nil, func(_ int64, key http.SSLCtxPidTGID, v http.SslSock) bool {
+		value := event.Tuple == v.Tup
+		return value
+	})
+}
+
 // GetStats is a no-op.
 func (o *sslProgram) GetStats() (*protocols.ProtocolStats, func()) {
 	return nil, nil

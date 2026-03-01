@@ -583,6 +583,9 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/network/usm/sharedlibraries/types.go": [
                 "pkg/network/ebpf/c/shared-libraries/types.h",
             ],
+            "pkg/network/usm/connection_close_types.go": [
+                "pkg/network/ebpf/c/protocols/tls/connection-close.h",
+            ],
             "pkg/collector/corechecks/ebpf/probe/ebpfcheck/c_types.go": [
                 "pkg/collector/corechecks/ebpf/c/runtime/ebpf-kern-user.h"
             ],

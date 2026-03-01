@@ -15,6 +15,9 @@
 #include "sockfd.h"
 #include "pid_tgid.h"
 #include "protocols/tls/go-tls-maps.h"
+#include "protocols/tls/connection-close-events.h"
+#include "protocols/classification/shared-tracer-maps.h"
+#include "protocols/classification/stack-helpers.h"
 
 SEC("kprobe/tcp_close")
 int BPF_KPROBE(kprobe__tcp_close, struct sock *sk) {
@@ -27,6 +30,23 @@ int BPF_KPROBE(kprobe__tcp_close, struct sock *sk) {
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
+
+    // Emit connection close event
+    tcp_close_event_t event = {0};
+    event.tuple = t;
+    event.timestamp_ns = bpf_ktime_get_ns();
+
+    // Look up protocol stack if this connection was being monitored
+    conn_tuple_t normalized_tuple = t;
+    normalize_tuple(&normalized_tuple);
+    normalized_tuple.pid = 0;
+    normalized_tuple.netns = 0;
+    protocol_stack_t *stack = get_protocol_stack_if_exists(&normalized_tuple);
+    if (stack != NULL) {
+        event.stack = *stack;
+    }
+
+    tcp_close_batch_enqueue(&event);
 
     pid_fd_t *pid_fd = bpf_map_lookup_elem(&pid_fd_by_tuple, &t);
     if (pid_fd != NULL) {
