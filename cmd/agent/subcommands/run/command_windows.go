@@ -14,7 +14,7 @@ import (
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
-	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
+	cloudfoundrycontainer "github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer/def"
 	"github.com/DataDog/datadog-agent/comp/agent/expvarserver"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"

@@ -52,7 +52,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent"
 	// core components
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
-	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
+	cloudfoundrycontainer "github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer/def"
 	"github.com/DataDog/datadog-agent/comp/agent/expvarserver"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"

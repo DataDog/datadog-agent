@@ -9,41 +9,38 @@ package cloudfoundrycontainerimpl
 import (
 	"context"
 
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
+	cloudfoundrycontainer "github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	cloudfoundrycontainertagger "github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newCloudfoundryContainer),
-	)
-}
-
-type dependencies struct {
-	fx.In
+// Requires defines the dependencies for the cloudfoundrycontainer component.
+type Requires struct {
 	Config config.Component // Don't remove Config as it must be loaded before using IsFeaturePresent
 	WMeta  workloadmeta.Component
-	LC     fx.Lifecycle
+	LC     compdef.Lifecycle
 }
 
-func newCloudfoundryContainer(deps dependencies) cloudfoundrycontainer.Component {
+// Provides defines the output of the cloudfoundrycontainer component.
+type Provides struct {
+	Comp cloudfoundrycontainer.Component
+}
+
+// NewComponent creates a new cloudfoundrycontainer component.
+func NewComponent(reqs Requires) Provides {
 	// start the cloudfoundry container tagger
-	if env.IsFeaturePresent(env.CloudFoundry) && !deps.Config.GetBool("cloud_foundry_buildpack") {
-		containerTagger, err := cloudfoundrycontainertagger.NewContainerTagger(deps.WMeta)
+	if env.IsFeaturePresent(env.CloudFoundry) && !reqs.Config.GetBool("cloud_foundry_buildpack") {
+		containerTagger, err := cloudfoundrycontainertagger.NewContainerTagger(reqs.WMeta)
 		if err != nil {
 			log.Errorf("Failed to create Cloud Foundry container tagger: %v", err)
 		} else {
 			ctx, cancel := pkgcommon.GetMainCtxCancel()
-			deps.LC.Append(fx.Hook{
+			reqs.LC.Append(compdef.Hook{
 				OnStart: func(_ context.Context) error {
 					containerTagger.Start(ctx)
 					return nil
@@ -55,5 +52,5 @@ func newCloudfoundryContainer(deps dependencies) cloudfoundrycontainer.Component
 			})
 		}
 	}
-	return struct{}{}
+	return Provides{Comp: struct{}{}}
 }
