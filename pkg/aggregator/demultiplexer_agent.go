@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"sync"
 	"time"
 
@@ -551,8 +552,10 @@ func (d *AgentDemultiplexer) SetSamplersFilterList(filterList utilstrings.Matche
 		worker.metricFilterListChan <- histoFilterList
 	}
 
-	// Metrics from checks are only filtered here, so we need the full filter list.
-	d.aggregator.filterListChan <- filterList
+	if _, ok := os.LookupEnv("FILTER_THIS_GROOVY_THANG"); ok {
+		// Metrics from checks are only filtered here, so we need the full filter list.
+		d.aggregator.filterListChan <- filterList
+	}
 }
 
 // SendSamplesWithoutAggregation buffers a bunch of metrics with timestamp. This data will be directly
