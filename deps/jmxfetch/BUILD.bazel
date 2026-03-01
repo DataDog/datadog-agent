@@ -3,15 +3,29 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
+load("//bazel/rules/macos/codesign:code_sign_jar_macos.bzl", "code_sign_jar_macos")
 load(":module_utils_test.bzl", "jmxfetch_module_utils_test_suite")
 
 package(default_visibility = ["//packages:__subpackages__"])
 
+# Code-sign the jmxfetch JAR file (macOS only)
+# This only really signs if SIGN_MAC is set in the environment.
+code_sign_jar_macos(
+    name = "signed_jmxfetch_jar",
+    jar = "@jmxfetch//:jmxfetch.jar",
+    output = "signed/jmxfetch.jar",
+    # For testing signing on a developer machine, you can set the
+    # identity to "-", to get a mock signing. Then build with
+    #    SIGN_MAC=true bazel build //:hatever
+    # signing_identity = "-",
+)
+
 pkg_files(
     name = "jar_file",
-    srcs = [
-        "@jmxfetch//:jmxfetch.jar",
-    ],
+    srcs = select({
+        "@platforms//os:macos": [":signed_jmxfetch_jar"],
+        "//conditions:default": ["@jmxfetch//:jmxfetch.jar"],
+    }),
     attributes = pkg_attributes(mode = "0644"),
     # This is essentially redundant, but it serves to document that
     # the code is under a different license.

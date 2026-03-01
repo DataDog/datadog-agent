@@ -128,6 +128,8 @@ def get_omnibus_env(
 
         if skip_sign:
             env['SKIP_SIGN_MAC'] = 'true'
+        else:
+            env['SIGN_MAC'] = 'true'
         if hardened_runtime:
             env['HARDENED_RUNTIME_MAC'] = 'true'
 
