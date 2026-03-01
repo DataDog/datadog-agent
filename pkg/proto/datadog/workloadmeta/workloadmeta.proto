@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package datadog.workloadmeta;
 
+import "google/protobuf/timestamp.proto";
+
 option go_package = "pkg/proto/pbgo/core"; // golang
 
 enum WorkloadmetaKind {
@@ -10,6 +12,7 @@ enum WorkloadmetaKind {
   ECS_TASK = 2;
   PROCESS = 3;
   CRD = 4;
+  CONTAINER_IMAGE_METADATA = 5;
 }
 
 enum WorkloadmetaSource {
@@ -56,10 +59,41 @@ message ContainerImage {
   string repo_digest = 6;
 }
 
+message ContainerImageLayer {
+  string mediaType = 1;
+  string digest = 2;
+  int64 sizeBytes = 3;
+  repeated string urls = 4;
+}
+
+message ContainerImageMetadata {
+  WorkloadmetaEntityId entityId = 1;
+  EntityMeta entityMeta = 2;
+  repeated string repoTags = 3;
+  repeated string repoDigests = 4;
+  string mediaType = 5;
+  int64 sizeBytes = 6;
+  string os = 7;
+  string osVersion = 8;
+  string architecture = 9;
+  string variant = 10;
+  repeated ContainerImageLayer layers = 11;
+  CompressedSBOM sbom = 12;
+}
+
 message ContainerPort {
   string name = 1;
   int32 port = 2;
   string protocol = 3;
+}
+
+message CompressedSBOM {
+  bytes bom = 1;
+  google.protobuf.Timestamp generationTime = 2;
+  uint64 generationDuration = 3;
+  string generationMethod = 4;
+  string status = 5;
+  string error = 6;
 }
 
 enum Runtime {
@@ -245,6 +279,7 @@ message WorkloadmetaEvent {
   ECSTask ecsTask = 4;
   Process process = 5;
   Crd crd = 6;
+  ContainerImageMetadata containerImageMetadata = 7;
 }
 
 message WorkloadmetaStreamResponse {

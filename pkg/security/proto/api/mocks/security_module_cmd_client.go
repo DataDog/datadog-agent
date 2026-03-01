@@ -474,6 +474,93 @@ func (_c *SecurityModuleCmdClient_GetConfig_Call) RunAndReturn(run func(ctx cont
 	return _c
 }
 
+// GetLoadedPolicies provides a mock function for the type SecurityModuleCmdClient
+func (_mock *SecurityModuleCmdClient) GetLoadedPolicies(ctx context.Context, in *api.GetLoadedPoliciesParams, opts ...grpc.CallOption) (*api.GetLoadedPoliciesMessage, error) {
+	// grpc.CallOption
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _mock.Called(_ca...)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetLoadedPolicies")
+	}
+
+	var r0 *api.GetLoadedPoliciesMessage
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *api.GetLoadedPoliciesParams, ...grpc.CallOption) (*api.GetLoadedPoliciesMessage, error)); ok {
+		return returnFunc(ctx, in, opts...)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *api.GetLoadedPoliciesParams, ...grpc.CallOption) *api.GetLoadedPoliciesMessage); ok {
+		r0 = returnFunc(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.GetLoadedPoliciesMessage)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, *api.GetLoadedPoliciesParams, ...grpc.CallOption) error); ok {
+		r1 = returnFunc(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// SecurityModuleCmdClient_GetLoadedPolicies_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetLoadedPolicies'
+type SecurityModuleCmdClient_GetLoadedPolicies_Call struct {
+	*mock.Call
+}
+
+// GetLoadedPolicies is a helper method to define mock.On call
+//   - ctx context.Context
+//   - in *api.GetLoadedPoliciesParams
+//   - opts ...grpc.CallOption
+func (_e *SecurityModuleCmdClient_Expecter) GetLoadedPolicies(ctx interface{}, in interface{}, opts ...interface{}) *SecurityModuleCmdClient_GetLoadedPolicies_Call {
+	return &SecurityModuleCmdClient_GetLoadedPolicies_Call{Call: _e.mock.On("GetLoadedPolicies",
+		append([]interface{}{ctx, in}, opts...)...)}
+}
+
+func (_c *SecurityModuleCmdClient_GetLoadedPolicies_Call) Run(run func(ctx context.Context, in *api.GetLoadedPoliciesParams, opts ...grpc.CallOption)) *SecurityModuleCmdClient_GetLoadedPolicies_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *api.GetLoadedPoliciesParams
+		if args[1] != nil {
+			arg1 = args[1].(*api.GetLoadedPoliciesParams)
+		}
+		var arg2 []grpc.CallOption
+		variadicArgs := make([]grpc.CallOption, len(args)-2)
+		for i, a := range args[2:] {
+			if a != nil {
+				variadicArgs[i] = a.(grpc.CallOption)
+			}
+		}
+		arg2 = variadicArgs
+		run(
+			arg0,
+			arg1,
+			arg2...,
+		)
+	})
+	return _c
+}
+
+func (_c *SecurityModuleCmdClient_GetLoadedPolicies_Call) Return(getLoadedPoliciesMessage *api.GetLoadedPoliciesMessage, err error) *SecurityModuleCmdClient_GetLoadedPolicies_Call {
+	_c.Call.Return(getLoadedPoliciesMessage, err)
+	return _c
+}
+
+func (_c *SecurityModuleCmdClient_GetLoadedPolicies_Call) RunAndReturn(run func(ctx context.Context, in *api.GetLoadedPoliciesParams, opts ...grpc.CallOption) (*api.GetLoadedPoliciesMessage, error)) *SecurityModuleCmdClient_GetLoadedPolicies_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetRuleSetReport provides a mock function for the type SecurityModuleCmdClient
 func (_mock *SecurityModuleCmdClient) GetRuleSetReport(ctx context.Context, in *api.GetRuleSetReportParams, opts ...grpc.CallOption) (*api.GetRuleSetReportMessage, error) {
 	// grpc.CallOption

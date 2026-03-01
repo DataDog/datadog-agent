@@ -19,8 +19,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -77,7 +79,14 @@ func TestSBOM(t *testing.T) {
 		t.Fatalf("failed to create docker wrapper: %v", err)
 	}
 
+	var sbomResult *sbompkg.ScanResult
 	dockerWrapper.Run(t, "package-rule", func(t *testing.T, _ wrapperType, cmdFunc func(bin string, args, env []string) *exec.Cmd) {
+		if err := p.Resolvers.SBOMResolver.RegisterListener(sbom.SBOMComputed, func(sbom *sbompkg.ScanResult) {
+			sbomResult = sbom
+		}); err != nil {
+			t.Fatal(err)
+		}
+
 		test.WaitSignalFromRule(t, func() error {
 			retry.Do(func() error {
 				sbom := p.Resolvers.SBOMResolver.GetWorkload(containerutils.ContainerID(dockerWrapper.containerID))
@@ -96,7 +105,13 @@ func TestSBOM(t *testing.T) {
 			assertFieldEqual(t, event, "open.file.package.name", "base-files")
 			assertFieldEqual(t, event, "process.file.package.name", "coreutils")
 			assertFieldNotEmpty(t, event, "process.container.id", "container id shouldn't be empty")
-
+			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
+			assert.NotNil(t, sbomResult, "sbom result should not be nil")
+			assert.Equal(t, sbomResult.Error, nil, "sbom result should not have an error")
+			assert.Equal(t, sbomResult.RequestID, dockerWrapper.containerID, "sbom result should have the same request id as the container id")
+			cyclonedx := sbomResult.Report.ToCycloneDX()
+			assert.NotNil(t, cyclonedx, "sbom result should not be nil")
+			assert.NotZero(t, len(cyclonedx.Components))
 			test.validateOpenSchema(t, event)
 		}, "test_file_package")
 	})

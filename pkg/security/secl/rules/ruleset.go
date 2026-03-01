@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/spf13/cast"
 
@@ -75,7 +76,7 @@ type RuleSet struct {
 	opts             *Opts
 	evalOpts         *eval.Opts
 	eventRuleBuckets map[eval.EventType]*RuleBucket
-	policies         []*Policy
+	policies         atomic.Value
 	fieldEvaluators  map[string]eval.Evaluator
 	model            eval.Model
 	eventCtor        func() eval.Event
@@ -153,6 +154,15 @@ func (rs *RuleSet) GetRuleMap() map[eval.RuleID]*Rule {
 // GetRuleBucket returns the rule bucket for the given event type
 func (rs *RuleSet) GetRuleBucket(eventType eval.EventType) *RuleBucket {
 	return rs.eventRuleBuckets[eventType]
+}
+
+// GetPolicies returns the policies loaded in the rule set
+func (rs *RuleSet) GetPolicies() []*Policy {
+	value := rs.policies.Load()
+	if value == nil {
+		return nil
+	}
+	return value.([]*Policy)
 }
 
 // GetOnDemandHookPoints gets the on-demand hook points
@@ -1286,7 +1296,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) ([]
 	if err != nil {
 		errs = multierror.Append(errs, err)
 	}
-	rs.policies = policies
+	rs.policies.Store(policies)
 
 	for _, policy := range policies {
 		if len(policy.Macros) == 0 && len(policy.Rules) == 0 && (policy.Info.Name != DefaultPolicyName && !policy.Info.IsInternal) {

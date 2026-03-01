@@ -21,6 +21,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
+	sbomapi "github.com/DataDog/datadog-agent/pkg/proto/pbgo/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -162,15 +163,19 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 	seclog.SetTags(cfg.LogTags...)
 
 	// setup gRPC servers
+	seclog.Debugf("Registering API server")
 	api.RegisterSecurityModuleCmdServer(c.grpcCmdServer.ServiceRegistrar(), c.apiServer)
 	if cfg.EventGRPCServer != "security-agent" {
-		seclog.Infof("start security module event grpc server")
+		seclog.Infof("start security module event grpc server with %s", cfg.SocketPath)
 
 		family := common.GetFamilyAddress(cfg.SocketPath)
 		c.grpcEventServer = grpcutils.NewServer(family, cfg.SocketPath)
 
 		api.RegisterSecurityModuleEventServer(c.grpcEventServer.ServiceRegistrar(), c.apiServer)
 	}
+
+	seclog.Debugf("Registering SBOM collector server")
+	sbomapi.RegisterSBOMCollectorServer(c.grpcCmdServer.ServiceRegistrar(), c.apiServer)
 
 	// platform specific initialization
 	if err := c.init(evm, cfg, opts); err != nil {

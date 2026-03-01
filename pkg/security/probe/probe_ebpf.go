@@ -847,14 +847,18 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 		events = append(events, event)
 
-		snapshotBoundSockets, ok := p.Resolvers.ProcessResolver.SnapshottedBoundSockets[event.ProcessContext.Pid]
-		if ok {
-			for _, s := range snapshotBoundSockets {
-				bindEvent := p.newBindEventFromReplay(entry, s)
-				bindEvent.Source = model.EventSourceReplay
+		// Replay bound sockets from entry snapshot data
+		for _, s := range entry.SnapshottedBoundSockets {
+			bindEvent := p.newBindEventFromReplay(entry, s)
+			bindEvent.Source = model.EventSourceReplay
+			events = append(events, bindEvent)
+		}
 
-				events = append(events, bindEvent)
-			}
+		// Replay mmaped files from entry snapshot data
+		for _, f := range entry.SnapshottedMmapedFiles {
+			openEvent := p.newOpenEventFromReplay(entry, f)
+			openEvent.Source = model.EventSourceReplay
+			events = append(events, openEvent)
 		}
 	}
 
@@ -3015,6 +3019,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		Tagger:                   probe.Opts.Tagger,
 		UseRingBuffer:            p.useRingBuffers,
 		TTYFallbackEnabled:       probe.Opts.TTYFallbackEnabled,
+		WorkloadMeta:             opts.WorkloadMeta,
 	}
 
 	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts)
@@ -3577,6 +3582,41 @@ func (p *EBPFProbe) newBindEventFromReplay(entry *model.ProcessCacheEntry, snaps
 		event.Bind.Addr.IPNet.Mask = net.CIDRMask(128, 128)
 	}
 	event.Bind.Addr.Port = snapshottedBind.Port
+
+	return event
+}
+
+// newOpenEventFromReplay returns a new open event for a memory-mapped file with a process context
+func (p *EBPFProbe) newOpenEventFromReplay(entry *model.ProcessCacheEntry, snapshottedFile model.SnapshottedMmapedFile) *model.Event {
+	event := p.getPoolEvent()
+	event.Timestamp = time.Now()
+	event.TimestampRaw = uint64(p.Resolvers.TimeResolver.ComputeMonotonicTimestamp(event.Timestamp))
+	event.Type = uint32(model.FileOpenEventType)
+	event.ProcessCacheEntry = entry
+	event.ProcessContext = &entry.ProcessContext
+	event.AddToFlags(model.EventFlagsFromReplay)
+
+	event.Open.SyscallEvent.Retval = 0
+	event.Open.File.PathnameStr = snapshottedFile.Path
+	event.Open.File.BasenameStr = filepath.Base(snapshottedFile.Path)
+
+	// Try to stat the file to get basic metadata (best effort)
+	// This helps with file resolution and enrichment
+	var fileStats unix.Statx_t
+	fullPath := utils.ProcRootFilePath(entry.Pid, snapshottedFile.Path)
+	if err := unix.Statx(unix.AT_FDCWD, fullPath, 0, unix.STATX_ALL, &fileStats); err == nil {
+		event.Open.File.FileFields.Mode = uint16(fileStats.Mode)
+		event.Open.File.FileFields.Inode = fileStats.Ino
+		event.Open.File.FileFields.UID = fileStats.Uid
+		event.Open.File.FileFields.GID = fileStats.Gid
+		event.Open.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).Nanosecond())
+		event.Open.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).Nanosecond())
+		event.Open.File.Mode = fileStats.Mode
+		event.Open.File.Inode = fileStats.Ino
+		event.Open.File.Device = fileStats.Dev_major<<20 | fileStats.Dev_minor
+		event.Open.File.NLink = fileStats.Nlink
+		event.Open.File.MountID = uint32(fileStats.Mnt_id)
+	}
 
 	return event
 }
