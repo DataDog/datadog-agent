@@ -131,6 +131,11 @@ type HTTPReceiver struct {
 	timing   timing.Reporter
 	info     *watchdog.CurrentInfo
 	Handlers map[string]http.Handler
+
+	// orgUUIDOPM holds the "opm" value (base64url(Trunc60(SHA-256(org_uuid)))),
+	// fetched asynchronously from the remote config backend and served via the /info endpoint.
+	orgUUIDOPM      atomic.String
+	orgUUIDFetchDone chan struct{}
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
@@ -172,7 +177,8 @@ func NewHTTPReceiver(
 
 		rateLimiterResponse: rateLimiterResponse,
 
-		exit: make(chan struct{}),
+		exit:            make(chan struct{}),
+		orgUUIDFetchDone: make(chan struct{}),
 
 		// Based on experimentation, 4 simultaneous readers
 		// is enough to keep 16 threads busy processing the
@@ -394,6 +400,11 @@ func (r *HTTPReceiver) Start() {
 
 	go func() {
 		defer watchdog.LogOnPanic(r.statsd)
+		r.fetchOrgUUIDBackground(r.orgUUIDFetchDone)
+	}()
+
+	go func() {
+		defer watchdog.LogOnPanic(r.statsd)
 		r.loop()
 	}()
 }
@@ -416,6 +427,7 @@ func (r *HTTPReceiver) Stop() error {
 	if !r.conf.ReceiverEnabled || (r.conf.ReceiverPort == 0 && r.conf.ReceiverSocket == "" && r.conf.WindowsPipeName == "") {
 		return nil
 	}
+	close(r.orgUUIDFetchDone)
 	r.exit <- struct{}{}
 	<-r.exit
 

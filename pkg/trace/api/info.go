@@ -149,7 +149,23 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		ignoreResources = patterns
 	}
 
-	txt, err := json.MarshalIndent(struct {
+	rconf := reducedConfig{
+		DefaultEnv:             r.conf.DefaultEnv,
+		TargetTPS:              r.conf.TargetTPS,
+		MaxEPS:                 r.conf.MaxEPS,
+		ReceiverPort:           r.conf.ReceiverPort,
+		ReceiverSocket:         r.conf.ReceiverSocket,
+		ConnectionLimit:        r.conf.ConnectionLimit,
+		ReceiverTimeout:        r.conf.ReceiverTimeout,
+		MaxRequestBytes:        r.conf.MaxRequestBytes,
+		StatsdPort:             r.conf.StatsdPort,
+		MaxMemory:              r.conf.MaxMemory,
+		MaxCPU:                 r.conf.MaxCPU,
+		AnalyzedSpansByService: r.conf.AnalyzedSpansByService,
+		Obfuscation:            oconf,
+	}
+
+	type infoResponse struct {
 		Version                string        `json:"version"`
 		GitCommit              string        `json:"git_commit"`
 		Endpoints              []string      `json:"endpoints"`
@@ -166,49 +182,49 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		FilterTags             *filterTags   `json:"filter_tags,omitempty"`
 		FilterTagsRegex        *filterTags   `json:"filter_tags_regex,omitempty"`
 		IgnoreResources        []string      `json:"ignore_resources,omitempty"`
-	}{
-		Version:                r.conf.AgentVersion,
-		GitCommit:              r.conf.GitCommit,
-		Endpoints:              all,
-		FeatureFlags:           r.conf.AllFeatures(),
-		ClientDropP0s:          canDropP0,
-		SpanMetaStructs:        true,
-		LongRunningSpans:       true,
-		SpanEvents:             true,
-		EvpProxyAllowedHeaders: EvpProxyAllowedHeaders,
-		SpanKindsStatsComputed: spanKindsStatsComputed,
-		ObfuscationVersion:     obfuscate.Version,
-		FilterTags:             filtertags,
-		FilterTagsRegex:        filtertagsregex,
-		IgnoreResources:        ignoreResources,
-		Config: reducedConfig{
-			DefaultEnv:             r.conf.DefaultEnv,
-			TargetTPS:              r.conf.TargetTPS,
-			MaxEPS:                 r.conf.MaxEPS,
-			ReceiverPort:           r.conf.ReceiverPort,
-			ReceiverSocket:         r.conf.ReceiverSocket,
-			ConnectionLimit:        r.conf.ConnectionLimit,
-			ReceiverTimeout:        r.conf.ReceiverTimeout,
-			MaxRequestBytes:        r.conf.MaxRequestBytes,
-			StatsdPort:             r.conf.StatsdPort,
-			MaxMemory:              r.conf.MaxMemory,
-			MaxCPU:                 r.conf.MaxCPU,
-			AnalyzedSpansByService: r.conf.AnalyzedSpansByService,
-			Obfuscation:            oconf,
-		},
-		PeerTags: r.conf.ConfiguredPeerTags(),
-	}, "", "\t")
-	if err != nil {
-		panic(fmt.Errorf("Error making /info handler: %v", err))
+		OPM                    string        `json:"opm,omitempty"`
 	}
-	h := sha256.Sum256(txt)
+
+	featureFlags := r.conf.AllFeatures()
+	peerTags := r.conf.ConfiguredPeerTags()
+
+	buildResponse := func(opm string) []byte {
+		txt, err := json.MarshalIndent(infoResponse{
+			Version:                r.conf.AgentVersion,
+			GitCommit:              r.conf.GitCommit,
+			Endpoints:              all,
+			FeatureFlags:           featureFlags,
+			ClientDropP0s:          canDropP0,
+			SpanMetaStructs:        true,
+			LongRunningSpans:       true,
+			SpanEvents:             true,
+			EvpProxyAllowedHeaders: EvpProxyAllowedHeaders,
+			SpanKindsStatsComputed: spanKindsStatsComputed,
+			ObfuscationVersion:     obfuscate.Version,
+			FilterTags:             filtertags,
+			FilterTagsRegex:        filtertagsregex,
+			IgnoreResources:        ignoreResources,
+			Config:                 rconf,
+			PeerTags:               peerTags,
+			OPM:                    opm,
+		}, "", "\t")
+		if err != nil {
+			panic(fmt.Errorf("Error making /info handler: %v", err))
+		}
+		return txt
+	}
+
+	// Compute the state hash from the static config (without opm, which is fetched
+	// asynchronously and not a config change signal for tracing clients).
+	staticTxt := buildResponse("")
+	h := sha256.Sum256(staticTxt)
 	return hex.EncodeToString(h[:]), func(w http.ResponseWriter, req *http.Request) {
 		containerID := r.containerIDProvider.GetContainerID(req.Context(), req.Header)
 		if containerTags, err := r.conf.ContainerTags(containerID); err == nil {
 			hash := computeContainerTagsHash(containerTags)
 			w.Header().Add(containerTagsHashHeader, hash)
 		}
-		fmt.Fprintf(w, "%s", txt)
+		fmt.Fprintf(w, "%s", buildResponse(r.orgUUIDOPM.Load()))
 	}
 }
 
