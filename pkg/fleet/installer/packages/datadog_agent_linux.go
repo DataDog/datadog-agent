@@ -256,6 +256,9 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	if err := integrations.RestoreCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore custom integrations: %s", err)
 	}
+	if err := restoreODBCConfig(ctx.PackagePath); err != nil {
+		log.Warnf("failed to restore ODBC config: %s", err)
+	}
 	if err := extensionsPkg.SetPackage(ctx, agentPackage, getCurrentAgentVersion(), false); err != nil {
 		return fmt.Errorf("failed to set package version in extensions db: %w", err)
 	}
@@ -328,6 +331,9 @@ func preRemoveDatadogAgent(ctx HookContext) error {
 		if err := integrations.RemoveCompiledFiles(ctx.PackagePath); err != nil {
 			log.Warnf("failed to remove compiled files: %s", err)
 		}
+		if err := saveODBCConfig(ctx.PackagePath); err != nil {
+			log.Warnf("failed to save ODBC config: %s", err)
+		}
 	}
 	return nil
 }
@@ -345,6 +351,9 @@ func preStartExperimentDatadogAgent(ctx HookContext) error {
 	if err := saveAgentExtensions(ctx); err != nil {
 		log.Warnf("failed to save agent extensions: %s", err)
 	}
+	if err := saveODBCConfig(ctx.PackagePath); err != nil {
+		log.Warnf("failed to save ODBC config: %s", err)
+	}
 	return nil
 }
 
@@ -359,6 +368,9 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 	}
 	if err := restoreAgentExtensions(ctx, true); err != nil {
 		log.Warnf("failed to restore agent extensions: %s", err)
+	}
+	if err := restoreODBCConfig(ctx.PackagePath); err != nil {
+		log.Warnf("failed to restore ODBC config: %s", err)
 	}
 	if err := agentService.WriteExperiment(ctx); err != nil {
 		return err
@@ -902,4 +914,47 @@ func RestartDatadogAgent(ctx context.Context) error {
 		return nil
 	}
 	return systemd.RestartUnit(ctx, "datadog-agent.service")
+}
+
+var odbcConfigFiles = []string{"odbc.ini", "odbcinst.ini"}
+
+// saveODBCConfig saves the ODBC configuration files from embedded/etc/ to the
+// temporary directory so they can be restored after an upgrade.
+func saveODBCConfig(packagePath string) error {
+	for _, filename := range odbcConfigFiles {
+		src := filepath.Join(packagePath, "embedded", "etc", filename)
+		dst := filepath.Join(paths.RootTmpDir, filename)
+		data, err := os.ReadFile(src)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return fmt.Errorf("failed to read %s: %w", src, err)
+		}
+		if err := os.WriteFile(dst, data, 0644); err != nil {
+			return fmt.Errorf("failed to write %s: %w", dst, err)
+		}
+	}
+	return nil
+}
+
+// restoreODBCConfig restores the ODBC configuration files from the temporary
+// directory into the new package's embedded/etc/ directory after an upgrade.
+func restoreODBCConfig(packagePath string) error {
+	for _, filename := range odbcConfigFiles {
+		src := filepath.Join(paths.RootTmpDir, filename)
+		dst := filepath.Join(packagePath, "embedded", "etc", filename)
+		data, err := os.ReadFile(src)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return fmt.Errorf("failed to read %s: %w", src, err)
+		}
+		if err := os.WriteFile(dst, data, 0644); err != nil {
+			return fmt.Errorf("failed to write %s: %w", dst, err)
+		}
+		_ = os.Remove(src)
+	}
+	return nil
 }
