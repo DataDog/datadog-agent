@@ -6,7 +6,7 @@ load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
-    default_applicable_licenses = [":license"],
+    default_package_metadata = [":license"],
     default_visibility = ["//visibility:private"],
 )
 
@@ -14,8 +14,8 @@ VERSION = "3.50.4"
 
 license(
     name = "license",
-    license_kinds = ["@rules_license//licenses/spdx:blessing"],
-    license_text = "LICENSE.md",
+    license_kinds = ["@rules_license//licenses/generic:unencumbered"],
+    license_text = "@sqlite3_license//file",
     visibility = ["//visibility:public"],
 )
 
