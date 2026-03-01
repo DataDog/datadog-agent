@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+// Package traceconfigimpl implements the trace-agent config component.
+package traceconfigimpl
 
 import (
 	"encoding/json"
@@ -12,17 +13,17 @@ import (
 	"net/http"
 	"strings"
 
-	"go.uber.org/fx"
 	"go.yaml.in/yaml/v2"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
+	pkgtraceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -34,21 +35,25 @@ const (
 	apmConfigAPIKeyConfigKey = "apm_config.api_key" // deprecated setting
 )
 
-// Dependencies defines the trace config component deps.
+// Requires defines the trace config component deps.
 // These include the core config configuration and component config params.
-type Dependencies struct {
-	fx.In
-	Params Params
+type Requires struct {
+	Params traceconfig.Params
 	Config coreconfig.Component
 	Tagger tagger.Component
 	IPC    ipc.Component
+}
+
+// Provides defines the output of the trace config component.
+type Provides struct {
+	Comp traceconfig.Component
 }
 
 // cfg implements the Component.
 type cfg struct {
 	// this component is currently implementing a thin wrapper around pkg/trace/config,
 	// and uses globals in that package.
-	*traceconfig.AgentConfig
+	*pkgtraceconfig.AgentConfig
 
 	// coreConfig relates to the main agent config component
 	coreConfig coreconfig.Component
@@ -63,22 +68,22 @@ type cfg struct {
 	ipc ipc.Component
 }
 
-// NewConfig is the default constructor for the component, it returns
+// NewComponent is the default constructor for the component, it returns
 // a component instance and an error.
-func NewConfig(deps Dependencies) (Component, error) {
-	tracecfg, err := setupConfigCommon(deps)
+func NewComponent(reqs Requires) (Provides, error) {
+	tracecfg, err := setupConfigCommon(reqs)
 
 	if err != nil {
 		// Allow main Agent to start with missing API key
-		if !(err == traceconfig.ErrMissingAPIKey && !deps.Params.FailIfAPIKeyMissing) {
-			return nil, err
+		if !(err == pkgtraceconfig.ErrMissingAPIKey && !reqs.Params.FailIfAPIKeyMissing) {
+			return Provides{}, err
 		}
 	}
 
 	c := cfg{
 		AgentConfig: tracecfg,
-		coreConfig:  deps.Config,
-		ipc:         deps.IPC,
+		coreConfig:  reqs.Config,
+		ipc:         reqs.IPC,
 	}
 	c.SetMaxMemCPU(env.IsContainerized())
 
@@ -104,7 +109,7 @@ func NewConfig(deps Dependencies) (Component, error) {
 		}
 	})
 
-	return &c, nil
+	return Provides{Comp: &c}, nil
 }
 
 func (c *cfg) updateAPIKey(oldKey, newKey string) {
@@ -127,7 +132,7 @@ func (c *cfg) Warnings() *model.Warnings {
 	return c.warnings
 }
 
-func (c *cfg) Object() *traceconfig.AgentConfig {
+func (c *cfg) Object() *pkgtraceconfig.AgentConfig {
 	return c.AgentConfig
 }
 
