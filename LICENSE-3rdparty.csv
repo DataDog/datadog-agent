@@ -4317,6 +4317,10 @@ core,k8s.io/utils/ptr,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/utils/strings/slices,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/utils/trace,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,mellium.im/sasl,BSD-2-Clause,Copyright © 2014 The Mellium Contributors
+core,mvdan.cc/sh/v3/expand,BSD-3-Clause,"Copyright (c) 2016, Daniel Martí. All rights reserved"
+core,mvdan.cc/sh/v3/fileutil,BSD-3-Clause,"Copyright (c) 2016, Daniel Martí. All rights reserved"
+core,mvdan.cc/sh/v3/pattern,BSD-3-Clause,"Copyright (c) 2016, Daniel Martí. All rights reserved"
+core,mvdan.cc/sh/v3/syntax,BSD-3-Clause,"Copyright (c) 2016, Daniel Martí. All rights reserved"
 core,sigs.k8s.io/apiserver-network-proxy/konnectivity-client/pkg/client,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/apiserver-network-proxy/konnectivity-client/pkg/client/metrics,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/apiserver-network-proxy/konnectivity-client/pkg/common/metrics,Apache-2.0,Copyright 2017 The Kubernetes Authors.

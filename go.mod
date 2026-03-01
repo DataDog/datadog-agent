@@ -923,7 +923,7 @@ require (
 	golang.org/x/lint v0.0.0-20241112194109-818c5a804067 // indirect
 	golang.org/x/oauth2 v0.35.0
 	golang.org/x/telemetry v0.0.0-20260209163413-e7419c687ee4 // indirect
-	golang.org/x/term v0.40.0 // indirect
+	golang.org/x/term v0.40.0
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
 	gonum.org/v1/gonum v0.17.0 // indirect
 	google.golang.org/api v0.258.0 // indirect
@@ -999,6 +999,7 @@ require (
 	gitlab.com/gitlab-org/api/client-go v1.40.1
 	go.temporal.io/api v1.62.2
 	go.temporal.io/sdk v1.39.0
+	mvdan.cc/sh/v3 v3.12.0
 )
 
 require (
