@@ -44,10 +44,15 @@ func Run(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.HostOutputs, p
 		}
 
 		dockerManager, err := docker.NewManager(&awsEnv, host, utils.PulumiDependsOn(installEcrCredsHelperCmd))
-
 		if err != nil {
 			return err
 		}
+
+		loginCmd, err := dockerManager.LoginRegistry("ghcr.io", "x-access-token", awsEnv.GHCRToken())
+		if err != nil {
+			return err
+		}
+
 		if params.agentOptions != nil {
 			// Agent install needs to be serial with the docker
 			// install because they both use the apt lock, and
@@ -55,7 +60,7 @@ func Run(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.HostOutputs, p
 			// at the same time.
 			params.agentOptions = append(params.agentOptions,
 				agentparams.WithPulumiResourceOptions(
-					utils.PulumiDependsOn(dockerManager)))
+					utils.PulumiDependsOn(dockerManager, loginCmd)))
 		}
 	}
 

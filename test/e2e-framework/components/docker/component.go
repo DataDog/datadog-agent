@@ -200,6 +200,28 @@ func (d *Manager) install() (command.Command, error) {
 	return groupCmd, err
 }
 
+func (d *Manager) LoginRegistry(registry, username string, password pulumi.StringOutput, opts ...pulumi.ResourceOption) (command.Command, error) {
+	opts = utils.MergeOptions(d.opts, opts...)
+	loginCmd, err := d.Host.OS.Runner().Command(
+		d.namer.ResourceName("login", registry),
+		&command.Args{
+			Create: pulumi.String(fmt.Sprintf(
+				"if [ -n \"$REGISTRY_TOKEN\" ]; then echo \"$REGISTRY_TOKEN\" | docker login %s -u %s --password-stdin; fi",
+				registry, username,
+			)),
+			Environment: pulumi.StringMap{
+				"REGISTRY_TOKEN": password,
+			},
+		},
+		opts...,
+	)
+	if err != nil {
+		return nil, err
+	}
+	d.opts = utils.MergeOptions(d.opts, utils.PulumiDependsOn(loginCmd))
+	return loginCmd, nil
+}
+
 func (d *Manager) installCompose() (command.Command, error) {
 	opts := append(d.opts, pulumi.Parent(d))
 	installCompose := pulumi.Sprintf("bash -c '(docker-compose version | grep %s) || (curl --retry 10 -fsSLo /usr/local/bin/docker-compose https://github.com/docker/compose/releases/download/%s/docker-compose-linux-$(uname -p) && sudo chmod 755 /usr/local/bin/docker-compose)'", composeVersion, composeVersion)

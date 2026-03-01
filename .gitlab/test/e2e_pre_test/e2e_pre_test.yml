@@ -12,7 +12,8 @@ e2e_pre_test:
     - job: publish_fakeintake
       optional: true
   script:
-    - dda inv -- -e new-e2e-tests.run --targets ./test-infra-definition --result-json $E2E_RESULT_JSON --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    - GHCR_TOKEN=$(dda inv github.get-token-from-app) || exit $?
+    - dda inv -- -e new-e2e-tests.run --targets ./test-infra-definition --result-json $E2E_RESULT_JSON --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) -c ddinfra:ghcrToken=${GHCR_TOKEN}
   after_script:
     - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "junit-${CI_JOB_ID}.tgz" "$E2E_RESULT_JSON"
   variables:

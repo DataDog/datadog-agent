@@ -62,6 +62,7 @@ const (
 	DDImagePullRegistryParamName         = "imagePullRegistry"
 	DDImagePullUsernameParamName         = "imagePullUsername"
 	DDImagePullPasswordParamName         = "imagePullPassword"
+	DDGHCRTokenParamName                 = "ghcrToken"
 	DDAgentAPIKeyParamName               = "apiKey"
 	DDAgentAPPKeyParamName               = "appKey"
 	DDAgentFakeintake                    = "fakeintake"
@@ -141,6 +142,7 @@ type Env interface {
 	ImagePullRegistry() string
 	ImagePullUsername() string
 	ImagePullPassword() pulumi.StringOutput
+	GHCRToken() pulumi.StringOutput
 	AgentAPIKey() pulumi.StringOutput
 	AgentAPPKey() pulumi.StringOutput
 	AgentUseFakeintake() bool
@@ -363,6 +365,10 @@ func (e *CommonEnvironment) ImagePullUsername() string {
 
 func (e *CommonEnvironment) ImagePullPassword() pulumi.StringOutput {
 	return e.AgentConfig.RequireSecret(DDImagePullPasswordParamName)
+}
+
+func (e *CommonEnvironment) GHCRToken() pulumi.StringOutput {
+	return e.InfraConfig.GetSecret(DDGHCRTokenParamName)
 }
 
 func (e *CommonEnvironment) AgentAPIKey() pulumi.StringOutput {
