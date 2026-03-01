@@ -198,6 +198,72 @@ func TestEqualTo(t *testing.T) {
 	}
 }
 
+func TestToProto(t *testing.T) {
+	cl := ContainersLanguages{
+		*NewContainer("web"):         {"java": {}, "python": {}},
+		*NewInitContainer("db-init"): {"go": {}},
+		*NewContainer("worker"):      {"ruby": {}},
+	}
+
+	containers, initContainers := cl.ToProto()
+
+	// Should have 2 standard containers and 1 init container
+	assert.Len(t, containers, 2)
+	assert.Len(t, initContainers, 1)
+	assert.Equal(t, "db-init", initContainers[0].ContainerName)
+
+	// Verify standard containers contain expected names
+	containerNames := make(map[string]bool)
+	for _, c := range containers {
+		containerNames[c.ContainerName] = true
+	}
+	assert.True(t, containerNames["web"])
+	assert.True(t, containerNames["worker"])
+}
+
+func TestEqualToDifferentContainers(t *testing.T) {
+	// Same length but different container names
+	a := TimedContainersLanguages{
+		*NewContainer("cont-a"): {"java": {}},
+	}
+	b := TimedContainersLanguages{
+		*NewContainer("cont-b"): {"java": {}},
+	}
+	assert.False(t, a.EqualTo(b))
+}
+
+func TestRemoveExpiredLanguagesNoneExpired(t *testing.T) {
+	mockTime := time.Now()
+	containersLanguages := TimedContainersLanguages{
+		*NewContainer("cont"): {"java": mockTime.Add(10 * time.Minute)},
+	}
+	removedAny := containersLanguages.RemoveExpiredLanguages()
+	assert.False(t, removedAny)
+	assert.Len(t, containersLanguages, 1)
+}
+
+func TestMergeReturnValue(t *testing.T) {
+	mockExpiration := time.Now()
+
+	cl := TimedContainersLanguages{
+		*NewContainer("cont"): {"java": mockExpiration},
+	}
+
+	// Merging with same content should not report modifications
+	same := TimedContainersLanguages{
+		*NewContainer("cont"): {"java": mockExpiration},
+	}
+	modified := cl.Merge(same)
+	assert.False(t, modified)
+
+	// Merging with new content should report modifications
+	different := TimedContainersLanguages{
+		*NewContainer("cont"): {"python": mockExpiration},
+	}
+	modified = cl.Merge(different)
+	assert.True(t, modified)
+}
+
 func TestRemoveExpiredLanguages(t *testing.T) {
 	mockTime := time.Now()
 	mixedlangset := TimedLanguageSet{"java": mockTime.Add(10 * time.Minute), "cpp": mockTime.Add(-10 * time.Minute)}

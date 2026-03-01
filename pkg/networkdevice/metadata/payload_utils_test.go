@@ -10,9 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
+	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 )
 
 // mockTimeNow mocks time.Now
@@ -149,4 +151,76 @@ func Test_batchPayloads(t *testing.T) {
 	assert.Len(t, payloads[8].NetflowExporters, 0)
 	assert.Len(t, payloads[8].Diagnoses, 51)
 	assert.Equal(t, diagnoses[49:100], payloads[8].Diagnoses)
+}
+
+func TestBatchDeviceScan(t *testing.T) {
+	collectTime := mockTimeNow()
+
+	oids := make([]*DeviceOID, 0, 5)
+	for i := 0; i < 5; i++ {
+		oids = append(oids, &DeviceOID{
+			DeviceID: "dev1",
+			OID:      fmt.Sprintf("1.3.6.1.2.1.1.%d.0", i),
+			Type:     "OctetString",
+			Value:    fmt.Sprintf("val%d", i),
+		})
+	}
+
+	payloads := BatchDeviceScan("test-ns", collectTime, 3, oids)
+	require.Len(t, payloads, 2)
+
+	assert.Equal(t, integrations.Integration("snmp"), payloads[0].Integration)
+	assert.Equal(t, "test-ns", payloads[0].Namespace)
+	assert.Len(t, payloads[0].DeviceOIDs, 3)
+	assert.Len(t, payloads[1].DeviceOIDs, 2)
+}
+
+func TestBatchDeviceScanEmpty(t *testing.T) {
+	collectTime := mockTimeNow()
+	payloads := BatchDeviceScan("ns", collectTime, 100, nil)
+	require.Len(t, payloads, 1)
+	assert.Empty(t, payloads[0].DeviceOIDs)
+}
+
+func TestDeviceOIDFromPDU(t *testing.T) {
+	pdu := &gosnmp.SnmpPDU{
+		Name:  ".1.3.6.1.2.1.1.1.0",
+		Type:  gosnmp.OctetString,
+		Value: []byte("Linux router"),
+	}
+
+	result, err := DeviceOIDFromPDU("device123", pdu)
+	require.NoError(t, err)
+	assert.Equal(t, "device123", result.DeviceID)
+	assert.Equal(t, "1.3.6.1.2.1.1.1.0", result.OID)
+	assert.NotEmpty(t, result.Type)
+}
+
+func TestDeviceOIDFromPDUError(t *testing.T) {
+	// A PDU with an unsupported type should cause an error
+	pdu := &gosnmp.SnmpPDU{
+		Name:  ".1.3.6.1.2.1.1.1.0",
+		Type:  gosnmp.NoSuchObject,
+		Value: nil,
+	}
+	_, err := DeviceOIDFromPDU("device123", pdu)
+	assert.Error(t, err)
+}
+
+func TestIfAdminStatusAsString(t *testing.T) {
+	assert.Equal(t, "up", AdminStatusUp.AsString())
+	assert.Equal(t, "down", AdminStatusDown.AsString())
+	assert.Equal(t, "testing", AdminStatusTesting.AsString())
+	assert.Equal(t, "unknown", IfAdminStatus(99).AsString())
+}
+
+func TestIfOperStatusAsString(t *testing.T) {
+	assert.Equal(t, "up", OperStatusUp.AsString())
+	assert.Equal(t, "down", OperStatusDown.AsString())
+	assert.Equal(t, "testing", OperStatusTesting.AsString())
+	assert.Equal(t, "unknown", OperStatusUnknown.AsString())
+	assert.Equal(t, "dormant", OperStatusDormant.AsString())
+	assert.Equal(t, "not_present", OperStatusNotPresent.AsString())
+	assert.Equal(t, "lower_layer_down", OperStatusLowerLayerDown.AsString())
+	assert.Equal(t, "unknown", IfOperStatus(99).AsString())
 }

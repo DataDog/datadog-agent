@@ -23,6 +23,11 @@ func TestNoopParserHandleMessages(t *testing.T) {
 	assert.Equal(t, logMessage.GetContent(), msg.GetContent())
 }
 
+func TestNoopParserSupportsPartialLine(t *testing.T) {
+	parser := New()
+	assert.False(t, parser.SupportsPartialLine())
+}
+
 // FuzzNoopParser tests the noop parser with arbitrary input. Even though the
 // noop parser just returns its input unchanged, we still want to ensure it
 // never panics and always returns the same message object it was given.

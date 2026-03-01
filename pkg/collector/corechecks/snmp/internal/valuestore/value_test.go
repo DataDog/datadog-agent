@@ -6,6 +6,7 @@
 package valuestore
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -40,6 +41,72 @@ func TestToFloat64FromInvalidType(t *testing.T) {
 	}
 	_, err := snmpValue.ToFloat64()
 	assert.NotNil(t, err)
+}
+
+func TestToFloat64FromBytes(t *testing.T) {
+	snmpValue := &ResultValue{
+		SubmissionType: profiledefinition.ProfileMetricTypeGauge,
+		Value:          []byte("123.456"),
+	}
+	value, err := snmpValue.ToFloat64()
+	assert.NoError(t, err)
+	assert.Equal(t, float64(123.456), value)
+}
+
+func TestToFloat64FromUnparseableString(t *testing.T) {
+	snmpValue := &ResultValue{
+		SubmissionType: profiledefinition.ProfileMetricTypeGauge,
+		Value:          "not-a-number",
+	}
+	_, err := snmpValue.ToFloat64()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to parse")
+}
+
+func TestExtractStringValue(t *testing.T) {
+	t.Run("matching pattern", func(t *testing.T) {
+		sv := ResultValue{
+			SubmissionType: profiledefinition.ProfileMetricTypeGauge,
+			Value:          "version: 1.2.3-beta",
+		}
+		pattern := regexp.MustCompile(`version: (\S+)`)
+		result, err := sv.ExtractStringValue(pattern)
+		assert.NoError(t, err)
+		assert.Equal(t, "1.2.3-beta", result.Value)
+		assert.Equal(t, profiledefinition.ProfileMetricTypeGauge, result.SubmissionType)
+	})
+
+	t.Run("no match", func(t *testing.T) {
+		sv := ResultValue{Value: "no match here"}
+		pattern := regexp.MustCompile(`(xyz)`)
+		_, err := sv.ExtractStringValue(pattern)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "does not match")
+	})
+
+	t.Run("no capture group", func(t *testing.T) {
+		sv := ResultValue{Value: "test123"}
+		pattern := regexp.MustCompile(`test123`)
+		_, err := sv.ExtractStringValue(pattern)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "matching group")
+	})
+
+	t.Run("non-string type passes through", func(t *testing.T) {
+		sv := ResultValue{Value: float64(42)}
+		pattern := regexp.MustCompile(`(.+)`)
+		result, err := sv.ExtractStringValue(pattern)
+		assert.NoError(t, err)
+		assert.Equal(t, float64(42), result.Value)
+	})
+
+	t.Run("bytes value", func(t *testing.T) {
+		sv := ResultValue{Value: []byte("firmware v2.5")}
+		pattern := regexp.MustCompile(`v(\d+\.\d+)`)
+		result, err := sv.ExtractStringValue(pattern)
+		assert.NoError(t, err)
+		assert.Equal(t, "2.5", result.Value)
+	})
 }
 
 func TestResultValue_ToString(t *testing.T) {

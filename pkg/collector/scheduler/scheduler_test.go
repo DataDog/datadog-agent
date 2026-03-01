@@ -173,6 +173,43 @@ func TestStopCancelsProducers(_ *testing.T) {
 
 }
 
+func TestIsCheckScheduled(t *testing.T) {
+	c := make(chan check.Check)
+	stop := make(chan bool)
+	go consume(c, stop)
+	defer func() { stop <- true }()
+
+	s := NewScheduler(c)
+	defer s.Stop()
+
+	chk := &TestCheck{intl: 1 * time.Second}
+
+	// Before scheduling, check should not be found
+	assert.False(t, s.IsCheckScheduled(chk.ID()))
+
+	s.Enter(chk)
+	s.Run()
+
+	// After scheduling, check should be found
+	assert.True(t, s.IsCheckScheduled(chk.ID()))
+
+	// After cancelling, check should not be found
+	s.Cancel(chk.ID())
+	assert.False(t, s.IsCheckScheduled(chk.ID()))
+}
+
+func TestCancelNonExistentCheck(t *testing.T) {
+	s := getScheduler()
+	defer s.Stop()
+
+	s.Enter(&TestCheck{intl: 1 * time.Second})
+	s.Run()
+
+	// Cancelling a non-existent check should return nil (no-op)
+	err := s.Cancel("nonexistent-check-id")
+	assert.Nil(t, err)
+}
+
 func TestTinyInterval(t *testing.T) {
 	s := getScheduler()
 	err := s.Enter(&TestCheck{intl: 1 * time.Millisecond})

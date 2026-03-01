@@ -75,6 +75,54 @@ func TestScanSourcesFromFileSystem(t *testing.T) {
 	}
 }
 
+func TestLongestPathPrefix(t *testing.T) {
+	tests := []struct {
+		pattern  string
+		expected string
+	}{
+		{"/test/**/*.xml", "/test"},
+		{"/foo/bar/baz.yml", "/foo/bar/baz.yml"},
+		{"**/*.properties", ""},
+		{"/config/*.yaml", "/config"},
+		{"?.yaml", ""},
+		{"/a/b/c/**/d/*.properties", "/a/b/c"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.pattern, func(t *testing.T) {
+			require.Equal(t, tt.expected, longestPathPrefix(tt.pattern))
+		})
+	}
+}
+
+func TestMapSourceGetDefault(t *testing.T) {
+	src := &mapSource{m: map[string]string{"key1": "val1"}}
+
+	val := src.GetDefault("key1", "default")
+	require.Equal(t, "val1", val)
+
+	val = src.GetDefault("missing", "default")
+	require.Equal(t, "default", val)
+}
+
+func TestNewPropertySourceFromFile(t *testing.T) {
+	// Non-existent file should return error
+	_, err := newPropertySourceFromFile("/nonexistent/path/file.properties")
+	require.Error(t, err)
+
+	// Valid properties file
+	tmpFile := filepath.Join(t.TempDir(), "test.properties")
+	err = os.WriteFile(tmpFile, []byte("spring.application.name=test-app\nserver.port=8080"), 0644)
+	require.NoError(t, err)
+
+	src, err := newPropertySourceFromFile(tmpFile)
+	require.NoError(t, err)
+	require.NotNil(t, src)
+
+	val, ok := src.Get("spring.application.name")
+	require.True(t, ok)
+	require.Equal(t, "test-app", val)
+}
+
 func TestNewPropertySourceFromStream(t *testing.T) {
 	tests := []struct {
 		name          string

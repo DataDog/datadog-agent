@@ -111,6 +111,95 @@ func TestNewStatsStateTelemetryInitialized(t *testing.T) {
 	)
 }
 
+func TestFormatUint64(t *testing.T) {
+	assert.Equal(t, "0", formatUint64(0))
+	assert.Equal(t, "1", formatUint64(1))
+	assert.Equal(t, "42", formatUint64(42))
+	assert.Equal(t, "18446744073709551615", formatUint64(^uint64(0))) // max uint64
+}
+
+func TestNewSenderStats(t *testing.T) {
+	ss := NewSenderStats()
+	assert.NotNil(t, ss.EventPlatformEvents)
+	assert.Equal(t, int64(0), ss.MetricSamples)
+	assert.Equal(t, int64(0), ss.Events)
+	assert.Equal(t, int64(0), ss.ServiceChecks)
+	assert.Equal(t, int64(0), ss.HistogramBuckets)
+}
+
+func TestSenderStatsCopy(t *testing.T) {
+	ss := NewSenderStats()
+	ss.MetricSamples = 10
+	ss.Events = 5
+	ss.EventPlatformEvents["dbm-samples"] = 42
+
+	cp := ss.Copy()
+	assert.Equal(t, int64(10), cp.MetricSamples)
+	assert.Equal(t, int64(42), cp.EventPlatformEvents["dbm-samples"])
+
+	// mutating copy doesn't affect original
+	cp.EventPlatformEvents["dbm-samples"] = 99
+	assert.Equal(t, int64(42), ss.EventPlatformEvents["dbm-samples"])
+}
+
+func TestStatsAdd(t *testing.T) {
+	configmock.New(t)
+	stats := NewStats(newMockCheck(), nil)
+
+	senderStats := NewSenderStats()
+	senderStats.MetricSamples = 10
+	senderStats.Events = 3
+	senderStats.ServiceChecks = 1
+	senderStats.HistogramBuckets = 5
+	senderStats.EventPlatformEvents["dbm-samples"] = 7
+
+	stats.Add(100*time.Millisecond, nil, nil, senderStats, nil)
+
+	assert.Equal(t, uint64(1), stats.TotalRuns)
+	assert.Equal(t, uint64(0), stats.TotalErrors)
+	assert.Equal(t, int64(10), stats.MetricSamples)
+	assert.Equal(t, uint64(10), stats.TotalMetricSamples)
+	assert.Equal(t, int64(3), stats.Events)
+	assert.Equal(t, int64(1), stats.ServiceChecks)
+	assert.Equal(t, int64(5), stats.HistogramBuckets)
+	assert.Equal(t, "", stats.LastError)
+	assert.NotZero(t, stats.LastSuccessDate)
+	assert.Equal(t, 100*time.Millisecond, stats.LastExecutionTime)
+	// Event platform events should be translated
+	assert.Equal(t, int64(7), stats.TotalEventPlatformEvents["Database Monitoring Query Samples"])
+}
+
+func TestStatsAddWithError(t *testing.T) {
+	configmock.New(t)
+	stats := NewStats(newMockCheck(), nil)
+
+	err := assert.AnError
+	stats.Add(50*time.Millisecond, err, nil, NewSenderStats(), nil)
+
+	assert.Equal(t, uint64(1), stats.TotalRuns)
+	assert.Equal(t, uint64(1), stats.TotalErrors)
+	assert.Equal(t, err.Error(), stats.LastError)
+}
+
+func TestStatsAddWithWarnings(t *testing.T) {
+	configmock.New(t)
+	stats := NewStats(newMockCheck(), nil)
+
+	warnings := []error{assert.AnError, assert.AnError}
+	stats.Add(50*time.Millisecond, nil, warnings, NewSenderStats(), nil)
+
+	assert.Equal(t, uint64(2), stats.TotalWarnings)
+	assert.Len(t, stats.LastWarnings, 2)
+}
+
+func TestSetStateCancelling(t *testing.T) {
+	configmock.New(t)
+	stats := NewStats(newMockCheck(), nil)
+	assert.False(t, stats.Cancelling)
+	stats.SetStateCancelling()
+	assert.True(t, stats.Cancelling)
+}
+
 func TestTranslateEventPlatformEventTypes(t *testing.T) {
 	original := map[string]interface{}{
 		"EventPlatformEvents": map[string]interface{}{

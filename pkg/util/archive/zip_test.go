@@ -119,6 +119,125 @@ type file struct {
 	Name, Body string
 }
 
+func TestZipAndUnzipRoundTrip(t *testing.T) {
+	srcDir := t.TempDir()
+
+	// Create files to zip
+	err := os.WriteFile(filepath.Join(srcDir, "file1.txt"), []byte("content1"), 0644)
+	assert.NoError(t, err)
+	err = os.MkdirAll(filepath.Join(srcDir, "subdir"), 0755)
+	assert.NoError(t, err)
+	err = os.WriteFile(filepath.Join(srcDir, "subdir", "file2.txt"), []byte("content2"), 0644)
+	assert.NoError(t, err)
+
+	destDir := t.TempDir()
+	zipPath := filepath.Join(destDir, "test.zip")
+
+	err = Zip([]string{srcDir}, zipPath)
+	assert.NoError(t, err)
+
+	unzipDir := t.TempDir()
+	err = Unzip(zipPath, unzipDir)
+	assert.NoError(t, err)
+
+	// Verify files were extracted
+	content1, err := os.ReadFile(filepath.Join(unzipDir, filepath.Base(srcDir), "file1.txt"))
+	assert.NoError(t, err)
+	assert.Equal(t, "content1", string(content1))
+
+	content2, err := os.ReadFile(filepath.Join(unzipDir, filepath.Base(srcDir), "subdir", "file2.txt"))
+	assert.NoError(t, err)
+	assert.Equal(t, "content2", string(content2))
+}
+
+func TestZip_NonExistentSource(t *testing.T) {
+	destDir := t.TempDir()
+	zipPath := filepath.Join(destDir, "test.zip")
+
+	err := Zip([]string{"/nonexistent/path"}, zipPath)
+	assert.Error(t, err)
+}
+
+func TestZip_CreatesDestinationDir(t *testing.T) {
+	srcDir := t.TempDir()
+	err := os.WriteFile(filepath.Join(srcDir, "file.txt"), []byte("content"), 0644)
+	assert.NoError(t, err)
+
+	destDir := filepath.Join(t.TempDir(), "newdir")
+	zipPath := filepath.Join(destDir, "test.zip")
+
+	err = Zip([]string{srcDir}, zipPath)
+	assert.NoError(t, err)
+	assert.True(t, fileExists(zipPath))
+}
+
+func TestUnzip_NonExistentSource(t *testing.T) {
+	err := Unzip("/nonexistent/path.zip", t.TempDir())
+	assert.Error(t, err)
+}
+
+func TestUnzip_CreatesDestinationDir(t *testing.T) {
+	// Create a valid zip first
+	srcDir := t.TempDir()
+	err := os.WriteFile(filepath.Join(srcDir, "file.txt"), []byte("content"), 0644)
+	assert.NoError(t, err)
+
+	zipDir := t.TempDir()
+	zipPath := filepath.Join(zipDir, "test.zip")
+	err = Zip([]string{filepath.Join(srcDir, "file.txt")}, zipPath)
+	assert.NoError(t, err)
+
+	// Unzip into a non-existent directory
+	destDir := filepath.Join(t.TempDir(), "newdir", "subdir")
+	err = Unzip(zipPath, destDir)
+	assert.NoError(t, err)
+}
+
+func TestWithin(t *testing.T) {
+	assert.True(t, within("/a/b", "/a/b/c"))
+	assert.True(t, within("/a/b", "/a/b"))
+	assert.False(t, within("/a/b/c", "/a/b"))
+	assert.False(t, within("/a/b", "/a/c"))
+}
+
+func TestMakeNameInArchive(t *testing.T) {
+	t.Run("file source", func(t *testing.T) {
+		info, err := os.Stat(os.Args[0]) // use any existing file
+		if err != nil {
+			t.Skip("cannot stat test binary")
+		}
+		// For a non-directory source, it just uses the base name
+		name, err := makeNameInArchive(info, "/some/path/file.txt", "", "/some/path/file.txt")
+		assert.NoError(t, err)
+		assert.Equal(t, "file.txt", name)
+	})
+
+	t.Run("with base dir", func(t *testing.T) {
+		info, err := os.Stat(os.Args[0])
+		if err != nil {
+			t.Skip("cannot stat test binary")
+		}
+		name, err := makeNameInArchive(info, "/some/path/file.txt", "base", "/some/path/file.txt")
+		assert.NoError(t, err)
+		assert.Equal(t, "base/file.txt", name)
+	})
+}
+
+func TestFileInfoName(t *testing.T) {
+	tmpFile := filepath.Join(t.TempDir(), "test.txt")
+	err := os.WriteFile(tmpFile, []byte("test"), 0644)
+	assert.NoError(t, err)
+
+	info, err := os.Stat(tmpFile)
+	assert.NoError(t, err)
+
+	fi := fileInfo{FileInfo: info, customName: "custom.txt"}
+	assert.Equal(t, "custom.txt", fi.Name())
+
+	fi2 := fileInfo{FileInfo: info}
+	assert.Equal(t, "test.txt", fi2.Name())
+}
+
 func createUnsafeZip(t *testing.T, createFileOutsideRoot bool) string {
 	// Create a buffer to write our archive to.
 	tmpDir := t.TempDir()

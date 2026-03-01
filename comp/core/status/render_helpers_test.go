@@ -64,3 +64,53 @@ func TestParseUnixTimeError(t *testing.T) {
 		assert.Zero(t, output)
 	}
 }
+
+func TestFormatTitle(t *testing.T) {
+	assert.Equal(t, "Hello World", formatTitle("helloWorld"))
+	assert.Equal(t, "OS", formatTitle("os"))
+	assert.Equal(t, "My Check Name", formatTitle("myCheckName"))
+	assert.Equal(t, "", formatTitle(""))
+}
+
+func TestLastErrorTraceback(t *testing.T) {
+	// valid JSON with traceback
+	input := `[{"traceback":"line1\nline2","message":"err"}]`
+	result := lastErrorTraceback(input)
+	assert.Contains(t, result, "line1")
+	assert.Contains(t, result, "line2")
+
+	// invalid JSON
+	assert.Equal(t, "No traceback", lastErrorTraceback("not json"))
+
+	// empty array
+	assert.Equal(t, "No traceback", lastErrorTraceback("[]"))
+}
+
+func TestLastErrorMessage(t *testing.T) {
+	input := `[{"message":"something failed","traceback":"..."}]`
+	assert.Equal(t, "something failed", lastErrorMessage(input))
+
+	// invalid JSON returns raw value
+	assert.Equal(t, "raw error", lastErrorMessage("raw error"))
+
+	// no message key returns raw value
+	assert.Equal(t, `[{"traceback":"..."}]`, lastErrorMessage(`[{"traceback":"..."}]`))
+}
+
+func TestComplianceResult(t *testing.T) {
+	assert.Contains(t, complianceResult("error"), "ERROR")
+	assert.Contains(t, complianceResult("failed"), "FAILED")
+	assert.Contains(t, complianceResult("passed"), "PASSED")
+	assert.Contains(t, complianceResult("other"), "UNKNOWN")
+}
+
+func TestMkHumanDuration(t *testing.T) {
+	assert.Equal(t, "1m30s", mkHumanDuration(90, "s"))
+	assert.Equal(t, "5s", mkHumanDuration(5, ""))
+	assert.Equal(t, "1h0m0s", mkHumanDuration(60, "m"))
+}
+
+func TestFormatJSON(t *testing.T) {
+	result := formatJSON(map[string]string{"a": "b"}, 0)
+	assert.Contains(t, result, `"a": "b"`)
+}

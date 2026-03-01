@@ -6,7 +6,10 @@
 package installinfo
 
 import (
+	"bytes"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strconv"
 	"strings"
@@ -439,4 +442,135 @@ func TestGetRuntimeInstallInfo(t *testing.T) {
 	retrieved.Tool = "MODIFIED"
 	retrieved2 := getRuntimeInstallInfo()
 	assert.Equal(t, "ECS", retrieved2.Tool)
+}
+
+func TestGetRuntimeInstallInfoReturnsNilWhenUnset(t *testing.T) {
+	runtimeInfoMutex.Lock()
+	runtimeInstallInfo = nil
+	runtimeInfoMutex.Unlock()
+
+	assert.Nil(t, getRuntimeInstallInfo())
+}
+
+func TestHandleSetInstallInfo(t *testing.T) {
+	t.Run("valid request", func(t *testing.T) {
+		// Reset runtime info
+		runtimeInfoMutex.Lock()
+		runtimeInstallInfo = nil
+		runtimeInfoMutex.Unlock()
+
+		body := `{"tool":"ansible","tool_version":"2.9","installer_version":"ansible-role-v1"}`
+		req := httptest.NewRequest(http.MethodPost, "/install-info", bytes.NewBufferString(body))
+		w := httptest.NewRecorder()
+
+		HandleSetInstallInfo(w, req)
+
+		resp := w.Result()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		var result SetInstallInfoResponse
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&result))
+		assert.True(t, result.Success)
+		assert.Equal(t, "Install info set successfully", result.Message)
+
+		// Verify the runtime info was actually set
+		info := getRuntimeInstallInfo()
+		require.NotNil(t, info)
+		assert.Equal(t, "ansible", info.Tool)
+		assert.Equal(t, "2.9", info.ToolVersion)
+		assert.Equal(t, "ansible-role-v1", info.InstallerVersion)
+	})
+
+	t.Run("invalid JSON", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/install-info", bytes.NewBufferString(`{invalid`))
+		w := httptest.NewRecorder()
+
+		HandleSetInstallInfo(w, req)
+
+		resp := w.Result()
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+		var result SetInstallInfoResponse
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&result))
+		assert.False(t, result.Success)
+		assert.Contains(t, result.Message, "Invalid JSON payload")
+	})
+
+	t.Run("missing required fields", func(t *testing.T) {
+		body := `{"tool":"ansible","tool_version":"","installer_version":"ansible-role-v1"}`
+		req := httptest.NewRequest(http.MethodPost, "/install-info", bytes.NewBufferString(body))
+		w := httptest.NewRecorder()
+
+		HandleSetInstallInfo(w, req)
+
+		resp := w.Result()
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+		var result SetInstallInfoResponse
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&result))
+		assert.False(t, result.Success)
+		assert.Contains(t, result.Message, "Failed to set install info")
+	})
+}
+
+func TestGetFromEnvVarsPartiallySet(t *testing.T) {
+	// Only set some env vars - should return nil and false
+	t.Setenv("DD_INSTALL_INFO_TOOL", "ansible")
+	// DD_INSTALL_INFO_TOOL_VERSION and DD_INSTALL_INFO_INSTALLER_VERSION not set
+
+	info, ok := getFromEnvVars()
+	assert.False(t, ok)
+	assert.Nil(t, info)
+}
+
+func TestGetFromPathNonExistent(t *testing.T) {
+	info, err := getFromPath("/nonexistent/path/install_info")
+	assert.Error(t, err)
+	assert.Nil(t, info)
+}
+
+func TestGetFromPathInvalidYAML(t *testing.T) {
+	f, err := os.CreateTemp("", "install-info-invalid.yaml")
+	require.NoError(t, err)
+	defer os.Remove(f.Name())
+
+	_, err = f.WriteString("not: valid: yaml: {{{{")
+	require.NoError(t, err)
+	f.Close()
+
+	info, err := getFromPath(f.Name())
+	assert.Error(t, err)
+	assert.Nil(t, info)
+}
+
+func TestLogVersionHistoryWithRuntimeInstallInfo(t *testing.T) {
+	// Set runtime install info
+	err := setRuntimeInstallInfo(&InstallInfo{
+		Tool:             "runtime-tool",
+		ToolVersion:      "1.0",
+		InstallerVersion: "runtime-v1",
+	})
+	require.NoError(t, err)
+	defer func() {
+		runtimeInfoMutex.Lock()
+		runtimeInstallInfo = nil
+		runtimeInfoMutex.Unlock()
+	}()
+
+	vh, err := os.CreateTemp("", "version-history.json")
+	require.NoError(t, err)
+	defer os.Remove(vh.Name())
+
+	logVersionHistoryToFile(vh.Name(), "/nonexistent/install_info", "7.0.0", time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
+
+	b, err := os.ReadFile(vh.Name())
+	require.NoError(t, err)
+
+	var history versionHistoryEntries
+	require.NoError(t, json.Unmarshal(b, &history))
+	require.Len(t, history.Entries, 1)
+	assert.Equal(t, "7.0.0", history.Entries[0].Version)
+	assert.Equal(t, "runtime-tool", history.Entries[0].InstallMethod.Tool)
+	assert.Equal(t, "1.0", history.Entries[0].InstallMethod.ToolVersion)
+	assert.Equal(t, "runtime-v1", history.Entries[0].InstallMethod.InstallerVersion)
 }

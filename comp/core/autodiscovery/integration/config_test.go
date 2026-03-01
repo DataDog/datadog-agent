@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"testing"
 
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/stretchr/testify/assert"
 	yaml "go.yaml.in/yaml/v2"
 )
@@ -300,4 +301,35 @@ func BenchmarkID(b *testing.B) {
 		id = config.Digest()
 	}
 	result = id
+}
+
+func TestKubeNamespacedNameIsEmpty(t *testing.T) {
+	assert.True(t, KubeNamespacedName{}.IsEmpty())
+	assert.False(t, KubeNamespacedName{Name: "foo"}.IsEmpty())
+	assert.False(t, KubeNamespacedName{Namespace: "bar"}.IsEmpty())
+	assert.False(t, KubeNamespacedName{Name: "foo", Namespace: "bar"}.IsEmpty())
+}
+
+func TestIsTemplate(t *testing.T) {
+	config := &Config{}
+	assert.False(t, config.IsTemplate())
+
+	config.ADIdentifiers = []string{"docker://abc"}
+	assert.True(t, config.IsTemplate())
+}
+
+func TestHasFilter(t *testing.T) {
+	config := &Config{MetricsExcluded: true, LogsExcluded: false}
+	assert.True(t, config.HasFilter(workloadfilter.MetricsFilter))
+	assert.False(t, config.HasFilter(workloadfilter.LogsFilter))
+
+	config2 := &Config{MetricsExcluded: false, LogsExcluded: true}
+	assert.False(t, config2.HasFilter(workloadfilter.MetricsFilter))
+	assert.True(t, config2.HasFilter(workloadfilter.LogsFilter))
+}
+
+func TestIsMatched(t *testing.T) {
+	config := &Config{}
+	// without a matching program, IsMatched always returns true
+	assert.True(t, config.IsMatched(nil))
 }
