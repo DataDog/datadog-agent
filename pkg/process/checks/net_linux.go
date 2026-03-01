@@ -15,6 +15,29 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// fetchIISTagsCache is not applicable on Linux; returns nil.
+func fetchIISTagsCache(_ *http.Client) map[string][]string {
+	return nil
+}
+
+// fetchProcessCacheTags is not applicable on Linux; returns nil.
+func fetchProcessCacheTags(_ *http.Client) map[uint32][]string {
+	return nil
+}
+
+// getRemoteProcessTags returns process tags for a remote PID using the tagger.
+func getRemoteProcessTags(pid int32, _ map[uint32][]string, processTagProvider func(int32) ([]string, error)) []string {
+	if processTagProvider == nil {
+		return nil
+	}
+	tags, err := processTagProvider(pid)
+	if err != nil {
+		log.Debugf("error getting process tags for remote pid %d: %v", pid, err)
+		return nil
+	}
+	return tags
+}
+
 // getNetworkID fetches network_id from the current netNS or from the system probe if necessary, where the root netNS is used
 func getNetworkID(sysProbeClient *http.Client) (string, error) {
 	networkID, err := network.GetNetworkID(context.Background())

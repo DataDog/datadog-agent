@@ -278,11 +278,109 @@ var (
 	lastSummaryTime time.Time
 
 	iisConfig atomic.Pointer[iisconfig.DynamicIISConfig]
+
+	// iisTagsCache stores pre-built IIS tag lists keyed by (localPort, remotePort) port pair.
+	// Used to expose IIS-specific tags (sitename, app_pool, service, env, version) to the
+	// process-agent for remote service tag enrichment on same-host connections.
+	// Entries expire after iisTagsCacheTTL.
+	iisTagsCacheMu  sync.Mutex
+	iisTagsCacheMap = make(map[[2]uint16]iisTagsCacheEntry)
 )
+
+const (
+	iisTagsCacheTTL     = 2 * time.Minute
+	iisTagsCacheMaxSize = 1024
+)
+
+type iisTagsCacheEntry struct {
+	tags   []string
+	expiry time.Time
+}
 
 func init() {
 	initializeEtwHttpServiceSubscription()
 
+}
+
+// buildIISTags creates a pre-built list of IIS-specific tags from a WinHttpTransaction.
+// This mirrors the tag-building logic from DynamicTags() in model_windows.go but produces
+// a standalone []string for caching and exposing via the /iis_tags endpoint.
+func buildIISTags(h *WinHttpTransaction) []string {
+	tags := make([]string, 0, 7)
+	tags = append(tags, fmt.Sprintf("http.iis.site:%v", h.SiteID))
+	if h.AppPool != "" {
+		tags = append(tags, fmt.Sprintf("http.iis.app_pool:%v", h.AppPool))
+	}
+	if h.SiteName != "" {
+		tags = append(tags, fmt.Sprintf("http.iis.sitename:%v", h.SiteName))
+	}
+	if h.SubSite != "" {
+		tags = append(tags, fmt.Sprintf("http.iis.subsite:%v", h.SubSite))
+	}
+	// tag precedence: web.config -> datadog.json
+	if h.TagsFromConfig.DDService != "" {
+		tags = append(tags, "service:"+h.TagsFromConfig.DDService)
+	} else if h.TagsFromJson.DDService != "" {
+		tags = append(tags, "service:"+h.TagsFromJson.DDService)
+	}
+	if h.TagsFromConfig.DDEnv != "" {
+		tags = append(tags, "env:"+h.TagsFromConfig.DDEnv)
+	} else if h.TagsFromJson.DDEnv != "" {
+		tags = append(tags, "env:"+h.TagsFromJson.DDEnv)
+	}
+	if h.TagsFromConfig.DDVersion != "" {
+		tags = append(tags, "version:"+h.TagsFromConfig.DDVersion)
+	} else if h.TagsFromJson.DDVersion != "" {
+		tags = append(tags, "version:"+h.TagsFromJson.DDVersion)
+	}
+	return tags
+}
+
+// storeIISTagsCache stores an IIS tags entry with a TTL.
+// If the cache is at capacity, expired entries are swept first.
+// If still at capacity after sweeping, the entry is dropped.
+func storeIISTagsCache(key [2]uint16, tags []string) {
+	iisTagsCacheMu.Lock()
+	defer iisTagsCacheMu.Unlock()
+
+	// Allow updates to existing keys regardless of capacity
+	if _, exists := iisTagsCacheMap[key]; !exists && len(iisTagsCacheMap) >= iisTagsCacheMaxSize {
+		// Sweep expired entries to make room
+		now := time.Now()
+		for k, entry := range iisTagsCacheMap {
+			if now.After(entry.expiry) {
+				delete(iisTagsCacheMap, k)
+			}
+		}
+		if len(iisTagsCacheMap) >= iisTagsCacheMaxSize {
+			return
+		}
+	}
+
+	iisTagsCacheMap[key] = iisTagsCacheEntry{
+		tags:   tags,
+		expiry: time.Now().Add(iisTagsCacheTTL),
+	}
+}
+
+// GetIISTagsCache returns non-expired IIS tags as a JSON-friendly map.
+// Keys are "localPort-remotePort", values are pre-built tag lists.
+// Expired entries are evicted during this call.
+func GetIISTagsCache() map[string][]string {
+	iisTagsCacheMu.Lock()
+	defer iisTagsCacheMu.Unlock()
+
+	now := time.Now()
+	result := make(map[string][]string, len(iisTagsCacheMap))
+	for k, entry := range iisTagsCacheMap {
+		if now.After(entry.expiry) {
+			delete(iisTagsCacheMap, k)
+			continue
+		}
+		mapKey := fmt.Sprintf("%d-%d", k[0], k[1])
+		result[mapKey] = entry.tags
+	}
+	return result
 }
 
 //nolint:revive // TODO(WKIT) Fix revive linter
@@ -849,6 +947,12 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEventRecord) {
 		}
 	}
 
+	// Cache IIS tags for remote service tag enrichment on same-host connections
+	if httpConnLink.http.SiteName != "" && connOpen.conn.tup.LocalAddr == connOpen.conn.tup.RemoteAddr {
+		key := [2]uint16{connOpen.conn.tup.LocalPort, connOpen.conn.tup.RemotePort}
+		storeIISTagsCache(key, buildIISTags(&httpConnLink.http))
+	}
+
 	// Parse url
 	if urlOffset > userData.Length() {
 		parsingErrorCount++
@@ -999,6 +1103,15 @@ func httpCallbackOnHTTPRequestTraceTaskSrvdFrmCache(eventInfo *etw.DDEventRecord
 		cfg := iisConfig.Load()
 		if cfg != nil {
 			httpConnLink.http.SiteName = cfg.GetSiteNameFromID(cacheEntry.http.SiteID)
+		}
+
+		// Cache IIS tags for remote service tag enrichment on same-host connections
+		if httpConnLink.http.SiteName != "" {
+			connOpen, connFound := connOpened[httpConnLink.connActivityId]
+			if connFound && connOpen.conn.tup.LocalAddr == connOpen.conn.tup.RemoteAddr {
+				key := [2]uint16{connOpen.conn.tup.LocalPort, connOpen.conn.tup.RemotePort}
+				storeIISTagsCache(key, buildIISTags(&httpConnLink.http))
+			}
 		}
 
 		completeReqRespTracking(eventInfo, httpConnLink)
