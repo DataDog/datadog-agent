@@ -10,6 +10,7 @@ package run
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 
@@ -18,6 +19,7 @@ import (
 
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
+	"github.com/DataDog/datadog-agent/comp/agent/expvarserver/expvarserverimpl"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
@@ -34,6 +36,7 @@ import (
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-optional-remote"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -104,6 +107,10 @@ func isCmdPortNegative(cfg coreconfig.Component) bool {
 	return cfg.GetInt("cmd_port") <= 0
 }
 
+func registerTelemetryHandler(tm coretelemetry.Component) {
+	http.Handle("/telemetry", tm.Handler())
+}
+
 func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Option) error {
 	acfg, err := agentConfig.NewConfigComponent(context.Background(), params.CoreConfPath, params.ConfPaths)
 	if err != nil && err != agentConfig.ErrNoDDExporter {
@@ -139,10 +146,12 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 				return h.Get, nil
 			}),
 			telemetryimpl.Module(),
+			expvarserverimpl.Module(),
 			remotehostnameimpl.Module(),
 			collectorcontribFx.Module(),
 			collectorfx.ModuleNoAgent(),
 			fx.Options(opts...),
+			fx.Invoke(registerTelemetryHandler),
 			fx.Invoke(func(_ collectordef.Component, _ pid.Component) {
 			}),
 			fxinstrumentation.Module(),
@@ -229,6 +238,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 		configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
 		remoteTaggerFx.Module(tagger.OptionalRemoteParams{Disable: isCmdPortNegative}, tagger.NewRemoteParams()),
 		telemetryimpl.Module(),
+		expvarserverimpl.Module(),
 		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
 		}),
@@ -256,6 +266,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 		payloadmodifierfx.NilModule(),
 		traceagentfx.Module(),
 		agenttelemetryfx.Module(),
+		fx.Invoke(registerTelemetryHandler),
 		fxinstrumentation.Module(),
 	)
 }

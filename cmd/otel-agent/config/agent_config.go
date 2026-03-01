@@ -64,6 +64,8 @@ var logLevelReverseMap = func(src map[string]logLevel) map[logLevel]string {
 	return reverse
 }(logLevelMap)
 
+const defaultOTelAgentExpvarPort = 7778
+
 // ErrNoDDExporter indicates there is no Datadog exporter in the configs
 var ErrNoDDExporter = errors.New("no datadog exporter found")
 
@@ -102,6 +104,12 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	// Keep otel-agent expvar separate from the core Agent in all-in-one containers.
+	// Respect explicit config/env overrides if present.
+	if !pkgconfig.IsConfigured("expvar_port") {
+		pkgconfig.Set("expvar_port", defaultOTelAgentExpvarPort, pkgconfigmodel.SourceDefault)
 	}
 
 	//

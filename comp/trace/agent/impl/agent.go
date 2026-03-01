@@ -27,6 +27,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
@@ -68,6 +69,7 @@ type dependencies struct {
 	Statsd                statsd.Component
 	Tagger                tagger.Component
 	Compressor            compression.Component
+	CoreTelemetry         coretelemetry.Component
 	IPC                   ipc.Component
 	TracerPayloadModifier pkgagent.TracerPayloadModifier
 }
@@ -153,6 +155,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		deps.Compressor,
 	)
 	c.Agent.TracerPayloadModifier = deps.TracerPayloadModifier
+	c.Agent.Receiver.AddHandler("/telemetry", deps.CoreTelemetry.Handler())
 
 	c.config.OnUpdateAPIKey(c.UpdateAPIKey)
 

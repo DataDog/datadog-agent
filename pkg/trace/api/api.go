@@ -127,10 +127,11 @@ type HTTPReceiver struct {
 	// outOfCPUCounter is counter to throttle the out of cpu warning log
 	outOfCPUCounter *atomic.Uint32
 
-	statsd   statsd.ClientInterface
-	timing   timing.Reporter
-	info     *watchdog.CurrentInfo
-	Handlers map[string]http.Handler
+	statsd        statsd.ClientInterface
+	timing        timing.Reporter
+	info          *watchdog.CurrentInfo
+	Handlers      map[string]http.Handler
+	extraHandlers map[string]http.Handler
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
@@ -184,11 +185,21 @@ func NewHTTPReceiver(
 
 		outOfCPUCounter: atomic.NewUint32(0),
 
-		statsd:   statsd,
-		timing:   timing,
-		info:     watchdog.NewCurrentInfo(),
-		Handlers: make(map[string]http.Handler),
+		statsd:        statsd,
+		timing:        timing,
+		info:          watchdog.NewCurrentInfo(),
+		Handlers:      make(map[string]http.Handler),
+		extraHandlers: make(map[string]http.Handler),
 	}
+}
+
+// AddHandler registers an extra handler that will be exposed on the HTTP receiver.
+// This must be called before Start so the handler is attached to the mux.
+func (r *HTTPReceiver) AddHandler(pattern string, handler http.Handler) {
+	if pattern == "" || handler == nil {
+		return
+	}
+	r.extraHandlers[pattern] = handler
 }
 
 // timeoutMiddleware sets a timeout for a handler. This lets us have different
@@ -222,6 +233,11 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 	}
 	r.Handlers["/info"] = infoHandler
 	mux.HandleFunc("/info", infoHandler)
+
+	for pattern, handler := range r.extraHandlers {
+		r.Handlers[pattern] = handler
+		mux.Handle(pattern, handler)
+	}
 
 	return mux
 }
