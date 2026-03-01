@@ -115,6 +115,11 @@ func (a *InjectorInstaller) Setup(ctx context.Context) error {
 		return fmt.Errorf("error adding stable config file: %w", err)
 	}
 
+	err = a.enableSystemProbeConfig(ctx)
+	if err != nil {
+		return fmt.Errorf("error enabling system-probe config: %w", err)
+	}
+
 	err = a.addInstrumentScripts(ctx)
 	if err != nil {
 		return fmt.Errorf("error adding install scripts: %w", err)
@@ -440,6 +445,47 @@ func (a *InjectorInstaller) addLocalStableConfig(ctx context.Context) (err error
 		return fmt.Errorf("failed to set permissions for application_monitoring.yaml: %w", err)
 	}
 
+	a.rollbacks = append(a.rollbacks, rollback)
+	return nil
+}
+
+const systemProbeConfigPath = "/etc/datadog-agent/system-probe.yaml"
+
+// enableSystemProbeConfig writes system_probe_config.enabled: true into system-probe.yaml
+// when host instrumentation is enabled. This covers the standalone install path (e.g. remote
+// update) where the setup script config writing does not run.
+func (a *InjectorInstaller) enableSystemProbeConfig(ctx context.Context) (err error) {
+	if a.Env.InstallScript.APMInstrumentationEnabled != env.APMInstrumentationEnabledHost {
+		return nil
+	}
+
+	span, _ := telemetry.StartSpanFromContext(ctx, "enable_system_probe_config")
+	defer func() { span.Finish(err) }()
+
+	systemProbeConfigMutator := newFileMutator(
+		systemProbeConfigPath,
+		func(_ context.Context, existing []byte) ([]byte, error) {
+			cfg := config.SystemProbeConfig{}
+			if len(existing) > 0 {
+				if err := yaml.Unmarshal(existing, &cfg); err != nil {
+					return nil, fmt.Errorf("failed to unmarshal existing system-probe.yaml: %w", err)
+				}
+			}
+			if cfg.SystemProbeSettings.Enabled != nil && *cfg.SystemProbeSettings.Enabled {
+				return existing, nil
+			}
+			cfg.SystemProbeSettings.Enabled = config.BoolToPtr(true)
+			return yaml.Marshal(cfg)
+		},
+		nil, nil,
+	)
+	rollback, err := systemProbeConfigMutator.mutate(ctx)
+	if err != nil {
+		return err
+	}
+	if err := os.Chmod(systemProbeConfigPath, 0640); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to set permissions for system-probe.yaml: %w", err)
+	}
 	a.rollbacks = append(a.rollbacks, rollback)
 	return nil
 }

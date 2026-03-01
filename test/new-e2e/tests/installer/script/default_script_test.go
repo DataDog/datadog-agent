@@ -156,6 +156,38 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 	}
 }
 
+// TestInstallHostInstrumentationEnablesSystemProbe tests that installing with
+// DD_APM_INSTRUMENTATION_ENABLED=host writes system_probe_config.enabled: true
+// in system-probe.yaml before the agent starts (setup script path).
+func (s *installScriptDefaultSuite) TestInstallHostInstrumentationEnablesSystemProbe() {
+	defer s.Purge()
+
+	s.RunInstallScript(
+		s.url,
+		"DD_SITE=datadoghq.com",
+		"DD_APM_INSTRUMENTATION_ENABLED=host",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
+	)
+
+	state := s.host.State()
+
+	// system-probe.yaml must exist and contain system_probe_config.enabled: true
+	state.AssertFileExists("/etc/datadog-agent/system-probe.yaml", 0440, "dd-agent", "dd-agent")
+	systemProbeRaw := s.Env().RemoteHost.MustExecute("sudo cat /etc/datadog-agent/system-probe.yaml")
+	systemProbeConfig := map[string]interface{}{}
+	require.NoError(s.T(), yaml.Unmarshal([]byte(systemProbeRaw), &systemProbeConfig))
+	spCfg, ok := systemProbeConfig["system_probe_config"].(map[string]interface{})
+	require.True(s.T(), ok, "system_probe_config key missing in system-probe.yaml")
+	assert.Equal(s.T(), true, spCfg["enabled"], "system_probe_config.enabled should be true")
+
+	// system-probe service must be running
+	state.AssertUnitsRunning(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-sysprobe.service",
+	)
+}
+
 // TestInstallIgnoreMajorMinor tests that the installer install script properly ignores
 // the major / minor version when installing the agent
 func (s *installScriptDefaultSuite) TestInstallIgnoreMajorMinor() {

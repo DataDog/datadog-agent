@@ -173,9 +173,15 @@ type InjectTracerConfigEnvVar struct {
 
 // SystemProbeConfig represents the configuration to write in /etc/datadog-agent/system-probe.yaml
 type SystemProbeConfig struct {
+	SystemProbeSettings   SystemProbeSettings   `yaml:"system_probe_config,omitempty"`
 	RuntimeSecurityConfig RuntimeSecurityConfig `yaml:"runtime_security_config,omitempty"`
 	GPUMonitoringConfig   GPUMonitoringConfig   `yaml:"gpu_monitoring,omitempty"`
 	PrivilegedLogsConfig  PrivilegedLogsConfig  `yaml:"privileged_logs,omitempty"`
+}
+
+// SystemProbeSettings represents the top-level system_probe_config settings
+type SystemProbeSettings struct {
+	Enabled *bool `yaml:"enabled,omitempty"`
 }
 
 // RuntimeSecurityConfig represents the configuration for the runtime security
