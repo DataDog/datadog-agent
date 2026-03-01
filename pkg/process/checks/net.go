@@ -86,6 +86,10 @@ type ConnectionsCheck struct {
 	hostTagProvider *hosttags.HostTagProvider
 	tagger          tagger.Component
 	clock           clock.Clock
+
+	// agentTags holds tags derived from agent configuration (e.g. infra_mode) that are
+	// added to every CollectorConnections payload as host-level tags.
+	agentTags []string
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -116,6 +120,10 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.processData.Register(c.dockerFilter)
 	c.processData.Register(c.serviceExtractor)
 	c.hostTagProvider = hosttags.NewHostTagProviderWithDuration(c.sysprobeYamlConfig.GetDuration("system_probe_config.expected_tags_duration"))
+
+	if c.config.GetString("infrastructure_mode") == "end_user_device" {
+		c.agentTags = []string{"infra_mode:end_user_device"}
+	}
 
 	// LocalResolver is a singleton LocalResolver
 	sharedContainerProvider, err := proccontainers.GetSharedContainerProvider()
@@ -189,7 +197,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	getContainersCB := c.getContainerTagsCallback(c.getContainersForExplicitTagging(conns.Conns))
 	getProcessTagsCB := c.getProcessTagsCallback()
 	groupID := nextGroupID()
-	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor, conns.ResolvConfs)
+	messages := batchConnections(c.hostInfo, c.hostTagProvider, c.agentTags, getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor, conns.ResolvConfs)
 	return StandardRunResult(messages), nil
 }
 
@@ -436,6 +444,7 @@ func remapDNSStatsByOffset(c *model.Connection, indexToOffset []int32) {
 func batchConnections(
 	hostInfo *HostInfo,
 	hostTagProvider *hosttags.HostTagProvider,
+	agentTags []string,
 	containerTagProvider func(string) ([]string, error),
 	processTagProvider func(int32) ([]string, error),
 	maxConnsPerMessage int,
@@ -589,8 +598,8 @@ func batchConnections(
 		}
 
 		hostTagsIndex := -1
-		// Add host tags if needed
-		if hostTags := hostTagProvider.GetHostTags(); len(hostTags) > 0 {
+		// Add host tags and agent configuration tags if needed
+		if hostTags := append(hostTagProvider.GetHostTags(), agentTags...); len(hostTags) > 0 {
 			hostTagsIndex = tagsEncoder.Encode(hostTags)
 		}
 

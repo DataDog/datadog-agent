@@ -65,7 +65,7 @@ func TestDNSNameEncoding(t *testing.T) {
 	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	maxConnsPerMessage := 10
 	hostTagsProvider := hosttags.NewHostTagProvider()
-	chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, maxConnsPerMessage, 0, p, dns, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex, nil)
+	chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, nil, maxConnsPerMessage, 0, p, dns, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex, nil)
 	assert.Equal(t, len(chunks), 1)
 
 	chunk := chunks[0]
@@ -134,7 +134,7 @@ func TestNetworkConnectionBatching(t *testing.T) {
 		useImprovedAlgorithm := false
 		ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 		hostTagsProvider := hosttags.NewHostTagProvider()
-		chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, tc.maxSize, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", ctm, rctm, khfr, coretm, nil, nil, nil, nil, nil, ex, nil)
+		chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, nil, tc.maxSize, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", ctm, rctm, khfr, coretm, nil, nil, nil, nil, nil, ex, nil)
 
 		assert.Len(t, chunks, tc.expectedChunks, "len %d", i)
 		total := 0
@@ -178,7 +178,7 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 	useImprovedAlgorithm := false
 	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	hostTagsProvider := hosttags.NewHostTagProvider()
-	chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, maxConnsPerMessage, 0, p, dns, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex, nil)
+	chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, nil, maxConnsPerMessage, 0, p, dns, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex, nil)
 
 	assert.Len(t, chunks, 4)
 	total := 0
@@ -222,7 +222,7 @@ func TestBatchSimilarConnectionsTogether(t *testing.T) {
 	useImprovedAlgorithm := false
 	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	hostTagsProvider := hosttags.NewHostTagProvider()
-	chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, maxConnsPerMessage, 0, p, map[string]*model.DNSEntry{}, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex, nil)
+	chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, nil, maxConnsPerMessage, 0, p, map[string]*model.DNSEntry{}, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex, nil)
 
 	assert.Len(t, chunks, 3)
 	total := 0
@@ -310,7 +310,7 @@ func TestNetworkConnectionBatchingWithDomainsByQueryType(t *testing.T) {
 	useImprovedAlgorithm := false
 	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	hostTagsProvider := hosttags.NewHostTagProvider()
-	chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, maxConnsPerMessage, 0, conns, dnsmap, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, domains, nil, nil, nil, ex, nil)
+	chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, nil, maxConnsPerMessage, 0, conns, dnsmap, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, domains, nil, nil, nil, ex, nil)
 
 	assert.Len(t, chunks, 4)
 	total := 0
@@ -432,7 +432,7 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 	useImprovedAlgorithm := false
 	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	hostTagsProvider := hosttags.NewHostTagProvider()
-	chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, maxConnsPerMessage, 0, conns, dnsmap, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, domains, nil, nil, nil, ex, nil)
+	chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, nil, maxConnsPerMessage, 0, conns, dnsmap, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, domains, nil, nil, nil, ex, nil)
 
 	assert.Len(t, chunks, 4)
 	total := 0
@@ -545,7 +545,7 @@ func TestNetworkConnectionBatchingWithRoutes(t *testing.T) {
 	useImprovedAlgorithm := false
 	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	hostTagsProvider := hosttags.NewHostTagProvider()
-	chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, routes, nil, nil, ex, nil)
+	chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, nil, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, routes, nil, nil, ex, nil)
 
 	assert.Len(t, chunks, 2)
 	total := 0
@@ -617,7 +617,7 @@ func TestNetworkConnectionTags(t *testing.T) {
 	useImprovedAlgorithm := false
 	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	hostTagsProvider := hosttags.NewHostTagProvider()
-	chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, tags, nil, ex, nil)
+	chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, nil, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, tags, nil, ex, nil)
 
 	assert.Len(t, chunks, 2)
 	total := 0
@@ -661,7 +661,7 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 	ex.Extract(procsByPid)
 
 	hostTagsProvider := hosttags.NewHostTagProvider()
-	chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, tags, nil, ex, nil)
+	chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, nil, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, tags, nil, ex, nil)
 
 	assert.Len(t, chunks, 1)
 	connections := chunks[0].(*model.CollectorConnections)
@@ -741,7 +741,7 @@ func TestNetworkConnectionProcessTags(t *testing.T) {
 	useImprovedAlgorithm := false
 	ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	hostTagsProvider := hosttags.NewHostTagProvider()
-	chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, processTagProvider, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex, nil)
+	chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, processTagProvider, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex, nil)
 
 	assert.Len(t, chunks, 2)
 
@@ -885,7 +885,7 @@ func TestNetworkConnectionBatchingWithResolvConf(t *testing.T) {
 	maxConnsPerMessage := 10
 	ex := parser.NewServiceExtractor(false, false, false)
 	hostTagsProvider := hosttags.NewHostTagProvider()
-	chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex, resolvConfs)
+	chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, nil, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex, resolvConfs)
 
 	require.Len(t, chunks, 1)
 	cc := chunks[0].(*model.CollectorConnections)
@@ -898,4 +898,54 @@ func TestNetworkConnectionBatchingWithResolvConf(t *testing.T) {
 
 	connMissing := cc.Connections[1]
 	require.Equal(t, int32(-1), connMissing.ResolvConfIdx, "connection without resolv.conf should have idx=-1")
+}
+
+func TestBatchConnectionsInfraModeTag(t *testing.T) {
+	ex := parser.NewServiceExtractor(false, false, false)
+	conns := makeConnections(2)
+
+	for _, tc := range []struct {
+		name          string
+		infraMode     string
+		expectedTags  []string
+		expectTagsSet bool
+	}{
+		{
+			name:          "full mode does not add infra_mode tag",
+			infraMode:     "full",
+			expectedTags:  nil,
+			expectTagsSet: false,
+		},
+		{
+			name:          "basic mode does not add infra_mode tag",
+			infraMode:     "basic",
+			expectedTags:  nil,
+			expectTagsSet: false,
+		},
+		{
+			name:          "end_user_device mode adds infra_mode tag",
+			infraMode:     "end_user_device",
+			expectedTags:  []string{"infra_mode:end_user_device"},
+			expectTagsSet: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var agentTags []string
+			if tc.infraMode == "end_user_device" {
+				agentTags = []string{"infra_mode:end_user_device"}
+			}
+
+			chunks := batchConnections(&HostInfo{}, hosttags.NewHostTagProvider(), agentTags, nil, nil, 10, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex, nil)
+			require.Len(t, chunks, 1)
+			cc := chunks[0].(*model.CollectorConnections)
+
+			if !tc.expectTagsSet {
+				assert.Equal(t, int32(-1), cc.HostTagsIndex, "HostTagsIndex should be -1 when no tags are set")
+				return
+			}
+
+			require.NotEqual(t, int32(-1), cc.HostTagsIndex, "HostTagsIndex should be set")
+			require.Equal(t, tc.expectedTags, cc.GetTags(int(cc.HostTagsIndex)))
+		})
+	}
 }
