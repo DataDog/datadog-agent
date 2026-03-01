@@ -102,11 +102,6 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 		log.Warnf("could not register process-agent to system-probe: %s", err)
 	}
 
-	networkID, err := retryGetNetworkID(c.sysprobeClient)
-	if err != nil {
-		log.Infof("no network ID detected: %s", err)
-	}
-	c.networkID = networkID
 	c.processData = NewProcessData(c.config)
 	c.dockerFilter = parser.NewDockerProxy()
 	serviceExtractorEnabled := c.sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.enabled")
@@ -165,6 +160,15 @@ func (c *ConnectionsCheck) ShouldSaveLastRun() bool { return false }
 // that will be bundled up into a `CollectorConnections`.
 // See agent.proto for the schema of the message and models.
 func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
+	// lazy-load the network ID to avoid blocking the runner initialization
+	if c.networkID == "" {
+		networkID, err := retryGetNetworkID(c.sysprobeClient)
+		if err != nil {
+			log.Infof("no network ID detected: %s", err)
+		}
+		c.networkID = networkID
+	}
+
 	start := time.Now()
 
 	conns, err := c.getConnections()

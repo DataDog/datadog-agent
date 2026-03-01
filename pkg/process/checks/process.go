@@ -162,12 +162,6 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 		p.sysprobeClient = client.Get(syscfg.SystemProbeAddress)
 	}
 
-	networkID, err := retryGetNetworkID(p.sysprobeClient)
-	if err != nil {
-		log.Infof("no network ID detected: %s", err)
-	}
-	p.networkID = networkID
-
 	p.maxBatchSize = getMaxBatchSize(p.config)
 	p.maxBatchBytes = getMaxBatchBytes(p.config)
 
@@ -381,6 +375,15 @@ func procsToStats(procs map[int32]*procutil.Process) map[int32]*procutil.Stats {
 
 // Run collects process data (regular metadata + stats) and/or realtime process data (stats only)
 func (p *ProcessCheck) Run(nextGroupID func() int32, options *RunOptions) (RunResult, error) {
+	// lazy-load the network ID to avoid blocking the runner initialization
+	if p.networkID == "" {
+		networkID, err := retryGetNetworkID(p.sysprobeClient)
+		if err != nil {
+			log.Infof("no network ID detected: %s", err)
+		}
+		p.networkID = networkID
+	}
+
 	if options == nil {
 		return p.run(nextGroupID(), false)
 	}

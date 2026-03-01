@@ -70,12 +70,6 @@ func (c *ContainerCheck) Init(syscfg *SysProbeConfig, info *HostInfo, _ bool) er
 		c.sysprobeClient = client.Get(syscfg.SystemProbeAddress)
 	}
 
-	networkID, err := retryGetNetworkID(c.sysprobeClient)
-	if err != nil {
-		log.Infof("no network ID detected: %s", err)
-	}
-	c.networkID = networkID
-
 	c.containerFailedLogLimit = log.NewLogLimit(10, time.Minute*10)
 	c.maxBatchSize = getMaxBatchSize(c.config)
 	return nil
@@ -110,6 +104,15 @@ func (c *ContainerCheck) ShouldSaveLastRun() bool { return true }
 //
 //nolint:revive // TODO(PROC) Fix revive linter
 func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (RunResult, error) {
+	// lazy-load the network ID to avoid blocking the runner initialization
+	if c.networkID == "" {
+		networkID, err := retryGetNetworkID(c.sysprobeClient)
+		if err != nil {
+			log.Infof("no network ID detected: %s", err)
+		}
+		c.networkID = networkID
+	}
+
 	c.Lock()
 	defer c.Unlock()
 	startTime := time.Now()
