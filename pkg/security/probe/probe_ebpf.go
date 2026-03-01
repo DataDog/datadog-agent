@@ -2554,17 +2554,14 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, boo
 	}
 
 	if p.probe.IsNetworkRawPacketEnabled() {
-		// disable first, and let the following code enable it if needed
-		if err := p.enableRawPacket(false); err != nil {
-			seclog.Errorf("unable to disable raw packet filter programs: %v", err)
-		}
-
+		// HOLD FROM HERE
 		if err := p.setupRawPacketFilters(rs); err != nil {
 			seclog.Errorf("unable to load raw packet filter programs: %v", err)
 		}
-
 		// reset action filter
 		if p.config.RuntimeSecurity.EnforcementEnabled {
+			// Will be re-applied here
+
 			p.rawPacketActionFilters = p.rawPacketActionFilters[0:0]
 			if err := p.applyRawPacketActionFilters(); err != nil {
 				seclog.Errorf("unable to load raw packet action programs: %v", err)
