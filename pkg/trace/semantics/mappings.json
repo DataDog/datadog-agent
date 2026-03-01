@@ -123,7 +123,7 @@
       "fallbacks": [
         {"name": "http.status_code", "provider": "datadog", "type": "int64"},
         {"name": "http.status_code", "provider": "datadog", "type": "string"},
-        {"name": "http.response.status_code", "provider": "otel", "version": "1.21.0", "type": "string"}
+        {"name": "http.response.status_code", "provider": "otel", "version": "1.21.0", "type": "int64"}
       ]
     },
     "http.method": {
@@ -276,7 +276,7 @@
     "_dd.measured": {
       "canonical": "_dd.measured",
       "fallbacks": [
-        {"name": "_dd.measured", "provider": "datadog", "type": "string"}
+        {"name": "_dd.measured", "provider": "datadog", "type": "int64"}
       ]
     },
     "_dd.top_level": {
@@ -308,6 +308,99 @@
       "canonical": "_dd.partial_version",
       "fallbacks": [
         {"name": "_dd.partial_version", "provider": "datadog", "type": "string"}
+      ]
+    },
+    "service.name": {
+      "canonical": "service.name",
+      "fallbacks": [
+        {"name": "service.name", "provider": "otel", "type": "string"}
+      ]
+    },
+    "resource.name": {
+      "canonical": "resource.name",
+      "fallbacks": [
+        {"name": "resource.name", "provider": "datadog", "type": "string"}
+      ]
+    },
+    "operation.name": {
+      "canonical": "operation.name",
+      "fallbacks": [
+        {"name": "operation.name", "provider": "datadog", "type": "string"}
+      ]
+    },
+    "span.type": {
+      "canonical": "span.type",
+      "fallbacks": [
+        {"name": "span.type", "provider": "datadog", "type": "string"}
+      ]
+    },
+    "db.system": {
+      "canonical": "db.system",
+      "fallbacks": [
+        {"name": "db.system", "provider": "otel", "type": "string"}
+      ]
+    },
+    "db.statement": {
+      "canonical": "db.statement",
+      "fallbacks": [
+        {"name": "db.statement", "provider": "otel", "type": "string"},
+        {"name": "db.query.text", "provider": "otel", "version": "1.24.0", "type": "string"}
+      ]
+    },
+    "db.namespace": {
+      "canonical": "db.namespace",
+      "fallbacks": [
+        {"name": "db.namespace", "provider": "otel", "version": "1.24.0", "type": "string"}
+      ]
+    },
+    "rpc.system": {
+      "canonical": "rpc.system",
+      "fallbacks": [
+        {"name": "rpc.system", "provider": "otel", "type": "string"}
+      ]
+    },
+    "rpc.service": {
+      "canonical": "rpc.service",
+      "fallbacks": [
+        {"name": "rpc.service", "provider": "otel", "type": "string"}
+      ]
+    },
+    "messaging.system": {
+      "canonical": "messaging.system",
+      "fallbacks": [
+        {"name": "messaging.system", "provider": "otel", "type": "string"}
+      ]
+    },
+    "messaging.destination": {
+      "canonical": "messaging.destination",
+      "fallbacks": [
+        {"name": "messaging.destination", "provider": "otel", "type": "string"},
+        {"name": "messaging.destination.name", "provider": "otel", "version": "1.21.0", "type": "string"}
+      ]
+    },
+    "deployment.environment": {
+      "canonical": "deployment.environment",
+      "fallbacks": [
+        {"name": "deployment.environment.name", "provider": "otel", "version": "1.27.0", "type": "string"},
+        {"name": "deployment.environment", "provider": "otel", "type": "string"}
+      ]
+    },
+    "service.version": {
+      "canonical": "service.version",
+      "fallbacks": [
+        {"name": "service.version", "provider": "otel", "type": "string"}
+      ]
+    },
+    "container.id": {
+      "canonical": "container.id",
+      "fallbacks": [
+        {"name": "container.id", "provider": "otel", "type": "string"}
+      ]
+    },
+    "k8s.pod.uid": {
+      "canonical": "k8s.pod.uid",
+      "fallbacks": [
+        {"name": "k8s.pod.uid", "provider": "otel", "type": "string"}
       ]
     }
   }

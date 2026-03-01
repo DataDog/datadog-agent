@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    APM OTLP: Changed attribute precedence behavior when looking up OpenTelemetry semantic convention attributes that have multiple equivalent keys (e.g., ``http.status_code`` vs ``http.response.status_code``, ``deployment.environment`` vs ``deployment.environment.name``).
+
+    **Previous behavior**: When both old and new semantic convention keys existed, the lookup would check ALL keys in span attributes before checking ANY key in resource attributes. So whichever key appeared in span attributes would win, regardless of which key was in resource attributes.
+
+    **New behavior**: The lookup now uses a per-concept precedence order. For each semantic concept, the registry defines an ordered list of attribute keys; the first key that has a value is returned. The precedence order (which key takes priority) depends on the concept and may prefer either the newer or the older convention key. Span vs resource precedence (which map is checked first) is unchanged and still depends on the function.
+
+    **Who is affected**: This change only affects users who have the same concept represented by different convention-version keys in span vs resource attributes. The returned value may now come from a different key than before, according to the concept's precedence order.
+
+    This is an uncommon configuration since most instrumentation libraries use consistent semantic convention versions across span and resource attributes.

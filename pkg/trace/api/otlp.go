@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	traceutilotel "github.com/DataDog/datadog-agent/pkg/trace/otel/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
@@ -292,16 +293,18 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		src = source.Source{Kind: source.HostnameKind, Identifier: hostname}
 	}
 
+	// Create a single accessor for all resource-level semantic lookups below, avoiding
+	// repeated allocation of accessor objects for the same attribute map.
+	resAccessor := semantics.NewPDataMapAccessor(otelres.Attributes())
+
 	// Get container ID from OTel semantic conventions
-	var containerID string
-	if o.conf.HasFeature("enable_otlp_container_tags_v2") {
-		containerID = traceutilotel.GetOTelAttrVal(otelres.Attributes(), true, string(semconv.ContainerIDKey))
-	} else {
-		containerID = traceutilotel.GetOTelAttrVal(otelres.Attributes(), true, string(semconv.ContainerIDKey), string(semconv.K8SPodUIDKey))
+	containerID := traceutilotel.LookupSemanticStringWithAccessor(resAccessor, semantics.ConceptContainerID, true)
+	if containerID == "" && !o.conf.HasFeature("enable_otlp_container_tags_v2") {
+		containerID = traceutilotel.LookupSemanticStringWithAccessor(resAccessor, semantics.ConceptK8sPodUID, true)
 	}
 
 	// Get env from OTel semantic conventions
-	env := traceutilotel.GetOTelAttrVal(otelres.Attributes(), true, string(semconv127.DeploymentEnvironmentNameKey), string(semconv.DeploymentEnvironmentKey))
+	env := traceutilotel.LookupSemanticStringWithAccessor(resAccessor, semantics.ConceptDeploymentEnv, true)
 
 	// Get container tags from OTel semantic conventions
 	var containerTags string
