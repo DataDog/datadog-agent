@@ -262,6 +262,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if core.IsSet("apm_config.receiver_socket") {
 		c.ReceiverSocket = core.GetString("apm_config.receiver_socket")
 	}
+	if core.IsSet("apm_config.injector_telemetry_socket") {
+		c.InjectorTelemetrySocket = core.GetString("apm_config.injector_telemetry_socket")
+	}
 	if core.IsSet("apm_config.connection_limit") {
 		c.ConnectionLimit = core.GetInt("apm_config.connection_limit")
 	}

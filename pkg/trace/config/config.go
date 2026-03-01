@@ -403,6 +403,11 @@ type AgentConfig struct {
 	PipeBufferSize         int
 	PipeSecurityDescriptor string
 
+	// InjectorTelemetrySocket is the path for the SOCK_DGRAM Unix domain socket
+	// that receives lightweight telemetry from the auto-inject injector.
+	// If empty, the injector telemetry receiver is disabled.
+	InjectorTelemetrySocket string
+
 	GUIPort string // the port of the Datadog Agent GUI (for control access)
 
 	// Writers
