@@ -42,8 +42,17 @@ def build(ctx, byoc=False, flavor=AgentFlavor.base.name):
     Build the otel agent
     """
 
-    if os.path.exists(BIN_PATH):
-        os.remove(BIN_PATH)
+    # When cross-compiling for Windows on Linux, bin_name() returns "otel-agent"
+    # (no .exe) because it checks sys.platform, not GOOS. Compute the correct
+    # output path here so Go writes otel-agent.exe for Windows targets.
+    cross_compiling_windows = sys.platform != 'win32' and os.environ.get('GOOS') == 'windows'
+    if cross_compiling_windows:
+        bin_path = os.path.join(BIN_DIR, "otel-agent.exe")
+    else:
+        bin_path = BIN_PATH
+
+    if os.path.exists(bin_path):
+        os.remove(bin_path)
 
     flavor = AgentFlavor[flavor]
     env = {"GO111MODULE": "on"}
@@ -56,7 +65,7 @@ def build(ctx, byoc=False, flavor=AgentFlavor.base.name):
         gcflags = ""
 
     # generate windows resources
-    if sys.platform == 'win32':
+    if sys.platform == 'win32' or cross_compiling_windows:
         build_messagetable(ctx)
         vars = versioninfo_vars(ctx)
         build_rc(
@@ -73,7 +82,7 @@ def build(ctx, byoc=False, flavor=AgentFlavor.base.name):
         build_tags=build_tags,
         ldflags=ldflags,
         gcflags=gcflags,
-        bin_path=BIN_PATH,
+        bin_path=bin_path,
         check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
         env=env,
     )
