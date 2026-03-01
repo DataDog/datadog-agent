@@ -16,42 +16,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
-
-// testLifecycle is a simple lifecycle implementation for testing
-type testLifecycle struct {
-	hooks []compdef.Hook
-}
-
-func (l *testLifecycle) Append(h compdef.Hook) {
-	l.hooks = append(l.hooks, h)
-}
-
-func (l *testLifecycle) Start(ctx context.Context) error {
-	for _, h := range l.hooks {
-		if h.OnStart != nil {
-			if err := h.OnStart(ctx); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func (l *testLifecycle) Stop(ctx context.Context) error {
-	for i := len(l.hooks) - 1; i >= 0; i-- {
-		if l.hooks[i].OnStop != nil {
-			if err := l.hooks[i].OnStop(ctx); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
 
 func TestOptionalModule(t *testing.T) {
 	handler := func(w http.ResponseWriter, _ *http.Request) {
@@ -86,7 +53,7 @@ func TestOptionalModule(t *testing.T) {
 	require.NoError(t, lc.Start(context.Background()))
 	t.Cleanup(func() { _ = lc.Stop(context.Background()) })
 
-	var cfg config.Component = deps.Config
+	cfg := deps.Config
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		assert.Equal(t, "value1", cfg.Get("api_key"))
 	}, 5*time.Second, 500*time.Millisecond)

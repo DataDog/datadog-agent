@@ -16,29 +16,55 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+// testLifecycle is a simple lifecycle implementation for testing
+type testLifecycle struct {
+	hooks []compdef.Hook
+}
+
+func (l *testLifecycle) Append(h compdef.Hook) {
+	l.hooks = append(l.hooks, h)
+}
+
+func (l *testLifecycle) Start(ctx context.Context) error {
+	for _, h := range l.hooks {
+		if h.OnStart != nil {
+			if err := h.OnStart(ctx); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (l *testLifecycle) Stop(ctx context.Context) error {
+	for i := len(l.hooks) - 1; i >= 0; i-- {
+		if l.hooks[i].OnStop != nil {
+			if err := l.hooks[i].OnStop(ctx); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func makeDeps(t *testing.T) Requires {
-	return fxutil.Test[Requires](t, fx.Options(
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
-		fx.Supply(log.Params{}),
-		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-		telemetryimpl.MockModule(),
-		fx.Provide(func(t testing.TB) ipc.Component { return ipcmock.New(t) }),
-		fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
-		fx.Supply(NewParams(0, false, 0)),
-	))
+	ipcComp := ipcmock.New(t)
+	return Requires{
+		Lc:        &testLifecycle{},
+		Config:    config.NewMock(t),
+		Log:       logmock.New(t),
+		IPCClient: ipcComp.GetClient(),
+		Params:    NewParams(0, false, 0),
+	}
 }
 
 func makeConfigSync(deps Requires) *configSync {
