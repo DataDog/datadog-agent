@@ -46,15 +46,14 @@ func (l *EnvironmentListener) Stop() {
 
 func (l *EnvironmentListener) createServices() {
 	features := map[string]env.Feature{
-		"docker":                      env.Docker,
-		"kubelet":                     env.Kubernetes,
-		"ecs_fargate":                 env.ECSFargate,
-		"eks_fargate":                 env.EKSFargate,
-		"cri":                         env.Cri,
-		"containerd":                  env.Containerd,
-		"kube_orchestrator":           env.KubeOrchestratorExplorer,
-		"kubelet_config_orchestrator": env.KubeletConfigOrchestratorCheck,
-		"ecs_orchestrator":            env.ECSOrchestratorExplorer,
+		"docker":            env.Docker,
+		"kubelet":           env.Kubernetes,
+		"ecs_fargate":       env.ECSFargate,
+		"eks_fargate":       env.EKSFargate,
+		"cri":               env.Cri,
+		"containerd":        env.Containerd,
+		"kube_orchestrator": env.KubeOrchestratorExplorer,
+		"ecs_orchestrator":  env.ECSOrchestratorExplorer,
 	}
 
 	for name, feature := range features {

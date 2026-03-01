@@ -46,7 +46,6 @@ func init() {
 	registerFeature(ECSManagedInstances)
 	registerFeature(EKSFargate)
 	registerFeature(KubeOrchestratorExplorer)
-	registerFeature(KubeletConfigOrchestratorCheck)
 	registerFeature(ECSOrchestratorExplorer)
 	registerFeature(CloudFoundry)
 	registerFeature(Podman)
@@ -89,9 +88,6 @@ func detectKubernetes(features FeatureMap, cfg model.Reader) {
 		features[Kubernetes] = struct{}{}
 		if cfg.GetBool("orchestrator_explorer.enabled") {
 			features[KubeOrchestratorExplorer] = struct{}{}
-		}
-		if cfg.GetBool("orchestrator_explorer.kubelet_config_check.enabled") {
-			features[KubeletConfigOrchestratorCheck] = struct{}{}
 		}
 	}
 }
