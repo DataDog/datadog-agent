@@ -332,6 +332,114 @@ func TestGetOTelStatusCode(t *testing.T) {
 	}
 }
 
+func TestGetOTelGRPCStatusCode(t *testing.T) {
+	tests := []struct {
+		name     string
+		sattrs   map[string]any
+		rattrs   map[string]any
+		expected string
+	}{
+		{
+			name:     "neither set",
+			expected: "",
+		},
+		{
+			name:     "only in span, rpc.grpc.status_code as int",
+			sattrs:   map[string]any{"rpc.grpc.status_code": int64(0)},
+			expected: "0",
+		},
+		{
+			name:     "only in span, rpc.grpc.status_code as string",
+			sattrs:   map[string]any{"rpc.grpc.status_code": "2"},
+			expected: "2",
+		},
+		{
+			name:     "only in resource, rpc.grpc.status_code",
+			rattrs:   map[string]any{"rpc.grpc.status_code": int64(3)},
+			expected: "3",
+		},
+		{
+			name:     "both set (span wins)",
+			sattrs:   map[string]any{"rpc.grpc.status_code": int64(4)},
+			rattrs:   map[string]any{"rpc.grpc.status_code": int64(5)},
+			expected: "4",
+		},
+		{
+			name:     "grpc.code fallback",
+			sattrs:   map[string]any{"grpc.code": int64(6)},
+			expected: "6",
+		},
+		{
+			name:     "rpc.grpc.status.code fallback",
+			sattrs:   map[string]any{"rpc.grpc.status.code": int64(7)},
+			expected: "7",
+		},
+		{
+			name:     "grpc.status.code fallback",
+			sattrs:   map[string]any{"grpc.status.code": int64(8)},
+			expected: "8",
+		},
+		{
+			name:     "rpc.response.status_code with rpc.system=grpc",
+			sattrs:   map[string]any{"rpc.system": "grpc", "rpc.response.status_code": "DEADLINE_EXCEEDED"},
+			expected: "DEADLINE_EXCEEDED",
+		},
+		{
+			name:     "rpc.response.status_code with rpc.system.name=grpc",
+			sattrs:   map[string]any{"rpc.system.name": "grpc", "rpc.response.status_code": int64(4)},
+			expected: "4",
+		},
+		{
+			name:     "rpc.response.status_code ignored without rpc.system",
+			sattrs:   map[string]any{"rpc.response.status_code": "DEADLINE_EXCEEDED"},
+			expected: "",
+		},
+		{
+			name:     "rpc.response.status_code ignored for non-grpc system",
+			sattrs:   map[string]any{"rpc.system": "jsonrpc", "rpc.response.status_code": "DEADLINE_EXCEEDED"},
+			expected: "",
+		},
+		{
+			name:     "rpc.response.status_code ignored for non-grpc system.name",
+			sattrs:   map[string]any{"rpc.system.name": "jsonrpc", "rpc.response.status_code": "DEADLINE_EXCEEDED"},
+			expected: "",
+		},
+		{
+			name:     "rpc.grpc.status_code takes precedence over rpc.response.status_code",
+			sattrs:   map[string]any{"rpc.system": "grpc", "rpc.grpc.status_code": int64(2), "rpc.response.status_code": "DEADLINE_EXCEEDED"},
+			expected: "2",
+		},
+		{
+			name:     "grpc.status_code works for jsonrpc system",
+			sattrs:   map[string]any{"rpc.system": "jsonrpc", "grpc.status_code": int64(2)},
+			expected: "2",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			for k, v := range tt.sattrs {
+				switch val := v.(type) {
+				case int64:
+					span.Attributes().PutInt(k, val)
+				case string:
+					span.Attributes().PutStr(k, val)
+				}
+			}
+			res := pcommon.NewResource()
+			for k, v := range tt.rattrs {
+				switch val := v.(type) {
+				case int64:
+					res.Attributes().PutInt(k, val)
+				case string:
+					res.Attributes().PutStr(k, val)
+				}
+			}
+			assert.Equal(t, tt.expected, GetOTelGRPCStatusCode(span, res))
+		})
+	}
+}
+
 func TestOtelSpanToDDSpanDBNameMapping(t *testing.T) {
 	tests := []struct {
 		name         string

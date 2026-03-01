@@ -119,6 +119,42 @@ func TestGetGRPCStatusCode(t *testing.T) {
 			},
 			"3",
 		},
+		{
+			&pb.Span{
+				Meta: map[string]string{"rpc.system.name": "grpc", "rpc.response.status_code": "OK"},
+			},
+			"0",
+		},
+		{
+			&pb.Span{
+				Meta: map[string]string{"rpc.system.name": "grpc", "rpc.response.status_code": "DEADLINE_EXCEEDED"},
+			},
+			"4",
+		},
+		{
+			&pb.Span{
+				Meta: map[string]string{"rpc.system.name": "grpc", "rpc.response.status_code": "4"},
+			},
+			"4",
+		},
+		{
+			&pb.Span{
+				Meta: map[string]string{"rpc.system.name": "jsonrpc", "rpc.response.status_code": "OK"},
+			},
+			"",
+		},
+		{
+			&pb.Span{
+				Meta: map[string]string{"rpc.response.status_code": "OK"},
+			},
+			"",
+		},
+		{
+			&pb.Span{
+				Meta: map[string]string{"rpc.system": "jsonrpc", "rpc.grpc.status_code": "2"},
+			},
+			"2",
+		},
 	} {
 		assert.Equal(t, tt.out, getGRPCStatusCode(tt.in.Meta, tt.in.Metrics))
 	}

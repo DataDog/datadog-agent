@@ -172,41 +172,60 @@ Google's API checks for strings with an underscore and in all caps, and would on
 formatted like "ALREADY_EXISTS" or "DEADLINE_EXCEEDED"
 */
 var grpcStatusMap = map[string]string{
-	"CANCELLED":          "1",
-	"CANCELED":           "1",
-	"INVALIDARGUMENT":    "3",
-	"DEADLINEEXCEEDED":   "4",
-	"NOTFOUND":           "5",
-	"ALREADYEXISTS":      "6",
-	"PERMISSIONDENIED":   "7",
-	"RESOURCEEXHAUSTED":  "8",
-	"FAILEDPRECONDITION": "9",
-	"OUTOFRANGE":         "11",
-	"DATALOSS":           "15",
+	"OK":                  "0",
+	"CANCELLED":           "1",
+	"CANCELED":            "1",
+	"UNKNOWN":             "2",
+	"INVALID_ARGUMENT":    "3",
+	"INVALIDARGUMENT":     "3",
+	"DEADLINE_EXCEEDED":   "4",
+	"DEADLINEEXCEEDED":    "4",
+	"NOT_FOUND":           "5",
+	"NOTFOUND":            "5",
+	"ALREADY_EXISTS":      "6",
+	"ALREADYEXISTS":       "6",
+	"PERMISSION_DENIED":   "7",
+	"PERMISSIONDENIED":    "7",
+	"RESOURCE_EXHAUSTED":  "8",
+	"RESOURCEEXHAUSTED":   "8",
+	"FAILED_PRECONDITION": "9",
+	"FAILEDPRECONDITION":  "9",
+	"ABORTED":             "10",
+	"OUT_OF_RANGE":        "11",
+	"OUTOFRANGE":          "11",
+	"UNIMPLEMENTED":       "12",
+	"INTERNAL":            "13",
+	"UNAVAILABLE":         "14",
+	"DATA_LOSS":           "15",
+	"DATALOSS":            "15",
+	"UNAUTHENTICATED":     "16",
 }
 
 func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) string {
 	// List of possible keys to check in order
 	statusCodeFields := []string{"rpc.grpc.status_code", "grpc.code", "rpc.grpc.status.code", "grpc.status.code"}
 
+	if meta["rpc.system.name"] == "grpc" {
+		statusCodeFields = append(statusCodeFields, "rpc.response.status_code")
+	}
+
 	for _, key := range statusCodeFields {
-		if strC, exists := meta[key]; exists && strC != "" {
-			c, err := strconv.ParseUint(strC, 10, 32)
-			if err == nil {
-				return strconv.FormatUint(c, 10)
-			}
-			strC = strings.TrimPrefix(strC, "StatusCode.") // Some tracers send status code values prefixed by "StatusCode."
-			strCUpper := strings.ToUpper(strC)
-			if statusCode, exists := grpcStatusMap[strCUpper]; exists {
-				return statusCode
-			}
-
-			// If not integer or canceled or multi-word, check for valid gRPC status string
-			if codeNum, found := code.Code_value[strCUpper]; found {
-				return strconv.Itoa(int(codeNum))
-			}
-
-			return ""
+		strC := meta[key]
+		if strC == "" {
+			continue
+		}
+		c, err := strconv.ParseUint(strC, 10, 32)
+		if err == nil {
+			return strconv.FormatUint(c, 10)
+		}
+		strC = strings.TrimPrefix(strC, "StatusCode.") // Some tracers send status code values prefixed by "StatusCode."
+		strCUpper := strings.ToUpper(strC)
+		if statusCode, exists := grpcStatusMap[strCUpper]; exists {
+			return statusCode
+		}
+		// If not integer or canceled or multi-word, check for valid gRPC status string
+		if codeNum, found := code.Code_value[strCUpper]; found {
+			return strconv.Itoa(int(codeNum))
 		}
 	}
 

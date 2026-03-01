@@ -286,6 +286,126 @@ func TestProcessOTLPTraces(t *testing.T) {
 				false,
 			),
 		},
+		{
+			name:     "gRPC status code is included in trace metrics",
+			spanName: "grpc_span",
+			rattrs:   map[string]string{"service.name": "grpc-svc"},
+			sattrs:   map[string]any{"rpc.grpc.status_code": int64(2), "rpc.system.name": "grpc", "rpc.method": "GetUser", "rpc.service": "UserService"},
+			spanKind: ptrace.SpanKindServer,
+			libname:  "otelgrpc",
+			expected: &pb.StatsPayload{
+				AgentEnv:      agentEnv,
+				AgentHostname: agentHost,
+				Stats: []*pb.ClientStatsPayload{{
+					Hostname: agentHost,
+					Env:      agentEnv,
+					Stats: []*pb.ClientStatsBucket{{
+						Stats: []*pb.ClientGroupedStats{
+							{
+								Service:        "grpc-svc",
+								Name:           "otelgrpc.server",
+								Resource:       "GetUser UserService",
+								Type:           "web",
+								Hits:           1,
+								TopLevelHits:   1,
+								SpanKind:       "server",
+								IsTraceRoot:    pb.Trilean_TRUE,
+								GRPCStatusCode: "2",
+							},
+						},
+					}}}},
+			},
+		},
+		{
+			name:     "grpc system can interpret rpc.response.status_code",
+			spanName: "grpc_response_span",
+			rattrs:   map[string]string{"service.name": "grpc-svc"},
+			sattrs:   map[string]any{"rpc.response.status_code": int64(5), "rpc.system.name": "grpc", "rpc.method": "FindUser", "rpc.service": "UserService"},
+			spanKind: ptrace.SpanKindServer,
+			libname:  "otelgrpc",
+			expected: &pb.StatsPayload{
+				AgentEnv:      agentEnv,
+				AgentHostname: agentHost,
+				Stats: []*pb.ClientStatsPayload{{
+					Hostname: agentHost,
+					Env:      agentEnv,
+					Stats: []*pb.ClientStatsBucket{{
+						Stats: []*pb.ClientGroupedStats{
+							{
+								Service:        "grpc-svc",
+								Name:           "otelgrpc.server",
+								Resource:       "FindUser UserService",
+								Type:           "web",
+								Hits:           1,
+								TopLevelHits:   1,
+								SpanKind:       "server",
+								IsTraceRoot:    pb.Trilean_TRUE,
+								GRPCStatusCode: "5",
+							},
+						},
+					}}}},
+			},
+		},
+		{
+			name:     "jsonrpc system cannot interpret rpc.response.status_code",
+			spanName: "jsonrpc_response_span",
+			rattrs:   map[string]string{"service.name": "jsonrpc-svc"},
+			sattrs:   map[string]any{"rpc.response.status_code": int64(5), "rpc.system.name": "jsonrpc", "rpc.method": "CallMethod", "rpc.service": "JsonService"},
+			spanKind: ptrace.SpanKindServer,
+			libname:  "oteljsonrpc",
+			expected: &pb.StatsPayload{
+				AgentEnv:      agentEnv,
+				AgentHostname: agentHost,
+				Stats: []*pb.ClientStatsPayload{{
+					Hostname: agentHost,
+					Env:      agentEnv,
+					Stats: []*pb.ClientStatsBucket{{
+						Stats: []*pb.ClientGroupedStats{
+							{
+								Service:        "jsonrpc-svc",
+								Name:           "oteljsonrpc.server",
+								Resource:       "CallMethod JsonService",
+								Type:           "web",
+								Hits:           1,
+								TopLevelHits:   1,
+								SpanKind:       "server",
+								IsTraceRoot:    pb.Trilean_TRUE,
+								GRPCStatusCode: "",
+							},
+						},
+					}}}},
+			},
+		},
+		{
+			name:     "jsonrpc system can still interpret rpc.grpc.status_code",
+			spanName: "jsonrpc_span",
+			rattrs:   map[string]string{"service.name": "jsonrpc-svc"},
+			sattrs:   map[string]any{"rpc.grpc.status_code": int64(3), "rpc.system": "jsonrpc", "rpc.method": "CallMethod", "rpc.service": "JsonService"},
+			spanKind: ptrace.SpanKindServer,
+			libname:  "oteljsonrpc",
+			expected: &pb.StatsPayload{
+				AgentEnv:      agentEnv,
+				AgentHostname: agentHost,
+				Stats: []*pb.ClientStatsPayload{{
+					Hostname: agentHost,
+					Env:      agentEnv,
+					Stats: []*pb.ClientStatsBucket{{
+						Stats: []*pb.ClientGroupedStats{
+							{
+								Service:        "jsonrpc-svc",
+								Name:           "oteljsonrpc.server",
+								Resource:       "CallMethod JsonService",
+								Type:           "web",
+								Hits:           1,
+								TopLevelHits:   1,
+								SpanKind:       "server",
+								IsTraceRoot:    pb.Trilean_TRUE,
+								GRPCStatusCode: "3",
+							},
+						},
+					}}}},
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			traces := ptrace.NewTraces()
