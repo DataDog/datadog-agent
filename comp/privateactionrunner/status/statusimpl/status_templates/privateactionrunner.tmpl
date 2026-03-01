@@ -1,0 +1,13 @@
+{{- with .privateActionRunnerStatus }}
+  Status: {{ .status }}
+  Enabled: {{ if .enabled }}True{{ else }}False{{ end }}
+  Version: {{ .runnerVersion }}
+  Self Enroll: {{ if .selfEnroll }}True{{ else }}False{{ end }}
+  URN Configured: {{ if .urnConfigured }}True{{ else }}False{{ end }}
+  {{- if .logFile }}
+  Log File: {{ .logFile }}
+  {{- end }}
+  {{- if .error }}
+  Error: {{ .error }}
+  {{- end }}
+{{- end }}
