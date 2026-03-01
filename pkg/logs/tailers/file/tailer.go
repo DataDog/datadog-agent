@@ -431,6 +431,10 @@ func (t *Tailer) forwardMessages() {
 		case t.outputChan <- msg:
 			t.CapacityMonitor.AddIngress(msg)
 		case <-t.forwardContext.Done():
+			// Track messages discarded due to context cancellation (e.g., close_timeout expiring)
+			metrics.MessagesDiscarded.Add(1)
+			metrics.TlmMessagesDiscarded.Inc()
+			log.Warnf("Message discarded for file %q due to context cancellation (close_timeout: %s). Consider increasing DD_LOGS_CONFIG_CLOSE_TIMEOUT.", t.file.Path, t.closeTimeout)
 		}
 	}
 }

@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Logs Agent: Add ``logs.messages_discarded_context_cancelled`` telemetry metric
+    to track messages discarded during file rotation when ``close_timeout`` expires.
+    A warning is also logged when messages are discarded, helping users identify
+    the need to increase ``DD_LOGS_CONFIG_CLOSE_TIMEOUT`` for slow pipelines.
