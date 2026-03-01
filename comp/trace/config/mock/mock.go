@@ -5,21 +5,28 @@
 
 //go:build test
 
-package config
+// Package mock provides a mock for the trace config component.
+package mock
 
 import (
+	"go.uber.org/fx"
+
+	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	traceconfigimpl "github.com/DataDog/datadog-agent/comp/trace/config/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Mock implements mock-specific methods.
-// Deprecated: Use comp/trace/config/impl directly.
 type Mock interface {
-	Component
+	traceconfig.Component
 }
 
 // MockModule defines the fx options for the mock component.
-// Deprecated: Use comp/trace/config/impl.MockModule() instead.
 func MockModule() fxutil.Module {
-	return traceconfigimpl.MockModule()
+	return fxutil.Component(
+		fx.Provide(traceconfigimpl.NewMock),
+		fx.Supply(traceconfig.Params{
+			FailIfAPIKeyMissing: true,
+		}),
+	)
 }

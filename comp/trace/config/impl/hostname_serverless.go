@@ -3,10 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+//go:build serverless
 
-// Params defines the parameters for the config component.
-type Params struct {
-	// FailIfAPIKeyMissing controls if the Agent should fail if the API key is missing from the config.
-	FailIfAPIKeyMissing bool
+package traceconfigimpl
+
+import "github.com/DataDog/datadog-agent/pkg/trace/config"
+
+func hostname(*config.AgentConfig) error {
+	return nil
 }
