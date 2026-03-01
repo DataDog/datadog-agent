@@ -5,7 +5,7 @@
 
 //go:build !windows && !darwin
 
-package config
+package traceconfigimpl
 
 import (
 	"path/filepath"

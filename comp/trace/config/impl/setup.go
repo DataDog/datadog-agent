@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package traceconfigimpl
 
 import (
 	"errors"
@@ -49,10 +49,10 @@ const (
 	mrfPrefix = "mrf."
 )
 
-func setupConfigCommon(deps Dependencies) (*config.AgentConfig, error) {
-	confFilePath := deps.Config.ConfigFileUsed()
+func setupConfigCommon(reqs Requires) (*config.AgentConfig, error) {
+	confFilePath := reqs.Config.ConfigFileUsed()
 
-	return LoadConfigFile(confFilePath, deps.Config, deps.Tagger, deps.IPC)
+	return LoadConfigFile(confFilePath, reqs.Config, reqs.Tagger, reqs.IPC)
 }
 
 // LoadConfigFile returns a new configuration based on the given path. The path must not necessarily exist
