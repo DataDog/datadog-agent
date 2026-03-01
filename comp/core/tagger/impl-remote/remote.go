@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -52,6 +54,15 @@ import (
 const (
 	streamRecvTimeout = 10 * time.Minute
 	cacheExpiration   = 1 * time.Minute
+
+	// negativeCacheExpiration uses a short TTL to throttle repeated unresolved
+	// lookups while minimizing stale misses for workloads that may become
+	// resolvable shortly after startup.
+	negativeCacheExpiration = 250 * time.Millisecond
+
+	unresolvedContainerIDError = "unable to resolve container ID from OriginInfo"
+
+	maxContainerIDCacheEntries = 256
 )
 
 // Requires defines the dependencies for the remote tagger.
@@ -101,8 +112,26 @@ type remoteTagger struct {
 	checksCardinality    types.TagCardinality
 	dogstatsdCardinality types.TagCardinality
 
+	// containerIDCache caches both positive and negative container ID resolution
+	// results to prevent unbounded gRPC calls on bare-metal hosts. The shared
+	// cache.GetWithExpiration utility (cache.go:95) does not cache errors, so on
+	// non-containerized hosts every request triggers a fresh gRPC round-trip.
+	// See: AGENT-15616
+	containerIDCache   map[string]containerIDCacheEntry
+	containerIDCacheMu sync.RWMutex
+
 	wg sync.WaitGroup
 }
+
+// containerIDCacheEntry holds a cached container ID resolution result,
+// including negative results (errors).
+type containerIDCacheEntry struct {
+	containerID string
+	err         error
+	expireAt    time.Time
+}
+
+var errCachedUnresolvedContainerID = errors.New(unresolvedContainerIDError)
 
 // Options contains the options needed to configure the remote tagger.
 type Options struct {
@@ -151,6 +180,8 @@ func newRemoteTagger(params tagger.RemoteParams, cfg config.Component, log log.C
 		log:            log,
 		tlsConfig:      ipc.GetTLSClientConfig(),
 		authToken:      ipc.GetAuthToken(),
+
+		containerIDCache: make(map[string]containerIDCacheEntry),
 	}
 
 	// Override the default TLS config and auth token if provided
@@ -299,50 +330,87 @@ func (t *remoteTagger) Tag(entityID types.EntityID, cardinality types.TagCardina
 	return []string{}, nil
 }
 
-// TagWithCompleteness returns tags for an entity along with a boolean indicating
-// whether the entity's data is complete.
+// TagWithCompleteness returns tags for a given entity at the desired cardinality,
+// along with a boolean indicating whether the entity's data is complete.
+// The remote tagger does not track completeness, so the boolean is always true.
 func (t *remoteTagger) TagWithCompleteness(entityID types.EntityID, cardinality types.TagCardinality) ([]string, bool, error) {
-	if cardinality == types.ChecksConfigCardinality {
-		cardinality = t.checksCardinality
-	}
-	entity := t.store.getEntity(entityID)
-	if entity != nil {
-		t.telemetryStore.QueriesByCardinality(cardinality).Success.Inc()
-		return entity.GetTags(cardinality), entity.IsComplete, nil
-	}
-
-	t.telemetryStore.QueriesByCardinality(cardinality).EmptyTags.Inc()
-
-	return []string{}, false, nil
+	tags, err := t.Tag(entityID, cardinality)
+	return tags, true, err
 }
 
 // GenerateContainerIDFromOriginInfo returns a container ID for the given Origin Info.
+//
+// This method caches both successful and failed lookups. The shared
+// cache.GetWithExpiration utility (pkg/util/cache/cache.go:95) skips caching
+// when the callback returns an error. On bare-metal hosts, container ID
+// resolution always fails, so without negative caching every HTTP request to
+// the trace-agent triggers a fresh gRPC round-trip to the core agent.
+//
+// See: AGENT-15616
 func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
-	fail := true
-	defer func() {
-		if fail {
-			t.telemetryStore.OriginInfoRequests.Inc("failed")
-		} else {
-			t.telemetryStore.OriginInfoRequests.Inc("success")
-		}
-	}()
-
 	key := cache.BuildAgentKey(
 		"remoteTagger",
 		"originInfo",
 		origindetection.OriginInfoString(originInfo),
 	)
 
-	cachedContainerID, err := cache.GetWithExpiration(key, func() (containerID string, err error) {
-		containerID, err = t.queryContainerIDFromOriginInfo(originInfo)
-		return containerID, err
-	}, cacheExpiration)
+	// Check the local cache (includes both positive and negative entries)
+	t.containerIDCacheMu.RLock()
+	if entry, found := t.containerIDCache[key]; found && time.Now().Before(entry.expireAt) {
+		t.containerIDCacheMu.RUnlock()
+		if entry.err != nil {
+			t.telemetryStore.OriginInfoRequests.Inc("failed")
+			return "", entry.err
+		}
+		t.telemetryStore.OriginInfoRequests.Inc("success")
+		return entry.containerID, nil
+	}
+	t.containerIDCacheMu.RUnlock()
+
+	// Cache miss or expired — make the gRPC call
+	containerID, err := t.queryContainerIDFromOriginInfo(originInfo)
+
+	// Cache the result. For errors, only cache unresolved-container misses.
+	ttl := cacheExpiration
+	cacheResult := true
+	if err != nil {
+		var shouldCache bool
+		ttl, shouldCache = negativeCacheTTL(originInfo, err)
+		cacheResult = shouldCache
+	}
+
+	if cacheResult {
+		cacheErr := err
+		// Keep cached payloads small: we only need the unresolved marker on cache hit.
+		if err != nil {
+			cacheErr = errCachedUnresolvedContainerID
+		}
+
+		t.containerIDCacheMu.Lock()
+		// Lazy eviction: purge expired entries when the map grows beyond threshold.
+		// Bounds memory on hosts with high PID churn (e.g. PHP Horizon workers).
+		if len(t.containerIDCache) > maxContainerIDCacheEntries {
+			now := time.Now()
+			for k, v := range t.containerIDCache {
+				if now.After(v.expireAt) {
+					delete(t.containerIDCache, k)
+				}
+			}
+		}
+		t.containerIDCache[key] = containerIDCacheEntry{
+			containerID: containerID,
+			err:         cacheErr,
+			expireAt:    time.Now().Add(ttl),
+		}
+		t.containerIDCacheMu.Unlock()
+	}
 
 	if err != nil {
+		t.telemetryStore.OriginInfoRequests.Inc("failed")
 		return "", err
 	}
-	fail = false
-	return cachedContainerID, nil
+	t.telemetryStore.OriginInfoRequests.Inc("success")
+	return containerID, nil
 }
 
 // queryContainerIDFromOriginInfo calls the local tagger to get the container ID from the Origin Info.
@@ -384,6 +452,37 @@ func (t *remoteTagger) queryContainerIDFromOriginInfo(originInfo origindetection
 	t.log.Debugf("Container ID generated successfully from origin info %+v: %s", originInfo, containerID)
 
 	return containerID, err
+}
+
+// negativeCacheTTL returns the TTL for unresolved container ID lookups.
+// It only caches unresolved-container misses (not transport/timeout errors).
+func negativeCacheTTL(originInfo origindetection.OriginInfo, err error) (time.Duration, bool) {
+	if err == nil || !isContainerIDResolutionMiss(err) || !hasAnyOriginHints(originInfo) {
+		return 0, false
+	}
+	return negativeCacheExpiration, true
+}
+
+func isContainerIDResolutionMiss(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if st, ok := status.FromError(err); ok {
+		return strings.Contains(st.Message(), unresolvedContainerIDError)
+	}
+	return strings.Contains(err.Error(), unresolvedContainerIDError)
+}
+
+func hasAnyOriginHints(originInfo origindetection.OriginInfo) bool {
+	if originInfo.LocalData.ContainerID != "" ||
+		originInfo.LocalData.ProcessID != 0 ||
+		originInfo.LocalData.Inode != 0 ||
+		originInfo.ExternalData.PodUID != "" ||
+		originInfo.ExternalData.ContainerName != "" {
+		return true
+	}
+	return false
 }
 
 // accumulateTagsFor returns tags for a given entity at the desired cardinality.
@@ -584,7 +683,6 @@ func (t *remoteTagger) processResponse(response *pb.StreamTagsResponse) error {
 				OrchestratorCardinalityTags: entity.OrchestratorCardinalityTags,
 				LowCardinalityTags:          entity.LowCardinalityTags,
 				StandardTags:                entity.StandardTags,
-				IsComplete:                  entity.GetIsComplete(),
 			},
 		})
 	}
