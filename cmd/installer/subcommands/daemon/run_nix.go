@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
-	"github.com/DataDog/datadog-agent/comp/updater/localapi"
+	localapi "github.com/DataDog/datadog-agent/comp/updater/localapi/def"
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
