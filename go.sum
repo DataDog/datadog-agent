@@ -1348,8 +1348,8 @@ github.com/hashicorp/raft-wal v0.4.0 h1:oHCQLPa3gBTrfuBVHaDg2b/TVXpU0RIyeH/mU9ov
 github.com/hashicorp/raft-wal v0.4.0/go.mod h1:A6vP5o8hGOs1LHfC1Okh9xPwWDcmb6Vvuz/QyqUXlOE=
 github.com/hashicorp/serf v0.10.1 h1:Z1H2J60yRKvfDYAOZLd2MU0ND4AH/WDz7xYHDWQsIPY=
 github.com/hashicorp/serf v0.10.1/go.mod h1:yL2t6BqATOLGc5HF7qbFkTfXoPIY0WZdWHfEvMqbG+4=
-github.com/hashicorp/vault v1.21.2 h1:t6/vAAhgGvKukkIAQBUPenvfLiJ5oUm8CmOMa6tgUYQ=
-github.com/hashicorp/vault v1.21.2/go.mod h1:mjP/x4G0ueDLcOetPYypOmAIn+ofFDcahAX4LXaTH9c=
+github.com/hashicorp/vault v1.21.3 h1:tFlQSTiG7xD3vwxZytDiBUqJ7SUAg3nCOeALxknVUws=
+github.com/hashicorp/vault v1.21.3/go.mod h1:J46xl2AHNc3hebMbY6cmEBkeIJb75CoK3948L2RRKRc=
 github.com/hashicorp/vault-plugin-auth-alicloud v0.22.0 h1:lukm7hwIDQfDyG6IyvBu2tcT6j2bRuyyo22sWqH4w50=
 github.com/hashicorp/vault-plugin-auth-alicloud v0.22.0/go.mod h1:QCuzE/JFqigUf4DyyWyYKq6bvf2dmRKUW340CTy+HZ0=
 github.com/hashicorp/vault-plugin-auth-azure v0.22.0 h1:xvRYu2Xirn6gl/GvhPei7DJgJDDTEvsxxEHkBxuj/Iw=
@@ -1406,8 +1406,8 @@ github.com/hashicorp/vault/api/auth/ldap v0.11.0 h1:jd6gJXeFR4jyDbAh6R4RoW1uq6km
 github.com/hashicorp/vault/api/auth/ldap v0.11.0/go.mod h1:MrtrVtVUvQWGw3dLlStdTz3a2pv8NRcUZeK1gwPAEpM=
 github.com/hashicorp/vault/api/auth/userpass v0.11.0 h1:iPw1PL6vzQTn2w14quKd0ZnJV+cfPe+p5CA22M45jsA=
 github.com/hashicorp/vault/api/auth/userpass v0.11.0/go.mod h1:FZ/baZ5rhruevb6kED9eh9KhorGtwM+xxVBvtXSxZsY=
-github.com/hashicorp/vault/sdk v0.20.0 h1:a4ulj2gICzw/qH0A4+6o36qAHxkUdcmgpMaSSjqE3dc=
-github.com/hashicorp/vault/sdk v0.20.0/go.mod h1:xEjAt/n/2lHBAkYiRPRmvf1d5B6HlisPh2pELlRCosk=
+github.com/hashicorp/vault/sdk v0.21.0 h1:3gDqdKLhHY2ekmCEE9EeesoNpgsReq2bo/SpMqvBYdw=
+github.com/hashicorp/vault/sdk v0.21.0/go.mod h1:BkJpVju7qe2cDe+T8gA84uFtRnNYQIPXkiJqqWGUYrc=
 github.com/hashicorp/vic v1.5.1-0.20190403131502-bbfe86ec9443 h1:O/pT5C1Q3mVXMyuqg7yuAWUg/jMZR1/0QTzTRdNR6Uw=
 github.com/hashicorp/vic v1.5.1-0.20190403131502-bbfe86ec9443/go.mod h1:bEpDU35nTu0ey1EXjwNwPjI9xErAsoOCmcMb9GKvyxo=
 github.com/hashicorp/yamux v0.1.2 h1:XtB8kyFOyHXYVFnwT5C3+Bdo8gArse7j2AQ0DA0Uey8=
@@ -3410,7 +3410,6 @@ google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013/go.mod h1:NbSheEEY
 google.golang.org/genproto v0.0.0-20200618031413-b414f8b61790/go.mod h1:jDfRM7FcilCzHH/e9qn6dsT145K34l5v+OpcnNgKAAA=
 google.golang.org/genproto v0.0.0-20200729003335-053ba62fc06f/go.mod h1:FWY/as6DDZQgahTzZj3fqbO1CbirC29ZNUFHwi0/+no=
 google.golang.org/genproto v0.0.0-20200804131852-c06518451d9c/go.mod h1:FWY/as6DDZQgahTzZj3fqbO1CbirC29ZNUFHwi0/+no=
-google.golang.org/genproto v0.0.0-20200806141610-86f49bd18e98/go.mod h1:FWY/as6DDZQgahTzZj3fqbO1CbirC29ZNUFHwi0/+no=
 google.golang.org/genproto v0.0.0-20200825200019-8632dd797987/go.mod h1:FWY/as6DDZQgahTzZj3fqbO1CbirC29ZNUFHwi0/+no=
 google.golang.org/genproto v0.0.0-20251022142026-3a174f9686a8 h1:a12a2/BiVRxRWIqBbfqoSK6tgq8cyUgMnEI81QlPge0=
 google.golang.org/genproto v0.0.0-20251022142026-3a174f9686a8/go.mod h1:1Ic78BnpzY8OaTCmzxJDP4qC9INZPbGZl+54RKjtyeI=
@@ -3438,8 +3437,8 @@ google.golang.org/grpc v1.36.0/go.mod h1:qjiiYl8FncCW8feJPdyg3v6XW24KsRHe+dy9BAG
 google.golang.org/grpc v1.41.0/go.mod h1:U3l9uK9J0sini8mHphKoXyaqDA/8VyGnDee1zzIUK6k=
 google.golang.org/grpc v1.79.1 h1:zGhSi45ODB9/p3VAawt9a+O/MULLl9dpizzNNpq7flY=
 google.golang.org/grpc v1.79.1/go.mod h1:KmT0Kjez+0dde/v2j9vzwoAScgEPx/Bw1CYChhHLrHQ=
-google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a h1:p51n6zkL483uumoZhCSGtHCem9kDeU05G5jX/wYI9gw=
-google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a/go.mod h1:gxndsbNG1n4TZcHGgsYEfVGnTxqfEdfiDv6/DADXX9o=
+google.golang.org/grpc/examples v0.0.0-20250407062114-b368379ef8f6 h1:ExN12ndbJ608cboPYflpTny6mXSzPrDLh0iTaVrRrds=
+google.golang.org/grpc/examples v0.0.0-20250407062114-b368379ef8f6/go.mod h1:6ytKWczdvnpnO+m+JiG9NjEDzR1FJfsnmJdG7B8QVZ8=
 google.golang.org/protobuf v0.0.0-20200109180630-ec00e32a8dfd/go.mod h1:DFci5gLYBciE7Vtevhsrf46CRTquxDuWsQurQQe4oz8=
 google.golang.org/protobuf v0.0.0-20200221191635-4d8936d0db64/go.mod h1:kwYJMbMJ01Woi6D6+Kah6886xMZcty6N08ah7+eCXa0=
 google.golang.org/protobuf v0.0.0-20200228230310-ab0ca4ff8a60/go.mod h1:cfTl7dwQJ+fmap5saPgwCLgHXTUD7jkjRqWcaiX5VyM=
