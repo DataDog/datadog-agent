@@ -2620,8 +2620,8 @@ github.com/zeebo/xxh3 v1.1.0/go.mod h1:IisAie1LELR4xhVinxWS5+zf1lA4p0MW4T+w+W07F
 github.com/zenazn/goji v0.9.0/go.mod h1:7S9M489iMyHBNxwZnk9/EHS098H4/F6TATF2mIxtB1Q=
 github.com/zorkian/go-datadog-api v2.30.0+incompatible h1:R4ryGocppDqZZbnNc5EDR8xGWF/z/MxzWnqTUijDQes=
 github.com/zorkian/go-datadog-api v2.30.0+incompatible/go.mod h1:PkXwHX9CUQa/FpB9ZwAD45N1uhCW4MT/Wj7m36PbKss=
-gitlab.com/gitlab-org/api/client-go v1.40.1 h1:aE/Wny0o3x7AntPZShCBOWttJ7iUGyuzsQuTfa+sXww=
-gitlab.com/gitlab-org/api/client-go v1.40.1/go.mod h1:txpNttRZAkUa4mmqr9WJh99XT+WtfytQXbswFdMwNsc=
+gitlab.com/gitlab-org/api/client-go v1.41.0 h1:qSWU5zSO9SbY7BUBIUCJ9nowN3adxdZguZWWfO8icLI=
+gitlab.com/gitlab-org/api/client-go v1.41.0/go.mod h1:xS4YrDOA5gcM+aDQ+uiQ9TparIEgfCiEzFA7TChGZPY=
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.etcd.io/bbolt v1.4.3 h1:dEadXpI6G79deX5prL3QRNP6JB8UxVkqo4UPnHaNXJo=
 go.etcd.io/bbolt v1.4.3/go.mod h1:tKQlpPaYCVFctUIgFKFnAlvbmB3tpy1vkTnDWohtc0E=
