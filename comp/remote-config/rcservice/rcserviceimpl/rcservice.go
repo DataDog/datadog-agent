@@ -79,8 +79,21 @@ func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
 		apiKey = deps.Cfg.GetString("remote_configuration.api_key")
 	}
 	apiKey = configUtils.SanitizeAPIKey(apiKey)
+
 	baseRawURL := configUtils.GetMainEndpoint(deps.Cfg, "https://config.", "remote_configuration.rc_dd_url")
 	traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(deps.Cfg)
+
+	// Log RC connection details for debugging
+	maskedKey := apiKey
+	if len(maskedKey) > 8 {
+		maskedKey = maskedKey[:4] + "..." + maskedKey[len(maskedKey)-4:]
+	}
+	deps.Logger.Infof("[KubeActions] RC config: site=%s, rc_url=%s, api_key=%s, app_key_set=%v",
+		deps.Cfg.GetString("site"),
+		baseRawURL,
+		maskedKey,
+		deps.Cfg.GetString("app_key") != "",
+	)
 
 	options := []remoteconfig.Option{
 		remoteconfig.WithAPIKey(apiKey),

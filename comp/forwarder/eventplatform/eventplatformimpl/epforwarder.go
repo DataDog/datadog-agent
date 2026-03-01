@@ -278,6 +278,18 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
 		},
+		{
+			eventType:                     eventplatform.EventTypeKubeActions,
+			category:                      "Kubernetes",
+			contentType:                   logshttp.JSONContentType, // TODO(KUBEACTIONS-POC): Changed from Protobuf to JSON for PoC
+			endpointsConfigPrefix:         "kubeactions.forwarder.",
+			hostnameEndpointPrefix:        "kubeactions-intake.",
+			intakeTrackType:               "demoalpha", // TODO(KUBEACTIONS-POC): Change to "kubeactions" for production
+			defaultBatchMaxConcurrentSend: 10,
+			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+		},
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("software_inventory.enabled") {

@@ -193,8 +193,7 @@ type CoreAgentService struct {
 		backoffErrorCount int
 
 		products    map[rdata.Product]struct{}
-		newProducts map[rdata.Product]struct{}
-	}
+		newProducts map[rdata.Product]struct{}}
 }
 
 // uptaneClient provides functions to get TUF/uptane repo data.
@@ -771,6 +770,17 @@ func startWithoutAgentPollLoop(s *CoreAgentService, refreshBypassRequests <-chan
 	}
 }
 
+// getConfigFilePaths extracts paths from target files for logging
+func getConfigFilePaths(targetFiles []*pbgo.File) []string {
+	paths := make([]string, 0, len(targetFiles))
+	for _, file := range targetFiles {
+		if file != nil {
+			paths = append(paths, file.Path)
+		}
+	}
+	return paths
+}
+
 func (s *CoreAgentService) logRefreshError(err error) {
 	prev := s.orgStatusPoller.getPreviousStatus()
 	if prev != nil && prev.Enabled && prev.Authorized {
@@ -786,7 +796,9 @@ func (s *CoreAgentService) logRefreshError(err error) {
 			log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
 		}
 	} else {
-		log.Debugf("[%s] Could not refresh Remote Config (org is disabled or key is not authorized): %v", s.rcType, err)
+		// Log at WARN level instead of DEBUG so it's visible in standard logs
+		log.Warnf("[%s] Could not refresh Remote Config (org status: enabled=%v, authorized=%v): %v",
+			s.rcType, prev != nil && prev.Enabled, prev != nil && prev.Authorized, err)
 	}
 }
 
@@ -821,6 +833,9 @@ func (s *CoreAgentService) refresh() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// Log polling attempt with hostname and products
+	log.Infof("[%s] Polling Remote Config for hostname='%s', products=%v, newProducts=%v", s.rcType, s.hostname, s.mu.products, s.mu.newProducts)
+
 	// We can't let the backend process an update twice in the same second due to the fact that we
 	// use the epoch with seconds resolution as the version for the TUF Director Targets. If this happens,
 	// the update will appear to TUF as being identical to the previous update and it will be dropped.
@@ -837,11 +852,15 @@ func (s *CoreAgentService) refresh() error {
 
 	activeClients := s.clients.activeClients()
 	s.refreshProductsLocked(activeClients)
+	log.Infof("[%s] refreshProductsLocked completed, continuing with backend fetch...", s.rcType)
+
+	log.Debugf("[%s] Getting TUF version state...", s.rcType)
 	previousState, err := s.mu.uptane.TUFVersionState()
 	if err != nil {
 		log.Warnf("[%s] could not get previous TUF version state: %v", s.rcType, err)
 	}
 	if s.mu.firstUpdate || err != nil {
+		log.Debugf("[%s] Using empty previous state (firstUpdate=%v, err=%v)", s.rcType, s.mu.firstUpdate, err)
 		previousState = uptane.TUFVersions{}
 	}
 	var clientState []byte
@@ -854,9 +873,13 @@ func (s *CoreAgentService) refresh() error {
 	}
 	orgUUID, err := s.mu.uptane.StoredOrgUUID()
 	if err != nil {
+		log.Errorf("[%s] Failed to get org UUID (this will prevent config fetching): %v", s.rcType, err)
+		log.Errorf("[%s] This usually means the API key is invalid or the org is not authorized for Remote Config", s.rcType)
 		return err
 	}
+	log.Infof("[%s] Got org UUID: %s", s.rcType, orgUUID)
 
+	log.Infof("[%s] Fetching configs from Remote Config backend...", s.rcType)
 	request := buildLatestConfigsRequest(s.hostname, s.agentVersion, s.tagsGetter(), s.traceAgentEnv, orgUUID, previousState, activeClients, s.mu.products, s.mu.newProducts, s.mu.lastUpdateErr, clientState)
 	var response *pbgo.LatestConfigsResponse
 	func() {
@@ -867,6 +890,7 @@ func (s *CoreAgentService) refresh() error {
 	}()
 	s.mu.lastUpdateErr = nil
 	if err != nil {
+		log.Warnf("[%s] Failed to fetch configs from Remote Config: %v", s.rcType, err)
 		s.mu.backoffErrorCount = s.backoffPolicy.IncError(s.mu.backoffErrorCount)
 		s.mu.lastUpdateErr = fmt.Errorf("api: %v", err)
 		if s.mu.lastFetchErrorType != err {
@@ -893,8 +917,21 @@ func (s *CoreAgentService) refresh() error {
 	}
 	s.mu.fetchErrorCount = 0
 	s.mu.fetchConfigs503And504ErrCount = 0
+
+	// Log successful response
+	if response != nil {
+		configCount := len(response.TargetFiles)
+		log.Infof("[%s] Received Remote Config response with %d config file(s)", s.rcType, configCount)
+		if configCount > 0 {
+			log.Infof("[%s] Config files received: %v", s.rcType, getConfigFilePaths(response.TargetFiles))
+		}
+	} else {
+		log.Infof("[%s] Received empty Remote Config response", s.rcType)
+	}
+
 	err = s.mu.uptane.Update(response)
 	if err != nil {
+		log.Warnf("[%s] Failed to update TUF with response: %v", s.rcType, err)
 		s.mu.backoffErrorCount = s.backoffPolicy.IncError(s.mu.backoffErrorCount)
 		s.mu.lastUpdateErr = fmt.Errorf("tuf: %v", err)
 		return err
@@ -926,9 +963,12 @@ func (s *CoreAgentService) refresh() error {
 }
 
 func (s *CoreAgentService) refreshProductsLocked(activeClients []*pbgo.Client) {
+	log.Infof("[%s] refreshProductsLocked: processing %d active client(s)", s.rcType, len(activeClients))
 	for _, client := range activeClients {
+		log.Infof("[%s] Client ID=%s has products: %v", s.rcType, client.Id, client.Products)
 		for _, product := range client.Products {
 			if _, hasProduct := s.mu.products[rdata.Product(product)]; !hasProduct {
+				log.Infof("[%s] Adding new product: %s", s.rcType, product)
 				s.mu.newProducts[rdata.Product(product)] = struct{}{}
 			}
 		}
