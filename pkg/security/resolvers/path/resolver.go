@@ -53,7 +53,7 @@ func (r *Resolver) ResolveMountAttributes(e *model.FileEvent, pidCtx *model.PIDC
 		return nil
 	}
 
-	mnt, _, _, err := r.mountResolver.ResolveMount(e.MountID, pidCtx.Pid)
+	mnt, _, _, err := r.mountResolver.ResolveMount(e.PathKey, pidCtx.Pid)
 	if err != nil {
 		return fmt.Errorf("attribute resolution error: %w", err)
 	}
@@ -77,7 +77,7 @@ func (r *Resolver) ResolveFullFilePath(e *model.FileFields, pidCtx *model.PIDCon
 		return pathStr, "", model.MountSourceMountID, model.MountOriginEvent, nil
 	}
 
-	mountPath, source, origin, err := r.mountResolver.ResolveMountPath(e.MountID, pidCtx.Pid)
+	mountPath, source, origin, err := r.mountResolver.ResolveMountPath(e.PathKey, pidCtx.Pid)
 	if err != nil {
 		if _, err := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(err, mount.ErrMountKernelID) {
 			return pathStr, "", origin, source, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
@@ -85,7 +85,7 @@ func (r *Resolver) ResolveFullFilePath(e *model.FileFields, pidCtx *model.PIDCon
 		return pathStr, "", source, origin, &ErrPathResolution{Err: err}
 	}
 
-	rootPath, source, origin, err := r.mountResolver.ResolveMountRoot(e.MountID, pidCtx.Pid)
+	rootPath, source, origin, err := r.mountResolver.ResolveMountRoot(e.PathKey, pidCtx.Pid)
 	if err != nil {
 		if _, err := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(err, mount.ErrMountKernelID) {
 			return pathStr, "", source, origin, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
