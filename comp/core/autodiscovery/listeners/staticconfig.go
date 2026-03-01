@@ -45,6 +45,7 @@ func (l *StaticConfigListener) createServices() {
 	for _, staticCheck := range []string{
 		"container_image",
 		"container_lifecycle",
+		"pod_lifecycle",
 		"sbom",
 		"gpu",
 	} {
