@@ -1,5 +1,5 @@
 test_fuzz:
-  extends: .bazel:defs:cache:ephemeral
+  extends: .bazel:defs:cache:progressive
   rules:
     - !reference [.on_scheduled_main]
     - !reference [.manual]

@@ -1,6 +1,6 @@
 ---
 .system-probe_build_common:
-  extends: .bazel:defs:cache:ephemeral
+  extends: .bazel:defs:cache:progressive
   rules:
     - when: on_success
   before_script:
