@@ -142,8 +142,11 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env output
 		if _, err := nginx.FargateAppDefinition(awsEnv, cluster.ClusterArn, apiKeyParam.Name, fakeIntake); err != nil {
 			return err
 		}
-		if _, err := aspnetsample.FargateAppDefinition(awsEnv, cluster.ClusterArn, apiKeyParam.Name, fakeIntake); err != nil {
-			return err
+		// Windows Fargate workload: only deploy when Windows node group is explicitly requested
+		if clusterParams.WindowsNodeGroup {
+			if _, err := aspnetsample.FargateAppDefinition(awsEnv, cluster.ClusterArn, apiKeyParam.Name, fakeIntake); err != nil {
+				return err
+			}
 		}
 	}
 

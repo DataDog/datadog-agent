@@ -629,6 +629,10 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     )
     gate_list = QualityGateFactory.create_gates_from_config(config_path)
 
+    if os.environ.get("SKIP_WINDOWS") == "true":
+        gate_list = [gate for gate in gate_list if gate.config.os != "windows"]
+        print(color_message("SKIP_WINDOWS is set: skipping Windows MSI quality gates", "orange"))
+
     # python 3.11< does not allow to use \n in f-strings
     delimiter = '\n'
     print(color_message(f"Starting {len(gate_list)} quality gates...", "cyan"))
