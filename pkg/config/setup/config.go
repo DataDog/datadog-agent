@@ -369,7 +369,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// If true, Python is loaded when the first Python check is loaded.
 	// Otherwise, Python is loaded when the collector is initialized.
-	config.BindEnvAndSetDefault("python_lazy_loading", true)
+	config.BindEnvAndSetDefault("python_lazy_loading", false)
 
 	// If true, then the go loader will be prioritized over the python loader.
 	config.BindEnvAndSetDefault("prioritize_go_check_loader", true)
