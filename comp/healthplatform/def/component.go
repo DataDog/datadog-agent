@@ -32,7 +32,7 @@ type Component interface {
 	// RegisterCheck registers a function to be called periodically to check for issues
 	// Use this when you need the health platform to run your check at regular intervals
 	// If interval is 0 or negative, defaults to 15 minutes
-	RegisterCheck(checkID string, checkName string, checkFn HealthCheckFunc, interval time.Duration) error
+	RegisterCheck(checkID string, checkName string, checkFn HealthCheckFunc, interval time.Duration, once bool) error
 
 	// =========================================================================
 	// Query Methods

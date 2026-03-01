@@ -29,6 +29,7 @@ type registeredCheck struct {
 	checkFn   healthplatform.HealthCheckFunc
 	interval  time.Duration
 	stopCh    chan struct{}
+	once      bool
 }
 
 // issueReporter is the interface for reporting issues (satisfied by healthPlatformImpl)
@@ -91,7 +92,7 @@ func (r *checkRunner) Stop() {
 }
 
 // RegisterCheck registers a new periodic health check
-func (r *checkRunner) RegisterCheck(checkID, checkName string, checkFn healthplatform.HealthCheckFunc, interval time.Duration) error {
+func (r *checkRunner) RegisterCheck(checkID, checkName string, checkFn healthplatform.HealthCheckFunc, interval time.Duration, once bool) error {
 	if checkID == "" {
 		return errors.New("check ID cannot be empty")
 	}
@@ -118,6 +119,7 @@ func (r *checkRunner) RegisterCheck(checkID, checkName string, checkFn healthpla
 		checkFn:   checkFn,
 		interval:  interval,
 		stopCh:    make(chan struct{}),
+		once:      once,
 	}
 
 	r.checks[checkID] = check
@@ -134,7 +136,17 @@ func (r *checkRunner) RegisterCheck(checkID, checkName string, checkFn healthpla
 // startCheck launches a goroutine to run the check at its interval
 func (r *checkRunner) startCheck(check *registeredCheck) {
 	r.wg.Add(1)
-	go r.runAndScheduleCheck(check)
+	if check.once {
+		r.log.Warnf("Running health check '%s' once", check.checkName)
+		go func() {
+			r.executeCheck(check)
+			r.wg.Done()
+		}()
+	} else {
+		r.log.Debugf("Running health check '%s' on interval %v", check.checkName, check.interval)
+		go r.runAndScheduleCheck(check)
+	}
+
 }
 
 // runAndScheduleCheck runs a check immediately and schedules it to run periodically

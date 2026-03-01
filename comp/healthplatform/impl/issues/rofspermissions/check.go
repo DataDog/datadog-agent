@@ -1,0 +1,61 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+//go:build linux
+
+package rofspermissions
+
+import (
+	"path/filepath"
+	"strings"
+
+	"github.com/DataDog/agent-payload/v5/healthplatform"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	tmpDir = "/tmp"
+)
+
+// Check if all directories agent could write to are writable by the agent.
+func Check(cfg config.Component) (*healthplatform.IssueReport, error) {
+	writeDirs := []string{
+		cfg.GetString("run_path"),
+		cfg.GetString("log_file"),
+		cfg.GetString("logs_config.run_path"),
+		filepath.Dir(cfg.GetString("dogstatsd_socket")),
+		filepath.Dir(cfg.GetString("apm_config.receiver_socket")),
+		tmpDir,
+	}
+
+	var nonWritableDirs []string
+	for _, dir := range writeDirs {
+		if dir == "" {
+			continue
+		}
+
+		writable, err := filesystem.IsReadOnly(dir)
+		if err != nil {
+			log.Warnf("Could not check if %s is writable: %v", dir, err)
+			continue
+		}
+
+		if !writable {
+			nonWritableDirs = append(nonWritableDirs, dir)
+		}
+	}
+	report := &healthplatform.IssueReport{
+		IssueId: "read-only-filesystem-error",
+		Context: map[string]string{
+			"directories": strings.Join(nonWritableDirs, ","),
+		},
+	}
+	if len(nonWritableDirs) == 0 {
+		return nil, nil
+	}
+	return report, nil
+}

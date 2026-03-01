@@ -34,6 +34,7 @@ import (
 	// Import issue modules to trigger their init() registration
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/checkfailure"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/dockerpermissions"
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/rofspermissions"
 )
 
 // Requires defines the dependencies for the health-platform component
@@ -220,7 +221,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	persistencePath := filepath.Join(runPath, "health-platform", "issues.json")
 	// Create unified issue registry and register all self-registered modules
 	issueRegistry := issuesmod.NewRegistry()
-	for _, module := range issuesmod.GetAllModules() {
+	for _, module := range issuesmod.GetAllModules(reqs.Config) {
 		issueRegistry.RegisterModule(module)
 	}
 
@@ -249,7 +250,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	// Register built-in health checks from issue modules
 	for _, check := range issueRegistry.GetBuiltInChecks() {
-		if err := comp.RegisterCheck(check.ID, check.Name, check.CheckFn, check.Interval); err != nil {
+		if err := comp.RegisterCheck(check.ID, check.Name, check.CheckFn, check.Interval, check.Once); err != nil {
 			reqs.Log.Warn("Failed to register health check " + check.ID + ": " + err.Error())
 		}
 	}
@@ -384,8 +385,8 @@ func (h *healthPlatformImpl) ReportIssue(checkID string, checkName string, repor
 // RegisterCheck registers a periodic health check function
 // The check function will be called at the specified interval
 // If interval is 0 or negative, uses default of 15 minutes
-func (h *healthPlatformImpl) RegisterCheck(checkID string, checkName string, checkFn healthplatformdef.HealthCheckFunc, interval time.Duration) error {
-	return h.checkRunner.RegisterCheck(checkID, checkName, checkFn, interval)
+func (h *healthPlatformImpl) RegisterCheck(checkID string, checkName string, checkFn healthplatformdef.HealthCheckFunc, interval time.Duration, once bool) error {
+	return h.checkRunner.RegisterCheck(checkID, checkName, checkFn, interval, once)
 }
 
 // ============================================================================
