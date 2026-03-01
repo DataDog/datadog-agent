@@ -45,9 +45,15 @@ func autoscalerTagsWithSource(namespace, targetName, autoscalerName, source stri
 func autoscalerTagsWithContainer(namespace, targetName, autoscalerName, source, containerName, resourceName string) []string {
 	tags := autoscalerTagsWithSource(namespace, targetName, autoscalerName, source)
 	return append(tags,
-		"container_name:"+containerName,
+		"kube_container_name:"+containerName,
 		"resource_name:"+resourceName,
 	)
+}
+
+// autoscalerTagsWithContainerName generates autoscaler tags with a kube_container_name field (no source/resource_name)
+func autoscalerTagsWithContainerName(namespace, targetName, autoscalerName, containerName string) []string {
+	tags := baseAutoscalerTags(namespace, targetName, autoscalerName)
+	return append(tags, "kube_container_name:"+containerName)
 }
 
 // conditionTags generates tags for autoscaler condition metrics
@@ -209,6 +215,115 @@ func GeneratePodAutoscalerMetrics(obj interface{}) metricsstore.StructuredMetric
 		Value: localFallbackValue,
 		Tags:  baseAutoscalerTags(namespace, targetName, name),
 	})
+
+	// 8. Horizontal scaling constraints
+	if spec := internal.Spec(); spec != nil && spec.Constraints != nil {
+		if spec.Constraints.MaxReplicas != nil {
+			metrics = append(metrics, metricsstore.StructuredMetric{
+				Name:  metricPrefix + ".horizontal_scaling.constraints.max_replicas",
+				Type:  metricsstore.MetricTypeGauge,
+				Value: float64(*spec.Constraints.MaxReplicas),
+				Tags:  baseAutoscalerTags(namespace, targetName, name),
+			})
+		}
+		if spec.Constraints.MinReplicas != nil {
+			metrics = append(metrics, metricsstore.StructuredMetric{
+				Name:  metricPrefix + ".horizontal_scaling.constraints.min_replicas",
+				Type:  metricsstore.MetricTypeGauge,
+				Value: float64(*spec.Constraints.MinReplicas),
+				Tags:  baseAutoscalerTags(namespace, targetName, name),
+			})
+		}
+
+		// 9. Vertical scaling container constraints (per container, CPU in millicores, memory in bytes)
+		for _, container := range spec.Constraints.Containers {
+			containerTags := autoscalerTagsWithContainerName(namespace, targetName, name, container.Name)
+			if cpuMin, ok := container.MinAllowed[corev1.ResourceCPU]; ok {
+				metrics = append(metrics, metricsstore.StructuredMetric{
+					Name:  metricPrefix + ".vertical_scaling.constraints.container.cpu.request_min",
+					Type:  metricsstore.MetricTypeGauge,
+					Value: float64(cpuMin.MilliValue()),
+					Tags:  containerTags,
+				})
+			}
+			if memMin, ok := container.MinAllowed[corev1.ResourceMemory]; ok {
+				metrics = append(metrics, metricsstore.StructuredMetric{
+					Name:  metricPrefix + ".vertical_scaling.constraints.container.memory.request_min",
+					Type:  metricsstore.MetricTypeGauge,
+					Value: float64(memMin.Value()),
+					Tags:  containerTags,
+				})
+			}
+			if cpuMax, ok := container.MaxAllowed[corev1.ResourceCPU]; ok {
+				metrics = append(metrics, metricsstore.StructuredMetric{
+					Name:  metricPrefix + ".vertical_scaling.constraints.container.cpu.request_max",
+					Type:  metricsstore.MetricTypeGauge,
+					Value: float64(cpuMax.MilliValue()),
+					Tags:  containerTags,
+				})
+			}
+			if memMax, ok := container.MaxAllowed[corev1.ResourceMemory]; ok {
+				metrics = append(metrics, metricsstore.StructuredMetric{
+					Name:  metricPrefix + ".vertical_scaling.constraints.container.memory.request_max",
+					Type:  metricsstore.MetricTypeGauge,
+					Value: float64(memMax.Value()),
+					Tags:  containerTags,
+				})
+			}
+		}
+	}
+
+	// 10. Status metrics from upstream CR
+	if podAutoscaler := internal.UpstreamCR(); podAutoscaler != nil {
+		// 10a. Horizontal desired replicas from status
+		if horizontal := podAutoscaler.Status.Horizontal; horizontal != nil && horizontal.Target != nil {
+			metrics = append(metrics, metricsstore.StructuredMetric{
+				Name:  metricPrefix + ".status.desired.replicas",
+				Type:  metricsstore.MetricTypeGauge,
+				Value: float64(horizontal.Target.Replicas),
+				Tags:  baseAutoscalerTags(namespace, targetName, name),
+			})
+		}
+
+		// 10b. Vertical desired resources (per container, CPU in millicores, memory in bytes)
+		if vertical := podAutoscaler.Status.Vertical; vertical != nil && vertical.Target != nil {
+			for _, container := range vertical.Target.DesiredResources {
+				containerTags := autoscalerTagsWithContainerName(namespace, targetName, name, container.Name)
+				if cpuReq, ok := container.Requests[corev1.ResourceCPU]; ok {
+					metrics = append(metrics, metricsstore.StructuredMetric{
+						Name:  metricPrefix + ".status.vertical.desired.container.cpu.request",
+						Type:  metricsstore.MetricTypeGauge,
+						Value: float64(cpuReq.MilliValue()),
+						Tags:  containerTags,
+					})
+				}
+				if memReq, ok := container.Requests[corev1.ResourceMemory]; ok {
+					metrics = append(metrics, metricsstore.StructuredMetric{
+						Name:  metricPrefix + ".status.vertical.desired.container.memory.request",
+						Type:  metricsstore.MetricTypeGauge,
+						Value: float64(memReq.Value()),
+						Tags:  containerTags,
+					})
+				}
+				if cpuLim, ok := container.Limits[corev1.ResourceCPU]; ok {
+					metrics = append(metrics, metricsstore.StructuredMetric{
+						Name:  metricPrefix + ".status.vertical.desired.container.cpu.limit",
+						Type:  metricsstore.MetricTypeGauge,
+						Value: float64(cpuLim.MilliValue()),
+						Tags:  containerTags,
+					})
+				}
+				if memLim, ok := container.Limits[corev1.ResourceMemory]; ok {
+					metrics = append(metrics, metricsstore.StructuredMetric{
+						Name:  metricPrefix + ".status.vertical.desired.container.memory.limit",
+						Type:  metricsstore.MetricTypeGauge,
+						Value: float64(memLim.Value()),
+						Tags:  containerTags,
+					})
+				}
+			}
+		}
+	}
 
 	return metrics
 }
