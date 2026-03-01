@@ -370,13 +370,21 @@ func getRssi(wlanClient uintptr, itfGuid windows.GUID) (int32, error) {
 //
 // ----------------
 func getWlanHandle() (uintptr, error) {
-	var wlanClient uintptr
-	var negVer uint32
-	ret, _, _ := wlanOpenHandle.Call(uintptr(WLAN_API_VERSION), 0, uintptr(unsafe.Pointer(&negVer)), uintptr(unsafe.Pointer(&wlanClient)))
-	if ret != 0 {
-		return 0, fmt.Errorf("wlanOpenHandle failed: %d", ret)
-	}
-	return wlanClient, nil
+    if err := wlanOpenHandle.Find(); err != nil {
+        return 0, fmt.Errorf("WLAN API unavailable: %w", err)
+    }
+
+    var wlanClient uintptr
+    var negVer uint32
+    ret, _, _ := wlanOpenHandle.Call(
+        uintptr(WLAN_API_VERSION), 0,
+        uintptr(unsafe.Pointer(&negVer)),
+        uintptr(unsafe.Pointer(&wlanClient)),
+    )
+    if ret != 0 {
+        return 0, fmt.Errorf("wlanOpenHandle failed: %d", ret)
+    }
+    return wlanClient, nil
 }
 
 func getWlanInterfacesList(wlanClient uintptr) (*WLAN_INTERFACE_INFO_LIST, error) {
