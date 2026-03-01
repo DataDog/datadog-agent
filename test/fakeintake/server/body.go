@@ -19,6 +19,7 @@ type errorResponseBody struct {
 type flareResponseBody struct {
 	CaseID int    `json:"case_id,omitempty"`
 	Error  string `json:"error,omitempty"`
+	JiraTicket  string `json:"jira_ticket,omitempty"`
 }
 
 func getConnectionsResponse() []byte {

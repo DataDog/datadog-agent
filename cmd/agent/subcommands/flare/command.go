@@ -82,17 +82,18 @@ type cliParams struct {
 
 	// subcommand-specific flags
 
-	customerEmail        string
-	autoconfirm          bool
-	forceLocal           bool
-	profiling            int
-	profileMutex         bool
-	profileMutexFraction int
-	profileBlocking      bool
-	profileBlockingRate  int
-	withStreamLogs       time.Duration
-	logLevelDefaultOff   command.LogLevelDefaultOff
-	providerTimeout      time.Duration
+	customerEmail         string
+	autoconfirm           bool
+	forceLocal            bool
+	profiling             int
+	profileMutex          bool
+	profileMutexFraction  int
+	profileBlocking       bool
+	profileBlockingRate   int
+	withStreamLogs        time.Duration
+	logLevelDefaultOff    command.LogLevelDefaultOff
+	providerTimeout       time.Duration
+	processFalsePositives bool
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -186,6 +187,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	flareCmd.Flags().IntVarP(&cliParams.profileBlockingRate, "profile-blocking-rate", "", 10000, "Set the fraction of goroutine blocking events that are reported in the blocking profile")
 	flareCmd.Flags().DurationVarP(&cliParams.withStreamLogs, "with-stream-logs", "L", 0*time.Second, "Add stream-logs data to the flare. It will collect logs for the amount of seconds passed to the flag")
 	flareCmd.Flags().DurationVarP(&cliParams.providerTimeout, "provider-timeout", "t", 0*time.Second, "Timeout to run each flare provider in seconds. This is not a global timeout for the flare creation process.")
+	flareCmd.Flags().BoolVarP(&cliParams.processFalsePositives, "process-false-positives", "P", false, "Add processes false positive detection to the flare. It will detect for false positives in the processes data.")
 	flareCmd.SetArgs([]string{"caseID"})
 
 	return []*cobra.Command{flareCmd}
@@ -313,7 +315,7 @@ func makeFlare(flareComp flare.Component,
 		}
 	}
 
-	response, e := flareComp.Send(filePath, caseID, customerEmail, helpers.NewLocalFlareSource())
+	response, e := flareComp.Send(filePath, caseID, customerEmail, helpers.NewLocalFlareSource(), cliParams.processFalsePositives)
 	fmt.Println(response)
 	if e != nil {
 		return e
