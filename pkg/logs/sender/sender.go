@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/sender/diskretry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"go.uber.org/atomic"
@@ -57,6 +58,7 @@ type PipelineComponent interface {
 type Sender struct {
 	workers []*worker
 	queues  []chan *message.Payload
+	retrier retrierInterface
 
 	pipelineMonitor metrics.PipelineMonitor
 	idx             *atomic.Uint32
@@ -130,6 +132,32 @@ func NewSender(
 		workersPerQueue = DefaultWorkersPerQueue
 	}
 
+	// Initialize disk retry queue from config
+	var retrier retrierInterface
+	diskRetryConfig := diskretry.Config{
+		Enabled:      config.GetBool("logs_config.disk_retry_enabled"),
+		Path:         config.GetString("logs_config.disk_retry_path"),
+		MaxSizeBytes: int64(config.GetInt("logs_config.disk_retry_max_size_mb")) * 1024 * 1024,
+	}
+
+	// Use defaults if not configured
+	if diskRetryConfig.Enabled {
+		if diskRetryConfig.Path == "" {
+			diskRetryConfig.Path = "/opt/datadog-agent/run/logs-retry"
+		}
+		if diskRetryConfig.MaxSizeBytes == 0 {
+			diskRetryConfig.MaxSizeBytes = 1024 * 1024 * 1024 // 1GB
+		}
+
+		var err error
+		retrier, err = diskretry.NewRetrier(diskRetryConfig)
+		if err != nil {
+			log.Warnf("Unable to create retrier: %v", err)
+		}
+	} else {
+		retrier = &noopRetrier{}
+	}
+
 	queues := make([]chan *message.Payload, queueCount)
 	for qidx := range queueCount {
 		// Payloads are large, so the buffer will only hold one per worker
@@ -145,6 +173,7 @@ func NewSender(
 				serverlessMeta,
 				pipelineMonitor,
 				workerID,
+				retrier,
 			)
 			workers = append(workers, worker)
 		}
@@ -154,6 +183,7 @@ func NewSender(
 		workers:         workers,
 		pipelineMonitor: pipelineMonitor,
 		queues:          queues,
+		retrier:         retrier,
 		idx:             &atomic.Uint32{},
 	}
 }
@@ -184,5 +214,8 @@ func (s *Sender) Stop() {
 	}
 	for _, q := range s.queues {
 		close(q)
+	}
+	if s.retrier != nil {
+		s.retrier.Stop()
 	}
 }

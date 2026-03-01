@@ -76,14 +76,14 @@ type LogsConfig struct {
 
 	// used as input only by the Channel tailer.
 	// could have been unidirectional but the tailer could not close it in this case.
-	Channel chan *ChannelMessage
+	Channel chan *ChannelMessage `json:"-"`
 
 	// ChannelTags are the tags attached to messages on Channel; unlike Tags this can be
 	// modified at runtime (as long as ChannelTagsMutex is held).
 	ChannelTags StringSliceField
 
 	// ChannelTagsMutex guards ChannelTags.
-	ChannelTagsMutex sync.Mutex
+	ChannelTagsMutex sync.Mutex `json:"-"`
 
 	Service         string
 	Source          string
