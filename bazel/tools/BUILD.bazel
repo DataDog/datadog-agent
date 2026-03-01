@@ -24,3 +24,10 @@ bzl_library(
     srcs = ["generate_module_bazel.bzl"],
     visibility = ["//deps:__subpackages__"],
 )
+
+py_binary(
+    name = "fetch_size_deltas",
+    srcs = ["fetch_size_deltas.py"],
+    main = "fetch_size_deltas.py",
+    visibility = ["//visibility:public"],
+)
