@@ -1,0 +1,1027 @@
+metric_prefix: gpu
+tagsets:
+  container:
+    tags:
+      - kube_container_name
+  device:
+    tags:
+      - gpu_uuid
+      - gpu_device
+      - gpu_vendor
+      - gpu_driver_version
+  process:
+    tags:
+      - pid
+      - nspid
+metrics:
+  clock.speed.graphics:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: false
+        physical: true
+        vgpu: true
+      process_data: false
+  clock.speed.graphics.max:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: false
+        physical: true
+        vgpu: true
+      process_data: false
+  clock.speed.memory:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: false
+        physical: true
+        vgpu: true
+      process_data: false
+  clock.speed.memory.max:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: false
+        physical: true
+        vgpu: true
+      process_data: false
+  clock.speed.sm:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: false
+        physical: true
+        vgpu: true
+      process_data: false
+  clock.speed.sm.max:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: false
+        physical: true
+        vgpu: true
+      process_data: false
+  clock.speed.video:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: false
+        physical: true
+        vgpu: true
+      process_data: false
+  clock.speed.video.max:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: false
+        physical: true
+        vgpu: true
+      process_data: false
+  clock.throttle_reasons.applications_clocks_setting:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  clock.throttle_reasons.display_clock_setting:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  clock.throttle_reasons.gpu_idle:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  clock.throttle_reasons.none:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  clock.throttle_reasons.sw_power_cap:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  clock.throttle_reasons.sw_thermal_slowdown:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  clock.throttle_reasons.sync_boost:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  core.limit:
+    type: gauge
+    tagsets:
+      - device
+      - process
+      - container
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: true
+        physical: true
+        vgpu: true
+      process_data: false
+  decoder_active:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  device.total:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: true
+        physical: true
+        vgpu: true
+      process_data: false
+  device.unhealthy:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: true
+        physical: true
+        vgpu: true
+      process_data: false
+  dram_active:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: false
+        physical: true
+        vgpu: true
+      process_data: false
+  encoder_active:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  errors.ecc.corrected.total:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags:
+      - memory_location
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: false
+        physical: true
+        vgpu: true
+      process_data: false
+  errors.ecc.uncorrected.total:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags:
+      - memory_location
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: false
+        physical: true
+        vgpu: true
+      process_data: false
+  errors.xid.total:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  fan_speed:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  fp16_active:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+      device_features:
+        mig: true
+        physical: true
+        vgpu: false
+      process_data: false
+  fp32_active:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+      device_features:
+        mig: true
+        physical: true
+        vgpu: false
+      process_data: false
+  fp64_active:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+      device_features:
+        mig: true
+        physical: true
+        vgpu: false
+      process_data: false
+  gr_engine_active:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: true
+        physical: true
+        vgpu: true
+      process_data: false
+  integer_active:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+      device_features:
+        mig: true
+        physical: true
+        vgpu: false
+      process_data: false
+  memory.bar1.free:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: true
+        physical: true
+        vgpu: true
+      process_data: false
+  memory.bar1.total:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: true
+        physical: true
+        vgpu: true
+      process_data: false
+  memory.bar1.used:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: true
+        physical: true
+        vgpu: true
+      process_data: false
+  memory.free:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+      device_features:
+        mig: true
+        physical: true
+        vgpu: true
+      process_data: false
+  memory.limit:
+    type: gauge
+    tagsets:
+      - device
+      - process
+      - container
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: true
+        physical: true
+        vgpu: true
+      process_data: false
+  memory.reserved:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+      device_features:
+        mig: true
+        physical: true
+        vgpu: true
+      process_data: false
+  memory.temperature:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ada
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  nvlink.count.active:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - ada
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  nvlink.count.inactive:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - ada
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  nvlink.count.total:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - ada
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  nvlink.errors.crc.data:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - ada
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  nvlink.errors.crc.flit:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - ada
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  nvlink.errors.ecc:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - ada
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  nvlink.errors.recovery:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - ada
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  nvlink.errors.replay:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - ada
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  nvlink.nvswitch_connected:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - ada
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  nvlink.speed:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - ada
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  nvlink.throughput.data.rx:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - ada
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  nvlink.throughput.data.tx:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - ada
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  nvlink.throughput.raw.rx:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - ada
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  nvlink.throughput.raw.tx:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - ada
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  pci.replay_counter:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  pci.throughput.rx:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  pci.throughput.tx:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  performance_state:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: false
+        physical: true
+        vgpu: true
+      process_data: false
+  power.management_limit:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  power.usage:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  process.core.usage:
+    type: gauge
+    tagsets:
+      - device
+      - process
+      - container
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: true
+        physical: true
+        vgpu: true
+      process_data: true
+  process.decoder_active:
+    type: gauge
+    tagsets:
+      - device
+      - process
+      - container
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: false
+        physical: true
+        vgpu: true
+      process_data: true
+  process.dram_active:
+    type: gauge
+    tagsets:
+      - device
+      - process
+      - container
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: false
+        physical: true
+        vgpu: true
+      process_data: true
+  process.encoder_active:
+    type: gauge
+    tagsets:
+      - device
+      - process
+      - container
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: false
+        physical: true
+        vgpu: true
+      process_data: true
+  process.memory.usage:
+    type: gauge
+    tagsets:
+      - device
+      - process
+      - container
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: true
+        physical: true
+        vgpu: true
+      process_data: true
+  process.sm_active:
+    type: gauge
+    tagsets:
+      - device
+      - process
+      - container
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: true
+        physical: true
+        vgpu: true
+      process_data: true
+  remapped_rows.correctable:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  remapped_rows.failed:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  remapped_rows.pending:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  remapped_rows.uncorrectable:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  slowdown_temperature:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  sm_active:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: true
+        physical: true
+        vgpu: true
+      process_data: false
+  sm_occupancy:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+      device_features:
+        mig: true
+        physical: true
+        vgpu: false
+      process_data: false
+  sm_utilization:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+      device_features:
+        mig: true
+        physical: true
+        vgpu: false
+      process_data: false
+  temperature:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false
+  tensor_active:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+        - ada
+      device_features:
+        mig: true
+        physical: true
+        vgpu: false
+      process_data: false
+  total_energy_consumption:
+    type: gauge
+    tagsets:
+      - device
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+      device_features:
+        mig: false
+        physical: true
+        vgpu: false
+      process_data: false

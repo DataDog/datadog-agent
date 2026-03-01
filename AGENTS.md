@@ -213,3 +213,4 @@ tasks.
 ### Testing Issues
 - **Flaky tests**: Check `flakes.yaml` for known issues
 - **Coverage issues**: Use `--coverage` flag
+- **Search command not found (`rg`)**: In Cursor automation, prefer the built-in `rg` tool over shell `rg`; shell environments may not have `rg` installed.
