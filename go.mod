@@ -831,7 +831,7 @@ require (
 	github.com/xor-gate/ar v0.0.0-20170530204233-5c72ae81e2b7 // indirect
 	github.com/yashtewari/glob-intersection v0.2.0 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
-	github.com/zeebo/xxh3 v1.1.0 // indirect
+	github.com/zeebo/xxh3 v1.1.0
 	github.com/zorkian/go-datadog-api v2.30.0+incompatible // indirect
 	go.etcd.io/etcd/api/v3 v3.6.4 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.6.4 // indirect
