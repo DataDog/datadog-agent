@@ -29,44 +29,25 @@ import (
 func TestBaseAutoscalerTags(t *testing.T) {
 	tags := baseAutoscalerTags("test-ns", "test-target", "test-autoscaler")
 
-	assert.Len(t, tags, 4)
+	assert.Len(t, tags, 6)
 	assert.Contains(t, tags, "namespace:test-ns")
+	assert.Contains(t, tags, "kube_namespace:test-ns")
 	assert.Contains(t, tags, "target_name:test-target")
 	assert.Contains(t, tags, "autoscaler_name:test-autoscaler")
-	assert.Contains(t, tags, le.JoinLeaderLabel+":"+le.JoinLeaderValue)
-}
-
-func TestAutoscalerTagsWithSource(t *testing.T) {
-	tags := autoscalerTagsWithSource("test-ns", "test-target", "test-autoscaler", "Autoscaling")
-
-	assert.Len(t, tags, 5)
-	assert.Contains(t, tags, "namespace:test-ns")
-	assert.Contains(t, tags, "target_name:test-target")
-	assert.Contains(t, tags, "autoscaler_name:test-autoscaler")
-	assert.Contains(t, tags, "source:Autoscaling")
-	assert.Contains(t, tags, le.JoinLeaderLabel+":"+le.JoinLeaderValue)
-}
-
-func TestAutoscalerTagsWithContainer(t *testing.T) {
-	tags := autoscalerTagsWithContainer("test-ns", "test-target", "test-autoscaler", "Autoscaling", "app-container", "cpu")
-
-	assert.Len(t, tags, 7)
-	assert.Contains(t, tags, "namespace:test-ns")
-	assert.Contains(t, tags, "target_name:test-target")
-	assert.Contains(t, tags, "autoscaler_name:test-autoscaler")
-	assert.Contains(t, tags, "source:Autoscaling")
-	assert.Contains(t, tags, "container_name:app-container")
-	assert.Contains(t, tags, "resource_name:cpu")
+	assert.Contains(t, tags, "name:test-autoscaler")
 	assert.Contains(t, tags, le.JoinLeaderLabel+":"+le.JoinLeaderValue)
 }
 
 func TestConditionTags(t *testing.T) {
-	tags := conditionTags("test-ns", "test-target", "test-autoscaler", "Active")
+	baseTags := baseAutoscalerTags("test-ns", "test-target", "test-autoscaler")
+	tags := conditionTags(baseTags, "Active")
 
-	assert.Len(t, tags, 5)
+	assert.Len(t, tags, 7)
 	assert.Contains(t, tags, "namespace:test-ns")
+	assert.Contains(t, tags, "kube_namespace:test-ns")
 	assert.Contains(t, tags, "target_name:test-target")
 	assert.Contains(t, tags, "autoscaler_name:test-autoscaler")
+	assert.Contains(t, tags, "name:test-autoscaler")
 	assert.Contains(t, tags, "type:Active")
 	assert.Contains(t, tags, le.JoinLeaderLabel+":"+le.JoinLeaderValue)
 }
@@ -154,14 +135,16 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 					if m.Name == metricPrefix+".vertical_scaling_received_requests" {
 						requestsCount++
 						assert.Equal(t, metricsstore.MetricTypeGauge, m.Type)
-						assert.Contains(t, m.Tags, "container_name:app-container")
 						assert.Contains(t, m.Tags, "source:Autoscaling")
+						assert.NotContains(t, m.Tags, "kube_container_name:app-container",
+							"container name should not be in vertical received metrics tags")
 					}
 					if m.Name == metricPrefix+".vertical_scaling_received_limits" {
 						limitsCount++
 						assert.Equal(t, metricsstore.MetricTypeGauge, m.Type)
-						assert.Contains(t, m.Tags, "container_name:app-container")
 						assert.Contains(t, m.Tags, "source:Autoscaling")
+						assert.NotContains(t, m.Tags, "kube_container_name:app-container",
+							"container name should not be in vertical received metrics tags")
 					}
 				}
 				assert.Equal(t, 2, requestsCount, "expected 2 request metrics (cpu + memory)")
