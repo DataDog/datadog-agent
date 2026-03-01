@@ -47,7 +47,7 @@ BPF_ARRAY_MAP(in_upper_layer_approvers, struct event_mask_filter_t, 1)
 BPF_HASH_MAP(activity_dump_config_defaults, u32, struct activity_dump_config, 1)
 BPF_HASH_MAP(traced_cgroups, u64, u64, 1) // max entries will be overridden at runtime
 BPF_HASH_MAP(traced_pids, u32, u64, 8192) // max entries will be overridden at runtime
-BPF_HASH_MAP(basename_approvers, struct basename_t, struct event_mask_filter_t, 255)
+BPF_HASH_MAP(basename_approvers, struct basename_t, struct event_mask_filter_t, 4096)
 BPF_HASH_MAP(register_netdevice_cache, u64, struct register_netdevice_cache_t, 1024)
 BPF_HASH_MAP(netdevice_lookup_cache, u64, struct device_ifindex_t, 1024)
 BPF_HASH_MAP(fd_link_pid, u8, u32, 1)
