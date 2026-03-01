@@ -11,7 +11,11 @@ import (
 	"context"
 	"testing"
 
+	"go.uber.org/fx"
+
+	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -27,7 +31,10 @@ func TestGet(t *testing.T) {
 		cfg.SetWithoutSource("hostname", "")
 	})
 	cfg.SetWithoutSource("hostname", "test-hostname")
-	s := fxutil.Test[hostname.Component](t, Module())
+	s := fxutil.Test[hostname.Component](t, Module(),
+		fx.Provide(func() configcomp.Component { return cfg }),
+		telemetryimpl.MockModule(),
+	)
 	name, err := s.Get(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, "test-hostname", name)
@@ -36,12 +43,15 @@ func TestGet(t *testing.T) {
 func TestGetWithProvider(t *testing.T) {
 	cfg := mock.New(t)
 	t.Cleanup(func() {
-		// erase cache)
+		// erase cache
 		cache.Cache.Delete(cache.BuildAgentKey("hostname"))
 		cfg.SetWithoutSource("hostname", "")
 	})
 	cfg.SetWithoutSource("hostname", "test-hostname2")
-	s := fxutil.Test[hostname.Component](t, Module())
+	s := fxutil.Test[hostname.Component](t, Module(),
+		fx.Provide(func() configcomp.Component { return cfg }),
+		telemetryimpl.MockModule(),
+	)
 	data, err := s.GetWithProvider(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, "test-hostname2", data.Hostname)
