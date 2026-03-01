@@ -1077,6 +1077,14 @@ api_key:
 #
 #   container_collect_all: false
 
+#   # @param use_container_timestamp - boolean - optional - default: false
+#   # @env DD_LOGS_CONFIG_USE_CONTAINER_TIMESTAMP - boolean - optional - default: false
+#   # Use the `time` field from container log files (when available) as the log timestamp instead of ingestion time.
+#   #
+#   # This affects logs collected from container runtimes that provide per-log-line timestamps (for example Docker JSON logs).
+#
+#   use_container_timestamp: false
+
 #   # @param logs_dd_url - string - optional
 #   # @env DD_LOGS_CONFIG_LOGS_DD_URL - string - optional
 #   # Define the endpoint and port to hit when using a proxy for logs.

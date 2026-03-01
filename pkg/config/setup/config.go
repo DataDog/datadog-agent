@@ -1922,6 +1922,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.frame_size", 9000)
 	// maximum log message size in bytes
 	config.BindEnvAndSetDefault("logs_config.max_message_size_bytes", DefaultMaxMessageSizeBytes)
+	// Use the timestamp from container log files (when available) instead of ingestion time.
+	config.BindEnvAndSetDefault("logs_config.use_container_timestamp", false)
 
 	// increase the number of files that can be tailed in parallel:
 	if runtime.GOOS == "darwin" {

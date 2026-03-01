@@ -29,7 +29,7 @@ type processorOnlyProvider struct {
 func NewProcessorOnlyProvider(diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, hostname hostnameinterface.Component, cfg pkgconfigmodel.Reader) Provider {
 	chanSize := cfg.GetInt("logs_config.message_channel_size")
 	outputChan := make(chan *message.Message, chanSize)
-	encoder := processor.JSONEncoder
+	encoder := processor.NewJSONEncoder(pkgconfigsetup.Datadog().GetBool("logs_config.use_container_timestamp"))
 	inputChan := make(chan *message.Message, chanSize)
 	pipelineID := "0"
 	pipelineMonitor := metrics.NewNoopPipelineMonitor(pipelineID)

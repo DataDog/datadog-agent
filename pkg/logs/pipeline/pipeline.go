@@ -45,15 +45,20 @@ func NewPipeline(
 	strategyInput := make(chan *message.Message, cfg.GetInt("logs_config.message_channel_size"))
 	flushChan := make(chan struct{})
 
+	useContainerTimestamp := false
+	if cfg != nil {
+		useContainerTimestamp = cfg.GetBool("logs_config.use_container_timestamp")
+	}
+
 	var encoder processor.Encoder
 	if serverlessMeta.IsEnabled() {
 		encoder = processor.JSONServerlessInitEncoder
 	} else if endpoints.UseHTTP {
-		encoder = processor.JSONEncoder
+		encoder = processor.NewJSONEncoder(useContainerTimestamp)
 	} else if endpoints.UseProto {
-		encoder = processor.ProtoEncoder
+		encoder = processor.NewProtoEncoder(useContainerTimestamp)
 	} else {
-		encoder = processor.RawEncoder
+		encoder = processor.NewRawEncoder(useContainerTimestamp)
 	}
 	strategy := getStrategy(strategyInput, senderImpl.In(), flushChan, endpoints, serverlessMeta, senderImpl.PipelineMonitor(), compression, instanceID)
 
