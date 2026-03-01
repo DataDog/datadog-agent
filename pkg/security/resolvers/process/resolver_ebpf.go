@@ -31,6 +31,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
@@ -622,11 +623,57 @@ func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uin
 	}
 	if entry.Pid != 1 {
 		parent := p.entryCache[entry.PPid]
+
 		if entry.PPid >= 1 && inode != 0 && (parent == nil || parent.FileEvent.Inode != inode) {
+
+			// DEBBUG PRINT, TO REMOVE
 			if parent != nil && parent.FileEvent.Inode != inode {
-				seclog.Debugf("parent is present but with different inodes (%d/%d), parent:%s and entry:%s",
-					parent.FileEvent.Inode, inode, parent.FileEvent.PathnameStr, entry.FileEvent.PathnameStr)
+				newInode := p.resolve(entry.PPid, entry.PPid, inode, true, newEntryCb)
+				var uname syscall.Utsname
+				var kernelRelease []byte
+				err := syscall.Uname(&uname)
+				if err == nil {
+					kernelRelease = make([]byte, 0, len(uname.Release))
+					for _, b := range uname.Release {
+						if b == 0 {
+							break
+						}
+						kernelRelease = append(kernelRelease, byte(b))
+					}
+				} else {
+					kernelRelease = []byte("??")
+				}
+				// Get Linux distribution info
+				distro := "unknown"
+				if kv, err := ebpfkernel.NewKernelVersion(); err == nil {
+					if prettyName, ok := kv.OsRelease["PRETTY_NAME"]; ok && prettyName != "" {
+						distro = prettyName
+					} else if id, ok := kv.OsRelease["ID"]; ok {
+						if versionID, ok := kv.OsRelease["VERSION_ID"]; ok {
+							distro = fmt.Sprintf("%s %s", id, versionID)
+						} else {
+							distro = id
+						}
+					}
+				}
+				if newInode != nil {
+					seclog.Debugf("parent is present but with different inodes:"+
+						"OLD CACHED PARENT mountid:%d, inode:%d, FS:%s path:%s and "+
+						"NEW PARENT mountid:%d, inode:%d, FS:%s path:%s. Kernel:%s Distro:%s",
+						parent.FileEvent.MountID, parent.FileEvent.Inode, parent.FileEvent.Filesystem, parent.FileEvent.PathnameStr,
+						newInode.FileEvent.MountID, inode, newInode.FileEvent.Filesystem, newInode.FileEvent.PathnameStr,
+						string(kernelRelease), distro)
+				} else {
+					seclog.Debugf("parent is present but with different inodes:"+
+						"OLD CACHED PARENT mountid:%d, inode:%d, FS:%s path:%s and "+
+						"NEW PARENT mountid:??, inode:%d, FS:?? path:??. Kernel:%s Distro:%s",
+						parent.FileEvent.MountID, parent.FileEvent.Inode, parent.FileEvent.Filesystem, parent.FileEvent.PathnameStr,
+						inode,
+						string(kernelRelease), distro)
+				}
 			}
+			// /DEBUG
+
 			if candidate := p.resolve(entry.PPid, entry.PPid, inode, true, newEntryCb); candidate != nil {
 				parent = candidate
 			} else {
