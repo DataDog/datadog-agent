@@ -6,6 +6,7 @@
 package configsyncimpl
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"net/url"
@@ -14,18 +15,43 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
-	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
+
+// testLifecycle is a simple lifecycle implementation for testing
+type testLifecycle struct {
+	hooks []compdef.Hook
+}
+
+func (l *testLifecycle) Append(h compdef.Hook) {
+	l.hooks = append(l.hooks, h)
+}
+
+func (l *testLifecycle) Start(ctx context.Context) error {
+	for _, h := range l.hooks {
+		if h.OnStart != nil {
+			if err := h.OnStart(ctx); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (l *testLifecycle) Stop(ctx context.Context) error {
+	for i := len(l.hooks) - 1; i >= 0; i-- {
+		if l.hooks[i].OnStop != nil {
+			if err := l.hooks[i].OnStop(ctx); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
 
 func TestOptionalModule(t *testing.T) {
 	handler := func(w http.ResponseWriter, _ *http.Request) {
@@ -41,25 +67,26 @@ func TestOptionalModule(t *testing.T) {
 	host, port, err := net.SplitHostPort(url.Host)
 	require.NoError(t, err)
 
-	var cfg config.Component
-	overrides := map[string]interface{}{
-		"agent_ipc.host":                    host,
-		"agent_ipc.port":                    port,
-		"agent_ipc.config_refresh_interval": 1,
-	}
-	comp := fxutil.Test[configsync.Component](t, fx.Options(
-		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
-		fx.Supply(log.Params{}),
-		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-		telemetryimpl.MockModule(),
-		fx.Provide(func() ipc.Component { return ipcComp }),
-		fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
-		fx.Supply(NewParams(0, false, 0)),
-		configsyncfx.Module(),
-		fx.Populate(&cfg),
-	))
-	require.True(t, comp.(configSync).enabled)
+	// Use makeDeps to build base dependencies, then override config with specific values
+	deps := makeDeps(t)
+	deps.Config.Set("agent_ipc.host", host, pkgconfigmodel.SourceFile)
+	deps.Config.Set("agent_ipc.port", port, pkgconfigmodel.SourceFile)
+	deps.Config.Set("agent_ipc.config_refresh_interval", 1, pkgconfigmodel.SourceFile)
+	deps.IPCClient = ipcComp.GetClient()
 
+	// Override lifecycle with our test implementation
+	lc := &testLifecycle{}
+	deps.Lc = lc
+
+	provides, err := NewComponent(deps)
+	require.NoError(t, err)
+	require.True(t, provides.Comp.(configSync).enabled)
+
+	// Start the component hooks
+	require.NoError(t, lc.Start(context.Background()))
+	t.Cleanup(func() { _ = lc.Stop(context.Background()) })
+
+	var cfg config.Component = deps.Config
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		assert.Equal(t, "value1", cfg.Get("api_key"))
 	}, 5*time.Second, 500*time.Millisecond)
