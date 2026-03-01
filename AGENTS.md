@@ -59,20 +59,27 @@ dda inv trace-agent.build
 dda inv system-probe.build
 ```
 
-#### Testing
-```bash
-# Run all tests
-dda inv test
+#### Linting & Testing (dda inv)
 
-# Test specific package
-dda inv test --targets=./pkg/aggregator
+**Go (lint & tests)**
+- Lint all Go modules: `dda inv linter.go`
+- Lint main module specific packages: `dda inv linter.go --module=. --targets=./pkg/collector/check,./pkg/aggregator`
+- Lint a single Go module (its default lint targets): `dda inv linter.go --module=comp/core/log/impl`
+- Test all Go modules: `dda inv test`
+- Test main module specific packages: `dda inv test --module=. --targets=./pkg/aggregator`
+- Test a single Go module: `dda inv test --module=comp/trace/compression/impl-zstd`
+- Scope to changed code: `--only-modified-packages` = packages with direct file edits; `--only-impacted-packages` = modified packages plus dependents discovered from imports
 
-# Run Go linters
-dda inv linter.go
+**Python lint**
+- Repository-wide lint (ruff, vulture, mypy): `dda inv linter.python`
+- Show linter versions: `dda inv linter.python --show-versions`
+- Note: `linter.python` runs on the full tree; it does not accept per-file or per-path targets.
 
-# Run all linters
-dda inv linter.all
-```
+**Python tests**
+- All Python unit tests for invoke tasks: `dda inv invoke-unit-tests.run --directory=tasks/unit_tests`
+- Single test module file (drop `_tests.py` suffix; e.g., `git` runs `git_tests.py`): `dda inv invoke-unit-tests.run --directory=tasks/unit_tests --tests=git`
+- Multiple specific test modules: `dda inv invoke-unit-tests.run --directory=tasks/unit_tests --tests=git,github_tasks`
+- rtloader tests (Python/C embedding): `dda inv rtloader.test`
 
 #### Running Locally
 ```bash
