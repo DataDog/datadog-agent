@@ -422,15 +422,7 @@ type Process struct {
 
 	Source uint64 `field:"-"`
 
-	// lineage
-	validLineageResult *validLineageResult `field:"-"`
-
 	IsThroughSymLink bool `field:"-"` // Indicates whether the process is through a symlink
-}
-
-type validLineageResult struct {
-	valid bool
-	err   error
 }
 
 // SetAncestorFields force the process cache entry to be valid

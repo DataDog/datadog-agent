@@ -199,7 +199,18 @@ func deepCopyProcessCacheEntryPtr(fieldToCopy *ProcessCacheEntry) *ProcessCacheE
 		return nil
 	}
 	copied := &ProcessCacheEntry{}
+	copied.Children = deepCopyProcessCacheEntryPtrArr(fieldToCopy.Children)
 	copied.ProcessContext = deepCopyProcessContext(fieldToCopy.ProcessContext)
+	return copied
+}
+func deepCopyProcessCacheEntryPtrArr(fieldToCopy []*ProcessCacheEntry) []*ProcessCacheEntry {
+	if fieldToCopy == nil {
+		return nil
+	}
+	copied := make([]*ProcessCacheEntry, len(fieldToCopy))
+	for i := range fieldToCopy {
+		copied[i] = deepCopyProcessCacheEntryPtr(fieldToCopy[i])
+	}
 	return copied
 }
 func deepCopyProcessContext(fieldToCopy ProcessContext) ProcessContext {
