@@ -77,7 +77,13 @@ func TestEBPFLessAttach(t *testing.T) {
 				"open", testFile, ";",
 				"sleep", "1",
 			)
-			cmd.Start()
+			if err := cmd.Start(); err != nil {
+				t.Errorf("failed to start syscall_tester: %v", err)
+				return
+			}
+			defer func() {
+				_ = cmd.Wait()
+			}()
 
 			pid := cmd.Process.Pid
 			opts := ptracer.Opts{
