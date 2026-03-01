@@ -411,3 +411,112 @@ func TestAutoMultilineHandler_CombiningMode_EnablesJSONAggregation(t *testing.T)
 	// Verify JSON aggregation is enabled
 	assert.True(t, handler.enableJSONAggregation, "JSON aggregation should be enabled in combining mode")
 }
+
+func TestAutoMultilineHandler_EmbeddedPrettyPrintedJSONArray(t *testing.T) {
+	outputChan := make(chan *message.Message, 10)
+	outputFn := func(m *message.Message) {
+		outputChan <- m
+	}
+
+	handler := newCombiningHandler(outputFn, 4096, 10*time.Second)
+
+	// Reproduce the exact scenario from AGNTLOG-306
+	handler.process(newTestMessage(`0001-01-01 We have encountered a really bad error: [`))
+	handler.process(newTestMessage(`  {`))
+	handler.process(newTestMessage(`    "but": "it is",`))
+	handler.process(newTestMessage(`    "pretty": "printed"`))
+	handler.process(newTestMessage(`  },`))
+	handler.process(newTestMessage(`  {`))
+	handler.process(newTestMessage(`    "and in": "array format"`))
+	handler.process(newTestMessage(`  }`))
+	handler.process(newTestMessage(`]`))
+
+	// Trigger output via flush
+	handler.flush()
+
+	msg := <-outputChan
+	expected := `0001-01-01 We have encountered a really bad error: [{"but":"it is","pretty":"printed"},{"and in":"array format"}]`
+	assert.Equal(t, expected, string(msg.GetContent()))
+
+	select {
+	case <-outputChan:
+		assert.Fail(t, "Expected only one combined message")
+	default:
+	}
+}
+
+func TestAutoMultilineHandler_RootLevelPrettyPrintedJSONArray(t *testing.T) {
+	outputChan := make(chan *message.Message, 10)
+	outputFn := func(m *message.Message) {
+		outputChan <- m
+	}
+
+	handler := newCombiningHandler(outputFn, 4096, 10*time.Second)
+
+	// Root-level array without text prefix
+	handler.process(newTestMessage(`[`))
+	handler.process(newTestMessage(`  {"key": "val1"},`))
+	handler.process(newTestMessage(`  {"key": "val2"}`))
+	handler.process(newTestMessage(`]`))
+
+	handler.flush()
+
+	msg := <-outputChan
+	assert.Equal(t, `[{"key":"val1"},{"key":"val2"}]`, string(msg.GetContent()))
+
+	select {
+	case <-outputChan:
+		assert.Fail(t, "Expected only one combined message")
+	default:
+	}
+}
+
+func TestAutoMultilineHandler_PrefixJSONAndSuffix(t *testing.T) {
+	outputChan := make(chan *message.Message, 10)
+	outputFn := func(m *message.Message) {
+		outputChan <- m
+	}
+
+	handler := newCombiningHandler(outputFn, 4096, 10*time.Second)
+
+	// Prefix + multiline JSON array + suffix on closing line
+	handler.process(newTestMessage(`0001-01-01 error: [`))
+	handler.process(newTestMessage(`  {"key": "val"}`))
+	handler.process(newTestMessage(`] END_OF_LOG`))
+
+	handler.flush()
+
+	msg := <-outputChan
+	assert.Equal(t, `0001-01-01 error: [{"key":"val"}] END_OF_LOG`, string(msg.GetContent()))
+
+	select {
+	case <-outputChan:
+		assert.Fail(t, "Expected only one combined message")
+	default:
+	}
+}
+
+func TestAutoMultilineHandler_PrefixObjectAndSuffix(t *testing.T) {
+	outputChan := make(chan *message.Message, 10)
+	outputFn := func(m *message.Message) {
+		outputChan <- m
+	}
+
+	handler := newCombiningHandler(outputFn, 4096, 10*time.Second)
+
+	handler.process(newTestMessage(`2024-01-01 details: {`))
+	handler.process(newTestMessage(`  "error": "bad",`))
+	handler.process(newTestMessage(`  "code": 500`))
+	handler.process(newTestMessage(`} -- svc`))
+
+	handler.flush()
+
+	msg := <-outputChan
+	assert.Equal(t, `2024-01-01 details: {"error":"bad","code":500} -- svc`, string(msg.GetContent()))
+
+	select {
+	case <-outputChan:
+		assert.Fail(t, "Expected only one combined message")
+	default:
+	}
+}
