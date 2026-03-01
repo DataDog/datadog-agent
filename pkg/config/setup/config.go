@@ -2418,6 +2418,8 @@ func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, addition
 		"DD_VERSION":                               {},
 		// this variable is used by the Kubernetes leader election mechanism
 		"DD_POD_NAME": {},
+		// other Kubernetes specific variables
+		"DD_KUBERNETES_KUBE_SERVICE_IGNORE_READINESS":  {},
 		// this variable is used by tracers
 		"DD_INSTRUMENTATION_TELEMETRY_ENABLED": {},
 		// these variables are used by source code integration
@@ -2429,6 +2431,8 @@ func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, addition
 		"DD_APM_NET_RECEIVER_FD":  {},
 		"DD_APM_UNIX_RECEIVER_FD": {},
 		"DD_OTLP_CONFIG_GRPC_FD":  {},
+		// DogStatsD specific variables
+		"DD_ENTITY_ID":  {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}
