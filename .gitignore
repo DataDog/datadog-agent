@@ -234,5 +234,8 @@ CLAUDE_PERSONAL.md
 **/.claude/settings.local.json
 **/CLAUDE.local.md
 
+# Claude Code worktrees (local development, not for repo)
+.claude/worktrees/
+
 # Zed config
 .zed
