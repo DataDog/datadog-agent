@@ -2159,8 +2159,8 @@ github.com/pquerna/otp v1.2.1-0.20191009055518-468c2dd2b58d h1:PinQItctnaL2LtkaS
 github.com/pquerna/otp v1.2.1-0.20191009055518-468c2dd2b58d/go.mod h1:dkJfzwRKNiegxyNb54X/3fLwhCynbMspSyWKnvi1AEg=
 github.com/prashantv/gostub v1.1.0 h1:BTyx3RfQjRHnUWaGF9oQos79AlQ5k8WNktv7VGvVH4g=
 github.com/prashantv/gostub v1.1.0/go.mod h1:A5zLQHz7ieHGG7is6LLXLz7I8+3LZzsrV0P1IAHhP5U=
-github.com/prometheus-community/pro-bing v0.4.1 h1:aMaJwyifHZO0y+h8+icUz0xbToHbia0wdmzdVZ+Kl3w=
-github.com/prometheus-community/pro-bing v0.4.1/go.mod h1:aLsw+zqCaDoa2RLVVSX3+UiCkBBXTMtZC3c7EkfWnAE=
+github.com/prometheus-community/pro-bing v0.8.0 h1:CEY/g1/AgERRDjxw5P32ikcOgmrSuXs7xon7ovx6mNc=
+github.com/prometheus-community/pro-bing v0.8.0/go.mod h1:Idyxz8raDO6TgkUN6ByiEGvWJNyQd40kN9ZUeho3lN0=
 github.com/prometheus/alertmanager v0.30.0 h1:E4dnxSFXK8V2Bb8iqudlisTmaIrF3hRJSWnliG08tBM=
 github.com/prometheus/alertmanager v0.30.0/go.mod h1:93PBumcTLr/gNtNtM0m7BcCffbvYP5bKuLBWiOnISaA=
 github.com/prometheus/client_golang v0.9.1/go.mod h1:7SWBe2y4D6OKWSNQJUaRYU/AaXPKyh/dDVn+NZz0KFw=
