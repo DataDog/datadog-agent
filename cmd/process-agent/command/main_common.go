@@ -19,7 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
+	configsyncimpl "github.com/DataDog/datadog-agent/comp/core/configsync/impl"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -160,7 +161,8 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		}),
 
 		// Provide configsync module
-		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
+		fx.Supply(configsyncimpl.NewDefaultParams()),
+		configsyncfx.Module(),
 
 		// Provide autoexit module
 		autoexitimpl.Module(),

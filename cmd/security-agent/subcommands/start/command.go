@@ -29,7 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
+	configsyncimpl "github.com/DataDog/datadog-agent/comp/core/configsync/impl"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
@@ -171,7 +172,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					},
 				),
 				statusimpl.Module(),
-				configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
+				fx.Supply(configsyncimpl.NewDefaultParams()),
+				configsyncfx.Module(),
 				autoexitimpl.Module(),
 				fx.Supply(pidimpl.NewParams(params.pidfilePath)),
 				fx.Provide(func(c config.Component) settings.Params {

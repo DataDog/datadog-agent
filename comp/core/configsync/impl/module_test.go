@@ -18,24 +18,24 @@ func TestNewConfigSync(t *testing.T) {
 		deps := makeDeps(t)
 		deps.Config.Set("agent_ipc.port", 1234, pkgconfigmodel.SourceFile)
 		deps.Config.Set("agent_ipc.config_refresh_interval", 30, pkgconfigmodel.SourceFile)
-		comp, err := newComponent(deps)
+		provides, err := NewComponent(deps)
 		require.NoError(t, err)
-		assert.True(t, comp.(configSync).enabled)
+		assert.True(t, provides.Comp.(configSync).enabled)
 	})
 
 	t.Run("disabled ipc port zero", func(t *testing.T) {
 		deps := makeDeps(t)
 		deps.Config.Set("agent_ipc.port", 0, pkgconfigmodel.SourceFile)
-		comp, err := newComponent(deps)
+		provides, err := NewComponent(deps)
 		require.NoError(t, err)
-		assert.False(t, comp.(configSync).enabled)
+		assert.False(t, provides.Comp.(configSync).enabled)
 	})
 
 	t.Run("disabled config refresh interval zero", func(t *testing.T) {
 		deps := makeDeps(t)
 		deps.Config.Set("agent_ipc.config_refresh_interval", 0, pkgconfigmodel.SourceFile)
-		comp, err := newComponent(deps)
+		provides, err := NewComponent(deps)
 		require.NoError(t, err)
-		assert.False(t, comp.(configSync).enabled)
+		assert.False(t, provides.Comp.(configSync).enabled)
 	})
 }

@@ -26,7 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
+	configsyncimpl "github.com/DataDog/datadog-agent/comp/core/configsync/impl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -157,7 +158,8 @@ func (s *service) Run(svcctx context.Context) error {
 
 		statusimpl.Module(),
 
-		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
+		fx.Supply(configsyncimpl.NewDefaultParams()),
+		configsyncfx.Module(),
 		autoexitimpl.Module(),
 		fx.Provide(func(c config.Component) settings.Params {
 			return settings.Params{

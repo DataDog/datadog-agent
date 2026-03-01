@@ -20,8 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync"
-	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
+	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
+	configsyncimpl "github.com/DataDog/datadog-agent/comp/core/configsync/impl"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
@@ -127,7 +128,8 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			}),
 			logfx.Module(),
 			ipcfx.ModuleReadWrite(),
-			configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
+			fx.Supply(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
+			configsyncfx.Module(),
 			pidimpl.Module(),
 			fx.Supply(pidimpl.NewParams(params.pidfilePath)),
 			converterfx.Module(),
@@ -226,7 +228,8 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ option.Option[logsagentpipeline.Component], _ pid.Component) {
 		}),
 
-		configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
+		fx.Supply(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
+		configsyncfx.Module(),
 		remoteTaggerFx.Module(tagger.OptionalRemoteParams{Disable: isCmdPortNegative}, tagger.NewRemoteParams()),
 		telemetryimpl.Module(),
 		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {

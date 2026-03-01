@@ -19,7 +19,8 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
+	configsyncimpl "github.com/DataDog/datadog-agent/comp/core/configsync/impl"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -114,7 +115,8 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		payloadmodifierfx.Module(),
 		trace.Bundle(),
 		ipcfx.ModuleReadWrite(),
-		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
+		fx.Supply(configsyncimpl.NewDefaultParams()),
+		configsyncfx.Module(),
 		fxinstrumentation.Module(),
 		remoteagentfx.Module(),
 		// Force the instantiation of the components

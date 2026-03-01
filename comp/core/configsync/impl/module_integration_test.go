@@ -17,7 +17,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync"
+	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
+	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -53,7 +54,8 @@ func TestOptionalModule(t *testing.T) {
 		telemetryimpl.MockModule(),
 		fx.Provide(func() ipc.Component { return ipcComp }),
 		fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
-		Module(Params{}),
+		fx.Supply(NewParams(0, false, 0)),
+		configsyncfx.Module(),
 		fx.Populate(&cfg),
 	))
 	require.True(t, comp.(configSync).enabled)

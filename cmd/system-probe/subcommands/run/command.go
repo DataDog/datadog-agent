@@ -29,7 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
+	configsyncimpl "github.com/DataDog/datadog-agent/comp/core/configsync/impl"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
@@ -169,7 +170,8 @@ func getSharedFxOption() fx.Option {
 			return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
 		}),
 		remotehostnameimpl.Module(),
-		configsyncimpl.Module(configsyncimpl.NewParams(configSyncTimeout, true, configSyncTimeout)),
+		fx.Supply(configsyncimpl.NewParams(configSyncTimeout, true, configSyncTimeout)),
+		configsyncfx.Module(),
 		remoteagentfx.Module(),
 		fxinstrumentation.Module(),
 		localtraceroute.Module(),

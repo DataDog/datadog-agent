@@ -29,8 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func makeDeps(t *testing.T) dependencies {
-	return fxutil.Test[dependencies](t, fx.Options(
+func makeDeps(t *testing.T) Requires {
+	return fxutil.Test[Requires](t, fx.Options(
 		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Supply(log.Params{}),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
@@ -41,7 +41,7 @@ func makeDeps(t *testing.T) dependencies {
 	))
 }
 
-func makeConfigSync(deps dependencies) *configSync {
+func makeConfigSync(deps Requires) *configSync {
 	defaultURL := &url.URL{
 		Scheme: "https",
 		Host:   "localhost:1234",
