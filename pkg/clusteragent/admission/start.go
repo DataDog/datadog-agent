@@ -9,6 +9,7 @@
 package admission
 
 import (
+	"context"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -16,6 +17,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/monitor"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
@@ -122,6 +124,20 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 	}
 
 	webhooks = append(webhooks, webhookController.EnabledWebhooks()...)
+
+	// Start the admission monitor to detect pods that should have been
+	// mutated but were not, which signals a possible network issue.
+	admMonitor, err := monitor.NewMonitor(wmeta, datadogConfig)
+	if err != nil {
+		log.Warnf("Failed to create admission monitor: %v", err)
+	} else {
+		monitorCtx, monitorCancel := context.WithCancel(context.Background())
+		go func() {
+			<-ctx.StopCh
+			monitorCancel()
+		}()
+		go admMonitor.Run(monitorCtx)
+	}
 
 	return webhooks, apiserver.SyncInformers(informers, 0)
 }
