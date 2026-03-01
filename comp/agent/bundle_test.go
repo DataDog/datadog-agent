@@ -23,8 +23,8 @@ import (
 
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t,
-		fx.Supply(jmxloggerimpl.NewDefaultParams()),
 		Bundle(),
+		fx.Supply(jmxloggerimpl.NewDefaultParams()),
 		core.MockBundle(),
 		defaultforwarder.MockModule(),
 		orchestratorimpl.MockModule(),
