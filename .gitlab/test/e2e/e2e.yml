@@ -308,6 +308,31 @@ new-e2e-containers-eks:
     ON_NIGHTLY_FIPS: "true"
   retry: !reference [.retry_only_infra_failure, retry]
 
+new-e2e-ecs:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent
+    - qa_agent_jmx
+    - qa_dca
+    - qa_dogstatsd
+  rules:
+    - !reference [.on_container_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/ecs
+    TEAM: ecs-experiences
+    ON_NIGHTLY_FIPS: "true"
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestECSAPMSuite
+      - EXTRA_PARAMS: --run TestECSLogsSuite
+      - EXTRA_PARAMS: --run TestECSConfigSuite
+      - EXTRA_PARAMS: --run TestECSResilienceSuite
+      - EXTRA_PARAMS: --run TestECSManagedSuite
+      - EXTRA_PARAMS: --run TestECSChecksSuite
+      - EXTRA_PARAMS: --run TestECSPlatformSuite
+
 new-e2e-containers-openshift-init:
   stage: e2e_init
   extends: .new_e2e_template
