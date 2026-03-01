@@ -30,7 +30,7 @@ func newCombiningHandler(outputFn func(*message.Message), maxContentSize int, fl
 
 func newDetectingHandler(outputFn func(*message.Message), maxContentSize int, flushTimeout time.Duration) *AutoMultilineHandler {
 	tailerInfo := status.NewInfoRegistry()
-	aggregator := automultilinedetection.NewDetectingAggregator(outputFn, tailerInfo)
+	aggregator := automultilinedetection.NewDetectingAggregator(outputFn, tailerInfo, maxContentSize, false)
 	return NewAutoMultilineHandler(aggregator, maxContentSize, flushTimeout, tailerInfo, nil, nil, false)
 }
 

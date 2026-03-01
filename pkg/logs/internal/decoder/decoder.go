@@ -168,10 +168,13 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 }
 
 func getAutoMultilineDetectingHandler(outputFn func(msg *message.Message), tailerInfo *status.InfoRegistry, maxContentSize int, source *sources.ReplaceableSource) LineHandler {
+	cfg := pkgconfigsetup.Datadog()
+	_, isDefaultPath := source.Config().AutoMultiLineStatus(cfg)
+
 	// JSON aggregation is disabled in detection mode for consistency - we don't want to combine JSON
 	// while only tagging everything else
-	aggregator := automultilinedetection.NewDetectingAggregator(outputFn, tailerInfo)
-	return NewAutoMultilineHandler(aggregator, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, false)
+	aggregator := automultilinedetection.NewDetectingAggregator(outputFn, tailerInfo, maxContentSize, isDefaultPath)
+	return NewAutoMultilineHandler(aggregator, maxContentSize, config.AggregationTimeout(cfg), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, false)
 }
 
 func getAutoMultilineAggregatingHandler(outputFn func(msg *message.Message), maxContentSize int, tailerInfo *status.InfoRegistry, source *sources.ReplaceableSource) LineHandler {
