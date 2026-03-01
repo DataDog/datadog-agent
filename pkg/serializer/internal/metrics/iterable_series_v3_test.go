@@ -83,10 +83,10 @@ func TestPayloadsBuilderV3(t *testing.T) {
 	pb.finishPayload()
 	ps := pipelineContext.payloads
 	r.Len(ps, 1)
-	r.Equal(205, len(ps[0].GetContent()))
+	r.Equal(210, len(ps[0].GetContent()))
 	r.Equal([]byte{
 		// metricData
-		3<<3 | 2, 0xca, 0x1,
+		3<<3 | 2, 0xcf, 0x1,
 
 		// names
 		1<<3 | 2, 28,
@@ -119,16 +119,17 @@ func TestPayloadsBuilderV3(t *testing.T) {
 		8<<3 | 2, 4,
 		/* 1 */ 3, 0x73, 0x74, 0x6e,
 
-		9<<3 | 2, 9,
-		/* 1 */ 10, 0, 0,
-		/* 2 */ 10, 10, 0,
-		/* 3 */ 10, 11, 28,
+		9<<3 | 2, 16,
+		/* 1 */ 10, 0, 0, 9,
+		/* 2 */ 10, 0, 0, 0,
+		/* 3 */ 10, 10, 0, 0,
+		/* 4 */ 10, 11, 28, 9,
 
-		10<<3 | 2, 6,
-		/* 1 */ 0x83, 0x02,
+		10<<3 | 2, 4,
+		/* 1 */ 0x03,
 		/* 2 */ 0x13,
 		/* 3 */ 0x13,
-		/* 4 */ 0xb3, 0x02,
+		/* 4 */ 0x33,
 
 		11<<3 | 2, 4, 2, 2, 2, 2,
 		12<<3 | 2, 4, 0, 4, 0, 3,
@@ -139,7 +140,7 @@ func TestPayloadsBuilderV3(t *testing.T) {
 		17<<3 | 2, 1, 2, 4, 6,
 		19<<3 | 2, 1, 8, 0x1f, 0x85, 0xeb, 0x51, 0xb8, 0x1e, 0x9, 0x40,
 		23<<3 | 2, 1, 4, 0, 0, 2, 0,
-		24<<3 | 2, 1, 4, 2, 0, 2, 2,
+		24<<3 | 2, 1, 4, 2, 2, 2, 2,
 	}, ps[0].GetContent())
 }
 
@@ -416,7 +417,7 @@ func TestPayloadsBuilderV3_Sketch(t *testing.T) {
 
 	r.Equal([]byte{
 		// metricData
-		3<<3 | 2, 247, 1,
+		3<<3 | 2, 252, 1,
 
 		// dictNameStr
 		1<<3 | 2, 28,
@@ -449,13 +450,14 @@ func TestPayloadsBuilderV3_Sketch(t *testing.T) {
 		7<<3 | 2, 1, 0x4,
 
 		// dictOrigin
-		9<<3 | 2, 9,
-		/* 1 */ 10, 0, 0,
-		/* 2 */ 10, 10, 0,
-		/* 3 */ 10, 11, 28,
+		9<<3 | 2, 16,
+		/* 1 */ 10, 0, 0, 9,
+		/* 2 */ 10, 0, 0, 0,
+		/* 3 */ 10, 10, 0, 0,
+		/* 4 */ 10, 11, 28, 9,
 
 		// type
-		10<<3 | 2, 6, 0x84, 0x2, 0x14, 0x24, 0xb4, 0x2,
+		10<<3 | 2, 4, 0x04, 0x14, 0x24, 0x34,
 		// nameRef
 		11<<3 | 2, 4, 2, 2, 2, 2,
 		// tagsRef
@@ -497,7 +499,7 @@ func TestPayloadsBuilderV3_Sketch(t *testing.T) {
 		// sourceTypeNameRef
 		23<<3 | 2, 1, 4, 0, 0, 0, 0,
 		// originRef
-		24<<3 | 2, 1, 4, 2, 0, 2, 2,
+		24<<3 | 2, 1, 4, 2, 2, 2, 2,
 	}, pipelineContext.payloads[0].GetContent())
 }
 
