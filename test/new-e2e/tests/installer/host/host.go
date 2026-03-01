@@ -77,6 +77,7 @@ func (h *Host) setSystemdVersion() {
 	h.systemdVersion = version
 }
 
+// TODO[@agent-devx]: Probably move this to the proper docker component defined in components/docker/component.go
 // InstallDocker installs Docker on the host if it is not already installed.
 func (h *Host) InstallDocker() {
 	defer func() {
@@ -106,10 +107,13 @@ func (h *Host) InstallDocker() {
 	case "apt":
 		h.remote.MustExecute("sudo apt-get update -qq")
 		h.remote.MustExecute("sudo apt-get install -y docker.io")
+		h.remote.MustExecute("sudo apt-get install -y amazon-ecr-credential-helper")
 	case "yum":
 		h.remote.MustExecute("sudo yum install -y docker")
+		h.remote.MustExecute("sudo yum install -y amazon-ecr-credential-helper")
 	case "zypper":
 		h.remote.MustExecute("sudo zypper install -y docker")
+		h.remote.MustExecute("sudo zypper install -y amazon-ecr-credential-helper")
 	default:
 		h.t().Fatalf("unsupported package manager: %s", h.pkgManager)
 	}
