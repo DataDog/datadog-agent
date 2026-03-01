@@ -689,53 +689,55 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		}
 	}
 
-	if testMod != nil && ebpfLessEnabled {
-		testMod.st = st
-		testMod.cmdWrapper = cmdWrapper
-		testMod.t = t
-		testMod.opts.dynamicOpts = opts.dynamicOpts
-		testMod.opts.staticOpts = opts.staticOpts
-		testMod.statsdClient.Flush()
+	// Force module re-instantiation - disabled module reuse
+	// if testMod != nil && ebpfLessEnabled {
+	// 	testMod.st = st
+	// 	testMod.cmdWrapper = cmdWrapper
+	// 	testMod.t = t
+	// 	testMod.opts.dynamicOpts = opts.dynamicOpts
+	// 	testMod.opts.staticOpts = opts.staticOpts
+	// 	testMod.statsdClient.Flush()
 
-		if opts.staticOpts.preStartCallback != nil {
-			opts.staticOpts.preStartCallback(testMod)
-		}
+	// 	if opts.staticOpts.preStartCallback != nil {
+	// 		opts.staticOpts.preStartCallback(testMod)
+	// 	}
 
-		if !opts.staticOpts.disableRuntimeSecurity {
-			if err = testMod.reloadPolicies(); err != nil {
-				return testMod, err
-			}
-		}
-		return testMod, nil
+	// 	if !opts.staticOpts.disableRuntimeSecurity {
+	// 		if err = testMod.reloadPolicies(); err != nil {
+	// 			return testMod, err
+	// 		}
+	// 	}
+	// 	return testMod, nil
 
-	} else if !opts.forceReload && testMod != nil && opts.staticOpts.Equal(testMod.opts.staticOpts) {
-		testMod.st = st
-		testMod.cmdWrapper = cmdWrapper
-		testMod.t = t
-		testMod.opts.dynamicOpts = opts.dynamicOpts
-		testMod.statsdClient.Flush()
+	// } else if !opts.forceReload && testMod != nil && opts.staticOpts.Equal(testMod.opts.staticOpts) {
+	// 	testMod.st = st
+	// 	testMod.cmdWrapper = cmdWrapper
+	// 	testMod.t = t
+	// 	testMod.opts.dynamicOpts = opts.dynamicOpts
+	// 	testMod.statsdClient.Flush()
 
-		if !disableTracePipe && !ebpfLessEnabled {
-			if testMod.tracePipe, err = testMod.startTracing(); err != nil {
-				return testMod, err
-			}
-		}
+	// 	if !disableTracePipe && !ebpfLessEnabled {
+	// 		if testMod.tracePipe, err = testMod.startTracing(); err != nil {
+	// 			return testMod, err
+	// 		}
+	// 	}
 
-		if opts.staticOpts.preStartCallback != nil {
-			opts.staticOpts.preStartCallback(testMod)
-		}
+	// 	if opts.staticOpts.preStartCallback != nil {
+	// 		opts.staticOpts.preStartCallback(testMod)
+	// 	}
 
-		if !opts.staticOpts.disableRuntimeSecurity {
-			if err = testMod.reloadPolicies(); err != nil {
-				return testMod, err
-			}
-		}
+	// 	if !opts.staticOpts.disableRuntimeSecurity {
+	// 		if err = testMod.reloadPolicies(); err != nil {
+	// 			return testMod, err
+	// 		}
+	// 	}
 
-		if ruleDefs != nil && logStatusMetrics {
-			t.Logf("%s entry stats: %s", t.Name(), GetEBPFStatusMetrics(testMod.probe))
-		}
-		return testMod, nil
-	} else if testMod != nil {
+	// 	if ruleDefs != nil && logStatusMetrics {
+	// 		t.Logf("%s entry stats: %s", t.Name(), GetEBPFStatusMetrics(testMod.probe))
+	// 	}
+	// 	return testMod, nil
+	// } else
+	if testMod != nil {
 		testMod.cleanup()
 	}
 
