@@ -6,6 +6,7 @@
 package service
 
 import (
+	"slices"
 	"sync"
 	"time"
 
@@ -102,15 +103,8 @@ func (c *clients) hasNewProducts(pbClient *pbgo.Client) bool {
 	if !ok {
 		return false
 	}
-	for _, newProduct := range pbClient.Products {
-		found := false
-		for _, existingProduct := range existing.pbClient.Products {
-			if newProduct == existingProduct {
-				found = true
-				break
-			}
-		}
-		if !found {
+	for _, product := range pbClient.Products {
+		if !slices.Contains(existing.pbClient.Products, product) {
 			return true
 		}
 	}
