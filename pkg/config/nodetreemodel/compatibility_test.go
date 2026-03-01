@@ -176,6 +176,71 @@ func TestCompareAllFlattenedSettingsWithSequenceID(t *testing.T) {
 	assert.Equal(t, expectmap, ntmmap)
 }
 
+func TestCompareAllFlattenedSettingsWithSequenceIDDottedMapKeys(t *testing.T) {
+	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
+	})
+
+	endpoints := map[string]interface{}{
+		"https://url1.com": []interface{}{"api_key_1"},
+		"https://url2.eu":  []interface{}{"api_key_2"},
+	}
+	viperConf.Set("additional_endpoints", endpoints, model.SourceFile)
+	ntmConf.Set("additional_endpoints", endpoints, model.SourceFile)
+
+	vipermap, _ := viperConf.AllFlattenedSettingsWithSequenceID()
+	ntmmap, _ := ntmConf.AllFlattenedSettingsWithSequenceID()
+
+	assert.Contains(t, vipermap, "additional_endpoints")
+	assert.Contains(t, ntmmap, "additional_endpoints")
+	for key := range vipermap {
+		assert.False(t, strings.HasPrefix(key, "additional_endpoints."), "unexpected dotted child key in viper map: %s", key)
+	}
+	for key := range ntmmap {
+		assert.False(t, strings.HasPrefix(key, "additional_endpoints."), "unexpected dotted child key in ntm map: %s", key)
+	}
+}
+
+func TestCompareAllFlattenedSettingsWithSequenceIDKnownLeafParity(t *testing.T) {
+	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("apm_config.foo", "")
+		cfg.BindEnvAndSetDefault("apm_config.bar.baz", "")
+		cfg.BindEnvAndSetDefault("proxy.http", "")
+	})
+
+	viperMap, _ := viperConf.AllFlattenedSettingsWithSequenceID()
+	ntmMap, _ := ntmConf.AllFlattenedSettingsWithSequenceID()
+
+	viperKeys := slices.Collect(maps.Keys(viperMap))
+	ntmKeys := slices.Collect(maps.Keys(ntmMap))
+	assert.ElementsMatch(t, viperKeys, ntmKeys)
+	assert.ElementsMatch(t, []string{"apm_config.foo", "apm_config.bar.baz", "proxy.http"}, viperKeys)
+	assert.NotContains(t, viperKeys, "apm_config")
+	assert.NotContains(t, viperKeys, "apm_config.bar")
+}
+
+func TestCompareAllFlattenedSettingsWithSequenceIDUnknownParentChildParity(t *testing.T) {
+	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("proxy.http", "")
+	})
+
+	// Reading unknown keys tracks them in both implementations.
+	_ = viperConf.Get("unknown_section")
+	_ = viperConf.Get("unknown_section.info")
+	_ = ntmConf.Get("unknown_section")
+	_ = ntmConf.Get("unknown_section.info")
+
+	viperMap, _ := viperConf.AllFlattenedSettingsWithSequenceID()
+	ntmMap, _ := ntmConf.AllFlattenedSettingsWithSequenceID()
+
+	viperKeys := slices.Collect(maps.Keys(viperMap))
+	ntmKeys := slices.Collect(maps.Keys(ntmMap))
+	assert.ElementsMatch(t, viperKeys, ntmKeys)
+	assert.Contains(t, viperKeys, "proxy.http")
+	assert.Contains(t, viperKeys, "unknown_section")
+	assert.Contains(t, viperKeys, "unknown_section.info")
+}
+
 func TestCompareGetEnvVars(t *testing.T) {
 	dataYaml := `unknown_setting: 123`
 

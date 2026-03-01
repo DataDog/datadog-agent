@@ -371,6 +371,49 @@ func (c *safeConfig) AllKeysLowercased() []string {
 	return res
 }
 
+// collectFlattenedKeys returns flattened keys that match nodetreemodel semantics:
+// known leaf keys plus all tracked unknown keys.
+// The algorithm:
+// 1. Collect known keys and filter for parent-child relationships (keep only leaves)
+// 2. Add all unknown keys as-is
+// Must be called while holding at least a read lock.
+func (c *safeConfig) collectFlattenedKeys() []string {
+	knownKeys := c.Viper.GetKnownKeys()
+
+	// Start with all known keys
+	leafKeys := make(map[string]struct{}, len(knownKeys)+len(c.unknownKeys))
+	for key := range knownKeys {
+		key = strings.ToLower(key)
+		leafKeys[key] = struct{}{}
+	}
+
+	// Filter known keys for parent-child relationships to keep only leaves.
+	// Example: if "a.b.c" exists, remove "a" and "a.b" from the set.
+	for key := range knownKeys {
+		parent := strings.ToLower(key)
+
+		for {
+			dot := strings.LastIndexByte(parent, '.')
+			if dot == -1 {
+				break
+			}
+			parent = parent[:dot]
+			delete(leafKeys, parent)
+		}
+	}
+
+	// Add all unknown keys as-is (no parent-child filtering, matching NTM semantics)
+	for key := range c.unknownKeys {
+		leafKeys[strings.ToLower(key)] = struct{}{}
+	}
+
+	keys := make([]string, 0, len(leafKeys))
+	for key := range leafKeys {
+		keys = append(keys, key)
+	}
+	return keys
+}
+
 // Get wraps Viper for concurrent access
 func (c *safeConfig) Get(key string) interface{} {
 	c.RLock()
@@ -797,7 +840,7 @@ func (c *safeConfig) AllFlattenedSettingsWithSequenceID() (map[string]interface{
 	c.RLock()
 	defer c.RUnlock()
 
-	keys := c.Viper.AllKeys()
+	keys := c.collectFlattenedKeys()
 	settings := make(map[string]interface{}, len(keys))
 	for _, key := range keys {
 		val, _ := c.Viper.GetE(key)
