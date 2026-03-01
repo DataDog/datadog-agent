@@ -211,6 +211,12 @@ var (
 	// MetricMountResolverProcfsHits is the counter of successful procfs mount resolution
 	// Tags: cache, procfs
 	MetricMountResolverProcfsHits = newRuntimeMetric(".mount_resolver.procfs_hits")
+	// MetricMountResolverDanglingCacheSize is the name of the metric used to report the size of the dangling mount cache
+	// Tags: -
+	MetricMountResolverDanglingCacheSize = newRuntimeMetric(".mount_resolver.dangling_cache_size")
+	// MetricMountResolverPidNsCacheSize is the name of the metric used to report the size of the pid namespace cache
+	// Tags: -
+	MetricMountResolverPidNsCacheSize = newRuntimeMetric(".mount_resolver.pid_ns_cache_size")
 
 	// Activity dump metrics
 
