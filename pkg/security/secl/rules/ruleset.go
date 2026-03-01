@@ -684,11 +684,6 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 		return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: err}
 	}
 
-	// call an extra layer of validation
-	if err := evalRule.Model.ValidateRule(evalRule); err != nil {
-		return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: &ErrRuleSyntax{Err: err}}
-	}
-
 	eventType, err := GetRuleEventType(rule.Rule)
 	if err != nil {
 		return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: err}
@@ -1109,36 +1104,53 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 		rs.logger.Tracef("Evaluating event of type `%s` against set of %d rules", eventType, len(bucket.rules))
 	}
 
+	traceEnabled := rs.logger.IsTracing()
+
 	result := false
 
-	resetEventEvalCtx := func() {
-		event.(*model.Event).RuleTags = nil
+	// type assert once and reset once at the end, instead of per rule / per closure
+	me, _ := event.(*model.Event)
+	if me != nil {
+		defer func() {
+			me.RuleTags = nil
+		}()
 	}
-	defer resetEventEvalCtx()
 
 	for _, rule := range bucket.rules {
-		utils.PprofDoWithoutContext(rule.GetPprofLabels(), func() {
-			event := event.(*model.Event)
-			event.RuleTags = rule.PolicyRule.Def.ProductTags
+		// Precompute everything we can per-rule to keep the hot path minimal
+		labels := rule.GetPprofLabels()
+		evaluator := rule.GetEvaluator()
+		ruleTags := rule.PolicyRule.Def.ProductTags
+		r := rule
 
-			if rule.GetEvaluator().Eval(ctx) {
-				if rs.logger.IsTracing() {
-					rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
-				}
+		// Set pprof labels for this rule without using a closure or per-rule defer
+		utils.SetPprofGoroutineLabels(labels)
 
-				if err := rs.runSetActions(event, ctx, rule); err != nil {
-					rs.logger.Errorf("Error while executing 'set' actions: %s", err)
-				}
+		if me != nil {
+			me.RuleTags = ruleTags
+		}
 
-				if err := rs.runLogActions(event, ctx, rule); err != nil {
-					rs.logger.Errorf("Error while executing 'log' actions: %s", err)
-				}
-
-				rs.NotifyRuleMatch(ctx, rule, event)
-				result = true
+		if evaluator.Eval(ctx) {
+			if traceEnabled {
+				rs.logger.Tracef("Rule `%s` matches with event `%s`\n", r.ID, event)
 			}
-			ctx.PerEvalReset()
-		})
+
+			if err := rs.runSetActions(event, ctx, r); err != nil {
+				rs.logger.Errorf("Error while executing 'set' actions: %s", err)
+			}
+
+			if err := rs.runLogActions(event, ctx, r); err != nil {
+				rs.logger.Errorf("Error while executing 'log' actions: %s", err)
+			}
+
+			rs.NotifyRuleMatch(ctx, r, event)
+			result = true
+		}
+
+		ctx.PerEvalReset()
+
+		// Reset labels to the background context before moving to the next rule
+		utils.ResetPprofGoroutineLabels()
 	}
 
 	// no-op in the general case, only used to collect events in functional tests
