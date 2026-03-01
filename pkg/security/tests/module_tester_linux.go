@@ -93,6 +93,7 @@ event_monitoring_config:
   event_stream:
     use_fentry: true
     use_kprobe_fallback: false
+    kretprobe_max_active: 4096
 {{if .DisableFilters}}
   enable_kernel_filters: false
 {{end}}
