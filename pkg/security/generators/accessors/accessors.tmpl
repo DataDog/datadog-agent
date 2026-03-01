@@ -272,7 +272,11 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 						{{else}}
 							{{if $Field.IsRootDomain}}
 								{{- if not $Field.IsIterator}}
+									{{- if $Field.IsArray}}
+									return eval.GetPublicTLDs({{".root_domain" | TrimSuffix $Return}})
+									{{- else}}
 									return eval.GetPublicTLD({{".root_domain" | TrimSuffix $Return}})
+									{{- end}}
 								{{end}}
 							{{else}}
 								return {{$Return}}
