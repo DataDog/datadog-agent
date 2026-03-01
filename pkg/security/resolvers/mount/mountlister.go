@@ -346,4 +346,5 @@ func HasListMount() bool {
 	}
 	_, _, errno = unix.Syscall(unix.SYS_STATMOUNT, 0, 0, 0)
 	return errno != unix.ENOSYS
+
 }
