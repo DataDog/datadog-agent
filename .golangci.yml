@@ -113,6 +113,8 @@ linters:
             - "!**/comp/core/autodiscovery/providers/utils_test.go"
             - "!**/comp/core/autodiscovery/providers/zookeeper.go"
             - "!**/comp/core/autodiscovery/providers/zookeeper_nop.go"
+            - "!**/comp/core/autodiscovery/providers/kube_crd.go"
+            - "!**/comp/core/autodiscovery/providers/kube_crd_nop.go"
             - "!**/comp/core/config/config.go"
             - "!**/comp/core/config/params.go"
             - "!**/comp/core/config/setup.go"

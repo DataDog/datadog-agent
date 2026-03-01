@@ -72,4 +72,5 @@ func RegisterProviders(providerCatalog map[string]types.ConfigProviderFactory) {
 	RegisterProvider(names.PrometheusServicesRegisterName, prometheusServicesProvider, providerCatalog)
 	RegisterProvider(names.KubeEndpointsFileRegisterName, endpointsFileProvider, providerCatalog)
 	RegisterProvider(names.KubeEndpointsRegisterName, endpointsProvider, providerCatalog)
+	RegisterProvider(names.KubeCrdRegisterName, NewKubeCRDConfigProvider, providerCatalog)
 }
