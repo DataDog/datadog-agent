@@ -18,7 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
-	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	pidfx "github.com/DataDog/datadog-agent/comp/core/pid/fx"
+	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -53,7 +54,7 @@ func Bundle(options ...Option) fxutil.BundleOptions {
 		fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),
 		sysprobeconfigimpl.Module(),
 		telemetryimpl.Module(),
-		pidimpl.Module(), // You must supply pidimpl.NewParams in order to use it
+		pidfx.Module(), // You must supply pidimpl.NewParams in order to use it
 		params.secretsModule,
 	}
 
