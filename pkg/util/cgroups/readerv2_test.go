@@ -25,6 +25,7 @@ func TestReaderV2(t *testing.T) {
 		"kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podc704ef4c297ab11032b83ce52cbfc87b.slice/cri-containerd-2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc42.scope",
 		"libpod_parent/libpod-6dc3fdffbf66b1239d55e98da9aaa759ea51ed35d04eb09d19ebd78963aa26c2/system.slice/var-lib-docker-containers-1575e8b4a92a9c340a657f3df4ddc0f6a6305c200879f3898b26368ad019b503-mounts-shm.mount",
 		"libpod_parent/libpod-6dc3fdffbf66b1239d55e98da9aaa759ea51ed35d04eb09d19ebd78963aa26c2/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-poda2acd1bccd50fd7790183537181f658e.slice/docker-1575e8b4a92a9c340a657f3df4ddc0f6a6305c200879f3898b26368ad019b503.scope",
+		"system.slice/docker-773ba74abd6d7d68f1af1eb511fbda3a97238b38791d650853f532be6fafbd0f.scope/sensor.falcon",
 	}
 
 	// Create mock directories for paths and corresponding inodes.
@@ -55,6 +56,7 @@ func TestReaderV2(t *testing.T) {
 		"2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc42": newCgroupV2("2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc42", fakeFsPath, paths[3], controllers, r.pidMapper),
 		"1575e8b4a92a9c340a657f3df4ddc0f6a6305c200879f3898b26368ad019b503": newCgroupV2("1575e8b4a92a9c340a657f3df4ddc0f6a6305c200879f3898b26368ad019b503", fakeFsPath, paths[5], controllers, r.pidMapper),
 		"6dc3fdffbf66b1239d55e98da9aaa759ea51ed35d04eb09d19ebd78963aa26c2": newCgroupV2("6dc3fdffbf66b1239d55e98da9aaa759ea51ed35d04eb09d19ebd78963aa26c2", fakeFsPath, "libpod_parent/libpod-6dc3fdffbf66b1239d55e98da9aaa759ea51ed35d04eb09d19ebd78963aa26c2", controllers, r.pidMapper),
+		"773ba74abd6d7d68f1af1eb511fbda3a97238b38791d650853f532be6fafbd0f": newCgroupV2("773ba74abd6d7d68f1af1eb511fbda3a97238b38791d650853f532be6fafbd0f", fakeFsPath, paths[6], controllers, r.pidMapper),
 	}
 
 	// Initialize Inodes

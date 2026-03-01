@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -60,7 +62,17 @@ func DefaultFilter(path, _ string) (string, error) {
 var ContainerRegexp = regexp.MustCompile(ContainerRegexpStr)
 
 // ContainerFilter returns a filter that will match cgroup folders containing a container id
-func ContainerFilter(_, name string) (string, error) {
+func ContainerFilter(fullPath string, name string) (string, error) {
+	// If the path ends in 'sensor.falcon' then reset name to the directory one level up
+	// Example:
+	//   system.slice/docker-773ba74abd6d7d68f1af1eb511fbda3a97238b38791d650853f532be6fafbd0f.scope/sensor.falcon <- 'sensor.falcon' is stripped
+	//   system.slice/docker-773ba74abd6d7d68f1af1eb511fbda3a97238b38791d650853f532be6fafbd0f.scope <- new name is the parent directory
+	if strings.HasSuffix(name, "sensor.falcon") {
+		trimmed := strings.TrimSuffix(fullPath, name)
+		name = filepath.Base(trimmed)
+		log.Debugf("'sensor.falcon' detected, shifting to parent directory for container ID: %s", name)
+	}
+
 	match := ContainerRegexp.FindString(name)
 
 	// With systemd cgroup driver, there may be a `.mount` cgroup on top of the normal one
