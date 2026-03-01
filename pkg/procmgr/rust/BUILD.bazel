@@ -22,16 +22,17 @@ rust_binary(
 )
 
 pkg_files(
-    name = "dd-procmgrd_pkg",
+    name = "all_files",
     srcs = [":dd-procmgrd"],
     attributes = pkg_attributes(
         mode = "0755",
     ),
+    prefix = "embedded/bin",
 )
 
 pkg_install(
     name = "install",
-    srcs = [":dd-procmgrd_pkg"],
+    srcs = [":all_files"],
 )
 
 # ============================================================================
