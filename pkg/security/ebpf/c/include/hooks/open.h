@@ -99,7 +99,12 @@ int __attribute__((always_inline)) handle_open(ctx_t *ctx, struct path *path) {
     set_file_inode(dentry, &syscall->open.file, PATH_ID_INVALIDATE_TYPE_NONE);
 
     // do not pop, we want to keep track of the mount ref counter later in the stack
-    approve_syscall(syscall, open_approvers);
+    enum SYSCALL_STATE state = approve_syscall(syscall, open_approvers);
+    if (state == SAMPLED) {
+        // fake an activity dump for now, this will avoid discarders
+        // we should convert this to a SAMPLE flag
+        syscall->resolver.flags |= ACTIVITY_DUMP_RUNNING;
+    }
 
     syscall->resolver.key = syscall->open.file.path_key;
     syscall->resolver.dentry = syscall->open.dentry;
