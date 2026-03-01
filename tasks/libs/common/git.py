@@ -12,6 +12,7 @@ from invoke import Context
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.constants import AGENT_VERSION_CACHE_NAME
 from tasks.libs.common.user_interactions import yes_no_question
 
 if TYPE_CHECKING:
@@ -125,7 +126,11 @@ def get_modified_files(ctx, base_branch=None) -> list[str]:
 
 
 def get_current_branch(ctx) -> str:
-    return ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+    result = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True, warn=True)
+    if result.ok:
+        return result.stdout.strip()
+    # Not in a git repo (e.g., gitless omnibus build) - return placeholder
+    return "unknown"
 
 
 def is_a_release_branch(ctx, branch=None) -> bool:
@@ -221,6 +226,26 @@ def check_local_branch(ctx, branch):
 
 
 def get_commit_sha(ctx, commit="HEAD", short=False) -> str:
+    """
+    Get the commit SHA for the given commit reference.
+
+    For HEAD commits, tries to read from agent-version.cache first (useful for
+    environments without .git, like omnibus docker builds), then falls back to git.
+    """
+    # Only use cache for HEAD - other refs need actual git resolution
+    if commit == "HEAD" and os.path.exists(AGENT_VERSION_CACHE_NAME):
+        import json
+
+        try:
+            with open(AGENT_VERSION_CACHE_NAME) as f:
+                cache_data = json.load(f)
+            # Cache format: {"7": [version, pre, commits_since_version, git_sha, pipeline_id], ...}
+            cached_sha = cache_data.get("7", [None, None, None, None])[3]
+            if cached_sha:
+                return cached_sha[:7] if short else cached_sha
+        except (OSError, json.JSONDecodeError, IndexError, KeyError):
+            pass
+
     return ctx.run(f"git rev-parse {'--short ' if short else ''}{commit}", hide=True).stdout.strip()
 
 

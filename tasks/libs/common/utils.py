@@ -437,9 +437,14 @@ def get_go_version():
 
 def get_root():
     """
-    Get the root of the Go project
+    Get the root of the Go project by walking up from this file looking for go.work.
     """
-    return check_output(['git', 'rev-parse', '--show-toplevel']).decode('utf-8').strip()
+    current = os.path.dirname(os.path.abspath(__file__))
+    while current != os.path.dirname(current):  # Stop at filesystem root
+        if os.path.isfile(os.path.join(current, 'go.work')):
+            return current
+        current = os.path.dirname(current)
+    raise RuntimeError("Could not find go.work to determine project root")
 
 
 @contextmanager
