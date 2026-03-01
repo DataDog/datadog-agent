@@ -10,41 +10,39 @@ import (
 	"context"
 	"fmt"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	profilecomp "github.com/DataDog/datadog-agent/comp/process/profiler"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	profilercomp "github.com/DataDog/datadog-agent/comp/process/profiler/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newProfiler))
-}
-
-type dependencies struct {
-	fx.In
-	Lc fx.Lifecycle
+// Requires defines the dependencies for the profiler component.
+type Requires struct {
+	Lc compdef.Lifecycle
 
 	Config config.Component
 }
 
-var _ profilecomp.Component = (*profiler)(nil)
+// Provides defines the output of the profiler component.
+type Provides struct {
+	Comp profilercomp.Component
+}
+
+var _ profilercomp.Component = (*profiler)(nil)
 
 type profiler struct{}
 
-func newProfiler(deps dependencies) profilecomp.Component {
+// NewComponent creates a new profiler component.
+func NewComponent(reqs Requires) Provides {
 	p := &profiler{}
 
-	settings := getProfilingSettings(deps.Config)
-	deps.Lc.Append(fx.Hook{
+	settings := getProfilingSettings(reqs.Config)
+	reqs.Lc.Append(compdef.Hook{
 		OnStart: func(context.Context) error {
-			if deps.Config.GetBool("process_config.internal_profiling.enabled") {
+			if reqs.Config.GetBool("process_config.internal_profiling.enabled") {
 				err := profiling.Start(settings)
 				if err != nil {
 					_ = log.Warn("Failed to enable profiling:", err.Error())
@@ -62,7 +60,7 @@ func newProfiler(deps dependencies) profilecomp.Component {
 			return nil
 		},
 	})
-	return p
+	return Provides{Comp: p}
 }
 
 func getProfilingSettings(cfg config.Component) profiling.Settings {
