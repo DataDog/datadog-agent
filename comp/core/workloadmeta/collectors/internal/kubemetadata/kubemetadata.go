@@ -53,6 +53,10 @@ type collector struct {
 	lastUpdate                  time.Time
 	collectNamespaceLabels      bool
 	collectNamespaceAnnotations bool
+
+	// stream is the gRPC streaming client for pod-to-service metadata. nil if
+	// streaming is disabled or the DCA is not enabled.
+	stream *streamClient
 }
 
 // NewCollector returns a CollectorProvider to build a kubemetadata collector, and an error if any.
@@ -73,7 +77,7 @@ func GetFxOptions() fx.Option {
 }
 
 // Start tries to connect to the kubelet, the DCA and the API Server if the DCA is not available.
-func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
+func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
 	if !env.IsFeaturePresent(env.Kubernetes) {
 		return errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
 	}
@@ -126,10 +130,25 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 	c.collectNamespaceLabels = len(metadataAsTags.GetNamespaceLabelsAsTags()) > 0
 	c.collectNamespaceAnnotations = len(metadataAsTags.GetNamespaceAnnotationsAsTags()) > 0
 
+	if c.dcaEnabled && pkgconfigsetup.Datadog().GetBool("kubernetes_metadata_tag_streaming") {
+		nodeName, nodeNameErr := c.kubeUtil.GetNodename(ctx)
+		if nodeNameErr != nil {
+			log.Warnf("Could not get node name, kube metadata streaming disabled: %v", nodeNameErr)
+		} else {
+			c.stream = newStreamClient(nodeName, pkgconfigsetup.Datadog())
+			go c.stream.run(ctx)
+		}
+	}
+
 	return err
 }
 
 // Pull triggers an event collection from kubelet and the Datadog Cluster Agent.
+//
+// Pod-to-service mappings can be streamed via grpc, but the collector remains
+// pull-based because namespace metadata is not yet streamed, and streaming is
+// not always available (older DCA versions, fallback to the local API server
+// metadata mapper).
 func (c *collector) Pull(ctx context.Context) error {
 	// Time constraints, get the delta in seconds to display it in the logs:
 	timeDelta := c.lastUpdate.Add(c.updateFreq).Unix() - time.Now().Unix()
@@ -249,7 +268,10 @@ func (c *collector) parsePods(
 
 	var err error
 	var metadataByNsPods apiv1.NamespacesPodsStringsSet
-	if c.isDCAEnabled() {
+
+	streamActive := c.stream != nil && c.stream.isActive()
+
+	if !streamActive && c.isDCAEnabled() {
 		dcaVersion := c.dcaClient.Version(false)
 		if dcaVersion.Major >= 1 && dcaVersion.Minor >= 3 {
 			var nodeName string
@@ -275,29 +297,33 @@ func (c *collector) parsePods(
 			continue
 		}
 
-		metadata, err := c.getMetadata(apiserver.GetPodMetadataNames, metadataByNsPods, pod)
-		if err != nil {
-			log.Debugf("Could not fetch metadata for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
-		}
-
 		services := []string{}
 
 		// collectService if new kube_service bahavior is active
 		// or if not active, use old condition IsPodReady
-
 		collectService := pkgconfigsetup.Datadog().GetBool("kubernetes_kube_service_ignore_readiness") || kubelet.IsPodReady(pod)
 
 		if collectService {
-			for _, data := range metadata {
-				d := strings.Split(data, ":")
-				switch len(d) {
-				case 1:
-					// c.dcaClient.GetPodsMetadataForNode returns only a list of services without tag key
-					services = append(services, d[0])
-				case 2:
-					services = append(services, d[1])
-				default:
-					continue
+			if streamActive {
+				if svcList, ok := c.stream.getServices(pod.Metadata.Namespace, pod.Metadata.Name); ok {
+					services = svcList
+				}
+			} else {
+				metadata, metaErr := c.getMetadata(apiserver.GetPodMetadataNames, metadataByNsPods, pod)
+				if metaErr != nil {
+					log.Debugf("Could not fetch metadata for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, metaErr)
+				}
+				for _, data := range metadata {
+					d := strings.Split(data, ":")
+					switch len(d) {
+					case 1:
+						// c.dcaClient.GetPodsMetadataForNode returns only a list of services without tag key
+						services = append(services, d[0])
+					case 2:
+						services = append(services, d[1])
+					default:
+						continue
+					}
 				}
 			}
 		}
