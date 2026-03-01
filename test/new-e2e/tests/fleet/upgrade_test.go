@@ -91,7 +91,7 @@ func (s *upgradeSuite) TestODBCConfigPreservedOnUpgrade() {
 	s.Require().NoError(err)
 	_, err = s.Env().RemoteHost.Execute(`sudo sh -c 'printf "[ODBC Driver 18 for SQL Server]\nDescription=Microsoft ODBC Driver 18 for SQL Server\nDriver=/opt/microsoft/msodbcsql18/lib64/libmsodbcsql-18.6.so.1.1\nUsageCount=1\n" > /opt/datadog-agent/embedded/etc/odbcinst.ini'`)
 	s.Require().NoError(err)
-	
+
 	targetVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
 	err = s.Backend.StartExperiment("datadog-agent", targetVersion)
 	s.Require().NoError(err)
