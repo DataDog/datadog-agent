@@ -10,17 +10,17 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer/cloudfoundrycontainerimpl"
 	"github.com/DataDog/datadog-agent/comp/agent/expvarserver/expvarserverimpl"
-	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
+	jmxloggerfx "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-runtimes
 
 // Bundle defines the fx options for this bundle.
-func Bundle(params jmxloggerimpl.Params) fxutil.BundleOptions {
+func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		autoexitimpl.Module(),
-		jmxloggerimpl.Module(params),
+		jmxloggerfx.Module(),
 		expvarserverimpl.Module(),
 		cloudfoundrycontainerimpl.Module(),
 	)
