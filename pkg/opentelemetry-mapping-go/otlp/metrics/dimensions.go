@@ -78,11 +78,17 @@ func (d *Dimensions) OriginProductDetail() OriginProductDetail {
 }
 
 // getTags maps an attributeMap into a slice of Datadog tags
-func getTags(labels pcommon.Map) []string {
+func getTags(labels pcommon.Map, encodeSliceMetadataAsTags bool) []string {
 	tags := make([]string, 0, labels.Len())
 	labels.Range(func(key string, value pcommon.Value) bool {
-		v := value.AsString()
-		tags = append(tags, utils.FormatKeyValueTag(key, v))
+		if encodeSliceMetadataAsTags && value.Type() == pcommon.ValueTypeSlice {
+			for _, item := range value.Slice().All() {
+				tags = append(tags, utils.FormatKeyValueTag(key, item.AsString()))
+			}
+		} else {
+			v := value.AsString()
+			tags = append(tags, utils.FormatKeyValueTag(key, v))
+		}
 		return true
 	})
 	return tags
@@ -106,8 +112,12 @@ func (d *Dimensions) AddTags(tags ...string) *Dimensions {
 }
 
 // WithAttributeMap creates a new metricDimensions struct with additional tags from attributes.
-func (d *Dimensions) WithAttributeMap(labels pcommon.Map) *Dimensions {
-	return d.AddTags(getTags(labels)...)
+//
+// If encodeSliceMetadataAsTags is true, the slice attributes are encoded as overlapping tags
+// (e.g. if the attribute is "tags" and the value is ["tag1", "tag2"],
+// the tags "tags:tag1" and "tags:tag2" will be added to the dimensions).
+func (d *Dimensions) WithAttributeMap(labels pcommon.Map, encodeSliceMetadataAsTags bool) *Dimensions {
+	return d.AddTags(getTags(labels, encodeSliceMetadataAsTags)...)
 }
 
 // WithSuffix creates a new dimensions struct with an extra name suffix.
