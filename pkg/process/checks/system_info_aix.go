@@ -3,35 +3,32 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows && !darwin && !aix
+//go:build aix
 
 package checks
 
 import (
-	// waiting for upstream fix to platform collection in containerized environments
-	"github.com/DataDog/gopsutil/host"
-	"github.com/shirou/gopsutil/v4/cpu"
-	"github.com/shirou/gopsutil/v4/mem"
-
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/host"
+	"github.com/shirou/gopsutil/v4/mem"
 )
 
 // CollectSystemInfo collects a set of system-level information that will not
-// change until a restart. This bit of information should be passed along with
-// the process messages.
+// change until a restart. On AIX, fields that cannot be retrieved are left empty.
 func CollectSystemInfo() (*model.SystemInfo, error) {
 	hi, err := host.Info()
-	if err != nil {
-		return nil, err
+	if err != nil || hi == nil {
+		hi = &host.InfoStat{}
 	}
-	cpuInfo, err := cpu.Info()
-	if err != nil {
-		return nil, err
-	}
+
+	cpuInfo, _ := cpu.Info()
+
 	mi, err := mem.VirtualMemory()
-	if err != nil {
-		return nil, err
+	if err != nil || mi == nil {
+		mi = &mem.VirtualMemoryStat{}
 	}
+
 	cpus := make([]*model.CPUInfo, 0, len(cpuInfo))
 	for _, c := range cpuInfo {
 		cpus = append(cpus, &model.CPUInfo{
