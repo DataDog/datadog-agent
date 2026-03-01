@@ -131,8 +131,10 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 
 // IsEnabled returns true if the check is enabled by configuration
 func (c *ConnectionsCheck) IsEnabled() bool {
-	// connection check is not supported on darwin, so we should fail gracefully in this case.
-	if runtime.GOOS == "darwin" {
+	// On Darwin, connections monitoring uses libpcap-based packet capture.
+	// Require network_config.enabled to be explicitly set to true so that
+	// existing macOS deployments without system-probe are not affected.
+	if runtime.GOOS == "darwin" && !c.sysprobeYamlConfig.GetBool("network_config.enabled") {
 		return false
 	}
 

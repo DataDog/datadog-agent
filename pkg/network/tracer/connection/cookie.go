@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build (linux && linux_bpf) || darwin
 
+// Package connection provides the connection tracer interface and implementations.
 package connection
 
 import (

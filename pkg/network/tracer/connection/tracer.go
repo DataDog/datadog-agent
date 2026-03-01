@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
-
 package connection
 
 import (
@@ -13,9 +11,7 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
 // TracerType is the type of the underlying tracer
@@ -32,12 +28,14 @@ const (
 	TracerTypeFentry
 	// TracerTypeEbpfless is the TracerType for the EBPF-less tracer
 	TracerTypeEbpfless
+	// TracerTypeDarwin is the TracerType for the Darwin tracer (uses ebpfless implementation)
+	TracerTypeDarwin
 )
 
 const (
 	// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
 	// This value should be enough for typical workloads (e.g. some amount of processes blocked on the `accept` syscall).
-	maxActive = 512
+	maxActive = 512 //nolint:unused // used by Linux eBPF tracer
 )
 
 // Tracer is the common interface implemented by all connection tracers.
@@ -69,13 +67,4 @@ type Tracer interface {
 	Describe(descs chan<- *prometheus.Desc)
 	// Collect returns the current state of all metrics of the collector
 	Collect(metrics chan<- prometheus.Metric)
-}
-
-// NewTracer returns a new Tracer
-func NewTracer(cfg *config.Config, telemetryComp telemetry.Component) (Tracer, error) {
-	if cfg.EnableEbpfless {
-		return newEbpfLessTracer(cfg)
-	}
-
-	return newEbpfTracer(cfg, telemetryComp)
 }
