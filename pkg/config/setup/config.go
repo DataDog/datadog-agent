@@ -1859,6 +1859,8 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline_batch_size", 2048)
 	// Force the amount of dogstatsd workers (mainly used for benchmarks or some very specific use-case)
 	config.BindEnvAndSetDefault("dogstatsd_workers_count", 0)
+	config.BindEnvAndSetDefault("dogstatsd_experimental_http.enabled", false)
+	config.BindEnvAndSetDefault("dogstatsd_experimental_http.listen_address", "127.0.0.1:8125")
 
 	// To enable the following feature, GODEBUG must contain `madvdontneed=1`
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.enabled", false)
