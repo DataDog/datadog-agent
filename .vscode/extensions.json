@@ -12,11 +12,9 @@
 		// Python
 		"ms-python.python",
 		"charliermarsh.ruff",
-		"alexsweet.vulture-vscode",
 		// Others
 		"redhat.vscode-yaml",
 		"timonwong.shellcheck",
-		"jasonnutter.vscode-codeowners",
 		"usernamehw.errorlens"
 	],
 	// List of extensions recommended by VS Code that should not be recommended for users of this workspace.
