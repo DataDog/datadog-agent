@@ -319,6 +319,72 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 	return TrackedCString(obfuscatedQuery.Query)
 }
 
+// BatchObfuscateSQL obfuscates multiple SQL queries in a single call, writing errors into errResult
+// if the operation fails. The queries are provided as a null-terminated array of C strings, and options are optional.
+// Returns a JSON array string of results.
+//
+//export BatchObfuscateSQL
+func BatchObfuscateSQL(queries **C.char, opts *C.char, errResult **C.char) *C.char {
+	// Parse options once for all queries
+	optStr := C.GoString(opts)
+	if optStr == "" {
+		optStr = "{}"
+	}
+
+	var sqlOpts sqlConfig
+	if err := json.Unmarshal([]byte(optStr), &sqlOpts); err != nil {
+		log.Errorf("Failed to unmarshal batch obfuscation options: %s", err.Error())
+		*errResult = TrackedCString(err.Error())
+		return nil
+	}
+
+	// Convert C string array to Go slice
+	querySlice := cStringArrayToSlice(queries)
+
+	// Handle empty batch
+	if len(querySlice) == 0 {
+		return TrackedCString("[]")
+	}
+
+	// Process each query with fail-fast error handling
+	obfuscator := lazyInitObfuscator()
+	results := make([]interface{}, len(querySlice))
+
+	for i, query := range querySlice {
+		obfuscatedQuery, err := obfuscator.ObfuscateSQLStringWithOptions(
+			query,
+			&sqlOpts.SQLConfig,
+			optStr,
+		)
+		if err != nil {
+			// Fail-fast: stop on first error
+			*errResult = TrackedCString(fmt.Sprintf(
+				"Failed to obfuscate query at index %d: %s",
+				i,
+				err.Error(),
+			))
+			return nil
+		}
+
+		// Return either just query string or full metadata object
+		if sqlOpts.ReturnJSONMetadata {
+			results[i] = obfuscatedQuery
+		} else {
+			results[i] = obfuscatedQuery.Query
+		}
+	}
+
+	// Marshal results array to JSON
+	out, err := json.Marshal(results)
+	if err != nil {
+		*errResult = TrackedCString(err.Error())
+		return nil
+	}
+
+	// memory will be freed by caller
+	return TrackedCString(string(out))
+}
+
 // ObfuscateSQLExecPlan obfuscates the provided json query execution plan, writing the error into errResult if the
 // operation fails
 //

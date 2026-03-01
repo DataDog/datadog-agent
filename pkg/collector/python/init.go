@@ -89,6 +89,7 @@ void SetExternalTags(char *, char *, char **);
 void WritePersistentCache(char *, char *);
 bool TracemallocEnabled();
 char* ObfuscateSQL(char *, char *, char **);
+char* BatchObfuscateSQL(char **, char *, char **);
 char* ObfuscateSQLExecPlan(char *, bool, char **);
 double getProcessStartTime();
 char* ObfuscateMongoDBString(char *, char **);
@@ -108,6 +109,7 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_read_persistent_cache_cb(rtloader, ReadPersistentCache);
 	set_tracemalloc_enabled_cb(rtloader, TracemallocEnabled);
 	set_obfuscate_sql_cb(rtloader, ObfuscateSQL);
+	set_batch_obfuscate_sql_cb(rtloader, BatchObfuscateSQL);
 	set_obfuscate_sql_exec_plan_cb(rtloader, ObfuscateSQLExecPlan);
 	set_get_process_start_time_cb(rtloader, getProcessStartTime);
 	set_obfuscate_mongodb_string_cb(rtloader, ObfuscateMongoDBString);
