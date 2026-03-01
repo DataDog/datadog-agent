@@ -181,10 +181,8 @@ github.com/CycloneDX/cyclonedx-go v0.9.3 h1:Pyk/lwavPz7AaZNvugKFkdWOm93MzaIyWmBw
 github.com/CycloneDX/cyclonedx-go v0.9.3/go.mod h1:vcK6pKgO1WanCdd61qx4bFnSsDJQ6SbM2ZuMIgq86Jg=
 github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7OputlJIzU=
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
-github.com/DataDog/agent-payload/v5 v5.0.179 h1:RGwAyXHqioHy/ARYDoX4XuEVZjipIoIjdpFW6aKr5dc=
-github.com/DataDog/agent-payload/v5 v5.0.179/go.mod h1:9PtvPKsgZVTTvqgYtcwB4bjXAkxYzC2wzSXSadPRHv8=
-github.com/DataDog/agent-payload/v5 v5.0.181-0.20260211134051-225ae79aa333 h1:PzrtzT3W0g7CUVtBWHBJLSJuLgzPQhexdd8y2wkr+KI=
-github.com/DataDog/agent-payload/v5 v5.0.181-0.20260211134051-225ae79aa333/go.mod h1:9PtvPKsgZVTTvqgYtcwB4bjXAkxYzC2wzSXSadPRHv8=
+github.com/DataDog/agent-payload/v5 v5.0.182 h1:FooubUrLkVwCduW33MJv2dlnyDZQNhUtFw7AhlKoNHk=
+github.com/DataDog/agent-payload/v5 v5.0.182/go.mod h1:MScePfb6eN9vN9GqPhCXTeqq1V0TlCpnjrN4OujCaQs=
 github.com/DataDog/appsec-internal-go v1.14.0 h1:MIEZ015kdpeSZSFYBQteSmg8f7zkQTWbMDHbSL9zBx8=
 github.com/DataDog/appsec-internal-go v1.14.0/go.mod h1:9YppRCpElfGX+emXOKruShFYsdPq7WEPq/Fen4tYYpk=
 github.com/DataDog/aptly v1.5.3 h1:oLsRvjuXSVM4ia0N83dU3KiQeiJ6BaszYbTZOkSfDlw=
