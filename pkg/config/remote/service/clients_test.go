@@ -64,20 +64,20 @@ func TestHasNewProducts(t *testing.T) {
 		Products: []string{"APM_TRACING"},
 	}))
 
-	// Adding FFE_FLAGS → has new products
+	// Adding a second product → has new products
 	assert.True(t, clients.hasNewProducts(&pbgo.Client{
 		Id:       "client1",
-		Products: []string{"APM_TRACING", "FFE_FLAGS"},
+		Products: []string{"APM_TRACING", "LIVE_DEBUGGING"},
 	}))
 
 	// After seen() with the new product set, no longer has new products
 	clients.seen(&pbgo.Client{
 		Id:       "client1",
-		Products: []string{"APM_TRACING", "FFE_FLAGS"},
+		Products: []string{"APM_TRACING", "LIVE_DEBUGGING"},
 	})
 	assert.False(t, clients.hasNewProducts(&pbgo.Client{
 		Id:       "client1",
-		Products: []string{"APM_TRACING", "FFE_FLAGS"},
+		Products: []string{"APM_TRACING", "LIVE_DEBUGGING"},
 	}))
 
 	// Removing a product is NOT considered a "new product" — no bypass needed
@@ -89,7 +89,7 @@ func TestHasNewProducts(t *testing.T) {
 	// Adding a different new product triggers again
 	assert.True(t, clients.hasNewProducts(&pbgo.Client{
 		Id:       "client1",
-		Products: []string{"APM_TRACING", "FFE_FLAGS", "LIVE_DEBUGGING"},
+		Products: []string{"APM_TRACING", "LIVE_DEBUGGING", "ASM_DATA"},
 	}))
 }
 

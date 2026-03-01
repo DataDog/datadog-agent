@@ -1525,7 +1525,7 @@ func TestWithOrgStatusPollingIntervalConfigPassed(t *testing.T) {
 }
 
 // TestBypassTriggersOnNewProducts verifies that when an already-active client
-// adds a new product (e.g., FFE_FLAGS after initially connecting for APM), the
+// adds a new product after initially connecting for APM, the
 // cache bypass fires. This is the fix for the startup latency issue where the
 // bypass only fired for new clients, not new products.
 func TestBypassTriggersOnNewProducts(t *testing.T) {
@@ -1594,9 +1594,9 @@ func TestBypassTriggersOnNewProducts(t *testing.T) {
 	// Advance the clock past the 1-second minimum between refreshes
 	clk.Add(2 * time.Second)
 
-	// Now the client adds FFE_FLAGS. This should trigger a bypass because
+	// Now the client adds a new product. This should trigger a bypass because
 	// the product set changed — even though the client is still active.
-	clientWithFFE := &pbgo.Client{
+	clientWithNewProduct := &pbgo.Client{
 		Id: "tracer-1",
 		State: &pbgo.ClientState{
 			RootVersion: 1,
@@ -1606,13 +1606,13 @@ func TestBypassTriggersOnNewProducts(t *testing.T) {
 			RuntimeId: "runtime-1",
 			Language:  "go",
 		},
-		Products: []string{string(rdata.ProductAPMSampling), "FFE_FLAGS"},
+		Products: []string{string(rdata.ProductAPMSampling), string(rdata.ProductLiveDebugging)},
 	}
-	_, err = service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: clientWithFFE})
+	_, err = service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: clientWithNewProduct})
 	require.NoError(t, err)
 
-	fetchCountAfterFFE := countFetchCalls(api)
-	assert.Greater(t, fetchCountAfterFFE, fetchCountAfterSame, "new product FFE_FLAGS should trigger bypass and call Fetch")
+	fetchCountAfterNew := countFetchCalls(api)
+	assert.Greater(t, fetchCountAfterNew, fetchCountAfterSame, "new product should trigger bypass and call Fetch")
 }
 
 // countFetchCalls returns the number of times api.Fetch was called.

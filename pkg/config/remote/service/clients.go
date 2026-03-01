@@ -93,7 +93,7 @@ func (c *clients) active(pbClient *pbgo.Client) bool {
 
 // hasNewProducts checks whether the client's request contains products that
 // were not present when the client was last seen. This detects the case where
-// a tracer adds a new RC product (e.g., FFE_FLAGS) after the initial connection,
+// a tracer adds a new RC product after the initial connection,
 // which should trigger a cache bypass so the Agent fetches configs for the new product.
 func (c *clients) hasNewProducts(pbClient *pbgo.Client) bool {
 	c.m.Lock()
