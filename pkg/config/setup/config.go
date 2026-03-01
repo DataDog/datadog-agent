@@ -694,6 +694,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_trust_chain.ca_cert_file_path", "")
 	// Path to the cluster CA key file.
 	config.BindEnvAndSetDefault("cluster_trust_chain.ca_key_file_path", "")
+	// Kubernetes Secret name/namespace containing the cluster CA certificate.
+	// When set, the agent will fetch the CA from the K8s API (used for sidecar Agents)
+	config.BindEnvAndSetDefault("cluster_trust_chain.ca_cert_secret_name", "")
+	config.BindEnvAndSetDefault("cluster_trust_chain.ca_cert_secret_namespace", "")
 
 	// the entity id, typically set by dca admisson controller config mutator, used for external origin detection
 	config.SetDefault("entity_id", "")
@@ -1003,6 +1007,12 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_tag", "latest")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.cluster_agent.enabled", "true")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.kubelet_api_logging.enabled", false)
+	// TLS verification configuration for Fargate sidecars connecting to the Cluster Agent
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.cluster_agent.tls_verify", false)
+	// Kubernetes Secret name containing the cluster CA certificate for TLS verification
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.cluster_agent.ca_cert_secret_name", "")
+	// Namespace where the CA secret is located
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.cluster_agent.ca_cert_secret_namespace", "")
 
 	config.BindEnvAndSetDefault("admission_controller.kubernetes_admission_events.enabled", false)
 

@@ -267,7 +267,7 @@ func TestClusterTrustChain_NoCA_RequireVerification(t *testing.T) {
 
 	_, err := NewReadWriteComponent(reqs)
 	require.Error(t, err, "IPC component creation should fail when TLS verification is enabled without CA")
-	assert.Contains(t, err.Error(), "cluster_trust_chain.enable_tls_verification cannot be true if cluster_trust_chain.ca_cert_file_path or cluster_trust_chain.ca_key_file_path is not set")
+	assert.Contains(t, err.Error(), "cluster_trust_chain.enable_tls_verification is true but no CA certificate available. Set ca_cert_file_path/ca_key_file_path or ca_cert_secret_name/ca_cert_secret_namespace")
 }
 
 // TestClusterTrustChain_WithCA_SkipVerification_ClusterAgent tests case 3:
