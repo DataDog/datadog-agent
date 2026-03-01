@@ -5,7 +5,7 @@
 
 //go:build linux || windows || darwin
 
-package hostname
+package hostnameimpl
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -24,9 +25,10 @@ func TestFromContainerNotContainerized(t *testing.T) {
 	defer func() {
 		configIsContainerized = env.IsContainerized
 	}()
+	cfg := configmock.New(t)
 	configIsContainerized = func() bool { return false }
 
-	_, err := fromContainer(context.TODO(), "")
+	_, err := fromContainer(context.TODO(), cfg, "")
 	assert.Error(t, err)
 }
 
@@ -39,6 +41,7 @@ func TestFromContainer(t *testing.T) {
 		kubeletGetHostname = kubelet.GetHostname
 	}()
 
+	cfg := configmock.New(t)
 	configIsContainerized = func() bool { return true }
 	enabledFeature := env.Kubernetes
 	configIsFeaturePresent = func(f env.Feature) bool { return f == enabledFeature }
@@ -49,31 +52,30 @@ func TestFromContainer(t *testing.T) {
 	ctx := context.TODO()
 
 	// kubernetes
-
-	hostname, err := fromContainer(ctx, "")
+	hostname, err := fromContainer(ctx, cfg, "")
 	require.NoError(t, err)
 	assert.Equal(t, "kubernetes-hostname", hostname)
 
 	// kubelet
 	kubernetesGetKubeAPIServerHostname = func(context.Context) (string, error) { return "", errors.New("some error") }
 
-	hostname, err = fromContainer(ctx, "")
+	hostname, err = fromContainer(ctx, cfg, "")
 	require.NoError(t, err)
 	assert.Equal(t, "kubelet-hostname", hostname)
 
 	kubeletGetHostname = func(context.Context) (string, error) { return "", errors.New("some error") }
-	_, err = fromContainer(ctx, "")
+	_, err = fromContainer(ctx, cfg, "")
 	assert.Error(t, err)
 
 	// Docker
 	enabledFeature = env.Docker
 
-	hostname, err = fromContainer(ctx, "")
+	hostname, err = fromContainer(ctx, cfg, "")
 	require.NoError(t, err)
 	assert.Equal(t, "docker-hostname", hostname)
 
 	dockerGetHostname = func(context.Context) (string, error) { return "", errors.New("some error") }
-	_, err = fromContainer(ctx, "")
+	_, err = fromContainer(ctx, cfg, "")
 	require.Error(t, err)
 }
 
@@ -86,12 +88,13 @@ func TestFromContainerInvalidHostname(t *testing.T) {
 		kubeletGetHostname = kubelet.GetHostname
 	}()
 
+	cfg := configmock.New(t)
 	configIsContainerized = func() bool { return true }
 	configIsFeaturePresent = func(env.Feature) bool { return true }
 	kubernetesGetKubeAPIServerHostname = func(context.Context) (string, error) { return "hostname_with_underscore", nil }
 	dockerGetHostname = func(context.Context) (string, error) { return "hostname_with_underscore", nil }
 	kubeletGetHostname = func(context.Context) (string, error) { return "hostname_with_underscore", nil }
 
-	_, err := fromContainer(context.TODO(), "")
+	_, err := fromContainer(context.TODO(), cfg, "")
 	require.Error(t, err)
 }

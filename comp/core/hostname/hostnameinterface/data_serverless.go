@@ -7,12 +7,5 @@
 
 package hostnameinterface
 
-// IsConfigurationProvider returns false for serverless
-func (h Data) FromConfiguration() bool {
-	return false
-}
-
-// fromFargate returns true if the hostname was found through Fargate
-func (h Data) FromFargate() bool {
-	return false
-}
+// FromConfiguration() and FromFargate() methods are defined on hostnamedef.Data (def/data_serverless.go)
+// and are automatically available on hostnameinterface.Data (type alias). No additional definitions needed.
