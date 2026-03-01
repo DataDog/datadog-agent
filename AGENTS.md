@@ -213,3 +213,7 @@ tasks.
 ### Testing Issues
 - **Flaky tests**: Check `flakes.yaml` for known issues
 - **Coverage issues**: Use `--coverage` flag
+
+## Review guidelines
+
+- **Copyright header year**: New files must use the current year in the copyright header, not a year copied from another file.
