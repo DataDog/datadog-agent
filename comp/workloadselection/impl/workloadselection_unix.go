@@ -41,12 +41,29 @@ func (c *workloadselectionComponent) compileAndWriteConfig(rawConfig []byte) err
 	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
 		return err
 	}
-	cmd := exec.Command(getCompilePolicyBinaryPath(), "--input-string", string(rawConfig), "--output-file", configPath)
+
+	tmpFile, err := os.CreateTemp(filepath.Dir(configPath), "workload-policy-*.tmp")
+	if err != nil {
+		return fmt.Errorf("failed to create temporary file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	tmpFile.Close()
+	defer os.Remove(tmpPath)
+
+	cmd := exec.Command(getCompilePolicyBinaryPath(), "--input-string", string(rawConfig), "--output-file", tmpPath)
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("error executing dd-policy-compile (%w); out: '%s'; err: '%s'", err, stdoutBuf.String(), stderrBuf.String())
+	}
+
+	if err := os.Chmod(tmpPath, 0644); err != nil {
+		return fmt.Errorf("failed to set permissions on temporary file: %w", err)
+	}
+
+	if err := os.Rename(tmpPath, configPath); err != nil {
+		return fmt.Errorf("failed to atomically replace policy file: %w", err)
 	}
 	return nil
 }
