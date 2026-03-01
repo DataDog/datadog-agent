@@ -840,6 +840,10 @@ def build_sysprobe_binary(
             else:
                 env[k] = v
 
+    if not is_windows and not is_macos:
+        build_rust_cgo_libs(ctx, arch=arch_obj)
+        build_tags.append("dd_discovery_cgo")
+
     if os.path.exists(binary):
         os.remove(binary)
 
@@ -1640,6 +1644,27 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
 
         install_dest = output_dir / source_path if output_dir else Path(source_path)
         ctx.run(f"bazelisk run {platform_flag} -- @//{source_path}:install --destdir={install_dest}")
+
+
+def build_rust_cgo_libs(ctx: Context, arch: Arch, output_dir: Path | None = None, packages: list[str] | None = None):
+    if is_windows or is_macos:
+        return
+
+    platform_map = {
+        "x86_64": "//bazel/platforms:linux_x86_64",
+        "arm64": "//bazel/platforms:linux_arm64",
+    }
+
+    platform_flag = ""
+    if arch.kmt_arch in platform_map:
+        platform_flag = f"--platforms={platform_map[arch.kmt_arch]}"
+
+    for source_path in RUST_BINARIES:
+        if packages and not any(source_path.startswith(package) for package in packages):
+            continue
+
+        install_dest = output_dir / source_path if output_dir else Path(source_path)
+        ctx.run(f"bazelisk run {platform_flag} -- @//{source_path}:install_cgo_libs --destdir={install_dest}")
 
 
 def build_cws_object_files(
