@@ -10,19 +10,30 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	taggerComp "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	apiserver "github.com/DataDog/datadog-agent/comp/process/apiserver/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
+
+const defaultProcessCmdPort = 6162
 
 var _ apiserver.Component = (*apiserverImpl)(nil)
 
@@ -34,11 +45,14 @@ type apiserverImpl struct {
 type Requires struct {
 	Lifecycle compdef.Lifecycle
 
-	Log logComp.Component
-
-	IPC ipc.Component
-
-	APIServerDeps api.APIServerDeps
+	Config       coreconfig.Component
+	Log          logComp.Component
+	WorkloadMeta workloadmeta.Component
+	Status       status.Component
+	Settings     settings.Component
+	Tagger       taggerComp.Component
+	Secrets      secrets.Component
+	IPC          ipc.Component
 }
 
 // Provides defines the output of the apiserver component.
@@ -46,18 +60,53 @@ type Provides struct {
 	Comp apiserver.Component
 }
 
+// getProcessAPIAddressPort returns the API endpoint of the process agent.
+// This replicates pkgconfigsetup.GetProcessAPIAddressPort to avoid importing
+// pkg/config/setup inside the comp/ folder.
+func getProcessAPIAddressPort(cfg coreconfig.Component) (string, error) {
+	var key string
+	if cfg.IsSet("ipc_address") {
+		log.Warn("ipc_address is deprecated, use cmd_host instead")
+		key = "ipc_address"
+	} else {
+		key = "cmd_host"
+	}
+	address, err := system.IsLocalAddress(cfg.GetString(key))
+	if err != nil {
+		return "", fmt.Errorf("%s: %s", key, err)
+	}
+
+	port := cfg.GetInt("process_config.cmd_port")
+	if port <= 0 {
+		log.Warnf("Invalid process_config.cmd_port -- %d, using default port %d", port, defaultProcessCmdPort)
+		port = defaultProcessCmdPort
+	}
+
+	return net.JoinHostPort(address, strconv.Itoa(port)), nil
+}
+
 //nolint:revive // TODO(PROC) Fix revive linter
 func NewComponent(reqs Requires) (Provides, error) {
 	r := mux.NewRouter()
 	r.Use(reqs.IPC.HTTPMiddleware)
-	api.SetupAPIServerHandlers(reqs.APIServerDeps, r)
 
-	addr, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
+	deps := api.APIServerDeps{
+		Config:       reqs.Config,
+		Log:          reqs.Log,
+		WorkloadMeta: reqs.WorkloadMeta,
+		Status:       reqs.Status,
+		Settings:     reqs.Settings,
+		Tagger:       reqs.Tagger,
+		Secrets:      reqs.Secrets,
+	}
+	api.SetupAPIServerHandlers(deps, r)
+
+	addr, err := getProcessAPIAddressPort(reqs.Config)
 	if err != nil {
 		return Provides{}, err
 	}
 	reqs.Log.Infof("API server listening on %s", addr)
-	timeout := time.Duration(pkgconfigsetup.Datadog().GetInt("server_timeout")) * time.Second
+	timeout := time.Duration(reqs.Config.GetInt("server_timeout")) * time.Second
 
 	as := &apiserverImpl{
 		server: &http.Server{
