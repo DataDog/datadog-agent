@@ -148,6 +148,7 @@ processors:
     cardinality: 0
   filter/drop-prometheus-internal-metrics/dd-autoconfigured:
     error_mode: propagate
+    log_conditions: null
     logs:
       exclude: null
       include: null
@@ -168,9 +169,11 @@ processors:
       metric: null
       regexp: null
       resource: null
+    metric_conditions: null
     profiles:
       profile: null
       resource: null
+    profile_conditions: null
     spans:
       exclude: null
       include: null
@@ -178,6 +181,7 @@ processors:
       resource: null
       span: null
       spanevent: null
+    trace_conditions: null
 receivers:
   otlp:
     protocols:
