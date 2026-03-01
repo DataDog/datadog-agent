@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Remote Configuration cache bypass now triggers when an existing client
+    adds new products, not only when a new client connects. This reduces
+    startup latency for products that are registered after the tracer's
+    initial RC connection.
