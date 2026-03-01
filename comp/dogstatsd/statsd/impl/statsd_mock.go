@@ -56,3 +56,14 @@ func (m *mockService) CreateForAddr(_ string, _ ...ddgostatsd.Option) (ddgostats
 func (m *mockService) CreateForHostPort(_ string, _ int, _ ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
 	return m.client, nil
 }
+
+var _ Mock = (*mockService)(nil)
+
+// MockClient is an alias for injecting a mock client.
+// Usage: fx.Replace(fx.Annotate(client, fx.As(new(MockClient)))
+type MockClient ddgostatsd.ClientInterface
+
+func newMock(client MockClient) (statsd.Component, Mock) {
+	mock := &mockService{client}
+	return mock, mock
+}
