@@ -214,12 +214,19 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	runE := func(*cobra.Command, []string) error {
 		// TODO: once the agent is represented as a component, and not a function (run),
 		// this will use `fxutil.Run` instead of `fxutil.OneShot`.
+		configOpts := []func(*config.Params){
+			config.WithExtraConfFiles(cliParams.ExtraConfFilePath),
+			config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath),
+		}
+		if globalParams.CommonRoot != "" {
+			configOpts = append(configOpts, config.WithCLIOverride("common_root", globalParams.CommonRoot))
+		}
 		return fxutil.OneShot(run,
 			fx.Invoke(func(_ log.Component) {
 				ddruntime.SetMaxProcs()
 			}),
 			fx.Supply(core.BundleParams{
-				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
+				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, configOpts...),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.LogFile),
 			}),
