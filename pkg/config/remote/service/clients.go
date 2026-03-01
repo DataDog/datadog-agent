@@ -17,7 +17,6 @@ import (
 type client struct {
 	lastSeen time.Time
 	pbClient *pbgo.Client
-	products map[string]struct{}
 }
 
 // rateLimiter limits the number of requests that can be made in a given window.
@@ -71,20 +70,15 @@ func newClients(clock clock.Clock, clientsTTL time.Duration) *clients {
 	}
 }
 
-// seen marks the given client as active and updates its tracked product set
+// seen marks the given client as active
 func (c *clients) seen(pbClient *pbgo.Client) {
 	c.m.Lock()
 	defer c.m.Unlock()
 	now := c.clock.Now().UTC()
 	pbClient.LastSeen = uint64(now.UnixMilli())
-	products := make(map[string]struct{}, len(pbClient.Products))
-	for _, p := range pbClient.Products {
-		products[p] = struct{}{}
-	}
 	c.clients[pbClient.Id] = &client{
 		lastSeen: now,
 		pbClient: pbClient,
-		products: products,
 	}
 }
 
@@ -108,8 +102,15 @@ func (c *clients) hasNewProducts(pbClient *pbgo.Client) bool {
 	if !ok {
 		return false
 	}
-	for _, product := range pbClient.Products {
-		if _, seen := existing.products[product]; !seen {
+	for _, newProduct := range pbClient.Products {
+		found := false
+		for _, existingProduct := range existing.pbClient.Products {
+			if newProduct == existingProduct {
+				found = true
+				break
+			}
+		}
+		if !found {
 			return true
 		}
 	}
