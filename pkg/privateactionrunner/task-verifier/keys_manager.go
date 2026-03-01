@@ -62,6 +62,7 @@ func (k *keysManager) WaitForReady() {
 }
 
 func (k *keysManager) AgentConfigUpdateCallback(update map[string]state.RawConfig, callback func(string, state.ApplyStatus)) {
+	log.Info("RC callback called")
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
