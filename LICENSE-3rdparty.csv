@@ -1531,11 +1531,13 @@ core,github.com/moby/sys/signal,Apache-2.0,Copyright (c) 2014-2018 The Docker & 
 core,github.com/moby/sys/user,Apache-2.0,Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 core,github.com/moby/sys/userns,Apache-2.0,Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 core,github.com/modelcontextprotocol/go-sdk/auth,MIT,Copyright (c) 2025 Go MCP SDK Authors
+core,github.com/modelcontextprotocol/go-sdk/internal/json,MIT,Copyright (c) 2025 Go MCP SDK Authors
 core,github.com/modelcontextprotocol/go-sdk/internal/jsonrpc2,MIT,Copyright (c) 2025 Go MCP SDK Authors
 core,github.com/modelcontextprotocol/go-sdk/internal/util,MIT,Copyright (c) 2025 Go MCP SDK Authors
 core,github.com/modelcontextprotocol/go-sdk/internal/xcontext,MIT,Copyright (c) 2025 Go MCP SDK Authors
 core,github.com/modelcontextprotocol/go-sdk/jsonrpc,MIT,Copyright (c) 2025 Go MCP SDK Authors
 core,github.com/modelcontextprotocol/go-sdk/mcp,MIT,Copyright (c) 2025 Go MCP SDK Authors
+core,github.com/modelcontextprotocol/go-sdk/oauthex,MIT,Copyright (c) 2025 Go MCP SDK Authors
 core,github.com/modern-go/concurrent,Apache-2.0,Copyright (c) 2018 Tao Wen
 core,github.com/modern-go/reflect2,Apache-2.0,Copyright (c) 2018 Tao Wen
 core,github.com/mohae/deepcopy,MIT,Copyright (c) 2014 Joel
@@ -2203,6 +2205,18 @@ core,github.com/scaleway/scaleway-sdk-go/parameter,Apache-2.0,Copyright 2019 Sca
 core,github.com/scaleway/scaleway-sdk-go/scw,Apache-2.0,Copyright 2019 Scaleway
 core,github.com/scaleway/scaleway-sdk-go/validation,Apache-2.0,Copyright 2019 Scaleway
 core,github.com/secure-systems-lab/go-securesystemslib/cjson,MIT,Copyright (c) 2021 NYU Secure Systems Lab
+core,github.com/segmentio/asm/ascii,MIT,Copyright (c) 2021 Segment
+core,github.com/segmentio/asm/base64,MIT,Copyright (c) 2021 Segment
+core,github.com/segmentio/asm/cpu,MIT,Copyright (c) 2021 Segment
+core,github.com/segmentio/asm/cpu/arm,MIT,Copyright (c) 2021 Segment
+core,github.com/segmentio/asm/cpu/arm64,MIT,Copyright (c) 2021 Segment
+core,github.com/segmentio/asm/cpu/cpuid,MIT,Copyright (c) 2021 Segment
+core,github.com/segmentio/asm/cpu/x86,MIT,Copyright (c) 2021 Segment
+core,github.com/segmentio/asm/internal/unsafebytes,MIT,Copyright (c) 2021 Segment
+core,github.com/segmentio/asm/keyset,MIT,Copyright (c) 2021 Segment
+core,github.com/segmentio/encoding/ascii,MIT,"Copyright (c) 2019 Segment.io, Inc"
+core,github.com/segmentio/encoding/iso8601,MIT,"Copyright (c) 2019 Segment.io, Inc"
+core,github.com/segmentio/encoding/json,MIT,"Copyright (c) 2019 Segment.io, Inc"
 core,github.com/sergi/go-diff/diffmatchpatch,MIT,Copyright (c) 2012-2016 The go-diff Authors. All rights reserved | Danny Yoo <dannyyoo@google.com> | James Kolb <jkolb@google.com> | Jonathan Amsterdam <jba@google.com> | Markus Zimmermann <markus.zimmermann@nethead.at> <markus.zimmermann@symflower.com> <zimmski@gmail.com> | Matt Kovars <akaskik@gmail.com> | Osman Masood <oamasood@gmail.com> | Robert Carlsen <rwcarlsen@gmail.com> | Rory Flynn <roryflynn@users.noreply.github.com> | Sergi Mansilla <sergi.mansilla@gmail.com> | Shatrugna Sadhu <ssadhu@apcera.com> | Shawn Smith <shawnpsmith@gmail.com> | Stas Maksimov <maksimov@gmail.com> | Tor Arvid Lund <torarvid@gmail.com> | Zac Bergquist <zbergquist99@gmail.com> | Örjan Persson <orjan@spotify.com>
 core,github.com/shirou/gopsutil/v3/common,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
 core,github.com/shirou/gopsutil/v3/cpu,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
