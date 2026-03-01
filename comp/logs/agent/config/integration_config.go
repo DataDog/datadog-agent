@@ -132,6 +132,9 @@ type SourceAutoMultiLineOptions struct {
 	// PatternTableMatchThreshold sets the threshold for pattern table match for this source.
 	PatternTableMatchThreshold *float64 `mapstructure:"pattern_table_match_threshold" json:"pattern_table_match_threshold" yaml:"pattern_table_match_threshold"`
 
+	// EnableStackTraceDetection allows to enable or disable the detection of non-timestamped stack trace start lines for this source.
+	EnableStackTraceDetection *bool `mapstructure:"enable_stack_trace_detection" json:"enable_stack_trace_detection" yaml:"enable_stack_trace_detection"`
+
 	// EnableJSONAggregation allows to enable or disable the aggregation of multi-line JSON logs for this source.
 	EnableJSONAggregation *bool `mapstructure:"enable_json_aggregation" json:"enable_json_aggregation" yaml:"enable_json_aggregation"`
 
