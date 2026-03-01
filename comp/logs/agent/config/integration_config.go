@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -21,6 +22,8 @@ import (
 const (
 	TCPType           = "tcp"
 	UDPType           = "udp"
+	UnixType          = "unix"
+	UnixgramType      = "unixgram"
 	FileType          = "file"
 	DockerType        = "docker"
 	ContainerdType    = "containerd"
@@ -28,6 +31,9 @@ const (
 	IntegrationType   = "integration"
 	WindowsEventType  = "windows_event"
 	StringChannelType = "string_channel"
+
+	// SyslogFormat for syslog-formatted log files (format: syslog)
+	SyslogFormat string = "syslog"
 
 	// UTF16BE for UTF-16 Big endian encoding
 	UTF16BE string = "utf-16-be"
@@ -44,13 +50,15 @@ type LogsConfig struct {
 
 	IntegrationName string
 
-	Port        int    // Network
-	IdleTimeout string `mapstructure:"idle_timeout" json:"idle_timeout" yaml:"idle_timeout"` // Network
+	Port        int    // Network (tcp, udp)
+	IdleTimeout string `mapstructure:"idle_timeout" json:"idle_timeout" yaml:"idle_timeout"` // Network (tcp, unix)
+	SocketPath  string `mapstructure:"socket_path" json:"socket_path" yaml:"socket_path"`    // Unix socket (unix, unixgram)
 	Path        string // File, Journald
 
 	Encoding     string           `mapstructure:"encoding" json:"encoding" yaml:"encoding"`                   // File
 	ExcludePaths StringSliceField `mapstructure:"exclude_paths" json:"exclude_paths" yaml:"exclude_paths"`    // File
 	TailingMode  string           `mapstructure:"start_position" json:"start_position" yaml:"start_position"` // File
+	Format       string           `mapstructure:"format" json:"format" yaml:"format"`                         // Parsing format: "syslog" or "" (unstructured)
 
 	ConfigID           string           `mapstructure:"config_id" json:"config_id" yaml:"config_id"`                            // Journald
 	IncludeSystemUnits StringSliceField `mapstructure:"include_units" json:"include_units" yaml:"include_units"`                // Journald
@@ -103,6 +111,10 @@ type LogsConfig struct {
 	// Downstream code will be responsible for parsing this string.
 	AutoMultiLineSamples []*AutoMultilineSample   `mapstructure:"auto_multi_line_detection_custom_samples" json:"auto_multi_line_detection_custom_samples" yaml:"auto_multi_line_detection_custom_samples"`
 	FingerprintConfig    *types.FingerprintConfig `mapstructure:"fingerprint_config" json:"fingerprint_config" yaml:"fingerprint_config"`
+
+	// MaxMessageSizeBytes overrides the global logs_config.max_message_size_bytes for this source.
+	// If nil, the global setting is used.
+	MaxMessageSizeBytes *int `mapstructure:"max_message_size_bytes" json:"max_message_size_bytes" yaml:"max_message_size_bytes"`
 
 	// IntegrationSource is the source of the integration file that contains this source.
 	IntegrationSource string `mapstructure:"integration_source" json:"integration_source" yaml:"integration_source"`
@@ -202,15 +214,34 @@ func (c *LogsConfig) Dump(multiline bool) string {
 	case TCPType:
 		fmt.Fprintf(&b, ws("Port: %d,"), c.Port)
 		fmt.Fprintf(&b, ws("IdleTimeout: %#v,"), c.IdleTimeout)
+		if c.Format != "" {
+			fmt.Fprintf(&b, ws("Format: %#v,"), c.Format)
+		}
 	case UDPType:
 		fmt.Fprintf(&b, ws("Port: %d,"), c.Port)
+		if c.Format != "" {
+			fmt.Fprintf(&b, ws("Format: %#v,"), c.Format)
+		}
+	case UnixType:
+		fmt.Fprintf(&b, ws("SocketPath: %#v,"), c.SocketPath)
 		fmt.Fprintf(&b, ws("IdleTimeout: %#v,"), c.IdleTimeout)
+		if c.Format != "" {
+			fmt.Fprintf(&b, ws("Format: %#v,"), c.Format)
+		}
+	case UnixgramType:
+		fmt.Fprintf(&b, ws("SocketPath: %#v,"), c.SocketPath)
+		if c.Format != "" {
+			fmt.Fprintf(&b, ws("Format: %#v,"), c.Format)
+		}
 	case FileType:
 		fmt.Fprintf(&b, ws("Path: %#v,"), c.Path)
 		fmt.Fprintf(&b, ws("Encoding: %#v,"), c.Encoding)
 		fmt.Fprintf(&b, ws("Identifier: %#v,"), c.Identifier)
 		fmt.Fprintf(&b, ws("ExcludePaths: %#v,"), c.ExcludePaths)
 		fmt.Fprintf(&b, ws("TailingMode: %#v,"), c.TailingMode)
+		if c.Format != "" {
+			fmt.Fprintf(&b, ws("Format: %#v,"), c.Format)
+		}
 	case DockerType, ContainerdType:
 		fmt.Fprintf(&b, ws("Image: %#v,"), c.Image)
 		fmt.Fprintf(&b, ws("Label: %#v,"), c.Label)
@@ -337,6 +368,22 @@ func (mode TailingMode) String() string {
 	return ""
 }
 
+// ApplyDefaults populates configuration fields with sensible defaults derived
+// from the core agent configuration. Call this before Validate().
+//
+// For unix/unixgram sources without an explicit socket_path, a path is derived
+// as <dogstatsd_host_socket_path>/logs-<source>.socket when the source field
+// is set.
+func (c *LogsConfig) ApplyDefaults(coreConfig pkgconfigmodel.Reader) {
+	if (c.Type == UnixType || c.Type == UnixgramType) && c.SocketPath == "" && c.Source != "" {
+		baseDir := coreConfig.GetString("dogstatsd_host_socket_path")
+		if baseDir != "" {
+			c.SocketPath = filepath.Join(baseDir, fmt.Sprintf("logs-%s.socket", c.Source))
+			log.Infof("Auto-derived socket_path %q for %s source %q", c.SocketPath, c.Type, c.Source)
+		}
+	}
+}
+
 // Validate returns an error if the config is misconfigured
 func (c *LogsConfig) Validate() error {
 	switch {
@@ -357,6 +404,14 @@ func (c *LogsConfig) Validate() error {
 		return errors.New("tcp source must have a port")
 	case c.Type == UDPType && c.Port == 0:
 		return errors.New("udp source must have a port")
+	case c.Type == UnixType && c.SocketPath == "":
+		return fmt.Errorf("unix source must have a socket_path (or set source to auto-derive one under %s)", "dogstatsd_host_socket_path")
+	case c.Type == UnixgramType && c.SocketPath == "":
+		return fmt.Errorf("unixgram source must have a socket_path (or set source to auto-derive one under %s)", "dogstatsd_host_socket_path")
+	}
+
+	if c.Format != "" && c.Format != SyslogFormat {
+		return fmt.Errorf("unsupported format %q, must be \"syslog\" or omitted", c.Format)
 	}
 
 	// Validate fingerprint configuration
@@ -441,6 +496,15 @@ func (c *LogsConfig) ShouldProcessRawMessage() bool {
 		return *c.ProcessRawMessage
 	}
 	return true // default behaviour when nothing's been configured
+}
+
+// GetMaxMessageSizeBytes returns the max message size for this source.
+// If not set at the source level, falls back to the global config.
+func (c *LogsConfig) GetMaxMessageSizeBytes(coreConfig pkgconfigmodel.Reader) int {
+	if c.MaxMessageSizeBytes != nil {
+		return *c.MaxMessageSizeBytes
+	}
+	return MaxMessageSizeBytes(coreConfig)
 }
 
 // ContainsWildcard returns true if the path contains any wildcard character

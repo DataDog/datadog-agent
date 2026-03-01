@@ -6,10 +6,9 @@
 package listener
 
 import (
-	"fmt"
 	"net"
+	"os"
 	"slices"
-	"strings"
 	"sync"
 	"time"
 
@@ -21,10 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
-// A TCPListener listens and accepts TCP connections and delegates the read
-// operations to a StreamTailer. The source's Format field controls whether
-// syslog or unstructured parsing is used.
-type TCPListener struct {
+// A UnixStreamListener listens on a Unix domain stream socket and delegates
+// read operations to per-connection StreamTailers. The source's Format field
+// controls whether syslog or unstructured parsing is used.
+type UnixStreamListener struct {
 	pipelineProvider pipeline.Provider
 	source           *sources.LogSource
 	idleTimeout      time.Duration
@@ -35,19 +34,19 @@ type TCPListener struct {
 	stop             chan struct{}
 }
 
-// NewTCPListener returns an initialized TCPListener
-func NewTCPListener(pipelineProvider pipeline.Provider, source *sources.LogSource, frameSize int) *TCPListener {
+// NewUnixStreamListener returns an initialized UnixStreamListener.
+func NewUnixStreamListener(pipelineProvider pipeline.Provider, source *sources.LogSource, frameSize int) *UnixStreamListener {
 	var idleTimeout time.Duration
 	if source.Config.IdleTimeout != "" {
 		var err error
 		idleTimeout, err = time.ParseDuration(source.Config.IdleTimeout)
 		if err != nil {
-			log.Errorf("Error parsing log's idle_timeout as a duration: %s", err)
+			log.Errorf("Error parsing unix socket idle_timeout as a duration: %s", err)
 			idleTimeout = 0
 		}
 	}
 
-	return &TCPListener{
+	return &UnixStreamListener{
 		pipelineProvider: pipelineProvider,
 		source:           source,
 		idleTimeout:      idleTimeout,
@@ -57,12 +56,12 @@ func NewTCPListener(pipelineProvider pipeline.Provider, source *sources.LogSourc
 	}
 }
 
-// Start starts the listener to accepts new incoming connections.
-func (l *TCPListener) Start() {
-	log.Infof("Starting TCP forwarder on port %d, with read buffer size: %d", l.source.Config.Port, l.frameSize)
+// Start creates the Unix socket file and begins accepting connections.
+func (l *UnixStreamListener) Start() {
+	log.Infof("Starting Unix stream listener on %s", l.source.Config.SocketPath)
 	err := l.startListener()
 	if err != nil {
-		log.Errorf("Can't start TCP forwarder on port %d: %v", l.source.Config.Port, err)
+		log.Errorf("Can't start Unix stream listener on %s: %v", l.source.Config.SocketPath, err)
 		l.source.Status.Error(err)
 		return
 	}
@@ -70,9 +69,9 @@ func (l *TCPListener) Start() {
 	go l.run()
 }
 
-// Stop stops the listener from accepting new connections and all the activer tailers.
-func (l *TCPListener) Stop() {
-	log.Infof("Stopping TCP forwarder on port %d", l.source.Config.Port)
+// Stop stops the listener and all active tailers, then cleans up the socket file.
+func (l *UnixStreamListener) Stop() {
+	log.Infof("Stopping Unix stream listener on %s", l.source.Config.SocketPath)
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.stop <- struct{}{}
@@ -84,18 +83,17 @@ func (l *TCPListener) Stop() {
 		stopper.Add(t)
 	}
 	stopper.Stop()
-
-	// At this point all the tailers have been stopped - remove them all from the active tailer list
 	l.tailers = []startstop.StartStoppable{}
+	// Clean up the socket file
+	os.Remove(l.source.Config.SocketPath) //nolint:errcheck
 }
 
-// run accepts new TCP connections and create a dedicated tailer for each.
-func (l *TCPListener) run() {
+// run accepts new connections and creates a tailer for each.
+func (l *UnixStreamListener) run() {
 	defer l.listener.Close()
 	for {
 		select {
 		case <-l.stop:
-			// stop accepting new connections.
 			return
 		default:
 			conn, err := l.listener.Accept()
@@ -103,12 +101,11 @@ func (l *TCPListener) run() {
 			case err != nil && isClosedConnError(err):
 				return
 			case err != nil:
-				// an error occurred, restart the listener.
-				log.Warnf("Can't listen on port %d, restarting a listener: %v", l.source.Config.Port, err)
+				log.Warnf("Can't accept Unix stream connection on %s, restarting listener: %v", l.source.Config.SocketPath, err)
 				l.listener.Close()
 				err := l.startListener()
 				if err != nil {
-					log.Errorf("Can't restart listener on port %d: %v", l.source.Config.Port, err)
+					log.Errorf("Can't restart Unix stream listener on %s: %v", l.source.Config.SocketPath, err)
 					l.source.Status.Error(err)
 					return
 				}
@@ -122,9 +119,12 @@ func (l *TCPListener) run() {
 	}
 }
 
-// startListener starts a new listener, returns an error if it failed.
-func (l *TCPListener) startListener() error {
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", l.source.Config.Port))
+// startListener removes any stale socket file and binds a new Unix stream listener.
+func (l *UnixStreamListener) startListener() error {
+	// Remove stale socket file if it exists
+	os.Remove(l.source.Config.SocketPath) //nolint:errcheck
+
+	listener, err := net.Listen("unix", l.source.Config.SocketPath)
 	if err != nil {
 		return err
 	}
@@ -133,12 +133,11 @@ func (l *TCPListener) startListener() error {
 }
 
 // startTailer creates and starts a StreamTailer for the connection.
-func (l *TCPListener) startTailer(conn net.Conn) {
+func (l *UnixStreamListener) startTailer(conn net.Conn) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
 	outputChan := l.pipelineProvider.NextPipelineChan()
-	sourceHostAddr := extractIPFromAddr(conn.RemoteAddr().String())
 
 	t := tailer.NewStreamTailer(
 		l.source,
@@ -147,7 +146,7 @@ func (l *TCPListener) startTailer(conn net.Conn) {
 		l.source.Config.Format,
 		l.frameSize,
 		l.idleTimeout,
-		sourceHostAddr,
+		"", // no source_host for Unix sockets
 	)
 	t.SetOnDone(func() { l.removeTailer(t) })
 	l.tailers = append(l.tailers, t)
@@ -156,7 +155,7 @@ func (l *TCPListener) startTailer(conn net.Conn) {
 
 // removeTailer removes a finished tailer from the active list.
 // Called by the tailer's onDone callback when readLoop exits.
-func (l *TCPListener) removeTailer(t startstop.StartStoppable) {
+func (l *UnixStreamListener) removeTailer(t startstop.StartStoppable) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	for i, active := range l.tailers {
@@ -165,13 +164,4 @@ func (l *TCPListener) removeTailer(t startstop.StartStoppable) {
 			break
 		}
 	}
-}
-
-// extractIPFromAddr strips the port from an address string (e.g. "1.2.3.4:5678" -> "1.2.3.4").
-func extractIPFromAddr(addr string) string {
-	lastColon := strings.LastIndex(addr, ":")
-	if lastColon != -1 {
-		return addr[:lastColon]
-	}
-	return addr
 }
