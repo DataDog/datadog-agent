@@ -25,6 +25,7 @@ from invoke.tasks import task
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+from tasks.libs.common.ci_visibility import ci_visibility_section
 from tasks.libs.common.color import Color
 from tasks.libs.common.git import get_commit_sha, get_current_branch, get_modified_files
 from tasks.libs.common.go import download_go_dependencies
@@ -289,25 +290,26 @@ def run(
         e2e_module.test_targets = targets
 
     if impacted and running_in_ci():
-        try:
-            print(color_message("Using dynamic tests", "yellow"))
-            # DynTestExecutor needs to access build stable account to retrieve the index. Temporarly remove the AWS_PROFILE to avoid connecting on agent-qa account
-            with environ({"AWS_PROFILE": "DELETE"}):
-                backend = S3Backend(DEFAULT_DYNTEST_BUCKET_URI)
-                executor = DynTestExecutor(ctx, backend, IndexKind.DIFFED_PACKAGE, get_commit_sha(ctx, short=True))
-                changed_files = get_modified_files(ctx)
-                changed_packages = list({os.path.dirname(change) for change in changed_files})
-                print(color_message(f"The following changes were detected: {changed_files}", "yellow"))
-                test_job_name = os.getenv("CI_JOB_NAME")
-                if test_job_name.endswith("-init"):
-                    test_job_name = test_job_name.removesuffix("-init")
-                to_skip = executor.tests_to_skip(test_job_name, changed_packages + changed_files)
-                ctx.run(f"datadog-ci measure --level job --measures 'e2e.skipped_tests:{len(to_skip)}'", warn=True)
-                print(color_message(f"The following tests will be skipped: {to_skip}", "yellow"))
-                skip.extend(to_skip)
-        except Exception as e:
-            print(color_message(f"Error using dynamic tests: {e}", "red"))
-            print(color_message("Continuing with static tests", "yellow"))
+        with ci_visibility_section("dynamic-test-calculation", tags={"agent-category": "e2e"}):
+            try:
+                print(color_message("Using dynamic tests", "yellow"))
+                # DynTestExecutor needs to access build stable account to retrieve the index. Temporarly remove the AWS_PROFILE to avoid connecting on agent-qa account
+                with environ({"AWS_PROFILE": "DELETE"}):
+                    backend = S3Backend(DEFAULT_DYNTEST_BUCKET_URI)
+                    executor = DynTestExecutor(ctx, backend, IndexKind.DIFFED_PACKAGE, get_commit_sha(ctx, short=True))
+                    changed_files = get_modified_files(ctx)
+                    changed_packages = list({os.path.dirname(change) for change in changed_files})
+                    print(color_message(f"The following changes were detected: {changed_files}", "yellow"))
+                    test_job_name = os.getenv("CI_JOB_NAME")
+                    if test_job_name.endswith("-init"):
+                        test_job_name = test_job_name.removesuffix("-init")
+                    to_skip = executor.tests_to_skip(test_job_name, changed_packages + changed_files)
+                    ctx.run(f"datadog-ci measure --level job --measures 'e2e.skipped_tests:{len(to_skip)}'", warn=True)
+                    print(color_message(f"The following tests will be skipped: {to_skip}", "yellow"))
+                    skip.extend(to_skip)
+            except Exception as e:
+                print(color_message(f"Error using dynamic tests: {e}", "red"))
+                print(color_message("Continuing with static tests", "yellow"))
 
     env_vars = {}
     if profile:
@@ -439,18 +441,19 @@ def run(
         partial_result_junit = f"junit-out-{str(AgentFlavor.base)}-{attempt}.xml"
         result_junits.append(partial_result_junit)
 
-        test_res = test_flavor(
-            ctx,
-            flavor=AgentFlavor.base,
-            build_tags=tags,
-            modules=[e2e_module],
-            args=args,
-            cmd=cmd,
-            env=env_vars,
-            result_junit=partial_result_junit,
-            result_json=partial_result_json,
-            test_profiler=None,
-        )
+        with ci_visibility_section(f"test-execution-attempt-{attempt}", tags={"agent-category": "e2e"}):
+            test_res = test_flavor(
+                ctx,
+                flavor=AgentFlavor.base,
+                build_tags=tags,
+                modules=[e2e_module],
+                args=args,
+                cmd=cmd,
+                env=env_vars,
+                result_junit=partial_result_junit,
+                result_json=partial_result_json,
+                test_profiler=None,
+            )
         if test_res is None:
             ctx.run("datadog-ci tag --level job --tags 'e2e.skipped_all_tests:true'")
             return
@@ -503,38 +506,41 @@ def run(
     # Make sure that any non-successful test suites that were not retried (i.e., fully-known-flaky-failing suites) are torn down
     # Do this by calling the tests with the E2E_TEARDOWN_ONLY env var set, which will only run the teardown logic
     if to_teardown:
-        print(
-            color_message(
-                f"Tearing down {len(to_teardown)} leftover test infras",
-                "yellow",
+        with ci_visibility_section("teardown-flaky-infra", tags={"agent-category": "e2e"}):
+            print(
+                color_message(
+                    f"Tearing down {len(to_teardown)} leftover test infras",
+                    "yellow",
+                )
             )
-        )
-        affected_packages = {
-            os.path.relpath(package, "github.com/DataDog/datadog-agent/test/new-e2e/") for package, _ in to_teardown
-        }
-        e2e_module.test_targets = list(affected_packages)
-        args["run"] = '-test.run ' + create_test_selection_gotest_regex([test for _, test in to_teardown])
-        env_vars["E2E_TEARDOWN_ONLY"] = "true"
-        test_flavor(
-            ctx,
-            flavor=AgentFlavor.base,
-            build_tags=tags,
-            modules=[e2e_module],
-            args=args,
-            cmd=cmd,
-            env=env_vars,
-            result_junit="",  # No need to store JUnit results for teardown-only runs
-            result_json="",  # No need to store results for teardown-only runs
-            test_profiler=None,
-        )
+            affected_packages = {
+                os.path.relpath(package, "github.com/DataDog/datadog-agent/test/new-e2e/") for package, _ in to_teardown
+            }
+            e2e_module.test_targets = list(affected_packages)
+            args["run"] = '-test.run ' + create_test_selection_gotest_regex([test for _, test in to_teardown])
+            env_vars["E2E_TEARDOWN_ONLY"] = "true"
+            test_flavor(
+                ctx,
+                flavor=AgentFlavor.base,
+                build_tags=tags,
+                modules=[e2e_module],
+                args=args,
+                cmd=cmd,
+                env=env_vars,
+                result_junit="",  # No need to store JUnit results for teardown-only runs
+                result_json="",  # No need to store results for teardown-only runs
+                test_profiler=None,
+            )
 
     # Merge all the partial result JSON files into the final result JSON
-    with open(result_json, "w") as merged_file:
-        for partial_file in result_jsons:
-            with open(partial_file) as f:
-                merged_file.writelines(line.strip() + "\n" for line in f.readlines())
+    with ci_visibility_section("merge-result-jsons", tags={"agent-category": "e2e"}):
+        with open(result_json, "w") as merged_file:
+            for partial_file in result_jsons:
+                with open(partial_file) as f:
+                    merged_file.writelines(line.strip() + "\n" for line in f.readlines())
 
-    success = process_test_result(test_res, junit_tar, result_junits, AgentFlavor.base, test_washer)
+    with ci_visibility_section("process-test-results", tags={"agent-category": "e2e"}):
+        success = process_test_result(test_res, junit_tar, result_junits, AgentFlavor.base, test_washer)
 
     if running_in_ci():
         # Do not print all the params, they could contain secrets needed only in the CI
@@ -574,21 +580,22 @@ def run(
         )
 
     if logs_post_processing:
-        post_processed_output = post_process_output(
-            test_res.result_json_path, test_depth=logs_post_processing_test_depth
-        )
-        os.makedirs(logs_folder, exist_ok=True)
-        write_result_to_log_files(
-            post_processed_output,
-            logs_folder,
-            test_depth=logs_post_processing_test_depth,
-        )
+        with ci_visibility_section("logs-post-processing", tags={"agent-category": "e2e"}):
+            post_processed_output = post_process_output(
+                test_res.result_json_path, test_depth=logs_post_processing_test_depth
+            )
+            os.makedirs(logs_folder, exist_ok=True)
+            write_result_to_log_files(
+                post_processed_output,
+                logs_folder,
+                test_depth=logs_post_processing_test_depth,
+            )
 
-        pretty_print_logs(
-            test_res.result_json_path,
-            post_processed_output,
-            test_depth=logs_post_processing_test_depth,
-        )
+            pretty_print_logs(
+                test_res.result_json_path,
+                post_processed_output,
+                test_depth=logs_post_processing_test_depth,
+            )
 
     if not success:
         raise Exit(code=1)
