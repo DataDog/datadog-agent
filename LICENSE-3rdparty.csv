@@ -1536,6 +1536,7 @@ core,github.com/modelcontextprotocol/go-sdk/internal/util,MIT,Copyright (c) 2025
 core,github.com/modelcontextprotocol/go-sdk/internal/xcontext,MIT,Copyright (c) 2025 Go MCP SDK Authors
 core,github.com/modelcontextprotocol/go-sdk/jsonrpc,MIT,Copyright (c) 2025 Go MCP SDK Authors
 core,github.com/modelcontextprotocol/go-sdk/mcp,MIT,Copyright (c) 2025 Go MCP SDK Authors
+core,github.com/modelcontextprotocol/go-sdk/oauthex,MIT,Copyright (c) 2025 Go MCP SDK Authors
 core,github.com/modern-go/concurrent,Apache-2.0,Copyright (c) 2018 Tao Wen
 core,github.com/modern-go/reflect2,Apache-2.0,Copyright (c) 2018 Tao Wen
 core,github.com/mohae/deepcopy,MIT,Copyright (c) 2014 Joel
