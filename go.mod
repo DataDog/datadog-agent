@@ -996,6 +996,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.1.0
 	github.com/qri-io/jsonpointer v0.1.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
+	github.com/tekert/goetw v0.8.9
 	gitlab.com/gitlab-org/api/client-go v1.40.1
 	go.temporal.io/api v1.62.2
 	go.temporal.io/sdk v1.39.0
@@ -1166,6 +1167,7 @@ require (
 	github.com/oracle/oci-go-sdk/v60 v60.0.0 // indirect
 	github.com/packethost/packngo v0.1.1-0.20180711074735-b9cb5096f54c // indirect
 	github.com/petermattis/goid v0.0.0-20250813065127-a731cc31b4fe // indirect
+	github.com/phuslu/log v1.0.120 // indirect
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
 	github.com/pires/go-proxyproto v0.8.0 // indirect
 	github.com/pjbgf/sha1cd v0.3.2 // indirect

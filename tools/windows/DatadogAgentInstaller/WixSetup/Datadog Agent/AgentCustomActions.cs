@@ -88,6 +88,12 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction DDCreateFolders { get; }
 
+        public ManagedAction ConfigureAutoLogger { get; }
+
+        public ManagedAction ConfigureAutoLoggerRollback { get; }
+
+        public ManagedAction RemoveAutoLogger { get; }
+
         /// <summary>
         /// Registers and sequences our custom actions
         /// </summary>
@@ -719,6 +725,50 @@ namespace WixSetup.Datadog_Agent
                 Execute = Execute.deferred,
                 Impersonate = false
             }.SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+
+            ConfigureAutoLogger = new CustomAction<CustomActions>(
+                    new Id(nameof(ConfigureAutoLogger)),
+                    CustomActions.ConfigureAutoLogger,
+                    Return.check,
+                    When.After,
+                    new Step(ConfigureUser.Id),
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
+                               "DDAGENTUSER_SID=[DDAGENTUSER_SID], " +
+                               "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME]");
+
+            ConfigureAutoLoggerRollback = new CustomAction<CustomActions>(
+                    new Id(nameof(ConfigureAutoLoggerRollback)),
+                    CustomActions.ConfigureAutoLoggerRollback,
+                    Return.ignore,
+                    When.Before,
+                    new Step(ConfigureAutoLogger.Id),
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+                )
+            {
+                Execute = Execute.rollback,
+                Impersonate = false
+            }
+                .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+
+            RemoveAutoLogger = new CustomAction<CustomActions>(
+                    new Id(nameof(RemoveAutoLogger)),
+                    CustomActions.RemoveAutoLogger,
+                    Return.ignore,
+                    When.Before,
+                    Step.RemoveFiles,
+                    Conditions.Uninstalling
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
         }
     }
 }
