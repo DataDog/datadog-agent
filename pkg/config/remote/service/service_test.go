@@ -1546,6 +1546,10 @@ func TestBypassTriggersOnNewProducts(t *testing.T) {
 	uptaneClient.On("TimestampExpires").Return(clk.Now().Add(1*time.Hour), nil)
 	api.On("Fetch", mock.Anything, mock.Anything).Return(lastConfigResponse, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
+	api.On("FetchOrgStatus", mock.Anything).Return(&pbgo.OrgStatusResponse{
+		Enabled:    true,
+		Authorized: true,
+	}, nil)
 
 	service.Start()
 
