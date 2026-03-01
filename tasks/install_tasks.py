@@ -3,13 +3,13 @@ import platform
 import sys
 import zipfile
 from pathlib import Path
+from time import sleep
 
 from invoke import Context, Exit, task
 
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.go import download_go_dependencies
-from tasks.libs.common.retry import run_command_with_retry
 from tasks.libs.common.utils import environ, get_gobin, gitlab_section, link_or_copy
 
 TOOL_LIST = [
@@ -58,11 +58,37 @@ def install_tools(ctx: Context, max_retry: int = 3):
             env['CC'] = os.getenv('DD_CC')
         if os.getenv('DD_CXX'):
             env['CXX'] = os.getenv('DD_CXX')
-        with environ(env):
-            for path, tools in TOOLS.items():
+
+        pending = [(path, tool) for path, tools in TOOLS.items() for tool in tools]
+        for attempt in range(max_retry):
+            last = attempt == max_retry - 1
+
+            # Start all pending installs in parallel
+            promises = []
+            for path, tool in pending:
                 with ctx.cd(path):
-                    for tool in tools:
-                        run_command_with_retry(ctx, f"go install {tool}", max_retry=max_retry)
+                    promise = ctx.run(f"go install {tool}", asynchronous=True, warn=not last, env=env)
+                    promises.append((path, tool, promise))
+
+            # Collect failures
+            pending = []
+            for path, tool, promise in promises:
+                result = promise.join()
+                if result.exited is None or result.exited > 0:
+                    pending.append((path, tool))
+
+            if pending and not last:
+                wait = 10**attempt
+                failed_names = [tool.rsplit('/', 1)[-1] for _, tool in pending]
+                print(
+                    f"[{attempt + 1} / {max_retry}] {len(pending)} tool(s) failed, retrying in {wait}s: {failed_names}"
+                )
+                sleep(wait)
+
+        if pending:
+            failed_list = '\n'.join(f"  {path}: {tool}" for path, tool in pending)
+            raise Exit(f"Failed to install tools:\n{failed_list}", code=1)
+
         for bazelisk in Path(get_gobin(ctx)).glob('bazelisk*'):
             link_or_copy(bazelisk, bazelisk.with_stem(bazelisk.stem.replace('isk', '')))
 
