@@ -17,7 +17,7 @@ code_sign_jar_macos(
     # For testing signing on a developer machine, you can set the
     # identity to "-", to get a mock signing. Then build with
     #    SIGN_MAC=true bazel build //:hatever
-    signing_identity = "-",
+    # signing_identity = "-",
 )
 
 pkg_files(
