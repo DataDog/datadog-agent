@@ -615,5 +615,64 @@ class TestReleasenoteFileResult(unittest.TestCase):
         self.assertFalse(result.has_errors)
 
 
+class TestFilenameValidation(unittest.TestCase):
+    """Tests for reno filename UID validation."""
+
+    def setUp(self):
+        """Create a temporary directory mimicking a notes/ tree."""
+        self.temp_dir = tempfile.mkdtemp()
+        self.notes_dir = os.path.join(self.temp_dir, 'releasenotes', 'notes')
+        os.makedirs(self.notes_dir)
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.temp_dir)
+
+    def _write_note(self, filename: str, *, under_notes: bool = True) -> str:
+        """Write a minimal valid release note and return its path."""
+        directory = self.notes_dir if under_notes else self.temp_dir
+        path = os.path.join(directory, filename)
+        with open(path, 'w') as f:
+            f.write("---\nfeatures:\n  - |\n    A feature.\n")
+        return path
+
+    def test_valid_filename_no_error(self):
+        """A filename with a 16-char lowercase hex UID should pass."""
+        path = self._write_note('my-cool-feature-abcdef0123456789.yaml')
+        result = lint_releasenote_file(path)
+        filename_errors = [e for e in result.section_errors if e.section == 'filename']
+        self.assertEqual(len(filename_errors), 0)
+
+    def test_hyphenated_uuid_filename_error(self):
+        """A filename using a hyphenated UUID (the agentrelease bug) should fail."""
+        path = self._write_note('my-feature-a1b2c3d4-e5f6-7890-abcd-ef1234567890.yaml')
+        result = lint_releasenote_file(path)
+        filename_errors = [e for e in result.section_errors if e.section == 'filename']
+        self.assertEqual(len(filename_errors), 1)
+        self.assertIn('does not match reno convention', filename_errors[0].errors[0].message)
+
+    def test_uppercase_hex_error(self):
+        """Uppercase hex characters in the UID should fail."""
+        path = self._write_note('some-note-ABCDEF0123456789.yaml')
+        result = lint_releasenote_file(path)
+        filename_errors = [e for e in result.section_errors if e.section == 'filename']
+        self.assertEqual(len(filename_errors), 1)
+
+    def test_missing_uid_suffix_error(self):
+        """A filename without a hex UID suffix should fail."""
+        path = self._write_note('my-feature.yaml')
+        result = lint_releasenote_file(path)
+        filename_errors = [e for e in result.section_errors if e.section == 'filename']
+        self.assertEqual(len(filename_errors), 1)
+
+    def test_file_not_under_notes_skipped(self):
+        """Files not under a notes/ directory should skip the filename check."""
+        path = self._write_note('bad-name.yaml', under_notes=False)
+        result = lint_releasenote_file(path)
+        filename_errors = [e for e in result.section_errors if e.section == 'filename']
+        self.assertEqual(len(filename_errors), 0)
+
+
 if __name__ == '__main__':
     unittest.main()
