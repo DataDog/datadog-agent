@@ -1451,6 +1451,7 @@ func agent(config pkgconfigmodel.Setup) {
 		"ntp",
 		"process",
 		"service_discovery",
+		"snmp",
 		"system",
 		"system_core",
 		"system_swap",
