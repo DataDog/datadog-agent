@@ -8,6 +8,7 @@
 package http
 
 import (
+	"fmt"
 	"regexp"
 	"slices"
 	"strconv"
@@ -92,10 +93,16 @@ func (h *StatKeeper) Process(tx Transaction) {
 	defer h.mux.Unlock()
 
 	if tx.Incomplete() {
+		if Debug {
+			fmt.Printf("HTTP | Incomplete tx %s\n", tx.String())
+		}
 		h.incomplete.Add(tx)
 		return
 	}
 
+	if Debug {
+		fmt.Printf("HTTP | Complete tx %s\n", tx.String())
+	}
 	h.add(tx)
 }
 
@@ -106,6 +113,9 @@ func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
 		h.mux.Lock()
 		defer h.mux.Unlock()
 
+		if Debug {
+			fmt.Printf("HTTP | GetAndResetAllStats | Flushing incomplete\n")
+		}
 		for _, tx := range h.incomplete.Flush() {
 			h.add(tx)
 		}

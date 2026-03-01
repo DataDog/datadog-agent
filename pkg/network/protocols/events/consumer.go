@@ -11,6 +11,11 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
+var (
+	// Debug bla bla
+	Debug = false
+)
+
 // Consumer is an interface for event consumers
 type Consumer[V any] interface {
 	Start()
