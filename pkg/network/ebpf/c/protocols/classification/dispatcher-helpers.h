@@ -132,6 +132,15 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         return;
     }
 
+    if (skb_tup.dport == 9092 || skb_tup.sport == 9092) {
+        log_debug("kafka-test | sport %d | dport %d", skb_tup.sport, skb_tup.dport);
+    }
+#ifndef COMPILE_PREBUILT
+    struct task_struct *task = (void *)bpf_get_current_task();
+    skb_tup.pid = BPF_CORE_READ(task, tgid);
+    log_debug("guy: pid %d;", skb_tup.pid);
+#endif // COMPILE_PREBUILT
+
     bool tcp_termination = is_tcp_termination(&skb_info);
     // We don't process non tcp packets, nor empty tcp packets which are not tcp termination packets.
     if (!is_tcp(&skb_tup) || (is_payload_empty(&skb_info) && !tcp_termination)) {
@@ -181,6 +190,7 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
             // For more context refer to the comments in `delete_protocol_stack`
             set_protocol_flag(stack, FLAG_USM_ENABLED);
             set_protocol(stack, cur_fragment_protocol);
+            log_debug("guy: set protocol %d; for pid %d", cur_fragment_protocol, skb_tup.pid);
         }
     }
 
@@ -212,6 +222,11 @@ static __always_inline void dispatch_kafka(struct __sk_buff *skb) {
         return;
     }
 
+#ifndef COMPILE_PREBUILT
+    struct task_struct *task = (void *)bpf_get_current_task();
+    skb_tup.pid = BPF_CORE_READ(task, tgid);
+#endif // COMPILE_PREBUILT
+
     char request_fragment[CLASSIFICATION_MAX_BUFFER];
     bpf_memset(request_fragment, 0, sizeof(request_fragment));
     read_into_buffer_for_classification((char *)request_fragment, skb, skb_info.data_off);
@@ -219,6 +234,7 @@ static __always_inline void dispatch_kafka(struct __sk_buff *skb) {
     const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
     protocol_t cur_fragment_protocol = PROTOCOL_UNKNOWN;
     if (is_kafka(skb, &skb_info, request_fragment, final_fragment_size)) {
+        log_debug("guy | kafka | pid: %d", skb_tup.pid);
         cur_fragment_protocol = PROTOCOL_KAFKA;
         update_protocol_stack(&skb_tup, cur_fragment_protocol);
     }

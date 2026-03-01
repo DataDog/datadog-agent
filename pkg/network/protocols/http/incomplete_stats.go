@@ -8,6 +8,7 @@
 package http
 
 import (
+	"fmt"
 	"sort"
 	"time"
 
@@ -138,11 +139,17 @@ func (b *incompleteBuffer) Flush() []Transaction {
 			request := parts.requests[i]
 			response := parts.responses[j]
 			if request.RequestStarted() > response.ResponseLastSeen() {
+				if Debug {
+					fmt.Printf("HTTP | Dropping resp %s;\n", response.String())
+				}
 				b.telemetry.joiner.responsesDropped.Add(1)
 				j++
 				continue
 			}
 
+			if Debug {
+				fmt.Printf("HTTP | Joined req %s; resp %s;\n", request.String(), response.String())
+			}
 			// Merge response into request
 			request.SetStatusCode(response.StatusCode())
 			request.SetResponseLastSeen(response.ResponseLastSeen())
@@ -169,6 +176,9 @@ func (b *incompleteBuffer) Flush() []Transaction {
 					b.data[key] = parts
 				}
 				break
+			}
+			if Debug {
+				fmt.Printf("HTTP | Dropping aged req %s; \n", parts.requests[i].String())
 			}
 			b.telemetry.joiner.agedRequest.Add(1)
 			i++
