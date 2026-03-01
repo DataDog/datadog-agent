@@ -13,11 +13,13 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
+	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -182,6 +184,48 @@ func retryTest(t *testing.T, statusCode int) {
 	// Should recover because it was retrying
 	server.ChangeStatus(200)
 	// Drain any retries
+	for {
+		if (<-respondChan) == 200 {
+			break
+		}
+	}
+	<-output
+
+	server.Stop()
+}
+
+// mockSecrets wraps the noop secrets implementation to track Refresh calls.
+type mockSecrets struct {
+	secretnooptypes.SecretNoop
+	refreshCount atomic.Int32
+}
+
+func (m *mockSecrets) Refresh(_ bool) (string, error) {
+	m.refreshCount.Add(1)
+	return "", nil
+}
+
+func TestForbiddenTriggersSecretsRefreshAndRetry(t *testing.T) {
+	cfg := configmock.New(t)
+	respondChan := make(chan int)
+	server := NewTestServerWithOptions(403, 1, true, respondChan, cfg)
+
+	mock := &mockSecrets{}
+	server.Destination.secrets = mock
+
+	input := make(chan *message.Payload)
+	output := make(chan *message.Payload)
+	isRetrying := make(chan bool, 1)
+	server.Destination.Start(input, output, isRetrying)
+
+	input <- &message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("yo")}
+
+	<-respondChan
+	<-respondChan
+	assert.True(t, <-isRetrying)
+	assert.GreaterOrEqual(t, mock.refreshCount.Load(), int32(1), "secrets.Refresh should have been called on 403")
+
+	server.ChangeStatus(200)
 	for {
 		if (<-respondChan) == 200 {
 			break
@@ -482,7 +526,7 @@ func TestDestinationHA(t *testing.T) {
 		}
 		isEndpointMRF := endpoint.IsMRF
 
-		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), false, client.NewNoopDestinationMetadata(), configmock.New(t), 1, 1, metrics.NewNoopPipelineMonitor(""), "test")
+		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), false, client.NewNoopDestinationMetadata(), configmock.New(t), 1, 1, metrics.NewNoopPipelineMonitor(""), "test", nil)
 		isDestMRF := dest.IsMRF()
 
 		assert.Equal(t, isEndpointMRF, isDestMRF)

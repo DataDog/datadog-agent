@@ -37,7 +37,7 @@ func NewSyncDestination(
 	maxConcurrency := minConcurrency
 
 	return &SyncDestination{
-		destination:    newDestination(endpoint, contentType, destinationsContext, NoTimeoutOverride, false, destMeta, cfg, minConcurrency, maxConcurrency, metrics.NewNoopPipelineMonitor("0"), "0"),
+		destination:    newDestination(endpoint, contentType, destinationsContext, NoTimeoutOverride, false, destMeta, cfg, minConcurrency, maxConcurrency, metrics.NewNoopPipelineMonitor("0"), "0", nil),
 		senderDoneChan: senderDoneChan,
 	}
 }
