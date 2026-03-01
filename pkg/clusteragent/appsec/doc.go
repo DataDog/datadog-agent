@@ -40,9 +40,9 @@ Currently supported proxy types:
   - EXTERNAL mode: Routes to external processor service
   - SIDECAR mode: Routes to localhost sidecar, injects processor container into gateway pods
 
-- Envoy Gateway (ProxyTypeEnvoyGateway): Configures EnvoyExtensionPolicy resources
-  - EXTERNAL mode: Routes to external processor service
-  - SIDECAR mode: Currently unsupported due to Kubernetes validation constraints on localhost references
+- Envoy Gateway (ProxyTypeEnvoyGateway): Configures EnvoyPatchPolicy resources (xDS patching)
+  - EXTERNAL mode: Routes to external processor service via xDS ext_proc filter and cluster patches
+  - SIDECAR mode: Routes to localhost sidecar, injects processor container into gateway pods
 
 Each proxy type implements the InjectionPattern interface, providing:
   - Resource detection (IsInjectionPossible)
@@ -324,34 +324,48 @@ Pod selection criteria:
   - Pods must have label: gateway.networking.k8s.io/gateway-name (set by Istio gateway controller)
   - GatewayClass must have controller: istio.io/gateway-controller
 
-## Envoy Gateway Implementation (EXTERNAL Mode Only)
+## Envoy Gateway Implementation
+
+Envoy Gateway support is implemented via the envoygateway subpackage using EnvoyPatchPolicy
+resources to directly patch the Envoy xDS configuration with ext_proc HTTP filter and cluster
+definitions. This approach is similar to how the Istio implementation uses EnvoyFilter.
+
+### EXTERNAL Mode (envoyGatewayInjectionPattern)
 
 For Envoy Gateway in EXTERNAL mode:
  1. Watches Gateway resources (gateway.networking.k8s.io/v1)
- 2. Creates EnvoyExtensionPolicy resources that configure External Processing
- 3. Manages ReferenceGrant resources for cross-namespace access
- 4. Handles cleanup when gateways are deleted
+ 2. Filters gateways by GatewayClass controller (gateway.envoyproxy.io/gatewayclass-controller)
+ 3. Creates one EnvoyPatchPolicy per Gateway with JSONPatch operations to:
+    - Add an ext_proc HTTP filter to each listener
+    - Add a cluster for the processor service
+ 4. Automatically enables EnvoyPatchPolicy in the EnvoyGateway ConfigMap
+ 5. Cleans up old EnvoyExtensionPolicy and ReferenceGrant resources from previous versions
+
+### SIDECAR Mode (envoyGatewaySidecarPattern)
+
+For Envoy Gateway in SIDECAR mode:
+ 1. Registers webhook with label selector for gateway pods (gateway.envoyproxy.io/owning-gateway-name)
+ 2. Injects sidecar container into pods with matching labels
+ 3. Creates EnvoyPatchPolicy on first pod injection (lazy initialization)
+ 4. Routes traffic to localhost (sidecar processor) via xDS cluster patch
+ 5. Cleans up EnvoyPatchPolicy when last pod of a gateway is deleted
 
 The implementation ensures that:
-  - Only one EnvoyExtensionPolicy is created per namespace
-  - ReferenceGrants are properly managed for cross-namespace service references
+  - One EnvoyPatchPolicy is created per Gateway (not per namespace)
+  - Only gateways managed by Envoy Gateway controller are processed (Istio gateways are skipped)
+  - Old EnvoyExtensionPolicy and ReferenceGrant resources are cleaned up on upgrade
   - Resources are labeled and annotated for tracking and management
   - Kubernetes events are emitted for operational visibility
-
-SIDECAR mode for Envoy Gateway is currently blocked due to Kubernetes validation preventing
-localhost references in ExtProc BackendRef configuration. See pkg/clusteragent/appsec/envoygateway/envoy_sidecar.go
-for details.
 
 # Event Recording
 
 The package records Kubernetes events for important operations:
 
-  - EnvoyExtensionPolicy creation/deletion
-  - ReferenceGrant creation/update/deletion
-  - Namespace additions/removals from grants
+  - EnvoyPatchPolicy creation/deletion (Envoy Gateway)
+  - EnvoyFilter creation/deletion (Istio)
   - Failure conditions
 
-Events are recorded on the relevant resources (Gateway, EnvoyExtensionPolicy) to provide
+Events are recorded on the relevant Gateway resources to provide
 operational visibility and debugging information.
 
 # Leader Election
@@ -430,7 +444,7 @@ New proxy implementations should:
 
   - pkg/clusteragent/appsec/config: Configuration types, parsing, and validation
   - pkg/clusteragent/appsec/istio: Istio implementation (EXTERNAL and SIDECAR modes)
-  - pkg/clusteragent/appsec/envoygateway: Envoy Gateway implementation (EXTERNAL mode only)
+  - pkg/clusteragent/appsec/envoygateway: Envoy Gateway implementation (EXTERNAL and SIDECAR modes)
   - pkg/clusteragent/appsec/sidecar: Sidecar container generation logic
   - pkg/clusteragent/admission/mutate/appsec: SIDECAR mode admission webhook
   - pkg/clusteragent/admission: Base admission controller functionality
