@@ -222,7 +222,7 @@ build do
 
   # sd-agent (service discovery agent)
   if ENV['WITH_SD_AGENT'] == 'true'
-    command_on_repo_root "bazel run --config=sd-agent-release #{flavor_flag} //pkg/discovery/module/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    command_on_repo_root "bazel run --config=sd-agent-release #{flavor_flag} //pkg/discovery/module/rust:install -- --destdir=#{install_dir}/embedded/bin", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
   # dd-procmgrd (process manager daemon)

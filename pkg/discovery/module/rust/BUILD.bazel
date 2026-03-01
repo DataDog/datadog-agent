@@ -138,17 +138,16 @@ rust_binary(
 )
 
 pkg_files(
-    name = "all_files",
+    name = "sd-agent_pkg",
     srcs = [":sd-agent"],
     attributes = pkg_attributes(
         mode = "0755",
     ),
-    prefix = "embedded/bin",
 )
 
 pkg_install(
     name = "install",
-    srcs = [":all_files"],
+    srcs = [":sd-agent_pkg"],
 )
 
 # Disco CLI tool for service discovery
