@@ -264,6 +264,9 @@ include("//deps/libpcap:libpcap.MODULE.bazel")
 include("//deps/secret_connector:secret_connector.MODULE.bazel")
 
 # buildifier: leave-alone
+include("//deps/setuptools:setuptools.MODULE.bazel")
+
+# buildifier: leave-alone
 include("//deps/snmp_traps:snmp_traps.MODULE.bazel")
 
 # buildifier: leave-alone
