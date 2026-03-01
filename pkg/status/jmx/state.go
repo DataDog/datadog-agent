@@ -33,8 +33,8 @@ func ClearStatus() {
 
 // SetStartupError sets the last JMX startup error
 func SetStartupError(s StartupError) {
-	lastJMXStatusMutex.Lock()
-	defer lastJMXStatusMutex.Unlock()
+	lastJMXStartupErrorMutex.Lock()
+	defer lastJMXStartupErrorMutex.Unlock()
 
 	lastJMXStartupError = s
 }
