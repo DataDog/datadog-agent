@@ -184,6 +184,7 @@ if [ -f "/tmp/install-ddagent/system-wide" ]; then
   echo "  System Settings -> Privacy & Security -> Location Services -> Enable 'Datadog Agent'"
   echo ""
   echo "Note: The GUI will prompt for this permission when needed."
+  echo "To disable the prompt from first run, use the install script with DD_REQUEST_LOCATION_PERMISSION=false."
   echo "=========================================="
   echo ""
 else
@@ -223,6 +224,7 @@ else
   echo "  System Settings -> Privacy & Security -> Location Services -> Enable 'Datadog Agent'"
   echo ""
   echo "Note: The Datadog Agent GUI will prompt for this permission when it starts."
+  echo "To disable the prompt from first run, use the install script with DD_REQUEST_LOCATION_PERMISSION=false."
   echo "=========================================="
   echo ""
 fi

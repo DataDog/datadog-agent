@@ -1488,6 +1488,7 @@ func agent(config pkgconfigmodel.Setup) {
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
 	config.BindEnvAndSetDefault("GUI_session_expiration", 0)
+	config.BindEnvAndSetDefault("request_location_permission", true, "DD_REQUEST_LOCATION_PERMISSION")
 
 	// Core agent (disabled for Error Tracking Standalone, Logs Collection Only)
 	config.BindEnvAndSetDefault("core_agent.enabled", true)
