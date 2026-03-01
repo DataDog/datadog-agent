@@ -118,11 +118,12 @@ type CustomQueryColumns struct {
 
 //nolint:revive // TODO(DBM) Fix revive linter
 type CustomQuery struct {
-	MetricPrefix string               `yaml:"metric_prefix"`
-	Pdb          string               `yaml:"pdb"`
-	Query        string               `yaml:"query"`
-	Columns      []CustomQueryColumns `yaml:"columns"`
-	Tags         []string             `yaml:"tags"`
+	MetricPrefix    string               `yaml:"metric_prefix"`
+	Pdb             string               `yaml:"pdb"`
+	Query           string               `yaml:"query"`
+	Columns         []CustomQueryColumns `yaml:"columns"`
+	Tags            []string             `yaml:"tags"`
+	MetricTimestamp string               `yaml:"metric_timestamp"`
 }
 
 type asmConfig struct {
