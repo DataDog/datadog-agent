@@ -281,25 +281,6 @@ so_symlink(
 )
 
 dd_agent_expand_template(
-    name = "gen_pkgconfig",
-    out = "rpm.pc",
-    substitutions = {
-        # Prepare the .pc file for our own substitution later
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@VERSION@": VERSION,
-        "@ZSTD_REQUIRES@": "",
-        "@WITH_LZMA_LIB@": "-llzma",
-        "@WITH_BZ2_LIB@": "-lbz2",
-        "@WITH_ZLIB_LIB@": "-lz",
-        "@LUA_LIBS@": "-llua",
-    },
-    template = "rpm.pc.in",
-)
-
-dd_agent_expand_template(
     name = "gen_rpmrc",
     out = "rpmrc",
     substitutions = {
@@ -325,12 +306,6 @@ pkg_files(
 )
 
 pkg_files(
-    name = "pc_file",
-    srcs = [":gen_pkgconfig"],
-    prefix = "lib/pkgconfig",
-)
-
-pkg_files(
     name = "misc_files",
     srcs = [
         ":gen_rpmrc",
@@ -347,13 +322,13 @@ pkg_filegroup(
         ":librpm_files",
         ":misc_files",
     ],
+    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
 pkg_install(
     name = "install",
     srcs = [
-        ":pc_file",
         ":all_files",
     ],
 )

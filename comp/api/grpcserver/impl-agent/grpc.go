@@ -9,8 +9,6 @@ package agentimpl
 import (
 	"net/http"
 
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
-
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -86,16 +84,16 @@ type server struct {
 }
 
 func (s *server) BuildServer() http.Handler {
-	authInterceptor := grpcutil.StaticAuthInterceptor(s.IPC.GetAuthToken())
-
 	maxMessageSize := s.configComp.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
 
 	// Use the convenience function that combines metrics and auth interceptors
 	var opts []googleGrpc.ServerOption
 	if vsockAddr := s.configComp.GetString("vsock_addr"); vsockAddr == "" {
 		opts = append(opts,
-			googleGrpc.UnaryInterceptor(grpcutil.CombinedUnaryServerInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor))),
-			googleGrpc.StreamInterceptor(grpcutil.CombinedStreamServerInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor))),
+			grpcutil.ServerOptionsWithMetricsAndAuth(
+				grpcutil.RequireClientCert,
+				grpcutil.RequireClientCertStream,
+			)...,
 		)
 	}
 
@@ -123,7 +121,7 @@ func (s *server) BuildServer() http.Handler {
 		remoteAgentRegistry:  s.remoteAgentRegistry,
 		autodiscovery:        s.autodiscovery,
 		configComp:           s.configComp,
-		configStreamServer:   configstreamServer.NewServer(s.configComp, s.configStream),
+		configStreamServer:   configstreamServer.NewServer(s.configComp, s.configStream, s.remoteAgentRegistry),
 	})
 
 	return grpcServer

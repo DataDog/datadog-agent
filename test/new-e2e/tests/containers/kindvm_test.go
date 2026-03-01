@@ -44,6 +44,7 @@ clusterAgent:
 			scenkind.WithAgentOptions(
 				kubernetesagentparams.WithDualShipping(),
 				kubernetesagentparams.WithHelmValues(helmValues),
+				kubernetesagentparams.WithHelmValues(containerHelmValues),
 			),
 			scenkind.WithDeployArgoRollout(),
 		),
@@ -92,6 +93,21 @@ func (suite *kindSuite) TestControlPlane() {
 			Tags: &[]string{
 				`^contentType:`,
 			},
+		},
+	})
+
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "kube_apiserver.api_resource",
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^api_resource_kind:.*`,
+				`^api_resource_group:.*`,
+				`^api_resource_version:.*`,
+				`^api_resource_name:.*`,
+			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 

@@ -66,15 +66,17 @@ api_key: ENC[api_key]
 	require.Contains(v.T(), secretRefreshOutput, "api_key")
 
 	// Assert that the status command shows the new API Key
-	status = v.Env().Agent.Client.Status()
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		status = v.Env().Agent.Client.Status()
 		assert.Contains(t, status.Content, "API key ending with vwxyz")
 	}, 1*time.Minute, 10*time.Second)
 
-	// Assert that the fakeIntake has received the API Key
-	lastAPIKey, err := v.Env().FakeIntake.Client().GetLastAPIKey()
-	assert.NoError(v.T(), err)
-	assert.Equal(v.T(), lastAPIKey, secondAPIKey)
+	// Assert that the fakeIntake has received the new API Key
+	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		lastAPIKey, err := v.Env().FakeIntake.Client().GetLastAPIKey()
+		assert.NoError(t, err)
+		assert.Equal(t, secondAPIKey, lastAPIKey)
+	}, 1*time.Minute, 10*time.Second)
 }
 
 func (v *linuxAPIKeyRefreshSuite) TestIntakeRefreshAPIKeysAdditionalEndpoints() {

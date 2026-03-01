@@ -41,7 +41,7 @@
 
 # -- binary specific variables --
 .agent_variables: &agent_variables
-  IMAGE_VERSION: tmpl-v22
+  IMAGE_VERSION: tmpl-v23
   IMAGE_NAME: datadog-agent
   TMPL_SRC_REPO: ci/datadog-agent/agent
 
@@ -97,6 +97,18 @@ publish_internal_container_image-ot_standalone:
   variables:
     <<: *ot_standalone_variables
     TMPL_SRC_IMAGE_SUFFIX: "-7"
+
+publish_internal_container_image-ot_standalone-fips:
+  extends: .docker_trigger_base
+  needs:
+    - job: docker_build_ot_agent_standalone_fips_amd64
+      artifacts: false
+    - job: docker_build_ot_agent_standalone_fips_arm64
+      artifacts: false
+  variables:
+    <<: *ot_standalone_variables
+    RELEASE_TAG_SUFFIX: "-fips"
+    TMPL_SRC_IMAGE_SUFFIX: "-7-fips"
 
 publish_internal_container_image-host_profiler_standalone:
   extends: .docker_trigger_base

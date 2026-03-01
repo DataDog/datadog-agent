@@ -253,7 +253,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "namespace": "my-ns1",
     "test_config_id": "",
     "test_result_id": "",
-    "pathtrace_id": "",
+    "test_run_id": "",
     "origin": "network_traffic",
     "test_run_type": "dynamic",
     "source_product": "network_path",
@@ -333,7 +333,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "namespace": "my-ns1",
     "test_config_id": "",
     "test_result_id": "",
-    "pathtrace_id": "",
+    "test_run_id": "",
     "origin": "network_traffic",
     "test_run_type": "dynamic",
     "source_product": "network_path",
@@ -456,7 +456,7 @@ func Test_NpCollector_stopWithoutPanic(t *testing.T) {
 	tr := &tracerouteRunner{func(_ctx context.Context, cfg config.Config) (payload.NetworkPath, error) {
 		time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond) // simulate slow processing time, to test for panic
 		return payload.NetworkPath{
-			PathtraceID: "pathtrace-id-111-" + cfg.DestHostname,
+			TestRunID:   "test-run-id-111-" + cfg.DestHostname,
 			Protocol:    cfg.Protocol,
 			Source:      payload.NetworkPathSource{Hostname: "abc"},
 			Destination: payload.NetworkPathDestination{Hostname: cfg.DestHostname, Port: cfg.DestPort},

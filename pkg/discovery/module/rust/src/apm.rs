@@ -13,7 +13,7 @@ use crate::procfs::{self, Cmdline};
 /// This is only used if tracer metadata is not available.
 pub fn detect(
     lang: &Language,
-    pid: u32,
+    pid: i32,
     cmdline: &Cmdline,
     envs: &HashMap<String, String>,
 ) -> bool {
@@ -30,7 +30,7 @@ pub fn detect(
 ///
 /// The Python ddtrace package includes native libraries (.so files) that appear
 /// in the process memory map when loaded.
-fn detect_python(pid: u32) -> bool {
+fn detect_python(pid: i32) -> bool {
     match procfs::maps::get_reader_for_pid(pid) {
         Ok(reader) => detect_python_from_reader(reader),
         Err(_) => false,
@@ -118,7 +118,7 @@ fn is_datadog_java_agent(s: &str) -> bool {
 /// maps file. Note that this does not work for single-file deployments.
 ///
 /// 785c8a400000-785c8aaeb000 r--s 00000000 fc:06 12762267 /home/foo/.../publish/Datadog.Trace.dll
-fn detect_dotnet(pid: u32, envs: &HashMap<String, String>) -> bool {
+fn detect_dotnet(pid: i32, envs: &HashMap<String, String>) -> bool {
     // Check CORECLR_ENABLE_PROFILING environment variable
     if let Some(value) = envs.get("CORECLR_ENABLE_PROFILING")
         && value == "1"
@@ -329,7 +329,7 @@ mod tests {
 
         use memmap2::Mmap;
 
-        let current_pid = std::process::id();
+        let current_pid = std::process::id().cast_signed();
         let cmdline = cmdline![];
         let envs = HashMap::new();
 
@@ -365,7 +365,7 @@ mod tests {
 
         use memmap2::Mmap;
 
-        let current_pid = std::process::id();
+        let current_pid = std::process::id().cast_signed();
         let cmdline = cmdline![];
         let envs = HashMap::new(); // No env vars set
 

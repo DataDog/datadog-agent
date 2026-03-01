@@ -8,12 +8,18 @@
 package converters
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/xconfmap"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func loadTestData(t *testing.T, filename string) confMap {
@@ -29,6 +35,11 @@ func loadTestData(t *testing.T, filename string) confMap {
 	require.NoError(t, err, "failed to convert to confmap from: %s", filename)
 
 	return conf.ToStringMap()
+}
+
+func newObserverLogger(level zapcore.Level) (*zap.Logger, *observer.ObservedLogs) {
+	core, logs := observer.New(level)
+	return zap.New(core), logs
 }
 
 func TestGetBasicTypes(t *testing.T) {
@@ -286,4 +297,126 @@ func TestEnsureErrorWhenIntermediateNotMap(t *testing.T) {
 	_, err := Ensure[bool](cm, "processors::batch::enabled")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "processors")
+}
+
+func TestConverterWithoutAgentLogsViaOTelLogger(t *testing.T) {
+	logger, logs := newObserverLogger(zap.WarnLevel)
+
+	conv := newConverterWithoutAgent(confmap.ConverterSettings{Logger: logger})
+	conf := confmap.NewFromStringMap(loadTestData(t, "no_agent/symbol-up-disabled/in.yaml"))
+
+	err := conv.Convert(context.Background(), conf)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, logs.Len(), 1, "expected at least one log from the converter")
+
+	const expectedMsg = "Added minimal resourcedetection processor to user configuration"
+	found := false
+	for _, entry := range logs.All() {
+		if entry.Level == zap.WarnLevel && entry.Message == expectedMsg {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "expected warning about adding resourcedetection processor, got: %v", logs.All())
+}
+
+func TestConverterWithoutAgentLogsHostArchWarning(t *testing.T) {
+	logger, logs := newObserverLogger(zap.DebugLevel)
+
+	conv := newConverterWithoutAgent(confmap.ConverterSettings{Logger: logger})
+	conf := confmap.NewFromStringMap(loadTestData(t, "no_agent/preserve-host-arch/in.yaml"))
+
+	err := conv.Convert(context.Background(), conf)
+	require.NoError(t, err)
+
+	const expectedMsg = "host.arch is required but is disabled by user configuration; preserving user value. Profiles for compiled languages will be missing symbols."
+	found := false
+	for _, entry := range logs.All() {
+		if entry.Message == expectedMsg {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "expected warning about host.arch being disabled, got logs: %v", logs.All())
+}
+
+func TestConverterWithAgentPreservesExpandedValues(t *testing.T) {
+	// Verify that ToStringMapRaw preserves ExpandedValue types (from env vars like ${DD_API_KEY})
+	// instead of flattening them to their underlying string values
+	configData := confMap{
+		"service": confMap{
+			"pipelines": confMap{
+				"profiles": confMap{
+					"receivers":  []any{"hostprofiler"},
+					"processors": []any{},
+					"exporters":  []any{"otlphttp"},
+				},
+			},
+		},
+		"exporters": confMap{
+			"otlphttp": confMap{
+				"headers": confMap{
+					"dd-api-key": xconfmap.ExpandedValue{Value: 1234, Original: "1234"},
+				},
+			},
+		},
+		"receivers": confMap{
+			"hostprofiler": confMap{
+				"symbol_uploader": confMap{
+					"enabled": false,
+				},
+			},
+		},
+	}
+
+	conf := confmap.NewFromStringMap(configData)
+	err := newConverterWithAgent(confmap.ConverterSettings{}, newMockConfig()).Convert(t.Context(), conf)
+	require.NoError(t, err)
+
+	convertedMap := xconfmap.ToStringMapRaw(conf)
+	headers, _ := Get[confMap](convertedMap, "exporters::otlphttp::headers")
+	expandedVal, ok := headers["dd-api-key"].(xconfmap.ExpandedValue)
+	require.True(t, ok, "dd-api-key should still be an ExpandedValue, got type: %T", headers["dd-api-key"])
+	require.Equal(t, 1234, expandedVal.Value)
+	require.Equal(t, "1234", expandedVal.Original)
+}
+
+func TestConverterWithoutAgentPreservesExpandedValues(t *testing.T) {
+	// Verify that ToStringMapRaw preserves ExpandedValue types in standalone mode
+	configData := confMap{
+		"service": confMap{
+			"pipelines": confMap{
+				"profiles": confMap{
+					"receivers":  []any{"hostprofiler"},
+					"processors": []any{},
+					"exporters":  []any{"otlphttp"},
+				},
+			},
+		},
+		"exporters": confMap{
+			"otlphttp": confMap{
+				"headers": confMap{
+					"dd-api-key": xconfmap.ExpandedValue{Value: 6.7, Original: "6.7"},
+				},
+			},
+		},
+		"receivers": confMap{
+			"hostprofiler": confMap{
+				"symbol_uploader": confMap{
+					"enabled": false,
+				},
+			},
+		},
+	}
+
+	conf := confmap.NewFromStringMap(configData)
+	err := newConverterWithoutAgent(confmap.ConverterSettings{Logger: zap.NewNop()}).Convert(t.Context(), conf)
+	require.NoError(t, err)
+
+	convertedMap := xconfmap.ToStringMapRaw(conf)
+	headers, _ := Get[confMap](convertedMap, "exporters::otlphttp::headers")
+	expandedVal, ok := headers["dd-api-key"].(xconfmap.ExpandedValue)
+	require.True(t, ok, "dd-api-key should still be an ExpandedValue, got type: %T", headers["dd-api-key"])
+	require.Equal(t, 6.7, expandedVal.Value)
+	require.Equal(t, "6.7", expandedVal.Original)
 }

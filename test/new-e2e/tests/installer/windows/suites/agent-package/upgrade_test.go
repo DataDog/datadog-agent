@@ -71,6 +71,48 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackage() {
 	windowsagent.TestAgentHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost)
 }
 
+// TestUpgradeAgentPackageOCIBootstrap tests the upgrade workflow using the OCI bootstrap path.
+// It uses InstallerBootstrapMode=OCI to force the OCI path, ensuring the test fails if the
+// installer layer is missing from the OCI package.
+//
+// This test validates that:
+// 1. The current pipeline OCI package contains the installer layer
+// 2. The OCI bootstrap code path extracts and uses the installer correctly
+//
+// If this test fails, check that the OCI package build includes --installer flag.
+func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageOCIBootstrap() {
+	// Arrange
+	s.setAgentConfig()
+	s.installPreviousAgentVersion()
+	s.setInstallerBootstrapMode("OCI")
+
+	// Act
+	s.MustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
+}
+
+// TestUpgradeAgentPackageMSIBootstrap tests the upgrade workflow using the MSI fallback bootstrap path.
+// It uses InstallerBootstrapMode=MSI to force the MSI path, validating backward compatibility
+// with older OCI packages (< 7.70) that don't have a dedicated installer layer.
+//
+// IMPORTANT: Do not remove this test without ensuring backward compatibility is still tested.
+func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageMSIBootstrap() {
+	// Arrange
+	s.setAgentConfig()
+	s.installPreviousAgentVersion()
+	s.setInstallerBootstrapMode("MSI")
+
+	// Act
+	s.MustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
+}
+
 // TestUpgradeAgentPackageWithAltDir tests that an Agent installed with the MSI
 // and custom paths maintains those paths when remotely upgraded
 func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageWithAltDir() {
@@ -88,6 +130,55 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageWithAltDir() {
 	s.MustStartExperimentCurrentVersion()
 	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
 	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
+
+	// Assert
+	s.Require().Host(s.Env().RemoteHost).
+		NoDirExists(windowsagent.DefaultConfigRoot).
+		NoDirExists(windowsagent.DefaultInstallPath).
+		DirExists(altConfigRoot).
+		DirExists(altInstallPath).
+		HasARunningDatadogAgentService().
+		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("ConfigRoot", altConfigRoot+`\`).
+		WithValueEqual("InstallPath", altInstallPath+`\`)
+}
+
+// TestUpgradeAgentPackageFromExeWithAltDir tests that an Agent installed with the .exe
+// and custom paths maintains those paths when remotely upgraded
+func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageFromExeWithAltDir() {
+	// Arrange
+	altConfigRoot := `C:\ddconfig`
+	altInstallPath := `C:\ddinstall`
+	s.Installer().SetBinaryPath(altInstallPath + `\bin\` + consts.BinaryName)
+	s.setAgentConfigWithAltDir(altConfigRoot)
+	// TODO: build into AgentVersionManager?
+	url := fmt.Sprintf("https://s3.amazonaws.com/dd-agent/datadog-installer-%s-x86_64.exe", s.StableAgentVersion().PackageVersion())
+	installExe := installerwindows.NewDatadogInstallExe(s.Env().RemoteHost)
+	output, err := installExe.Run(
+		installerwindows.WithInstallerURL(url),
+		installerwindows.WithExtraEnvVars(map[string]string{
+			"DD_PROJECTLOCATION":          altInstallPath,
+			"DD_APPLICATIONDATADIRECTORY": altConfigRoot,
+			// TODO: these need to be overridden here so they're not overridden by installer.InstallScriptEnv
+			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT": "",
+			"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":        s.StableAgentVersion().OCIPackage().Registry,
+		}),
+		installerwindows.WithInstallScriptDevEnvOverrides("STABLE_AGENT"),
+	)
+	s.Require().NoErrorf(err, "failed to install stable agent via exe: %s", output)
+	s.Require().NoError(s.WaitForInstallerService("Running"))
+	s.Require().Host(s.Env().RemoteHost).
+		HasDatadogInstaller().
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, s.StableAgentVersion().Version())
+		})
+
+	// Act
+	s.MustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+	_, err = s.Installer().PromoteExperiment(consts.AgentPackage)
 	s.Require().NoError(err, "daemon should respond to request")
 	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 
@@ -599,6 +690,16 @@ func (s *testAgentUpgradeSuite) setWatchdogTimeout(timeout int) {
 	s.Require().NoError(err)
 }
 
+// setInstallerBootstrapMode sets the InstallerBootstrapMode registry key.
+// - "OCI" forces the OCI bootstrap path, fails if installer layer is missing
+// - "MSI" forces the MSI fallback path
+// - "" (empty) uses default behavior (try OCI, fallback to MSI)
+func (s *testAgentUpgradeSuite) setInstallerBootstrapMode(mode string) {
+	err := windowscommon.SetTypedRegistryValue(s.Env().RemoteHost,
+		`HKLM:\SOFTWARE\Datadog\Datadog Agent`, "InstallerBootstrapMode", mode, "String")
+	s.Require().NoError(err)
+}
+
 func (s *testAgentUpgradeSuite) setTerminatePolicy(terminatePolicy bool) {
 	termValue := 0
 	if terminatePolicy {
@@ -724,6 +825,11 @@ type testAgentUpgradeFromGASuite struct {
 }
 
 // TestAgentUpgradesFromGA tests that we can upgrade from GA release (7.65.0) to current
+//
+// NOTE: This test exercises the MSI fallback bootstrap path because the 7.65.x installer
+// does not support extracting from the OCI installer layer - it only has the MSI admin install
+// extraction flow. The dedicated test for validating the MSI fallback path with the current
+// installer is TestUpgradeAgentPackageMSIBootstrap.
 //
 // It embeds testAgentUpgradeSuite so it can run any of the upgrade tests.
 func TestAgentUpgradesFromGA(t *testing.T) {

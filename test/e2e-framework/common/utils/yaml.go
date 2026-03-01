@@ -6,8 +6,8 @@
 package utils
 
 import (
+	"go.yaml.in/yaml/v3"
 	"golang.org/x/exp/maps"
-	"gopkg.in/yaml.v3"
 )
 
 func YAMLMustMarshal(v any) string {

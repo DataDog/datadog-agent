@@ -156,7 +156,7 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 		encode(v.Subprogram)
 		writeToken(jsontext.String("events"))
 		encode(v.Events)
-		if v.Template.TemplateString != "" {
+		if v.Template != nil && v.Template.TemplateString != "" {
 			writeToken(jsontext.String("probeTemplate"))
 			encode(v.Template)
 		}

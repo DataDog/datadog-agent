@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -23,9 +22,9 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	jsonutil "github.com/DataDog/datadog-agent/pkg/util/json"
 )
 
 const (
@@ -79,8 +78,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot("CORE", "off", true)}),
-				secretfx.Module(),
-				core.Bundle(),
+				core.Bundle(core.WithSecrets()),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -116,7 +114,7 @@ func run(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
 			checkJSONConfigs[i] = convertCheckConfigToJSON(&config.Config, config.InstanceIDs)
 		}
 
-		if err := printJSON(color.Output, checkJSONConfigs, cliParams.prettyJSON); err != nil {
+		if err := jsonutil.PrintJSON(color.Output, checkJSONConfigs, cliParams.prettyJSON, false, ""); err != nil {
 			return err
 		}
 	} else {
@@ -192,26 +190,4 @@ func findConfigsByName(configs []integration.ConfigResponse, name string) []inte
 	}
 
 	return matchingConfigs
-}
-
-func printJSON(w io.Writer, rawJSON any, prettyPrintJSON bool) error {
-	var result []byte
-	var err error
-
-	// convert to bytes and indent
-	if prettyPrintJSON {
-		result, err = json.MarshalIndent(rawJSON, "", "  ")
-	} else {
-		result, err = json.Marshal(rawJSON)
-	}
-	if err != nil {
-		return err
-	}
-
-	_, err = fmt.Fprintln(w, string(result))
-	if err != nil {
-		return err
-	}
-
-	return nil
 }

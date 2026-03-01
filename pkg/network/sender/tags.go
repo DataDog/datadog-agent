@@ -10,21 +10,20 @@ package sender
 import (
 	"maps"
 	"strconv"
-	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/twmb/murmur3"
+	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
+	"github.com/DataDog/datadog-agent/pkg/network/indexedset"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func formatTags(c network.ConnectionStats, tagsSet *indexedSet[string], connDynamicTags map[string]struct{}) ([]int32, uint32) {
+func formatTags(c network.ConnectionStats, tagsSet *indexedset.IndexedSet[string], connDynamicTags map[string]struct{}) ([]int32, uint32) {
 	var checksum uint32
 
 	staticTags := tls.GetStaticTags(c.StaticTags)
@@ -43,7 +42,13 @@ func formatTags(c network.ConnectionStats, tagsSet *indexedSet[string], connDyna
 
 	// other tags, e.g., from process env vars like DD_ENV, etc.
 	for _, tag := range c.Tags {
-		t := tag.Get().(string)
+		if tag == nil {
+			continue
+		}
+		t, ok := tag.Get().(string)
+		if !ok {
+			continue
+		}
 		checksum ^= murmur3.StringSum32(t)
 		tagsIdx = append(tagsIdx, tagsSet.Add(t))
 	}
@@ -102,40 +107,39 @@ func (d *directSender) addContainerTags(c *model.Connection, containerIDForPID m
 			c.LocalContainerTagsIndex = int32(tagsEncoder.Encode(entityTags))
 		}
 	}
+	builder.SetLocalContainerTagsIndex(-1)
 }
 
-func (d *directSender) addTags(nc network.ConnectionStats, c *model.Connection, tagsSet *indexedSet[string], usmEncoders []marshal.USMEncoder, connectionsTagsEncoder model.TagEncoder) {
+func (d *directSender) addTags(builder *model.ConnectionBuilder, nc network.ConnectionStats, tagsSet *indexedset.IndexedSet[string], usmEncoders []marshal.USMEncoder, connectionsTagsEncoder model.TagEncoder) {
 	var staticTags uint64
 	dynamicTags := nc.TLSTags.GetDynamicTags()
 	for _, encoder := range usmEncoders {
-		d.encodeBuf.Reset()
-		encoderStaticTags, encoderDynamicTags := encoder.EncodeConnectionDirect(nc, c, &d.encodeBuf)
+		encoderStaticTags, encoderDynamicTags := encoder.EncodeConnection(nc, builder)
 		staticTags |= encoderStaticTags
 		maps.Copy(dynamicTags, encoderDynamicTags)
 	}
 
 	nc.StaticTags |= staticTags
 	tagIndexes, tagChecksum := formatTags(nc, tagsSet, dynamicTags)
-	c.TagsChecksum = tagChecksum
+	builder.SetTagsChecksum(tagChecksum)
 
 	tagsStr := tagsSet.Subset(tagIndexes)
-	if c.Pid > 0 {
+	if nc.Pid > 0 {
 		var serviceTags []string
 		if dsc := directSenderConsumerInstance.Load(); dsc != nil {
-			serviceTags = dsc.extractor.GetServiceContext(c.Pid)
+			serviceTags = dsc.extractor.GetServiceContext(int32(nc.Pid))
 		}
 		tagsStr = append(tagsStr, serviceTags...)
-		processEntityID := types.NewEntityID(types.Process, strconv.Itoa(int(c.Pid)))
+		processEntityID := types.NewEntityID(types.Process, strconv.Itoa(int(nc.Pid)))
 		if processTags, err := d.tagger.Tag(processEntityID, types.HighCardinality); err != nil {
-			log.Debugf("error getting tags for process %v: %v", c.Pid, err)
+			log.Debugf("error getting tags for process %v: %v", nc.Pid, err)
 		} else {
 			tagsStr = append(tagsStr, processTags...)
 		}
 	}
 	if len(tagsStr) > 0 {
-		c.Tags = nil
-		c.TagsIdx = int32(connectionsTagsEncoder.Encode(tagsStr))
+		builder.SetTagsIdx(int32(connectionsTagsEncoder.Encode(tagsStr)))
 	} else {
-		c.TagsIdx = -1
+		builder.SetTagsIdx(-1)
 	}
 }

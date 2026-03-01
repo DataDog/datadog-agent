@@ -7,6 +7,6 @@ use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
 pub struct Params {
-    pub new_pids: Option<Vec<u32>>,
-    pub heartbeat_pids: Option<Vec<u32>>,
+    pub new_pids: Option<Vec<i32>>,
+    pub heartbeat_pids: Option<Vec<i32>>,
 }

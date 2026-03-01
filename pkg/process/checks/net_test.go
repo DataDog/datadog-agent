@@ -875,3 +875,27 @@ func Test_getDNSNameForIP(t *testing.T) {
 		})
 	}
 }
+
+func TestNetworkConnectionBatchingWithResolvConf(t *testing.T) {
+	conns := makeConnections(2)
+	resolvConfs := []string{"nameserver 1.2.3.4"}
+	conns[0].ResolvConfIdx = 0
+	conns[1].ResolvConfIdx = -1
+
+	maxConnsPerMessage := 10
+	ex := parser.NewServiceExtractor(false, false, false)
+	hostTagsProvider := hosttags.NewHostTagProvider()
+	chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex, resolvConfs)
+
+	require.Len(t, chunks, 1)
+	cc := chunks[0].(*model.CollectorConnections)
+	require.Len(t, cc.Connections, 2)
+
+	conn := cc.Connections[0]
+	require.GreaterOrEqual(t, conn.ResolvConfIdx, int32(0), "connection should have a non-negative resolv.conf index")
+	require.NotNil(t, cc.ResolvConfs, "batch should have resolv.conf list")
+	require.Equal(t, "nameserver 1.2.3.4", cc.ResolvConfs[conn.ResolvConfIdx])
+
+	connMissing := cc.Connections[1]
+	require.Equal(t, int32(-1), connMissing.ResolvConfIdx, "connection without resolv.conf should have idx=-1")
+}

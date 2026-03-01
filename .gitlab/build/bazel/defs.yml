@@ -13,14 +13,14 @@
       paths:
         - .cache/bazelisk
         - .cache/bazel/*/install
-      policy: pull-push
+      policy: pull$BAZEL_CACHE_POLICY_SUFFIX
       when: on_success
     - &bazel_cache
       key: bazel-$CI_RUNNER_DESCRIPTION
       paths:
         - .cache/bazel/*/cache
         - .cache/pip
-      policy: pull-push
+      policy: pull$BAZEL_CACHE_POLICY_SUFFIX
       when: on_success
   variables:
     XDG_CACHE_HOME: "$CI_PROJECT_DIR/.cache"

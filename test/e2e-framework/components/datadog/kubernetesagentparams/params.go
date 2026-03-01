@@ -8,11 +8,12 @@ package kubernetesagentparams
 import (
 	"fmt"
 
+	"go.yaml.in/yaml/v3"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
-	"gopkg.in/yaml.v3"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -30,6 +31,7 @@ const (
 //   - [WithClusterAgentFullImagePath]
 //   - [WithPulumiResourceOptions]
 //   - [WithDeployWindows]
+//   - [WithHostname]
 //   - [WithHelmRepoURL]
 //   - [WithHelmChartPath]
 //   - [WithHelmValues]
@@ -47,6 +49,8 @@ type Params struct {
 	ClusterAgentFullImagePath string
 	// Namespace is the namespace to deploy the agent to.
 	Namespace string
+	// Hostname is the hostname of the agent.
+	Hostname string
 	// HelmRepoURL is the Helm repo URL to use for the agent installation.
 	HelmRepoURL string
 	// HelmChartPath is the Helm chart path to use for the agent installation.
@@ -79,6 +83,8 @@ type Params struct {
 	JMX bool
 	// WindowsImage is a flag to use Windows-compatible image (multi-arch with Windows).
 	WindowsImage bool
+	// TimeoutSeconds is the timeout for Helm operations in seconds (default: 300)
+	TimeoutSeconds int
 }
 
 type Option = func(*Params) error
@@ -152,6 +158,14 @@ func WithPulumiResourceOptions(resources ...pulumi.ResourceOption) func(*Params)
 func WithDeployWindows() func(*Params) error {
 	return func(p *Params) error {
 		p.DeployWindows = true
+		return nil
+	}
+}
+
+// WithHostname sets the hostname of the agent.
+func WithHostname(hostname string) func(*Params) error {
+	return func(p *Params) error {
+		p.Hostname = hostname
 		return nil
 	}
 }
@@ -295,6 +309,25 @@ datadog:
 	}
 }
 
+// WithStackIDTag sets the stackid tag on the agent using a pulumi.StringInput.
+func WithStackIDTag(stackID pulumi.StringInput) func(*Params) error {
+	return func(p *Params) error {
+		values := pulumi.Sprintf(`
+datadog:
+  tags:
+    - stackid:%s
+  dogstatsd:
+    tags:
+      - stackid:%s
+`, stackID, stackID)
+
+		p.HelmValues = append(p.HelmValues, values.ApplyT(func(s string) (pulumi.Asset, error) {
+			return pulumi.NewStringAsset(s), nil
+		}).(pulumi.AssetOutput))
+		return nil
+	}
+}
+
 // WithGPUMonitoring enables GPU monitoring in the agent.
 func WithGPUMonitoring() func(*Params) error {
 	return func(p *Params) error {
@@ -305,6 +338,14 @@ datadog:
     runtimeClassName: ""
 `
 		p.HelmValues = append(p.HelmValues, pulumi.NewStringAsset(gpuMonitoringValues))
+		return nil
+	}
+}
+
+// WithTimeout sets the timeout for Helm operations in seconds
+func WithTimeout(timeoutSeconds int) func(*Params) error {
+	return func(p *Params) error {
+		p.TimeoutSeconds = timeoutSeconds
 		return nil
 	}
 }

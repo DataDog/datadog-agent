@@ -7,6 +7,9 @@ package windows
 
 import (
 	"fmt"
+	"hash/fnv"
+	"math/rand"
+	"os"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/activedirectory"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
@@ -29,8 +32,18 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.Windows
 	// Set the environment for test code access
 	env.SetEnvironment(&awsEnv)
 
-	// Force Windows OS
-	params.instanceOptions = append(params.instanceOptions, ec2.WithOS(compos.WindowsServerDefault))
+	// Use InfraOSDescriptor when set (e.g. -c ddinfra:osDescriptor=...), otherwise pick a Windows Server version (2016–2025) for e2e coverage.
+	// In CI, CI_PIPELINE_ID + CI_JOB_NAME are used as seed so retries get the same version.
+	osDesc := compos.WindowsServerDefault
+	if descStr := awsEnv.InfraOSDescriptor(); descStr != "" {
+		osDesc = compos.DescriptorFromString(descStr, compos.WindowsServerDefault)
+	} else if os.Getenv("CI_PIPELINE_ID") != "" && os.Getenv("CI_JOB_NAME") != "" {
+		versions := compos.WindowsServerVersionsForE2E
+		seed := os.Getenv("CI_PIPELINE_ID") + os.Getenv("CI_JOB_NAME")
+		idx := pickVersionIndex(versions, seed)
+		osDesc = versions[idx]
+	}
+	params.instanceOptions = append(params.instanceOptions, ec2.WithOS(osDesc))
 
 	host, err := ec2.NewVM(awsEnv, params.Name, params.instanceOptions...)
 	if err != nil {
@@ -126,6 +139,17 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.Windows
 	}
 
 	return nil
+}
+
+// pickVersionIndex returns an index in [0, len(versions)). If seed is set, hashes it for deterministic choice; otherwise uses rand.
+func pickVersionIndex(versions []compos.Descriptor, seed string) int {
+	n := len(versions)
+	if seed == "" {
+		return rand.Intn(n)
+	}
+	h := fnv.New64a()
+	h.Write([]byte(seed))
+	return int(h.Sum64() % uint64(n))
 }
 
 // Run is the entry point for the scenario when run via pulumi.

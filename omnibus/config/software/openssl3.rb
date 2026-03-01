@@ -16,8 +16,6 @@
 
 name "openssl3"
 
-license "Apache-2.0"
-license_file "LICENSE.txt"
 skip_transitive_dependency_licensing true
 
 dependency "zlib" unless windows?
@@ -25,108 +23,47 @@ dependency "cacerts"
 
 default_version "3.5.5"
 
-source url: "https://www.openssl.org/source/openssl-#{version}.tar.gz", extract: :lax_tar
-
-version("3.5.5") { source sha256: "b28c91532a8b65a1f983b4c28b7488174e4a01008e29ce8e69bd789f28bc2a89" }
-
 relative_path "openssl-#{version}"
 
 build do
-  if !fips_mode?
-    # OpenSSL on Windows now gets installed as part of the Python install, so we don't need to do anything here
-    if !windows?
-      command_on_repo_root "bazelisk run -- @openssl//:install --destdir=#{install_dir}/embedded"
-      # build_agent_dmg.sh sets INSTALL_DIR to some temporary folder.
-      # This messes up openssl's internal paths. So we have to use another variable
-      # so that replace_prefix and fix_openssl_paths set path correctly inside of the
-      # openssl binaries on macos
-      real_install_dir = if mac_os_x? then "/opt/datadog-agent" else install_dir end
-      lib_extension = if linux_target? then ".so" else ".dylib" end
-      command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{real_install_dir}/embedded" \
-        " #{install_dir}/embedded/lib/libssl#{lib_extension}" \
-        " #{install_dir}/embedded/lib/libcrypto#{lib_extension}" \
-        " #{install_dir}/embedded/lib/pkgconfig/*.pc" \
-        " #{install_dir}/embedded/bin/openssl"
-      command_on_repo_root "bazelisk run -- //deps/openssl:fix_openssl_paths --destdir #{real_install_dir}/embedded" \
-        " #{install_dir}/embedded/lib/libssl#{lib_extension}" \
-        " #{install_dir}/embedded/lib/libcrypto#{lib_extension}" \
-    end
+  flavor_flag = fips_mode? ? "--//packages/agent:flavor=fips" : ""
+
+  if windows?
+    command_on_repo_root "bazelisk run #{flavor_flag} -- @openssl//:install --destdir=#{install_dir}"
   else
+    command_on_repo_root "bazelisk run #{flavor_flag} -- @openssl//:install --destdir=#{install_dir}"
+    # build_agent_dmg.sh sets INSTALL_DIR to some temporary folder.
+    # This messes up openssl's internal paths. So we have to use another variable
+    # so that replace_prefix and fix_openssl_paths set path correctly inside of the
+    # openssl binaries on macos
+    real_install_dir = if mac_os_x? then "/opt/datadog-agent" else install_dir end
+    lib_extension = if linux_target? then ".so" else ".dylib" end
 
-    env = with_standard_compiler_flags(with_embedded_path)
-    if windows?
-      # XXX: OpenSSL explicitly sets -march=i486 and expects that to be honored.
-      # It has OPENSSL_IA32_SSE2 controlling whether it emits optimized SSE2 code
-      # and the 32-bit calling convention involving XMM registers is...  vague.
-      # Do not enable SSE2 generally because the hand optimized assembly will
-      # overwrite registers that mingw expects to get preserved.
-      env["CFLAGS"] = "-I#{install_dir}/embedded/include"
-      env["CPPFLAGS"] = "#{env["CFLAGS"]} -DSIO_UDP_NETRESET=_WSAIOW\\(IOC_VENDOR,15\\)"
-      env["CXXFLAGS"] = env["CFLAGS"]
-    end
-
-    configure_args = []
-    if mac_os_x?
-      configure_cmd = "./Configure"
-      configure_args << "darwin64-#{arm_target? ? "arm64" : "x86_64"}-cc"
-    elsif windows?
-      configure_cmd = "perl.exe ./Configure"
-      configure_args << (windows_arch_i386? ? "mingw" : "mingw64")
-    else
-      configure_cmd = "./config"
-    end
-
-    configure_args << [
-      "--libdir=lib",
-      "no-idea",
-      "no-mdc2",
-      "no-rc5",
-      "shared",
-      "no-ssl3",
-      "no-gost",
+    files_to_patch = [
+      "lib/libssl#{lib_extension}",
+      "lib/libcrypto#{lib_extension}",
+      "bin/openssl",
     ]
-
-    if windows?
-      configure_args << [
-        "--prefix=#{python_3_embedded}",
-        "no-zlib",
-        "no-uplink",
-      ]
-      if ENV["AGENT_FLAVOR"] == "fips"
-        configure_args << '--openssldir="C:/Program Files/Datadog/Datadog Agent/embedded3/ssl"'
-        # Provide a context name for our configuration through the registry
-        configure_args << "-DOSSL_WINCTX=datadog-fips-agent"
-      end
-    else
-      configure_args << [
-        "--prefix=#{install_dir}/embedded",
-        "--with-zlib-lib=#{install_dir}/embedded/lib",
-        "--with-zlib-include=#{install_dir}/embedded/include",
-        "zlib",
-      ]
+    if fips_mode?
+      files_to_patch.append("lib/ossl-modules/*#{lib_extension}", "lib/engines-3/*#{lib_extension}")
     end
 
-    # Out of abundance of caution, we put the feature flags first and then
-    # the crazy platform specific compiler flags at the end.
-    configure_args << env["CFLAGS"] << env["LDFLAGS"]
+    files_to_patch = files_to_patch.map { |path| "#{install_dir}/embedded/#{path}" }
 
-    # We don't use the regular configure wrapper function here since openssl's configure
-    # is not the usual autoconf configure but something handmade written in perl
-    command "#{configure_cmd} #{configure_args.join(' ')}", env: env
+    command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{real_install_dir}/embedded #{files_to_patch.join(' ')}"
 
-    command "make depend", env: env
-    command "make -j #{workers}", env: env
-    command "make install_sw install_ssldirs", env: env
-
-    delete "#{install_dir}/embedded/bin/c_rehash"
+    command_on_repo_root "bazelisk run -- //deps/openssl:fix_openssl_paths --destdir #{real_install_dir}/embedded" \
+      " #{install_dir}/embedded/lib/libssl#{lib_extension}" \
+      " #{install_dir}/embedded/lib/libcrypto#{lib_extension}" \
+  end
+  if fips_mode?
+    command_on_repo_root "bazelisk run -- @openssl_fips//:install --destdir=#{install_dir}"
     if windows?
-      # Rename to more standard .lib suffix for windows import libraries
-      move "#{install_dir}/embedded3/lib/libcrypto.dll.a", "#{install_dir}/embedded3/lib/libcrypto.lib"
-      move "#{install_dir}/embedded3/lib/libssl.dll.a", "#{install_dir}/embedded3/lib/libssl.lib"
+      command_on_repo_root "bazelisk run -- @openssl_fips//:configure_fips --destdir=\"#{install_dir}/embedded3\" --embedded_ssl_dir=\"C:/Program Files/Datadog/Datadog Agent/embedded3/ssl\""
     else
-      # Remove openssl static libraries here as we can't disable those at build time
-      delete "#{install_dir}/embedded/lib/libcrypto.a"
-      delete "#{install_dir}/embedded/lib/libssl.a"
+      command_on_repo_root "bazelisk run -- @openssl_fips//:configure_fips --destdir=#{install_dir}/embedded"
+      command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded" \
+        " #{install_dir}/embedded/lib/ossl-modules/fips.so"
     end
   end
 end

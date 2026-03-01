@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	evmodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	utilintern "github.com/DataDog/datadog-agent/pkg/util/intern"
 )
 
 func makeConnection(pid int32) network.ConnectionStats {
@@ -131,10 +132,15 @@ func TestNetworkConnectionBatching(t *testing.T) {
 		d.maxConnsPerMessage = tc.maxSize
 		d.networkID = "nid"
 		conns := &network.Connections{BufferedData: network.BufferedData{Conns: tc.cur}}
-		allBatches := slices.Collect(d.batches(conns, 1))
-		assert.Equal(t, tc.expectedChunks, len(allBatches), "len %d", i)
+		payloads := slices.Collect(d.batches(conns, 1))
+		assert.Equal(t, tc.expectedChunks, len(payloads), "len %d", i)
 		total := 0
-		for i, c := range allBatches {
+		for i, payload := range payloads {
+			m, err := model.DecodeMessage(payload)
+			require.NoError(t, err)
+			c, ok := m.Body.(*model.CollectorConnections)
+			require.True(t, ok)
+
 			total += len(c.Connections)
 			assert.Equal(t, int32(tc.expectedChunks), c.GroupSize, "group size test %d", i)
 
@@ -159,9 +165,14 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 			util.AddressFromString("1.1.4.1"): {dns.ToHostname("datacat.edu")},
 		},
 	}
-	chunks := slices.Collect(d.batches(conns, 1))
-	assert.Len(t, chunks, 4)
-	for i, c := range chunks {
+	payloads := slices.Collect(d.batches(conns, 1))
+	assert.Len(t, payloads, 4)
+	for i, payload := range payloads {
+		m, err := model.DecodeMessage(payload)
+		require.NoError(t, err)
+		c, ok := m.Body.(*model.CollectorConnections)
+		require.True(t, ok)
+
 		// Only the last chunk should have a DNS mapping
 		if i == 3 {
 			assert.NotEmpty(t, c.EncodedDnsLookups)
@@ -183,10 +194,15 @@ func TestBatchSimilarConnectionsTogether(t *testing.T) {
 	d := mockDirectSender(t)
 	d.maxConnsPerMessage = 2
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
-	chunks := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1))
 
-	assert.Len(t, chunks, 3)
-	for _, c := range chunks {
+	assert.Len(t, payloads, 3)
+	for _, payload := range payloads {
+		m, err := model.DecodeMessage(payload)
+		require.NoError(t, err)
+		c, ok := m.Body.(*model.CollectorConnections)
+		require.True(t, ok)
+
 		rAddr := c.Connections[0].Raddr.Ip
 		for _, cc := range c.Connections {
 			assert.Equal(t, rAddr, cc.Raddr.Ip)
@@ -218,10 +234,15 @@ func TestNetworkConnectionBatchingWithDomainsByQueryType(t *testing.T) {
 	d := mockDirectSender(t)
 	d.maxConnsPerMessage = 1
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
-	chunks := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1))
 
-	assert.Len(t, chunks, 4)
-	for i, c := range chunks {
+	assert.Len(t, payloads, 4)
+	for i, payload := range payloads {
+		m, err := model.DecodeMessage(payload)
+		require.NoError(t, err)
+		c, ok := m.Body.(*model.CollectorConnections)
+		require.True(t, ok)
+
 		domaindb, _ := c.GetDNSNames()
 
 		// verify nothing was put in the DnsStatsByDomain bucket by mistake
@@ -324,10 +345,15 @@ func TestNetworkConnectionBatchingWithRoutes(t *testing.T) {
 	d := mockDirectSender(t)
 	d.maxConnsPerMessage = 4
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
-	chunks := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1))
+	assert.Len(t, payloads, 2)
 
-	assert.Len(t, chunks, 2)
-	for i, c := range chunks {
+	for i, payload := range payloads {
+		m, err := model.DecodeMessage(payload)
+		require.NoError(t, err)
+		c, ok := m.Body.(*model.CollectorConnections)
+		require.True(t, ok)
+
 		switch i {
 		case 0:
 			require.Equal(t, int32(0), c.Connections[0].RouteIdx)
@@ -387,10 +413,15 @@ func TestNetworkConnectionTags(t *testing.T) {
 	d := mockDirectSender(t)
 	d.maxConnsPerMessage = 4
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
-	chunks := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1))
 
-	assert.Len(t, chunks, 2)
-	for _, c := range chunks {
+	assert.Len(t, payloads, 2)
+	for _, p := range payloads {
+		m, err := model.DecodeMessage(p)
+		require.NoError(t, err)
+		c, ok := m.Body.(*model.CollectorConnections)
+		require.True(t, ok)
+
 		for _, conn := range c.Connections {
 			// conn.Tags must be used between system-probe and the agent only
 			assert.Nil(t, conn.Tags)
@@ -421,6 +452,7 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 	evm := &fakeEventMonitor{}
 	dsc, err := NewDirectSenderConsumer(evm, d.log, d.sysprobeconfig)
 	require.NoError(t, err)
+	t.Cleanup(func() { directSenderConsumerInstance.Store(nil) })
 	dsch = dsc.(eventmonitor.EventConsumerHandler)
 	e := evmodel.NewFakeEvent()
 	e.Type = uint32(evmodel.ExecEventType)
@@ -431,10 +463,13 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 
 	d.maxConnsPerMessage = 1
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
-	chunks := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1))
 
-	assert.Len(t, chunks, 1)
-	connections := chunks[0]
+	assert.Len(t, payloads, 1)
+	m, err := model.DecodeMessage(payloads[0])
+	require.NoError(t, err)
+	connections, ok := m.Body.(*model.CollectorConnections)
+	require.True(t, ok)
 	assert.Len(t, connections.Connections, 1)
 	require.EqualValues(t, expectedTags, connections.GetConnectionsTags(connections.Connections[0].TagsIdx))
 }
@@ -456,12 +491,15 @@ func TestNetworkConnectionProcessTags(t *testing.T) {
 	d.maxConnsPerMessage = 2
 	d.tagger = fakeTagger
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
-	chunks := slices.Collect(d.batches(conns, 1))
-
-	assert.Len(t, chunks, 2)
+	payloads := slices.Collect(d.batches(conns, 1))
+	assert.Len(t, payloads, 2)
 
 	// Verify first chunk (connections 0 and 1)
-	connections0 := chunks[0]
+	m, err := model.DecodeMessage(payloads[0])
+	require.NoError(t, err)
+	connections0, ok := m.Body.(*model.CollectorConnections)
+	require.True(t, ok)
+
 	assert.Len(t, connections0.Connections, 2)
 
 	// Check tags for first connection (PID 1)
@@ -475,7 +513,10 @@ func TestNetworkConnectionProcessTags(t *testing.T) {
 	assert.ElementsMatch(t, expectedTags1, conn1Tags)
 
 	// Verify second chunk (connections 2 and 3)
-	connections1 := chunks[1]
+	m, err = model.DecodeMessage(payloads[1])
+	require.NoError(t, err)
+	connections1, ok := m.Body.(*model.CollectorConnections)
+	require.True(t, ok)
 	assert.Len(t, connections1.Connections, 2)
 
 	// Check tags for third connection (PID 3)
@@ -486,4 +527,38 @@ func TestNetworkConnectionProcessTags(t *testing.T) {
 	// Check tags for fourth connection (PID 4, no tags configured)
 	conn3Tags := connections1.GetConnectionsTags(connections1.Connections[1].TagsIdx)
 	assert.Empty(t, conn3Tags, "Connection with no configured process tags should have no tags")
+}
+
+func TestNetworkConnectionBatchingWithResolvConf(t *testing.T) {
+	stringInterner := utilintern.NewStringInterner()
+	resolvConfData := stringInterner.GetString("nameserver 1.2.3.4")
+
+	p := makeConnections(2)
+	containerID := p[0].ContainerID.Source
+
+	d := mockDirectSender(t)
+	d.maxConnsPerMessage = 10
+	conns := &network.Connections{
+		BufferedData: network.BufferedData{Conns: p},
+		ResolvConfs: map[network.ContainerID]network.ResolvConf{
+			containerID: resolvConfData,
+		},
+	}
+	payloads := slices.Collect(d.batches(conns, 1))
+	require.Len(t, payloads, 1)
+
+	m, err := model.DecodeMessage(payloads[0])
+	require.NoError(t, err)
+	cc, ok := m.Body.(*model.CollectorConnections)
+	require.True(t, ok)
+
+	require.Len(t, cc.Connections, 2)
+
+	conn := cc.Connections[0]
+	require.GreaterOrEqual(t, conn.ResolvConfIdx, int32(0), "connection should have a non-negative resolv.conf index")
+	require.NotNil(t, cc.ResolvConfs, "batch should have resolv.conf list")
+	require.Equal(t, "nameserver 1.2.3.4", cc.ResolvConfs[conn.ResolvConfIdx])
+
+	connMissing := cc.Connections[1]
+	require.Equal(t, int32(-1), connMissing.ResolvConfIdx, "connection without resolv.conf should have idx=-1")
 }

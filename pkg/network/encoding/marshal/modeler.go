@@ -15,6 +15,7 @@ import (
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/indexedset"
 )
 
 var (
@@ -29,7 +30,7 @@ type ConnectionsModeler struct {
 	resolvConfFormatter *resolvConfFormatter
 	ipc                 ipCache
 	routeIndex          map[network.Via]RouteIdx
-	tagsSet             *network.TagsSet
+	tagsSet             *indexedset.IndexedSet[string]
 	sysProbePid         uint32
 }
 
@@ -50,7 +51,7 @@ func NewConnectionsModeler(conns *network.Connections) (*ConnectionsModeler, err
 		dnsFormatter:        newDNSFormatter(conns, ipc),
 		resolvConfFormatter: newResolvConfFormatter(conns),
 		routeIndex:          make(map[network.Via]RouteIdx),
-		tagsSet:             network.NewTagsSet(),
+		tagsSet:             indexedset.New[string](0),
 		sysProbePid:         uint32(nspid),
 	}, nil
 }
@@ -113,7 +114,7 @@ func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder,
 
 	c.resolvConfFormatter.FormatResolvConfs(builder)
 
-	for _, tag := range c.tagsSet.GetStrings() {
+	for _, tag := range c.tagsSet.UniqueKeys() {
 		builder.AddTags(tag)
 	}
 

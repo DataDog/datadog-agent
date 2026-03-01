@@ -39,7 +39,7 @@ static TARGET_ENV_VARS: phf::Set<&'static str> = phf_set! {
 ///
 /// Reads `/proc/PID/environ` incrementally and collects only the target
 /// environment variables defined in `TARGET_ENV_VARS`.
-pub fn get_target_envs(pid: u32) -> Result<HashMap<String, String>, std::io::Error> {
+pub fn get_target_envs(pid: i32) -> Result<HashMap<String, String>, std::io::Error> {
     let path = procfs::root_path().join(pid.to_string()).join("environ");
 
     let file = fs::File::open(&path)?;
@@ -106,7 +106,7 @@ mod tests {
     fn test_get_target_envs_self() {
         // Test reading our own environment variables
         // This should succeed unless we don't have permission to read our own /proc/self/environ
-        let result = get_target_envs(std::process::id());
+        let result = get_target_envs(std::process::id().cast_signed());
         assert!(result.is_ok());
 
         let env_vars = result.unwrap();
@@ -132,7 +132,7 @@ mod tests {
         cmd.env("SHELL", "/bin/bash");
 
         let mut child = cmd.spawn().expect("Failed to spawn test process");
-        let pid = child.id();
+        let pid = child.id().cast_signed();
 
         // Wait for process to be fully initialized and environ to be readable
         assert_eventually(Duration::from_secs(5), Duration::from_millis(10), || {

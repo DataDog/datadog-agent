@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/textproto"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -23,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	ddhttputil "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // protobufFormat is `config.Protobuf.String()`, this is temporary duplication to not have
@@ -156,7 +156,7 @@ func (backend *ActivityDumpRemoteBackend) HandleActivityDump(imageName string, i
 // SendTelemetry sends telemetry for the current storage
 func (backend *ActivityDumpRemoteBackend) SendTelemetry(sender statsd.ClientInterface) {
 	// send too large entity metric
-	tags := []string{"format:" + protobufFormat, fmt.Sprintf("compression:%v", true)}
+	tags := []string{"format:" + protobufFormat, "compression:true"}
 	_ = sender.Count(metrics.MetricActivityDumpEntityTooLarge, int64(backend.tooLargeEntities.Load()), tags, 1.0)
 }
 

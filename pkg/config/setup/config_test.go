@@ -16,7 +16,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -217,7 +217,10 @@ func TestProxy(t *testing.T) {
 		{
 			name: "no values",
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
-				assert.Equal(t, map[string]interface{}{"http": "", "https": "", "no_proxy": []interface{}{}}, config.Get("proxy"))
+				proxyMap := config.Get("proxy").(map[string]interface{})
+				assert.Equal(t, "", proxyMap["http"])
+				assert.Equal(t, "", proxyMap["https"])
+				assert.Empty(t, proxyMap["no_proxy"])
 				assert.Nil(t, config.GetProxies())
 			},
 			proxyForCloudMetadata: true,

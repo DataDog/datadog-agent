@@ -7,6 +7,9 @@ integration_tests_otel:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   needs: ["go_deps"]
+  variables:
+    KUBERNETES_MEMORY_REQUEST: 16Gi
+    KUBERNETES_MEMORY_LIMIT: 16Gi
   script:
     - !reference [.retrieve_linux_go_deps]
     - dda inv -- check-otel-build
@@ -26,7 +29,7 @@ docker_image_build_otel:
     - cp comp/otelcol/collector-contrib/impl/manifest.yaml /tmp/otel-ci/
     - cp Dockerfiles/agent-ddot/Dockerfile.agent-otel /tmp/otel-ci/
     - cp test/integration/docker/otel_agent_build_tests.py /tmp/otel-ci/
-    - export OTELCOL_VERSION=v$(yq eval '.dist.version' /tmp/otel-ci/manifest.yaml)
+    - export OTELCOL_VERSION=$(yq eval '.processors[] | select(.gomod | test("opentelemetry-collector-contrib")) | .gomod' /tmp/otel-ci/manifest.yaml | head -1 | awk '{print $NF}')
     - >-
       yq eval -i
       '.receivers += [{"gomod": "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver " + env(OTELCOL_VERSION)}]'
@@ -45,6 +48,7 @@ docker_image_build_otel:
       --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
       --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
       --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
+      --build-arg BASE_IMAGE_REGISTRY=registry.ddbuild.io/images/mirror \
       --build-arg CI \
       --build-arg DDA_VERSION=$DDA_VERSION \
       --tag agent-byoc:latest \
@@ -76,9 +80,12 @@ datadog_otel_components_ocb_build:
     - test/otel/testdata/ocb_build_script.sh
     - echo "see artifacts for job logs"
   rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
+    - !reference [.on_otel_components_changes]
   timeout: 15 minutes
+  variables:
+    KUBERNETES_CPU_REQUEST: 16
+    KUBERNETES_MEMORY_REQUEST: 32Gi
+    KUBERNETES_MEMORY_LIMIT: 32Gi
 
 # Test that the BYOC packages can be built with the existing Dockerfile
 ddot_byoc_package_build_test_rpm:

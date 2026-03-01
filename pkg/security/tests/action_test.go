@@ -614,7 +614,7 @@ func TestActionHash(t *testing.T) {
 		},
 		{
 			ID:         "hash_action_exec",
-			Expression: `exec.file.path == "{{.Root}}/test-hash-action-exec_touch"`,
+			Expression: `exec.file.path == "{{.Root}}/test-hash-action-exec_tester"`,
 			Actions: []*rules.ActionDefinition{
 				{
 					Hash: &rules.HashDefinition{},
@@ -634,23 +634,20 @@ func TestActionHash(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// it's important that this ends with `touch` because for example ubuntu 25.10
-	// uses the suffix to know which "function/utility" is running
-	// https://github.com/uutils/coreutils/blob/909da503713f39f8e36b1ff077841c9cc13d920b/src/bin/coreutils.rs#L60
-	testExecutable, _, err := test.Path("test-hash-action-exec_touch")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err = copyFile(which(t, "touch"), testExecutable, 0755); err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(testExecutable)
-
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	testExecutable, _, err := test.Path("test-hash-action-exec_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = copyFile(syscallTester, testExecutable, 0755); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testExecutable)
 
 	done := make(chan bool, 10)
 
@@ -750,10 +747,9 @@ func TestActionHash(t *testing.T) {
 	})
 
 	t.Run("exec", func(t *testing.T) {
-		flake.MarkOnJobName(t, "ubuntu_25.10")
 		test.msgSender.flush()
 		test.WaitSignalFromRule(t, func() error {
-			cmd := exec.Command(testExecutable, "/tmp/aaa")
+			cmd := exec.Command(testExecutable, "sleep", "1")
 			out, err := cmd.CombinedOutput()
 			if err != nil {
 				t.Logf("output: %s", string(out))
@@ -773,7 +769,7 @@ func TestActionHash(t *testing.T) {
 				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.state == 'Done')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
 					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
-				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.trigger == 'process_exit')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.trigger == 'timeout')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
 					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
 				if el, err := jsonpath.JsonPathLookup(obj, `$.file.hashes`); err != nil || el == nil || len(el.([]interface{})) == 0 {
@@ -1031,13 +1027,13 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 		t.Skip("Skip test spawning docker containers on docker")
 	}
 
-	checkKernelCompatibility(t, "skip on CentOS7", func(kv *kernel.Version) bool {
-		return kv.IsRH7Kernel()
-	})
-
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
+
+	checkKernelCompatibility(t, "skip on CentOS7", func(kv *kernel.Version) bool {
+		return kv.IsRH7Kernel()
+	})
 
 	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
 		return kv.IsSuse12Kernel()
@@ -1136,9 +1132,8 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 		if err != nil {
 			return fmt.Errorf("failed to reload policies: %w", err)
 		}
-		// Trigger a small event to force the replay of cached events.
-		// The replay only happens in handleEvent when a new eBPF event arrives.
-		exec.Command("true").Run()
+		// sleep to let the replay events trigger the rule
+		time.Sleep(time.Second)
 		return nil
 	}, func(rule *rules.Rule, event *model.Event) bool {
 		assertTriggeredRule(t, rule, "test_kill_container_with_signature")
@@ -1150,7 +1145,8 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 			if killReport, ok := report.(*sprobe.KillActionReport); ok {
 				assert.Equal(t, "SIGKILL", killReport.Signal, "unexpected signal")
 				assert.Equal(t, "cgroup", killReport.Scope, "unexpected scope")
-				assert.Equal(t, sprobe.KillActionStatusPerformed, killReport.Status, "unexpected status")
+				// we might get "partially kill" status if like we start by killing the container entrypoint and we're not able to kill the tail because it's already stopped
+				assert.Contains(t, []sprobe.KillActionStatus{sprobe.KillActionStatusPerformed, sprobe.KillActionStatusPartiallyPerformed}, killReport.Status, "unexpected status")
 			}
 		}
 		return true
