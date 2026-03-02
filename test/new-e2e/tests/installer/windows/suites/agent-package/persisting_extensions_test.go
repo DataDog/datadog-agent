@@ -50,7 +50,7 @@ func TestExtensionPersistence(t *testing.T) {
 		}
 		// Version comes from the milestone at the time the pipeline was created.
 		// The exact git suffix is irrelevant for the Contains() check used in installPreviousAgentVersion.
-		return installerwindows.NewAgentVersionManager("7.77.0-devel", "7.77.0-devel.pipeline."+stableExtensionsPipelineID+"-1", oci, msi)
+		return installerwindows.NewAgentVersionManager("7.78.0-devel", "7.78.0-devel.pipeline."+stableExtensionsPipelineID+"-1", oci, msi)
 	}
 	e2e.Run(t, s,
 		e2e.WithProvisioner(
