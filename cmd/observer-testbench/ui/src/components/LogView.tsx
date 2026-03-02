@@ -1,6 +1,8 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import type { ScenarioInfo, LogAnomaly, LogEntry } from '../api/client';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
+import { MAIN_TAG_FILTER_KEYS } from '../constants';
+import { parseTagFilter, extractTagGroups, toggleTagInInput, matchesTagFilter } from '../filters';
 
 interface LogViewProps {
   state: ObserverState;
@@ -278,39 +280,6 @@ function LogAnomalyCard({ anomaly, isExpanded, onToggle }: LogAnomalyCardProps) 
 const ALL_LEVELS = ['error', 'warn', 'info', 'debug'];
 const LOG_PAGE_SIZE = 50;
 
-function parseTagFilter(input: string): Map<string, Set<string>> {
-  const byKey = new Map<string, Set<string>>();
-  for (const token of input.trim().split(/\s+/)) {
-    const sep = token.indexOf(':');
-    if (sep <= 0 || sep === token.length - 1) continue;
-    const key = token.slice(0, sep);
-    if (!byKey.has(key)) byKey.set(key, new Set());
-    byKey.get(key)!.add(token);
-  }
-  return byKey;
-}
-
-function extractTagGroups(tagLists: string[][]): Map<string, string[]> {
-  const groups = new Map<string, Set<string>>();
-  for (const tags of tagLists) {
-    for (const tag of tags ?? []) {
-      const sep = tag.indexOf(':');
-      if (sep === -1) continue;
-      const key = tag.slice(0, sep);
-      if (!groups.has(key)) groups.set(key, new Set());
-      groups.get(key)!.add(tag);
-    }
-  }
-  return new Map([...groups.entries()].map(([k, v]) => [k, [...v].sort()]));
-}
-
-function toggleTagInInput(input: string, tag: string): string {
-  const tokens = input.trim().split(/\s+/).filter(Boolean);
-  const idx = tokens.indexOf(tag);
-  if (idx >= 0) tokens.splice(idx, 1);
-  else tokens.push(tag);
-  return tokens.join(' ');
-}
 
 export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
   const scenarios = state.scenarios ?? [];
@@ -338,22 +307,18 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
     }
   }, [state.activeScenario]);
 
-  const logTagGroups = useMemo(
-    () => extractTagGroups(allLogs.map((l) => l.tags ?? [])),
-    [allLogs]
-  );
+  const logTagGroups = useMemo(() => {
+    const all = extractTagGroups(allLogs.map((l) => l.tags ?? []));
+    return new Map([...all.entries()].filter(([k]) => MAIN_TAG_FILTER_KEYS.has(k)));
+  }, [allLogs]);
 
   const filteredLogs = useMemo(() => {
-    const byKey = parseTagFilter(tagFilterInput);
+    const filter = parseTagFilter(tagFilterInput);
     return allLogs
       .filter((l) => {
         if (!enabledLevels.has(l.status.toLowerCase())) return false;
-        if (byKey.size === 0) return true;
-        const logTags = new Set(l.tags ?? []);
-        for (const [, tagSet] of byKey) {
-          if (![...tagSet].some((t) => logTags.has(t))) return false;
-        }
-        return true;
+        if (filter.include.size === 0 && filter.exclude.size === 0) return true;
+        return matchesTagFilter(l.tags ?? [], filter);
       })
       .sort((a, b) => a.timestamp - b.timestamp);
   }, [allLogs, enabledLevels, tagFilterInput]);
@@ -368,16 +333,10 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
   }, [allLogs]);
 
   const sortedAnomalies = useMemo(() => {
-    const byKey = parseTagFilter(tagFilterInput);
-    const anomalies = byKey.size === 0
+    const filter = parseTagFilter(tagFilterInput);
+    const anomalies = (filter.include.size === 0 && filter.exclude.size === 0)
       ? allLogAnomalies
-      : allLogAnomalies.filter((a) => {
-          const anomalyTags = new Set(a.tags ?? []);
-          for (const [, tagSet] of byKey) {
-            if (![...tagSet].some((t) => anomalyTags.has(t))) return false;
-          }
-          return true;
-        });
+      : allLogAnomalies.filter((a) => matchesTagFilter(a.tags ?? [], filter));
     return [...anomalies].sort((a, b) => a.timestamp - b.timestamp);
   }, [allLogAnomalies, tagFilterInput]);
 
@@ -466,7 +425,7 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
           {logTagGroups.size > 0 && (
             <div className="space-y-2">
               {[...logTagGroups.entries()].map(([key, tags]) => {
-                const activeTags = parseTagFilter(tagFilterInput);
+                const { include: activeTags } = parseTagFilter(tagFilterInput);
                 return (
                   <div key={key}>
                     <div className="text-[10px] text-slate-500 mb-1">{key}</div>

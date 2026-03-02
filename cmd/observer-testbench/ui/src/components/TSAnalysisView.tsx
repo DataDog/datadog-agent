@@ -8,6 +8,7 @@ import { getAnalyzerColorStable } from './TimeSeriesChart';
 import type { TimeRange } from './ChartWithAnomalyDetails';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 import { MAIN_TAG_FILTER_KEYS } from '../constants';
+import { parseTagFilter, extractTagGroups, toggleTagInInput, matchesTagFilter } from '../filters';
 
 const AGGREGATION_TYPES = ['avg', 'count', 'sum', 'min', 'max'] as const;
 type AggregationType = typeof AGGREGATION_TYPES[number];
@@ -31,39 +32,6 @@ function formatSeriesLabel(tags: string[]): string {
   return tags.join(', ');
 }
 
-function parseTagFilter(input: string): Map<string, Set<string>> {
-  const byKey = new Map<string, Set<string>>();
-  for (const token of input.trim().split(/\s+/)) {
-    const sep = token.indexOf(':');
-    if (sep <= 0 || sep === token.length - 1) continue;
-    const key = token.slice(0, sep);
-    if (!byKey.has(key)) byKey.set(key, new Set());
-    byKey.get(key)!.add(token);
-  }
-  return byKey;
-}
-
-function extractTagGroups(tagLists: string[][]): Map<string, string[]> {
-  const groups = new Map<string, Set<string>>();
-  for (const tags of tagLists) {
-    for (const tag of tags ?? []) {
-      const sep = tag.indexOf(':');
-      if (sep === -1) continue;
-      const key = tag.slice(0, sep);
-      if (!groups.has(key)) groups.set(key, new Set());
-      groups.get(key)!.add(tag);
-    }
-  }
-  return new Map([...groups.entries()].map(([k, v]) => [k, [...v].sort()]));
-}
-
-function toggleTagInInput(input: string, tag: string): string {
-  const tokens = input.trim().split(/\s+/).filter(Boolean);
-  const idx = tokens.indexOf(tag);
-  if (idx >= 0) tokens.splice(idx, 1);
-  else tokens.push(tag);
-  return tokens.join(' ');
-}
 
 interface MetricGroup {
   key: string;
@@ -134,15 +102,9 @@ export function TSAnalysisView({
 
   const filteredSeries = useMemo(() => {
     const byAggType = allSeries.filter((s) => getAggregationType(s.name) === aggregationType);
-    const byKey = parseTagFilter(tagFilterInput);
-    if (byKey.size === 0) return byAggType;
-    return byAggType.filter((s) => {
-      const seriesTags = new Set(s.tags ?? []);
-      for (const [, tagSet] of byKey) {
-        if (![...tagSet].some((t) => seriesTags.has(t))) return false;
-      }
-      return true;
-    });
+    const filter = parseTagFilter(tagFilterInput);
+    if (filter.include.size === 0 && filter.exclude.size === 0) return byAggType;
+    return byAggType.filter((s) => matchesTagFilter(s.tags ?? [], filter));
   }, [allSeries, aggregationType, tagFilterInput]);
 
   const metricGroups = useMemo(() => {
@@ -392,7 +354,7 @@ export function TSAnalysisView({
           {tagGroups.size > 0 && (
             <div className="space-y-2">
               {[...tagGroups.entries()].map(([key, tags]) => {
-                const activeTags = parseTagFilter(tagFilterInput);
+                const { include: activeTags } = parseTagFilter(tagFilterInput);
                 return (
                   <div key={key}>
                     <div className="text-[10px] text-slate-500 mb-1">{key}</div>

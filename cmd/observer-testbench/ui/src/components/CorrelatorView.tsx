@@ -5,49 +5,8 @@ import { CompressedGroupCard } from './CompressedGroupCard';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 import type { ScenarioInfo, Correlation } from '../api/client';
 import type { TimeRange } from './ChartWithAnomalyDetails';
-
-function parseTagFilter(input: string): Map<string, Set<string>> {
-  const byKey = new Map<string, Set<string>>();
-  for (const token of input.trim().split(/\s+/)) {
-    const sep = token.indexOf(':');
-    if (sep <= 0 || sep === token.length - 1) continue;
-    const key = token.slice(0, sep);
-    if (!byKey.has(key)) byKey.set(key, new Set());
-    byKey.get(key)!.add(token);
-  }
-  return byKey;
-}
-
-function extractTagGroups(tagLists: string[][]): Map<string, string[]> {
-  const groups = new Map<string, Set<string>>();
-  for (const tags of tagLists) {
-    for (const tag of tags ?? []) {
-      const sep = tag.indexOf(':');
-      if (sep === -1) continue;
-      const key = tag.slice(0, sep);
-      if (!groups.has(key)) groups.set(key, new Set());
-      groups.get(key)!.add(tag);
-    }
-  }
-  return new Map([...groups.entries()].map(([k, v]) => [k, [...v].sort()]));
-}
-
-function toggleTagInInput(input: string, tag: string): string {
-  const tokens = input.trim().split(/\s+/).filter(Boolean);
-  const idx = tokens.indexOf(tag);
-  if (idx >= 0) tokens.splice(idx, 1);
-  else tokens.push(tag);
-  return tokens.join(' ');
-}
-
-function matchesTags(tags: string[], byKey: Map<string, Set<string>>): boolean {
-  if (byKey.size === 0) return true;
-  const tagSet = new Set(tags);
-  for (const [, tagValues] of byKey) {
-    if (![...tagValues].some((t) => tagSet.has(t))) return false;
-  }
-  return true;
-}
+import { MAIN_TAG_FILTER_KEYS } from '../constants';
+import { parseTagFilter, extractTagGroups, toggleTagInInput, matchesTagFilter } from '../filters';
 
 interface CorrelatorViewProps {
   state: ObserverState;
@@ -80,22 +39,22 @@ export function CorrelatorView({ state, actions, sidebarWidth, timeRange }: Corr
     [components]
   );
 
-  const tagGroups = useMemo(
-    () => extractTagGroups(allAnomalies.map((a) => a.tags ?? [])),
-    [allAnomalies]
-  );
+  const tagGroups = useMemo(() => {
+    const all = extractTagGroups(allAnomalies.map((a) => a.tags ?? []));
+    return new Map([...all.entries()].filter(([k]) => MAIN_TAG_FILTER_KEYS.has(k)));
+  }, [allAnomalies]);
 
   const anomalies = useMemo(() => {
-    const byKey = parseTagFilter(tagFilterInput);
-    if (byKey.size === 0) return allAnomalies;
-    return allAnomalies.filter((a) => matchesTags(a.tags ?? [], byKey));
+    const filter = parseTagFilter(tagFilterInput);
+    if (filter.include.size === 0 && filter.exclude.size === 0) return allAnomalies;
+    return allAnomalies.filter((a) => matchesTagFilter(a.tags ?? [], filter));
   }, [allAnomalies, tagFilterInput]);
 
   const correlations = useMemo(() => {
-    const byKey = parseTagFilter(tagFilterInput);
-    if (byKey.size === 0) return allCorrelations;
+    const filter = parseTagFilter(tagFilterInput);
+    if (filter.include.size === 0 && filter.exclude.size === 0) return allCorrelations;
     return allCorrelations.filter((c) =>
-      c.anomalies.some((a) => matchesTags(a.tags, byKey))
+      c.anomalies.some((a) => matchesTagFilter(a.tags, filter))
     );
   }, [allCorrelations, tagFilterInput]);
 
@@ -186,7 +145,7 @@ export function CorrelatorView({ state, actions, sidebarWidth, timeRange }: Corr
           {tagGroups.size > 0 && (
             <div className="space-y-2">
               {[...tagGroups.entries()].map(([key, tags]) => {
-                const activeTags = parseTagFilter(tagFilterInput);
+                const { include: activeTags } = parseTagFilter(tagFilterInput);
                 return (
                   <div key={key}>
                     <div className="text-[10px] text-slate-500 mb-1">{key}</div>
