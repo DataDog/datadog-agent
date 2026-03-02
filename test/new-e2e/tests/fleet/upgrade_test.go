@@ -47,9 +47,9 @@ func (s *upgradeSuite) TestUpgrade() {
 	err = s.Backend.PromoteExperiment("datadog-agent")
 	s.Require().NoError(err)
 
-	version, err = s.Agent.Version()
+	packageVersion, err := s.Agent.PackageVersion()
 	s.Require().NoError(err)
-	s.Require().Equal(targetVersion, version)
+	s.Require().Equal(targetVersion, packageVersion)
 }
 
 func (s *upgradeSuite) TestUpgradeFailureTimeout() {
