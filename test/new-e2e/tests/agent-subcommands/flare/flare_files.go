@@ -5,8 +5,8 @@
 
 package flare
 
-// defaultFlareFiles contains all the files that are included in the flare archive by default (no need for a specific configuration option)
-var defaultFlareFiles = []string{
+// DefaultFlareFiles contains all the files that are included in the flare archive by default (no need for a specific configuration option)
+var DefaultFlareFiles = []string{
 	"config-check.log",
 	"diagnose.log",
 	"docker_ps.log",
@@ -23,34 +23,37 @@ var defaultFlareFiles = []string{
 	"version-history.json",
 }
 
-var defaultMetadataFlareFiles = []string{
+// DefaultMetadataFlareFiles contains the metadata files included by default
+var DefaultMetadataFlareFiles = []string{
 	"metadata/host.json",
 	"metadata/inventory/host.json",
 	"metadata/inventory/agent.json",
 }
 
-var nonLocalMetadataFlareFiles = []string{
+// NonLocalMetadataFlareFiles contains metadata files only available in non-local flare mode
+var NonLocalMetadataFlareFiles = []string{
 	"metadata/inventory/checks.json",
 }
 
-var nonLocalFlareFiles = []string{
+// NonLocalFlareFiles contains files only available in non-local flare mode
+var NonLocalFlareFiles = []string{
 	"tagger-list.json",
 	"workload-list.log",
 	"agent_open_files.txt",
 }
 
-// defaultLogFiles contains all the log files that are created with a default installation
-var defaultLogFiles = []string{
+// DefaultLogFiles contains all the log files that are created with a default installation
+var DefaultLogFiles = []string{
 	"logs/agent.log",
 	"logs/process-agent.log",
 	"logs/trace-agent.log",
 }
 
-// allLogFiles contains all the log files that are created when enabling all products
+// AllLogFiles contains all the log files that are created when enabling all products
 // TODO: add these files
 //   - "logs/dogstatsd_info/dogstatsd-stats.log", // need to enable DSD
 //   - "logs/jmxfetch.log",                       // need to enable JMX Fetch
-var allLogFiles = []string{
+var AllLogFiles = []string{
 	"logs/agent.log",
 	"logs/process-agent.log",
 	"logs/security-agent.log",
@@ -58,25 +61,25 @@ var allLogFiles = []string{
 	"logs/trace-agent.log",
 }
 
-// defaultConfigFiles contains the config file created with a default installation
-var defaultConfigFiles = []string{"etc/datadog.yaml"}
+// DefaultConfigFiles contains the config file created with a default installation
+var DefaultConfigFiles = []string{"etc/datadog.yaml"}
 
-// allConfigFiles contains all the config files we can create to configure the Agents
-var allConfigFiles = []string{
+// AllConfigFiles contains all the config files we can create to configure the Agents
+var AllConfigFiles = []string{
 	"etc/datadog.yaml",
 	"etc/security-agent.yaml",
 	"etc/system-probe.yaml",
 }
 
-// defaultFlareFolders contains all the folders included by default in the flare
-var defaultFlareFolders = []string{
+// DefaultFlareFolders contains all the folders included by default in the flare
+var DefaultFlareFolders = []string{
 	"etc/confd/",
 	"expvar",
 	"logs",
 }
 
-// windowsFiles contains files that are specific to Windows
-var windowsFiles = []string{
+// WindowsFiles contains files that are specific to Windows
+var WindowsFiles = []string{
 	"typeperf.txt",
 	"lodctr.txt",
 	"counter_strings.txt",
@@ -84,10 +87,11 @@ var windowsFiles = []string{
 	"datadog.reg",
 }
 
-// linuxFiles contains files that are specific to Linux
-var linuxFiles = []string{}
+// LinuxFiles contains files that are specific to Linux
+var LinuxFiles = []string{}
 
-var profilingFiles = []string{
+// ProfilingFiles contains the profiling files included in a flare with profiling enabled
+var ProfilingFiles = []string{
 	"profiles/core-1st-heap.pprof",
 	"profiles/core-2nd-heap.pprof",
 	"profiles/core-block.pprof",
@@ -100,7 +104,8 @@ var profilingFiles = []string{
 	"profiles/trace-mutex.pprof",
 }
 
-var profilingNonLinuxFiles = []string{
+// ProfilingNonLinuxFiles contains profiling files only available on non-Linux platforms
+var ProfilingNonLinuxFiles = []string{
 	"profiles/process-1st-heap.pprof",
 	"profiles/process-2nd-heap.pprof",
 	"profiles/process-block.pprof",
@@ -108,10 +113,10 @@ var profilingNonLinuxFiles = []string{
 	"profiles/process-mutex.pprof",
 }
 
-// untestedFiles contains some untested files that needs specific scenario which should be added later.
+// UntestedFiles contains some untested files that needs specific scenario which should be added later.
 //
 //nolint:unused
-var untestedFiles = []string{
+var UntestedFiles = []string{
 	"docker_inspect.log",      // only within a docker container
 	"local",                   // when creating flare locally
 	"profiles/*",              // when creating profiles
