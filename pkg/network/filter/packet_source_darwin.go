@@ -254,11 +254,12 @@ func (p *LibpcapSource) addInterface(ifaceName string) error {
 		// Self-cleanup: remove from the map and close the handle regardless of
 		// why this goroutine exits (global shutdown, interface removal, or error).
 		defer func() {
-			p.interfacesMu.Lock()
+			// close the handle before removing the interface from the map
+			ih.handle.Close()
 
+			p.interfacesMu.Lock()
 			delete(p.interfaces, ih.ifaceName)
 			p.interfacesMu.Unlock()
-			ih.handle.Close()
 
 			// Distinguish a clean shutdown from an unexpected interface removal
 			// so the logs are actionable.
@@ -311,6 +312,10 @@ func (p *LibpcapSource) VisitPackets(visitor func(data []byte, info PacketInfo, 
 			}()
 
 			if visitorErr != nil {
+				// tell all other readers to stop
+				p.closeOnce.Do(func() {
+					close(p.exit)
+				})
 				return visitorErr
 			}
 
