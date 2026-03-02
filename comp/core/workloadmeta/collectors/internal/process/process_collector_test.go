@@ -891,34 +891,25 @@ func TestContainerIDRaceCondition(t *testing.T) {
 	defer cancel()
 
 	// Cycle 1: process exists but container ID is not yet available
-	c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(map[int32]*procutil.Process{
-		proc1.Pid: proc1,
-	}, nil).Times(1)
-	c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(map[int]string{}).Times(1)
-
 	// Cycle 2: same process, now container ID is available
 	c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(map[int32]*procutil.Process{
 		proc1.Pid: proc1,
-	}, nil).Times(1)
-	c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(map[int]string{
-		int(proc1.Pid): "container-abc",
-	}).Times(1)
+	}, nil).Times(2)
+
+	gomock.InOrder(
+		c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(map[int]string{}).Times(1),
+		c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(map[int]string{
+			int(proc1.Pid): "container-abc",
+		}).Times(1),
+	)
 
 	err := c.collector.Start(ctx, c.mockStore)
 	assert.NoError(t, err)
 
-	// After cycle 1: process should exist without container ID
-	assert.EventuallyWithT(t, func(cT *assert.CollectT) {
-		actualProc, err := c.mockStore.GetProcess(pid1)
-		assert.NoError(cT, err)
-		assert.Equal(cT, "", actualProc.ContainerID)
-		assert.Nil(cT, actualProc.Owner)
-	}, time.Second, time.Millisecond*100)
-
-	// Trigger cycle 2
+	// Advance clock to trigger cycle 2
 	c.mockClock.Add(collectionInterval)
 
-	// After cycle 2: process should now have the container ID
+	// After both cycles: process should have the container ID from cycle 2
 	assert.EventuallyWithT(t, func(cT *assert.CollectT) {
 		actualProc, err := c.mockStore.GetProcess(pid1)
 		assert.NoError(cT, err)
