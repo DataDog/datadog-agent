@@ -51,7 +51,7 @@ type observation struct {
 	log    *logObs
 }
 
-// metricObs contains copied metric data.
+// metricObs contains copied metric data and implements observerdef.MetricView.
 type metricObs struct {
 	name      string
 	value     float64
@@ -59,13 +59,61 @@ type metricObs struct {
 	timestamp int64
 }
 
-// logObs contains copied log data.
+// Ensure metricObs implements observerdef.MetricView
+var _ observerdef.MetricView = (*metricObs)(nil)
+
+func (m *metricObs) GetName() string {
+	return m.name
+}
+
+func (m *metricObs) GetValue() float64 {
+	return m.value
+}
+
+func (m *metricObs) GetRawTags() []string {
+	return m.tags
+}
+
+func (m *metricObs) GetTimestamp() float64 {
+	return float64(m.timestamp)
+}
+
+// Observer does not store samplerate; just return 1.0
+func (m *metricObs) GetSampleRate() float64 {
+	return 1.0
+}
+
+// logObs contains copied log data and implements observerdef.LogView.
 type logObs struct {
 	content   []byte
 	status    string
 	tags      []string
 	hostname  string
 	timestamp int64
+}
+
+// Ensure logObs implements observerdef.LogView
+var _ observerdef.LogView = (*logObs)(nil)
+
+func (l *logObs) GetContent() []byte {
+	return l.content
+}
+
+func (l *logObs) GetStatus() string {
+	return l.status
+}
+
+func (l *logObs) GetTags() []string {
+	return l.tags
+}
+
+func (l *logObs) GetHostname() string {
+	return l.hostname
+}
+
+// Optionally, for logs that provide timestamp interface (if needed elsewhere)
+func (l *logObs) GetTimestamp() int64 {
+	return l.timestamp
 }
 
 // NewComponent creates an observer.Component.
@@ -337,6 +385,8 @@ func (o *observerImpl) processLog(source string, l *logObs) {
 			o.captureRawAnomaly(anomaly)
 			o.processAnomaly(anomaly)
 		}
+
+		o.handleTelemetry(result.Telemetry, processor.Name())
 	}
 
 	o.flushAndReport()
@@ -399,6 +449,36 @@ func (o *observerImpl) runTSAnalyses(series observerdef.Series, agg Aggregate) {
 			// Capture raw anomaly before passing to processors
 			o.captureRawAnomaly(anomaly)
 			o.processAnomaly(anomaly)
+		}
+		// Custom telemetry
+		o.handleTelemetry(result.Telemetry, tsAnalysis.Name())
+	}
+}
+
+// This will register custom telemetry sent by the anomaly detectors.
+func (o *observerImpl) handleTelemetry(telemetry []observerdef.ObserverTelemetry, analyzerName string) {
+	now := time.Now().Unix()
+	for _, telemetryEvent := range telemetry {
+		// Generate missing fields if needed
+		if telemetryEvent.Metric != nil {
+			metric := &metricObs{
+				name:      telemetryEvent.Metric.GetName(),
+				value:     telemetryEvent.Metric.GetValue(),
+				tags:      telemetryEvent.Metric.GetRawTags(),
+				timestamp: int64(telemetryEvent.Metric.GetTimestamp()),
+			}
+			if metric.timestamp == 0 {
+				metric.timestamp = now
+			}
+			if telemetryEvent.AnalyzerName == "" {
+				telemetryEvent.AnalyzerName = analyzerName
+			}
+			// Save this for UI
+			o.storage.Add("telemetry", "telemetry."+telemetryEvent.AnalyzerName+"."+metric.name, metric.value, metric.timestamp, metric.tags)
+		}
+
+		// TODO A(celian): Handle log telemetry
+		if telemetryEvent.Log != nil {
 		}
 	}
 }

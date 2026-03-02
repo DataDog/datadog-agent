@@ -74,10 +74,15 @@ func (c *CUSUMDetector) Name() string {
 // Analyze runs CUSUM on the series and returns an anomaly if a shift is detected.
 // The anomaly's Timestamp indicates when the shift was first detected (threshold crossing).
 func (c *CUSUMDetector) Analyze(series observer.Series) observer.TimeSeriesAnalysisResult {
+	telemetry := []observer.ObserverTelemetry{}
+	for _, p := range series.Points {
+		telemetry = append(telemetry, observer.ObserverTelemetry{Metric: &metricObs{name: "cusum_baseline_eval", value: p.Value, tags: []string{"series:" + series.Name}, timestamp: p.Timestamp}})
+	}
+
 	// Skip :count metrics - these are cardinality counts that create noise
 	// when container counts change (e.g., 1 -> 2 pods)
 	if c.SkipCountMetrics && strings.HasSuffix(series.Name, ":count") {
-		return observer.TimeSeriesAnalysisResult{}
+		return observer.TimeSeriesAnalysisResult{Telemetry: telemetry}
 	}
 
 	minPoints := c.MinPoints
@@ -99,7 +104,7 @@ func (c *CUSUMDetector) Analyze(series observer.Series) observer.TimeSeriesAnaly
 
 	n := len(series.Points)
 	if n < minPoints {
-		return observer.TimeSeriesAnalysisResult{}
+		return observer.TimeSeriesAnalysisResult{Telemetry: telemetry}
 	}
 
 	// Estimate baseline from first portion of data
@@ -124,7 +129,7 @@ func (c *CUSUMDetector) Analyze(series observer.Series) observer.TimeSeriesAnaly
 			baselineStddev = baselineMean * 0.1
 		} else {
 			// Can't establish meaningful baseline
-			return observer.TimeSeriesAnalysisResult{}
+			return observer.TimeSeriesAnalysisResult{Telemetry: telemetry}
 		}
 	}
 
@@ -145,10 +150,10 @@ func (c *CUSUMDetector) Analyze(series observer.Series) observer.TimeSeriesAnaly
 	// Run CUSUM and detect threshold crossing
 	anomaly := runCUSUM(series, baselineMean, baselineStddev, k, h, debugInfo)
 	if anomaly == nil {
-		return observer.TimeSeriesAnalysisResult{}
+		return observer.TimeSeriesAnalysisResult{Telemetry: telemetry}
 	}
 
-	return observer.TimeSeriesAnalysisResult{Anomalies: []observer.AnomalyOutput{*anomaly}}
+	return observer.TimeSeriesAnalysisResult{Anomalies: []observer.AnomalyOutput{*anomaly}, Telemetry: telemetry}
 }
 
 // runCUSUM executes a two-sided CUSUM algorithm and returns an anomaly at the first threshold crossing.

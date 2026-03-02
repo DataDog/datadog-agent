@@ -617,6 +617,12 @@ func (tb *TestBench) rerunAnalysesLocked() {
 							tb.metricsBySeriesID[anomaly.SourceSeriesID] = append(tb.metricsBySeriesID[anomaly.SourceSeriesID], anomaly)
 						}
 					}
+
+					baseTimestamp := time.Now().Unix()
+					if len(seriesCopy.Points) > 0 {
+						baseTimestamp = seriesCopy.Points[0].Timestamp
+					}
+					tb.handleTelemetry(result.Telemetry, analyzer.Name(), baseTimestamp)
 				}
 			}
 		}
@@ -703,6 +709,33 @@ func (tb *TestBench) rerunAnalysesLocked() {
 
 		tb.correlatorsProcessing = false
 	}()
+}
+
+func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, analyzerName string, baseTimestamp int64) {
+	// TODO: Use a single method for that, this is duplicated from observer.go
+	for _, telemetryEvent := range telemetry {
+		// Generate missing fields if needed
+		if telemetryEvent.Metric != nil {
+			metric := &metricObs{
+				name:      telemetryEvent.Metric.GetName(),
+				value:     telemetryEvent.Metric.GetValue(),
+				tags:      telemetryEvent.Metric.GetRawTags(),
+				timestamp: int64(telemetryEvent.Metric.GetTimestamp()),
+			}
+			if metric.timestamp == 0 {
+				metric.timestamp = baseTimestamp
+			}
+			if telemetryEvent.AnalyzerName == "" {
+				telemetryEvent.AnalyzerName = analyzerName
+			}
+			// Save this for UI
+			tb.storage.Add("telemetry", "telemetry."+telemetryEvent.AnalyzerName+"."+metric.name, metric.value, metric.timestamp, metric.tags)
+		}
+
+		// TODO A(celian): Handle log telemetry
+		if telemetryEvent.Log != nil {
+		}
+	}
 }
 
 // GetComponents returns all registered components.
