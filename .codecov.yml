@@ -30,6 +30,7 @@ coverage:
 # See https://docs.codecov.com/docs/ignoring-paths
 ignore:
   - "pkg/trace/testutil"  # code only used in tests
+  - "*.pb.go"             # auto generated code
   - "pkg/trace/log"       # logging utilities with no customer facing impact. Nothing to test.
   - "**/*.pb.go"
   - test/e2e-framework
