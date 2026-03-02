@@ -68,8 +68,7 @@ func newBenchSampler(maxPatterns int) *AdaptiveSampler {
 
 // prefillSampler loads the sampler's entries directly, bypassing Process, so we can
 // precisely control what is in the table without consuming benchmark time.
-// All prefilled entries get matchCount=1 so they form a trivially valid heap;
-// heapify() is called at the end to ensure the invariant holds.
+// All prefilled entries get matchCount=1; since they are equal the list is trivially sorted.
 func prefillSampler(s *AdaptiveSampler, patterns [][]Token, count int) {
 	now := time.Now()
 	for i := range count {
@@ -80,7 +79,6 @@ func prefillSampler(s *AdaptiveSampler, patterns [][]Token, count int) {
 			matchCount: 1,
 		})
 	}
-	s.heapify()
 }
 
 // --- Baselines ---
@@ -153,8 +151,7 @@ func BenchmarkSampler_Adaptive_NewPattern_TableNotFull(b *testing.B) {
 }
 
 // BenchmarkSampler_Adaptive_NewPattern_P100_EvictFreq measures the worst case for
-// a 100-entry table: a new pattern arrives when the table is full (full scan + evict
-// least-frequent leaf + heap fixup).
+// a 100-entry table: a new pattern arrives when the table is full (full scan + evict last).
 func BenchmarkSampler_Adaptive_NewPattern_P100_EvictFreq(b *testing.B) {
 	msg := benchMsg()
 	b.ResetTimer()
@@ -166,13 +163,12 @@ func BenchmarkSampler_Adaptive_NewPattern_P100_EvictFreq(b *testing.B) {
 }
 
 // BenchmarkSampler_Adaptive_Match_P1000_Last is the worst-case scan for a 1000-entry
-// table on the first iteration; the heap converges toward best-case as the hot
-// pattern accumulates matchCount and rises to the top across iterations.
+// table on the first iteration; the sorted list converges toward best-case as the hot
+// pattern accumulates matchCount and bubbles to the front across iterations.
 func BenchmarkSampler_Adaptive_Match_P1000_Last(b *testing.B) {
 	s := newBenchSampler(2000)
 	prefillSampler(s, benchFillPatterns1000, 999)
 	s.entries = append(s.entries, samplerEntry{tokens: benchTokensINFO, credits: s.config.BurstSize, lastSeen: time.Now(), matchCount: 1})
-	s.heapify()
 	msg := benchMsg()
 	b.ResetTimer()
 	for range b.N {
@@ -181,7 +177,7 @@ func BenchmarkSampler_Adaptive_Match_P1000_Last(b *testing.B) {
 }
 
 // BenchmarkSampler_Adaptive_NewPattern_P1000_EvictFreq measures the cost when a new
-// pattern arrives into a full 1000-entry table (full scan + evict least-frequent leaf).
+// pattern arrives into a full 1000-entry table (full scan + evict last).
 func BenchmarkSampler_Adaptive_NewPattern_P1000_EvictFreq(b *testing.B) {
 	msg := benchMsg()
 	b.ResetTimer()

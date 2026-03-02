@@ -62,22 +62,20 @@ type AdaptiveSamplerConfig struct {
 }
 
 // samplerEntry tracks the credit-based rate limiting state for a single log pattern.
-// entries form a max-heap ordered by matchCount so the most frequently matched
-// patterns appear early in the scan and are found with fewer comparisons.
 type samplerEntry struct {
 	tokens     []Token
 	credits    float64   // remaining log allowance; decremented on each emitted log
 	lastSeen   time.Time // used for credit refill
-	matchCount int64     // total number of times this pattern has matched; drives heap order
+	matchCount int64     // total number of times this pattern has matched; drives sort order
 }
 
 // AdaptiveSampler rate-limits logs by structural pattern using per-pattern credit allowances.
 // Structurally similar logs share a credit allowance.
 // New or returning patterns receive a full burst allowance before being rate-limited.
 //
-// entries is maintained as a max-heap ordered by matchCount. This biases the linear
-// scan toward high-frequency patterns, reducing average scan depth for skewed
-// log streams (where a small number of patterns account for most volume).
+// entries is maintained as a sorted list in descending matchCount order. The most
+// frequently matched patterns appear at the front, so the scan exits early for the
+// common case where a hot pattern is matched.
 type AdaptiveSampler struct {
 	entries []samplerEntry
 	config  AdaptiveSamplerConfig
@@ -114,110 +112,42 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 		}
 		e.lastSeen = now
 		e.matchCount++
-		// siftUp is called after the credits check so that e (= &s.entries[i]) still
-		// points to this entry: siftUp swaps entries by value, which would cause e to
-		// alias a different entry if called before the allow/drop decision.
-		if e.credits >= 1.0 {
+
+		// Determine outcome before bubbling: bubbling swaps entries by value, so
+		// e (= &s.entries[i]) would alias a different entry after the first swap.
+		allow := e.credits >= 1.0
+		if allow {
 			e.credits--
-			s.siftUp(i)
+		}
+
+		// Bubble the matched entry toward the front to maintain descending order.
+		for i > 0 && s.entries[i-1].matchCount < s.entries[i].matchCount {
+			s.entries[i-1], s.entries[i] = s.entries[i], s.entries[i-1]
+			i--
+		}
+
+		if allow {
 			return msg
 		}
-		s.siftUp(i)
-		// Rate limit exceeded — drop.
 		tlmAdaptiveSamplerDropped.Inc(s.source)
 		return nil
 	}
 
 	// No match — this is a new pattern. Evict the least-frequently-matched entry if full.
 	if len(s.entries) >= s.config.MaxPatterns {
-		s.evictLeastFrequent()
+		s.entries = s.entries[:len(s.entries)-1]
 	}
-	// Start with a full burst, consuming one token for the current message.
+	// New patterns start with matchCount=1 and belong at the end of the sorted list.
 	s.entries = append(s.entries, samplerEntry{
 		tokens:     tokens,
 		credits:    s.config.BurstSize - 1,
 		lastSeen:   now,
 		matchCount: 1,
 	})
-	s.siftUp(len(s.entries) - 1)
 	return msg
 }
 
 // Flush is a no-op — the adaptive sampler does not buffer messages.
 func (s *AdaptiveSampler) Flush() *message.Message {
 	return nil
-}
-
-// siftUp moves the entry at index i upward until the max-heap invariant is restored.
-func (s *AdaptiveSampler) siftUp(i int) {
-	for i > 0 {
-		parent := (i - 1) / 2
-		if s.entries[parent].matchCount >= s.entries[i].matchCount {
-			break
-		}
-		s.entries[parent], s.entries[i] = s.entries[i], s.entries[parent]
-		i = parent
-	}
-}
-
-// siftDown moves the entry at index i downward until the max-heap invariant is restored.
-func (s *AdaptiveSampler) siftDown(i int) {
-	n := len(s.entries)
-	for {
-		largest := i
-		l, r := 2*i+1, 2*i+2
-		if l < n && s.entries[l].matchCount > s.entries[largest].matchCount {
-			largest = l
-		}
-		if r < n && s.entries[r].matchCount > s.entries[largest].matchCount {
-			largest = r
-		}
-		if largest == i {
-			break
-		}
-		s.entries[i], s.entries[largest] = s.entries[largest], s.entries[i]
-		i = largest
-	}
-}
-
-// heapify rebuilds the heap in-place using Floyd's algorithm — O(n).
-// Call this after bulk-loading entries directly into the slice.
-func (s *AdaptiveSampler) heapify() {
-	for i := len(s.entries)/2 - 1; i >= 0; i-- {
-		s.siftDown(i)
-	}
-}
-
-// removeAt removes the entry at index i and restores the heap invariant — O(log n).
-func (s *AdaptiveSampler) removeAt(i int) {
-	last := len(s.entries) - 1
-	if i == last {
-		s.entries = s.entries[:last]
-		return
-	}
-	s.entries[i] = s.entries[last]
-	s.entries = s.entries[:last]
-	// The replacement could be larger (needs sift-up) or smaller (needs sift-down).
-	// siftDown is a no-op if the replacement is already >= its children;
-	// siftUp is a no-op if the replacement is already <= its parent.
-	s.siftDown(i)
-	s.siftUp(i)
-}
-
-// evictLeastFrequent removes the entry with the lowest matchCount.
-// In a max-heap the minimum is always a leaf node (indices n/2..n-1), so only
-// the leaf range needs to be scanned — roughly half the entries.
-func (s *AdaptiveSampler) evictLeastFrequent() {
-	n := len(s.entries)
-	if n == 0 {
-		return
-	}
-	leafStart := n / 2
-	minIdx := leafStart
-	for i := leafStart + 1; i < n; i++ {
-		if s.entries[i].matchCount < s.entries[minIdx].matchCount {
-			minIdx = i
-		}
-	}
-	s.removeAt(minIdx)
 }
