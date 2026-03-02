@@ -309,7 +309,7 @@ func (tb *TestBench) LoadScenario(name string) error {
 	tb.rerunAnalysesLocked()
 	fmt.Printf("  Analyzer phase took %s\n", time.Since(analysisStart))
 	fmt.Printf("  Total scenario load took %s (correlators running in background)\n", time.Since(scenarioStart))
-	fmt.Printf("Scenario loaded: %d series, %d metric anomalies, %d log anomalies\n", tb.seriesCount(), len(tb.metricsAnomalies), len(tb.logAnomalies))
+	fmt.Printf("Scenario loaded: %d series, %d metric anomalies,  %d log entries, %d log anomalies\n", tb.seriesCount(), len(tb.metricsAnomalies), len(tb.rawLogs), len(tb.logAnomalies))
 
 	return nil
 }
@@ -417,6 +417,7 @@ func (tb *TestBench) loadLogsDir(dir string) error {
 					tb.logAnomaliesByProcessor[anomaly.AnalyzerName] = append(
 						tb.logAnomaliesByProcessor[anomaly.AnalyzerName], anomaly)
 				}
+				tb.handleTelemetry(result.Telemetry, processor.Name(), timestamp)
 			}
 		}
 		totalLogs += len(logs)
@@ -711,8 +712,9 @@ func (tb *TestBench) rerunAnalysesLocked() {
 	}()
 }
 
+// This will handle custom telemetry created by the anomaly detectors.
+// It includes metrics and logs.
 func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, analyzerName string, baseTimestamp int64) {
-	// TODO: Use a single method for that, this is duplicated from observer.go
 	for _, telemetryEvent := range telemetry {
 		// Generate missing fields if needed
 		if telemetryEvent.Metric != nil {
@@ -741,17 +743,25 @@ func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, 
 			if timestamp == 0 {
 				timestamp = baseTimestamp
 			}
-			log := &logObs{
-				content:   telemetryEvent.Log.GetContent(),
-				status:    telemetryEvent.Log.GetStatus(),
-				tags:      telemetryEvent.Log.GetTags(),
-				hostname:  telemetryEvent.Log.GetHostname(),
-				timestamp: timestamp,
+			logTags := telemetryEvent.Log.GetTags()
+			tagsCopy := make([]string, 0, len(logTags)+2)
+			copy(tagsCopy, logTags)
+			tagsCopy = append(tagsCopy, "analyzer:"+analyzerName)
+			tagsCopy = append(tagsCopy, "telemetry:true")
+			log := storedLogEntry{
+				Content:   string(telemetryEvent.Log.GetContent()),
+				Status:    telemetryEvent.Log.GetStatus(),
+				Tags:      tagsCopy,
+				Timestamp: timestamp,
+			}
+			if log.Status == "" {
+				log.Status = "info"
 			}
 			if telemetryEvent.AnalyzerName == "" {
 				telemetryEvent.AnalyzerName = analyzerName
 			}
 			// Save this for UI
+			tb.rawLogs = append(tb.rawLogs, log)
 		}
 	}
 }

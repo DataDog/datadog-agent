@@ -385,8 +385,6 @@ func (o *observerImpl) processLog(source string, l *logObs) {
 			o.captureRawAnomaly(anomaly)
 			o.processAnomaly(anomaly)
 		}
-
-		o.handleTelemetry(result.Telemetry, processor.Name())
 	}
 
 	o.flushAndReport()
@@ -449,36 +447,6 @@ func (o *observerImpl) runTSAnalyses(series observerdef.Series, agg Aggregate) {
 			// Capture raw anomaly before passing to processors
 			o.captureRawAnomaly(anomaly)
 			o.processAnomaly(anomaly)
-		}
-		// Custom telemetry
-		o.handleTelemetry(result.Telemetry, tsAnalysis.Name())
-	}
-}
-
-// This will register custom telemetry sent by the anomaly detectors.
-func (o *observerImpl) handleTelemetry(telemetry []observerdef.ObserverTelemetry, analyzerName string) {
-	now := time.Now().Unix()
-	for _, telemetryEvent := range telemetry {
-		// Generate missing fields if needed
-		if telemetryEvent.Metric != nil {
-			metric := &metricObs{
-				name:      telemetryEvent.Metric.GetName(),
-				value:     telemetryEvent.Metric.GetValue(),
-				tags:      telemetryEvent.Metric.GetRawTags(),
-				timestamp: int64(telemetryEvent.Metric.GetTimestamp()),
-			}
-			if metric.timestamp == 0 {
-				metric.timestamp = now
-			}
-			if telemetryEvent.AnalyzerName == "" {
-				telemetryEvent.AnalyzerName = analyzerName
-			}
-			// Save this for UI
-			o.storage.Add("telemetry", "telemetry."+telemetryEvent.AnalyzerName+"."+metric.name, metric.value, metric.timestamp, metric.tags)
-		}
-
-		// TODO A(celian): Handle log telemetry
-		if telemetryEvent.Log != nil {
 		}
 	}
 }
