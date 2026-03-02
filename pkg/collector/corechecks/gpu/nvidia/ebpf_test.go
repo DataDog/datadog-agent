@@ -108,6 +108,10 @@ func TestEbpfCollectorCollect(t *testing.T) {
 			name:     "collect_emits_device_utilization_metrics",
 			testFunc: testCollectEmitsDeviceSmActiveMetric,
 		},
+		{
+			name:     "collect_emits_zero_device_activity_when_idle",
+			testFunc: testCollectEmitsZeroDeviceActivityWhenIdle,
+		},
 	}
 
 	for _, tt := range tests {
@@ -575,6 +579,42 @@ func testCollectEmitsDeviceSmActiveMetric(t *testing.T) {
 		assert.Equal(t, Low, metric.Priority)
 		require.Len(t, metric.AssociatedWorkloads, 1)
 	}
+}
+
+func testCollectEmitsZeroDeviceActivityWhenIdle(t *testing.T) {
+	exe := "/bin/test"
+	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
+		{Pid: 123, NsPid: 3, Cmdline: exe, Command: exe, Exe: exe},
+		{Pid: 456, NsPid: 4, Cmdline: exe, Command: exe, Exe: exe},
+	})
+	kernel.WithFakeProcFS(t, procRoot)
+
+	device := createMockDevice(t, testutil.DefaultGpuUUID)
+	cache := &SystemProbeCache{
+		stats: &model.GPUStats{},
+	}
+
+	collector, err := newEbpfCollector(device, cache)
+	require.NoError(t, err)
+
+	metrics, err := collector.Collect()
+	require.NoError(t, err)
+
+	// Should still have 10 metrics even without global device metrics:
+	// 6 usage (3 per process) + 2 limit + 2 device metrics (sm_active, gr_engine_active)
+	assert.Len(t, metrics, 10)
+
+	deviceSmActive := findMetric(metrics, "sm_active")
+	require.NotNil(t, deviceSmActive, "sm_active metric not found")
+	assert.Equal(t, 0.0, deviceSmActive.Value)
+	assert.Equal(t, Low, deviceSmActive.Priority, "sm_active should have Low priority")
+	assert.Empty(t, deviceSmActive.AssociatedWorkloads, "device-level sm_active should not have associated workloads")
+
+	deviceGrEngineActive := findMetric(metrics, "gr_engine_active")
+	require.NotNil(t, deviceGrEngineActive, "gr_engine_active metric not found")
+	assert.Equal(t, 0.0, deviceGrEngineActive.Value)
+	assert.Equal(t, Low, deviceGrEngineActive.Priority, "gr_engine_active should have Low priority")
+	assert.Empty(t, deviceGrEngineActive.AssociatedWorkloads, "device-level gr_engine_active should not have associated workloads")
 }
 
 // Helper functions
