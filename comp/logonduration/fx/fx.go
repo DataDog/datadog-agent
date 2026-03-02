@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build windows
-
 // Package fx provides fx wiring for the logon duration component
 package fx
 
