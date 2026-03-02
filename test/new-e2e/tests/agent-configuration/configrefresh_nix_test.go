@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package configrefresh
+package agentconfiguration
 
 import (
 	"path/filepath"
@@ -21,6 +21,7 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
+	configrefresh "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/config-refresh"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
@@ -43,36 +44,36 @@ func (v *configRefreshLinuxSuite) TestConfigRefresh() {
 	v.T().Log("Setting up the secret resolver and the initial api key file")
 
 	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, rootDir)
-	secretClient.SetSecret("api_key", apiKey1)
+	secretClient.SetSecret("api_key", configrefresh.APIKey1)
 
 	// fill the config template
 	templateVars := map[string]interface{}{
 		"AuthTokenFilePath":        authTokenFilePath,
 		"SecretDirectory":          rootDir,
 		"SecretResolver":           secretResolverPath,
-		"ConfigRefreshIntervalSec": configRefreshIntervalSec,
-		"ApmCmdPort":               apmCmdPort,
-		"ProcessCmdPort":           processCmdPort,
-		"SecurityCmdPort":          securityCmdPort,
-		"AgentIpcUseSocket":        agentIpcUseSocket, // defaults to false
-		"AgentIpcPort":             agentIpcPort,
+		"ConfigRefreshIntervalSec": configrefresh.ConfigRefreshIntervalSec,
+		"ApmCmdPort":               configrefresh.ApmCmdPort,
+		"ProcessCmdPort":           configrefresh.ProcessCmdPort,
+		"SecurityCmdPort":          configrefresh.SecurityCmdPort,
+		"AgentIpcUseSocket":        configrefresh.AgentIpcUseSocket, // defaults to false
+		"AgentIpcPort":             configrefresh.AgentIpcPort,
 		"SecretBackendCommandAllowGroupExecPermOption": "true",
 	}
-	coreconfig := fillTmplConfig(v.T(), coreConfigTmpl, templateVars)
+	coreconfig := configrefresh.FillTmplConfig(v.T(), configrefresh.CoreConfigTmpl, templateVars)
 
 	// start the agent with that configuration
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithRunOptions(scenec2.WithAgentOptions(
 			secretsutils.WithUnixSetupScript(secretResolverPath, true),
 			agentparams.WithAgentConfig(coreconfig),
-			agentparams.WithSecurityAgentConfig(securityAgentConfig),
+			agentparams.WithSecurityAgentConfig(configrefresh.SecurityAgentConfig),
 			agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
 		)),
 		awshost.WithRunOptions(scenec2.WithAgentClientOptions(
 			agentclientparams.WithAuthTokenPath(authTokenFilePath),
-			agentclientparams.WithTraceAgentOnPort(apmReceiverPort),
-			agentclientparams.WithProcessAgentOnPort(processCmdPort),
-			agentclientparams.WithSecurityAgentOnPort(securityCmdPort),
+			agentclientparams.WithTraceAgentOnPort(configrefresh.ApmReceiverPort),
+			agentclientparams.WithProcessAgentOnPort(configrefresh.ProcessCmdPort),
+			agentclientparams.WithSecurityAgentOnPort(configrefresh.SecurityCmdPort),
 		)),
 	))
 
@@ -83,11 +84,11 @@ func (v *configRefreshLinuxSuite) TestConfigRefresh() {
 
 	// check that the agents are using the first key
 	// initially they all resolve it using the secret resolver
-	assertAgentsUseKey(v.T(), v.Env().RemoteHost, authtoken, apiKey1)
+	configrefresh.AssertAgentsUseKey(v.T(), v.Env().RemoteHost, authtoken, configrefresh.APIKey1)
 
 	// update api_key
 	v.T().Log("Updating the api key")
-	secretClient.SetSecret("api_key", apiKey2)
+	secretClient.SetSecret("api_key", configrefresh.APIKey2)
 
 	// trigger a refresh of the core-agent secrets
 	v.T().Log("Refreshing core-agent secrets")
@@ -97,8 +98,8 @@ func (v *configRefreshLinuxSuite) TestConfigRefresh() {
 
 	// and check that the agents are using the new key
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		assertAgentsUseKey(t, v.Env().RemoteHost, authtoken, apiKey2)
-	}, 2*configRefreshIntervalSec*time.Second, 1*time.Second)
+		configrefresh.AssertAgentsUseKey(t, v.Env().RemoteHost, authtoken, configrefresh.APIKey2)
+	}, 2*configrefresh.ConfigRefreshIntervalSec*time.Second, 1*time.Second)
 }
 
 func (v *configRefreshLinuxSuite) TestConfigRefreshOverSocket() {
@@ -111,36 +112,36 @@ func (v *configRefreshLinuxSuite) TestConfigRefreshOverSocket() {
 	v.T().Log("Setting up the secret resolver and the initial api key file")
 
 	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, rootDir)
-	secretClient.SetSecret("api_key", apiKey1)
+	secretClient.SetSecret("api_key", configrefresh.APIKey1)
 
 	// fill the config template
 	templateVars := map[string]interface{}{
 		"AuthTokenFilePath":        authTokenFilePath,
 		"SecretDirectory":          rootDir,
 		"SecretResolver":           secretResolverPath,
-		"ConfigRefreshIntervalSec": configRefreshIntervalSec,
-		"ApmCmdPort":               apmCmdPort,
-		"ProcessCmdPort":           processCmdPort,
-		"SecurityCmdPort":          securityCmdPort,
+		"ConfigRefreshIntervalSec": configrefresh.ConfigRefreshIntervalSec,
+		"ApmCmdPort":               configrefresh.ApmCmdPort,
+		"ProcessCmdPort":           configrefresh.ProcessCmdPort,
+		"SecurityCmdPort":          configrefresh.SecurityCmdPort,
 		"AgentIpcUseSocket":        true,
 		"AgentIpcPort":             0,
 		"SecretBackendCommandAllowGroupExecPermOption": "true",
 	}
-	coreconfig := fillTmplConfig(v.T(), coreConfigTmpl, templateVars)
+	coreconfig := configrefresh.FillTmplConfig(v.T(), configrefresh.CoreConfigTmpl, templateVars)
 
 	// start the agent with that configuration
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithRunOptions(scenec2.WithAgentOptions(
 			secretsutils.WithUnixSetupScript(secretResolverPath, true),
 			agentparams.WithAgentConfig(coreconfig),
-			agentparams.WithSecurityAgentConfig(securityAgentConfig),
+			agentparams.WithSecurityAgentConfig(configrefresh.SecurityAgentConfig),
 			agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
 		)),
 		awshost.WithRunOptions(scenec2.WithAgentClientOptions(
 			agentclientparams.WithAuthTokenPath(authTokenFilePath),
-			agentclientparams.WithTraceAgentOnPort(apmReceiverPort),
-			agentclientparams.WithProcessAgentOnPort(processCmdPort),
-			agentclientparams.WithSecurityAgentOnPort(securityCmdPort),
+			agentclientparams.WithTraceAgentOnPort(configrefresh.ApmReceiverPort),
+			agentclientparams.WithProcessAgentOnPort(configrefresh.ProcessCmdPort),
+			agentclientparams.WithSecurityAgentOnPort(configrefresh.SecurityCmdPort),
 		)),
 	))
 
@@ -151,11 +152,11 @@ func (v *configRefreshLinuxSuite) TestConfigRefreshOverSocket() {
 
 	// check that the agents are using the first key
 	// initially they all resolve it using the secret resolver
-	assertAgentsUseKey(v.T(), v.Env().RemoteHost, authtoken, apiKey1)
+	configrefresh.AssertAgentsUseKey(v.T(), v.Env().RemoteHost, authtoken, configrefresh.APIKey1)
 
 	// update api_key
 	v.T().Log("Updating the api key")
-	secretClient.SetSecret("api_key", apiKey2)
+	secretClient.SetSecret("api_key", configrefresh.APIKey2)
 
 	// trigger a refresh of the core-agent secrets
 	v.T().Log("Refreshing core-agent secrets")
@@ -165,6 +166,6 @@ func (v *configRefreshLinuxSuite) TestConfigRefreshOverSocket() {
 
 	// and check that the agents are using the new key
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		assertAgentsUseKey(t, v.Env().RemoteHost, authtoken, apiKey2)
-	}, 2*configRefreshIntervalSec*time.Second, 1*time.Second)
+		configrefresh.AssertAgentsUseKey(t, v.Env().RemoteHost, authtoken, configrefresh.APIKey2)
+	}, 2*configrefresh.ConfigRefreshIntervalSec*time.Second, 1*time.Second)
 }

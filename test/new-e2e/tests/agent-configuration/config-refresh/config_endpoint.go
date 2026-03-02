@@ -12,26 +12,31 @@ import (
 	"strconv"
 )
 
-type agentConfigEndpointInfo struct {
-	name     string
+// AgentConfigEndpointInfo holds connection details for an agent's config HTTP endpoint.
+type AgentConfigEndpointInfo struct {
+	Name     string
 	scheme   string
 	port     int
 	endpoint string
 }
 
-func traceConfigEndpoint(port int) agentConfigEndpointInfo {
-	return agentConfigEndpointInfo{"trace-agent", "https", port, "/config"}
+// TraceConfigEndpoint returns the endpoint info for the trace-agent config endpoint.
+func TraceConfigEndpoint(port int) AgentConfigEndpointInfo {
+	return AgentConfigEndpointInfo{"trace-agent", "https", port, "/config"}
 }
 
-func processConfigEndpoint(port int) agentConfigEndpointInfo {
-	return agentConfigEndpointInfo{"process-agent", "https", port, "/config/all"}
+// ProcessConfigEndpoint returns the endpoint info for the process-agent config endpoint.
+func ProcessConfigEndpoint(port int) AgentConfigEndpointInfo {
+	return AgentConfigEndpointInfo{"process-agent", "https", port, "/config/all"}
 }
 
-func securityConfigEndpoint(port int) agentConfigEndpointInfo {
-	return agentConfigEndpointInfo{"security-agent", "https", port, "/agent/config"}
+// SecurityConfigEndpoint returns the endpoint info for the security-agent config endpoint.
+func SecurityConfigEndpoint(port int) AgentConfigEndpointInfo {
+	return AgentConfigEndpointInfo{"security-agent", "https", port, "/agent/config"}
 }
 
-func (endpointInfo *agentConfigEndpointInfo) url() *url.URL {
+// URL builds the full URL for this endpoint.
+func (endpointInfo *AgentConfigEndpointInfo) URL() *url.URL {
 	return &url.URL{
 		Scheme: endpointInfo.scheme,
 		Host:   net.JoinHostPort("localhost", strconv.Itoa(endpointInfo.port)),
@@ -39,8 +44,9 @@ func (endpointInfo *agentConfigEndpointInfo) url() *url.URL {
 	}
 }
 
-func (endpointInfo *agentConfigEndpointInfo) httpRequest(authtoken string) (*http.Request, error) {
-	req, err := http.NewRequest(http.MethodGet, endpointInfo.url().String(), nil)
+// HTTPRequest creates an authenticated GET request for this endpoint.
+func (endpointInfo *AgentConfigEndpointInfo) HTTPRequest(authtoken string) (*http.Request, error) {
+	req, err := http.NewRequest(http.MethodGet, endpointInfo.URL().String(), nil)
 	if err != nil {
 		return nil, err
 	}

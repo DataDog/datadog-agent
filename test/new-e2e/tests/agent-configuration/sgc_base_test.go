@@ -3,14 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// package sgcbackend contains e2e tests for secret management (runtime)
-package sgcbackend
+// package agentconfiguration contains e2e tests for secret management (runtime)
+package agentconfiguration
 
 import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 )
 
-type baseRuntimeSecretSuite struct {
+type sgcBaseRuntimeSuite struct {
 	e2e.BaseSuite[environments.Host]
 }

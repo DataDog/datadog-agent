@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// package secret contains e2e tests for secret management
-package secret
+package agentconfiguration
 
 import (
 	_ "embed"
@@ -21,19 +20,19 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
-type linuxRuntimeSecretSuite struct {
-	baseRuntimeSecretSuite
+type secretLinuxRuntimeSuite struct {
+	secretBaseRuntimeSuite
 }
 
-func TestLinuxRuntimeSecretSuite(t *testing.T) {
+func TestSecretLinuxRuntimeSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &linuxRuntimeSecretSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
+	e2e.Run(t, &secretLinuxRuntimeSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
 
-//go:embed fixtures/secret_script.py
+//go:embed secret/fixtures/secret_script.py
 var secretScript string
 
-func (v *linuxRuntimeSecretSuite) TestSecretRuntimeHostname() {
+func (v *secretLinuxRuntimeSuite) TestSecretRuntimeHostname() {
 	config := `secret_backend_command: /tmp/bin/secret.sh
 hostname: ENC[hostname]`
 

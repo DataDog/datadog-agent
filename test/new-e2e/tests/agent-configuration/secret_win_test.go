@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// package secret contains e2e tests for secret management (runtime)
-package secret
+package agentconfiguration
 
 import (
 	"strings"
@@ -22,18 +21,18 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
-type windowsRuntimeSecretSuite struct {
-	baseRuntimeSecretSuite
+type secretWindowsRuntimeSuite struct {
+	secretBaseRuntimeSuite
 }
 
-func TestWindowsRuntimeSecretSuite(t *testing.T) {
+func TestSecretWindowsRuntimeSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &windowsRuntimeSecretSuite{}, e2e.WithProvisioner(awshost.Provisioner(
+	e2e.Run(t, &secretWindowsRuntimeSuite{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault))),
 	)))
 }
 
-func (v *windowsRuntimeSecretSuite) testSecretRuntimeHostname(wrapperDirectory string) {
+func (v *secretWindowsRuntimeSuite) testSecretRuntimeHostname(wrapperDirectory string) {
 	config := `secret_backend_command: ` + wrapperDirectory + `\wrapper.bat
 secret_backend_arguments:
   - '` + wrapperDirectory + `'
@@ -69,10 +68,10 @@ hostname: ENC[hostname]`
 	}, 30*time.Second, 2*time.Second)
 }
 
-func (v *windowsRuntimeSecretSuite) TestSecretRuntimeHostname() {
+func (v *secretWindowsRuntimeSuite) TestSecretRuntimeHostname() {
 	v.testSecretRuntimeHostname(`C:/TestFolder`)
 }
 
-func (v *windowsRuntimeSecretSuite) TestSecretRuntimeHostnameProgramData() {
+func (v *secretWindowsRuntimeSuite) TestSecretRuntimeHostnameProgramData() {
 	v.testSecretRuntimeHostname(`C:/ProgramData/DataDog/Test`)
 }

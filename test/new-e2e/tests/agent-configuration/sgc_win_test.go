@@ -3,11 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// package sgcbackend contains e2e tests for secret management
-package sgcbackend
+package agentconfiguration
 
 import (
-	_ "embed"
 	"testing"
 	"time"
 
@@ -23,18 +21,18 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
-type windowsRuntimeSecretSuite struct {
-	baseRuntimeSecretSuite
+type sgcWindowsRuntimeSuite struct {
+	sgcBaseRuntimeSuite
 }
 
-func TestWindowsRuntimeSecretSuite(t *testing.T) {
+func TestSGCWindowsRuntimeSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &windowsRuntimeSecretSuite{}, e2e.WithProvisioner(awshost.Provisioner(
+	e2e.Run(t, &sgcWindowsRuntimeSuite{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault))),
 	)))
 }
 
-func (v *windowsRuntimeSecretSuite) TestPullSecret() {
+func (v *sgcWindowsRuntimeSuite) TestPullSecret() {
 	config := `api_key: ENC[fake_yaml_key]
 secret_backend_type: file.yaml
 secret_backend_config:

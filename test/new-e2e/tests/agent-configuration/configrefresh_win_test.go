@@ -2,7 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-package configrefresh
+
+package agentconfiguration
 
 import (
 	"path/filepath"
@@ -21,6 +22,7 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
+	configrefresh "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/config-refresh"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
@@ -43,25 +45,25 @@ func (v *configRefreshWindowsSuite) TestConfigRefresh() {
 	v.T().Log("Setting up the secret resolver and the initial api key file")
 
 	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, rootDir)
-	secretClient.SetSecret("api_key", apiKey1)
+	secretClient.SetSecret("api_key", configrefresh.APIKey1)
 
 	templateVars := map[string]interface{}{
 		"AuthTokenFilePath":        authTokenFilePath,
 		"SecretDirectory":          rootDir,
 		"SecretResolver":           secretResolverPath,
-		"ConfigRefreshIntervalSec": configRefreshIntervalSec,
-		"ApmCmdPort":               apmCmdPort,
-		"ProcessCmdPort":           processCmdPort,
-		"SecurityCmdPort":          securityCmdPort,
-		"AgentIpcUseSocket":        agentIpcUseSocket, // NamedPipe is not implemented yet for windows
-		"AgentIpcPort":             agentIpcPort,
+		"ConfigRefreshIntervalSec": configrefresh.ConfigRefreshIntervalSec,
+		"ApmCmdPort":               configrefresh.ApmCmdPort,
+		"ProcessCmdPort":           configrefresh.ProcessCmdPort,
+		"SecurityCmdPort":          configrefresh.SecurityCmdPort,
+		"AgentIpcUseSocket":        configrefresh.AgentIpcUseSocket, // NamedPipe is not implemented yet for windows
+		"AgentIpcPort":             configrefresh.AgentIpcPort,
 		"SecretBackendCommandAllowGroupExecPermOption": "false", // this is not supported on Windows
 	}
-	coreconfig := fillTmplConfig(v.T(), coreConfigTmpl, templateVars)
+	coreconfig := configrefresh.FillTmplConfig(v.T(), configrefresh.CoreConfigTmpl, templateVars)
 
 	agentOptions := []func(*agentparams.Params) error{
 		agentparams.WithAgentConfig(coreconfig),
-		agentparams.WithSecurityAgentConfig(securityAgentConfig),
+		agentparams.WithSecurityAgentConfig(configrefresh.SecurityAgentConfig),
 		agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
 	}
 	agentOptions = append(agentOptions, secretsutils.WithWindowsSetupScript(secretResolverPath, true)...)
@@ -72,8 +74,8 @@ func (v *configRefreshWindowsSuite) TestConfigRefresh() {
 			ec2.WithAgentOptions(agentOptions...),
 			ec2.WithAgentClientOptions(
 				agentclientparams.WithAuthTokenPath(authTokenFilePath),
-				agentclientparams.WithTraceAgentOnPort(apmReceiverPort),
-				agentclientparams.WithProcessAgentOnPort(processCmdPort),
+				agentclientparams.WithTraceAgentOnPort(configrefresh.ApmReceiverPort),
+				agentclientparams.WithProcessAgentOnPort(configrefresh.ProcessCmdPort),
 			)),
 	))
 
@@ -90,11 +92,11 @@ func (v *configRefreshWindowsSuite) TestConfigRefresh() {
 
 	// check that the agents are using the first key
 	// initially they all resolve it using the secret resolver
-	assertAgentsUseKey(v.T(), v.Env().RemoteHost, authtoken, apiKey1)
+	configrefresh.AssertAgentsUseKey(v.T(), v.Env().RemoteHost, authtoken, configrefresh.APIKey1)
 
 	// update api_key
 	v.T().Log("Updating the api key")
-	secretClient.SetSecret("api_key", apiKey2)
+	secretClient.SetSecret("api_key", configrefresh.APIKey2)
 
 	// trigger a refresh of the core-agent secrets
 	v.T().Log("Refreshing core-agent secrets")
@@ -104,6 +106,6 @@ func (v *configRefreshWindowsSuite) TestConfigRefresh() {
 
 	// and check that the agents are using the new key
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		assertAgentsUseKey(t, v.Env().RemoteHost, authtoken, apiKey2)
-	}, 2*configRefreshIntervalSec*time.Second, 1*time.Second)
+		configrefresh.AssertAgentsUseKey(t, v.Env().RemoteHost, authtoken, configrefresh.APIKey2)
+	}, 2*configrefresh.ConfigRefreshIntervalSec*time.Second, 1*time.Second)
 }

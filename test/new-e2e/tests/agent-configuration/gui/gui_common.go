@@ -26,19 +26,19 @@ import (
 )
 
 const (
-	agentAPIPort   = 5001
-	guiPort        = 5002
-	guiAPIEndpoint = "/agent/gui/intent"
+	AgentAPIPort   = 5001
+	GUIPort        = 5002
+	GUIAPIEndpoint = "/agent/gui/intent"
 )
 
-// assertAgentsUseKey checks that all agents are using the given key.
-func getGUIIntentToken(t *assert.CollectT, host *components.RemoteHost, authtoken string) string {
+// GetGUIIntentToken fetches the GUI intent token from the agent API.
+func GetGUIIntentToken(t *assert.CollectT, host *components.RemoteHost, authtoken string) string {
 	hostHTTPClient := host.NewHTTPClient()
 
 	apiEndpoint := &url.URL{
 		Scheme: "https",
-		Host:   net.JoinHostPort("localhost", strconv.Itoa(agentAPIPort)),
-		Path:   guiAPIEndpoint,
+		Host:   net.JoinHostPort("localhost", strconv.Itoa(AgentAPIPort)),
+		Path:   GUIAPIEndpoint,
 	}
 
 	req, err := http.NewRequest(http.MethodGet, apiEndpoint.String(), nil)
@@ -58,13 +58,13 @@ func getGUIIntentToken(t *assert.CollectT, host *components.RemoteHost, authtoke
 	return string(url)
 }
 
-// assertGuiIsAvailable checks that the Agent GUI server is up and running.
-func getGUIClient(t *assert.CollectT, host *components.RemoteHost, authtoken string) *http.Client {
-	intentToken := getGUIIntentToken(t, host, authtoken)
+// GetGUIClient authenticates with the GUI server and returns an authenticated HTTP client.
+func GetGUIClient(t *assert.CollectT, host *components.RemoteHost, authtoken string) *http.Client {
+	intentToken := GetGUIIntentToken(t, host, authtoken)
 
 	guiURL := url.URL{
 		Scheme: "http",
-		Host:   net.JoinHostPort("localhost", strconv.Itoa(guiPort)),
+		Host:   net.JoinHostPort("localhost", strconv.Itoa(GUIPort)),
 		Path:   "/auth",
 		RawQuery: url.Values{
 			"intent": {intentToken},
@@ -88,19 +88,20 @@ func getGUIClient(t *assert.CollectT, host *components.RemoteHost, authtoken str
 	assert.Equal(t, cookies[0].Name, "accessToken", "GUI server didn't the accessToken cookie")
 
 	// Assert redirection to "/"
-	assert.Equal(t, fmt.Sprintf("http://%v", net.JoinHostPort("localhost", strconv.Itoa(guiPort)))+"/", resp.Request.URL.String(), "GUI auth endpoint didn't redirect to root endpoint")
+	assert.Equal(t, fmt.Sprintf("http://%v", net.JoinHostPort("localhost", strconv.Itoa(GUIPort)))+"/", resp.Request.URL.String(), "GUI auth endpoint didn't redirect to root endpoint")
 
 	return guiClient
 }
 
-func checkStaticFiles(t *testing.T, client *http.Client, host *components.RemoteHost, installPath string) {
+// CheckStaticFiles validates all static assets served by the GUI match the files on disk.
+func CheckStaticFiles(t *testing.T, client *http.Client, host *components.RemoteHost, installPath string) {
 
 	var links []string
 	var traverse func(*html.Node)
 
 	guiURL := url.URL{
 		Scheme: "http",
-		Host:   net.JoinHostPort("localhost", strconv.Itoa(guiPort)),
+		Host:   net.JoinHostPort("localhost", strconv.Itoa(GUIPort)),
 		Path:   "/",
 	}
 
@@ -138,7 +139,7 @@ func checkStaticFiles(t *testing.T, client *http.Client, host *components.Remote
 	traverse(doc)
 	for _, link := range links {
 		t.Logf("trying to reach asset %v", link)
-		fullLink := fmt.Sprintf("http://%v/%v", net.JoinHostPort("localhost", strconv.Itoa(guiPort)), link)
+		fullLink := fmt.Sprintf("http://%v/%v", net.JoinHostPort("localhost", strconv.Itoa(GUIPort)), link)
 		resp, err := client.Get(fullLink)
 		assert.NoErrorf(t, err, "failed to reach GUI asset at address %s", fullLink)
 		defer resp.Body.Close()
@@ -159,10 +160,11 @@ func checkStaticFiles(t *testing.T, client *http.Client, host *components.Remote
 	}
 }
 
-func checkPingEndpoint(t *testing.T, client *http.Client) {
+// CheckPingEndpoint tests the GUI ping endpoint.
+func CheckPingEndpoint(t *testing.T, client *http.Client) {
 	guiURL := url.URL{
 		Scheme: "http",
-		Host:   net.JoinHostPort("localhost", strconv.Itoa(guiPort)),
+		Host:   net.JoinHostPort("localhost", strconv.Itoa(GUIPort)),
 		Path:   "/agent/ping",
 	}
 
