@@ -27,7 +27,7 @@ type cliParams struct {
 	command string
 	file    string
 	timeout time.Duration
-	manual  bool
+	manual  string
 }
 
 // Commands returns the 'shell' subcommand.
@@ -50,14 +50,15 @@ before execution via /bin/sh.`,
 	shellCmd.Flags().StringVar(&params.command, "command", "", "command string to execute")
 	shellCmd.Flags().StringVar(&params.file, "file", "", "script file to execute")
 	shellCmd.Flags().DurationVar(&params.timeout, "timeout", executor.DefaultTimeout, "execution timeout")
-	shellCmd.Flags().BoolVar(&params.manual, "manual", false, "print the safe shell manual (allowed commands, features, limits)")
+	shellCmd.Flags().StringVar(&params.manual, "manual", "", "print the safe shell manual; optionally filter to a single command")
+	shellCmd.Flags().Lookup("manual").NoOptDefVal = "*"
 
 	return []*cobra.Command{shellCmd}
 }
 
 func runShell(params *cliParams, args []string) error {
-	if params.manual {
-		printManual()
+	if params.manual != "" {
+		printManual(params.manual)
 		return nil
 	}
 
@@ -147,13 +148,47 @@ func runInteractive(ctx context.Context, opts []executor.Option) error {
 	return scanner.Err()
 }
 
-func printManual() {
+func printCommandSection(name string, info verifier.CommandInfo) {
+	if info.Description != "" {
+		fmt.Printf("  %s - %s\n", name, info.Description)
+	} else {
+		fmt.Printf("  %s\n", name)
+	}
+
+	// Sort flags for stable output.
+	flags := make([]string, 0, len(info.Flags))
+	for f := range info.Flags {
+		flags = append(flags, f)
+	}
+	sort.Strings(flags)
+
+	for _, f := range flags {
+		if desc := info.Flags[f]; desc != "" {
+			fmt.Printf("    %-20s %s\n", f, desc)
+		} else {
+			fmt.Printf("    %s\n", f)
+		}
+	}
+	if len(flags) > 0 {
+		fmt.Println()
+	}
+}
+
+func printManual(cmd string) {
+	commands := verifier.AllowedCommandsWithDescriptions()
+
+	if cmd != "*" {
+		info, ok := commands[cmd]
+		if !ok {
+			fmt.Printf("command '%s' is not in the safe shell allowlist\n", cmd)
+			return
+		}
+		printCommandSection(cmd, info)
+		return
+	}
+
 	fmt.Println("Datadog Agent Safe Shell — Manual")
 	fmt.Println()
-	fmt.Println("Use 'man <command>' for detailed flag documentation on this host.")
-	fmt.Println()
-
-	commands := verifier.AllowedCommandsWithDescriptions()
 
 	// Sort command names for stable output.
 	names := make([]string, 0, len(commands))
@@ -165,30 +200,7 @@ func printManual() {
 	fmt.Println("ALLOWED COMMANDS:")
 	fmt.Println()
 	for _, name := range names {
-		info := commands[name]
-		if info.Description != "" {
-			fmt.Printf("  %s - %s\n", name, info.Description)
-		} else {
-			fmt.Printf("  %s\n", name)
-		}
-
-		// Sort flags for stable output.
-		flags := make([]string, 0, len(info.Flags))
-		for f := range info.Flags {
-			flags = append(flags, f)
-		}
-		sort.Strings(flags)
-
-		for _, f := range flags {
-			if desc := info.Flags[f]; desc != "" {
-				fmt.Printf("    %-20s %s\n", f, desc)
-			} else {
-				fmt.Printf("    %s\n", f)
-			}
-		}
-		if len(flags) > 0 {
-			fmt.Println()
-		}
+		printCommandSection(name, commands[name])
 	}
 
 	fmt.Println("ALLOWED SHELL FEATURES:")
