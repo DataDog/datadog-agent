@@ -7,6 +7,7 @@
 package spec
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -159,7 +160,7 @@ func LoadArchitecturesSpec() (*ArchitecturesSpec, error) {
 func getSpecPath(specFile string) (string, error) {
 	_, currentFile, _, ok := runtime.Caller(0)
 	if !ok {
-		return "", fmt.Errorf("resolve current file path")
+		return "", errors.New("cannot resolve current file path from runtime.Caller")
 	}
 
 	specDir := filepath.Dir(currentFile)
