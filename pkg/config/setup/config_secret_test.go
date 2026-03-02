@@ -166,3 +166,27 @@ func TestProxyWithSecret(t *testing.T) {
 		})
 	}
 }
+
+func TestAllFlattenedExcludesDottedAdditionalEndpointsChildrenAfterSecretResolution(t *testing.T) {
+	config := newTestConf(t)
+
+	path := t.TempDir()
+	configPath := filepath.Join(path, "datadog.yaml")
+	require.NoError(t, os.WriteFile(configPath, testAdditionalEndpointsConf, 0o600))
+	config.SetConfigFile(configPath)
+
+	resolver := secretsmock.New(t)
+	resolver.SetSecrets(map[string]string{
+		"api_key_1": "resolved_api_key_1",
+		"api_key_2": "resolved_api_key_2",
+		"api_key_3": "resolved_api_key_3",
+	})
+
+	require.NoError(t, LoadDatadog(config, resolver, nil))
+
+	flattened, _ := config.AllFlattenedSettingsWithSequenceID()
+
+	assert.Contains(t, flattened, "additional_endpoints")
+	assert.NotContains(t, flattened, "additional_endpoints.https://url1.com")
+	assert.NotContains(t, flattened, "additional_endpoints.https://url2.eu")
+}

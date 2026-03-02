@@ -596,6 +596,7 @@ func start(log log.Component,
 			patchCtx := admissionpatch.ControllerContext{
 				LeadershipStateSubscribeFunc: le.Subscribe,
 				K8sClient:                    apiCl.Cl,
+				DynamicClient:                apiCl.DynamicCl,
 				RcClient:                     rcClient,
 				ClusterName:                  clusterName,
 				ClusterID:                    clusterID,

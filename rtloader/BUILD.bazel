@@ -1,8 +1,8 @@
-# rtloader
-
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
+load("//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
+load("//bazel/rules:so_symlink.bzl", "so_symlink")
 
 package(
     default_package_metadata = [":license"],
@@ -16,17 +16,187 @@ license(
     visibility = ["//visibility:public"],
 )
 
-pkg_filegroup(
-    name = "all_files",
-    srcs = [
-        "//rtloader/common:all_files",
-        "//rtloader/include:all_files",
-        "//rtloader/rtloader:lib_files",
-        "//rtloader/three:lib_files",
-    ],
+VERSION = "0.1.0"
+
+COMMON_CXXOPTS = [
+    # This was ported from the equivalent original CMake `set(CMAKE_CXX_STANDARD 11)` et al.
+    "-std=c++11",
+]
+
+dd_agent_expand_template(
+    name = "pc_gen",
+    out = "datadog-agent-rtloader.pc",
+    substitutions = {
+        "@CMAKE_INSTALL_PREFIX@": "{install_dir}/embedded",
+        "@CMAKE_INSTALL_LIBDIR@": "lib",
+        "@CMAKE_INSTALL_INCLUDEDIR@": "include",
+        "@PROJECT_NAME@": "datadog-agent-rtloader",
+        "@PROJECT_VERSION@": VERSION,
+        "@PROJECT_DESCRIPTION@": "CPython backend for the Datadog Agent",
+    },
+    template = "rtloader/datadog-agent-rtloader.pc.in",
 )
 
-pkg_install(
-    name = "install",
-    srcs = ["all_files"],
+cc_library(
+    name = "rtloader",
+    srcs = [
+        "common/rtloader_mem.c",
+        "include/rtloader.h",
+        "rtloader/api.cpp",
+        "rtloader/rtloader.cpp",
+    ],
+    hdrs = [
+        "common/rtloader_mem.h",
+        "include/datadog_agent_rtloader.h",
+        "include/rtloader_types.h",
+    ],
+    cxxopts = COMMON_CXXOPTS,
+    includes = [
+        ".",
+        "common",
+        "include",
+    ],
+    linkopts = [
+        # Make up for the fact that we may be using gcc and not g++
+        "-lstdc++",
+    ],
+    local_defines = select({
+        "@platforms//os:linux": [
+            "_GLIBCXX_USE_CXX11_ABI=0",
+            # backtrace / execinfo.h is provided by glibc 2.1+ so we know it to be available
+            "HAS_BACKTRACE_LIB",
+        ],
+        "@platforms//os:macos": [
+            "_GLIBCXX_USE_CXX11_ABI=0",
+            # backtrace / execinfo.h is provided by the macOS libc since Mac OS X 10.5
+            # https://manp.gs/mac/3/backtrace#HISTORY
+            "HAS_BACKTRACE_LIB",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+cc_shared_library(
+    name = "datadog-agent-rtloader",
+    deps = [":rtloader"],
+)
+
+so_symlink(
+    name = "rtloader_lib_files",
+    src = ":datadog-agent-rtloader",
+    libname = "libdatadog-agent-rtloader",
+    prefix = "embedded",
+    version = VERSION,
+)
+
+dd_agent_expand_template(
+    name = "constants_gen",
+    out = "constants.h",
+    substitutions = {
+        # TODO(agent-build): either get rid of the need for this substitution or
+        # use a single source of truth for the version
+        "@Python3_STDLIB@": "{install_dir}/embedded/lib/python3.13",
+    },
+    template = "three/constants.h.in",
+)
+
+cc_library(
+    name = "three",
+    srcs = [
+        "common/builtins/_util.c",
+        "common/builtins/_util.h",
+        "common/builtins/aggregator.c",
+        "common/builtins/aggregator.h",
+        "common/builtins/containers.c",
+        "common/builtins/containers.h",
+        "common/builtins/datadog_agent.c",
+        "common/builtins/datadog_agent.h",
+        "common/builtins/kubeutil.c",
+        "common/builtins/kubeutil.h",
+        "common/builtins/tagger.c",
+        "common/builtins/tagger.h",
+        "common/builtins/util.c",
+        "common/builtins/util.h",
+        "common/cgo_free.c",
+        "common/cgo_free.h",
+        "common/log.c",
+        "common/log.h",
+        "common/stringutils.c",
+        "common/stringutils.h",
+        "constants.h",
+        "include/rtloader.h",
+        "three/three.cpp",
+        "three/three.h",
+        "three/three_mem.cpp",
+    ],
+    copts = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": [
+            "-Wno-deprecated-register",
+        ],
+    }),
+    includes = [
+        ".",
+        "common",
+        "common/builtins",
+        "include",
+    ],
+    linkopts = [
+        # Make up for the fact that we may be using gcc and not g++
+        "-lstdc++",
+    ],
+    local_defines = select({
+        "@platforms//os:windows": [
+            # TODO: only set if not MSVC. But it might be OK do to anyway.
+            "_hypot=hypot",
+            "DATADOG_AGENT_THREE",
+        ],
+        "//conditions:default": [
+            "_GLIBCXX_USE_CXX11_ABI=0",
+            "DATADOG_AGENT_THREE",
+        ],
+    }),
+    deps = [":rtloader"] + select({
+        "@platforms//os:windows": [
+            "@cpython//:lib_win",
+        ],
+        "@platforms//os:linux": [
+            "@cpython//:python_unix_shared",
+        ],
+        "@platforms//os:macos": [
+            "@cpython//:python_unix_shared",
+        ],
+    }),
+)
+
+cc_shared_library(
+    name = "datadog-agent-three",
+    dynamic_deps = select({
+        # Note: on Windows we link against the rtloader lib statically, and we don't
+        # need to add a reference to python explicitly because there's no static python lib
+        # visible to this rule in its dependency chain.
+        "@platforms//os:windows": [],
+        "@platforms//os:linux": [
+            ":datadog-agent-rtloader",
+            "@cpython//:python_unix_shared",
+        ],
+        "@platforms//os:macos": [
+            ":datadog-agent-rtloader",
+            "@cpython//:python_unix_shared",
+        ],
+    }),
+    user_link_flags = select({
+        "@platforms//os:windows": [],
+        "@platforms//os:linux": [
+            # Ensure symbols are resolved
+            "-Wl,--no-undefined",
+        ],
+        "@platforms//os:macos": [
+            # Ensure symbols are resolved
+            "-Wl,-undefined,error",
+        ],
+    }),
+    deps = [
+        ":three",
+    ],
 )

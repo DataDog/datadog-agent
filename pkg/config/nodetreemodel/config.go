@@ -943,7 +943,8 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 	}
 }
 
-// AllFlattenedSettingsWithSequenceID returns all settings as a flattened map along with the sequence ID.
+// AllFlattenedSettingsWithSequenceID returns all settings as a flattened map of schema leaf keys
+// along with the sequence ID.
 // Keys are flattened (e.g., "logs_config.enabled" instead of nested {"logs_config": {"enabled": ...}}).
 // This provides atomic access to flattened keys, values, and sequence ID under a single lock.
 func (c *ntmConfig) AllFlattenedSettingsWithSequenceID() (map[string]interface{}, uint64) {

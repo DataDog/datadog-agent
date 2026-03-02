@@ -219,6 +219,10 @@ func GetClientConfig(timeout time.Duration, qps float32, burst int) (*rest.Confi
 	cfgPath := pkgconfigsetup.Datadog().GetString("kubernetes_kubeconfig_path")
 	if cfgPath == "" {
 		clientConfig, err = rest.InClusterConfig()
+		if err != nil {
+			log.Debugf("Can't create a config for the official client from the service account's token: %v", err)
+			return nil, err
+		}
 
 		if !pkgconfigsetup.Datadog().GetBool("kubernetes_apiserver_tls_verify") {
 			clientConfig.TLSClientConfig.Insecure = true
@@ -226,11 +230,6 @@ func GetClientConfig(timeout time.Duration, qps float32, burst int) (*rest.Confi
 
 		if customCAPath := pkgconfigsetup.Datadog().GetString("kubernetes_apiserver_ca_path"); customCAPath != "" {
 			clientConfig.TLSClientConfig.CAFile = customCAPath
-		}
-
-		if err != nil {
-			log.Debugf("Can't create a config for the official client from the service account's token: %v", err)
-			return nil, err
 		}
 	} else {
 		// use the current context in kubeconfig

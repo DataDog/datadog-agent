@@ -79,7 +79,7 @@ func (handler *languageDetectionHandler) startCleanupInBackground(ctx context.Co
 					handler.ownersLanguages.cleanExpiredLanguages(handler.wlm)
 				}
 			case <-ctx.Done():
-				break
+				return
 			}
 		}
 	}()

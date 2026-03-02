@@ -14,30 +14,33 @@ import (
 	"fmt"
 	"strconv"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
+	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 	k8sutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	jsonpatch "github.com/evanphx/json-patch"
-	corev1 "k8s.io/api/apps/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes"
 )
 
 type patcher struct {
 	k8sClient          kubernetes.Interface
+	patchClient        *workloadpatcher.Patcher
 	isLeader           func() bool
 	deploymentsQueue   chan Request
 	telemetryCollector telemetry.TelemetryCollector
 }
 
-func newPatcher(k8sClient kubernetes.Interface, isLeaderFunc func() bool, telemetryCollector telemetry.TelemetryCollector, pp patchProvider) *patcher {
+func newPatcher(k8sClient kubernetes.Interface, dynamicClient dynamic.Interface, isLeaderFunc func() bool, telemetryCollector telemetry.TelemetryCollector, pp patchProvider) *patcher {
+	wp := workloadpatcher.NewPatcher(dynamicClient, nil) // leader check self managed
 	return &patcher{
 		k8sClient:          k8sClient,
+		patchClient:        wp,
 		isLeader:           isLeaderFunc,
 		deploymentsQueue:   pp.subscribe(KindDeployment),
 		telemetryCollector: telemetryCollector,
@@ -70,89 +73,73 @@ func (p *patcher) patchDeployment(req Request) error {
 	if err != nil {
 		return err
 	}
-	oldObj, err := json.Marshal(deploy)
-	if err != nil {
-		return fmt.Errorf("failed to encode object: %v", err)
-	}
 	revision := strconv.FormatInt(req.Revision, 10)
-	if deploy.Annotations == nil {
-		deploy.Annotations = make(map[string]string)
-	}
-	if deploy.Annotations[k8sutil.RcIDAnnotKey] == req.ID && deploy.Annotations[k8sutil.RcRevisionAnnotKey] == revision {
+	if deploy.Annotations != nil && deploy.Annotations[k8sutil.RcIDAnnotKey] == req.ID && deploy.Annotations[k8sutil.RcRevisionAnnotKey] == revision {
 		log.Infof("Remote Config ID %q with revision %q has already been applied to object %s, skipping", req.ID, revision, req.K8sTarget)
 		return nil
 	}
 	log.Infof("Applying Remote Config ID %q with revision %q and action %q to object %s", req.ID, revision, req.Action, req.K8sTarget)
+
+	target := workloadpatcher.DeploymentTarget(req.K8sTarget.Namespace, req.K8sTarget.Name)
+	intent := workloadpatcher.NewPatchIntent(target)
+
 	switch req.Action {
 	case StageConfig:
 		// Consume the config without triggering a rolling update.
 		log.Debugf("Remote Config ID %q with revision %q has a \"stage\" action. The pod template won't be patched, only the deployment annotations", req.ID, revision)
 	case EnableConfig:
-		if err := enableConfig(deploy, req); err != nil {
-			return err
+		conf, err := json.Marshal(req.LibConfig)
+		if err != nil {
+			return fmt.Errorf("failed to encode library config: %v", err)
 		}
+		versionAnnotKey := annotation.LibraryVersion.Format(req.LibConfig.Language)
+		configAnnotKey := annotation.LibraryConfigV1.Format(req.LibConfig.Language)
+
+		intent = intent.
+			With(workloadpatcher.SetPodTemplateLabels(map[string]interface{}{
+				common.EnabledLabelKey: "true",
+			})).
+			With(workloadpatcher.SetPodTemplateAnnotations(map[string]interface{}{
+				versionAnnotKey:            req.LibConfig.Version,
+				configAnnotKey:             string(conf),
+				k8sutil.RcIDAnnotKey:       req.ID,
+				k8sutil.RcRevisionAnnotKey: revision,
+			}))
 	case DisableConfig:
-		disableConfig(deploy, req)
+		versionAnnotKey := annotation.LibraryVersion.Format(req.LibConfig.Language)
+		configAnnotKey := annotation.LibraryConfigV1.Format(req.LibConfig.Language)
+
+		intent = intent.
+			With(workloadpatcher.SetPodTemplateLabels(map[string]interface{}{
+				common.EnabledLabelKey: "false",
+			})).
+			With(workloadpatcher.DeletePodTemplateAnnotations([]string{
+				versionAnnotKey,
+				configAnnotKey,
+			})).
+			With(workloadpatcher.SetPodTemplateAnnotations(map[string]interface{}{
+				k8sutil.RcIDAnnotKey:       req.ID,
+				k8sutil.RcRevisionAnnotKey: revision,
+			}))
 	default:
 		return fmt.Errorf("unknown action %q", req.Action)
 	}
-	deploy.Annotations[k8sutil.RcIDAnnotKey] = req.ID
-	deploy.Annotations[k8sutil.RcRevisionAnnotKey] = revision
-	newObj, err := json.Marshal(deploy)
+
+	// Always set deployment-level RC tracking annotations
+	intent = intent.With(workloadpatcher.SetMetadataAnnotations(map[string]interface{}{
+		k8sutil.RcIDAnnotKey:       req.ID,
+		k8sutil.RcRevisionAnnotKey: revision,
+	}))
+
+	_, err = p.patchClient.Apply(context.TODO(), intent, workloadpatcher.PatchOptions{
+		Caller:    "rc_patcher",
+		PatchType: types.StrategicMergePatchType,
+	})
 	if err != nil {
-		return fmt.Errorf("failed to encode object: %v", err)
-	}
-	patch, err := jsonpatch.CreateMergePatch(oldObj, newObj)
-	if err != nil {
-		return fmt.Errorf("failed to build the JSON patch: %v", err)
-	}
-	log.Infof("Patching %s with patch %s", req.K8sTarget, string(patch))
-	if _, err = p.k8sClient.AppsV1().Deployments(req.K8sTarget.Namespace).Patch(context.TODO(), req.K8sTarget.Name, types.StrategicMergePatchType, patch, metav1.PatchOptions{}); err != nil {
 		p.telemetryCollector.SendRemoteConfigMutateEvent(req.getApmRemoteConfigEvent(err, telemetry.FailedToMutateConfig))
 		return err
 	}
 	p.telemetryCollector.SendRemoteConfigMutateEvent(req.getApmRemoteConfigEvent(nil, telemetry.Success))
 	metrics.PatchCompleted.Inc()
 	return nil
-}
-
-func enableConfig(deploy *corev1.Deployment, req Request) error {
-	if deploy.Spec.Template.Labels == nil {
-		deploy.Spec.Template.Labels = make(map[string]string)
-	}
-	deploy.Spec.Template.Labels[common.EnabledLabelKey] = "true"
-	if deploy.Spec.Template.Annotations == nil {
-		deploy.Spec.Template.Annotations = make(map[string]string)
-	}
-	versionAnnotKey := annotation.LibraryVersion.Format(req.LibConfig.Language)
-	deploy.Spec.Template.Annotations[versionAnnotKey] = req.LibConfig.Version
-	conf, err := json.Marshal(req.LibConfig)
-	if err != nil {
-		return fmt.Errorf("failed to encode library config: %v", err)
-	}
-	configAnnotKey := annotation.LibraryConfigV1.Format(req.LibConfig.Language)
-	deploy.Spec.Template.Annotations[configAnnotKey] = string(conf)
-	deploy.Spec.Template.Annotations[k8sutil.RcIDAnnotKey] = req.ID
-	deploy.Spec.Template.Annotations[k8sutil.RcRevisionAnnotKey] = strconv.FormatInt(req.Revision, 10)
-	return nil
-}
-
-func disableConfig(deploy *corev1.Deployment, req Request) {
-	if deploy.Spec.Template.Labels == nil {
-		deploy.Spec.Template.Labels = make(map[string]string)
-	}
-	if val, found := deploy.Spec.Template.Labels[common.EnabledLabelKey]; found {
-		log.Debugf("Found pod label %q=%q in target %s. Setting it to false", common.EnabledLabelKey, val, req.K8sTarget)
-	}
-	deploy.Spec.Template.Labels[common.EnabledLabelKey] = "false"
-	if deploy.Spec.Template.Annotations == nil {
-		deploy.Spec.Template.Annotations = make(map[string]string)
-	}
-
-	versionAnnotKey := annotation.LibraryVersion.Format(req.LibConfig.Language)
-	delete(deploy.Spec.Template.Annotations, versionAnnotKey)
-	configAnnotKey := annotation.LibraryConfigV1.Format(req.LibConfig.Language)
-	delete(deploy.Spec.Template.Annotations, configAnnotKey)
-	deploy.Spec.Template.Annotations[k8sutil.RcIDAnnotKey] = req.ID
-	deploy.Spec.Template.Annotations[k8sutil.RcRevisionAnnotKey] = strconv.FormatInt(req.Revision, 10)
 }
