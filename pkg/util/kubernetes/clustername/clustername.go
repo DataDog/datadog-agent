@@ -30,10 +30,8 @@ const (
 	clusterIDEnv = "DD_ORCHESTRATOR_CLUSTER_ID"
 )
 
-// validClusterName matches exactly the same naming rule as the one enforced by GKE:
-// https://cloud.google.com/kubernetes-engine/docs/reference/rest/v1beta1/projects.locations.clusters#Cluster.FIELDS.name
 // The cluster name can be up to 40 characters with the following restrictions:
-// * Lowercase letters, numbers, dots, hyphens and underscores.
+// * Must contain only lowercase letters, numbers, dots, hyphens and underscores.
 // * Must start with an alphanumeric character.
 // * Must end with an alphanumeric character.
 // * Must be a valid FQDN (without trailing period)
@@ -81,10 +79,12 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 			// the host alias "hostname-clustername" must not exceed 255 chars
 			hostAlias := hostname + "-" + data.clusterName
 			if !validClusterName.MatchString(data.clusterName) || len(hostAlias) > 255 {
-				log.Errorf("\"%s\" isn’t a valid cluster name. It must be dot-separated tokens where tokens "+
-					"start with a lowercase letter followed by lowercase letters, numbers, or "+
-					"hyphens, and cannot end with a hyphen nor have a dot adjacent to a hyphen and \"%s\" must not "+
-					"exceed 255 chars", data.clusterName, hostAlias)
+				log.Errorf("\"%s\" isn't a valid cluster name. The cluster name can be up to 40 characters with the following restrictions:\n"+
+					"\t- must contain only lowercase letters, numbers, dots, hyphens and underscores, \n"+
+					"\t- must start with an alphanumeric character, \n"+
+					"\t- must end with an alphanumeric character, \n"+
+					"\t- must be a valid FQDN (without trailing period), \n"+
+					"and \"%s\" must not exceed 255 chars", data.clusterName, hostAlias)
 				log.Errorf("As a consequence, the cluster name provided by the config will be ignored")
 				data.clusterName = ""
 			}
