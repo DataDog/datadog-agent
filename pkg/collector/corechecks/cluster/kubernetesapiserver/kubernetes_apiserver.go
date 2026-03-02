@@ -18,6 +18,8 @@ import (
 	"go.yaml.in/yaml/v2"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/Masterminds/semver/v3"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -42,6 +44,7 @@ const (
 
 	KubeControlPaneCheck               = "kube_apiserver_controlplane.up"
 	eventTokenKey                      = "event"
+	componentStatusMaxVersionString    = "v1.35.0"
 	maxEventCardinality                = 300
 	defaultResyncPeriodInSecond        = 300
 	defaultTimeoutEventCollection      = 2000
@@ -64,6 +67,8 @@ var (
 		"Number of events emitted by the check.",
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
+
+	componentStatusMaxVersion = semver.MustParse(componentStatusMaxVersionString)
 )
 
 // KubeASConfig is the config of the API server.
@@ -261,16 +266,8 @@ func (k *KubeASCheck) Run() error {
 	}
 
 	// Running the Control Plane status check.
-	if k.instance.UseComponentStatus {
-		err = k.componentStatusCheck(sender)
-		if err != nil {
-			k.Warnf("Could not collect control plane status from ComponentStatus: %s", err.Error()) //nolint:errcheck
-		}
-	} else {
-		err = k.controlPlaneHealthCheck(context.TODO(), sender)
-		if err != nil {
-			k.Warnf("Could not collect control plane status from health checks: %s", err.Error()) //nolint:errcheck
-		}
+	if err := k.componentStatusCheck(sender); err != nil {
+		k.Warnf("failed to read component status: %s", err.Error())
 	}
 
 	// Running OpenShift ClusterResourceQuota collection if available
@@ -393,35 +390,74 @@ func (k *KubeASCheck) parseComponentStatus(sender sender.Sender, componentsStatu
 }
 
 func (k *KubeASCheck) componentStatusCheck(sender sender.Sender) error {
-	componentsStatus, err := k.ac.ComponentStatuses()
+	serverVersion, err := k.ac.Cl.Discovery().ServerVersion()
 	if err != nil {
 		return err
 	}
 
-	return k.parseComponentStatus(sender, componentsStatus)
-}
+	log.Debugf("Kubernetes API Server version: %s", serverVersion)
+	semverServerVersion, err := semver.NewVersion(serverVersion.GitVersion)
+	if err != nil {
+		log.Warnf("Could not parse kubernetes API Server version %s: %s.", serverVersion, err.Error())
+		return err
+	}
 
-func (k *KubeASCheck) controlPlaneHealthCheck(ctx context.Context, sender sender.Sender) error {
-	ready, err := k.ac.IsAPIServerReady(ctx)
+	// the ComponentStatus API was deprecated in Kubernetes 1.19.
+	// As of today the current version still supports it be we want to make the cut here to prevent future issues.
+	// Minimum version to use the new readyz endpoint is 1.35.0.
+	// or allow users to force it using the `use_component_status` config option.
+	if semverServerVersion.LessThan(componentStatusMaxVersion) || k.instance.UseComponentStatus {
+		log.Debugf("Kubernetes API Server version %s is lower than %s. ComponentStatus collection will be done using 'core/v1.ComponentStatus'", serverVersion, componentStatusMaxVersionString)
 
-	var (
-		msg    string
-		status servicecheck.ServiceCheckStatus
-	)
-
-	if ready {
-		msg = "ok"
-		status = servicecheck.ServiceCheckOK
-	} else {
-		status = servicecheck.ServiceCheckCritical
+		componentsStatus, err := k.ac.ComponentStatuses()
 		if err != nil {
-			msg = err.Error()
-		} else {
-			msg = "unknown error"
+			k.Warnf("Could not collect control plane status from ComponentStatus: %s", err.Error())
+			return err
+		}
+
+		err = k.parseComponentStatus(sender, componentsStatus)
+
+		if err != nil {
+			k.Warnf("Could not parse control plane status from ComponentStatus: %s", err.Error())
+			return err
+		}
+	} else {
+		log.Debugf("Kubernetes API Server version %s is higher than %s. ComponentStatus collection will be done using 'readyz'", serverVersion, componentStatusMaxVersionString)
+
+		err = k.controlPlaneHealthCheck(sender)
+		if err != nil {
+			k.Warnf("Could not collect control plane status from health checks: %s", err.Error())
+			return err
 		}
 	}
 
-	sender.ServiceCheck(KubeControlPaneCheck, status, "", nil, msg)
+	return nil
+}
+
+func (k *KubeASCheck) controlPlaneHealthCheck(sender sender.Sender) error {
+	apiServerReady, etcdReady, err := k.ac.IsAPIServerReady()
+
+	if err != nil {
+		return err
+	}
+
+	var (
+		status  servicecheck.ServiceCheckStatus
+		message string
+	)
+
+	for component, ready := range map[string]bool{"apiserver": apiServerReady, "etcd": etcdReady} {
+
+		if ready {
+			status = servicecheck.ServiceCheckOK
+			message = "ok"
+		} else {
+			status = servicecheck.ServiceCheckCritical
+			message = component + " not ready"
+		}
+
+		sender.ServiceCheck(KubeControlPaneCheck, status, "", []string{"component:" + component}, message)
+	}
 
 	return nil
 }
