@@ -5,21 +5,36 @@
 # The Datadog agent (system-probe) should be running and monitoring
 # the tcp-lab-client and tcp-lab-server containers.
 #
-# Usage: ./perturbations.sh <scenario>
+# Usage: ./perturbations.sh [-d|--duration <seconds>] <scenario>
+#        ./perturbations.sh [-d|--duration <seconds>] loss [loss_pct]
 
 set -e
 
 CLIENT="tcp-lab-client"
 SERVER="tcp-lab-server"
 SERVER_IP="172.28.0.10"
+DURATION=30
+
+while [[ "$1" == -* ]]; do
+  case "$1" in
+    -d|--duration)
+      DURATION="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      exit 1
+      ;;
+  esac
+done
 
 case "${1:-help}" in
 
   #=== BASELINE: clean traffic, no perturbations ===
   baseline)
-    echo "=== Baseline: 30s clean iperf3 ==="
+    echo "=== Baseline: ${DURATION}s clean iperf3 ==="
     echo "Expected signals: delivered>0, all loss/retransmit signals=0"
-    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t 30
+    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION"
     ;;
 
   #=== LOSS: random packet loss → exercises lost_out, retrans_out, bytes_retrans, rto_count ===
@@ -28,7 +43,7 @@ case "${1:-help}" in
     echo "=== Packet loss: ${LOSS_PCT}% on client egress ==="
     echo "Expected signals: max_lost_out>0, max_retrans_out>0, bytes_retrans>0, rto_count>0"
     docker exec $CLIENT tc qdisc add dev eth0 root netem loss "${LOSS_PCT}%"
-    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t 30
+    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION"
     docker exec $CLIENT tc qdisc del dev eth0 root
     ;;
 
@@ -37,7 +52,7 @@ case "${1:-help}" in
     echo "=== Heavy packet loss: 20% on client egress ==="
     echo "Expected signals: rto_count>0, max_ca_state=4 (Loss), recovery_count>0"
     docker exec $CLIENT tc qdisc add dev eth0 root netem loss 20%
-    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t 30
+    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION"
     docker exec $CLIENT tc qdisc del dev eth0 root
     ;;
 
@@ -46,7 +61,7 @@ case "${1:-help}" in
     echo "=== Packet reordering: 25% reorder, 50ms delay on client egress ==="
     echo "Expected signals: reord_seen>0, max_sacked_out>0"
     docker exec $CLIENT tc qdisc add dev eth0 root netem delay 50ms reorder 25% 50%
-    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t 30
+    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION"
     docker exec $CLIENT tc qdisc del dev eth0 root
     ;;
 
@@ -55,7 +70,7 @@ case "${1:-help}" in
     echo "=== High delay: 200ms RTT with 50ms jitter on client egress ==="
     echo "Expected signals: max_packets_out>0 (more segments in-flight due to BDP)"
     docker exec $CLIENT tc qdisc add dev eth0 root netem delay 100ms 25ms
-    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t 30
+    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION"
     docker exec $CLIENT tc qdisc del dev eth0 root
     ;;
 
@@ -64,7 +79,7 @@ case "${1:-help}" in
     echo "=== WAN simulation: 100ms delay + 2% loss on client egress ==="
     echo "Expected signals: recovery_count>0, dsack_dups possibly>0, max_sacked_out>0"
     docker exec $CLIENT tc qdisc add dev eth0 root netem delay 50ms 10ms loss 2%
-    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t 60
+    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION"
     docker exec $CLIENT tc qdisc del dev eth0 root
     ;;
 
@@ -80,7 +95,7 @@ case "${1:-help}" in
     # netem on CLIENT egress: marks outgoing data packets with CE instead of
     # dropping. Server sees CE, echoes ECE in ACKs, client increments delivered_ce.
     docker exec $CLIENT tc qdisc add dev eth0 root netem loss 10% ecn
-    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t 30 &
+    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION" &
     IPERF_PID=$!
     # After a few seconds, verify ECN negotiation on the connection:
     sleep 3
@@ -101,8 +116,8 @@ case "${1:-help}" in
     # Send in background so we can monitor.
     docker exec $CLIENT sh -c "dd if=/dev/zero bs=4096 count=1000 2>/dev/null | nc -w 60 $SERVER_IP 9000 || true" &
     NC_PID=$!
-    echo "Waiting 30s for zero-window probes to accumulate..."
-    sleep 30
+    echo "Waiting ${DURATION}s for zero-window probes to accumulate..."
+    sleep "$DURATION"
     kill $NC_PID 2>/dev/null || true
     wait $NC_PID 2>/dev/null || true
     echo "Done. Check probe0_count in Datadog."
@@ -114,7 +129,7 @@ case "${1:-help}" in
     echo "Expected signals: recovery_count>0, max_sacked_out>0, max_ca_state>=3"
     docker exec $CLIENT tc qdisc add dev eth0 root netem delay 50ms loss 5% 25%
     # Use parallel streams to ensure multiple segments in-flight
-    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t 30 -P 4
+    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION" -P 4
     docker exec $CLIENT tc qdisc del dev eth0 root
     ;;
 
@@ -123,7 +138,7 @@ case "${1:-help}" in
     for scenario in baseline loss heavy-loss reorder delay wan ecn zero-window sack-recovery; do
       echo ""
       echo "================================================"
-      $0 $scenario
+      $0 --duration "$DURATION" $scenario
       echo "================================================"
       echo "Sleeping 10s between scenarios..."
       sleep 10
@@ -141,19 +156,22 @@ case "${1:-help}" in
   *)
     echo "TCP Congestion Signal Lab — Perturbation Scenarios"
     echo ""
-    echo "Usage: $0 <scenario>"
+    echo "Usage: $0 [-d|--duration <seconds>] <scenario>"
+    echo ""
+    echo "Options:"
+    echo "  -d, --duration <seconds>  iperf3/sleep runtime (default: 30)"
     echo ""
     echo "Scenarios:"
-    echo "  baseline       Clean traffic (no perturbations)"
-    echo "  loss [%]       Random packet loss (default 5%)"
-    echo "  heavy-loss     Heavy 20% loss (triggers RTO)"
-    echo "  reorder        Packet reordering"
-    echo "  delay          High latency (200ms RTT)"
-    echo "  wan            WAN simulation (delay + loss)"
-    echo "  ecn            ECN congestion marking"
-    echo "  zero-window    Slow reader (zero-window probes)"
-    echo "  sack-recovery  Selective loss (SACK fast recovery)"
-    echo "  all            Run all scenarios sequentially"
-    echo "  cleanup        Remove leftover tc rules"
+    echo "  baseline        Clean traffic (no perturbations)"
+    echo "  loss [%]        Random packet loss (default 5%)"
+    echo "  heavy-loss      Heavy 20% loss (triggers RTO)"
+    echo "  reorder         Packet reordering"
+    echo "  delay           High latency (200ms RTT)"
+    echo "  wan             WAN simulation (delay + loss)"
+    echo "  ecn             ECN congestion marking"
+    echo "  zero-window     Slow reader (zero-window probes)"
+    echo "  sack-recovery   Selective loss (SACK fast recovery)"
+    echo "  all             Run all scenarios sequentially"
+    echo "  cleanup         Remove leftover tc rules"
     ;;
 esac
