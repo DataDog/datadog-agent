@@ -642,6 +642,65 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 			},
 		},
 		{
+			name: "vertical scaling container constraints via deprecated Requests field",
+			setupFunc: func() *model.PodAutoscalerInternal {
+				internal := model.FakePodAutoscalerInternal{
+					Namespace: "test-ns",
+					Name:      "test-dpa",
+					Spec: &datadoghq.DatadogPodAutoscalerSpec{
+						TargetRef: v2.CrossVersionObjectReference{
+							Name: "test-deployment",
+						},
+						Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
+							Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
+								{
+									Name: "app",
+									Requests: &datadoghqcommon.DatadogPodAutoscalerContainerResourceConstraints{
+										MinAllowed: corev1.ResourceList{
+											corev1.ResourceCPU:    resource.MustParse("100m"),
+											corev1.ResourceMemory: resource.MustParse("128Mi"),
+										},
+										MaxAllowed: corev1.ResourceList{
+											corev1.ResourceCPU:    resource.MustParse("2"),
+											corev1.ResourceMemory: resource.MustParse("1Gi"),
+										},
+									},
+								},
+							},
+						},
+					},
+				}.Build()
+				return &internal
+			},
+			expectedCount: 5, // 4 container constraint metrics + local_fallback_enabled
+			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
+				var cpuMinFound, memMinFound, cpuMaxFound, memMaxFound bool
+				for _, m := range metrics {
+					if !slices.Contains(m.Tags, "kube_container_name:app") {
+						continue
+					}
+					switch m.Name {
+					case metricPrefix + ".vertical_scaling.constraints.container.cpu.request_min":
+						cpuMinFound = true
+						assert.Equal(t, 100.0, m.Value, "100m = 100 millicores")
+					case metricPrefix + ".vertical_scaling.constraints.container.memory.request_min":
+						memMinFound = true
+						assert.Equal(t, float64(128*1024*1024), m.Value, "128Mi in bytes")
+					case metricPrefix + ".vertical_scaling.constraints.container.cpu.request_max":
+						cpuMaxFound = true
+						assert.Equal(t, 2000.0, m.Value, "2 cores = 2000 millicores")
+					case metricPrefix + ".vertical_scaling.constraints.container.memory.request_max":
+						memMaxFound = true
+						assert.Equal(t, float64(1024*1024*1024), m.Value, "1Gi in bytes")
+					}
+				}
+				assert.True(t, cpuMinFound, "vertical_scaling.constraints.container.cpu.request_min not found")
+				assert.True(t, memMinFound, "vertical_scaling.constraints.container.memory.request_min not found")
+				assert.True(t, cpuMaxFound, "vertical_scaling.constraints.container.cpu.request_max not found")
+				assert.True(t, memMaxFound, "vertical_scaling.constraints.container.memory.request_max not found")
+			},
+		},
+		{
 			name: "horizontal desired replicas from status",
 			setupFunc: func() *model.PodAutoscalerInternal {
 				crd := &datadoghq.DatadogPodAutoscaler{

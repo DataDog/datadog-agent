@@ -236,9 +236,21 @@ func GeneratePodAutoscalerMetrics(obj interface{}) metricsstore.StructuredMetric
 		}
 
 		// 9. Vertical scaling container constraints (per container, CPU in millicores, memory in bytes)
+		// Mirror the resolveMinMaxBounds fallback from controller_vertical_helpers.go:
+		// prefer top-level MinAllowed/MaxAllowed; fall back to deprecated Requests field.
 		for _, container := range spec.Constraints.Containers {
 			containerTags := autoscalerTagsWithContainerName(namespace, targetName, name, container.Name)
-			if cpuMin, ok := container.MinAllowed[corev1.ResourceCPU]; ok {
+
+			effectiveMin := container.MinAllowed
+			if len(effectiveMin) == 0 && container.Requests != nil {
+				effectiveMin = container.Requests.MinAllowed
+			}
+			effectiveMax := container.MaxAllowed
+			if len(effectiveMax) == 0 && container.Requests != nil {
+				effectiveMax = container.Requests.MaxAllowed
+			}
+
+			if cpuMin, ok := effectiveMin[corev1.ResourceCPU]; ok {
 				metrics = append(metrics, metricsstore.StructuredMetric{
 					Name:  metricPrefix + ".vertical_scaling.constraints.container.cpu.request_min",
 					Type:  metricsstore.MetricTypeGauge,
@@ -246,7 +258,7 @@ func GeneratePodAutoscalerMetrics(obj interface{}) metricsstore.StructuredMetric
 					Tags:  containerTags,
 				})
 			}
-			if memMin, ok := container.MinAllowed[corev1.ResourceMemory]; ok {
+			if memMin, ok := effectiveMin[corev1.ResourceMemory]; ok {
 				metrics = append(metrics, metricsstore.StructuredMetric{
 					Name:  metricPrefix + ".vertical_scaling.constraints.container.memory.request_min",
 					Type:  metricsstore.MetricTypeGauge,
@@ -254,7 +266,7 @@ func GeneratePodAutoscalerMetrics(obj interface{}) metricsstore.StructuredMetric
 					Tags:  containerTags,
 				})
 			}
-			if cpuMax, ok := container.MaxAllowed[corev1.ResourceCPU]; ok {
+			if cpuMax, ok := effectiveMax[corev1.ResourceCPU]; ok {
 				metrics = append(metrics, metricsstore.StructuredMetric{
 					Name:  metricPrefix + ".vertical_scaling.constraints.container.cpu.request_max",
 					Type:  metricsstore.MetricTypeGauge,
@@ -262,7 +274,7 @@ func GeneratePodAutoscalerMetrics(obj interface{}) metricsstore.StructuredMetric
 					Tags:  containerTags,
 				})
 			}
-			if memMax, ok := container.MaxAllowed[corev1.ResourceMemory]; ok {
+			if memMax, ok := effectiveMax[corev1.ResourceMemory]; ok {
 				metrics = append(metrics, metricsstore.StructuredMetric{
 					Name:  metricPrefix + ".vertical_scaling.constraints.container.memory.request_max",
 					Type:  metricsstore.MetricTypeGauge,
