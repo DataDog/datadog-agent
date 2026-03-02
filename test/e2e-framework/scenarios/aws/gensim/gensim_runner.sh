@@ -26,13 +26,11 @@ echo "[$(date -u)] Episode completed"
 POD=$(kubectl get pod -n "${KUBE_NAMESPACE}" -l app.kubernetes.io/component=agent \
       -o jsonpath='{.items[0].metadata.name}')
 echo "[$(date -u)] Collecting parquet files from pod ${POD}"
-mkdir -p /tmp/gensim-parquet
-kubectl cp -n "${KUBE_NAMESPACE}" "${POD}:/var/run/datadog/observer" /tmp/gensim-parquet/observer -c agent
+mkdir -p /tmp/gensim-archive/parquet
+kubectl cp -n "${KUBE_NAMESPACE}" "${POD}:/var/run/datadog/observer" /tmp/gensim-archive/parquet -c agent
 echo "[$(date -u)] Parquet files collected from pod ${POD}"
 
 # Archive: parquet + play-episode log
-mkdir -p /tmp/gensim-archive
-cp -r /tmp/gensim-parquet/observer /tmp/gensim-archive/parquet/
 cp /tmp/play-episode.log           /tmp/gensim-archive/
 cp "$LOG_FILE"                     /tmp/gensim-archive/gensim-runner.log || true
 if [ -d /tmp/gensim-episode/results ]; then cp -r /tmp/gensim-episode/results /tmp/gensim-archive/; fi
