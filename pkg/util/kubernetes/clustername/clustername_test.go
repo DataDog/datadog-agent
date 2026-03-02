@@ -52,7 +52,7 @@ func TestGetClusterName(t *testing.T) {
 	underscoreClusterName := "cluster_with_underscore"
 	mockConfig.SetWithoutSource("cluster_name", underscoreClusterName)
 	data = newClusterNameData()
-	assert.Equal(t, underscoreClusterName, getClusterName(ctx, data, "hostname"))
+	assert.Equal(t, MakeClusterNameRFC1123Compliant(underscoreClusterName), getClusterName(ctx, data, "hostname"))
 
 	digitLeadingDottedClusterName := "1a.cluster.name"
 	mockConfig.SetWithoutSource("cluster_name", digitLeadingDottedClusterName)
