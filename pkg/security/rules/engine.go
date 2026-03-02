@@ -662,10 +662,13 @@ func (e *RuleEngine) SetRulesetLoadedCallback(cb func(es *rules.RuleSet, err *mu
 }
 
 type slowProcessingEvent struct {
-	EventType       string                       `json:"event_type"`
-	DurationUs      int64                        `json:"duration_us"`
-	ProcessingTimeMicrosec uint32               `json:"processingtime_microsec"`
-	ProcessingTrace []model.ProcessingCheckpoint `json:"processing_trace,omitempty"`
+	EventType             string                       `json:"event_type"`
+	DurationUs            int64                        `json:"duration_us"`
+	ProcessingTimeMicrosec uint32                      `json:"processingtime_microsec"`
+	ProcessingTrace       []model.ProcessingCheckpoint `json:"processing_trace,omitempty"`
+	MaxProcessingGapUs    int64                        `json:"max_processing_gap_us,omitempty"`
+	MaxProcessingGapFrom  string                       `json:"max_processing_gap_from,omitempty"`
+	MaxProcessingGapTo    string                       `json:"max_processing_gap_to,omitempty"`
 }
 
 func (e *slowProcessingEvent) GetWorkloadID() string {
@@ -690,11 +693,32 @@ func (e *slowProcessingEvent) GetFieldValue(_ eval.Field) (interface{}, error) {
 
 func newSlowProcessingEvent(event *model.Event) *slowProcessingEvent {
 	durationUs := time.Since(event.StartTime).Microseconds()
+
+	var maxGapUs int64
+	var maxGapFrom string
+	var maxGapTo string
+	if len(event.ProcessingTrace) >= 2 {
+		prev := event.ProcessingTrace[0]
+		for i := 1; i < len(event.ProcessingTrace); i++ {
+			cur := event.ProcessingTrace[i]
+			gap := cur.ElapsedUs - prev.ElapsedUs
+			if gap > 0 && gap > maxGapUs {
+				maxGapUs = gap
+				maxGapFrom = prev.Name
+				maxGapTo = cur.Name
+			}
+			prev = cur
+		}
+	}
+
 	return &slowProcessingEvent{
-		EventType:       event.GetEventType().String(),
-		DurationUs:      durationUs,
+		EventType:             event.GetEventType().String(),
+		DurationUs:            durationUs,
 		ProcessingTimeMicrosec: uint32(durationUs),
-		ProcessingTrace: append([]model.ProcessingCheckpoint(nil), event.ProcessingTrace...),
+		ProcessingTrace:       append([]model.ProcessingCheckpoint(nil), event.ProcessingTrace...),
+		MaxProcessingGapUs:    maxGapUs,
+		MaxProcessingGapFrom:  maxGapFrom,
+		MaxProcessingGapTo:    maxGapTo,
 	}
 }
 
