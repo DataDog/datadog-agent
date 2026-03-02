@@ -120,6 +120,8 @@ modules:
     used_by_otel: true
   comp/otelcol/otlp/components/exporter/logsagentexporter:
     used_by_otel: true
+  comp/otelcol/otlp/components/exporter/rawotlpexporter:
+    used_by_otel: true
   comp/otelcol/otlp/components/exporter/serializerexporter:
     used_by_otel: true
   comp/otelcol/otlp/components/metricsclient:
