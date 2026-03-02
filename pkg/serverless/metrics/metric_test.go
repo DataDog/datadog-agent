@@ -47,7 +47,7 @@ func TestStartDoesNotBlock(t *testing.T) {
 		Tagger:               nooptagger.NewComponent(),
 	}
 	defer metricAgent.Stop()
-	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{}, false)
+	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{}, false, nil)
 }
 
 type InvalidMetricConfigMocked struct{}
@@ -62,7 +62,7 @@ func TestStartInvalidConfig(t *testing.T) {
 		Tagger:               nooptagger.NewComponent(),
 	}
 	defer metricAgent.Stop()
-	metricAgent.Start(1*time.Second, &InvalidMetricConfigMocked{}, &MetricDogStatsD{}, false)
+	metricAgent.Start(1*time.Second, &InvalidMetricConfigMocked{}, &MetricDogStatsD{}, false, nil)
 	assert.False(t, metricAgent.IsReady())
 }
 
@@ -70,7 +70,7 @@ func TestStartInvalidConfig(t *testing.T) {
 type MetricDogStatsDMocked struct{}
 
 //nolint:revive // TODO(SERV) Fix revive linter
-func (m *MetricDogStatsDMocked) NewServer(_ aggregator.Demultiplexer) (dogstatsdServer.ServerlessDogstatsd, error) {
+func (m *MetricDogStatsDMocked) NewServer(_ aggregator.Demultiplexer, _ []string) (dogstatsdServer.ServerlessDogstatsd, error) {
 	return nil, errors.New("error")
 }
 
@@ -80,7 +80,7 @@ func TestStartInvalidDogStatsD(t *testing.T) {
 		Tagger:               nooptagger.NewComponent(),
 	}
 	defer metricAgent.Stop()
-	metricAgent.Start(1*time.Second, &MetricConfig{}, &MetricDogStatsDMocked{}, false)
+	metricAgent.Start(1*time.Second, &MetricConfig{}, &MetricDogStatsDMocked{}, false, nil)
 	assert.False(t, metricAgent.IsReady())
 }
 
@@ -92,7 +92,7 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 	demux, err := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000, nooptagger.NewComponent(), false)
 	require.NoError(t, err, "cannot start Demultiplexer")
 
-	s, err := dogstatsdServer.NewServerlessServer(demux)
+	s, err := dogstatsdServer.NewServerlessServer(demux, nil)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 

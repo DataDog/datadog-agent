@@ -67,5 +67,3 @@ func (s *serverMock) SetMetricFilterList(v []string, _ bool) {
 // ServerlessFlush is a noop mocked function
 func (s *serverMock) ServerlessFlush(time.Duration) {}
 
-//nolint:revive // TODO(AML) Fix revive linter
-func (s *serverMock) SetExtraTags(_ []string) {}
