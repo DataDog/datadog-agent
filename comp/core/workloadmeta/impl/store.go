@@ -64,17 +64,16 @@ func (w *workloadmeta) start(ctx context.Context) {
 	}()
 
 	go func() {
-		if err := w.startCandidatesWithRetry(ctx); err != nil {
-			w.log.Errorf("error starting collectors: %s", err)
-		}
-	}()
-
-	go func() {
 		pullTicker := time.NewTicker(pullCollectorInterval)
 		health := health.RegisterLiveness("workloadmeta-puller")
 
-		// Start a pull immediately to fill the store without waiting for the
-		// next tick.
+		// Start collectors first, then run the first pull. Only then mark
+		// CollectorsInitialized so that autodiscovery does not start until
+		// workloadmeta has a full first pull (avoids race where first pull
+		// ran with zero collectors and we signaled initialized too early).
+		if err := w.startCandidatesWithRetry(ctx); err != nil {
+			w.log.Errorf("error starting collectors: %s", err)
+		}
 		w.pull(ctx)
 		w.updateCollectorStatus(wmdef.CollectorsInitialized)
 
