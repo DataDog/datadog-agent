@@ -237,16 +237,26 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 		},
 	)
 
-	// Emit device-level sm_active metric
+	// Emit device-level utilization metrics as a fallback when no other
+	// sources are available (mainly Ampere MIG devices)
 	for _, deviceMetric := range stats.DeviceMetrics {
 		if deviceMetric.DeviceUUID == deviceUUID {
-			deviceMetrics = append(deviceMetrics, Metric{
-				Name:     "sm_active",
-				Value:    deviceMetric.Metrics.ActiveTimePct,
-				Type:     ddmetrics.GaugeType,
-				Priority: Low,
-				// No AssociatedWorkloads - device-wide metric
-			})
+			deviceMetrics = append(deviceMetrics,
+				Metric{
+					Name:     "sm_active",
+					Value:    deviceMetric.Metrics.ActiveTimePct,
+					Type:     ddmetrics.GaugeType,
+					Priority: Low,
+					// No AssociatedWorkloads - device-wide metric
+				},
+				Metric{
+					Name:     "gr_engine_active",
+					Value:    deviceMetric.Metrics.ActiveTimePct,
+					Type:     ddmetrics.GaugeType,
+					Priority: Low,
+					// No AssociatedWorkloads - device-wide metric
+				},
+			)
 			break
 		}
 	}
