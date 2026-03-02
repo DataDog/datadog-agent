@@ -47,7 +47,7 @@ fi
 # Search for .so, .dylib, and .jnilib files
 if find "$TEMP_DIR" -type f \( -name "*.so" -o -name "*.dylib" -o -name "*.jnilib" \) | grep -q .; then
     echo "Signing native libraries in JAR with: codesign ${CODESIGN_OPTS[@]}"
-    find . -type f \( -name "*.so" -o -name "*.dylib" -o -name "*.jnilib" \) | while read -r file; do
+    find "$TEMP_DIR" -type f \( -name "*.so" -o -name "*.dylib" -o -name "*.jnilib" \) | while read -r file; do
         echo "  Signing: $file"
         codesign "${CODESIGN_OPTS[@]}" "$file"
     done
