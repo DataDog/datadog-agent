@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { TimeSeriesChart, getSeriesVariantColor, getAnalyzerColorStable } from './TimeSeriesChart';
 import type { SeriesVariant } from './TimeSeriesChart';
 import type { Point, AnomalyMarker, Anomaly, SeriesID } from '../api/client';
+import { MAIN_TAG_FILTER_KEYS } from '../constants';
 
 export interface CorrelationRange {
   id: number;
@@ -255,15 +256,20 @@ export function ChartWithAnomalyDetails({
                     <span className="text-slate-300 flex-1 truncate">
                       {debug ? `${formatValue(debug.deviationSigma)}σ from baseline` : anomaly.title}
                     </span>
-                    {anomaly.tags && anomaly.tags.length > 0 && (
-                      <span className="flex gap-1 flex-shrink-0">
-                        {anomaly.tags.map((tag) => (
-                          <span key={tag} className="px-1 py-0.5 rounded text-[9px] bg-slate-700/80 text-slate-400 font-mono">
-                            {tag}
-                          </span>
-                        ))}
-                      </span>
-                    )}
+                    {anomaly.tags && anomaly.tags.length > 0 && (() => {
+                      const headerTags = anomaly.tags.filter((tag) =>
+                        MAIN_TAG_FILTER_KEYS.has(tag.slice(0, tag.indexOf(':')))
+                      );
+                      return headerTags.length > 0 ? (
+                        <span className="flex gap-1 flex-shrink-0">
+                          {headerTags.map((tag) => (
+                            <span key={tag} className="px-1 py-0.5 rounded text-[9px] bg-slate-700/80 text-slate-400 font-mono">
+                              {tag}
+                            </span>
+                          ))}
+                        </span>
+                      ) : null;
+                    })()}
                     <span className="text-slate-500">{isExpanded ? '▼' : '▶'}</span>
                   </button>
 

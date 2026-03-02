@@ -7,6 +7,7 @@ import type { SeriesVariant } from './TimeSeriesChart';
 import { getAnalyzerColorStable } from './TimeSeriesChart';
 import type { TimeRange } from './ChartWithAnomalyDetails';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
+import { MAIN_TAG_FILTER_KEYS } from '../constants';
 
 const AGGREGATION_TYPES = ['avg', 'count', 'sum', 'min', 'max'] as const;
 type AggregationType = typeof AGGREGATION_TYPES[number];
@@ -126,10 +127,10 @@ export function TSAnalysisView({
     return map;
   }, [allAnomalies]);
 
-  const tagGroups = useMemo(
-    () => extractTagGroups(allSeries.map((s) => s.tags)),
-    [allSeries]
-  );
+  const tagGroups = useMemo(() => {
+    const all = extractTagGroups(allSeries.map((s) => s.tags));
+    return new Map([...all.entries()].filter(([k]) => MAIN_TAG_FILTER_KEYS.has(k)));
+  }, [allSeries]);
 
   const filteredSeries = useMemo(() => {
     const byAggType = allSeries.filter((s) => getAggregationType(s.name) === aggregationType);
