@@ -60,6 +60,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/io"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/filehandles"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/pressure"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/windowscertificate"
@@ -131,6 +132,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(versa.CheckName, versa.Factory())
 	corecheckLoader.RegisterCheck(ncm.CheckName, ncm.Factory(cfg))
 	corecheckLoader.RegisterCheck(battery.CheckName, battery.Factory())
+	corecheckLoader.RegisterCheck(pressure.CheckName, pressure.Factory())
 
 	registerSystemProbeChecks(tagger)
 }
