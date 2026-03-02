@@ -20,7 +20,7 @@ type Requires struct {
 type logonDurationComponent struct{}
 
 // NewComponent creates a no-op logon duration component on unsupported platforms.
-func NewComponent(reqs Requires) Provides {
+func NewComponent(_reqs Requires) Provides {
 	log.Debug("Logon duration component is not supported on this platform")
 	return Provides{
 		Comp: &logonDurationComponent{},
