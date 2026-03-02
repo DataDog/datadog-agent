@@ -12,7 +12,7 @@ generator:
       # `bytes_per_second` is understood to be a high-end use case,
       # however Agent's internal telemetry differs from lading's units: UDS
       # packets per second versus bytes per second.
-      bytes_per_second: "1 MiB"
+      bytes_per_second: "100 MiB"
       maximum_prebuild_cache_size_bytes: "500 MiB"
       variant:
         # NOTE the `dogstatsd` data are historically sourced and lack a
