@@ -5,8 +5,8 @@
 # The Datadog agent (system-probe) should be running and monitoring
 # the tcp-lab-client and tcp-lab-server containers.
 #
-# Usage: ./perturbations.sh [-d|--duration <seconds>] <scenario>
-#        ./perturbations.sh [-d|--duration <seconds>] loss [loss_pct]
+# Usage: ./perturbations.sh [-d|--duration <seconds>] [-b|--bandwidth <rate>] <scenario>
+#        ./perturbations.sh [-d|--duration <seconds>] [-b|--bandwidth <rate>] loss [loss_pct]
 
 set -e
 
@@ -14,11 +14,16 @@ CLIENT="tcp-lab-client"
 SERVER="tcp-lab-server"
 SERVER_IP="172.28.0.10"
 DURATION=30
+BANDWIDTH=1G
 
 while [[ "$1" == -* ]]; do
   case "$1" in
     -d|--duration)
       DURATION="$2"
+      shift 2
+      ;;
+    -b|--bandwidth)
+      BANDWIDTH="$2"
       shift 2
       ;;
     -h|--help)
@@ -38,7 +43,7 @@ case "${1:-}" in
   baseline)
     echo "=== Baseline: ${DURATION}s clean iperf3 ==="
     echo "Expected signals: delivered>0, all loss/retransmit signals=0"
-    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION"
+    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION" -b "$BANDWIDTH"
     ;;
 
   #=== LOSS: random packet loss → exercises lost_out, retrans_out, bytes_retrans, rto_count ===
@@ -47,7 +52,7 @@ case "${1:-}" in
     echo "=== Packet loss: ${LOSS_PCT}% on client egress ==="
     echo "Expected signals: max_lost_out>0, max_retrans_out>0, bytes_retrans>0, rto_count>0"
     docker exec $CLIENT tc qdisc add dev eth0 root netem loss "${LOSS_PCT}%"
-    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION"
+    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION" -b "$BANDWIDTH"
     docker exec $CLIENT tc qdisc del dev eth0 root
     ;;
 
@@ -56,7 +61,7 @@ case "${1:-}" in
     echo "=== Heavy packet loss: 20% on client egress ==="
     echo "Expected signals: rto_count>0, max_ca_state=4 (Loss), recovery_count>0"
     docker exec $CLIENT tc qdisc add dev eth0 root netem loss 20%
-    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION"
+    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION" -b "$BANDWIDTH"
     docker exec $CLIENT tc qdisc del dev eth0 root
     ;;
 
@@ -65,7 +70,7 @@ case "${1:-}" in
     echo "=== Packet reordering: 25% reorder, 50ms delay on client egress ==="
     echo "Expected signals: reord_seen>0, max_sacked_out>0"
     docker exec $CLIENT tc qdisc add dev eth0 root netem delay 50ms reorder 25% 50%
-    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION"
+    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION" -b "$BANDWIDTH"
     docker exec $CLIENT tc qdisc del dev eth0 root
     ;;
 
@@ -74,7 +79,7 @@ case "${1:-}" in
     echo "=== High delay: 200ms RTT with 50ms jitter on client egress ==="
     echo "Expected signals: max_packets_out>0 (more segments in-flight due to BDP)"
     docker exec $CLIENT tc qdisc add dev eth0 root netem delay 100ms 25ms
-    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION"
+    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION" -b "$BANDWIDTH"
     docker exec $CLIENT tc qdisc del dev eth0 root
     ;;
 
@@ -83,7 +88,7 @@ case "${1:-}" in
     echo "=== WAN simulation: 100ms delay + 2% loss on client egress ==="
     echo "Expected signals: recovery_count>0, dsack_dups possibly>0, max_sacked_out>0"
     docker exec $CLIENT tc qdisc add dev eth0 root netem delay 50ms 10ms loss 2%
-    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION"
+    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION" -b "$BANDWIDTH"
     docker exec $CLIENT tc qdisc del dev eth0 root
     ;;
 
@@ -99,7 +104,7 @@ case "${1:-}" in
     # netem on CLIENT egress: marks outgoing data packets with CE instead of
     # dropping. Server sees CE, echoes ECE in ACKs, client increments delivered_ce.
     docker exec $CLIENT tc qdisc add dev eth0 root netem loss 10% ecn
-    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION" &
+    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION" -b "$BANDWIDTH" &
     IPERF_PID=$!
     # After a few seconds, verify ECN negotiation on the connection:
     sleep 3
@@ -133,7 +138,7 @@ case "${1:-}" in
     echo "Expected signals: recovery_count>0, max_sacked_out>0, max_ca_state>=3"
     docker exec $CLIENT tc qdisc add dev eth0 root netem delay 50ms loss 5% 25%
     # Use parallel streams to ensure multiple segments in-flight
-    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION" -P 4
+    docker exec $CLIENT iperf3 -c $SERVER_IP -p 5201 -t "$DURATION" -b "$BANDWIDTH" -P 4
     docker exec $CLIENT tc qdisc del dev eth0 root
     ;;
 
@@ -142,28 +147,36 @@ case "${1:-}" in
     for scenario in baseline loss heavy-loss reorder delay wan ecn zero-window sack-recovery; do
       echo ""
       echo "================================================"
-      $0 --duration "$DURATION" $scenario
+      $0 --duration "$DURATION" --bandwidth "$BANDWIDTH" $scenario
       echo "================================================"
       echo "Sleeping 10s between scenarios..."
       sleep 10
     done
     ;;
 
-  #=== CLEANUP: remove any leftover netem rules ===
+  #=== CLEANUP: remove any leftover netem rules and restart iperf3 servers ===
   cleanup)
     echo "=== Cleaning up tc rules ==="
     docker exec $CLIENT tc qdisc del dev eth0 root 2>/dev/null || true
     docker exec $SERVER tc qdisc del dev eth0 root 2>/dev/null || true
+    echo "=== Killing any stale iperf3 client processes ==="
+    docker exec $CLIENT pkill -f iperf3 2>/dev/null || true
+    echo "=== Restarting iperf3 servers ==="
+    docker exec $SERVER pkill -f "iperf3 -s" 2>/dev/null || true
+    sleep 1
+    docker exec -d $SERVER iperf3 -s -p 5201
+    docker exec -d $SERVER iperf3 -s -p 5202
     echo "Done."
     ;;
 
   *)
     echo "TCP Congestion Signal Lab — Perturbation Scenarios"
     echo ""
-    echo "Usage: $0 [-d|--duration <seconds>] <scenario>"
+    echo "Usage: $0 [-d|--duration <seconds>] [-b|--bandwidth <rate>] <scenario>"
     echo ""
     echo "Options:"
-    echo "  -d, --duration <seconds>  iperf3/sleep runtime (default: 30)"
+    echo "  -d, --duration <seconds>   iperf3/sleep runtime (default: 30)"
+    echo "  -b, --bandwidth <rate>     iperf3 target bandwidth (default: 1G)"
     echo ""
     echo "Scenarios:"
     echo "  baseline        Clean traffic (no perturbations)"
