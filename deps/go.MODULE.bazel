@@ -363,6 +363,7 @@ use_repo(
     "com_github_stretchr_testify",
     "com_github_swaggest_jsonschema_go",
     "com_github_syndtr_gocapability",
+    "com_github_tekert_goetw",
     "com_github_tinylib_msgp",
     "com_github_twmb_franz_go",
     "com_github_twmb_franz_go_pkg_kadm",
