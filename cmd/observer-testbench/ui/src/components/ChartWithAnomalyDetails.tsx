@@ -249,40 +249,66 @@ export function ChartWithAnomalyDetails({
                     <span className="text-slate-300 flex-1 truncate">
                       {debug ? `${formatValue(debug.deviationSigma)}σ from baseline` : anomaly.title}
                     </span>
+                    {anomaly.tags && anomaly.tags.length > 0 && (
+                      <span className="flex gap-1 flex-shrink-0">
+                        {anomaly.tags.map((tag) => (
+                          <span key={tag} className="px-1 py-0.5 rounded text-[9px] bg-slate-700/80 text-slate-400 font-mono">
+                            {tag}
+                          </span>
+                        ))}
+                      </span>
+                    )}
                     <span className="text-slate-500">{isExpanded ? '▼' : '▶'}</span>
                   </button>
 
                   {/* Expanded details - rendered generically */}
-                  {isExpanded && debug && (
+                  {isExpanded && (
                     <div className="ml-1 mt-1 mb-2 p-2 bg-slate-900/50 rounded border border-slate-700/50">
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                        {Object.entries(debug).map(([key, value]) => {
-                          // Skip array fields in the grid (rendered separately below)
-                          if (Array.isArray(value)) return null;
-                          // Skip zero/null values
-                          if (value === 0 && key !== 'deviationSigma') return null;
-                          return (
-                            <div key={key} className="contents">
-                              <div className="text-slate-500">{formatFieldName(key)}:</div>
-                              <div className={
-                                key === 'deviationSigma'
-                                  ? (typeof value === 'number' && value > 0 ? 'text-red-400' : 'text-blue-400')
-                                  : 'text-slate-300'
-                              }>
-                                {key === 'deviationSigma'
-                                  ? `${typeof value === 'number' && value > 0 ? '+' : ''}${formatValue(value as number)}σ`
-                                  : formatDebugFieldValue(key, value as number)}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                      {debug && (
+                        <>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                            {Object.entries(debug).map(([key, value]) => {
+                              // Skip array fields in the grid (rendered separately below)
+                              if (Array.isArray(value)) return null;
+                              // Skip zero/null values
+                              if (value === 0 && key !== 'deviationSigma') return null;
+                              return (
+                                <div key={key} className="contents">
+                                  <div className="text-slate-500">{formatFieldName(key)}:</div>
+                                  <div className={
+                                    key === 'deviationSigma'
+                                      ? (typeof value === 'number' && value > 0 ? 'text-red-400' : 'text-blue-400')
+                                      : 'text-slate-300'
+                                  }>
+                                    {key === 'deviationSigma'
+                                      ? `${typeof value === 'number' && value > 0 ? '+' : ''}${formatValue(value as number)}σ`
+                                      : formatDebugFieldValue(key, value as number)}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
 
-                      {/* CUSUM sparkline - gated on field existence, not algorithm name */}
-                      {debug.cusumValues && debug.cusumValues.length > 1 && (
-                        <div className="mt-2">
-                          <div className="text-slate-500 mb-1">CUSUM accumulator:</div>
-                          <CUSUMSparkline values={debug.cusumValues} threshold={debug.threshold} />
+                          {/* CUSUM sparkline - gated on field existence, not algorithm name */}
+                          {debug.cusumValues && debug.cusumValues.length > 1 && (
+                            <div className="mt-2">
+                              <div className="text-slate-500 mb-1">CUSUM accumulator:</div>
+                              <CUSUMSparkline values={debug.cusumValues} threshold={debug.threshold} />
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {anomaly.tags && anomaly.tags.length > 0 && (
+                        <div className={debug ? 'mt-2 pt-2 border-t border-slate-700/50' : ''}>
+                          <div className="text-slate-500 mb-1">Tags:</div>
+                          <div className="flex gap-1 flex-wrap">
+                            {anomaly.tags.map((tag) => (
+                              <span key={tag} className="px-1.5 py-0.5 rounded text-[10px] bg-slate-700/80 text-slate-400 font-mono">
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
