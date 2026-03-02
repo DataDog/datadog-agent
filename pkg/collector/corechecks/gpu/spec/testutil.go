@@ -53,11 +53,11 @@ func UnsupportedFieldIDsForMode(t *testing.T, archSpec ArchitectureSpec, mode De
 	t.Helper()
 
 	unsupportedNameSet := make(map[string]struct{})
-	for _, group := range archSpec.Capabilities.UnsupportedFields {
-		if len(group.Modes) > 0 && !slices.Contains(group.Modes, mode) {
+	for _, group := range archSpec.Capabilities.UnsupportedFieldsByDeviceMode {
+		if len(group.DeviceModes) > 0 && !slices.Contains(group.DeviceModes, mode) {
 			continue
 		}
-		for _, name := range group.UnsupportedFields {
+		for _, name := range group.Fields {
 			unsupportedNameSet[name] = struct{}{}
 		}
 	}

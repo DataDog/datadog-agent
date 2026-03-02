@@ -3,21 +3,21 @@
 # - Root key: architectures
 # - architectures.<architecture_name>:
 #   - capabilities.gpm: bool  (whether the architecture supports GPU Performance Metrics or not)
-#   - capabilities.unsupported_fields (list of conditional exclusions for the GetFields API)
-#       - modes: [physical|mig|vgpu, ...]  (in which modes the fields are unsupported, for example some fields are not supported in vGPU mode)
-#       - unsupported_fields: [<field_id>, ...] (the list of field IDs that are unsupported in the given modes. Check nvmlFieldNameToFieldID in spec_test.go for the mapping.)
+#   - capabilities.unsupported_fields_by_device_mode (list of conditional exclusions for the GetFields API)
+#       - device_modes: [physical|mig|vgpu, ...]  (in which modes the fields are unsupported, for example some fields are not supported in vGPU mode)
+#       - fields: [<field_id>, ...] (the list of field IDs that are unsupported in the given modes. Check nvmlFieldNameToFieldID in spec_test.go for the mapping.)
 #   - unsupported_device_modes: [mig|physical|vgpu, ...] (the list of device modes that are unsupported on the architecture. For example, MIG is not supported on the Pascal architecture.)
 architectures:
   pascal:
     capabilities:
       gpm: false
-      unsupported_fields:
-        - modes: [physical, mig, vgpu]
-          unsupported_fields:
+      unsupported_fields_by_device_mode:
+        - device_modes: [physical, mig, vgpu]
+          fields:
             - FI_DEV_MEMORY_TEMP
             - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
-        - modes: [vgpu, mig]
-          unsupported_fields:
+        - device_modes: [vgpu, mig]
+          fields:
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
             - FI_DEV_NVLINK_LINK_COUNT
@@ -37,12 +37,12 @@ architectures:
   volta:
     capabilities:
       gpm: false
-      unsupported_fields:
-        - modes: [physical, mig, vgpu]
-          unsupported_fields:
+      unsupported_fields_by_device_mode:
+        - device_modes: [physical, mig, vgpu]
+          fields:
             - FI_DEV_MEMORY_TEMP
-        - modes: [vgpu, mig]
-          unsupported_fields:
+        - device_modes: [vgpu, mig]
+          fields:
             - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
@@ -63,12 +63,12 @@ architectures:
   turing:
     capabilities:
       gpm: false
-      unsupported_fields:
-        - modes: [physical, mig, vgpu]
-          unsupported_fields:
+      unsupported_fields_by_device_mode:
+        - device_modes: [physical, mig, vgpu]
+          fields:
             - FI_DEV_MEMORY_TEMP
-        - modes: [vgpu, mig]
-          unsupported_fields:
+        - device_modes: [vgpu, mig]
+          fields:
             - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
@@ -89,9 +89,9 @@ architectures:
   ampere:
     capabilities:
       gpm: false
-      unsupported_fields:
-        - modes: [vgpu, mig]
-          unsupported_fields:
+      unsupported_fields_by_device_mode:
+        - device_modes: [vgpu, mig]
+          fields:
             - FI_DEV_MEMORY_TEMP
             - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
             - FI_DEV_PCIE_REPLAY_COUNTER
@@ -112,9 +112,9 @@ architectures:
   hopper:
     capabilities:
       gpm: true
-      unsupported_fields:
-        - modes: [vgpu, mig]
-          unsupported_fields:
+      unsupported_fields_by_device_mode:
+        - device_modes: [vgpu, mig]
+          fields:
             - FI_DEV_MEMORY_TEMP
             - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
             - FI_DEV_PCIE_REPLAY_COUNTER
@@ -135,9 +135,9 @@ architectures:
   ada:
     capabilities:
       gpm: false
-      unsupported_fields:
-        - modes: [physical, mig, vgpu]
-          unsupported_fields:
+      unsupported_fields_by_device_mode:
+        - device_modes: [physical, mig, vgpu]
+          fields:
             - FI_DEV_NVLINK_LINK_COUNT
             - FI_DEV_NVLINK_SPEED_MBPS_COMMON
             - FI_DEV_NVLINK_GET_SPEED
@@ -152,8 +152,8 @@ architectures:
             - FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL
             - FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL
             - FI_DEV_MEMORY_TEMP
-        - modes: [vgpu, mig]
-          unsupported_fields:
+        - device_modes: [vgpu, mig]
+          fields:
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
     unsupported_device_modes:
@@ -161,9 +161,9 @@ architectures:
   blackwell:
     capabilities:
       gpm: true
-      unsupported_fields:
-        - modes: [vgpu, mig]
-          unsupported_fields:
+      unsupported_fields_by_device_mode:
+        - device_modes: [vgpu, mig]
+          fields:
             - FI_DEV_MEMORY_TEMP
             - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
             - FI_DEV_PCIE_REPLAY_COUNTER

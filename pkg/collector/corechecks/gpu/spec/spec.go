@@ -61,14 +61,14 @@ type ArchitecturesSpec struct {
 
 // ArchitectureCapabilities defines capabilities and unsupported fields.
 type ArchitectureCapabilities struct {
-	GPM               bool                       `yaml:"gpm"`
-	UnsupportedFields []UnsupportedFieldsByModes `yaml:"unsupported_fields"`
+	GPM                           bool                                `yaml:"gpm"`
+	UnsupportedFieldsByDeviceMode []UnsupportedFieldsByDeviceModeSpec `yaml:"unsupported_fields_by_device_mode"`
 }
 
-// UnsupportedFieldsByModes groups unsupported fields by device modes.
-type UnsupportedFieldsByModes struct {
-	Modes             []DeviceMode `yaml:"modes"`
-	UnsupportedFields []string     `yaml:"unsupported_fields"`
+// UnsupportedFieldsByDeviceModeSpec groups unsupported fields by device modes.
+type UnsupportedFieldsByDeviceModeSpec struct {
+	DeviceModes []DeviceMode `yaml:"device_modes"`
+	Fields      []string     `yaml:"fields"`
 }
 
 // ArchitectureSpec defines architecture capabilities and unsupported device modes.

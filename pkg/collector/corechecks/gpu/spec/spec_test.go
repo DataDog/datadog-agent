@@ -50,7 +50,7 @@ func TestLoadArchitecturesNotEmpty(t *testing.T) {
 
 // TestMockCapabilitiesMatchArchitectureSpec ensures that for each architecture and supported device mode,
 // the NVML mock configured from architectures.yaml returns API behavior that matches the capability flags
-// (gpm, unsupported_fields). This validates that the mock actually applies the spec.
+// (gpm, unsupported_fields_by_device_mode). This validates that the mock actually applies the spec.
 func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
 	archSpecFile, err := LoadArchitecturesSpec()
 	require.NoError(t, err)
