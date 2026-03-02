@@ -51,11 +51,12 @@ func (m *keyHashCache) set(s keyHashCacheKey, v interface{}, expiration time.Dur
 
 func (m *keyHashCache) computeKey(s string) keyHashCacheKey {
 	h1, h2 := murmur3.StringSum128(s)
-	var bytes [16]byte
-	binary.LittleEndian.PutUint64(bytes[0:], h1)
-	binary.LittleEndian.PutUint64(bytes[8:], h2)
+	var raw [16]byte
+	binary.LittleEndian.PutUint64(raw[0:], h1)
+	binary.LittleEndian.PutUint64(raw[8:], h2)
 
-	buf := make([]byte, ascii85.MaxEncodedLen(len(bytes)))
-	n := ascii85.Encode(buf, bytes[:])
+	// ascii85 encodes 4 input bytes → 5 output bytes, so 16 bytes → 20 bytes (fixed size).
+	var buf [20]byte
+	n := ascii85.Encode(buf[:], raw[:])
 	return keyHashCacheKey(buf[:n])
 }

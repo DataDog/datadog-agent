@@ -100,6 +100,23 @@ func TestAddTags(t *testing.T) {
 	assert.ElementsMatch(t, []string{"key:val"}, testDims.tags)
 }
 
+// TestWithSuffixDotJoin verifies that WithSuffix uses "." as separator (not fmt.Sprintf).
+func TestWithSuffixDotJoin(t *testing.T) {
+	dims := Dimensions{name: "foo", host: "h", tags: []string{"t:v"}}
+	assert.Equal(t, "foo.bar", dims.WithSuffix("bar").name)
+	// Suffix with dots should work too
+	assert.Equal(t, "foo.a.b", dims.WithSuffix("a.b").name)
+}
+
+// TestStringConsistencyWithManyTags checks that String() is order-independent for many tags.
+func TestStringConsistencyWithManyTags(t *testing.T) {
+	tagsForward := []string{"aaa:1", "bbb:2", "ccc:3", "ddd:4"}
+	tagsReverse := []string{"ddd:4", "ccc:3", "bbb:2", "aaa:1"}
+	d1 := Dimensions{name: "m", host: "h", originID: "oid", tags: tagsForward}
+	d2 := Dimensions{name: "m", host: "h", originID: "oid", tags: tagsReverse}
+	assert.Equal(t, d1.String(), d2.String())
+}
+
 func TestAllFieldsAreCopied(t *testing.T) {
 	dims := &Dimensions{
 		name:     "example.name",
