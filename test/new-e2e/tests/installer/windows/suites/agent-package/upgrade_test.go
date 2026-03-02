@@ -871,11 +871,8 @@ func (s *testAgentUpgradeFromGASuite) createStableAgent() (*installerwindows.Age
 	s.Require().NoError(err, "Failed to lookup OCI package for previous agent version")
 
 	// Get previous version MSI package
-	url, err := windowsagent.GetChannelURL("stable")
-	s.Require().NoError(err)
 	previousMSI, err := windowsagent.NewPackage(
 		windowsagent.WithVersion(previousVersionPackage),
-		windowsagent.WithURLFromInstallersJSON(url, previousVersionPackage),
 		windowsagent.WithDevEnvOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup MSI for previous agent version")

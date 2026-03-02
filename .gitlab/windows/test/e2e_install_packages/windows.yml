@@ -2,18 +2,17 @@
 
 .new-e2e_with_version:
   variables:
-    WINDOWS_AGENT_ARCH: "x86_64"
     TEAM: windows-products
   extends:
     - .new_e2e_template
   before_script:
-    # WINDOWS_AGENT_VERSION is used to verify the installed agent version
-    # Must run before new_e2e_template changes the aws profile
-    - WINDOWS_AGENT_VERSION=$(dda inv agent.version) || exit $?; export WINDOWS_AGENT_VERSION
+    # CURRENT_AGENT_* variables configure the "current" agent package for tests.
+    # Must run before new_e2e_template changes the aws profile.
+    - CURRENT_AGENT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_VERSION
     - !reference [.new_e2e_template, before_script]
   script:
-    # LAST_STABLE_VERSION is used for upgrade test
-    - export LAST_STABLE_VERSION=$(dda inv release.get-release-json-value "last_stable::7" --no-worktree)
+    # STABLE_AGENT_* variables configure the "last stable" version for upgrade tests.
+    - export STABLE_AGENT_VERSION=$(dda inv release.get-release-json-value "last_stable::7" --no-worktree)
     - !reference [.new_e2e_template, script]
 
 .new-e2e_windows_msi:
@@ -104,7 +103,6 @@ new-e2e-windows-agent-domain-tests-a7-x86_64:
 new-e2e-windows-agent-a7-x86_64-fips:
   stage: e2e_install_packages
   variables:
-    WINDOWS_AGENT_FLAVOR: "fips"
     TARGETS: ./tests/windows/fips-test
   extends:
     - .new-e2e_with_version
@@ -163,8 +161,6 @@ new-e2e-installer-windows:
   before_script:
     # CURRENT_AGENT_VERSION is used to verify the installed agent version
     # Must run before new_e2e_template changes the aws profile
-    # Note: this is similar to the WINDOWS_AGENT_VERSION in new-e2e_windows_msi but this job is running cross platforms
-    # Note 2: new_e2e_template does not define AGENT_MAJOR_VERSION, so define it as 7 below.
     - CURRENT_AGENT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_VERSION
     - CURRENT_AGENT_VERSION_PACKAGE=$(dda inv agent.version --url-safe)-1 || exit $?; export CURRENT_AGENT_VERSION_PACKAGE
     - !reference [.new_e2e_template, before_script]
