@@ -138,7 +138,7 @@ type httpClient interface {
 func newClient(httpClient httpClient, endpoints []*endpoint, service string, debug bool) *client {
 	info, err := host.Info()
 	if err != nil {
-		log.Errorf("failed to retrieve host info: %v", err)
+		log.Warnf("failed to retrieve host info: %v", err)
 		info = &host.InfoStat{}
 	}
 	return &client{

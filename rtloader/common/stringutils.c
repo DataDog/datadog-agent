@@ -2,11 +2,13 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019-present Datadog, Inc.
+// stringutils.h includes Python.h which must come before system headers (CPython requirement)
+#include "stringutils.h"
+
 #include <stdlib.h>
 
 #include "rtloader_mem.h"
 #include "rtloader_types.h"
-#include "stringutils.h"
 
 
 PyObject * yload = NULL;

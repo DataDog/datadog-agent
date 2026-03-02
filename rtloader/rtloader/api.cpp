@@ -42,6 +42,8 @@
 #    define DATADOG_AGENT_THREE "libdatadog-agent-three.dylib"
 #elif __FreeBSD__
 #    define DATADOG_AGENT_THREE "libdatadog-agent-three.so"
+#elif defined(_AIX)
+#    define DATADOG_AGENT_THREE "libdatadog-agent-three.so"
 #elif _WIN32
 #    define DATADOG_AGENT_THREE "libdatadog-agent-three.dll"
 #else
@@ -404,7 +406,11 @@ DATADOG_AGENT_RTLOADER_API int handle_crashes(const int enable_coredump, const i
         if (alt_stack == nullptr) {
             // Note: this memory is never freed, but it is necessary for the duration of the program
             alt_stack = _malloc(alt_stack_size);
-            stack_t new_stack{ .ss_sp = alt_stack, .ss_flags = 0, .ss_size = alt_stack_size };
+            stack_t new_stack;
+            memset(&new_stack, 0, sizeof(new_stack));
+            new_stack.ss_sp = (decltype(new_stack.ss_sp))alt_stack;
+            new_stack.ss_size = alt_stack_size;
+            new_stack.ss_flags = 0;
             int ret = sigaltstack(&new_stack, nullptr);
             if (ret != 0) {
                 std::ostringstream err_msg;

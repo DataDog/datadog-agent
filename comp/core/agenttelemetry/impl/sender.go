@@ -20,8 +20,6 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 
-	"github.com/DataDog/zstd"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -433,12 +431,12 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 	compressed := false
 	if s.compress {
 		// In case of failed to compress continue with uncompress body
-		reqBodyCompressed, errTemp := zstd.CompressLevel(nil, reqBodyRaw, s.compressionLevel)
+		reqBodyCompressed, errTemp := zstdCompressLevel(reqBodyRaw, s.compressionLevel)
 		if errTemp == nil {
 			compressed = true
 			reqBody = reqBodyCompressed
 		} else {
-			s.logComp.Errorf("Failed to compress agent telemetry payload: %v", errTemp)
+			s.logComp.Warnf("Failed to compress agent telemetry payload: %v", errTemp)
 		}
 	}
 

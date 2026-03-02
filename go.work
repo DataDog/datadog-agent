@@ -191,3 +191,5 @@ use (
 	test/otel
 	tools/retry_file_dump
 )
+
+replace github.com/DataDog/gopsutil => /root/repos/gopsutil-aix

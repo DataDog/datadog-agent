@@ -3,11 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build netbsd || openbsd || solaris || dragonfly || linux || aix
+//go:build aix
 
-package config
+package lsof
 
-const (
-	// DefaultConfPath points to the folder containing datadog.yaml
-	DefaultConfPath = "/etc/datadog-agent"
-)
+func openFiles(_ int) (Files, error) {
+	return nil, ErrNotImplemented
+}

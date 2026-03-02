@@ -89,8 +89,8 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 	procBindEnvAndSetDefault(config, "process_config.container_collection.enabled", true)
 	procBindEnvAndSetDefault(config, "process_config.process_collection.enabled", false)
 
-	// This allows for the process check to run in the core agent but is for linux only
-	procBindEnvAndSetDefault(config, "process_config.run_in_core_agent.enabled", runtime.GOOS == "linux")
+	// This allows for the process check to run in the core agent but is for linux and aix only
+	procBindEnvAndSetDefault(config, "process_config.run_in_core_agent.enabled", runtime.GOOS == "linux" || runtime.GOOS == "aix")
 
 	config.BindEnv("process_config.process_dd_url", //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 		"DD_PROCESS_CONFIG_PROCESS_DD_URL",
@@ -179,10 +179,10 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 	})
 }
 
-// overrideRunInCoreAgentConfig sets the process_config.run_in_core_agent.enabled to false in non-Linux environments.
+// overrideRunInCoreAgentConfig sets the process_config.run_in_core_agent.enabled to false in non-Linux/AIX environments.
 // Otherwise, it is a no-op.
 func overrideRunInCoreAgentConfig(config pkgconfigmodel.Config) {
-	if runtime.GOOS != "linux" {
+	if runtime.GOOS != "linux" && runtime.GOOS != "aix" {
 		config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 	}
 }
