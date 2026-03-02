@@ -538,6 +538,16 @@ func (c *ntmConfig) isReady() bool {
 	return c.ready.Load()
 }
 
+// logsEnvVarKeys are config keys that must always honor DD_LOGS_ENABLED / DD_LOG_ENABLED
+// so that the logs agent pipeline initializes correctly when run under OTel or other
+// entry points that share the same config setup. See comp/otelcol/logsagentpipeline.
+const (
+	logsEnabledKey = "logs_enabled"
+	logEnabledKey  = "log_enabled"
+	ddLogsEnabled  = "DD_LOGS_ENABLED"
+	ddLogEnabled   = "DD_LOG_ENABLED"
+)
+
 func (c *ntmConfig) buildEnvVars() {
 	root := newInnerNode(nil)
 	envWarnings := []error{}
@@ -554,6 +564,21 @@ func (c *ntmConfig) buildEnvVars() {
 			}
 		}
 	}
+
+	// Ensure DD_LOGS_ENABLED and DD_LOG_ENABLED are always applied when set, so that
+	// logs_enabled/log_enabled are true when the env is set (e.g. OTel agent with
+	// DD_LOGS_ENABLED=true).
+	for key, envVar := range map[string]string{logsEnabledKey: ddLogsEnabled, logEnabledKey: ddLogEnabled} {
+		if c.leafAtPathFromNode(key, root) != missingLeaf {
+			continue // already set from configEnvVars above
+		}
+		if value, ok := os.LookupEnv(envVar); ok && value != "" {
+			if err := c.insertNodeFromString(root, key, value); err != nil {
+				envWarnings = append(envWarnings, err)
+			}
+		}
+	}
+
 	c.envs = root
 	c.warnings = append(c.warnings, envWarnings...)
 }

@@ -1859,3 +1859,19 @@ func TestEnvVarLayerConvertsToDefaultType(t *testing.T) {
     leaf(#ptr<000002>), val:789, source:environment-variable`
 	assert.Equal(t, expect, txt)
 }
+
+// TestLogsEnabledEnvFallback ensures DD_LOGS_ENABLED is always applied when set,
+// so that the logs agent pipeline initializes (e.g. OTel agent with DD_LOGS_ENABLED=true).
+func TestLogsEnabledEnvFallback(t *testing.T) {
+	t.Setenv("DD_LOGS_ENABLED", "true")
+	t.Cleanup(func() { os.Unsetenv("DD_LOGS_ENABLED") })
+
+	// Minimal config without registering logs_enabled (simulates init order where
+	// the key is not yet in configEnvVars when buildEnvVars runs).
+	cfg := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_"))
+	cfg.BindEnvAndSetDefault("api_key", "")
+	cfg.BuildSchema()
+
+	// Fallback in buildEnvVars should have applied DD_LOGS_ENABLED so logs_enabled is true.
+	assert.True(t, cfg.GetBool("logs_enabled"), "logs_enabled should be true when DD_LOGS_ENABLED=true")
+}
