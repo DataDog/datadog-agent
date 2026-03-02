@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/zeebo/xxh3"
 )
 
 type statsdFilterListUpdate struct {
@@ -219,7 +220,7 @@ func (fl *FilterList) mergeMetricTagListEntry(metric tagEntry, currentHashed has
 
 	if (currentHashed.action == Exclude) == metric.ExcludeTag {
 		// Both metrics define the same action so we can just merge the list.
-		//currentHashed.tags = append(currentHashed.tags, hashTags(metric.Tags)...)
+		currentHashed.tags = append(currentHashed.tags, hashTags(metric.Tags)...)
 
 		// Merge unhashed tags too
 		currentEntry.Tags = append(currentEntry.Tags, metric.Tags...)
@@ -249,10 +250,10 @@ func (fl *FilterList) mergeMetricTagListEntry(metric tagEntry, currentHashed has
 	return currentHashed, currentEntry
 }
 
-func hashTags(tags []string) map[string]struct{} {
-	hashed := make(map[string]struct{}, len(tags))
+func hashTags(tags []string) []uint64 {
+	hashed := make([]uint64, 0, len(tags))
 	for _, tag := range tags {
-		hashed[tag] = struct{}{}
+		hashed = append(hashed, xxh3.HashString(tag))
 	}
 
 	return hashed
