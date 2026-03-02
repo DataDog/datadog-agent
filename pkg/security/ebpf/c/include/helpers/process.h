@@ -95,9 +95,9 @@ static struct proc_cache_t *__attribute__((always_inline)) fill_process_context_
     if (pid_tgid == bpf_get_current_pid_tgid()) {
         struct task_struct *cur_task = (struct task_struct *)bpf_get_current_task();
         struct task_struct *parent = NULL;
-        bpf_probe_read(&parent, sizeof(parent), (void *)cur_task + get_task_struct_real_parent_offset());
+        bpf_probe_read_kernel(&parent, sizeof(parent), (void *)cur_task + get_task_struct_real_parent_offset());
         if (parent) {
-            bpf_probe_read(&data->ppid, sizeof(data->ppid), (void *)parent + get_task_struct_tgid_offset());
+            bpf_probe_read_kernel(&data->ppid, sizeof(data->ppid), (void *)parent + get_task_struct_tgid_offset());
         }
     }
 
