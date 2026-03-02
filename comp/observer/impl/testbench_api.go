@@ -48,7 +48,6 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/correlations", api.cors(api.handleCorrelations))
 	mux.HandleFunc("/api/leadlag", api.cors(api.handleLeadLag))
 	mux.HandleFunc("/api/surprise", api.cors(api.handleSurprise))
-	mux.HandleFunc("/api/graphsketch", api.cors(api.handleGraphSketch))
 	mux.HandleFunc("/api/stats", api.cors(api.handleStats))
 	mux.HandleFunc("/api/config", api.cors(api.handleConfigUpdate))
 	mux.HandleFunc("/api/components/", api.cors(api.handleComponentAction))
@@ -574,18 +573,6 @@ func (api *TestBenchAPI) handleSurprise(w http.ResponseWriter, r *http.Request) 
 	edges, enabled := api.tb.GetSurpriseEdges()
 	if edges == nil {
 		edges = []SurpriseEdge{}
-	}
-	api.writeJSON(w, map[string]interface{}{
-		"enabled": enabled,
-		"edges":   edges,
-	})
-}
-
-// handleGraphSketch returns graph sketch edges.
-func (api *TestBenchAPI) handleGraphSketch(w http.ResponseWriter, r *http.Request) {
-	edges, enabled := api.tb.GetGraphSketchEdges()
-	if edges == nil {
-		edges = []EdgeInfo{}
 	}
 	api.writeJSON(w, map[string]interface{}{
 		"enabled": enabled,

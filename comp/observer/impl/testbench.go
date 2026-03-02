@@ -566,7 +566,7 @@ func (tb *TestBench) UpdateConfigAndReanalyze(req ConfigUpdateRequest) error {
 
 // rerunAnalysesLocked re-runs all analyses on current data. Caller must hold lock.
 // Analyzers run synchronously (fast), then correlators run asynchronously in a
-// background goroutine so the UI is not blocked by slow correlators like GraphSketch.
+// background goroutine so the UI is not blocked by slow correlators.
 func (tb *TestBench) rerunAnalysesLocked() {
 	// Clear existing results
 	tb.metricsAnomalies = tb.metricsAnomalies[:0]
@@ -971,15 +971,6 @@ func (tb *TestBench) GetSurpriseEdges() ([]SurpriseEdge, bool) {
 	return nil, enabled
 }
 
-// GetGraphSketchEdges returns graph sketch edges if the correlator is enabled.
-func (tb *TestBench) GetGraphSketchEdges() ([]EdgeInfo, bool) {
-	data, enabled := tb.GetCorrelatorData("graph_sketch")
-	if edges, ok := data.([]EdgeInfo); ok {
-		return edges, enabled
-	}
-	return nil, enabled
-}
-
 // GetCorrelatorStats returns stats from all correlators (enabled or not).
 func (tb *TestBench) GetCorrelatorStats() map[string]interface{} {
 	tb.mu.RLock()
@@ -1194,7 +1185,7 @@ func (tb *TestBench) GetRawLogs() []storedLogEntry {
 	return result
 }
 
-// Helper functions for demo data generation (simplified versions of DataGenerator methods)
+// Helper functions for demo data generation
 
 func getDemoHeapValue(elapsed float64) float64 {
 	const baseline, peak = 512.0, 900.0

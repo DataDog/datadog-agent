@@ -149,16 +149,6 @@ export interface SurpriseEdge {
   is_surprising: boolean;  // true if lift > MinLift
 }
 
-// GraphSketch edge represents learned co-occurrence patterns
-export interface GraphSketchEdge {
-  Source1: SeriesID;
-  Source2: SeriesID;
-  EdgeKey: string;
-  Observations: number;    // Raw count
-  Frequency: number;       // Decay-weighted frequency
-  FirstSeenUnix: number;
-}
-
 // Compressed group description from trie-based metric compression
 export interface MetricPattern {
   pattern: string;
@@ -267,10 +257,6 @@ class ApiClient {
 
   async getSurprise(): Promise<{ enabled: boolean; edges: SurpriseEdge[] }> {
     return this.fetch('/surprise');
-  }
-
-  async getGraphSketch(): Promise<{ enabled: boolean; edges: GraphSketchEdge[] }> {
-    return this.fetch('/graphsketch');
   }
 
   async getCompressedCorrelations(threshold?: number): Promise<CompressedGroup[]> {

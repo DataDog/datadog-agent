@@ -38,7 +38,6 @@ Then open http://localhost:5173 in your browser.
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--cusum` | `true` | Enable CUSUM change-point detector |
-| `--zscore` | `true` | Enable Robust Z-Score detector |
 | `--cusum-include-count` | `false` | Include `:count` metrics in CUSUM analysis (default: skip them as they're often noisy) |
 
 ### Correlators
@@ -48,7 +47,6 @@ Then open http://localhost:5173 in your browser.
 | `--time-cluster` | `true` | Enable TimeCluster correlator - groups anomalies that occur close together in time |
 | `--lead-lag` | `true` | Enable LeadLag correlator - finds temporal causality (which sources consistently precede others) |
 | `--surprise` | `true` | Enable Surprise correlator - finds lift-based patterns (sources that co-occur more/less than expected) |
-| `--graph-sketch` | `true` | Enable GraphSketch correlator - learns co-occurrence patterns with decay |
 
 ### Processing
 
@@ -62,9 +60,9 @@ Then open http://localhost:5173 in your browser.
 # Run with all defaults (recommended for most cases)
 ./observer-testbench --scenarios-dir ./comp/observer/anomaly_datasets_converted
 
-# Disable noisy correlators for cleaner output
+# Disable surprise correlator for cleaner output
 ./observer-testbench --scenarios-dir ./comp/observer/anomaly_datasets_converted \
-  --surprise=false --graph-sketch=false
+  --surprise=false
 
 # Include :count metrics in analysis
 ./observer-testbench --scenarios-dir ./comp/observer/anomaly_datasets_converted \
@@ -76,7 +74,7 @@ Then open http://localhost:5173 in your browser.
 
 # Minimal setup - just CUSUM detector with TimeCluster
 ./observer-testbench --scenarios-dir ./comp/observer/anomaly_datasets_converted \
-  --zscore=false --lead-lag=false --surprise=false --graph-sketch=false
+  --lead-lag=false --surprise=false
 
 # Run on a different port
 ./observer-testbench --scenarios-dir ./comp/observer/anomaly_datasets_converted \
@@ -97,7 +95,6 @@ Then open http://localhost:5173 in your browser.
 | GET | `/api/correlations` | Get TimeCluster correlation outputs |
 | GET | `/api/leadlag` | Get LeadLag edges (if enabled) |
 | GET | `/api/surprise` | Get Surprise edges (if enabled) |
-| GET | `/api/graphsketch` | Get GraphSketch edges (if enabled) |
 | GET | `/api/stats` | Get correlator statistics |
 
 ## Scenario Directory Structure
@@ -120,6 +117,5 @@ scenario-name/
 - **Time Clusters**: View correlated anomaly groups
 - **Lead-Lag Edges**: See temporal causality relationships
 - **Surprise Patterns**: View unexpected co-occurrence patterns
-- **GraphSketch Edges**: See learned co-occurrence relationships
 - **Zoom/Pan**: Drag to zoom, middle-drag to pan on charts
 - **Split by Tag**: Split series by tag values for comparison

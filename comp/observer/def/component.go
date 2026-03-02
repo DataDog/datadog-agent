@@ -148,9 +148,9 @@ type AnomalyDebugInfo struct {
 	BaselineStart  int64   // timestamp of baseline period start
 	BaselineEnd    int64   // timestamp of baseline period end
 	BaselineMean   float64 // mean of baseline (for CUSUM)
-	BaselineMedian float64 // median of baseline (for robust z-score)
+	BaselineMedian float64 // median of baseline
 	BaselineStddev float64 // stddev of baseline (for CUSUM)
-	BaselineMAD    float64 // MAD of baseline (for robust z-score)
+	BaselineMAD    float64 // MAD of baseline
 
 	// Detection parameters
 	Threshold      float64 // threshold that was crossed
