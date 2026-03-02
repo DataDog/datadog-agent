@@ -83,12 +83,12 @@ const (
 	OffsetNameBPFProgAuxStructName            = "bpf_prog_aux_name_offset"
 
 	// namespace nr offsets
-	OffsetNamePIDStructLevel    = "pid_level_offset"
-	OffsetNamePIDStructNumbers  = "pid_numbers_offset"
-	OffsetNameDentryStructDSB   = "dentry_sb_offset"
-	OffsetNameTaskStructPID        = "task_struct_pid_offset"         // kernels >= 4.19
-	OffsetNameTaskStructPIDLink    = "task_struct_pid_link_offset"    // kernels < 4.19
-	OffsetNamePIDLinkStructPID     = "pid_link_pid_offset"            // kernels < 4.19
+	OffsetNamePIDStructLevel       = "pid_level_offset"
+	OffsetNamePIDStructNumbers     = "pid_numbers_offset"
+	OffsetNameDentryStructDSB      = "dentry_sb_offset"
+	OffsetNameTaskStructPID        = "task_struct_pid_offset"      // kernels >= 4.19
+	OffsetNameTaskStructPIDLink    = "task_struct_pid_link_offset" // kernels < 4.19
+	OffsetNamePIDLinkStructPID     = "pid_link_pid_offset"         // kernels < 4.19
 	OffsetNameTaskStructRealParent = "task_struct_real_parent_offset"
 	OffsetNameTaskStructTGID       = "task_struct_tgid_offset"
 
