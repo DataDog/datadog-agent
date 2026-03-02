@@ -11,7 +11,7 @@
 #include "helpers/syscalls.h"
 
 int __attribute__((always_inline)) trace__sys_openat2(const char *path, u8 async, int flags, umode_t mode, u64 pid_tgid) {
-    if (is_discarded_by_pid()) {
+    if (is_discarded_by_pid() || is_auid_discarder()) {
         return 0;
     }
 

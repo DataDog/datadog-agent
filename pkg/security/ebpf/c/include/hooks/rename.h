@@ -5,8 +5,12 @@
 #include "helpers/approvers.h"
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
+#include "helpers/discarders.h"
 
 int __attribute__((always_inline)) trace__sys_rename(u8 async, const char *oldpath, const char *newpath) {
+    if (is_auid_discarder()) {
+        return 0;
+    }
     struct syscall_cache_t syscall = {
         .policy = fetch_policy(EVENT_RENAME),
         .async = async,
