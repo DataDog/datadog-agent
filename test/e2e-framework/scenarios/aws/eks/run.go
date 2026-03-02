@@ -206,10 +206,12 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env output
 	}
 
 	// Deploy workloads that must wait for the agent.
-	for _, appFunc := range params.depWorkloadAppFuncs {
-		_, err := appFunc(&awsEnv, cluster.KubeProvider, dependsOnDDAgent)
-		if err != nil {
-			return err
+	if dependsOnDDAgent != nil {
+		for _, appFunc := range params.depWorkloadAppFuncs {
+			_, err := appFunc(&awsEnv, cluster.KubeProvider, dependsOnDDAgent)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
