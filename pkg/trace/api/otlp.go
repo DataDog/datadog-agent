@@ -52,11 +52,13 @@ import (
 const keyStatsComputed = "_dd.stats_computed"
 
 var _ (ptraceotlp.GRPCServer) = (*OTLPReceiver)(nil)
+var _ (pb.RawTraceServiceServer) = (*OTLPReceiver)(nil)
 
 // OTLPReceiver implements an OpenTelemetry Collector receiver which accepts incoming
 // data on two ports for both plain HTTP and gRPC.
 type OTLPReceiver struct {
 	ptraceotlp.UnimplementedGRPCServer
+	pb.UnimplementedRawTraceServiceServer
 	wg                 sync.WaitGroup      // waits for a graceful shutdown
 	grpcsrv            *grpc.Server        // the running GRPC server on a started receiver, if enabled
 	out                chan<- *Payload     // the outgoing payload channel
@@ -141,6 +143,7 @@ func (o *OTLPReceiver) Start() {
 
 			o.grpcsrv = grpc.NewServer(opts...)
 			ptraceotlp.RegisterGRPCServer(o.grpcsrv, o)
+			pb.RegisterRawTraceServiceServer(o.grpcsrv, o)
 			o.wg.Add(1)
 			go func() {
 				defer o.wg.Done()
@@ -175,6 +178,24 @@ func (o *OTLPReceiver) Export(ctx context.Context, in ptraceotlp.ExportRequest) 
 	_ = o.statsd.Count("datadog.trace_agent.otlp.payload", 1, tagsFromHeaders(http.Header(md)), 1)
 	o.processRequest(ctx, http.Header(md), in)
 	return ptraceotlp.NewExportResponse(), nil
+}
+
+// ExportTracesRaw receives OTLP trace data as raw bytes. The payload in req.Data is the
+// serialized OTLP ExportTraceServiceRequest. It uses a custom deserializer that parses
+// the wire format incrementally and builds ptrace.ResourceSpans one at a time, then
+// calls the same receiveResourceSpansV2 logic as the standard Export path.
+func (o *OTLPReceiver) ExportTracesRaw(ctx context.Context, req *pb.ExportTracesRawRequest) (*pb.ExportTracesRawResponse, error) {
+	defer o.timing.Since("datadog.trace_agent.otlp.process_grpc_request_raw_ms", time.Now())
+	md, _ := metadata.FromIncomingContext(ctx)
+	_ = o.statsd.Count("datadog.trace_agent.otlp.payload", 1, append(tagsFromHeaders(http.Header(md)), "endpoint:raw"), 1)
+	if len(req.Data) == 0 {
+		return &pb.ExportTracesRawResponse{}, nil
+	}
+	if err := o.processRequestRaw(ctx, http.Header(md), req.Data); err != nil {
+		log.Warnf("ExportTracesRaw: %v", err)
+		return &pb.ExportTracesRawResponse{}, nil
+	}
+	return &pb.ExportTracesRawResponse{}, nil
 }
 
 func tagsFromHeaders(h http.Header) []string {
