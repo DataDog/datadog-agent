@@ -43,6 +43,7 @@ const (
 	SoftwareInventoryModule      types.ModuleName = "software_inventory"
 	PrivilegedLogsModule         types.ModuleName = "privileged_logs"
 	InjectorModule               types.ModuleName = "injector"
+	NoisyNeighborModule          types.ModuleName = "noisy_neighbor"
 )
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
@@ -183,6 +184,9 @@ func load() (*types.Config, error) {
 	}
 	if cfg.GetBool(privilegedLogsNS("enabled")) {
 		c.EnabledModules[PrivilegedLogsModule] = struct{}{}
+	}
+	if cfg.GetBool(NSkey("noisy_neighbor", "enabled")) {
+		c.EnabledModules[NoisyNeighborModule] = struct{}{}
 	}
 
 	if cfg.GetBool(wcdNS("enabled")) {

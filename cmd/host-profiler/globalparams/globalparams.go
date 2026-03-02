@@ -8,6 +8,8 @@
 // Package globalparams contains the global CLI parameters for the host profiler.
 package globalparams
 
+import "time"
+
 // GlobalParams contains the values of host profiler global Cobra flags.
 //
 // A pointer to this type is passed to SubcommandFactory's, but its contents
@@ -17,5 +19,7 @@ type GlobalParams struct {
 	ConfFilePath string
 
 	// CoreConfPath holds the path to the Datadog Agent config file.
-	CoreConfPath string
+	CoreConfPath      string
+	SyncOnInitTimeout time.Duration
+	SyncTimeout       time.Duration
 }

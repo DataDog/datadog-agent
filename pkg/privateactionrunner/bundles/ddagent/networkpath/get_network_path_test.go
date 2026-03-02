@@ -103,7 +103,7 @@ func TestGetNetworkPathHandlerRun(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "default", result.Namespace)
 	require.Equal(t, payload.PathOriginNetworkPathIntegration, result.Origin)
-	require.Equal(t, payload.TestRunTypeOnDemand, result.TestRunType)
+	require.Equal(t, payload.TestRunTypeTriggered, result.TestRunType)
 	require.Equal(t, payload.SourceProductNetworkPath, result.SourceProduct)
 	require.Equal(t, payload.CollectorTypeAgent, result.CollectorType)
 	require.Equal(t, "source-service", result.Source.Service)
@@ -245,7 +245,7 @@ func TestGetNetworkPathHandlerRunSendToBackend(t *testing.T) {
 	require.NoError(t, json.Unmarshal(forwarder.lastMessage.GetContent(), &sent))
 	require.Equal(t, "default", sent.Namespace)
 	require.Equal(t, payload.PathOriginNetworkPathIntegration, sent.Origin)
-	require.Equal(t, payload.TestRunTypeOnDemand, sent.TestRunType)
+	require.Equal(t, payload.TestRunTypeTriggered, sent.TestRunType)
 	require.Equal(t, payload.SourceProductNetworkPath, sent.SourceProduct)
 	require.Equal(t, payload.CollectorTypeAgent, sent.CollectorType)
 }

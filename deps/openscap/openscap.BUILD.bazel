@@ -1,0 +1,671 @@
+"""BUILD for openscap."""
+
+load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
+
+package(
+    default_package_metadata = [":package_metadata"],
+    default_visibility = [
+        "@@//compliance:__subpackages__",
+        "@@//deps/openscap:__pkg__",
+        "@@//packages:__subpackages__",
+    ],
+)
+
+VERSION = "1.4.3"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        package = "openscap",
+        version = VERSION,
+        download_url = "https://github.com/OpenSCAP/openscap/releases/download/{version}/openscap-{version}.tar.gz",
+    ),
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:LGPL-3.0-or-later"],
+    license_text = "COPYING",
+    visibility = ["//visibility:public"],
+)
+
+# This is temporary. Eventually there will be a cc_library for openscap.
+filegroup(
+    name = "all_deps",
+    srcs = [
+        "@libyaml",
+        "@lua//:liblua",
+        "@acl",
+        "@attr",
+        "@bzip2//:bz2",
+        "@gcrypt",
+        "@gpg-error",
+        "@libpcap//:pcap",
+        "@libsepol//:sepol",
+        "@libxml2",
+        "@libxslt",
+        "@nghttp2",
+        "@pcre2//:pcre2-8",
+        "@popt",
+        "@zstd",
+    ],
+)
+
+ENABLED_FEATURES = [
+    "GCRYPT_FOUND",
+    "CMAKE_USE_PTHREADS_INIT",
+    "HAVE_ATOMIC_BUILTINS",
+    "HAVE_ACL_EXTENDED_FILE",
+    "HAVE_BLKID_GET_TAG_VALUE",
+    "HAVE_RPMREADCONFIGFILES",
+    "HAVE_HEADERFORMAT",
+    "HAVE_RPMFREECRYPTO",
+    "HAVE_RPMVERCMP",
+    "RPM46_FOUND",
+    "RPM47_FOUND",
+    "RPM418_FOUND",
+    "BZIP2_FOUND",
+    "HAVE_PTHREAD_TIMEDJOIN_NP",
+    "HAVE_PTHREAD_SETNAME_NP",
+    "HAVE_PTHREAD_GETNAME_NP",
+    "HAVE_CLOCK_GETTIME",
+    "HAVE_POSIX_MEMALIGN",
+    "HAVE_MEMALIGN",
+    "HAVE_FTS_OPEN",
+    "WANT_BASE64",
+    "ENABLE_PROBES",
+    "HAVE_SYSLOG_H",
+    "HAVE_STDIO_EXT_H",
+    "SELINUX_FOUND",
+    "HAVE_SHADOW_H",
+    "HAVE_ACL_LIBACL_H",
+    "HAVE_SYS_ACL_H",
+    "HAVE_GETOPT_H",
+    "HAVE_UIO_H",
+    "HAVE_SYS_XATTR_H",
+    "HAVE_STRSEP",
+    "HAVE_STRPTIME",
+    # Beware of keeping the longest pattern first in order to avoid
+    # broken results like
+    # #define OPENSCAP_PROBE_INDEPENDENT_ENVIRONMENTVARIABLE 158
+    # instead of
+    # OPENSCAP_PROBE_INDEPENDENT_ENVIRONMENTVARIABLE58 1
+    "OPENSCAP_PROBE_INDEPENDENT_ENVIRONMENTVARIABLE58",
+    "OPENSCAP_PROBE_INDEPENDENT_ENVIRONMENTVARIABLE",
+    "OPENSCAP_PROBE_INDEPENDENT_FAMILY",
+    "OPENSCAP_PROBE_INDEPENDENT_FILEHASH58",
+    "OPENSCAP_PROBE_INDEPENDENT_SYSTEM_INFO",
+    "OPENSCAP_PROBE_INDEPENDENT_TEXTFILECONTENT54",
+    "OPENSCAP_PROBE_INDEPENDENT_TEXTFILECONTENT",
+    "OPENSCAP_PROBE_INDEPENDENT_VARIABLE",
+    "OPENSCAP_PROBE_INDEPENDENT_XMLFILECONTENT",
+    "OPENSCAP_PROBE_LINUX_DPKGINFO",
+    "OPENSCAP_PROBE_LINUX_FWUPDSECURITYATTR",
+    "OPENSCAP_PROBE_LINUX_IFLISTENERS",
+    "OPENSCAP_PROBE_LINUX_INETLISTENINGSERVERS",
+    "OPENSCAP_PROBE_LINUX_PARTITION",
+    "OPENSCAP_PROBE_LINUX_RPMINFO",
+    "OPENSCAP_PROBE_LINUX_RPMVERIFYPACKAGE",
+    "OPENSCAP_PROBE_LINUX_RPMVERIFYFILE",
+    "OPENSCAP_PROBE_LINUX_RPMVERIFY",
+    "OPENSCAP_PROBE_LINUX_SELINUXBOOLEAN",
+    "OPENSCAP_PROBE_LINUX_SELINUXSECURITYCONTEXT",
+    "OPENSCAP_PROBE_LINUX_SYSTEMDUNITDEPENDENCY",
+    "OPENSCAP_PROBE_LINUX_SYSTEMDUNITPROPERTY",
+    "OPENSCAP_PROBE_UNIX_DNSCACHE",
+    "OPENSCAP_PROBE_UNIX_FILEEXTENDEDATTRIBUTE",
+    "OPENSCAP_PROBE_UNIX_FILE",
+    "OPENSCAP_PROBE_UNIX_INTERFACE",
+    "OPENSCAP_PROBE_UNIX_PASSWORD",
+    "OPENSCAP_PROBE_UNIX_PROCESS",
+    "OPENSCAP_PROBE_UNIX_ROUTINGTABLE",
+    "OPENSCAP_PROBE_UNIX_RUNLEVEL",
+    "OPENSCAP_PROBE_UNIX_SHADOW",
+    "OPENSCAP_PROBE_UNIX_SYMLINK",
+    "OPENSCAP_PROBE_UNIX_SYSCTL",
+    "OPENSCAP_PROBE_UNIX_UNAME",
+    "OPENSCAP_PROBE_UNIX_XINETD",
+]
+
+dd_agent_expand_template(
+    name = "gen_config_h",
+    template = "config.h.in",
+    out = "config.h",
+    substitutions = {
+                        "@OPENSCAP_VERSION@": VERSION,
+                        "@OPENSCAP_VERSION_MAJOR@": VERSION.split(".")[0],
+                        "@OPENSCAP_VERSION_MINOR@": VERSION.split(".")[1],
+                        "@OPENSCAP_VERSION_PATCH@": VERSION.split(".")[2],
+                        "#cmakedefine LT_CURRENT_MINUS_AGE @LT_CURRENT_MINUS_AGE@": "#define LT_CURRENT_MINUS_AGE 33",
+                        "#cmakedefine CMAKE_USE_PTHREADS_INIT @CMAKE_USE_PTHREADS_INIT@": "#define CMAKE_USE_PTHREADS_INIT 1",
+                        "#cmakedefine SEAP_MSGID_BITS @SEAP_MSGID_BITS@": "#define SEAP_MSGID_BITS 32",
+                        "#cmakedefine PREFERRED_PYTHON_PATH \"@PREFERRED_PYTHON_PATH@\"": "/* #undef PREFERRED_PYTHON_PATH */",
+                        "#cmakedefine PYTHON2_PATH \"@PYTHON2_PATH@\"": "/* #undef PYTHON2_PATH */",
+                        "#cmakedefine PYTHON3_PATH \"@PYTHON3_PATH@\"": "/* #undef PYTHON3_PATH */",
+                        "@OSCAP_DEFAULT_SCHEMA_PATH@": "{install_dir}/embedded/share/openscap/schemas",
+                        "@OSCAP_DEFAULT_XSLT_PATH@": "{install_dir}/embedded/share/openscap/xsl",
+                        "@OSCAP_DEFAULT_CPE_PATH@": "{install_dir}/embedded/share/openscap/cpe",
+                        "@OSCAP_TEMP_DIR@": "/tmp",
+                        "#cmakedefine OPENSCAP_PROBE_UNIX_PROCESS58": "/* #undef OPENSCAP_PROBE_UNIX_PROCESS */",
+                    } | {"#cmakedefine {}".format(key): "#define {} 1".format(key) for key in ENABLED_FEATURES} |
+                    # whatever cmakedefine are left after we processed everyting above, we want them to be #undef
+                    {"#cmakedefine": "#undef"},
+)
+
+PUBLIC_HEADERS = glob(["src/**/public/*.h"])
+PUBLIC_HEADERS_DIRS = list(set([header.rpartition("/")[0] for header in PUBLIC_HEADERS]))
+
+COMMON_INCLUDE_DIRS = [
+    "src/common/public",
+    "src/common",
+]
+
+COMMON_DEFINES = [
+    "HAVE_CONFIG_H",
+    "_GNU_SOURCE",
+]
+
+cc_library(
+    name = "config_h",
+    hdrs = [
+        ":gen_config_h",
+    ],
+    includes = ["."],
+)
+
+cc_library(
+    name = "compat_hdrs",
+    hdrs = [
+        "compat/compat.h",
+        "compat/oscap_platforms.h",
+    ],
+    includes = [
+        "compat",
+    ],
+)
+
+cc_library(
+    name = "compat",
+    srcs = [
+        "compat/dev_to_tty.c",
+    ] + PUBLIC_HEADERS,
+    local_defines = [
+        "HAVE_CONFIG_H",
+    ],
+    deps = [
+        ":compat_hdrs",
+    ],
+    implementation_deps = [
+        ":config_h",
+    ],
+    includes = COMMON_INCLUDE_DIRS + [
+        "compat/",
+        ".",
+    ],
+)
+
+cc_library(
+    name = "libopenscap",
+    # Some cmakelists.txt add files using glob, some list files explicitly
+    # We are reproducing the same logic here
+    srcs = glob([
+        "src/common/*.c",
+        "src/common/*.h",
+        "src/CPE/*.c",
+        "src/CPE/*.h",
+        "src/DS/*.c",
+        "src/DS/*.h",
+        "src/OVAL/adt/*.c",
+        "src/OVAL/adt/*.h",
+        "src/OVAL/probes/crapi/*.c",
+        "src/OVAL/probes/crapi/*.h",
+        "src/OVAL/probes/probe/*.c",
+        "src/OVAL/probes/probe/*.h",
+        "src/OVAL/probes/SEAP/**/*.c",
+        "src/OVAL/probes/SEAP/**/*.h",
+        "src/source/*.c",
+        "src/source/*.h",
+        "src/XCCDF/*.c",
+        "src/XCCDF/*.h",
+        "src/XCCDF_POLICY/*.c",
+        "src/XCCDF_POLICY/*.h",
+    ]) + [
+        "src/OVAL/collectVarRefs.c",
+        "src/OVAL/collectVarRefs_impl.h",
+        "src/OVAL/oval_agent.c",
+        "src/OVAL/oval_session.c",
+        "src/OVAL/oval_defModel.c",
+        "src/OVAL/oval_sysModel.c",
+        "src/OVAL/oval_affected.c",
+        "src/OVAL/oval_agent_api_impl.h",
+        "src/OVAL/oval_behavior.c",
+        "src/OVAL/oval_component.c",
+        "src/OVAL/oval_criteriaNode.c",
+        "src/OVAL/oval_definition.c",
+        "src/OVAL/oval_definitions_impl.h",
+        "src/OVAL/oval_entity.c",
+        "src/OVAL/oval_enumerations.c",
+        "src/OVAL/oval_filter.c",
+        "src/OVAL/oval_generator.c",
+        "src/OVAL/oval_glob_to_regex.c",
+        "src/OVAL/oval_glob_to_regex.h",
+        "src/OVAL/oval_message.c",
+        "src/OVAL/oval_object.c",
+        "src/OVAL/oval_objectContent.c",
+        "src/OVAL/oval_parser.c",
+        "src/OVAL/oval_parser_impl.h",
+        "src/OVAL/oval_recordField.c",
+        "src/OVAL/oval_reference.c",
+        "src/OVAL/oval_directives.c",
+        "src/OVAL/oval_directives_impl.h",
+        "src/OVAL/oval_schema_version.c",
+        "src/OVAL/oval_set.c",
+        "src/OVAL/oval_state.c",
+        "src/OVAL/oval_stateContent.c",
+        "src/OVAL/oval_sysEnt.c",
+        "src/OVAL/oval_sysInfo.c",
+        "src/OVAL/oval_sysInterface.c",
+        "src/OVAL/oval_sysItem.c",
+        "src/OVAL/oval_syschar.c",
+        "src/OVAL/oval_syscharIterator.c",
+        "src/OVAL/oval_system_characteristics_impl.h",
+        "src/OVAL/oval_test.c",
+        "src/OVAL/oval_value.c",
+        "src/OVAL/oval_variable.c",
+        "src/OVAL/oval_variableBinding.c",
+        "src/OVAL/oval_sys_parser.c",
+        "src/OVAL/oval_varModel.c",
+        "src/OVAL/oval_vardefMapping.c",
+        "src/OVAL/oval_probe.c",
+        "src/OVAL/oval_probe_hint.c",
+        "src/OVAL/oval_probe_session.c",
+        "src/OVAL/_oval_probe_session.h",
+        "src/OVAL/oval_probe_handler.c",
+        "src/OVAL/_oval_probe_handler.h",
+        "src/OVAL/probes/probe-api.c",
+        "src/OVAL/probes/_probe-api.h",
+        "src/OVAL/probes/probe-table.c",
+        "src/OVAL/oval_sexp.c",
+        "src/OVAL/oval_sexp.h",
+        "src/OVAL/oval_probe_ext.h",
+        "src/OVAL/oval_probe_impl.h",
+        "src/OVAL/fts_sun.c",
+        "src/OVAL/fts_sun.h",
+        "src/OVAL/probes/fsdev.c",
+        "src/OVAL/probes/fsdev.h",
+        "src/OVAL/probes/oval_fts.c",
+        "src/OVAL/probes/oval_fts.h",
+        "src/OVAL/oval_probe_ext.c",
+        "src/OVAL/probes/independent/environmentvariable_probe.c",
+        "src/OVAL/probes/independent/environmentvariable_probe.h",
+        "src/OVAL/probes/independent/environmentvariable58_probe.c",
+        "src/OVAL/probes/independent/environmentvariable58_probe.h",
+        "src/OVAL/probes/independent/family_probe.c",
+        "src/OVAL/probes/independent/family_probe.h",
+        "src/OVAL/probes/independent/filehash58_probe.c",
+        "src/OVAL/probes/independent/filehash58_probe.h",
+        "src/OVAL/probes/independent/system_info_probe.c",
+        "src/OVAL/probes/independent/system_info_probe.h",
+        "src/OVAL/probes/independent/textfilecontent_probe.c",
+        "src/OVAL/probes/independent/textfilecontent_probe.h",
+        "src/OVAL/probes/independent/textfilecontent54_probe.c",
+        "src/OVAL/probes/independent/textfilecontent54_probe.h",
+        "src/OVAL/probes/independent/variable_probe.c",
+        "src/OVAL/probes/independent/variable_probe.h",
+        "src/OVAL/probes/independent/xmlfilecontent_probe.c",
+        "src/OVAL/probes/independent/xmlfilecontent_probe.h",
+        "src/OVAL/probes/unix/dnscache_probe.c",
+        "src/OVAL/probes/unix/dnscache_probe.h",
+        "src/OVAL/probes/unix/file_probe.c",
+        "src/OVAL/probes/unix/file_probe.h",
+        "src/OVAL/probes/unix/fileextendedattribute_probe.c",
+        "src/OVAL/probes/unix/fileextendedattribute_probe.h",
+        "src/OVAL/probes/unix/interface_probe.c",
+        "src/OVAL/probes/unix/interface_probe.h",
+        "src/OVAL/probes/unix/password_probe.c",
+        "src/OVAL/probes/unix/password_probe.h",
+        "src/OVAL/probes/unix/process_probe.c",
+        "src/OVAL/probes/unix/process_probe.h",
+        "src/OVAL/probes/unix/routingtable_probe.c",
+        "src/OVAL/probes/unix/routingtable_probe.h",
+        "src/OVAL/probes/unix/runlevel_probe.c",
+        "src/OVAL/probes/unix/runlevel_probe.h",
+        "src/OVAL/probes/unix/shadow_probe.c",
+        "src/OVAL/probes/unix/shadow_probe.h",
+        "src/OVAL/probes/unix/symlink_probe.c",
+        "src/OVAL/probes/unix/symlink_probe.h",
+        "src/OVAL/probes/unix/sysctl_probe.c",
+        "src/OVAL/probes/unix/sysctl_probe.h",
+        "src/OVAL/probes/unix/uname_probe.c",
+        "src/OVAL/probes/unix/uname_probe.h",
+        "src/OVAL/probes/unix/xinetd_probe.c",
+        "src/OVAL/probes/unix/xinetd_probe.h",
+        "src/OVAL/probes/unix/linux/dpkginfo-helper.c",
+        "src/OVAL/probes/unix/linux/dpkginfo-helper.h",
+        "src/OVAL/probes/unix/linux/dpkginfo_probe.c",
+        "src/OVAL/probes/unix/linux/dpkginfo_probe.h",
+        "src/OVAL/probes/unix/linux/iflisteners_probe.c",
+        "src/OVAL/probes/unix/linux/iflisteners_probe.h",
+        "src/OVAL/probes/unix/linux/iflisteners-proto.h",
+        "src/OVAL/probes/unix/linux/inetlisteningservers_probe.c",
+        "src/OVAL/probes/unix/linux/inetlisteningservers_probe.h",
+        "src/OVAL/probes/unix/linux/partition_probe.c",
+        "src/OVAL/probes/unix/linux/partition_probe.h",
+        "src/OVAL/probes/unix/linux/probe-chroot.c",
+        "src/OVAL/probes/unix/linux/probe-chroot.h",
+        "src/OVAL/probes/unix/linux/rpm-helper.c",
+        "src/OVAL/probes/unix/linux/rpm-helper.h",
+        "src/OVAL/probes/unix/linux/rpminfo_probe.c",
+        "src/OVAL/probes/unix/linux/rpminfo_probe.h",
+        "src/OVAL/probes/unix/linux/rpmverify_probe.c",
+        "src/OVAL/probes/unix/linux/rpmverify_probe.h",
+        "src/OVAL/probes/unix/linux/rpmverifyfile_probe.c",
+        "src/OVAL/probes/unix/linux/rpmverifyfile_probe.h",
+        "src/OVAL/probes/unix/linux/rpmverifypackage_probe.c",
+        "src/OVAL/probes/unix/linux/rpmverifypackage_probe.h",
+        "src/OVAL/probes/unix/linux/selinuxboolean_probe.c",
+        "src/OVAL/probes/unix/linux/selinuxboolean_probe.h",
+        "src/OVAL/probes/unix/linux/selinuxsecuritycontext_probe.c",
+        "src/OVAL/probes/unix/linux/selinuxsecuritycontext_probe.h",
+        "src/OVAL/probes/unix/linux/systemdshared.h",
+        "src/OVAL/probes/unix/linux/oval_dbus.c",
+        "src/OVAL/probes/unix/linux/oval_dbus.h",
+        "src/OVAL/probes/unix/linux/systemdunitdependency_probe.c",
+        "src/OVAL/probes/unix/linux/systemdunitdependency_probe.h",
+        "src/OVAL/probes/unix/linux/systemdunitproperty_probe.c",
+        "src/OVAL/probes/unix/linux/systemdunitproperty_probe.h",
+        "src/OVAL/probes/unix/linux/fwupdsecattr_probe.c",
+        "src/OVAL/probes/unix/linux/fwupdsecattr_probe.h",
+        "src/OVAL/results/oval_cmp.c",
+        "src/OVAL/results/oval_cmp_impl.h",
+        "src/OVAL/results/oval_cmp_basic.c",
+        "src/OVAL/results/oval_cmp_basic_impl.h",
+        "src/OVAL/results/oval_cmp_evr_string.c",
+        "src/OVAL/results/oval_cmp_evr_string_impl.h",
+        "src/OVAL/results/oval_cmp_ip_address.c",
+        "src/OVAL/results/oval_cmp_ip_address_impl.h",
+        "src/OVAL/results/oval_resModel.c",
+        "src/OVAL/results/oval_resultCriteriaNode.c",
+        "src/OVAL/results/oval_resultDefinition.c",
+        "src/OVAL/results/oval_resultDefinitionIterator.c",
+        "src/OVAL/results/oval_resultItem.c",
+        "src/OVAL/results/oval_results_impl.h",
+        "src/OVAL/results/oval_resultSystem.c",
+        "src/OVAL/results/oval_resultTest.c",
+        "src/OVAL/results/oval_resultTestIterator.c",
+        "src/OVAL/results/oval_status_counter.c",
+        "src/OVAL/results/oval_status_counter.h",
+    ],
+    hdrs = PUBLIC_HEADERS,
+    deps = [
+        "@attr//:libattr",
+        "@bzip2//:libbz2",
+        "@curl//:curl_static",
+        "@dbus//:dbus-1",
+        "@gcrypt//:libgcrypt",
+        "@libselinux//:libselinux",
+        "@libsepol//:libsepol",
+        "@libxslt//:libexslt",
+        "@libyaml//:libyaml",
+        "@pcre2//:libpcre2",
+        "@popt//:libpopt",
+        "@rpm//:librpm",
+        "@rpm//:librpmio",
+        "@util-linux//:libblkid",
+        "@libxml2//:libxml2",
+        "@xmlsec//:libxmlsec1",
+        "@xmlsec//:libxmlsec1-openssl",
+        "@acl//:libacl",
+    ],
+    copts = [
+        "-O2",
+    ],
+    implementation_deps = [
+        ":compat",
+        ":config_h",
+    ],
+    includes = COMMON_INCLUDE_DIRS + PUBLIC_HEADERS_DIRS + [
+        ".",
+        "src",
+        "src/OVAL",
+        "src/OVAL/probes",
+        "src/OVAL/probes/SEAP",
+        "src/XCCDF",
+        "src/XCCDF_POLICY",
+    ],
+    local_defines = COMMON_DEFINES,
+)
+
+cc_library(
+    name = "libopenscap_sce",
+    srcs = glob(
+        [
+            "src/SCE/*.c",
+            "src/SCE/**/*.h",
+            "src/common/*.h",
+            # exclude the public folder which is already part of PUBLIC_HEADERS
+        ],
+        exclude = ["src/SCE/public/*.h"],
+    ) + [
+        "src/common/error.c",
+        "src/common/err_queue.c",
+        "src/common/list.c",
+        "src/common/oscap_string.c",
+        "src/common/oscap_buffer.c",
+        "src/common/util.c",
+    ] + PUBLIC_HEADERS,
+    includes = COMMON_INCLUDE_DIRS + PUBLIC_HEADERS_DIRS + [
+        ".",
+        "src",
+    ],
+    implementation_deps = [
+        ":compat",
+        ":config_h",
+    ],
+    copts = [
+        "-O2",
+    ],
+    deps = [
+        "@libxml2//:libxml2",
+    ],
+    local_defines = COMMON_DEFINES,
+)
+
+cc_shared_library(
+    name = "openscap",
+    deps = [
+        ":libopenscap",
+    ],
+    dynamic_deps = [
+        "@attr//:attr",
+        "@bzip2//:bz2",
+        "@curl//:curl",
+        # dbus is only needed by openscap and is linked statically
+        "@gcrypt//:gcrypt",
+        "@libselinux//:selinux",
+        "@libsepol//:sepol",
+        "@libxslt//:exslt",
+        "@libyaml//:yaml",
+        "@pcre2//:pcre2-8",
+        "@popt//:popt",
+        "@rpm//:rpm",
+        "@rpm//:rpmio",
+        "@util-linux//:blkid",
+        "@libxml2//:xml2",
+        "@xmlsec//:xmlsec1",
+        "@xmlsec//:xmlsec1-openssl",
+        "@acl//:acl",
+    ],
+)
+
+cc_shared_library(
+    name = "openscap_sce",
+    deps = [
+        ":libopenscap_sce",
+    ],
+)
+
+cc_binary(
+    name = "oscap",
+    srcs = glob([
+        "utils/*.c",
+        "utils/*.h",
+        "src/common/*.h",
+    ]) + PUBLIC_HEADERS,
+    deps = [
+        ":config_h",
+        ":compat_hdrs",
+    ],
+    linkstatic = False,
+    copts = [
+        "-O2",
+    ],
+    dynamic_deps = [
+        ":openscap",
+        "@attr//:attr",
+        "@bzip2//:bz2",
+        "@curl//:curl",
+        # dbus is only needed by openscap and is linked statically
+        "@gcrypt//:gcrypt",
+        "@libselinux//:selinux",
+        "@libsepol//:sepol",
+        "@libxslt//:xslt",
+        "@libxslt//:exslt",
+        "@libyaml//:yaml",
+        "@pcre2//:pcre2-8",
+        "@popt//:popt",
+        "@rpm//:rpm",
+        "@rpm//:rpmio",
+        "@util-linux//:blkid",
+        "@libxml2//:xml2",
+        "@xmlsec//:xmlsec1",
+        "@xmlsec//:xmlsec1-openssl",
+        "@acl//:acl",
+        "@sqlite3//:sqlite3",
+        "@openssl//:openssl_shared",
+        "@xz//:lzma",
+        "@zlib//:z",
+        "@nghttp2//:nghttp2_shared",
+    ],
+    includes = COMMON_INCLUDE_DIRS + PUBLIC_HEADERS_DIRS,
+    local_defines = COMMON_DEFINES,
+)
+
+cc_binary(
+    name = "oscap-io",
+    srcs = glob([
+        "utils/oscap-io/*.c",
+        "src/common/*.h",
+    ]) + PUBLIC_HEADERS,
+    deps = [
+        ":config_h",
+        ":compat_hdrs",
+    ],
+    linkstatic = False,
+    copts = [
+        "-O2",
+    ],
+    dynamic_deps = [
+        ":openscap",
+        "@attr//:attr",
+        "@bzip2//:bz2",
+        "@curl//:curl",
+        "@gcrypt//:gcrypt",
+        "@libselinux//:selinux",
+        "@libsepol//:sepol",
+        "@libxslt//:xslt",
+        "@libxslt//:exslt",
+        "@libyaml//:yaml",
+        "@pcre2//:pcre2-8",
+        "@popt//:popt",
+        "@rpm//:rpm",
+        "@rpm//:rpmio",
+        "@util-linux//:blkid",
+        "@libxml2//:xml2",
+        "@xmlsec//:xmlsec1",
+        "@xmlsec//:xmlsec1-openssl",
+        "@acl//:acl",
+        "@sqlite3//:sqlite3",
+        "@openssl//:openssl_shared",
+        "@xz//:lzma",
+        "@zlib//:z",
+        "@nghttp2//:nghttp2_shared",
+    ],
+    includes = COMMON_INCLUDE_DIRS + PUBLIC_HEADERS_DIRS,
+    local_defines = COMMON_DEFINES,
+)
+
+so_symlink(
+    name = "libopenscap_symlink",
+    src = ":openscap",
+    libname = "libopenscap",
+    version = "33.1.2",
+)
+
+so_symlink(
+    name = "libopenscap_sce_symlink",
+    src = ":openscap_sce",
+    libname = "libopenscap_sce",
+    version = "33.1.2",
+)
+
+pkg_filegroup(
+    name = "lib_files",
+    srcs = [
+        ":libopenscap_symlink",
+        ":libopenscap_sce_symlink",
+    ],
+)
+
+pkg_files(
+    name = "bin_files",
+    srcs = [
+        ":oscap",
+        ":oscap-io",
+    ],
+    prefix = "bin/",
+    attributes = pkg_attributes("0755"),
+)
+
+pkg_files(
+    name = "xccdf-resources",
+    srcs = glob(["xsl/*.xsl", "xsl/*.xml"]),
+    prefix = "share/openscap/xsl",
+    attributes = pkg_attributes("0644"),
+)
+
+pkg_files(
+    name = "cpe_files",
+    srcs = glob(["cpe/*.xml"]),
+    prefix = "share/openscap/cpe",
+    attributes = pkg_attributes("0644"),
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":bin_files",
+        ":lib_files",
+        ":xccdf-resources",
+        ":cpe_files",
+    ],
+    prefix = "embedded",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
+)

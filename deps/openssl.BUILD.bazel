@@ -3,7 +3,7 @@ load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
 
 # This should be private. We can fix it in another PR
 package(default_visibility = ["//visibility:public"])
@@ -152,7 +152,7 @@ configure_make(
         "@platforms//os:windows": "",
         # Provide a long value to ensure we end up with a path to openssl in the sandbox that
         # is longer than the placeholder we will replace it with as part of the postfix script
-        "//conditions:default": "placeholder" + '_' * 50,
+        "//conditions:default": "placeholder" + "_" * 50,
     }),
     lib_source = ":all_srcs",
     out_include_dir = "include",
@@ -174,9 +174,7 @@ configure_make(
         ],
         "//conditions:default": [],
     }),
-    out_data_dirs = [
-        "lib/pkgconfig",
-    ] + select({
+    out_data_dirs = select({
         "@//packages/agent:fips_flavor": [
             "ssl",
             "lib/ossl-modules",
@@ -208,6 +206,8 @@ configure_make(
     }),
     targets = ["depend", "", "install_sw", "install_ssldirs"],
     # Fix install names, as openssl's build system might not get them right
+    # Maybe for macos, @loader_path should be @rpath. That helped get curl_bin
+    # to link
     postfix_script = select({
         "@platforms//os:macos": """
             # Fix install names
@@ -308,8 +308,8 @@ pkg_files(
     ),
 )
 
-pkg_install(
-    name = "install",
+pkg_filegroup(
+    name = "all_files",
     srcs = [
         ":openssl_bin_files",
     ] + select({
@@ -325,4 +325,15 @@ pkg_install(
             ":libcrypto_with_symlink",
         ],
     }),
+    prefix = select({
+        "@platforms//os:windows": "embedded3",
+        "//conditions:default": "embedded",
+    }),
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
 )

@@ -12,6 +12,7 @@ extensions:
   datadog/dd-autoconfigured:
     api:
       key: ggggg77777
+      site: "datadoghq.com"
 
 service:
   extensions:

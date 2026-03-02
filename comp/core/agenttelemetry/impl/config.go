@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -222,11 +222,16 @@ var defaultProfiles = `
         - name: dogstatsd.uds_packets_bytes
         - name: logs.bytes_missed
         - name: logs.bytes_sent
+          aggregate_tags:
+            - remote_agent
+          aggregate_total: true
         - name: logs.decoded
         - name: logs.dropped
         - name: logs.encoded_bytes_sent
           aggregate_tags:
+            - remote_agent
             - compression_kind
+          aggregate_total: true
         - name: logs.http_connectivity_check
           aggregate_tags:
             - status
@@ -458,6 +463,7 @@ var defaultProfiles = `
           aggregate_tags:
             - repository
             - tag
+            - bucket
             - outcome
     schedule:
       start_after: 30

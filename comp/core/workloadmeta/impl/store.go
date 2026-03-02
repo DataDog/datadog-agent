@@ -50,6 +50,7 @@ func (w *workloadmeta) start(ctx context.Context) {
 			case <-health.C:
 
 			case evs := <-w.eventCh:
+				telemetry.PendingEventBundles.Dec()
 				w.handleEvents(evs)
 
 			case <-ctx.Done():
@@ -508,6 +509,7 @@ func (w *workloadmeta) ListGPUs() []*wmdef.GPU {
 // Notify implements Store#Notify
 func (w *workloadmeta) Notify(events []wmdef.CollectorEvent) {
 	if len(events) > 0 {
+		telemetry.PendingEventBundles.Inc()
 		w.eventCh <- events
 	}
 }
