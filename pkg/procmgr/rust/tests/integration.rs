@@ -549,10 +549,16 @@ fn render_ddot_template(
     let tmpl_path = std::path::PathBuf::from(env!("DDOT_TEMPLATE_PATH"));
     let tmpl = std::fs::read_to_string(&tmpl_path)
         .unwrap_or_else(|e| panic!("failed to read {}: {e}", tmpl_path.display()));
-    tmpl.replace("{{.InstallDir}}", install_dir)
+    let rendered = tmpl
+        .replace("{{.InstallDir}}", install_dir)
         .replace("{{.EtcDir}}", etc_dir)
         .replace("{{.PIDDir}}", pid_dir)
-        .replace("{{.FleetPoliciesDir}}", fleet_dir)
+        .replace("{{.FleetPoliciesDir}}", fleet_dir);
+    rendered
+        .lines()
+        .filter(|line| !line.contains("{{"))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 #[test]
