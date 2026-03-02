@@ -5,7 +5,6 @@ const CORRELATOR_COLORS: Record<string, string> = {
   time_cluster: '#8b5cf6',
   lead_lag: '#3b82f6',
   surprise: '#f59e0b',
-  graph_sketch: '#06b6d4',
 };
 
 function getCorrelatorColor(name: string): string {

@@ -418,7 +418,7 @@ func (o *observerImpl) runSignalEmitters(series observerdef.Series, agg Aggregat
 			anomaly := o.signalToAnomaly(signal, emitter.Name())
 			anomaly.SourceSeriesID = observerdef.SeriesID(seriesKey(series.Namespace, seriesWithAgg.Name, series.Tags))
 			o.captureRawAnomaly(anomaly) // For UI display
-			o.processAnomaly(anomaly)    // Send to correlators (GraphSketchCorrelator, etc.)
+			o.processAnomaly(anomaly)    // Send to correlators
 
 			// Also send signal to signal processors (Layer 2)
 			o.processSignal(signal)

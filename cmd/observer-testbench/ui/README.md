@@ -11,7 +11,7 @@ Go Server (:8080)                 React UI (:5173)
 │ (parquet/logs/demo)  │  HTTP   │ Toggle analyzers     │
 │         ↓            │◄───────►│ Browse series tree   │
 │ Run analyzers        │  JSON   │ View charts + zoom   │
-│ (CUSUM, Z-Score)     │         │ Inspect anomalies    │
+│ (CUSUM, LightESD)    │         │ Inspect anomalies    │
 │         ↓            │         │ Click correlations   │
 │ Detect correlations  │         └──────────────────────┘
 └──────────────────────┘
@@ -39,7 +39,6 @@ comp/observer/impl/
 ├── testbench.go         # Scenario loading, analysis orchestration
 ├── testbench_api.go     # REST API handlers
 ├── ts_analysis_cusum.go # CUSUM change-point detector
-├── ts_analysis_zscore.go# Robust Z-Score detector
 └── storage.go           # Time series storage
 ```
 
