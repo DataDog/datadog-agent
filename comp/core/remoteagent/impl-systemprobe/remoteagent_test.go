@@ -26,7 +26,7 @@ func TestGetFlareFiles_ContainsExpectedFiles(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-	assert.Contains(t, resp.Files, "system_probe_stats.json")
-	assert.Contains(t, resp.Files, "system_probe_runtime_config_dump.json")
+	assert.Contains(t, resp.Files, "system_probe_stats.yaml")
+	assert.Contains(t, resp.Files, "system_probe_runtime_config_dump.yaml")
 	assert.Contains(t, resp.Files, "system_probe_telemetry.log")
 }

@@ -8,7 +8,6 @@ package systemprobeimpl
 
 import (
 	"context"
-	"encoding/json"
 	"net"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -21,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"gopkg.in/yaml.v2"
 )
 
 // Requires defines the dependencies for the remoteagent component
@@ -132,12 +132,12 @@ func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatu
 func (r *remoteagentImpl) GetFlareFiles(_ context.Context, _ *pbcore.GetFlareFilesRequest) (*pbcore.GetFlareFilesResponse, error) {
 	files := make(map[string][]byte)
 
-	if data, err := json.MarshalIndent(helper.ExpvarData(), "", "  "); err == nil {
-		files["system_probe_stats.json"] = data
+	if data, err := yaml.Marshal(helper.ExpvarData()); err == nil {
+		files["system_probe_stats.yaml"] = data
 	}
 
-	if data, err := json.MarshalIndent(r.cfg.AllSettings(), "", "  "); err == nil {
-		files["system_probe_runtime_config_dump.json"] = data
+	if data, err := yaml.Marshal(r.cfg.AllSettings()); err == nil {
+		files["system_probe_runtime_config_dump.yaml"] = data
 	}
 
 	if prometheusText, err := r.telemetry.GatherText(false, telemetry.NoFilter); err == nil {

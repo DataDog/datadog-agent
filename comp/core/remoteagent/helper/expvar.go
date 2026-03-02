@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"expvar"
 
+	"gopkg.in/yaml.v2"
+
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
@@ -44,14 +46,14 @@ func ExpvarData() map[string]any {
 }
 
 // DefaultFlareFiles returns the standard set of flare files for a sub-process agent:
-// "<prefix>_status.json" with all current expvar values and "<prefix>_runtime_config_dump.json" with all config settings.
+// "<prefix>_status.yaml" with all current expvar values and "<prefix>_runtime_config_dump.yaml" with all config settings.
 func DefaultFlareFiles(settings map[string]interface{}, prefix string) map[string][]byte {
 	files := make(map[string][]byte)
-	if data, err := json.MarshalIndent(ExpvarData(), "", "  "); err == nil {
-		files[prefix+"_status.json"] = data
+	if data, err := yaml.Marshal(ExpvarData()); err == nil {
+		files[prefix+"_status.yaml"] = data
 	}
-	if data, err := json.MarshalIndent(settings, "", "  "); err == nil {
-		files[prefix+"_runtime_config_dump.json"] = data
+	if data, err := yaml.Marshal(settings); err == nil {
+		files[prefix+"_runtime_config_dump.yaml"] = data
 	}
 	return files
 }

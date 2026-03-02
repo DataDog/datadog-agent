@@ -8,7 +8,6 @@ package securityagentimpl
 
 import (
 	"context"
-	"encoding/json"
 	"net"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -20,6 +19,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"gopkg.in/yaml.v2"
 )
 
 // Requires defines the dependencies for the remoteagent component
@@ -101,12 +101,12 @@ func (r *remoteagentImpl) GetFlareFiles(_ context.Context, _ *pbcore.GetFlareFil
 		files["security_agent_status.json"] = statusJSON
 	}
 
-	if data, err := json.MarshalIndent(helper.ExpvarData(), "", "  "); err == nil {
-		files["security_agent_expvar_dump.json"] = data
+	if data, err := yaml.Marshal(helper.ExpvarData()); err == nil {
+		files["security_agent_expvar_dump.yaml"] = data
 	}
 
-	if data, err := json.MarshalIndent(r.cfg.AllSettings(), "", "  "); err == nil {
-		files["security_agent_runtime_config_dump.json"] = data
+	if data, err := yaml.Marshal(r.cfg.AllSettings()); err == nil {
+		files["security_agent_runtime_config_dump.yaml"] = data
 	}
 
 	return &pbcore.GetFlareFilesResponse{Files: files}, nil
