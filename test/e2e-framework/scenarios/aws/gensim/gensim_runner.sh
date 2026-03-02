@@ -19,8 +19,7 @@ echo "[$(date -u)] Kubeconfig ready"
 # Run play-episode.sh, capturing output to a dedicated log
 # (file is root-owned after Pulumi copy, so we invoke via bash rather than relying on the execute bit)
 cd /tmp/gensim-episode
-bash ./play-episode.sh run-episode "${SCENARIO}" > /tmp/play-episode.log 2>&1
-cat /tmp/play-episode.log
+bash ./play-episode.sh run-episode "${SCENARIO}" 2>&1 | tee /tmp/play-episode.log
 echo "[$(date -u)] Episode completed"
 
 # Collect parquet files from the Datadog Agent pod.

@@ -151,8 +151,6 @@ def deploy_gensim(
         scenario = available[0].stem
         tool.info(f"No scenario specified, using: {scenario}")
 
-    datadog_values_path = gensim_path / "datadog-values.yaml"
-
     # Use the provided run ID to update an existing stack, or generate a fresh one.
     if run_id is None:
         run_id = secrets.token_hex(3)  # 6 hex chars, e.g. "a3f2c1"
@@ -173,9 +171,6 @@ def deploy_gensim(
         "gensim:episodePath": str(episode_dir),
         "gensim:namespace": namespace,
     }
-
-    if datadog_values_path.exists():
-        extra_flags["gensim:datadogValuesPath"] = str(datadog_values_path)
 
     extra_flags["gensim:runId"] = run_id
 
@@ -217,7 +212,8 @@ def deploy_gensim(
     ssh_key_flag = f"-i {key_path} " if key_path else ""
     print("\nTo monitor progress:")
     print(f"  ssh {ssh_key_flag}{remote_host.user}@{remote_host.address}")
-    print("  tail -f /tmp/gensim-runner.log")
+    print("  tail -f /tmp/play-episode.log   # episode execution (real-time)")
+    print("  tail -f /tmp/gensim-runner.log  # full runner log")
 
     if s3_bucket:
         print(f"\nResults will be uploaded to: s3://{s3_bucket}/gensim-results-{episode}-{run_id}.zip")

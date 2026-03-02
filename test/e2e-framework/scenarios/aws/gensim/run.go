@@ -46,12 +46,11 @@ func Run(ctx *pulumi.Context) error {
 	// Get gensim-specific configuration
 	cfg := config.New(ctx, "gensim")
 
-	episodeName := cfg.Require("episodeName")         // e.g., "002_AWS_S3_Service_Disruption"
-	episodeChartPath := cfg.Require("chartPath")      // Path to episode's Helm chart
-	episodePath := cfg.Require("episodePath")         // Full path to episode dir (contains play-episode.sh)
-	datadogValuesPath := cfg.Get("datadogValuesPath") // Path to datadog-values.yaml (optional)
-	scenario := cfg.Get("scenario")                   // Scenario to run (empty = skip run)
-	runID := cfg.Get("runId")                         // Short unique ID for this run (e.g. "a3f2c1")
+	episodeName := cfg.Require("episodeName")    // e.g., "002_AWS_S3_Service_Disruption"
+	episodeChartPath := cfg.Require("chartPath") // Path to episode's Helm chart
+	episodePath := cfg.Require("episodePath")    // Full path to episode dir (contains play-episode.sh)
+	scenario := cfg.Get("scenario")              // Scenario to run (empty = skip run)
+	runID := cfg.Get("runId")                    // Short unique ID for this run (e.g. "a3f2c1")
 	s3Bucket := cfg.Get("s3Bucket")
 	namespace := cfg.Get("namespace")
 	if namespace == "" {
@@ -276,17 +275,8 @@ func Run(ctx *pulumi.Context) error {
 		// Apply embedded default Helm values (includes hostNetwork and observer config).
 		k8sAgentOptions = append(k8sAgentOptions, kubernetesagentparams.WithHelmValues(defaultDatadogValues))
 
-		// Set the cluster name from the Kind cluster so the agent can identify it.
+		// Set the cluster name last so it always wins over any hardcoded value in embedded defaults.
 		k8sAgentOptions = append(k8sAgentOptions, kubernetesagentparams.WithClusterName(kindCluster.ClusterName))
-
-		// Optionally layer extra values on top of the defaults.
-		if datadogValuesPath != "" {
-			valuesContent, err := os.ReadFile(datadogValuesPath)
-			if err != nil {
-				return err
-			}
-			k8sAgentOptions = append(k8sAgentOptions, kubernetesagentparams.WithHelmValues(string(valuesContent)))
-		}
 
 		if awsEnv.AgentFullImagePath() != "" {
 			k8sAgentOptions = append(k8sAgentOptions, kubernetesagentparams.WithAgentFullImagePath(awsEnv.AgentFullImagePath()))
@@ -316,6 +306,10 @@ func Run(ctx *pulumi.Context) error {
 		episodeReleaseName = episodeReleaseName[:53]
 	}
 
+	// Build the env tag: "gensim-<episode>-<runID>" so each run is distinguishable in Datadog.
+	// Use a separate string from episodeReleaseName (which is truncated to 53 chars for Helm).
+	episodeEnvTag := fmt.Sprintf("gensim-%s-%s", sanitizedEpisodeName, runID)
+
 	episodeChart, err := helmresource.NewInstallation(&awsEnv, helmresource.InstallArgs{
 		RepoURL:     "", // Local chart, no repo
 		ChartName:   episodeChartPath,
@@ -327,7 +321,7 @@ func Run(ctx *pulumi.Context) error {
 				"apiKey": awsEnv.AgentAPIKey(),
 				"appKey": awsEnv.AgentAPPKey(),
 				"site":   pulumi.String(awsEnv.Site()),
-				"env":    pulumi.String(episodeReleaseName),
+				"env":    pulumi.String(episodeEnvTag),
 			},
 		},
 	}, pulumi.Provider(kubeProvider), dependsOnDDAgent, dependsOnImages)
