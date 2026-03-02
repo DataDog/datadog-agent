@@ -423,7 +423,7 @@ func Run(ctx *pulumi.Context) error {
 						`EPISODE_NAME=%s `+
 						`SCENARIO=%s `+
 						`KUBE_NAMESPACE=%s `+
-						`DD_ENV=gensim-%s `+
+						`DD_ENV=%s `+
 						`DD_SITE=%s `+
 						`S3_BUCKET=%s `+
 						`RUN_ID=%s `+
@@ -435,7 +435,7 @@ func Run(ctx *pulumi.Context) error {
 					episodeName,
 					scenario,
 					namespace,
-					episodeName,
+					episodeEnvTag,
 					awsEnv.Site(),
 					s3Bucket,
 					runID,
