@@ -1657,10 +1657,10 @@ func (x *Rollout) GetDaemonSets() []*DaemonSetStatus {
 type FleetState struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	ConfigVersion    string                 `protobuf:"bytes,1,opt,name=config_version,json=configVersion,proto3" json:"config_version,omitempty"`
-	ConfigTask       *Task                  `protobuf:"bytes,5,opt,name=config_task,json=configTask,proto3" json:"config_task,omitempty"`
-	ConfigExperiment bool                   `protobuf:"varint,2,opt,name=config_experiment,json=configExperiment,proto3" json:"config_experiment,omitempty"`
-	ConfigRollout    *Rollout               `protobuf:"bytes,3,opt,name=config_rollout,json=configRollout,proto3" json:"config_rollout,omitempty"`
-	SecretPubKey     string                 `protobuf:"bytes,4,opt,name=secret_pub_key,json=secretPubKey,proto3" json:"secret_pub_key,omitempty"`
+	ConfigTask       *Task                  `protobuf:"bytes,2,opt,name=config_task,json=configTask,proto3" json:"config_task,omitempty"`
+	ConfigExperiment bool                   `protobuf:"varint,3,opt,name=config_experiment,json=configExperiment,proto3" json:"config_experiment,omitempty"`
+	ConfigRollout    *Rollout               `protobuf:"bytes,4,opt,name=config_rollout,json=configRollout,proto3" json:"config_rollout,omitempty"`
+	SecretPubKey     string                 `protobuf:"bytes,5,opt,name=secret_pub_key,json=secretPubKey,proto3" json:"secret_pub_key,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -2918,11 +2918,11 @@ const file_datadog_remoteconfig_remoteconfig_proto_rawDesc = "" +
 	"\n" +
 	"FleetState\x12%\n" +
 	"\x0econfig_version\x18\x01 \x01(\tR\rconfigVersion\x125\n" +
-	"\vconfig_task\x18\x05 \x01(\v2\x14.datadog.config.TaskR\n" +
+	"\vconfig_task\x18\x02 \x01(\v2\x14.datadog.config.TaskR\n" +
 	"configTask\x12+\n" +
-	"\x11config_experiment\x18\x02 \x01(\bR\x10configExperiment\x12>\n" +
-	"\x0econfig_rollout\x18\x03 \x01(\v2\x17.datadog.config.RolloutR\rconfigRollout\x12$\n" +
-	"\x0esecret_pub_key\x18\x04 \x01(\tR\fsecretPubKey\"O\n" +
+	"\x11config_experiment\x18\x03 \x01(\bR\x10configExperiment\x12>\n" +
+	"\x0econfig_rollout\x18\x04 \x01(\v2\x17.datadog.config.RolloutR\rconfigRollout\x12$\n" +
+	"\x0esecret_pub_key\x18\x05 \x01(\tR\fsecretPubKey\"O\n" +
 	"\x0eClientOperator\x12=\n" +
 	"\ffleet_states\x18\x01 \x03(\v2\x1a.datadog.config.FleetStateR\vfleetStates\"9\n" +
 	"\tTaskError\x12\x12\n" +

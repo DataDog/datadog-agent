@@ -168,10 +168,10 @@ message Rollout {
 
 message FleetState {
   string config_version = 1;
-  Task config_task = 5;
-  bool config_experiment = 2;
-  Rollout config_rollout = 3;
-  string secret_pub_key = 4;
+  Task config_task = 2;
+  bool config_experiment = 3;
+  Rollout config_rollout = 4;
+  string secret_pub_key = 5;
 }
 
 message ClientOperator {
