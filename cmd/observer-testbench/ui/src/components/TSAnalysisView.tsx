@@ -4,8 +4,11 @@ import { SeriesTree } from './SeriesTree';
 import { api } from '../api/client';
 import type { SeriesData, SeriesInfo, ScenarioInfo } from '../api/client';
 import type { SeriesVariant } from './TimeSeriesChart';
+import { getAnalyzerColorStable } from './TimeSeriesChart';
 import type { TimeRange } from './ChartWithAnomalyDetails';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
+import { MAIN_TAG_FILTER_KEYS } from '../constants';
+import { parseTagFilter, extractTagGroups, toggleTagInInput, matchesTagFilter } from '../filters';
 
 const AGGREGATION_TYPES = ['avg', 'count', 'sum', 'min', 'max'] as const;
 type AggregationType = typeof AGGREGATION_TYPES[number];
@@ -28,6 +31,7 @@ function formatSeriesLabel(tags: string[]): string {
   if (!tags || tags.length === 0) return 'untagged';
   return tags.join(', ');
 }
+
 
 interface MetricGroup {
   key: string;
@@ -59,6 +63,7 @@ export function TSAnalysisView({
   const [aggregationType, setAggregationType] = useState<AggregationType>('avg');
   const [showAnomalyOnlyGroups, setShowAnomalyOnlyGroups] = useState(false);
   const [showAnomalyOnlySeriesLines, setShowAnomalyOnlySeriesLines] = useState(false);
+  const [tagFilterInput, setTagFilterInput] = useState('');
 
   const scenarios = state.scenarios ?? [];
   const components = state.components ?? [];
@@ -80,10 +85,27 @@ export function TSAnalysisView({
     [analyzerComponents]
   );
 
-  const filteredSeries = useMemo(
-    () => allSeries.filter((s) => getAggregationType(s.name) === aggregationType),
-    [allSeries, aggregationType]
-  );
+  // Map comp.name (analyzerComponent) → analyzerName used by the timeline for coloring
+  const analyzerNameByComponent = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const a of allAnomalies) {
+      const component = getAnalyzerComponent(a);
+      if (!map.has(component)) map.set(component, a.analyzerName);
+    }
+    return map;
+  }, [allAnomalies]);
+
+  const tagGroups = useMemo(() => {
+    const all = extractTagGroups(allSeries.map((s) => s.tags));
+    return new Map([...all.entries()].filter(([k]) => MAIN_TAG_FILTER_KEYS.has(k)));
+  }, [allSeries]);
+
+  const filteredSeries = useMemo(() => {
+    const byAggType = allSeries.filter((s) => getAggregationType(s.name) === aggregationType);
+    const filter = parseTagFilter(tagFilterInput);
+    if (filter.include.size === 0 && filter.exclude.size === 0) return byAggType;
+    return byAggType.filter((s) => matchesTagFilter(s.tags ?? [], filter));
+  }, [allSeries, aggregationType, tagFilterInput]);
 
   const metricGroups = useMemo(() => {
     const groups = new Map<string, MetricGroup>();
@@ -134,6 +156,11 @@ export function TSAnalysisView({
     return metricGroups.filter((g) => (anomalyCountByGroup.get(g.key) ?? 0) > 0);
   }, [metricGroups, showAnomalyOnlyGroups, anomalyCountByGroup]);
 
+  const telemetryGroups = useMemo(
+    () => visibleGroups.filter((g) => g.namespace === 'telemetry'),
+    [visibleGroups]
+  );
+
   const displayGroups = useMemo(
     () => visibleGroups.map((g) => ({ key: g.key, name: g.baseName, displayName: g.baseName })),
     [visibleGroups]
@@ -144,6 +171,7 @@ export function TSAnalysisView({
     if (tsAnalyzerNames.length > 0 && state.activeScenario && initializedScenarioRef.current !== state.activeScenario) {
       initializedScenarioRef.current = state.activeScenario;
       setEnabledAnalyzers(new Set(tsAnalyzerNames));
+      setTagFilterInput('');
     }
   }, [tsAnalyzerNames, state.activeScenario]);
 
@@ -152,13 +180,17 @@ export function TSAnalysisView({
     if (!state.activeScenario || state.connectionState !== 'ready') return;
     if (autoSelectedScenario === state.activeScenario) return;
 
-    const ranked = [...visibleGroups].sort((a, b) => {
-      const countDiff = (anomalyCountByGroup.get(b.key) ?? 0) - (anomalyCountByGroup.get(a.key) ?? 0);
-      if (countDiff !== 0) return countDiff;
-      return a.baseName.localeCompare(b.baseName);
-    });
+    const telKeys = visibleGroups.filter((g) => g.namespace === 'telemetry').map((g) => g.key);
 
-    setSelectedGroups(new Set(ranked.slice(0, 6).map((g) => g.key)));
+    const ranked = [...visibleGroups]
+      .filter((g) => g.namespace !== 'telemetry')
+      .sort((a, b) => {
+        const countDiff = (anomalyCountByGroup.get(b.key) ?? 0) - (anomalyCountByGroup.get(a.key) ?? 0);
+        if (countDiff !== 0) return countDiff;
+        return a.baseName.localeCompare(b.baseName);
+      });
+
+    setSelectedGroups(new Set([...ranked.slice(0, 6).map((g) => g.key), ...telKeys]));
     setAutoSelectedScenario(state.activeScenario);
     onTimeRangeChange(null);
   }, [state.activeScenario, state.connectionState, visibleGroups, anomalyCountByGroup, autoSelectedScenario, onTimeRangeChange]);
@@ -234,6 +266,8 @@ export function TSAnalysisView({
           <div className="space-y-1">
             {analyzerComponents.map((comp) => {
               const count = allAnomalies.filter((a) => getAnalyzerComponent(a) === comp.name).length;
+              const analyzerName = analyzerNameByComponent.get(comp.name);
+              const color = analyzerName ? getAnalyzerColorStable(analyzerName) : null;
               return (
                 <label
                   key={comp.name}
@@ -245,7 +279,16 @@ export function TSAnalysisView({
                     onChange={() => toggleAnalyzer(comp.name)}
                     className="rounded border-slate-600 bg-slate-700 text-purple-600 focus:ring-purple-500"
                   />
-                  <span className="text-sm text-slate-300 flex-1">{comp.displayName}</span>
+                  {color ? (
+                    <span
+                      className="text-xs px-1.5 py-0.5 rounded font-medium flex-1"
+                      style={{ backgroundColor: color.fill, color: color.stroke }}
+                    >
+                      {comp.displayName}
+                    </span>
+                  ) : (
+                    <span className="text-sm text-slate-300 flex-1">{comp.displayName}</span>
+                  )}
                   {count > 0 && (
                     <span className="text-xs text-slate-500">{count}</span>
                   )}
@@ -296,12 +339,91 @@ export function TSAnalysisView({
           </label>
         </div>
 
+        <div className="p-4 border-b border-slate-700">
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            Tag Filter
+          </h2>
+          <div className="relative mb-2">
+            <input
+              type="text"
+              value={tagFilterInput}
+              onChange={(e) => setTagFilterInput(e.target.value)}
+              placeholder="host:web-1 service:api"
+              className="w-full bg-slate-700 text-slate-200 text-xs rounded px-2 py-1.5 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-purple-500 font-mono pr-6"
+            />
+            {tagFilterInput && (
+              <button
+                onClick={() => setTagFilterInput('')}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+              >
+                ×
+              </button>
+            )}
+          </div>
+          {tagGroups.size > 0 && (
+            <div className="space-y-2">
+              {[...tagGroups.entries()].map(([key, tags]) => {
+                const { include: activeTags, exclude: excludedTags } = parseTagFilter(tagFilterInput);
+                return (
+                  <div key={key}>
+                    <div className="text-[10px] text-slate-500 mb-1">{key}</div>
+                    <div className="flex flex-wrap gap-1">
+                      {tags.map((tag) => {
+                        const active = activeTags.get(key)?.has(tag) ?? false;
+                        const excluded = excludedTags.has(tag) || excludedTags.has(key);
+                        return (
+                          <button
+                            key={tag}
+                            onClick={() => setTagFilterInput(toggleTagInInput(tagFilterInput, tag))}
+                            className={`text-[10px] px-1.5 py-0.5 rounded font-mono transition-colors ${
+                              excluded
+                                ? 'bg-red-600/40 text-red-300 ring-1 ring-red-500/60'
+                                : active
+                                ? 'bg-purple-600/40 text-purple-300 ring-1 ring-purple-500/60'
+                                : 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-300'
+                            }`}
+                          >
+                            {tag}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         <div className="flex-1 p-4 overflow-hidden flex flex-col min-h-0">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
               Metric Groups ({displayGroups.length})
             </h2>
             <div className="flex gap-1">
+              <button
+                onClick={() => {
+                  const telKeys = telemetryGroups.map((g) => g.key);
+                  const anySelected = telKeys.some((k) => selectedGroups.has(k));
+                  setSelectedGroups((prev) => {
+                    const next = new Set(prev);
+                    if (anySelected) {
+                      telKeys.forEach((k) => next.delete(k));
+                    } else {
+                      telKeys.forEach((k) => next.add(k));
+                    }
+                    return next;
+                  });
+                }}
+                className={`text-xs px-1.5 py-0.5 rounded font-bold transition-colors ${
+                  telemetryGroups.some((g) => selectedGroups.has(g.key))
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                }`}
+                title={telemetryGroups.some((g) => selectedGroups.has(g.key)) ? 'Deselect telemetry groups' : 'Select telemetry groups'}
+              >
+                T
+              </button>
               <button
                 onClick={() => {
                   const anomalousKeys = displayGroups
@@ -376,47 +498,106 @@ export function TSAnalysisView({
             ) : groupSeriesData.size === 0 ? (
               <div className="text-center py-10 text-slate-500">Loading series data...</div>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {Array.from(selectedGroups).map((groupKey) => {
-                  const group = groupByKey.get(groupKey);
-                  if (!group) return null;
-                  const dataList = groupSeriesData.get(groupKey) ?? [];
-                  if (dataList.length === 0) return null;
+              <>
+                {/* Regular metric groups */}
+                {(() => {
+                  const cards = Array.from(selectedGroups)
+                    .filter((key) => {
+                      const g = groupByKey.get(key);
+                      return g && g.namespace !== 'telemetry';
+                    })
+                    .map((groupKey) => {
+                      const dataList = groupSeriesData.get(groupKey) ?? [];
+                      if (dataList.length === 0) return null;
+                      const chartSeries = showAnomalyOnlySeriesLines
+                        ? dataList.filter((d) => (anomalyCountBySeriesID.get(d.id) ?? 0) > 0)
+                        : dataList;
+                      if (chartSeries.length === 0) return null;
+                      const seriesIDs = new Set(chartSeries.map((d) => d.id));
+                      const seriesAnomalies = anomalies.filter((a) => a.sourceSeriesId && seriesIDs.has(a.sourceSeriesId));
+                      const anomalyMarkers = chartSeries.flatMap((d) => d.anomalies);
+                      const seriesVariants: SeriesVariant[] = chartSeries.map((d) => ({
+                        label: formatSeriesLabel(d.tags),
+                        points: d.points,
+                        seriesId: d.id,
+                      }));
+                      const primary = chartSeries[0];
+                      return (
+                        <ChartWithAnomalyDetails
+                          key={groupKey}
+                          name={primary.name}
+                          points={primary.points}
+                          anomalyMarkers={anomalyMarkers}
+                          anomalies={seriesAnomalies}
+                          correlationRanges={[]}
+                          enabledAnalyzers={enabledAnalyzers}
+                          timeRange={timeRange}
+                          onTimeRangeChange={onTimeRangeChange}
+                          smoothLines={smoothLines}
+                          seriesVariants={seriesVariants}
+                        />
+                      );
+                    })
+                    .filter(Boolean);
+                  return cards.length > 0 ? (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{cards}</div>
+                  ) : null;
+                })()}
 
-                  const chartSeries = showAnomalyOnlySeriesLines
-                    ? dataList.filter((d) => (anomalyCountBySeriesID.get(d.id) ?? 0) > 0)
-                    : dataList;
-                  if (chartSeries.length === 0) return null;
-
-                  const seriesIDs = new Set(chartSeries.map((d) => d.id));
-                  const seriesAnomalies = anomalies.filter((a) => a.sourceSeriesId && seriesIDs.has(a.sourceSeriesId));
-                  const anomalyMarkers = chartSeries.flatMap((d) => d.anomalies);
-
-                  const seriesVariants: SeriesVariant[] = chartSeries.map((d) => ({
-                    label: formatSeriesLabel(d.tags),
-                    points: d.points,
-                    seriesId: d.id,
-                  }));
-
-                  const primary = chartSeries[0];
-
-                  return (
-                    <ChartWithAnomalyDetails
-                      key={groupKey}
-                      name={primary.name}
-                      points={primary.points}
-                      anomalyMarkers={anomalyMarkers}
-                      anomalies={seriesAnomalies}
-                      correlationRanges={[]}
-                      enabledAnalyzers={enabledAnalyzers}
-                      timeRange={timeRange}
-                      onTimeRangeChange={onTimeRangeChange}
-                      smoothLines={smoothLines}
-                      seriesVariants={seriesVariants}
-                    />
-                  );
-                })}
-              </div>
+                {/* Telemetry metric groups — shown after a separator */}
+                {telemetryGroups.some((g) => selectedGroups.has(g.key)) && (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 border-t border-purple-800/50" />
+                      <div className="flex items-center gap-1.5 text-xs text-purple-400 font-medium">
+                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-600 text-white text-[9px] font-bold">T</span>
+                        Telemetry Metrics
+                      </div>
+                      <div className="flex-1 border-t border-purple-800/50" />
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {Array.from(selectedGroups)
+                        .filter((key) => {
+                          const g = groupByKey.get(key);
+                          return g && g.namespace === 'telemetry';
+                        })
+                        .map((groupKey) => {
+                          const dataList = groupSeriesData.get(groupKey) ?? [];
+                          if (dataList.length === 0) return null;
+                          const chartSeries = showAnomalyOnlySeriesLines
+                            ? dataList.filter((d) => (anomalyCountBySeriesID.get(d.id) ?? 0) > 0)
+                            : dataList;
+                          if (chartSeries.length === 0) return null;
+                          const seriesIDs = new Set(chartSeries.map((d) => d.id));
+                          const seriesAnomalies = anomalies.filter((a) => a.sourceSeriesId && seriesIDs.has(a.sourceSeriesId));
+                          const anomalyMarkers = chartSeries.flatMap((d) => d.anomalies);
+                          const seriesVariants: SeriesVariant[] = chartSeries.map((d) => ({
+                            label: formatSeriesLabel(d.tags),
+                            points: d.points,
+                            seriesId: d.id,
+                          }));
+                          const primary = chartSeries[0];
+                          return (
+                            <ChartWithAnomalyDetails
+                              key={groupKey}
+                              name={primary.name}
+                              points={primary.points}
+                              anomalyMarkers={anomalyMarkers}
+                              anomalies={seriesAnomalies}
+                              correlationRanges={[]}
+                              enabledAnalyzers={enabledAnalyzers}
+                              timeRange={timeRange}
+                              onTimeRangeChange={onTimeRangeChange}
+                              smoothLines={smoothLines}
+                              seriesVariants={seriesVariants}
+                              isTelemetry
+                            />
+                          );
+                        })}
+                    </div>
+                  </>
+                )}
+              </>
             )}
           </div>
         )}

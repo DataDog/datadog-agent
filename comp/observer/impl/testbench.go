@@ -309,7 +309,7 @@ func (tb *TestBench) LoadScenario(name string) error {
 	tb.rerunAnalysesLocked()
 	fmt.Printf("  Analyzer phase took %s\n", time.Since(analysisStart))
 	fmt.Printf("  Total scenario load took %s (correlators running in background)\n", time.Since(scenarioStart))
-	fmt.Printf("Scenario loaded: %d series, %d metric anomalies, %d log anomalies\n", tb.seriesCount(), len(tb.metricsAnomalies), len(tb.logAnomalies))
+	fmt.Printf("Scenario loaded: %d series, %d metric anomalies, %d log entries, %d log anomalies\n", tb.seriesCount(), len(tb.metricsAnomalies), len(tb.rawLogs), len(tb.logAnomalies))
 
 	return nil
 }
@@ -417,6 +417,7 @@ func (tb *TestBench) loadLogsDir(dir string) error {
 					tb.logAnomaliesByProcessor[anomaly.AnalyzerName] = append(
 						tb.logAnomaliesByProcessor[anomaly.AnalyzerName], anomaly)
 				}
+				tb.handleTelemetry(result.Telemetry, processor.Name(), timestamp)
 			}
 		}
 		totalLogs += len(logs)
@@ -617,6 +618,12 @@ func (tb *TestBench) rerunAnalysesLocked() {
 							tb.metricsBySeriesID[anomaly.SourceSeriesID] = append(tb.metricsBySeriesID[anomaly.SourceSeriesID], anomaly)
 						}
 					}
+
+					baseTimestamp := time.Now().Unix()
+					if len(seriesCopy.Points) > 0 {
+						baseTimestamp = seriesCopy.Points[0].Timestamp
+					}
+					tb.handleTelemetry(result.Telemetry, analyzer.Name(), baseTimestamp)
 				}
 			}
 		}
@@ -703,6 +710,59 @@ func (tb *TestBench) rerunAnalysesLocked() {
 
 		tb.correlatorsProcessing = false
 	}()
+}
+
+// This will handle custom telemetry created by the anomaly detectors.
+// It includes metrics and logs.
+func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, analyzerName string, baseTimestamp int64) {
+	for _, telemetryEvent := range telemetry {
+		// Generate missing fields if needed
+		if telemetryEvent.Metric != nil {
+			metric := &metricObs{
+				name:      telemetryEvent.Metric.GetName(),
+				value:     telemetryEvent.Metric.GetValue(),
+				tags:      telemetryEvent.Metric.GetRawTags(),
+				timestamp: int64(telemetryEvent.Metric.GetTimestamp()),
+			}
+			if metric.timestamp == 0 {
+				metric.timestamp = baseTimestamp
+			}
+			if telemetryEvent.AnalyzerName == "" {
+				telemetryEvent.AnalyzerName = analyzerName
+			}
+			// Save this for UI
+			tb.storage.Add("telemetry", "telemetry."+telemetryEvent.AnalyzerName+"."+metric.name, metric.value, metric.timestamp, metric.tags)
+		}
+
+		if telemetryEvent.Log != nil {
+			timestamp := int64(0)
+			if tlv, ok := telemetryEvent.Log.(logTimestamper); ok {
+				timestamp = tlv.GetTimestamp()
+			}
+			if timestamp == 0 {
+				timestamp = baseTimestamp
+			}
+			logTags := telemetryEvent.Log.GetTags()
+			tagsCopy := make([]string, 0, len(logTags)+2)
+			copy(tagsCopy, logTags)
+			tagsCopy = append(tagsCopy, "analyzer:"+analyzerName)
+			tagsCopy = append(tagsCopy, "telemetry:true")
+			log := storedLogEntry{
+				Content:   string(telemetryEvent.Log.GetContent()),
+				Status:    telemetryEvent.Log.GetStatus(),
+				Tags:      tagsCopy,
+				Timestamp: timestamp,
+			}
+			if log.Status == "" {
+				log.Status = "info"
+			}
+			if telemetryEvent.AnalyzerName == "" {
+				telemetryEvent.AnalyzerName = analyzerName
+			}
+			// Save this for UI
+			tb.rawLogs = append(tb.rawLogs, log)
+		}
+	}
 }
 
 // GetComponents returns all registered components.
@@ -995,29 +1055,46 @@ func (tb *TestBench) loadDemoScenario() error {
 		elapsed := float64(t)
 		timestamp := baseTimestamp + int64(t)
 
-		// Heap usage
+		// Heap usage (host:web-1)
 		heapValue := getDemoHeapValue(elapsed)
-		tb.storage.Add("demo", "runtime.heap.used_mb", heapValue, timestamp, nil)
+		tb.storage.Add("demo", "runtime.heap.used_mb", heapValue, timestamp, []string{"host:web-1"})
 
-		// GC pause time
+		// GC pause time (host:web-1)
 		gcValue := getDemoGCPauseValue(elapsed)
-		tb.storage.Add("demo", "runtime.gc.pause_ms", gcValue, timestamp, nil)
+		tb.storage.Add("demo", "runtime.gc.pause_ms", gcValue, timestamp, []string{"host:web-1"})
 
-		// Request latency
-		latencyValue := getDemoLatencyValue(elapsed)
-		tb.storage.Add("demo", "app.request.latency_p99_ms", latencyValue, timestamp, nil)
-
-		// Error rate
-		errorValue := getDemoErrorRateValue(elapsed)
-		tb.storage.Add("demo", "app.request.error_rate", errorValue, timestamp, nil)
-
-		// CPU usage
+		// CPU usage (host:web-1)
 		cpuValue := getDemoCPUValue(elapsed)
-		tb.storage.Add("demo", "system.cpu.user_percent", cpuValue, timestamp, nil)
+		tb.storage.Add("demo", "system.cpu.user_percent", cpuValue, timestamp, []string{"host:web-1"})
 
-		// Throughput (drops during incident)
+		// Request latency — two service variants
+		latencyValue := getDemoLatencyValue(elapsed)
+		tb.storage.Add("demo", "app.request.latency_p99_ms", latencyValue*1.2, timestamp, []string{"service:api"})
+		tb.storage.Add("demo", "app.request.latency_p99_ms", latencyValue*0.8, timestamp, []string{"service:worker"})
+
+		// Error rate — two service variants
+		errorValue := getDemoErrorRateValue(elapsed)
+		tb.storage.Add("demo", "app.request.error_rate", errorValue*1.5, timestamp, []string{"service:api"})
+		tb.storage.Add("demo", "app.request.error_rate", errorValue*0.7, timestamp, []string{"service:worker"})
+
+		// Throughput — two service variants
 		throughputValue := getDemoThroughputValue(elapsed)
-		tb.storage.Add("demo", "app.request.throughput_rps", throughputValue, timestamp, nil)
+		tb.storage.Add("demo", "app.request.throughput_rps", throughputValue*1.4, timestamp, []string{"service:api"})
+		tb.storage.Add("demo", "app.request.throughput_rps", throughputValue*0.6, timestamp, []string{"service:worker"})
+
+		// Correlator-targeted metrics (trigger kernel_bottleneck / network_degradation patterns)
+		// network.retransmits → analyzed as "network.retransmits:avg" — host-level
+		retransmits := getDemoNetworkRetransmitsValue(elapsed)
+		tb.storage.Add("demo", "network.retransmits", retransmits, timestamp, []string{"host:web-1"})
+
+		// ebpf.lock_contention_ns → analyzed as "ebpf.lock_contention_ns:avg" — host-level
+		lockContention := getDemoLockContentionValue(elapsed)
+		tb.storage.Add("demo", "ebpf.lock_contention_ns", lockContention, timestamp, []string{"host:web-1"})
+
+		// connection.errors → analyzed as "connection.errors:count" — two service variants
+		connErrors := getDemoConnectionErrorsValue(elapsed)
+		tb.storage.Add("demo", "connection.errors", connErrors, timestamp, []string{"service:api"})
+		tb.storage.Add("demo", "connection.errors", connErrors*0.6, timestamp, []string{"service:worker"})
 	}
 
 	fmt.Printf("  Generated %d seconds of demo data\n", totalSeconds)
@@ -1102,7 +1179,7 @@ func (tb *TestBench) loadDemoScenario() error {
 
 	// Run analyses on all loaded data (analyzers sync, correlators async)
 	tb.rerunAnalysesLocked()
-	fmt.Printf("Demo scenario loaded: %d series, %d metric anomalies, %d log anomalies (correlators running in background)\n", tb.seriesCount(), len(tb.metricsAnomalies), len(tb.logAnomalies))
+	fmt.Printf("Demo scenario loaded: %d series, %d metric anomalies, %d log entries, %d log anomalies (correlators running in background)\n", tb.seriesCount(), len(tb.metricsAnomalies), len(tb.rawLogs), len(tb.logAnomalies))
 
 	return nil
 }
@@ -1168,6 +1245,24 @@ func getDemoThroughputValue(elapsed float64) float64 {
 	// Throughput DROPS during incident (inverse of other metrics)
 	const baseline, trough = 1000.0, 200.0
 	return getDemoPhaseValueInverse(elapsed, baseline, trough, 1.0) // drops with latency
+}
+
+// getDemoNetworkRetransmitsValue returns network retransmits (spikes with latency during incident).
+func getDemoNetworkRetransmitsValue(elapsed float64) float64 {
+	const baseline, peak = 5.0, 90.0
+	return getDemoPhaseValue(elapsed, baseline, peak, 1.0) // co-occurs with latency
+}
+
+// getDemoLockContentionValue returns eBPF lock contention in ns (rises with heap pressure).
+func getDemoLockContentionValue(elapsed float64) float64 {
+	const baseline, peak = 800.0, 14000.0
+	return getDemoPhaseValue(elapsed, baseline, peak, 0.5) // slightly lags heap
+}
+
+// getDemoConnectionErrorsValue returns connection error count (co-occurs with error rate).
+func getDemoConnectionErrorsValue(elapsed float64) float64 {
+	const baseline, peak = 1.0, 30.0
+	return getDemoPhaseValue(elapsed, baseline, peak, 2.0) // co-occurs with error rate
 }
 
 func getDemoPhaseValue(elapsed, baseline, peak, delay float64) float64 {

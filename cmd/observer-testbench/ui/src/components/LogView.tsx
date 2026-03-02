@@ -1,6 +1,8 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import type { ScenarioInfo, LogAnomaly, LogEntry } from '../api/client';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
+import { MAIN_TAG_FILTER_KEYS } from '../constants';
+import { parseTagFilter, extractTagGroups, toggleTagInInput, matchesTagFilter } from '../filters';
 
 interface LogViewProps {
   state: ObserverState;
@@ -155,9 +157,10 @@ interface LogEntryRowProps {
   entry: LogEntry;
   isExpanded: boolean;
   onToggle: () => void;
+  isTelemetry?: boolean;
 }
 
-function LogEntryRow({ entry, isExpanded, onToggle }: LogEntryRowProps) {
+function LogEntryRow({ entry, isExpanded, onToggle, isTelemetry = false }: LogEntryRowProps) {
   const contentPreview = entry.content.length > 120 && !isExpanded
     ? entry.content.slice(0, 120) + '…'
     : entry.content;
@@ -175,11 +178,28 @@ function LogEntryRow({ entry, isExpanded, onToggle }: LogEntryRowProps) {
           <span className={`flex-shrink-0 text-xs px-1.5 py-0.5 rounded font-medium uppercase ${levelBadgeColor(entry.status)}`}>
             {entry.status}
           </span>
-          <span className="text-xs text-slate-300 font-mono leading-relaxed break-all">
+          {isTelemetry && (
+            <span className="flex-shrink-0 inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-600 text-white text-[9px] font-bold mt-0.5" title="Telemetry log">T</span>
+          )}
+          <span className="text-xs text-slate-300 font-mono leading-relaxed break-all flex-1">
             {contentPreview}
           </span>
+          {entry.tags && entry.tags.length > 0 && (() => {
+            const headerTags = entry.tags.filter((tag) =>
+              MAIN_TAG_FILTER_KEYS.has(tag.slice(0, tag.indexOf(':')))
+            );
+            return headerTags.length > 0 ? (
+              <div className="flex gap-1 flex-wrap flex-shrink-0">
+                {headerTags.map((tag) => (
+                  <span key={tag} className="px-1 py-0.5 rounded text-[9px] bg-slate-600/50 text-slate-400 font-mono">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            ) : null;
+          })()}
           {entry.content.length > 120 && (
-            <span className="text-slate-500 flex-shrink-0 text-xs ml-auto">{isExpanded ? '▼' : '▶'}</span>
+            <span className="text-slate-500 flex-shrink-0 text-xs">{isExpanded ? '▼' : '▶'}</span>
           )}
         </div>
       </button>
@@ -239,6 +259,20 @@ function LogAnomalyCard({ anomaly, isExpanded, onToggle }: LogAnomalyCardProps) 
               </div>
             )}
           </div>
+          {anomaly.tags && anomaly.tags.length > 0 && (() => {
+            const headerTags = anomaly.tags.filter((tag) =>
+              MAIN_TAG_FILTER_KEYS.has(tag.slice(0, tag.indexOf(':')))
+            );
+            return headerTags.length > 0 ? (
+              <div className="flex gap-1 flex-wrap flex-shrink-0">
+                {headerTags.map((tag) => (
+                  <span key={tag} className="px-1 py-0.5 rounded text-[9px] bg-slate-600/50 text-slate-400 font-mono">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            ) : null;
+          })()}
           <span className="text-slate-500 flex-shrink-0 text-xs">{isExpanded ? '▼' : '▶'}</span>
         </div>
       </button>
@@ -275,61 +309,75 @@ function LogAnomalyCard({ anomaly, isExpanded, onToggle }: LogAnomalyCardProps) 
   );
 }
 
-const ALL_LEVELS = ['error', 'warn', 'info', 'debug'];
 const LOG_PAGE_SIZE = 50;
+
+/** Synthesize a `status:<value>` tag from the entry's status field so it can be filtered like any other tag. */
+function getEffectiveTags(tags: string[], status: string): string[] {
+  const statusTag = `status:${status.toLowerCase()}`;
+  return tags.includes(statusTag) ? tags : [statusTag, ...tags];
+}
 
 export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
   const scenarios = state.scenarios ?? [];
   const allLogs = state.logs ?? [];
   const allLogAnomalies = state.logAnomalies ?? [];
 
-  const [enabledLevels, setEnabledLevels] = useState<Set<string>>(new Set(ALL_LEVELS));
+  const [tagFilterInput, setTagFilterInput] = useState('');
   const [expandedLogIndex, setExpandedLogIndex] = useState<number | null>(null);
   const [expandedAnomalyIndex, setExpandedAnomalyIndex] = useState<number | null>(null);
   const [anomaliesExpanded, setAnomaliesExpanded] = useState(true);
   const [logsExpanded, setLogsExpanded] = useState(true);
   const [logPage, setLogPage] = useState(1);
+  const [telemetryLogsExpanded, setTelemetryLogsExpanded] = useState(true);
+  const [telemetryLogPage, setTelemetryLogPage] = useState(1);
+  const [expandedTelemetryLogIndex, setExpandedTelemetryLogIndex] = useState<number | null>(null);
   const initializedScenarioRef = useRef<string | null>(null);
 
   // Reset state when scenario changes
   useEffect(() => {
     if (state.activeScenario && initializedScenarioRef.current !== state.activeScenario) {
       initializedScenarioRef.current = state.activeScenario;
-      setEnabledLevels(new Set(ALL_LEVELS));
+      setTagFilterInput('');
       setExpandedLogIndex(null);
       setExpandedAnomalyIndex(null);
       setLogPage(1);
+      setTelemetryLogPage(1);
+      setExpandedTelemetryLogIndex(null);
     }
   }, [state.activeScenario]);
 
-  const filteredLogs = useMemo(() => {
-    return allLogs
-      .filter((l) => enabledLevels.has(l.status.toLowerCase()))
-      .sort((a, b) => a.timestamp - b.timestamp);
-  }, [allLogs, enabledLevels]);
-
-  const countByLevel = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const l of allLogs) {
-      const lvl = l.status.toLowerCase();
-      counts.set(lvl, (counts.get(lvl) ?? 0) + 1);
-    }
-    return counts;
+  const logTagGroups = useMemo(() => {
+    const all = extractTagGroups(allLogs.map((l) => getEffectiveTags(l.tags ?? [], l.status)));
+    return new Map([...all.entries()].filter(([k]) => MAIN_TAG_FILTER_KEYS.has(k)));
   }, [allLogs]);
 
-  const sortedAnomalies = useMemo(
-    () => [...allLogAnomalies].sort((a, b) => a.timestamp - b.timestamp),
-    [allLogAnomalies]
+  const filteredLogs = useMemo(() => {
+    const filter = parseTagFilter(tagFilterInput);
+    return allLogs
+      .filter((l) => {
+        if (filter.include.size === 0 && filter.exclude.size === 0) return true;
+        return matchesTagFilter(getEffectiveTags(l.tags ?? [], l.status), filter);
+      })
+      .sort((a, b) => a.timestamp - b.timestamp);
+  }, [allLogs, tagFilterInput]);
+
+  const regularLogs = useMemo(
+    () => filteredLogs.filter((l) => !(l.tags ?? []).includes('telemetry:true')),
+    [filteredLogs]
   );
 
-  const toggleLevel = (level: string) => {
-    const next = new Set(enabledLevels);
-    if (next.has(level)) next.delete(level);
-    else next.add(level);
-    setEnabledLevels(next);
-    setExpandedLogIndex(null);
-    setLogPage(1);
-  };
+  const telemetryLogs = useMemo(
+    () => filteredLogs.filter((l) => (l.tags ?? []).includes('telemetry:true')),
+    [filteredLogs]
+  );
+
+  const sortedAnomalies = useMemo(() => {
+    const filter = parseTagFilter(tagFilterInput);
+    const anomalies = (filter.include.size === 0 && filter.exclude.size === 0)
+      ? allLogAnomalies
+      : allLogAnomalies.filter((a) => matchesTagFilter(a.tags ?? [], filter));
+    return [...anomalies].sort((a, b) => a.timestamp - b.timestamp);
+  }, [allLogAnomalies, tagFilterInput]);
 
   const scenarioStart = state.status?.scenarioStart ?? null;
   const scenarioEnd = state.status?.scenarioEnd ?? null;
@@ -347,35 +395,73 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
           onLoadScenario={actions.loadScenario}
         />
 
-        {/* Level filter */}
+        {/* Tag filter */}
         <div className="p-4 border-b border-slate-700">
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-            Log Level
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            Tag Filter
           </h2>
-          <div className="space-y-1">
-            {ALL_LEVELS.map((level) => {
-              const count = countByLevel.get(level) ?? 0;
-              return (
-                <label
-                  key={level}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-700 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={enabledLevels.has(level)}
-                    onChange={() => toggleLevel(level)}
-                    className="rounded border-slate-600 bg-slate-700 text-teal-500 focus:ring-teal-500"
-                  />
-                  <span className={`text-xs px-1.5 py-0.5 rounded font-medium uppercase ${levelBadgeColor(level)}`}>
-                    {level}
-                  </span>
-                  {count > 0 && (
-                    <span className="text-xs text-slate-500 flex-shrink-0 ml-auto">{count}</span>
-                  )}
-                </label>
-              );
-            })}
+          <div className="relative mb-2">
+            <input
+              type="text"
+              value={tagFilterInput}
+              onChange={(e) => {
+                setTagFilterInput(e.target.value);
+                setExpandedLogIndex(null);
+                setLogPage(1);
+              }}
+              placeholder="host:web-1 service:api"
+              className="w-full bg-slate-700 text-slate-200 text-xs rounded px-2 py-1.5 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-teal-500 font-mono pr-6"
+            />
+            {tagFilterInput && (
+              <button
+                onClick={() => { setTagFilterInput(''); setLogPage(1); }}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+              >
+                ×
+              </button>
+            )}
           </div>
+          {logTagGroups.size > 0 && (
+            <div className="space-y-2">
+              {[...logTagGroups.entries()].map(([key, tags]) => {
+                const { include: activeTags, exclude: excludedTags } = parseTagFilter(tagFilterInput);
+                return (
+                  <div key={key}>
+                    <div className="text-[10px] text-slate-500 mb-1">{key}</div>
+                    <div className="flex flex-wrap gap-1">
+                      {tags.map((tag) => {
+                        const active = activeTags.get(key)?.has(tag) ?? false;
+                        const excluded = excludedTags.has(tag) || excludedTags.has(key);
+                        const value = tag.slice(tag.indexOf(':') + 1);
+                        const isStatus = key === 'status';
+                        return (
+                          <button
+                            key={tag}
+                            onClick={() => {
+                              setTagFilterInput(toggleTagInInput(tagFilterInput, tag));
+                              setExpandedLogIndex(null);
+                              setLogPage(1);
+                            }}
+                            className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-medium transition-colors ring-1 ${isStatus ? 'uppercase' : ''} ${
+                              excluded
+                                ? 'bg-red-600/40 text-red-300 ring-red-500/60'
+                                : active
+                                ? `${isStatus ? levelBadgeColor(value) : 'bg-teal-600/40 text-teal-300'} ring-teal-500/60`
+                                : isStatus
+                                ? `${levelBadgeColor(value)} ring-transparent opacity-60 hover:opacity-100`
+                                : 'bg-slate-700 text-slate-400 ring-transparent hover:bg-slate-600 hover:text-slate-300'
+                            }`}
+                          >
+                            {isStatus ? value : tag}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Summary */}
@@ -385,8 +471,14 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
           </h2>
           <div className="space-y-1.5">
             <div className="text-sm text-slate-300">
-              {allLogs.length} log{allLogs.length !== 1 ? 's' : ''} total
+              {allLogs.filter((l) => !(l.tags ?? []).includes('telemetry:true')).length} log{allLogs.filter((l) => !(l.tags ?? []).includes('telemetry:true')).length !== 1 ? 's' : ''} total
             </div>
+            {allLogs.some((l) => (l.tags ?? []).includes('telemetry:true')) && (
+              <div className="text-sm text-purple-400 flex items-center gap-1.5">
+                <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-purple-600 text-white text-[8px] font-bold">T</span>
+                {allLogs.filter((l) => (l.tags ?? []).includes('telemetry:true')).length} telemetry log{allLogs.filter((l) => (l.tags ?? []).includes('telemetry:true')).length !== 1 ? 's' : ''}
+              </div>
+            )}
             <div className="text-sm text-slate-300">
               {allLogAnomalies.length} anomal{allLogAnomalies.length !== 1 ? 'ies' : 'y'} detected
             </div>
@@ -424,7 +516,7 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
           <div>
             {/* Log rate + anomaly timeline */}
             <LogRateChart
-              logs={allLogs}
+              logs={allLogs.filter((l) => !(l.tags ?? []).includes('telemetry:true'))}
               anomalies={sortedAnomalies}
               scenarioStart={scenarioStart ?? null}
               scenarioEnd={scenarioEnd ?? null}
@@ -438,7 +530,7 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
                   className="flex items-center gap-2 text-sm font-medium text-slate-300 hover:text-white mb-3 transition-colors"
                 >
                   <span className="text-slate-500">{anomaliesExpanded ? '▼' : '▶'}</span>
-                  Detected Anomalies ({allLogAnomalies.length})
+                  Detected Anomalies ({sortedAnomalies.length}{sortedAnomalies.length !== allLogAnomalies.length ? ` of ${allLogAnomalies.length}` : ''})
                 </button>
                 {anomaliesExpanded && (
                   <div className="space-y-1.5">
@@ -457,29 +549,29 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
               </div>
             )}
 
-            {/* Raw log entries */}
+            {/* Raw log entries (regular only) */}
             <div>
               <button
                 onClick={() => setLogsExpanded(!logsExpanded)}
                 className="flex items-center gap-2 text-sm font-medium text-slate-300 hover:text-white mb-3 transition-colors"
               >
                 <span className="text-slate-500">{logsExpanded ? '▼' : '▶'}</span>
-                Raw Logs ({filteredLogs.length}{filteredLogs.length !== allLogs.length ? ` of ${allLogs.length}` : ''})
+                Raw Logs ({regularLogs.length}{regularLogs.length !== allLogs.length - telemetryLogs.length ? ` of ${allLogs.length - telemetryLogs.length}` : ''})
               </button>
 
               {logsExpanded && (
-                allLogs.length === 0 ? (
+                allLogs.filter((l) => !(l.tags ?? []).includes('telemetry:true')).length === 0 ? (
                   <div className="text-center py-8 text-slate-500 text-sm">
                     No log entries. Load a scenario with log files or the demo scenario.
                   </div>
-                ) : filteredLogs.length === 0 ? (
+                ) : regularLogs.length === 0 ? (
                   <div className="text-center py-8 text-slate-500 text-sm">
                     No logs match the selected levels.
                   </div>
                 ) : (
                   <>
                     <div className="overflow-y-auto max-h-[480px] space-y-0.5 pr-1">
-                      {filteredLogs.slice(0, logPage * LOG_PAGE_SIZE).map((entry, idx) => (
+                      {regularLogs.slice(0, logPage * LOG_PAGE_SIZE).map((entry, idx) => (
                         <LogEntryRow
                           key={`${entry.timestamp}-${idx}`}
                           entry={entry}
@@ -488,18 +580,66 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
                         />
                       ))}
                     </div>
-                    {filteredLogs.length > logPage * LOG_PAGE_SIZE && (
+                    {regularLogs.length > logPage * LOG_PAGE_SIZE && (
                       <button
                         onClick={() => setLogPage((p) => p + 1)}
                         className="mt-2 w-full py-1.5 text-xs text-slate-400 hover:text-slate-200 bg-slate-700/40 hover:bg-slate-700/70 rounded transition-colors"
                       >
-                        Show more ({filteredLogs.length - logPage * LOG_PAGE_SIZE} remaining)
+                        Show more ({regularLogs.length - logPage * LOG_PAGE_SIZE} remaining)
                       </button>
                     )}
                   </>
                 )
               )}
             </div>
+
+            {/* Telemetry log entries */}
+            {(allLogs.some((l) => (l.tags ?? []).includes('telemetry:true')) || telemetryLogs.length > 0) && (
+              <div>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="flex-1 border-t border-purple-800/50" />
+                  <button
+                    onClick={() => setTelemetryLogsExpanded(!telemetryLogsExpanded)}
+                    className="flex items-center gap-1.5 text-xs text-purple-400 font-medium hover:text-purple-300 transition-colors"
+                  >
+                    <span className="text-purple-600">{telemetryLogsExpanded ? '▼' : '▶'}</span>
+                    <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-600 text-white text-[9px] font-bold">T</span>
+                    Telemetry Logs ({telemetryLogs.length})
+                  </button>
+                  <div className="flex-1 border-t border-purple-800/50" />
+                </div>
+
+                {telemetryLogsExpanded && (
+                  telemetryLogs.length === 0 ? (
+                    <div className="text-center py-8 text-slate-500 text-sm">
+                      No telemetry logs match the current filters.
+                    </div>
+                  ) : (
+                    <>
+                      <div className="overflow-y-auto max-h-[480px] space-y-0.5 pr-1">
+                        {telemetryLogs.slice(0, telemetryLogPage * LOG_PAGE_SIZE).map((entry, idx) => (
+                          <LogEntryRow
+                            key={`telem-${entry.timestamp}-${idx}`}
+                            entry={entry}
+                            isExpanded={expandedTelemetryLogIndex === idx}
+                            onToggle={() => setExpandedTelemetryLogIndex(expandedTelemetryLogIndex === idx ? null : idx)}
+                            isTelemetry
+                          />
+                        ))}
+                      </div>
+                      {telemetryLogs.length > telemetryLogPage * LOG_PAGE_SIZE && (
+                        <button
+                          onClick={() => setTelemetryLogPage((p) => p + 1)}
+                          className="mt-2 w-full py-1.5 text-xs text-purple-400 hover:text-purple-200 bg-purple-900/20 hover:bg-purple-900/40 rounded transition-colors"
+                        >
+                          Show more ({telemetryLogs.length - telemetryLogPage * LOG_PAGE_SIZE} remaining)
+                        </button>
+                      )}
+                    </>
+                  )
+                )}
+              </div>
+            )}
           </div>
         )}
       </main>

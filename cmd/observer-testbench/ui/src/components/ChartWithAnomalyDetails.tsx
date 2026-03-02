@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { TimeSeriesChart, getSeriesVariantColor } from './TimeSeriesChart';
+import { TimeSeriesChart, getSeriesVariantColor, getAnalyzerColorStable } from './TimeSeriesChart';
 import type { SeriesVariant } from './TimeSeriesChart';
 import type { Point, AnomalyMarker, Anomaly, SeriesID } from '../api/client';
+import { MAIN_TAG_FILTER_KEYS } from '../constants';
 
 export interface CorrelationRange {
   id: number;
@@ -26,6 +27,7 @@ interface ChartWithAnomalyDetailsProps {
   onTimeRangeChange?: (range: TimeRange | null) => void;
   smoothLines?: boolean;
   seriesVariants?: SeriesVariant[];
+  isTelemetry?: boolean;
 }
 
 function buildSeriesIDSet(seriesVariants?: SeriesVariant[]): Set<SeriesID> {
@@ -80,6 +82,7 @@ export function ChartWithAnomalyDetails({
   onTimeRangeChange,
   smoothLines = true,
   seriesVariants,
+  isTelemetry = false,
 }: ChartWithAnomalyDetailsProps) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [hoveredAnomalyId, setHoveredAnomalyId] = useState<string | null>(null);
@@ -196,6 +199,7 @@ export function ChartWithAnomalyDetails({
         highlightedMarkerId={activeAnomalyId}
         onMarkerHover={setHoveredAnomalyId}
         onMarkerClick={handleMarkerClick}
+        isTelemetry={isTelemetry}
       />
 
       {/* Anomaly details - compact list below chart */}
@@ -240,7 +244,13 @@ export function ChartWithAnomalyDetails({
                       className={`w-2 h-2 rounded-full flex-shrink-0 ${isLinked ? 'ring-2 ring-slate-200' : ''}`}
                       style={{ backgroundColor: seriesColor }}
                     />
-                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-700 text-slate-300">
+                    <span
+                      className="px-1.5 py-0.5 rounded text-[10px] font-medium"
+                      style={{
+                        backgroundColor: getAnalyzerColorStable(anomaly.analyzerName).fill,
+                        color: getAnalyzerColorStable(anomaly.analyzerName).stroke,
+                      }}
+                    >
                       {anomaly.analyzerName}
                     </span>
                     <span className="text-slate-400">
@@ -249,40 +259,71 @@ export function ChartWithAnomalyDetails({
                     <span className="text-slate-300 flex-1 truncate">
                       {debug ? `${formatValue(debug.deviationSigma)}σ from baseline` : anomaly.title}
                     </span>
+                    {anomaly.tags && anomaly.tags.length > 0 && (() => {
+                      const headerTags = anomaly.tags.filter((tag) =>
+                        MAIN_TAG_FILTER_KEYS.has(tag.slice(0, tag.indexOf(':')))
+                      );
+                      return headerTags.length > 0 ? (
+                        <span className="flex gap-1 flex-shrink-0">
+                          {headerTags.map((tag) => (
+                            <span key={tag} className="px-1 py-0.5 rounded text-[9px] bg-slate-700/80 text-slate-400 font-mono">
+                              {tag}
+                            </span>
+                          ))}
+                        </span>
+                      ) : null;
+                    })()}
                     <span className="text-slate-500">{isExpanded ? '▼' : '▶'}</span>
                   </button>
 
                   {/* Expanded details - rendered generically */}
-                  {isExpanded && debug && (
+                  {isExpanded && (
                     <div className="ml-1 mt-1 mb-2 p-2 bg-slate-900/50 rounded border border-slate-700/50">
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                        {Object.entries(debug).map(([key, value]) => {
-                          // Skip array fields in the grid (rendered separately below)
-                          if (Array.isArray(value)) return null;
-                          // Skip zero/null values
-                          if (value === 0 && key !== 'deviationSigma') return null;
-                          return (
-                            <div key={key} className="contents">
-                              <div className="text-slate-500">{formatFieldName(key)}:</div>
-                              <div className={
-                                key === 'deviationSigma'
-                                  ? (typeof value === 'number' && value > 0 ? 'text-red-400' : 'text-blue-400')
-                                  : 'text-slate-300'
-                              }>
-                                {key === 'deviationSigma'
-                                  ? `${typeof value === 'number' && value > 0 ? '+' : ''}${formatValue(value as number)}σ`
-                                  : formatDebugFieldValue(key, value as number)}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                      {debug && (
+                        <>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                            {Object.entries(debug).map(([key, value]) => {
+                              // Skip array fields in the grid (rendered separately below)
+                              if (Array.isArray(value)) return null;
+                              // Skip zero/null values
+                              if (value === 0 && key !== 'deviationSigma') return null;
+                              return (
+                                <div key={key} className="contents">
+                                  <div className="text-slate-500">{formatFieldName(key)}:</div>
+                                  <div className={
+                                    key === 'deviationSigma'
+                                      ? (typeof value === 'number' && value > 0 ? 'text-red-400' : 'text-blue-400')
+                                      : 'text-slate-300'
+                                  }>
+                                    {key === 'deviationSigma'
+                                      ? `${typeof value === 'number' && value > 0 ? '+' : ''}${formatValue(value as number)}σ`
+                                      : formatDebugFieldValue(key, value as number)}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
 
-                      {/* CUSUM sparkline - gated on field existence, not algorithm name */}
-                      {debug.cusumValues && debug.cusumValues.length > 1 && (
-                        <div className="mt-2">
-                          <div className="text-slate-500 mb-1">CUSUM accumulator:</div>
-                          <CUSUMSparkline values={debug.cusumValues} threshold={debug.threshold} />
+                          {/* CUSUM sparkline - gated on field existence, not algorithm name */}
+                          {debug.cusumValues && debug.cusumValues.length > 1 && (
+                            <div className="mt-2">
+                              <div className="text-slate-500 mb-1">CUSUM accumulator:</div>
+                              <CUSUMSparkline values={debug.cusumValues} threshold={debug.threshold} />
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {anomaly.tags && anomaly.tags.length > 0 && (
+                        <div className={debug ? 'mt-2 pt-2 border-t border-slate-700/50' : ''}>
+                          <div className="text-slate-500 mb-1">Tags:</div>
+                          <div className="flex gap-1 flex-wrap">
+                            {anomaly.tags.map((tag) => (
+                              <span key={tag} className="px-1.5 py-0.5 rounded text-[10px] bg-slate-700/80 text-slate-400 font-mono">
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>

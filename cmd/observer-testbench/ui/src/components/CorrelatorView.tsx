@@ -1,10 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useEffect, useState } from 'react';
 import { CorrelatorSection } from './CorrelatorSection';
 import { AnomalySwimlane } from './AnomalySwimlane';
 import { CompressedGroupCard } from './CompressedGroupCard';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 import type { ScenarioInfo, Correlation } from '../api/client';
 import type { TimeRange } from './ChartWithAnomalyDetails';
+import { MAIN_TAG_FILTER_KEYS } from '../constants';
+import { parseTagFilter, extractTagGroups, toggleTagInInput, matchesTagFilter } from '../filters';
 
 interface CorrelatorViewProps {
   state: ObserverState;
@@ -16,17 +18,45 @@ interface CorrelatorViewProps {
 export function CorrelatorView({ state, actions, sidebarWidth, timeRange }: CorrelatorViewProps) {
   const scenarios = state.scenarios ?? [];
   const components = state.components ?? [];
-  const correlations = state.correlations ?? [];
+  const allCorrelations = state.correlations ?? [];
   const compressedGroups = state.compressedGroups ?? [];
-  const anomalies = state.anomalies ?? [];
+  const allAnomalies = state.anomalies ?? [];
   const correlatorStats = state.correlatorStats;
 
   const [showRawData, setShowRawData] = useState(false);
+  const [tagFilterInput, setTagFilterInput] = useState('');
+  const initializedScenarioRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (state.activeScenario && initializedScenarioRef.current !== state.activeScenario) {
+      initializedScenarioRef.current = state.activeScenario;
+      setTagFilterInput('');
+    }
+  }, [state.activeScenario]);
 
   const correlatorComponents = useMemo(
     () => components.filter((c) => c.category === 'correlator'),
     [components]
   );
+
+  const tagGroups = useMemo(() => {
+    const all = extractTagGroups(allAnomalies.map((a) => a.tags ?? []));
+    return new Map([...all.entries()].filter(([k]) => MAIN_TAG_FILTER_KEYS.has(k)));
+  }, [allAnomalies]);
+
+  const anomalies = useMemo(() => {
+    const filter = parseTagFilter(tagFilterInput);
+    if (filter.include.size === 0 && filter.exclude.size === 0) return allAnomalies;
+    return allAnomalies.filter((a) => matchesTagFilter(a.tags ?? [], filter));
+  }, [allAnomalies, tagFilterInput]);
+
+  const correlations = useMemo(() => {
+    const filter = parseTagFilter(tagFilterInput);
+    if (filter.include.size === 0 && filter.exclude.size === 0) return allCorrelations;
+    return allCorrelations.filter((c) =>
+      c.anomalies.some((a) => matchesTagFilter(a.tags, filter))
+    );
+  }, [allCorrelations, tagFilterInput]);
 
   return (
     <div className="flex-1 flex">
@@ -88,6 +118,63 @@ export function CorrelatorView({ state, actions, sidebarWidth, timeRange }: Corr
               </span>
             </div>
           </div>
+        </div>
+
+        {/* Tag filter */}
+        <div className="p-4 border-b border-slate-700">
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            Tag Filter
+          </h2>
+          <div className="relative mb-2">
+            <input
+              type="text"
+              value={tagFilterInput}
+              onChange={(e) => setTagFilterInput(e.target.value)}
+              placeholder="host:web-1 service:api"
+              className="w-full bg-slate-700 text-slate-200 text-xs rounded px-2 py-1.5 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-purple-500 font-mono pr-6"
+            />
+            {tagFilterInput && (
+              <button
+                onClick={() => setTagFilterInput('')}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+              >
+                ×
+              </button>
+            )}
+          </div>
+          {tagGroups.size > 0 && (
+            <div className="space-y-2">
+              {[...tagGroups.entries()].map(([key, tags]) => {
+                const { include: activeTags, exclude: excludedTags } = parseTagFilter(tagFilterInput);
+                return (
+                  <div key={key}>
+                    <div className="text-[10px] text-slate-500 mb-1">{key}</div>
+                    <div className="flex flex-wrap gap-1">
+                      {tags.map((tag) => {
+                        const active = activeTags.get(key)?.has(tag) ?? false;
+                        const excluded = excludedTags.has(tag) || excludedTags.has(key);
+                        return (
+                          <button
+                            key={tag}
+                            onClick={() => setTagFilterInput(toggleTagInInput(tagFilterInput, tag))}
+                            className={`text-[10px] px-1.5 py-0.5 rounded font-mono transition-colors ${
+                              excluded
+                                ? 'bg-red-600/40 text-red-300 ring-1 ring-red-500/60'
+                                : active
+                                ? 'bg-purple-600/40 text-purple-300 ring-1 ring-purple-500/60'
+                                : 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-300'
+                            }`}
+                          >
+                            {tag}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </aside>
 
@@ -273,10 +360,7 @@ function TimeClusterSection({ correlations }: { correlations: Correlation[] }) {
       </h2>
       <div className="space-y-2">
         {correlations.map((c, i) => (
-          <div
-            key={i}
-            className="bg-slate-700/50 rounded p-3"
-          >
+          <div key={i} className="bg-slate-700/50 rounded p-3">
             <div className="flex items-center justify-between">
               <div className="font-medium text-purple-400 text-sm">{c.title}</div>
               <span className="text-xs text-slate-500">
@@ -296,6 +380,27 @@ function TimeClusterSection({ correlations }: { correlations: Correlation[] }) {
                 </span>
               ))}
             </div>
+            {c.anomalies.length > 0 && (
+              <div className="mt-2 space-y-1">
+                {c.anomalies.map((a, j) => (
+                  <div key={j} className="flex items-start gap-2 text-xs">
+                    <span className="text-slate-500 font-mono w-20 flex-shrink-0 text-right pt-0.5">
+                      {new Date(a.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
+                    </span>
+                    <span className="text-slate-300 flex-1">{a.title}</span>
+                    {a.tags && a.tags.length > 0 && (
+                      <div className="flex gap-1 flex-wrap flex-shrink-0">
+                        {a.tags.map((tag) => (
+                          <span key={tag} className="px-1 py-0.5 rounded text-[9px] bg-slate-600/50 text-slate-400 font-mono">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="text-xs text-slate-500 mt-2">
               {new Date(c.firstSeen * 1000).toLocaleTimeString()} -{' '}
               {new Date(c.lastUpdated * 1000).toLocaleTimeString()}
