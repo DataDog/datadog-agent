@@ -166,7 +166,7 @@ func (w *noAggregationStreamWorker) run() {
 		metrics.Serialize(
 			w.seriesSink,
 			w.sketchesSink,
-			func(_ metrics.SerieSink, _ metrics.SketchesSink) {
+			func(seriesSink metrics.SerieSink, _ metrics.SketchesSink) {
 			mainloop:
 				for {
 					select {
@@ -220,7 +220,7 @@ func (w *noAggregationStreamWorker) run() {
 							serie.Host = sample.Host
 							serie.MType = mtype
 							serie.Interval = bucketSize
-							w.seriesSink.Append(&serie)
+							seriesSink.Append(&serie)
 
 							w.taggerBuffer.Reset()
 							w.metricBuffer.Reset()
