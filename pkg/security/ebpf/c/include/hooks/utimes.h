@@ -6,7 +6,7 @@
 #include "helpers/syscalls.h"
 
 int __attribute__((always_inline)) trace__sys_utimes(const char *filename) {
-    if (is_discarded_by_pid()) {
+    if (is_discarded_by_pid() || is_auid_discarder()) {
         return 0;
     }
 

@@ -9,6 +9,9 @@
 #include "helpers/syscalls.h"
 
 int __attribute__((always_inline)) trace__sys_unlink(u8 async, int dirfd, const char *filename, int flags) {
+    if (is_auid_discarder()) {
+        return 0;
+    }
     struct syscall_cache_t syscall = {
         .type = EVENT_UNLINK,
         .policy = fetch_policy(EVENT_UNLINK),

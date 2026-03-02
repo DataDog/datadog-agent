@@ -6,8 +6,12 @@
 #include "helpers/events_predicates.h"
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
+#include "helpers/discarders.h"
 
 int __attribute__((always_inline)) trace__sys_rmdir(u8 async, const char *filename) {
+    if (is_auid_discarder()) {
+        return 0;
+    }
     struct syscall_cache_t syscall = {
         .type = EVENT_RMDIR,
         .policy = fetch_policy(EVENT_RMDIR),

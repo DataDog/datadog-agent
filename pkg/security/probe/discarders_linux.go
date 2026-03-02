@@ -641,6 +641,24 @@ func setDNSDiscarderMask(manager *manager.Manager, dnsMask uint16) error {
 	return nil
 }
 
+func auidDiscarder(rs *rules.RuleSet, event *model.Event, probe *EBPFProbe, _ Discarder) (bool, error) {
+	value, err := event.GetFieldValue("process.auid")
+	if err != nil {
+		return false, err
+	}
+
+	auid := value.(int)
+	probe.erpcRequest.OP = erpc.DiscardAuidOp
+	probe.erpcRequest.Data = [256]byte{}
+	binary.LittleEndian.PutUint32(probe.erpcRequest.Data[:], uint32(auid))
+	err = probe.Erpc.Request(probe.erpcRequest)
+
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
 func init() {
 	allDiscarderHandlers["open.file.path"] = filenameDiscarderWrapper(model.FileOpenEventType,
 		func(event *model.Event) (eval.Field, *model.FileEvent, bool) {
@@ -686,7 +704,7 @@ func init() {
 		func(event *model.Event) (eval.Field, *model.FileEvent, bool) {
 			return "removexattr.file.path", &event.RemoveXAttr.File, false
 		})
-
+	allDiscarderHandlers["process.auid"] = auidDiscarder
 	allDiscarderHandlers["mmap.file.path"] = filenameDiscarderWrapper(model.MMapEventType,
 		func(event *model.Event) (eval.Field, *model.FileEvent, bool) {
 			return "mmap.file.path", &event.MMap.File, false
