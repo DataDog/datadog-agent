@@ -32,7 +32,7 @@ while [[ "$1" == -* ]]; do
   esac
 done
 
-case "${1:-help}" in
+case "${1:-}" in
 
   #=== BASELINE: clean traffic, no perturbations ===
   baseline)
