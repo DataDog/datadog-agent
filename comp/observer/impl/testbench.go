@@ -734,6 +734,24 @@ func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, 
 
 		// TODO A(celian): Handle log telemetry
 		if telemetryEvent.Log != nil {
+			timestamp := int64(0)
+			if tlv, ok := telemetryEvent.Log.(logTimestamper); ok {
+				timestamp = tlv.GetTimestamp()
+			}
+			if timestamp == 0 {
+				timestamp = baseTimestamp
+			}
+			log := &logObs{
+				content:   telemetryEvent.Log.GetContent(),
+				status:    telemetryEvent.Log.GetStatus(),
+				tags:      telemetryEvent.Log.GetTags(),
+				hostname:  telemetryEvent.Log.GetHostname(),
+				timestamp: timestamp,
+			}
+			if telemetryEvent.AnalyzerName == "" {
+				telemetryEvent.AnalyzerName = analyzerName
+			}
+			// Save this for UI
 		}
 	}
 }

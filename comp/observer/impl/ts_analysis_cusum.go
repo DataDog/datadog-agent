@@ -78,6 +78,8 @@ func (c *CUSUMDetector) Analyze(series observer.Series) observer.TimeSeriesAnaly
 	for _, p := range series.Points {
 		telemetry = append(telemetry, observer.ObserverTelemetry{Metric: &metricObs{name: "cusum_baseline_eval", value: p.Value, tags: []string{"series:" + series.Name}, timestamp: p.Timestamp}})
 	}
+	telemetry = append(telemetry, observer.ObserverTelemetry{Log: &logObs{content: []byte(fmt.Sprintf("CUSUMDetector: analyzing series %s start", series.Name)), timestamp: series.Points[0].Timestamp}})
+	telemetry = append(telemetry, observer.ObserverTelemetry{Log: &logObs{content: []byte(fmt.Sprintf("CUSUMDetector: analyzing series %s end", series.Name)), timestamp: series.Points[len(series.Points)-1].Timestamp}})
 
 	// Skip :count metrics - these are cardinality counts that create noise
 	// when container counts change (e.g., 1 -> 2 pods)
