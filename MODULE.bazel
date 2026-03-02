@@ -52,9 +52,11 @@ bazel_dep(name = "supply_chain_tools", version = "0.0.1")
 bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 
 # Temporary until gazelle > 0.47.0 with Go 1.24+ fixes is in BCR
+# and until a release includes bazel-contrib/bazel-gazelle#2284
+# (switch from deprecated rules_proto to protobuf module)
 git_override(
     module_name = "gazelle",
-    commit = "6b2aeccd77d2668a21202f5b60e10b035419c61a",  # master as of Feb 13, 2026
+    commit = "a3e63b06e1e5c4c7a7849874fadf7ccda8868870",  # master as of Feb 26, 2026
     remote = "https://github.com/bazel-contrib/bazel-gazelle.git",
 )
 

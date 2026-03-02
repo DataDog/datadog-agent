@@ -1,0 +1,216 @@
+---
+# Windows e2e test jobs extracted from .gitlab/test/e2e/e2e.yml
+
+.new_e2e_template_needs_windows_x64:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - windows_msi_and_bosh_zip_x64-a7
+    - windows_msi_and_bosh_zip_x64-a7-fips
+
+new-e2e-agent-configuration-windows:
+  extends: .new_e2e_template_needs_windows_x64
+  rules:
+    - !reference [.on_acfg_or_e2e_changes]
+    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-configuration
+    TEAM: agent-configuration
+    EXTRA_PARAMS: --run "Windows"
+
+new-e2e-agent-runtimes-windows:
+  extends: .new_e2e_template_needs_windows_x64
+  rules:
+    - !reference [.on_e2e_main_release_or_rc]
+    - changes:
+        paths:
+          - test/new-e2e/tests/agent-runtimes/**/*
+        compare_to: $COMPARE_TO_BRANCH
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-runtimes
+    TEAM: agent-runtimes
+    EXTRA_PARAMS: --run "Windows"
+    ON_NIGHTLY_FIPS: "true"
+
+new-e2e-agent-subcommands-windows:
+  extends: .new_e2e_template_needs_windows_x64
+  rules:
+    - !reference [.on_e2e_main_release_or_rc]
+    - changes:
+        paths:
+          - test/new-e2e/tests/agent-subcommands/**/*
+        compare_to: $COMPARE_TO_BRANCH
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-subcommands
+    TEAM: agent-configuration
+    ON_NIGHTLY_FIPS: "true"
+    EXTRA_PARAMS: --run "Windows"
+
+new-e2e-windows-fips-compliance-test:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent_fips
+    - windows_msi_and_bosh_zip_x64-a7-fips
+    - deploy_windows_testing-a7-fips
+  rules:
+    - !reference [.on_windows_fips_compliance_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/fips-compliance
+    TEAM: windows-products
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestWindowsVM$"
+      - EXTRA_PARAMS: --run "TestFIPSCiphersWindowsSuite$"
+
+new-e2e-windows-service-test:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - windows_msi_and_bosh_zip_x64-a7
+  rules:
+    - !reference [.on_windows_service_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/windows/service-test
+    TEAM: windows-products
+    ON_NIGHTLY_FIPS: "true"
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestServiceBehaviorAgentCommand
+      - EXTRA_PARAMS: --run TestServiceBehaviorPowerShell
+      - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledSystemProbe
+      - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledProcessAgent
+      - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledTraceAgent
+      - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledInstaller
+      - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorAgentCommand
+      - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorPowerShell
+      - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorWhenDisabledSystemProbe
+      - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorWhenDisabledProcessAgent
+      - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent
+      - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorWhenDisabledInstaller
+
+new-e2e-windows-certificate:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_windows_certificate_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+  variables:
+    TARGETS: ./tests/windows/windows-certificate
+    TEAM: windows-products
+    EXTRA_PARAMS: --run "TestRemoteCertificates$"
+
+new-e2e-npm-packages-windows:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_npm_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - windows_msi_and_bosh_zip_x64-a7
+  variables:
+    TARGETS: ./tests/npm
+    TEAM: cloud-network-monitoring
+    EXTRA_PARAMS: --run "TestEC2VMWKitSuite"
+    ON_NIGHTLY_FIPS: "true"
+
+new-e2e-alp-windows:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - windows_msi_and_bosh_zip_x64-a7
+  rules:
+    - !reference [.on_alp_or_e2e_changes]
+    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-log-pipelines
+    TEAM: agent-log-pipelines
+    EXTRA_PARAMS: --run "Windows"
+  # Temporary for #incident-44744
+  allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+
+new-e2e-cws-windows:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_cws_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - windows_msi_and_bosh_zip_x64-a7
+  variables:
+    TARGETS: ./tests/cws
+    TEAM: csm-threats-agent
+    EXTRA_PARAMS: --run "Windows"
+    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
+    # ON_NIGHTLY_FIPS: "true"
+  # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
+  # NOTE: Do not remove this from e2e fips pipeline before remote config is available with fips, you can re-enable on fips pipeline when this test does not rely on remote-configuration
+  allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+
+new-e2e-process-windows:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - windows_msi_and_bosh_zip_x64-a7
+  rules:
+    - !reference [.on_process_or_e2e_changes]
+    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
+    - !reference [.manual]
+  variables:
+    EXTRA_PARAMS: --run "Windows"
+    TARGETS: ./tests/process
+    TEAM: container-experiences
+    ON_NIGHTLY_FIPS: "true"
+
+new-e2e-netpath-windows:
+  extends: .new_e2e_template_needs_windows_x64
+  rules:
+    - !reference [.on_netpath_or_e2e_changes]
+    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/netpath
+    TEAM: cloud-network-monitoring
+    EXTRA_PARAMS: --run "Windows"
+    ON_NIGHTLY_FIPS: "true"
+
+new-e2e-windows-systemprobe:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_windows_systemprobe_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+    - tests_windows_sysprobe_x64
+    - windows_msi_and_bosh_zip_x64-a7
+  variables:
+    TARGETS: ./tests/sysprobe-functional
+    TEAM: windows-products
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestUSMAutoTaggingSuite
+      - EXTRA_PARAMS: --run TestVMSuite
+
+new-e2e-windows-security-agent:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_windows_security_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+    - tests_windows_secagent_x64
+  variables:
+    TARGETS: ./tests/security-agent-functional
+    TEAM: windows-products

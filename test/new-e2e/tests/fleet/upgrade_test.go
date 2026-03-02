@@ -28,7 +28,7 @@ func newUpgradeSuite() e2e.Suite[environments.Host] {
 }
 
 func TestFleetUpgrade(t *testing.T) {
-	suite.Run(t, newUpgradeSuite, suite.AllPlatforms)
+	suite.Run(t, newUpgradeSuite, suite.Platforms())
 }
 
 func (s *upgradeSuite) TestUpgradeFailureTimeout() {

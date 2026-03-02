@@ -130,7 +130,7 @@
 /.gitlab/build/binary_build/fakeintake.yml                 @DataDog/agent-devx
 /.gitlab/build/binary_build/host_profiler.yml              @DataDog/opentelemetry-agent @DataDog/profiling-full-host @DataDog/agent-build
 /.gitlab/build/binary_build/system_probe.yml               @DataDog/ebpf-platform @DataDog/agent-build
-/.gitlab/build/binary_build/windows.yml                    @DataDog/agent-build @DataDog/windows-products
+/.gitlab/windows/build/binary_build/windows.yml            @DataDog/agent-build @DataDog/windows-products
 
 /.gitlab/build/source_test/codeql_scan.yml                 @DataDog/sdlc-security
 
@@ -140,14 +140,14 @@
 
 /.gitlab/deploy/deploy_packages/                               @DataDog/agent-delivery
 /.gitlab/deploy/deploy_packages/oci.yml                        @DataDog/agent-delivery @DataDog/fleet
-/.gitlab/deploy/deploy_packages/windows.yml                    @DataDog/agent-delivery @DataDog/windows-products
-/.gitlab/distribute/winget.yml                     @DataDog/agent-delivery @DataDog/windows-products
+/.gitlab/windows/deploy/deploy_packages/windows.yml           @DataDog/agent-delivery @DataDog/windows-products
+/.gitlab/windows/distribute/winget/windows.yml              @DataDog/agent-delivery @DataDog/windows-products
 /.gitlab/deploy/deploy_packages/cluster_agent_cloudfoundry.yml @DataDog/agent-integrations @DataDog/agent-devx
 /.gitlab/deploy/deploy_packages/e2e.yml                        @DataDog/agent-devx  @DataDog/fleet
 
 /.gitlab/.pre/deps_build/                                 @DataDog/ebpf-platform @DataDog/agent-build @DataDog/windows-products
 
-/.gitlab/test/e2e_install_packages/windows.yml            @DataDog/agent-onboarding @DataDog/windows-products
+/.gitlab/windows/test/e2e_install_packages/windows.yml   @DataDog/agent-onboarding @DataDog/windows-products
 
 /.gitlab/.pre/common/                                     @DataDog/agent-devx
 
@@ -157,21 +157,21 @@
 
 /.gitlab/test/functional_test/oracle.yml                  @DataDog/agent-devx @DataDog/database-monitoring
 
-/.gitlab/deploy/choco_build/choco_build.yml                 @DataDog/agent-build @DataDog/windows-products
+/.gitlab/windows/deploy/choco_build/windows.yml             @DataDog/agent-build @DataDog/windows-products
 
-/.gitlab/test/integration_test/windows.yml                @DataDog/agent-devx @DataDog/windows-products
+/.gitlab/windows/test/integration_test/windows.yml        @DataDog/agent-devx @DataDog/windows-products
 
 /.gitlab/test/kernel_matrix_testing                       @DataDog/ebpf-platform
 /.gitlab/test/kernel_matrix_testing/security_agent.yml    @DataDog/agent-security
 
 /.gitlab/.pre/common/container_publish_job_templates.yml  @DataDog/container-integrations @DataDog/agent-delivery
 /.gitlab/deploy/container_build/                            @DataDog/container-platform @DataDog/agent-build
-/.gitlab/deploy/container_build/docker_windows*             @DataDog/agent-build @DataDog/windows-products
+/.gitlab/windows/deploy/container_build/*                   @DataDog/agent-build @DataDog/windows-products
 
 /.gitlab/deploy/dev_container_deploy/                       @DataDog/container-integrations @DataDog/agent-delivery
 /.gitlab/deploy/dev_container_deploy/fakeintake.yml         @DataDog/agent-devx
 /.gitlab/deploy/dev_container_deploy/e2e.yml                @DataDog/agent-devx
-/.gitlab/deploy/dev_container_deploy/docker_windows.yml     @DataDog/agent-delivery @DataDog/windows-products
+/.gitlab/windows/deploy/dev_container_deploy/windows.yml    @DataDog/agent-delivery @DataDog/windows-products
 
 /.gitlab/deploy/container_scan/container_scan.yml           @DataDog/container-integrations @DataDog/agent-delivery
 
@@ -179,11 +179,11 @@
 /.gitlab/.pre/maintenance_jobs/docker.yml                 @DataDog/container-integrations @DataDog/agent-delivery
 
 /.gitlab/build/source_test/ebpf.yml                        @DataDog/ebpf-platform @DataDog/agent-devx
-/.gitlab/build/source_test/windows.yml                     @DataDog/agent-devx @DataDog/windows-products
+/.gitlab/windows/build/source_test/windows.yml             @DataDog/agent-devx @DataDog/windows-products
 /.gitlab/build/source_test/go_generate_check.yml           @DataDog/agent-security
 
 /.gitlab/build/package_build/                              @DataDog/agent-build
-/.gitlab/build/package_build/windows.yml                   @DataDog/agent-build @DataDog/windows-products
+/.gitlab/windows/build/package_build/windows.yml           @DataDog/agent-build @DataDog/windows-products
 /.gitlab/build/package_build/installer.yml                 @DataDog/agent-build @DataDog/fleet
 /.gitlab/build/packaging/                                  @DataDog/agent-build
 

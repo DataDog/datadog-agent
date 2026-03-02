@@ -14,9 +14,12 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	sceneks "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	proveks "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/eks"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 )
 
 //go:embed values.yaml
@@ -27,24 +30,35 @@ type eksSuite struct {
 }
 
 func TestEKSSuite(t *testing.T) {
-	e2e.Run(t, &eksSuite{}, e2e.WithProvisioner(proveks.Provisioner(
+	suite := &eksSuite{}
+
+	eksOptions := []sceneks.Option{
+		sceneks.WithLinuxNodeGroup(),
+		sceneks.WithBottlerocketNodeGroup(),
+		sceneks.WithLinuxARMNodeGroup(),
+	}
+
+	agentOptions := []kubernetesagentparams.Option{
+		kubernetesagentparams.WithDualShipping(),
+		kubernetesagentparams.WithHelmValues(containerHelmValues),
+	}
+
+	skipWindows, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipWindows, false)
+	require.NoError(t, err, "failed to get %s parameter", parameters.SkipWindows)
+	if !skipWindows {
+		eksOptions = append(eksOptions, sceneks.WithWindowsNodeGroup())
+		agentOptions = append(agentOptions, kubernetesagentparams.WithWindowsImage())
+	}
+
+	e2e.Run(t, suite, e2e.WithProvisioner(proveks.Provisioner(
 		proveks.WithRunOptions(
-			sceneks.WithEKSOptions(
-				sceneks.WithLinuxNodeGroup(),
-				sceneks.WithWindowsNodeGroup(),
-				sceneks.WithBottlerocketNodeGroup(),
-				sceneks.WithLinuxARMNodeGroup(),
-			),
+			sceneks.WithEKSOptions(eksOptions...),
 			sceneks.WithDeployDogstatsd(),
 			sceneks.WithDeployTestWorkload(),
 			sceneks.WithFakeIntakeOptions(
 				fakeintake.WithRetentionPeriod("31m"),
 			),
-			sceneks.WithAgentOptions(
-				kubernetesagentparams.WithDualShipping(),
-				kubernetesagentparams.WithWindowsImage(),
-				kubernetesagentparams.WithHelmValues(containerHelmValues),
-			),
+			sceneks.WithAgentOptions(agentOptions...),
 			sceneks.WithDeployArgoRollout(),
 		),
 	)))
