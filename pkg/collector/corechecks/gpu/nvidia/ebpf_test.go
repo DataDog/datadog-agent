@@ -160,8 +160,8 @@ func testCollectWithSingleActiveProcess(t *testing.T) {
 	metrics, err := collector.Collect()
 	require.NoError(t, err)
 
-	// Should have 5 metrics: 3 usage (core, memory, sm_active) + 2 limit
-	assert.Len(t, metrics, 5)
+	// Should have 7 metrics: 3 usage (core, memory, sm_active) + 2 limit + 2 global activity metrics (sm_active, gr_engine_active)
+	assert.Len(t, metrics, 7)
 
 	// Verify usage metrics
 	coreUsage := findMetric(metrics, "process.core.usage")
@@ -236,8 +236,8 @@ func testCollectWithMultipleActiveProcesses(t *testing.T) {
 	metrics, err := collector.Collect()
 	require.NoError(t, err)
 
-	// Should have 8 metrics: 6 usage (3 per process: core, memory, sm_active) + 2 limit
-	assert.Len(t, metrics, 8)
+	// Should have 8 metrics: 6 usage (3 per process: core, memory, sm_active) + 2 limit + 2 global activity metrics (sm_active, gr_engine_active)
+	assert.Len(t, metrics, 10)
 
 	// Verify limit metrics have aggregated workloads
 	coreLimit := findMetric(metrics, "core.limit")
@@ -280,7 +280,7 @@ func testCollectWithInactiveProcesses(t *testing.T) {
 	// First collect with process 123
 	metrics, err := collector.Collect()
 	require.NoError(t, err)
-	assert.Len(t, metrics, 5)
+	assert.Len(t, metrics, 7)
 
 	// Now collect with empty stats (process became inactive)
 	cache.stats = &model.GPUStats{ProcessMetrics: []model.ProcessStatsTuple{}}
@@ -288,8 +288,8 @@ func testCollectWithInactiveProcesses(t *testing.T) {
 	metrics, err = collector.Collect()
 	require.NoError(t, err)
 
-	// Should have 5 metrics: 3 zero usage (core, memory, sm_active) + 2 limit
-	assert.Len(t, metrics, 5)
+	// Should have 7 metrics: 3 zero usage (core, memory, sm_active) + 2 limit + 2 global activity metrics (sm_active, gr_engine_active)
+	assert.Len(t, metrics, 7)
 
 	// Verify zero usage metrics for inactive process
 	coreUsage := findMetric(metrics, "process.core.usage")
@@ -359,11 +359,15 @@ func testCollectFiltersByDeviceUUID(t *testing.T) {
 	metrics, err := collector.Collect()
 	require.NoError(t, err)
 
-	// Should only have metrics for device1UUID (5 metrics: 3 usage + 2 limit)
-	assert.Len(t, metrics, 5)
+	// Should only have metrics for device1UUID (5 metrics: 3 usage + 2 limit + 2 global activity metrics (sm_active, gr_engine_active))
+	assert.Len(t, metrics, 7)
 
 	// All metrics should be for PID 123 only
 	for _, metric := range metrics {
+		if metric.Name == "sm_active" || metric.Name == "gr_engine_active" {
+			continue
+		}
+
 		require.Len(t, metric.AssociatedWorkloads, 1)
 		assert.Equal(t, "process", string(metric.AssociatedWorkloads[0].Kind))
 		assert.Equal(t, "123", metric.AssociatedWorkloads[0].ID)
@@ -425,8 +429,8 @@ func testCollectAggregatesPidTagsForLimits(t *testing.T) {
 	metrics, err := collector.Collect()
 	require.NoError(t, err)
 
-	// Should have 11 metrics: 9 usage (3 per process: core, memory, sm_active) + 2 limit
-	assert.Len(t, metrics, 11)
+	// Should have 11 metrics: 9 usage (3 per process: core, memory, sm_active) + 2 limit + 2 device metrics (sm_active, gr_engine_active)
+	assert.Len(t, metrics, 13)
 
 	// Verify limit metrics have all workloads aggregated
 	coreLimit := findMetric(metrics, "core.limit")
@@ -486,8 +490,8 @@ func testCollectEmitsSmActiveMetrics(t *testing.T) {
 	metrics, err := collector.Collect()
 	require.NoError(t, err)
 
-	// Should have 5 metrics: 3 usage (core, memory, sm_active) + 2 limit
-	assert.Len(t, metrics, 5)
+	// Should have 7 metrics: 3 usage (core, memory, sm_active) + 2 limit + 2 global activity metrics (sm_active, gr_engine_active)
+	assert.Len(t, metrics, 7)
 
 	// Verify process.sm_active metric
 	smActive := findMetric(metrics, "process.sm_active")
@@ -600,9 +604,8 @@ func testCollectEmitsZeroDeviceActivityWhenIdle(t *testing.T) {
 	metrics, err := collector.Collect()
 	require.NoError(t, err)
 
-	// Should still have 10 metrics even without global device metrics:
-	// 6 usage (3 per process) + 2 limit + 2 device metrics (sm_active, gr_engine_active)
-	assert.Len(t, metrics, 10)
+	// Should have 2 limit metrics and 2 device metrics (sm_active, gr_engine_active)
+	assert.Len(t, metrics, 4)
 
 	deviceSmActive := findMetric(metrics, "sm_active")
 	require.NotNil(t, deviceSmActive, "sm_active metric not found")
