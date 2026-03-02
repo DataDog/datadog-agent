@@ -26,9 +26,11 @@ const (
 
 // IncrementalJSONValidator is a JSON validator that processes JSON messages incrementally.
 type IncrementalJSONValidator struct {
-	decoder  *json.Decoder
-	writer   *bytes.Buffer
-	objCount int
+	decoder      *json.Decoder
+	writer       *bytes.Buffer
+	objCount     int
+	arrCount     int
+	totalWritten int64
 }
 
 // NewIncrementalJSONValidator creates a new IncrementalJSONValidator.
@@ -49,6 +51,8 @@ func (d *IncrementalJSONValidator) Write(s []byte) JSONState {
 		return Invalid
 	}
 
+	d.totalWritten += int64(len(s))
+
 	isValid := false
 	for {
 		t, err := d.decoder.Token()
@@ -62,29 +66,36 @@ func (d *IncrementalJSONValidator) Write(s []byte) JSONState {
 
 		switch delim := t.(type) {
 		case json.Delim:
-			if delim.String() == "{" {
+			switch delim.String() {
+			case "{":
 				d.objCount++
-				break
-			}
-			if delim.String() == "}" {
+			case "}":
 				d.objCount--
-				break
-			}
-			// If we're not in an object, we can't have a valid JSON message
-			if d.objCount == 0 {
-				isValid = false
+			case "[":
+				d.arrCount++
+			case "]":
+				d.arrCount--
 			}
 		}
 
+		if d.objCount <= 0 && d.arrCount <= 0 {
+			break
+		}
 	}
 	if !isValid {
 		return Invalid
 	}
 
-	if d.objCount <= 0 {
+	if d.objCount <= 0 && d.arrCount <= 0 {
 		return Complete
 	}
 	return Incomplete
+}
+
+// SuffixLen returns the number of trailing bytes after the completed JSON structure.
+// Only meaningful immediately after Write() returns Complete.
+func (d *IncrementalJSONValidator) SuffixLen() int {
+	return int(d.totalWritten - d.decoder.InputOffset())
 }
 
 // Reset resets the IncrementalJSONValidator.
@@ -92,4 +103,6 @@ func (d *IncrementalJSONValidator) Reset() {
 	d.writer.Reset()
 	d.decoder = json.NewDecoder(d.writer)
 	d.objCount = 0
+	d.arrCount = 0
+	d.totalWritten = 0
 }
