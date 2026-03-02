@@ -9,11 +9,7 @@ import "strings"
 
 var (
 	extensionSanitizer = func(kind FieldValueType, pattern string) (string, error) {
-		if kind == RegexpValueType {
-			return pattern, nil
-		}
-
-		if strings.HasPrefix(pattern, ".") {
+		if kind == RegexpValueType || strings.HasPrefix(pattern, ".") {
 			return pattern, nil
 		}
 
