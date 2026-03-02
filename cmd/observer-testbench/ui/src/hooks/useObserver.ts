@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../api/client';
 import type {
-  StatusResponse, ScenarioInfo, ComponentInfo, SeriesInfo, Anomaly, LogAnomaly, Correlation,
+  StatusResponse, ScenarioInfo, ComponentInfo, SeriesInfo, Anomaly, LogAnomaly, LogEntry, Correlation,
   CompressedGroup, CorrelatorDataResponse, CorrelatorStats
 } from '../api/client';
 
@@ -14,6 +14,7 @@ export interface ObserverState {
   components: ComponentInfo[];
   series: SeriesInfo[];
   anomalies: Anomaly[];
+  logs: LogEntry[];
   logAnomalies: LogAnomaly[];
   correlations: Correlation[];
   // Generic correlator data keyed by correlator name
@@ -39,6 +40,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
   const [components, setComponents] = useState<ComponentInfo[]>([]);
   const [series, setSeries] = useState<SeriesInfo[]>([]);
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
   const [logAnomalies, setLogAnomalies] = useState<LogAnomaly[]>([]);
   const [correlations, setCorrelations] = useState<Correlation[]>([]);
   const [correlatorData, setCorrelatorData] = useState<Map<string, CorrelatorDataResponse>>(new Map());
@@ -64,13 +66,14 @@ export function useObserver(): [ObserverState, ObserverActions] {
       // First fetch components and basic data
       const [
         statusData, scenariosData, componentsData, seriesData,
-        anomaliesData, logAnomaliesData, correlationsData, compressedGroupsData, statsData
+        anomaliesData, logsData, logAnomaliesData, correlationsData, compressedGroupsData, statsData
       ] = await Promise.all([
           api.getStatus(),
           api.getScenarios(),
           api.getComponents(),
           api.getSeries(),
           api.getAnomalies(),
+          api.getLogs(),
           api.getLogAnomalies(),
           api.getCorrelations(),
           api.getCompressedCorrelations(),
@@ -98,6 +101,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
       setComponents(componentsData);
       setSeries(seriesData);
       setAnomalies(anomaliesData);
+      setLogs(logsData);
       setLogAnomalies(logAnomaliesData);
       setCorrelations(correlationsData);
       setCompressedGroups(compressedGroupsData);
@@ -208,6 +212,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
       components,
       series,
       anomalies,
+      logs,
       logAnomalies,
       correlations,
       correlatorData,

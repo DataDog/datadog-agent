@@ -74,6 +74,8 @@ type LogProcessorResult struct {
 	Metrics []MetricOutput
 	// Anomalies are directly detected anomalies (bypassing the metrics→TSAnalysis path).
 	Anomalies []AnomalyOutput
+	// Used to debug anomaly detectors
+	Telemetry []ObserverTelemetry
 }
 
 // MetricOutput is a timeseries value derived from log analysis.
@@ -183,6 +185,14 @@ type Point struct {
 	Value     float64
 }
 
+// Describes a telemetry event that is emitted by the observer.
+// This could be a metric or a log for instance.
+type ObserverTelemetry struct {
+	AnalyzerName string
+	Metric       MetricView
+	Log          LogView
+}
+
 // TimeSeriesAnalysis analyzes a time series for anomalies.
 // Implementations should be stateless and just do math on the points.
 type TimeSeriesAnalysis interface {
@@ -195,6 +205,8 @@ type TimeSeriesAnalysis interface {
 // TimeSeriesAnalysisResult contains outputs from time series analysis.
 type TimeSeriesAnalysisResult struct {
 	Anomalies []AnomalyOutput
+	// Used to debug anomaly detectors
+	Telemetry []ObserverTelemetry
 }
 
 // AnomalyProcessor accumulates anomaly events and produces reports.

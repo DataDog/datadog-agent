@@ -43,6 +43,7 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/series/id/", api.cors(api.handleSeriesDataByID))
 	mux.HandleFunc("/api/series/", api.cors(api.handleSeriesData))
 	mux.HandleFunc("/api/anomalies", api.cors(api.handleAnomalies))
+	mux.HandleFunc("/api/logs", api.cors(api.handleLogs))
 	mux.HandleFunc("/api/log-anomalies", api.cors(api.handleLogAnomalies))
 	mux.HandleFunc("/api/correlations", api.cors(api.handleCorrelations))
 	mux.HandleFunc("/api/leadlag", api.cors(api.handleLeadLag))
@@ -453,6 +454,38 @@ func (api *TestBenchAPI) handleLogAnomalies(w http.ResponseWriter, r *http.Reque
 	api.writeJSON(w, response)
 }
 
+// handleLogs returns raw log entries.
+func (api *TestBenchAPI) handleLogs(w http.ResponseWriter, r *http.Request) {
+	levelFilter := r.URL.Query().Get("level")
+
+	type logEntryResponse struct {
+		Timestamp int64    `json:"timestamp"`
+		Status    string   `json:"status"`
+		Content   string   `json:"content"`
+		Tags      []string `json:"tags"`
+	}
+
+	logs := api.tb.GetRawLogs()
+	response := make([]logEntryResponse, 0, len(logs))
+	for _, l := range logs {
+		if levelFilter != "" && l.Status != levelFilter {
+			continue
+		}
+		tags := l.Tags
+		if tags == nil {
+			tags = []string{}
+		}
+		response = append(response, logEntryResponse{
+			Timestamp: l.Timestamp,
+			Status:    l.Status,
+			Content:   l.Content,
+			Tags:      tags,
+		})
+	}
+
+	api.writeJSON(w, response)
+}
+
 // handleCorrelations returns detected correlations.
 func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, r *http.Request) {
 	correlations := api.tb.GetCorrelations()
@@ -463,6 +496,7 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, r *http.Reque
 		Description string   `json:"description"`
 		Timestamp   int64    `json:"timestamp"`
 		Score       *float64 `json:"score,omitempty"`
+		Tags        []string `json:"tags"`
 	}
 
 	type correlationResponse struct {
@@ -479,12 +513,17 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, r *http.Reque
 	for i, c := range correlations {
 		anomalies := make([]anomalyOutput, len(c.Anomalies))
 		for j, a := range c.Anomalies {
+			tags := a.Tags
+			if tags == nil {
+				tags = []string{}
+			}
 			anomalies[j] = anomalyOutput{
 				Source:      string(a.Source),
 				Title:       a.Title,
 				Description: a.Description,
 				Timestamp:   a.Timestamp,
 				Score:       a.Score,
+				Tags:        tags,
 			}
 		}
 		response[i] = correlationResponse{

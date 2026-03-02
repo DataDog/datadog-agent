@@ -17,7 +17,7 @@ const ANALYZER_PALETTE: { fill: string; stroke: string }[] = [
 const analyzerColorCache = new Map<string, { fill: string; stroke: string }>();
 let nextAnalyzerColorIndex = 0;
 
-function getAnalyzerColorStable(analyzerName: string) {
+export function getAnalyzerColorStable(analyzerName: string) {
   if (!analyzerColorCache.has(analyzerName)) {
     analyzerColorCache.set(analyzerName, ANALYZER_PALETTE[nextAnalyzerColorIndex % ANALYZER_PALETTE.length]);
     nextAnalyzerColorIndex++;
@@ -48,9 +48,6 @@ const LINE_COLORS = [
   '#14b8a6', // teal
 ];
 
-function getAnalyzerColor(analyzerName: string) {
-  return getAnalyzerColorStable(analyzerName);
-}
 
 function getCorrelationColor(index: number) {
   return CORRELATION_COLORS[index % CORRELATION_COLORS.length];
@@ -89,6 +86,7 @@ interface TimeSeriesChartProps {
   highlightedMarkerId?: string | null;
   onMarkerHover?: (markerId: string | null) => void;
   onMarkerClick?: (markerId: string) => void;
+  isTelemetry?: boolean;
 }
 
 export function TimeSeriesChart({
@@ -108,6 +106,7 @@ export function TimeSeriesChart({
   highlightedMarkerId = null,
   onMarkerHover,
   onMarkerClick,
+  isTelemetry = false,
 }: TimeSeriesChartProps) {
   const [showCorrelationLegend, setShowCorrelationLegend] = useState(false);
   const [showSeriesLegend, setShowSeriesLegend] = useState(false);
@@ -312,7 +311,7 @@ export function TimeSeriesChart({
         if (!dataPoint) return;
 
         const baseY = yScale(dataPoint.value);
-        const color = getAnalyzerColor(anomaly.analyzerName);
+        const color = getAnalyzerColorStable(anomaly.analyzerName);
         const xOffset = numAnomalies > 1 ? (idx - (numAnomalies - 1) / 2) * 8 : 0;
         const markerId = getAnomalyMarkerId(anomaly);
         markerData.push({
@@ -589,7 +588,12 @@ export function TimeSeriesChart({
   if (points.length === 0) {
     return (
       <div className="bg-slate-800 rounded-lg p-4">
-        <div className="text-sm text-slate-400 mb-2 font-mono">{name}</div>
+        <div className="text-sm text-slate-400 mb-2 font-mono flex items-center gap-1.5">
+          {isTelemetry && (
+            <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-600 text-white text-[9px] font-bold flex-shrink-0" title="Telemetry metric">T</span>
+          )}
+          {name}
+        </div>
         <div className="text-slate-500 text-center py-8">No data</div>
       </div>
     );
@@ -598,11 +602,16 @@ export function TimeSeriesChart({
   return (
     <div className="bg-slate-800 rounded-lg p-4">
       <div className="flex justify-between items-center mb-2 gap-2">
-        <div className="text-sm text-slate-300 font-mono truncate">{name}</div>
+        <div className="text-sm text-slate-300 font-mono truncate flex items-center gap-1.5">
+          {isTelemetry && (
+            <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-600 text-white text-[9px] font-bold flex-shrink-0" title="Telemetry metric">T</span>
+          )}
+          {name}
+        </div>
         <div className="flex gap-2 items-center flex-shrink-0">
           {/* Detector legend - only show if there are anomalies */}
           {filteredAnomalies.length > 0 && Array.from(new Set(filteredAnomalies.map((a) => a.analyzerName))).map((analyzer) => {
-            const color = getAnalyzerColor(analyzer);
+            const color = getAnalyzerColorStable(analyzer);
             const displayName = analyzer;
             return (
               <span
