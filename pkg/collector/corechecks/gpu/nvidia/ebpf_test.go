@@ -236,7 +236,7 @@ func testCollectWithMultipleActiveProcesses(t *testing.T) {
 	metrics, err := collector.Collect()
 	require.NoError(t, err)
 
-	// Should have 8 metrics: 6 usage (3 per process: core, memory, sm_active) + 2 limit + 2 global activity metrics (sm_active, gr_engine_active)
+	// Should have 10 metrics: 6 usage (3 per process: core, memory, sm_active) + 2 limit + 2 global activity metrics (sm_active, gr_engine_active)
 	assert.Len(t, metrics, 10)
 
 	// Verify limit metrics have aggregated workloads
