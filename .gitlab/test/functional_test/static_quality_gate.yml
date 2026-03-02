@@ -40,7 +40,8 @@ static_quality_gates:
     - iot_agent_deb-armhf
     - iot_agent_rpm-x64
     - iot_agent_suse-x64
-    - windows_msi_and_bosh_zip_x64-a7
+    - job: windows_msi_and_bosh_zip_x64-a7
+      optional: true
   script:
     - !reference [.login_to_docker_readonly_crane]
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
