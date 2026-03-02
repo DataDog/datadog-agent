@@ -246,6 +246,8 @@ variables:
   # Force python to print to stdout immediately, otherwise gitlab sections might not be displayed properly and we can miss some logs
   PYTHONUNBUFFERED: 1
 
+  SKIP_WINDOWS: "false"
+
 #
 # Condition mixins for simplification of rules
 #
