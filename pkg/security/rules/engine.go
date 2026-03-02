@@ -534,19 +534,24 @@ func (e *RuleEngine) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, fi
 func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.Event) bool {
 	ev := event.(*model.Event)
 
+	ev.RecordCheckpoint("rule_match_start:" + rule.ID)
+
 	// add matched rules to ensure that this information is available in activity dumps
 	if ev.ProcessContext.Process.ContainerContext.ContainerID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
 		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Def.ID, rule.Def.Version, rule.Def.Tags, rule.Policy.Name, rule.Policy.Version))
 	}
 
 	e.probe.HandleActions(rule, event)
+	ev.RecordCheckpoint("rule_match_after_handle_actions:" + rule.ID)
 
 	if rule.Def.Silent {
+		ev.RecordCheckpoint("rule_match_silent_rule:" + rule.ID)
 		return false
 	}
 
 	// ensure that all the fields are resolved before sending
 	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ProcessContext.Process.ContainerContext)
+	ev.RecordCheckpoint("rule_match_after_resolve_container_tags:" + rule.ID)
 
 	// do not send event if a anomaly detection event will be sent
 	if e.config.AnomalyDetectionSilentRuleEventsEnabled && ev.IsAnomalyDetectionEvent() {
@@ -556,6 +561,7 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 	// needs to be resolved here, outside of the callback as using process tree
 	// which can be modified during queuing
 	service := e.probe.GetService(ev)
+	ev.RecordCheckpoint("rule_match_after_get_service:" + rule.ID)
 
 	var extTagsCb func() ([]string, bool)
 
@@ -573,6 +579,7 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 	ev.RuleContext.MatchingSubExprs = ctx.GetMatchingSubExprs()
 
 	e.eventSender.SendEvent(rule, ev, extTagsCb, service)
+	ev.RecordCheckpoint("rule_match_after_send_event:" + rule.ID)
 
 	return true
 }
@@ -657,6 +664,7 @@ func (e *RuleEngine) SetRulesetLoadedCallback(cb func(es *rules.RuleSet, err *mu
 type slowProcessingEvent struct {
 	EventType       string                       `json:"event_type"`
 	DurationUs      int64                        `json:"duration_us"`
+	ProcessingTimeMicrosec uint32               `json:"processingtime_microsec"`
 	ProcessingTrace []model.ProcessingCheckpoint `json:"processing_trace,omitempty"`
 }
 
@@ -681,9 +689,11 @@ func (e *slowProcessingEvent) GetFieldValue(_ eval.Field) (interface{}, error) {
 }
 
 func newSlowProcessingEvent(event *model.Event) *slowProcessingEvent {
+	durationUs := time.Since(event.StartTime).Microseconds()
 	return &slowProcessingEvent{
 		EventType:       event.GetEventType().String(),
-		DurationUs:      time.Since(event.StartTime).Microseconds(),
+		DurationUs:      durationUs,
+		ProcessingTimeMicrosec: uint32(durationUs),
 		ProcessingTrace: append([]model.ProcessingCheckpoint(nil), event.ProcessingTrace...),
 	}
 }
