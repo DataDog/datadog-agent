@@ -9,6 +9,7 @@ package module
 import (
 	"fmt"
 
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -110,7 +111,7 @@ func (ds *DirectEventMsgSender) GetEndpointsStatus() []string {
 }
 
 // NewDirectEventMsgSender returns a new direct sender
-func NewDirectEventMsgSender(stopper startstop.Stopper, compression compression.Component, hostname string) (*DirectEventMsgSender, error) {
+func NewDirectEventMsgSender(stopper startstop.Stopper, compression compression.Component, hostname string, secretsComp secrets.Component) (*DirectEventMsgSender, error) {
 	useSecRuntimeTrack := pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.use_secruntime_track")
 
 	endpoints, destinationsCtx, err := common.NewLogContextRuntime(useSecRuntimeTrack)
@@ -136,12 +137,12 @@ func NewDirectEventMsgSender(stopper startstop.Stopper, compression compression.
 
 	// we set the hostname to the empty string to take advantage of the out of the box message hostname
 	// resolution
-	runtimeReporter, err := reporter.NewCWSReporter(hostname, stopper, endpoints, destinationsCtx, compression)
+	runtimeReporter, err := reporter.NewCWSReporter(hostname, stopper, endpoints, destinationsCtx, compression, secretsComp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create direct reporter: %w", err)
 	}
 
-	secInfoReporter, err := reporter.NewCWSReporter(hostname, stopper, secInfoEndpoints, secInfoDestinationsCtx, compression)
+	secInfoReporter, err := reporter.NewCWSReporter(hostname, stopper, secInfoEndpoints, secInfoDestinationsCtx, compression, secretsComp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create direct secinfo reporter: %w", err)
 	}
