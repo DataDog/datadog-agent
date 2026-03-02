@@ -17,5 +17,8 @@ start_limit_burst: 5
 environment_file: -{{.EtcDir}}/environment
 env:
   DD_FLEET_POLICIES_DIR: {{.FleetPoliciesDir}}
+{{- if not .Stable}}
+  DD_INVENTORIES_FIRST_RUN_DELAY: "5"
+{{- end}}
 stdout: inherit
 stderr: inherit

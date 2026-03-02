@@ -117,6 +117,10 @@ func mustReadSystemdUnit(name string, data systemdTemplateData, ambiantCapabilit
 	return mustRenderTemplate(name+".tmpl", data, ambiantCapabilitiesSupported)
 }
 
+func mustRenderYAMLConfig(name string, data systemdTemplateData) []byte {
+	return mustRenderTemplate(name+".tmpl", data, false)
+}
+
 func systemdUnits(stableData, expData systemdTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
 	units := map[string][]byte{
 		"datadog-agent.service":                mustReadSystemdUnit("datadog-agent.service", stableData, ambiantCapabilitiesSupported),
@@ -139,6 +143,10 @@ func systemdUnits(stableData, expData systemdTemplateData, ambiantCapabilitiesSu
 		"datadog-agent-action-exp.service":     mustReadSystemdUnit("datadog-agent-action.service", expData, ambiantCapabilitiesSupported),
 		"datadog-agent-procmgrd.service":       mustReadSystemdUnit("datadog-agent-procmgrd.service", stableData, ambiantCapabilitiesSupported),
 		"datadog-agent-procmgrd-exp.service":   mustReadSystemdUnit("datadog-agent-procmgrd.service", expData, ambiantCapabilitiesSupported),
+
+		// dd-procmgrd process configs
+		"processes.d/datadog-agent-ddot.yaml":     mustRenderYAMLConfig("datadog-agent-ddot.yaml", stableData),
+		"processes.d/datadog-agent-ddot-exp.yaml": mustRenderYAMLConfig("datadog-agent-ddot.yaml", expData),
 	}
 	return units
 }
