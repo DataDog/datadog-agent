@@ -123,6 +123,7 @@ export interface Correlation {
     title: string;
     description: string;
     timestamp: number;
+    tags: string[];
   }[];
   firstSeen: number;
   lastUpdated: number;

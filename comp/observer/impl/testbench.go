@@ -1021,6 +1021,20 @@ func (tb *TestBench) loadDemoScenario() error {
 		throughputValue := getDemoThroughputValue(elapsed)
 		tb.storage.Add("demo", "app.request.throughput_rps", throughputValue*1.4, timestamp, []string{"service:api"})
 		tb.storage.Add("demo", "app.request.throughput_rps", throughputValue*0.6, timestamp, []string{"service:worker"})
+
+		// Correlator-targeted metrics (trigger kernel_bottleneck / network_degradation patterns)
+		// network.retransmits → analyzed as "network.retransmits:avg" — host-level
+		retransmits := getDemoNetworkRetransmitsValue(elapsed)
+		tb.storage.Add("demo", "network.retransmits", retransmits, timestamp, []string{"host:web-1"})
+
+		// ebpf.lock_contention_ns → analyzed as "ebpf.lock_contention_ns:avg" — host-level
+		lockContention := getDemoLockContentionValue(elapsed)
+		tb.storage.Add("demo", "ebpf.lock_contention_ns", lockContention, timestamp, []string{"host:web-1"})
+
+		// connection.errors → analyzed as "connection.errors:count" — two service variants
+		connErrors := getDemoConnectionErrorsValue(elapsed)
+		tb.storage.Add("demo", "connection.errors", connErrors, timestamp, []string{"service:api"})
+		tb.storage.Add("demo", "connection.errors", connErrors*0.6, timestamp, []string{"service:worker"})
 	}
 
 	fmt.Printf("  Generated %d seconds of demo data\n", totalSeconds)
@@ -1171,6 +1185,24 @@ func getDemoThroughputValue(elapsed float64) float64 {
 	// Throughput DROPS during incident (inverse of other metrics)
 	const baseline, trough = 1000.0, 200.0
 	return getDemoPhaseValueInverse(elapsed, baseline, trough, 1.0) // drops with latency
+}
+
+// getDemoNetworkRetransmitsValue returns network retransmits (spikes with latency during incident).
+func getDemoNetworkRetransmitsValue(elapsed float64) float64 {
+	const baseline, peak = 5.0, 90.0
+	return getDemoPhaseValue(elapsed, baseline, peak, 1.0) // co-occurs with latency
+}
+
+// getDemoLockContentionValue returns eBPF lock contention in ns (rises with heap pressure).
+func getDemoLockContentionValue(elapsed float64) float64 {
+	const baseline, peak = 800.0, 14000.0
+	return getDemoPhaseValue(elapsed, baseline, peak, 0.5) // slightly lags heap
+}
+
+// getDemoConnectionErrorsValue returns connection error count (co-occurs with error rate).
+func getDemoConnectionErrorsValue(elapsed float64) float64 {
+	const baseline, peak = 1.0, 30.0
+	return getDemoPhaseValue(elapsed, baseline, peak, 2.0) // co-occurs with error rate
 }
 
 func getDemoPhaseValue(elapsed, baseline, peak, delay float64) float64 {

@@ -497,6 +497,7 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, r *http.Reque
 		Description string   `json:"description"`
 		Timestamp   int64    `json:"timestamp"`
 		Score       *float64 `json:"score,omitempty"`
+		Tags        []string `json:"tags"`
 	}
 
 	type correlationResponse struct {
@@ -513,12 +514,17 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, r *http.Reque
 	for i, c := range correlations {
 		anomalies := make([]anomalyOutput, len(c.Anomalies))
 		for j, a := range c.Anomalies {
+			tags := a.Tags
+			if tags == nil {
+				tags = []string{}
+			}
 			anomalies[j] = anomalyOutput{
 				Source:      string(a.Source),
 				Title:       a.Title,
 				Description: a.Description,
 				Timestamp:   a.Timestamp,
 				Score:       a.Score,
+				Tags:        tags,
 			}
 		}
 		response[i] = correlationResponse{
