@@ -104,117 +104,18 @@
     paths:
       - ${OMNIBUS_PACKAGE_DIR}
 
-.package_oci_win:
-  extends: .package_oci
-  script:
-    - |
-      set -u pipefail
-      PIPE_DIR="$OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID"
-      ARTIFACT=$(ls -1 "${PIPE_DIR}"/${WIN_ARTIFACT_PATTERN} 2>/dev/null)
-      if [ -z "$ARTIFACT" ]; then
-        echo "No suitable input artifact found"; exit 1
-      fi
-      if [ "$(echo "$ARTIFACT" | wc -l)" != 1 ]; then
-        echo "Expected exactly one candidate input artifact"; exit 1
-      fi
-      if [ -z "${PACKAGE_VERSION:-}" ]; then
-        echo "PACKAGE_VERSION is not set"; exit 1
-      fi
-    - |
-      SRC_DIR="$(mktemp -d)"
-      EXTRA_FLAGS=""
-      case "${WIN_SOURCE_TYPE}" in
-        msi)
-          cp "${ARTIFACT}" "${SRC_DIR}/"
-          ;;
-        zip)
-          unzip -q "${ARTIFACT}" -d "${SRC_DIR}"
-          if [ -d "${SRC_DIR}/etc/datadog-agent" ]; then
-            EXTRA_FLAGS="--configs ${SRC_DIR}/etc/datadog-agent"
-          fi
-          ;;
-        *)
-          echo "Unknown WIN_SOURCE_TYPE: ${WIN_SOURCE_TYPE}"; exit 1
-          ;;
-      esac
-    - |
-      # Add installer binary for datadog-agent OCI package
-      if [ "${OCI_PRODUCT}" = "datadog-agent" ]; then
-        INSTALLER_BIN=$(ls -1 "${PIPE_DIR}"/datadog-installer-*-x86_64.exe 2>/dev/null | head -1)
-        if [ -n "$INSTALLER_BIN" ]; then
-          EXTRA_FLAGS="${EXTRA_FLAGS} --installer ${INSTALLER_BIN}"
-        else
-          echo "ERROR: No installer binary found for datadog-agent OCI package"
-          exit 1
-        fi
-      fi
-    - export PATH="$PATH:$(go env GOPATH)/bin"
-    - datadog-package create --version "${PACKAGE_VERSION}" --package "${OCI_PRODUCT}" --os windows --arch amd64 --archive --archive-path "${PIPE_DIR}/${OCI_PRODUCT}-${PACKAGE_VERSION}-windows-amd64.oci.tar" ${EXTRA_FLAGS} "${SRC_DIR}/"
-    - ls -l "${PIPE_DIR}"
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - ${OMNIBUS_PACKAGE_DIR}/pipeline-$CI_PIPELINE_ID
-
-agent_win_oci:
-  extends: .package_oci_win
-  needs:
-    - job: "windows_msi_and_bosh_zip_x64-a7"
-      artifacts: true
-    - job: "windows_zip_ddot_x64"
-      artifacts: true
-  variables:
-    OCI_PRODUCT: "datadog-agent"
-    WIN_SOURCE_TYPE: "msi"
-    WIN_ARTIFACT_PATTERN: "datadog-agent-[0-9]*-x86_64.msi"
-  script:
-    - |
-      set -euo pipefail
-      PIPE_DIR="$OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID"
-      ARTIFACT=$(ls -1 "${PIPE_DIR}"/${WIN_ARTIFACT_PATTERN} 2>/dev/null)
-      if [ -z "$ARTIFACT" ]; then
-        echo "No suitable input artifact found"; exit 1
-      fi
-      if [ "$(echo "$ARTIFACT" | wc -l)" != 1 ]; then
-        echo "Expected exactly one candidate input artifact"; exit 1
-      fi
-      if [ -z "${PACKAGE_VERSION:-}" ]; then
-        echo "PACKAGE_VERSION is not set"; exit 1
-      fi
-    - |
-      SRC_DIR="$(mktemp -d)"
-      EXTRA_FLAGS=""
-      cp "${ARTIFACT}" "${SRC_DIR}/"
-    - |
-      DDOT_ARTIFACT=$(ls -1 "${PIPE_DIR}"/datadog-agent-ddot-*x86_64.zip 2>/dev/null || true)
-      if [ -n "$DDOT_ARTIFACT" ]; then
-        DDOT_INPUT_DIR="$(mktemp -d)"
-        DDOT_EXTENSION_DIR="$(mktemp -d)"
-        echo "Extracting DDOT to ${DDOT_INPUT_DIR}"
-        unzip -q "${DDOT_ARTIFACT}" -d "${DDOT_INPUT_DIR}"
-
-        # Copy entire DDOT structure to extension directory
-        cp -r "${DDOT_INPUT_DIR}"/* "${DDOT_EXTENSION_DIR}"/
-
-        EXTRA_FLAGS="${EXTRA_FLAGS} --extension ddot=${DDOT_EXTENSION_DIR}"
-      fi
-    - export PATH="$PATH:$(go env GOPATH)/bin"
-    - datadog-package create --version "${PACKAGE_VERSION}" --package "${OCI_PRODUCT}" --os windows --arch amd64 --archive --archive-path "${PIPE_DIR}/${OCI_PRODUCT}-${PACKAGE_VERSION}-windows-amd64.oci.tar" ${EXTRA_FLAGS} "${SRC_DIR}/"
-    - ls -l "${PIPE_DIR}"
-
 agent_oci:
   extends: .package_oci
   needs:
-    [
-      "datadog-agent-oci-x64-a7",
-      "datadog-agent-oci-arm64-a7",
-      "go_tools_deps",
-      "installer-arm64-oci",
-      "installer-amd64-oci",
-      "agent_win_oci",
-      "datadog-otel-agent-x64",
-      "datadog-otel-agent-arm64"
-    ]
+    - "datadog-agent-oci-x64-a7"
+    - "datadog-agent-oci-arm64-a7"
+    - "go_tools_deps"
+    - "installer-arm64-oci"
+    - "installer-amd64-oci"
+    - "datadog-otel-agent-x64"
+    - "datadog-otel-agent-arm64"
+    - job: "agent_win_oci"
+      optional: true
   variables:
     OCI_PRODUCT: "datadog-agent"
 
@@ -229,19 +130,14 @@ installer_oci:
   variables:
     OCI_PRODUCT: "datadog-installer"
 
-ddot_win_oci:
-  extends: .package_oci_win
-  needs:
-    - job: "windows_zip_ddot_x64"
-      artifacts: true
-  variables:
-    OCI_PRODUCT: "datadog-agent-ddot"
-    WIN_SOURCE_TYPE: "zip"
-    WIN_ARTIFACT_PATTERN: "datadog-agent-ddot-*x86_64.zip"
-
 ddot_oci:
   extends: .package_oci
-  needs: ["datadog-otel-agent-x64", "datadog-otel-agent-arm64", "go_tools_deps", "ddot_win_oci"]
+  needs:
+    - "datadog-otel-agent-x64"
+    - "datadog-otel-agent-arm64"
+    - "go_tools_deps"
+    - job: "ddot_win_oci"
+      optional: true
   variables:
     OCI_PRODUCT: "datadog-agent-ddot"
     INSTALL_DIR: "/opt/datadog-agent"

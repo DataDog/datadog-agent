@@ -29,6 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 
 	provecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 )
 
 const (
@@ -42,22 +44,39 @@ const (
 type ecsSuite struct {
 	baseSuite[environments.ECS]
 	ecsClusterName string
+	windowsEnabled bool
 }
 
 func TestECSSuite(t *testing.T) {
-	e2e.Run(t, &ecsSuite{}, e2e.WithProvisioner(provecs.Provisioner(
-		provecs.WithRunOptions(
-			scenecs.WithFakeIntakeOptions(
-				fakeintake.WithRetentionPeriod("31m"),
-			),
-			scenecs.WithECSOptions(
-				scenecs.WithFargateCapacityProvider(),
-				scenecs.WithLinuxNodeGroup(),
-				scenecs.WithWindowsNodeGroup(),
-				scenecs.WithLinuxBottleRocketNodeGroup(),
-			),
-			scenecs.WithTestingWorkload(),
+	suite := &ecsSuite{}
+
+	ecsOptions := []scenecs.Option{
+		scenecs.WithFargateCapacityProvider(),
+		scenecs.WithLinuxNodeGroup(),
+		scenecs.WithLinuxBottleRocketNodeGroup(),
+	}
+
+	runOptions := []scenecs.RunOption{
+		scenecs.WithFakeIntakeOptions(
+			fakeintake.WithRetentionPeriod("31m"),
 		),
+		scenecs.WithTestingWorkload(),
+	}
+
+	skipWindows, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipWindows, false)
+	require.NoError(t, err, "failed to get %s parameter", parameters.SkipWindows)
+	if !skipWindows {
+		// WithWindowsNodeGroup is the dedicated ECS option to opt-in to Windows
+		// infrastructure and workloads (Windows EC2 nodes + Windows Fargate apps).
+		ecsOptions = append(ecsOptions, scenecs.WithWindowsNodeGroup())
+
+		suite.windowsEnabled = true
+	}
+
+	runOptions = append(runOptions, scenecs.WithECSOptions(ecsOptions...))
+
+	e2e.Run(t, suite, e2e.WithProvisioner(provecs.Provisioner(
+		provecs.WithRunOptions(runOptions...),
 	)))
 }
 
@@ -400,6 +419,10 @@ func (suite *ecsSuite) TestRedisFargate() {
 }
 
 func (suite *ecsSuite) TestWindowsFargate() {
+	if !suite.windowsEnabled {
+		suite.T().Skip("Skipping Windows test: WithWindowsNodeGroup() not set")
+	}
+
 	suite.testCheckRun(&testCheckRunArgs{
 		Filter: testCheckRunFilterArgs{
 			Name: "http.can_connect",
