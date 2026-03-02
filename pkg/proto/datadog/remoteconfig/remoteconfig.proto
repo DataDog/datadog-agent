@@ -139,10 +139,37 @@ message Task {
   TaskError error = 3;
 }
 
+message DeploymentStatus {
+  string name = 1;
+  int64 observed_generation = 2;
+  int32 replicas = 3;
+  int32 updated_replicas = 4;
+  int32 ready_replicas = 5;
+  int32 available_replicas = 6;
+  int32 unavailable_replicas = 7;
+}
+
+message DaemonSetStatus {
+  string name = 1;
+  int32 current_number_scheduled = 2;
+  int32 number_misscheduled = 3;
+  int32 desired_number_scheduled = 4;
+  int32 number_ready = 5;
+  int64 observed_generation = 6;
+  int32 updated_number_scheduled = 7;
+  int32 number_available = 8;
+  int32 number_unavailable = 9;
+}
+
+message Rollout {
+  repeated DeploymentStatus deployments = 1;
+  repeated DaemonSetStatus daemon_sets = 2;
+}
+
 message FleetState {
   string config_version = 1;
-  bool experiment = 2;
-  Task task = 3;
+  bool config_experiment = 2;
+  Rollout config_rollout = 3;
   string secret_pub_key = 4;
 }
 
