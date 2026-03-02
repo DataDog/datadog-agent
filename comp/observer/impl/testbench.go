@@ -734,7 +734,6 @@ func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, 
 			tb.storage.Add("telemetry", "telemetry."+telemetryEvent.AnalyzerName+"."+metric.name, metric.value, metric.timestamp, metric.tags)
 		}
 
-		// TODO A(celian): Handle log telemetry
 		if telemetryEvent.Log != nil {
 			timestamp := int64(0)
 			if tlv, ok := telemetryEvent.Log.(logTimestamper); ok {
