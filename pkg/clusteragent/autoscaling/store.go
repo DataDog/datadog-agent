@@ -20,8 +20,9 @@ const (
 type SenderID string
 
 // ObserverFunc represents observer functions of the store
-// First parameter is the key, second parameter is the sender identifier, third parameter is the object (or nil for delete operations)
-type ObserverFunc func(string, SenderID, interface{})
+// First parameter is the key, second parameter is the sender identifier.
+// Observers that need to access the object should call store.LockRead to ensure safe access.
+type ObserverFunc func(string, SenderID)
 
 // Observer allows to define functions to watch changes in Store
 type Observer struct {
@@ -123,7 +124,7 @@ func (s *Store[T]) Update(updator func(T) (T, bool), sender SenderID) {
 
 	// Notifying must be done after releasing the lock
 	for _, ch := range changes {
-		s.notify(setOperation, ch.id, sender, ch.obj)
+		s.notify(setOperation, ch.id, sender)
 	}
 }
 
@@ -141,18 +142,18 @@ func (s *Store[T]) Set(id string, obj T, sender SenderID) {
 	s.store[id] = obj
 	s.lock.Unlock()
 
-	s.notify(setOperation, id, sender, obj)
+	s.notify(setOperation, id, sender)
 }
 
 // Delete object corresponding to id if present
 func (s *Store[T]) Delete(id string, sender SenderID) {
 	s.lock.Lock()
-	obj, exists := s.store[id]
+	_, exists := s.store[id]
 	delete(s.store, id)
 	s.lock.Unlock()
 
 	if exists {
-		s.notify(deleteOperation, id, sender, obj)
+		s.notify(deleteOperation, id, sender)
 	}
 }
 
@@ -182,27 +183,27 @@ func (s *Store[T]) UnlockSet(id string, obj T, sender SenderID) {
 	s.store[id] = obj
 	s.lock.Unlock()
 
-	s.notify(setOperation, id, sender, obj)
+	s.notify(setOperation, id, sender)
 }
 
 // UnlockDelete deletes an object and releases the lock (previously acquired by `LockRead`)
 func (s *Store[T]) UnlockDelete(id string, sender SenderID) {
-	obj, exists := s.store[id]
+	_, exists := s.store[id]
 
 	delete(s.store, id)
 	s.lock.Unlock()
 
 	if exists {
-		s.notify(deleteOperation, id, sender, obj)
+		s.notify(deleteOperation, id, sender)
 	}
 }
 
 // It's a very simple implementation of a notify process, but it's enough in our case as we aim at only 1 or 2 observers
-func (s *Store[T]) notify(operationType storeOperation, key string, sender SenderID, obj interface{}) {
+func (s *Store[T]) notify(operationType storeOperation, key string, sender SenderID) {
 	s.observersLock.RLock()
 	defer s.observersLock.RUnlock()
 
 	for _, observer := range s.observers[operationType] {
-		observer(key, sender, obj)
+		observer(key, sender)
 	}
 }

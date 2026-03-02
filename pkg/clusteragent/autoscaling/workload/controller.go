@@ -133,12 +133,15 @@ func NewController(
 	c.metricsStore = metricsstore.NewMetricsStore(metrics.GeneratePodAutoscalerMetrics, localSender, c.IsLeader, globalTagsFunc)
 	c.store.RegisterObserver(
 		autoscaling.Observer{
-			SetFunc: func(key string, _ autoscaling.SenderID, obj interface{}) {
-				if pai, ok := obj.(model.PodAutoscalerInternal); ok {
-					c.metricsStore.Add(key, &pai)
+			SetFunc: func(key string, _ autoscaling.SenderID) {
+				pai, found := c.store.LockRead(key, false)
+				if !found {
+					return
 				}
+				defer c.store.Unlock(key)
+				c.metricsStore.Add(key, &pai)
 			},
-			DeleteFunc: func(key string, _ autoscaling.SenderID, _ interface{}) { c.metricsStore.Delete(key) },
+			DeleteFunc: func(key string, _ autoscaling.SenderID) { c.metricsStore.Delete(key) },
 		})
 
 	// TODO: Ensure that controllers do not take action before the podwatcher is synced
