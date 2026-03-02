@@ -54,6 +54,11 @@ func TestGetClusterName(t *testing.T) {
 	data = newClusterNameData()
 	assert.Equal(t, underscoreClusterName, getClusterName(ctx, data, "hostname"))
 
+	digitLeadingDottedClusterName := "1a.cluster.name"
+	mockConfig.SetWithoutSource("cluster_name", digitLeadingDottedClusterName)
+	data = newClusterNameData()
+	assert.Equal(t, digitLeadingDottedClusterName, getClusterName(ctx, data, "hostname"))
+
 	// Test invalid cluster names
 	for _, invalidClusterName := range []string{
 		"Capital",
