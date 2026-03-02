@@ -29,7 +29,7 @@ func TestGetAttributePrecedence(t *testing.T) {
 	})
 
 	t.Run("unknown concept returns nil", func(t *testing.T) {
-		tags := r.GetAttributePrecedence(Concept("unknown"))
+		tags := r.GetAttributePrecedence(conceptCount)
 		assert.Nil(t, tags)
 	})
 }
