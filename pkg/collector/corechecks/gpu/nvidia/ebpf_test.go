@@ -429,7 +429,7 @@ func testCollectAggregatesPidTagsForLimits(t *testing.T) {
 	metrics, err := collector.Collect()
 	require.NoError(t, err)
 
-	// Should have 11 metrics: 9 usage (3 per process: core, memory, sm_active) + 2 limit + 2 device metrics (sm_active, gr_engine_active)
+	// Should have 13 metrics: 9 usage (3 per process: core, memory, sm_active) + 2 limit + 2 device metrics (sm_active, gr_engine_active)
 	assert.Len(t, metrics, 13)
 
 	// Verify limit metrics have all workloads aggregated
