@@ -82,9 +82,8 @@ func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, pullSecre
 			return err
 		}
 
-		installLibvirt, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("install-libvirt"), &command.Args{
-			Create: pulumi.String(`
-		sudo dnf install -y libvirt NetworkManager`),
+		installDeps, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("install-deps"), &command.Args{
+			Create: pulumi.String(`sudo dnf install -y libvirt NetworkManager socat`),
 		}, utils.MergeOptions(opts, utils.PulumiDependsOn(openShiftInstallBinary))...)
 		if err != nil {
 			return err
@@ -92,13 +91,13 @@ func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, pullSecre
 		// To avoid the crc-daemon.service being stopped when the user session ends, we enable linger for the user
 		enableLinger, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("enable-linger"), &command.Args{
 			Create: pulumi.String("loginctl enable-linger"),
-		}, utils.MergeOptions(opts, utils.PulumiDependsOn(installLibvirt))...)
+		}, utils.MergeOptions(opts, utils.PulumiDependsOn(installDeps))...)
 		if err != nil {
 			return err
 		}
 
 		setupCRC, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("crc-setup"), &command.Args{
-			Create: pulumi.String("crc config set disk-size 100 && crc config set cpus 6 && crc config set memory 16384 && crc setup"),
+			Create: pulumi.String("crc config set disk-size 100 && crc config set cpus 12 && crc config set memory 32768 && crc setup"),
 		}, utils.MergeOptions(opts, utils.PulumiDependsOn(pullSecretFile, enableLinger))...)
 		if err != nil {
 			return err
@@ -114,18 +113,12 @@ func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, pullSecre
 		if err != nil {
 			return err
 		}
-		socatInstall, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("install-socat"), &command.Args{
-			Create: pulumi.String("sudo dnf install -y socat"),
-		}, utils.MergeOptions(opts, utils.PulumiDependsOn(startCRC))...)
-		if err != nil {
-			return err
-		}
 
 		socatForwarding, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("socat-kubeapi-proxy"), &command.Args{
 			Create: pulumi.String(`
                 sudo nohup socat TCP-LISTEN:8443,bind=0.0.0.0,fork TCP:127.0.0.1:6443 > /tmp/socat.log 2>&1 &
             `),
-		}, utils.MergeOptions(opts, utils.PulumiDependsOn(socatInstall))...)
+		}, utils.MergeOptions(opts, utils.PulumiDependsOn(startCRC))...)
 		if err != nil {
 			return err
 		}
@@ -141,43 +134,41 @@ func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, pullSecre
 		waitControlPlane, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("wait-control-plane-ready"), &command.Args{
 			Create: pulumi.String(`
 # Wait for API server to be responsive
-for i in {1..30}; do
+for i in {1..15}; do
   if curl -sk https://127.0.0.1:6443/healthz 2>/dev/null | grep -q ok; then
     echo "API server responsive"
     break
   fi
-  echo "Waiting for API server (attempt $i/30)..."
-  sleep 10
+  echo "Waiting for API server (attempt $i/15)..."
+  sleep 5
 done
 
 export KUBECONFIG=~/.crc/machines/crc/kubeconfig
 
 # Wait for nodes to be ready
 echo "Waiting for nodes to be Ready..."
-for i in {1..60}; do
+for i in {1..30}; do
   ready_nodes=$(kubectl get nodes --no-headers 2>/dev/null | grep -c ' Ready ')
   if [ "$ready_nodes" -gt 0 ]; then
     echo "Found $ready_nodes Ready nodes"
     break
   fi
-  echo "Waiting for nodes (attempt $i/60)..."
+  echo "Waiting for nodes (attempt $i/30)..."
   sleep 5
 done
 
-# Wait for some system pods to be running
+# Wait for system pods to be running (check both namespaces in one pass)
 echo "Waiting for system pods to be running..."
-for namespace in openshift-kube-apiserver openshift-kube-controller-manager; do
-  for i in {1..60}; do
-    running_pods=$(kubectl get pods -n "$namespace" --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l)
-    if [ "$running_pods" -gt 0 ]; then
-      echo "Namespace $namespace has $running_pods running pod(s)"
-      break
-    fi
-    if [ $i -lt 60 ]; then
-      echo "Waiting for $namespace pods (attempt $i/60)..."
-      sleep 5
-    fi
-  done
+for i in {1..30}; do
+  apiserver_pods=$(kubectl get pods -n openshift-kube-apiserver --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l)
+  controller_pods=$(kubectl get pods -n openshift-kube-controller-manager --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l)
+  if [ "$apiserver_pods" -gt 0 ] && [ "$controller_pods" -gt 0 ]; then
+    echo "openshift-kube-apiserver has $apiserver_pods running pod(s)"
+    echo "openshift-kube-controller-manager has $controller_pods running pod(s)"
+    break
+  fi
+  echo "Waiting for system pods (attempt $i/30, apiserver=$apiserver_pods, controller=$controller_pods)..."
+  sleep 5
 done
 
 echo "Control plane is ready"
