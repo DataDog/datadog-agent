@@ -487,6 +487,12 @@ func TestConfiguredMetricPriority(t *testing.T) {
 				},
 			}, nvml.SUCCESS
 		}
+		device.GetSamplesFunc = func(_ nvml.SamplingType, lastTimestamp uint64) (nvml.ValueType, []nvml.Sample, nvml.Return) {
+			return nvml.VALUE_TYPE_UNSIGNED_INT, []nvml.Sample{
+				{TimeStamp: lastTimestamp + 100, SampleValue: [8]byte{0, 0, 0, 0, 0, 0, 0, 1}},
+				{TimeStamp: lastTimestamp + 200, SampleValue: [8]byte{0, 0, 0, 0, 0, 0, 0, 2}},
+			}, nvml.SUCCESS
+		}
 		return device
 	}, testutil.WithMockAllFunctions())
 	deviceUUID := device.GetDeviceInfo().UUID
@@ -531,6 +537,7 @@ func TestConfiguredMetricPriority(t *testing.T) {
 	// Set up the expected metric order. The first collector in the list should have the highest priority over the rest.
 	desiredMetricPriority := map[string][]CollectorName{
 		"sm_active":         {sampling, ebpf},
+		"gr_engine_active":  {gpm, sampling, ebpf},
 		"process.sm_active": {sampling, ebpf},
 	}
 

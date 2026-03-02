@@ -525,6 +525,7 @@ workflow:
     when: manual
     allow_failure: true
 
+
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy
     when: always

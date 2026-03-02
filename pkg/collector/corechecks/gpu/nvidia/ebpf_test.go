@@ -105,7 +105,7 @@ func TestEbpfCollectorCollect(t *testing.T) {
 			testFunc: testCollectEmitsSmActiveMetrics,
 		},
 		{
-			name:     "collect_emits_device_sm_active_metric",
+			name:     "collect_emits_device_utilization_metrics",
 			testFunc: testCollectEmitsDeviceSmActiveMetric,
 		},
 	}
@@ -551,8 +551,8 @@ func testCollectEmitsDeviceSmActiveMetric(t *testing.T) {
 	metrics, err := collector.Collect()
 	require.NoError(t, err)
 
-	// Should have 9 metrics: 6 usage (3 per process: core, memory, sm_active) + 2 limit + 1 device sm_active
-	assert.Len(t, metrics, 9)
+	// Should have 10 metrics: 6 usage (3 per process: core, memory, sm_active) + 2 limit + 2 device metrics (sm_active, gr_engine_active)
+	assert.Len(t, metrics, 10)
 
 	// Verify device-level sm_active metric
 	deviceSmActive := findMetric(metrics, "sm_active")
@@ -560,6 +560,13 @@ func testCollectEmitsDeviceSmActiveMetric(t *testing.T) {
 	assert.Equal(t, 85.0, deviceSmActive.Value)
 	assert.Equal(t, Low, deviceSmActive.Priority, "sm_active should have Low priority")
 	assert.Empty(t, deviceSmActive.AssociatedWorkloads, "device-level sm_active should not have associated workloads")
+
+	// Verify device-level gr_engine_active metric
+	deviceGrEngineActive := findMetric(metrics, "gr_engine_active")
+	require.NotNil(t, deviceGrEngineActive, "gr_engine_active metric not found")
+	assert.Equal(t, 85.0, deviceGrEngineActive.Value)
+	assert.Equal(t, Low, deviceGrEngineActive.Priority, "gr_engine_active should have Low priority")
+	assert.Empty(t, deviceGrEngineActive.AssociatedWorkloads, "device-level gr_engine_active should not have associated workloads")
 
 	// Verify per-process sm_active metrics
 	processSmActiveMetrics := findAllMetricsWithName(metrics, "process.sm_active")

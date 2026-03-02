@@ -8,6 +8,7 @@
 package nvidia
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"unsafe"
@@ -272,6 +273,34 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 					return nil, 0, err
 				}
 				return []Metric{{Name: "fan_speed", Value: float64(speed), Type: metrics.GaugeType}}, 0, nil
+			},
+		},
+		{
+			Name: "fan_speed_v2",
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+				var output []Metric
+				numFans, err := device.GetNumFans()
+				if err != nil {
+					return nil, 0, fmt.Errorf("failed to get number of fans: %w", err)
+				}
+
+				var multiErr error
+				for i := 0; i < numFans; i++ {
+					speed, err := device.GetFanSpeed_v2(i)
+					if err != nil {
+						multiErr = errors.Join(multiErr, fmt.Errorf("failed to get fan speed for fan %d: %w", i, err))
+					} else {
+						output = append(output, Metric{
+							Name:     "fan_speed",
+							Value:    float64(speed),
+							Type:     metrics.GaugeType,
+							Priority: Medium,
+							Tags:     []string{"fan_index:" + strconv.Itoa(i)},
+						})
+					}
+				}
+
+				return output, 0, multiErr
 			},
 		},
 		{
