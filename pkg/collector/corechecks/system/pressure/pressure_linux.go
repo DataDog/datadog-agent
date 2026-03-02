@@ -67,7 +67,25 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data int
 		c.procPath = pkgconfigsetup.Datadog().GetString("procfs_path")
 	}
 
+	// Skip the check if PSI is not available (kernel < 4.20 or psi=0 boot param).
+	// This avoids error spam on every check interval for unsupported systems.
+	if !c.psiAvailable() {
+		log.Infof("pressure: PSI not available at %s/pressure/, skipping check", c.procPath)
+		return check.ErrSkipCheckInstance
+	}
+
 	return nil
+}
+
+// psiAvailable returns true if at least one PSI file exists and is readable.
+func (c *Check) psiAvailable() bool {
+	for _, resource := range []string{"cpu", "memory", "io"} {
+		if f, err := openFile(c.procPath + "/pressure/" + resource); err == nil {
+			f.Close()
+			return true
+		}
+	}
+	return false
 }
 
 // Run executes the check

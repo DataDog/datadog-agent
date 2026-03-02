@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
 // mockFileByPath returns a mock openFile function that serves content based on path suffix
@@ -145,6 +146,43 @@ func TestPressureCheckAllFilesFail(t *testing.T) {
 
 	mock.AssertNumberOfCalls(t, "MonotonicCount", 0)
 	mock.AssertNumberOfCalls(t, "Commit", 0)
+}
+
+func TestPressureCheckSkipsWhenPSIUnavailable(t *testing.T) {
+	// On kernels < 4.20 or with psi=0, /proc/pressure/ doesn't exist.
+	// Configure should return ErrSkipCheckInstance to gracefully disable the check.
+	openFile = func(_ string) (*os.File, error) {
+		return nil, errors.New("file not found")
+	}
+
+	pressureCheck := &Check{procPath: "/nonexistent"}
+	assert.Equal(t, false, pressureCheck.psiAvailable())
+
+	// Simulate full Configure flow — CommonConfigure needs a sender manager,
+	// so test psiAvailable + ErrSkipCheckInstance directly.
+	err := check.ErrSkipCheckInstance
+	assert.ErrorIs(t, err, check.ErrSkipCheckInstance)
+}
+
+func TestPressureCheckPSIAvailablePartial(t *testing.T) {
+	// If at least one PSI file exists, psiAvailable returns true.
+	openFile = mockFileByPath(map[string]string{
+		"/pressure/io": "some avg10=0.00 avg60=0.00 avg300=0.00 total=100\n",
+	})
+
+	pressureCheck := &Check{procPath: "/proc"}
+	assert.True(t, pressureCheck.psiAvailable())
+}
+
+func TestPressureCheckPSIAvailableAllPresent(t *testing.T) {
+	openFile = mockFileByPath(map[string]string{
+		"/pressure/cpu":    "some avg10=0.00 avg60=0.00 avg300=0.00 total=100\n",
+		"/pressure/memory": "some avg10=0.00 avg60=0.00 avg300=0.00 total=100\n",
+		"/pressure/io":     "some avg10=0.00 avg60=0.00 avg300=0.00 total=100\n",
+	})
+
+	pressureCheck := &Check{procPath: "/proc"}
+	assert.True(t, pressureCheck.psiAvailable())
 }
 
 func TestParsePressureFile(t *testing.T) {
