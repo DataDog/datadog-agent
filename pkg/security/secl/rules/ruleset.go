@@ -1122,6 +1122,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 			event.RuleTags = rule.PolicyRule.Def.ProductTags
 
 			if rule.GetEvaluator().Eval(ctx) {
+				event.RecordCheckpoint("rule_eval_match_eval_done:" + rule.ID)
 				if rs.logger.IsTracing() {
 					rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
 				}
@@ -1133,6 +1134,9 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 				if err := rs.runLogActions(event, ctx, rule); err != nil {
 					rs.logger.Errorf("Error while executing 'log' actions: %s", err)
 				}
+
+				event.RecordCheckpoint("rule_eval_after_actions:" + rule.ID)
+				event.RecordCheckpoint("rule_eval_before_rule_match:" + rule.ID)
 
 				rs.NotifyRuleMatch(ctx, rule, event)
 				result = true

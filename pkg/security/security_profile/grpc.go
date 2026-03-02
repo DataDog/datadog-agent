@@ -140,7 +140,7 @@ func (m *Manager) StopActivityDump(params *api.ActivityDumpStopParams) (*api.Act
 			m.finalizeKernelEventCollection(ad, true)
 			// mark the cgroup to ignore from snapshot to prevent re-creation
 			m.ignoreFromSnapshot[ad.Profile.Metadata.CGroupContext.CGroupPathKey.Inode] = true
-			seclog.Infof("tracing stopped for [%s]", ad.GetSelectorStr())
+			//seclog.Infof("tracing stopped for [%s]", ad.GetSelectorStr())
 			toDelete = i
 
 			// persist dump if not empty
