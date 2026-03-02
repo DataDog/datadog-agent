@@ -12,7 +12,7 @@ import (
 
 	"encoding/json"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 // Configuration file example

@@ -181,6 +181,7 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeMSI$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackage$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackageWithAltDir$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackageFromExeWithAltDir$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackageAfterRollback$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestDowngradeAgentPackage$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestStopExperiment$"
