@@ -885,7 +885,7 @@ func TestNetworkConnectionBatchingWithResolvConf(t *testing.T) {
 	maxConnsPerMessage := 10
 	ex := parser.NewServiceExtractor(false, false, false)
 	hostTagsProvider := hosttags.NewHostTagProvider()
-	chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex, resolvConfs)
+	chunks := batchConnections(&HostInfo{}, hostTagsProvider, nil, nil, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex, resolvConfs, nil, nil)
 
 	require.Len(t, chunks, 1)
 	cc := chunks[0].(*model.CollectorConnections)
