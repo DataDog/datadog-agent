@@ -216,3 +216,106 @@ func TestKeepTryingLockingIfPermissionDenied(t *testing.T) {
 	require.ErrorIs(t, err, os.ErrNotExist,
 		"lock file should not exist after successful creation and concurrent reads")
 }
+
+func TestFetchArtifactSuccess(t *testing.T) {
+	t.Parallel()
+	location, mockFactory := newMockArtiFactory(t)
+
+	// Create the artifact file first
+	_, raw, err := mockFactory.Generate()
+	require.NoError(t, err)
+	err = os.WriteFile(location, raw, 0o600)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	artifact, err := FetchArtifact(ctx, location, mockFactory)
+	assert.NoError(t, err)
+	assert.Equal(t, mockFactory.data, artifact)
+}
+
+func TestFetchArtifactTimeout(t *testing.T) {
+	t.Parallel()
+	location, mockFactory := newMockArtiFactory(t)
+
+	// Don't create the artifact file - it should timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 600*time.Millisecond)
+	defer cancel()
+
+	_, err := FetchArtifact(ctx, location, mockFactory)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unable to read the artifact in the given time")
+}
+
+func TestFetchArtifactEventualSuccess(t *testing.T) {
+	t.Parallel()
+	location, mockFactory := newMockArtiFactory(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	// Start fetching in a goroutine
+	resultChan := make(chan string, 1)
+	errChan := make(chan error, 1)
+	go func() {
+		artifact, err := FetchArtifact(ctx, location, mockFactory)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		resultChan <- artifact
+	}()
+
+	// Create the artifact after a delay
+	time.Sleep(700 * time.Millisecond)
+	_, raw, err := mockFactory.Generate()
+	require.NoError(t, err)
+	err = os.WriteFile(location, raw, 0o600)
+	require.NoError(t, err)
+
+	select {
+	case artifact := <-resultChan:
+		assert.Equal(t, mockFactory.data, artifact)
+	case err := <-errChan:
+		t.Fatalf("unexpected error: %v", err)
+	case <-time.After(3 * time.Second):
+		t.Fatal("test timed out")
+	}
+}
+
+func TestTryFetchArtifactDeserializeError(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	location := path.Join(dir, "test_artifact")
+
+	// Create a factory that fails on deserialize
+	factory := &ErrorFactory{deserializeErr: assert.AnError}
+
+	// Write some content to the file
+	err := os.WriteFile(location, []byte("some content"), 0o600)
+	require.NoError(t, err)
+
+	_, err = TryFetchArtifact(location, factory)
+	assert.Error(t, err)
+}
+
+// ErrorFactory is a mock factory that can return errors
+type ErrorFactory struct {
+	deserializeErr error
+	generateErr    error
+}
+
+func (f *ErrorFactory) Generate() (string, []byte, error) {
+	if f.generateErr != nil {
+		return "", nil, f.generateErr
+	}
+	return "data", []byte("data"), nil
+}
+
+func (f *ErrorFactory) Deserialize(_ []byte) (string, error) {
+	if f.deserializeErr != nil {
+		return "", f.deserializeErr
+	}
+	return "data", nil
+}

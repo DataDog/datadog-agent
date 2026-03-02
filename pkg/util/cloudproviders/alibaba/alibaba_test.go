@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -56,4 +57,77 @@ func TestGetNTPHosts(t *testing.T) {
 	actualHosts := GetNTPHosts(ctx)
 
 	assert.Equal(t, expectedHosts, actualHosts)
+}
+
+func TestIsRunningOnNotRunning(t *testing.T) {
+	cfg := configmock.New(t)
+	ctx := context.Background()
+	// Point to a server that returns an error
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer ts.Close()
+
+	metadataURL = ts.URL
+	cfg.SetWithoutSource("cloud_provider_metadata", []string{"alibaba"})
+	// Reset the fetcher to force re-fetch
+	instanceIDFetcher.Reset()
+
+	result := IsRunningOn(ctx)
+	assert.False(t, result)
+}
+
+func TestGetNTPHostsNotRunning(t *testing.T) {
+	cfg := configmock.New(t)
+	ctx := context.Background()
+	// Point to a server that returns an error
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer ts.Close()
+
+	metadataURL = ts.URL
+	cfg.SetWithoutSource("cloud_provider_metadata", []string{"alibaba"})
+	// Reset the fetcher to force re-fetch
+	instanceIDFetcher.Reset()
+
+	hosts := GetNTPHosts(ctx)
+	assert.Nil(t, hosts)
+}
+
+func TestGetHostAliasesDisabledProvider(t *testing.T) {
+	cfg := configmock.New(t)
+	ctx := context.Background()
+
+	// Disable alibaba cloud provider
+	cfg.SetWithoutSource("cloud_provider_metadata", []string{})
+	// Reset the fetcher to force re-fetch
+	instanceIDFetcher.Reset()
+
+	_, err := GetHostAliases(ctx)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "cloud provider is disabled")
+}
+
+func TestGetHostAliasesResponseTooLong(t *testing.T) {
+	cfg := configmock.New(t)
+	ctx := context.Background()
+
+	// Create a response longer than the max hostname size
+	longResponse := "i-" + strings.Repeat("x", 300)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		io.WriteString(w, longResponse)
+	}))
+	defer ts.Close()
+
+	metadataURL = ts.URL
+	cfg.SetWithoutSource("cloud_provider_metadata", []string{"alibaba"})
+	cfg.SetWithoutSource("metadata_endpoints_max_hostname_size", 256)
+	// Reset the fetcher to force re-fetch
+	instanceIDFetcher.Reset()
+
+	_, err := GetHostAliases(ctx)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "length")
 }

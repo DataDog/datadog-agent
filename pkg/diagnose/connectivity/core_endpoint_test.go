@@ -180,3 +180,120 @@ func TestSendHTTPRequestHeaders(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 200, statusCode)
 }
+
+func TestURLhasFQDN(t *testing.T) {
+	tests := []struct {
+		name     string
+		url      string
+		expected bool
+	}{
+		{
+			name:     "FQDN with trailing dot",
+			url:      "https://example.com./api",
+			expected: true,
+		},
+		{
+			name:     "PQDN without trailing dot",
+			url:      "https://example.com/api",
+			expected: false,
+		},
+		{
+			name:     "FQDN with port and trailing dot",
+			url:      "https://example.com.:8443/api",
+			expected: true,
+		},
+		{
+			name:     "localhost without trailing dot",
+			url:      "http://localhost:8080/api",
+			expected: false,
+		},
+		{
+			name:     "invalid URL",
+			url:      "://invalid",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := URLhasFQDN(tt.url)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestURLwithPQDN(t *testing.T) {
+	tests := []struct {
+		name        string
+		url         string
+		expected    string
+		expectError bool
+	}{
+		{
+			name:     "FQDN to PQDN",
+			url:      "https://example.com./api",
+			expected: "https://example.com/api",
+		},
+		{
+			name:     "already PQDN",
+			url:      "https://example.com/api",
+			expected: "https://example.com/api",
+		},
+		{
+			name:     "simple hostname without port",
+			url:      "https://api.datadoghq.com./v1/endpoint",
+			expected: "https://api.datadoghq.com/v1/endpoint",
+		},
+		{
+			name:     "URL with query params",
+			url:      "https://example.com./api?key=value",
+			expected: "https://example.com/api?key=value",
+		},
+		{
+			name:        "invalid URL",
+			url:         "://invalid",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := URLwithPQDN(tt.url)
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestCreateDiagnosisString(t *testing.T) {
+	tests := []struct {
+		name      string
+		diagnosis string
+		report    string
+		expected  string
+	}{
+		{
+			name:      "empty report",
+			diagnosis: "Connection OK",
+			report:    "",
+			expected:  "Connection OK",
+		},
+		{
+			name:      "with report",
+			diagnosis: "Connection OK",
+			report:    "Status code: 200",
+			expected:  "Connection OK\nStatus code: 200",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := createDiagnosisString(tt.diagnosis, tt.report)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}

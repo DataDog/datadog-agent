@@ -34,3 +34,41 @@ func TestGetHumanReadableFlavor(t *testing.T) {
 		assert.Equal(t, "Unknown Agent", GetHumanReadableFlavor())
 	})
 }
+
+func TestGetFlavor(t *testing.T) {
+	_ = configmock.New(t)
+
+	// Test setting and getting flavor
+	SetFlavor(DefaultAgent)
+	assert.Equal(t, DefaultAgent, GetFlavor())
+
+	SetFlavor(IotAgent)
+	assert.Equal(t, IotAgent, GetFlavor())
+
+	SetFlavor(ClusterAgent)
+	assert.Equal(t, ClusterAgent, GetFlavor())
+}
+
+func TestFlavorConstants(t *testing.T) {
+	// Verify all flavor constants are present in the agentFlavors map
+	allFlavors := []string{
+		DefaultAgent,
+		IotAgent,
+		ClusterAgent,
+		Dogstatsd,
+		SecurityAgent,
+		ServerlessAgent,
+		HerokuAgent,
+		ProcessAgent,
+		TraceAgent,
+		OTelAgent,
+		SystemProbe,
+		HostProfiler,
+		PrivateActionRunner,
+	}
+
+	for _, flavor := range allFlavors {
+		_, ok := agentFlavors[flavor]
+		assert.True(t, ok, "Flavor %s should be in agentFlavors map", flavor)
+	}
+}

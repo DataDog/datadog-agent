@@ -148,3 +148,158 @@ func TestCatalogWithOnceComponent(t *testing.T) {
 	assert.Len(t, status.Healthy, 2)
 	assert.Contains(t, status.Healthy, "test1")
 }
+
+func TestMulDuration(t *testing.T) {
+	tests := []struct {
+		name     string
+		d        time.Duration
+		x        int
+		expected time.Duration
+	}{
+		{
+			name:     "multiply by 2",
+			d:        time.Second,
+			x:        2,
+			expected: 2 * time.Second,
+		},
+		{
+			name:     "multiply by 0",
+			d:        time.Second,
+			x:        0,
+			expected: 0,
+		},
+		{
+			name:     "multiply minutes",
+			d:        5 * time.Minute,
+			x:        3,
+			expected: 15 * time.Minute,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := mulDuration(tt.d, tt.x)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestRegisterReadiness(t *testing.T) {
+	handle := RegisterReadiness("test-readiness")
+	require.NotNil(t, handle)
+	require.NotNil(t, handle.C)
+
+	// Cleanup
+	err := Deregister(handle)
+	assert.NoError(t, err)
+}
+
+func TestRegisterLiveness(t *testing.T) {
+	handle := RegisterLiveness("test-liveness")
+	require.NotNil(t, handle)
+	require.NotNil(t, handle.C)
+
+	// Cleanup
+	err := Deregister(handle)
+	assert.NoError(t, err)
+}
+
+func TestRegisterStartup(t *testing.T) {
+	handle := RegisterStartup("test-startup")
+	require.NotNil(t, handle)
+	require.NotNil(t, handle.C)
+
+	// Cleanup
+	err := Deregister(handle)
+	assert.NoError(t, err)
+}
+
+func TestGlobalDeregister(t *testing.T) {
+	// Test deregistering from readinessAndLivenessCatalog
+	handle1 := RegisterLiveness("test-deregister-1")
+	err := Deregister(handle1)
+	assert.NoError(t, err)
+
+	// Test deregistering from readinessOnlyCatalog
+	handle2 := RegisterReadiness("test-deregister-2")
+	err = Deregister(handle2)
+	assert.NoError(t, err)
+
+	// Test deregistering from startupOnlyCatalog
+	handle3 := RegisterStartup("test-deregister-3")
+	err = Deregister(handle3)
+	assert.NoError(t, err)
+
+	// Test deregistering non-existent handle
+	fakeHandle := &Handle{}
+	err = Deregister(fakeHandle)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not registered")
+}
+
+func TestGetLive(t *testing.T) {
+	handle := RegisterLiveness("test-getlive")
+	defer Deregister(handle)
+
+	status := GetLive()
+	// Should have healthcheck and test-getlive (unhealthy initially)
+	assert.Contains(t, status.Unhealthy, "test-getlive")
+}
+
+func TestGetReady(t *testing.T) {
+	handle1 := RegisterLiveness("test-getready-live")
+	handle2 := RegisterReadiness("test-getready-ready")
+	defer Deregister(handle1)
+	defer Deregister(handle2)
+
+	status := GetReady()
+	// Should include components from both catalogs
+	allComponents := append(status.Healthy, status.Unhealthy...)
+	assert.Contains(t, allComponents, "test-getready-live")
+	assert.Contains(t, allComponents, "test-getready-ready")
+}
+
+func TestGetStartup(t *testing.T) {
+	handle := RegisterStartup("test-getstartup")
+	defer Deregister(handle)
+
+	status := GetStartup()
+	// Should have test-getstartup (unhealthy initially)
+	assert.Contains(t, status.Unhealthy, "test-getstartup")
+}
+
+func TestGetLiveNonBlocking(t *testing.T) {
+	handle := RegisterLiveness("test-nonblocking-live")
+	defer Deregister(handle)
+
+	status, err := GetLiveNonBlocking()
+	assert.NoError(t, err)
+	allComponents := append(status.Healthy, status.Unhealthy...)
+	assert.Contains(t, allComponents, "test-nonblocking-live")
+}
+
+func TestGetReadyNonBlocking(t *testing.T) {
+	handle := RegisterReadiness("test-nonblocking-ready")
+	defer Deregister(handle)
+
+	status, err := GetReadyNonBlocking()
+	assert.NoError(t, err)
+	allComponents := append(status.Healthy, status.Unhealthy...)
+	assert.Contains(t, allComponents, "test-nonblocking-ready")
+}
+
+func TestGetStartupNonBlocking(t *testing.T) {
+	handle := RegisterStartup("test-nonblocking-startup")
+	defer Deregister(handle)
+
+	status, err := GetStartupNonBlocking()
+	assert.NoError(t, err)
+	allComponents := append(status.Healthy, status.Unhealthy...)
+	assert.Contains(t, allComponents, "test-nonblocking-startup")
+}
+
+func TestHandleDeregister(t *testing.T) {
+	handle := RegisterLiveness("test-handle-deregister")
+	err := handle.Deregister()
+	assert.NoError(t, err)
+}

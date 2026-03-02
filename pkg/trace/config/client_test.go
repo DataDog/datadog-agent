@@ -42,3 +42,15 @@ func TestResetClient_ZeroIntervalShouldNotReset(t *testing.T) {
 
 	assert.Same(t, initialHTTPClient, client.httpClient)
 }
+
+func TestResetClient_NoResetWithinInterval(t *testing.T) {
+	client := NewResetClient(
+		1*time.Hour, // Long interval so no reset happens
+		testHTTPClientFactory,
+	)
+
+	initialHTTPClient := client.httpClient
+	client.checkReset()
+
+	assert.Same(t, initialHTTPClient, client.httpClient)
+}

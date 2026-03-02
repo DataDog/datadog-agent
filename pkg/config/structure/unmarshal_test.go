@@ -1538,3 +1538,78 @@ some_config:
 	assert.NoError(t, err)
 	assert.Equal(t, map[ResourceType]string{"memory": "5g"}, res.Resources)
 }
+
+func TestConvertArrayToMap(t *testing.T) {
+	tests := []struct {
+		name     string
+		rf       reflect.Kind
+		rt       reflect.Kind
+		data     interface{}
+		expected interface{}
+	}{
+		{
+			name:     "slice to map conversion",
+			rf:       reflect.Slice,
+			rt:       reflect.Map,
+			data:     []interface{}{"a", "b", "c"},
+			expected: map[interface{}]bool{"a": true, "b": true, "c": true},
+		},
+		{
+			name:     "not a slice returns data unchanged",
+			rf:       reflect.String,
+			rt:       reflect.Map,
+			data:     "hello",
+			expected: "hello",
+		},
+		{
+			name:     "target not a map returns data unchanged",
+			rf:       reflect.Slice,
+			rt:       reflect.String,
+			data:     []interface{}{"a", "b"},
+			expected: []interface{}{"a", "b"},
+		},
+		{
+			name:     "empty slice to empty map",
+			rf:       reflect.Slice,
+			rt:       reflect.Map,
+			data:     []interface{}{},
+			expected: map[interface{}]bool{},
+		},
+		{
+			name:     "slice with integers",
+			rf:       reflect.Slice,
+			rt:       reflect.Map,
+			data:     []interface{}{1, 2, 3},
+			expected: map[interface{}]bool{1: true, 2: true, 3: true},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := convertArrayToMap(tt.rf, tt.rt, tt.data)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+type setConfig struct {
+	Tags map[string]bool `mapstructure:"tags"`
+}
+
+func TestUnmarshalKeyWithImplicitlyConvertArrayToMapSet(t *testing.T) {
+	confYaml := `
+feature:
+  tags:
+    - "tag1"
+    - "tag2"
+    - "tag3"
+`
+	mockConfig := newConfigFromYaml(t, confYaml)
+	mockConfig.SetKnown("feature") //nolint:forbidigo
+
+	var feature setConfig
+	err := UnmarshalKey(mockConfig, "feature", &feature, ImplicitlyConvertArrayToMapSet)
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]bool{"tag1": true, "tag2": true, "tag3": true}, feature.Tags)
+}

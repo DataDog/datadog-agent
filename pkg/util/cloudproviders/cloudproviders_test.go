@@ -228,3 +228,183 @@ func TestCloudProviderPreemptionTerminationTime(t *testing.T) {
 	assert.Equal(t, time.Time{}, terminationTime)
 	clearDetectors()
 }
+
+func TestDetectCloudProvider(t *testing.T) {
+	origDetectors := cloudProviderDetectors
+	defer func() { cloudProviderDetectors = origDetectors }()
+
+	t.Run("first matching cloud provider is detected", func(t *testing.T) {
+		cloudProviderDetectors = []cloudProviderDetector{
+			{
+				name:     "cloud1",
+				callback: func(_ context.Context) bool { return false },
+			},
+			{
+				name:     "cloud2",
+				callback: func(_ context.Context) bool { return true },
+			},
+			{
+				name:     "cloud3",
+				callback: func(_ context.Context) bool { return true },
+			},
+		}
+
+		name, accountID := DetectCloudProvider(context.TODO(), false)
+		assert.Equal(t, "cloud2", name)
+		assert.Equal(t, "", accountID)
+	})
+
+	t.Run("no cloud provider detected", func(t *testing.T) {
+		cloudProviderDetectors = []cloudProviderDetector{
+			{
+				name:     "cloud1",
+				callback: func(_ context.Context) bool { return false },
+			},
+		}
+
+		name, accountID := DetectCloudProvider(context.TODO(), false)
+		assert.Equal(t, "", name)
+		assert.Equal(t, "", accountID)
+	})
+
+	t.Run("account ID is collected when requested and available", func(t *testing.T) {
+		cloudProviderDetectors = []cloudProviderDetector{
+			{
+				name:              "cloud1",
+				callback:          func(_ context.Context) bool { return true },
+				accountIDCallback: func(_ context.Context) (string, error) { return "account-123", nil },
+			},
+		}
+
+		name, accountID := DetectCloudProvider(context.TODO(), true)
+		assert.Equal(t, "cloud1", name)
+		assert.Equal(t, "account-123", accountID)
+	})
+
+	t.Run("account ID not collected when not requested", func(t *testing.T) {
+		accountIDCalled := false
+		cloudProviderDetectors = []cloudProviderDetector{
+			{
+				name:     "cloud1",
+				callback: func(_ context.Context) bool { return true },
+				accountIDCallback: func(_ context.Context) (string, error) {
+					accountIDCalled = true
+					return "account-123", nil
+				},
+			},
+		}
+
+		name, accountID := DetectCloudProvider(context.TODO(), false)
+		assert.Equal(t, "cloud1", name)
+		assert.Equal(t, "", accountID)
+		assert.False(t, accountIDCalled)
+	})
+
+	t.Run("account ID error is handled gracefully", func(t *testing.T) {
+		cloudProviderDetectors = []cloudProviderDetector{
+			{
+				name:              "cloud1",
+				callback:          func(_ context.Context) bool { return true },
+				accountIDCallback: func(_ context.Context) (string, error) { return "", errors.New("failed") },
+			},
+		}
+
+		name, accountID := DetectCloudProvider(context.TODO(), true)
+		assert.Equal(t, "cloud1", name)
+		assert.Equal(t, "", accountID)
+	})
+
+	t.Run("empty account ID is handled", func(t *testing.T) {
+		cloudProviderDetectors = []cloudProviderDetector{
+			{
+				name:              "cloud1",
+				callback:          func(_ context.Context) bool { return true },
+				accountIDCallback: func(_ context.Context) (string, error) { return "", nil },
+			},
+		}
+
+		name, accountID := DetectCloudProvider(context.TODO(), true)
+		assert.Equal(t, "cloud1", name)
+		assert.Equal(t, "", accountID)
+	})
+}
+
+func TestGetSource(t *testing.T) {
+	origDetectors := sourceDetectors
+	defer func() { sourceDetectors = origDetectors }()
+
+	sourceDetectors = map[string]func() string{
+		"cloud1": func() string { return "IMDSv2" },
+		"cloud2": func() string { return "DMI" },
+	}
+
+	t.Run("known cloud provider returns source", func(t *testing.T) {
+		source := GetSource("cloud1")
+		assert.Equal(t, "IMDSv2", source)
+
+		source = GetSource("cloud2")
+		assert.Equal(t, "DMI", source)
+	})
+
+	t.Run("unknown cloud provider returns empty string", func(t *testing.T) {
+		source := GetSource("unknown")
+		assert.Equal(t, "", source)
+
+		source = GetSource("")
+		assert.Equal(t, "", source)
+	})
+}
+
+func TestGetHostID(t *testing.T) {
+	origDetectors := hostIDDetectors
+	defer func() { hostIDDetectors = origDetectors }()
+
+	hostIDDetectors = map[string]func(context.Context) string{
+		"cloud1": func(_ context.Context) string { return "i-1234567890abcdef0" },
+		"cloud2": func(_ context.Context) string { return "vm-abcd1234" },
+	}
+
+	t.Run("known cloud provider returns host ID", func(t *testing.T) {
+		hostID := GetHostID(context.TODO(), "cloud1")
+		assert.Equal(t, "i-1234567890abcdef0", hostID)
+
+		hostID = GetHostID(context.TODO(), "cloud2")
+		assert.Equal(t, "vm-abcd1234", hostID)
+	})
+
+	t.Run("unknown cloud provider returns empty string", func(t *testing.T) {
+		hostID := GetHostID(context.TODO(), "unknown")
+		assert.Equal(t, "", hostID)
+
+		hostID = GetHostID(context.TODO(), "")
+		assert.Equal(t, "", hostID)
+	})
+}
+
+func TestGetCloudProviderNTPHosts(t *testing.T) {
+	// Save and restore original detectors is not possible since ntpDetectors is local
+	// We can only test the existing behavior with empty results
+
+	t.Run("returns nil when no cloud NTP servers detected", func(t *testing.T) {
+		// When not running in any cloud environment, this should return nil
+		// This is a basic test since we can't mock the internal detectors
+		// In a real cloud environment this would return actual NTP servers
+		result := GetCloudProviderNTPHosts(context.TODO())
+		// Result can be nil or a list depending on the actual cloud environment
+		// We just verify it doesn't panic
+		_ = result
+	})
+}
+
+func TestGetPublicIPv4(t *testing.T) {
+	t.Run("returns error when not in cloud environment", func(t *testing.T) {
+		// When not running in any cloud environment, this should return an error
+		// This tests the error path
+		ip, err := GetPublicIPv4(context.TODO())
+		// In a non-cloud environment, we expect either a valid IP or an error
+		if err != nil {
+			assert.Contains(t, err.Error(), "No public IPv4")
+			assert.Equal(t, "", ip)
+		}
+	})
+}

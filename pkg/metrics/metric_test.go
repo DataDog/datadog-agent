@@ -46,3 +46,33 @@ func TestAPIMetricTypeMarshal(t *testing.T) {
 		})
 	}
 }
+
+func TestAPIMetricTypeString(t *testing.T) {
+	tests := []struct {
+		metricType APIMetricType
+		expected   string
+	}{
+		{APIGaugeType, "gauge"},
+		{APIRateType, "rate"},
+		{APICountType, "count"},
+		{APIMetricType(999), ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.expected, func(t *testing.T) {
+			assert.Equal(t, tc.expected, tc.metricType.String())
+		})
+	}
+}
+
+func TestAPIMetricTypeMarshalTextUnknown(t *testing.T) {
+	unknownType := APIMetricType(999)
+	_, err := unknownType.MarshalText()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "Can't marshal unknown metric type")
+}
+
+func TestNoSerieError(t *testing.T) {
+	err := NoSerieError{}
+	assert.Equal(t, "Not enough samples to generate points", err.Error())
+}

@@ -237,3 +237,161 @@ func TestFillFromSpec(t *testing.T) {
 		},
 	}, containerStats)
 }
+
+func TestConvertEcsStatsNil(t *testing.T) {
+	// Test nil input
+	result := convertEcsStats(nil)
+	assert.Nil(t, result)
+}
+
+func TestConvertNetworkStatsNil(t *testing.T) {
+	// Test nil input
+	result := convertNetworkStats(nil)
+	assert.Nil(t, result)
+}
+
+func TestConvertCPUStatsNil(t *testing.T) {
+	// Test nil input
+	result := convertCPUStats(nil)
+	assert.Nil(t, result)
+}
+
+func TestConvertMemoryStatsNil(t *testing.T) {
+	// Test nil input
+	result := convertMemoryStats(nil)
+	assert.Nil(t, result)
+}
+
+func TestConvertIOStatsNil(t *testing.T) {
+	// Test nil input
+	result := convertIOStats(nil)
+	assert.Nil(t, result)
+}
+
+func TestConvertMemoryStatsUnsetLimit(t *testing.T) {
+	// Test memory stats with unset limit (2^62)
+	memStats := &v2.MemStats{
+		Usage: 1000000,
+		Limit: ecsUnsetMemoryLimit, // 2^62 - ECS unset memory limit
+		Details: v2.DetailedMem{
+			RSS:     500000,
+			Cache:   250000,
+			PgFault: 100,
+		},
+	}
+
+	result := convertMemoryStats(memStats)
+	assert.NotNil(t, result)
+	assert.Nil(t, result.Limit, "Limit should be nil when set to ecsUnsetMemoryLimit")
+	assert.Equal(t, pointer.Ptr(1000000.0), result.UsageTotal)
+}
+
+func TestConvertMemoryStatsWithLimit(t *testing.T) {
+	// Test memory stats with valid limit
+	memStats := &v2.MemStats{
+		Usage: 1000000,
+		Limit: 2000000,
+		Details: v2.DetailedMem{
+			RSS:     500000,
+			Cache:   250000,
+			PgFault: 100,
+		},
+	}
+
+	result := convertMemoryStats(memStats)
+	assert.NotNil(t, result)
+	assert.Equal(t, pointer.Ptr(2000000.0), result.Limit)
+}
+
+func TestConvertEcsStatsInvalidTimestamp(t *testing.T) {
+	// Test with invalid timestamp - should use time.Now()
+	ecsStats := &v2.ContainerStats{
+		Timestamp: "invalid-timestamp",
+		CPU:       v2.CPUStats{Usage: v2.CPUUsage{Total: 100}},
+	}
+
+	beforeTest := time.Now()
+	result := convertEcsStats(ecsStats)
+	afterTest := time.Now()
+
+	assert.NotNil(t, result)
+	// Timestamp should be close to now since the parsing failed
+	assert.True(t, result.Timestamp.After(beforeTest) || result.Timestamp.Equal(beforeTest))
+	assert.True(t, result.Timestamp.Before(afterTest) || result.Timestamp.Equal(afterTest))
+}
+
+func TestConvertNetworkStatsInvalidTimestamp(t *testing.T) {
+	// Test with invalid timestamp - should use time.Now()
+	ecsStats := &v2.ContainerStats{
+		Timestamp: "invalid-timestamp",
+		Networks:  v2.NetStatsMap{"eth0": v2.NetStats{RxBytes: 100}},
+	}
+
+	beforeTest := time.Now()
+	result := convertNetworkStats(ecsStats)
+	afterTest := time.Now()
+
+	assert.NotNil(t, result)
+	// Timestamp should be close to now since the parsing failed
+	assert.True(t, result.Timestamp.After(beforeTest) || result.Timestamp.Equal(beforeTest))
+	assert.True(t, result.Timestamp.Before(afterTest) || result.Timestamp.Equal(afterTest))
+}
+
+func TestEcsFargateCollectorID(t *testing.T) {
+	collector := &ecsFargateCollector{}
+	assert.Equal(t, collectorID, collector.ID())
+}
+
+func TestFillFromSpecNilCPU(t *testing.T) {
+	testSpec := &v2.Task{
+		Limits: map[string]float64{
+			cpuKey:    0.5,
+			memoryKey: 4096,
+		},
+	}
+
+	// Test with nil CPU
+	containerStats := &provider.ContainerStats{
+		CPU:    nil,
+		Memory: &provider.ContainerMemStats{},
+	}
+	fillFromSpec(containerStats, testSpec)
+	assert.Nil(t, containerStats.CPU)
+	assert.NotNil(t, containerStats.Memory.Limit)
+}
+
+func TestFillFromSpecNilMemory(t *testing.T) {
+	testSpec := &v2.Task{
+		Limits: map[string]float64{
+			cpuKey:    0.5,
+			memoryKey: 4096,
+		},
+	}
+
+	// Test with nil Memory
+	containerStats := &provider.ContainerStats{
+		CPU:    &provider.ContainerCPUStats{},
+		Memory: nil,
+	}
+	fillFromSpec(containerStats, testSpec)
+	assert.NotNil(t, containerStats.CPU.Limit)
+	assert.Nil(t, containerStats.Memory)
+}
+
+func TestFillFromSpecZeroLimits(t *testing.T) {
+	testSpec := &v2.Task{
+		Limits: map[string]float64{
+			cpuKey:    0,
+			memoryKey: 0,
+		},
+	}
+
+	containerStats := &provider.ContainerStats{
+		CPU:    &provider.ContainerCPUStats{},
+		Memory: &provider.ContainerMemStats{},
+	}
+	fillFromSpec(containerStats, testSpec)
+	// With zero limits, the limits should not be set
+	assert.Nil(t, containerStats.CPU.Limit)
+	assert.Nil(t, containerStats.Memory.Limit)
+}

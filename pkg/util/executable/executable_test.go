@@ -63,3 +63,31 @@ func TestResolvePathFailure(t *testing.T) {
 		return
 	}
 }
+
+func TestFolder(t *testing.T) {
+	folder, err := Folder()
+	assert.NoError(t, err)
+	assert.NotEmpty(t, folder)
+
+	// The folder should be an absolute path
+	assert.True(t, filepath.IsAbs(folder))
+
+	// The folder should exist
+	info, err := os.Stat(folder)
+	assert.NoError(t, err)
+	assert.True(t, info.IsDir())
+}
+
+func TestFolderAllowSymlinkFailure(t *testing.T) {
+	folder, err := FolderAllowSymlinkFailure()
+	assert.NoError(t, err)
+	assert.NotEmpty(t, folder)
+
+	// The folder should be an absolute path
+	assert.True(t, filepath.IsAbs(folder))
+
+	// The folder should exist
+	info, err := os.Stat(folder)
+	assert.NoError(t, err)
+	assert.True(t, info.IsDir())
+}

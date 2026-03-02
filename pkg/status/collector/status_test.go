@@ -36,6 +36,61 @@ func TestPopulateStatus(t *testing.T) {
 	assert.Contains(t, stats, "checkSchedulerStats")
 }
 
+func TestGetStatusInfo(t *testing.T) {
+	// Ensure CheckScheduler expvar exists
+	if expvar.Get("CheckScheduler") == nil {
+		expvar.NewString("CheckScheduler")
+	}
+
+	stats := GetStatusInfo()
+	assert.NotNil(t, stats)
+	// Verify all expected keys are present
+	assert.Contains(t, stats, "inventories")
+	assert.Contains(t, stats, "pyLoaderStats")
+	assert.Contains(t, stats, "pythonInit")
+	assert.Contains(t, stats, "checkSchedulerStats")
+}
+
+func TestProviderName(t *testing.T) {
+	p := Provider{}
+	assert.Equal(t, "Collector", p.Name())
+}
+
+func TestProviderSection(t *testing.T) {
+	p := Provider{}
+	assert.Equal(t, status.CollectorSection, p.Section())
+}
+
+func TestProviderJSON(t *testing.T) {
+	// Ensure CheckScheduler expvar exists
+	if expvar.Get("CheckScheduler") == nil {
+		expvar.NewString("CheckScheduler")
+	}
+
+	p := Provider{}
+	stats := make(map[string]interface{})
+	err := p.JSON(false, stats)
+	assert.NoError(t, err)
+	assert.Contains(t, stats, "inventories")
+}
+
+func TestProviderJSONWithVerbose(t *testing.T) {
+	// Ensure CheckScheduler expvar exists
+	if expvar.Get("CheckScheduler") == nil {
+		expvar.NewString("CheckScheduler")
+	}
+
+	p := Provider{}
+	stats := make(map[string]interface{})
+	// Test with verbose=true
+	err := p.JSON(true, stats)
+	assert.NoError(t, err)
+	assert.Contains(t, stats, "inventories")
+	assert.Contains(t, stats, "pyLoaderStats")
+	assert.Contains(t, stats, "pythonInit")
+	assert.Contains(t, stats, "checkSchedulerStats")
+}
+
 func TestRender(t *testing.T) {
 	// We're checking that some dates are correctly formatted in the HTML
 	// so we need to set the timezone to UTC to avoid issues.
