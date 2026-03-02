@@ -240,7 +240,9 @@ func GetMetaData(config *GCPConfig, isCloudRun bool) map[string]string {
 	getMeta := func(fnMetadata func(*http.Client, string) string, url string, baseKey string) {
 		val := fnMetadata(httpClient, url)
 		metaChan <- keyVal{baseKey, val}
-		if isCloudRun {
+		if isCloudRunJob() {
+			metaChan <- keyVal{cloudRunJobNamespace + baseKey, val}
+		} else if isCloudRun {
 			metaChan <- keyVal{cloudRunService + baseKey, val}
 		} else {
 			metaChan <- keyVal{cloudRunFunction + baseKey, val}

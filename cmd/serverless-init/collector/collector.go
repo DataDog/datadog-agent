@@ -102,6 +102,9 @@ func (c *Collector) collectLoop(ctx context.Context) {
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
 
+	// Do an initial collect before starting to collect on a ticker
+	c.collect()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -244,7 +247,10 @@ func (c *Collector) calculateCPUUsage(currentTotal float64, previousTotal float6
 
 func (c *Collector) sendMetrics(enhancedMetrics ServerlessEnhancedMetrics) {
 	// CPU usage in nanocores
-	c.metricAgent.AddHighCardinalityMetricWithTimestamp(c.metricPrefix+"cpu.usage", enhancedMetrics.CPUUsage, c.metricSource, metrics.DistributionType, enhancedMetrics.Timestamp)
+	// Skip when value is -1 since this value is used on the first collect before the rate can be computed
+	if enhancedMetrics.CPUUsage != -1 {
+		c.metricAgent.AddHighCardinalityMetricWithTimestamp(c.metricPrefix+"cpu.usage", enhancedMetrics.CPUUsage, c.metricSource, metrics.DistributionType, enhancedMetrics.Timestamp)
+	}
 
 	// CPU limit in nanocores
 	c.metricAgent.AddMetricWithTimestamp(c.metricPrefix+"cpu.limit", enhancedMetrics.CPULimit, c.metricSource, metrics.DistributionType, enhancedMetrics.Timestamp)

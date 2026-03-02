@@ -30,6 +30,7 @@ var highCardinalityTags = map[string]struct{}{
 	"replica_name":        {},
 	"aca.replica.name":    {},
 	"gcrj.execution_name": {},
+	"gcrj.container_id":   {},
 	"gcrj.task_index":     {},
 	"gcrj.task_attempt":   {},
 	"gcrj.task_count":     {},
