@@ -305,20 +305,25 @@ func buildCustomPayload(tl BootTimeline) map[string]interface{} {
 
 	custom["boot_timeline"] = buildTimelineMilestones(tl)
 
-	entries := []struct {
-		label      string
-		start, end time.Time
-	}{
-		{"Total Boot Duration (ms)", tl.BootStart, tl.DesktopReadyEnd},
-		{"Boot Duration (ms)", tl.BootStart, tl.LoginUIStart},
-		{"Logon Duration (ms)", tl.LogonStart, tl.DesktopVisibleStart},
+	durations := make(map[string]interface{})
+
+	var bootMs, logonMs int64
+	var haveBoot, haveLogon bool
+
+	if !tl.BootStart.IsZero() && !tl.LoginUIStart.IsZero() {
+		bootMs = getDurationMilliseconds(tl.BootStart, tl.LoginUIStart)
+		durations["Boot Duration (ms)"] = bootMs
+		haveBoot = true
 	}
 
-	durations := make(map[string]interface{})
-	for _, e := range entries {
-		if !e.start.IsZero() && !e.end.IsZero() {
-			durations[e.label] = getDurationMilliseconds(e.start, e.end)
-		}
+	if !tl.LogonStart.IsZero() && !tl.DesktopVisibleStart.IsZero() {
+		logonMs = getDurationMilliseconds(tl.LogonStart, tl.DesktopVisibleStart)
+		durations["Logon Duration (ms)"] = logonMs
+		haveLogon = true
+	}
+
+	if haveBoot && haveLogon {
+		durations["Total Boot Duration (ms)"] = bootMs + logonMs
 	}
 
 	if len(durations) > 0 {

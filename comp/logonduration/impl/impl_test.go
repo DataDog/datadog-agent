@@ -128,17 +128,36 @@ func TestBuildTimelineMilestones(t *testing.T) {
 func TestBuildCustomPayload(t *testing.T) {
 	boot := time.Date(2026, 1, 15, 8, 0, 0, 0, time.UTC)
 
-	t.Run("includes total boot duration", func(t *testing.T) {
+	t.Run("includes total boot duration as sum of boot and logon", func(t *testing.T) {
 		tl := BootTimeline{
-			BootStart:       boot,
-			DesktopReadyEnd: boot.Add(90 * time.Second),
+			BootStart:           boot,
+			LoginUIStart:        boot.Add(10 * time.Second),
+			LogonStart:          boot.Add(30 * time.Second),
+			DesktopVisibleStart: boot.Add(90 * time.Second),
 		}
 
 		custom := buildCustomPayload(tl)
 
 		durations, ok := custom["durations"].(map[string]interface{})
 		require.True(t, ok)
-		assert.Equal(t, int64(90000), durations["Total Boot Duration (ms)"])
+		assert.Equal(t, int64(10000), durations["Boot Duration (ms)"])
+		assert.Equal(t, int64(60000), durations["Logon Duration (ms)"])
+		assert.Equal(t, int64(70000), durations["Total Boot Duration (ms)"])
+	})
+
+	t.Run("omits total boot duration when only boot duration available", func(t *testing.T) {
+		tl := BootTimeline{
+			BootStart:    boot,
+			LoginUIStart: boot.Add(10 * time.Second),
+		}
+
+		custom := buildCustomPayload(tl)
+
+		durations, ok := custom["durations"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, int64(10000), durations["Boot Duration (ms)"])
+		_, hasTotal := durations["Total Boot Duration (ms)"]
+		assert.False(t, hasTotal)
 	})
 
 	t.Run("includes logon duration", func(t *testing.T) {
