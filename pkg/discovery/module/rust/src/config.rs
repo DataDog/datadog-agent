@@ -132,27 +132,29 @@ fn find_non_discovery_yaml_key(yaml_doc: &Option<Yaml>) -> Option<&str> {
     }
 }
 
+/// Validated against the canonical list at ../testdata/non_discovery_env_vars.txt
+/// by test_non_discovery_env_vars_match_canonical_list. See also
+/// TestEnableModulesVars in pkg/system-probe/config/.
 static NON_DISCOVERY_ENV_VARS: phf::Set<&'static str> = phf_set! {
   "DD_CCM_NETWORK_CONFIG_ENABLED",
+  "DD_COMPLIANCE_CONFIG_DATABASE_BENCHMARKS_ENABLED",
   "DD_COMPLIANCE_CONFIG_ENABLED",
+  "DD_COMPLIANCE_CONFIG_RUN_IN_SYSTEM_PROBE",
   "DD_DYNAMIC_INSTRUMENTATION_ENABLED",
   "DD_EBPF_CHECK_ENABLED",
-  "DD_EVENT_MONITORING_CONFIG_NETWORK_PROCESS_ENABLED",
-  "DD_EVENT_MONITORING_CONFIG_PROCESS_ENABLED",
   "DD_GPU_MONITORING_ENABLED",
-  "DD_LANGUAGE_DETECTION_ENABLED",
-  "DD_NETWORK_CONFIG_ENABLED",
+  "DD_NOISY_NEIGHBOR_ENABLED",
   "DD_PING_ENABLED",
   "DD_PRIVILEGED_LOGS_ENABLED",
-  "DD_RUNTIME_SECURITY_CONFIG_COMPLIANCE_MODULE_ENABLED",
   "DD_RUNTIME_SECURITY_CONFIG_ENABLED",
-  "DD_RUNTIME_SECURITY_CONFIG_NETWORK_MONITORING_ENABLED",
-  "DD_SERVICE_MONITORING_CONFIG_ENABLE_EVENT_STREAM",
-  "DD_SERVICE_MONITORING_CONFIG_ENABLED",
+  "DD_RUNTIME_SECURITY_CONFIG_FIM_ENABLED",
   "DD_SOFTWARE_INVENTORY_ENABLED",
   "DD_SYSTEM_PROBE_CONFIG_ENABLE_OOM_KILL",
   "DD_SYSTEM_PROBE_CONFIG_ENABLE_TCP_QUEUE_LENGTH",
-  "DD_SYSTEM_PROBE_CONFIG_PROCESS_CONFIG_ENABLED",
+  "DD_SYSTEM_PROBE_CONFIG_LANGUAGE_DETECTION_ENABLED",
+  "DD_SYSTEM_PROBE_NETWORK_ENABLED",
+  "DD_SYSTEM_PROBE_PROCESS_ENABLED",
+  "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED",
   "DD_TRACEROUTE_ENABLED",
   "DD_WINDOWS_CRASH_DETECTION_ENABLED",
 };
@@ -162,7 +164,7 @@ static NON_DISCOVERY_ENV_VARS: phf::Set<&'static str> = phf_set! {
 ///
 /// We check the value of each env var rather than just its presence to avoid
 /// unnecessary fallback. This is needed because the Helm chart sets feature
-/// env vars even for disabled features (e.g. `DD_NETWORK_CONFIG_ENABLED=false`).
+/// env vars even for disabled features (e.g. `DD_SYSTEM_PROBE_NETWORK_ENABLED=false`).
 ///
 /// The logic uses `!= Some(false)` so that non-boolean values still trigger
 /// fallback as a safety net — matching the YAML side where a section without
@@ -339,7 +341,7 @@ mod tests {
 
     #[test]
     fn test_network_tracer_needs_fallback() {
-        temp_env::with_var("DD_NETWORK_CONFIG_ENABLED", Some("true"), || {
+        temp_env::with_var("DD_SYSTEM_PROBE_NETWORK_ENABLED", Some("true"), || {
             let decision = determine_action_no_config();
             assert_eq!(decision, FallbackDecision::FallbackToSystemProbe);
         });
@@ -356,7 +358,7 @@ discovery:
         let config_file = create_test_config(yaml);
 
         // Env var says true, YAML says false
-        temp_env::with_var("DD_NETWORK_CONFIG_ENABLED", Some("true"), || {
+        temp_env::with_var("DD_SYSTEM_PROBE_NETWORK_ENABLED", Some("true"), || {
             let config = load_config(Some(config_file.path().to_path_buf()));
             let decision = determine_action(&config);
             assert_eq!(
@@ -404,7 +406,7 @@ discovery:
         temp_env::with_vars(
             [
                 ("DD_DISCOVERY_ENABLED", Some("true")),
-                ("DD_NETWORK_CONFIG_ENABLED", Some("true")),
+                ("DD_SYSTEM_PROBE_NETWORK_ENABLED", Some("true")),
             ],
             || {
                 let decision = determine_action_no_config();
@@ -499,7 +501,7 @@ discovery:
 
     #[test]
     fn test_find_non_discovery_env_var_false_no_fallback() {
-        temp_env::with_var("DD_NETWORK_CONFIG_ENABLED", Some("false"), || {
+        temp_env::with_var("DD_SYSTEM_PROBE_NETWORK_ENABLED", Some("false"), || {
             assert!(
                 find_non_discovery_env_var().is_none(),
                 "Env var set to 'false' should not trigger fallback"
@@ -509,7 +511,7 @@ discovery:
 
     #[test]
     fn test_find_non_discovery_env_var_zero_no_fallback() {
-        temp_env::with_var("DD_NETWORK_CONFIG_ENABLED", Some("0"), || {
+        temp_env::with_var("DD_SYSTEM_PROBE_NETWORK_ENABLED", Some("0"), || {
             assert!(
                 find_non_discovery_env_var().is_none(),
                 "Env var set to '0' should not trigger fallback"
@@ -519,10 +521,10 @@ discovery:
 
     #[test]
     fn test_find_non_discovery_env_var_non_boolean_triggers_fallback() {
-        temp_env::with_var("DD_NETWORK_CONFIG_ENABLED", Some("maybe"), || {
+        temp_env::with_var("DD_SYSTEM_PROBE_NETWORK_ENABLED", Some("maybe"), || {
             assert_eq!(
                 find_non_discovery_env_var().as_deref(),
-                Some("DD_NETWORK_CONFIG_ENABLED"),
+                Some("DD_SYSTEM_PROBE_NETWORK_ENABLED"),
             );
         });
     }
@@ -690,7 +692,7 @@ network_config:
         temp_env::with_vars(
             [
                 ("DD_DISCOVERY_ENABLED", Some("true")),
-                ("DD_SERVICE_MONITORING_CONFIG_ENABLED", Some("true")),
+                ("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", Some("true")),
             ],
             || {
                 let decision = determine_action_no_config();
@@ -1086,7 +1088,7 @@ log_level: 12345
             [
                 ("DD_DISCOVERY_USE_SD_AGENT", Some("true")),
                 ("DD_DISCOVERY_ENABLED", Some("true")),
-                ("DD_NETWORK_CONFIG_ENABLED", Some("true")), // Non-discovery module
+                ("DD_SYSTEM_PROBE_NETWORK_ENABLED", Some("true")), // Non-discovery module
             ],
             || {
                 let decision = determine_action(&Ok(None));
@@ -1383,5 +1385,39 @@ event_monitoring_config:
             let config = load_config(Some(config_file.path().to_path_buf()));
             assert_eq!(determine_action(&config), FallbackDecision::RunSdAgent);
         });
+    }
+
+    // Sync test: validates NON_DISCOVERY_ENV_VARS matches canonical JSON
+
+    #[test]
+    fn test_non_discovery_env_vars_match_canonical_list() {
+        let txt_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("testdata")
+            .join("non_discovery_env_vars.txt");
+
+        let txt_content = std::fs::read_to_string(&txt_path).unwrap_or_else(|e| {
+            panic!("Cannot read canonical list at {}: {e}", txt_path.display())
+        });
+
+        let file_env_vars: std::collections::BTreeSet<&str> =
+            txt_content.lines().filter(|l| !l.is_empty()).collect();
+
+        let rust_env_vars: std::collections::BTreeSet<&str> =
+            NON_DISCOVERY_ENV_VARS.iter().copied().collect();
+
+        let in_file_not_rust: Vec<&&str> = file_env_vars.difference(&rust_env_vars).collect();
+        let in_rust_not_file: Vec<&&str> = rust_env_vars.difference(&file_env_vars).collect();
+
+        assert!(
+            in_file_not_rust.is_empty() && in_rust_not_file.is_empty(),
+            "NON_DISCOVERY_ENV_VARS does not match canonical list at {}.\n\
+             In file but not in Rust: {:?}\n\
+             In Rust but not in file: {:?}\n\
+             Update NON_DISCOVERY_ENV_VARS to match the file.",
+            txt_path.display(),
+            in_file_not_rust,
+            in_rust_not_file
+        );
     }
 }
