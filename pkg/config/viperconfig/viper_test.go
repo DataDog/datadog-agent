@@ -263,9 +263,9 @@ func TestCheckKnownKey(t *testing.T) {
 func TestCollectAllLeafKeys(t *testing.T) {
 	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")).(*safeConfig) // nolint: forbidigo
 
-	config.SetKnown("apm_config.foo")     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("apm_config.bar.baz") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("proxy.http")         //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.SetKnown("apm_config.foo")     //nolint:forbidigo // testing behavior
+	config.SetKnown("apm_config.bar.baz") //nolint:forbidigo // testing behavior
+	config.SetKnown("proxy.http")         //nolint:forbidigo // testing behavior
 
 	// Track unknown keys through Get(), which is how unknownKeys is populated.
 	_ = config.Get("unknown_section")
@@ -291,7 +291,7 @@ func TestAllKeysVsCollectAllLeafKeys(t *testing.T) {
 	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")).(*safeConfig) // nolint: forbidigo
 
 	// Known map-valued setting.
-	config.SetKnown("additional_endpoints") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.SetKnown("additional_endpoints") //nolint:forbidigo // testing behavior
 	config.Set("additional_endpoints", map[string]interface{}{
 		"https://app.datadoghq.com": []interface{}{"api_key"},
 	}, model.SourceFile)
