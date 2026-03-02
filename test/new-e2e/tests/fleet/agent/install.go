@@ -132,6 +132,7 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 		env["DD_REPO_URL"] = "datad0g.com"
 		env["DD_AGENT_MAJOR_VERSION"] = "7"
 		env["DD_AGENT_MINOR_VERSION"] = strings.TrimPrefix(params.stagingPackages, "7.")
+		env["DD_AGENT_DIST_CHANNEL"] = "beta"
 	}
 	_, err = a.host.RemoteHost.Execute(fmt.Sprintf(`bash -c "$(curl -L %s)"`, linuxInstallScriptURL), client.WithEnvVariables(env))
 	return err

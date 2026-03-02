@@ -22,10 +22,13 @@ import (
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
-// stableExtensionsPipelineID is the pipeline used as the "stable" base for extension persistence tests.
-// It must point to a build that already includes extension support (prerm/postinst hooks in the MSI).
-// TODO: replace with a staging/GA release once extension support ships.
-const stableExtensionsPipelineID = "99381470"
+const (
+	// stableExtensionsVersion is the OCI tag for the staging build used as the "stable" base for
+	// extension persistence tests. It must point to a build that already includes extension support.
+	stableExtensionsVersion = "7.78.0-beta-fleet-ext-1"
+	// stableExtensionsAgentVersion is the version as reported by the agent binary (OCI tag without the -1 package suffix).
+	stableExtensionsAgentVersion = "7.78.0-beta-fleet-ext"
+)
 
 type testExtensionsSuite struct {
 	installerwindows.BaseSuite
@@ -37,20 +40,24 @@ func TestExtensionPersistence(t *testing.T) {
 	s.CreateStableAgent = func() (*installerwindows.AgentVersionManager, error) {
 		oci, err := installerwindows.NewPackageConfig(
 			installerwindows.WithName(consts.AgentPackage),
-			installerwindows.WithPipeline(stableExtensionsPipelineID),
+			installerwindows.WithVersion(stableExtensionsVersion),
+			installerwindows.WithRegistry(consts.BetaS3OCIRegistry),
 		)
 		if err != nil {
 			return nil, err
 		}
 		msi, err := windowsagent.NewPackage(
-			windowsagent.WithURLFromPipeline(stableExtensionsPipelineID),
+			windowsagent.WithProduct("datadog-agent"),
+			windowsagent.WithArch("x86_64"),
+			windowsagent.WithURLFromInstallersJSON(
+				"https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/installers_v2.json",
+				stableExtensionsVersion,
+			),
 		)
 		if err != nil {
 			return nil, err
 		}
-		// Version comes from the milestone at the time the pipeline was created.
-		// The exact git suffix is irrelevant for the Contains() check used in installPreviousAgentVersion.
-		return installerwindows.NewAgentVersionManager("7.78.0-devel", "7.78.0-devel.pipeline."+stableExtensionsPipelineID+"-1", oci, msi)
+		return installerwindows.NewAgentVersionManager(stableExtensionsAgentVersion, stableExtensionsVersion, oci, msi)
 	}
 	e2e.Run(t, s,
 		e2e.WithProvisioner(

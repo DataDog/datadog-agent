@@ -25,6 +25,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
 
+const (
+	stagingAgentVersion    = "7.78.0~beta~fleet~ext"   // apt/rpm install script version
+	stagingAgentOCIVersion = "7.78.0-beta-fleet-ext-1" // OCI registry tag
+)
+
 type extensionsSuite struct {
 	suite.FleetSuite
 	fixtureServer *fixtures.Server
@@ -160,10 +165,10 @@ func (s *extensionsSuite) TestExtensionSaveAndRestore() {
 // TestExtensionSurvivesExperiment verifies that extensions installed on the
 // datadog-agent package survive an upgrade via the experiment (start/promote) flow.
 func (s *extensionsSuite) TestExtensionSurvivesExperiment() {
-	s.Agent.MustInstall(agent.WithPipelineID("99381470")) // TODO: use staging package for persistence
+	s.Agent.MustInstall(agent.WithStagingPackages(stagingAgentVersion))
 	defer s.Agent.MustUninstall()
 
-	s.Installer.MustInstallExtension(s.getAgentPackageURL("99381470"), "ddot")
+	s.Installer.MustInstallExtension(s.getStagingAgentPackageURL(), "ddot")
 	defer func() {
 		_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")
 	}()
@@ -186,10 +191,10 @@ func (s *extensionsSuite) TestExtensionSurvivesExperiment() {
 // TestExtensionRestoredAfterExperimentRollback verifies that extensions are
 // restored to their stable state when an experiment is stopped (rolled back).
 func (s *extensionsSuite) TestExtensionRestoredAfterExperimentRollback() {
-	s.Agent.MustInstall(agent.WithPipelineID("99381470")) // TODO: use staging package for persistence
+	s.Agent.MustInstall(agent.WithStagingPackages(stagingAgentVersion))
 	defer s.Agent.MustUninstall()
 
-	s.Installer.MustInstallExtension(s.getAgentPackageURL("99381470"), "ddot")
+	s.Installer.MustInstallExtension(s.getStagingAgentPackageURL(), "ddot")
 	defer func() {
 		_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")
 	}()
@@ -264,6 +269,11 @@ func (s *extensionsSuite) getExtensionPath(pkg, version, extensionName string) s
 		return ""
 	}
 	return filepath.Join(basePath, "ext", extensionName)
+}
+
+// getStagingAgentPackageURL returns the OCI URL for the staging agent package
+func (s *extensionsSuite) getStagingAgentPackageURL() string {
+	return "oci://install.datad0g.com.internal.dda-testing.com/agent-package:" + stagingAgentOCIVersion
 }
 
 // getAgentPackageURL returns the platform-specific agent package URL
