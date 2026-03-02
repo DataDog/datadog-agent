@@ -34,6 +34,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/rawotlpexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
@@ -87,6 +88,7 @@ func getComponents(
 	}
 	exporterFactories := []exporter.Factory{
 		otlpexporter.NewFactory(),
+		rawotlpexporter.NewFactory(),
 		serializerexporter.NewFactoryForAgent(s, hostname.Get, store),
 		debugexporter.NewFactory(),
 	}
