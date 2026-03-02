@@ -1,0 +1,95 @@
+---
+include:
+  - .gitlab/.pre/common/macos.yml
+
+# Optional manual jobs to generate config schema artifacts.
+# Must be triggered manually — they are not part of the standard pipeline.
+
+generate_config_schema-linux:
+  stage: binary_build
+  rules:
+    - when: manual
+      allow_failure: true
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  needs: ["go_deps"]
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+  script:
+    - dda inv -- check-go-version
+    - dda inv -- -e agent.build
+    - ./bin/agent/agent createschema
+    - python pkg/config/schema/parse_template_comment.py pkg/config/config_template.yaml core_schema.yaml core_schema_enriched.yaml
+    - python pkg/config/schema/parse_template_comment.py pkg/config/security-agent_template.yaml system-probe_schema.yaml system-probe_schema_enriched.yaml
+    - ./pkg/config/schema/fix_schema.py core_schema_enriched.yaml system-probe_schema_enriched.yaml
+    - mkdir generated_yaml_example
+    - go run ./pkg/config/render_config.go .//generated_yaml_example ./pkg/config
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $CI_PROJECT_DIR/core_schema.yaml
+      - $CI_PROJECT_DIR/system-probe_schema.yaml
+      - $CI_PROJECT_DIR/core_schema_enriched.yaml
+      - $CI_PROJECT_DIR/system-probe_schema_enriched.yaml
+      - $CI_PROJECT_DIR/generated_yaml_example/
+
+generate_config_schema-macos:
+  stage: binary_build
+  rules:
+    - when: manual
+      allow_failure: true
+  extends: .macos_gitlab
+  tags: ["macos:sonoma-amd64", "specific:true"]
+  script:
+    - dda inv -- -e agent.build
+    - ./bin/agent/agent createschema
+    - python pkg/config/schema/parse_template_comment.py pkg/config/config_template.yaml core_schema.yaml core_schema_enriched.yaml
+    - python pkg/config/schema/parse_template_comment.py pkg/config/security-agent_template.yaml system-probe_schema.yaml system-probe_schema_enriched.yaml
+    - ./pkg/config/schema/fix_schema.py core_schema_enriched.yaml system-probe_schema_enriched.yaml
+    - mkdir generated_yaml_example
+    - go run ./pkg/config/render_config.go .//generated_yaml_example ./pkg/config
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $CI_PROJECT_DIR/core_schema.yaml
+      - $CI_PROJECT_DIR/system-probe_schema.yaml
+      - $CI_PROJECT_DIR/core_schema_enriched.yaml
+      - $CI_PROJECT_DIR/system-probe_schema_enriched.yaml
+      - $CI_PROJECT_DIR/generated_yaml_example/
+
+generate_config_schema-windows:
+  stage: binary_build
+  rules:
+    - when: manual
+      allow_failure: true
+  extends: .windows_docker_default
+  needs: ["go_deps"]
+  variables:
+    ARCH: "x64"
+  script:
+    - $ErrorActionPreference = "Stop"
+    - >
+      docker run --rm
+      -m 8192M
+      -v "$(Get-Location):c:\mnt"
+      -e CI
+      -e GITLAB_CI
+      -e CI_JOB_ID
+      -e CI_PIPELINE_ID
+      -e CI_PROJECT_NAME
+      -e AWS_NETWORKING=true
+      -e GOMODCACHE="c:\modcache"
+      -e PIP_INDEX_URL
+      -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS
+      -e CI_IDENTITIES_GITLAB_ID_TOKEN
+      ${WINBUILDIMAGE}
+      powershell.exe -File c:\mnt\tasks\winbuildscripts\GenerateConfigSchema.ps1 -BuildOutOfSource 0 -InstallDeps 1 -CheckGoVersion 1
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $CI_PROJECT_DIR/core_schema.yaml
+      - $CI_PROJECT_DIR/system-probe_schema.yaml
+      - $CI_PROJECT_DIR/core_schema_enriched.yaml
+      - $CI_PROJECT_DIR/system-probe_schema_enriched.yaml
+      - $CI_PROJECT_DIR/generated_yaml_example/
