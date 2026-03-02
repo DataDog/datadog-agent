@@ -904,6 +904,7 @@ core,github.com/ebitengine/purego,Apache-2.0,Copyright 2022 The Ebitengine Autho
 core,github.com/ebitengine/purego/internal/cgo,Apache-2.0,Copyright 2022 The Ebitengine Authors
 core,github.com/ebitengine/purego/internal/fakecgo,Apache-2.0,Copyright 2022 The Ebitengine Authors
 core,github.com/ebitengine/purego/internal/strings,Apache-2.0,Copyright 2022 The Ebitengine Authors
+core,github.com/ebitengine/purego/internal/xreflect,Apache-2.0,Copyright 2022 The Ebitengine Authors
 core,github.com/edsrzf/mmap-go,BSD-3-Clause,"Copyright (c) 2011, Evan Shaw <edsrzf@gmail.com>"
 core,github.com/ekzhu/minhash-lsh,MIT,Copyright (c) 2017 Eric Zhu
 core,github.com/elastic/go-freelru,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
