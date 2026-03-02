@@ -8,7 +8,7 @@ This repository rule bridges the gap by producing a filtered copy of go.work tha
 already-converted modules (i.e. those NOT covered by a `# gazelle:exclude` directive, with `.` always excluded). The
 result is checked in as @bazelify_go_work//:go.work and used as the go_deps.from_file source.
 
-Modules without a BUILD file are automatically excluded with a warning, as Bazel cannot resolve their go.mod.
+Modules without a BUILD file are automatically excluded with a warning, as gazelle cannot resolve their go.mod.
 
 This file and its generated output are temporary and will be removed once all modules have been migrated to Gazelle.
 """
