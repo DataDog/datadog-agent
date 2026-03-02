@@ -1,4 +1,4 @@
-name 'datadog-agent-d-ependencies'
+name 'datadog-agent-dependencies'
 
 description "Enforce building dependencies as soon as possible so they can be cached"
 
