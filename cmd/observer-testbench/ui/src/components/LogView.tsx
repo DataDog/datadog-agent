@@ -453,13 +453,14 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
           {logTagGroups.size > 0 && (
             <div className="space-y-2">
               {[...logTagGroups.entries()].map(([key, tags]) => {
-                const { include: activeTags } = parseTagFilter(tagFilterInput);
+                const { include: activeTags, exclude: excludedTags } = parseTagFilter(tagFilterInput);
                 return (
                   <div key={key}>
                     <div className="text-[10px] text-slate-500 mb-1">{key}</div>
                     <div className="flex flex-wrap gap-1">
                       {tags.map((tag) => {
                         const active = activeTags.get(key)?.has(tag) ?? false;
+                        const excluded = excludedTags.has(tag) || excludedTags.has(key);
                         return (
                           <button
                             key={tag}
@@ -469,7 +470,9 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
                               setLogPage(1);
                             }}
                             className={`text-[10px] px-1.5 py-0.5 rounded font-mono transition-colors ${
-                              active
+                              excluded
+                                ? 'bg-red-600/40 text-red-300 ring-1 ring-red-500/60'
+                                : active
                                 ? 'bg-teal-600/40 text-teal-300 ring-1 ring-teal-500/60'
                                 : 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-300'
                             }`}
