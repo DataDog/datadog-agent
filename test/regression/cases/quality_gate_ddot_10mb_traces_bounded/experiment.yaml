@@ -4,9 +4,7 @@ erratic: false
 target:
   name: datadog-agent
   cpu_allotment: 2
-  # Keep container-level limit comfortably above the quality-gate bound so
-  # bounds checks fail on metric evaluation instead of OOM-killing the target.
-  memory_allotment: 700 MiB
+  memory_allotment: 500 MiB
 
   environment:
     DD_API_KEY: a0000001
