@@ -45,7 +45,6 @@ var commandDescriptions = map[string]string{
 	"readonly": "Mark variables as read-only",
 	"test":     "Evaluate conditional expression",
 	"[":        "Evaluate conditional expression (bracket form)",
-	"man":      "Display manual pages (use to look up detailed flag docs)",
 }
 
 // flagDescriptions provides human-readable descriptions for each allowed flag.
@@ -396,8 +395,6 @@ var allowedCommands = map[string]map[string]bool{
 	"test":     toSet(),
 	"[":        toSet(),
 
-	// -- Read-only informational utilities --
-	"man": toSet(),
 }
 
 // blockedBuiltins are shell builtins that are explicitly forbidden even though
