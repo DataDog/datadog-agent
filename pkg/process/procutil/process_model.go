@@ -345,18 +345,27 @@ func ConvertAllFilledProcessesToStats(processes map[int32]*process.FilledProcess
 
 // ConvertFilledProcessesToStats takes a group of FilledProcess objects and convert them into Stats
 func ConvertFilledProcessesToStats(p *process.FilledProcess) *Stats {
-	return &Stats{
+	s := &Stats{
 		CreateTime:  p.CreateTime,
 		Status:      p.Status,
 		Nice:        p.Nice,
 		OpenFdCount: p.OpenFdCount,
 		NumThreads:  p.NumThreads,
 		CPUTime:     ConvertFromCPUStat(p.CpuTime),
-		MemInfo:     ConvertFromMemInfo(p.MemInfo),
-		MemInfoEx:   ConvertFromMemInfoEx(p.MemInfoEx),
-		IOStat:      ConvertFromIOStats(p.IOStat),
-		CtxSwitches: ConvertFromCtxSwitches(p.CtxSwitches),
 	}
+	if p.MemInfo != nil {
+		s.MemInfo = ConvertFromMemInfo(p.MemInfo)
+	}
+	if p.MemInfoEx != nil {
+		s.MemInfoEx = ConvertFromMemInfoEx(p.MemInfoEx)
+	}
+	if p.IOStat != nil {
+		s.IOStat = ConvertFromIOStats(p.IOStat)
+	}
+	if p.CtxSwitches != nil {
+		s.CtxSwitches = ConvertFromCtxSwitches(p.CtxSwitches)
+	}
+	return s
 }
 
 // ConvertFromFilledProcess takes a FilledProcess object and convert it into Process
