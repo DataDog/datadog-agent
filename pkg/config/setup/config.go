@@ -2642,9 +2642,7 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 		})
 		if err != nil {
 			log.Errorf("Failed to configure delegated auth for '%s': %v", description, err)
-			continue
 		}
-		configured = true
 	}
 
 	return nil
