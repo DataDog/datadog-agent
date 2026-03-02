@@ -116,3 +116,21 @@ hostnameimpl.GetWithLegacyResolutionProviderFromConfig(ctx, cfg)
 
 `pkg/util/hostname.Get` / `GetWithProvider` are convenience wrappers that call these with
 `pkgconfigsetup.Datadog()` as the config reader. They are deprecated for new callers.
+
+---
+
+## Drift detection
+
+Drift is a change in the resolved hostname (or its source provider) detected after the agent
+has started. The drift service periodically re-resolves the hostname and emits telemetry when
+it diverges from the cached baseline.
+
+After the first successful hostname resolution, the drift service starts a background goroutine
+that waits for an initial delay (default: 20 minutes) and then re-resolves the hostname at a
+recurring interval (default: 6 hours). On each check, the new result is compared against the
+baseline stored in `pkg/util/cache` under `agent/hostname_check`. Any divergence in hostname
+value or provider is reported via the `hostname.drift_detected` counter and the
+`hostname.drift_resolution_time_ms` histogram.
+
+Both the initial delay and the recurring interval can be overridden via configuration keys
+`hostname_drift_initial_delay` and `hostname_drift_recurring_interval`.
