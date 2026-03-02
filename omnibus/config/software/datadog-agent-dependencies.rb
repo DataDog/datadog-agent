@@ -24,12 +24,6 @@ dependency 'jmxfetch'
 # Used for memory profiling with the `status py` agent subcommand
 dependency 'pympler'
 
-if linux_target?
-  build do
-    command_on_repo_root "bazelisk run -- @systemd//:install --destdir='#{install_dir}'"
-  end
-end
-
 dependency 'datadog-agent-integrations-py3'
 
 build do
