@@ -675,5 +675,5 @@ func (suite *baseSuite[Env]) testHostTags(args *testHostTags) {
 			assert.NoError(c, err)
 		}
 
-	}, 33*time.Minute, 1*time.Minute, "Failed to validate all host-tags")
+	}, 33*time.Minute, 15*time.Second, "Failed to validate all host-tags")
 }
