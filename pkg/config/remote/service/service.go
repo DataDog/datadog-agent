@@ -1478,12 +1478,23 @@ func validateRequest(request *pbgo.ClientGetConfigsRequest) error {
 		return status.Error(codes.InvalidArgument, "client.client_updater is a required field for updater client config update requests")
 	}
 
-	if (request.Client.IsTracer && request.Client.IsAgent) || (request.Client.IsTracer && request.Client.IsUpdater) || (request.Client.IsAgent && request.Client.IsUpdater) {
-		return status.Error(codes.InvalidArgument, "client.is_tracer, client.is_agent, and client.is_updater are mutually exclusive")
+	if request.Client.IsOperator && request.Client.ClientOperator == nil {
+		return status.Error(codes.InvalidArgument, "client.client_operator is a required field for operator client config update requests")
 	}
 
-	if !request.Client.IsTracer && !request.Client.IsAgent && !request.Client.IsUpdater {
-		return status.Error(codes.InvalidArgument, "agents only support remote config updates from tracer or agent or updater at this time")
+	isTracer, isAgent, isUpdater, isOperator := request.Client.IsTracer, request.Client.IsAgent, request.Client.IsUpdater, request.Client.IsOperator
+	typeCount := 0
+	for _, b := range []bool{isTracer, isAgent, isUpdater, isOperator} {
+		if b {
+			typeCount++
+		}
+	}
+	if typeCount > 1 {
+		return status.Error(codes.InvalidArgument, "client.is_tracer, client.is_agent, client.is_updater, and client.is_operator are mutually exclusive")
+	}
+
+	if typeCount == 0 {
+		return status.Error(codes.InvalidArgument, "agents only support remote config updates from tracer or agent or updater or operator at this time")
 	}
 
 	if request.Client.Id == "" {
