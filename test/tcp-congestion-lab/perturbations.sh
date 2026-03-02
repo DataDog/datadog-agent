@@ -21,6 +21,10 @@ while [[ "$1" == -* ]]; do
       DURATION="$2"
       shift 2
       ;;
+    -h|--help)
+      set -- "help"
+      break
+      ;;
     *)
       echo "Unknown option: $1" >&2
       exit 1
