@@ -39,6 +39,7 @@ from tasks import (
     gitlab_helpers,
     go,
     go_deps,
+    gpu,
     installer,
     invoke_unit_tests,
     issue,
@@ -222,6 +223,7 @@ ns.add_collection(github_tasks, "github")
 ns.add_collection(gitlab_helpers, "gitlab")
 ns.add_collection(issue)
 ns.add_collection(loader)
+ns.add_collection(gpu)
 ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(quality_gates)
