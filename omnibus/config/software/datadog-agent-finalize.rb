@@ -193,18 +193,13 @@ build do
             # Edit rpath from a true path to relative path for each binary
             command "dda inv -- omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos", cwd: Dir.pwd
 
-            if ENV['HARDENED_RUNTIME_MAC'] == 'true'
-                hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
-            else
-                hardened_runtime = ""
-            end
-
             if code_signing_identity
                 # Sometimes the timestamp service is not available, so we retry
                 codesign = "../tools/ci/retry.sh codesign"
                 app = "'#{install_dir}/Datadog Agent.app'"
 
                 # Codesign ~480 files (out of ~28000)
+                hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
                 command <<-SH.gsub(/^ {20}/, ""), cwd: Dir.pwd
                     set -euo pipefail
                     (
