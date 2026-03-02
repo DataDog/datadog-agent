@@ -374,19 +374,15 @@ In CI (with `--config=ci`), Rust builds automatically run:
 
 Configuration from `.bazelrc`:
 ```
-build:ci --aspects=@rules_rust//rust:defs.bzl%rust_clippy_aspect
-build:ci --output_groups=+clippy_checks
-build:ci --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect
-build:ci --output_groups=+rustfmt_checks
+common:lint --aspects=@rules_rust//rust:defs.bzl%rust_clippy_aspect --output_groups=+clippy_checks
+common:lint --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect --output_groups=+rustfmt_checks
 ```
 
 >**Note:** you can also enable these checks for your local development (for instance, to format code automatically). To do so create `user.bazelrc` file in the root of the project and just add the same flags without configuration name. This enforces unconditional usage of the flags for arbitrary `build` invocation:
 ```starlark
-build --aspects=@rules_rust//rust:defs.bzl%rust_clippy_aspect
-build --output_groups=+clippy_checks
-build --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect
-build --output_groups=+rustfmt_checks
+build --config=lint
 ```
+(or just `bazel build --config=lint //...` for a one-off check)
 
 ## Local Development Tips
 

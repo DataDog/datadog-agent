@@ -120,6 +120,7 @@ pkg_filegroup(
         ":blkid_hdr_files",
         ":libblkid_libfiles",
     ],
+    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
