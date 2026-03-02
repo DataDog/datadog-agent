@@ -186,11 +186,7 @@ func TestAllFlattenedExcludesDottedAdditionalEndpointsChildrenAfterSecretResolut
 
 	flattened, _ := config.AllFlattenedSettingsWithSequenceID()
 
-	_, hasTopLevel := flattened["additional_endpoints"]
-	_, hasURL1 := flattened["additional_endpoints.https://url1.com"]
-	_, hasURL2 := flattened["additional_endpoints.https://url2.eu"]
-
-	assert.True(t, hasTopLevel, "expected top-level additional_endpoints key in flattened map")
-	assert.False(t, hasURL1, "did not expect dotted child key additional_endpoints.https://url1.com in flattened map")
-	assert.False(t, hasURL2, "did not expect dotted child key additional_endpoints.https://url2.eu in flattened map")
+	assert.Contains(t, flattened, "additional_endpoints")
+	assert.NotContains(t, flattened, "additional_endpoints.https://url1.com")
+	assert.NotContains(t, flattened, "additional_endpoints.https://url2.eu")
 }

@@ -213,8 +213,9 @@ func TestCompareAllFlattenedSettingsWithSequenceIDKnownLeafParity(t *testing.T) 
 
 	viperKeys := slices.Collect(maps.Keys(viperMap))
 	ntmKeys := slices.Collect(maps.Keys(ntmMap))
-	assert.ElementsMatch(t, viperKeys, ntmKeys)
-	assert.ElementsMatch(t, []string{"apm_config.foo", "apm_config.bar.baz", "proxy.http"}, viperKeys)
+	expectedKeys := []string{"apm_config.foo", "apm_config.bar.baz", "proxy.http"}
+	assert.ElementsMatch(t, expectedKeys, viperKeys)
+	assert.ElementsMatch(t, expectedKeys, ntmKeys)
 	assert.NotContains(t, viperKeys, "apm_config")
 	assert.NotContains(t, viperKeys, "apm_config.bar")
 }
@@ -235,10 +236,9 @@ func TestCompareAllFlattenedSettingsWithSequenceIDUnknownParentChildParity(t *te
 
 	viperKeys := slices.Collect(maps.Keys(viperMap))
 	ntmKeys := slices.Collect(maps.Keys(ntmMap))
-	assert.ElementsMatch(t, viperKeys, ntmKeys)
-	assert.Contains(t, viperKeys, "proxy.http")
-	assert.Contains(t, viperKeys, "unknown_section")
-	assert.Contains(t, viperKeys, "unknown_section.info")
+	expectedKeys := []string{"proxy.http", "unknown_section", "unknown_section.info"}
+	assert.ElementsMatch(t, expectedKeys, viperKeys)
+	assert.ElementsMatch(t, expectedKeys, ntmKeys)
 }
 
 func TestCompareGetEnvVars(t *testing.T) {

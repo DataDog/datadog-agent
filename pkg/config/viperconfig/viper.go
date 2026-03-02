@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -371,13 +372,13 @@ func (c *safeConfig) AllKeysLowercased() []string {
 	return res
 }
 
-// collectFlattenedKeys returns flattened keys that match nodetreemodel semantics:
+// collectAllLeafKeys returns leaf keys that match nodetreemodel semantics:
 // known leaf keys plus all tracked unknown keys.
 // The algorithm:
 // 1. Collect known keys and filter for parent-child relationships (keep only leaves)
 // 2. Add all unknown keys as-is
 // Must be called while holding at least a read lock.
-func (c *safeConfig) collectFlattenedKeys() []string {
+func (c *safeConfig) collectAllLeafKeys() []string {
 	knownKeys := c.Viper.GetKnownKeys()
 
 	// Start with all known keys
@@ -407,11 +408,7 @@ func (c *safeConfig) collectFlattenedKeys() []string {
 		leafKeys[strings.ToLower(key)] = struct{}{}
 	}
 
-	keys := make([]string, 0, len(leafKeys))
-	for key := range leafKeys {
-		keys = append(keys, key)
-	}
-	return keys
+	return slices.Collect(maps.Keys(leafKeys))
 }
 
 // Get wraps Viper for concurrent access
@@ -833,14 +830,15 @@ func (c *safeConfig) AllSettingsBySource() map[model.Source]interface{} {
 	return res
 }
 
-// AllFlattenedSettingsWithSequenceID returns all settings as a flattened map along with the sequence ID.
+// AllFlattenedSettingsWithSequenceID returns all settings as a flattened map of schema leaf keys
+// along with the sequence ID.
 // Keys are flattened (e.g., "logs_config.enabled" instead of nested {"logs_config": {"enabled": ...}}).
 // This provides atomic access to flattened keys, values, and sequence ID under a single lock.
 func (c *safeConfig) AllFlattenedSettingsWithSequenceID() (map[string]interface{}, uint64) {
 	c.RLock()
 	defer c.RUnlock()
 
-	keys := c.collectFlattenedKeys()
+	keys := c.collectAllLeafKeys()
 	settings := make(map[string]interface{}, len(keys))
 	for _, key := range keys {
 		val, _ := c.Viper.GetE(key)
