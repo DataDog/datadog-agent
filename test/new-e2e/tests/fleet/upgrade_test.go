@@ -47,7 +47,13 @@ func (s *upgradeSuite) TestIntegrationPreservationDuringExperiment() {
 	s.Require().Equal("1.0.2", installedIntegrations["ping"], "integration should be installed before experiment")
 
 	// Experiment with the released stable version; preStartExperiment runs from our binary.
+	// If the stable version equals the installed testing version, the installer would reject it
+	// ("cannot set new experiment to the same version as stable"), so fall back to the previous minor.
+	testingVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
 	targetVersion := s.Backend.Catalog().Latest(backend.BranchStable, "datadog-agent")
+	if targetVersion == testingVersion {
+		targetVersion = s.Backend.Catalog().LatestMinus(backend.BranchStable, "datadog-agent", 1)
+	}
 	err = s.Backend.StartExperiment("datadog-agent", targetVersion)
 	s.Require().NoError(err)
 
