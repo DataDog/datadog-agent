@@ -62,6 +62,14 @@ func NewAutoMultilineHandler(aggregator automultilinedetection.Aggregator, maxCo
 		heuristics = append(heuristics, automultilinedetection.NewTimestampDetector(timestampDetectorMatchThreshold))
 	}
 
+	enableStackTraceDetection := pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_stack_trace_detection")
+	if sourceHasSettings && sourceSettings.EnableStackTraceDetection != nil {
+		enableStackTraceDetection = *sourceSettings.EnableStackTraceDetection
+	}
+	if enableStackTraceDetection {
+		heuristics = append(heuristics, automultilinedetection.NewStackTraceDetector())
+	}
+
 	patternTableMaxSize := pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.pattern_table_max_size")
 	if sourceHasSettings && sourceSettings.PatternTableMaxSize != nil {
 		patternTableMaxSize = *sourceSettings.PatternTableMaxSize

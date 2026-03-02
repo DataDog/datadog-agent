@@ -1,0 +1,21 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Auto multi-line log detection now recognizes non-timestamped stack trace
+    start markers from Go (``goroutine N [status]:`` and ``panic:``), Java
+    (``Exception in thread``), and Rust (``thread '<name>' panicked at``).
+    These patterns are emitted directly to stderr by language runtimes and were
+    previously missed by the timestamp-based detector, causing stack traces to
+    be split across multiple log entries.
+    The feature is enabled by default when auto multi-line detection is active
+    and can be toggled globally with
+    ``logs_config.auto_multi_line.enable_stack_trace_detection`` or per
+    integration via the ``enable_stack_trace_detection`` option in
+    ``auto_multi_line_extra_patterns``.
