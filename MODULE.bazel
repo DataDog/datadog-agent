@@ -45,7 +45,7 @@ bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "re.bzl", version = "0.2.0")
 bazel_dep(name = "rules_go", version = "0.60.0")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
-bazel_dep(name = "rules_python", version = "1.8.4")
+bazel_dep(name = "rules_python", version = "1.8.5")
 bazel_dep(name = "rules_shell", version = "0.6.1")
 bazel_dep(name = "supply_chain_tools", version = "0.0.1")
 
@@ -70,13 +70,6 @@ git_override(
     module_name = "rules_pkg",
     commit = "2bd928123ad46f5b96970f537af073e0acb5b654",  # main as of Feb 10, 2026
     remote = "https://github.com/bazelbuild/rules_pkg.git",
-)
-
-# Temporary until rules_python > 1.8.4 with Windows runfiles fix is in BCR
-git_override(
-    module_name = "rules_python",
-    commit = "f78add7f273bc2fe54ce9187da44abd68588961a",  # main as of Feb 11, 2026
-    remote = "https://github.com/bazel-contrib/rules_python.git",
 )
 
 #########################

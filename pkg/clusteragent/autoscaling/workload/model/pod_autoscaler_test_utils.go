@@ -17,6 +17,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
@@ -24,25 +25,34 @@ import (
 )
 
 // FakePodAutoscalerInternal is a fake PodAutoscalerInternal object.
+// Spec is a convenience shortcut: if UpstreamCR is nil and Spec is non-nil, Build() creates a
+// minimal upstream CR shell carrying the provided Spec.  When UpstreamCR is set it takes
+// precedence and Spec is ignored.
 type FakePodAutoscalerInternal struct {
 	Namespace                          string
 	Name                               string
 	Generation                         int64
 	Spec                               *datadoghq.DatadogPodAutoscalerSpec
+	UpstreamCR                         *datadoghq.DatadogPodAutoscaler
 	SettingsTimestamp                  time.Time
 	CreationTimestamp                  time.Time
 	ScalingValues                      ScalingValues
 	MainScalingValues                  ScalingValues
+	MainScalingValuesVersion           uint64
 	FallbackScalingValues              ScalingValues
 	HorizontalLastActions              []datadoghqcommon.DatadogPodAutoscalerHorizontalAction
 	HorizontalLastRecommendations      []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation
 	HorizontalLastLimitReason          string
 	HorizontalLastActionError          error
+	HorizontalActionErrorCount         uint
+	HorizontalActionSuccessCount       uint
 	HorizontalEventsRetention          time.Duration
 	HorizontalRecommendationsRetention time.Duration
 	VerticalLastAction                 *datadoghqcommon.DatadogPodAutoscalerVerticalAction
 	VerticalLastActionError            error
 	VerticalLastLimitReason            error
+	VerticalActionErrorCount           uint
+	VerticalActionSuccessCount         uint
 	CurrentReplicas                    *int32
 	ScaledReplicas                     *int32
 	Error                              error
@@ -53,25 +63,41 @@ type FakePodAutoscalerInternal struct {
 
 // Build creates a PodAutoscalerInternal object from the FakePodAutoscalerInternal.
 func (f FakePodAutoscalerInternal) Build() PodAutoscalerInternal {
+	upstreamCR := f.UpstreamCR
+	if upstreamCR == nil && f.Spec != nil {
+		upstreamCR = &datadoghq.DatadogPodAutoscaler{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: f.Namespace,
+				Name:      f.Name,
+			},
+			Spec: *f.Spec,
+		}
+	}
+
 	return PodAutoscalerInternal{
 		namespace:                          f.Namespace,
 		name:                               f.Name,
 		generation:                         f.Generation,
-		spec:                               f.Spec,
+		upstreamCR:                         upstreamCR,
 		settingsTimestamp:                  f.SettingsTimestamp,
 		creationTimestamp:                  f.CreationTimestamp,
 		scalingValues:                      f.ScalingValues,
 		mainScalingValues:                  f.MainScalingValues,
+		mainScalingValuesVersion:           f.MainScalingValuesVersion,
 		fallbackScalingValues:              f.FallbackScalingValues,
 		horizontalLastActions:              f.HorizontalLastActions,
 		horizontalLastRecommendations:      f.HorizontalLastRecommendations,
 		horizontalLastLimitReason:          f.HorizontalLastLimitReason,
 		horizontalLastActionError:          f.HorizontalLastActionError,
+		horizontalActionErrorCount:         f.HorizontalActionErrorCount,
+		horizontalActionSuccessCount:       f.HorizontalActionSuccessCount,
 		horizontalEventsRetention:          f.HorizontalEventsRetention,
 		horizontalRecommendationsRetention: f.HorizontalRecommendationsRetention,
 		verticalLastAction:                 f.VerticalLastAction,
 		verticalLastActionError:            f.VerticalLastActionError,
 		verticalLastLimitReason:            f.VerticalLastLimitReason,
+		verticalActionErrorCount:           f.VerticalActionErrorCount,
+		verticalActionSuccessCount:         f.VerticalActionSuccessCount,
 		currentReplicas:                    f.CurrentReplicas,
 		scaledReplicas:                     f.ScaledReplicas,
 		error:                              f.Error,

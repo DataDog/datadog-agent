@@ -31,13 +31,13 @@ build do
 
   if !windows_target?
     env = with_standard_compiler_flags(with_embedded_path)
-    command_on_repo_root "bazelisk run -- @cpython//:install --destdir='#{install_dir}/embedded'"
+    command_on_repo_root "bazelisk run -- @cpython//:install --destdir='#{install_dir}'"
     sh_ext = if linux_target? then "so" else "dylib" end
     command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
       " #{install_dir}/embedded/lib/libpython3.*#{sh_ext}" \
       " #{install_dir}/embedded/lib/python3.13/lib-dynload/*.so" \
       " #{install_dir}/embedded/bin/python3*"
   else
-    command_on_repo_root "bazelisk run #{flavor_flag} -- @cpython//:install --destdir=#{python_3_embedded}"
+    command_on_repo_root "bazelisk run #{flavor_flag} -- @cpython//:install --destdir=#{install_dir}"
   end
 end
