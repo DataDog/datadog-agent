@@ -177,11 +177,25 @@ function LogEntryRow({ entry, isExpanded, onToggle }: LogEntryRowProps) {
           <span className={`flex-shrink-0 text-xs px-1.5 py-0.5 rounded font-medium uppercase ${levelBadgeColor(entry.status)}`}>
             {entry.status}
           </span>
-          <span className="text-xs text-slate-300 font-mono leading-relaxed break-all">
+          <span className="text-xs text-slate-300 font-mono leading-relaxed break-all flex-1">
             {contentPreview}
           </span>
+          {entry.tags && entry.tags.length > 0 && (() => {
+            const headerTags = entry.tags.filter((tag) =>
+              MAIN_TAG_FILTER_KEYS.has(tag.slice(0, tag.indexOf(':')))
+            );
+            return headerTags.length > 0 ? (
+              <div className="flex gap-1 flex-wrap flex-shrink-0">
+                {headerTags.map((tag) => (
+                  <span key={tag} className="px-1 py-0.5 rounded text-[9px] bg-slate-600/50 text-slate-400 font-mono">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            ) : null;
+          })()}
           {entry.content.length > 120 && (
-            <span className="text-slate-500 flex-shrink-0 text-xs ml-auto">{isExpanded ? '▼' : '▶'}</span>
+            <span className="text-slate-500 flex-shrink-0 text-xs">{isExpanded ? '▼' : '▶'}</span>
           )}
         </div>
       </button>
@@ -241,6 +255,20 @@ function LogAnomalyCard({ anomaly, isExpanded, onToggle }: LogAnomalyCardProps) 
               </div>
             )}
           </div>
+          {anomaly.tags && anomaly.tags.length > 0 && (() => {
+            const headerTags = anomaly.tags.filter((tag) =>
+              MAIN_TAG_FILTER_KEYS.has(tag.slice(0, tag.indexOf(':')))
+            );
+            return headerTags.length > 0 ? (
+              <div className="flex gap-1 flex-wrap flex-shrink-0">
+                {headerTags.map((tag) => (
+                  <span key={tag} className="px-1 py-0.5 rounded text-[9px] bg-slate-600/50 text-slate-400 font-mono">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            ) : null;
+          })()}
           <span className="text-slate-500 flex-shrink-0 text-xs">{isExpanded ? '▼' : '▶'}</span>
         </div>
       </button>
