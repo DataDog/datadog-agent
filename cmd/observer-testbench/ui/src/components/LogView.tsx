@@ -309,16 +309,19 @@ function LogAnomalyCard({ anomaly, isExpanded, onToggle }: LogAnomalyCardProps) 
   );
 }
 
-const ALL_LEVELS = ['error', 'warn', 'info', 'debug'];
 const LOG_PAGE_SIZE = 50;
 
+/** Synthesize a `status:<value>` tag from the entry's status field so it can be filtered like any other tag. */
+function getEffectiveTags(tags: string[], status: string): string[] {
+  const statusTag = `status:${status.toLowerCase()}`;
+  return tags.includes(statusTag) ? tags : [statusTag, ...tags];
+}
 
 export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
   const scenarios = state.scenarios ?? [];
   const allLogs = state.logs ?? [];
   const allLogAnomalies = state.logAnomalies ?? [];
 
-  const [enabledLevels, setEnabledLevels] = useState<Set<string>>(new Set(ALL_LEVELS));
   const [tagFilterInput, setTagFilterInput] = useState('');
   const [expandedLogIndex, setExpandedLogIndex] = useState<number | null>(null);
   const [expandedAnomalyIndex, setExpandedAnomalyIndex] = useState<number | null>(null);
@@ -334,7 +337,6 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
   useEffect(() => {
     if (state.activeScenario && initializedScenarioRef.current !== state.activeScenario) {
       initializedScenarioRef.current = state.activeScenario;
-      setEnabledLevels(new Set(ALL_LEVELS));
       setTagFilterInput('');
       setExpandedLogIndex(null);
       setExpandedAnomalyIndex(null);
@@ -345,7 +347,7 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
   }, [state.activeScenario]);
 
   const logTagGroups = useMemo(() => {
-    const all = extractTagGroups(allLogs.map((l) => l.tags ?? []));
+    const all = extractTagGroups(allLogs.map((l) => getEffectiveTags(l.tags ?? [], l.status)));
     return new Map([...all.entries()].filter(([k]) => MAIN_TAG_FILTER_KEYS.has(k)));
   }, [allLogs]);
 
@@ -353,12 +355,11 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
     const filter = parseTagFilter(tagFilterInput);
     return allLogs
       .filter((l) => {
-        if (!enabledLevels.has(l.status.toLowerCase())) return false;
         if (filter.include.size === 0 && filter.exclude.size === 0) return true;
-        return matchesTagFilter(l.tags ?? [], filter);
+        return matchesTagFilter(getEffectiveTags(l.tags ?? [], l.status), filter);
       })
       .sort((a, b) => a.timestamp - b.timestamp);
-  }, [allLogs, enabledLevels, tagFilterInput]);
+  }, [allLogs, tagFilterInput]);
 
   const regularLogs = useMemo(
     () => filteredLogs.filter((l) => !(l.tags ?? []).includes('telemetry:true')),
@@ -370,15 +371,6 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
     [filteredLogs]
   );
 
-  const countByLevel = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const l of allLogs) {
-      const lvl = l.status.toLowerCase();
-      counts.set(lvl, (counts.get(lvl) ?? 0) + 1);
-    }
-    return counts;
-  }, [allLogs]);
-
   const sortedAnomalies = useMemo(() => {
     const filter = parseTagFilter(tagFilterInput);
     const anomalies = (filter.include.size === 0 && filter.exclude.size === 0)
@@ -386,15 +378,6 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
       : allLogAnomalies.filter((a) => matchesTagFilter(a.tags ?? [], filter));
     return [...anomalies].sort((a, b) => a.timestamp - b.timestamp);
   }, [allLogAnomalies, tagFilterInput]);
-
-  const toggleLevel = (level: string) => {
-    const next = new Set(enabledLevels);
-    if (next.has(level)) next.delete(level);
-    else next.add(level);
-    setEnabledLevels(next);
-    setExpandedLogIndex(null);
-    setLogPage(1);
-  };
 
   const scenarioStart = state.status?.scenarioStart ?? null;
   const scenarioEnd = state.status?.scenarioEnd ?? null;
@@ -411,37 +394,6 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
           activeScenario={state.activeScenario}
           onLoadScenario={actions.loadScenario}
         />
-
-        {/* Level filter */}
-        <div className="p-4 border-b border-slate-700">
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-            Log Level
-          </h2>
-          <div className="space-y-1">
-            {ALL_LEVELS.map((level) => {
-              const count = countByLevel.get(level) ?? 0;
-              return (
-                <label
-                  key={level}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-700 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={enabledLevels.has(level)}
-                    onChange={() => toggleLevel(level)}
-                    className="rounded border-slate-600 bg-slate-700 text-teal-500 focus:ring-teal-500"
-                  />
-                  <span className={`text-xs px-1.5 py-0.5 rounded font-medium uppercase ${levelBadgeColor(level)}`}>
-                    {level}
-                  </span>
-                  {count > 0 && (
-                    <span className="text-xs text-slate-500 flex-shrink-0 ml-auto">{count}</span>
-                  )}
-                </label>
-              );
-            })}
-          </div>
-        </div>
 
         {/* Tag filter */}
         <div className="p-4 border-b border-slate-700">
@@ -480,6 +432,8 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
                       {tags.map((tag) => {
                         const active = activeTags.get(key)?.has(tag) ?? false;
                         const excluded = excludedTags.has(tag) || excludedTags.has(key);
+                        const value = tag.slice(tag.indexOf(':') + 1);
+                        const isStatus = key === 'status';
                         return (
                           <button
                             key={tag}
@@ -488,15 +442,17 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
                               setExpandedLogIndex(null);
                               setLogPage(1);
                             }}
-                            className={`text-[10px] px-1.5 py-0.5 rounded font-mono transition-colors ${
+                            className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-medium transition-colors ring-1 ${isStatus ? 'uppercase' : ''} ${
                               excluded
-                                ? 'bg-red-600/40 text-red-300 ring-1 ring-red-500/60'
+                                ? 'bg-red-600/40 text-red-300 ring-red-500/60'
                                 : active
-                                ? 'bg-teal-600/40 text-teal-300 ring-1 ring-teal-500/60'
-                                : 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-300'
+                                ? `${isStatus ? levelBadgeColor(value) : 'bg-teal-600/40 text-teal-300'} ring-teal-500/60`
+                                : isStatus
+                                ? `${levelBadgeColor(value)} ring-transparent opacity-60 hover:opacity-100`
+                                : 'bg-slate-700 text-slate-400 ring-transparent hover:bg-slate-600 hover:text-slate-300'
                             }`}
                           >
-                            {tag}
+                            {isStatus ? value : tag}
                           </button>
                         );
                       })}
