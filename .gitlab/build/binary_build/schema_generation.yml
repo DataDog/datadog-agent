@@ -7,6 +7,10 @@ include:
 
 generate_config_schema-linux:
   stage: binary_build
+  variables:
+    KUBERNETES_CPU_REQUEST: 16
+    KUBERNETES_MEMORY_REQUEST: 16Gi
+    KUBERNETES_MEMORY_LIMIT: 16Gi
   rules:
     - when: manual
       allow_failure: true
@@ -16,12 +20,11 @@ generate_config_schema-linux:
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
-    - dda inv -- check-go-version
     - dda inv -- -e agent.build
     - ./bin/agent/agent createschema
-    - python pkg/config/schema/parse_template_comment.py pkg/config/config_template.yaml core_schema.yaml core_schema_enriched.yaml
-    - python pkg/config/schema/parse_template_comment.py pkg/config/security-agent_template.yaml system-probe_schema.yaml system-probe_schema_enriched.yaml
-    - ./pkg/config/schema/fix_schema.py core_schema_enriched.yaml system-probe_schema_enriched.yaml
+    - dda run i python ./pkg/config/schema/parse_template_comment.py pkg/config/config_template.yaml core_schema.yaml core_schema_enriched.yaml
+    - dda run i python ./pkg/config/schema/parse_template_comment.py pkg/config/security-agent_template.yaml system-probe_schema.yaml system-probe_schema_enriched.yaml
+    - dda run i python ./pkg/config/schema/fix_schema.py core_schema_enriched.yaml system-probe_schema_enriched.yaml
     - mkdir generated_yaml_example
     - go run ./pkg/config/render_config.go .//generated_yaml_example ./pkg/config
   artifacts:
@@ -43,9 +46,9 @@ generate_config_schema-macos:
   script:
     - dda inv -- -e agent.build
     - ./bin/agent/agent createschema
-    - python pkg/config/schema/parse_template_comment.py pkg/config/config_template.yaml core_schema.yaml core_schema_enriched.yaml
-    - python pkg/config/schema/parse_template_comment.py pkg/config/security-agent_template.yaml system-probe_schema.yaml system-probe_schema_enriched.yaml
-    - ./pkg/config/schema/fix_schema.py core_schema_enriched.yaml system-probe_schema_enriched.yaml
+    - dda run i python ./pkg/config/schema/parse_template_comment.py pkg/config/config_template.yaml core_schema.yaml core_schema_enriched.yaml
+    - dda run i python ./pkg/config/schema/parse_template_comment.py pkg/config/security-agent_template.yaml system-probe_schema.yaml system-probe_schema_enriched.yaml
+    - dda run i python ./pkg/config/schema/fix_schema.py core_schema_enriched.yaml system-probe_schema_enriched.yaml
     - mkdir generated_yaml_example
     - go run ./pkg/config/render_config.go .//generated_yaml_example ./pkg/config
   artifacts:
@@ -83,7 +86,7 @@ generate_config_schema-windows:
       -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS
       -e CI_IDENTITIES_GITLAB_ID_TOKEN
       ${WINBUILDIMAGE}
-      powershell.exe -File c:\mnt\tasks\winbuildscripts\GenerateConfigSchema.ps1 -BuildOutOfSource 0 -InstallDeps 1 -CheckGoVersion 1
+      powershell.exe -c "c:\mnt\tasks\winbuildscripts\GenerateConfigSchema.ps1 -BuildOutOfSource 0 -InstallDeps 1 -CheckGoVersion 1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
   artifacts:
     expire_in: 2 weeks

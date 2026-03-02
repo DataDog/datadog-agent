@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package configcheck implements 'agent createschema'.
+// Package createschema implements 'agent createschema'.
 package createschema
 
 import (
@@ -12,12 +12,12 @@ import (
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -37,11 +37,15 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Aliases: []string{"createschema"},
 		Short:   "",
 		Long:    ``,
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
+					ConfigParams: config.NewAgentParams(
+						globalParams.ConfFilePath,
+						config.WithExtraConfFiles(cliParams.ExtraConfFilePath),
+						config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath),
+					),
 				}),
 				core.Bundle(),
 			)
@@ -51,19 +55,19 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{createSchemaCommand}
 }
 
-func run(cliParams *cliParams) error {
-	data, err := yaml.Marshal(pkgconfigsetup.Datadog().GetSchema())
+func run(cfg config.Component, sysprobeConf sysprobeconfig.Component) error {
+	data, err := yaml.Marshal(cfg.GetSchema())
 	if err == nil {
-		os.WriteFile("core_schema.yaml", data, 0644)
+		_ = os.WriteFile("core_schema.yaml", data, 0644)
 		fmt.Printf("Wrote core_schema.yaml\n")
 	}
-	data, err = yaml.Marshal(pkgconfigsetup.SystemProbe().GetSchema())
+	data, err = yaml.Marshal(sysprobeConf.GetSchema())
 	if err == nil {
-		os.WriteFile("system-probe_schema.yaml", data, 0644)
+		_ = os.WriteFile("system-probe_schema.yaml", data, 0644)
 		fmt.Printf("Wrote system-probe_schema.yaml\n")
 	}
 
 	fmt.Printf("Exiting...\n")
-	os.Exit(1)
+	os.Exit(0)
 	return nil
 }
