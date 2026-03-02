@@ -27,6 +27,11 @@ func GetLoginTime(_ time.Time) (time.Time, error) {
 	return time.Time{}, errors.New("logonduration: not implemented on this platform")
 }
 
+// GetDesktopReadyTime is not implemented on this platform
+func GetDesktopReadyTime(_ time.Time) (time.Time, error) {
+	return time.Time{}, errors.New("logonduration: not implemented on this platform")
+}
+
 // IsFileVaultEnabled is not implemented on this platform
 func IsFileVaultEnabled() (bool, error) {
 	return false, errors.New("logonduration: not implemented on this platform")
@@ -37,9 +42,4 @@ func GetLoginTimestamps() *LoginTimestamps {
 	return &LoginTimestamps{
 		Error: "logonduration: not implemented on this platform",
 	}
-}
-
-// GetDesktopReadyData is not implemented on this platform
-func GetDesktopReadyData() (*DesktopReadyData, error) {
-	return nil, errors.New("logonduration: not implemented on this platform")
 }

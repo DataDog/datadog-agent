@@ -6,10 +6,10 @@
 #import <Foundation/Foundation.h>
 #import <OSLog/OSLog.h>
 
-// queryLoginTimestamp queries the unified log for login-related timestamps.
-// queryType: 0 = login window time (WindowServer starting), 1 = login time (sessionDidLogin)
+// queryLoginWindowTimestamp queries the unified log for when the login window appeared.
+// fileVaultEnabled: 1 = FileVault enabled, 0 = FileVault disabled
 // Returns Unix timestamp (seconds since epoch) or 0 on error.
-double queryLoginTimestamp(double bootTimestamp, int queryType) {
+double queryLoginWindowTimestamp(double bootTimestamp, int fileVaultEnabled) {
     @autoreleasepool {
         NSError *error = nil;
         
@@ -30,14 +30,14 @@ double queryLoginTimestamp(double bootTimestamp, int queryType) {
         NSPredicate *predicate;
         const char *queryName;
         
-        if (queryType == 1) {
+        if (fileVaultEnabled) {
             predicate = [NSPredicate predicateWithFormat:
-                @"process == 'loginwindow' AND composedMessage CONTAINS 'com.apple.sessionDidLogin'"];
-            queryName = "sessionDidLogin";
+                @"(process == 'SecurityAgent' OR process == 'authorizationhost') AND composedMessage CONTAINS 'FVUnlock session: fvunlock'"];
+            queryName = "FVUnlock session";
         } else {
             predicate = [NSPredicate predicateWithFormat:
-                @"process == 'WindowServer' AND composedMessage CONTAINS 'Server is starting up'"];
-            queryName = "WindowServer 'Server is starting up'";
+                @"process == 'loginwindow' AND composedMessage CONTAINS 'Login Window Application Started'"];
+            queryName = "Login Window Application Started";
         }
         
         OSLogEnumerator *enumerator = [store entriesEnumeratorWithOptions:0
@@ -63,6 +63,57 @@ double queryLoginTimestamp(double bootTimestamp, int queryType) {
         
         double result = [timestamp timeIntervalSince1970];
         NSLog(@"logonduration: Found %s at %@ (%.3f)", queryName, timestamp, result);
+        return result;
+    }
+}
+
+// queryLoginTimestamp queries the unified log for when the user completed login.
+// This works the same way with or without FileVault.
+// Returns Unix timestamp (seconds since epoch) or 0 on error.
+double queryLoginTimestamp(double bootTimestamp) {
+    @autoreleasepool {
+        NSError *error = nil;
+        
+        OSLogStore *store = [OSLogStore localStoreAndReturnError:&error];
+        if (store == nil) {
+            NSLog(@"logonduration: Failed to open OSLogStore: %@", error);
+            return 0;
+        }
+        
+        NSDate *startDate = [NSDate dateWithTimeIntervalSince1970:bootTimestamp];
+        
+        OSLogPosition *position = [store positionWithDate:startDate];
+        if (position == nil) {
+            NSLog(@"logonduration: Failed to create log position for boot time");
+            return 0;
+        }
+        
+        NSPredicate *predicate = [NSPredicate predicateWithFormat:
+            @"process == 'SecurityAgent' AND composedMessage CONTAINS 'loginwindow:success is being invoked'"];
+        
+        OSLogEnumerator *enumerator = [store entriesEnumeratorWithOptions:0
+                                                                 position:position
+                                                                predicate:predicate
+                                                                    error:&error];
+        if (enumerator == nil) {
+            NSLog(@"logonduration: Failed to create log enumerator for login timestamp: %@", error);
+            return 0;
+        }
+        
+        OSLogEntryLog *entry = [enumerator nextObject];
+        if (entry == nil) {
+            NSLog(@"logonduration: No log entry found for login timestamp after boot time");
+            return 0;
+        }
+        
+        NSDate *timestamp = entry.date;
+        if (timestamp == nil) {
+            NSLog(@"logonduration: Log entry for login timestamp has no timestamp");
+            return 0;
+        }
+        
+        double result = [timestamp timeIntervalSince1970];
+        NSLog(@"logonduration: Found login timestamp at %@ (%.3f)", timestamp, result);
         return result;
     }
 }
@@ -98,5 +149,64 @@ int checkFileVaultEnabled(void) {
         
         NSLog(@"logonduration: Unexpected fdesetup output: %@", output);
         return -1;
+    }
+}
+
+// queryDesktopReadyTimestamp queries the unified log for when the Dock checked in with launchservicesd.
+// This indicates the desktop is ready for user interaction.
+// Returns Unix timestamp (seconds since epoch) or 0 on error.
+double queryDesktopReadyTimestamp(double bootTimestamp) {
+    @autoreleasepool {
+        NSError *error = nil;
+        
+        OSLogStore *store = [OSLogStore localStoreAndReturnError:&error];
+        if (store == nil) {
+            NSLog(@"logonduration: Failed to open OSLogStore for desktop ready: %@", error);
+            return 0;
+        }
+        
+        NSDate *startDate = [NSDate dateWithTimeIntervalSince1970:bootTimestamp];
+        
+        OSLogPosition *position = [store positionWithDate:startDate];
+        if (position == nil) {
+            NSLog(@"logonduration: Failed to create log position for boot time (desktop ready)");
+            return 0;
+        }
+        
+        // Query for Dock checkin with launchservicesd - indicates desktop is ready
+        // Equivalent to: log show --predicate '(process == "launchservicesd"
+        //   AND (subsystem == "com.apple.launchservices" OR subsystem == "com.apple.launchservices:cas")
+        //   AND eventMessage CONTAINS[c] "checkin"
+        //   AND eventMessage CONTAINS[c] "com.apple.dock")'
+        NSPredicate *predicate = [NSPredicate predicateWithFormat:
+            @"process == 'launchservicesd' AND "
+            "(subsystem == 'com.apple.launchservices' OR subsystem == 'com.apple.launchservices:cas') AND "
+            "composedMessage CONTAINS[c] 'checkin' AND "
+            "composedMessage CONTAINS[c] 'com.apple.dock'"];
+        
+        OSLogEnumerator *enumerator = [store entriesEnumeratorWithOptions:0
+                                                                 position:position
+                                                                predicate:predicate
+                                                                    error:&error];
+        if (enumerator == nil) {
+            NSLog(@"logonduration: Failed to create log enumerator for desktop ready: %@", error);
+            return 0;
+        }
+        
+        OSLogEntryLog *entry = [enumerator nextObject];
+        if (entry == nil) {
+            NSLog(@"logonduration: No log entry found for Dock checkin after boot time");
+            return 0;
+        }
+        
+        NSDate *timestamp = entry.date;
+        if (timestamp == nil) {
+            NSLog(@"logonduration: Log entry for Dock checkin has no timestamp");
+            return 0;
+        }
+        
+        double result = [timestamp timeIntervalSince1970];
+        NSLog(@"logonduration: Found Dock checkin (desktop ready) at %@ (%.3f)", timestamp, result);
+        return result;
     }
 }

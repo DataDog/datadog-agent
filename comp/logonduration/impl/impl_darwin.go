@@ -118,7 +118,7 @@ func (c *logonDurationComponent) stop() error {
 // run executes the logon duration analysis:
 //  1. Detect if a reboot occurred since last run (via persistent cache).
 //  2. If no reboot, update cache and return.
-//  3. If reboot, wait for desktop ready, collect timestamps, and submit event.
+//  3. If reboot, collect timestamps from system-probe and submit event.
 func (c *logonDurationComponent) run(ctx context.Context) {
 	rebooted, currentBootTime, err := c.detectReboot()
 	if err != nil {
@@ -141,6 +141,7 @@ func (c *logonDurationComponent) run(ctx context.Context) {
 	}
 
 	// Get login timestamps from system-probe (requires root)
+	// This includes login window time, login time, and desktop ready time
 	start := time.Now()
 	loginTimestamps, err := c.getLoginTimestampsFromSystemProbe(ctx)
 	if err != nil {
@@ -150,18 +151,8 @@ func (c *logonDurationComponent) run(ctx context.Context) {
 		log.Infof("Logon duration: got login timestamps from system-probe (took %.2fs)", time.Since(start).Seconds())
 	}
 
-	// Wait for desktop ready (poll the GUI app)
-	start = time.Now()
-	desktopData, err := c.waitForDesktopReady(ctx)
-	if err != nil {
-		log.Warnf("Logon duration: failed to get desktop ready data: %v (took %.2fs)", err, time.Since(start).Seconds())
-		// Continue anyway - we can still report partial data
-	} else {
-		log.Infof("Logon duration: got desktop ready data (took %.2fs)", time.Since(start).Seconds())
-	}
-
 	// Build and submit the event
-	if err := c.submitEvent(bootTime, loginTimestamps, desktopData); err != nil {
+	if err := c.submitEvent(bootTime, loginTimestamps); err != nil {
 		log.Errorf("Logon duration: failed to submit event: %v", err)
 	}
 
@@ -231,42 +222,6 @@ func (c *logonDurationComponent) getLoginTimestampsFromSystemProbe(ctx context.C
 	return nil, fmt.Errorf("system-probe did not become ready in time: %w", err)
 }
 
-// waitForDesktopReady polls the GUI app until the desktop is ready
-func (c *logonDurationComponent) waitForDesktopReady(ctx context.Context) (*logonduration.DesktopReadyData, error) {
-	// Poll for desktop ready status
-	for i := 0; i < 60; i++ {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		default:
-		}
-
-		data, err := logonduration.GetDesktopReadyData()
-		if err != nil {
-			log.Debugf("Logon duration: failed to get desktop ready data, retrying: %v", err)
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(2 * time.Second):
-			}
-			continue
-		}
-
-		if data.Ready {
-			return data, nil
-		}
-
-		log.Debugf("Logon duration: desktop not ready yet, retrying in 2s")
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(2 * time.Second):
-		}
-	}
-
-	return nil, fmt.Errorf("desktop did not become ready in time")
-}
-
 // Milestone represents a single event in the boot/logon timeline.
 type Milestone struct {
 	Name      string  `json:"name"`
@@ -274,7 +229,7 @@ type Milestone struct {
 	Timestamp string  `json:"timestamp"`
 }
 
-func buildTimelineMilestones(bootTime time.Time, loginTimestamps *logonduration.LoginTimestamps, desktopData *logonduration.DesktopReadyData) []Milestone {
+func buildTimelineMilestones(bootTime time.Time, loginTimestamps *logonduration.LoginTimestamps) []Milestone {
 	const tsFmt = "2006-01-02T15:04:05.000Z"
 	var milestones []Milestone
 
@@ -303,23 +258,22 @@ func buildTimelineMilestones(bootTime time.Time, loginTimestamps *logonduration.
 		})
 	}
 
-	// Desktop Ready (from GUI)
-	if desktopData != nil && desktopData.DesktopReadyTime != nil {
-		desktopReadyTime := time.Unix(0, int64(*desktopData.DesktopReadyTime*float64(time.Second)))
+	// Desktop Ready (from system-probe - Dock checkin with launchservicesd)
+	if loginTimestamps != nil && loginTimestamps.DesktopReadyTime != nil {
 		milestones = append(milestones, Milestone{
 			Name:      "Desktop Ready",
-			OffsetS:   desktopReadyTime.Sub(bootTime).Seconds(),
-			Timestamp: desktopReadyTime.UTC().Format(tsFmt),
+			OffsetS:   loginTimestamps.DesktopReadyTime.Sub(bootTime).Seconds(),
+			Timestamp: loginTimestamps.DesktopReadyTime.UTC().Format(tsFmt),
 		})
 	}
 
 	return milestones
 }
 
-func buildCustomPayload(bootTime time.Time, loginTimestamps *logonduration.LoginTimestamps, desktopData *logonduration.DesktopReadyData) map[string]interface{} {
+func buildCustomPayload(bootTime time.Time, loginTimestamps *logonduration.LoginTimestamps) map[string]interface{} {
 	custom := make(map[string]interface{})
 
-	custom["boot_timeline"] = buildTimelineMilestones(bootTime, loginTimestamps, desktopData)
+	custom["boot_timeline"] = buildTimelineMilestones(bootTime, loginTimestamps)
 
 	durations := make(map[string]interface{})
 
@@ -329,15 +283,13 @@ func buildCustomPayload(bootTime time.Time, loginTimestamps *logonduration.Login
 	}
 
 	// Logon Duration: loginTime -> desktopReadyTime
-	if loginTimestamps != nil && loginTimestamps.LoginTime != nil && desktopData != nil && desktopData.DesktopReadyTime != nil {
-		desktopReadyTime := time.Unix(0, int64(*desktopData.DesktopReadyTime*float64(time.Second)))
-		durations["Logon Duration (ms)"] = desktopReadyTime.Sub(*loginTimestamps.LoginTime).Milliseconds()
+	if loginTimestamps != nil && loginTimestamps.LoginTime != nil && loginTimestamps.DesktopReadyTime != nil {
+		durations["Logon Duration (ms)"] = loginTimestamps.DesktopReadyTime.Sub(*loginTimestamps.LoginTime).Milliseconds()
 	}
 
 	// Total Boot Duration: bootTime -> desktopReadyTime
-	if desktopData != nil && desktopData.DesktopReadyTime != nil {
-		desktopReadyTime := time.Unix(0, int64(*desktopData.DesktopReadyTime*float64(time.Second)))
-		durations["Total Boot Duration (ms)"] = desktopReadyTime.Sub(bootTime).Milliseconds()
+	if loginTimestamps != nil && loginTimestamps.DesktopReadyTime != nil {
+		durations["Total Boot Duration (ms)"] = loginTimestamps.DesktopReadyTime.Sub(bootTime).Milliseconds()
 	}
 
 	if len(durations) > 0 {
@@ -349,17 +301,11 @@ func buildCustomPayload(bootTime time.Time, loginTimestamps *logonduration.Login
 		custom["filevault_enabled"] = *loginTimestamps.FileVaultEnabled
 	}
 
-	// Add user info
-	if desktopData != nil {
-		custom["username"] = desktopData.Username
-		custom["uid"] = desktopData.UID
-	}
-
 	return custom
 }
 
 // submitEvent logs the boot/logon duration data in a readable format
-func (c *logonDurationComponent) submitEvent(bootTime time.Time, loginTimestamps *logonduration.LoginTimestamps, desktopData *logonduration.DesktopReadyData) error {
+func (c *logonDurationComponent) submitEvent(bootTime time.Time, loginTimestamps *logonduration.LoginTimestamps) error {
 	log.Info("Logon duration: ========== Boot/Logon Duration Data ==========")
 
 	// Log timestamps
@@ -372,18 +318,12 @@ func (c *logonDurationComponent) submitEvent(bootTime time.Time, loginTimestamps
 		if loginTimestamps.LoginTime != nil {
 			log.Infof("Logon duration: login_time=%s", loginTimestamps.LoginTime.Format(time.RFC3339))
 		}
+		if loginTimestamps.DesktopReadyTime != nil {
+			log.Infof("Logon duration: desktop_ready_time=%s", loginTimestamps.DesktopReadyTime.Format(time.RFC3339))
+		}
 		if loginTimestamps.FileVaultEnabled != nil {
 			log.Infof("Logon duration: filevault_enabled=%v", *loginTimestamps.FileVaultEnabled)
 		}
-	}
-
-	var desktopReadyTime time.Time
-	if desktopData != nil {
-		if desktopData.DesktopReadyTime != nil {
-			desktopReadyTime = time.Unix(0, int64(*desktopData.DesktopReadyTime*float64(time.Second)))
-			log.Infof("Logon duration: desktop_ready_time=%s", desktopReadyTime.Format(time.RFC3339))
-		}
-		log.Infof("Logon duration: username=%s, uid=%d", desktopData.Username, desktopData.UID)
 	}
 
 	// Log durations in seconds
@@ -394,13 +334,13 @@ func (c *logonDurationComponent) submitEvent(bootTime time.Time, loginTimestamps
 		log.Infof("Logon duration: boot_duration=%.2fs (login_window - boot)", bootDuration)
 	}
 
-	if loginTimestamps != nil && loginTimestamps.LoginTime != nil && !desktopReadyTime.IsZero() {
-		logonDuration := desktopReadyTime.Sub(*loginTimestamps.LoginTime).Seconds()
+	if loginTimestamps != nil && loginTimestamps.LoginTime != nil && loginTimestamps.DesktopReadyTime != nil {
+		logonDuration := loginTimestamps.DesktopReadyTime.Sub(*loginTimestamps.LoginTime).Seconds()
 		log.Infof("Logon duration: logon_duration=%.2fs (desktop_ready - login)", logonDuration)
 	}
 
-	if !desktopReadyTime.IsZero() {
-		totalDuration := desktopReadyTime.Sub(bootTime).Seconds()
+	if loginTimestamps != nil && loginTimestamps.DesktopReadyTime != nil {
+		totalDuration := loginTimestamps.DesktopReadyTime.Sub(bootTime).Seconds()
 		log.Infof("Logon duration: total_duration=%.2fs (desktop_ready - boot)", totalDuration)
 	}
 

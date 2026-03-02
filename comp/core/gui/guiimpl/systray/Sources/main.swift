@@ -34,12 +34,9 @@ NSApp.setActivationPolicy(.accessory)
 
 if headlessMode {
     // Headless mode: Run only WiFi IPC server, no GUI
-    Logger.info("Initializing desktop ready tracker...", context: "GUI")
-    let desktopReadyTracker = DesktopReadyTracker()
-
     Logger.info("Initializing WiFi IPC components...", context: "GUI")
     let wifiDataProvider = WiFiDataProvider()
-    let wifiIPCServer = WiFiIPCServer(wifiDataProvider: wifiDataProvider, desktopReadyTracker: desktopReadyTracker)
+    let wifiIPCServer = WiFiIPCServer(wifiDataProvider: wifiDataProvider)
 
     do {
         try wifiIPCServer.start()

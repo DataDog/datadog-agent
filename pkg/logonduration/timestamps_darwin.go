@@ -14,37 +14,27 @@ package logonduration
 #include <stdlib.h>
 
 // Returns Unix timestamp (seconds since epoch) or 0 on error
-// Query type: 0 = login window time, 1 = login time (sessionDidLogin)
-double queryLoginTimestamp(double bootTimestamp, int queryType);
+// fileVaultEnabled: 1 = FileVault enabled, 0 = FileVault disabled
+double queryLoginWindowTimestamp(double bootTimestamp, int fileVaultEnabled);
+
+// Returns Unix timestamp (seconds since epoch) or 0 on error
+double queryLoginTimestamp(double bootTimestamp);
 
 // Returns 1 if FileVault is enabled, 0 if disabled, -1 on error
 int checkFileVaultEnabled(void);
+
+// Returns Unix timestamp (seconds since epoch) or 0 on error
+double queryDesktopReadyTimestamp(double bootTimestamp);
 */
 import "C"
 
 import (
-	"bufio"
-	"context"
-	"encoding/json"
 	"fmt"
-	"net"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strconv"
-	"strings"
-	"syscall"
 	"time"
 
 	"golang.org/x/sys/unix"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-const (
-	maxIPCResponseSize = 4096
-	ipcTimeout         = 2 * time.Second
 )
 
 // GetBootTime returns the system boot time using sysctl kern.boottime
@@ -57,10 +47,15 @@ func GetBootTime() (time.Time, error) {
 }
 
 // GetLoginWindowTime queries OSLogStore for when the login window appeared.
+// The query differs based on whether FileVault is enabled.
 // This requires root privileges to access the local log store.
-func GetLoginWindowTime(bootTime time.Time) (time.Time, error) {
+func GetLoginWindowTime(bootTime time.Time, fileVaultEnabled bool) (time.Time, error) {
 	bootTimestamp := C.double(float64(bootTime.Unix()))
-	result := C.queryLoginTimestamp(bootTimestamp, 0) // 0 = login window time
+	fvEnabled := C.int(0)
+	if fileVaultEnabled {
+		fvEnabled = 1
+	}
+	result := C.queryLoginWindowTimestamp(bootTimestamp, fvEnabled)
 
 	if result == 0 {
 		return time.Time{}, fmt.Errorf("failed to query login window time from unified logs")
@@ -70,14 +65,30 @@ func GetLoginWindowTime(bootTime time.Time) (time.Time, error) {
 	return time.Unix(int64(resultFloat), int64((resultFloat-float64(int64(resultFloat)))*1e9)), nil
 }
 
-// GetLoginTime queries OSLogStore for when the user entered credentials.
+// GetLoginTime queries OSLogStore for when the user completed login.
+// This works the same way with or without FileVault.
 // This requires root privileges to access the local log store.
 func GetLoginTime(bootTime time.Time) (time.Time, error) {
 	bootTimestamp := C.double(float64(bootTime.Unix()))
-	result := C.queryLoginTimestamp(bootTimestamp, 1) // 1 = login time (sessionDidLogin)
+	result := C.queryLoginTimestamp(bootTimestamp)
 
 	if result == 0 {
 		return time.Time{}, fmt.Errorf("failed to query login time from unified logs")
+	}
+
+	resultFloat := float64(result)
+	return time.Unix(int64(resultFloat), int64((resultFloat-float64(int64(resultFloat)))*1e9)), nil
+}
+
+// GetDesktopReadyTime queries OSLogStore for when the Dock checked in with launchservicesd.
+// This indicates the desktop is ready for user interaction.
+// This requires root privileges to access the local log store.
+func GetDesktopReadyTime(bootTime time.Time) (time.Time, error) {
+	bootTimestamp := C.double(float64(bootTime.Unix()))
+	result := C.queryDesktopReadyTimestamp(bootTimestamp)
+
+	if result == 0 {
+		return time.Time{}, fmt.Errorf("failed to query desktop ready time from unified logs")
 	}
 
 	resultFloat := float64(result)
@@ -106,9 +117,20 @@ func GetLoginTimestamps() *LoginTimestamps {
 		return result
 	}
 
-	// Get login window time via CGO to OSLogStore
+	// Check FileVault status first (needed for login window query)
 	start := time.Now()
-	if lwt, err := GetLoginWindowTime(bootTime); err == nil {
+	fileVaultEnabled := false
+	if fv, err := IsFileVaultEnabled(); err == nil {
+		result.FileVaultEnabled = &fv
+		fileVaultEnabled = fv
+		log.Infof("logonduration: FileVault enabled: %v (query took %.3fs)", fv, time.Since(start).Seconds())
+	} else {
+		log.Warnf("logonduration: failed to check FileVault status: %v (query took %.3fs)", err, time.Since(start).Seconds())
+	}
+
+	// Get login window time via CGO to OSLogStore (query depends on FileVault status)
+	start = time.Now()
+	if lwt, err := GetLoginWindowTime(bootTime, fileVaultEnabled); err == nil {
 		result.LoginWindowTime = &lwt
 		log.Infof("logonduration: login window time: %v (query took %.3fs)", lwt, time.Since(start).Seconds())
 	} else {
@@ -124,108 +146,14 @@ func GetLoginTimestamps() *LoginTimestamps {
 		log.Warnf("logonduration: failed to get login time: %v (query took %.3fs)", err, time.Since(start).Seconds())
 	}
 
-	// Check FileVault status
+	// Get desktop ready time via CGO to OSLogStore (Dock checkin with launchservicesd)
 	start = time.Now()
-	if fv, err := IsFileVaultEnabled(); err == nil {
-		result.FileVaultEnabled = &fv
-		log.Infof("logonduration: FileVault enabled: %v (query took %.3fs)", fv, time.Since(start).Seconds())
+	if drt, err := GetDesktopReadyTime(bootTime); err == nil {
+		result.DesktopReadyTime = &drt
+		log.Infof("logonduration: desktop ready time: %v (query took %.3fs)", drt, time.Since(start).Seconds())
 	} else {
-		log.Warnf("logonduration: failed to check FileVault status: %v (query took %.3fs)", err, time.Since(start).Seconds())
+		log.Warnf("logonduration: failed to get desktop ready time: %v (query took %.3fs)", err, time.Since(start).Seconds())
 	}
 
 	return result
-}
-
-// GetDesktopReadyData retrieves desktop ready status from the GUI via IPC.
-// This doesn't require root privileges.
-func GetDesktopReadyData() (*DesktopReadyData, error) {
-	uid, err := getConsoleUserUID()
-	if err != nil {
-		return nil, fmt.Errorf("no console user: %w", err)
-	}
-
-	socketPath := filepath.Join(pkgconfigsetup.InstallPath, "run", "ipc", fmt.Sprintf("gui-%s.sock", uid))
-
-	if err := validateSocketOwnership(socketPath, uid); err != nil {
-		return nil, fmt.Errorf("socket validation failed: %w", err)
-	}
-
-	return fetchDesktopReadyFromGUI(socketPath, ipcTimeout)
-}
-
-func getConsoleUserUID() (string, error) {
-	cmd := exec.Command("/usr/bin/stat", "-f", "%u", "/dev/console")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("failed to stat /dev/console: %w", err)
-	}
-
-	uid := strings.TrimSpace(string(output))
-	if uid == "" || uid == "0" {
-		return "", fmt.Errorf("no console user logged in (UID: %s)", uid)
-	}
-
-	log.Debugf("logonduration: console user UID: %s", uid)
-	return uid, nil
-}
-
-func validateSocketOwnership(socketPath string, expectedUID string) error {
-	fileInfo, err := os.Stat(socketPath)
-	if err != nil {
-		return fmt.Errorf("cannot stat socket %s: %w", socketPath, err)
-	}
-
-	stat, ok := fileInfo.Sys().(*syscall.Stat_t)
-	if !ok {
-		return fmt.Errorf("cannot get socket file stat")
-	}
-
-	actualUID := strconv.FormatUint(uint64(stat.Uid), 10)
-	if actualUID != expectedUID {
-		return fmt.Errorf("socket owner mismatch: expected UID %s, got UID %s", expectedUID, actualUID)
-	}
-
-	return nil
-}
-
-func fetchDesktopReadyFromGUI(socketPath string, timeout time.Duration) (*DesktopReadyData, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	var d net.Dialer
-	conn, err := d.DialContext(ctx, "unix", socketPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to GUI socket: %w", err)
-	}
-	defer conn.Close()
-
-	if deadline, ok := ctx.Deadline(); ok {
-		conn.SetDeadline(deadline)
-	}
-
-	// Send request for desktop ready status only
-	request := map[string]string{"command": "get_desktop_ready"}
-	requestData, _ := json.Marshal(request)
-	conn.Write(append(requestData, '\n'))
-
-	reader := bufio.NewReaderSize(conn, maxIPCResponseSize)
-	responseLine, err := reader.ReadString('\n')
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	var response DesktopReadyIPCResponse
-	if err := json.Unmarshal([]byte(responseLine), &response); err != nil {
-		return nil, fmt.Errorf("invalid response: %w", err)
-	}
-
-	if !response.Success || response.Data == nil {
-		errMsg := "unknown error"
-		if response.Error != nil {
-			errMsg = *response.Error
-		}
-		return nil, fmt.Errorf("GUI returned error: %s", errMsg)
-	}
-
-	return response.Data, nil
 }
