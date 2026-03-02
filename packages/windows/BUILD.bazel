@@ -14,7 +14,7 @@ package(default_visibility = ["//packages:__subpackages__"])
 #   - the target to build an MSI will depend on this.
 #   - the SBOM generator will depend on this.
 pkg_filegroup(
-    name = "all_deps",
+    name = "all_files",
     srcs = [
         ":drivers",
     ],
@@ -24,18 +24,6 @@ pkg_filegroup(
     name = "all_packaging",
     srcs = [
         # placeholder.  License and init scripts go here.
-    ],
-)
-
-# For now, this is the target to use to push them into the build image.
-# During the build, call this from agent-dependencies.
-# Usage:
-#   bazel run -- //packages/windows:install_deps --destdir={install_dir}
-#
-pkg_install(
-    name = "install_deps",
-    srcs = [
-        ":all_deps",
     ],
 )
 

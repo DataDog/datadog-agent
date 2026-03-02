@@ -1,0 +1,67 @@
+"""The dependencies of the agent.
+
+Gathering spot for all the various dependencies which are shipped as part of the product.
+This replaces datadog-agent-dependencies.rb.
+"""
+
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        # dependency cacerts
+        # External agents
+        # dependency 'jmxfetch'
+        # Used for memory profiling with the `status py` agent subcommand
+        # dependency 'pympler'
+        "//deps/snmp_traps:all_files",
+        # dependency 'datadog-agent-integrations-py3'
+    ] + select({
+        "@platforms//os:linux": [
+            # dependency curl
+            # dependency "systemd"
+        ],
+        "//conditions:default": [],
+    }) + select({
+        # if linux_target? and !heroku_target?
+        "//packages/agent:linux_default": [
+            # dependency datadog_agent_data_plane
+            # This is really part of system-probe
+            "@libpcap//:all_files",
+        ],
+        "//packages/agent:linux_fips": [
+            "@libpcap//:all_files",
+        ],
+        "//packages/agent:linux_heroku": [],
+        "//conditions:default": [],
+    }) + select({
+        "//packages/agent:linux_default": [
+            "//deps/compile_policy:all_files",
+        ],
+        "//packages/agent:linux_fips": [
+            "//deps/compile_policy:all_files",
+        ],
+        "//packages/agent:linux_heroku": [],
+        "@platforms//os:windows": [
+            "//deps/compile_policy:all_files",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        "@platforms//os:windows": [
+            "//packages/windows:all_files",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+# Temporary during migration, to call from omnibus build.
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
+    destdir_flag = "//:install_dir",
+)
