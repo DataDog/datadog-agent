@@ -8,19 +8,31 @@ This repository rule bridges the gap by producing a filtered copy of go.work tha
 already-converted modules (i.e. those NOT covered by a `# gazelle:exclude` directive, with `.` always excluded). The
 result is checked in as @bazelify_go_work//:go.work and used as the go_deps.from_file source.
 
+Modules without a BUILD file are automatically excluded with a warning, as Bazel cannot resolve their go.mod.
+
 This file and its generated output are temporary and will be removed once all modules have been migrated to Gazelle.
 """
 
 load("@re.bzl", "re")
 
-def _filter_lines(build_file, go_work):
-    exclusions = set([m.group(1) for line in build_file for m in [re.search(r"# gazelle:exclude (\S+)", line)] if m])
+def _filter_lines(rctx):
+    """Filter the lines of the go.work file to only include the modules that are used in the build file."""
+    workspace = rctx.path(rctx.attr.go_work).dirname
+    exclusions = set([m.group(1) for line in rctx.read(rctx.attr.build_file).splitlines() for m in [re.search(r"# gazelle:exclude (\S+)", line)] if m])
 
     def _is_excluded(path):
-        return path in exclusions or any([path.startswith(exclusion + "/") for exclusion in exclusions])
+        if path in exclusions or any([path.startswith(exclusion + "/") for exclusion in exclusions]):
+            return True
+        if path != ".":
+            mod_dir = workspace.get_child(path)
+            if not mod_dir.get_child("BUILD.bazel").exists and not mod_dir.get_child("BUILD").exists:
+                # buildifier: disable=print
+                print("WARNING: Module '{}' has no BUILD.bazel file, it won't be passed to gazelle. Add a BUILD.bazel file or a gazelle:exclude directive.".format(path))
+                return True
+        return False
 
     in_use_block, lines, symlinks = 0, [], set()
-    for line in go_work:
+    for line in rctx.read(rctx.attr.go_work).splitlines():
         stripped = line.strip()
         if stripped == "use (":
             in_use_block += 1
@@ -35,7 +47,7 @@ def _filter_lines(build_file, go_work):
 
 def _impl(rctx):
     """See module docstring."""
-    lines, symlinks = _filter_lines(rctx.read(rctx.attr.build_file).splitlines(), rctx.read(rctx.attr.go_work).splitlines())
+    lines, symlinks = _filter_lines(rctx)
     rctx.file("BUILD.bazel", 'exports_files(["go.work"])\n')
     rctx.file("go.work", "\n".join(lines + [""]))
 
