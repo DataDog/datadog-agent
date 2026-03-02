@@ -4,19 +4,19 @@
 # - architectures.<architecture_name>:
 #   - capabilities.gpm: bool  (whether the architecture supports GPU Performance Metrics or not)
 #   - capabilities.unsupported_fields (list of conditional exclusions for the GetFields API)
-#       - features: [physical|mig|vgpu, ...]  (in which modes the fields are unsupported, for example some fields are not supported in vGPU mode)
+#       - modes: [physical|mig|vgpu, ...]  (in which modes the fields are unsupported, for example some fields are not supported in vGPU mode)
 #       - unsupported_fields: [<field_id>, ...] (the list of field IDs that are unsupported in the given modes. Check nvmlFieldNameToFieldID in spec_test.go for the mapping.)
-#   - unsupported_device_features: [mig|physical|vgpu, ...] (the list of device features that are unsupported on the architecture. For example, MIG is not supported on the Pascal architecture.)
+#   - unsupported_device_modes: [mig|physical|vgpu, ...] (the list of device modes that are unsupported on the architecture. For example, MIG is not supported on the Pascal architecture.)
 architectures:
   pascal:
     capabilities:
       gpm: false
       unsupported_fields:
-        - features: [physical, mig, vgpu]
+        - modes: [physical, mig, vgpu]
           unsupported_fields:
             - FI_DEV_MEMORY_TEMP
             - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
-        - features: [vgpu]
+        - modes: [vgpu]
           unsupported_fields:
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
@@ -32,16 +32,16 @@ architectures:
             - FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL
             - FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL
             - FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL
-    unsupported_device_features:
+    unsupported_device_modes:
       - mig
   volta:
     capabilities:
       gpm: false
       unsupported_fields:
-        - features: [physical, mig, vgpu]
+        - modes: [physical, mig, vgpu]
           unsupported_fields:
             - FI_DEV_MEMORY_TEMP
-        - features: [vgpu]
+        - modes: [vgpu]
           unsupported_fields:
             - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
             - FI_DEV_PCIE_REPLAY_COUNTER
@@ -58,16 +58,16 @@ architectures:
             - FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL
             - FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL
             - FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL
-    unsupported_device_features:
+    unsupported_device_modes:
       - mig
   turing:
     capabilities:
       gpm: false
       unsupported_fields:
-        - features: [physical, mig, vgpu]
+        - modes: [physical, mig, vgpu]
           unsupported_fields:
             - FI_DEV_MEMORY_TEMP
-        - features: [vgpu]
+        - modes: [vgpu]
           unsupported_fields:
             - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
             - FI_DEV_PCIE_REPLAY_COUNTER
@@ -84,13 +84,13 @@ architectures:
             - FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL
             - FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL
             - FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL
-    unsupported_device_features:
+    unsupported_device_modes:
       - mig
   ampere:
     capabilities:
       gpm: false
       unsupported_fields:
-        - features: [vgpu]
+        - modes: [vgpu]
           unsupported_fields:
             - FI_DEV_MEMORY_TEMP
             - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
@@ -108,12 +108,12 @@ architectures:
             - FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL
             - FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL
             - FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL
-    unsupported_device_features: []
+    unsupported_device_modes: []
   hopper:
     capabilities:
       gpm: true
       unsupported_fields:
-        - features: [vgpu]
+        - modes: [vgpu]
           unsupported_fields:
             - FI_DEV_MEMORY_TEMP
             - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
@@ -131,12 +131,12 @@ architectures:
             - FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL
             - FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL
             - FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL
-    unsupported_device_features: []
+    unsupported_device_modes: []
   ada:
     capabilities:
       gpm: false
       unsupported_fields:
-        - features: [physical, mig, vgpu]
+        - modes: [physical, mig, vgpu]
           unsupported_fields:
             - FI_DEV_NVLINK_LINK_COUNT
             - FI_DEV_NVLINK_SPEED_MBPS_COMMON
@@ -152,17 +152,17 @@ architectures:
             - FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL
             - FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL
             - FI_DEV_MEMORY_TEMP
-        - features: [vgpu]
+        - modes: [vgpu]
           unsupported_fields:
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
-    unsupported_device_features:
+    unsupported_device_modes:
       - mig
   blackwell:
     capabilities:
       gpm: true
       unsupported_fields:
-        - features: [vgpu]
+        - modes: [vgpu]
           unsupported_fields:
             - FI_DEV_MEMORY_TEMP
             - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
@@ -180,4 +180,4 @@ architectures:
             - FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL
             - FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL
             - FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL
-    unsupported_device_features: []
+    unsupported_device_modes: []

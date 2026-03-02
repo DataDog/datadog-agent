@@ -55,7 +55,7 @@ type specMetric struct {
 
 type metricSupportSpec struct {
 	UnsupportedArchitectures []string        `yaml:"unsupported_architectures"`
-	DeviceFeatures           map[string]bool `yaml:"device_features"`
+	DeviceModes              map[string]bool `yaml:"device_modes"`
 }
 
 type architecturesFile struct {
@@ -63,18 +63,18 @@ type architecturesFile struct {
 }
 
 type architectureCapabilities struct {
-	GPM               bool                          `yaml:"gpm"`
-	UnsupportedFields []unsupportedFieldsByFeatures `yaml:"unsupported_fields"`
+	GPM               bool                       `yaml:"gpm"`
+	UnsupportedFields []unsupportedFieldsByModes `yaml:"unsupported_fields"`
 }
 
-type unsupportedFieldsByFeatures struct {
-	Features          []string `yaml:"features"`
+type unsupportedFieldsByModes struct {
+	Modes             []string `yaml:"modes"`
 	UnsupportedFields []string `yaml:"unsupported_fields"`
 }
 
 type architectureSpec struct {
 	Capabilities              architectureCapabilities `yaml:"capabilities"`
-	UnsupportedDeviceFeatures []string                 `yaml:"unsupported_device_features"`
+	UnsupportedDeviceModes    []string                 `yaml:"unsupported_device_modes"`
 }
 
 func (m specMetric) supportsArchitecture(arch string) bool {
@@ -86,21 +86,21 @@ func (m specMetric) supportsArchitecture(arch string) bool {
 	return true
 }
 
-// supportsDeviceFeature returns true if the metric's device_features explicitly allows the mode.
-// device_features values are expected to be booleans; missing means unsupported.
-func (m specMetric) supportsDeviceFeature(mode string) bool {
-	if m.Support.DeviceFeatures == nil {
+// supportsDeviceMode returns true if the metric's device_modes explicitly allows the mode.
+// device_modes values are expected to be booleans; missing means unsupported.
+func (m specMetric) supportsDeviceMode(mode string) bool {
+	if m.Support.DeviceModes == nil {
 		return false
 	}
-	v, ok := m.Support.DeviceFeatures[mode]
+	v, ok := m.Support.DeviceModes[mode]
 	return ok && v
 }
 
-func (m specMetric) isDeviceFeatureExplicitlyUnsupported(mode string) bool {
-	if m.Support.DeviceFeatures == nil {
+func (m specMetric) isDeviceModeExplicitlyUnsupported(mode string) bool {
+	if m.Support.DeviceModes == nil {
 		return false
 	}
-	v, ok := m.Support.DeviceFeatures[mode]
+	v, ok := m.Support.DeviceModes[mode]
 	return ok && !v
 }
 
@@ -138,7 +138,7 @@ func unsupportedFieldIDsForMode(t *testing.T, archSpec architectureSpec, mode st
 	t.Helper()
 	unsupportedNameSet := make(map[string]struct{})
 	for _, group := range archSpec.Capabilities.UnsupportedFields {
-		if len(group.Features) > 0 && !slices.Contains(group.Features, mode) {
+		if len(group.Modes) > 0 && !slices.Contains(group.Modes, mode) {
 			continue
 		}
 		for _, name := range group.UnsupportedFields {
@@ -187,10 +187,10 @@ func loadArchitectures(t *testing.T) *architecturesFile {
 	return &arch
 }
 
-// isModeSupportedByArchitecture returns true if the architecture spec allows the device feature mode
-// (i.e. mode is not in unsupported_device_features).
+// isModeSupportedByArchitecture returns true if the architecture spec allows the device mode
+// (i.e. mode is not in unsupported_device_modes).
 func isModeSupportedByArchitecture(archSpec architectureSpec, mode string) bool {
-	for _, u := range archSpec.UnsupportedDeviceFeatures {
+	for _, u := range archSpec.UnsupportedDeviceModes {
 		if u == mode {
 			return false
 		}
@@ -199,7 +199,7 @@ func isModeSupportedByArchitecture(archSpec architectureSpec, mode string) bool 
 }
 
 // buildMockOptionsForArchAndMode returns the same NVML mock options used by runCheckAndCollectMetricNamesWithConfig
-// for the given architecture and device feature mode, so capability assertions use the same mock contract.
+// for the given architecture and device mode, so capability assertions use the same mock contract.
 func buildMockOptionsForArchAndMode(t *testing.T, archName string, mode testutil.DeviceFeatureMode, archSpec architectureSpec) []testutil.NvmlMockOption {
 	t.Helper()
 	caps := testutil.Capabilities{
@@ -233,8 +233,8 @@ func TestLoadSpecNotEmpty(t *testing.T) {
 	}
 
 	for metricName, metricSpec := range spec.Metrics {
-		for featureMode := range metricSpec.Support.DeviceFeatures {
-			require.Containsf(t, []string{"physical", "mig", "vgpu"}, featureMode, "metric %s has invalid device feature mode key %q", metricName, featureMode)
+		for deviceMode := range metricSpec.Support.DeviceModes {
+			require.Containsf(t, []string{"physical", "mig", "vgpu"}, deviceMode, "metric %s has invalid device mode key %q", metricName, deviceMode)
 		}
 	}
 }
@@ -245,7 +245,7 @@ func TestLoadArchitecturesNotEmpty(t *testing.T) {
 	require.NotEmpty(t, arch.Architectures, "architectures should not be empty")
 	for name, spec := range arch.Architectures {
 		t.Run(name, func(t *testing.T) {
-			require.NotNil(t, spec.UnsupportedDeviceFeatures, "unsupported_device_features should be present")
+			require.NotNil(t, spec.UnsupportedDeviceModes, "unsupported_device_modes should be present")
 		})
 	}
 }
@@ -359,12 +359,12 @@ func TestMetricsFollowSpec(t *testing.T) {
 						metricSpec := spec.Metrics[metricName]
 						assert.False(t, notExpectedOnBasicRun[metricName], "metric should not be emitted in basic run: %s", metricName)
 						assert.True(t, metricSpec.supportsArchitecture(archName), "metric %s emitted on unsupported architecture %s", metricName, archName)
-						assert.False(t, metricSpec.isDeviceFeatureExplicitlyUnsupported(string(mode)), "metric %s emitted on unsupported device mode %s", metricName, mode)
+						assert.False(t, metricSpec.isDeviceModeExplicitlyUnsupported(string(mode)), "metric %s emitted on unsupported device mode %s", metricName, mode)
 					}
 				})
 
 				for name, m := range spec.Metrics {
-					if notExpectedOnBasicRun[name] || !m.supportsArchitecture(archName) || !m.supportsDeviceFeature(string(mode)) {
+					if notExpectedOnBasicRun[name] || !m.supportsArchitecture(archName) || !m.supportsDeviceMode(string(mode)) {
 						continue
 					}
 
@@ -380,7 +380,7 @@ func TestMetricsFollowSpec(t *testing.T) {
 }
 
 // collectMetricSamples runs the GPU check with a capability-driven mock
-// for the given architecture and device feature mode, then returns emitted metrics (without "gpu." prefix)
+// for the given architecture and device mode, then returns emitted metrics (without "gpu." prefix)
 // and their tags.
 func collectMetricSamples(t *testing.T, archName string, mode testutil.DeviceFeatureMode, archSpec architectureSpec) (map[string][][]string, map[string]string) {
 	t.Helper()
@@ -543,6 +543,7 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode testu
 
 	// Known values are defined at the same place where the mock behavior/data is configured.
 	knownTagValues := map[string]string{
+		"gpu_device":         strings.ToLower(strings.ReplaceAll(testutil.DefaultGPUName, " ", "_")),
 		"gpu_vendor":         "nvidia",
 		"gpu_driver_version": testutil.DefaultNvidiaDriverVersion,
 	}

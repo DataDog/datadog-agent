@@ -8,7 +8,7 @@
 #   - custom_tags (optional): additional dynamic tag keys (e.g., memory_location for errors.ecc.corrected.total)
 #   - support:
 #       - unsupported_architectures: [<architecture_name>, ...] (the list of architectures that do not support the metric)
-#       - device_features: {mig: bool, physical: bool, vgpu: bool} (a map for which features support or do not support the metric)
+#       - device_modes: {mig: bool, physical: bool, vgpu: bool} (a map describing whether each device mode supports the metric)
 metric_prefix: gpu
 tagsets:
   container:
@@ -30,7 +30,7 @@ metrics:
       - device
     support:
       unsupported_architectures: []
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: true
@@ -39,7 +39,7 @@ metrics:
       - device
     support:
       unsupported_architectures: []
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: true
@@ -48,7 +48,7 @@ metrics:
       - device
     support:
       unsupported_architectures: []
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: true
@@ -57,7 +57,7 @@ metrics:
       - device
     support:
       unsupported_architectures: []
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: true
@@ -66,7 +66,7 @@ metrics:
       - device
     support:
       unsupported_architectures: []
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: true
@@ -75,7 +75,7 @@ metrics:
       - device
     support:
       unsupported_architectures: []
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: true
@@ -85,7 +85,7 @@ metrics:
     support:
       unsupported_architectures:
         - fermi
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: true
@@ -95,7 +95,7 @@ metrics:
     support:
       unsupported_architectures:
         - fermi
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: true
@@ -105,7 +105,7 @@ metrics:
     support:
       unsupported_architectures:
         - fermi
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -115,7 +115,7 @@ metrics:
     support:
       unsupported_architectures:
         - fermi
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -125,7 +125,7 @@ metrics:
     support:
       unsupported_architectures:
         - fermi
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -135,7 +135,7 @@ metrics:
     support:
       unsupported_architectures:
         - fermi
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -145,7 +145,7 @@ metrics:
     support:
       unsupported_architectures:
         - fermi
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -155,7 +155,7 @@ metrics:
     support:
       unsupported_architectures:
         - fermi
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -165,7 +165,7 @@ metrics:
     support:
       unsupported_architectures:
         - fermi
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -176,7 +176,7 @@ metrics:
       - container
     support:
       unsupported_architectures: []
-      device_features:
+      device_modes:
         mig: true
         physical: true
         vgpu: true
@@ -186,7 +186,7 @@ metrics:
     support:
       unsupported_architectures:
         - fermi
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -195,7 +195,7 @@ metrics:
       - device
     support:
       unsupported_architectures: []
-      device_features:
+      device_modes:
         mig: true
         physical: true
         vgpu: true
@@ -204,7 +204,7 @@ metrics:
       - device
     support:
       unsupported_architectures: []
-      device_features:
+      device_modes:
         mig: true
         physical: true
         vgpu: true
@@ -214,7 +214,7 @@ metrics:
     support:
       unsupported_architectures:
         - fermi
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: true
@@ -224,7 +224,7 @@ metrics:
     support:
       unsupported_architectures:
         - fermi
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -235,7 +235,7 @@ metrics:
       - memory_location
     support:
       unsupported_architectures: []
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: true
@@ -246,7 +246,7 @@ metrics:
       - memory_location
     support:
       unsupported_architectures: []
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: true
@@ -255,7 +255,7 @@ metrics:
       - device
     support:
       unsupported_architectures: []
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -264,7 +264,7 @@ metrics:
       - device
     support:
       unsupported_architectures: []
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -281,7 +281,7 @@ metrics:
         - turing
         - ampere
         - ada
-      device_features:
+      device_modes:
         mig: true
         physical: true
         vgpu: false
@@ -298,7 +298,7 @@ metrics:
         - turing
         - ampere
         - ada
-      device_features:
+      device_modes:
         mig: true
         physical: true
         vgpu: false
@@ -315,7 +315,7 @@ metrics:
         - turing
         - ampere
         - ada
-      device_features:
+      device_modes:
         mig: true
         physical: true
         vgpu: false
@@ -325,7 +325,7 @@ metrics:
     support:
       unsupported_architectures:
         - fermi
-      device_features:
+      device_modes:
         mig: true
         physical: true
         vgpu: true
@@ -342,7 +342,7 @@ metrics:
         - turing
         - ampere
         - ada
-      device_features:
+      device_modes:
         mig: true
         physical: true
         vgpu: false
@@ -352,7 +352,7 @@ metrics:
     support:
       unsupported_architectures:
         - fermi
-      device_features:
+      device_modes:
         mig: true
         physical: true
         vgpu: true
@@ -362,7 +362,7 @@ metrics:
     support:
       unsupported_architectures:
         - fermi
-      device_features:
+      device_modes:
         mig: true
         physical: true
         vgpu: true
@@ -372,7 +372,7 @@ metrics:
     support:
       unsupported_architectures:
         - fermi
-      device_features:
+      device_modes:
         mig: true
         physical: true
         vgpu: true
@@ -384,7 +384,7 @@ metrics:
         - fermi
         - kepler
         - maxwell
-      device_features:
+      device_modes:
         mig: true
         physical: true
         vgpu: true
@@ -395,7 +395,7 @@ metrics:
       - container
     support:
       unsupported_architectures: []
-      device_features:
+      device_modes:
         mig: true
         physical: true
         vgpu: true
@@ -407,7 +407,7 @@ metrics:
         - fermi
         - kepler
         - maxwell
-      device_features:
+      device_modes:
         mig: true
         physical: true
         vgpu: true
@@ -423,7 +423,7 @@ metrics:
         - volta
         - turing
         - ada
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -436,7 +436,7 @@ metrics:
         - kepler
         - maxwell
         - ada
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -449,7 +449,7 @@ metrics:
         - kepler
         - maxwell
         - ada
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -462,7 +462,7 @@ metrics:
         - kepler
         - maxwell
         - ada
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -475,7 +475,7 @@ metrics:
         - kepler
         - maxwell
         - ada
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -488,7 +488,7 @@ metrics:
         - kepler
         - maxwell
         - ada
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -501,7 +501,7 @@ metrics:
         - kepler
         - maxwell
         - ada
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -514,7 +514,7 @@ metrics:
         - kepler
         - maxwell
         - ada
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -527,7 +527,7 @@ metrics:
         - kepler
         - maxwell
         - ada
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -541,7 +541,7 @@ metrics:
         - maxwell
         - pascal
         - ada
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -554,7 +554,7 @@ metrics:
         - kepler
         - maxwell
         - ada
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -567,7 +567,7 @@ metrics:
         - kepler
         - maxwell
         - ada
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -580,7 +580,7 @@ metrics:
         - kepler
         - maxwell
         - ada
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -593,7 +593,7 @@ metrics:
         - kepler
         - maxwell
         - ada
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -606,7 +606,7 @@ metrics:
         - kepler
         - maxwell
         - ada
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -616,7 +616,7 @@ metrics:
     support:
       unsupported_architectures:
         - fermi
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -626,7 +626,7 @@ metrics:
     support:
       unsupported_architectures:
         - fermi
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -636,7 +636,7 @@ metrics:
     support:
       unsupported_architectures:
         - fermi
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -645,7 +645,7 @@ metrics:
       - device
     support:
       unsupported_architectures: []
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: true
@@ -654,7 +654,7 @@ metrics:
       - device
     support:
       unsupported_architectures: []
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -663,7 +663,7 @@ metrics:
       - device
     support:
       unsupported_architectures: []
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -674,7 +674,7 @@ metrics:
       - container
     support:
       unsupported_architectures: []
-      device_features:
+      device_modes:
         mig: true
         physical: true
         vgpu: true
@@ -686,7 +686,7 @@ metrics:
     support:
       unsupported_architectures:
         - fermi
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: true
@@ -698,7 +698,7 @@ metrics:
     support:
       unsupported_architectures:
         - fermi
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: true
@@ -710,7 +710,7 @@ metrics:
     support:
       unsupported_architectures:
         - fermi
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: true
@@ -721,7 +721,7 @@ metrics:
       - container
     support:
       unsupported_architectures: []
-      device_features:
+      device_modes:
         mig: true
         physical: true
         vgpu: true
@@ -732,7 +732,7 @@ metrics:
       - container
     support:
       unsupported_architectures: []
-      device_features:
+      device_modes:
         mig: true
         physical: true
         vgpu: true
@@ -747,7 +747,7 @@ metrics:
         - pascal
         - volta
         - turing
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -762,7 +762,7 @@ metrics:
         - pascal
         - volta
         - turing
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -777,7 +777,7 @@ metrics:
         - pascal
         - volta
         - turing
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -792,7 +792,7 @@ metrics:
         - pascal
         - volta
         - turing
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -802,7 +802,7 @@ metrics:
     support:
       unsupported_architectures:
         - fermi
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -811,7 +811,7 @@ metrics:
       - device
     support:
       unsupported_architectures: []
-      device_features:
+      device_modes:
         mig: true
         physical: true
         vgpu: true
@@ -828,7 +828,7 @@ metrics:
         - turing
         - ampere
         - ada
-      device_features:
+      device_modes:
         mig: true
         physical: true
         vgpu: false
@@ -845,7 +845,7 @@ metrics:
         - turing
         - ampere
         - ada
-      device_features:
+      device_modes:
         mig: true
         physical: true
         vgpu: false
@@ -854,7 +854,7 @@ metrics:
       - device
     support:
       unsupported_architectures: []
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
@@ -871,7 +871,7 @@ metrics:
         - turing
         - ampere
         - ada
-      device_features:
+      device_modes:
         mig: true
         physical: true
         vgpu: false
@@ -884,7 +884,7 @@ metrics:
         - kepler
         - maxwell
         - pascal
-      device_features:
+      device_modes:
         mig: false
         physical: true
         vgpu: false
