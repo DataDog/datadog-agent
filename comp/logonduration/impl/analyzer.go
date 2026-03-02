@@ -33,6 +33,45 @@ var (
 	guidShellCore     = etw.MustParseGUID("{30336ED4-E327-447C-9DE0-51B652C86108}")
 )
 
+// Named event IDs for each ETW provider.
+const (
+	// Kernel-General
+	evtBootStart uint16 = 12
+
+	// Kernel-Process
+	evtProcessStart uint16 = 1
+
+	// Winlogon
+	evtWinlogonShellCmdStart uint16 = 9
+	evtWinlogonShellCmdEnd   uint16 = 10
+	evtWinlogonInit          uint16 = 101
+	evtWinlogonInitDone      uint16 = 102
+	evtLoginUIStart          uint16 = 103
+	evtLoginUIDone           uint16 = 104
+	evtLogonStart            uint16 = 5001
+	evtLogonStop             uint16 = 5002
+
+	// User Profile Service
+	evtProfileLoadStart     uint16 = 1
+	evtProfileLoadEnd       uint16 = 2
+	evtProfileCreationStart uint16 = 1001
+	evtProfileCreationEnd   uint16 = 1002
+
+	// Group Policy
+	evtMachineGPStart uint16 = 4000
+	evtMachineGPEnd   uint16 = 8000
+	evtUserGPStart    uint16 = 4001
+	evtUserGPEnd      uint16 = 8001
+
+	// Shell-Core
+	evtExplorerInitStart  uint16 = 9601
+	evtExplorerInitEnd    uint16 = 9602
+	evtDesktopCreateStart uint16 = 9611
+	evtDesktopCreateEnd   uint16 = 9612
+	evtExplorerStepStart  uint16 = 9648
+	evtExplorerStepEnd    uint16 = 9649
+)
+
 // BootTimeline holds all milestone timestamps collected from ETL events.
 type BootTimeline struct {
 	BootStart                    time.Time // Kernel-General Event 12
@@ -74,26 +113,68 @@ type BootTimeline struct {
 	DesktopStartupAppsEnd   time.Time // Shell-Core Event 9649 (desktopstartupapps step)
 }
 
-// eventHandlerFunc processes an accepted event for a specific provider.
-type eventHandlerFunc func(e *etw.Event, id uint16, ts time.Time)
+// eventParser processes filtered events for a single ETW provider.
+type eventParser interface {
+	Parse(e *etw.Event, id uint16, ts time.Time)
+}
+
+// providerConfig ties together the set of accepted event IDs and
+// the parser for a given ETW provider.
+type providerConfig struct {
+	acceptedIDs map[uint16]struct{}
+	parser      eventParser
+}
 
 // collector accumulates events during ETL processing.
 type collector struct {
-	timeline       BootTimeline
-	smssCount      int
-	winlogonCount  int
-	parseFunctions map[etw.GUID]eventHandlerFunc
+	timeline  BootTimeline
+	providers map[etw.GUID]providerConfig
 }
 
-// initParseFunctions populates the GUID → parse function dispatch map.
-func (coll *collector) initParseFunctions() {
-	coll.parseFunctions = map[etw.GUID]eventHandlerFunc{
-		*guidKernelGeneral: coll.parseKernelGeneral,
-		*guidKernelProcess: coll.parseKernelProcess,
-		*guidWinlogon:      coll.parseWinlogon,
-		*guidUserProfile:   coll.parseUserProfile,
-		*guidGroupPolicy:   coll.parseGroupPolicy,
-		*guidShellCore:     coll.parseShellCore,
+// buildProviders wires each provider's accepted event IDs together with
+// its parser, creating a single source of truth for both filtering and
+// dispatching.
+func buildProviders(timeline *BootTimeline) map[etw.GUID]providerConfig {
+	return map[etw.GUID]providerConfig{
+		*guidKernelGeneral: {
+			acceptedIDs: map[uint16]struct{}{evtBootStart: {}},
+			parser:      &kernelGeneralParser{timeline: timeline},
+		},
+		*guidKernelProcess: {
+			acceptedIDs: map[uint16]struct{}{evtProcessStart: {}},
+			parser:      &kernelProcessParser{timeline: timeline},
+		},
+		*guidWinlogon: {
+			acceptedIDs: map[uint16]struct{}{
+				evtWinlogonShellCmdStart: {}, evtWinlogonShellCmdEnd: {},
+				evtWinlogonInit: {}, evtWinlogonInitDone: {},
+				evtLoginUIStart: {}, evtLoginUIDone: {},
+				evtLogonStart: {}, evtLogonStop: {},
+			},
+			parser: &winlogonParser{timeline: timeline},
+		},
+		*guidUserProfile: {
+			acceptedIDs: map[uint16]struct{}{
+				evtProfileLoadStart: {}, evtProfileLoadEnd: {},
+				evtProfileCreationStart: {}, evtProfileCreationEnd: {},
+			},
+			parser: &userProfileParser{timeline: timeline},
+		},
+		*guidGroupPolicy: {
+			acceptedIDs: map[uint16]struct{}{
+				evtMachineGPStart: {}, evtMachineGPEnd: {},
+				evtUserGPStart: {}, evtUserGPEnd: {},
+			},
+			parser: &groupPolicyParser{timeline: timeline},
+		},
+		*guidShellCore: {
+			acceptedIDs: map[uint16]struct{}{
+				evtExplorerInitStart: {}, evtExplorerInitEnd: {},
+				evtDesktopCreateStart: {}, evtDesktopCreateEnd: {},
+				evtExplorerStepStart: {}, evtExplorerStepEnd: {},
+			},
+			parser: &shellCoreParser{timeline: timeline},
+		},
 	}
 }
 
@@ -119,7 +200,7 @@ func analyzeETL(ctx context.Context, etlPath string) (*AnalysisResult, error) {
 	log.Debugf("Analyzing ETL file: %s", absPath)
 
 	coll := &collector{}
-	coll.initParseFunctions()
+	coll.providers = buildProviders(&coll.timeline)
 
 	var totalEvents atomic.Int64
 
@@ -133,57 +214,15 @@ func analyzeETL(ctx context.Context, etlPath string) (*AnalysisResult, error) {
 	c.FromTraceNames(absPath)
 
 	// EventRecordCallback: fast filter on provider GUID + Event ID.
-	// Returns true only for events we care about; the rest are skipped entirely
+	// Returns true only for events we care about; the rest are skipped entirely.
 	c.EventRecordCallback = func(er *etw.EventRecord) bool {
 		totalEvents.Add(1)
-		id := er.EventHeader.EventDescriptor.Id
-
-		// Kernel-General Event 12: Boot Start
-		if er.EventHeader.ProviderId.Equals(guidKernelGeneral) && id == 12 {
-			return true
-		}
-
-		// Kernel-Process Event 1: Process Start (needs ImageFileName)
-		if er.EventHeader.ProviderId.Equals(guidKernelProcess) && id == 1 {
-			return true
-		}
-
-		// Winlogon events
-		if er.EventHeader.ProviderId.Equals(guidWinlogon) {
-			switch id {
-			case 9, 10, 101, 102, 103, 104, 5001, 5002:
-				return true
-			}
+		cfg, ok := coll.providers[er.EventHeader.ProviderId]
+		if !ok {
 			return false
 		}
-
-		// User Profile Service events
-		if er.EventHeader.ProviderId.Equals(guidUserProfile) {
-			switch id {
-			case 1, 2, 1001, 1002:
-				return true
-			}
-			return false
-		}
-
-		// GroupPolicy events
-		if er.EventHeader.ProviderId.Equals(guidGroupPolicy) {
-			switch id {
-			case 4000, 4001, 8000, 8001:
-				return true
-			}
-			return false
-		}
-
-		// Shell-Core events
-		if er.EventHeader.ProviderId.Equals(guidShellCore) {
-			switch id {
-			case 9601, 9602, 9611, 9612, 9648, 9649:
-				return true
-			}
-			return false
-		}
-		return false
+		_, ok = cfg.acceptedIDs[er.EventHeader.EventDescriptor.Id]
+		return ok
 	}
 
 	startTime := time.Now()
@@ -222,25 +261,37 @@ func analyzeETL(ctx context.Context, etlPath string) (*AnalysisResult, error) {
 	}, nil
 }
 
-// processEvent dispatches a filtered event to the appropriate provider handler.
+// processEvent dispatches a filtered event to the appropriate provider parser.
 func processEvent(coll *collector, e *etw.Event) {
-	parseFunc, ok := coll.parseFunctions[e.System.Provider.Guid]
+	cfg, ok := coll.providers[e.System.Provider.Guid]
 	if !ok {
 		return
 	}
-	parseFunc(e, e.System.EventID, e.System.TimeCreated.SystemTime)
+	cfg.parser.Parse(e, e.System.EventID, e.System.TimeCreated.SystemTime)
 }
 
-// parseKernelGeneral processes Kernel-General events (Event 12: Boot Start).
-func (coll *collector) parseKernelGeneral(_ *etw.Event, _ uint16, ts time.Time) {
-	if coll.timeline.BootStart.IsZero() {
-		coll.timeline.BootStart = ts
+// --- Per-provider parser structs ---
+
+// kernelGeneralParser processes Kernel-General events (Event 12: Boot Start).
+type kernelGeneralParser struct {
+	timeline *BootTimeline
+}
+
+func (p *kernelGeneralParser) Parse(_ *etw.Event, _ uint16, ts time.Time) {
+	if p.timeline.BootStart.IsZero() {
+		p.timeline.BootStart = ts
 	}
 }
 
-// parseKernelProcess processes Kernel-Process events (Event 1: Process Start).
+// kernelProcessParser processes Kernel-Process events (Event 1: Process Start).
 // Tracks key process milestones: smss.exe, winlogon.exe, userinit.exe, explorer.exe.
-func (coll *collector) parseKernelProcess(e *etw.Event, _ uint16, ts time.Time) {
+type kernelProcessParser struct {
+	timeline      *BootTimeline
+	smssCount     int
+	winlogonCount int
+}
+
+func (p *kernelProcessParser) Parse(e *etw.Event, _ uint16, ts time.Time) {
 	imageName := getEventPropString(e, "ImageFileName")
 	if imageName == "" {
 		imageName = getEventPropString(e, "ImageName")
@@ -253,159 +304,177 @@ func (coll *collector) parseKernelProcess(e *etw.Event, _ uint16, ts time.Time) 
 
 	switch {
 	case strings.Contains(imageName, "smss.exe"):
-		coll.smssCount++
-		if coll.smssCount == 1 {
-			coll.timeline.SmssStart = ts
-		} else if coll.timeline.UserSmssStart.IsZero() && coll.smssCount >= 3 {
-			coll.timeline.UserSmssStart = ts
+		p.smssCount++
+		if p.smssCount == 1 {
+			p.timeline.SmssStart = ts
+		} else if p.timeline.UserSmssStart.IsZero() && p.smssCount >= 3 {
+			p.timeline.UserSmssStart = ts
 		}
 	case strings.Contains(imageName, "winlogon.exe"):
-		coll.winlogonCount++
-		if coll.winlogonCount == 1 {
-			coll.timeline.WinlogonStart = ts
-		} else if coll.timeline.UserWinlogonStart.IsZero() && coll.winlogonCount >= 2 {
-			coll.timeline.UserWinlogonStart = ts
+		p.winlogonCount++
+		if p.winlogonCount == 1 {
+			p.timeline.WinlogonStart = ts
+		} else if p.timeline.UserWinlogonStart.IsZero() && p.winlogonCount >= 2 {
+			p.timeline.UserWinlogonStart = ts
 		}
 	case strings.Contains(imageName, "userinit.exe"):
-		if coll.timeline.UserinitStart.IsZero() {
-			coll.timeline.UserinitStart = ts
+		if p.timeline.UserinitStart.IsZero() {
+			p.timeline.UserinitStart = ts
 		}
 	case strings.Contains(imageName, "explorer.exe"):
-		if coll.timeline.ExplorerStart.IsZero() {
-			coll.timeline.ExplorerStart = ts
+		if p.timeline.ExplorerStart.IsZero() {
+			p.timeline.ExplorerStart = ts
 		}
 	}
 }
 
-// parseWinlogon processes Winlogon events for logon lifecycle tracking.
-func (coll *collector) parseWinlogon(_ *etw.Event, id uint16, ts time.Time) {
+// winlogonParser processes Winlogon events for logon lifecycle tracking.
+type winlogonParser struct {
+	timeline *BootTimeline
+}
+
+func (p *winlogonParser) Parse(_ *etw.Event, id uint16, ts time.Time) {
 	switch id {
-	case 101:
-		if coll.timeline.WinlogonInit.IsZero() {
-			coll.timeline.WinlogonInit = ts
+	case evtWinlogonInit:
+		if p.timeline.WinlogonInit.IsZero() {
+			p.timeline.WinlogonInit = ts
 		}
-	case 102:
-		if coll.timeline.WinlogonInitDone.IsZero() {
-			coll.timeline.WinlogonInitDone = ts
+	case evtWinlogonInitDone:
+		if p.timeline.WinlogonInitDone.IsZero() {
+			p.timeline.WinlogonInitDone = ts
 		}
-	case 103:
-		if coll.timeline.LoginUIStart.IsZero() {
-			coll.timeline.LoginUIStart = ts
+	case evtLoginUIStart:
+		if p.timeline.LoginUIStart.IsZero() {
+			p.timeline.LoginUIStart = ts
 		}
-	case 104:
-		if coll.timeline.LoginUIDone.IsZero() {
-			coll.timeline.LoginUIDone = ts
+	case evtLoginUIDone:
+		if p.timeline.LoginUIDone.IsZero() {
+			p.timeline.LoginUIDone = ts
 		}
-	case 9:
-		if coll.timeline.ExecuteShellCommandListStart.IsZero() {
-			coll.timeline.ExecuteShellCommandListStart = ts
+	case evtWinlogonShellCmdStart:
+		if p.timeline.ExecuteShellCommandListStart.IsZero() {
+			p.timeline.ExecuteShellCommandListStart = ts
 		}
-	case 10:
-		if coll.timeline.ExecuteShellCommandListEnd.IsZero() {
-			coll.timeline.ExecuteShellCommandListEnd = ts
+	case evtWinlogonShellCmdEnd:
+		if p.timeline.ExecuteShellCommandListEnd.IsZero() {
+			p.timeline.ExecuteShellCommandListEnd = ts
 		}
-	case 5001:
-		if coll.timeline.LogonStart.IsZero() {
-			coll.timeline.LogonStart = ts
+	case evtLogonStart:
+		if p.timeline.LogonStart.IsZero() {
+			p.timeline.LogonStart = ts
 		}
-	case 5002:
-		if coll.timeline.LogonStop.IsZero() {
-			coll.timeline.LogonStop = ts
+	case evtLogonStop:
+		if p.timeline.LogonStop.IsZero() {
+			p.timeline.LogonStop = ts
 		}
 	}
 }
 
-// parseUserProfile processes User Profile Service events
-func (coll *collector) parseUserProfile(_ *etw.Event, id uint16, ts time.Time) {
+// userProfileParser processes User Profile Service events.
+type userProfileParser struct {
+	timeline *BootTimeline
+}
+
+func (p *userProfileParser) Parse(_ *etw.Event, id uint16, ts time.Time) {
 	switch id {
-	case 1:
-		if coll.timeline.ProfileLoadStart.IsZero() {
-			coll.timeline.ProfileLoadStart = ts
+	case evtProfileLoadStart:
+		if p.timeline.ProfileLoadStart.IsZero() {
+			p.timeline.ProfileLoadStart = ts
 		}
-	case 2:
-		if coll.timeline.ProfileLoadEnd.IsZero() {
-			coll.timeline.ProfileLoadEnd = ts
+	case evtProfileLoadEnd:
+		if p.timeline.ProfileLoadEnd.IsZero() {
+			p.timeline.ProfileLoadEnd = ts
 		}
-	case 1001:
-		if coll.timeline.ProfileCreationStart.IsZero() {
-			coll.timeline.ProfileCreationStart = ts
+	case evtProfileCreationStart:
+		if p.timeline.ProfileCreationStart.IsZero() {
+			p.timeline.ProfileCreationStart = ts
 		}
-	case 1002:
-		if coll.timeline.ProfileCreationEnd.IsZero() {
-			coll.timeline.ProfileCreationEnd = ts
+	case evtProfileCreationEnd:
+		if p.timeline.ProfileCreationEnd.IsZero() {
+			p.timeline.ProfileCreationEnd = ts
 		}
 	}
 }
 
-// parseGroupPolicy processes Group Policy events (4000/4001: start, 8000/8001: end).
-func (coll *collector) parseGroupPolicy(_ *etw.Event, id uint16, ts time.Time) {
+// groupPolicyParser processes Group Policy events (4000/4001: start, 8000/8001: end).
+type groupPolicyParser struct {
+	timeline *BootTimeline
+}
+
+func (p *groupPolicyParser) Parse(_ *etw.Event, id uint16, ts time.Time) {
 	switch id {
-	case 4000:
-		if coll.timeline.MachineGPStart.IsZero() {
-			coll.timeline.MachineGPStart = ts
+	case evtMachineGPStart:
+		if p.timeline.MachineGPStart.IsZero() {
+			p.timeline.MachineGPStart = ts
 		}
-	case 8000:
-		if coll.timeline.MachineGPEnd.IsZero() {
-			coll.timeline.MachineGPEnd = ts
+	case evtMachineGPEnd:
+		if p.timeline.MachineGPEnd.IsZero() {
+			p.timeline.MachineGPEnd = ts
 		}
-	case 4001:
-		if coll.timeline.UserGPStart.IsZero() {
-			coll.timeline.UserGPStart = ts
+	case evtUserGPStart:
+		if p.timeline.UserGPStart.IsZero() {
+			p.timeline.UserGPStart = ts
 		}
-	case 8001:
-		if coll.timeline.UserGPEnd.IsZero() {
-			coll.timeline.UserGPEnd = ts
+	case evtUserGPEnd:
+		if p.timeline.UserGPEnd.IsZero() {
+			p.timeline.UserGPEnd = ts
 		}
 	}
 }
 
-// parseShellCore processes Shell-Core events
-func (coll *collector) parseShellCore(e *etw.Event, id uint16, ts time.Time) {
+// shellCoreParser processes Shell-Core events for Explorer startup tracking.
+type shellCoreParser struct {
+	timeline *BootTimeline
+}
+
+func (p *shellCoreParser) Parse(e *etw.Event, id uint16, ts time.Time) {
 	switch id {
-	case 9601:
-		if coll.timeline.ExplorerInitStart.IsZero() {
-			coll.timeline.ExplorerInitStart = ts
+	case evtExplorerInitStart:
+		if p.timeline.ExplorerInitStart.IsZero() {
+			p.timeline.ExplorerInitStart = ts
 		}
-	case 9602:
-		if coll.timeline.ExplorerInitEnd.IsZero() {
-			coll.timeline.ExplorerInitEnd = ts
+	case evtExplorerInitEnd:
+		if p.timeline.ExplorerInitEnd.IsZero() {
+			p.timeline.ExplorerInitEnd = ts
 		}
-	case 9611:
-		if coll.timeline.DesktopCreateStart.IsZero() {
-			coll.timeline.DesktopCreateStart = ts
+	case evtDesktopCreateStart:
+		if p.timeline.DesktopCreateStart.IsZero() {
+			p.timeline.DesktopCreateStart = ts
 		}
-	case 9612:
-		if coll.timeline.DesktopCreateEnd.IsZero() {
-			coll.timeline.DesktopCreateEnd = ts
+	case evtDesktopCreateEnd:
+		if p.timeline.DesktopCreateEnd.IsZero() {
+			p.timeline.DesktopCreateEnd = ts
 		}
-	case 9648:
-		stepName := explorerStepName(e)
-		if strings.ToLower(stepName) == "waitfordesktopvisuals" {
-			if coll.timeline.DesktopVisibleStart.IsZero() {
-				coll.timeline.DesktopVisibleStart = ts
+	case evtExplorerStepStart:
+		stepName := strings.ToLower(explorerStepName(e))
+		switch stepName {
+		case "waitfordesktopvisuals":
+			if p.timeline.DesktopVisibleStart.IsZero() {
+				p.timeline.DesktopVisibleStart = ts
 			}
-		} else if strings.ToLower(stepName) == "finalize" {
-			if coll.timeline.DesktopReadyStart.IsZero() {
-				coll.timeline.DesktopReadyStart = ts
+		case "finalize":
+			if p.timeline.DesktopReadyStart.IsZero() {
+				p.timeline.DesktopReadyStart = ts
 			}
-		} else if strings.ToLower(stepName) == "desktopstartupapps" {
-			if coll.timeline.DesktopStartupAppsStart.IsZero() {
-				coll.timeline.DesktopStartupAppsStart = ts
+		case "desktopstartupapps":
+			if p.timeline.DesktopStartupAppsStart.IsZero() {
+				p.timeline.DesktopStartupAppsStart = ts
 			}
 		}
-	case 9649:
-		stepName := explorerStepName(e)
-		if strings.ToLower(stepName) == "waitfordesktopvisuals" {
-			if coll.timeline.DesktopVisibleEnd.IsZero() {
-				coll.timeline.DesktopVisibleEnd = ts
+	case evtExplorerStepEnd:
+		stepName := strings.ToLower(explorerStepName(e))
+		switch stepName {
+		case "waitfordesktopvisuals":
+			if p.timeline.DesktopVisibleEnd.IsZero() {
+				p.timeline.DesktopVisibleEnd = ts
 			}
-		} else if strings.ToLower(stepName) == "finalize" {
-			if coll.timeline.DesktopReadyEnd.IsZero() {
-				coll.timeline.DesktopReadyEnd = ts
+		case "finalize":
+			if p.timeline.DesktopReadyEnd.IsZero() {
+				p.timeline.DesktopReadyEnd = ts
 			}
-		} else if strings.ToLower(stepName) == "desktopstartupapps" {
-			if coll.timeline.DesktopStartupAppsEnd.IsZero() {
-				coll.timeline.DesktopStartupAppsEnd = ts
+		case "desktopstartupapps":
+			if p.timeline.DesktopStartupAppsEnd.IsZero() {
+				p.timeline.DesktopStartupAppsEnd = ts
 			}
 		}
 	}
