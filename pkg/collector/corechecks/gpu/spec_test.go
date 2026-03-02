@@ -49,7 +49,6 @@ type metricsMap map[string]specMetric
 
 // specMetric is a metric definition without the name (name is the map key).
 type specMetric struct {
-	Type       string            `yaml:"type"`
 	Tagsets    []string          `yaml:"tagsets"`
 	CustomTags []string          `yaml:"custom_tags,omitempty"`
 	Support    metricSupportSpec `yaml:"support"`
@@ -58,7 +57,6 @@ type specMetric struct {
 type metricSupportSpec struct {
 	UnsupportedArchitectures []string        `yaml:"unsupported_architectures"`
 	DeviceFeatures           map[string]bool `yaml:"device_features"`
-	ProcessData              bool            `yaml:"process_data"`
 }
 
 type architecturesFile struct {

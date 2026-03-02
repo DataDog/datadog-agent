@@ -1,3 +1,12 @@
+# GPU architecture capability matrix used by the GPU corecheck.
+# Schema:
+# - Root key: architectures
+# - architectures.<architecture_name>:
+#   - capabilities.gpm: bool  (whether the architecture supports GPU Performance Metrics or not)
+#   - capabilities.unsupported_fields (list of conditional exclusions for the GetFields API)
+#       - features: [physical|mig|vgpu, ...]  (in which modes the fields are unsupported, for example some fields are not supported in vGPU mode)
+#       - unsupported_fields: [<field_id>, ...] (the list of field IDs that are unsupported in the given modes. Check nvmlFieldNameToFieldID in spec_test.go for the mapping.)
+#   - unsupported_device_features: [mig|physical|vgpu, ...] (the list of device features that are unsupported on the architecture. For example, MIG is not supported on the Pascal architecture.)
 architectures:
   pascal:
     capabilities:
