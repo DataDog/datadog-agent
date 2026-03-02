@@ -5,7 +5,7 @@ import re
 
 
 def read_file(filename):
-    fp = open(filename, 'r')
+    fp = open(filename)
     content = fp.read()
     fp.close()
     return content
@@ -19,30 +19,30 @@ def write_file(filename, content):
 
 config_setup_func_names = [
     'initCoreAgentFull',
-	'agent',
-	'fips',
-	'dogstatsd',
-	'forwarder',
-	'aggregator',
-	'serializer',
-	'serverless',
-	'setupAPM',
-	'OTLP',
-	'setupMultiRegionFailover',
-	'telemetry',
-	'autoconfig',
-	'remoteconfig',
-	'logsagent',
-	'containerSyspath',
-	'containerd',
-	'cri',
-	'kubernetes',
-	'cloudfoundry',
-	'debugging',
-	'vector',
-	'podman',
-	'fleet',
-	'autoscaling',
+    'agent',
+    'fips',
+    'dogstatsd',
+    'forwarder',
+    'aggregator',
+    'serializer',
+    'serverless',
+    'setupAPM',
+    'OTLP',
+    'setupMultiRegionFailover',
+    'telemetry',
+    'autoconfig',
+    'remoteconfig',
+    'logsagent',
+    'containerSyspath',
+    'containerd',
+    'cri',
+    'kubernetes',
+    'cloudfoundry',
+    'debugging',
+    'vector',
+    'podman',
+    'fleet',
+    'autoscaling',
 ]
 
 
@@ -74,7 +74,7 @@ def analyze_file(sourcefile):
     return p.results
 
 
-class Processor():
+class Processor:
     def __init__(self):
         self.regexDeclare = r'^config.BindEnvAndSetDefault\((.*)\)'
         self.regexEnv = r'^config.BindEnv\((.*)\)'
@@ -128,8 +128,8 @@ class Processor():
 
     def finish(self):
         num_declare = 0
-        num_env     = 0
-        num_known   = 0
+        num_env = 0
+        num_known = 0
         num_default = 0
         for func in self.results:
             print('func %s {' % func)
@@ -143,7 +143,7 @@ class Processor():
                     num_known += 1
                 elif row[1] == 'default':
                     num_default += 1
-                print('  %s %s %s' % (row[0], row[1], row[2]))
+                print(f'  {row[0]} {row[1]} {row[2]}')
             print('}')
         print('Fail:    %s' % self.num_fail)
         print('Declare: %s' % num_declare)
