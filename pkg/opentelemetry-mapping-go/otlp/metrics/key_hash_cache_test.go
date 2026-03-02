@@ -51,3 +51,14 @@ func TestKeyHashCache_ComputeKey(t *testing.T) {
 	// Make sure we have 100 unique keys
 	require.Equal(t, 100, len(keys))
 }
+
+func TestKeyHashCache_ComputeKeyDeterministic(t *testing.T) {
+	// Verify that computeKey produces the same result for the same input across
+	// repeated calls. This guards against the stack-allocated buffer retaining
+	// state between invocations.
+	khc := newKeyHashCache(cache.New(5*time.Minute, 10*time.Minute))
+	input := "host:my-host\x00service:backend\x00name:my.metric\x00"
+	key1 := khc.computeKey(input)
+	key2 := khc.computeKey(input)
+	require.Equal(t, key1, key2)
+}

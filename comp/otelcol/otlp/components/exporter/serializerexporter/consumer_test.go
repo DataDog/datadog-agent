@@ -7,6 +7,7 @@ package serializerexporter
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -18,9 +19,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -202,4 +205,45 @@ func (m *MockSerializer) SendOrchestratorMetadata(_ []types.ProcessMessageBody, 
 
 func (m *MockSerializer) SendOrchestratorManifests(_ []types.ProcessMessageBody, _, _ string) error {
 	return nil
+}
+
+func TestConsumeTimeSeries(t *testing.T) {
+	extraTags := []string{"env:prod", "service:web"}
+	dimTags := []string{"host:my-host", "region:us-east-1"}
+	dims := (&otlpmetrics.Dimensions{}).AddTags(dimTags...)
+
+	sc := serializerConsumer{extraTags: extraTags}
+	sc.ConsumeTimeSeries(context.Background(), dims, otlpmetrics.Count, 1_000_000_000, 10, 42.0)
+
+	require.Len(t, sc.series, 1)
+	serie := sc.series[0]
+	assert.Equal(t, float64(1), serie.Points[0].Ts)
+	assert.Equal(t, 42.0, serie.Points[0].Value)
+	assert.Equal(t, metrics.APICountType, serie.MType)
+	assert.Equal(t, int64(10), serie.Interval)
+
+	// Verify that both extraTags and dimension tags are present.
+	gotTags := serie.Tags.UnsafeToReadOnlySliceString()
+	assert.ElementsMatch(t, append(extraTags, dimTags...), gotTags)
+}
+
+func TestConsumeSketch(t *testing.T) {
+	extraTags := []string{"env:staging"}
+	dimTags := []string{"dc:us-west-2"}
+	dims := (&otlpmetrics.Dimensions{}).AddTags(dimTags...)
+
+	sc := serializerConsumer{extraTags: extraTags}
+	sketch := &quantile.Sketch{}
+	sc.ConsumeSketch(context.Background(), dims, 2_000_000_000, 5, sketch)
+
+	require.Len(t, sc.sketches, 1)
+	ss := sc.sketches[0]
+	require.Len(t, ss.Points, 1)
+	assert.Equal(t, int64(2), ss.Points[0].Ts)
+	assert.Equal(t, int64(5), ss.Interval)
+	assert.Same(t, sketch, ss.Points[0].Sketch)
+
+	// Verify that both extraTags and dimension tags are present.
+	gotTags := ss.Tags.UnsafeToReadOnlySliceString()
+	assert.ElementsMatch(t, append(extraTags, dimTags...), gotTags)
 }
