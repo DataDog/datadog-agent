@@ -53,5 +53,6 @@ docker build -t mycustomagent \
   --build-arg VARIANT=1809 \
   -f .\windows\amd64\Dockerfile .
 ```
+> Tip: As a Datadog employee, you can also use `registry.ddbuild.io` as a registry for the base images if you are within AppGate: `--build-arg BASE_IMAGE=registry.ddbuild.io/images/mirror/powershell:windowsservercore-1809`. This can be useful in case you are facing rate limits.
 
 If you need JMX, change `WITH_JMX` to `true`.
