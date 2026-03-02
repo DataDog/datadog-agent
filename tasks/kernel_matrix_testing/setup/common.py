@@ -114,7 +114,9 @@ class PulumiPlugin(Requirement):
             try:
                 # https://github.com/golang/go/issues/63758: downloading dependencies stuck when git tag signature [...]
                 ctx.run(
-                    "go mod download", timeout=timedelta(minutes=10).total_seconds(), env={"GIT_TERMINAL_PROMPT": "0"}
+                    "go mod download -x",
+                    timeout=timedelta(minutes=10).total_seconds(),
+                    env={"GIT_TERMINAL_PROMPT": "0"},
                 )
                 ctx.run("PULUMI_CONFIG_PASSPHRASE=dummy pulumi --non-interactive plugin install")
             except Exception as e:
