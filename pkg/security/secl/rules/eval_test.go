@@ -32,10 +32,10 @@ func TestIteratorCache(t *testing.T) {
 		Ancestor: &model.ProcessCacheEntry{
 			ProcessContext: model.ProcessContext{
 				Process: model.Process{
-				PIDContext: model.PIDContext{
-					Pid:  111,
-					PPid: 111,
-				},
+					PIDContext: model.PIDContext{
+						Pid:  111,
+						PPid: 111,
+					},
 				},
 			},
 		},
