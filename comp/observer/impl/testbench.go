@@ -309,7 +309,7 @@ func (tb *TestBench) LoadScenario(name string) error {
 	tb.rerunAnalysesLocked()
 	fmt.Printf("  Analyzer phase took %s\n", time.Since(analysisStart))
 	fmt.Printf("  Total scenario load took %s (correlators running in background)\n", time.Since(scenarioStart))
-	fmt.Printf("Scenario loaded: %d series, %d metric anomalies,  %d log entries, %d log anomalies\n", tb.seriesCount(), len(tb.metricsAnomalies), len(tb.rawLogs), len(tb.logAnomalies))
+	fmt.Printf("Scenario loaded: %d series, %d metric anomalies, %d log entries, %d log anomalies\n", tb.seriesCount(), len(tb.metricsAnomalies), len(tb.rawLogs), len(tb.logAnomalies))
 
 	return nil
 }
@@ -1180,7 +1180,7 @@ func (tb *TestBench) loadDemoScenario() error {
 
 	// Run analyses on all loaded data (analyzers sync, correlators async)
 	tb.rerunAnalysesLocked()
-	fmt.Printf("Demo scenario loaded: %d series, %d metric anomalies, %d log anomalies (correlators running in background)\n", tb.seriesCount(), len(tb.metricsAnomalies), len(tb.logAnomalies))
+	fmt.Printf("Demo scenario loaded: %d series, %d metric anomalies, %d log entries, %d log anomalies (correlators running in background)\n", tb.seriesCount(), len(tb.metricsAnomalies), len(tb.rawLogs), len(tb.logAnomalies))
 
 	return nil
 }
