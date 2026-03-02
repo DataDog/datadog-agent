@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	resAws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	helmresource "github.com/DataDog/datadog-agent/test/e2e-framework/resources/helm"
@@ -31,6 +32,9 @@ import (
 
 //go:embed gensim_runner.sh
 var gensimRunnerScript string
+
+//go:embed datadog-values.yaml
+var defaultDatadogValues string
 
 // Run creates an EC2+Kind cluster and deploys a gensim episode with custom Datadog Agent
 func Run(ctx *pulumi.Context) error {
@@ -47,6 +51,7 @@ func Run(ctx *pulumi.Context) error {
 	episodePath := cfg.Require("episodePath")         // Full path to episode dir (contains play-episode.sh)
 	datadogValuesPath := cfg.Get("datadogValuesPath") // Path to datadog-values.yaml (optional)
 	scenario := cfg.Get("scenario")                   // Scenario to run (empty = skip run)
+	runID := cfg.Get("runId")                         // Short unique ID for this run (e.g. "a3f2c1")
 	s3Bucket := cfg.Get("s3Bucket")
 	namespace := cfg.Get("namespace")
 	if namespace == "" {
@@ -100,6 +105,22 @@ func Run(ctx *pulumi.Context) error {
 			Create: pulumi.String(`snap install aws-cli --classic`),
 			Sudo:   true,
 		},
+		utils.PulumiDependsOn(installEcrCredsHelperCmd),
+	)
+	if err != nil {
+		return err
+	}
+
+	// Install tools needed by the runner: aws-cli (S3 upload), zip (archiving), jq (JSON parsing).
+	// All in one command to avoid parallel apt-get lock contention.
+	// snap install is idempotent via the fallback to snap refresh.
+	installKubectlCmd, err := host.OS.Runner().Command(
+		awsEnv.Namer.ResourceName("install-kubectl"),
+		&command.Args{
+			Create: pulumi.String(`snap install kubectl --classic`),
+			Sudo:   true,
+		},
+		utils.PulumiDependsOn(installAwsCliCmd),
 	)
 	if err != nil {
 		return err
@@ -114,13 +135,27 @@ func Run(ctx *pulumi.Context) error {
 			Create: pulumi.String(`apt-get install -y zip jq`),
 			Sudo:   true,
 		},
+		utils.PulumiDependsOn(installKubectlCmd),
 	)
 	if err != nil {
 		return err
 	}
 
+	// Install Docker and docker-compose explicitly so both the image build and the Kind
+	// cluster creation can start from a common ready state. Kind also installs Docker
+	// internally, but that becomes a fast idempotent no-op since it is already present.
+	dockerManager, err := docker.NewManager(&awsEnv, host, utils.PulumiDependsOn(
+		installEcrCredsHelperCmd,
+		installAwsCliCmd,
+		installKubectlCmd,
+		installToolsCmd,
+	))
+	if err != nil {
+		return err
+	}
+
 	// Create Kind cluster on the EC2 VM
-	kindCluster, err := kubeComp.NewKindCluster(&awsEnv, host, "gensim", awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
+	kindCluster, err := kubeComp.NewKindCluster(&awsEnv, host, "gensim", awsEnv.KubernetesVersion(), utils.PulumiDependsOn(dockerManager))
 	if err != nil {
 		return err
 	}
@@ -177,24 +212,35 @@ func Run(ctx *pulumi.Context) error {
 			return err
 		}
 
-		// Build custom images and load them into Kind.
-		// Depends on kindCluster to ensure docker-compose plugin is installed and Kind is running.
-		buildLoadImagesCmd, err := host.OS.Runner().Command(
-			awsEnv.Namer.ResourceName("build-load-images"),
+		// Build custom images — runs in parallel with Kind cluster creation since
+		// Docker and docker-compose are already available via dockerManager.
+		buildImagesCmd, err := host.OS.Runner().Command(
+			awsEnv.Namer.ResourceName("build-images"),
 			&command.Args{
-				Create: pulumi.Sprintf(
-					`cd /tmp/gensim-build && docker-compose build && `+
-						`docker-compose config --images | xargs -I{} kind load docker-image {} --name %s`,
-					kindCluster.ClusterName,
-				),
+				Create: pulumi.String(`cd /tmp/gensim-build && docker-compose build`),
 			},
-			utils.PulumiDependsOn(fixServicesPermsCmd, kindCluster),
+			utils.PulumiDependsOn(fixServicesPermsCmd, dockerManager),
 		)
 		if err != nil {
 			return err
 		}
 
-		dependsOnImages = utils.PulumiDependsOn(buildLoadImagesCmd)
+		// Load images into Kind — waits for both the build and the cluster to be ready.
+		loadImagesCmd, err := host.OS.Runner().Command(
+			awsEnv.Namer.ResourceName("load-images"),
+			&command.Args{
+				Create: pulumi.Sprintf(
+					`cd /tmp/gensim-build && docker-compose config --images | xargs -I{} kind load docker-image {} --name %s`,
+					kindCluster.ClusterName,
+				),
+			},
+			utils.PulumiDependsOn(buildImagesCmd, kindCluster),
+		)
+		if err != nil {
+			return err
+		}
+
+		dependsOnImages = utils.PulumiDependsOn(loadImagesCmd)
 	}
 
 	// Deploy custom Datadog Agent DaemonSet with observer capabilities
@@ -227,8 +273,13 @@ func Run(ctx *pulumi.Context) error {
 			k8sAgentOptions = append(k8sAgentOptions, kubernetesagentparams.WithFakeintake(fakeIntake))
 		}
 
-		// Load custom helm values from datadog-values.yaml if it exists
-		// This includes observer configuration (DD_OBSERVER_* env vars)
+		// Apply embedded default Helm values (includes hostNetwork and observer config).
+		k8sAgentOptions = append(k8sAgentOptions, kubernetesagentparams.WithHelmValues(defaultDatadogValues))
+
+		// Set the cluster name from the Kind cluster so the agent can identify it.
+		k8sAgentOptions = append(k8sAgentOptions, kubernetesagentparams.WithClusterName(kindCluster.ClusterName))
+
+		// Optionally layer extra values on top of the defaults.
 		if datadogValuesPath != "" {
 			valuesContent, err := os.ReadFile(datadogValuesPath)
 			if err != nil {
@@ -381,6 +432,7 @@ func Run(ctx *pulumi.Context) error {
 						`DD_ENV=gensim-%s `+
 						`DD_SITE=%s `+
 						`S3_BUCKET=%s `+
+						`RUN_ID=%s `+
 						`bash /tmp/gensim_runner.sh > /tmp/gensim-runner-boot.log 2>&1 & `+
 						`PID=$! && sleep 5 && `+
 						`kill -0 $PID 2>/dev/null && echo "Runner PID: $PID" || `+
@@ -392,6 +444,7 @@ func Run(ctx *pulumi.Context) error {
 					episodeName,
 					awsEnv.Site(),
 					s3Bucket,
+					runID,
 				),
 			},
 			allCopyDeps,

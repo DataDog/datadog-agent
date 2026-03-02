@@ -46,7 +46,7 @@ cp /tmp/play-episode.log           /tmp/gensim-archive/
 cp "$LOG_FILE"                     /tmp/gensim-archive/gensim-runner.log || true
 if [ -d /tmp/gensim-episode/results ]; then cp -r /tmp/gensim-episode/results /tmp/gensim-archive/; fi
 
-ARCHIVE="/tmp/gensim-results-${EPISODE_NAME}-$(date -u +%Y%m%d).zip"
+ARCHIVE="/tmp/gensim-results-${EPISODE_NAME}-$(date -u +%Y%m%d-%H%M)-${RUN_ID}.zip"
 zip -r "${ARCHIVE}" /tmp/gensim-archive/
 echo "[$(date -u)] Archive created: ${ARCHIVE}"
 

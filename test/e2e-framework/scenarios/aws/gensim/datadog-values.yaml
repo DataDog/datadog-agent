@@ -1,0 +1,69 @@
+datadog:
+  logLevel: "INFO"
+
+  # Enable TraceAgent
+  apm:
+    instrumentation:
+      enabled: true
+  
+    # Enable APM receiver
+    portEnabled: true
+  logs:
+    enabled: true
+    containerCollectAll: true
+
+  # Enable process collection
+  processAgent:
+    enabled: true
+    processCollection: true
+
+  # For local kind cluster
+  kubelet:
+    tlsVerify: false
+
+  # Enable cluster checks
+  clusterChecks:
+    enabled: true
+  env:
+  # Agent capture to parquet
+  - name: DD_OBSERVER_RECORDING_ENABLED
+    value: "true"
+  - name: DD_OBSERVER_ANALYSIS_ENABLED
+    value: "false"
+  # Enable high frequency recording
+  - name: DD_OBSERVER_HIGH_FREQUENCY_INTERVAL
+    value: "1s"
+
+agents:
+  # Kind clusters bind control-plane components (etcd, kube-controller-manager,
+  # kube-scheduler) to 127.0.0.1. Without hostNetwork the agent pod sits in the
+  # pod network and cannot reach localhost of the node, causing those checks to
+  # fail at initialization. hostNetwork gives the agent the node's network
+  # namespace so it can reach those endpoints.
+  useHostNetwork: true
+  containers:
+    agent:
+      resources:
+        requests:
+          memory: 1000Mi
+        limits:
+          memory: 2000Mi
+
+clusterAgent:
+  enabled: true
+  replicas: 1
+
+  ## @param admissionController - object - required
+  ## Enable the admissionController to automatically inject APM and
+  ## DogStatsD config and standard tags (env, service, version) into
+  ## your pods
+  #
+  # This helps us to capture traces from all pods without having to label them.
+  admissionController:
+    enabled: true
+    
+    ## @param mutateUnlabelled - boolean - optional
+    ## Enable injecting config without having the pod label:
+    ## admission.datadoghq.com/enabled="true"
+    #
+    mutateUnlabelled: true

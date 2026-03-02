@@ -1,5 +1,6 @@
 import json
 import os
+import secrets
 from pathlib import Path
 
 from invoke.context import Context
@@ -93,6 +94,7 @@ def list_gensim_episodes(ctx: Context):
         "config_path": "Path to config file",
         "interactive": "Enable interactive mode",
         "namespace": "Kubernetes namespace for deployment (default: default)",
+        "run_id": "Reuse the run ID of a previous deployment (e.g. 'a3f2c1') to update its stack instead of creating a new one",
     }
 )
 def deploy_gensim(
@@ -110,6 +112,7 @@ def deploy_gensim(
     cluster_agent_full_image_path: str | None = None,
     namespace: str | None = "default",
     keep_after_scenario: bool | None = False,
+    run_id: str | None = None,
 ) -> None:
     """
     Deploy a gensim episode to an EC2+Kind cluster and run it autonomously on the VM.
@@ -150,9 +153,16 @@ def deploy_gensim(
 
     datadog_values_path = gensim_path / "datadog-values.yaml"
 
-    # Default stack name to the episode name so each episode gets its own stack
+    # Use the provided run ID to update an existing stack, or generate a fresh one.
+    if run_id is None:
+        run_id = secrets.token_hex(3)  # 6 hex chars, e.g. "a3f2c1"
+        tool.info(f"Generated run ID: {run_id}")
+    else:
+        tool.info(f"Reusing run ID: {run_id}")
+
+    # Default stack name to the episode name + run ID so each invocation gets its own stack
     if stack_name is None:
-        stack_name = "gensim-" + episode.replace("_", "-").lower()
+        stack_name = "gensim-" + episode.replace("_", "-").lower() + "-" + run_id
 
     # Prepare extra flags for gensim scenario
     extra_flags = {
@@ -166,6 +176,8 @@ def deploy_gensim(
 
     if datadog_values_path.exists():
         extra_flags["gensim:datadogValuesPath"] = str(datadog_values_path)
+
+    extra_flags["gensim:runId"] = run_id
 
     if scenario:
         extra_flags["gensim:scenario"] = scenario
@@ -208,7 +220,7 @@ def deploy_gensim(
     print("  tail -f /tmp/gensim-runner.log")
 
     if s3_bucket:
-        print(f"\nResults will be uploaded to: s3://{s3_bucket}/gensim-results-{episode}-<YYYYMMDD>.zip")
+        print(f"\nResults will be uploaded to: s3://{s3_bucket}/gensim-results-{episode}-{run_id}.zip")
 
     if not keep_after_scenario:
         print("\nTo destroy the cluster:")
