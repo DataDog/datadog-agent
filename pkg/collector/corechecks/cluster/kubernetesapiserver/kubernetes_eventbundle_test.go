@@ -307,7 +307,7 @@ func TestKubernetesEventBundle_fitsEvent(t *testing.T) {
 
 			bundle := newKubernetesEventBundler("", tt.events[0])
 			for i, ev := range tt.events {
-				_, fits := bundle.fitsEvent(ev)
+				eventText, fits := bundle.fitsEvent(ev)
 				assert.Equal(t, tt.expectedEventsFits[i], fits)
 
 				if fits {
