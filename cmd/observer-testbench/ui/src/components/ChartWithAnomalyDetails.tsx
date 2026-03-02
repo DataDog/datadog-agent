@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { TimeSeriesChart, getSeriesVariantColor } from './TimeSeriesChart';
+import { TimeSeriesChart, getSeriesVariantColor, getAnalyzerColorStable } from './TimeSeriesChart';
 import type { SeriesVariant } from './TimeSeriesChart';
 import type { Point, AnomalyMarker, Anomaly, SeriesID } from '../api/client';
 
@@ -240,7 +240,13 @@ export function ChartWithAnomalyDetails({
                       className={`w-2 h-2 rounded-full flex-shrink-0 ${isLinked ? 'ring-2 ring-slate-200' : ''}`}
                       style={{ backgroundColor: seriesColor }}
                     />
-                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-700 text-slate-300">
+                    <span
+                      className="px-1.5 py-0.5 rounded text-[10px] font-medium"
+                      style={{
+                        backgroundColor: getAnalyzerColorStable(anomaly.analyzerName).fill,
+                        color: getAnalyzerColorStable(anomaly.analyzerName).stroke,
+                      }}
+                    >
                       {anomaly.analyzerName}
                     </span>
                     <span className="text-slate-400">

@@ -17,7 +17,7 @@ const ANALYZER_PALETTE: { fill: string; stroke: string }[] = [
 const analyzerColorCache = new Map<string, { fill: string; stroke: string }>();
 let nextAnalyzerColorIndex = 0;
 
-function getAnalyzerColorStable(analyzerName: string) {
+export function getAnalyzerColorStable(analyzerName: string) {
   if (!analyzerColorCache.has(analyzerName)) {
     analyzerColorCache.set(analyzerName, ANALYZER_PALETTE[nextAnalyzerColorIndex % ANALYZER_PALETTE.length]);
     nextAnalyzerColorIndex++;
@@ -48,9 +48,6 @@ const LINE_COLORS = [
   '#14b8a6', // teal
 ];
 
-function getAnalyzerColor(analyzerName: string) {
-  return getAnalyzerColorStable(analyzerName);
-}
 
 function getCorrelationColor(index: number) {
   return CORRELATION_COLORS[index % CORRELATION_COLORS.length];
@@ -312,7 +309,7 @@ export function TimeSeriesChart({
         if (!dataPoint) return;
 
         const baseY = yScale(dataPoint.value);
-        const color = getAnalyzerColor(anomaly.analyzerName);
+        const color = getAnalyzerColorStable(anomaly.analyzerName);
         const xOffset = numAnomalies > 1 ? (idx - (numAnomalies - 1) / 2) * 8 : 0;
         const markerId = getAnomalyMarkerId(anomaly);
         markerData.push({
@@ -602,7 +599,7 @@ export function TimeSeriesChart({
         <div className="flex gap-2 items-center flex-shrink-0">
           {/* Detector legend - only show if there are anomalies */}
           {filteredAnomalies.length > 0 && Array.from(new Set(filteredAnomalies.map((a) => a.analyzerName))).map((analyzer) => {
-            const color = getAnalyzerColor(analyzer);
+            const color = getAnalyzerColorStable(analyzer);
             const displayName = analyzer;
             return (
               <span

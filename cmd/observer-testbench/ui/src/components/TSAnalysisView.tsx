@@ -4,6 +4,7 @@ import { SeriesTree } from './SeriesTree';
 import { api } from '../api/client';
 import type { SeriesData, SeriesInfo, ScenarioInfo } from '../api/client';
 import type { SeriesVariant } from './TimeSeriesChart';
+import { getAnalyzerColorStable } from './TimeSeriesChart';
 import type { TimeRange } from './ChartWithAnomalyDetails';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 
@@ -94,6 +95,16 @@ export function TSAnalysisView({
     () => analyzerComponents.map((c) => c.name),
     [analyzerComponents]
   );
+
+  // Map comp.name (analyzerComponent) → analyzerName used by the timeline for coloring
+  const analyzerNameByComponent = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const a of allAnomalies) {
+      const component = getAnalyzerComponent(a);
+      if (!map.has(component)) map.set(component, a.analyzerName);
+    }
+    return map;
+  }, [allAnomalies]);
 
   const tagGroups = useMemo(
     () => extractTagGroups(allSeries.map((s) => s.tags)),
@@ -273,6 +284,8 @@ export function TSAnalysisView({
           <div className="space-y-1">
             {analyzerComponents.map((comp) => {
               const count = allAnomalies.filter((a) => getAnalyzerComponent(a) === comp.name).length;
+              const analyzerName = analyzerNameByComponent.get(comp.name);
+              const color = analyzerName ? getAnalyzerColorStable(analyzerName) : null;
               return (
                 <label
                   key={comp.name}
@@ -284,7 +297,16 @@ export function TSAnalysisView({
                     onChange={() => toggleAnalyzer(comp.name)}
                     className="rounded border-slate-600 bg-slate-700 text-purple-600 focus:ring-purple-500"
                   />
-                  <span className="text-sm text-slate-300 flex-1">{comp.displayName}</span>
+                  {color ? (
+                    <span
+                      className="text-xs px-1.5 py-0.5 rounded font-medium flex-1"
+                      style={{ backgroundColor: color.fill, color: color.stroke }}
+                    >
+                      {comp.displayName}
+                    </span>
+                  ) : (
+                    <span className="text-sm text-slate-300 flex-1">{comp.displayName}</span>
+                  )}
                   {count > 0 && (
                     <span className="text-xs text-slate-500">{count}</span>
                   )}
