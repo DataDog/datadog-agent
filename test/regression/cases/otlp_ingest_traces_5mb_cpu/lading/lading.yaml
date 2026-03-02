@@ -1,0 +1,91 @@
+generator:
+  - grpc:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131]
+      target_uri: "http://127.0.0.1:4317/opentelemetry.proto.collector.trace.v1.TraceService/Export"
+      bytes_per_second: "5 MiB"
+      parallel_connections: 1
+      maximum_prebuild_cache_size_bytes: "10 MiB"
+      variant:
+        opentelemetry_traces:
+          error_rate: 0.01
+          services:
+            - name: api-gateway
+              service_type: http
+              scope_name: com.example.gateway
+              resource_attributes:
+                - key: deployment.environment
+                  value: production
+                - key: cloud.region
+                  value:
+                    dictionary: cloud_regions
+              operations:
+                - id: get-product
+                  method: GET
+                  route: "/api/v1/products/{id}"
+                  suboperations:
+                    - to: product-service/get-product
+                - id: list-products
+                  method: GET
+                  route: "/api/v1/products"
+                  suboperations:
+                    - to: product-service/list-products
+            - name: product-service
+              service_type: grpc
+              grpc:
+                service: ProductService
+              scope_name: com.example.products
+              operations:
+                - id: get-product
+                  method: GetProduct
+                  suboperations:
+                    - to: product-cache/get-product-by-id
+                    - to: product-db/select-product-by-id
+                      rate: 0.1
+                - id: list-products
+                  method: ListProducts
+                  suboperations:
+                    - to: product-cache/get-products
+                    - to: product-db/select-products
+                      rate: 0.1
+            - name: product-cache
+              service_type: database
+              database:
+                system: redis
+              operations:
+                - id: get-product-by-id
+                  query: "GET products:by_id:$1"
+                - id: get-products
+                  query: "GET products:full"
+            - name: product-db
+              service_type: database
+              database:
+                system: postgresql
+                name: products
+              operations:
+                - id: select-product-by-id
+                  table: products
+                  query: "SELECT * FROM products WHERE id = $1"
+                - id: select-products
+                  table: products
+                  query: "SELECT * FROM products LIMIT 50"
+
+blackhole:
+  - http:
+      binding_addr: "127.0.0.1:9091"
+      body_variant: "nothing"
+  - http:
+      binding_addr: "127.0.0.1:9092"
+      body_variant: "nothing"
+  - http:
+      binding_addr: "127.0.0.1:9093"
+      body_variant: "nothing"
+  - http:
+      binding_addr: "127.0.0.1:9094"
+      body_variant: "nothing"
+
+target_metrics:
+  - prometheus:
+      uri: "http://127.0.0.1:5000/telemetry"
+  - prometheus:
+      uri: "http://127.0.0.1:8126/telemetry"
