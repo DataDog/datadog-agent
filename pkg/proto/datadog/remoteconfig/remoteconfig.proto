@@ -89,6 +89,8 @@ message Client {
   reserved 12, 13;
   bool is_updater = 14;
   ClientUpdater client_updater = 15;
+  bool is_operator = 16;
+  ClientOperator client_operator = 17;
 }
 
 message ClientTracer {
@@ -123,7 +125,7 @@ message PackageState {
   string package = 1;
   string stable_version = 2;
   string experiment_version = 3;
-  PackageStateTask task = 4;
+  Task task = 4;
   reserved 5, 6, 7, 8, 9, 10;
   string stable_config_version = 11;
   string experiment_config_version = 12;
@@ -131,10 +133,21 @@ message PackageState {
   string running_config_version = 14;
 }
 
-message PackageStateTask {
+message Task {
   string id = 1;
   TaskState state = 2;
   TaskError error = 3;
+}
+
+message FleetState {
+  string config_version = 1;
+  bool experiment = 2;
+  Task task = 3;
+  string secret_pub_key = 4;
+}
+
+message ClientOperator {
+  repeated FleetState fleet_states = 1;
 }
 
 enum TaskState {

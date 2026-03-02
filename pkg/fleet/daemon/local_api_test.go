@@ -136,7 +136,7 @@ func TestAPIStatus(t *testing.T) {
 		Packages: []*pbgo.PackageState{
 			{
 				Package: "test-package",
-				Task: &pbgo.PackageStateTask{
+				Task: &pbgo.Task{
 					State: pbgo.TaskState_DONE,
 				},
 			},

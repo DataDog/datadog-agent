@@ -869,7 +869,7 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 					Message: requestState.Err,
 				}
 			}
-			p.Task = &pbgo.PackageStateTask{
+			p.Task = &pbgo.Task{
 				Id:    requestState.ID,
 				State: requestState.State,
 				Error: taskErr,
