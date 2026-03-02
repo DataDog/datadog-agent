@@ -3,7 +3,6 @@ name "python3"
 default_version "3.13.12"
 
 unless windows?
-  dependency "zlib"
   build do
     # Temporary deps. When we fix auto-rpath fixing these will disappear.
     command_on_repo_root "bazelisk run -- @bzip2//:install --destdir='#{install_dir}'"
