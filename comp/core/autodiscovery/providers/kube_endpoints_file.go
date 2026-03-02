@@ -219,19 +219,19 @@ func (p *KubeEndpointsFileConfigProvider) buildConfigStore(templates []integrati
 			matchingProg, celADID, compileErr, recError := integration.CreateMatchingProgram(tpl.CELSelector)
 			if celADID != adtypes.CelEndpointIdentifier {
 				errMsg := fmt.Sprintf("CEL selector for template %s is not targeting endpoints", tpl.Name)
-				log.Errorf(errMsg)
+				log.Error(errMsg)
 				p.configErrors[tpl.Name] = types.ErrorMsgSet{errMsg: struct{}{}}
 				continue
 			}
 			if compileErr != nil {
 				errMsg := fmt.Sprintf("Failed to compile CEL selector for template %s: %v", tpl.Name, compileErr)
-				log.Errorf(errMsg)
+				log.Error(errMsg)
 				p.configErrors[tpl.Name] = types.ErrorMsgSet{errMsg: struct{}{}}
 				continue
 			}
 			if recError != nil {
 				errMsg := fmt.Sprintf("Failed to check rule recommendations for CEL selector for template %s: %v", tpl.Name, recError)
-				log.Errorf(errMsg)
+				log.Error(errMsg)
 				p.configErrors[tpl.Name] = types.ErrorMsgSet{errMsg: struct{}{}}
 				continue
 			}
