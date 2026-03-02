@@ -61,6 +61,10 @@ type packetWithInfo struct {
 	layerType gopacket.LayerType
 }
 
+// directionDecoder is a placeholder for gopacket-based direction decoding.
+// decodeAndGetIPs uses gopacket.NewPacket to parse link and network layers.
+type directionDecoder struct{}
+
 // interfaceHandle holds a pcap handle and its associated local addresses
 type interfaceHandle struct {
 	handle    *pcap.Handle
@@ -72,6 +76,9 @@ type interfaceHandle struct {
 	// computed once at open time and stamped on every outgoing packet so
 	// the decoder can select the right parser without a per-packet conversion.
 	goPacketLayerType gopacket.LayerType
+
+	// dirDecoder decodes link-layer frames to extract IPs for direction classification.
+	dirDecoder *directionDecoder
 
 	// localAddrs contains the local IP addresses for this interface
 	localAddrs   map[string]struct{}
@@ -230,6 +237,7 @@ func (p *LibpcapSource) addInterface(ifaceName string) error {
 		ifaceName:         ifaceName,
 		linkType:          lt,
 		goPacketLayerType: linkTypeToLayerType(lt),
+		dirDecoder:        newDirectionDecoder(),
 		localAddrs:        make(map[string]struct{}),
 	}
 
@@ -549,6 +557,44 @@ func (ih *interfaceHandle) isLocalAddr(ip []byte) bool {
 	return exists
 }
 
+// newDirectionDecoder creates a directionDecoder for gopacket-based parsing.
+func newDirectionDecoder() *directionDecoder {
+	return &directionDecoder{}
+}
+
+// decodeAndGetIPs decodes the packet with gopacket and returns the source and
+// destination IP bytes from the network layer (IPv4 or IPv6). ok is false if
+// the packet is too short, decoding fails, or no network layer is present.
+// For Ethernet we require enough bytes for the link header plus a full IP
+// header (IPv4 20 bytes or IPv6 40 bytes) based on EtherType; for loopback
+// we require 4-byte header plus 20 bytes (IPv4 minimum).
+func (d *directionDecoder) decodeAndGetIPs(data []byte, firstLayer gopacket.LayerType) (srcIP, dstIP []byte, ok bool) {
+	var minLen int
+	if firstLayer == layers.LayerTypeEthernet {
+		if len(data) < 14 {
+			return nil, nil, false
+		}
+		etherType := uint16(data[12])<<8 | uint16(data[13])
+		if etherType == 0x86DD {
+			minLen = 14 + 40 // IPv6 header
+		} else {
+			minLen = 14 + 20 // IPv4 minimum
+		}
+	} else {
+		minLen = 4 + 20 // loopback header + IPv4 minimum
+	}
+	if len(data) < minLen {
+		return nil, nil, false
+	}
+	pkt := gopacket.NewPacket(data, firstLayer, gopacket.NoCopy)
+	netLayer := pkt.NetworkLayer()
+	if netLayer == nil {
+		return nil, nil, false
+	}
+	flow := netLayer.NetworkFlow()
+	return flow.Src().Raw(), flow.Dst().Raw(), true
+}
+
 // linkTypeToLayerType converts a pcap DLT link type to the gopacket.LayerType
 // needed by the packet decoder. We map explicitly rather than calling
 // LinkType.LayerType() because that method returns LayerTypeZero (0) for
@@ -571,77 +617,14 @@ func linkTypeToLayerType(lt layers.LinkType) gopacket.LayerType {
 //   - PacketOtherHost — neither source nor destination is a local address
 //     (e.g. promiscuous-mode traffic between other hosts, broadcast, multicast)
 func (ih *interfaceHandle) determinePacketDirection(data []byte) uint8 {
-	switch ih.linkType {
-	case layers.LinkTypeNull, layers.LinkTypeLoop:
-		// DLT_NULL (0) and DLT_LOOP (108) both use the 4-byte BSD loopback
-		// header. DLT_NULL is used by utun/VPN interfaces on macOS;
-		// DLT_LOOP is its OpenBSD-originated counterpart.
-		return ih.determineLoopbackPacketDirection(data)
-	default:
-		return ih.determineEthernetPacketDirection(data)
-	}
-}
-
-// determineEthernetPacketDirection handles Ethernet-encapsulated packets
-// (DLT_EN10MB). The Ethernet header is 14 bytes; IP starts immediately after.
-func (ih *interfaceHandle) determineEthernetPacketDirection(data []byte) uint8 {
-	if len(data) < 14 {
+	if ih.dirDecoder == nil {
 		return PacketHost
 	}
-
-	// EtherType is at offset 12-13
-	etherType := uint16(data[12])<<8 | uint16(data[13])
-
-	switch etherType {
-	case 0x0800: // IPv4
-		if len(data) < 34 { // Ethernet (14) + IPv4 header minimum (20)
-			return PacketHost
-		}
-		// Source IP at offset 26-29 (14 + 12)
-		// Destination IP at offset 30-33 (14 + 16)
-		return classifyDirection(ih, data[26:30], data[30:34])
-
-	case 0x86DD: // IPv6
-		if len(data) < 54 { // Ethernet (14) + IPv6 header minimum (40)
-			return PacketHost
-		}
-		// Source IP at offset 22-37 (14 + 8)
-		// Destination IP at offset 38-53 (14 + 24)
-		return classifyDirection(ih, data[22:38], data[38:54])
-
-	default:
+	srcIP, dstIP, ok := ih.dirDecoder.decodeAndGetIPs(data, ih.goPacketLayerType)
+	if !ok {
 		return PacketHost
 	}
-}
-
-// determineLoopbackPacketDirection handles BSD loopback-encapsulated packets
-// (DLT_NULL), used by macOS tunnel interfaces such as utun*. The header is a
-// 4-byte address-family number in host byte order followed by a raw IP packet.
-func (ih *interfaceHandle) determineLoopbackPacketDirection(data []byte) uint8 {
-	if len(data) < 4 {
-		return PacketHost
-	}
-
-	// On little-endian macOS the AF number sits in the first byte
-	// (AF_INET=2, AF_INET6=28). The upper three bytes are always zero.
-	switch data[0] {
-	case 2: // AF_INET — IPv4 follows
-		if len(data) < 24 { // 4-byte header + IPv4 minimum (20)
-			return PacketHost
-		}
-		// Source IP at offset 4+12=16, destination at 4+16=20
-		return classifyDirection(ih, data[16:20], data[20:24])
-
-	case 28, 30: // AF_INET6 — IPv6 follows (28=macOS, 30=some BSD)
-		if len(data) < 44 { // 4-byte header + IPv6 minimum (40)
-			return PacketHost
-		}
-		// Source IP at offset 4+8=12, destination at 4+24=28
-		return classifyDirection(ih, data[12:28], data[28:44])
-
-	default:
-		return PacketHost
-	}
+	return classifyDirection(ih, srcIP, dstIP)
 }
 
 // classifyDirection returns the packet direction given raw source and

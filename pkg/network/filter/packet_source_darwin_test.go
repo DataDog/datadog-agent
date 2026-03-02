@@ -22,6 +22,18 @@ var serializeOpts = gopacket.SerializeOptions{FixLengths: true}
 
 var zeroMAC = net.HardwareAddr{0, 0, 0, 0, 0, 0}
 
+// newTestInterfaceHandle creates an interfaceHandle with dirDecoder and
+// goPacketLayerType set for tests (same as production addInterface).
+func newTestInterfaceHandle(ifaceName string, linkType layers.LinkType, localAddrs map[string]struct{}) *interfaceHandle {
+	return &interfaceHandle{
+		ifaceName:         ifaceName,
+		linkType:          linkType,
+		goPacketLayerType: linkTypeToLayerType(linkType),
+		dirDecoder:        newDirectionDecoder(),
+		localAddrs:        localAddrs,
+	}
+}
+
 // buildIPv4Packet constructs an Ethernet + IPv4 packet using gopacket.
 // srcIP and dstIP are 4-byte IPv4 addresses.
 func buildIPv4Packet(srcIP, dstIP [4]byte) []byte {
@@ -76,11 +88,7 @@ func TestDeterminePacketDirection_IPv4_Outgoing(t *testing.T) {
 	remote := [4]byte{10, 0, 0, 1}
 	data := buildIPv4Packet(local, remote)
 
-	ih := &interfaceHandle{
-		ifaceName:  "test",
-		linkType:   layers.LinkTypeEthernet,
-		localAddrs: map[string]struct{}{string(local[:]): {}},
-	}
+	ih := newTestInterfaceHandle("test", layers.LinkTypeEthernet, map[string]struct{}{string(local[:]): {}})
 
 	dir := ih.determinePacketDirection(data)
 	assert.Equal(t, uint8(PacketOutgoing), dir, "src local, dst remote should be PACKET_OUTGOING")
@@ -92,11 +100,7 @@ func TestDeterminePacketDirection_IPv4_Host(t *testing.T) {
 	remote := [4]byte{10, 0, 0, 1}
 	data := buildIPv4Packet(remote, local)
 
-	ih := &interfaceHandle{
-		ifaceName:  "test",
-		linkType:   layers.LinkTypeEthernet,
-		localAddrs: map[string]struct{}{string(local[:]): {}},
-	}
+	ih := newTestInterfaceHandle("test", layers.LinkTypeEthernet, map[string]struct{}{string(local[:]): {}})
 
 	dir := ih.determinePacketDirection(data)
 	assert.Equal(t, uint8(PacketHost), dir, "src remote, dst local should be PACKET_HOST")
@@ -108,11 +112,7 @@ func TestDeterminePacketDirection_IPv4_ShortData(t *testing.T) {
 	data[12] = 0x08
 	data[13] = 0x00
 
-	ih := &interfaceHandle{
-		ifaceName:  "test",
-		linkType:   layers.LinkTypeEthernet,
-		localAddrs: map[string]struct{}{string([]byte{192, 168, 1, 1}): {}},
-	}
+	ih := newTestInterfaceHandle("test", layers.LinkTypeEthernet, map[string]struct{}{string([]byte{192, 168, 1, 1}): {}})
 
 	dir := ih.determinePacketDirection(data)
 	assert.Equal(t, uint8(PacketHost), dir, "truncated packet should default to PACKET_HOST")
@@ -120,11 +120,7 @@ func TestDeterminePacketDirection_IPv4_ShortData(t *testing.T) {
 
 func TestDeterminePacketDirection_IPv4_VeryShort(t *testing.T) {
 	// Less than 14 bytes: no ethernet.
-	ih := &interfaceHandle{
-		ifaceName:  "test",
-		linkType:   layers.LinkTypeEthernet,
-		localAddrs: map[string]struct{}{},
-	}
+	ih := newTestInterfaceHandle("test", layers.LinkTypeEthernet, map[string]struct{}{})
 	dir := ih.determinePacketDirection([]byte{1, 2, 3})
 	assert.Equal(t, uint8(PacketHost), dir, "very short data should default to PACKET_HOST")
 }
@@ -136,11 +132,7 @@ func TestDeterminePacketDirection_IPv6_Outgoing(t *testing.T) {
 	remote[15] = 2 // ::2
 	data := buildIPv6Packet(local, remote)
 
-	ih := &interfaceHandle{
-		ifaceName:  "test",
-		linkType:   layers.LinkTypeEthernet,
-		localAddrs: map[string]struct{}{string(local[:]): {}},
-	}
+	ih := newTestInterfaceHandle("test", layers.LinkTypeEthernet, map[string]struct{}{string(local[:]): {}})
 
 	dir := ih.determinePacketDirection(data)
 	assert.Equal(t, uint8(PacketOutgoing), dir, "IPv6 src local, dst remote should be PACKET_OUTGOING")
@@ -153,11 +145,7 @@ func TestDeterminePacketDirection_IPv6_Host(t *testing.T) {
 	remote[15] = 2
 	data := buildIPv6Packet(remote, local)
 
-	ih := &interfaceHandle{
-		ifaceName:  "test",
-		linkType:   layers.LinkTypeEthernet,
-		localAddrs: map[string]struct{}{string(local[:]): {}},
-	}
+	ih := newTestInterfaceHandle("test", layers.LinkTypeEthernet, map[string]struct{}{string(local[:]): {}})
 
 	dir := ih.determinePacketDirection(data)
 	assert.Equal(t, uint8(PacketHost), dir, "IPv6 src remote, dst local should be PACKET_HOST")
@@ -169,11 +157,7 @@ func TestDeterminePacketDirection_IPv6_ShortData(t *testing.T) {
 	data[12] = 0x86
 	data[13] = 0xDD
 
-	ih := &interfaceHandle{
-		ifaceName:  "test",
-		linkType:   layers.LinkTypeEthernet,
-		localAddrs: map[string]struct{}{},
-	}
+	ih := newTestInterfaceHandle("test", layers.LinkTypeEthernet, map[string]struct{}{})
 	dir := ih.determinePacketDirection(data)
 	assert.Equal(t, uint8(PacketHost), dir, "truncated IPv6 packet should default to PACKET_HOST")
 }
@@ -184,11 +168,7 @@ func TestDeterminePacketDirection_NonIP_EtherType(t *testing.T) {
 	data[12] = 0x08
 	data[13] = 0x06
 
-	ih := &interfaceHandle{
-		ifaceName:  "test",
-		linkType:   layers.LinkTypeEthernet,
-		localAddrs: map[string]struct{}{},
-	}
+	ih := newTestInterfaceHandle("test", layers.LinkTypeEthernet, map[string]struct{}{})
 	dir := ih.determinePacketDirection(data)
 	assert.Equal(t, uint8(PacketHost), dir, "non-IP ethertype should default to PACKET_HOST")
 }
@@ -249,11 +229,7 @@ func TestDeterminePacketDirection_Loopback_IPv4_Outgoing(t *testing.T) {
 	remote := [4]byte{8, 8, 8, 8}
 	data := buildLoopbackIPv4Packet(local, remote)
 
-	ih := &interfaceHandle{
-		ifaceName:  "utun0",
-		linkType:   layers.LinkTypeNull,
-		localAddrs: map[string]struct{}{string(local[:]): {}},
-	}
+	ih := newTestInterfaceHandle("utun0", layers.LinkTypeNull, map[string]struct{}{string(local[:]): {}})
 	assert.Equal(t, uint8(PacketOutgoing), ih.determinePacketDirection(data),
 		"loopback IPv4: src local, dst remote should be PacketOutgoing")
 }
@@ -263,11 +239,7 @@ func TestDeterminePacketDirection_Loopback_IPv4_Host(t *testing.T) {
 	remote := [4]byte{8, 8, 8, 8}
 	data := buildLoopbackIPv4Packet(remote, local)
 
-	ih := &interfaceHandle{
-		ifaceName:  "utun0",
-		linkType:   layers.LinkTypeNull,
-		localAddrs: map[string]struct{}{string(local[:]): {}},
-	}
+	ih := newTestInterfaceHandle("utun0", layers.LinkTypeNull, map[string]struct{}{string(local[:]): {}})
 	assert.Equal(t, uint8(PacketHost), ih.determinePacketDirection(data),
 		"loopback IPv4: src remote, dst local should be PacketHost")
 }
@@ -278,11 +250,7 @@ func TestDeterminePacketDirection_Loopback_IPv6_Outgoing(t *testing.T) {
 	remote[15] = 2
 	data := buildLoopbackIPv6Packet(local, remote)
 
-	ih := &interfaceHandle{
-		ifaceName:  "utun0",
-		linkType:   layers.LinkTypeNull,
-		localAddrs: map[string]struct{}{string(local[:]): {}},
-	}
+	ih := newTestInterfaceHandle("utun0", layers.LinkTypeNull, map[string]struct{}{string(local[:]): {}})
 	assert.Equal(t, uint8(PacketOutgoing), ih.determinePacketDirection(data),
 		"loopback IPv6: src local, dst remote should be PacketOutgoing")
 }
@@ -293,22 +261,14 @@ func TestDeterminePacketDirection_Loopback_IPv6_Host(t *testing.T) {
 	remote[15] = 2
 	data := buildLoopbackIPv6Packet(remote, local)
 
-	ih := &interfaceHandle{
-		ifaceName:  "utun0",
-		linkType:   layers.LinkTypeNull,
-		localAddrs: map[string]struct{}{string(local[:]): {}},
-	}
+	ih := newTestInterfaceHandle("utun0", layers.LinkTypeNull, map[string]struct{}{string(local[:]): {}})
 	assert.Equal(t, uint8(PacketHost), ih.determinePacketDirection(data),
 		"loopback IPv6: src remote, dst local should be PacketHost")
 }
 
 func TestDeterminePacketDirection_Loopback_ShortData(t *testing.T) {
 	// Fewer than 4 bytes — cannot read AF header.
-	ih := &interfaceHandle{
-		ifaceName:  "utun0",
-		linkType:   layers.LinkTypeNull,
-		localAddrs: map[string]struct{}{},
-	}
+	ih := newTestInterfaceHandle("utun0", layers.LinkTypeNull, map[string]struct{}{})
 	assert.Equal(t, uint8(PacketHost), ih.determinePacketDirection([]byte{2, 0}),
 		"loopback: fewer than 4 bytes should default to PacketHost")
 }
@@ -317,11 +277,7 @@ func TestDeterminePacketDirection_Loopback_UnknownAF(t *testing.T) {
 	// AF=99 is not AF_INET or AF_INET6.
 	buf := make([]byte, 4+20)
 	buf[0] = 99
-	ih := &interfaceHandle{
-		ifaceName:  "utun0",
-		linkType:   layers.LinkTypeNull,
-		localAddrs: map[string]struct{}{},
-	}
+	ih := newTestInterfaceHandle("utun0", layers.LinkTypeNull, map[string]struct{}{})
 	assert.Equal(t, uint8(PacketHost), ih.determinePacketDirection(buf),
 		"loopback: unknown AF should default to PacketHost")
 }
@@ -330,11 +286,7 @@ func TestDeterminePacketDirection_Loopback_IPv4_TruncatedIP(t *testing.T) {
 	// AF_INET header present but IPv4 header is too short (< 20 bytes after the 4-byte prefix).
 	buf := make([]byte, 4+10) // only 10 bytes of IP instead of 20
 	buf[0] = 2                // AF_INET
-	ih := &interfaceHandle{
-		ifaceName:  "utun0",
-		linkType:   layers.LinkTypeNull,
-		localAddrs: map[string]struct{}{},
-	}
+	ih := newTestInterfaceHandle("utun0", layers.LinkTypeNull, map[string]struct{}{})
 	assert.Equal(t, uint8(PacketHost), ih.determinePacketDirection(buf),
 		"loopback: truncated IPv4 header should default to PacketHost")
 }
