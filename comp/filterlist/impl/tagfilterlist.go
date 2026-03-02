@@ -6,12 +6,12 @@
 package filterlistimpl
 
 import (
+	"regexp"
 	"slices"
 	"strings"
 
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/zeebo/xxh3"
 )
 
 // TagMatcher manages removing tags from metrics with a given name.
@@ -39,10 +39,10 @@ const (
 	Include action = false
 )
 
-// HashedMetricTagList contains the list of tags hashed using murmur3.
+// hashedMetricTagList contains a compiled regex that matches configured tag names.
 type hashedMetricTagList struct {
-	tags   []uint64
-	action action
+	tagRegex *regexp.Regexp
+	action   action
 }
 
 func NewEmptyTagMatcher() filterlist.TagMatcher {
@@ -57,43 +57,115 @@ func NewTagMatcher(metrics map[string]MetricTagList) filterlist.TagMatcher {
 	return &matcher
 }
 
-// NewTagMatcher creates a new instance of TagMatcher. The function takes
-// a list of metric names and tags. Those tags are hashed using murmur3.
-// The hashed value is then used to query whether a tag should be removed
-// from a given metric.
+// newTagMatcher creates a new instance of TagMatcher. The function takes
+// a list of metric names and tags. Those tags are compiled into a regex
+// used to match incoming tag names.
 func newTagMatcher(metrics map[string]MetricTagList) tagMatcher {
-	// Store a hashed version of the tag list since that will take up
-	// less space and be faster to query.
 	hashed := make(map[string]hashedMetricTagList, len(metrics))
 	for k, v := range metrics {
-		tags := make([]uint64, 0, len(v.Tags))
-		for _, tag := range v.Tags {
-			tags = append(tags, xxh3.HashString(tag))
-		}
-
-		slices.Sort(tags)
-
-		var action action
+		var act action
 		switch v.Action {
 		case "include":
-			action = Include
+			act = Include
 		case "exclude":
-			action = Exclude
+			act = Exclude
 		case "":
-			action = Exclude
+			act = Exclude
 		default:
 			log.Warnf("`metric_tag_filterlist.%s.action` configuration should be either `include` or `exclude`. Defaulting to `exclude`.", v.Action)
-			action = Exclude
+			act = Exclude
 		}
 		hashed[k] = hashedMetricTagList{
-			tags:   tags,
-			action: action,
+			tagRegex: buildTagRegex(v.Tags),
+			action:   act,
 		}
 	}
 
 	return tagMatcher{
 		MetricTags: hashed,
 	}
+}
+
+// buildTagRegex compiles a regex that matches any of the given tag names exactly,
+// with common prefixes factored out for efficiency.
+// Returns nil if the list is empty.
+func buildTagRegex(tags []string) *regexp.Regexp {
+	if len(tags) == 0 {
+		return nil
+	}
+	sorted := make([]string, len(tags))
+	copy(sorted, tags)
+	slices.Sort(sorted)
+	return regexp.MustCompile(`^` + prefixAlternation(sorted) + `$`)
+}
+
+// prefixAlternation builds a regex alternation pattern that matches exactly the
+// given sorted words, factoring out common leading characters into shared prefixes.
+// For example ["env", "error", "host", "http"] → "(?:e(?:nv|rror)|h(?:ost|ttp))".
+func prefixAlternation(words []string) string {
+	// Deduplicate consecutive equal words (input is sorted).
+	deduped := words[:0:0]
+	for i, w := range words {
+		if i == 0 || w != words[i-1] {
+			deduped = append(deduped, w)
+		}
+	}
+	words = deduped
+
+	if len(words) == 0 {
+		return ""
+	}
+
+	// An empty string means this position is a terminal node — the parent
+	// prefix alone is a valid match.
+	hasEmpty := words[0] == ""
+	if hasEmpty {
+		words = words[1:]
+	}
+	if len(words) == 0 {
+		return ""
+	}
+
+	// Group consecutive words by their first character.
+	// Because input is sorted, words sharing a first character are adjacent.
+	type group struct {
+		char     byte
+		suffixes []string
+	}
+	var groups []group
+	for _, w := range words {
+		c := w[0]
+		if len(groups) > 0 && groups[len(groups)-1].char == c {
+			groups[len(groups)-1].suffixes = append(groups[len(groups)-1].suffixes, w[1:])
+		} else {
+			groups = append(groups, group{char: c, suffixes: []string{w[1:]}})
+		}
+	}
+
+	parts := make([]string, 0, len(groups))
+	for _, g := range groups {
+		inner := prefixAlternation(g.suffixes)
+		parts = append(parts, regexp.QuoteMeta(string(g.char))+inner)
+	}
+
+	var result string
+	isBareGroup := false
+	if len(parts) == 1 {
+		result = parts[0]
+	} else {
+		result = "(?:" + strings.Join(parts, "|") + ")"
+		isBareGroup = true
+	}
+
+	if hasEmpty {
+		if isBareGroup {
+			result += "?"
+		} else {
+			result = "(?:" + result + ")?"
+		}
+	}
+
+	return result
 }
 
 // tagName extracts the tag name portion from the tag.
@@ -107,8 +179,8 @@ func tagName(tag string) string {
 }
 
 // ShouldStripTags returns true if it has been configured to strip tags
-// from the given metric name. The returned tag list will be used to query
-// the tag.
+// from the given metric name. The returned function reports whether a
+// given tag should be kept.
 func (m *tagMatcher) ShouldStripTags(metricName string) (func(tag string) bool, bool) {
 	tm, ok := m.MetricTags[metricName]
 	if !ok {
@@ -116,9 +188,8 @@ func (m *tagMatcher) ShouldStripTags(metricName string) (func(tag string) bool, 
 	}
 
 	keepTag := func(tag string) bool {
-		hashedTag := xxh3.HashString(tagName(tag))
-		_, found := slices.BinarySearch(tm.tags, hashedTag)
-		return found != bool(tm.action)
+		matched := tm.tagRegex != nil && tm.tagRegex.MatchString(tagName(tag))
+		return matched != bool(tm.action)
 	}
 
 	return keepTag, ok
