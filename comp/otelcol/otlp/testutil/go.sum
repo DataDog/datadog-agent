@@ -108,8 +108,8 @@ go.opentelemetry.io/collector/featuregate v1.52.0 h1:Ba/6lL8BY+wWbQ8w7aOWzbyl4WG
 go.opentelemetry.io/collector/featuregate v1.52.0/go.mod h1:PS7zY/zaCb28EqciePVwRHVhc3oKortTFXsi3I6ee4g=
 go.opentelemetry.io/collector/internal/testutil v0.146.1 h1:hpemuw5sLSYIqflJdScFikLhCjHxKuJWC2Lwyh9yeCI=
 go.opentelemetry.io/collector/internal/testutil v0.146.1/go.mod h1:Jkjs6rkqs973LqgZ0Fe3zrokQRKULYXPIf4HuqStiEE=
-go.opentelemetry.io/collector/pdata v1.51.1-0.20260205185216-81bc641f26c0 h1:8tgf9W3aW3vFabyVxPNHKsaoyUytudfVOQbqZI9xBHQ=
-go.opentelemetry.io/collector/pdata v1.51.1-0.20260205185216-81bc641f26c0/go.mod h1:GoX1bjKDR++mgFKdT7Hynv9+mdgQ1DDXbjs7/Ww209Q=
+go.opentelemetry.io/collector/pdata v1.52.0 h1:jp76qKVZsQqB6yK2C6bolPOi1uU+jhsTDsp71d5MOhk=
+go.opentelemetry.io/collector/pdata v1.52.0/go.mod h1:+w6A2FXrMDDIwjRgQaud11Ifobng/j/FW3upZtaVKHc=
 go.opentelemetry.io/proto/slim/otlp v1.9.0 h1:fPVMv8tP3TrsqlkH1HWYUpbCY9cAIemx184VGkS6vlE=
 go.opentelemetry.io/proto/slim/otlp v1.9.0/go.mod h1:xXdeJJ90Gqyll+orzUkY4bOd2HECo5JofeoLpymVqdI=
 go.opentelemetry.io/proto/slim/otlp/collector/profiles/v1development v0.2.0 h1:o13nadWDNkH/quoDomDUClnQBpdQQ2Qqv0lQBjIXjE8=
