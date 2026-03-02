@@ -27,6 +27,7 @@ interface ChartWithAnomalyDetailsProps {
   onTimeRangeChange?: (range: TimeRange | null) => void;
   smoothLines?: boolean;
   seriesVariants?: SeriesVariant[];
+  isTelemetry?: boolean;
 }
 
 function buildSeriesIDSet(seriesVariants?: SeriesVariant[]): Set<SeriesID> {
@@ -81,6 +82,7 @@ export function ChartWithAnomalyDetails({
   onTimeRangeChange,
   smoothLines = true,
   seriesVariants,
+  isTelemetry = false,
 }: ChartWithAnomalyDetailsProps) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [hoveredAnomalyId, setHoveredAnomalyId] = useState<string | null>(null);
@@ -197,6 +199,7 @@ export function ChartWithAnomalyDetails({
         highlightedMarkerId={activeAnomalyId}
         onMarkerHover={setHoveredAnomalyId}
         onMarkerClick={handleMarkerClick}
+        isTelemetry={isTelemetry}
       />
 
       {/* Anomaly details - compact list below chart */}

@@ -51,7 +51,7 @@ type observation struct {
 	log    *logObs
 }
 
-// metricObs contains copied metric data.
+// metricObs contains copied metric data and implements observerdef.MetricView.
 type metricObs struct {
 	name      string
 	value     float64
@@ -59,13 +59,61 @@ type metricObs struct {
 	timestamp int64
 }
 
-// logObs contains copied log data.
+// Ensure metricObs implements observerdef.MetricView
+var _ observerdef.MetricView = (*metricObs)(nil)
+
+func (m *metricObs) GetName() string {
+	return m.name
+}
+
+func (m *metricObs) GetValue() float64 {
+	return m.value
+}
+
+func (m *metricObs) GetRawTags() []string {
+	return m.tags
+}
+
+func (m *metricObs) GetTimestamp() float64 {
+	return float64(m.timestamp)
+}
+
+// Observer does not store samplerate; just return 1.0
+func (m *metricObs) GetSampleRate() float64 {
+	return 1.0
+}
+
+// logObs contains copied log data and implements observerdef.LogView.
 type logObs struct {
 	content   []byte
 	status    string
 	tags      []string
 	hostname  string
 	timestamp int64
+}
+
+// Ensure logObs implements observerdef.LogView
+var _ observerdef.LogView = (*logObs)(nil)
+
+func (l *logObs) GetContent() []byte {
+	return l.content
+}
+
+func (l *logObs) GetStatus() string {
+	return l.status
+}
+
+func (l *logObs) GetTags() []string {
+	return l.tags
+}
+
+func (l *logObs) GetHostname() string {
+	return l.hostname
+}
+
+// Optionally, for logs that provide timestamp interface (if needed elsewhere)
+func (l *logObs) GetTimestamp() int64 {
+	return l.timestamp
 }
 
 // NewComponent creates an observer.Component.

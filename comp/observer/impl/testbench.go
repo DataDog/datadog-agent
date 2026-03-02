@@ -309,7 +309,7 @@ func (tb *TestBench) LoadScenario(name string) error {
 	tb.rerunAnalysesLocked()
 	fmt.Printf("  Analyzer phase took %s\n", time.Since(analysisStart))
 	fmt.Printf("  Total scenario load took %s (correlators running in background)\n", time.Since(scenarioStart))
-	fmt.Printf("Scenario loaded: %d series, %d metric anomalies, %d log anomalies\n", tb.seriesCount(), len(tb.metricsAnomalies), len(tb.logAnomalies))
+	fmt.Printf("Scenario loaded: %d series, %d metric anomalies, %d log entries, %d log anomalies\n", tb.seriesCount(), len(tb.metricsAnomalies), len(tb.rawLogs), len(tb.logAnomalies))
 
 	return nil
 }
@@ -417,6 +417,7 @@ func (tb *TestBench) loadLogsDir(dir string) error {
 					tb.logAnomaliesByProcessor[anomaly.AnalyzerName] = append(
 						tb.logAnomaliesByProcessor[anomaly.AnalyzerName], anomaly)
 				}
+				tb.handleTelemetry(result.Telemetry, processor.Name(), timestamp)
 			}
 		}
 		totalLogs += len(logs)
@@ -617,6 +618,12 @@ func (tb *TestBench) rerunAnalysesLocked() {
 							tb.metricsBySeriesID[anomaly.SourceSeriesID] = append(tb.metricsBySeriesID[anomaly.SourceSeriesID], anomaly)
 						}
 					}
+
+					baseTimestamp := time.Now().Unix()
+					if len(seriesCopy.Points) > 0 {
+						baseTimestamp = seriesCopy.Points[0].Timestamp
+					}
+					tb.handleTelemetry(result.Telemetry, analyzer.Name(), baseTimestamp)
 				}
 			}
 		}
@@ -703,6 +710,59 @@ func (tb *TestBench) rerunAnalysesLocked() {
 
 		tb.correlatorsProcessing = false
 	}()
+}
+
+// This will handle custom telemetry created by the anomaly detectors.
+// It includes metrics and logs.
+func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, analyzerName string, baseTimestamp int64) {
+	for _, telemetryEvent := range telemetry {
+		// Generate missing fields if needed
+		if telemetryEvent.Metric != nil {
+			metric := &metricObs{
+				name:      telemetryEvent.Metric.GetName(),
+				value:     telemetryEvent.Metric.GetValue(),
+				tags:      telemetryEvent.Metric.GetRawTags(),
+				timestamp: int64(telemetryEvent.Metric.GetTimestamp()),
+			}
+			if metric.timestamp == 0 {
+				metric.timestamp = baseTimestamp
+			}
+			if telemetryEvent.AnalyzerName == "" {
+				telemetryEvent.AnalyzerName = analyzerName
+			}
+			// Save this for UI
+			tb.storage.Add("telemetry", "telemetry."+telemetryEvent.AnalyzerName+"."+metric.name, metric.value, metric.timestamp, metric.tags)
+		}
+
+		if telemetryEvent.Log != nil {
+			timestamp := int64(0)
+			if tlv, ok := telemetryEvent.Log.(logTimestamper); ok {
+				timestamp = tlv.GetTimestamp()
+			}
+			if timestamp == 0 {
+				timestamp = baseTimestamp
+			}
+			logTags := telemetryEvent.Log.GetTags()
+			tagsCopy := make([]string, 0, len(logTags)+2)
+			copy(tagsCopy, logTags)
+			tagsCopy = append(tagsCopy, "analyzer:"+analyzerName)
+			tagsCopy = append(tagsCopy, "telemetry:true")
+			log := storedLogEntry{
+				Content:   string(telemetryEvent.Log.GetContent()),
+				Status:    telemetryEvent.Log.GetStatus(),
+				Tags:      tagsCopy,
+				Timestamp: timestamp,
+			}
+			if log.Status == "" {
+				log.Status = "info"
+			}
+			if telemetryEvent.AnalyzerName == "" {
+				telemetryEvent.AnalyzerName = analyzerName
+			}
+			// Save this for UI
+			tb.rawLogs = append(tb.rawLogs, log)
+		}
+	}
 }
 
 // GetComponents returns all registered components.
@@ -1119,7 +1179,7 @@ func (tb *TestBench) loadDemoScenario() error {
 
 	// Run analyses on all loaded data (analyzers sync, correlators async)
 	tb.rerunAnalysesLocked()
-	fmt.Printf("Demo scenario loaded: %d series, %d metric anomalies, %d log anomalies (correlators running in background)\n", tb.seriesCount(), len(tb.metricsAnomalies), len(tb.logAnomalies))
+	fmt.Printf("Demo scenario loaded: %d series, %d metric anomalies, %d log entries, %d log anomalies (correlators running in background)\n", tb.seriesCount(), len(tb.metricsAnomalies), len(tb.rawLogs), len(tb.logAnomalies))
 
 	return nil
 }
