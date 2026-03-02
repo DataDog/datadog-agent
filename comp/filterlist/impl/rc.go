@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/twmb/murmur3"
 )
 
 type statsdFilterListUpdate struct {
@@ -220,7 +219,7 @@ func (fl *FilterList) mergeMetricTagListEntry(metric tagEntry, currentHashed has
 
 	if (currentHashed.action == Exclude) == metric.ExcludeTag {
 		// Both metrics define the same action so we can just merge the list.
-		currentHashed.tags = append(currentHashed.tags, hashTags(metric.Tags)...)
+		//currentHashed.tags = append(currentHashed.tags, hashTags(metric.Tags)...)
 
 		// Merge unhashed tags too
 		currentEntry.Tags = append(currentEntry.Tags, metric.Tags...)
@@ -250,10 +249,10 @@ func (fl *FilterList) mergeMetricTagListEntry(metric tagEntry, currentHashed has
 	return currentHashed, currentEntry
 }
 
-func hashTags(tags []string) []uint64 {
-	hashed := make([]uint64, 0, len(tags))
+func hashTags(tags []string) map[string]struct{} {
+	hashed := make(map[string]struct{}, len(tags))
 	for _, tag := range tags {
-		hashed = append(hashed, murmur3.StringSum64(tag))
+		hashed[tag] = struct{}{}
 	}
 
 	return hashed
