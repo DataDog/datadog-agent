@@ -14,13 +14,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 	"github.com/DataDog/datadog-agent/pkg/config/teeconfig"
 	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // NewConfig returns a config with the given name. Implementation of the
-// config is chosen by an env var
+// config is chosen by an env var or the conf_nodetreemodel setting
 //
 // Possible values for DD_CONF_NODETREEMODEL:
+//   - "viper":           Use viper for the config
 //   - "enable":          Use the nodetreemodel for the config, instead of viper
 //   - "tee":             Construct both viper and nodetreemodel. Write to both, only read from viper (base=viper, compare=nodetreemodel)
 //   - "enable-tee":      Same as tee but with base=nodetreemodel and compare=viper (read from nodetreemodel, log diffs vs viper)
@@ -36,7 +38,9 @@ func NewConfig(name string, configLib string) model.BuildableConfig {
 
 	lib = strings.Trim(lib, " ")
 
-	if lib == "enable" {
+	if lib == "viper" {
+		return viperconfig.NewViperConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	} else if lib == "enable" {
 		return nodetreemodel.NewNodeTreeConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	} else if lib == "tee" {
 		viperImpl := viperconfig.NewViperConfig(name, "DD", strings.NewReplacer(".", "_"))         // nolint: forbidigo // legit use case
@@ -54,6 +58,9 @@ func NewConfig(name string, configLib string) model.BuildableConfig {
 				return nodetreemodel.NewNodeTreeConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 			}
 		}
+		log.Warnf("unrecognized value for DD_CONF_NODETREEMODEL: %s", lib)
 	}
+
+	// default config implementation
 	return viperconfig.NewViperConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 }
