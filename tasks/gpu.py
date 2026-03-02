@@ -86,7 +86,7 @@ def _get_expected_metrics_for_gpu_config(spec_model: "Spec", gpu_config: "GPUCon
             continue
         if gpu_config.architecture in metric.support.unsupported_architectures:
             continue
-        mode_support = metric.support.device_features.get(gpu_config.device_mode)
+        mode_support = metric.support.device_modes.get(gpu_config.device_mode)
         if not mode_support:
             continue
         expected[f"{spec_model.metric_prefix}.{metric_name}"] = metric

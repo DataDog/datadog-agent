@@ -10,12 +10,12 @@ DEVICE_MODES = ("physical", "mig", "vgpu")
 class Support(BaseModel):
     model_config = ConfigDict(extra="forbid")
     unsupported_architectures: list[str] = Field(default_factory=list)
-    device_features: dict[str, bool] = Field(default_factory=dict)
+    device_modes: dict[str, bool] = Field(default_factory=dict)
     process_data: bool = False
 
-    @field_validator("device_features")
+    @field_validator("device_modes")
     @classmethod
-    def validate_device_features(cls, value: dict[str, bool]) -> dict[str, bool]:
+    def validate_device_modes(cls, value: dict[str, bool]) -> dict[str, bool]:
         allowed_modes = set(DEVICE_MODES)
         invalid_modes = sorted(set(value.keys()) - allowed_modes)
         if invalid_modes:
@@ -28,7 +28,7 @@ class Support(BaseModel):
 
 class Metric(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    type: str
+    type: str | None = None
     tagsets: list[str]
     custom_tags: list[str] = Field(default_factory=list)
     support: Support = Field(default_factory=Support)
@@ -50,7 +50,7 @@ class Spec(BaseModel):
 
 class Architecture(BaseModel):
     model_config = ConfigDict(extra="ignore")
-    unsupported_device_features: list[str] = Field(default_factory=list)
+    unsupported_device_modes: list[str] = Field(default_factory=list)
 
 
 class ArchitecturesSpec(BaseModel):
@@ -60,7 +60,7 @@ class ArchitecturesSpec(BaseModel):
     def build_combinations(self) -> list["GPUConfig"]:
         combos: list[GPUConfig] = []
         for arch_name, arch in self.architectures.items():
-            unsupported = {x.lower() for x in arch.unsupported_device_features}
+            unsupported = {x.lower() for x in arch.unsupported_device_modes}
             for mode in DEVICE_MODES:
                 if mode not in unsupported:
                     combos.append(GPUConfig(architecture=arch_name.lower(), device_mode=mode, is_known=True))
