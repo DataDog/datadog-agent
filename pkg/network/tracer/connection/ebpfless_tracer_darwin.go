@@ -16,8 +16,7 @@ import (
 
 const (
 	// the segment length to read on Darwin
-	// For on Darwin: ethernet + ip header + tcp header (no ethernet)
-	segmentLen = 18 + 20 + 20
+	segmentLen = 134
 )
 
 // createPacketSource creates a Darwin-specific libpcap packet source
