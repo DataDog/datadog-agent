@@ -168,6 +168,7 @@ message Rollout {
 
 message FleetState {
   string config_version = 1;
+  Task config_task = 5;
   bool config_experiment = 2;
   Rollout config_rollout = 3;
   string secret_pub_key = 4;

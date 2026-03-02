@@ -3219,10 +3219,21 @@ func (z FileMetaState) Msgsize() (s int) {
 // MarshalMsg implements msgp.Marshaler
 func (z *FleetState) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 4
+	// map header, size 5
 	// string "ConfigVersion"
-	o = append(o, 0x84, 0xad, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+	o = append(o, 0x85, 0xad, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
 	o = msgp.AppendString(o, z.ConfigVersion)
+	// string "ConfigTask"
+	o = append(o, 0xaa, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x54, 0x61, 0x73, 0x6b)
+	if z.ConfigTask == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		o, err = z.ConfigTask.MarshalMsg(o)
+		if err != nil {
+			err = msgp.WrapError(err, "ConfigTask")
+			return
+		}
+	}
 	// string "ConfigExperiment"
 	o = append(o, 0xb0, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x45, 0x78, 0x70, 0x65, 0x72, 0x69, 0x6d, 0x65, 0x6e, 0x74)
 	o = msgp.AppendBool(o, z.ConfigExperiment)
@@ -3267,6 +3278,23 @@ func (z *FleetState) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "ConfigVersion")
 				return
 			}
+		case "ConfigTask":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				if err != nil {
+					return
+				}
+				z.ConfigTask = nil
+			} else {
+				if z.ConfigTask == nil {
+					z.ConfigTask = new(Task)
+				}
+				bts, err = z.ConfigTask.UnmarshalMsg(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "ConfigTask")
+					return
+				}
+			}
 		case "ConfigExperiment":
 			z.ConfigExperiment, bts, err = msgp.ReadBoolBytes(bts)
 			if err != nil {
@@ -3310,7 +3338,13 @@ func (z *FleetState) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *FleetState) Msgsize() (s int) {
-	s = 1 + 14 + msgp.StringPrefixSize + len(z.ConfigVersion) + 17 + msgp.BoolSize + 14
+	s = 1 + 14 + msgp.StringPrefixSize + len(z.ConfigVersion) + 11
+	if z.ConfigTask == nil {
+		s += msgp.NilSize
+	} else {
+		s += z.ConfigTask.Msgsize()
+	}
+	s += 17 + msgp.BoolSize + 14
 	if z.ConfigRollout == nil {
 		s += msgp.NilSize
 	} else {

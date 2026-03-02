@@ -1657,6 +1657,7 @@ func (x *Rollout) GetDaemonSets() []*DaemonSetStatus {
 type FleetState struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	ConfigVersion    string                 `protobuf:"bytes,1,opt,name=config_version,json=configVersion,proto3" json:"config_version,omitempty"`
+	ConfigTask       *Task                  `protobuf:"bytes,5,opt,name=config_task,json=configTask,proto3" json:"config_task,omitempty"`
 	ConfigExperiment bool                   `protobuf:"varint,2,opt,name=config_experiment,json=configExperiment,proto3" json:"config_experiment,omitempty"`
 	ConfigRollout    *Rollout               `protobuf:"bytes,3,opt,name=config_rollout,json=configRollout,proto3" json:"config_rollout,omitempty"`
 	SecretPubKey     string                 `protobuf:"bytes,4,opt,name=secret_pub_key,json=secretPubKey,proto3" json:"secret_pub_key,omitempty"`
@@ -1699,6 +1700,13 @@ func (x *FleetState) GetConfigVersion() string {
 		return x.ConfigVersion
 	}
 	return ""
+}
+
+func (x *FleetState) GetConfigTask() *Task {
+	if x != nil {
+		return x.ConfigTask
+	}
+	return nil
 }
 
 func (x *FleetState) GetConfigExperiment() bool {
@@ -2906,10 +2914,12 @@ const file_datadog_remoteconfig_remoteconfig_proto_rawDesc = "" +
 	"\aRollout\x12B\n" +
 	"\vdeployments\x18\x01 \x03(\v2 .datadog.config.DeploymentStatusR\vdeployments\x12@\n" +
 	"\vdaemon_sets\x18\x02 \x03(\v2\x1f.datadog.config.DaemonSetStatusR\n" +
-	"daemonSets\"\xc6\x01\n" +
+	"daemonSets\"\xfd\x01\n" +
 	"\n" +
 	"FleetState\x12%\n" +
-	"\x0econfig_version\x18\x01 \x01(\tR\rconfigVersion\x12+\n" +
+	"\x0econfig_version\x18\x01 \x01(\tR\rconfigVersion\x125\n" +
+	"\vconfig_task\x18\x05 \x01(\v2\x14.datadog.config.TaskR\n" +
+	"configTask\x12+\n" +
 	"\x11config_experiment\x18\x02 \x01(\bR\x10configExperiment\x12>\n" +
 	"\x0econfig_rollout\x18\x03 \x01(\v2\x17.datadog.config.RolloutR\rconfigRollout\x12$\n" +
 	"\x0esecret_pub_key\x18\x04 \x01(\tR\fsecretPubKey\"O\n" +
@@ -3098,33 +3108,34 @@ var file_datadog_remoteconfig_remoteconfig_proto_depIdxs = []int32{
 	24, // 21: datadog.config.Task.error:type_name -> datadog.config.TaskError
 	19, // 22: datadog.config.Rollout.deployments:type_name -> datadog.config.DeploymentStatus
 	20, // 23: datadog.config.Rollout.daemon_sets:type_name -> datadog.config.DaemonSetStatus
-	21, // 24: datadog.config.FleetState.config_rollout:type_name -> datadog.config.Rollout
-	22, // 25: datadog.config.ClientOperator.fleet_states:type_name -> datadog.config.FleetState
-	25, // 26: datadog.config.ClientState.config_states:type_name -> datadog.config.ConfigState
-	27, // 27: datadog.config.TargetFileMeta.hashes:type_name -> datadog.config.TargetFileHash
-	3,  // 28: datadog.config.ConfigSubscriptionRequest.action:type_name -> datadog.config.ConfigSubscriptionRequest.Action
-	1,  // 29: datadog.config.ConfigSubscriptionRequest.products:type_name -> datadog.config.ConfigSubscriptionProducts
-	13, // 30: datadog.config.ConfigSubscriptionResponse.client:type_name -> datadog.config.Client
-	8,  // 31: datadog.config.ConfigSubscriptionResponse.target_files:type_name -> datadog.config.File
-	13, // 32: datadog.config.ClientGetConfigsRequest.client:type_name -> datadog.config.Client
-	28, // 33: datadog.config.ClientGetConfigsRequest.cached_target_files:type_name -> datadog.config.TargetFileMeta
-	8,  // 34: datadog.config.ClientGetConfigsResponse.target_files:type_name -> datadog.config.File
-	2,  // 35: datadog.config.ClientGetConfigsResponse.config_status:type_name -> datadog.config.ConfigStatus
-	39, // 36: datadog.config.GetStateConfigResponse.config_state:type_name -> datadog.config.GetStateConfigResponse.ConfigStateEntry
-	40, // 37: datadog.config.GetStateConfigResponse.director_state:type_name -> datadog.config.GetStateConfigResponse.DirectorStateEntry
-	41, // 38: datadog.config.GetStateConfigResponse.target_filenames:type_name -> datadog.config.GetStateConfigResponse.TargetFilenamesEntry
-	13, // 39: datadog.config.GetStateConfigResponse.active_clients:type_name -> datadog.config.Client
-	35, // 40: datadog.config.GetStateConfigResponse.config_subscription_states:type_name -> datadog.config.ConfigSubscriptionState
-	42, // 41: datadog.config.ConfigSubscriptionState.tracked_clients:type_name -> datadog.config.ConfigSubscriptionState.TrackedClient
-	37, // 42: datadog.config.TracerPredicates.tracer_predicates_v1:type_name -> datadog.config.TracerPredicateV1
-	33, // 43: datadog.config.GetStateConfigResponse.ConfigStateEntry.value:type_name -> datadog.config.FileMetaState
-	33, // 44: datadog.config.GetStateConfigResponse.DirectorStateEntry.value:type_name -> datadog.config.FileMetaState
-	1,  // 45: datadog.config.ConfigSubscriptionState.TrackedClient.products:type_name -> datadog.config.ConfigSubscriptionProducts
-	46, // [46:46] is the sub-list for method output_type
-	46, // [46:46] is the sub-list for method input_type
-	46, // [46:46] is the sub-list for extension type_name
-	46, // [46:46] is the sub-list for extension extendee
-	0,  // [0:46] is the sub-list for field type_name
+	18, // 24: datadog.config.FleetState.config_task:type_name -> datadog.config.Task
+	21, // 25: datadog.config.FleetState.config_rollout:type_name -> datadog.config.Rollout
+	22, // 26: datadog.config.ClientOperator.fleet_states:type_name -> datadog.config.FleetState
+	25, // 27: datadog.config.ClientState.config_states:type_name -> datadog.config.ConfigState
+	27, // 28: datadog.config.TargetFileMeta.hashes:type_name -> datadog.config.TargetFileHash
+	3,  // 29: datadog.config.ConfigSubscriptionRequest.action:type_name -> datadog.config.ConfigSubscriptionRequest.Action
+	1,  // 30: datadog.config.ConfigSubscriptionRequest.products:type_name -> datadog.config.ConfigSubscriptionProducts
+	13, // 31: datadog.config.ConfigSubscriptionResponse.client:type_name -> datadog.config.Client
+	8,  // 32: datadog.config.ConfigSubscriptionResponse.target_files:type_name -> datadog.config.File
+	13, // 33: datadog.config.ClientGetConfigsRequest.client:type_name -> datadog.config.Client
+	28, // 34: datadog.config.ClientGetConfigsRequest.cached_target_files:type_name -> datadog.config.TargetFileMeta
+	8,  // 35: datadog.config.ClientGetConfigsResponse.target_files:type_name -> datadog.config.File
+	2,  // 36: datadog.config.ClientGetConfigsResponse.config_status:type_name -> datadog.config.ConfigStatus
+	39, // 37: datadog.config.GetStateConfigResponse.config_state:type_name -> datadog.config.GetStateConfigResponse.ConfigStateEntry
+	40, // 38: datadog.config.GetStateConfigResponse.director_state:type_name -> datadog.config.GetStateConfigResponse.DirectorStateEntry
+	41, // 39: datadog.config.GetStateConfigResponse.target_filenames:type_name -> datadog.config.GetStateConfigResponse.TargetFilenamesEntry
+	13, // 40: datadog.config.GetStateConfigResponse.active_clients:type_name -> datadog.config.Client
+	35, // 41: datadog.config.GetStateConfigResponse.config_subscription_states:type_name -> datadog.config.ConfigSubscriptionState
+	42, // 42: datadog.config.ConfigSubscriptionState.tracked_clients:type_name -> datadog.config.ConfigSubscriptionState.TrackedClient
+	37, // 43: datadog.config.TracerPredicates.tracer_predicates_v1:type_name -> datadog.config.TracerPredicateV1
+	33, // 44: datadog.config.GetStateConfigResponse.ConfigStateEntry.value:type_name -> datadog.config.FileMetaState
+	33, // 45: datadog.config.GetStateConfigResponse.DirectorStateEntry.value:type_name -> datadog.config.FileMetaState
+	1,  // 46: datadog.config.ConfigSubscriptionState.TrackedClient.products:type_name -> datadog.config.ConfigSubscriptionProducts
+	47, // [47:47] is the sub-list for method output_type
+	47, // [47:47] is the sub-list for method input_type
+	47, // [47:47] is the sub-list for extension type_name
+	47, // [47:47] is the sub-list for extension extendee
+	0,  // [0:47] is the sub-list for field type_name
 }
 
 func init() { file_datadog_remoteconfig_remoteconfig_proto_init() }
