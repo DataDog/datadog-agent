@@ -118,6 +118,11 @@ func (c *ServerlessMetricAgent) AddMetric(name string, value float64, metricSour
 	c.sendMetricSample(name, value, metricSource, metrics.DistributionType, 0, c.tags, extraTags...)
 }
 
+// AddMetricWithTimestamp reports a new distribution metric value to the intake with the given timestamp.
+func (c *ServerlessMetricAgent) AddMetricWithTimestamp(name string, value float64, metricSource metrics.MetricSource, metricType metrics.MetricType, timestamp float64, extraTags ...string) {
+	c.sendMetricSample(name, value, metricSource, metricType, timestamp, c.tags, extraTags...)
+}
+
 // AddHighCardinalityMetricWithTimestamp reports a new distribution metric value to the intake with the given timestamp and high cardinality tags.
 func (c *ServerlessMetricAgent) AddHighCardinalityMetricWithTimestamp(name string, value float64, metricSource metrics.MetricSource, metricType metrics.MetricType, timestamp float64, extraTags ...string) {
 	tags := append(append([]string{}, c.tags...), c.highCardinalityTags...)

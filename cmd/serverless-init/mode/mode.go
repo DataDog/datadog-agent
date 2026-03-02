@@ -14,20 +14,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type Mode int
-
-const (
-	ModeSidecar Mode = iota // sidecar
-	ModeInit                // init (in-container)
-)
-
 // Conf contains the configuration for the mode in which the serverless-init agent should run
 type Conf struct {
 	LoggerName     string
 	Runner         func(logConfig *serverlessLog.Config) error
 	TagVersionMode string
 	EnvDefaults    map[string]string
-	Mode           Mode
 }
 
 const (
@@ -56,7 +48,6 @@ func DetectMode() Conf {
 			Runner:         RunSidecar,
 			TagVersionMode: "_dd.datadog_sidecar_version",
 			EnvDefaults:    envToSet,
-			Mode:           ModeSidecar,
 		}
 	}
 	log.Infof("Arguments provided, launching in Init mode")
@@ -65,6 +56,5 @@ func DetectMode() Conf {
 		Runner:         RunInit,
 		TagVersionMode: "_dd.datadog_init_version",
 		EnvDefaults:    envToSet,
-		Mode:           ModeInit,
 	}
 }

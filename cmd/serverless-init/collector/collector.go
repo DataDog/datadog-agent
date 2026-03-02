@@ -5,21 +5,6 @@
 
 //go:build linux
 
-/*
-TODO:
-
-add collector tests
-Check in Cloud Run Functions, Cloud Run Jobs, Azure Web Apps, Sidecar
-Add instance id tag to app service metrics
-instance id for jobs (task count or execution_name?)
-Remove/add debug logs as needed
-Send gcr job cpu metrics with .container prefix?
-Does first gen cloud run support cgroups?
-remove percentage metric
-test multiple sidecars
-check if cpu usage for google cloud run is across main and sidecar container
-*/
-
 package collector
 
 import (
@@ -262,10 +247,7 @@ func (c *Collector) sendMetrics(enhancedMetrics ServerlessEnhancedMetrics) {
 	c.metricAgent.AddHighCardinalityMetricWithTimestamp(c.metricPrefix+"cpu.usage", enhancedMetrics.CPUUsage, c.metricSource, metrics.DistributionType, enhancedMetrics.Timestamp)
 
 	// CPU limit in nanocores
-	c.metricAgent.AddHighCardinalityMetricWithTimestamp(c.metricPrefix+"cpu.limit", enhancedMetrics.CPULimit, c.metricSource, metrics.DistributionType, enhancedMetrics.Timestamp)
-
-	// CPU percentage
-	c.metricAgent.AddHighCardinalityMetricWithTimestamp(c.metricPrefix+"cpu.percentage", enhancedMetrics.CPUUsage/enhancedMetrics.CPULimit, c.metricSource, metrics.DistributionType, enhancedMetrics.Timestamp)
+	c.metricAgent.AddMetricWithTimestamp(c.metricPrefix+"cpu.limit", enhancedMetrics.CPULimit, c.metricSource, metrics.DistributionType, enhancedMetrics.Timestamp)
 }
 
 func statValue(val *float64, def float64) float64 {
