@@ -455,6 +455,10 @@ var (
 	// Tags: consumer_id
 	MetricEventMonitoringEventsDropped = newRuntimeMetric(".event_monitoring.events.dropped")
 
+	// MetricEventsHandled is the name of the metric used to count the number of events handled by the eBPF probe
+	// Tags: -
+	MetricEventsHandled = newRuntimeMetric(".events.handled")
+
 	//BPFFilter metrics
 
 	//MetricBPFFilterTruncated is the name of the metric used to report truncated BPF filter

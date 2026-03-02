@@ -192,6 +192,9 @@ type EBPFProbe struct {
 	// PrCtl and name truncation
 	MetricNameTruncated *atomic.Uint64
 
+	// Events handled counter
+	eventsHandled *atomic.Uint64
+
 	// Event timing information
 	eventProcessingTimes     *map[model.EventType]*StatsAccumulator
 	eventProcessingTimeMutex sync.Mutex
@@ -982,6 +985,11 @@ func (p *EBPFProbe) SendStats() error {
 		return err
 	}
 
+	eventsHandled := p.eventsHandled.Swap(0)
+	if err := p.statsdClient.Count(metrics.MetricEventsHandled, int64(eventsHandled), []string{}, 1.0); err != nil {
+		return err
+	}
+
 	if p.opts.GenerateEventProcessingTimeMetrics {
 		p.eventProcessingTimeMutex.Lock()
 		curEventProcessingTimes := p.eventProcessingTimes
@@ -1192,6 +1200,8 @@ func (p *EBPFProbe) handleEventWrapper(CPU int, data []byte) {
 
 // handleEvent processes raw eBPF events received from the kernel, unmarshaling and dispatching them appropriately.
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) model.EventType {
+	p.eventsHandled.Add(1)
+
 	// handle play snapshot
 	if p.replayEventsState.Swap(false) {
 		// do not notify consumers as we are replaying the process cache entries after a ruleset reload
@@ -2975,6 +2985,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		hostname:             hostname,
 		BPFFilterTruncated:   atomic.NewUint64(0),
 		MetricNameTruncated:  atomic.NewUint64(0),
+		eventsHandled:        atomic.NewUint64(0),
 		eventProcessingTimes: &ept,
 		activeRemediations:   make(map[string]*Remediation),
 	}
