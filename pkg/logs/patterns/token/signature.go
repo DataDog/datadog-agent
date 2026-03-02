@@ -8,8 +8,11 @@ package token
 
 import (
 	"fmt"
+	"hash"
 	"hash/fnv"
 	"strings"
+	"sync"
+	"unsafe"
 )
 
 // Signature represents a structural signature of a TokenList
@@ -53,11 +56,22 @@ func (s *Signature) Equals(other Signature) bool {
 		s.Length == other.Length
 }
 
-// computeHash generates a hash for the signature
+var fnvPool = sync.Pool{
+	New: func() any { return fnv.New64a() },
+}
+
+// computeHash generates a hash for the signature.
+// Uses FNV-1a (not maphash) for deterministic, reproducible hashes
+// that remain stable across process restarts.
 func computeHash(input string) uint64 {
-	hash := fnv.New64a()
-	hash.Write([]byte(input))
-	return hash.Sum64()
+	h := fnvPool.Get().(hash.Hash64)
+	h.Reset()
+	if len(input) > 0 {
+		h.Write(unsafe.Slice(unsafe.StringData(input), len(input)))
+	}
+	v := h.Sum64()
+	fnvPool.Put(h)
+	return v
 }
 
 // String returns a string representation of the signature
@@ -87,9 +101,9 @@ func positionSignature(tl *TokenList) string {
 		return ""
 	}
 
-	var positionParts []string
-	for _, token := range tl.Tokens {
-		positionParts = append(positionParts, token.Type.String())
+	parts := make([]string, len(tl.Tokens))
+	for i, t := range tl.Tokens {
+		parts[i] = tokenTypeNames[t.Type]
 	}
-	return strings.Join(positionParts, "|")
+	return strings.Join(parts, "|")
 }

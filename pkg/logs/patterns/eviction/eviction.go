@@ -12,6 +12,8 @@ import (
 )
 
 // EvictLowestScoring evicts up to numToEvict items with the lowest eviction scores.
+// Uses quickselect (partial sort) for O(N) average-case selection of the K lowest items,
+// avoiding the O(N + K log N) cost of a full heap build + extraction.
 func EvictLowestScoring(collection EvictableCollection, numToEvict int, decayFactor float64) (evicted []Evictable) {
 	if numToEvict <= 0 {
 		return nil
@@ -19,38 +21,89 @@ func EvictLowestScoring(collection EvictableCollection, numToEvict int, decayFac
 
 	now := time.Now()
 
-	// Build heap of all items with their scores
-	h := &evictionHeap{
-		items: make([]heapItem, 0),
+	allItems := collection.CollectEvictables()
+	n := len(allItems)
+	if n == 0 {
+		return nil
 	}
 
-	// Collect all items and calculate scores
-	for _, item := range collection.CollectEvictables() {
-		score := CalculateScore(
-			item.GetFrequency(),
-			item.GetCreatedAt(),
-			item.GetLastAccessAt(),
-			now,
-			decayFactor,
-		)
-		h.items = append(h.items, heapItem{
-			item:  item,
-			score: score,
-		})
+	scored := make([]heapItem, n)
+	for i, item := range allItems {
+		scored[i] = heapItem{
+			item: item,
+			score: CalculateScore(
+				item.GetFrequency(),
+				item.GetCreatedAt(),
+				item.GetLastAccessAt(),
+				now,
+				decayFactor,
+			),
+		}
 	}
 
-	// Build the min-heap: O(N) operation
-	heap.Init(h)
+	k := numToEvict
+	if k > n {
+		k = n
+	}
 
-	// Extract and evict the N items with lowest scores
-	evicted = make([]Evictable, 0, numToEvict)
-	for i := 0; i < numToEvict && h.Len() > 0; i++ {
-		item := heap.Pop(h).(heapItem)
-		collection.RemoveEvictable(item.item)
-		evicted = append(evicted, item.item)
+	// Quickselect partitions so scored[0:k] contains the k lowest-scoring items (unordered).
+	if k < n {
+		quickselectLowest(scored, k)
+	}
+
+	evicted = make([]Evictable, k)
+	for i := 0; i < k; i++ {
+		collection.RemoveEvictable(scored[i].item)
+		evicted[i] = scored[i].item
 	}
 
 	return evicted
+}
+
+// quickselectLowest rearranges items so that the k items with the smallest scores
+// end up at indices [0, k). Iterative with median-of-three pivot selection.
+func quickselectLowest(items []heapItem, k int) {
+	lo, hi := 0, len(items)-1
+	target := k - 1
+	for lo < hi {
+		pivotIdx := medianOfThreePivot(items, lo, hi)
+		pivotIdx = partitionItems(items, lo, hi, pivotIdx)
+		if pivotIdx == target {
+			return
+		} else if pivotIdx < target {
+			lo = pivotIdx + 1
+		} else {
+			hi = pivotIdx - 1
+		}
+	}
+}
+
+func medianOfThreePivot(items []heapItem, lo, hi int) int {
+	mid := lo + (hi-lo)/2
+	if items[lo].score > items[mid].score {
+		items[lo], items[mid] = items[mid], items[lo]
+	}
+	if items[lo].score > items[hi].score {
+		items[lo], items[hi] = items[hi], items[lo]
+	}
+	if items[mid].score > items[hi].score {
+		items[mid], items[hi] = items[hi], items[mid]
+	}
+	return mid
+}
+
+func partitionItems(items []heapItem, lo, hi, pivotIdx int) int {
+	pivot := items[pivotIdx].score
+	items[pivotIdx], items[hi] = items[hi], items[pivotIdx]
+	storeIdx := lo
+	for i := lo; i < hi; i++ {
+		if items[i].score < pivot {
+			items[i], items[storeIdx] = items[storeIdx], items[i]
+			storeIdx++
+		}
+	}
+	items[storeIdx], items[hi] = items[hi], items[storeIdx]
+	return storeIdx
 }
 
 // EvictToMemoryTarget evicts items until the target memory is freed.
