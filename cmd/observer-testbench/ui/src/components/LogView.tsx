@@ -278,6 +278,18 @@ function LogAnomalyCard({ anomaly, isExpanded, onToggle }: LogAnomalyCardProps) 
 const ALL_LEVELS = ['error', 'warn', 'info', 'debug'];
 const LOG_PAGE_SIZE = 50;
 
+function parseTagFilter(input: string): Map<string, Set<string>> {
+  const byKey = new Map<string, Set<string>>();
+  for (const token of input.trim().split(/\s+/)) {
+    const sep = token.indexOf(':');
+    if (sep <= 0 || sep === token.length - 1) continue;
+    const key = token.slice(0, sep);
+    if (!byKey.has(key)) byKey.set(key, new Set());
+    byKey.get(key)!.add(token);
+  }
+  return byKey;
+}
+
 function extractTagGroups(tagLists: string[][]): Map<string, string[]> {
   const groups = new Map<string, Set<string>>();
   for (const tags of tagLists) {
@@ -292,13 +304,21 @@ function extractTagGroups(tagLists: string[][]): Map<string, string[]> {
   return new Map([...groups.entries()].map(([k, v]) => [k, [...v].sort()]));
 }
 
+function toggleTagInInput(input: string, tag: string): string {
+  const tokens = input.trim().split(/\s+/).filter(Boolean);
+  const idx = tokens.indexOf(tag);
+  if (idx >= 0) tokens.splice(idx, 1);
+  else tokens.push(tag);
+  return tokens.join(' ');
+}
+
 export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
   const scenarios = state.scenarios ?? [];
   const allLogs = state.logs ?? [];
   const allLogAnomalies = state.logAnomalies ?? [];
 
   const [enabledLevels, setEnabledLevels] = useState<Set<string>>(new Set(ALL_LEVELS));
-  const [enabledTagFilters, setEnabledTagFilters] = useState<Set<string>>(new Set());
+  const [tagFilterInput, setTagFilterInput] = useState('');
   const [expandedLogIndex, setExpandedLogIndex] = useState<number | null>(null);
   const [expandedAnomalyIndex, setExpandedAnomalyIndex] = useState<number | null>(null);
   const [anomaliesExpanded, setAnomaliesExpanded] = useState(true);
@@ -311,7 +331,7 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
     if (state.activeScenario && initializedScenarioRef.current !== state.activeScenario) {
       initializedScenarioRef.current = state.activeScenario;
       setEnabledLevels(new Set(ALL_LEVELS));
-      setEnabledTagFilters(new Set());
+      setTagFilterInput('');
       setExpandedLogIndex(null);
       setExpandedAnomalyIndex(null);
       setLogPage(1);
@@ -323,32 +343,20 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
     [allLogs]
   );
 
-  // Build a per-key grouping of enabled tag filters for AND/OR logic
-  const tagFilterByKey = useMemo(() => {
-    const byKey = new Map<string, Set<string>>();
-    for (const tag of enabledTagFilters) {
-      const sep = tag.indexOf(':');
-      if (sep === -1) continue;
-      const key = tag.slice(0, sep);
-      if (!byKey.has(key)) byKey.set(key, new Set());
-      byKey.get(key)!.add(tag);
-    }
-    return byKey;
-  }, [enabledTagFilters]);
-
   const filteredLogs = useMemo(() => {
+    const byKey = parseTagFilter(tagFilterInput);
     return allLogs
       .filter((l) => {
         if (!enabledLevels.has(l.status.toLowerCase())) return false;
-        if (tagFilterByKey.size === 0) return true;
+        if (byKey.size === 0) return true;
         const logTags = new Set(l.tags ?? []);
-        for (const [, tagSet] of tagFilterByKey) {
+        for (const [, tagSet] of byKey) {
           if (![...tagSet].some((t) => logTags.has(t))) return false;
         }
         return true;
       })
       .sort((a, b) => a.timestamp - b.timestamp);
-  }, [allLogs, enabledLevels, tagFilterByKey]);
+  }, [allLogs, enabledLevels, tagFilterInput]);
 
   const countByLevel = useMemo(() => {
     const counts = new Map<string, number>();
@@ -360,17 +368,18 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
   }, [allLogs]);
 
   const sortedAnomalies = useMemo(() => {
-    const anomalies = tagFilterByKey.size === 0
+    const byKey = parseTagFilter(tagFilterInput);
+    const anomalies = byKey.size === 0
       ? allLogAnomalies
       : allLogAnomalies.filter((a) => {
           const anomalyTags = new Set(a.tags ?? []);
-          for (const [, tagSet] of tagFilterByKey) {
+          for (const [, tagSet] of byKey) {
             if (![...tagSet].some((t) => anomalyTags.has(t))) return false;
           }
           return true;
         });
     return [...anomalies].sort((a, b) => a.timestamp - b.timestamp);
-  }, [allLogAnomalies, tagFilterByKey]);
+  }, [allLogAnomalies, tagFilterInput]);
 
   const toggleLevel = (level: string) => {
     const next = new Set(enabledLevels);
@@ -429,49 +438,66 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
         </div>
 
         {/* Tag filter */}
-        {logTagGroups.size > 0 && (
-          <div className="p-4 border-b border-slate-700">
-            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-              Tags
-            </h2>
-            <div className="space-y-3">
-              {[...logTagGroups.entries()].map(([key, tags]) => (
-                <div key={key}>
-                  <div className="text-xs text-slate-500 mb-1">{key}</div>
-                  <div className="space-y-1">
-                    {tags.map((tag) => {
-                      const count = allLogs.filter((l) => (l.tags ?? []).includes(tag)).length;
-                      return (
-                        <label
-                          key={tag}
-                          className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-700 cursor-pointer"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={enabledTagFilters.has(tag)}
-                            onChange={() => {
-                              const next = new Set(enabledTagFilters);
-                              if (next.has(tag)) next.delete(tag);
-                              else next.add(tag);
-                              setEnabledTagFilters(next);
+        <div className="p-4 border-b border-slate-700">
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            Tag Filter
+          </h2>
+          <div className="relative mb-2">
+            <input
+              type="text"
+              value={tagFilterInput}
+              onChange={(e) => {
+                setTagFilterInput(e.target.value);
+                setExpandedLogIndex(null);
+                setLogPage(1);
+              }}
+              placeholder="host:web-1 service:api"
+              className="w-full bg-slate-700 text-slate-200 text-xs rounded px-2 py-1.5 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-teal-500 font-mono pr-6"
+            />
+            {tagFilterInput && (
+              <button
+                onClick={() => { setTagFilterInput(''); setLogPage(1); }}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+              >
+                ×
+              </button>
+            )}
+          </div>
+          {logTagGroups.size > 0 && (
+            <div className="space-y-2">
+              {[...logTagGroups.entries()].map(([key, tags]) => {
+                const activeTags = parseTagFilter(tagFilterInput);
+                return (
+                  <div key={key}>
+                    <div className="text-[10px] text-slate-500 mb-1">{key}</div>
+                    <div className="flex flex-wrap gap-1">
+                      {tags.map((tag) => {
+                        const active = activeTags.get(key)?.has(tag) ?? false;
+                        return (
+                          <button
+                            key={tag}
+                            onClick={() => {
+                              setTagFilterInput(toggleTagInInput(tagFilterInput, tag));
                               setExpandedLogIndex(null);
                               setLogPage(1);
                             }}
-                            className="rounded border-slate-600 bg-slate-700 text-teal-500 focus:ring-teal-500"
-                          />
-                          <span className="text-sm text-slate-300 flex-1 font-mono">{tag}</span>
-                          {count > 0 && (
-                            <span className="text-xs text-slate-500 flex-shrink-0 ml-auto">{count}</span>
-                          )}
-                        </label>
-                      );
-                    })}
+                            className={`text-[10px] px-1.5 py-0.5 rounded font-mono transition-colors ${
+                              active
+                                ? 'bg-teal-600/40 text-teal-300 ring-1 ring-teal-500/60'
+                                : 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-300'
+                            }`}
+                          >
+                            {tag}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Summary */}
         <div className="p-4">

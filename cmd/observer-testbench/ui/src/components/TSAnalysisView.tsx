@@ -30,6 +30,18 @@ function formatSeriesLabel(tags: string[]): string {
   return tags.join(', ');
 }
 
+function parseTagFilter(input: string): Map<string, Set<string>> {
+  const byKey = new Map<string, Set<string>>();
+  for (const token of input.trim().split(/\s+/)) {
+    const sep = token.indexOf(':');
+    if (sep <= 0 || sep === token.length - 1) continue;
+    const key = token.slice(0, sep);
+    if (!byKey.has(key)) byKey.set(key, new Set());
+    byKey.get(key)!.add(token);
+  }
+  return byKey;
+}
+
 function extractTagGroups(tagLists: string[][]): Map<string, string[]> {
   const groups = new Map<string, Set<string>>();
   for (const tags of tagLists) {
@@ -42,6 +54,14 @@ function extractTagGroups(tagLists: string[][]): Map<string, string[]> {
     }
   }
   return new Map([...groups.entries()].map(([k, v]) => [k, [...v].sort()]));
+}
+
+function toggleTagInInput(input: string, tag: string): string {
+  const tokens = input.trim().split(/\s+/).filter(Boolean);
+  const idx = tokens.indexOf(tag);
+  if (idx >= 0) tokens.splice(idx, 1);
+  else tokens.push(tag);
+  return tokens.join(' ');
 }
 
 interface MetricGroup {
@@ -74,7 +94,7 @@ export function TSAnalysisView({
   const [aggregationType, setAggregationType] = useState<AggregationType>('avg');
   const [showAnomalyOnlyGroups, setShowAnomalyOnlyGroups] = useState(false);
   const [showAnomalyOnlySeriesLines, setShowAnomalyOnlySeriesLines] = useState(false);
-  const [enabledTags, setEnabledTags] = useState<Set<string>>(new Set());
+  const [tagFilterInput, setTagFilterInput] = useState('');
 
   const scenarios = state.scenarios ?? [];
   const components = state.components ?? [];
@@ -113,18 +133,8 @@ export function TSAnalysisView({
 
   const filteredSeries = useMemo(() => {
     const byAggType = allSeries.filter((s) => getAggregationType(s.name) === aggregationType);
-    if (enabledTags.size === 0) return byAggType;
-
-    // Group enabled tags by key (AND across keys, OR within key)
-    const byKey = new Map<string, Set<string>>();
-    for (const tag of enabledTags) {
-      const sep = tag.indexOf(':');
-      if (sep === -1) continue;
-      const key = tag.slice(0, sep);
-      if (!byKey.has(key)) byKey.set(key, new Set());
-      byKey.get(key)!.add(tag);
-    }
-
+    const byKey = parseTagFilter(tagFilterInput);
+    if (byKey.size === 0) return byAggType;
     return byAggType.filter((s) => {
       const seriesTags = new Set(s.tags ?? []);
       for (const [, tagSet] of byKey) {
@@ -132,7 +142,7 @@ export function TSAnalysisView({
       }
       return true;
     });
-  }, [allSeries, aggregationType, enabledTags]);
+  }, [allSeries, aggregationType, tagFilterInput]);
 
   const metricGroups = useMemo(() => {
     const groups = new Map<string, MetricGroup>();
@@ -193,7 +203,7 @@ export function TSAnalysisView({
     if (tsAnalyzerNames.length > 0 && state.activeScenario && initializedScenarioRef.current !== state.activeScenario) {
       initializedScenarioRef.current = state.activeScenario;
       setEnabledAnalyzers(new Set(tsAnalyzerNames));
-      setEnabledTags(new Set());
+      setTagFilterInput('');
     }
   }, [tsAnalyzerNames, state.activeScenario]);
 
@@ -357,47 +367,58 @@ export function TSAnalysisView({
           </label>
         </div>
 
-        {tagGroups.size > 0 && (
-          <div className="p-4 border-b border-slate-700">
-            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-              Tags
-            </h2>
-            <div className="space-y-3">
-              {[...tagGroups.entries()].map(([key, tags]) => (
-                <div key={key}>
-                  <div className="text-xs text-slate-500 mb-1">{key}</div>
-                  <div className="space-y-1">
-                    {tags.map((tag) => {
-                      const count = allSeries.filter((s) => (s.tags ?? []).includes(tag)).length;
-                      return (
-                        <label
-                          key={tag}
-                          className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-700 cursor-pointer"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={enabledTags.has(tag)}
-                            onChange={() => {
-                              const next = new Set(enabledTags);
-                              if (next.has(tag)) next.delete(tag);
-                              else next.add(tag);
-                              setEnabledTags(next);
-                            }}
-                            className="rounded border-slate-600 bg-slate-700 text-purple-600 focus:ring-purple-500"
-                          />
-                          <span className="text-sm text-slate-300 flex-1 font-mono">{tag}</span>
-                          {count > 0 && (
-                            <span className="text-xs text-slate-500">{count}</span>
-                          )}
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
+        <div className="p-4 border-b border-slate-700">
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            Tag Filter
+          </h2>
+          <div className="relative mb-2">
+            <input
+              type="text"
+              value={tagFilterInput}
+              onChange={(e) => setTagFilterInput(e.target.value)}
+              placeholder="host:web-1 service:api"
+              className="w-full bg-slate-700 text-slate-200 text-xs rounded px-2 py-1.5 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-purple-500 font-mono pr-6"
+            />
+            {tagFilterInput && (
+              <button
+                onClick={() => setTagFilterInput('')}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+              >
+                ×
+              </button>
+            )}
           </div>
-        )}
+          {tagGroups.size > 0 && (
+            <div className="space-y-2">
+              {[...tagGroups.entries()].map(([key, tags]) => {
+                const activeTags = parseTagFilter(tagFilterInput);
+                return (
+                  <div key={key}>
+                    <div className="text-[10px] text-slate-500 mb-1">{key}</div>
+                    <div className="flex flex-wrap gap-1">
+                      {tags.map((tag) => {
+                        const active = activeTags.get(key)?.has(tag) ?? false;
+                        return (
+                          <button
+                            key={tag}
+                            onClick={() => setTagFilterInput(toggleTagInInput(tagFilterInput, tag))}
+                            className={`text-[10px] px-1.5 py-0.5 rounded font-mono transition-colors ${
+                              active
+                                ? 'bg-purple-600/40 text-purple-300 ring-1 ring-purple-500/60'
+                                : 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-300'
+                            }`}
+                          >
+                            {tag}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         <div className="flex-1 p-4 overflow-hidden flex flex-col min-h-0">
           <div className="flex items-center justify-between mb-2">
