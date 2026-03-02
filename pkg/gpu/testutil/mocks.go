@@ -452,12 +452,6 @@ func getDeviceMockWithOptions(deviceIdx int, opts deviceOptions) *nvmlmock.Devic
 			return nvml.VALUE_TYPE_UNSIGNED_INT, samples, nvml.SUCCESS
 		},
 		GetFieldValuesFunc: func(values []nvml.FieldValue) nvml.Return {
-			if isMIGUnsupported {
-				return nvml.ERROR_NOT_SUPPORTED
-			}
-			if len(values) == 1 && opts.hasUnsupportedField(values[0].FieldId) {
-				return nvml.ERROR_NOT_SUPPORTED
-			}
 			// Emulate monotonically increasing counters for field-based throughput metrics.
 			// Fields collector computes rates from consecutive values, so counters must increase
 			// between runs to emit nvlink.throughput.* metrics.

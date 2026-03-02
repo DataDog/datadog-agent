@@ -8,16 +8,12 @@
 package gpu
 
 import (
-	"os"
-	"slices"
 	"strings"
 	"testing"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -26,306 +22,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
+	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	mock_containers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
 )
 
-// specFile is the YAML metric specification
-type specFile struct {
-	MetricPrefix string                `yaml:"metric_prefix"`
-	Tagsets      map[string]specTagset `yaml:"tagsets"`
-	Metrics      metricsMap            `yaml:"metrics"`
-}
-
-type specTagset struct {
-	Tags []string `yaml:"tags"`
-}
-
-// metricsMap is metrics by name (map format in YAML only).
-type metricsMap map[string]specMetric
-
-// specMetric is a metric definition without the name (name is the map key).
-type specMetric struct {
-	Tagsets    []string          `yaml:"tagsets"`
-	CustomTags []string          `yaml:"custom_tags,omitempty"`
-	Support    metricSupportSpec `yaml:"support"`
-}
-
-type metricSupportSpec struct {
-	UnsupportedArchitectures []string        `yaml:"unsupported_architectures"`
-	DeviceModes              map[string]bool `yaml:"device_modes"`
-}
-
-type architecturesFile struct {
-	Architectures map[string]architectureSpec `yaml:"architectures"`
-}
-
-type architectureCapabilities struct {
-	GPM               bool                       `yaml:"gpm"`
-	UnsupportedFields []unsupportedFieldsByModes `yaml:"unsupported_fields"`
-}
-
-type unsupportedFieldsByModes struct {
-	Modes             []string `yaml:"modes"`
-	UnsupportedFields []string `yaml:"unsupported_fields"`
-}
-
-type architectureSpec struct {
-	Capabilities              architectureCapabilities `yaml:"capabilities"`
-	UnsupportedDeviceModes    []string                 `yaml:"unsupported_device_modes"`
-}
-
-func (m specMetric) supportsArchitecture(arch string) bool {
-	for _, u := range m.Support.UnsupportedArchitectures {
-		if u == arch {
-			return false
-		}
-	}
-	return true
-}
-
-// supportsDeviceMode returns true if the metric's device_modes explicitly allows the mode.
-// device_modes values are expected to be booleans; missing means unsupported.
-func (m specMetric) supportsDeviceMode(mode string) bool {
-	if m.Support.DeviceModes == nil {
-		return false
-	}
-	v, ok := m.Support.DeviceModes[mode]
-	return ok && v
-}
-
-func (m specMetric) isDeviceModeExplicitlyUnsupported(mode string) bool {
-	if m.Support.DeviceModes == nil {
-		return false
-	}
-	v, ok := m.Support.DeviceModes[mode]
-	return ok && !v
-}
-
-var nvmlFieldNameToFieldID = map[string]uint32{
-	"FI_DEV_MEMORY_TEMP":                       nvml.FI_DEV_MEMORY_TEMP,
-	"FI_DEV_NVLINK_LINK_COUNT":                 nvml.FI_DEV_NVLINK_LINK_COUNT,
-	"FI_DEV_NVLINK_THROUGHPUT_DATA_RX":         nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX,
-	"FI_DEV_NVLINK_THROUGHPUT_DATA_TX":         nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX,
-	"FI_DEV_NVLINK_THROUGHPUT_RAW_RX":          nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX,
-	"FI_DEV_NVLINK_THROUGHPUT_RAW_TX":          nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX,
-	"FI_DEV_NVLINK_SPEED_MBPS_COMMON":          nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON,
-	"FI_DEV_NVLINK_GET_SPEED":                  nvml.FI_DEV_NVLINK_GET_SPEED,
-	"FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT":     nvml.FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT,
-	"FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL": nvml.FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL,
-	"FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL": nvml.FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL,
-	"FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL": nvml.FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL,
-	"FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL": nvml.FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL,
-	"FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL":   nvml.FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL,
-	"FI_DEV_PCIE_REPLAY_COUNTER":               nvml.FI_DEV_PCIE_REPLAY_COUNTER,
-	"FI_DEV_PERF_POLICY_THERMAL":               nvml.FI_DEV_PERF_POLICY_THERMAL,
-}
-
-func unsupportedFieldIDsFromNames(t *testing.T, names []string) []uint32 {
-	t.Helper()
-	ids := make([]uint32, 0, len(names))
-	for _, name := range names {
-		id, found := nvmlFieldNameToFieldID[name]
-		require.True(t, found, "unknown NVML field in architectures capabilities: %s", name)
-		ids = append(ids, id)
-	}
-	return ids
-}
-
-func unsupportedFieldIDsForMode(t *testing.T, archSpec architectureSpec, mode string) []uint32 {
-	t.Helper()
-	unsupportedNameSet := make(map[string]struct{})
-	for _, group := range archSpec.Capabilities.UnsupportedFields {
-		if len(group.Modes) > 0 && !slices.Contains(group.Modes, mode) {
-			continue
-		}
-		for _, name := range group.UnsupportedFields {
-			unsupportedNameSet[name] = struct{}{}
-		}
-	}
-
-	unsupportedNames := make([]string, 0, len(unsupportedNameSet))
-	for name := range unsupportedNameSet {
-		unsupportedNames = append(unsupportedNames, name)
-	}
-	return unsupportedFieldIDsFromNames(t, unsupportedNames)
-}
-
-func allConfiguredNVMLFieldValues() []nvml.FieldValue {
-	ids := make([]uint32, 0, len(nvmlFieldNameToFieldID))
-	for _, id := range nvmlFieldNameToFieldID {
-		ids = append(ids, id)
-	}
-	slices.Sort(ids)
-
-	values := make([]nvml.FieldValue, len(ids))
-	for i, id := range ids {
-		values[i] = nvml.FieldValue{FieldId: id}
-	}
-	return values
-}
-
-func loadSpec(t *testing.T) *specFile {
-	t.Helper()
-	data, err := os.ReadFile("spec/gpu_metrics.yaml")
-	require.NoError(t, err, "failed to read spec file")
-
-	var spec specFile
-	require.NoError(t, yaml.Unmarshal(data, &spec))
-	return &spec
-}
-
-func loadArchitectures(t *testing.T) *architecturesFile {
-	t.Helper()
-	data, err := os.ReadFile("spec/architectures.yaml")
-	require.NoError(t, err, "failed to read architectures spec file")
-
-	var arch architecturesFile
-	require.NoError(t, yaml.Unmarshal(data, &arch))
-	return &arch
-}
-
-// isModeSupportedByArchitecture returns true if the architecture spec allows the device mode
-// (i.e. mode is not in unsupported_device_modes).
-func isModeSupportedByArchitecture(archSpec architectureSpec, mode string) bool {
-	for _, u := range archSpec.UnsupportedDeviceModes {
-		if u == mode {
-			return false
-		}
-	}
-	return true
-}
-
-// buildMockOptionsForArchAndMode returns the same NVML mock options used by runCheckAndCollectMetricNamesWithConfig
-// for the given architecture and device mode, so capability assertions use the same mock contract.
-func buildMockOptionsForArchAndMode(t *testing.T, archName string, mode testutil.DeviceFeatureMode, archSpec architectureSpec) []testutil.NvmlMockOption {
-	t.Helper()
-	caps := testutil.Capabilities{
-		GPM:               archSpec.Capabilities.GPM,
-		UnsupportedFields: unsupportedFieldIDsForMode(t, archSpec, string(mode)),
-	}
-	opts := []testutil.NvmlMockOption{
-		testutil.WithArchitecture(archName),
-		testutil.WithCapabilities(caps),
-		testutil.WithMockAllFunctions(),
-	}
-	switch mode {
-	case testutil.DeviceFeaturePhysical:
-		opts = append([]testutil.NvmlMockOption{testutil.WithDeviceCount(1), testutil.WithMIGDisabled()}, opts...)
-	case testutil.DeviceFeatureMIG:
-		opts = append([]testutil.NvmlMockOption{testutil.WithDeviceFeatureMode(mode)}, opts...)
-	case testutil.DeviceFeatureVGPU:
-		opts = append([]testutil.NvmlMockOption{testutil.WithDeviceCount(1), testutil.WithDeviceFeatureMode(mode)}, opts...)
-	}
-	return opts
-}
-
-func TestLoadSpecNotEmpty(t *testing.T) {
-	spec := loadSpec(t)
-
-	require.NotEmpty(t, spec.MetricPrefix, "metric_prefix should not be empty")
-	require.NotEmpty(t, spec.Tagsets, "tagsets should not be empty")
-	require.NotEmpty(t, spec.Metrics, "metrics should not be empty")
-	for name := range spec.Metrics {
-		require.NotEmpty(t, name, "metric name should not be empty")
-	}
-
-	for metricName, metricSpec := range spec.Metrics {
-		for deviceMode := range metricSpec.Support.DeviceModes {
-			require.Containsf(t, []string{"physical", "mig", "vgpu"}, deviceMode, "metric %s has invalid device mode key %q", metricName, deviceMode)
-		}
-	}
-}
-
-func TestLoadArchitecturesNotEmpty(t *testing.T) {
-	arch := loadArchitectures(t)
-
-	require.NotEmpty(t, arch.Architectures, "architectures should not be empty")
-	for name, spec := range arch.Architectures {
-		t.Run(name, func(t *testing.T) {
-			require.NotNil(t, spec.UnsupportedDeviceModes, "unsupported_device_modes should be present")
-		})
-	}
-}
-
-// TestMockCapabilitiesMatchArchitectureSpec ensures that for each architecture and supported device mode,
-// the NVML mock configured from architectures.yaml returns API behavior that matches the capability flags
-// (gpm, unsupported_fields). This validates that the mock actually applies the spec.
-func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
-	archFile := loadArchitectures(t)
-	deviceModes := []testutil.DeviceFeatureMode{
-		testutil.DeviceFeaturePhysical,
-		testutil.DeviceFeatureMIG,
-		testutil.DeviceFeatureVGPU,
-	}
-
-	for archName, archSpec := range archFile.Architectures {
-		for _, mode := range deviceModes {
-			if !isModeSupportedByArchitecture(archSpec, string(mode)) {
-				continue
-			}
-
-			subtestName := "arch=" + archName + "/mode=" + string(mode)
-			t.Run(subtestName, func(t *testing.T) {
-				opts := buildMockOptionsForArchAndMode(t, archName, mode, archSpec)
-				ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))
-
-				lib, err := ddnvml.GetSafeNvmlLib()
-				require.NoError(t, err, "should be able to get NVML lib", archName, mode)
-				dev, err := lib.DeviceGetHandleByIndex(0)
-				require.NoError(t, err, "should be able to get device 0", archName, mode)
-
-				caps := archSpec.Capabilities
-
-				// gpm -> GpmQueryDeviceSupport(): IsSupportedDevice 1 when enabled, 0 when disabled
-				support, err := dev.GpmQueryDeviceSupport()
-				require.NoError(t, err, "GpmQueryDeviceSupport should not report an error")
-				expected := uint32(0)
-				if caps.GPM {
-					expected = 1
-				}
-				if mode == testutil.DeviceFeatureVGPU {
-					// Mocks model vGPU as not supporting GPM collection even on architectures
-					// where physical devices support GPM.
-					expected = 0
-				}
-				assert.Equal(t, expected, support.IsSupportedDevice, "GpmQueryDeviceSupport.IsSupportedDevice should be %d when gpm=%v", expected, caps.GPM)
-
-				unsupportedIDs := unsupportedFieldIDsForMode(t, archSpec, string(mode))
-				unsupportedSet := make(map[uint32]struct{}, len(unsupportedIDs))
-				for _, id := range unsupportedIDs {
-					unsupportedSet[id] = struct{}{}
-				}
-
-				fieldValues := allConfiguredNVMLFieldValues()
-				err = dev.GetFieldValues(fieldValues)
-				if (mode == testutil.DeviceFeatureVGPU || mode == testutil.DeviceFeatureMIG) && err != nil && ddnvml.IsUnsupported(err) {
-					// vGPU and MIG modes can report field APIs as unsupported.
-					return
-				}
-				require.NoError(t, err, "GetFieldValues should not return an error")
-				for _, fv := range fieldValues {
-					_, isUnsupported := unsupportedSet[fv.FieldId]
-					if isUnsupported {
-						require.Equal(t, uint32(nvml.ERROR_NOT_SUPPORTED), fv.NvmlReturn, "field id %d should be unsupported", fv.FieldId)
-					} else {
-						require.Equal(t, uint32(nvml.SUCCESS), fv.NvmlReturn, "field id %d should be supported", fv.FieldId)
-					}
-				}
-			})
-		}
-	}
-}
-
 func TestMetricsFollowSpec(t *testing.T) {
-	spec := loadSpec(t)
-	archFile := loadArchitectures(t)
+	metricsSpec, err := gpuspec.LoadMetricsSpec()
+	require.NoError(t, err)
+	archFile, err := gpuspec.LoadArchitecturesSpec()
+	require.NoError(t, err)
 
 	// Build spec metric set for quick membership checks.
-	specMetrics := make(map[string]struct{}, len(spec.Metrics))
-	for name := range spec.Metrics {
+	specMetrics := make(map[string]struct{}, len(metricsSpec.Metrics))
+	for name := range metricsSpec.Metrics {
 		specMetrics[name] = struct{}{}
 	}
 
@@ -334,15 +46,15 @@ func TestMetricsFollowSpec(t *testing.T) {
 		"errors.xid.total": true,
 	}
 
-	deviceModes := []testutil.DeviceFeatureMode{
-		testutil.DeviceFeaturePhysical,
-		testutil.DeviceFeatureMIG,
-		testutil.DeviceFeatureVGPU,
+	deviceModes := []gpuspec.DeviceMode{
+		gpuspec.DeviceModePhysical,
+		gpuspec.DeviceModeMIG,
+		gpuspec.DeviceModeVGPU,
 	}
 
 	for archName, archSpec := range archFile.Architectures {
 		for _, mode := range deviceModes {
-			if !isModeSupportedByArchitecture(archSpec, string(mode)) {
+			if !gpuspec.IsModeSupportedByArchitecture(archSpec, mode) {
 				continue
 			}
 			archName := archName
@@ -356,22 +68,22 @@ func TestMetricsFollowSpec(t *testing.T) {
 					for metricName := range emittedTagsByMetric {
 						assert.Contains(t, specMetrics, metricName, "metric emitted by check is missing from spec: %s", metricName)
 
-						metricSpec := spec.Metrics[metricName]
+						metricSpec := metricsSpec.Metrics[metricName]
 						assert.False(t, notExpectedOnBasicRun[metricName], "metric should not be emitted in basic run: %s", metricName)
-						assert.True(t, metricSpec.supportsArchitecture(archName), "metric %s emitted on unsupported architecture %s", metricName, archName)
-						assert.False(t, metricSpec.isDeviceModeExplicitlyUnsupported(string(mode)), "metric %s emitted on unsupported device mode %s", metricName, mode)
+						assert.True(t, metricSpec.SupportsArchitecture(archName), "metric %s emitted on unsupported architecture %s", metricName, archName)
+						assert.False(t, metricSpec.IsDeviceModeExplicitlyUnsupported(mode), "metric %s emitted on unsupported device mode %s", metricName, mode)
 					}
 				})
 
-				for name, m := range spec.Metrics {
-					if notExpectedOnBasicRun[name] || !m.supportsArchitecture(archName) || !m.supportsDeviceMode(string(mode)) {
+				for name, m := range metricsSpec.Metrics {
+					if notExpectedOnBasicRun[name] || !m.SupportsArchitecture(archName) || !m.SupportsDeviceMode(mode) {
 						continue
 					}
 
 					t.Run(name, func(t *testing.T) {
 						_, found := emittedTagsByMetric[name]
 						require.True(t, found, "spec metric is not emitted by check run: %s", name)
-						validateMetricTagsAgainstSpec(t, spec, name, m, emittedTagsByMetric[name], knownTagValues)
+						validateMetricTagsAgainstSpec(t, metricsSpec, name, m, emittedTagsByMetric[name], knownTagValues)
 					})
 				}
 			})
@@ -382,7 +94,7 @@ func TestMetricsFollowSpec(t *testing.T) {
 // collectMetricSamples runs the GPU check with a capability-driven mock
 // for the given architecture and device mode, then returns emitted metrics (without "gpu." prefix)
 // and their tags.
-func collectMetricSamples(t *testing.T, archName string, mode testutil.DeviceFeatureMode, archSpec architectureSpec) (map[string][][]string, map[string]string) {
+func collectMetricSamples(t *testing.T, archName string, mode gpuspec.DeviceMode, archSpec gpuspec.ArchitectureSpec) (map[string][][]string, map[string]string) {
 	t.Helper()
 
 	collectionSetup := setupMockCheckForMetricCollection(t, archName, mode, archSpec)
@@ -397,25 +109,9 @@ type metricCollectionSetup struct {
 	knownTagValues map[string]string
 }
 
-func setupMockCheckForMetricCollection(t *testing.T, archName string, mode testutil.DeviceFeatureMode, archSpec architectureSpec) metricCollectionSetup {
+func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpuspec.DeviceMode, archSpec gpuspec.ArchitectureSpec) metricCollectionSetup {
 	t.Helper()
-
-	opts := []testutil.NvmlMockOption{
-		testutil.WithArchitecture(archName),
-		testutil.WithCapabilities(testutil.Capabilities{
-			GPM:               archSpec.Capabilities.GPM,
-			UnsupportedFields: unsupportedFieldIDsForMode(t, archSpec, string(mode)),
-		}),
-		testutil.WithMockAllFunctions(),
-	}
-	switch mode {
-	case testutil.DeviceFeaturePhysical:
-		opts = append([]testutil.NvmlMockOption{testutil.WithDeviceCount(1), testutil.WithMIGDisabled()}, opts...)
-	case testutil.DeviceFeatureMIG:
-		opts = append([]testutil.NvmlMockOption{testutil.WithDeviceFeatureMode(mode)}, opts...)
-	case testutil.DeviceFeatureVGPU:
-		opts = append([]testutil.NvmlMockOption{testutil.WithDeviceCount(1), testutil.WithDeviceFeatureMode(mode)}, opts...)
-	}
+	opts := gpuspec.BuildMockOptionsForArchAndMode(t, archName, mode, archSpec)
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	mockSender := mocksender.NewMockSenderWithSenderManager("gpu", senderManager)
@@ -437,7 +133,7 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode testu
 			nil,
 		)
 	}
-	if mode == testutil.DeviceFeatureMIG {
+	if mode == gpuspec.DeviceModeMIG {
 		for parentIdx, uuids := range testutil.MIGChildrenUUIDs {
 			parentUUID := testutil.GPUUUIDs[parentIdx]
 			for migIdx, uuid := range uuids {
@@ -498,7 +194,7 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode testu
 	// process.core.usage/core.limit come from system-probe/eBPF collector. Provide deterministic
 	// cache data for every device shape used by the mode.
 	cacheDeviceUUIDs := []string{testutil.DefaultGpuUUID}
-	if mode == testutil.DeviceFeatureMIG {
+	if mode == gpuspec.DeviceModeMIG {
 		parentIdx := testutil.DevicesWithMIGChildren[0]
 		cacheDeviceUUIDs = append([]string{testutil.GPUUUIDs[parentIdx]}, testutil.MIGChildrenUUIDs[parentIdx]...)
 	}
@@ -619,7 +315,7 @@ func gpuTagsFromWorkloadMetaGPU(gpu *workloadmeta.GPU) []string {
 	}
 }
 
-func validateMetricTagsAgainstSpec(t *testing.T, spec *specFile, metricName string, metricSpec specMetric, samples [][]string, knownTagValues map[string]string) {
+func validateMetricTagsAgainstSpec(t *testing.T, spec *gpuspec.MetricsSpec, metricName string, metricSpec gpuspec.MetricSpec, samples [][]string, knownTagValues map[string]string) {
 	t.Helper()
 	require.NotEmpty(t, samples, "metric %s has no emitted samples to validate tags", metricName)
 
