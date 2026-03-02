@@ -205,20 +205,34 @@ func sanitizeForTemplateLen(s string) int {
 }
 
 // sanitizeForTemplateInto appends the sanitized string into builder when non-nil.
+// Uses an ASCII fast path: bytes < 0x80 are checked directly without rune decoding.
 func sanitizeForTemplateInto(builder *strings.Builder, s string) int {
-	for i := 0; i < len(s); {
-		r, size := utf8.DecodeRuneInString(s[i:])
-		keep := r >= ' ' && r != 0x7F && r != utf8.RuneError && r < 0xFFFD
-		if !keep {
+	for i := 0; i < len(s); i++ {
+		b := s[i]
+		if b < utf8.RuneSelf {
+			if b >= ' ' && b != 0x7F {
+				continue
+			}
+			// ASCII control character found — flush clean prefix then filter the rest
 			if builder != nil {
 				builder.WriteString(s[:i])
 			}
 			written := i
-			i += size
+			i++
 			for i < len(s) {
-				r, size = utf8.DecodeRuneInString(s[i:])
-				keep = r >= ' ' && r != 0x7F && r != utf8.RuneError && r < 0xFFFD
-				if keep {
+				b = s[i]
+				if b < utf8.RuneSelf {
+					if b >= ' ' && b != 0x7F {
+						if builder != nil {
+							builder.WriteByte(b)
+						}
+						written++
+					}
+					i++
+					continue
+				}
+				r, size := utf8.DecodeRuneInString(s[i:])
+				if r >= ' ' && r != 0x7F && r != utf8.RuneError && r < 0xFFFD {
 					if builder != nil {
 						builder.WriteString(s[i : i+size])
 					}
@@ -228,7 +242,38 @@ func sanitizeForTemplateInto(builder *strings.Builder, s string) int {
 			}
 			return written
 		}
-		i += size
+		// Non-ASCII byte — decode rune
+		r, size := utf8.DecodeRuneInString(s[i:])
+		if r < ' ' || r == 0x7F || r == utf8.RuneError || r >= 0xFFFD {
+			if builder != nil {
+				builder.WriteString(s[:i])
+			}
+			written := i
+			i += size
+			for i < len(s) {
+				b = s[i]
+				if b < utf8.RuneSelf {
+					if b >= ' ' && b != 0x7F {
+						if builder != nil {
+							builder.WriteByte(b)
+						}
+						written++
+					}
+					i++
+					continue
+				}
+				r, size = utf8.DecodeRuneInString(s[i:])
+				if r >= ' ' && r != 0x7F && r != utf8.RuneError && r < 0xFFFD {
+					if builder != nil {
+						builder.WriteString(s[i : i+size])
+					}
+					written += size
+				}
+				i += size
+			}
+			return written
+		}
+		i += size - 1 // outer loop increments i
 	}
 
 	if builder != nil {

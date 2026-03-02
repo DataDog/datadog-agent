@@ -58,7 +58,17 @@ const (
 	//nolint:revive
 	TokenKeyValueSequence // TokenKeyValueSequence is the key-value sequence token type
 	TokenCollapsedToken   // TokenCollapsedToken is the collapsed token type
+
+	maxTokenType = TokenCollapsedToken
 )
+
+var tokenTypeNames [maxTokenType + 1]string
+
+func init() {
+	for i := TokenType(0); i <= maxTokenType; i++ {
+		tokenTypeNames[i] = i.String()
+	}
+}
 
 // WildcardStatus describes a token's potential to become a wildcard
 type WildcardStatus int

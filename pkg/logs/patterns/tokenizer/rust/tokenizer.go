@@ -1,9 +1,9 @@
-//go:build rust_patterns
-
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
+//go:build rust_patterns
 
 package rtokenizer
 
@@ -24,6 +24,7 @@ extern void patterns_reset_last_err_str();
 import "C"
 import (
 	"fmt"
+	"runtime"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
@@ -42,6 +43,11 @@ func NewRustTokenizer() token.Tokenizer {
 // Tokenize calls the Rust tokenization library and converts the result to Agent TokenList
 // Implements token.Tokenizer interface
 func (rt *Tokenizer) Tokenize(log string) (*token.TokenList, error) {
+	// LockOSThread reduces stack switching and signal mask overhead across multiple CGO calls.
+	// Overhead (~50ns) is justified only when multiple CGO calls occur; Tokenize does 3-4.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
 	// Convert Go string to C string
 	cLog := C.CString(log)
 	defer C.free(unsafe.Pointer(cLog))
@@ -74,6 +80,9 @@ func (rt *Tokenizer) ResetError() {
 
 // GetLastError retrieves the last error from the Rust side without clearing it
 func (rt *Tokenizer) GetLastError() string {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
 	cErr := C.patterns_get_last_err_str()
 	if cErr == nil {
 		return ""
