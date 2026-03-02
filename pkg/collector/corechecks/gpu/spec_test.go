@@ -53,48 +53,47 @@ func TestMetricsFollowSpec(t *testing.T) {
 	}
 
 	for archName, archSpec := range archFile.Architectures {
-		for _, mode := range deviceModes {
-			if !gpuspec.IsModeSupportedByArchitecture(archSpec, mode) {
-				continue
-			}
-			archName := archName
-			archSpec := archSpec
-			mode := mode
-			subtestName := "arch=" + archName + "/mode=" + string(mode)
-			t.Run(subtestName, func(t *testing.T) {
-				emittedTagsByMetric, knownTagValues := collectMetricSamples(t, archName, mode, archSpec)
+		t.Run("arch="+archName, func(t *testing.T) {
+			for _, mode := range deviceModes {
+				if !gpuspec.IsModeSupportedByArchitecture(archSpec, mode) {
+					continue
+				}
 
-				t.Run("_emits_only_expected_metrics", func(t *testing.T) {
-					for metricName := range emittedTagsByMetric {
-						assert.Contains(t, specMetrics, metricName, "metric emitted by check is missing from spec: %s", metricName)
+				t.Run("mode="+string(mode), func(t *testing.T) {
+					emittedMetrics, knownTagValues := collectMetricSamples(t, archName, mode, archSpec)
 
-						metricSpec := metricsSpec.Metrics[metricName]
-						assert.False(t, notExpectedOnBasicRun[metricName], "metric should not be emitted in basic run: %s", metricName)
-						assert.True(t, metricSpec.SupportsArchitecture(archName), "metric %s emitted on unsupported architecture %s", metricName, archName)
-						assert.False(t, metricSpec.IsDeviceModeExplicitlyUnsupported(mode), "metric %s emitted on unsupported device mode %s", metricName, mode)
+					t.Run("_emits_only_expected_metrics", func(t *testing.T) {
+						for metricName := range emittedMetrics {
+							assert.Contains(t, specMetrics, metricName, "metric emitted by check is missing from spec: %s", metricName)
+
+							metricSpec := metricsSpec.Metrics[metricName]
+							assert.False(t, notExpectedOnBasicRun[metricName], "metric should not be emitted in basic run: %s", metricName)
+							assert.True(t, metricSpec.SupportsArchitecture(archName), "metric %s emitted on unsupported architecture %s", metricName, archName)
+							assert.False(t, metricSpec.IsDeviceModeExplicitlyUnsupported(mode), "metric %s emitted on unsupported device mode %s", metricName, mode)
+						}
+					})
+
+					for name, m := range metricsSpec.Metrics {
+						if notExpectedOnBasicRun[name] || !m.SupportsArchitecture(archName) || !m.SupportsDeviceMode(mode) {
+							continue
+						}
+
+						t.Run(name, func(t *testing.T) {
+							metrics, found := emittedMetrics[name]
+							require.True(t, found, "spec metric is not emitted by check run: %s", name)
+							validateMetricTagsAgainstSpec(t, metricsSpec, name, m, metrics, knownTagValues)
+						})
 					}
 				})
-
-				for name, m := range metricsSpec.Metrics {
-					if notExpectedOnBasicRun[name] || !m.SupportsArchitecture(archName) || !m.SupportsDeviceMode(mode) {
-						continue
-					}
-
-					t.Run(name, func(t *testing.T) {
-						_, found := emittedTagsByMetric[name]
-						require.True(t, found, "spec metric is not emitted by check run: %s", name)
-						validateMetricTagsAgainstSpec(t, metricsSpec, name, m, emittedTagsByMetric[name], knownTagValues)
-					})
-				}
-			})
-		}
+			}
+		})
 	}
 }
 
 // collectMetricSamples runs the GPU check with a capability-driven mock
 // for the given architecture and device mode, then returns emitted metrics (without "gpu." prefix)
 // and their tags.
-func collectMetricSamples(t *testing.T, archName string, mode gpuspec.DeviceMode, archSpec gpuspec.ArchitectureSpec) (map[string][][]string, map[string]string) {
+func collectMetricSamples(t *testing.T, archName string, mode gpuspec.DeviceMode, archSpec gpuspec.ArchitectureSpec) (map[string][]metric, map[string]string) {
 	t.Helper()
 
 	collectionSetup := setupMockCheckForMetricCollection(t, archName, mode, archSpec)
@@ -251,8 +250,13 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode gpusp
 	}
 }
 
-func getEmittedGPUMetricsWithTags(mockSender *mocksender.MockSender) map[string][][]string {
-	metricsByName := make(map[string][][]string)
+type metric struct {
+	name string
+	tags []string
+}
+
+func getEmittedGPUMetricsWithTags(mockSender *mocksender.MockSender) map[string][]metric {
+	metricsByName := make(map[string][]metric)
 
 	for _, call := range mockSender.Mock.Calls {
 		if call.Method != "GaugeWithTimestamp" && call.Method != "CountWithTimestamp" {
@@ -276,7 +280,10 @@ func getEmittedGPUMetricsWithTags(mockSender *mocksender.MockSender) map[string]
 			}
 		}
 
-		metricsByName[specMetricName] = append(metricsByName[specMetricName], tags)
+		metricsByName[specMetricName] = append(metricsByName[specMetricName], metric{
+			name: specMetricName,
+			tags: tags,
+		})
 	}
 
 	return metricsByName
@@ -315,9 +322,9 @@ func gpuTagsFromWorkloadMetaGPU(gpu *workloadmeta.GPU) []string {
 	}
 }
 
-func validateMetricTagsAgainstSpec(t *testing.T, spec *gpuspec.MetricsSpec, metricName string, metricSpec gpuspec.MetricSpec, samples [][]string, knownTagValues map[string]string) {
+func validateMetricTagsAgainstSpec(t *testing.T, spec *gpuspec.MetricsSpec, metricName string, metricSpec gpuspec.MetricSpec, emittedMetrics []metric, knownTagValues map[string]string) {
 	t.Helper()
-	require.NotEmpty(t, samples, "metric %s has no emitted samples to validate tags", metricName)
+	require.NotEmpty(t, emittedMetrics, "metric %s has no emitted samples to validate tags", metricName)
 
 	requiredTags := make(map[string]struct{})
 	for _, tagsetName := range metricSpec.Tagsets {
@@ -330,18 +337,21 @@ func validateMetricTagsAgainstSpec(t *testing.T, spec *gpuspec.MetricsSpec, metr
 	for _, tag := range metricSpec.CustomTags {
 		requiredTags[tag] = struct{}{}
 	}
-	for _, sampleTags := range samples {
-		tagsByKey := tagsToKeyValues(sampleTags)
 
+	for _, emittedMetric := range emittedMetrics {
+		tagsByKey := tagsToKeyValues(emittedMetric.tags)
+
+		// check that all required tags are present
 		for tag := range requiredTags {
 			require.Contains(t, tagsByKey, tag, "metric %s missing required tag key %s", metricName, tag)
 		}
-		for tag := range tagsByKey {
-			_, allowed := requiredTags[tag]
-			require.True(t, allowed, "metric %s has unknown tag key %s", metricName, tag)
-		}
 
+		// check that no unknown tags are present, and that all known tags have non-empty values. If the tag should have
+		// a specific value, check that the value is as expected.
 		for key, values := range tagsByKey {
+			_, allowed := requiredTags[key]
+			require.True(t, allowed, "metric %s has unknown tag key %s", metricName, key)
+
 			for _, value := range values {
 				require.NotEmpty(t, value, "metric %s has empty value for tag %s", metricName, key)
 				if expectedValue, ok := knownTagValues[key]; ok {

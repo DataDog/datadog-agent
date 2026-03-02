@@ -18,8 +18,3 @@ Run spec-focused validation:
 Run all GPU corecheck tests:
 
 `go test -tags "test nvml" ./pkg/collector/corechecks/gpu`
-
-Notes:
-
-- `test` tag is required because test helpers use `comp/core/tagger/fx-mock`.
-- `nvml` tag is required because these tests are guarded by `//go:build linux && nvml`.
