@@ -25,7 +25,7 @@ import (
 // stableExtensionsPipelineID is the pipeline used as the "stable" base for extension persistence tests.
 // It must point to a build that already includes extension support (prerm/postinst hooks in the MSI).
 // TODO: replace with a staging/GA release once extension support ships.
-const stableExtensionsPipelineID = "98087596"
+const stableExtensionsPipelineID = "99381470"
 
 type testExtensionsSuite struct {
 	installerwindows.BaseSuite
