@@ -16,7 +16,7 @@ import (
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collector "github.com/DataDog/datadog-agent/comp/host-profiler/collector/def"
-	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/oom"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/oom"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
