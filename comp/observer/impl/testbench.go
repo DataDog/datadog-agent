@@ -995,29 +995,32 @@ func (tb *TestBench) loadDemoScenario() error {
 		elapsed := float64(t)
 		timestamp := baseTimestamp + int64(t)
 
-		// Heap usage
+		// Heap usage (host:web-1)
 		heapValue := getDemoHeapValue(elapsed)
-		tb.storage.Add("demo", "runtime.heap.used_mb", heapValue, timestamp, nil)
+		tb.storage.Add("demo", "runtime.heap.used_mb", heapValue, timestamp, []string{"host:web-1"})
 
-		// GC pause time
+		// GC pause time (host:web-1)
 		gcValue := getDemoGCPauseValue(elapsed)
-		tb.storage.Add("demo", "runtime.gc.pause_ms", gcValue, timestamp, nil)
+		tb.storage.Add("demo", "runtime.gc.pause_ms", gcValue, timestamp, []string{"host:web-1"})
 
-		// Request latency
-		latencyValue := getDemoLatencyValue(elapsed)
-		tb.storage.Add("demo", "app.request.latency_p99_ms", latencyValue, timestamp, nil)
-
-		// Error rate
-		errorValue := getDemoErrorRateValue(elapsed)
-		tb.storage.Add("demo", "app.request.error_rate", errorValue, timestamp, nil)
-
-		// CPU usage
+		// CPU usage (host:web-1)
 		cpuValue := getDemoCPUValue(elapsed)
-		tb.storage.Add("demo", "system.cpu.user_percent", cpuValue, timestamp, nil)
+		tb.storage.Add("demo", "system.cpu.user_percent", cpuValue, timestamp, []string{"host:web-1"})
 
-		// Throughput (drops during incident)
+		// Request latency — two service variants
+		latencyValue := getDemoLatencyValue(elapsed)
+		tb.storage.Add("demo", "app.request.latency_p99_ms", latencyValue*1.2, timestamp, []string{"service:api"})
+		tb.storage.Add("demo", "app.request.latency_p99_ms", latencyValue*0.8, timestamp, []string{"service:worker"})
+
+		// Error rate — two service variants
+		errorValue := getDemoErrorRateValue(elapsed)
+		tb.storage.Add("demo", "app.request.error_rate", errorValue*1.5, timestamp, []string{"service:api"})
+		tb.storage.Add("demo", "app.request.error_rate", errorValue*0.7, timestamp, []string{"service:worker"})
+
+		// Throughput — two service variants
 		throughputValue := getDemoThroughputValue(elapsed)
-		tb.storage.Add("demo", "app.request.throughput_rps", throughputValue, timestamp, nil)
+		tb.storage.Add("demo", "app.request.throughput_rps", throughputValue*1.4, timestamp, []string{"service:api"})
+		tb.storage.Add("demo", "app.request.throughput_rps", throughputValue*0.6, timestamp, []string{"service:worker"})
 	}
 
 	fmt.Printf("  Generated %d seconds of demo data\n", totalSeconds)

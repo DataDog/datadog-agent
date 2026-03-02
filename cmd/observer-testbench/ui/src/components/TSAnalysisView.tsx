@@ -29,6 +29,20 @@ function formatSeriesLabel(tags: string[]): string {
   return tags.join(', ');
 }
 
+function extractTagGroups(tagLists: string[][]): Map<string, string[]> {
+  const groups = new Map<string, Set<string>>();
+  for (const tags of tagLists) {
+    for (const tag of tags ?? []) {
+      const sep = tag.indexOf(':');
+      if (sep === -1) continue;
+      const key = tag.slice(0, sep);
+      if (!groups.has(key)) groups.set(key, new Set());
+      groups.get(key)!.add(tag);
+    }
+  }
+  return new Map([...groups.entries()].map(([k, v]) => [k, [...v].sort()]));
+}
+
 interface MetricGroup {
   key: string;
   namespace: string;
@@ -59,6 +73,7 @@ export function TSAnalysisView({
   const [aggregationType, setAggregationType] = useState<AggregationType>('avg');
   const [showAnomalyOnlyGroups, setShowAnomalyOnlyGroups] = useState(false);
   const [showAnomalyOnlySeriesLines, setShowAnomalyOnlySeriesLines] = useState(false);
+  const [enabledTags, setEnabledTags] = useState<Set<string>>(new Set());
 
   const scenarios = state.scenarios ?? [];
   const components = state.components ?? [];
@@ -80,10 +95,33 @@ export function TSAnalysisView({
     [analyzerComponents]
   );
 
-  const filteredSeries = useMemo(
-    () => allSeries.filter((s) => getAggregationType(s.name) === aggregationType),
-    [allSeries, aggregationType]
+  const tagGroups = useMemo(
+    () => extractTagGroups(allSeries.map((s) => s.tags)),
+    [allSeries]
   );
+
+  const filteredSeries = useMemo(() => {
+    const byAggType = allSeries.filter((s) => getAggregationType(s.name) === aggregationType);
+    if (enabledTags.size === 0) return byAggType;
+
+    // Group enabled tags by key (AND across keys, OR within key)
+    const byKey = new Map<string, Set<string>>();
+    for (const tag of enabledTags) {
+      const sep = tag.indexOf(':');
+      if (sep === -1) continue;
+      const key = tag.slice(0, sep);
+      if (!byKey.has(key)) byKey.set(key, new Set());
+      byKey.get(key)!.add(tag);
+    }
+
+    return byAggType.filter((s) => {
+      const seriesTags = new Set(s.tags ?? []);
+      for (const [, tagSet] of byKey) {
+        if (![...tagSet].some((t) => seriesTags.has(t))) return false;
+      }
+      return true;
+    });
+  }, [allSeries, aggregationType, enabledTags]);
 
   const metricGroups = useMemo(() => {
     const groups = new Map<string, MetricGroup>();
@@ -144,6 +182,7 @@ export function TSAnalysisView({
     if (tsAnalyzerNames.length > 0 && state.activeScenario && initializedScenarioRef.current !== state.activeScenario) {
       initializedScenarioRef.current = state.activeScenario;
       setEnabledAnalyzers(new Set(tsAnalyzerNames));
+      setEnabledTags(new Set());
     }
   }, [tsAnalyzerNames, state.activeScenario]);
 
@@ -295,6 +334,48 @@ export function TSAnalysisView({
             />
           </label>
         </div>
+
+        {tagGroups.size > 0 && (
+          <div className="p-4 border-b border-slate-700">
+            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+              Tags
+            </h2>
+            <div className="space-y-3">
+              {[...tagGroups.entries()].map(([key, tags]) => (
+                <div key={key}>
+                  <div className="text-xs text-slate-500 mb-1">{key}</div>
+                  <div className="space-y-1">
+                    {tags.map((tag) => {
+                      const count = allSeries.filter((s) => (s.tags ?? []).includes(tag)).length;
+                      return (
+                        <label
+                          key={tag}
+                          className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-700 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={enabledTags.has(tag)}
+                            onChange={() => {
+                              const next = new Set(enabledTags);
+                              if (next.has(tag)) next.delete(tag);
+                              else next.add(tag);
+                              setEnabledTags(next);
+                            }}
+                            className="rounded border-slate-600 bg-slate-700 text-purple-600 focus:ring-purple-500"
+                          />
+                          <span className="text-sm text-slate-300 flex-1 font-mono">{tag}</span>
+                          {count > 0 && (
+                            <span className="text-xs text-slate-500">{count}</span>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="flex-1 p-4 overflow-hidden flex flex-col min-h-0">
           <div className="flex items-center justify-between mb-2">
