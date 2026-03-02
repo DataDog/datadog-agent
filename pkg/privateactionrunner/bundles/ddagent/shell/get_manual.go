@@ -7,9 +7,11 @@ package shell
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/shell/verifier"
 )
 
@@ -19,6 +21,13 @@ type GetManualHandler struct{}
 // NewGetManualHandler creates a new GetManualHandler.
 func NewGetManualHandler() *GetManualHandler {
 	return &GetManualHandler{}
+}
+
+// GetManualInputs defines the optional input contract for the getManual action.
+type GetManualInputs struct {
+	// Command is the name of a specific command to look up.
+	// If empty, the full manual is returned.
+	Command string `json:"command"`
 }
 
 // GetManualOutputs defines the output contract for the getManual action.
@@ -31,12 +40,35 @@ type GetManualOutputs struct {
 	Limits           map[string]string               `json:"limits"`
 }
 
-// Run returns the full safe shell manual.
+// Run returns the safe shell manual, optionally filtered to a single command.
 func (h *GetManualHandler) Run(
-	_ context.Context,
-	_ *types.Task,
+	ctx context.Context,
+	task *types.Task,
 	_ *privateconnection.PrivateCredentials,
 ) (interface{}, error) {
+	inputs, err := types.ExtractInputs[GetManualInputs](task)
+	if err != nil {
+		return nil, util.DefaultActionError(fmt.Errorf("failed to extract inputs: %w", err))
+	}
+
+	if inputs.Command != "" {
+		return getCommandSection(inputs.Command)
+	}
+	return getFullManual(), nil
+}
+
+func getCommandSection(cmd string) (*GetManualOutputs, error) {
+	commands := verifier.AllowedCommandsWithDescriptions()
+	info, ok := commands[cmd]
+	if !ok {
+		return nil, util.DefaultActionError(fmt.Errorf("command %q is not in the safe shell allowlist", cmd))
+	}
+	return &GetManualOutputs{
+		AllowedCommands: map[string]verifier.CommandInfo{cmd: info},
+	}, nil
+}
+
+func getFullManual() *GetManualOutputs {
 	return &GetManualOutputs{
 		AllowedCommands:  verifier.AllowedCommandsWithDescriptions(),
 		BlockedBuiltins:  verifier.BlockedBuiltins(),
@@ -65,5 +97,5 @@ func (h *GetManualHandler) Run(
 			"defaultTimeout": "30s",
 			"maxOutputBytes": "1048576",
 		},
-	}, nil
+	}
 }
