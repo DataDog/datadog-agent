@@ -179,7 +179,6 @@ func (ia *inventoryagent) initData() {
 	}
 
 	ia.data["agent_version"] = version.AgentVersion
-	ia.data["package_version"] = version.AgentPackageVersion
 	ia.data["agent_startup_time_ms"] = pkgconfigsetup.StartTime.UnixMilli()
 	ia.data["flavor"] = flavor.GetFlavor()
 
