@@ -195,8 +195,8 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 	}
 
 	// Check for context cancellation early
-	if ctx.Err() != nil {
-		return ctx.Err()
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 
 	// Initialize on first call - this detects cloud provider without holding locks

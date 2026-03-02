@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net"
 	"os"
 	"path/filepath"
@@ -2601,15 +2602,9 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 		}
 	}
 
-	// Track if any instances were configured
-	configured := false
-
 	// Copy the registered configs map while holding the lock to avoid races during iteration
 	registeredDelegatedAuthConfigsMu.Lock()
-	configsCopy := make(map[string]string, len(registeredDelegatedAuthConfigs))
-	for k, v := range registeredDelegatedAuthConfigs {
-		configsCopy[k] = v
-	}
+	configsCopy := maps.Clone(registeredDelegatedAuthConfigs)
 	registeredDelegatedAuthConfigsMu.Unlock()
 
 	// Scan all registered prefixes to find which ones have delegated auth enabled
@@ -2652,12 +2647,6 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 		configured = true
 	}
 
-	if !configured {
-		log.Debug("Delegated authentication is not configured")
-		return nil
-	}
-
-	log.Info("Finished configuring delegated authentication")
 	return nil
 }
 
