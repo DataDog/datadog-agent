@@ -54,11 +54,15 @@ func NewConfig(name string, configLib string) model.BuildableConfig {
 		// If the Agent is at or above the minimum version specified we enabled NTM
 		agentVersion, err := version.Agent()
 		if err == nil {
-			if res, err := agentVersion.CompareTo(lib); err == nil && res >= 0 {
-				return nodetreemodel.NewNodeTreeConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+			if res, err := agentVersion.CompareTo(lib); err == nil {
+				if res >= 0 {
+					return nodetreemodel.NewNodeTreeConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+				}
+			} else {
+				// agentVersion.CompareTo didn't parse the value, it's something else
+				log.Warnf("unrecognized value for DD_CONF_NODETREEMODEL: %s", lib)
 			}
 		}
-		log.Warnf("unrecognized value for DD_CONF_NODETREEMODEL: %s", lib)
 	}
 
 	// default config implementation
