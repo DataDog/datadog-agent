@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package hostname contains helpers and e2e tests of the hostname resolution
-package hostname
+package agentruntimes
 
 import (
 	"encoding/json"

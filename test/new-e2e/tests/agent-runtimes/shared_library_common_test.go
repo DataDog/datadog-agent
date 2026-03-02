@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package sharedlibrary contains tests for the shared library checks
-package sharedlibrary
+// Package agentruntimes contains tests for the shared library checks
+package agentruntimes
 
 import (
 	_ "embed"
@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
-//go:embed files/minimal_conf.yaml
+//go:embed checks/shared-library/files/minimal_conf.yaml
 var checkMinimalConfig string
 
 const libraryPrefix = "libdatadog-agent-"
@@ -87,7 +87,7 @@ func (v *sharedLibrarySuite) updateEnvWithCheckConfigAndSharedLibrary(name strin
 	libraryName, err := v.resolveSharedLibraryFileName(name)
 	require.NoError(v.T(), err)
 
-	libraryContent, err := os.ReadFile(path.Join("files", libraryName))
+	libraryContent, err := os.ReadFile(path.Join("checks/shared-library/files", libraryName))
 	require.NoError(v.T(), err)
 
 	// option to copy the shared library to the remote host
@@ -103,7 +103,7 @@ func (v *sharedLibrarySuite) updateEnvWithCheckConfigAndSharedLibrary(name strin
 	v.UpdateEnv(v.newProvisionerWithAgentOptions(agentOptions...))
 }
 
-// Test the shared library code and check it returns the right metrics
+// testCheckExampleExecutionAndMetrics tests the shared library code and checks it returns the right metrics
 func (v *sharedLibrarySuite) testCheckExampleExecutionAndMetrics() {
 	// execute the check and retrieve the metrics
 	check := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"example", "--json"}))
@@ -136,7 +136,7 @@ func (v *sharedLibrarySuite) testCheckExampleExecutionAndMetrics() {
 	assert.Equal(v.T(), "info", event.AlertType)
 }
 
-// Test the shared library code and check it returns the right metrics
+// testCheckWithoutRunSymbolExecutionError tests the shared library code and checks it returns the right metrics
 func (v *sharedLibrarySuite) testCheckWithoutRunSymbolExecutionError() {
 	_, err := v.Env().Agent.Client.CheckWithError(agentclient.WithArgs([]string{"no-run-symbol", "--json"}))
 

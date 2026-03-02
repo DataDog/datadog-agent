@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package auth
+package agentruntimes
 
 import (
 	_ "embed"
@@ -19,14 +19,14 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 )
 
-//go:embed fixtures/security-agent.yaml
-var securityAgentConfig string
+//go:embed auth_artifact/fixtures/security-agent.yaml
+var authSecurityAgentConfig string
 
 type authArtifactLinux struct {
 	authArtifactBase
 }
 
-func TestIPCSecurityLinuxSuite(t *testing.T) {
+func TestAuthArtifactIPCSecurityLinuxSuite(t *testing.T) {
 	t.Parallel()
 
 	e2e.Run(t,
@@ -44,8 +44,8 @@ func TestIPCSecurityLinuxSuite(t *testing.T) {
 		e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
 			awshost.WithRunOptions(
 				ec2.WithAgentOptions(
-					agentparams.WithAgentConfig(agentConfig),
-					agentparams.WithSecurityAgentConfig(securityAgentConfig),
+					agentparams.WithAgentConfig(authAgentConfig),
+					agentparams.WithSecurityAgentConfig(authSecurityAgentConfig),
 				),
 				ec2.WithAgentClientOptions(agentclientparams.WithSkipWaitForAgentReady()),
 			)),

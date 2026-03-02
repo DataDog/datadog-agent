@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package infra provides e2e tests for infrastructure mode functionality
-package infra
+// Package agentruntimes provides e2e tests for infrastructure mode functionality
+package agentruntimes
 
 import (
 	_ "embed"
@@ -22,7 +22,7 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
-//go:embed fixtures/custom_mycheck.py
+//go:embed infra/fixtures/custom_mycheck.py
 var customCheckPython []byte
 
 var (

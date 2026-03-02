@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package auth
+package agentruntimes
 
 import (
 	"os"
@@ -24,7 +24,7 @@ type authArtifactWindows struct {
 	authArtifactBase
 }
 
-func TestIPCSecurityWindowsSuite(t *testing.T) {
+func TestAuthArtifactIPCSecurityWindowsSuite(t *testing.T) {
 	t.Parallel()
 
 	e2e.Run(t,
@@ -35,7 +35,7 @@ func TestIPCSecurityWindowsSuite(t *testing.T) {
 				ipcCertPath:        `C:\ProgramData\Datadog\ipc_cert.pem`,
 				removeFilesCmdTmpl: "powershell -Command \"Remove-Item -Path %s\\* -Recurse; Remove-Item -Path %s; Remove-Item -Path %s\"",
 				readLogCmdTmpl:     "powershell -Command \"Get-Content -Path %v -Wait\"",
-				pathJoinFunction:   join,
+				pathJoinFunction:   winPathJoin,
 				agentProcesses:     []string{"agent", "trace-agent", "process-agent"},
 			},
 		},
@@ -43,7 +43,7 @@ func TestIPCSecurityWindowsSuite(t *testing.T) {
 			awshost.WithRunOptions(
 				ec2.WithName("authArtifactWindows"),
 				ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.WindowsServerDefault)),
-				ec2.WithAgentOptions(agentparams.WithAgentConfig(agentConfig)),
+				ec2.WithAgentOptions(agentparams.WithAgentConfig(authAgentConfig)),
 				ec2.WithAgentClientOptions(agentclientparams.WithSkipWaitForAgentReady()),
 			),
 		)),
@@ -51,11 +51,11 @@ func TestIPCSecurityWindowsSuite(t *testing.T) {
 	)
 }
 
-// Implementation of [path.Join] for Windows.
+// winPathJoin is an implementation of [path.Join] for Windows.
 // It was copied from the Go source code.
 //
 // [path.Join]: https://cs.opensource.google/go/go/+/refs/tags/go1.23.6:src/path/filepath/path_windows.go;l=65-110
-func join(elem ...string) string {
+func winPathJoin(elem ...string) string {
 	var b strings.Builder
 	var lastChar byte
 	for _, e := range elem {

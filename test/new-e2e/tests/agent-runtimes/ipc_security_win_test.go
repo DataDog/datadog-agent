@@ -2,7 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-package ipc
+
+package agentruntimes
 
 import (
 	"testing"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
+	ipchelpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-runtimes/ipc"
 )
 
 type ipcSecurityWindowsSuite struct {
@@ -37,17 +39,17 @@ func (v *ipcSecurityWindowsSuite) TestServersideIPCCertUsage() {
 
 	templateVars := map[string]interface{}{
 		"IPCCertFilePath": ipcCertFilePath,
-		"AgentCMDPort":    coreCMDPort,
-		"AgentIpcPort":    coreIPCPort,
-		"ApmCmdPort":      apmCmdPort,
-		"ProcessCmdPort":  processCmdPort,
-		"SecurityCmdPort": securityCmdPort,
+		"AgentCMDPort":    ipchelpers.CoreCMDPort,
+		"AgentIpcPort":    ipchelpers.CoreIPCPort,
+		"ApmCmdPort":      ipchelpers.ApmCmdPort,
+		"ProcessCmdPort":  ipchelpers.ProcessCmdPort,
+		"SecurityCmdPort": ipchelpers.SecurityCmdPort,
 	}
-	coreconfig := fillTmplConfig(v.T(), coreConfigTmpl, templateVars)
+	coreconfig := ipchelpers.FillTmplConfig(v.T(), ipchelpers.CoreConfigTmpl, templateVars)
 
 	agentOptions := []func(*agentparams.Params) error{
 		agentparams.WithAgentConfig(coreconfig),
-		agentparams.WithSecurityAgentConfig(securityAgentConfig),
+		agentparams.WithSecurityAgentConfig(ipchelpers.SecurityAgentConfig),
 	}
 	// start the agent with that configuration
 	v.UpdateEnv(awshost.Provisioner(
@@ -55,8 +57,8 @@ func (v *ipcSecurityWindowsSuite) TestServersideIPCCertUsage() {
 			ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 			ec2.WithAgentOptions(agentOptions...),
 			ec2.WithAgentClientOptions(
-				agentclientparams.WithTraceAgentOnPort(apmReceiverPort),
-				agentclientparams.WithProcessAgentOnPort(processCmdPort),
+				agentclientparams.WithTraceAgentOnPort(ipchelpers.ApmReceiverPort),
+				agentclientparams.WithProcessAgentOnPort(ipchelpers.ProcessCmdPort),
 			),
 		),
 	))
@@ -72,6 +74,6 @@ func (v *ipcSecurityWindowsSuite) TestServersideIPCCertUsage() {
 
 	// check that the Agent API server use the IPC cert
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		assertAgentUseCert(t, v.Env().RemoteHost, ipcCertContent)
-	}, 2*configRefreshIntervalSec*time.Second, 1*time.Second)
+		ipchelpers.AssertAgentUseCert(t, v.Env().RemoteHost, ipcCertContent)
+	}, 2*ipchelpers.ConfigRefreshIntervalSec*time.Second, 1*time.Second)
 }

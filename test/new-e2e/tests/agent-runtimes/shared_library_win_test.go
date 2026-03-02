@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package rtloader contains tests for testing a shared library check
-package sharedlibrary
+package agentruntimes
 
 import (
 	"testing"

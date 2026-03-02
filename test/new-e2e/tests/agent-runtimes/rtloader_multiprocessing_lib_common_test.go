@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package rtloader contains tests for the rtloader
-package rtloader
+package agentruntimes
 
 import (
 	_ "embed"
@@ -21,10 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
-//go:embed python-check/multi_pid_check.py
+//go:embed rtloader/python-check/multi_pid_check.py
 var multiPidCheckPy string
 
-//go:embed python-check/multi_pid_check.yaml
+//go:embed rtloader/python-check/multi_pid_check.yaml
 var multiPidCheckYaml string
 
 type baseMultiProcessingLibSuite struct {

@@ -23,28 +23,28 @@ import (
 )
 
 const (
-	coreCMDPort              = 5001
-	coreIPCPort              = 5004
-	securityCmdPort          = 5010
-	apmCmdPort               = 5012
-	apmReceiverPort          = 8126
-	processCmdPort           = 6162
-	configRefreshIntervalSec = 10
+	CoreCMDPort              = 5001
+	CoreIPCPort              = 5004
+	SecurityCmdPort          = 5010
+	ApmCmdPort               = 5012
+	ApmReceiverPort          = 8126
+	ProcessCmdPort           = 6162
+	ConfigRefreshIntervalSec = 10
 )
 
 //go:embed fixtures/config.yaml.tmpl
-var coreConfigTmpl string
+var CoreConfigTmpl string
 
 //go:embed fixtures/security-agent.yaml
-var securityAgentConfig string
+var SecurityAgentConfig string
 
-type endpoint struct {
-	name string
-	port int
+type Endpoint struct {
+	Name string
+	Port int
 }
 
-// assertAgentUseCert checks that all agents IPC server use the IPC certificate.
-func assertAgentUseCert(t *assert.CollectT, host *components.RemoteHost, ipcCertFileContent []byte) {
+// AssertAgentUseCert checks that all agents IPC server use the IPC certificate.
+func AssertAgentUseCert(t *assert.CollectT, host *components.RemoteHost, ipcCertFileContent []byte) {
 	// Reading and decoding cert and key from file
 	var block *pem.Block
 
@@ -75,31 +75,31 @@ func assertAgentUseCert(t *assert.CollectT, host *components.RemoteHost, ipcCert
 	client.Transport = tr
 
 	//Assert that it's not working if the IPC cert is not set as RootCA
-	_, err = client.Get(fmt.Sprintf("https://127.0.0.1:%d", coreCMDPort)) // nolint: bodyclose
+	_, err = client.Get(fmt.Sprintf("https://127.0.0.1:%d", CoreCMDPort)) // nolint: bodyclose
 	require.Error(t, err)
 
 	// Setting IPC certificate as Root CA
 	tr.TLSClientConfig.RootCAs = CA
 
-	for _, endpoint := range []endpoint{
-		{"coreCMD", coreCMDPort},
-		{"coreIPC", coreIPCPort},
-		{"securityAgent", securityCmdPort},
-		{"traceAgentDebug", apmCmdPort},
-		{"processAgent", processCmdPort},
+	for _, endpoint := range []Endpoint{
+		{"coreCMD", CoreCMDPort},
+		{"coreIPC", CoreIPCPort},
+		{"securityAgent", SecurityCmdPort},
+		{"traceAgentDebug", ApmCmdPort},
+		{"processAgent", ProcessCmdPort},
 	} {
 		// Make a request to the server
-		resp, err := client.Get(fmt.Sprintf("https://127.0.0.1:%d", endpoint.port))
-		require.NoErrorf(t, err, "unable to connect to %v", endpoint.name)
+		resp, err := client.Get(fmt.Sprintf("https://127.0.0.1:%d", endpoint.Port))
+		require.NoErrorf(t, err, "unable to connect to %v", endpoint.Name)
 		defer resp.Body.Close()
 
-		require.NotNilf(t, resp.TLS, "connection to %v didn't used TLS", endpoint.name)
-		require.Lenf(t, resp.TLS.PeerCertificates, 1, "server of %v server multiple certficiate", endpoint.name)
+		require.NotNilf(t, resp.TLS, "connection to %v didn't used TLS", endpoint.Name)
+		require.Lenf(t, resp.TLS.PeerCertificates, 1, "server of %v server multiple certficiate", endpoint.Name)
 	}
 }
 
-// fillTmplConfig fills the template with the given variables and returns the result.
-func fillTmplConfig(t *testing.T, tmplContent string, templateVars any) string {
+// FillTmplConfig fills the template with the given variables and returns the result.
+func FillTmplConfig(t *testing.T, tmplContent string, templateVars any) string {
 	t.Helper()
 
 	var buffer bytes.Buffer

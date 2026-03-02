@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package hostname
+package agentruntimes
 
 import (
 	"testing"
@@ -13,12 +13,12 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 )
 
-type windowsHostnameDriftSuite struct {
+type linuxHostnameDriftSuite struct {
 	baseHostnameDriftSuite
 }
 
-func TestWindowsHostnameDriftSuite(t *testing.T) {
+func TestLinuxHostnameDriftSuite(t *testing.T) {
 	t.Parallel()
-	suite := &windowsHostnameDriftSuite{}
-	e2e.Run(t, suite, suite.getSuiteOptions(os.WindowsServerDefault)...)
+	suite := &linuxHostnameDriftSuite{}
+	e2e.Run(t, suite, suite.getSuiteOptions(os.UbuntuDefault)...)
 }

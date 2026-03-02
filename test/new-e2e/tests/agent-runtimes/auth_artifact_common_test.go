@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package auth
+package agentruntimes
 
 import (
 	_ "embed"
@@ -30,8 +30,8 @@ const lockSuffix = ".lock"
 var requiredPattern = regexp.MustCompile(`successfully loaded the IPC auth primitives \(fingerprint: ([\d\w]{16})\)`)
 var extraPatterns = []*regexp.Regexp{regexp.MustCompile("successfully created artifact")}
 
-//go:embed fixtures/config.yaml
-var agentConfig string
+//go:embed auth_artifact/fixtures/config.yaml
+var authAgentConfig string
 
 type authArtifactBase struct {
 	e2e.BaseSuite[environments.Host]

@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package rtloader contains tests for the rtloader
-package rtloader
+package agentruntimes
 
 import (
 	"testing"
@@ -14,14 +13,14 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 )
 
-type windowsMultiProcessingLibSuite struct {
+type linuxMultiProcessingLibSuite struct {
 	baseMultiProcessingLibSuite
 }
 
-func TestWindowsMultiProcessingLibSuite(t *testing.T) {
+func TestLinuxMultiProcessingLibSuite(t *testing.T) {
 	t.Parallel()
-	suite := &windowsMultiProcessingLibSuite{baseMultiProcessingLibSuite{
-		checksdPath: "C:/ProgramData/Datadog/checks.d/multi_pid_check.py",
+	suite := &linuxMultiProcessingLibSuite{baseMultiProcessingLibSuite{
+		checksdPath: "/etc/datadog-agent/checks.d/multi_pid_check.py",
 	}}
-	e2e.Run(t, suite, suite.getSuiteOptions(os.WindowsServerDefault)...)
+	e2e.Run(t, suite, suite.getSuiteOptions(os.UbuntuDefault)...)
 }

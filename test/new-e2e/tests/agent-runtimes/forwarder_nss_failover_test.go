@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package forwarder
+package agentruntimes
 
 import (
 	"bytes"
@@ -80,10 +80,10 @@ var templateVars = map[string]string{
 	"LogService":              logService,
 }
 
-//go:embed testfixtures/custom_logs.yaml.tmpl
+//go:embed forwarder/testfixtures/custom_logs.yaml.tmpl
 var customLogsConfigTmplFile string
 
-//go:embed testfixtures/config.yaml.tmpl
+//go:embed forwarder/testfixtures/config.yaml.tmpl
 var configTmplFile string
 
 func pullTraceGeneratorImage(h *components.RemoteHost) {
