@@ -23,24 +23,16 @@ bash ./play-episode.sh run-episode "${SCENARIO}" 2>&1 | tee /tmp/play-episode.lo
 echo "[$(date -u)] Episode completed"
 
 # Collect parquet files from the Datadog Agent pod.
-# kubectl is not installed on the VM; use the Kind control-plane container which has it.
-KUBE="docker exec ${CLUSTER_NAME}-control-plane kubectl"
-POD=$(${KUBE} get pod -n "${KUBE_NAMESPACE}" -l app.kubernetes.io/component=agent \
+POD=$(kubectl get pod -n "${KUBE_NAMESPACE}" -l app.kubernetes.io/component=agent \
       -o jsonpath='{.items[0].metadata.name}')
 echo "[$(date -u)] Collecting parquet files from pod ${POD}"
-# kubectl cp fails because /tmp in the control-plane container is a tmpfs mount
-# and docker cp cannot read through tmpfs (it uses the overlay filesystem).
-# Instead: pipe tar from the pod via kubectl exec into /root of the control-plane
-# (which is on the overlay fs), then docker cp to the VM.
-${KUBE} exec -n "${KUBE_NAMESPACE}" "${POD}" -c agent -- tar cf - -C /tmp observer-metrics \
-    | docker exec -i "${CLUSTER_NAME}-control-plane" tar xf - -C /root
 mkdir -p /tmp/gensim-parquet
-docker cp "${CLUSTER_NAME}-control-plane:/root/observer-metrics" /tmp/gensim-parquet/
+kubectl cp -n "${KUBE_NAMESPACE}" "${POD}:/var/run/datadog/observer" /tmp/gensim-parquet/observer -c agent
 echo "[$(date -u)] Parquet files collected from pod ${POD}"
 
 # Archive: parquet + play-episode log
 mkdir -p /tmp/gensim-archive
-cp -r /tmp/gensim-parquet          /tmp/gensim-archive/parquet/
+cp -r /tmp/gensim-parquet/observer /tmp/gensim-archive/parquet/
 cp /tmp/play-episode.log           /tmp/gensim-archive/
 cp "$LOG_FILE"                     /tmp/gensim-archive/gensim-runner.log || true
 if [ -d /tmp/gensim-episode/results ]; then cp -r /tmp/gensim-episode/results /tmp/gensim-archive/; fi
