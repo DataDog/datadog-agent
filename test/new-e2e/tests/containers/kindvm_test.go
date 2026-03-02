@@ -46,6 +46,7 @@ clusterAgent:
 			scenkind.WithAgentOptions(
 				kubernetesagentparams.WithDualShipping(),
 				kubernetesagentparams.WithHelmValues(helmValues),
+				kubernetesagentparams.WithHelmValues(containerHelmValues),
 			),
 			scenkind.WithDeployArgoRollout(),
 		),

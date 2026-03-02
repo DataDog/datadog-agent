@@ -16,18 +16,12 @@
 
 name "openssl3"
 
-license "Apache-2.0"
-license_file "LICENSE.txt"
 skip_transitive_dependency_licensing true
 
 dependency "zlib" unless windows?
 dependency "cacerts"
 
 default_version "3.5.5"
-
-source url: "https://www.openssl.org/source/openssl-#{version}.tar.gz", extract: :lax_tar
-
-version("3.5.5") { source sha256: "b28c91532a8b65a1f983b4c28b7488174e4a01008e29ce8e69bd789f28bc2a89" }
 
 relative_path "openssl-#{version}"
 

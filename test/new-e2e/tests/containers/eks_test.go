@@ -6,6 +6,7 @@
 package containers
 
 import (
+	_ "embed"
 	"regexp"
 	"testing"
 
@@ -17,6 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	proveks "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/eks"
 )
+
+//go:embed values.yaml
+var containerHelmValues string
 
 type eksSuite struct {
 	k8sSuite
@@ -39,6 +43,7 @@ func TestEKSSuite(t *testing.T) {
 			sceneks.WithAgentOptions(
 				kubernetesagentparams.WithDualShipping(),
 				kubernetesagentparams.WithWindowsImage(),
+				kubernetesagentparams.WithHelmValues(containerHelmValues),
 			),
 			sceneks.WithDeployArgoRollout(),
 		),
