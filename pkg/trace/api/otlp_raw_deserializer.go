@@ -36,18 +36,18 @@ const (
 	scopeName    = 1
 	scopeVersion = 2
 	// Span
-	spanTraceID            = 1
-	spanSpanID             = 2
-	spanTraceState         = 3
-	spanParentSpanID       = 4
-	spanName               = 5
-	spanKind               = 6
-	spanStartTimeUnixNano  = 7
-	spanEndTimeUnixNano    = 8
-	spanAttributes         = 9
-	spanEvents             = 11
-	spanLinks              = 13
-	spanStatus             = 15
+	spanTraceID           = 1
+	spanSpanID            = 2
+	spanTraceState        = 3
+	spanParentSpanID      = 4
+	spanName              = 5
+	spanKind              = 6
+	spanStartTimeUnixNano = 7
+	spanEndTimeUnixNano   = 8
+	spanAttributes        = 9
+	spanEvents            = 11
+	spanLinks             = 13
+	spanStatus            = 15
 	// Status
 	statusCode = 3
 	// KeyValue
@@ -614,40 +614,35 @@ func parseAnyValueTyped(data []byte) (v attrVal) {
 		switch num {
 		case anyValueString:
 			if wireType == protowire.BytesType {
-				b, n := protowire.ConsumeBytes(data)
-				data = data[n:]
+				b, _ := protowire.ConsumeBytes(data)
 				v.str = string(b)
 				v.typ = 0
 				return v
 			}
 		case anyValueBool:
 			if wireType == protowire.VarintType {
-				b, n := protowire.ConsumeVarint(data)
-				data = data[n:]
+				b, _ := protowire.ConsumeVarint(data)
 				v.b = b != 0
 				v.typ = 3
 				return v
 			}
 		case anyValueInt:
 			if wireType == protowire.VarintType {
-				i, n := protowire.ConsumeVarint(data)
-				data = data[n:]
+				i, _ := protowire.ConsumeVarint(data)
 				v.i = int64(i)
 				v.typ = 1
 				return v
 			}
 		case anyValueDouble:
 			if wireType == protowire.Fixed64Type {
-				f, n := protowire.ConsumeFixed64(data)
-				data = data[n:]
+				f, _ := protowire.ConsumeFixed64(data)
 				v.f = math.Float64frombits(f)
 				v.typ = 2
 				return v
 			}
 		case anyValueBytes:
 			if wireType == protowire.BytesType {
-				b, n := protowire.ConsumeBytes(data)
-				data = data[n:]
+				b, _ := protowire.ConsumeBytes(data)
 				v.str = string(b)
 				v.typ = 0
 				return v
@@ -668,14 +663,12 @@ func parseAnyValueString(data []byte) string {
 		switch num {
 		case anyValueString:
 			if wireType == protowire.BytesType {
-				v, n := protowire.ConsumeBytes(data)
-				data = data[n:]
+				v, _ := protowire.ConsumeBytes(data)
 				return string(v)
 			}
 		case anyValueBool:
 			if wireType == protowire.VarintType {
-				v, n := protowire.ConsumeVarint(data)
-				data = data[n:]
+				v, _ := protowire.ConsumeVarint(data)
 				if v != 0 {
 					return "true"
 				}
@@ -683,20 +676,17 @@ func parseAnyValueString(data []byte) string {
 			}
 		case anyValueInt:
 			if wireType == protowire.VarintType {
-				v, n := protowire.ConsumeVarint(data)
-				data = data[n:]
-				return fmt.Sprintf("%d", int64(v))
+				v, _ := protowire.ConsumeVarint(data)
+				return strconv.FormatInt(int64(v), 10)
 			}
 		case anyValueDouble:
 			if wireType == protowire.Fixed64Type {
-				v, n := protowire.ConsumeFixed64(data)
-				data = data[n:]
+				v, _ := protowire.ConsumeFixed64(data)
 				return fmt.Sprintf("%g", math.Float64frombits(v))
 			}
 		case anyValueBytes:
 			if wireType == protowire.BytesType {
-				v, n := protowire.ConsumeBytes(data)
-				data = data[n:]
+				v, _ := protowire.ConsumeBytes(data)
 				return string(v)
 			}
 		default:

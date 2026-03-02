@@ -19,21 +19,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 )
-
-const customContainerTagPrefix = "datadog.container.tag."
 
 // scopeSpansData holds scope name/version and raw span message bytes for one ScopeSpans.
 type scopeSpansData struct {
-	ScopeName   string
+	ScopeName    string
 	ScopeVersion string
-	SpanBytes   [][]byte
+	SpanBytes    [][]byte
 }
 
 // buildPayloadFromResourceSpansBytes parses one ResourceSpans message, builds a Payload (TracerPayload)
@@ -293,4 +291,3 @@ func otelStatusCodename(code int32) string {
 		return "Unset"
 	}
 }
-

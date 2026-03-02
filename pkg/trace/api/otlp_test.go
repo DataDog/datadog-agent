@@ -4426,7 +4426,8 @@ func generateTraceRequest(traceCount int, spanCount int, attrCount int, attrLeng
 // BenchmarkOTLPProcessStandard measures the standard path: unmarshal raw OTLP bytes into
 // ptraceotlp.ExportRequest, then processRequest (receiveResourceSpansV2). This is the path
 // used when gRPC receives OTLP trace export calls. Run with:
-//   go test -tags=test -bench=BenchmarkOTLPProcess -benchmem ./pkg/trace/api/
+//
+//	go test -tags=test -bench=BenchmarkOTLPProcess -benchmem ./pkg/trace/api/
 func BenchmarkOTLPProcessStandard(b *testing.B) {
 	benchmarkOTLPProcessFromBytes(b, true)
 }
