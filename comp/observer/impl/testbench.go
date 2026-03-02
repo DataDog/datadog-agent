@@ -18,6 +18,7 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
+// TODO(recorder): Update this interface with possibly a ms timestamp / rely on another interface
 // storedLogEntry is a raw log entry stored in memory.
 type storedLogEntry struct {
 	Timestamp int64    `json:"timestamp"`
@@ -1047,11 +1048,17 @@ func (tb *TestBench) loadDemoScenario() error {
 			logMsgIdx++
 
 			// Store raw log entry
+			servicetag := ""
+			if t%2 == 0 {
+				servicetag = "service:service_a"
+			} else {
+				servicetag = "service:service_b"
+			}
 			tb.rawLogs = append(tb.rawLogs, storedLogEntry{
 				Timestamp: timestamp,
 				Status:    "error",
 				Content:   content,
-				Tags:      []string{},
+				Tags:      []string{servicetag},
 			})
 		}
 	}
@@ -1065,17 +1072,18 @@ func (tb *TestBench) loadDemoScenario() error {
 		title        string
 		description  string
 		score        *float64
+		service      string
 	}
 	demoAnomalies := []demoAnomaly{
 		// connection_error_extractor: fires during the incident peak
-		{baseTimestamp + 30, "connection_error_extractor", "Connection pool exhausted", "connection pool exhausted: max connections reached", score(0.91)},
-		{baseTimestamp + 35, "connection_error_extractor", "Circuit breaker opened", "circuit breaker open: too many recent failures", score(0.95)},
-		{baseTimestamp + 40, "connection_error_extractor", "Retry storm detected", "retry limit exceeded after 3 attempts", score(0.88)},
-		{baseTimestamp + 45, "connection_error_extractor", "Memory pressure rejecting requests", "memory pressure: request rejected", score(0.82)},
+		{baseTimestamp + 30, "connection_error_extractor", "Connection pool exhausted", "connection pool exhausted: max connections reached", score(0.91), "service_a"},
+		{baseTimestamp + 35, "connection_error_extractor", "Circuit breaker opened", "circuit breaker open: too many recent failures", score(0.95), "service_a"},
+		{baseTimestamp + 40, "connection_error_extractor", "Retry storm detected", "retry limit exceeded after 3 attempts", score(0.88), "service_a"},
+		{baseTimestamp + 45, "connection_error_extractor", "Memory pressure rejecting requests", "memory pressure: request rejected", score(0.82), "service_b"},
 		// log_timeseries: fires at ramp-up and peak
-		{baseTimestamp + 26, "log_timeseries", "Log rate ramp-up detected", "Log emission rate increased 2.5x above baseline (5s → 2s interval)", score(0.74)},
-		{baseTimestamp + 32, "log_timeseries", "Log rate spike at incident peak", "Log emission rate spiked 10x above baseline (5s → 500ms interval)", score(0.97)},
-		{baseTimestamp + 38, "log_timeseries", "Sustained high log rate", "Log rate remains elevated: 1 log/s vs baseline 1 log/5s", score(0.85)},
+		{baseTimestamp + 26, "log_timeseries", "Log rate ramp-up detected", "Log emission rate increased 2.5x above baseline (5s → 2s interval)", score(0.74), "service_a"},
+		{baseTimestamp + 32, "log_timeseries", "Log rate spike at incident peak", "Log emission rate spiked 10x above baseline (5s → 500ms interval)", score(0.97), "service_a"},
+		{baseTimestamp + 38, "log_timeseries", "Sustained high log rate", "Log rate remains elevated: 1 log/s vs baseline 1 log/5s", score(0.85), "service_b"},
 	}
 	for _, a := range demoAnomalies {
 		anomaly := observerdef.AnomalyOutput{
@@ -1086,6 +1094,7 @@ func (tb *TestBench) loadDemoScenario() error {
 			Description:  a.description,
 			Timestamp:    a.ts,
 			Score:        a.score,
+			Tags:         []string{"service:" + a.service},
 		}
 		tb.logAnomalies = append(tb.logAnomalies, anomaly)
 		tb.logAnomaliesByProcessor[a.analyzerName] = append(tb.logAnomaliesByProcessor[a.analyzerName], anomaly)
