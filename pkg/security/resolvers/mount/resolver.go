@@ -113,16 +113,13 @@ func (mr *Resolver) syncCacheFromListMount() error {
 
 // syncCacheFromProcfs Snapshots the current mountpoints using procfs
 func (mr *Resolver) syncCacheFromProcfs() error {
-	nrMounts := 0
 	err := GetAllProcfs(kernel.ProcFSRoot(), func(sm *model.Mount) {
 		mr.insert(sm)
-		nrMounts++
 	})
 
 	if err != nil {
 		return fmt.Errorf("error synchronizing from procfs: %v", err)
 	}
-	seclog.Debugf("procfs sync cache found %d entries", nrMounts)
 	return nil
 }
 

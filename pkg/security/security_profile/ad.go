@@ -209,7 +209,7 @@ func (m *Manager) insertActivityDump(newDump *dump.ActivityDump) error {
 	// append activity dump to the list of active dumps
 	m.activeDumps = append(m.activeDumps, newDump)
 
-	seclog.Infof("tracing started for [%s]", newDump.GetSelectorStr())
+	//seclog.Infof("tracing started for [%s]", newDump.GetSelectorStr())
 	return nil
 }
 
