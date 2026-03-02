@@ -15,7 +15,6 @@ import (
 // getListeningPortToPIDMap returns a map of listening port -> PID using the portlist Poller
 func getListeningPortToPIDMap() map[int32]int32 {
 	poller := &portlist.Poller{IncludeLocalhost: true}
-	defer poller.Close()
 
 	ports, _, err := poller.Poll()
 	if err != nil {
