@@ -24,6 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 )
 
@@ -116,7 +117,7 @@ func (h *Host) InstallDocker() {
 		h.t().Fatalf("unsupported package manager: %s", h.pkgManager)
 	}
 
-	imagePullPassword, err := runner.GetProfile().ParamStore().Get(runner.ImagePullPassword)
+	imagePullPassword, err := runner.GetProfile().ParamStore().Get(parameters.ImagePullPassword)
 	if err != nil {
 		h.t().Fatalf("failed to get image pull password: %v", err)
 	}
