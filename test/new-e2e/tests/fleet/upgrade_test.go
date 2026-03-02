@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/suite"
 )
 
+const thirdPartyIntegration = "datadog-ping==1.0.2"
+
 type upgradeSuite struct {
 	suite.FleetSuite
 }
@@ -29,6 +31,36 @@ func newUpgradeSuite() e2e.Suite[environments.Host] {
 
 func TestFleetUpgrade(t *testing.T) {
 	suite.Run(t, newUpgradeSuite, suite.AllPlatforms)
+}
+
+func (s *upgradeSuite) TestIntegrationPreservationDuringExperiment() {
+	// Install the testing pipeline version (our code) as stable, so preStartExperiment
+	// runs from the binary under test when the experiment is started.
+	s.Agent.MustInstall(agent.WithRemoteUpdates())
+	defer s.Agent.MustUninstall()
+
+	err := s.Agent.InstallIntegration(thirdPartyIntegration)
+	s.Require().NoError(err)
+
+	installedIntegrations, err := s.Agent.InstalledIntegrations()
+	s.Require().NoError(err)
+	s.Require().Equal("1.0.2", installedIntegrations["ping"], "integration should be installed before experiment")
+
+	// Experiment with the released stable version; preStartExperiment runs from our binary.
+	targetVersion := s.Backend.Catalog().Latest(backend.BranchStable, "datadog-agent")
+	err = s.Backend.StartExperiment("datadog-agent", targetVersion)
+	s.Require().NoError(err)
+
+	installedIntegrations, err = s.Agent.InstalledIntegrations()
+	s.Require().NoError(err)
+	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved in experiment")
+
+	err = s.Backend.PromoteExperiment("datadog-agent")
+	s.Require().NoError(err)
+
+	installedIntegrations, err = s.Agent.InstalledIntegrations()
+	s.Require().NoError(err)
+	s.Assert().Equal("1.0.2", installedIntegrations["ping"], "integration should be preserved after promotion")
 }
 
 func (s *upgradeSuite) TestUpgradeFailureTimeout() {
