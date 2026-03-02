@@ -5,30 +5,30 @@
 
 .retrieve_linux_go_deps:
   - echo "Attempting to retrieve linux go deps"
-  # - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache.tar.xz -C $GOPATH/pkg/mod/cache
-  # - rm -f modcache.tar.xz
+  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache.tar.xz -C $GOPATH/pkg/mod/cache
+  - rm -f modcache.tar.xz
 
 .retrieve_linux_go_tools_deps:
   - echo "Attempting to retrieve linux go tools deps"
-  # - mkdir -p $GOPATH/bin $GOPATH/pkg/mod/cache && tar xJf modcache_tools.tar.xz -C $GOPATH
-  # - rm -f modcache_tools.tar.xz
-  # - export PATH=$PATH:$GOPATH/bin
+  - mkdir -p $GOPATH/bin $GOPATH/pkg/mod/cache && tar xJf modcache_tools.tar.xz -C $GOPATH
+  - rm -f modcache_tools.tar.xz
+  - export PATH=$PATH:$GOPATH/bin
 
 .retrieve_linux_go_tools_deps_arm64:
   - echo "Attempting to retrieve linux go tools deps arm64"
-  # - mkdir -p $GOPATH/bin $GOPATH/pkg/mod/cache && tar xJf modcache_tools_arm64.tar.xz -C $GOPATH
-  # - rm -f modcache_tools_arm64.tar.xz
-  # - export PATH=$PATH:$GOPATH/bin
+  - mkdir -p $GOPATH/bin $GOPATH/pkg/mod/cache && tar xJf modcache_tools_arm64.tar.xz -C $GOPATH
+  - rm -f modcache_tools_arm64.tar.xz
+  - export PATH=$PATH:$GOPATH/bin
 
 .retrieve_linux_go_e2e_deps:
   - echo "Attempting to retrieve linux go e2e deps"
-  # - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache_e2e.tar.xz -C $GOPATH/pkg/mod/cache
-  # - rm -f modcache_e2e.tar.xz
+  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache_e2e.tar.xz -C $GOPATH/pkg/mod/cache
+  - rm -f modcache_e2e.tar.xz
 
 .retrieve_linux_pulumi_plugins:
   - echo "Attempting to retrieve linux pulumi plugins"
-  # - mkdir -p ~/.pulumi && tar xJf pulumi_plugins.tar.xz -C ~/.pulumi
-  # - rm -f pulumi_plugins.tar.xz
+  - mkdir -p ~/.pulumi && tar xJf pulumi_plugins.tar.xz -C ~/.pulumi
+  - rm -f pulumi_plugins.tar.xz
 
 .cache:
   stage: deps_fetch
@@ -58,10 +58,10 @@ go_deps:
     - if [ -f modcache.tar.xz  ]; then exit 0; fi
     - dda inv -- -e deps --verbose
     - cd $GOPATH/pkg/mod/cache/ && tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache.tar.xz .
-  # artifacts:
-  #   expire_in: 1 day
-  #   paths:
-  #     - $CI_PROJECT_DIR/modcache.tar.xz
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - $CI_PROJECT_DIR/modcache.tar.xz
   # cache:
   #   # The `cache:key:files` only accepts up to two paths ([docs](https://docs.gitlab.com/ee/ci/yaml/#cachekeyfiles)).
   #   # We should also include the file this job is defined in to invalicate the cache when this job is modified.
@@ -82,10 +82,10 @@ go_tools_deps:
     - dda inv -- -e install-tools
     # Exclude datadog-package binary from the cache: it's already installed on all images and they don't have the same glibc version
     - cd $GOPATH && tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools.tar.xz $(find bin/ -type f ! -name 'datadog-package') pkg/mod/cache/
-  # artifacts:
-  #   expire_in: 1 day
-  #   paths:
-  #     - $CI_PROJECT_DIR/modcache_tools.tar.xz
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - $CI_PROJECT_DIR/modcache_tools.tar.xz
   # cache:
   #   - key:
   #       files:
@@ -103,10 +103,10 @@ go_tools_deps_arm64:
     - dda inv -- -e install-tools
     # Exclude datadog-package binary from the cache: it's already installed on all images and they don't have the same glibc version
     - cd $GOPATH && tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools_arm64.tar.xz $(find bin/ -type f ! -name 'datadog-package') pkg/mod/cache/
-  # artifacts:
-  #   expire_in: 1 day
-  #   paths:
-  #     - $CI_PROJECT_DIR/modcache_tools_arm64.tar.xz
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - $CI_PROJECT_DIR/modcache_tools_arm64.tar.xz
   # cache:
   #   - key:
   #       files:
@@ -138,11 +138,11 @@ go_e2e_deps:
         popd
         tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/pulumi_plugins.tar.xz -C ~/.pulumi plugins
       fi
-  # artifacts:
-  #   expire_in: 1 day
-  #   paths:
-  #     - $CI_PROJECT_DIR/modcache_e2e.tar.xz
-  #     - $CI_PROJECT_DIR/pulumi_plugins.tar.xz
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - $CI_PROJECT_DIR/modcache_e2e.tar.xz
+      - $CI_PROJECT_DIR/pulumi_plugins.tar.xz
   # cache:
   #   - key:
   #       files:
