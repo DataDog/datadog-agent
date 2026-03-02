@@ -222,11 +222,8 @@ func (s *testUpgradeWithMissingPasswordSuite) createStableAgent() (*installerwin
 func (s *testUpgradeWithMissingPasswordSuite) createStableAgentWithVersion(version string, versionPackage string, devEnvOverride string) (*installerwindows.AgentVersionManager, error) {
 
 	// Get previous version MSI package
-	url, err := windowsagent.GetChannelURL("stable")
-	s.Require().NoError(err)
 	previousMSI, err := windowsagent.NewPackage(
 		windowsagent.WithVersion(versionPackage),
-		windowsagent.WithURLFromInstallersJSON(url, versionPackage),
 		windowsagent.WithDevEnvOverrides(devEnvOverride),
 	)
 	s.Require().NoError(err, "Failed to lookup MSI for previous agent version")

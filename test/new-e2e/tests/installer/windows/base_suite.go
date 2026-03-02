@@ -165,7 +165,7 @@ func (s *BaseSuite) createCurrentAgent() {
 
 	// Get current version MSI package
 	currentMSI, err := windowsagent.NewPackage(
-		windowsagent.WithURLFromPipeline(s.Env().Environment.PipelineID()),
+		windowsagent.WithPipelineID(s.Env().Environment.PipelineID()),
 		windowsagent.WithDevEnvOverrides("CURRENT_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup MSI for current agent version")
@@ -197,11 +197,8 @@ func (s *BaseSuite) createStableAgent() {
 		return
 	}
 	// else, use the defaults (last stable release)
-
 	agentVersion := "7.75.0"
 	agentVersionPackage := "7.75.0-1"
-	agentRegistry := consts.StableS3OCIRegistry
-	agentMSIURL := "https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-7.75.0.msi"
 	// Allow override of version and version package via environment variables
 	if val := os.Getenv("STABLE_AGENT_VERSION"); val != "" {
 		agentVersion = val
@@ -214,7 +211,6 @@ func (s *BaseSuite) createStableAgent() {
 	previousOCI, err := NewPackageConfig(
 		WithName(consts.AgentPackage),
 		WithVersion(agentVersionPackage),
-		WithRegistry(agentRegistry),
 		WithDevEnvOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup OCI package for previous agent version")
@@ -222,7 +218,6 @@ func (s *BaseSuite) createStableAgent() {
 	// Get previous version MSI package
 	previousMSI, err := windowsagent.NewPackage(
 		windowsagent.WithVersion(agentVersionPackage),
-		windowsagent.WithURL(agentMSIURL),
 		windowsagent.WithDevEnvOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup MSI for previous agent version")

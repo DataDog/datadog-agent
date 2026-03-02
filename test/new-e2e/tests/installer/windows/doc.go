@@ -74,6 +74,30 @@
 // shortened to 7.66.0-devel for convenience.
 // With local testing the _VERSION_PACKAGE variables can be omitted, though they are required in the CI.
 //
+// # Stable Agent ("last stable") Configuration
+//
+// The stable agent version used in upgrade tests is configured via STABLE_AGENT_* environment
+// variables.
+//
+// Convenience variables (auto-resolve both MSI and OCI):
+//
+//	STABLE_AGENT_VERSION          - Agent version (e.g. "7.75.0"), auto-resolves MSI URL and OCI registry
+//	STABLE_AGENT_PIPELINE         - Pipeline ID, auto-resolves MSI from S3 and OCI from pipeline registry
+//
+// Version assertion variables:
+//
+//	STABLE_AGENT_VERSION_PACKAGE  - Package version with "-1" suffix for status assertions
+//
+// MSI-specific overrides (see common/agent WithDevEnvOverrides):
+//
+//	STABLE_AGENT_MSI_URL, STABLE_AGENT_MSI_PIPELINE, STABLE_AGENT_MSI_VERSION,
+//	STABLE_AGENT_MSI_CHANNEL, STABLE_AGENT_MSI_FLAVOR, STABLE_AGENT_MSI_PRODUCT, STABLE_AGENT_MSI_ARCH
+//
+// OCI-specific overrides (see WithDevEnvOverrides in this package):
+//
+//	STABLE_AGENT_OCI_URL, STABLE_AGENT_OCI_PIPELINE, STABLE_AGENT_OCI_VERSION,
+//	STABLE_AGENT_OCI_REGISTRY, STABLE_AGENT_OCI_AUTH
+//
 // # Building Local Artifacts
 //
 // To build the MSI installer locally:
