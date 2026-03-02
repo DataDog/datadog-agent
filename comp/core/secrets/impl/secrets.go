@@ -280,9 +280,8 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 		if runtime.GOOS == "windows" {
 			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "bin", "secret-generic-connector.exe")
 		} else {
-			// Cluster agent binary is at .../bin/; node agent is at .../bin/agent/
 			if flavor.GetFlavor() == flavor.ClusterAgent {
-				r.backendCommand = filepath.Join(defaultpaths.GetInstallPath(), "..", "embedded", "bin", "secret-generic-connector")
+				r.backendCommand = filepath.Join(defaultpaths.GetInstallPath(), "secret-generic-connector")
 			} else {
 				r.backendCommand = filepath.Join(defaultpaths.GetInstallPath(), "..", "..", "embedded", "bin", "secret-generic-connector")
 			}
