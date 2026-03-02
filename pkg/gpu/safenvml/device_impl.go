@@ -98,6 +98,7 @@ func (d *safeDeviceImpl) GetFanSpeed() (uint32, error) {
 	return speed, NewNvmlAPIErrorOrNil("GetFanSpeed", ret)
 }
 
+//nolint:revive // Maintaining consistency with go-nvml API naming
 func (d *safeDeviceImpl) GetFanSpeed_v2(fanIndex int) (uint32, error) {
 	if err := d.lib.lookup(toNativeName("GetFanSpeed_v2")); err != nil {
 		return 0, err
