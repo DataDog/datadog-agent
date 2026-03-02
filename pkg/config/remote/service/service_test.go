@@ -1526,8 +1526,7 @@ func TestWithOrgStatusPollingIntervalConfigPassed(t *testing.T) {
 
 // TestBypassTriggersOnNewProducts verifies that when an already-active client
 // adds a new product after initially connecting for APM, the
-// cache bypass fires. This is the fix for the startup latency issue where the
-// bypass only fired for new clients, not new products.
+// cache bypass fires. The bypass should trigger for new products, not just new clients.
 func TestBypassTriggersOnNewProducts(t *testing.T) {
 	api := &mockAPI{}
 	uptaneClient := &mockCoreAgentUptane{}

@@ -38,7 +38,7 @@ func TestClients(t *testing.T) {
 }
 
 func TestHasNewProducts(t *testing.T) {
-	testTTL := time.Second * 30
+	testTTL := time.Hour // TTL is irrelevant for hasNewProducts; any large value works
 	clock := clock.NewMock()
 	clock.Set(time.Now())
 	clients := newClients(clock, testTTL)
