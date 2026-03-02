@@ -11,9 +11,13 @@ TODO:
 add collector tests
 Check in Cloud Run Functions, Cloud Run Jobs, Azure Web Apps, Sidecar
 Add instance id tag to app service metrics
+instance id for jobs (task count or execution_name?)
 Remove/add debug logs as needed
 Send gcr job cpu metrics with .container prefix?
 Does first gen cloud run support cgroups?
+remove percentage metric
+test multiple sidecars
+check if cpu usage for google cloud run is across main and sidecar container
 */
 
 package collector
