@@ -44,15 +44,6 @@ var defaultRegistry = []ComponentRegistration{
 		},
 	},
 	{
-		Name:           "zscore",
-		DisplayName:    "Z-Score",
-		Category:       "analyzer",
-		DefaultEnabled: true,
-		Factory: func(tb *TestBench) interface{} {
-			return NewRobustZScoreDetector()
-		},
-	},
-	{
 		Name:           "bocpd",
 		DisplayName:    "BOCPD",
 		Category:       "analyzer",
@@ -100,15 +91,6 @@ var defaultRegistry = []ComponentRegistration{
 				MinLift:           2.0,
 				MinSupport:        2,
 			})
-		},
-	},
-	{
-		Name:           "graph_sketch",
-		DisplayName:    "GraphSketch",
-		Category:       "correlator",
-		DefaultEnabled: false,
-		Factory: func(_ *TestBench) interface{} {
-			return NewGraphSketchCorrelator(DefaultGraphSketchCorrelatorConfig())
 		},
 	},
 	// Processing
