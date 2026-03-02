@@ -99,17 +99,8 @@ func (cm ConfigMap) ToPulumi() auto.ConfigMap {
 	return (auto.ConfigMap)(cm)
 }
 
-// SetConfigMapFromSecret set config map from a secret store
-func SetConfigMapFromSecret(secretStore parameters.Store, cm ConfigMap, paramName parameters.StoreKey, configMapKey string) error {
-	return setConfigMapFromParameter(secretStore, cm, paramName, configMapKey, true)
-}
-
-// SetConfigMapFromParameter set config map from a parameter store
-func SetConfigMapFromParameter(store parameters.Store, cm ConfigMap, paramName parameters.StoreKey, configMapKey string) error {
-	return setConfigMapFromParameter(store, cm, paramName, configMapKey, false)
-}
-
-func setConfigMapFromParameter(store parameters.Store, cm ConfigMap, paramName parameters.StoreKey, configMapKey string, secret bool) error {
+// SetConfigMapFromStore sets a config map value from the given store, marking it as secret or not.
+func SetConfigMapFromStore(store parameters.Store, cm ConfigMap, paramName parameters.StoreKey, configMapKey string, secret bool) error {
 	val, err := store.Get(paramName)
 	if err != nil {
 		if errors.As(err, &parameters.ParameterNotFoundError{}) {
@@ -134,61 +125,40 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 
 	// Parameters from profile
 	cm.Set(InfraEnvironmentVariables, profile.EnvironmentNames(), false)
-	params := map[parameters.StoreKey][]string{
-		parameters.KeyPairName:         {AWSKeyPairName},
-		parameters.AWSPublicKeyPath:    {AWSPublicKeyPath},
-		parameters.AzurePublicKeyPath:  {AzurePublicKeyPath},
-		parameters.GCPPublicKeyPath:    {GCPPublicKeyPath},
-		parameters.AWSPrivateKeyPath:   {AWSPrivateKeyPath},
-		parameters.AzurePrivateKeyPath: {AzurePrivateKeyPath},
-		parameters.GCPPrivateKeyPath:   {GCPPrivateKeyPath},
-		parameters.ImagePullRegistry:   {ImagePullRegistry},
-		parameters.ImagePullUsername:   {ImagePullUsername},
-		parameters.LocalPublicKeyPath:  {LocalPublicKeyPath},
-		parameters.ExtraResourcesTags:  {InfraExtraResourcesTags},
-		parameters.PipelineID:          {AgentPipelineID},
-		parameters.FIPS:                {AgentFIPS},
-		parameters.MajorVersion:        {AgentMajorVersion},
-		parameters.CommitSHA:           {AgentCommitSHA},
-		parameters.InitOnly:            {InfraInitOnly},
+	type paramEntry struct {
+		store         parameters.Store
+		configMapKeys []string
+		secret        bool
 	}
 
-	for storeKey, configMapKeys := range params {
-		for _, configMapKey := range configMapKeys {
-
-			err = SetConfigMapFromParameter(profile.ParamStore(), cm, storeKey, configMapKey)
-			if err != nil {
-				return nil, err
-			}
-		}
+	allParams := map[parameters.StoreKey]paramEntry{
+		parameters.KeyPairName:             {profile.ParamStore(), []string{AWSKeyPairName}, false},
+		parameters.AWSPublicKeyPath:        {profile.ParamStore(), []string{AWSPublicKeyPath}, false},
+		parameters.AzurePublicKeyPath:      {profile.ParamStore(), []string{AzurePublicKeyPath}, false},
+		parameters.GCPPublicKeyPath:        {profile.ParamStore(), []string{GCPPublicKeyPath}, false},
+		parameters.AWSPrivateKeyPath:       {profile.ParamStore(), []string{AWSPrivateKeyPath}, false},
+		parameters.AzurePrivateKeyPath:     {profile.ParamStore(), []string{AzurePrivateKeyPath}, false},
+		parameters.GCPPrivateKeyPath:       {profile.ParamStore(), []string{GCPPrivateKeyPath}, false},
+		parameters.ImagePullRegistry:       {profile.ParamStore(), []string{ImagePullRegistry}, false},
+		parameters.ImagePullUsername:       {profile.ParamStore(), []string{ImagePullUsername}, false},
+		parameters.ImagePullPassword:       {profile.ParamStore(), []string{ImagePullPassword}, true},
+		parameters.LocalPublicKeyPath:      {profile.ParamStore(), []string{LocalPublicKeyPath}, false},
+		parameters.ExtraResourcesTags:      {profile.ParamStore(), []string{InfraExtraResourcesTags}, false},
+		parameters.PipelineID:              {profile.ParamStore(), []string{AgentPipelineID}, false},
+		parameters.FIPS:                    {profile.ParamStore(), []string{AgentFIPS}, false},
+		parameters.MajorVersion:            {profile.ParamStore(), []string{AgentMajorVersion}, false},
+		parameters.CommitSHA:               {profile.ParamStore(), []string{AgentCommitSHA}, false},
+		parameters.InitOnly:                {profile.ParamStore(), []string{InfraInitOnly}, false},
+		parameters.APIKey:                  {profile.SecretStore(), []string{AgentAPIKey}, true},
+		parameters.APPKey:                  {profile.SecretStore(), []string{AgentAPPKey}, true},
+		parameters.AWSPrivateKeyPassword:   {profile.SecretStore(), []string{AWSPrivateKeyPassword}, true},
+		parameters.AzurePrivateKeyPassword: {profile.SecretStore(), []string{AzurePrivateKeyPassword}, true},
+		parameters.GCPPrivateKeyPassword:   {profile.SecretStore(), []string{GCPPrivateKeyPassword}, true},
 	}
 
-	// Secret parameters from profile store
-	secretParams := map[parameters.StoreKey][]string{
-		parameters.APIKey:                  {AgentAPIKey},
-		parameters.APPKey:                  {AgentAPPKey},
-		parameters.AWSPrivateKeyPassword:   {AWSPrivateKeyPassword},
-		parameters.AzurePrivateKeyPassword: {AzurePrivateKeyPassword},
-		parameters.GCPPrivateKeyPassword:   {GCPPrivateKeyPassword},
-	}
-
-	for storeKey, configMapKeys := range secretParams {
-		for _, configMapKey := range configMapKeys {
-			err = SetConfigMapFromSecret(profile.SecretStore(), cm, storeKey, configMapKey)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	// Secret parameters from the regular param store (passed as env vars but should be treated as secrets)
-	secretEnvParams := map[parameters.StoreKey][]string{
-		parameters.ImagePullPassword: {ImagePullPassword},
-	}
-
-	for storeKey, configMapKeys := range secretEnvParams {
-		for _, configMapKey := range configMapKeys {
-			err = SetConfigMapFromSecret(profile.ParamStore(), cm, storeKey, configMapKey)
+	for storeKey, entry := range allParams {
+		for _, configMapKey := range entry.configMapKeys {
+			err = SetConfigMapFromStore(entry.store, cm, storeKey, configMapKey, entry.secret)
 			if err != nil {
 				return nil, err
 			}
