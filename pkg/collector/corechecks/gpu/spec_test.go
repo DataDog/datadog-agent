@@ -8,7 +8,6 @@
 package gpu
 
 import (
-	"fmt"
 	"os"
 	"slices"
 	"strings"
@@ -18,7 +17,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -475,7 +474,7 @@ func setupMockCheckForMetricCollection(t *testing.T, archName string, mode testu
 			nil,
 			nil,
 			[]string{
-				"kube_container_name:" + fmt.Sprintf("name-%s", containerID),
+				"kube_container_name:name-" + containerID,
 			},
 			nil,
 		)
