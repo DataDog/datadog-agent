@@ -161,10 +161,10 @@ func (a *Agent) installWindowsInstallScript(params *installParams) error {
 		scriptURL = fmt.Sprintf("https://installtesting.datad0g.com/pipeline-%s/scripts/Install-Datadog.ps1", os.Getenv("E2E_PIPELINE_ID"))
 	} else if params.stagingPackages != "" {
 		env["DD_SITE"] = "datad0g.com"
-		env["DD_INSTALLER_URL"] = fmt.Sprintf("https://install.datad0g.com/datadog-installer-%s-x86_64.exe", params.stagingPackages)
-		env["DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT"] = params.stagingPackages
+		env["DD_INSTALLER_URL"] = fmt.Sprintf("https://install.datad0g.com/builds/beta/datadog-installer-%s-1-x86_64.exe", strings.ReplaceAll(params.stagingPackages, "~", "-"))
+		env["DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT"] = strings.ReplaceAll(params.stagingPackages, "~", "-")+"-1"
 		env["DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE"] = "install.datad0g.com.internal.dda-testing.com"
-		scriptURL = windowsInstallScriptURL
+		scriptURL = fmt.Sprintf("https://install.datad0g.com/builds/beta/Install-Datadog-%s-1.ps1", strings.ReplaceAll(params.stagingPackages, "~", "-"))
 	}
 	_, err := a.host.RemoteHost.Execute(fmt.Sprintf(`Set-ExecutionPolicy Bypass -Scope Process -Force;
 	[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
