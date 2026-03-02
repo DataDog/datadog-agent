@@ -233,7 +233,7 @@ func (e *CommonEnvironment) InfraOSImageIDUseLatest() bool {
 }
 
 func (e *CommonEnvironment) KubernetesVersion() string {
-	return e.GetStringWithDefault(e.InfraConfig, DDInfraKubernetesVersion, "1.34")
+	return e.GetStringWithDefault(e.InfraConfig, DDInfraKubernetesVersion, "1.35")
 }
 
 func (e *CommonEnvironment) KindVersion() string {
