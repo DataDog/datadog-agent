@@ -156,6 +156,11 @@ export function TSAnalysisView({
     return metricGroups.filter((g) => (anomalyCountByGroup.get(g.key) ?? 0) > 0);
   }, [metricGroups, showAnomalyOnlyGroups, anomalyCountByGroup]);
 
+  const telemetryGroups = useMemo(
+    () => visibleGroups.filter((g) => g.namespace === 'telemetry'),
+    [visibleGroups]
+  );
+
   const displayGroups = useMemo(
     () => visibleGroups.map((g) => ({ key: g.key, name: g.baseName, displayName: g.baseName })),
     [visibleGroups]
@@ -175,13 +180,17 @@ export function TSAnalysisView({
     if (!state.activeScenario || state.connectionState !== 'ready') return;
     if (autoSelectedScenario === state.activeScenario) return;
 
-    const ranked = [...visibleGroups].sort((a, b) => {
-      const countDiff = (anomalyCountByGroup.get(b.key) ?? 0) - (anomalyCountByGroup.get(a.key) ?? 0);
-      if (countDiff !== 0) return countDiff;
-      return a.baseName.localeCompare(b.baseName);
-    });
+    const telKeys = visibleGroups.filter((g) => g.namespace === 'telemetry').map((g) => g.key);
 
-    setSelectedGroups(new Set(ranked.slice(0, 6).map((g) => g.key)));
+    const ranked = [...visibleGroups]
+      .filter((g) => g.namespace !== 'telemetry')
+      .sort((a, b) => {
+        const countDiff = (anomalyCountByGroup.get(b.key) ?? 0) - (anomalyCountByGroup.get(a.key) ?? 0);
+        if (countDiff !== 0) return countDiff;
+        return a.baseName.localeCompare(b.baseName);
+      });
+
+    setSelectedGroups(new Set([...ranked.slice(0, 6).map((g) => g.key), ...telKeys]));
     setAutoSelectedScenario(state.activeScenario);
     onTimeRangeChange(null);
   }, [state.activeScenario, state.connectionState, visibleGroups, anomalyCountByGroup, autoSelectedScenario, onTimeRangeChange]);
@@ -394,6 +403,29 @@ export function TSAnalysisView({
             <div className="flex gap-1">
               <button
                 onClick={() => {
+                  const telKeys = telemetryGroups.map((g) => g.key);
+                  const anySelected = telKeys.some((k) => selectedGroups.has(k));
+                  setSelectedGroups((prev) => {
+                    const next = new Set(prev);
+                    if (anySelected) {
+                      telKeys.forEach((k) => next.delete(k));
+                    } else {
+                      telKeys.forEach((k) => next.add(k));
+                    }
+                    return next;
+                  });
+                }}
+                className={`text-xs px-1.5 py-0.5 rounded font-bold transition-colors ${
+                  telemetryGroups.some((g) => selectedGroups.has(g.key))
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                }`}
+                title={telemetryGroups.some((g) => selectedGroups.has(g.key)) ? 'Deselect telemetry groups' : 'Select telemetry groups'}
+              >
+                T
+              </button>
+              <button
+                onClick={() => {
                   const anomalousKeys = displayGroups
                     .filter((g) => anomalousGroupKeys.has(g.key))
                     .map((g) => g.key);
@@ -466,47 +498,106 @@ export function TSAnalysisView({
             ) : groupSeriesData.size === 0 ? (
               <div className="text-center py-10 text-slate-500">Loading series data...</div>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {Array.from(selectedGroups).map((groupKey) => {
-                  const group = groupByKey.get(groupKey);
-                  if (!group) return null;
-                  const dataList = groupSeriesData.get(groupKey) ?? [];
-                  if (dataList.length === 0) return null;
+              <>
+                {/* Regular metric groups */}
+                {(() => {
+                  const cards = Array.from(selectedGroups)
+                    .filter((key) => {
+                      const g = groupByKey.get(key);
+                      return g && g.namespace !== 'telemetry';
+                    })
+                    .map((groupKey) => {
+                      const dataList = groupSeriesData.get(groupKey) ?? [];
+                      if (dataList.length === 0) return null;
+                      const chartSeries = showAnomalyOnlySeriesLines
+                        ? dataList.filter((d) => (anomalyCountBySeriesID.get(d.id) ?? 0) > 0)
+                        : dataList;
+                      if (chartSeries.length === 0) return null;
+                      const seriesIDs = new Set(chartSeries.map((d) => d.id));
+                      const seriesAnomalies = anomalies.filter((a) => a.sourceSeriesId && seriesIDs.has(a.sourceSeriesId));
+                      const anomalyMarkers = chartSeries.flatMap((d) => d.anomalies);
+                      const seriesVariants: SeriesVariant[] = chartSeries.map((d) => ({
+                        label: formatSeriesLabel(d.tags),
+                        points: d.points,
+                        seriesId: d.id,
+                      }));
+                      const primary = chartSeries[0];
+                      return (
+                        <ChartWithAnomalyDetails
+                          key={groupKey}
+                          name={primary.name}
+                          points={primary.points}
+                          anomalyMarkers={anomalyMarkers}
+                          anomalies={seriesAnomalies}
+                          correlationRanges={[]}
+                          enabledAnalyzers={enabledAnalyzers}
+                          timeRange={timeRange}
+                          onTimeRangeChange={onTimeRangeChange}
+                          smoothLines={smoothLines}
+                          seriesVariants={seriesVariants}
+                        />
+                      );
+                    })
+                    .filter(Boolean);
+                  return cards.length > 0 ? (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{cards}</div>
+                  ) : null;
+                })()}
 
-                  const chartSeries = showAnomalyOnlySeriesLines
-                    ? dataList.filter((d) => (anomalyCountBySeriesID.get(d.id) ?? 0) > 0)
-                    : dataList;
-                  if (chartSeries.length === 0) return null;
-
-                  const seriesIDs = new Set(chartSeries.map((d) => d.id));
-                  const seriesAnomalies = anomalies.filter((a) => a.sourceSeriesId && seriesIDs.has(a.sourceSeriesId));
-                  const anomalyMarkers = chartSeries.flatMap((d) => d.anomalies);
-
-                  const seriesVariants: SeriesVariant[] = chartSeries.map((d) => ({
-                    label: formatSeriesLabel(d.tags),
-                    points: d.points,
-                    seriesId: d.id,
-                  }));
-
-                  const primary = chartSeries[0];
-
-                  return (
-                    <ChartWithAnomalyDetails
-                      key={groupKey}
-                      name={primary.name}
-                      points={primary.points}
-                      anomalyMarkers={anomalyMarkers}
-                      anomalies={seriesAnomalies}
-                      correlationRanges={[]}
-                      enabledAnalyzers={enabledAnalyzers}
-                      timeRange={timeRange}
-                      onTimeRangeChange={onTimeRangeChange}
-                      smoothLines={smoothLines}
-                      seriesVariants={seriesVariants}
-                    />
-                  );
-                })}
-              </div>
+                {/* Telemetry metric groups — shown after a separator */}
+                {telemetryGroups.some((g) => selectedGroups.has(g.key)) && (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 border-t border-purple-800/50" />
+                      <div className="flex items-center gap-1.5 text-xs text-purple-400 font-medium">
+                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-600 text-white text-[9px] font-bold">T</span>
+                        Telemetry Metrics
+                      </div>
+                      <div className="flex-1 border-t border-purple-800/50" />
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {Array.from(selectedGroups)
+                        .filter((key) => {
+                          const g = groupByKey.get(key);
+                          return g && g.namespace === 'telemetry';
+                        })
+                        .map((groupKey) => {
+                          const dataList = groupSeriesData.get(groupKey) ?? [];
+                          if (dataList.length === 0) return null;
+                          const chartSeries = showAnomalyOnlySeriesLines
+                            ? dataList.filter((d) => (anomalyCountBySeriesID.get(d.id) ?? 0) > 0)
+                            : dataList;
+                          if (chartSeries.length === 0) return null;
+                          const seriesIDs = new Set(chartSeries.map((d) => d.id));
+                          const seriesAnomalies = anomalies.filter((a) => a.sourceSeriesId && seriesIDs.has(a.sourceSeriesId));
+                          const anomalyMarkers = chartSeries.flatMap((d) => d.anomalies);
+                          const seriesVariants: SeriesVariant[] = chartSeries.map((d) => ({
+                            label: formatSeriesLabel(d.tags),
+                            points: d.points,
+                            seriesId: d.id,
+                          }));
+                          const primary = chartSeries[0];
+                          return (
+                            <ChartWithAnomalyDetails
+                              key={groupKey}
+                              name={primary.name}
+                              points={primary.points}
+                              anomalyMarkers={anomalyMarkers}
+                              anomalies={seriesAnomalies}
+                              correlationRanges={[]}
+                              enabledAnalyzers={enabledAnalyzers}
+                              timeRange={timeRange}
+                              onTimeRangeChange={onTimeRangeChange}
+                              smoothLines={smoothLines}
+                              seriesVariants={seriesVariants}
+                              isTelemetry
+                            />
+                          );
+                        })}
+                    </div>
+                  </>
+                )}
+              </>
             )}
           </div>
         )}
