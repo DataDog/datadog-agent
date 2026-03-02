@@ -170,12 +170,25 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 		parameters.AWSPrivateKeyPassword:   {AWSPrivateKeyPassword},
 		parameters.AzurePrivateKeyPassword: {AzurePrivateKeyPassword},
 		parameters.GCPPrivateKeyPassword:   {GCPPrivateKeyPassword},
-		parameters.ImagePullPassword:       {ImagePullPassword},
 	}
 
 	for storeKey, configMapKeys := range secretParams {
 		for _, configMapKey := range configMapKeys {
 			err = SetConfigMapFromSecret(profile.SecretStore(), cm, storeKey, configMapKey)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	// Secret parameters from the regular param store (passed as env vars but should be treated as secrets)
+	secretEnvParams := map[parameters.StoreKey][]string{
+		parameters.ImagePullPassword: {ImagePullPassword},
+	}
+
+	for storeKey, configMapKeys := range secretEnvParams {
+		for _, configMapKey := range configMapKeys {
+			err = SetConfigMapFromSecret(profile.ParamStore(), cm, storeKey, configMapKey)
 			if err != nil {
 				return nil, err
 			}
