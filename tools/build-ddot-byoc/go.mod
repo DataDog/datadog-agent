@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/tools/build-ddot-byoc
 
-go 1.25.7
+go 1.25.6
 
 require (
 	github.com/google/go-containerregistry v0.20.7

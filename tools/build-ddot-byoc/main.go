@@ -47,17 +47,21 @@ func (k usernamePasswordKeychain) Resolve(_ authn.Resource) (authn.Authenticator
 
 // getKeychain builds a keychain from REGISTRY_AUTH / REGISTRY_USERNAME / REGISTRY_PASSWORD.
 // When REGISTRY_AUTH is unset the standard Docker credential chain is used.
-func getKeychain() authn.Keychain {
+// This keychain is used only for pushing the output; the source index is always pulled with
+// authn.DefaultKeychain since the Datadog Agent OCI package is publicly accessible.
+func getKeychain() (authn.Keychain, error) {
 	switch os.Getenv(envRegistryAuth) {
 	case "gcr":
-		return google.Keychain
+		return google.Keychain, nil
 	case "password":
-		return usernamePasswordKeychain{
-			username: os.Getenv(envRegistryUsername),
-			password: os.Getenv(envRegistryPassword),
+		username := os.Getenv(envRegistryUsername)
+		password := os.Getenv(envRegistryPassword)
+		if username == "" || password == "" {
+			return nil, fmt.Errorf("REGISTRY_AUTH=password requires both %s and %s to be set", envRegistryUsername, envRegistryPassword)
 		}
+		return usernamePasswordKeychain{username: username, password: password}, nil
 	default: // "docker" or unset
-		return authn.DefaultKeychain
+		return authn.DefaultKeychain, nil
 	}
 }
 
@@ -84,15 +88,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := run(*agentOCI, *otelAgent, *outputOCI, *targetOS, *targetArch); err != nil {
+	pushKeychain, err := getKeychain()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
+	if err := run(*agentOCI, *otelAgent, *outputOCI, *targetOS, *targetArch, pushKeychain); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
 }
 
-func run(agentOCI, otelAgentPath, outputOCI, targetOS, targetArch string) error {
+func run(agentOCI, otelAgentPath, outputOCI, targetOS, targetArch string, pushKeychain authn.Keychain) error {
 	ctx := context.Background()
-	keychain := getKeychain()
 
 	// Parse source reference (strip oci:// prefix if present).
 	srcRef, err := name.ParseReference(strings.TrimPrefix(agentOCI, "oci://"))
@@ -100,8 +108,9 @@ func run(agentOCI, otelAgentPath, outputOCI, targetOS, targetArch string) error 
 		return fmt.Errorf("parsing source reference: %w", err)
 	}
 
+	// The Datadog Agent OCI package is publicly accessible, so always pull with the default keychain.
 	fmt.Printf("Pulling source OCI image from %s\n", agentOCI)
-	srcIndex, err := remote.Index(srcRef, remote.WithAuthFromKeychain(keychain), remote.WithContext(ctx))
+	srcIndex, err := remote.Index(srcRef, remote.WithAuthFromKeychain(authn.DefaultKeychain), remote.WithContext(ctx))
 	if err != nil {
 		return fmt.Errorf("pulling source index: %w", err)
 	}
@@ -166,7 +175,7 @@ func run(agentOCI, otelAgentPath, outputOCI, targetOS, targetArch string) error 
 	}
 
 	fmt.Printf("Pushing customized package to %s\n", outputOCI)
-	if err := remote.WriteIndex(dstRef, newIndex, remote.WithAuthFromKeychain(keychain), remote.WithContext(ctx)); err != nil {
+	if err := remote.WriteIndex(dstRef, newIndex, remote.WithAuthFromKeychain(pushKeychain), remote.WithContext(ctx)); err != nil {
 		return fmt.Errorf("pushing to output registry: %w", err)
 	}
 
@@ -186,9 +195,18 @@ func replaceDdotBinary(img v1.Image, newBinaryData []byte, binaryPath string) (v
 		return nil, fmt.Errorf("getting manifest: %w", err)
 	}
 
+	srcConfig, err := img.ConfigFile()
+	if err != nil {
+		return nil, fmt.Errorf("getting config file: %w", err)
+	}
+
 	newImg := empty.Image
 	newImg = mutate.MediaType(newImg, types.OCIManifestSchema1)
 	newImg = mutate.ConfigMediaType(newImg, agentPackageMediaType)
+	newImg, err = mutate.ConfigFile(newImg, srcConfig)
+	if err != nil {
+		return nil, fmt.Errorf("setting config file: %w", err)
+	}
 	if len(manifest.Annotations) > 0 {
 		newImg = mutate.Annotations(newImg, manifest.Annotations).(v1.Image)
 	}
