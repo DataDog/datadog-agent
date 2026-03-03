@@ -1193,7 +1193,7 @@ func (tb *TestBench) loadDemoScenario() error {
 				servicetag = "service:service_b"
 			}
 			tb.rawLogs = append(tb.rawLogs, recorderdef.LogData{
-				Timestamp: timestamp,
+				Timestamp: timestamp * 1000,
 				Status:    "error",
 				Content:   []byte(content),
 				Tags:      []string{servicetag},
