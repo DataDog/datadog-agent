@@ -213,7 +213,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				},
 			{{- else}}
 				{{- $ReturnType := $Field.ReturnType}}
-				EvalFnc: func(ctx *eval.Context) {{- if not $Field.IsIterator}}{{$Field.GetArrayPrefix}}{{end}}{{$ReturnType}} {
+				EvalFnc: func(ctx *eval.Context) {{- if not (or $Field.IsIterator $Field.IsLength)}}{{$Field.GetArrayPrefix}}{{end}}{{$ReturnType}} {
 					ctx.AppendResolvedField(field)
 					{{- if not (and $Field.IsIterator (or $Field.IsLength $Field.IsRootDomain))}}
 						ev := ctx.Event.(*Event)
