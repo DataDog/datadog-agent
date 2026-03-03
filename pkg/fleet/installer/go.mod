@@ -13,7 +13,7 @@ require (
 	github.com/fatih/color v1.18.0
 	github.com/google/go-containerregistry v0.20.7
 	github.com/google/uuid v1.6.0
-	github.com/shirou/gopsutil/v4 v4.26.1
+	github.com/shirou/gopsutil/v4 v4.26.2
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	go.etcd.io/bbolt v1.4.3
@@ -35,7 +35,7 @@ require (
 	github.com/docker/cli v29.0.3+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.3 // indirect
-	github.com/ebitengine/purego v0.9.1 // indirect
+	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/klauspost/compress v1.18.4 // indirect
