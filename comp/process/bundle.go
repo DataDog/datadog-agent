@@ -14,7 +14,7 @@ package process
 import (
 	connectionsforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/fx"
 	"github.com/DataDog/datadog-agent/comp/process/agent/agentimpl"
-	"github.com/DataDog/datadog-agent/comp/process/apiserver"
+	apiserverimpl "github.com/DataDog/datadog-agent/comp/process/apiserver/fx"
 	"github.com/DataDog/datadog-agent/comp/process/connectionscheck/connectionscheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck/containercheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/expvars/expvarsimpl"
@@ -54,7 +54,7 @@ func Bundle() fxutil.BundleOptions {
 		hostinfoimpl.Module(),
 		expvarsimpl.Module(),
 
-		apiserver.Module(),
+		apiserverimpl.Module(),
 		connectionsforwarderfx.Module(),
 		forwardersimpl.Module(),
 		logscompression.Module(),

@@ -31,6 +31,7 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	apiserverimpl "github.com/DataDog/datadog-agent/comp/process/apiserver/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -43,7 +44,7 @@ func TestLifecycle(t *testing.T) {
 	var ipcComp ipc.Component
 
 	_ = fxutil.Test[Component](t, fx.Options(
-		Module(),
+		apiserverimpl.Module(),
 		fx.Provide(func(t testing.TB) logcomp.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) config.Component {
 			return config.NewMockWithOverrides(t, map[string]interface{}{
@@ -79,7 +80,7 @@ func TestPostAuthentication(t *testing.T) {
 	var ipcComp ipc.Component
 
 	_ = fxutil.Test[Component](t, fx.Options(
-		Module(),
+		apiserverimpl.Module(),
 		fx.Provide(func(t testing.TB) logcomp.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) config.Component {
 			return config.NewMockWithOverrides(t, map[string]interface{}{
