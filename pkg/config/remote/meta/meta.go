@@ -9,9 +9,11 @@ package meta
 import (
 	_ "embed"
 	"encoding/json"
+	"strings"
+
+	"github.com/DataDog/go-tuf/data"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/go-tuf/data"
 )
 
 var (
@@ -24,6 +26,11 @@ var (
 	stagingRootDirector []byte
 	//go:embed staging.config.json
 	stagingRootConfig []byte
+
+	//go:embed gov.director.json
+	govRootDirector []byte
+	//go:embed gov.config.json
+	govRootConfig []byte
 )
 
 // EmbeddedRoot is an embedded root with its version parsed
@@ -49,12 +56,14 @@ func RootsDirector(site string, directorRootOverride string) EmbeddedRoot {
 	if directorRootOverride != "" {
 		return NewEmbeddedRoot([]byte(directorRootOverride))
 	}
-	switch site {
-	case "datad0g.com":
+
+	if site == "datad0g.com" {
 		return NewEmbeddedRoot(stagingRootDirector)
-	default:
-		return NewEmbeddedRoot(prodRootDirector)
+	} else if site == "ddog-gov.com" || strings.HasSuffix(site, ".ddog-gov.com") {
+		return NewEmbeddedRoot(govRootDirector)
 	}
+	return NewEmbeddedRoot(prodRootDirector)
+
 }
 
 // RootsConfig returns all the roots of the director repo
@@ -63,12 +72,12 @@ func RootsConfig(site string, configRootOverride string) EmbeddedRoot {
 		return NewEmbeddedRoot([]byte(configRootOverride))
 	}
 
-	switch site {
-	case "datad0g.com":
+	if site == "datad0g.com" {
 		return NewEmbeddedRoot(stagingRootConfig)
-	default:
-		return NewEmbeddedRoot(prodRootConfig)
+	} else if site == "ddog-gov.com" || strings.HasSuffix(site, ".ddog-gov.com") {
+		return NewEmbeddedRoot(govRootConfig)
 	}
+	return NewEmbeddedRoot(prodRootConfig)
 }
 
 // Root returns the last root the EmbeddedRoots

@@ -12,12 +12,12 @@ import (
 	"sync"
 	"time"
 
-	osComp "github.com/DataDog/test-infra-definitions/components/os"
+	osComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager"
 )
@@ -130,7 +130,7 @@ func (a *authArtifactBase) checkAgentLogs(agentName string) string {
 
 	var result string
 	a.EventuallyWithT(func(t *assert.CollectT) {
-		content, err := a.Env().RemoteHost.ReadFile(logLocation)
+		content, err := a.Env().RemoteHost.ReadFilePrivileged(logLocation)
 		require.NoError(t, err)
 
 		for _, p := range extraPatterns {

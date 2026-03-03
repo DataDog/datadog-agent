@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    The Datadog Installer now keeps YAML comments
+    when updating the Agent configuration during installation.
+    While comment text is preserved, its format may not be.
+    Changes to whitespace, indentation, or blank lines may occur.

@@ -32,6 +32,9 @@ var moduleOrder = []types.ModuleName{
 	config.DiscoveryModule,
 	config.GPUMonitoringModule, // GPU monitoring needs to be initialized after EventMonitor, so that we have the event consumer ready
 	config.SoftwareInventoryModule,
+	config.PrivilegedLogsModule,
+	config.InjectorModule,
+	config.NoisyNeighborModule,
 }
 
 // nolint: deadcode, unused // may be unused with certain build tag combinations

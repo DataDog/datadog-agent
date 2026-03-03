@@ -45,3 +45,23 @@ ip netns exec endpoint ip link set lo up
 ip netns exec router sysctl -w net.ipv4.ip_forward=1
 ip netns exec endpoint ip route add default via 198.51.100.1
 ip route add 198.51.100.0/24 via 192.0.2.2 dev veth0
+
+# disable ICMP rate limiting
+sysctl -q -w net.ipv4.icmp_ratelimit=0
+sysctl -q -w net.ipv4.icmp_ratemask=0
+ip netns exec router sysctl -q -w net.ipv4.icmp_ratelimit=0
+ip netns exec router sysctl -q -w net.ipv4.icmp_ratemask=0
+ip netns exec endpoint sysctl -q -w net.ipv4.icmp_ratelimit=0
+ip netns exec endpoint sysctl -q -w net.ipv4.icmp_ratemask=0
+
+# disable reverse-path filtering to avoid dropping valid ICMP responses
+sysctl -q -w net.ipv4.conf.all.rp_filter=0
+sysctl -q -w net.ipv4.conf.default.rp_filter=0
+sysctl -q -w net.ipv4.conf.veth0.rp_filter=0
+ip netns exec router sysctl -q -w net.ipv4.conf.all.rp_filter=0
+ip netns exec router sysctl -q -w net.ipv4.conf.default.rp_filter=0
+ip netns exec router sysctl -q -w net.ipv4.conf.veth1.rp_filter=0
+ip netns exec router sysctl -q -w net.ipv4.conf.veth2.rp_filter=0
+ip netns exec endpoint sysctl -q -w net.ipv4.conf.all.rp_filter=0
+ip netns exec endpoint sysctl -q -w net.ipv4.conf.default.rp_filter=0
+ip netns exec endpoint sysctl -q -w net.ipv4.conf.veth3.rp_filter=0

@@ -10,6 +10,7 @@ package object
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -111,7 +112,7 @@ func (r compressedSectionMetadata) data(
 
 	switch r.format {
 	case compressionFormatUnknown:
-		return nil, fmt.Errorf("unknown compression format")
+		return nil, errors.New("unknown compression format")
 	case compressionFormatNone:
 		return mef.mmap(uint64(r.offset), uint64(r.uncompressedLength))
 	case compressionFormatZlib:
@@ -234,7 +235,7 @@ func readCompressedFileRange(
 	//
 	// See https://github.com/golang/go/blob/d166a0b0/src/debug/elf/file.go#L557-L579
 	if s.Flags&elf_SHF_ALLOC != 0 {
-		return r, fmt.Errorf("SHF_COMPRESSED applies only to non-allocable sections")
+		return r, errors.New("SHF_COMPRESSED applies only to non-allocable sections")
 	}
 	sr := io.NewSectionReader(fileReaderAt, int64(s.Offset), int64(s.FileSize))
 
@@ -260,8 +261,8 @@ func readCompressedFileRange(
 		case elf_COMPRESS_ZLIB:
 			r.format = compressionFormatZlib
 			r.offset = int64(s.Offset) + int64(unsafe.Sizeof(ch))
-			r.compressedLength = int64(s.Size) - int64(unsafe.Sizeof(ch))
-			r.uncompressedLength = int64(bo.Uint64(chdata[unsafe.Offsetof(ch.Size):]))
+			r.compressedLength = int64(s.FileSize) - int64(unsafe.Sizeof(ch))
+			r.uncompressedLength = int64(s.Size)
 			return r, nil
 		default:
 			return r, fmt.Errorf("unknown compression type: %#v %x", ct, ct)
@@ -277,8 +278,8 @@ func readCompressedFileRange(
 		case elf_COMPRESS_ZLIB:
 			r.format = compressionFormatZlib
 			r.offset = int64(s.Offset) + int64(unsafe.Sizeof(ch))
-			r.compressedLength = int64(s.Size) - int64(unsafe.Sizeof(ch))
-			r.uncompressedLength = int64(bo.Uint64(chdata[unsafe.Offsetof(ch.Size):]))
+			r.compressedLength = int64(s.FileSize) - int64(unsafe.Sizeof(ch))
+			r.uncompressedLength = int64(s.Size)
 			return r, nil
 		default:
 			return r, fmt.Errorf("unknown compression type: %#v %x", ct, chdata)

@@ -7,6 +7,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -149,7 +150,7 @@ func setConfigValue(deps dependencies, args []string) error {
 	}
 
 	if len(args) != 2 {
-		return fmt.Errorf("exactly two parameters are required: the setting name and its value")
+		return errors.New("exactly two parameters are required: the setting name and its value")
 	}
 
 	hidden, err := c.Set(args[0], args[1])
@@ -173,7 +174,7 @@ func getConfigValue(deps dependencies, args []string) error {
 	}
 
 	if len(args) != 1 {
-		return fmt.Errorf("a single setting name must be specified")
+		return errors.New("a single setting name must be specified")
 	}
 
 	value, err := c.Get(args[0])
@@ -198,6 +199,6 @@ func getClient(deps dependencies) (settings.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	settingsClient := settingshttp.NewHTTPSClient(deps.Client, ipcAddressWithPort, "process-agent", ipchttp.WithLeaveConnectionOpen)
+	settingsClient := settingshttp.NewSecureClient(deps.Client, ipcAddressWithPort, "process-agent", ipchttp.WithLeaveConnectionOpen)
 	return settingsClient, nil
 }

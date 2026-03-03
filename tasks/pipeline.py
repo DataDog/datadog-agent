@@ -1,5 +1,4 @@
 import os
-import pprint
 import re
 import sys
 import time
@@ -14,7 +13,6 @@ from invoke.exceptions import Exit
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
     cancel_pipeline,
-    get_gitlab_bot_token,
     get_gitlab_repo,
     gitlab_configuration_is_modified,
     refresh_pipeline,
@@ -98,9 +96,6 @@ def auto_cancel_previous_pipelines(ctx):
     Automatically cancel previous pipelines running on the same ref
     """
 
-    if not os.environ.get('GITLAB_TOKEN'):
-        raise Exit("GITLAB_TOKEN variable needed to cancel pipelines on the same ref.", 1)
-
     git_ref = os.environ["CI_COMMIT_REF_NAME"]
     if git_ref == "":
         raise Exit("CI_COMMIT_REF_NAME is empty, skipping pipeline cancellation", 0)
@@ -153,7 +148,6 @@ def run(
     ctx,
     git_ref="",
     here=False,
-    major_versions=None,
     repo_branch="dev",
     deploy=False,
     deploy_installer=False,
@@ -161,7 +155,7 @@ def run(
     e2e_tests=True,
     kmt_tests=True,
     rc_build=False,
-    rc_k8s_deployments=False,
+    run_flaky_tests=False,
 ):
     """
     Run a pipeline on the given git ref (--git-ref <git ref>), or on the current branch if --here is given.
@@ -171,10 +165,10 @@ def run(
     Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on pipelines on the default branch).
     Use --no-kmt-tests to not run all Kernel Matrix Tests on the pipeline.
     Use --e2e-tests to run all e2e tests on the pipeline.
+    Use --run-flaky-tests to run tests that are marked as flaky (by default, known flaky tests are skipped).
 
     Release Candidate related flags:
-    Use --rc-build to mark the build as Release Candidate.
-    Use --rc-k8s-deployments to trigger a child pipeline that will deploy Release Candidate build to staging k8s clusters.
+    Use --rc-build to mark the build as Release Candidate. Staging k8s deployment PR will be created during the build pipeline.
 
     By default, the pipeline builds both Agent 6 and Agent 7.
     Use the --major-versions option to specify a comma-separated string of the major Agent versions to build
@@ -198,6 +192,9 @@ def run(
     Run a pipeline with e2e tets on the current branch:
       dda inv pipeline.run --here --e2e-tests
 
+    Run a pipeline that includes flaky tests on the current branch:
+      dda inv pipeline.run --here --run-flaky-tests
+
     Run a deploy pipeline on the 7.32.0 tag, uploading the artifacts to the stable branch of the staging repositories:
       dda inv pipeline.run --deploy --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
     """
@@ -206,12 +203,6 @@ def run(
 
     if (git_ref == "" and not here) or (git_ref != "" and here):
         raise Exit("ERROR: Exactly one of --here or --git-ref <git ref> must be specified.", code=1)
-
-    if major_versions:
-        print(
-            "[WARNING] --major-versions option will be deprecated soon. Both Agent 6 & 7 will be run everytime.",
-            file=sys.stderr,
-        )
 
     if here:
         git_ref = get_current_branch(ctx)
@@ -260,7 +251,7 @@ def run(
             e2e_tests=e2e_tests,
             kmt_tests=kmt_tests,
             rc_build=rc_build,
-            rc_k8s_deployments=rc_k8s_deployments,
+            run_flaky_tests=run_flaky_tests,
         )
     except FilteredOutException:
         print(color_message(f"ERROR: pipeline does not match any workflow rule. Rules:\n{workflow_rules()}", "red"))
@@ -329,7 +320,7 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True,
     Use --variable to specify the environment variables that should be passed to the child pipeline.
     You can pass the argument multiple times for each new variable you wish to forward
 
-    Use --follow to make this task wait for the pipeline to finish, and return 1 if it fails. (requires GITLAB_TOKEN).
+    Use --follow to make this task wait for the pipeline to finish, and return 1 if it fails.
 
     Use --timeout to set up a timeout shorter than the default 2 hours, to anticipate failures if any.
 
@@ -342,15 +333,9 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True,
     if not os.environ.get('CI_JOB_TOKEN'):
         raise Exit("CI_JOB_TOKEN variable needed to create child pipelines.", 1)
 
-    if not os.environ.get('GITLAB_TOKEN'):
-        if follow:
-            raise Exit("GITLAB_TOKEN variable needed to follow child pipelines.", 1)
-        else:
-            # The Gitlab lib requires `GITLAB_TOKEN` to be
-            # set, but trigger_pipeline doesn't use it
-            os.environ["GITLAB_TOKEN"] = os.environ['CI_JOB_TOKEN']
-
-    repo = get_gitlab_repo(project_name)
+    # Use the CI_JOB_TOKEN which is passed from gitlab
+    token = None if follow else os.environ['CI_JOB_TOKEN']
+    repo = get_gitlab_repo(project_name, token=token)
 
     # Fill the environment variables to pass to the child pipeline.
     variables = {}
@@ -414,6 +399,7 @@ def is_system_probe(owners, files):
         ("TEAM", "@DataDog/ebpf-platform"),
         ("TEAM", "@DataDog/agent-security"),
         ("TEAM", "@DataDog/cloud-network-monitoring"),
+        ("TEAM", "@DataDog/network-path"),
         ("TEAM", "@DataDog/debugger-go"),
     }
     for f in files:
@@ -428,7 +414,10 @@ EMAIL_SLACK_ID_MAP = {
     "guy20495@gmail.com": "U03LJSCAPK2",
     "safchain@gmail.com": "U01009CUG9X",
     "usamasaqib.96@live.com": "U03D807V94J",
-    "leeavital@gmail.com": "UDG2223C1",
+}
+GITHUB_SLACK_ID_MAP = {
+    "gjulianm": "U069N8XCSQ0",
+    "jmw51798": "U05FPPV9ASF",
 }
 
 
@@ -486,6 +475,12 @@ def changelog(ctx, new_commit_sha):
         author_handle = ""
         if author_email in EMAIL_SLACK_ID_MAP:
             author_handle = EMAIL_SLACK_ID_MAP[author_email]
+        elif author_email.endswith("@users.noreply.github.com"):
+            github_username = author_email.removesuffix("@users.noreply.github.com")
+            if "+" in github_username:
+                github_username = github_username.split("+", maxsplit=1)[1]
+            if github_username in GITHUB_SLACK_ID_MAP:
+                author_handle = GITHUB_SLACK_ID_MAP[github_username]
         else:
             try:
                 recipient = client.users_lookupByEmail(email=author_email)
@@ -501,13 +496,12 @@ def changelog(ctx, new_commit_sha):
         messages.append(f"{message_link} {author_handle}")
 
     if messages:
-        slack_message += (
-            "\n".join(messages) + "\n:wave: Authors, please check the "
-            "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98?tpl_var_kube_cluster_name%5B0%5D=stripe"
-            "&tpl_var_kube_cluster_name%5B1%5D=oddish-b&tpl_var_kube_cluster_name%5B2%5D=lagaffe"
-            "&tpl_var_kube_cluster_name%5B3%5D=diglet&tpl_var_kube_cluster_name%5B4%5D=snowver"
-            "&tpl_var_kube_cluster_name%5B5%5D=chillpenguin&tpl_var_kube_cluster_name%5B6%5D=muk|dashboard> for issues"
-        )
+        slack_message += "\n".join(messages)
+        slack_message += "\n:wave: Authors, please check the <https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98?"
+        clusters = ["chillpenguin", "diglet", "lagaffe", "muk", "oddish-b", "snowver", "stripe", "venomoth"]
+        for i, cluster_name in enumerate(clusters):
+            slack_message += f"{"&" if i > 0 else ""}tpl_var_kube_cluster_name%5B{i}%5D={cluster_name}"
+        slack_message += "|dashboard> for issues"
     else:
         slack_message += empty_changelog_msg
 
@@ -521,147 +515,6 @@ def changelog(ctx, new_commit_sha):
     )
     if "unable to locate credentials" in res.stderr.casefold():
         raise Exit("Permanent error: unable to locate credentials, retry the job", code=42)
-
-
-@task
-def get_schedules(_, repo: str = 'DataDog/datadog-agent'):
-    """
-    Pretty-print all pipeline schedules on the repository.
-    """
-
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
-
-    for schedule in gitlab_repo.pipelineschedules.list(per_page=100, all=True):
-        schedule.pprint()
-
-
-@task
-def get_schedule(_, schedule_id, repo: str = 'DataDog/datadog-agent'):
-    """
-    Pretty-print a single pipeline schedule on the repository.
-    """
-
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
-
-    schedule = gitlab_repo.pipelineschedules.get(schedule_id)
-
-    schedule.pprint()
-
-
-@task
-def create_schedule(_, description, ref, cron, cron_timezone=None, active=False, repo: str = 'DataDog/datadog-agent'):
-    """
-    Create a new pipeline schedule on the repository.
-
-    Note that unless you explicitly specify the --active flag, the schedule will be created as inactive.
-    """
-
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
-
-    schedule = gitlab_repo.pipelineschedules.create(
-        {'description': description, 'ref': ref, 'cron': cron, 'cron_timezone': cron_timezone, 'active': active}
-    )
-
-    schedule.pprint()
-
-
-@task
-def edit_schedule(
-    _, schedule_id, description=None, ref=None, cron=None, cron_timezone=None, repo: str = 'DataDog/datadog-agent'
-):
-    """
-    Edit an existing pipeline schedule on the repository.
-    """
-
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
-
-    data = {'description': description, 'ref': ref, 'cron': cron, 'cron_timezone': cron_timezone}
-    data = {key: value for (key, value) in data.items() if value is not None}
-
-    schedule = gitlab_repo.pipelineschedules.update(schedule_id, data)
-
-    pprint.pprint(schedule)
-
-
-@task
-def activate_schedule(_, schedule_id, repo: str = 'DataDog/datadog-agent'):
-    """
-    Activate an existing pipeline schedule on the repository.
-    """
-
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
-
-    schedule = gitlab_repo.pipelineschedules.update(schedule_id, {'active': True})
-
-    pprint.pprint(schedule)
-
-
-@task
-def deactivate_schedule(_, schedule_id, repo: str = 'DataDog/datadog-agent'):
-    """
-    Deactivate an existing pipeline schedule on the repository.
-    """
-
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
-
-    schedule = gitlab_repo.pipelineschedules.update(schedule_id, {'active': False})
-
-    pprint.pprint(schedule)
-
-
-@task
-def delete_schedule(_, schedule_id, repo: str = 'DataDog/datadog-agent'):
-    """
-    Delete an existing pipeline schedule on the repository.
-    """
-
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
-
-    gitlab_repo.pipelineschedules.delete(schedule_id)
-
-    print('Deleted schedule', schedule_id)
-
-
-@task
-def create_schedule_variable(_, schedule_id, key, value, repo: str = 'DataDog/datadog-agent'):
-    """
-    Create a variable for an existing schedule on the repository.
-    """
-
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
-
-    schedule = gitlab_repo.pipelineschedules.get(schedule_id)
-    schedule.variables.create({'key': key, 'value': value})
-
-    schedule.pprint()
-
-
-@task
-def edit_schedule_variable(_, schedule_id, key, value, repo: str = 'DataDog/datadog-agent'):
-    """
-    Edit an existing variable for a schedule on the repository.
-    """
-
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
-
-    schedule = gitlab_repo.pipelineschedules.get(schedule_id)
-    schedule.variables.update(key, {'value': value})
-
-    schedule.pprint()
-
-
-@task
-def delete_schedule_variable(_, schedule_id, key, repo: str = 'DataDog/datadog-agent'):
-    """
-    Delete an existing variable for a schedule on the repository.
-    """
-
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
-
-    schedule = gitlab_repo.pipelineschedules.get(schedule_id)
-    schedule.variables.delete(key)
-
-    schedule.pprint()
 
 
 @task(
@@ -692,7 +545,7 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     Trigger a pipeline from an external owner.
     """
 
-    branch_re = re.compile(r'^(?P<owner>[a-zA-Z0-9_-]+):(?P<branch_name>[a-zA-Z0-9_/-]+)$')
+    branch_re = re.compile(r'^(?P<owner>[a-zA-Z0-9_-]+):(?P<branch_name>[a-zA-Z0-9#_/-]+)$')
     match = branch_re.match(owner_branch_name)
 
     assert (
@@ -724,11 +577,14 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
         f"git branch -d '{owner}/{branch}'",
     ]
 
+    # Get the correct fork name
+    gh = GithubAPI()
+    fork_name = gh.get_fork_name(owner)
     # Commands to push the branch
     commands = (
         [
             # Fetch
-            f"git remote add {owner} git@github.com:{owner}/datadog-agent.git",
+            f"git remote add {owner} git@github.com:{owner}/{fork_name}.git",
             f"git fetch '{owner}' '{branch}'",
             # Create branch
             f"git checkout '{owner}/{branch}'",  # This first checkout puts us in a detached head state, thus the second checkout below
@@ -755,6 +611,7 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     pipeline = f'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Apipeline%20%40ci.provider.name%3Agitlab%20%40git.repository.name%3A%22DataDog%2Fdatadog-agent%22%20%40git.branch%3A%22{owner}%2F{branch}%22&colorBy=meta%5B%27ci.stage.name%27%5D&colorByAttr=meta%5B%27ci.stage.name%27%5D&currentTab=json&fromUser=false&index=cipipeline&sort=time&spanViewType=logs'
 
     print(f'\nBranch {owner}/{branch} pushed to repo: {repo}')
+    ctx.run(f"ddr devflow ddci trigger --owner DataDog --repository datadog-agent --branch {owner}/{branch}")
     print(f'CI-Visibility pipeline link: {pipeline}')
 
 
@@ -888,3 +745,43 @@ def compare_to_itself(ctx):
         ctx.run(f"git checkout {current_branch}", hide=True)
         ctx.run(f"git branch -D {new_branch}", hide=True)
         ctx.run(f"git push origin :{new_branch}", hide=True)
+
+
+@task
+def is_dev_branch(_):
+    """
+    Check if the current branch is not a dev branch.
+    """
+    # Mirror logic from .fast_on_dev_branch_only in .gitlab-ci.yml
+    # Not a dev branch if any of the following is true:
+    # - On main branch
+    # - On a release branch (e.g., 7.42.x)
+    # - On a tagged commit
+    # - In a triggered pipeline
+
+    current_branch = os.getenv("CI_COMMIT_BRANCH", "")
+
+    # Main branch
+    if current_branch == "main":
+        print("false")
+        return
+
+    # Release branch: matches \d+.\d+.x
+    if re.match(r"^\d+\.\d+\.x$", current_branch):
+        print("false")
+        return
+
+    # Tagged commit (prefer CI variable if present)
+    ci_commit_tag = os.getenv("CI_COMMIT_TAG", "")
+    if ci_commit_tag is not None and ci_commit_tag != "":
+        print("false")
+        return
+
+    # Triggered pipeline (CI context)
+    ci_pipeline_source = os.getenv("CI_PIPELINE_SOURCE", "")
+    if ci_pipeline_source in ("trigger", "pipeline"):
+        print("false")
+        return
+
+    # Otherwise, consider it a dev branch
+    print("true")

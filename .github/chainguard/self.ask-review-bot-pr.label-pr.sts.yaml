@@ -1,12 +1,12 @@
 ---
 issuer: https://token.actions.githubusercontent.com
 
-subject: repo:DataDog/datadog-agent:ref:refs/heads/main
+subject: repo:DataDog/datadog-agent:environment:main
 
 claim_pattern:
   event_name: workflow_run
   ref: refs/heads/main
-  ref_protected: true
+  ref_protected: "true"
   job_workflow_ref: DataDog/datadog-agent/\.github/workflows/ask_review_bot_pr\.yml@refs/heads/main
 
 permissions:

@@ -11,11 +11,13 @@ import (
 	"sort"
 	"testing"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -52,7 +54,7 @@ func TestProcessService(t *testing.T) {
 	assert.Equal(t, "kube_service://default/myservice", svc.GetServiceID())
 
 	adID := svc.GetADIdentifiers()
-	assert.Equal(t, []string{"kube_service://default/myservice"}, adID)
+	assert.Equal(t, []string{"kube_service://default/myservice", string(adtypes.CelServiceIdentifier)}, adID)
 
 	hosts, err := svc.GetHosts()
 	assert.NoError(t, err)
@@ -60,7 +62,7 @@ func TestProcessService(t *testing.T) {
 
 	ports, err := svc.GetPorts()
 	assert.NoError(t, err)
-	assert.Equal(t, []ContainerPort{{123, "test1"}, {126, "test2"}}, ports)
+	assert.Equal(t, []workloadmeta.ContainerPort{{Port: 123, Name: "test1"}, {Port: 126, Name: "test2"}}, ports)
 
 	tags, err := svc.GetTags()
 	assert.NoError(t, err)
@@ -74,6 +76,10 @@ func TestProcessService(t *testing.T) {
 	sort.Strings(expectedTags)
 	sort.Strings(tags)
 	assert.Equal(t, expectedTags, tags)
+
+	namespaceName, err := svc.GetExtraConfig("namespace")
+	assert.NoError(t, err)
+	assert.Equal(t, "default", namespaceName)
 }
 
 func TestServicesDiffer(t *testing.T) {

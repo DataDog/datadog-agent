@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import Counter
 from functools import lru_cache
 from typing import Any
 
@@ -40,12 +39,3 @@ def list_owners(owners_file=".github/CODEOWNERS"):
     for path in owners.paths:
         for team in path[2]:
             yield team[1].casefold().replace('@datadog/', '')
-
-
-def most_frequent_agent_team(teams):
-    agent_teams = list(list_owners())
-    c = Counter(teams)
-    for team in c.most_common():
-        if team[0] in agent_teams:
-            return team[0]
-    return 'triage'

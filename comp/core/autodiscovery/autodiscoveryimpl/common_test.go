@@ -10,14 +10,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
-	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 type dummyService struct {
 	ID              string
 	ADIdentifiers   []string
 	Hosts           map[string]string
-	Ports           []listeners.ContainerPort
+	Ports           []workloadmeta.ContainerPort
 	Pid             int
 	Hostname        string
 	filterTemplates func(map[string]integration.Config)
@@ -44,7 +45,7 @@ func (s *dummyService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns dummy ports
-func (s *dummyService) GetPorts() ([]listeners.ContainerPort, error) {
+func (s *dummyService) GetPorts() ([]workloadmeta.ContainerPort, error) {
 	return s.Ports, nil
 }
 
@@ -74,7 +75,7 @@ func (s *dummyService) IsReady() bool {
 }
 
 // HasFilter returns false
-func (s *dummyService) HasFilter(_ filter.Scope) bool {
+func (s *dummyService) HasFilter(_ workloadfilter.Scope) bool {
 	return false
 }
 
@@ -88,4 +89,9 @@ func (s *dummyService) FilterTemplates(configs map[string]integration.Config) {
 	if s.filterTemplates != nil {
 		(s.filterTemplates)(configs)
 	}
+}
+
+// GetImageName does nothing
+func (s *dummyService) GetImageName() string {
+	return ""
 }

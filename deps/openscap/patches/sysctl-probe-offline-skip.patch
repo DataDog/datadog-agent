@@ -1,0 +1,11 @@
+--- a/src/OVAL/probes/unix/sysctl_probe.c
++++ b/src/OVAL/probes/unix/sysctl_probe.c
+@@ -62,7 +62,7 @@
+ 
+ int sysctl_probe_offline_mode_supported(void)
+ {
+-        return PROBE_OFFLINE_OWN;
++        return PROBE_OFFLINE_NONE;
+ }
+ 
+ int sysctl_probe_main(probe_ctx *ctx, void *probe_arg)

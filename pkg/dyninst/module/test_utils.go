@@ -7,19 +7,26 @@
 
 package module
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
-)
-
-// SetScraperUpdatesCallback installs a callback that will be called when the
-// Controller gets updates from the rcscrape.Scraper.
-func (c *Controller) SetScraperUpdatesCallback(
-	callback func(updates []rcscrape.ProcessUpdate),
-) {
-	c.testingKnobs.scraperUpdatesCallback = callback
-}
-
-// Controller gives tests access to the inner Controller.
-func (m *Module) Controller() *Controller {
-	return m.controller
+// DiagnosticsStates returns the diagnostics states for the controller.
+func (m *Module) DiagnosticsStates() map[string]map[string][]string {
+	var states = make(map[string]map[string][]string)
+	for _, t := range []*diagnosticTracker{
+		m.diagnostics.received,
+		m.diagnostics.installed,
+		m.diagnostics.emitted,
+		m.diagnostics.errors,
+	} {
+		t.mu.Lock()
+		defer t.mu.Unlock()
+		t.mu.btree.Ascend(func(item diagnosticItem) bool {
+			m, ok := states[item.key.runtimeID]
+			if !ok {
+				m = make(map[string][]string)
+				states[item.key.runtimeID] = m
+			}
+			m[item.key.probeID] = append(m[item.key.probeID], t.name)
+			return true
+		})
+	}
+	return states
 }

@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"sync"
 
 	"github.com/google/uuid"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstream "github.com/DataDog/datadog-agent/comp/core/configstream/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -28,6 +30,7 @@ type Requires struct {
 	Lifecycle compdef.Lifecycle
 	Config    config.Component
 	Log       log.Component
+	Telemetry telemetry.Component
 }
 
 // Provides defines the output of the configstream component.
@@ -36,8 +39,9 @@ type Provides struct {
 }
 
 type configStream struct {
-	config config.Component
-	log    log.Component
+	config    config.Component
+	log       log.Component
+	telemetry telemetry.Component
 
 	m           sync.Mutex
 	subscribers map[string]*subscription
@@ -45,6 +49,15 @@ type configStream struct {
 	subscribeChan   chan *subscription
 	unsubscribeChan chan string
 	stopChan        chan struct{}
+
+	// Cached origin (set once at initialization to avoid lock contention)
+	origin string
+
+	subscribersGauge     telemetry.Gauge
+	snapshotsSent        telemetry.Counter
+	updatesSent          telemetry.Counter
+	discontinuitiesCount telemetry.Counter
+	droppedUpdates       telemetry.Counter
 }
 
 type subscription struct {
@@ -58,11 +71,21 @@ func NewComponent(reqs Requires) Provides {
 	cs := &configStream{
 		config:          reqs.Config,
 		log:             reqs.Log,
+		telemetry:       reqs.Telemetry,
 		subscribers:     make(map[string]*subscription),
 		subscribeChan:   make(chan *subscription),
 		unsubscribeChan: make(chan string),
 		stopChan:        make(chan struct{}),
 	}
+
+	cs.subscribersGauge = reqs.Telemetry.NewGauge("configstream", "subscribers", []string{}, "Number of active config stream subscribers")
+	cs.snapshotsSent = reqs.Telemetry.NewCounter("configstream", "snapshots_sent", []string{}, "Number of config snapshots sent")
+	cs.updatesSent = reqs.Telemetry.NewCounter("configstream", "updates_sent", []string{}, "Number of config updates sent")
+	cs.discontinuitiesCount = reqs.Telemetry.NewCounter("configstream", "discontinuities", []string{}, "Number of discontinuities detected")
+	cs.droppedUpdates = reqs.Telemetry.NewCounter("configstream", "dropped_updates", []string{}, "Number of dropped config updates due to full channels")
+
+	// Cache origin once at initialization to avoid lock contention in OnUpdate callback
+	cs.origin = cs.getConfigOrigin()
 
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {
@@ -112,10 +135,12 @@ func (cs *configStream) run() {
 			cs.log.Warnf("Failed to convert setting '%s' to structpb.Value: %v", setting, err)
 			return
 		}
+
 		configUpdate := &pb.ConfigEvent{
 			Event: &pb.ConfigEvent_Update{
 				Update: &pb.ConfigUpdate{
 					SequenceId: int32(sequenceID),
+					Origin:     cs.origin,
 					Setting: &pb.ConfigSetting{
 						Key:    setting,
 						Value:  pbValue,
@@ -167,6 +192,10 @@ func (cs *configStream) addSubscriber(sub *subscription) {
 	sub.lastSequenceID = seqID
 	cs.subscribers[sub.id] = sub
 
+	// Update telemetry
+	cs.subscribersGauge.Set(float64(len(cs.subscribers)))
+	cs.snapshotsSent.Inc()
+
 	// Send snapshot to the new subscriber
 	sub.ch <- snapshot
 }
@@ -179,6 +208,9 @@ func (cs *configStream) removeSubscriber(id string) {
 		close(sub.ch)
 		delete(cs.subscribers, id)
 		cs.log.Infof("Subscriber '%s' removed from config stream", id)
+
+		// Update telemetry
+		cs.subscribersGauge.Set(float64(len(cs.subscribers)))
 	}
 }
 
@@ -213,6 +245,10 @@ func (cs *configStream) handleConfigUpdate(event *pb.ConfigEvent) {
 			cs.log.Warnf("Discontinuity detected for subscriber '%s'. Last seen ID: %d, current ID: %d. Resynchronizing with a snapshot.", id, sub.lastSequenceID, currentSequenceID)
 			sub.lastSequenceID = snapshotSeqID
 			eventToSend = snapshot
+
+			// Track discontinuity and snapshot resend
+			cs.discontinuitiesCount.Inc()
+			cs.snapshotsSent.Inc()
 		} else {
 			// Contiguous update: update the sequence ID.
 			sub.lastSequenceID = currentSequenceID
@@ -220,38 +256,42 @@ func (cs *configStream) handleConfigUpdate(event *pb.ConfigEvent) {
 
 		select {
 		case sub.ch <- eventToSend:
+			// Track successful update send (not snapshot, those are tracked above)
+			if eventToSend == event {
+				cs.updatesSent.Inc()
+			}
 		default:
 			cs.log.Warnf("Dropping config update for subscriber '%s' because their channel is full", id)
+			cs.droppedUpdates.Inc()
 		}
 	}
 }
 
 func (cs *configStream) createConfigSnapshot() (*pb.ConfigEvent, uint64, error) {
-	allSettings, sequenceID := cs.config.AllSettingsWithSequenceID()
+	allSettings, sequenceID := cs.config.AllFlattenedSettingsWithSequenceID()
 
-	// Note: AllSettings returns a map[string]interface{}. The inner values may be a type that structpb.NewValue is not able to
-	// handle (ex: map[string]string), so we perform a hacky operation by marshalling the data into a JSON string first.
-	data, err := json.Marshal(allSettings)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	var intermediateMap map[string]interface{}
-	if err := json.Unmarshal(data, &intermediateMap); err != nil {
-		return nil, 0, err
-	}
-
-	settings := make([]*pb.ConfigSetting, 0, len(intermediateMap))
-	for setting, value := range intermediateMap {
-		pbValue, err := structpb.NewValue(value)
-		if err != nil {
-			cs.log.Warnf("Failed to convert setting '%s' to structpb.Value: %v", setting, err)
+	settings := make([]*pb.ConfigSetting, 0, len(allSettings))
+	for key, value := range allSettings {
+		if value == nil {
 			continue
 		}
-		source := cs.config.GetSource(setting).String()
+
+		sanitizedValue, err := sanitizeValue(value)
+		if err != nil {
+			cs.log.Errorf("Failed to sanitize setting '%s': %v", key, err)
+			continue
+		}
+
+		pbValue, err := structpb.NewValue(sanitizedValue)
+		if err != nil {
+			cs.log.Errorf("Failed to convert setting '%s' to structpb.Value: %v", key, err)
+			continue
+		}
+
+		source := cs.config.GetSource(key).String()
 		settings = append(settings, &pb.ConfigSetting{
 			Source: source,
-			Key:    setting,
+			Key:    key,
 			Value:  pbValue,
 		})
 	}
@@ -260,6 +300,7 @@ func (cs *configStream) createConfigSnapshot() (*pb.ConfigEvent, uint64, error) 
 		Event: &pb.ConfigEvent_Snapshot{
 			Snapshot: &pb.ConfigSnapshot{
 				SequenceId: int32(sequenceID),
+				Origin:     cs.origin,
 				Settings:   settings,
 			},
 		},
@@ -268,17 +309,64 @@ func (cs *configStream) createConfigSnapshot() (*pb.ConfigEvent, uint64, error) 
 	return snapshot, sequenceID, nil
 }
 
+// getConfigOrigin returns the origin identifier for the config stream.
+// For the core agent, this is the basename of the main config file (e.g., "datadog.yaml").
+func (cs *configStream) getConfigOrigin() string {
+	configFile := cs.config.ConfigFileUsed()
+	if configFile == "" {
+		return "core-agent" // Fallback if no config file is detected
+	}
+	return filepath.Base(configFile)
+}
+
+// sanitizeMapForJSON recursively converts map[interface{}]interface{} to map[string]interface{}
+// to make the data structure JSON-serializable.
+func sanitizeMapForJSON(data interface{}) interface{} {
+	switch v := data.(type) {
+	case map[interface{}]interface{}:
+		result := make(map[string]interface{})
+		for key, value := range v {
+			stringKey := fmt.Sprintf("%v", key) // Convert any key type to string
+			result[stringKey] = sanitizeMapForJSON(value)
+		}
+		return result
+
+	case map[string]interface{}:
+		result := make(map[string]interface{})
+		for key, value := range v {
+			result[key] = sanitizeMapForJSON(value)
+		}
+		return result
+
+	case []interface{}:
+		result := make([]interface{}, len(v))
+		for i, item := range v {
+			result[i] = sanitizeMapForJSON(item)
+		}
+		return result
+
+	default:
+		// Primitive types (string, int, bool, etc.) - return as-is
+		return v
+	}
+}
+
 // sanitizeValue is a workaround for `structpb.NewValue`, which cannot handle
-// complex types like `map[string]string`. Marshalling to JSON and back converts
-// the value into a `structpb` compatible format.
+// complex types like `map[string]string` or `map[interface{}]interface{}`.
+// It first converts interface{} maps to string maps, then marshals to JSON and back
+// to convert the value into a `structpb` compatible format.
 func sanitizeValue(value interface{}) (interface{}, error) {
-	data, err := json.Marshal(value)
+	// First sanitize to ensure JSON compatibility (handles map[interface{}]interface{})
+	sanitized := sanitizeMapForJSON(value)
+
+	// Then do the JSON round-trip for structpb compatibility
+	data, err := json.Marshal(sanitized)
 	if err != nil {
 		return nil, err
 	}
-	var sanitized interface{}
-	if err := json.Unmarshal(data, &sanitized); err != nil {
+	var result interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
 		return nil, err
 	}
-	return sanitized, nil
+	return result, nil
 }

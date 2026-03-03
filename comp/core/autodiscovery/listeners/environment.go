@@ -7,7 +7,8 @@ package listeners
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -45,14 +46,15 @@ func (l *EnvironmentListener) Stop() {
 
 func (l *EnvironmentListener) createServices() {
 	features := map[string]env.Feature{
-		"docker":            env.Docker,
-		"kubelet":           env.Kubernetes,
-		"ecs_fargate":       env.ECSFargate,
-		"eks_fargate":       env.EKSFargate,
-		"cri":               env.Cri,
-		"containerd":        env.Containerd,
-		"kube_orchestrator": env.KubeOrchestratorExplorer,
-		"ecs_orchestrator":  env.ECSOrchestratorExplorer,
+		"docker":                      env.Docker,
+		"kubelet":                     env.Kubernetes,
+		"ecs_fargate":                 env.ECSFargate,
+		"eks_fargate":                 env.EKSFargate,
+		"cri":                         env.Cri,
+		"containerd":                  env.Containerd,
+		"kube_orchestrator":           env.KubeOrchestratorExplorer,
+		"kubelet_config_orchestrator": env.KubeletConfigOrchestratorCheck,
+		"ecs_orchestrator":            env.ECSOrchestratorExplorer,
 	}
 
 	for name, feature := range features {
@@ -95,7 +97,7 @@ func (s *EnvironmentService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns nil and an error because port is not supported in this listener
-func (s *EnvironmentService) GetPorts() ([]ContainerPort, error) {
+func (s *EnvironmentService) GetPorts() ([]workloadmeta.ContainerPort, error) {
 	return nil, ErrNotSupported
 }
 
@@ -126,7 +128,7 @@ func (s *EnvironmentService) IsReady() bool {
 }
 
 // HasFilter is not supported
-func (s *EnvironmentService) HasFilter(_ filter.Scope) bool {
+func (s *EnvironmentService) HasFilter(_ workloadfilter.Scope) bool {
 	return false
 }
 
@@ -137,4 +139,9 @@ func (s *EnvironmentService) GetExtraConfig(_ string) (string, error) {
 
 // FilterTemplates does nothing.
 func (s *EnvironmentService) FilterTemplates(_ map[string]integration.Config) {
+}
+
+// GetImageName does nothing
+func (s *EnvironmentService) GetImageName() string {
+	return ""
 }

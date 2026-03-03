@@ -96,7 +96,7 @@ int __attribute__((always_inline)) handle_open(ctx_t *ctx, struct path *path) {
     syscall->open.dentry = dentry;
     syscall->open.file.path_key = path_key;
 
-    set_file_inode(dentry, &syscall->open.file, 0);
+    set_file_inode(dentry, &syscall->open.file, PATH_ID_INVALIDATE_TYPE_NONE);
 
     // do not pop, we want to keep track of the mount ref counter later in the stack
     approve_syscall(syscall, open_approvers);
@@ -219,9 +219,6 @@ int __attribute__((always_inline)) _sys_open_ret(void *ctx, struct syscall_cache
         return 0;
     }
 
-    // increase mount ref
-    inc_mount_ref(syscall->open.file.path_key.mount_id);
-
     // check if the syscall was discarded
     if (syscall->state == DISCARDED) {
         return 0;
@@ -329,17 +326,6 @@ int rethook_io_openat2(ctx_t *ctx) {
     }
     syscall->retval = CTX_PARMRET(ctx);
     return _sys_open_ret(ctx, syscall);
-}
-
-HOOK_ENTRY("filp_close")
-int hook_filp_close(ctx_t *ctx) {
-    struct file *file = (struct file *)CTX_PARM1(ctx);
-    u32 mount_id = get_file_mount_id(file);
-    if (mount_id) {
-        dec_mount_ref(ctx, mount_id);
-    }
-
-    return 0;
 }
 
 #endif

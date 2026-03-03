@@ -148,6 +148,25 @@ def get_default_branch(major: int | None = None):
     return '6.53.x' if major is None and is_agent6(ctx) or major == 6 else 'main'
 
 
+def get_full_ref_name(ref: str, remote="origin") -> str:
+    """
+    If `ref` is a branch, will return `origin/<ref>`.
+    This handles HEAD / commits / branches.
+
+    We deduce that this is a commit if it contains at least one digit.
+    """
+
+    remote_slash = remote + '/'
+    if (
+        ref.startswith("HEAD")
+        or (re.match(r'^[0-9a-fA-F]{40}$', ref) and re.search('[0-9]', ref))
+        or ref.startswith("refs/")
+        or ref.startswith(remote_slash)
+    ):
+        return ref
+    return remote_slash + ref
+
+
 def get_common_ancestor(ctx, branch, base=None, try_fetch=True, hide=True) -> str:
     """
     Get the common ancestor between two branches.
@@ -162,18 +181,23 @@ def get_common_ancestor(ctx, branch, base=None, try_fetch=True, hide=True) -> st
         The common ancestor between two branches.
     """
 
-    base = (base or get_default_branch()).removeprefix("origin/")
+    base = base or get_default_branch()
+    base = get_full_ref_name(base)
+    branch = get_full_ref_name(branch)
 
     try:
-        return ctx.run(f"git merge-base {branch} origin/{base}", hide=hide).stdout.strip()
+        return ctx.run(f"git merge-base {branch} {base}", hide=hide).stdout.strip()
     except Exception:
         if not try_fetch:
             raise
 
         # With S3 caching, it's possible that the base branch is not fetched
-        ctx.run(f"git fetch origin {base}", hide=hide)
+        if base.startswith("origin/"):
+            ctx.run(f"git fetch origin {base.removeprefix('origin/')}", hide=hide)
+        if branch.startswith("origin/"):
+            ctx.run(f"git fetch origin {branch.removeprefix('origin/')}", hide=hide)
 
-        return ctx.run(f"git merge-base {branch} origin/{base}", hide=hide).stdout.strip()
+        return ctx.run(f"git merge-base {branch} {base}", hide=hide).stdout.strip()
 
 
 def check_uncommitted_changes(ctx):
@@ -205,6 +229,63 @@ def get_main_parent_commit(ctx) -> str:
     Get the commit sha from the LCA between main and the current branch
     """
     return get_common_ancestor(ctx, "HEAD", f'origin/{get_default_branch()}')
+
+
+def get_current_pr(branch_name: str | None):
+    # Fall back to GitHub API to find the PR's target branch
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    if branch_name is None:
+        branch_name = os.environ.get("CI_COMMIT_REF_NAME") or get_current_branch(Context())
+
+    try:
+        github = GithubAPI()
+        prs = list(github.get_pr_for_branch(branch_name))
+
+        if len(prs) == 0:
+            print(f"No PR found for branch {branch_name}, using default branch")
+            return None
+
+        if len(prs) > 1:
+            print(f"Warning: Multiple PRs found for branch {branch_name}, using first PR's base")
+
+        print(f"Found PR #{prs[0].number} for branch {branch_name}, target branch: {prs[0].base.ref}")
+        return prs[0]
+    except Exception as e:
+        print(f"Warning: Failed to get PR associated with branch {branch_name}: {e}")
+        return None
+
+
+def get_ancestor_base_branch(branch_name: str | None = None) -> str:
+    """
+    Get the base branch to use for ancestor calculation.
+
+    This function tries to determine the correct base branch by:
+    1. Using COMPARE_TO_BRANCH environment variable if set (preferred in CI)
+    2. Falling back to GitHub API to look up the PR's target branch
+    3. Falling back to get_default_branch() if neither works
+
+    This is particularly important for PRs targeting release branches
+    (e.g., 7.54.x) where we need to find the ancestor from the release
+    branch, not main.
+
+    Args:
+        branch_name: The branch name to look up via GitHub API. If None, uses
+                     CI_COMMIT_REF_NAME or falls back to the current branch.
+
+    Returns:
+        The base branch name to use for ancestor calculation.
+    """
+    # First, check if COMPARE_TO_BRANCH is set (used in GitLab CI)
+    compare_to_branch = os.environ.get("COMPARE_TO_BRANCH")
+    if compare_to_branch:
+        print(f"Using COMPARE_TO_BRANCH environment variable: {compare_to_branch}")
+        return compare_to_branch
+
+    pr = get_current_pr(branch_name)
+    if not pr:
+        return get_default_branch()
+    return pr.base.ref
 
 
 def check_base_branch(branch, release_version):

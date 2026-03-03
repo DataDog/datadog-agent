@@ -1,0 +1,15 @@
+{
+  "type": "unsupported",
+  "operation": "any",
+  "argument": [
+    {
+      "ref": "collection"
+    },
+    {
+      "isEmpty": {
+        "ref": "@it"
+      }
+    }
+  ],
+  "error": ""
+}

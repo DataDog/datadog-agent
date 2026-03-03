@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
 
@@ -43,6 +44,26 @@ func (e *fixedRateExtractor) Extract(s *pb.Span, priority sampler.SamplingPriori
 		return 0, false
 	}
 	extractionRate, ok := operations[strings.ToLower(s.Name)]
+	if !ok {
+		return 0, false
+	}
+	if extractionRate > 0 && priority >= sampler.PriorityUserKeep {
+		// If the span has been manually sampled, we always want to keep these events
+		extractionRate = 1
+	}
+	return extractionRate, true
+}
+
+// ExtractV1 decides to extract an apm event from a span if its service and name have a corresponding extraction rate
+// on the rateByServiceAndName map passed in the constructor. The extracted event is returned along with the associated
+// extraction rate and a true value. If no extraction happened, false is returned as the third value and the others
+// are invalid.
+func (e *fixedRateExtractor) ExtractV1(s *idx.InternalSpan, priority sampler.SamplingPriority) (float64, bool) {
+	operations, ok := e.rateByServiceAndName[strings.ToLower(s.Service())]
+	if !ok {
+		return 0, false
+	}
+	extractionRate, ok := operations[strings.ToLower(s.Name())]
 	if !ok {
 		return 0, false
 	}

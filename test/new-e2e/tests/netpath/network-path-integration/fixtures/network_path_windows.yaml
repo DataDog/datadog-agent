@@ -1,6 +1,7 @@
 instances:
   - hostname: api.datadoghq.eu
     protocol: TCP
+    tcp_method: sack # verify we support sack
     port: 443
   - hostname: 8.8.8.8
     protocol: UDP
@@ -9,4 +10,8 @@ instances:
   - hostname: 8.8.8.8
     protocol: TCP
     port: 443
-    tcp_method: syn_socket
+    tcp_method: syn_socket # verify we support syn with raw sockets
+  - hostname: 1.1.1.1
+    protocol: TCP
+    port: 443
+    disable_windows_driver: true

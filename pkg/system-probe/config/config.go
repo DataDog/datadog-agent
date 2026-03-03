@@ -14,11 +14,9 @@ import (
 	"runtime"
 	"strings"
 
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -43,6 +41,9 @@ const (
 	DiscoveryModule              types.ModuleName = "discovery"
 	GPUMonitoringModule          types.ModuleName = "gpu"
 	SoftwareInventoryModule      types.ModuleName = "software_inventory"
+	PrivilegedLogsModule         types.ModuleName = "privileged_logs"
+	InjectorModule               types.ModuleName = "injector"
+	NoisyNeighborModule          types.ModuleName = "noisy_neighbor"
 )
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
@@ -69,7 +70,7 @@ func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.C
 	}
 	// load the configuration
 	ddcfg := pkgconfigsetup.Datadog()
-	err := pkgconfigsetup.LoadCustom(cfg, ddcfg.GetEnvVars())
+	err := pkgconfigsetup.LoadSystemProbe(cfg, ddcfg.GetEnvVars())
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			// special-case permission-denied with a clearer error message
@@ -99,6 +100,7 @@ func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.C
 
 func load() (*types.Config, error) {
 	cfg := pkgconfigsetup.GlobalSystemProbeConfigBuilder()
+	coreCfg := pkgconfigsetup.Datadog()
 
 	Adjust(cfg)
 
@@ -123,7 +125,7 @@ func load() (*types.Config, error) {
 	csmEnabled := cfg.GetBool(secNS("enabled"))
 	gpuEnabled := cfg.GetBool(gpuNS("enabled"))
 	diEnabled := cfg.GetBool(diNS("enabled"))
-	swEnabled := pkgconfigsetup.Datadog().GetBool(swNS("enabled"))
+	swEnabled := coreCfg.GetBool(swNS("enabled"))
 
 	if npmEnabled || usmEnabled || ccmEnabled || (csmEnabled && cfg.GetBool(secNS("network_monitoring.enabled"))) {
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
@@ -136,16 +138,24 @@ func load() (*types.Config, error) {
 	}
 	if csmEnabled ||
 		cfg.GetBool(secNS("fim_enabled")) ||
-		cfg.GetBool(evNS("process.enabled")) ||
 		(usmEnabled && cfg.GetBool(smNS("enable_event_stream"))) ||
 		(c.ModuleIsEnabled(NetworkTracerModule) && cfg.GetBool(evNS("network_process.enabled"))) ||
 		gpuEnabled ||
 		diEnabled {
 		c.EnabledModules[EventMonitorModule] = struct{}{}
 	}
-	complianceEnabled := cfg.GetBool(compNS("enabled")) ||
-		(cfg.GetBool(secNS("enabled")) && cfg.GetBool(secNS("compliance_module.enabled")))
-	if complianceEnabled {
+	complianceEnabled := coreCfg.GetBool(compNS("enabled"))
+	complianceRunInSystemProbe := coreCfg.GetBool(compNS("run_in_system_probe"))
+	complianceDBBenchmarksEnabled := cfg.GetBool(compNS("database_benchmarks.enabled"))
+	complianceLegacyCWSEnabled := cfg.GetBool(secNS("enabled")) && cfg.GetBool(secNS("compliance_module.enabled"))
+
+	// Enable compliance module if:
+	// 1. Full compliance is enabled AND should run in system-probe, OR
+	// 2. Only DB benchmarks handler is needed (regardless of run_in_system_probe), OR
+	// 3. Legacy CWS config enables compliance module
+	shouldEnableComplianceModule := (complianceEnabled && complianceRunInSystemProbe) || complianceDBBenchmarksEnabled || complianceLegacyCWSEnabled
+
+	if shouldEnableComplianceModule {
 		c.EnabledModules[ComplianceModule] = struct{}{}
 	}
 	if cfg.GetBool(spNS("process_config.enabled")) {
@@ -172,10 +182,17 @@ func load() (*types.Config, error) {
 	if gpuEnabled {
 		c.EnabledModules[GPUMonitoringModule] = struct{}{}
 	}
+	if cfg.GetBool(privilegedLogsNS("enabled")) {
+		c.EnabledModules[PrivilegedLogsModule] = struct{}{}
+	}
+	if cfg.GetBool(NSkey("noisy_neighbor", "enabled")) {
+		c.EnabledModules[NoisyNeighborModule] = struct{}{}
+	}
 
 	if cfg.GetBool(wcdNS("enabled")) {
 		c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
 	}
+
 	if runtime.GOOS == "windows" {
 		if c.ModuleIsEnabled(NetworkTracerModule) || c.ModuleIsEnabled(EventMonitorModule) {
 			// enable the windows crash detection module if the network tracer
@@ -185,6 +202,36 @@ func load() (*types.Config, error) {
 		if swEnabled {
 			c.EnabledModules[SoftwareInventoryModule] = struct{}{}
 		}
+
+		// injector telemetry is enabled by default, disable only if explicitly configured by the user
+		injectorDefaultEnabled := false
+		if !cfg.IsConfigured("injector.enable_telemetry") {
+			injectorDefaultEnabled = true
+		} else if cfg.GetBool("injector.enable_telemetry") {
+			c.EnabledModules[InjectorModule] = struct{}{}
+		}
+
+		// This check must be last for any default modules on Windows,
+		// Only add default modules if other explicit modules have been enabled
+		// because the count of enabled modules will implicitly enable system probe.
+		if len(c.EnabledModules) > 0 && injectorDefaultEnabled {
+			c.EnabledModules[InjectorModule] = struct{}{}
+		}
+	}
+
+	// Enable discovery by default on Linux if system-probe has any modules
+	// enabled, unless the user has explicitly configured the discovery.enabled
+	// config key.
+	//
+	// Note that besides the support in system-probe itself (currently only
+	// implemented on Linux), the WorkloadMeta-based process collector in the
+	// core agent needs to be supported on the platform for discovery to work
+	// correctly.
+	if runtime.GOOS == "linux" &&
+		len(c.EnabledModules) > 0 &&
+		!c.ModuleIsEnabled(DiscoveryModule) &&
+		applyDefault(cfg, discoveryNS("enabled"), true) {
+		c.EnabledModules[DiscoveryModule] = struct{}{}
 	}
 
 	c.Enabled = len(c.EnabledModules) > 0
@@ -192,33 +239,6 @@ func load() (*types.Config, error) {
 	cfg.Set(spNS("enabled"), c.Enabled, pkgconfigmodel.SourceAgentRuntime)
 
 	return c, nil
-}
-
-// SetupOptionalDatadogConfigWithDir loads the datadog.yaml config file from a given config directory but will not fail on a missing file
-func SetupOptionalDatadogConfigWithDir(configDir, configFile string) error {
-	cfg := pkgconfigsetup.GlobalConfigBuilder()
-
-	cfg.AddConfigPath(configDir)
-	if configFile != "" {
-		cfg.SetConfigFile(configFile)
-	}
-	// load the configuration
-	_, err := pkgconfigsetup.LoadDatadogCustom(cfg, "datadog.yaml", option.None[secrets.Component](), pkgconfigsetup.SystemProbe().GetEnvVars())
-	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
-	if err != nil && !errors.Is(err, pkgconfigmodel.ErrConfigFileNotFound) {
-		// special-case permission-denied with a clearer error message
-		if errors.Is(err, fs.ErrPermission) {
-			if runtime.GOOS == "windows" {
-				err = fmt.Errorf(`cannot access the Datadog config file (%w); try running the command in an Administrator shell"`, err)
-			} else {
-				err = fmt.Errorf("cannot access the Datadog config file (%w); try running the command under the same user as the Datadog Agent", err)
-			}
-		} else {
-			err = fmt.Errorf("unable to load Datadog config file: %w", err)
-		}
-		return err
-	}
-	return nil
 }
 
 func applyFleetPolicy(cfg pkgconfigmodel.Config) error {

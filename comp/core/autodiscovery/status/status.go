@@ -25,16 +25,12 @@ func populateStatus(ac autodiscovery.Component, wf workloadfilter.Component, sta
 
 // GetAutodiscoveryFilterErrors returns a map of all autodiscovery filter errors
 func getAutodiscoveryFilterErrors(wf workloadfilter.Component) map[string]struct{} {
-	var workloadfilterList []workloadfilter.ContainerFilter
-	for _, filterScope := range []workloadfilter.Scope{workloadfilter.MetricsFilter, workloadfilter.LogsFilter, workloadfilter.GlobalFilter} {
-		autoDiscoveryFilterSelection := wf.GetContainerAutodiscoveryFilters(filterScope)
-		workloadfilterList = append(workloadfilterList, workloadfilter.FlattenFilterSets(autoDiscoveryFilterSelection)...)
-	}
-	workloadfilterErrors := wf.GetContainerFilterInitializationErrors(workloadfilterList)
-
 	filterErrorsSet := make(map[string]struct{})
-	for _, err := range workloadfilterErrors {
-		filterErrorsSet[err.Error()] = struct{}{}
+	for _, filterScope := range []workloadfilter.Scope{workloadfilter.MetricsFilter, workloadfilter.LogsFilter, workloadfilter.GlobalFilter} {
+		filterBundle := wf.GetContainerAutodiscoveryFilters(filterScope)
+		for _, err := range filterBundle.GetErrors() {
+			filterErrorsSet[err.Error()] = struct{}{}
+		}
 	}
 	return filterErrorsSet
 }

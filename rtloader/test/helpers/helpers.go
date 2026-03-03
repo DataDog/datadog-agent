@@ -5,32 +5,11 @@
 
 package helpers
 
-import (
-	"expvar"
-	"unsafe"
-)
-
-/*
-#include "datadog_agent_rtloader.h"
-
-*/
-import "C"
+import "sync/atomic"
 
 var (
 	// Allocations tracks number of memory allocations
-	Allocations = expvar.Int{}
+	Allocations atomic.Uint64
 	// Frees tracks number of memory frees
-	Frees = expvar.Int{}
+	Frees atomic.Uint64
 )
-
-// TestMemoryTracker is the method exposed to the RTLoader for memory tracking
-//
-//export TestMemoryTracker
-func TestMemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
-	switch op {
-	case C.DATADOG_AGENT_RTLOADER_ALLOCATION:
-		Allocations.Add(1)
-	case C.DATADOG_AGENT_RTLOADER_FREE:
-		Frees.Add(1)
-	}
-}

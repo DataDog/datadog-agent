@@ -6,6 +6,7 @@
 package legacy
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 
-	yaml "gopkg.in/yaml.v2"
+	yaml "go.yaml.in/yaml/v2"
 )
 
 const (
@@ -93,7 +94,7 @@ func importKubernetesConfWithDeprec(src, dst string, overwrite bool, converter *
 	deprecations := make(kubeDeprecations)
 
 	// read kubernetes.yaml
-	c, err := providers.GetIntegrationConfigFromFile("kubernetes", src)
+	c, _, err := providers.GetIntegrationConfigFromFile("kubernetes", src)
 	if err != nil {
 		return deprecations, fmt.Errorf("Could not load %s: %s", src, err)
 	}
@@ -125,7 +126,7 @@ func importKubernetesConfWithDeprec(src, dst string, overwrite bool, converter *
 				return deprecations, fmt.Errorf("unable to create a backup copy of the destination file: %v", err)
 			}
 		} else {
-			return deprecations, fmt.Errorf("destination file already exists, run the command again with --force or -f to overwrite it")
+			return deprecations, errors.New("destination file already exists, run the command again with --force or -f to overwrite it")
 		}
 	}
 	// Create necessary destination dir

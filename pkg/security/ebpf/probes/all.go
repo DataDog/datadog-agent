@@ -118,6 +118,7 @@ func AllProbes(fentry bool, cgroup2MountPoint string) []*manager.Probe {
 	allProbes = append(allProbes, getCapabilitiesMonitoringProbes()...)
 	allProbes = append(allProbes, getPrCtlProbes(fentry)...)
 	allProbes = append(allProbes, getSocketProbes(cgroup2MountPoint)...)
+	allProbes = append(allProbes, getMemfdProbes(fentry)...)
 
 	allProbes = append(allProbes,
 		&manager.Probe{
@@ -150,6 +151,7 @@ func AllMaps() []*manager.Map {
 		// Filters
 		{Name: "filter_policy"},
 		{Name: "inode_discarders"},
+		{Name: "prctl_discarders"},
 		{Name: "inode_disc_revisions"},
 		{Name: "basename_approvers"},
 		// Dentry resolver table
@@ -205,6 +207,7 @@ type MapSpecEditorOpts struct {
 	SpanTrackMaxCount             int
 	CapabilitiesMonitoringEnabled bool
 	CgroupSocketEnabled           bool
+	SecurityProfileSyscallAnomaly bool
 }
 
 // AllMapSpecEditors returns the list of map editors
@@ -263,26 +266,6 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: nsFlowToNetworkStats,
 			EditorFlag: manager.EditMaxEntries,
 		},
-		"inet_bind_args": {
-			MaxEntries: superReducedProcPidCacheSize,
-			EditorFlag: manager.EditMaxEntries,
-		},
-		"activity_dumps_config": {
-			MaxEntries: model.MaxTracedCgroupsCount,
-			EditorFlag: manager.EditMaxEntries,
-		},
-		"activity_dump_rate_limiters": {
-			MaxEntries: model.MaxTracedCgroupsCount,
-			EditorFlag: manager.EditMaxEntries,
-		},
-		"cgroup_wait_list": {
-			MaxEntries: model.MaxTracedCgroupsCount,
-			EditorFlag: manager.EditMaxEntries,
-		},
-		"security_profiles": {
-			MaxEntries: uint32(opts.SecurityProfileMaxCount),
-			EditorFlag: manager.EditMaxEntries,
-		},
 		"secprofs_syscalls": {
 			MaxEntries: uint32(opts.SecurityProfileMaxCount),
 			EditorFlag: manager.EditMaxEntries,
@@ -301,6 +284,13 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		},
 	}
 
+	if opts.SecurityProfileSyscallAnomaly {
+		editors["security_profiles"] = manager.MapSpecEditor{
+			MaxEntries: uint32(opts.SecurityProfileMaxCount),
+			EditorFlag: manager.EditMaxEntries,
+		}
+	}
+
 	if opts.PathResolutionEnabled {
 		editors["pathnames"] = manager.MapSpecEditor{
 			MaxEntries: getMaxEntries(numCPU, minPathnamesEntries, maxPathnamesEntries),
@@ -311,6 +301,18 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 	if opts.TracedCgroupSize > 0 {
 		editors["traced_cgroups"] = manager.MapSpecEditor{
 			MaxEntries: uint32(opts.TracedCgroupSize),
+			EditorFlag: manager.EditMaxEntries,
+		}
+		editors["activity_dumps_config"] = manager.MapSpecEditor{
+			MaxEntries: uint32(opts.TracedCgroupSize * 2),
+			EditorFlag: manager.EditMaxEntries,
+		}
+		editors["activity_dump_rate_limiters"] = manager.MapSpecEditor{
+			MaxEntries: uint32(opts.TracedCgroupSize * 2),
+			EditorFlag: manager.EditMaxEntries,
+		}
+		editors["cgroup_wait_list"] = manager.MapSpecEditor{
+			MaxEntries: model.MaxTracedCgroupsCount,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}
@@ -357,19 +359,29 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			KeySize:    1,
 			ValueSize:  1,
 			MaxEntries: 1,
-			EditorFlag: manager.EditKeyValue | manager.EditType | manager.EditMaxEntries,
+			Flags:      unix.BPF_ANY,
+			EditorFlag: manager.EditKeyValue | manager.EditType | manager.EditMaxEntries | manager.EditFlags,
 		}
 	}
 
-	if !kv.HasNoPreallocMapsInPerfEvent() {
+	if !kv.HasSafeBPFMemoryAllocations() {
 		editors["active_flows"] = manager.MapSpecEditor{
 			MaxEntries: activeFlowsMaxEntries,
+			Flags:      unix.BPF_ANY,
+			EditorFlag: manager.EditMaxEntries | manager.EditFlags,
+		}
+		editors["inet_bind_args"] = manager.MapSpecEditor{
+			MaxEntries: superReducedProcPidCacheSize,
 			Flags:      unix.BPF_ANY,
 			EditorFlag: manager.EditMaxEntries | manager.EditFlags,
 		}
 	} else {
 		editors["active_flows"] = manager.MapSpecEditor{
 			MaxEntries: activeFlowsMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		}
+		editors["inet_bind_args"] = manager.MapSpecEditor{
+			MaxEntries: superReducedProcPidCacheSize,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}

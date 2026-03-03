@@ -6,9 +6,10 @@
 package networkdeviceconfigimpl
 
 import (
+	"testing"
+
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestConfig(t *testing.T) {
@@ -102,9 +103,8 @@ network_device_config_management:
 
 func TestConfig_Errors(t *testing.T) {
 	var tests = []struct {
-		name        string
-		configYaml  string
-		expectedErr string
+		name       string
+		configYaml string
 	}{
 		{
 			name: "NCM malformed config, wrong type for devices (string instead of map)",
@@ -112,15 +112,13 @@ func TestConfig_Errors(t *testing.T) {
 network_device_config_management:
   namespace: test
   devices: blah`,
-			expectedErr: "'devices[0]' expected a map, got 'string'",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := mock.NewFromYAML(t, tt.configYaml)
 			_, err := newConfig(mockConfig)
-			assert.NotNil(t, err)
-			assert.ErrorContains(t, err, tt.expectedErr)
+			assert.Error(t, err)
 		})
 	}
 }

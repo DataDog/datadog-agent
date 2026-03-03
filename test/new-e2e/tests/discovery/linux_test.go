@@ -19,13 +19,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 )
 
 //go:embed testdata/config/agent_config.yaml
@@ -34,11 +35,24 @@ var agentConfigStr string
 //go:embed testdata/config/system_probe_config.yaml
 var systemProbeConfigStr string
 
+//go:embed testdata/config/system_probe_config_privileged_logs.yaml
+var systemProbeConfigPrivilegedLogsStr string
+
 //go:embed testdata/config/agent_process_config.yaml
 var agentProcessConfigStr string
 
 //go:embed testdata/config/agent_process_disabled_config.yaml
 var agentProcessDisabledConfigStr string
+
+//go:embed testdata/config/system_probe_config_fallback.yaml
+var systemProbeConfigFallbackStr string
+
+type discoveryMode string
+
+const (
+	discoveryModeSdAgent     discoveryMode = "sd-agent"
+	discoveryModeSystemProbe discoveryMode = "system-probe"
+)
 
 type linuxTestSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -59,7 +73,7 @@ func TestLinuxTestSuite(t *testing.T) {
 		agentparams.WithSystemProbeConfig(systemProbeConfigStr),
 	}
 	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentParams...))),
+		e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentParams...)))),
 	}
 	e2e.Run(t, &linuxTestSuite{}, options...)
 }
@@ -73,11 +87,26 @@ func (s *linuxTestSuite) SetupSuite() {
 }
 
 func (s *linuxTestSuite) TestProcessCheckWithServiceDiscovery() {
-	s.testProcessCheckWithServiceDiscovery(agentProcessConfigStr, systemProbeConfigStr)
+	for _, mode := range []discoveryMode{discoveryModeSdAgent, discoveryModeSystemProbe} {
+		s.Run(string(mode), func() {
+			s.testProcessCheckWithServiceDiscovery(agentProcessConfigStr, systemProbeConfigByMode[mode], mode)
+		})
+	}
 }
 
 func (s *linuxTestSuite) TestProcessCheckWithServiceDiscoveryProcessCollectionDisabled() {
-	s.testProcessCheckWithServiceDiscovery(agentProcessDisabledConfigStr, systemProbeConfigStr)
+	for _, mode := range []discoveryMode{discoveryModeSdAgent, discoveryModeSystemProbe} {
+		s.Run(string(mode), func() {
+			s.testProcessCheckWithServiceDiscovery(agentProcessDisabledConfigStr, systemProbeConfigByMode[mode], mode)
+		})
+	}
+}
+
+func (s *linuxTestSuite) TestProcessCheckWithServiceDiscoveryPrivilegedLogs() {
+	servicesWithRestricted := []string{
+		"python-restricted",
+	}
+	s.testProcessCheckWithServiceDiscoveryPrivilegedLogs(agentProcessConfigStr, systemProbeConfigPrivilegedLogsStr, servicesWithRestricted)
 }
 
 func (s *linuxTestSuite) testLogs(t *testing.T) {
@@ -97,7 +126,11 @@ func (s *linuxTestSuite) testLogs(t *testing.T) {
 			// and the extra messages shouldn't be too noisy.
 			t.Logf("Log: %+v", log)
 			assert.Equal(c, "python-svc-dd", log.Service, "Log service should match")
-			assert.Equal(c, "python.server", log.Source, "Log source should match")
+			assert.Equal(c, "python", log.Source, "Log source should match")
+
+			assert.Contains(c, log.Tags, "service:python-svc-dd")
+			assert.Contains(c, log.Tags, "version:2.1")
+			assert.Contains(c, log.Tags, "env:prod")
 
 			if log.Message == "Server is running on http://0.0.0.0:8082" {
 				foundStartupLog = true
@@ -143,7 +176,7 @@ func (s *linuxTestSuite) dumpDebugInfo(t *testing.T) {
 	// This is very useful for debugging, but we probably don't want to decode
 	// and assert based on this in this E2E test since this is an internal
 	// interface between the agent and system-probe.
-	discoveredServices := s.Env().RemoteHost.MustExecute("sudo curl -s --unix /opt/datadog-agent/run/sysprobe.sock http://unix/discovery/debug")
+	discoveredServices := s.Env().RemoteHost.MustExecute("sudo curl -s --unix-socket /opt/datadog-agent/run/sysprobe.sock http://unix/discovery/debug")
 	t.Log("system-probe services", discoveredServices)
 
 	workloadmetaStore := s.Env().RemoteHost.MustExecute("sudo datadog-agent workload-list --verbose")
@@ -153,14 +186,17 @@ func (s *linuxTestSuite) dumpDebugInfo(t *testing.T) {
 	t.Log("agent status", status)
 }
 
-func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr string, systemProbeConfigStr string) {
+func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr string, systemProbeConfigStr string, mode discoveryMode) {
 	t := s.T()
 	s.startServices()
 	defer s.stopServices()
-	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(
-		agentparams.WithAgentConfig(agentConfigStr),
-		agentparams.WithSystemProbeConfig(systemProbeConfigStr))),
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(
+		scenec2.WithAgentOptions(
+			agentparams.WithAgentConfig(agentConfigStr),
+			agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
+	)),
 	)
+	s.validateDiscoveryMode(mode)
 	client := s.Env().FakeIntake.Client()
 	err := client.FlushServerAndResetAggregators()
 	require.NoError(t, err)
@@ -284,8 +320,9 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr str
 				// therefore we should wait for 2 minutes to ensure service discovery is run at least once
 				// start --> process collection, service discovery ignoring
 				// 1 min --> process collection + service discovery collection ignores processes/may capture some
-				// 2 min --> process collection + service discovery collection should capture everythinf
-			}, 2*time.Minute, 10*time.Second)
+				// 2 min --> process collection + service discovery collection should capture everything
+				// 3 min --> extra time for the collected data to actually be sent by the process check
+			}, 3*time.Minute, 10*time.Second)
 		})
 		if !ok {
 			s.dumpDebugInfo(t)
@@ -293,6 +330,55 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr str
 	}
 
 	ok := t.Run("logs", s.testLogs)
+	if !ok {
+		s.dumpDebugInfo(t)
+	}
+}
+
+func (s *linuxTestSuite) testProcessCheckWithServiceDiscoveryPrivilegedLogs(agentConfigStr string, systemProbeConfigStr string, servicesToStart []string) {
+	t := s.T()
+	s.startServicesFromList(servicesToStart)
+	defer s.stopServicesFromList(servicesToStart)
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(
+		scenec2.WithAgentOptions(
+			agentparams.WithAgentConfig(agentConfigStr),
+			agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
+	)),
+	)
+	client := s.Env().FakeIntake.Client()
+	err := client.FlushServerAndResetAggregators()
+	require.NoError(t, err)
+
+	// Trigger log generation in the restricted service
+	s.Env().RemoteHost.MustExecute("curl -s http://localhost:8086/test")
+
+	ok := assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		logs, err := s.Env().FakeIntake.Client().FilterLogs("python-restricted-dd")
+		assert.NoError(c, err, "failed to get logs from fakeintake")
+
+		assert.NotEmpty(c, logs, "Expected to find logs from python-restricted-dd service")
+
+		foundStartupLog := false
+		foundRequestLog := false
+
+		for _, log := range logs {
+			t.Logf("Log: %+v", log)
+			assert.Equal(c, "python-restricted-dd", log.Service, "Log service should match")
+			assert.Equal(c, "python", log.Source, "Log source should match")
+
+			if log.Message == "Server is running on http://0.0.0.0:8086" {
+				foundStartupLog = true
+			}
+			if log.Message == "GET /test" {
+				foundRequestLog = true
+			}
+		}
+
+		assert.True(c, foundStartupLog, "Should find startup log message")
+		assert.True(c, foundRequestLog, "Should find request log message")
+		// Wait for more time than the normal test since here we don't wait for the process collection first.
+	}, 4*time.Minute, 10*time.Second)
+
 	if !ok {
 		s.dumpDebugInfo(t)
 	}
@@ -452,6 +538,27 @@ func matchingTracerMetadata(expectedTracerMetadata []*agentmodel.TracerMetadata,
 	return diff == ""
 }
 
+var systemProbeConfigByMode = map[discoveryMode]string{
+	discoveryModeSdAgent:     systemProbeConfigStr,
+	discoveryModeSystemProbe: systemProbeConfigFallbackStr,
+}
+
+func (s *linuxTestSuite) validateDiscoveryMode(mode discoveryMode) {
+	ps := s.Env().RemoteHost.MustExecute("ps aux | grep -E '(system-probe|sd-agent)' | grep -v grep")
+	s.T().Logf("Process list:\n%s", ps)
+
+	// sd-agent execs into system-probe (process replacement), they don't run simultaneously
+	if mode == discoveryModeSdAgent {
+		// In sd-agent mode, sd-agent runs its own server (no exec)
+		require.Contains(s.T(), ps, "sd-agent", "sd-agent should be running in sd-agent mode")
+		s.T().Logf("Found sd-agent process (mode: %s)", mode)
+	} else if mode == discoveryModeSystemProbe {
+		// In system-probe mode, sd-agent exec'd into system-probe (replaced itself)
+		require.Contains(s.T(), ps, "system-probe", "system-probe should be running in system-probe mode")
+		s.T().Logf("Found system-probe process (mode: %s)", mode)
+	}
+}
+
 func (s *linuxTestSuite) provisionServer() {
 	err := s.Env().RemoteHost.CopyFolder("testdata/provision", "/home/ubuntu/e2e-test")
 	require.NoError(s.T(), err)
@@ -471,14 +578,22 @@ func (s *linuxTestSuite) provisionServer() {
 }
 
 func (s *linuxTestSuite) startServices() {
-	for _, service := range services {
+	s.startServicesFromList(services)
+}
+
+func (s *linuxTestSuite) stopServices() {
+	s.stopServicesFromList(services)
+}
+
+func (s *linuxTestSuite) startServicesFromList(servicesList []string) {
+	for _, service := range servicesList {
 		s.Env().RemoteHost.MustExecute("sudo systemctl start " + service)
 	}
 }
 
-func (s *linuxTestSuite) stopServices() {
-	for i := len(services) - 1; i >= 0; i-- {
-		service := services[i]
+func (s *linuxTestSuite) stopServicesFromList(servicesList []string) {
+	for i := len(servicesList) - 1; i >= 0; i-- {
+		service := servicesList[i]
 		s.Env().RemoteHost.MustExecute("sudo systemctl stop " + service)
 	}
 }

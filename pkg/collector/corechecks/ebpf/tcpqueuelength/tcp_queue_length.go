@@ -9,7 +9,7 @@
 package tcpqueuelength
 
 import (
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -73,7 +73,7 @@ func (t *TCPQueueLengthCheck) Configure(senderManager sender.SenderManager, _ ui
 	if err != nil {
 		return err
 	}
-	t.sysProbeClient = sysprobeclient.GetCheckClient(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	t.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")))
 
 	return t.instance.Parse(config)
 }

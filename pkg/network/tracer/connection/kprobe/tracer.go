@@ -10,6 +10,7 @@ package kprobe
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -23,6 +24,7 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
+	ssluprobes "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ssl-uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -219,19 +221,23 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 	for _, p := range m.Probes {
-		if _, enabled := enabledProbes[p.EBPFFuncName]; !enabled {
+		if _, enabled := enabledProbes[p.ProbeIdentificationPair]; !enabled {
+			// OpenSSLProbes will get used later by the uprobe attacher
+			if config.EnableCertCollection && slices.Contains(ssluprobes.OpenSSLUProbes, p.EBPFFuncName) {
+				continue
+			}
 			mgrOpts.ExcludedFunctions = append(mgrOpts.ExcludedFunctions, p.EBPFFuncName)
 		}
 	}
 
-	_, udpSendPageEnabled := enabledProbes[probes.UDPSendPage]
+	udpSendPageIdentifier := manager.ProbeIdentificationPair{
+		EBPFFuncName: probes.UDPSendPage,
+		UID:          probeUID,
+	}
+	_, udpSendPageEnabled := enabledProbes[udpSendPageIdentifier]
 	util.AddBoolConst(&mgrOpts, "udp_send_page_enabled", udpSendPageEnabled)
 
-	for funcName := range enabledProbes {
-		probeIdentifier := manager.ProbeIdentificationPair{
-			EBPFFuncName: funcName,
-			UID:          probeUID,
-		}
+	for probeIdentifier := range enabledProbes {
 		if _, ok := tailCallsIdentifiersSet[probeIdentifier]; ok {
 			// tail calls should be enabled (a.k.a. not excluded) but not activated.
 			continue

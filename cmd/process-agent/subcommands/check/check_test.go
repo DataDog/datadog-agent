@@ -17,6 +17,7 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/processchecks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -45,7 +46,7 @@ func TestRunCheckCmdCommand(t *testing.T) {
 			ConfFilePath: configPath,
 		}),
 		[]string{"check", "process"},
-		RunCheckCmd,
-		func(_ *CliParams) {},
+		processchecks.RunCheckCmd,
+		func(_ *processchecks.CliParams) {},
 	)
 }

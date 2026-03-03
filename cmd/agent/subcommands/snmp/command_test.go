@@ -6,13 +6,13 @@
 package snmp
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -26,15 +26,6 @@ func TestWalkCommand(t *testing.T) {
 			require.Equal(t, argsType{"1.2.3.4", "10.9.8.7"}, args)
 			require.Equal(t, "3", cliParams.Version)
 			require.Equal(t, 10, cliParams.Retries)
-			require.False(t, cliParams.UseUnconnectedUDPSocket)
-		})
-
-	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
-		[]string{"snmp", "walk", "1.2.3.4", "10.9.8.7", "--use-unconnected-udp-socket"},
-		snmpWalk,
-		func(cliParams *snmpparse.SNMPConfig, args argsType) {
-			require.Equal(t, argsType{"1.2.3.4", "10.9.8.7"}, args)
 			require.True(t, cliParams.UseUnconnectedUDPSocket)
 		})
 }
@@ -49,15 +40,6 @@ func TestScanCommand(t *testing.T) {
 			require.Equal(t, argsType{"1.2.3.4"}, args)
 			require.Equal(t, "3", cliParams.Version)
 			require.Equal(t, 10, cliParams.Retries)
-			require.False(t, cliParams.UseUnconnectedUDPSocket)
-		})
-
-	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
-		[]string{"snmp", "scan", "1.2.3.4", "--use-unconnected-udp-socket"},
-		scanDevice,
-		func(cliParams *snmpparse.SNMPConfig, args argsType) {
-			require.Equal(t, argsType{"1.2.3.4"}, args)
 			require.True(t, cliParams.UseUnconnectedUDPSocket)
 		})
 }

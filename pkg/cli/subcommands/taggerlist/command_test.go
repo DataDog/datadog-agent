@@ -9,10 +9,8 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -27,7 +25,13 @@ func TestCommand(t *testing.T) {
 		commands,
 		[]string{"tagger-list"},
 		taggerList,
-		func(_ *cliParams, _ core.BundleParams, secretParams secrets.Params) {
-			require.Equal(t, false, secretParams.Enabled)
+		func(cliParams *cliParams, _ core.BundleParams) {
+			// Test default (non-JSON) output
+			if cliParams.json {
+				t.Errorf("expected jsonOutput to be false by default")
+			}
+			if cliParams.prettyJSON {
+				t.Errorf("expected prettyJSON to be false by default")
+			}
 		})
 }

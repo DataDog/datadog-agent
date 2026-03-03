@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package k8sconfig
 
@@ -681,7 +680,7 @@ users:
 func procTable(str string) []proc {
 	var table []proc
 	str = strings.ReplaceAll(str, "\\\n", "")
-	for _, l := range strings.Split(str, "\n") {
+	for l := range strings.SplitSeq(str, "\n") {
 		if l == "" {
 			continue
 		}

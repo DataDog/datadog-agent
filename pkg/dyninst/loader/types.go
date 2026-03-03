@@ -10,6 +10,7 @@ package loader
 
 // #define CGO
 // #define bool _Bool
+// #define int32_t int
 // #define int64_t long long
 // #define uint8_t unsigned char
 // #define uint16_t unsigned short
@@ -26,6 +27,7 @@ import (
 type typeInfo C.type_info_t
 type probeParams C.probe_params_t
 type throttlerParams C.throttler_params_t
+type stats C.stats_t
 
 func opcodeByte(opcode compiler.Opcode) uint8 {
 	switch opcode {

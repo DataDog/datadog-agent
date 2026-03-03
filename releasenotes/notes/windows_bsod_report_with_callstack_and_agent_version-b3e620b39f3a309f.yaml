@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Enhance Windows BSOD reports to include the crash call stack and the Agent version found in the crash dump.

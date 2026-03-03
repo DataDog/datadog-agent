@@ -8,13 +8,13 @@ package oidresolverimpl
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io/fs"
 	"math/rand"
+	"strconv"
 	"strings"
 	"testing"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver"
@@ -299,7 +299,7 @@ func TestIsValidOID_PropertyBasedTesting(t *testing.T) {
 		oidLen := rand.Intn(100) + 2
 		oidParts := make([]string, oidLen)
 		for j := 0; j < oidLen; j++ {
-			oidParts[j] = fmt.Sprint(rand.Intn(100000))
+			oidParts[j] = strconv.Itoa(rand.Intn(100000))
 		}
 		recreatedOID := strings.Join(oidParts, ".")
 		if rand.Intn(2) == 0 {

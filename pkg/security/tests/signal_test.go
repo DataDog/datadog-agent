@@ -49,7 +49,7 @@ func TestSignalEvent(t *testing.T) {
 		args := []string{"signal", "sigusr1"}
 		envs := []string{}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc(syscallTester, args, envs)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				return fmt.Errorf("%s: %w", out, err)
@@ -65,14 +65,14 @@ func TestSignalEvent(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			test.validateSignalSchema(t, event)
-		})
+		}, "test_signal_sigusr1")
 	})
 
 	test.RunMultiMode(t, "signal-eperm", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"signal", "eperm"}
 		envs := []string{}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc(syscallTester, args, envs)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				return fmt.Errorf("%s: %w", out, err)
@@ -88,6 +88,6 @@ func TestSignalEvent(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			test.validateSignalSchema(t, event)
-		})
+		}, "test_signal_eperm")
 	})
 }

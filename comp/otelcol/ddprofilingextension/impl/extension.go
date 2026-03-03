@@ -9,7 +9,6 @@ package ddprofilingextensionimpl
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"runtime/debug"
 	"strings"
@@ -112,6 +111,11 @@ func (e *ddExtension) startForOCB() error {
 		profilerOptions = append(profilerOptions, profiler.WithSite(string(e.cfg.API.Site)))
 	}
 
+	source, err := e.sourceProvider.Source(context.Background())
+	if err != nil {
+		return err
+	}
+
 	var tags strings.Builder
 	// agent_version is required by profiling backend. Use version of comp/trace/agent/def, and fallback to 7.64.0.
 	agentVersion := "7.64.0"
@@ -123,10 +127,19 @@ func (e *ddExtension) startForOCB() error {
 			}
 		}
 	}
-	tags.WriteString(fmt.Sprintf("agent_version:%s", agentVersion))
+	tags.WriteString("agent_version:" + agentVersion)
 	tags.WriteString(",source:oss-ddprofilingextension")
 	if e.cfg.ProfilerOptions.Env != "" {
-		tags.WriteString(fmt.Sprintf(",default_env:%s", e.cfg.ProfilerOptions.Env))
+		tags.WriteString(",default_env:" + e.cfg.ProfilerOptions.Env)
+	}
+
+	if source.Kind == "host" {
+		profilerOptions = append(profilerOptions, profiler.WithHostname(source.Identifier))
+		tags.WriteString(",host:" + source.Identifier)
+	}
+
+	if source.Kind == "task_arn" {
+		tags.WriteString(",orchestrator:fargate_ecs,task_arn:" + source.Identifier)
 	}
 
 	cl := new(http.Client)

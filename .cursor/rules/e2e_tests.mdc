@@ -1,0 +1,151 @@
+---
+description: Guidelines for working with E2E tests in the datadog-agent repository
+alwaysApply: false
+globs: test/new-e2e/**/*
+---
+
+# E2E Test Development Guidelines
+
+This rule provides troubleshooting tips and code patterns not covered in the main documentation. For prerequisites, setup, and basic usage, see `docs/public/how-to/test/e2e.md`.
+
+## AWS Account Configuration
+
+**CRITICAL**: E2E tests require specific AWS accounts:
+- **Local execution**: Use `agent-sandbox` AWS account
+- **CI execution**: Uses `agent-qa` AWS account
+
+Configure `~/.test_infra_config.yaml`:
+
+```yaml
+configParams:
+  aws:
+    keyPairName: "your-keypair-name"
+    publicKeyPath: "/path/to/your/public/key"
+  agent:
+    apiKey: "00000000000000000000000000000000"
+```
+
+**Common Error**: `User: arn:aws:sts::... is not authorized to perform: ecr:BatchGetImage`
+**Solution**: Verify AWS account configuration. Ensure you're authenticated with `aws-vault login sso-agent-sandbox-account-admin`.
+
+### Kubernetes Tests with ECR Authentication
+
+For Kubernetes tests that need to pull images from ECR:
+
+```bash
+E2E_DEV_MODE=true dda inv -- -e new-e2e-tests.run \
+  --targets ./tests/gpu \
+  -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com \
+  -c ddagent:imagePullPassword=$(aws-vault exec sso-agent-qa-read-only -- aws ecr get-login-password) \
+  -c ddagent:imagePullUsername=AWS \
+  --run TestGPUK8sSuiteUbuntu2204
+```
+
+Note: The `-c ddagent:imagePull*` flags are for the Kubernetes agent to pull images, not for the EC2 instance. The EC2 instance uses its IAM role.
+
+## Provisioners and Environments
+
+Provisioners are in `test/e2e-framework/testing/provisioners/`:
+
+| Provider | Paths |
+|----------|-------|
+| AWS | `aws/host`, `aws/docker`, `aws/ecs`, `aws/kubernetes/eks`, `aws/kubernetes/kindvm` |
+| Azure | `azure/host/linux`, `azure/host/windows`, `azure/kubernetes/aks` |
+| GCP | `gcp/host/linux`, `gcp/kubernetes/gke` |
+| Local | `local/host/podman`, `local/kubernetes/kind` |
+
+**Key concepts:**
+- **Typed Provisioners**: Use `component.Export()` to match Environment fields with Pulumi resources.
+- **Untyped Provisioners**: Environment needs `import` tag to match resource keys.
+
+**Environments** (`test/e2e-framework/testing/environments/`):
+- `environments.Host`: fields `RemoteHost`, `FakeIntake`, `Agent`, `Updater`
+- `environments.Kubernetes`: fields `KubernetesCluster`, `FakeIntake`, `Agent`
+- `environments.DockerHost`: VM with Docker and agent in containers
+- `environments.ECS`: ECS cluster environment
+
+## Common Patterns
+
+### Installing Docker with ECR Support
+
+```go
+installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
+dockerManager, err := docker.NewManager(&awsEnv, host, utils.PulumiDependsOn(installEcrCredsHelperCmd))
+```
+
+### Pulling Docker Images
+
+```go
+func downloadDockerImages(e *aws.Environment, vm *componentsremote.Host, images []string, dependsOn ...pulumi.Resource) ([]pulumi.Resource, error) {
+    var cmds []pulumi.Resource
+    for i, image := range images {
+        pullCmd := makeRetryCommand(fmt.Sprintf("docker pull %s", image), dockerPullMaxRetries)
+        cmd, err := vm.OS.Runner().Command(
+            e.CommonNamer().ResourceName("docker-pull", strconv.Itoa(i)),
+            &command.Args{Create: pulumi.Sprintf("/bin/bash -c \"%s\"", pullCmd)},
+            utils.PulumiDependsOn(dependsOn...),
+        )
+        if err != nil {
+            return nil, err
+        }
+        cmds = append(cmds, cmd)
+    }
+    return cmds, nil
+}
+```
+
+### Diagnose Function
+
+```go
+provisioner.SetDiagnoseFunc(awskubernetes.KindDiagnoseFunc)
+```
+
+## Troubleshooting
+
+### ECR Authentication Issues
+
+When EC2 instances fail to pull images from ECR:
+1. Verify `~/.test_infra_config.yaml` is configured for `agent-sandbox`
+2. Install ECR credentials helper: `ec2.InstallECRCredentialsHelper()`
+3. Install Docker: `docker.NewManager()` configures Docker to use the credentials helper
+
+Root causes:
+- Running in wrong AWS account (should be `agent-sandbox` for local)
+- EC2 instance role missing ECR permissions
+
+### Pulumi Lock Issues
+
+If you see: `error: the stack is currently locked by 1 lock(s)...`
+
+```bash
+# Remove local Pulumi locks
+dda inv new-e2e-tests.clean
+
+# Also clean local stack state
+dda inv new-e2e-tests.clean -s
+
+# Clear local test output
+dda inv new-e2e-tests.clean --output
+```
+
+If cleanup says "Cleanup supported for local state only":
+```bash
+pulumi login --local
+```
+
+### Test Output Location
+
+Output stored in `~/e2e-output/<TestName>_<timestamp>/`:
+- Pulumi logs
+- Agent logs
+- Agent flares (on failure)
+- Test artifacts
+
+## Key Files
+
+- `test/e2e-framework/testing/e2e/suite.go`: Core BaseSuite and Run function
+- `test/e2e-framework/testing/environments/`: Environment definitions
+- `test/e2e-framework/testing/provisioners/`: Provisioner implementations
+- `test/e2e-framework/components/`: Pulumi component definitions
+- `test/e2e-framework/scenarios/`: Pre-built scenario configurations
+- `test/e2e-framework/resources/`: Cloud-specific resource definitions

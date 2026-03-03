@@ -129,7 +129,8 @@ type vDatabase struct {
 func handleServiceCheck(c *Check, err error) {
 	sender, errSender := c.GetSender()
 	if errSender != nil {
-		log.Errorf("%s failed to get sender for service check %s", c.logPrompt, err)
+		log.Errorf("%s failed to get sender for service check: %s", c.logPrompt, errSender)
+		return
 	}
 
 	message := ""
@@ -174,7 +175,7 @@ func (c *Check) Run() error {
 		}
 		if db == nil {
 			c.Teardown()
-			handleServiceCheck(c, fmt.Errorf("empty connection"))
+			handleServiceCheck(c, errors.New("empty connection"))
 			return fmt.Errorf("%s empty connection", c.logPrompt)
 		}
 		c.db = db
@@ -221,7 +222,7 @@ func (c *Check) Run() error {
 			if errConnect != nil {
 				handleServiceCheck(c, errConnect)
 			} else if db == nil {
-				handleServiceCheck(c, fmt.Errorf("empty connection"))
+				handleServiceCheck(c, errors.New("empty connection"))
 			} else {
 				handleServiceCheck(c, nil)
 			}
@@ -401,19 +402,19 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	tags := make([]string, len(c.config.Tags))
 	copy(tags, c.config.Tags)
 
-	tags = append(tags, fmt.Sprintf("dbms:%s", common.IntegrationName), fmt.Sprintf("ddagentversion:%s", c.agentVersion))
+	tags = append(tags, "dbms:"+common.IntegrationName, "ddagentversion:"+c.agentVersion)
 	tags = append(tags, fmt.Sprintf("dbm:%t", c.dbmEnabled))
 	if c.config.TnsAlias != "" {
-		tags = append(tags, fmt.Sprintf("tns-alias:%s", c.config.TnsAlias))
+		tags = append(tags, "tns-alias:"+c.config.TnsAlias)
 	}
 	if c.config.Port != 0 {
 		tags = append(tags, fmt.Sprintf("port:%d", c.config.Port))
 	}
 	if c.config.Server != "" {
-		tags = append(tags, fmt.Sprintf("server:%s", c.config.Server))
+		tags = append(tags, "server:"+c.config.Server)
 	}
 	if c.config.ServiceName != "" {
-		tags = append(tags, fmt.Sprintf("service_name:%s", c.config.ServiceName))
+		tags = append(tags, "service_name:"+c.config.ServiceName)
 	}
 
 	c.logPrompt = config.GetLogPrompt(c.config.InstanceConfig)
@@ -424,7 +425,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	} else {
 		log.Errorf("%s failed to retrieve agent hostname: %s", c.logPrompt, err)
 	}
-	tags = append(tags, fmt.Sprintf("ddagenthostname:%s", c.agentHostname))
+	tags = append(tags, "ddagenthostname:"+c.agentHostname)
 
 	c.configTags = make([]string, len(tags))
 	copy(c.configTags, tags)

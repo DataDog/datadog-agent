@@ -6,11 +6,14 @@
 package uptane
 
 import (
+	"fmt"
+	"slices"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/pkg/errors"
 	"go.etcd.io/bbolt"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // dbBucket contains the data of the bucket
@@ -38,12 +41,60 @@ type transaction struct {
 	store *transactionalStore
 }
 
-func newTransactionalStore(db *bbolt.DB) *transactionalStore {
+// Metadata needed in order to recreate boltDB
+type Metadata struct {
+	Path         string
+	AgentVersion string
+	APIKey       string
+	URL          string
+}
+
+// NewTransactionalStore creates a new transactional store comprised of creating the underlying boltDB
+func newTransactionalStore(metadata *Metadata) (*transactionalStore, error) {
+	// transactional store should be in charge of opening/closing boltDB
+	db, err := openCacheDB(metadata.Path, metadata.AgentVersion, metadata.APIKey, metadata.URL)
+	if err != nil {
+		return nil, err
+	}
 	s := &transactionalStore{
 		db:         db,
 		cachedData: make(map[string]dbBucket),
 	}
-	return s
+	return s, nil
+}
+
+// RecreateTransactionalStore uses the metadata & path from the existing TS boltDB to open a new one & clear cachedData
+func recreateTransactionalStore(metadata *Metadata) (*transactionalStore, error) {
+	db, err := recreate(metadata.Path, metadata.AgentVersion, metadata.APIKey, metadata.URL)
+	if err != nil {
+		return nil, err
+	}
+	s := &transactionalStore{
+		db:         db,
+		cachedData: make(map[string]dbBucket),
+	}
+	return s, nil
+}
+
+// getTSMetadata gets metadata from existing transactional db and then closes the existing underlying boltDB
+func (ts *transactionalStore) getTSMetadata() (*Metadata, error) {
+	metadata, err := getMetadata(ts.db)
+	if err != nil {
+		return nil, fmt.Errorf("could not read metadata from the database: %w", err)
+	}
+	path := ts.db.Path()
+
+	err = ts.db.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	return &Metadata{
+		Path:         path,
+		AgentVersion: metadata.Version,
+		APIKey:       metadata.APIKeyHash,
+		URL:          metadata.URL,
+	}, nil
 }
 
 // getMemBucket returns a refence to the in-memory bucket
@@ -98,6 +149,7 @@ func (ts *transactionalStore) getAll(bucketName string) ([]pathData, error) {
 		}
 		return nil
 	})
+
 	return blobs, err
 }
 
@@ -196,6 +248,19 @@ func (ts *transactionalStore) rollback() {
 	}
 }
 
+func (ts *transactionalStore) Close() error {
+	ts.lock.Lock()
+	defer ts.lock.Unlock()
+	return ts.db.Close()
+}
+
+// for test in service pkg
+func (ts *transactionalStore) GetPath() string {
+	ts.lock.Lock()
+	defer ts.lock.Unlock()
+	return ts.db.Path()
+}
+
 func (t *transaction) put(bucketName string, path string, data []byte) {
 	log.Debugf("Putting %s in bucket %s", path, bucketName)
 	bucket := t.store.getMemBucket(bucketName)
@@ -224,7 +289,7 @@ func (t *transaction) get(bucketName string, path string) ([]byte, error) {
 		if bucket == nil {
 			return nil
 		}
-		data = bucket.Get([]byte(path))
+		data = slices.Clone(bucket.Get([]byte(path)))
 		return nil
 	})
 

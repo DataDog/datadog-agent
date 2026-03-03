@@ -11,7 +11,6 @@ package payload
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/gohai"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -81,6 +80,9 @@ type Meta struct {
 
 	// HostAliases are other available host names
 	HostAliases []string `json:"host_aliases,omitempty"`
+
+	// CCRID
+	CanonicalCloudResourceID string `json:"ccrid,omitempty"`
 }
 
 // NewEmpty creates a new HostMetadata with empty fields.
@@ -95,12 +97,6 @@ func NewEmpty() HostMetadata {
 	}
 }
 
-// SplitPayload implements the JSONMarshaler.SplitPayload interface
-func (p *HostMetadata) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	// Metadata payloads are analyzed as a whole, so they cannot be split
-	return nil, fmt.Errorf("host Payload splitting is not implemented")
-}
-
 // MarshalJSON implements the JSONMarshaler.MarshalJSON interface
 func (p *HostMetadata) MarshalJSON() ([]byte, error) {
 	// use an alias to avoid infinite recursion while serializing
@@ -110,3 +106,15 @@ func (p *HostMetadata) MarshalJSON() ([]byte, error) {
 }
 
 var _ marshaler.JSONMarshaler = (*HostMetadata)(nil)
+
+// Clone performs a deep clone of a HostMetadata struct.
+func (p *HostMetadata) Clone() (p2 HostMetadata, err error) {
+	var marshaled []byte
+	marshaled, err = json.Marshal(p)
+	if err != nil {
+		return
+	}
+	p2 = NewEmpty()
+	err = json.Unmarshal(marshaled, &p2)
+	return
+}

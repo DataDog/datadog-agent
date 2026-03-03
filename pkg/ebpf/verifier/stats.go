@@ -191,9 +191,9 @@ func generateLoadFunction(file string, opts *StatsOptions, results *StatsResult,
 			prog := reflect.New(
 				reflect.StructOf([]reflect.StructField{
 					{
-						Name: fmt.Sprintf("Func_%s", progSpec.Name),
+						Name: "Func_" + progSpec.Name,
 						Type: reflect.TypeOf(&ebpf.Program{}),
-						Tag:  reflect.StructTag(fmt.Sprintf(`ebpf:"%s"`, progSpec.Name)),
+						Tag:  reflect.StructTag(`ebpf:"` + progSpec.Name + `"`),
 					},
 				}),
 			)

@@ -337,17 +337,6 @@ func TestTruncate(t *testing.T) {
 	assert.Equal(t, []byte("hello"), msg.GetContent())
 }
 
-func TestGetHostnameLambda(t *testing.T) {
-	p := &Processor{}
-	m := message.NewMessage([]byte("hello"), nil, "", 0)
-	m.ServerlessExtra = message.ServerlessExtra{
-		Lambda: &message.Lambda{
-			ARN: "testHostName",
-		},
-	}
-	assert.Equal(t, "testHostName", p.GetHostname(m))
-}
-
 func TestGetHostname(t *testing.T) {
 	hostnameComponent, _ := hostnameinterface.NewMock("testHostnameFromEnvVar")
 	p := &Processor{

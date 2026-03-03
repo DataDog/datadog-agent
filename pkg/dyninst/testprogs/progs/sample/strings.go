@@ -50,9 +50,14 @@ func testUnitializedString(x string) {}
 func testEmptyString(x string) {}
 
 //nolint:all
+//go:noinline
+func testSubstrings(a string, b string, c string) {}
+
+//nolint:all
 func executeStringFuncs() {
-	testSingleString("abc")
-	testThreeStrings("abc", "def", "ghi")
+	abc := "abc"
+	testSingleString(abc)
+	testThreeStrings(abc, "def", "ghi")
 	testThreeStringsInStruct(threeStringStruct{a: "abc", b: "def", c: "ghi"})
 	testThreeStringsInStructPointer(&threeStringStruct{a: "abc", b: "def", c: "ghi"})
 	testOneStringInStructPointer(&oneStringStruct{a: "omg"})
@@ -61,6 +66,11 @@ func executeStringFuncs() {
 	var uninitializedString string
 	testUnitializedString(uninitializedString)
 	testEmptyString("")
+	testEmptyString(abc[:0])
+
+	// Check captures when multiple variables are aliasing the same underlying buffer.
+	s := "abcdef"
+	testSubstrings(s[:4], s[:2], s)
 }
 
 var x = strings.Repeat("x", 100000)

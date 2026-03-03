@@ -1,0 +1,13 @@
+---
+# Unit test of internal python code
+invoke_unit_tests:
+  extends: .bazel:defs:cache:ephemeral
+  stage: source_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  needs: []
+  rules:
+    - !reference [.on_invoke_tasks_changes]
+  script:
+    - dda self dep sync -f legacy-tasks -f legacy-kernel-matrix-testing
+    - dda inv -- -e invoke-unit-tests.run

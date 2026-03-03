@@ -9,7 +9,6 @@ package listeners
 
 import (
 	"errors"
-	"maps"
 	"sort"
 	"strings"
 	"time"
@@ -36,16 +35,20 @@ const (
 // workloadmeta store.
 type ContainerListener struct {
 	workloadmetaListener
-	filterStore workloadfilter.Component
-	tagger      tagger.Component
+	globalFilter  workloadfilter.FilterBundle
+	metricsFilter workloadfilter.FilterBundle
+	logsFilter    workloadfilter.FilterBundle
+	tagger        tagger.Component
 }
 
 // NewContainerListener returns a new ContainerListener.
 func NewContainerListener(options ServiceListernerDeps) (ServiceListener, error) {
 	const name = "ad-containerlistener"
 	l := &ContainerListener{
-		filterStore: options.Filter,
-		tagger:      options.Tagger,
+		globalFilter:  options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter),
+		metricsFilter: options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter),
+		logsFilter:    options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter),
+		tagger:        options.Tagger,
 	}
 	filter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceAll).
@@ -76,10 +79,9 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		}
 	}
 	containerImg := container.Image
-	if l.filterStore.IsContainerExcluded(
-		workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod)),
-		l.filterStore.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter),
-	) {
+	filterableContainer := workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod))
+
+	if l.globalFilter.IsExcluded(filterableContainer) {
 		log.Debugf("container %s filtered out: name %q image %q", container.ID, container.Name, containerImg.RawName)
 		return
 	}
@@ -101,9 +103,9 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		return
 	}
 
-	ports := make([]ContainerPort, 0, len(container.Ports))
+	ports := make([]workloadmeta.ContainerPort, 0, len(container.Ports))
 	for _, port := range container.Ports {
-		ports = append(ports, ContainerPort{
+		ports = append(ports, workloadmeta.ContainerPort{
 			Port: port.Port,
 			Name: port.Name,
 		})
@@ -113,7 +115,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		return ports[i].Port < ports[j].Port
 	})
 
-	svc := &service{
+	svc := &WorkloadService{
 		entity:   container,
 		tagsHash: l.tagger.GetEntityHash(types.NewEntityID(types.ContainerID, container.ID), types.ChecksConfigCardinality),
 		adIdentifiers: computeContainerServiceIDs(
@@ -121,24 +123,18 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 			containerImg.RawName,
 			container.Labels,
 		),
-		ports:    ports,
-		pid:      container.PID,
-		hostname: container.Hostname,
-		tagger:   l.tagger,
+		ports:           ports,
+		pid:             container.PID,
+		hostname:        container.Hostname,
+		metricsExcluded: l.metricsFilter.IsExcluded(filterableContainer),
+		logsExcluded:    l.logsFilter.IsExcluded(filterableContainer),
+		tagger:          l.tagger,
+		wmeta:           l.Store(),
 	}
 
 	if pod != nil {
 		svc.hosts = map[string]string{"pod": pod.IP}
 		svc.ready = pod.Ready || shouldSkipPodReadiness(pod)
-
-		svc.metricsExcluded = l.filterStore.IsContainerExcluded(
-			workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod)),
-			l.filterStore.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter),
-		)
-		svc.logsExcluded = l.filterStore.IsContainerExcluded(
-			workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod)),
-			l.filterStore.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter),
-		)
 
 		adIdentifier := container.Name
 		if customADID, found := utils.ExtractCheckIDFromPodAnnotations(pod.Annotations, container.Name); found {
@@ -157,31 +153,9 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 			log.Errorf("error getting check names from labels on container %s: %v", container.ID, err)
 		}
 
-		hosts := make(map[string]string)
-		maps.Copy(hosts, container.NetworkIPs)
-
-		if rancherIP, ok := docker.FindRancherIPInLabels(container.Labels); ok {
-			hosts["rancher"] = rancherIP
-		}
-
-		// Some CNI solutions (including ECS awsvpc) do not assign an
-		// IP through docker, but set a valid reachable hostname. Use
-		// it if no IP is discovered.
-		if len(hosts) == 0 && len(container.Hostname) > 0 {
-			hosts["hostname"] = container.Hostname
-		}
-
 		svc.ready = true
-		svc.hosts = hosts
+		svc.hosts = docker.ContainerHosts(container.NetworkIPs, container.Labels, container.Hostname)
 		svc.checkNames = checkNames
-		svc.metricsExcluded = l.filterStore.IsContainerExcluded(
-			workloadmetafilter.CreateContainer(container, nil),
-			l.filterStore.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter),
-		)
-		svc.logsExcluded = l.filterStore.IsContainerExcluded(
-			workloadmetafilter.CreateContainer(container, nil),
-			l.filterStore.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter),
-		)
 	}
 
 	svcID := buildSvcID(container.GetID())

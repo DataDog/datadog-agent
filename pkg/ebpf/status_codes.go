@@ -17,6 +17,8 @@ const (
 	SuccessEmbeddedBTF BTFResult = 1
 	//SuccessDefaultBTF metric is used to count built-in BTF file which is included on new kernel versions
 	SuccessDefaultBTF BTFResult = 2
+	// SuccessRemoteConfigBTF metric is used to count BTF obtained via remote config
+	SuccessRemoteConfigBTF BTFResult = 7
 	//BtfNotFound returned when btf is not found in any of the expected locations
 	BtfNotFound BTFResult = 3
 )

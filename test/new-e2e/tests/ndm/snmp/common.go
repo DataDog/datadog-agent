@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
 func setupDevice(r *require.Assertions, vm *components.RemoteHost) {
@@ -31,8 +31,8 @@ func checkBasicMetrics(c *assert.CollectT, fakeIntake *components.FakeIntake) {
 
 func checkLastNDMPayload(c *assert.CollectT, fakeIntake *components.FakeIntake, expectedNamespace string) *aggregator.NDMPayload {
 	ndmPayloads, err := fakeIntake.Client().GetNDMPayloads()
-	assert.NoError(c, err)
-	assert.Greater(c, len(ndmPayloads), 0)
+	require.NoError(c, err)
+	require.NotEmpty(c, ndmPayloads)
 
 	ndmPayload := ndmPayloads[len(ndmPayloads)-1]
 	assert.Equal(c, "snmp", ndmPayload.Integration)

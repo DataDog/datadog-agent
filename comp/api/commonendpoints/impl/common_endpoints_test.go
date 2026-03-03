@@ -8,7 +8,7 @@ package impl
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -52,7 +52,7 @@ func TestStopAgent(t *testing.T) {
 			t.Log("Received stop command, shutting down...")
 			stopCh <- nil
 		case <-time.After(time.Second * 30): // Timeout after 5 seconds
-			stopCh <- fmt.Errorf("Timeout waiting for stop signal")
+			stopCh <- errors.New("Timeout waiting for stop signal")
 		}
 	}()
 

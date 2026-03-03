@@ -9,6 +9,7 @@ package systemd
 
 import (
 	"fmt"
+	"maps"
 	"math"
 	"slices"
 	"testing"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/coreos/go-systemd/v22/dbus"
 	godbus "github.com/godbus/dbus/v5"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -90,9 +92,7 @@ func getCreatePropertieWithDefaults(props map[string]interface{}) map[string]int
 		"MemoryAccounting": true,
 		"TasksAccounting":  true,
 	}
-	for k, v := range props {
-		defaultProps[k] = v
-	}
+	maps.Copy(defaultProps, props)
 	return defaultProps
 }
 
@@ -206,7 +206,7 @@ private_socket: /tmp/foo/private_socket
 
 func TestPrivateSocketConnectionErrorCase(t *testing.T) {
 	stats := &mockSystemdStats{}
-	stats.On("PrivateSocketConnection", mock.Anything).Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
+	stats.On("PrivateSocketConnection", mock.Anything).Return((*dbus.Conn)(nil), errors.New("some error"))
 
 	rawInstanceConfig := []byte(`
 unit_names:
@@ -226,7 +226,7 @@ private_socket: /tmp/foo/private_socket
 
 func TestDefaultPrivateSocketConnection(t *testing.T) {
 	stats := &mockSystemdStats{}
-	stats.On("SystemBusSocketConnection").Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
+	stats.On("SystemBusSocketConnection").Return((*dbus.Conn)(nil), errors.New("some error"))
 	stats.On("PrivateSocketConnection", mock.Anything).Return(&dbus.Conn{}, nil)
 
 	rawInstanceConfig := []byte(`
@@ -287,7 +287,7 @@ unit_names:
 func TestDefaultDockerAgentSystemBusSocketConnectionNotCalled(t *testing.T) {
 	t.Setenv("DOCKER_DD_AGENT", "true")
 	stats := &mockSystemdStats{}
-	stats.On("PrivateSocketConnection", mock.Anything).Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
+	stats.On("PrivateSocketConnection", mock.Anything).Return((*dbus.Conn)(nil), errors.New("some error"))
 	stats.On("SystemBusSocketConnection").Return(&dbus.Conn{}, nil)
 
 	rawInstanceConfig := []byte(`
@@ -307,8 +307,8 @@ unit_names:
 
 func TestDbusConnectionErr(t *testing.T) {
 	stats := &mockSystemdStats{}
-	stats.On("PrivateSocketConnection", mock.Anything).Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
-	stats.On("SystemBusSocketConnection").Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
+	stats.On("PrivateSocketConnection", mock.Anything).Return((*dbus.Conn)(nil), errors.New("some error"))
+	stats.On("SystemBusSocketConnection").Return((*dbus.Conn)(nil), errors.New("some error"))
 
 	check := SystemdCheck{stats: stats}
 	senderManager := mocksender.CreateDefaultDemultiplexer()
@@ -327,7 +327,7 @@ func TestDbusConnectionErr(t *testing.T) {
 func TestSystemStateCallFailGracefully(t *testing.T) {
 	stats := &mockSystemdStats{}
 	stats.On("SystemBusSocketConnection").Return(&dbus.Conn{}, nil)
-	stats.On("SystemState", mock.Anything).Return((*dbus.Property)(nil), fmt.Errorf("some error"))
+	stats.On("SystemState", mock.Anything).Return((*dbus.Property)(nil), errors.New("some error"))
 	stats.On("ListUnits", mock.Anything).Return([]dbus.UnitStatus{}, nil)
 	stats.On("GetVersion", mock.Anything).Return(systemdVersion)
 
@@ -348,7 +348,7 @@ func TestSystemStateCallFailGracefully(t *testing.T) {
 
 func TestListUnitErr(t *testing.T) {
 	stats := createDefaultMockSystemdStats()
-	stats.On("ListUnits", mock.Anything).Return(([]dbus.UnitStatus)(nil), fmt.Errorf("some error"))
+	stats.On("ListUnits", mock.Anything).Return(([]dbus.UnitStatus)(nil), errors.New("some error"))
 	stats.On("GetVersion", mock.Anything).Return(systemdVersion)
 
 	check := SystemdCheck{stats: stats}
@@ -774,7 +774,7 @@ unit_regexes: [%s]
 			// Then
 			mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, servicecheck.ServiceCheckOK, "", []string(nil), mock.Anything)
 			for unitName, metrics := range unitsToMetrics {
-				tags := []string{fmt.Sprintf("unit:%s", unitName)}
+				tags := []string{"unit:" + unitName}
 				assertSenderCall := mockSender.AssertNotCalled
 				if slices.Contains(test.monitoredUnits, unitName) {
 					assertSenderCall = mockSender.AssertCalled
@@ -1095,20 +1095,24 @@ func TestGetPropertyUint64(t *testing.T) {
 	data := map[string]struct {
 		propertyName   string
 		expectedNumber uint64
-		expectedError  error
+		expectedError  string
 	}{
-		"prop_uint property retrieved": {"prop_uint", 3, nil},
-		"uint32 property retrieved":    {"prop_uint32", 5, nil},
-		"uint64 property retrieved":    {"prop_uint64", 10, nil},
-		"error int64 not valid":        {"prop_int64", 0, fmt.Errorf("property prop_int64 (int64) cannot be converted to uint64")},
-		"error string not valid":       {"prop_string", 0, fmt.Errorf("property prop_string (string) cannot be converted to uint64")},
-		"error prop not exist":         {"prop_not_exist", 0, fmt.Errorf("property prop_not_exist not found")},
+		"prop_uint property retrieved": {"prop_uint", 3, ""},
+		"uint32 property retrieved":    {"prop_uint32", 5, ""},
+		"uint64 property retrieved":    {"prop_uint64", 10, ""},
+		"error int64 not valid":        {"prop_int64", 0, "property prop_int64 (int64) cannot be converted to uint64"},
+		"error string not valid":       {"prop_string", 0, "property prop_string (string) cannot be converted to uint64"},
+		"error prop not exist":         {"prop_not_exist", 0, "property prop_not_exist not found"},
 	}
 	for name, d := range data {
 		t.Run(name, func(t *testing.T) {
 			num, err := getPropertyUint64(properties, d.propertyName)
 			assert.Equal(t, d.expectedNumber, num)
-			assert.Equal(t, d.expectedError, err)
+			if d.expectedError == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.EqualError(t, err, d.expectedError)
+			}
 		})
 	}
 }
@@ -1122,17 +1126,21 @@ func TestGetPropertyString(t *testing.T) {
 	data := map[string]struct {
 		propertyName   string
 		expectedString string
-		expectedError  error
+		expectedError  string
 	}{
-		"valid string":         {"prop_string", "foo bar", nil},
-		"prop_uint not valid":  {"prop_uint", "", fmt.Errorf("property prop_uint (uint) cannot be converted to string")},
-		"error prop not exist": {"prop_not_exist", "", fmt.Errorf("property prop_not_exist not found")},
+		"valid string":         {"prop_string", "foo bar", ""},
+		"prop_uint not valid":  {"prop_uint", "", "property prop_uint (uint) cannot be converted to string"},
+		"error prop not exist": {"prop_not_exist", "", "property prop_not_exist not found"},
 	}
 	for name, d := range data {
 		t.Run(name, func(t *testing.T) {
 			num, err := getPropertyString(properties, d.propertyName)
 			assert.Equal(t, d.expectedString, num)
-			assert.Equal(t, d.expectedError, err)
+			if d.expectedError == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.EqualError(t, err, d.expectedError)
+			}
 		})
 	}
 }
@@ -1147,18 +1155,22 @@ func TestGetPropertyBool(t *testing.T) {
 	data := map[string]struct {
 		propertyName      string
 		expectedBoolValue bool
-		expectedError     error
+		expectedError     string
 	}{
-		"valid bool true":      {"prop_bool_true", true, nil},
-		"valid bool false":     {"prop_bool_false", false, nil},
-		"prop_uint not valid":  {"prop_uint", false, fmt.Errorf("property prop_uint (uint) cannot be converted to bool")},
-		"error prop not exist": {"prop_not_exist", false, fmt.Errorf("property prop_not_exist not found")},
+		"valid bool true":      {"prop_bool_true", true, ""},
+		"valid bool false":     {"prop_bool_false", false, ""},
+		"prop_uint not valid":  {"prop_uint", false, "property prop_uint (uint) cannot be converted to bool"},
+		"error prop not exist": {"prop_not_exist", false, "property prop_not_exist not found"},
 	}
 	for name, d := range data {
 		t.Run(name, func(t *testing.T) {
 			num, err := getPropertyBool(properties, d.propertyName)
 			assert.Equal(t, d.expectedBoolValue, num)
-			assert.Equal(t, d.expectedError, err)
+			if d.expectedError == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.EqualError(t, err, d.expectedError)
+			}
 		})
 	}
 }

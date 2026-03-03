@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -24,10 +23,9 @@ func TestInstallCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"integration", "install", "foo==1.0", "-v"},
 		install,
-		func(cliParams *cliParams, secretParams secrets.Params) {
+		func(cliParams *cliParams) {
 			require.Equal(t, []string{"foo==1.0"}, cliParams.args)
 			require.Equal(t, 1, cliParams.verbose)
-			require.Equal(t, false, secretParams.Enabled)
 		})
 }
 
@@ -47,10 +45,9 @@ func TestRemoveCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"integration", "remove", "foo"},
 		remove,
-		func(cliParams *cliParams, secretParams secrets.Params) {
+		func(cliParams *cliParams) {
 			require.Equal(t, []string{"foo"}, cliParams.args)
 			require.Equal(t, 0, cliParams.verbose)
-			require.Equal(t, false, secretParams.Enabled)
 		})
 }
 
@@ -59,10 +56,9 @@ func TestFreezeCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"integration", "freeze"},
 		list,
-		func(cliParams *cliParams, secretParams secrets.Params) {
+		func(cliParams *cliParams) {
 			require.Empty(t, cliParams.args)
 			require.Equal(t, 0, cliParams.verbose)
-			require.Equal(t, false, secretParams.Enabled)
 		})
 }
 
@@ -71,10 +67,9 @@ func TestShowCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"integration", "show", "foo"},
 		show,
-		func(cliParams *cliParams, secretParams secrets.Params) {
+		func(cliParams *cliParams) {
 			require.Equal(t, []string{"foo"}, cliParams.args)
 			require.Equal(t, 0, cliParams.verbose)
-			require.Equal(t, false, secretParams.Enabled)
 		})
 }
 

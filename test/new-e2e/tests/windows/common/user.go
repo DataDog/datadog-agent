@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 // Well Known SIDs
@@ -201,7 +201,7 @@ func GetUserRights(host *components.RemoteHost) (map[string][]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd := fmt.Sprintf(`secedit /export /areas USER_RIGHTS /cfg %s`, outFile)
+	cmd := "secedit /export /areas USER_RIGHTS /cfg " + outFile
 	_, err = host.Execute(cmd)
 	if err != nil {
 		return nil, err
@@ -221,7 +221,7 @@ func GetUserRights(host *components.RemoteHost) (map[string][]string, error) {
 
 	// The file is in INI syntax, Go doesn't have a built-in INI parser
 	// but going line by line is sufficient for our needs
-	for _, line := range strings.Split(content, "\r\n") {
+	for line := range strings.SplitSeq(content, "\r\n") {
 		if strings.HasPrefix(line, "Se") {
 			// example: SeDenyNetworkLogonRight = *S-1-5-18,ddagentuser
 			parts := strings.Split(line, "=")

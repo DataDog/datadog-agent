@@ -31,6 +31,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -45,12 +46,12 @@ func newMockLanguagePatcher(ctx context.Context, mockClient dynamic.Interface, m
 	ctx, cancel := context.WithCancel(ctx)
 
 	return languagePatcher{
-		ctx:       ctx,
-		cancel:    cancel,
-		k8sClient: mockClient,
-		store:     mockStore,
-		logger:    mockLogger,
-		queue: workqueue.NewTypedRateLimitingQueue[langUtil.NamespacedOwnerReference](
+		ctx:             ctx,
+		cancel:          cancel,
+		workloadPatcher: workloadpatcher.NewPatcher(mockClient, nil),
+		store:           mockStore,
+		logger:          mockLogger,
+		queue: workqueue.NewTypedRateLimitingQueue(
 			workqueue.NewTypedItemExponentialFailureRateLimiter[langUtil.NamespacedOwnerReference](
 				1*time.Second,
 				4*time.Second,
@@ -124,7 +125,7 @@ func TestRun(t *testing.T) {
 	//                            //
 	////////////////////////////////
 
-	mockStore.Push("kubeapiserver", workloadmeta.Event{
+	mockStore.Push(workloadmeta.SourceKubeAPIServer, workloadmeta.Event{
 		Type: workloadmeta.EventTypeSet,
 		Entity: &workloadmeta.KubernetesDeployment{
 			EntityID: workloadmeta.EntityID{
@@ -181,7 +182,7 @@ func TestRun(t *testing.T) {
 
 	checkDeploymentAnnotations := func() bool {
 		// Check the patch
-		got, err := lp.k8sClient.Resource(gvr).Namespace(ns).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+		got, err := mockK8sClient.Resource(gvr).Namespace(ns).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 		if err != nil {
 			return false
 		}
@@ -203,7 +204,7 @@ func TestRun(t *testing.T) {
 	// the first event has already been processed and its side-effect can be asserted instantly
 	assert.Truef(t, func() bool {
 		// Check the patch
-		got, err := lp.k8sClient.Resource(gvr).Namespace(ns).Get(context.TODO(), longContNameDeploymentName, metav1.GetOptions{})
+		got, err := mockK8sClient.Resource(gvr).Namespace(ns).Get(context.TODO(), longContNameDeploymentName, metav1.GetOptions{})
 		if err != nil {
 			return false
 		}
@@ -227,7 +228,7 @@ func TestRun(t *testing.T) {
 		},
 	}
 
-	mockStore.Push("kubeapiserver", mockDeploymentEvent)
+	mockStore.Push(workloadmeta.SourceKubeAPIServer, mockDeploymentEvent)
 
 	assert.Eventuallyf(t,
 		func() bool {
@@ -273,7 +274,7 @@ func TestRun(t *testing.T) {
 
 	checkDeploymentAnnotations = func() bool {
 		// Check the patch
-		got, err := lp.k8sClient.Resource(gvr).Namespace(ns).Get(context.TODO(), deploymentName, metav1.GetOptions{})
+		got, err := mockK8sClient.Resource(gvr).Namespace(ns).Get(context.TODO(), deploymentName, metav1.GetOptions{})
 		if err != nil {
 			return false
 		}

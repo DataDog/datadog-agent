@@ -60,6 +60,16 @@ type Component interface {
 	// to this function.
 	GetKubernetesPodByName(podName, podNamespace string) (*KubernetesPod, error)
 
+	// ListKubernetesPods returns metadata about all known Kubernetes pods, equivalent
+	// to all entities with kind KindKubernetesPod.
+	ListKubernetesPods() []*KubernetesPod
+
+	// GetKubeletMetrics returns metadata about kubelet metrics.
+	GetKubeletMetrics() (*KubeletMetrics, error)
+
+	// GetKubeCapabilities returns metadata about kubernetes cluster capabilities.
+	GetKubeCapabilities() (*KubeCapabilities, error)
+
 	// GetKubernetesDeployment returns metadata about a Kubernetes deployment. It fetches
 	// the entity with kind KindKubernetesDeployment and the given ID.
 	GetKubernetesDeployment(id string) (*KubernetesDeployment, error)
@@ -122,7 +132,12 @@ type Component interface {
 	Notify(events []CollectorEvent)
 
 	// Dump lists the content of the store, for debugging purposes.
+	// When verbose=true, includes per-source entities in addition to merged entities.
 	Dump(verbose bool) WorkloadDumpResponse
+
+	// DumpStructured lists the content of the store as structured entities.
+	// Always returns only merged entities. Use Dump(verbose=true) for per-source details.
+	DumpStructured() WorkloadDumpStructuredResponse
 
 	// ResetProcesses resets the state of the store so that newProcesses are the
 	// only entites stored.

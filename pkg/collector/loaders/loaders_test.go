@@ -9,6 +9,8 @@ import (
 	"errors"
 	"testing"
 
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -57,15 +59,15 @@ func (lt *LoaderThree) Load(_ sender.SenderManager, _ integration.Config, _ inte
 
 func TestLoaderCatalog(t *testing.T) {
 	l1 := LoaderOne{}
-	factory1 := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component) (check.Loader, int, error) {
+	factory1 := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component, workloadfilter.Component) (check.Loader, int, error) {
 		return l1, 20, nil
 	}
 	l2 := LoaderTwo{}
-	factory2 := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component) (check.Loader, int, error) {
+	factory2 := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component, workloadfilter.Component) (check.Loader, int, error) {
 		return l2, 10, nil
 	}
 	var l3 *LoaderThree
-	factory3 := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component) (check.Loader, int, error) {
+	factory3 := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component, workloadfilter.Component) (check.Loader, int, error) {
 		return l3, 30, errors.New("error")
 	}
 
@@ -75,7 +77,8 @@ func TestLoaderCatalog(t *testing.T) {
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
-	require.Len(t, LoaderCatalog(senderManager, logReceiver, tagger), 2)
-	assert.Equal(t, l1, LoaderCatalog(senderManager, logReceiver, tagger)[1])
-	assert.Equal(t, l2, LoaderCatalog(senderManager, logReceiver, tagger)[0])
+	mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
+	require.Len(t, LoaderCatalog(senderManager, logReceiver, tagger, mockFilterStore), 2)
+	assert.Equal(t, l1, LoaderCatalog(senderManager, logReceiver, tagger, mockFilterStore)[1])
+	assert.Equal(t, l2, LoaderCatalog(senderManager, logReceiver, tagger, mockFilterStore)[0])
 }

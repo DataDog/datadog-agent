@@ -57,6 +57,13 @@ type QueryResult struct {
 	Results []PodResult
 }
 
+// Target represents a workload target for filtering (namespace + kind + name)
+type Target struct {
+	Namespace string
+	Kind      string
+	Name      string
+}
+
 // Store is an interface for in-memory storage of entities and their load metric values.
 type Store interface {
 	// SetEntitiesValues sets the values for the given map
@@ -70,6 +77,11 @@ type Store interface {
 		namespace string,
 		podOwnerName string,
 		containerName string) QueryResult
+
+	// SetTargets sets the list of targets to filter on.
+	// Only entities matching one of the targets will be stored.
+	// If targets is empty, all entities are accepted (backward compatible - no filtering).
+	SetTargets(targets []Target)
 }
 
 // createEntitiesFromPayload is a helper function used for creating entities from the metric payload.
@@ -107,15 +119,7 @@ func createEntitiesFromPayload(payload *gogen.MetricPayload) map[*Entity]*Entity
 			case "kube_ownerref_name":
 				entity.PodOwnerName = v
 			case "kube_ownerref_kind":
-				switch strings.ToLower(v) {
-				case "deployment":
-					entity.PodOwnerkind = Deployment
-				case "replicaset":
-					entity.PodOwnerkind = ReplicaSet
-				// TODO: add more cases
-				default:
-					entity.PodOwnerkind = Unsupported
-				}
+				entity.PodOwnerkind = podOwnerTypeFromString(v)
 			case "container_name":
 				entity.ContainerName = v
 			case "pod_name":

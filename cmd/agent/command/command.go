@@ -55,8 +55,8 @@ type GlobalParams struct {
 // SubcommandFactory is a callable that will return a slice of subcommands.
 type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
 
-// GetDefaultCoreBundleParams returns the default params for the Core Bundle (config loaded from the "datadog" file,
-// without secrets and logger disabled).
+// GetDefaultCoreBundleParams returns the default params for the Core Bundle (config loaded from the "datadog" file
+// and logger disabled).
 func GetDefaultCoreBundleParams(globalParams *GlobalParams) core.BundleParams {
 	return core.BundleParams{
 		ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),

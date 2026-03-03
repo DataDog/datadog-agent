@@ -24,5 +24,5 @@ func main() {
 	// set the Agent flavor
 	flavor.SetFlavor(flavor.SecurityAgent)
 
-	os.Exit(runcmd.Run(command.MakeCommand(subcommands.SecurityAgentSubcommands())))
+	os.Exit(runcmd.Run(command.MakeCommand(subcommands.SecurityAgentSubcommands)))
 }

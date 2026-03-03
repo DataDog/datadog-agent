@@ -8,9 +8,6 @@
 package kubelet
 
 import (
-	"encoding/json"
-	"fmt"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -39,25 +36,6 @@ process_cpu_seconds_total 127923.04
 	assert.Equal(t, "process_cpu_seconds_total 127923.04", metric)
 }
 
-func loadPodsFixture(path string) ([]*Pod, error) {
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	var podList PodList
-	err = json.Unmarshal(raw, &podList)
-	if err != nil {
-		return nil, err
-	}
-	for _, pod := range podList.Items {
-		allContainers := make([]ContainerStatus, 0, len(pod.Status.InitContainers)+len(pod.Status.Containers))
-		allContainers = append(allContainers, pod.Status.InitContainers...)
-		allContainers = append(allContainers, pod.Status.Containers...)
-		pod.Status.AllContainers = allContainers
-	}
-	return podList.Items, nil
-}
-
 func TestKubeContainerIDToTaggerEntityID(t *testing.T) {
 	for in, out := range map[string]string{
 		"container_id://deadbeef": "container_id://deadbeef",
@@ -70,7 +48,7 @@ func TestKubeContainerIDToTaggerEntityID(t *testing.T) {
 		"/deadbeef":               "",
 		"runtime://foo/bar":       "container_id://foo/bar",
 	} {
-		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
+		t.Run("case: "+in, func(t *testing.T) {
 			res, _ := KubeContainerIDToTaggerEntityID(in)
 			assert.Equal(t, out, res.String())
 		})
@@ -87,7 +65,7 @@ func TestKubePodUIDToTaggerEntityID(t *testing.T) {
 		"deadbeef":                      "",
 		"/deadbeef":                     "",
 	} {
-		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
+		t.Run("case: "+in, func(t *testing.T) {
 			res, _ := KubePodUIDToTaggerEntityID(in)
 			assert.Equal(t, out, res.String())
 		})
@@ -104,7 +82,7 @@ func TestKubeIDToTaggerEntityID(t *testing.T) {
 		"deadbeef":                  "",
 		"/deadbeef":                 "",
 	} {
-		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
+		t.Run("case: "+in, func(t *testing.T) {
 			res, _ := KubeIDToTaggerEntityID(in)
 			assert.Equal(t, out, res.String())
 		})

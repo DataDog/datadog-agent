@@ -531,10 +531,10 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 
 func getAssetName(module string, debug bool) string {
 	if debug {
-		return fmt.Sprintf("%s-debug.o", module)
+		return module + "-debug.o"
 	}
 
-	return fmt.Sprintf("%s.o", module)
+	return module + ".o"
 }
 
 func (e *ebpfProgram) dumpMapsHandler(w io.Writer, _ *manager.Manager, mapName string, currentMap *ebpf.Map) {
@@ -650,6 +650,12 @@ func (e *ebpfProgram) initProtocols(c *config.Config) error {
 		if protocol != nil {
 			spec.Instance = protocol
 			e.enabledProtocols = append(e.enabledProtocols, spec)
+
+			// Check if protocol provides additional modifiers (like EventHandlers)
+			if mp, ok := protocol.(protocols.ModifierProvider); ok {
+				modifiers := mp.Modifiers()
+				e.Manager.EnabledModifiers = append(e.Manager.EnabledModifiers, modifiers...)
+			}
 
 			log.Infof("%v monitoring enabled", protocol.Name())
 		} else {

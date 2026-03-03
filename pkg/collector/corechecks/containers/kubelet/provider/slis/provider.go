@@ -51,8 +51,9 @@ func NewProvider(config *common.KubeletConfig, store workloadmeta.Component) (*P
 }
 
 func (p *Provider) sliHealthCheck(metricFam *prom.MetricFamily, sender sender.Sender) {
-	for _, metric := range metricFam.Samples {
-		metricSuffix := string(metric.Metric["__name__"])
+	for i := range metricFam.Samples {
+		metric := &metricFam.Samples[i]
+		metricSuffix := metric.Metric["__name__"]
 		tags := p.MetricTags(metric)
 		for i, tag := range tags {
 			if strings.HasPrefix(tag, "name:") {
@@ -66,9 +67,9 @@ func (p *Provider) sliHealthCheck(metricFam *prom.MetricFamily, sender sender.Se
 
 		switch metricSuffix {
 		case "kubernetes_healthchecks_total":
-			sender.Count(common.KubeletMetricsPrefix+"slis."+metricSuffix, float64(metric.Value), "", tags)
+			sender.Count(common.KubeletMetricsPrefix+"slis."+metricSuffix, metric.Value, "", tags)
 		case "kubernetes_healthcheck":
-			sender.Gauge(common.KubeletMetricsPrefix+"slis."+metricSuffix, float64(metric.Value), "", tags)
+			sender.Gauge(common.KubeletMetricsPrefix+"slis."+metricSuffix, metric.Value, "", tags)
 		}
 	}
 }

@@ -55,7 +55,9 @@ func NewTracePipe() (*TracePipe, error) {
 
 // A line from trace_pipe looks like (leading spaces included):
 // `        chromium-15581 [000] d... 92783.722567: : Hello, World!`
-var traceLineRegexp = regexp.MustCompile(`(.{16})-(\d+) +\[(\d{3})\] (.{4,5}) +(\d+\.\d+)\: (.*?)\: (.*)`)
+var traceLineRegexp = regexp.MustCompile(`(.{16})-(\d+) +\[(\d{3})\] (.{4,}) +(\d+\.\d+)\: (.*?)\: (.*)`)
+
+var cpuLostEventsRegexp = regexp.MustCompile(`^CPU:\d+ \[LOST (\d+ )?EVENTS\]`)
 
 func parseTraceLine(raw string) (*TraceEvent, error) {
 	if raw == "\n" {
@@ -63,6 +65,9 @@ func parseTraceLine(raw string) (*TraceEvent, error) {
 	}
 	fields := traceLineRegexp.FindStringSubmatch(raw)
 	if len(fields) != 8 {
+		if cpuLostEventsRegexp.MatchString(raw) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("received unexpected input %q", raw)
 	}
 	pid, _ := strconv.ParseUint(fields[2], 10, 32)
@@ -77,6 +82,15 @@ func parseTraceLine(raw string) (*TraceEvent, error) {
 		Function:  fields[6],
 		Message:   fields[7],
 	}, nil
+}
+
+// Clear clears all existing entries from `trace_pipe` by writing to the `trace` file.
+func (t *TracePipe) Clear() error {
+	root, err := tracefs.Root()
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(root+"/trace", []byte("\n"), 0)
 }
 
 // ReadLine reads a line

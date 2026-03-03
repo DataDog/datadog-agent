@@ -7,10 +7,10 @@ package ec2
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -109,18 +109,37 @@ func TestGetInstanceID(t *testing.T) {
 	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
+	// Ensure failures if we fail to use the local mock metadata server
+	setupDMIForNotEC2(t)
+	conf.SetWithoutSource("ec2_use_dmi", true)
+
+	// Ensure that the local server is up before checking values
+	assert.EventuallyWithT(
+		t,
+		func(c *assert.CollectT) {
+			resp, err := http.Get(ts.URL)
+			require.NoError(c, err)
+			assert.Equal(c, http.StatusUnauthorized, resp.StatusCode)
+			resp.Body.Close()
+		},
+		time.Second,
+		10*time.Millisecond,
+		"Mock AWS metadata server was unable to be reached (%v)",
+		ts.URL,
+	)
+
 	// API successful, should return API result
 	responseCode = http.StatusOK
 	expected = "i-0123456789abcdef0"
 	val, err := GetInstanceID(ctx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
 
 	// the internal cache is populated now, should return the cached value even if API errors out
 	responseCode = http.StatusInternalServerError
 	val, err = GetInstanceID(ctx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
 
@@ -128,7 +147,7 @@ func TestGetInstanceID(t *testing.T) {
 	responseCode = http.StatusOK
 	expected = "i-aaaaaaaaaaaaaaaaa"
 	val, err = GetInstanceID(ctx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
 }
@@ -160,14 +179,14 @@ func TestGetLegacyResolutionInstanceID(t *testing.T) {
 	// API successful, should return API result
 	responseCode = http.StatusOK
 	val, err = GetLegacyResolutionInstanceID(ctx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
 
 	// the internal cache is populated now, should return the cached value even if API errors out
 	responseCode = http.StatusInternalServerError
 	val, err = GetLegacyResolutionInstanceID(ctx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
 
@@ -175,7 +194,7 @@ func TestGetLegacyResolutionInstanceID(t *testing.T) {
 	responseCode = http.StatusOK
 	expected = "i-aaaaaaaaaaaaaaaaa"
 	val, err = GetLegacyResolutionInstanceID(ctx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
 }
@@ -279,14 +298,14 @@ func TestGetHostname(t *testing.T) {
 	// API successful, should return hostname
 	responseCode = http.StatusOK
 	val, err = GetHostname(ctx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/hostname")
 
 	// the internal cache is populated now, should return the cached hostname even if API errors out
 	responseCode = http.StatusInternalServerError
 	val, err = GetHostname(ctx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/hostname")
 
@@ -294,7 +313,7 @@ func TestGetHostname(t *testing.T) {
 	responseCode = http.StatusOK
 	expected = "ip-20-20-20-20.ec2.internal"
 	val, err = GetHostname(ctx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/hostname")
 
@@ -370,7 +389,7 @@ func TestMetedataRequestWithToken(t *testing.T) {
 					if h == "" {
 						w.WriteHeader(http.StatusUnauthorized)
 					}
-					r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
+					r.Header.Add("X-sequence", strconv.Itoa(seq))
 					seq++
 					requestForToken = r
 					io.WriteString(w, testIMDSToken)
@@ -378,7 +397,7 @@ func TestMetedataRequestWithToken(t *testing.T) {
 					// Should be a metadata request
 					t := r.Header.Get("X-aws-ec2-metadata-token")
 					if t != testIMDSToken {
-						r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
+						r.Header.Add("X-sequence", strconv.Itoa(seq))
 						seq++
 						requestWithoutToken = r
 						w.WriteHeader(http.StatusUnauthorized)
@@ -386,7 +405,7 @@ func TestMetedataRequestWithToken(t *testing.T) {
 					}
 					switch r.RequestURI {
 					case "/public-ipv4":
-						r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
+						r.Header.Add("X-sequence", strconv.Itoa(seq))
 						seq++
 						requestWithToken = r
 						io.WriteString(w, ipv4)
@@ -414,7 +433,7 @@ func TestMetedataRequestWithToken(t *testing.T) {
 
 			assert.Equal(t, "0", requestForToken.Header.Get("X-sequence"))
 			assert.Equal(t, "1", requestWithToken.Header.Get("X-sequence"))
-			assert.Equal(t, fmt.Sprint(conf.GetInt("ec2_metadata_token_lifetime")), requestForToken.Header.Get("X-aws-ec2-metadata-token-ttl-seconds"))
+			assert.Equal(t, strconv.Itoa(conf.GetInt("ec2_metadata_token_lifetime")), requestForToken.Header.Get("X-aws-ec2-metadata-token-ttl-seconds"))
 			assert.Equal(t, http.MethodPut, requestForToken.Method)
 			assert.Equal(t, "/", requestForToken.RequestURI)
 			assert.Equal(t, testIMDSToken, requestWithToken.Header.Get("X-aws-ec2-metadata-token"))

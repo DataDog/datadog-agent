@@ -8,6 +8,7 @@
 package autoinstrumentation
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -22,9 +23,37 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
+var (
+	defaultLibraries = map[string]string{
+		"java":   "v1",
+		"python": "v4",
+		"ruby":   "v2",
+		"dotnet": "v3",
+		"js":     "v5",
+		"php":    "v1",
+	}
+
+	// TODO: Add new entry when a new language is supported
+	defaultLibImageVersions = map[language]string{
+		java:   "registry/dd-lib-java-init:" + defaultLibraries["java"],
+		js:     "registry/dd-lib-js-init:" + defaultLibraries["js"],
+		python: "registry/dd-lib-python-init:" + defaultLibraries["python"],
+		dotnet: "registry/dd-lib-dotnet-init:" + defaultLibraries["dotnet"],
+		ruby:   "registry/dd-lib-ruby-init:" + defaultLibraries["ruby"],
+		php:    "registry/dd-lib-php-init:" + defaultLibraries["php"],
+	}
+
+	imageResolver = imageresolver.NewNoOpResolver()
 )
 
 func TestNewTargetMutator(t *testing.T) {
@@ -59,7 +88,7 @@ func TestNewTargetMutator(t *testing.T) {
 			))
 
 			// Create the mutator.
-			_, err = NewTargetMutator(config, wmeta, newNoOpImageResolver())
+			_, err = NewTargetMutator(config, wmeta, imageResolver)
 
 			// Validate the output.
 			if test.shouldErr {
@@ -103,7 +132,7 @@ func TestMutatePod(t *testing.T) {
 				AppliedTargetEnvVar:               "{\"name\":\"Application Namespace\",\"namespaceSelector\":{\"matchNames\":[\"application\"]},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
 			expectedAnnotations: map[string]string{
-				AppliedTargetAnnotation: "{\"name\":\"Application Namespace\",\"namespaceSelector\":{\"matchNames\":[\"application\"]},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
+				annotation.AppliedTarget: "{\"name\":\"Application Namespace\",\"namespaceSelector\":{\"matchNames\":[\"application\"]},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
 		},
 		"no matching rule does not mutate pod": {
@@ -111,6 +140,34 @@ func TestMutatePod(t *testing.T) {
 			in:         mutatecommon.FakePodWithNamespace("foo-service", "foo"),
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("foo", nil),
+			},
+			expectNoChange: true,
+		},
+		// Re-admission guard: when the webhook runs again on an already-injected pod we must not
+		// mutate further (e.g. must not append to LD_PRELOAD or add duplicate init containers).
+		"re-admission with init_container mode init container already present does not mutate": {
+			configPath: "testdata/filter_simple_namespace.yaml",
+			in: mutatecommon.FakePodSpec{
+				NS: "application",
+				InitContainers: []corev1.Container{
+					{Name: "datadog-lib-python-init", Image: "registry/dd-lib-python-init:v3"},
+				},
+			}.Create(),
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("application", nil),
+			},
+			expectNoChange: true,
+		},
+		"re-admission with image_volume mode init container already present does not mutate": {
+			configPath: "testdata/filter_simple_namespace.yaml",
+			in: mutatecommon.FakePodSpec{
+				NS: "application",
+				InitContainers: []corev1.Container{
+					{Name: libraryinjection.InjectLDPreloadInitContainerName, Image: "registry/apm-inject:0"},
+				},
+			}.Create(),
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("application", nil),
 			},
 			expectNoChange: true,
 		},
@@ -141,7 +198,7 @@ func TestMutatePod(t *testing.T) {
 				AppliedTargetEnvVar:               "{\"name\":\"Python Apps\",\"podSelector\":{\"matchLabels\":{\"language\":\"python\"}},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
 			expectedAnnotations: map[string]string{
-				AppliedTargetAnnotation: "{\"name\":\"Python Apps\",\"podSelector\":{\"matchLabels\":{\"language\":\"python\"}},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
+				annotation.AppliedTarget: "{\"name\":\"Python Apps\",\"podSelector\":{\"matchLabels\":{\"language\":\"python\"}},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
 		},
 		"service name is applied when set in tracer configs": {
@@ -157,7 +214,7 @@ func TestMutatePod(t *testing.T) {
 			},
 			expectedInitContainerImages: []string{
 				"registry/apm-inject:0",
-				defaultLibInfo(python).image,
+				"registry/dd-lib-python-init:v3",
 			},
 			expectedEnv: map[string]string{
 				"DD_SERVICE": "best-service",
@@ -187,7 +244,7 @@ func TestMutatePod(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver())
 			require.NoError(t, err)
 
 			input := test.in.DeepCopy()
@@ -292,7 +349,7 @@ func TestShouldMutatePod(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver())
 			require.NoError(t, err)
 
 			// Determine if the pod should be mutated.
@@ -378,7 +435,7 @@ func TestIsNamespaceEligible(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver())
 			require.NoError(t, err)
 
 			// Determine if the namespace is eligible.
@@ -410,6 +467,9 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			in: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "foo",
+					Labels: map[string]string{
+						common.EnabledLabelKey: "true",
+					},
 					Annotations: map[string]string{
 						"admission.datadoghq.com/python-lib.version": "v3",
 					},
@@ -417,13 +477,24 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    python,
-						image:   "registry/dd-lib-python-init:v3",
+					defaultLibInfoWithVersion(python, "v3"),
+				},
+			},
+		},
+		"a pod with an annotation but disabled label gets no value": {
+			configPath: "testdata/filter_limited.yaml",
+			in: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Labels: map[string]string{
+						common.EnabledLabelKey: "false",
+					},
+					Annotations: map[string]string{
+						"admission.datadoghq.com/python-lib.version": "v3",
 					},
 				},
 			},
+			expected: nil,
 		},
 	}
 
@@ -444,7 +515,7 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			))
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver())
 			require.NoError(t, err)
 
 			// Get the target from the annotation.
@@ -452,16 +523,18 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 
 			// Validate the output.
 			if test.expected == nil {
-				require.Nil(t, actual)
+				require.Nil(t, actual.target)
 			} else {
 				require.NotNil(t, actual)
-				require.Equal(t, test.expected.libVersions, actual.libVersions)
+				require.Equal(t, test.expected.libVersions, actual.target.libVersions)
 			}
 		})
 	}
 }
 
 func TestGetTargetLibraries(t *testing.T) {
+	imageResolver := imageresolver.NewNoOpResolver()
+
 	tests := map[string]struct {
 		configPath string
 		in         *corev1.Pod
@@ -483,11 +556,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    js,
-						image:   "registry/dd-lib-js-init:v5",
-					},
+					defaultLibInfoWithVersion(js, "v5"),
 				},
 			},
 		},
@@ -521,11 +590,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    python,
-						image:   "registry/dd-lib-python-init:v3",
-					},
+					defaultLibInfoWithVersion(python, "v3"),
 				},
 			},
 		},
@@ -544,11 +609,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    java,
-						image:   "registry/dd-lib-java-init:v1",
-					},
+					defaultLibInfoWithVersion(java, "v1"),
 				},
 			},
 		},
@@ -583,11 +644,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    dotnet,
-						image:   "registry/dd-lib-dotnet-init:v1",
-					},
+					defaultLibInfoWithVersion(dotnet, "v1"),
 				},
 			},
 		},
@@ -632,36 +689,12 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    java,
-						image:   "registry/dd-lib-java-init:v1",
-					},
-					{
-						ctrName: "",
-						lang:    js,
-						image:   "registry/dd-lib-js-init:v5",
-					},
-					{
-						ctrName: "",
-						lang:    python,
-						image:   "registry/dd-lib-python-init:v3",
-					},
-					{
-						ctrName: "",
-						lang:    dotnet,
-						image:   "registry/dd-lib-dotnet-init:v3",
-					},
-					{
-						ctrName: "",
-						lang:    ruby,
-						image:   "registry/dd-lib-ruby-init:v2",
-					},
-					{
-						ctrName: "",
-						lang:    php,
-						image:   "registry/dd-lib-php-init:v1",
-					},
+					defaultLibInfoWithVersion(java, "v1"),
+					defaultLibInfoWithVersion(js, "v5"),
+					defaultLibInfoWithVersion(python, "v4"),
+					defaultLibInfoWithVersion(dotnet, "v3"),
+					defaultLibInfoWithVersion(ruby, "v2"),
+					defaultLibInfoWithVersion(php, "v1"),
 				},
 			},
 		},
@@ -679,6 +712,43 @@ func TestGetTargetLibraries(t *testing.T) {
 				newTestNamespace("kube-system", nil),
 			},
 			expected: nil,
+		},
+		"enabled namespace gets converted to target": {
+			configPath: "testdata/enabled_namespaces.yaml",
+			in: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "application",
+				},
+			},
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("application", nil),
+			},
+			expected: &targetInternal{
+				libVersions: []libInfo{
+					defaultLibInfoWithVersion(python, "v3"),
+				},
+			},
+		},
+		"no targets with instrumentation enabled injects all SDKs": {
+			configPath: "testdata/instrumentation_enabled.yaml",
+			in: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "application",
+				},
+			},
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("application", nil),
+			},
+			expected: &targetInternal{
+				libVersions: []libInfo{
+					defaultLibInfoWithVersion(java, "v1"),
+					defaultLibInfoWithVersion(js, "v5"),
+					defaultLibInfoWithVersion(python, "v4"),
+					defaultLibInfoWithVersion(dotnet, "v3"),
+					defaultLibInfoWithVersion(ruby, "v2"),
+					defaultLibInfoWithVersion(php, "v1"),
+				},
+			},
 		},
 	}
 
@@ -704,7 +774,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
+			f, err := NewTargetMutator(config, wmeta, imageResolver)
 			require.NoError(t, err)
 
 			// Filter the pod.
@@ -721,6 +791,125 @@ func TestGetTargetLibraries(t *testing.T) {
 	}
 }
 
+func TestLanguageDetection(t *testing.T) {
+	tests := map[string]struct {
+		config                     map[string]any
+		pod                        *corev1.Pod
+		deployments                []mutatecommon.MockDeployment
+		expectedInitContainerNames []string
+	}{
+		"default target uses language detection when enabled": {
+			config: map[string]interface{}{
+				"apm_config.instrumentation.enabled":                                       true,
+				"language_detection.enabled":                                               true,
+				"language_detection.reporting.enabled":                                     true,
+				"admission_controller.auto_instrumentation.inject_auto_detected_libraries": true,
+			},
+			pod: mutatecommon.FakePodSpec{
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments: []mutatecommon.MockDeployment{
+				{
+					ContainerName:  "pod",
+					DeploymentName: "deployment",
+					Namespace:      "ns",
+					Languages:      languageSetOf("python"),
+				},
+			},
+			expectedInitContainerNames: []string{
+				"datadog-init-apm-inject",
+				"datadog-lib-python-init",
+			},
+		},
+		"user set default libraries uses language detection when enabled": {
+			config: map[string]interface{}{
+				"apm_config.instrumentation.enabled":                                       true,
+				"language_detection.enabled":                                               true,
+				"language_detection.reporting.enabled":                                     true,
+				"admission_controller.auto_instrumentation.inject_auto_detected_libraries": true,
+				"apm_config.instrumentation.lib_versions":                                  defaultLibraries,
+			},
+			pod: mutatecommon.FakePodSpec{
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments: []mutatecommon.MockDeployment{
+				{
+					ContainerName:  "pod",
+					DeploymentName: "deployment",
+					Namespace:      "ns",
+					Languages:      languageSetOf("python"),
+				},
+			},
+			expectedInitContainerNames: []string{
+				"datadog-init-apm-inject",
+				"datadog-lib-python-init",
+			},
+		},
+		"default target does not use language detection when disabled": {
+			config: map[string]interface{}{
+				"apm_config.instrumentation.enabled":                                       true,
+				"language_detection.enabled":                                               false,
+				"language_detection.reporting.enabled":                                     false,
+				"admission_controller.auto_instrumentation.inject_auto_detected_libraries": false,
+			},
+			pod: mutatecommon.FakePodSpec{
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments: []mutatecommon.MockDeployment{
+				{
+					ContainerName:  "pod",
+					DeploymentName: "deployment",
+					Namespace:      "ns",
+					Languages:      languageSetOf("python"),
+				},
+			},
+			expectedInitContainerNames: []string{
+				"datadog-init-apm-inject",
+				"datadog-lib-python-init",
+				"datadog-lib-java-init",
+				"datadog-lib-js-init",
+				"datadog-lib-dotnet-init",
+				"datadog-lib-ruby-init",
+				"datadog-lib-php-init",
+			},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Load the config.
+			mockConfig := configmock.New(t)
+			for k, v := range test.config {
+				mockConfig.SetWithoutSource(k, v)
+			}
+			config, err := NewConfig(mockConfig)
+			require.NoError(t, err)
+
+			// Create a mock meta.
+			wmeta := mutatecommon.FakeStoreWithDeployment(t, test.deployments)
+
+			// Create the mutator.
+			m, err := NewTargetMutator(config, wmeta, imageResolver)
+			require.NoError(t, err)
+
+			// Mutate the pod.
+			mutated, err := m.MutatePod(test.pod, test.pod.Namespace, nil)
+			require.NoError(t, err)
+			require.True(t, mutated)
+
+			// Ensure the init containers match.
+			actualInitContainerNames := []string{}
+			for _, container := range test.pod.Spec.InitContainers {
+				actualInitContainerNames = append(actualInitContainerNames, container.Name)
+			}
+			require.ElementsMatch(t, test.expectedInitContainerNames, actualInitContainerNames)
+		})
+	}
+}
+
 func newTestNamespace(name string, labels map[string]string) workloadmeta.KubernetesMetadata {
 	return workloadmeta.KubernetesMetadata{
 		EntityID: workloadmeta.EntityID{
@@ -732,4 +921,42 @@ func newTestNamespace(name string, labels map[string]string) workloadmeta.Kubern
 			Labels: labels,
 		},
 	}
+}
+
+func languageSetOf(languages ...string) languagemodels.LanguageSet {
+	set := languagemodels.LanguageSet{}
+	for _, l := range languages {
+		_ = set.Add(languagemodels.LanguageName(l))
+	}
+	return set
+}
+
+func defaultLibInfo(l language) libInfo {
+	return libInfo{
+		lang:       l,
+		image:      defaultLibImageVersions[l],
+		registry:   "registry",
+		repository: fmt.Sprintf("dd-lib-%s-init", l),
+		tag:        defaultLibraries[string(l)],
+		ctrName:    "",
+	}
+}
+
+func defaultLibInfoWithVersion(l language, version string) libInfo {
+	return libInfo{
+		lang:       l,
+		image:      fmt.Sprintf("registry/dd-lib-%s-init:%s", l, version),
+		registry:   "registry",
+		repository: fmt.Sprintf("dd-lib-%s-init", l),
+		tag:        version,
+		ctrName:    "",
+	}
+}
+
+func defaultLibrariesFor(languages ...string) map[string]string {
+	out := map[string]string{}
+	for _, l := range languages {
+		out[l] = defaultLibraries[l]
+	}
+	return out
 }

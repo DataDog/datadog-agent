@@ -9,6 +9,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"strconv"
@@ -33,9 +34,9 @@ const (
 
 // GetAuroraClusterEndpoints queries an AWS account for the endpoints of an Aurora cluster
 // requires the dbClusterIdentifier for the cluster
-func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string, dbmTag string) (map[string]*AuroraCluster, error) {
+func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string, config Config) (map[string]*AuroraCluster, error) {
 	if len(dbClusterIdentifiers) == 0 {
-		return nil, fmt.Errorf("at least one database cluster identifier is required")
+		return nil, errors.New("at least one database cluster identifier is required")
 	}
 	clusters := make(map[string]*AuroraCluster, 0)
 	for _, clusterID := range dbClusterIdentifiers {
@@ -58,7 +59,7 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentif
 				if db.Endpoint.Address == nil || db.DBInstanceStatus == nil || strings.ToLower(*db.DBInstanceStatus) != "available" {
 					continue
 				}
-				instance, err := makeInstance(db, dbmTag)
+				instance, err := makeInstance(db, config)
 				if err != nil {
 					log.Errorf("error creating instance from DBInstance: %v", err)
 					continue
@@ -141,12 +142,12 @@ func containsTags(clusterTags []types.Tag, providedTags []string) bool {
 func (c *Instance) Digest(checkType, clusterID string) string {
 	h := fnv.New64()
 	// Hash write never returns an error
-	h.Write([]byte(checkType))                       //nolint:errcheck
-	h.Write([]byte(clusterID))                       //nolint:errcheck
-	h.Write([]byte(c.Endpoint))                      //nolint:errcheck
-	h.Write([]byte(fmt.Sprintf("%d", c.Port)))       //nolint:errcheck
-	h.Write([]byte(c.Engine))                        //nolint:errcheck
-	h.Write([]byte(fmt.Sprintf("%t", c.IamEnabled))) //nolint:errcheck
+	h.Write([]byte(checkType))                        //nolint:errcheck
+	h.Write([]byte(clusterID))                        //nolint:errcheck
+	h.Write([]byte(c.Endpoint))                       //nolint:errcheck
+	h.Write([]byte(strconv.Itoa(int(c.Port))))        //nolint:errcheck
+	h.Write([]byte(c.Engine))                         //nolint:errcheck
+	h.Write([]byte(strconv.FormatBool(c.IamEnabled))) //nolint:errcheck
 
 	return strconv.FormatUint(h.Sum64(), 16)
 }

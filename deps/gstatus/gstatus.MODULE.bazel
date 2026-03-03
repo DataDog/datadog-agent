@@ -1,0 +1,15 @@
+# gstatus - binary
+#
+
+http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
+
+VERSION = "1.0.9"
+
+http_file(
+    name = "gstatus_binary",
+    executable = True,
+    sha256 = "4731a515ce1b75c7d9f378588be5be369ca0130fb51802de853527310724b0f8",
+    urls = [
+        "https://github.com/gluster/gstatus/releases/download/v{version}/gstatus".format(version = VERSION),
+    ],
+)

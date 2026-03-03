@@ -21,6 +21,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
+const (
+	// This is the maximum allowed length for the estimated event text.
+	// The final text isn't known until it's formatted by kubernetesEventBundle.formatEventText().
+	// The Events API limits event text to 4000 characters, so we conservatively limit the estimated text to 3750 characters.
+	// https://docs.datadoghq.com/api/latest/events/#post-an-event-v1
+	maxEstimatedEventTextLength = 3750
+
+	// bundleFixedOverhead is the formatting overhead for each bundle including:
+	// - Header: "%%% \n" (5 chars)
+	// - Footer: " \n\n %%%" (7 chars)
+	// - Middle: " \n _Events emitted by the <component> seen at <timestamp> since <timestamp>_ \n"
+	//   (timestamps: ~60 chars, static text: ~50 chars)
+	// Conservative estimate: 250 chars
+	bundleFixedOverhead = 250
+)
+
 type kubernetesEventBundle struct {
 	involvedObject      v1.ObjectReference // Parent object for this event bundle
 	component           string             // Used to identify the Kubernetes component which generated the event
@@ -30,6 +46,7 @@ type kubernetesEventBundle struct {
 	countByAction       map[string]int     // Map of count per action to aggregate several events from the same ObjUid in one event
 	alertType           event.AlertType    // The Datadog event type
 	hostInfo            eventHostInfo      // Host information extracted from the event, where applicable
+	estimatedSize       int                // Track cumulative estimated bundle size to prevent exceeding API limit
 }
 
 func newKubernetesEventBundler(clusterName string, event *v1.Event) *kubernetesEventBundle {
@@ -40,12 +57,18 @@ func newKubernetesEventBundler(clusterName string, event *v1.Event) *kubernetesE
 		countByAction:       make(map[string]int),
 		alertType:           getDDAlertType(event.Type),
 		hostInfo:            getEventHostInfo(clusterName, event),
+		estimatedSize:       bundleFixedOverhead + len(event.Source.Component),
 	}
 }
 
 func (b *kubernetesEventBundle) addEvent(event *v1.Event) error {
 	if event.InvolvedObject.UID != b.involvedObject.UID {
 		return fmt.Errorf("mismatching Object UIDs: %s != %s", event.InvolvedObject.UID, b.involvedObject.UID)
+	}
+
+	eventText, fits := b.fitsEvent(event)
+	if !fits {
+		return fmt.Errorf("event text length exceeds the maximum allowed length: %d > %d", len(eventText), maxEstimatedEventTextLength)
 	}
 
 	// We do not process the events in chronological order necessarily.
@@ -62,7 +85,13 @@ func (b *kubernetesEventBundle) addEvent(event *v1.Event) error {
 		b.lastTimestamp = math.Max(b.lastTimestamp, float64(event.LastTimestamp.Unix()))
 	}
 
-	b.countByAction[fmt.Sprintf("**%s**: %s\n", event.Reason, event.Message)] += int(event.Count)
+	// If we haven't seen this action before, add the overhead for the new action
+	previousCount := b.countByAction[eventText]
+	if previousCount == 0 {
+		b.estimatedSize += estimateEventOverhead(eventText)
+	}
+
+	b.countByAction[eventText] += int(event.Count)
 
 	return nil
 }
@@ -74,18 +103,18 @@ func (b *kubernetesEventBundle) formatEvents(taggerInstance tagger.Component) (e
 
 	readableKey := buildReadableKey(b.involvedObject)
 	tags := getInvolvedObjectTags(b.involvedObject, taggerInstance)
-	tags = append(tags, fmt.Sprintf("source_component:%s", b.component))
+	tags = append(tags, "source_component:"+b.component)
 	tags = append(tags, "orchestrator:kubernetes")
 
-	tags = append(tags, fmt.Sprintf("reporting_controller:%s", b.reportingController))
+	tags = append(tags, "reporting_controller:"+b.reportingController)
 
 	if b.hostInfo.providerID != "" {
-		tags = append(tags, fmt.Sprintf("host_provider_id:%s", b.hostInfo.providerID))
+		tags = append(tags, "host_provider_id:"+b.hostInfo.providerID)
 	}
 
 	// If hostname was not defined, the aggregator will then set the local hostname
 	output := event.Event{
-		Title:          fmt.Sprintf("Events from the %s", readableKey),
+		Title:          "Events from the " + readableKey,
 		Priority:       event.PriorityNormal,
 		Host:           b.hostInfo.hostname,
 		SourceTypeName: getEventSource(b.reportingController, b.component),
@@ -115,6 +144,17 @@ func (b *kubernetesEventBundle) formatEventText() string {
 	return eventText
 }
 
+func (b *kubernetesEventBundle) fitsEvent(event *v1.Event) (string, bool) {
+	eventText := "**" + event.Reason + "**: " + event.Message + "\n"
+
+	// If we haven't seen this action before, and adding it would probably exceed the limit, deny it
+	if b.countByAction[eventText] == 0 && (b.estimatedSize+estimateEventOverhead(eventText) > maxEstimatedEventTextLength) {
+		return "", false
+	}
+
+	return eventText, true
+}
+
 func formatStringIntMap(input map[string]int) string {
 	parts := make([]string, 0, len(input))
 	keys := make([]string, 0, len(input))
@@ -131,4 +171,13 @@ func formatStringIntMap(input map[string]int) string {
 	}
 
 	return strings.Join(parts, " ")
+}
+
+// estimateEventOverhead calculates the overhead for a single event in the bundle
+// including count representation, space, and the event text
+func estimateEventOverhead(eventText string) int {
+	// Count: worst case 10 digits (max int32 ~2 billion) +
+	// Space separator: 1 char +
+	// Event text
+	return 10 + 1 + len(eventText)
 }

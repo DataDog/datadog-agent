@@ -119,7 +119,7 @@
               },
               "requests":{
                 "cpu":"500m",
-                "ephemeral-storage":"500m",
+                "ephemeral-storage":"500Mi",
                 "memory":"1Gi"
               }
             },

@@ -57,7 +57,7 @@ func (fc *FlareController) FillFlare(fb flaretypes.FlareBuilder) error {
 			default:
 				fi, err := os.Stat(file)
 				if err != nil {
-					fileInfo = fmt.Sprintf("%s\n", err.Error())
+					fileInfo = err.Error() + "\n"
 				} else {
 					fileInfo = fmt.Sprintf("%s %s\n", file, fi.Mode().String())
 				}

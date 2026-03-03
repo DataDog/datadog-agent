@@ -5,7 +5,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from tasks.libs.dynamic_test.indexers.e2e import FileCoverageDynTestIndexer, PackageCoverageDynTestIndexer
+from tasks.libs.dynamic_test.indexers.e2e import (
+    DiffedPackageCoverageDynTestIndexer,
+    FileCoverageDynTestIndexer,
+    PackageCoverageDynTestIndexer,
+)
 
 
 class TestPackageCoverageDynTestIndexer(unittest.TestCase):
@@ -176,6 +180,81 @@ class TestFileCoverageDynTestIndexer(unittest.TestCase):
                 for file_path in expected[job]:
                     self.assertIn(file_path, result[job])
                     self.assertEqual(result[job][file_path], expected[job][file_path])
+
+
+class TestDiffedPackageCoverageDynTestIndexer(unittest.TestCase):
+    def test_compute_index_builds_differential_index(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            baseline_root = Path(tmp) / "baseline"
+
+            # Create baseline coverage
+            baseline_suite = baseline_root / "coverage"
+            baseline_suite.mkdir(parents=True)
+
+            # Create baseline coverage.txt with some coverage
+            baseline_coverage_txt = baseline_suite / "coverage.txt"
+            with open(baseline_coverage_txt, "w", encoding="utf-8") as f:
+                f.write("github.com/DataDog/datadog-agent/pkg/collector/corechecks/check.go:24.13,25.2 2 1\n")
+
+            # Create current coverage suite
+            suite1 = root / "suite1"
+            (suite1 / "coverage").mkdir(parents=True)
+            with open(suite1 / "metadata.json", "w", encoding="utf-8") as f:
+                json.dump({"job_name": "job1", "test": "TestA"}, f)
+
+            # Mock ctx.run to generate coverage.txt files
+            def fake_run(cmd, echo=False, warn=True):  # noqa: U100
+                if "baseline" in cmd:
+                    content = "\n".join(
+                        [
+                            "github.com/DataDog/datadog-agent/pkg/collector/coretoto/check.go:24.13,25.2 2 1",
+                            "github.com/DataDog/datadog-agent/pkg/collector/corechecks/check.go:26.13,27.2 1 0",
+                        ]
+                    )
+                    out_path = baseline_suite / "coverage.txt"
+                    with open(out_path, "w", encoding="utf-8") as f:
+                        f.write(content)
+                    return MagicMock()
+                if "suite1" in cmd:
+                    # Current coverage has additional lines not in baseline
+                    content = "\n".join(
+                        [
+                            "github.com/DataDog/datadog-agent/pkg/collector/coretoto/check.go:24.13,25.2 2 1",  # Same as baseline
+                            "github.com/DataDog/datadog-agent/pkg/collector/corechecks/check.go:26.13,27.2 2 1",  # New coverage
+                            "github.com/DataDog/datadog-agent/pkg/util/log/log.go:5.1,6.2 1 1",  # New file
+                        ]
+                    )
+                    out_path = suite1 / "coverage" / "coverage.txt"
+                    with open(out_path, "w", encoding="utf-8") as f:
+                        f.write(content)
+                return MagicMock()
+
+            ctx = MagicMock()
+            ctx.run.side_effect = fake_run
+
+            idxr = DiffedPackageCoverageDynTestIndexer(
+                coverage_root=str(root), baseline_coverage_root=str(baseline_root)
+            )
+            index = idxr.compute_index(ctx)
+
+            result = index.to_dict()
+
+            # Expected: only packages with new coverage ranges should be included
+            expected = {
+                "job1": {
+                    "pkg/collector/corechecks": ["TestA"],  # Has new coverage range 26.13,27.2
+                    "pkg/util/log": ["TestA"],  # Completely new file
+                },
+            }
+
+            self.assertEqual(set(result.keys()), set(expected.keys()))
+            for job in expected:
+                self.assertIn(job, result)
+                self.assertEqual(set(result[job].keys()), set(expected[job].keys()))
+                for pkg in expected[job]:
+                    self.assertIn(pkg, result[job])
+                    self.assertEqual(result[job][pkg], expected[job][pkg])
 
 
 if __name__ == "__main__":

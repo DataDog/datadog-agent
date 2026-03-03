@@ -537,8 +537,6 @@ func readResponseStatuses(checkName string, responses <-chan defaultforwarder.Re
 
 func ignoreResponseBody(checkName string) bool {
 	switch checkName {
-	case checks.ProcessEventsCheckName:
-		return true
 	default:
 		return false
 	}

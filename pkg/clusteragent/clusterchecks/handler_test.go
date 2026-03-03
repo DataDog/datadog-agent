@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"testing"
 	"time"
 
@@ -137,6 +138,9 @@ func TestUpdateLeaderIP(t *testing.T) {
 // TestHandlerRun tests the full lifecycle of the handling/dispatching
 // lifecycle: unknown -> follower -> leader -> follower -> leader -> stop
 func TestHandlerRun(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Cluster Agent is not supported on Windows")
+	}
 	dummyT := &testing.T{}
 	ac := &mockedPluggableAutoConfig{}
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
@@ -301,7 +305,7 @@ func TestHandlerRun(t *testing.T) {
 	})
 	testutil.AssertTrueBeforeTimeout(t, tick, waitfor, func() bool {
 		// Dispatcher has been flushed, no config remain
-		state, err := h.GetState()
+		state, err := h.GetState(false)
 		return err == nil && len(state.Nodes) == 0 && len(state.Dangling) == 0
 	})
 

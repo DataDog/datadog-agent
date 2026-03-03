@@ -22,7 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v5"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/system-probe/connector/metric"
@@ -155,14 +155,14 @@ func run() (err error) {
 
 	ctx := context.Background()
 
-	if err := backoff.Retry(func() error {
+	if _, err := backoff.Retry(ctx, func() (any, error) {
 		if err := communicator.Connect(ctx); err != nil {
 			failType = failConnect
-			return fmt.Errorf("connect: %s", err)
+			return nil, fmt.Errorf("connect: %s", err)
 		}
 
-		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(sshRetryInterval), sshMaxRetries)); err != nil {
+		return nil, nil
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(sshRetryInterval)), backoff.WithMaxTries(sshMaxRetries)); err != nil {
 		return err
 	}
 
@@ -197,11 +197,11 @@ func run() (err error) {
 
 func buildMetric(cinfo connectorInfo, failType, result string) datadogV2.MetricPayload {
 	tags := []string{
-		fmt.Sprintf("result:%s", result),
-		fmt.Sprintf("connection_type:%s", cinfo.connectorType),
+		"result:" + result,
+		"connection_type:" + cinfo.connectorType,
 	}
 	if failType != "" {
-		tags = append(tags, fmt.Sprintf("error:%s", failType))
+		tags = append(tags, "error:"+failType)
 	}
 	return datadogV2.MetricPayload{
 		Series: []datadogV2.MetricSeries{

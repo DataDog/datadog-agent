@@ -12,9 +12,8 @@ import (
 	"sync"
 	"time"
 
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/docker/docker/api/types/events"
-
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 // ActionDied is a custom action for container events
@@ -75,7 +74,7 @@ type eventSubscriber struct {
 	containerEventsChan chan *ContainerEvent
 	imageEventsChan     chan *ImageEvent
 	cancelChan          chan struct{}
-	filter              *containers.Filter
+	filter              workloadfilter.FilterBundle
 }
 
 // eventStreamState holds the state for event streaming towards subscribers

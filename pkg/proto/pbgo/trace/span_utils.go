@@ -5,6 +5,10 @@
 
 package trace
 
+import (
+	"strconv"
+)
+
 // spanCopiedFields records the fields that are copied in ShallowCopy.
 // This should match exactly the fields set in (*Span).ShallowCopy.
 // This is used by tests to enforce the correctness of ShallowCopy.
@@ -52,4 +56,28 @@ func (s *Span) ShallowCopy() *Span {
 		SpanLinks:  s.SpanLinks,
 		SpanEvents: s.SpanEvents,
 	}
+}
+
+// Get128BitTraceID returns the 128-bit trace ID for the span.
+// Returns the upper and lower 64 bits separately, the lowerBits will always be set even on error.
+func (s *Span) Get128BitTraceID() (upperBits uint64, lowerBits uint64, err error) {
+	lowerBits = s.TraceID
+	// If it's an otel span the whole trace ID is in otel.trace
+	if tid, ok := s.Meta["otel.trace_id"]; ok {
+		upperBits, err = strconv.ParseUint(tid, 16, 64)
+		if err != nil {
+			return 0, lowerBits, err
+		}
+		return upperBits, lowerBits, nil
+	}
+	// Get hex encoded upper bits for datadog spans
+	// If no value is found we can use the default `0` value as that's what will have been propagated
+	if upper, ok := s.Meta["_dd.p.tid"]; ok {
+		u, err := strconv.ParseUint(upper, 16, 64)
+		if err != nil {
+			return 0, lowerBits, err
+		}
+		return u, lowerBits, nil
+	}
+	return 0, lowerBits, nil
 }

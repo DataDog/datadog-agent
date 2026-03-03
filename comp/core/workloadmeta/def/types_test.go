@@ -154,6 +154,7 @@ Cmdline: /usr/bin/test-process --flag
 Namespace PID: 12345
 Container ID: container-123
 Creation time: 2023-01-01 12:00:00 +0000 UTC
+APM Injection Status: unknown
 `,
 		},
 		{
@@ -185,6 +186,7 @@ Cmdline: /usr/bin/test-process --flag
 Namespace PID: 12345
 Container ID: container-123
 Creation time: 2023-01-01 12:00:00 +0000 UTC
+APM Injection Status: unknown
 Comm: test-process
 Cwd: /tmp
 Uids: [1000 1001]
@@ -219,10 +221,9 @@ Gids: [1002 1003]
 					GeneratedNameSource:      "binary_name",
 					AdditionalGeneratedNames: []string{"java", "app"},
 					TracerMetadata:           []tracermetadata.TracerMetadata{},
-					DDService:                "java-app",
 					TCPPorts:                 []uint16{8080, 8081},
 					UDPPorts:                 []uint16{8082, 8083},
-					APMInstrumentation:       "enabled",
+					APMInstrumentation:       true,
 					Type:                     "web_service",
 					LogFiles: []string{
 						"/var/log/app_access.log",
@@ -240,6 +241,7 @@ Namespace PID: 12345
 Container ID: container-999
 Creation time: 2023-01-01 12:00:00 +0000 UTC
 Language: java
+APM Injection Status: unknown
 ----------- Service Discovery -----------
 Service Generated Name: java-app
 `,
@@ -272,11 +274,15 @@ Service Generated Name: java-app
 					GeneratedNameSource:      "binary_name",
 					AdditionalGeneratedNames: []string{"java", "app"},
 					TracerMetadata:           []tracermetadata.TracerMetadata{},
-					DDService:                "java-app",
-					TCPPorts:                 []uint16{8080, 8081},
-					UDPPorts:                 []uint16{8082, 8083},
-					APMInstrumentation:       "enabled",
-					Type:                     "web_service",
+					UST: UST{
+						Service: "java-app",
+						Env:     "production",
+						Version: "1.2.3",
+					},
+					TCPPorts:           []uint16{8080, 8081},
+					UDPPorts:           []uint16{8082, 8083},
+					APMInstrumentation: true,
+					Type:               "web_service",
 					LogFiles: []string{
 						"/var/log/app_access.log",
 						"/var/log/app_error.log",
@@ -293,6 +299,7 @@ Namespace PID: 12345
 Container ID: container-999
 Creation time: 2023-01-01 12:00:00 +0000 UTC
 Language: java
+APM Injection Status: unknown
 Comm: java
 Cwd: /app
 Uids: [1000 2 3]
@@ -302,11 +309,14 @@ Service Generated Name: java-app
 Service Generated Name Source: binary_name
 Service Additional Generated Names: [java app]
 Service Tracer Metadata: []
-Service DD Service: java-app
 Service TCP Ports: [8080 8081]
 Service UDP Ports: [8082 8083]
-Service APM Instrumentation: enabled
+Service APM Instrumentation: true
 Service Type: web_service
+---- Unified Service Tagging ----
+Service: java-app
+Env: production
+Version: 1.2.3
 ----------- Log Files -----------
 /var/log/app_access.log
 /var/log/app_error.log
@@ -372,10 +382,11 @@ func TestMergeGPU(t *testing.T) {
 		EntityMeta: EntityMeta{
 			Name: "gpu-1",
 		},
-		Vendor:        "nvidia",
-		DriverVersion: "460.32.03",
-		Device:        "",
-		ActivePIDs:    []int{123, 456},
+		Vendor:           "nvidia",
+		DriverVersion:    "460.32.03",
+		Device:           "",
+		ActivePIDs:       []int{123, 456},
+		ChildrenGPUUUIDs: []string{"gpu-2-id", "gpu-3-id"},
 	}
 	gpu2 := GPU{
 		EntityID: EntityID{
@@ -385,10 +396,11 @@ func TestMergeGPU(t *testing.T) {
 		EntityMeta: EntityMeta{
 			Name: "gpu-1",
 		},
-		Vendor:        "nvidia",
-		DriverVersion: "460.32.03",
-		Device:        "tesla",
-		ActivePIDs:    []int{654},
+		Vendor:           "nvidia",
+		DriverVersion:    "460.32.03",
+		Device:           "tesla",
+		ActivePIDs:       []int{654},
+		ChildrenGPUUUIDs: []string{"gpu-4-id", "gpu-5-id"},
 	}
 
 	err := gpu1.Merge(&gpu2)
@@ -396,4 +408,5 @@ func TestMergeGPU(t *testing.T) {
 	assert.Equal(t, gpu1.Device, "tesla")
 	assert.ElementsMatch(t, gpu1.ActivePIDs, []int{654})
 	assert.Equal(t, gpu1.Vendor, "nvidia")
+	assert.ElementsMatch(t, gpu1.ChildrenGPUUUIDs, []string{"gpu-4-id", "gpu-5-id"})
 }

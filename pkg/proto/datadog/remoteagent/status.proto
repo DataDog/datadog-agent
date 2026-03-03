@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package datadog.remoteagent.status.v1;
+option go_package = "pkg/proto/pbgo/core"; // golang
+
+
+service StatusProvider {
+  // Gets the status details of a remote agent.
+  rpc GetStatusDetails(datadog.remoteagent.status.v1.GetStatusDetailsRequest) returns (datadog.remoteagent.status.v1.GetStatusDetailsResponse);
+}
+
+message StatusSection {
+  map<string, string> fields = 1;
+}
+
+message GetStatusDetailsRequest {}
+
+message GetStatusDetailsResponse {
+  // Main status detail section.
+  //
+  // Generally reserved for high-level details such as version, uptime, configuration flags, etc.
+  StatusSection main_section = 1;
+
+  // Named status detail sections.
+  //
+  // Generally reserved for specific (sub)component details, such as the status of a specific feature or integration, etc.
+  map<string, StatusSection> named_sections = 2;
+}

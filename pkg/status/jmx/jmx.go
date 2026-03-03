@@ -6,6 +6,11 @@
 // Package jmx allows to set and collect information about JMX check
 package jmx
 
+const (
+	jmxFetchVersion    = "version"
+	javaRuntimeVersion = "runtime_version"
+)
+
 type jmxCheckStatus struct {
 	InitializedChecks map[string]interface{} `json:"initialized_checks"`
 	FailedChecks      map[string]interface{} `json:"failed_checks"`
@@ -19,18 +24,21 @@ type Status struct {
 	Errors       int64                  `json:"errors"`
 }
 
-// StartupError holds startup status and errors
-type StartupError struct {
-	LastError string
-	Timestamp int64
-}
+// GetInfo returns JMXFetch version and Java runtime version
+func (s *Status) GetInfo() (version, runtimeVersion string) {
+	if v, ok := s.Info[jmxFetchVersion]; ok {
+		if vStr, isString := v.(string); isString {
+			version = vStr
+		}
+	}
 
-// GetStartupError retrieves latest JMX startup error
-func GetStartupError() StartupError {
-	lastJMXStartupErrorMutex.RLock()
-	defer lastJMXStartupErrorMutex.RUnlock()
-	errorCopy := StartupError{lastJMXStartupError.LastError, lastJMXStartupError.Timestamp}
-	return errorCopy
+	if rv, ok := s.Info[javaRuntimeVersion]; ok {
+		if rvStr, isString := rv.(string); isString {
+			runtimeVersion = rvStr
+		}
+	}
+
+	return version, runtimeVersion
 }
 
 // PopulateStatus populate stats with JMX information

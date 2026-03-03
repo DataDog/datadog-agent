@@ -8,7 +8,7 @@ package auditorimpl
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
 	"sync"
@@ -16,8 +16,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/def"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
-	healthdef "github.com/DataDog/datadog-agent/comp/logs/health/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -50,29 +50,30 @@ type JSONRegistry struct {
 
 // A registryAuditor is storing the Auditor information using a registry.
 type registryAuditor struct {
-	health             *health.Handle
-	healthRegistrar    healthdef.Component
-	chansMutex         sync.Mutex
-	inputChan          chan *message.Payload
-	registry           map[string]*RegistryEntry
-	tailedSources      map[string]bool
-	registryPath       string
-	registryDirPath    string
-	registryTmpFile    string
-	registryMutex      sync.Mutex
-	entryTTL           time.Duration
-	done               chan struct{}
-	messageChannelSize int
-	registryWriter     auditor.RegistryWriter
+	health              *health.Handle
+	kubeHealthRegistrar kubehealthdef.Component
+	chansMutex          sync.Mutex
+	inputChan           chan *message.Payload
+	flushRequestChan    chan chan struct{}
+	registry            map[string]*RegistryEntry
+	tailedSources       map[string]bool
+	registryPath        string
+	registryDirPath     string
+	registryTmpFile     string
+	registryMutex       sync.Mutex
+	entryTTL            time.Duration
+	done                chan struct{}
+	messageChannelSize  int
+	registryWriter      auditor.RegistryWriter
 
 	log log.Component
 }
 
 // Dependencies defines the dependencies of the auditor
 type Dependencies struct {
-	Log    log.Component
-	Config config.Component
-	Health healthdef.Component
+	Log        log.Component
+	Config     config.Component
+	KubeHealth kubehealthdef.Component
 }
 
 // Provides contains the auditor component
@@ -96,15 +97,15 @@ func newAuditor(deps Dependencies) *registryAuditor {
 	}
 
 	registryAuditor := &registryAuditor{
-		registryPath:       filepath.Join(runPath, filename),
-		registryDirPath:    deps.Config.GetString("logs_config.run_path"),
-		registryTmpFile:    filepath.Base(filename) + ".tmp",
-		tailedSources:      make(map[string]bool),
-		entryTTL:           ttl,
-		messageChannelSize: messageChannelSize,
-		log:                deps.Log,
-		healthRegistrar:    deps.Health,
-		registryWriter:     registryWriter,
+		registryPath:        filepath.Join(runPath, filename),
+		registryDirPath:     deps.Config.GetString("logs_config.run_path"),
+		registryTmpFile:     filepath.Base(filename) + ".tmp",
+		tailedSources:       make(map[string]bool),
+		entryTTL:            ttl,
+		messageChannelSize:  messageChannelSize,
+		log:                 deps.Log,
+		kubeHealthRegistrar: deps.KubeHealth,
+		registryWriter:      registryWriter,
 	}
 
 	return registryAuditor
@@ -120,7 +121,7 @@ func NewProvides(deps Dependencies) Provides {
 
 // Start starts the Auditor
 func (a *registryAuditor) Start() {
-	a.health = a.healthRegistrar.RegisterLiveness("logs-agent")
+	a.health = a.kubeHealthRegistrar.RegisterLiveness("logs-agent")
 
 	a.createChannels()
 	a.registry = a.recoverRegistry()
@@ -136,10 +137,34 @@ func (a *registryAuditor) Stop() {
 	}
 }
 
+// Flush drains all pending payloads from the input channel, updates the
+// in-memory registry, then writes it to disk. It blocks until complete.
+// When the auditor is stopped (run loop not active), it falls back to
+// writing the current in-memory registry directly.
+//
+// Must not be called concurrently with Stop.
+func (a *registryAuditor) Flush() {
+	a.chansMutex.Lock()
+	reqChan := a.flushRequestChan
+	a.chansMutex.Unlock()
+
+	if reqChan == nil {
+		if err := a.flushRegistry(); err != nil {
+			a.log.Warnf("Failed to flush auditor registry: %v", err)
+		}
+		return
+	}
+
+	done := make(chan struct{})
+	reqChan <- done
+	<-done
+}
+
 func (a *registryAuditor) createChannels() {
 	a.chansMutex.Lock()
 	defer a.chansMutex.Unlock()
 	a.inputChan = make(chan *message.Payload, a.messageChannelSize)
+	a.flushRequestChan = make(chan chan struct{})
 	a.done = make(chan struct{})
 }
 
@@ -155,6 +180,7 @@ func (a *registryAuditor) closeChannels() {
 		a.done = nil
 	}
 	a.inputChan = nil
+	a.flushRequestChan = nil
 }
 
 // GetFingerprint returns the fingerprint for a given identifier,
@@ -284,6 +310,25 @@ func (a *registryAuditor) run() {
 					a.log.Warn(err)
 				}
 			}
+		case responseChan := <-a.flushRequestChan:
+			n := len(a.inputChan)
+			for i := 0; i < n; i++ {
+				select {
+				case payload := <-a.inputChan:
+					for _, msg := range payload.MessageMetas {
+						var fingerprint types.Fingerprint
+						if msg.Origin.Fingerprint != nil {
+							fingerprint = *msg.Origin.Fingerprint
+						}
+						a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp, fingerprint)
+					}
+				default:
+				}
+			}
+			if err := a.flushRegistry(); err != nil {
+				a.log.Warnf("Flush: failed to flush registry: %v", err)
+			}
+			close(responseChan)
 		}
 	}
 }
@@ -401,7 +446,7 @@ func (a *registryAuditor) unmarshalRegistry(b []byte) (map[string]*RegistryEntry
 	}
 	version, exists := r["Version"].(float64)
 	if !exists {
-		return nil, fmt.Errorf("registry retrieved from disk must have a version number")
+		return nil, errors.New("registry retrieved from disk must have a version number")
 	}
 	// ensure backward compatibility
 	switch int(version) {
@@ -412,6 +457,6 @@ func (a *registryAuditor) unmarshalRegistry(b []byte) (map[string]*RegistryEntry
 	case 0:
 		return unmarshalRegistryV0(b)
 	default:
-		return nil, fmt.Errorf("invalid registry version number")
+		return nil, errors.New("invalid registry version number")
 	}
 }

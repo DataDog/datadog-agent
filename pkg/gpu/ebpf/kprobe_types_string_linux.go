@@ -13,12 +13,13 @@ func _() {
 	_ = x[CudaEventTypeSync-2]
 	_ = x[CudaEventTypeSetDevice-3]
 	_ = x[CudaEventTypeVisibleDevicesSet-4]
-	_ = x[CudaEventTypeCount-5]
+	_ = x[CudaEventTypeSyncDevice-5]
+	_ = x[CudaEventTypeCount-6]
 }
 
-const _CudaEventType_name = "CudaEventTypeKernelLaunchCudaEventTypeMemoryCudaEventTypeSyncCudaEventTypeSetDeviceCudaEventTypeVisibleDevicesSetCudaEventTypeCount"
+const _CudaEventType_name = "CudaEventTypeKernelLaunchCudaEventTypeMemoryCudaEventTypeSyncCudaEventTypeSetDeviceCudaEventTypeVisibleDevicesSetCudaEventTypeSyncDeviceCudaEventTypeCount"
 
-var _CudaEventType_index = [...]uint8{0, 25, 44, 61, 83, 113, 131}
+var _CudaEventType_index = [...]uint8{0, 25, 44, 61, 83, 113, 136, 154}
 
 func (i CudaEventType) String() string {
 	if i >= CudaEventType(len(_CudaEventType_index)-1) {

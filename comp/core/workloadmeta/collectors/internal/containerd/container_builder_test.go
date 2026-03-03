@@ -9,7 +9,7 @@ package containerd
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -180,7 +180,7 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 					return image, nil
 				},
 				mockTask: func() (containerd.Task, error) {
-					return nil, fmt.Errorf("no task found")
+					return nil, errors.New("no task found")
 				},
 			},
 			expected: workloadmeta.Container{

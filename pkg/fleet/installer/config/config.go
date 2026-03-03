@@ -7,22 +7,20 @@
 package config
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
+	"go.yaml.in/yaml/v2"
 	patch "gopkg.in/evanphx/json-patch.v4"
-	"gopkg.in/yaml.v3"
-)
-
-const (
-	deploymentIDFile = ".deployment-id"
 )
 
 // FileOperationType is the type of operation to perform on the config.
@@ -35,6 +33,17 @@ const (
 	FileOperationMergePatch FileOperationType = "merge-patch"
 	// FileOperationDelete deletes the config at the given path.
 	FileOperationDelete FileOperationType = "delete"
+	// FileOperationDeleteAll deletes the config at the given path and all its subdirectories.
+	FileOperationDeleteAll FileOperationType = "delete-all"
+	// FileOperationCopy copies the config at the given path to the given path.
+	FileOperationCopy FileOperationType = "copy"
+	// FileOperationMove moves the config at the given path to the given path.
+	FileOperationMove FileOperationType = "move"
+)
+
+var (
+	// secRegex matches SEC[...] placeholders in config patches
+	secRegex = regexp.MustCompile(`SEC\[.*?\]`)
 )
 
 // Directories is the directories of the config.
@@ -49,99 +58,52 @@ type State struct {
 	ExperimentDeploymentID string
 }
 
-// GetState returns the state of the directories.
-func (d *Directories) GetState() (State, error) {
-	stablePath := filepath.Join(d.StablePath, deploymentIDFile)
-	experimentPath := filepath.Join(d.ExperimentPath, deploymentIDFile)
-	stableDeploymentID, err := os.ReadFile(stablePath)
-	if err != nil && !os.IsNotExist(err) {
-		return State{}, err
-	}
-	experimentDeploymentID, err := os.ReadFile(experimentPath)
-	if err != nil && !os.IsNotExist(err) {
-		return State{}, err
-	}
-	stableExists := len(stableDeploymentID) > 0
-	experimentExists := len(experimentDeploymentID) > 0
-	// If experiment is symlinked to stable, it means the experiment is not installed.
-	if stableExists && experimentExists && isSameFile(stablePath, experimentPath) {
-		experimentDeploymentID = nil
-	}
-	return State{
-		StableDeploymentID:     string(stableDeploymentID),
-		ExperimentDeploymentID: string(experimentDeploymentID),
-	}, nil
-}
-
-// WriteExperiment writes the experiment to the directories.
-func (d *Directories) WriteExperiment(ctx context.Context, operations Operations) error {
-	err := os.RemoveAll(d.ExperimentPath)
-	if err != nil {
-		return err
-	}
-	err = copyDirectory(ctx, d.StablePath, d.ExperimentPath)
-	if err != nil {
-		return err
-	}
-	err = operations.Apply(d.ExperimentPath)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// PromoteExperiment promotes the experiment to the stable.
-func (d *Directories) PromoteExperiment(_ context.Context) error {
-	// check if experiment path exists using os
-	_, err := os.Stat(d.ExperimentPath)
-	if err != nil {
-		return err
-	}
-	err = replaceConfigDirectory(d.StablePath, d.ExperimentPath)
-	if err != nil {
-		return err
-	}
-	err = symlink.Set(d.StablePath, d.ExperimentPath)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// RemoveExperiment removes the experiment from the directories.
-func (d *Directories) RemoveExperiment(_ context.Context) error {
-	err := os.RemoveAll(d.ExperimentPath)
-	if err != nil {
-		return err
-	}
-	err = symlink.Set(d.ExperimentPath, d.StablePath)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 // Operations is the list of operations to perform on the configs.
 type Operations struct {
 	DeploymentID   string          `json:"deployment_id"`
 	FileOperations []FileOperation `json:"file_operations"`
 }
 
+// ReplaceSecrets replaces SEC[key] placeholders with decrypted values in the operations.
+func ReplaceSecrets(operations *Operations, decryptedSecrets map[string]string) error {
+	for key, decryptedValue := range decryptedSecrets {
+		// Build the full key: SEC[key]
+		fullKey := fmt.Sprintf("SEC[%s]", key)
+
+		// Replace in all file operations
+		for i := range operations.FileOperations {
+			if bytes.Contains(operations.FileOperations[i].Patch, []byte(fullKey)) {
+				operations.FileOperations[i].Patch = bytes.ReplaceAll(
+					operations.FileOperations[i].Patch,
+					[]byte(fullKey),
+					[]byte(decryptedValue),
+				)
+			}
+		}
+	}
+
+	// Verify all secrets have been replaced
+	for _, operation := range operations.FileOperations {
+		if secRegex.Match(operation.Patch) {
+			return errors.New("secrets are not fully replaced, SEC[...] found in the config")
+		}
+	}
+
+	return nil
+}
+
 // Apply applies the operations to the root.
-func (o *Operations) Apply(rootPath string) error {
+func (o *Operations) Apply(ctx context.Context, rootPath string) error {
 	root, err := os.OpenRoot(rootPath)
 	if err != nil {
 		return err
 	}
+	defer root.Close()
 	for _, operation := range o.FileOperations {
-		err := operation.apply(root)
+		err := operation.apply(ctx, root)
 		if err != nil {
 			return err
 		}
-	}
-	err = os.WriteFile(filepath.Join(rootPath, deploymentIDFile), []byte(o.DeploymentID), 0644)
-	if err != nil {
-		return err
 	}
 	return nil
 }
@@ -150,14 +112,17 @@ func (o *Operations) Apply(rootPath string) error {
 type FileOperation struct {
 	FileOperationType FileOperationType `json:"file_op"`
 	FilePath          string            `json:"file_path"`
+	DestinationPath   string            `json:"destination_path,omitempty"`
 	Patch             json.RawMessage   `json:"patch,omitempty"`
 }
 
-func (a *FileOperation) apply(root *os.Root) error {
-	if !configNameAllowed(a.FilePath) {
+func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
+	spec := getConfigFileSpec(a.FilePath)
+	if spec == nil {
 		return fmt.Errorf("modifying config file %s is not allowed", a.FilePath)
 	}
 	path := strings.TrimPrefix(a.FilePath, "/")
+	destinationPath := strings.TrimPrefix(a.DestinationPath, "/")
 
 	switch a.FileOperationType {
 	case FileOperationPatch, FileOperationMergePatch:
@@ -165,7 +130,7 @@ func (a *FileOperation) apply(root *os.Root) error {
 		if err != nil {
 			return err
 		}
-		file, err := root.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644)
+		file, err := root.OpenFile(path, os.O_RDWR|os.O_CREATE, 0640)
 		if err != nil {
 			return err
 		}
@@ -179,7 +144,7 @@ func (a *FileOperation) apply(root *os.Root) error {
 		if err != nil {
 			return err
 		}
-		previousJSONBytes, err := json.Marshal(previous)
+		previousJSONBytes, err := json.Marshal(convertYAML2UnmarshalToJSONMarshallable(previous))
 		if err != nil {
 			return err
 		}
@@ -221,9 +186,72 @@ func (a *FileOperation) apply(root *os.Root) error {
 		if err != nil {
 			return err
 		}
-		return err
+		// Set proper ownership and permissions for the file
+		if err := setFileOwnershipAndPermissions(ctx, root, path, spec); err != nil {
+			return err
+		}
+		return nil
+	case FileOperationCopy:
+		destSpec := getConfigFileSpec(a.DestinationPath)
+		if destSpec == nil {
+			return fmt.Errorf("modifying config file %s is not allowed", a.DestinationPath)
+		}
+
+		err := ensureDir(root, destinationPath)
+		if err != nil {
+			return err
+		}
+
+		srcFile, err := root.Open(path)
+		if err != nil {
+			return err
+		}
+		defer srcFile.Close()
+
+		srcContent, err := io.ReadAll(srcFile)
+		if err != nil {
+			return err
+		}
+
+		err = root.WriteFile(destinationPath, srcContent, 0640)
+		if err != nil {
+			return err
+		}
+
+		// Set proper ownership and permissions for the destination file
+		if err := setFileOwnershipAndPermissions(ctx, root, destinationPath, destSpec); err != nil {
+			return err
+		}
+		return nil
+	case FileOperationMove:
+		destSpec := getConfigFileSpec(a.DestinationPath)
+		if destSpec == nil {
+			return fmt.Errorf("modifying config file %s is not allowed", a.DestinationPath)
+		}
+
+		err := ensureDir(root, destinationPath)
+		if err != nil {
+			return err
+		}
+
+		err = root.Rename(path, destinationPath)
+		if err != nil {
+			return err
+		}
+
+		// Set proper ownership and permissions for the destination file
+		if err := setFileOwnershipAndPermissions(ctx, root, destinationPath, destSpec); err != nil {
+			return err
+		}
+		return nil
 	case FileOperationDelete:
 		err := root.Remove(path)
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+	case FileOperationDeleteAll:
+		err := root.RemoveAll(path)
 		if err != nil && !os.IsNotExist(err) {
 			return err
 		}
@@ -234,47 +262,222 @@ func (a *FileOperation) apply(root *os.Root) error {
 }
 
 func ensureDir(root *os.Root, filePath string) error {
-	dir := path.Dir(filePath)
+	// Normalize path to forward slashes and remove leading slash
+	normalizedPath := filepath.ToSlash(strings.TrimPrefix(filePath, "/"))
+
+	// Get the directory part
+	dir := path.Dir(normalizedPath)
 	if dir == "." {
 		return nil
 	}
-	for part := range strings.SplitSeq(dir, "/") {
-		if part == "" {
+	return root.MkdirAll(dir, 0755)
+}
+
+// configFileSpec specifies a config file pattern, its ownership, and permissions.
+type configFileSpec struct {
+	pattern string
+	owner   string
+	group   string
+	mode    os.FileMode
+}
+
+var (
+	allowedConfigFiles = []configFileSpec{
+		{pattern: "/datadog.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
+		{pattern: "/otel-config.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
+		{pattern: "/security-agent.yaml", owner: "root", group: "dd-agent", mode: 0640},
+		{pattern: "/system-probe.yaml", owner: "root", group: "dd-agent", mode: 0640},
+		{pattern: "/application_monitoring.yaml", owner: "root", group: "root", mode: 0644},
+		{pattern: "/conf.d/*.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
+		{pattern: "/conf.d/*.d/*.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
+	}
+
+	legacyPathPrefix = filepath.Join("managed", "datadog-agent", "stable")
+)
+
+func getConfigFileSpec(file string) *configFileSpec {
+	normalizedFile := filepath.ToSlash(file)
+
+	// Fallback for legacy files under the /managed directory
+	if strings.HasPrefix(normalizedFile, "/managed") {
+		filename := filepath.Base(normalizedFile)
+
+		for _, spec := range allowedConfigFiles {
+			// Skip patterns with nested paths (e.g., /conf.d/*.yaml)
+			if strings.Count(spec.pattern, "/") > 1 {
+				continue
+			}
+
+			// Extract just the filename from the pattern
+			patternFilename := filepath.Base(spec.pattern)
+			match, err := filepath.Match(patternFilename, filename)
+			if err != nil {
+				continue
+			}
+			if match {
+				// Return a copy with the original pattern set to the full managed path
+				return &configFileSpec{
+					pattern: normalizedFile,
+					owner:   spec.owner,
+					group:   spec.group,
+					mode:    spec.mode,
+				}
+			}
+		}
+		return &configFileSpec{pattern: normalizedFile, owner: "dd-agent", group: "dd-agent", mode: 0640}
+	}
+
+	for _, spec := range allowedConfigFiles {
+		match, err := filepath.Match(spec.pattern, normalizedFile)
+		if err != nil {
 			continue
 		}
-		err := root.Mkdir(part, 0755)
-		if err != nil && !os.IsExist(err) {
-			return err
-		}
-		root, err = root.OpenRoot(part)
-		if err != nil {
-			return err
+		if match {
+			return &spec
 		}
 	}
 	return nil
 }
 
-var (
-	allowedConfigFiles = []string{
-		"/datadog.yaml",
-		"/otel-config.yaml",
-		"/security-agent.yaml",
-		"/system-probe.yaml",
-		"/application_monitoring.yaml",
-		"/conf.d/*.yaml",
-		"/conf.d/*.d/*.yaml",
-	}
-)
+func buildOperationsFromLegacyInstaller(rootPath string) []FileOperation {
+	var allOps []FileOperation
 
-func configNameAllowed(file string) bool {
-	for _, allowedFile := range allowedConfigFiles {
-		match, err := filepath.Match(allowedFile, file)
-		if err != nil {
-			return false
+	// /etc/datadog-agent/
+	realRootPath, err := filepath.EvalSymlinks(rootPath)
+	if err != nil {
+		return allOps
+	}
+
+	// Check if stable is a symlink or not. If it's not we can return early
+	// because the migration is already done
+	existingStablePath := filepath.Join(rootPath, legacyPathPrefix)
+	info, err := os.Lstat(existingStablePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return allOps
 		}
-		if match {
-			return true
+		return allOps
+	}
+	// If it's not a symlink, we can return early
+	if info.Mode()&os.ModeSymlink == 0 {
+		return allOps
+	}
+
+	// Eval legacyPathPrefix symlink from rootPath
+	// /etc/datadog-agent/managed/datadog-agent/aaaa-bbbb-cccc
+	stableDirPath, err := filepath.EvalSymlinks(filepath.Join(realRootPath, legacyPathPrefix))
+	if err != nil {
+		return allOps
+	}
+
+	// managed/datadog-agent/aaaa-bbbb-cccc
+	managedDirSubPath, err := filepath.Rel(realRootPath, stableDirPath)
+	if err != nil {
+		return allOps
+	}
+
+	// Recursively delete targetPath/
+	// RemoveAll removes symlinks but not the content they point to as it uses os.Remove first
+	allOps = append(allOps, FileOperation{
+		FileOperationType: FileOperationDeleteAll,
+		FilePath:          "/managed",
+	})
+
+	err = filepath.WalkDir(stableDirPath, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+
+		op, err := buildOperationsFromLegacyConfigFile(path, realRootPath, managedDirSubPath)
+		if err != nil {
+			return err
+		}
+
+		allOps = append(allOps, op)
+		return nil
+	})
+	if err != nil {
+		return []FileOperation{}
+	}
+
+	return allOps
+}
+
+func buildOperationsFromLegacyConfigFile(fullFilePath, fullRootPath, managedDirSubPath string) (FileOperation, error) {
+	// Read the stable config file
+	stableDatadogYAML, err := os.ReadFile(fullFilePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return FileOperation{}, nil
+		}
+		return FileOperation{}, err
+	}
+
+	var stableDatadogJSON map[string]any
+	err = yaml.Unmarshal(stableDatadogYAML, &stableDatadogJSON)
+	if err != nil {
+		return FileOperation{}, fmt.Errorf("failed to unmarshal stable datadog.yaml: %w", err)
+	}
+	stableDatadogJSONBytes, err := json.Marshal(convertYAML2UnmarshalToJSONMarshallable(stableDatadogJSON))
+	if err != nil {
+		return FileOperation{}, fmt.Errorf("failed to marshal stable datadog.yaml: %w", err)
+	}
+
+	managedFilePath, err := filepath.Rel(fullRootPath, fullFilePath)
+	if err != nil {
+		return FileOperation{}, err
+	}
+	fPath, err := filepath.Rel(managedDirSubPath, managedFilePath)
+	if err != nil {
+		return FileOperation{}, err
+	}
+
+	op := FileOperation{
+		FileOperationType: FileOperationType(FileOperationMergePatch),
+		FilePath:          "/" + strings.TrimPrefix(fPath, "/"),
+		Patch:             stableDatadogJSONBytes,
+	}
+	if fPath == "application_monitoring.yaml" {
+		// Copy in managed directory
+		op = FileOperation{
+			FileOperationType: FileOperationMergePatch,
+			FilePath:          "/" + filepath.Join("managed", "datadog-agent", "stable", fPath),
+			Patch:             stableDatadogJSONBytes,
 		}
 	}
-	return false
+
+	return op, nil
+}
+
+// convertYAML2UnmarshalToJSONMarshallable converts a YAML unmarshalable to a JSON marshallable:
+// yaml.v2 unmarshals nested maps to map[any]any, but json.Marshal expects map[string]any and
+// fails for map[any]any. This function converts the map[any]any to map[string]any.
+func convertYAML2UnmarshalToJSONMarshallable(i any) any {
+	switch x := i.(type) {
+	case map[any]any:
+		m := map[string]any{}
+		for k, v := range x {
+			if strKey, ok := k.(string); ok {
+				m[strKey] = convertYAML2UnmarshalToJSONMarshallable(v)
+			}
+			// Skip non-string keys as they cannot be represented in JSON
+		}
+		return m
+	case map[string]any:
+		m := map[string]any{}
+		for k, v := range x {
+			m[k] = convertYAML2UnmarshalToJSONMarshallable(v)
+		}
+		return m
+	case []any:
+		m := make([]any, len(x))
+		for i, v := range x {
+			m[i] = convertYAML2UnmarshalToJSONMarshallable(v)
+		}
+		return m
+	}
+	return i
 }

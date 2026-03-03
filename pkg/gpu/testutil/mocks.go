@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
@@ -26,7 +27,7 @@ import (
 )
 
 // DefaultGpuCores is the default number of cores for a GPU device in the mock.
-const DefaultGpuCores = 10
+const DefaultGpuCores = 1024
 
 // GPUUUIDs is a list of UUIDs for the devices returned by the mock
 var GPUUUIDs = []string{
@@ -42,7 +43,7 @@ var GPUUUIDs = []string{
 // GPUCores is a list of number of cores for the devices returned by the mock,
 // should be the same length as GPUUUIDs. If not, GetBasicNvmlMock will panic.
 // Note: it is important to keep the cores count divisible by 4, to allow proper calculations for MIG children cores
-var GPUCores = []int{DefaultGpuCores, 20, 40, 60, 80, 100, 120}
+var GPUCores = []int{DefaultGpuCores, 2048, 4096, 6144, 8192, 10240, 12288}
 
 // DefaultGpuUUID is the UUID for the default device returned by the mock
 var DefaultGpuUUID = GPUUUIDs[0]
@@ -172,6 +173,18 @@ func GetDeviceMock(deviceIdx int, opts ...func(*nvmlmock.Device)) *nvmlmock.Devi
 		GpmQueryDeviceSupportFunc: func() (nvml.GpmSupport, nvml.Return) {
 			return nvml.GpmSupport{IsSupportedDevice: 1}, nvml.SUCCESS
 		},
+		GetVirtualizationModeFunc: func() (nvml.GpuVirtualizationMode, nvml.Return) {
+			return nvml.GPU_VIRTUALIZATION_MODE_NONE, nvml.SUCCESS
+		},
+		GetSupportedEventTypesFunc: func() (uint64, nvml.Return) {
+			return nvml.EventTypeAll, nvml.SUCCESS
+		},
+		GetGpuInstanceProfileInfoFunc: func(profile int) (nvml.GpuInstanceProfileInfo, nvml.Return) {
+			if _, isMig := MIGChildrenPerDevice[deviceIdx]; !isMig || profile != 0 {
+				return nvml.GpuInstanceProfileInfo{}, nvml.ERROR_INVALID_ARGUMENT
+			}
+			return getGpuInstanceProfileInfo(deviceIdx), nvml.SUCCESS
+		},
 	}
 
 	for _, opt := range opts {
@@ -179,6 +192,22 @@ func GetDeviceMock(deviceIdx int, opts ...func(*nvmlmock.Device)) *nvmlmock.Devi
 	}
 
 	return mock
+}
+
+func getGpuInstanceProfileInfo(deviceIdx int) nvml.GpuInstanceProfileInfo {
+	// build a profile info consistent with the number of cores per multiprocessor
+	// and the mig children count for this device
+	// Hopper has 128 cores per multiprocessor, and that's the default arch we have.
+	// If this is wrong, unit tests will fail as they ensure the core count is correct.
+	parentMultiprocessorCount := uint32(GPUCores[deviceIdx]) / 128
+	parentMemorySizeMB := DefaultTotalMemory / 1024 / 1024
+	instanceCount := MIGChildrenPerDevice[deviceIdx]
+
+	return nvml.GpuInstanceProfileInfo{
+		MemorySizeMB:        parentMemorySizeMB / uint64(instanceCount),
+		InstanceCount:       uint32(instanceCount),
+		MultiprocessorCount: parentMultiprocessorCount / uint32(instanceCount),
+	}
 }
 
 // GetMIGDeviceMock returns a mock of the MIG Device.
@@ -199,8 +228,13 @@ func GetMIGDeviceMock(deviceIdx int, migDeviceIdx int, opts ...func(*nvmlmock.De
 		d.GetNameFunc = func() (string, nvml.Return) {
 			return "MIG " + DefaultGPUName, nvml.SUCCESS
 		}
+
+		// MIG-Specific functions
 		d.IsMigDeviceHandleFunc = func() (bool, nvml.Return) {
 			return true, nvml.SUCCESS
+		}
+		d.GetGpuInstanceIdFunc = func() (int, nvml.Return) {
+			return migDeviceIdx, nvml.SUCCESS
 		}
 
 		// Override GetAttributesFunc for this specific MIG child to correctly distribute parent's resources.
@@ -212,18 +246,24 @@ func GetMIGDeviceMock(deviceIdx int, migDeviceIdx int, opts ...func(*nvmlmock.De
 				return nvml.DeviceAttributes{}, nvml.ERROR_NOT_SUPPORTED
 			}
 
-			// core count and total memory - equally distribute between all mig devices
-			// in the future, we might want to make this more sophisticated, to support more complex scenarios in our UTs
-			parentTotalCores := GPUCores[deviceIdx]
-			coresPerMigDevice := parentTotalCores / numMigChildrenForParent
-			memoryPerMigDevice := DefaultTotalMemory / uint64(numMigChildrenForParent)
+			// use the common profile information to ensure consistent
+			// attributes for all MIG devices and their parents
+			profileInfo := getGpuInstanceProfileInfo(deviceIdx)
 
 			migSpecificAttributes := nvml.DeviceAttributes{
-				MultiprocessorCount: uint32(coresPerMigDevice),
-				MemorySizeMB:        memoryPerMigDevice / (1024 * 1024),
+				MultiprocessorCount: profileInfo.MultiprocessorCount,
+				MemorySizeMB:        profileInfo.MemorySizeMB,
 			}
 
 			return migSpecificAttributes, nvml.SUCCESS
+		}
+
+		// Override functions that return errors for MIG devices
+		d.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
+			return nvml.DEVICE_ARCH_UNKNOWN, nvml.ERROR_INVALID_ARGUMENT
+		}
+		d.GetCudaComputeCapabilityFunc = func() (int, int, nvml.Return) {
+			return 0, 0, nvml.ERROR_INVALID_ARGUMENT
 		}
 	}
 
@@ -252,13 +292,50 @@ func WithMIGDisabled() NvmlMockOption {
 	}
 }
 
-// GetBasicNvmlMock returns a mock of the nvml.Interface with a single device with 10 cores,
-// useful for basic tests that need only the basic interaction with NVML to be working.
+// WithDeviceCount influences the return value of DeviceGetCount for the nvml mock
+func WithDeviceCount(count int) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.libOptions = append(o.libOptions, func(lib *nvmlmock.Interface) {
+			lib.DeviceGetCountFunc = func() (int, nvml.Return) {
+				return count, nvml.SUCCESS
+			}
+			lib.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
+				if index >= count {
+					return nil, nvml.ERROR_INVALID_ARGUMENT
+				}
+				return GetDeviceMock(index, o.deviceOptions...), nvml.SUCCESS
+			}
+		})
+	}
+}
+
+// WithEventSetCreate influences the definition of EventSetCreateFunc
+func WithEventSetCreate(eventSetCreate func() (nvml.EventSet, nvml.Return)) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.libOptions = append(o.libOptions, func(lib *nvmlmock.Interface) {
+			lib.EventSetCreateFunc = eventSetCreate
+		})
+	}
+}
+
+// WithProcessInfoCallback influences the return value of GetComputeRunningProcessesFunc for the nvml mock
+func WithProcessInfoCallback(callback func(uuid string) ([]nvml.ProcessInfo, nvml.Return)) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.deviceOptions = append(o.deviceOptions, func(d *nvmlmock.Device) {
+			uuid, _ := d.GetUUIDFunc()
+			d.GetComputeRunningProcessesFunc = func() ([]nvml.ProcessInfo, nvml.Return) {
+				return callback(uuid)
+			}
+		})
+	}
+}
+
+// GetBasicNvmlMock returns a mock of the nvml.Interface with the default devices and options.
 func GetBasicNvmlMock() *nvmlmock.Interface {
 	return GetBasicNvmlMockWithOptions()
 }
 
-// GetBasicNvmlMockWithOptions returns a mock of the nvml.Interface with a single device with 10 cores,
+// GetBasicNvmlMockWithOptions returns a mock of the nvml.Interface with the default devices and options,
 // allowing additional configuration through functional options.
 // It's ideal for tests that need custom NVML behavior beyond the defaults.
 func GetBasicNvmlMockWithOptions(options ...NvmlMockOption) *nvmlmock.Interface {
@@ -281,6 +358,23 @@ func GetBasicNvmlMockWithOptions(options ...NvmlMockOption) *nvmlmock.Interface 
 		},
 		SystemGetDriverVersionFunc: func() (string, nvml.Return) {
 			return DefaultNvidiaDriverVersion, nvml.SUCCESS
+		},
+		EventSetCreateFunc: func() (nvml.EventSet, nvml.Return) {
+			return &nvmlmock.EventSet{
+				FreeFunc: func() nvml.Return {
+					return nvml.SUCCESS
+				},
+				WaitFunc: func(v uint32) (nvml.EventData, nvml.Return) {
+					time.Sleep(time.Duration(v) * time.Millisecond)
+					return nvml.EventData{}, nvml.ERROR_TIMEOUT
+				},
+			}, nvml.SUCCESS
+		},
+		EventSetFreeFunc: func(eventSet nvml.EventSet) nvml.Return {
+			return eventSet.Free()
+		},
+		EventSetWaitFunc: func(eventSet nvml.EventSet, v uint32) (nvml.EventData, nvml.Return) {
+			return eventSet.Wait(v)
 		},
 		ExtensionsFunc: opts.extensionsFunc,
 	}
@@ -364,6 +458,20 @@ func GetWorkloadMetaMock(t testing.TB) workloadmetamock.Mock {
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
+}
+
+// GetWorkloadMetaMockWithDefaultGPUs is the same as GetWorkloadMetaMock, but adds the GPUs of testutil.GPUUUIDs
+func GetWorkloadMetaMockWithDefaultGPUs(t testing.TB) workloadmetamock.Mock {
+	wmeta := GetWorkloadMetaMock(t)
+	for _, uuid := range GPUUUIDs {
+		wmeta.Set(&workloadmeta.GPU{
+			EntityID: workloadmeta.EntityID{
+				ID:   uuid,
+				Kind: workloadmeta.KindGPU,
+			},
+		})
+	}
+	return wmeta
 }
 
 // GetTelemetryMock returns a mock of the telemetry.Component.

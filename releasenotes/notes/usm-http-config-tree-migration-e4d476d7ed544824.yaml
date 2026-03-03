@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+deprecations:
+  - |
+    USM: HTTP configuration flat keys are now deprecated in favor of tree structure format.
+    The following configuration keys are deprecated: ``service_monitoring_config.enable_http_monitoring``,
+    ``service_monitoring_config.max_http_stats_buffered``, ``service_monitoring_config.max_tracked_http_connections``,
+    ``service_monitoring_config.http_notification_threshold``, ``service_monitoring_config.http_max_request_fragment``,
+    ``service_monitoring_config.http_map_cleaner_interval_in_s``, ``service_monitoring_config.http_idle_connection_ttl_in_s``,
+    and ``service_monitoring_config.http_replace_rules``.
+    Use the new tree structure under ``service_monitoring_config.http.*`` instead (e.g., ``service_monitoring_config.http.enabled``,
+    ``service_monitoring_config.http.max_stats_buffered``). The deprecated keys remain fully backward compatible,
+    but the new tree structure takes precedence when both are configured.

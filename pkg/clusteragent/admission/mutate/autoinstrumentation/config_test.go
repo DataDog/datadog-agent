@@ -30,13 +30,13 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			shouldErr:  false,
 			expected: &InstrumentationConfig{
 				Enabled:            true,
-				EnabledNamespaces:  []string{"default"},
+				EnabledNamespaces:  []string{"application"},
 				DisabledNamespaces: []string{},
 				LibVersions: map[string]string{
-					"python": "default",
+					"python": "v3",
 				},
-				Version:          "v2",
 				InjectorImageTag: "foo",
+				InjectionMode:    "auto",
 			},
 		},
 		{
@@ -56,8 +56,8 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				LibVersions: map[string]string{
 					"python": "default",
 				},
-				Version:          "v2",
 				InjectorImageTag: "foo",
+				InjectionMode:    "auto",
 			},
 		},
 		{
@@ -69,7 +69,6 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				EnabledNamespaces: []string{},
 				InjectorImageTag:  "0",
 				LibVersions:       map[string]string{},
-				Version:           "v2",
 				DisabledNamespaces: []string{
 					"hacks",
 				},
@@ -106,6 +105,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 						},
 					},
 				},
+				InjectionMode: "auto",
 			},
 		},
 		{
@@ -117,7 +117,6 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				EnabledNamespaces: []string{},
 				InjectorImageTag:  "0",
 				LibVersions:       map[string]string{},
-				Version:           "v2",
 				DisabledNamespaces: []string{
 					"hacks",
 				},
@@ -163,6 +162,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 						},
 					},
 				},
+				InjectionMode: "auto",
 			},
 		},
 		{
@@ -173,7 +173,6 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				EnabledNamespaces:  []string{},
 				DisabledNamespaces: []string{},
 				InjectorImageTag:   "0",
-				Version:            "v2",
 				LibVersions:        map[string]string{},
 				Targets: []Target{
 					{
@@ -190,6 +189,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 						},
 					},
 				},
+				InjectionMode: "auto",
 			},
 		},
 		{
@@ -404,6 +404,7 @@ func TestTargetEnvVar(t *testing.T) {
 }
 
 func TestGetPinnedLibraries(t *testing.T) {
+
 	tests := []struct {
 		name          string
 		libVersions   map[string]string
@@ -489,7 +490,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 			name: "default libs (major versions)",
 			libVersions: map[string]string{
 				"java":   "v1",
-				"python": "v3",
+				"python": "v4",
 				"js":     "v5",
 				"dotnet": "v3",
 				"ruby":   "v2",
@@ -512,7 +513,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 			name: "default libs (major versions mismatch)",
 			libVersions: map[string]string{
 				"java":   "v1",
-				"python": "v3",
+				"python": "v4",
 				"js":     "v3",
 				"dotnet": "v3",
 				"ruby":   "v2",
@@ -522,7 +523,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 				libs: []libInfo{
 					defaultLibInfo(java),
 					defaultLibInfo(python),
-					js.libInfo("", "registry/dd-lib-js-init:v3"),
+					defaultLibInfoWithVersion(js, "v3"),
 					defaultLibInfo(dotnet),
 					defaultLibInfo(ruby),
 				},
@@ -533,8 +534,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			imageResolver := newNoOpImageResolver()
-			pinned := getPinnedLibraries(tt.libVersions, "registry", tt.checkDefaults, imageResolver)
+			pinned := getPinnedLibraries(tt.libVersions, "registry", tt.checkDefaults)
 			require.ElementsMatch(t, tt.expected.libs, pinned.libs, "libs match")
 			require.Equal(t, tt.expected.areSetToDefaults, pinned.areSetToDefaults, "areSetToDefaults match")
 		})

@@ -23,7 +23,7 @@ jobs:
           scope: DataDog/datadog-agent
           policy: self.add-dependabot-pr-to-mq.comment-pr
       - name: Check if the PR is mergeable
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         id: check-mergeable
         with:
           github-token: ${{ steps.octo-sts.outputs.token }}
@@ -58,7 +58,7 @@ jobs:
           result-encoding: string
       - name: Add Merge Comment to Pull Request
         if: ${{ steps.check-mergeable.outputs.result == 'true' }}
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           github-token: ${{ steps.octo-sts.outputs.token }}
           script: |

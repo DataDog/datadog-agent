@@ -8,7 +8,10 @@
 package apiserver
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -26,24 +29,37 @@ var (
 	cacheErr      error
 )
 
+type ClusterResource struct {
+	Group      string
+	APIVersion string
+	Kind       string
+}
+
 // ResourceTypeCache is a global cache to store Kubernetes resource types.
 type ResourceTypeCache struct {
 	// kindGroupToType maps a resource kind (singular name) and api group to resource type (plural name)
 	// this mapping is assumed bijective.
 	kindGroupToType map[string]string
 	// typeGroupToKind is a reverse map of kindGroupToType
-	typeGroupToKind map[string]string
-	lock            sync.RWMutex
-	discoveryClient discovery.DiscoveryInterface
+	typeGroupToKind  map[string]string
+	clusterResources map[string]ClusterResource
+	lock             sync.RWMutex
+	discoveryClient  discovery.DiscoveryInterface
+	refreshing       bool
+	refreshWaitCh    chan struct{}
+	refreshErr       error
+	refreshTTL       time.Duration
 }
 
 // InitializeGlobalResourceTypeCache initializes the global cache if it hasn't been already.
 func InitializeGlobalResourceTypeCache(discoveryClient discovery.DiscoveryInterface) error {
 	cacheOnce.Do(func() {
 		resourceCache = &ResourceTypeCache{
-			kindGroupToType: make(map[string]string),
-			typeGroupToKind: make(map[string]string),
-			discoveryClient: discoveryClient,
+			kindGroupToType:  make(map[string]string),
+			typeGroupToKind:  make(map[string]string),
+			clusterResources: make(map[string]ClusterResource),
+			discoveryClient:  discoveryClient,
+			refreshTTL:       5 * time.Second,
 		}
 
 		err := initRetry.SetupRetrier(&retry.Config{
@@ -77,7 +93,7 @@ func InitializeGlobalResourceTypeCache(discoveryClient discovery.DiscoveryInterf
 // GetResourceType retrieves the resource type for the given kind and group.
 func GetResourceType(kind, group string) (string, error) {
 	if resourceCache == nil {
-		return "", fmt.Errorf("resource type cache is not initialized")
+		return "", errors.New("resource type cache is not initialized")
 	}
 	return resourceCache.getResourceType(kind, group)
 }
@@ -85,7 +101,7 @@ func GetResourceType(kind, group string) (string, error) {
 // GetResourceKind retrieves the kind given the resource plural name and group.
 func GetResourceKind(resource, apiGroup string) (string, error) {
 	if resourceCache == nil {
-		return "", fmt.Errorf("resource type cache is not initialized")
+		return "", errors.New("resource type cache is not initialized")
 	}
 
 	return resourceCache.getResourceKind(resource, apiGroup)
@@ -103,6 +119,22 @@ func GetAPIGroup(apiVersion string) string {
 	return apiGroup
 }
 
+// GetAPIVersion extracts the version from an API version string (e.g., "apps/v1" → "v1").
+func GetAPIVersion(apiVersion string) string {
+	if index := strings.Index(apiVersion, "/"); index > 0 {
+		return apiVersion[index+1:]
+	}
+	return apiVersion
+}
+
+// GetClusterResources return all known resources from the cache
+func GetClusterResources() (map[string]ClusterResource, error) {
+	if resourceCache == nil {
+		return nil, errors.New("resource type cache is not initialized")
+	}
+	return resourceCache.getClusterResources(), nil
+}
+
 // getResourceType is the instance method to retrieve a resource type.
 func (r *ResourceTypeCache) getResourceType(kind, apiGroup string) (string, error) {
 	cacheKey := getCacheKey(kind, apiGroup)
@@ -115,17 +147,25 @@ func (r *ResourceTypeCache) getResourceType(kind, apiGroup string) (string, erro
 		return resourceType, nil
 	}
 
-	// Query the API server and update the cache
-	resourceType, err := r.discoverResourceType(kind, apiGroup)
+	// repopulating the cache on miss.
+	ctx, cancel := context.WithTimeout(context.Background(), r.refreshTTL)
+	defer cancel()
+
+	err := r.refreshCache(ctx)
+
 	if err != nil {
 		return "", err
 	}
 
-	r.lock.Lock()
-	r.kindGroupToType[cacheKey] = resourceType
-	r.lock.Unlock()
+	r.lock.RLock()
+	resourceType, found = r.kindGroupToType[cacheKey]
+	r.lock.RUnlock()
 
-	return resourceType, nil
+	if found {
+		return resourceType, nil
+	}
+	return "", fmt.Errorf("resource type not found for kind %q and group %q", kind, apiGroup)
+
 }
 
 // getResourceType is the instance method to retrieve a resource kind.
@@ -140,64 +180,120 @@ func (r *ResourceTypeCache) getResourceKind(resource, apiGroup string) (string, 
 		return kind, nil
 	}
 
-	// Query the API server and update the cache
-	resourceKind, err := r.discoverResourceKind(resource, apiGroup)
+	// repopulating the cache on miss.
+	ctx, cancel := context.WithTimeout(context.Background(), r.refreshTTL)
+	defer cancel()
+
+	err := r.refreshCache(ctx)
+
 	if err != nil {
 		return "", err
 	}
 
+	r.lock.RLock()
+	kind, found = r.typeGroupToKind[cacheKey]
+	r.lock.RUnlock()
+
+	if found {
+		return kind, nil
+	}
+	return "", fmt.Errorf("resource kind not found for resource %q and group %q", resource, apiGroup)
+}
+
+func (r *ResourceTypeCache) getClusterResources() map[string]ClusterResource {
+	r.lock.RLock()
+	defer r.lock.RUnlock()
+
+	return maps.Clone(r.clusterResources)
+}
+
+func (r *ResourceTypeCache) refreshCache(ctx context.Context) error {
+	// decide leader vs follower under the lock.
 	r.lock.Lock()
-	r.typeGroupToKind[cacheKey] = resourceKind
+	if r.refreshing {
+		// leader is already refreshing
+		waitCh := r.refreshWaitCh
+		r.lock.Unlock()
+
+		// wait for refresh to complete
+		select {
+		case <-waitCh:
+			r.lock.RLock()
+			err := r.refreshErr
+			r.lock.RUnlock()
+			return err
+		case <-ctx.Done():
+			return fmt.Errorf("context deadline reached while waiting to repopulate: %w", ctx.Err())
+		}
+
+	}
+
+	// no refresh in progress -> set state and create wait channel
+	r.refreshing = true
+	waitCh := make(chan struct{})
+	r.refreshWaitCh = waitCh
+	r.refreshErr = nil
 	r.lock.Unlock()
 
-	return resourceKind, nil
-}
+	// ensure followers are released
+	var runErr error
+	defer func() {
+		r.lock.Lock()
+		r.refreshErr = runErr
+		close(r.refreshWaitCh)
+		r.refreshWaitCh = nil
+		r.refreshing = false
+		r.lock.Unlock()
+	}()
 
-// discoverResourceKind queries the Kubernetes API server to discover the resource kind based on the plural name
-// and the api group.
-func (r *ResourceTypeCache) discoverResourceKind(resourceName, group string) (string, error) {
-	if r.discoveryClient == nil {
-		return "", fmt.Errorf("discovery client is not initialized")
-	}
-	_, apiResourceLists, err := r.discoveryClient.ServerGroupsAndResources()
-	if err != nil && !discovery.IsGroupDiscoveryFailedError(err) {
-		return "", fmt.Errorf("failed to fetch server resources: %w", err)
+	// retry config for refreshing the cache
+	var refreshRetrier retry.Retrier
+	if err := refreshRetrier.SetupRetrier(&retry.Config{
+		Name: "ResourceTypeCache_refresh",
+		AttemptMethod: func() error {
+
+			if err := r.prepopulateCache(); err != nil {
+				return fmt.Errorf("failed to refresh resource type cache: %w", err)
+			}
+			return nil
+		},
+		Strategy:          retry.Backoff,
+		InitialRetryDelay: 200 * time.Millisecond,
+		MaxRetryDelay:     2 * time.Second,
+	}); err != nil {
+		runErr = fmt.Errorf("failed to initialize refresh retrier: %w", err)
+		return runErr
 	}
 
-	for _, list := range apiResourceLists {
-		for _, resource := range list.APIResources {
-			if !isValidSubresource(resource.Name) {
-				continue
-			}
-			if trimSubResource(resource.Name) == resourceName && GetAPIGroup(list.GroupVersion) == group {
-				return resource.Kind, nil
-			}
+	// retry method for refreshing the cache
+	for {
+		_ = refreshRetrier.TriggerRetry()
+		status := refreshRetrier.RetryStatus()
+
+		switch status {
+		case retry.OK:
+			return nil
+		case retry.PermaFail:
+			le := refreshRetrier.LastError()
+			runErr = le.Unwrap()
+			return runErr
+
+		}
+
+		// wait until next retry or context timeout.
+		sleepFor := time.Until(refreshRetrier.NextRetry())
+		if sleepFor < 0 {
+			sleepFor = 0
+		}
+
+		select {
+		case <-ctx.Done():
+			runErr = fmt.Errorf("context deadline reached while waiting to repopulate: %w", ctx.Err())
+			return runErr
+		case <-time.After(sleepFor):
+
 		}
 	}
-	return "", fmt.Errorf("resource kind not found for resource %s and group %s", resourceName, group)
-}
-
-// discoverResourceType queries the Kubernetes API server to discover the resource type.
-func (r *ResourceTypeCache) discoverResourceType(kind, group string) (string, error) {
-	if r.discoveryClient == nil {
-		return "", fmt.Errorf("discovery client is not initialized")
-	}
-	_, apiResourceLists, err := r.discoveryClient.ServerGroupsAndResources()
-	if err != nil && !discovery.IsGroupDiscoveryFailedError(err) {
-		return "", fmt.Errorf("failed to fetch server resources: %w", err)
-	}
-
-	for _, list := range apiResourceLists {
-		for _, resource := range list.APIResources {
-			if !isValidSubresource(resource.Name) {
-				continue
-			}
-			if resource.Kind == kind && GetAPIGroup(list.GroupVersion) == group {
-				return trimSubResource(resource.Name), nil
-			}
-		}
-	}
-	return "", fmt.Errorf("resource type not found for kind %s and group %s", kind, group)
 }
 
 // prepopulateCache pre-fills the cache with all resource types from the discovery client.
@@ -224,6 +320,14 @@ func (r *ResourceTypeCache) prepopulateCache() error {
 
 			r.kindGroupToType[getCacheKey(kind, group)] = trimmedResourceType
 			r.typeGroupToKind[getCacheKey(trimmedResourceType, group)] = resource.Kind
+
+			if !resource.Namespaced {
+				r.clusterResources[trimmedResourceType] = ClusterResource{
+					Group:      group,
+					APIVersion: GetAPIVersion(list.GroupVersion),
+					Kind:       kind,
+				}
+			}
 		}
 	}
 
@@ -250,5 +354,5 @@ func getCacheKey(resource, group string) string {
 	if group == "" {
 		return resource
 	}
-	return fmt.Sprintf("%s/%s", resource, group)
+	return resource + "/" + group
 }

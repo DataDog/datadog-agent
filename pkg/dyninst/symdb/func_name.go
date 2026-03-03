@@ -36,7 +36,9 @@ var (
 	methodWithValueReceiverRETypeIdx = methodWithValueReceiverRE.SubexpIndex("type")
 	methodWithValueReceiverRENameIdx = methodWithValueReceiverRE.SubexpIndex("name")
 
-	anonymousFuncRE = regexp.MustCompile(`^(func)?\d+`)
+	// If a function's name starts with func1 or ends with -range1, it's an
+	// anonymous function (as opposed to a method).
+	anonymousFuncRE = regexp.MustCompile(`(^(func)?\d+)|(-range\d+$)`)
 
 	standaloneFuncRE = regexp.MustCompile(
 		pkgNameRegex + `(?P<name>.*)$`)

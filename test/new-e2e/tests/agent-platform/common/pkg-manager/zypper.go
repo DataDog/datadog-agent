@@ -6,7 +6,7 @@
 package pkgmanager
 
 import (
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 // Zypper is a package manager for zypper

@@ -1,0 +1,176 @@
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+
+package(default_package_metadata = [":license"])
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:AFL-2.1"],
+    license_text = "COPYING",
+    visibility = ["//visibility:public"],
+)
+
+copy_file(
+    name = "copy_config_h",
+    src = select({
+        "@@//:linux_x86_64": "config-linux-x86_64.h",
+        "@@//:linux_arm64": "config-linux-arm64.h",
+    }),
+    out = "config.h",
+)
+
+cc_library(
+    name = "config_h",
+    hdrs = [
+        ":copy_config_h",
+    ],
+)
+
+PUBLIC_HEADERS = [
+    "dbus/dbus-address.h",
+    "dbus/dbus-bus.h",
+    "dbus/dbus-connection.h",
+    "dbus/dbus-errors.h",
+    "dbus/dbus-macros.h",
+    "dbus/dbus-memory.h",
+    "dbus/dbus-message.h",
+    "dbus/dbus-misc.h",
+    "dbus/dbus-pending-call.h",
+    "dbus/dbus-protocol.h",
+    "dbus/dbus-server.h",
+    "dbus/dbus-shared.h",
+    "dbus/dbus-signature.h",
+    "dbus/dbus-syntax.h",
+    "dbus/dbus-threads.h",
+    "dbus/dbus-types.h",
+    "dbus/dbus.h",
+]
+
+expand_template(
+    name = "dbus_arch_deps_h",
+    template = "dbus/dbus-arch-deps.h.in",
+    out = "dbus/dbus-arch-deps.h",
+    substitutions = {
+        "@DBUS_INT64_TYPE@": "long",
+        "@DBUS_INT64_CONSTANT@": "L",
+        "@DBUS_UINT64_CONSTANT@": "ULL",
+        "@DBUS_INT32_TYPE@": "int",
+        "@DBUS_INT16_TYPE@": "short",
+        "@DBUS_SIZEOF_VOID_P@": "8",
+        "@DBUS_MAJOR_VERSION@": "1",
+        "@DBUS_MINOR_VERSION@": "16",
+        "@DBUS_MICRO_VERSION@": "2",
+    },
+)
+
+cc_library(
+    name = "dbus-1",
+    srcs = [
+        "dbus/dbus-address.c",
+        "dbus/dbus-auth.c",
+        "dbus/dbus-bus.c",
+        "dbus/dbus-connection.c",
+        "dbus/dbus-credentials.c",
+        "dbus/dbus-errors.c",
+        "dbus/dbus-keyring.c",
+        "dbus/dbus-marshal-byteswap.c",
+        "dbus/dbus-marshal-header.c",
+        "dbus/dbus-marshal-recursive.c",
+        "dbus/dbus-marshal-validate.c",
+        "dbus/dbus-message.c",
+        "dbus/dbus-misc.c",
+        "dbus/dbus-nonce.c",
+        "dbus/dbus-object-tree.c",
+        "dbus/dbus-pending-call.c",
+        "dbus/dbus-resources.c",
+        "dbus/dbus-server-debug-pipe.c",
+        "dbus/dbus-server-socket.c",
+        "dbus/dbus-server.c",
+        "dbus/dbus-sha.c",
+        "dbus/dbus-signature.c",
+        "dbus/dbus-syntax.c",
+        "dbus/dbus-threads.c",
+        "dbus/dbus-timeout.c",
+        "dbus/dbus-transport-socket.c",
+        "dbus/dbus-transport.c",
+        "dbus/dbus-watch.c",
+        "dbus/dbus-dataslot.c",
+        "dbus/dbus-file.c",
+        "dbus/dbus-hash.c",
+        "dbus/dbus-internals.c",
+        "dbus/dbus-list.c",
+        "dbus/dbus-marshal-basic.c",
+        "dbus/dbus-memory.c",
+        "dbus/dbus-mempool.c",
+        "dbus/dbus-pipe.c",
+        "dbus/dbus-string.c",
+        "dbus/dbus-sysdeps.c",
+        "dbus/dbus-uuidgen.c",
+        "dbus/dbus-server-unix.c",
+        "dbus/dbus-file-unix.c",
+        "dbus/dbus-pipe-unix.c",
+        "dbus/dbus-sysdeps-pthread.c",
+        "dbus/dbus-sysdeps-unix.c",
+        "dbus/dbus-transport-unix.c",
+        "dbus/dbus-userdb.c",
+        ":dbus_arch_deps_h",
+    ] + glob(["dbus/*.h"], exclude = PUBLIC_HEADERS),
+    hdrs = PUBLIC_HEADERS,
+    local_defines = [
+        "_GNU_SOURCE",
+        "__USE_MINGW_ANSI_STDIO=0",
+        "dbus_1_EXPORTS",
+    ],
+    copts = [
+        "-O2",
+        "-fno-strict-aliasing",
+        "-fvisibility=hidden",
+    ],
+    implementation_deps = [
+        ":config_h",
+    ],
+    includes = ["."],
+    linkstatic = True,
+    visibility = ["//visibility:public"],
+)
+
+pkg_files(
+    name = "lib_files",
+    srcs = [":dbus-1"],
+    prefix = "lib/",
+)
+
+pkg_files(
+    name = "headers",
+    srcs = PUBLIC_HEADERS,
+    prefix = "include/dbus-1.0/dbus",
+)
+
+pkg_files(
+    name = "dbus_arch_deps_install",
+    srcs = [":dbus_arch_deps_h"],
+    # This header is really meant to be installed in the lib dir.
+    prefix = "lib/dbus-1.0/include/dbus",
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":headers",
+        ":lib_files",
+        ":dbus_arch_deps_install",
+    ],
+    prefix = "embedded",
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
+)

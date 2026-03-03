@@ -6,7 +6,9 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.build_tags import (
+    compute_build_tags_for_flavor,
+)
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
@@ -26,7 +28,6 @@ def build(
     install_path=None,
     flavor=AgentFlavor.base.name,
     rebuild=False,
-    major_version='7',
     go_mod="readonly",
 ):
     """
@@ -38,13 +39,12 @@ def build(
     ldflags, gcflags, env = get_build_flags(
         ctx,
         install_path=install_path,
-        major_version=major_version,
     )
 
     # generate windows resources
     if sys.platform == 'win32':
         build_messagetable(ctx)
-        vars = versioninfo_vars(ctx, major_version=major_version)
+        vars = versioninfo_vars(ctx)
         build_rc(
             ctx,
             "cmd/process-agent/windows_resources/process-agent.rc",
@@ -58,14 +58,9 @@ def build(
         goenv["PATH"] += ":" + os.environ["PATH"]
     env.update(goenv)
 
-    build_include = (
-        get_default_build_tags(build="process-agent", flavor=flavor)
-        if build_include is None
-        else filter_incompatible_tags(build_include.split(","))
+    build_tags = compute_build_tags_for_flavor(
+        build="process-agent", flavor=flavor, build_include=build_include, build_exclude=build_exclude
     )
-    build_exclude = [] if build_exclude is None else build_exclude.split(",")
-
-    build_tags = get_build_tags(build_include, build_exclude)
 
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)
@@ -82,6 +77,7 @@ def build(
         build_tags=build_tags,
         bin_path=BIN_PATH,
         env=env,
+        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
         coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
     )
 
@@ -134,16 +130,6 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
 
     if push:
         ctx.run(f"docker push {image}")
-
-
-@task
-def go_generate(ctx):
-    """
-    Run the go generate directives inside the /pkg/process directory
-
-    """
-    with ctx.cd("./pkg/process/events/model"):
-        ctx.run("go generate ./...")
 
 
 @task

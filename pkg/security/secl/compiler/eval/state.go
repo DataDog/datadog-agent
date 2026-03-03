@@ -6,23 +6,12 @@
 // Package eval holds eval related files
 package eval
 
-import (
-	"regexp"
-)
-
-// StateRegexpCache is used to cache regexps used in the rule compilation process
-type StateRegexpCache struct {
-	arraySubscriptFindRE    *regexp.Regexp
-	arraySubscriptReplaceRE *regexp.Regexp
-}
-
 // State defines the current state of the rule compilation
 type State struct {
 	model       Model
 	field       Field
 	fieldValues map[Field][]FieldValue
 	macros      MacroEvaluatorGetter
-	regexpCache StateRegexpCache
 	registers   []Register
 }
 

@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	gpusubscriber "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/def"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck"
@@ -42,6 +43,7 @@ type dependencies struct {
 	GpuSubscriber gpusubscriber.Component
 	Statsd        statsd.ClientInterface
 	IPC           ipc.Component
+	Tagger        taggerdef.Component
 }
 
 type result struct {
@@ -53,7 +55,7 @@ type result struct {
 
 func newCheck(deps dependencies) result {
 	c := &check{
-		processCheck: checks.NewProcessCheck(deps.Config, deps.Sysconfig, deps.WMmeta, deps.GpuSubscriber, deps.Statsd, deps.IPC.GetTLSServerConfig()),
+		processCheck: checks.NewProcessCheck(deps.Config, deps.Sysconfig, deps.WMmeta, deps.GpuSubscriber, deps.Statsd, deps.IPC.GetTLSServerConfig(), deps.Tagger),
 	}
 	return result{
 		Check: types.ProvidesCheck{

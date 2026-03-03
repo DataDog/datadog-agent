@@ -324,13 +324,13 @@ func (m *Config) Validate() error {
 	switch m.GOARCH {
 	case Amd64, Arm64:
 	case "":
-		return fmt.Errorf("GOARCH is required")
+		return errors.New("GOARCH is required")
 	default:
 		return fmt.Errorf("GOARCH is invalid: %q", m.GOARCH)
 	}
 
 	if m.GOTOOLCHAIN == "" {
-		return fmt.Errorf("GOTOOLCHAIN is required")
+		return errors.New("GOTOOLCHAIN is required")
 	}
 	if !goVersionRegex.MatchString(m.GOTOOLCHAIN) {
 		return fmt.Errorf("GOTOOLCHAIN is invalid: %q", m.GOTOOLCHAIN)
@@ -362,5 +362,5 @@ func parseConfig(s string) (Config, error) {
 }
 
 var (
-	goVersionRegex = regexp.MustCompile(`^(go1\.\d+\.\d+)$`)
+	goVersionRegex = regexp.MustCompile(`^(go1\.\d+(\.|rc)\d+)$`)
 )

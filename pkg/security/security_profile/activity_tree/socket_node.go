@@ -59,7 +59,6 @@ func (sn *SocketNode) evictImageTag(imageTag string) bool {
 // InsertBindEvent inserts a bind even inside a socket node
 func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, imageTag string, generationType NodeGenerationType, rules []*model.MatchedRule, dryRun bool) bool {
 	evtIP := evt.Addr.IPNet.IP.String()
-
 	for _, n := range sn.Bind {
 		if evt.Addr.Port == n.Port && evtIP == n.IP && evt.Protocol == n.Protocol {
 			if !dryRun {

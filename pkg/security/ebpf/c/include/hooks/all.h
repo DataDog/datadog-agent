@@ -39,6 +39,7 @@
 #include "setrlimit.h"
 #include "caps.h"
 #include "prctl.h"
+#include "memfd.h"
 
 #include "network/accept.h"
 #include "network/bind.h"

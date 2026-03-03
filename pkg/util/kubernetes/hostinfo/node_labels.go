@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
-// NodeInfo is use to get Kubernetes Node metadata information
+// NodeInfo is used to get Kubernetes Node metadata information
 type NodeInfo struct {
 	// client use to get NodeName from the "/pods" kubelet api.
 	client kubelet.KubeUtilInterface

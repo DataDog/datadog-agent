@@ -198,7 +198,7 @@ def process_e2e_coverage_folders(ctx: Context, coverage_output_dir: str):
         # Upload coverage with job name as tag
         try:
             with gitlab_section(f"Uploading coverage for {folder.name} with tag: {job_name}", collapsed=True):
-                upload_codecov(ctx=ctx, coverage_file=str(coverage_txt_file), extra_tag=[job_name])
+                upload_codecov(ctx=ctx, coverage_file=str(coverage_txt_file), extra_tag=[job_name, "e2e"])
         except Exception as e:
             print(color_message(f"Error uploading coverage for {folder.name}: {e}", Color.RED))
             continue
@@ -337,6 +337,7 @@ def apply_missing_coverage(ctx: Context, from_commit_sha: str, keep_temp_files: 
     dev_cov_files = [str(p) for p in pathlib.Path(".").rglob(PROFILE_COV)]
     for f in dev_cov_files:
         os.rename(f, f"{f}.dev")
+    dev_cov_files = [f"{p}.dev" for p in dev_cov_files]
 
     # Extract the coverage.out files from main to their folder
     with tarfile.open(f"{downloaded_archive}", "r:gz") as tgz:
@@ -346,15 +347,39 @@ def apply_missing_coverage(ctx: Context, from_commit_sha: str, keep_temp_files: 
     for dev_cov_file in dev_cov_files:
         main_cov_file = dev_cov_file.replace(".dev", "")
         if os.path.exists(main_cov_file):
+            print(
+                color_message(
+                    f'Merging dev coverage file {dev_cov_file} into main coverage file {main_cov_file}', Color.GREEN
+                )
+            )
             _merge_dev_in_main_coverage(main_cov_file, dev_cov_file)
+            print(
+                color_message(
+                    f'Successfully merged dev coverage file {dev_cov_file} into main coverage file {main_cov_file}',
+                    Color.GREEN,
+                )
+            )
             if not keep_temp_files:
                 os.remove(dev_cov_file)
+                print(color_message(f'Successfully removed dev coverage file {dev_cov_file}', Color.GREEN))
         else:
+            print(
+                color_message(
+                    f'No main coverage file {main_cov_file} found, renaming dev coverage file {dev_cov_file} to main coverage file',
+                    Color.GREEN,
+                )
+            )
             if not keep_temp_files:
                 # If there's no main coverage file, just rename the dev one
                 os.rename(dev_cov_file, main_cov_file)
             else:
                 shutil.copy(dev_cov_file, main_cov_file)
+            print(
+                color_message(
+                    f'Successfully copied dev coverage file {dev_cov_file} to main coverage file {main_cov_file}',
+                    Color.GREEN,
+                )
+            )
 
     # Remove the local archive
     print(color_message(f'Successfully extracted coverage cache from {downloaded_archive}', Color.GREEN))

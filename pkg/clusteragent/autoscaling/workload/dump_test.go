@@ -10,6 +10,7 @@ package workload
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -78,6 +79,7 @@ Scale Down Stabilization Window: 10
 ----------- PodAutoscaler Local Fallback -----------
 Horizontal Fallback Enabled: true
 Horizontal Fallback Stale Recommendation Threshold: 600
+Horizontal Fallback Scaling Direction: ScaleUp
 
 ----------- PodAutoscaler Constraints -----------
 Min Replicas: 1
@@ -164,10 +166,10 @@ To Replicas: 4
 Recommended Replicas: 4
 --------------------------------
 Horizontal Last Recommendation: Source: Autoscaling
-Timestamp: %[1]s
+GeneratedAt: %[1]s
 Replicas: 100
 Horizontal Last Recommendation: Source: Autoscaling
-Timestamp: %[1]s
+GeneratedAt: %[1]s
 Replicas: 102
 --------------------------------
 Vertical Last Action Error: test vertical last action error
@@ -246,7 +248,7 @@ func createFakePodAutoscaler(testTime time.Time) model.FakePodAutoscalerInternal
 			},
 			Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
 				MinReplicas: pointer.Ptr(int32(1)),
-				MaxReplicas: int32(10),
+				MaxReplicas: pointer.Ptr(int32(10)),
 				Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
 					{
 						Name:    "app",
@@ -270,6 +272,7 @@ func createFakePodAutoscaler(testTime time.Time) model.FakePodAutoscalerInternal
 					Triggers: datadoghq.HorizontalFallbackTriggers{
 						StaleRecommendationThresholdSeconds: 600,
 					},
+					Direction: datadoghq.DatadogPodAutoscalerFallbackDirectionScaleUp,
 				},
 			},
 			Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
@@ -320,9 +323,9 @@ func createFakePodAutoscaler(testTime time.Time) model.FakePodAutoscalerInternal
 					},
 				},
 			},
-			VerticalError:   fmt.Errorf("test vertical error"),
+			VerticalError:   errors.New("test vertical error"),
 			HorizontalError: nil,
-			Error:           fmt.Errorf("test error"),
+			Error:           errors.New("test error"),
 		},
 		MainScalingValues: model.ScalingValues{
 			Horizontal: &model.HorizontalScalingValues{
@@ -396,16 +399,16 @@ func createFakePodAutoscaler(testTime time.Time) model.FakePodAutoscalerInternal
 				RecommendedReplicas: ptr.To(int32(4)),
 			},
 		},
-		HorizontalLastRecommendations: []model.HorizontalScalingValues{
+		HorizontalLastRecommendations: []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
 			{
-				Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
-				Timestamp: testTime,
-				Replicas:  100,
+				Source:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+				GeneratedAt: metav1.NewTime(testTime),
+				Replicas:    100,
 			},
 			{
-				Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
-				Timestamp: testTime,
-				Replicas:  102,
+				Source:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+				GeneratedAt: metav1.NewTime(testTime),
+				Replicas:    102,
 			},
 		},
 		VerticalLastAction: &datadoghqcommon.DatadogPodAutoscalerVerticalAction{
@@ -413,8 +416,8 @@ func createFakePodAutoscaler(testTime time.Time) model.FakePodAutoscalerInternal
 			Version: "1",
 			Type:    datadoghqcommon.DatadogPodAutoscalerRolloutTriggeredVerticalActionType,
 		},
-		VerticalLastActionError: fmt.Errorf("test vertical last action error"),
-		Error:                   fmt.Errorf("test error"),
+		VerticalLastActionError: errors.New("test vertical last action error"),
+		Error:                   errors.New("test error"),
 	}
 }
 

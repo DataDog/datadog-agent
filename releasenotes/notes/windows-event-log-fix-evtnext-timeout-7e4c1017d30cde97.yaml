@@ -1,0 +1,4 @@
+fixes:
+  - |
+    Fix issue introduced in 7.70.0 that caused the Windows Event Log check and tailer to fail to load with
+    the error "EvtNext failed: This operation returned because the timeout period expired".

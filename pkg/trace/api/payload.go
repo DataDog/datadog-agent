@@ -7,6 +7,7 @@ package api
 
 import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 )
 
@@ -55,4 +56,31 @@ func (p *Payload) RemoveChunk(i int) {
 // ReplaceChunk replaces a chunk in TracerPayload at a given index
 func (p *Payload) ReplaceChunk(i int, chunk *pb.TraceChunk) {
 	p.TracerPayload.Chunks[i] = chunk
+}
+
+// PayloadV1 specifies information about a set of traces received by the V1 API.
+type PayloadV1 struct {
+	// Source specifies information about the source of these traces, such as:
+	// language, interpreter, tracer version, etc.
+	Source *info.TagStats
+
+	// TracerPayload holds the incoming payload from the tracer.
+	TracerPayload *idx.InternalTracerPayload
+
+	// ClientComputedTopLevel specifies that the client has already marked top-level
+	// spans.
+	ClientComputedTopLevel bool
+
+	// ClientComputedStats reports whether the client has computed and sent over stats
+	// so that the agent doesn't have to.
+	ClientComputedStats bool
+
+	// ClientDroppedP0s specifies the number of P0 traces chunks dropped by the client.
+	ClientDroppedP0s int64
+
+	// ProcessTags is a list of tags describing an instrumented process.
+	ProcessTags string
+
+	// ContainerTags is a list of tags describing the container we received this payload from
+	ContainerTags []string
 }

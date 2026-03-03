@@ -21,8 +21,13 @@ func TestNotFound(t *testing.T) {
 
 	// Is
 	require.True(t, IsNotFound(err))
-	require.False(t, IsNotFound(fmt.Errorf("fake")))
-	require.False(t, IsNotFound(fmt.Errorf(`"foo" not found`)))
+	require.False(t, IsNotFound(errors.New("fake")))
+	require.False(t, IsNotFound(errors.New(`"foo" not found`)))
+
+	// Wrapped
+	errWrapped := fmt.Errorf("context: %w", err)
+	require.True(t, IsNotFound(errWrapped))
+	require.True(t, IsNotFound(fmt.Errorf("outer: %w", fmt.Errorf("middle: %w", err))))
 }
 
 func TestRetriable(t *testing.T) {
@@ -34,8 +39,13 @@ func TestRetriable(t *testing.T) {
 	// Is
 	var errFunc = func() error { return NewRetriable("foo", errors.New("bar")) }
 	require.True(t, IsRetriable(errFunc()))
-	require.False(t, IsRetriable(fmt.Errorf("fake")))
-	require.False(t, IsRetriable(fmt.Errorf(`couldn't fetch "foo": bar`)))
+	require.False(t, IsRetriable(errors.New("fake")))
+	require.False(t, IsRetriable(errors.New(`couldn't fetch "foo": bar`)))
+
+	// Wrapped
+	errWrapped := fmt.Errorf("context: %w", err)
+	require.True(t, IsRetriable(errWrapped))
+	require.True(t, IsRetriable(fmt.Errorf("outer: %w", fmt.Errorf("middle: %w", err))))
 }
 
 func TestRemoteService(t *testing.T) {
@@ -48,6 +58,11 @@ func TestRemoteService(t *testing.T) {
 	require.True(t, IsRemoteService(err))
 	require.False(t, IsRemoteService(errors.New("fake")))
 	require.False(t, IsRemoteService(errors.New(`"datadog cluster agent" is unavailable: 500 Internal Server Error`)))
+
+	// Wrapped
+	errWrapped := fmt.Errorf("context: %w", err)
+	require.True(t, IsRemoteService(errWrapped))
+	require.True(t, IsRemoteService(fmt.Errorf("outer: %w", fmt.Errorf("middle: %w", err))))
 }
 
 func TestTimeout(t *testing.T) {
@@ -60,4 +75,9 @@ func TestTimeout(t *testing.T) {
 	require.True(t, IsTimeout(err))
 	require.False(t, IsTimeout(errors.New("fake")))
 	require.False(t, IsTimeout(errors.New(`timeout calling "datadog cluster agent": context deadline exceeded`)))
+
+	// Wrapped
+	errWrapped := fmt.Errorf("context: %w", err)
+	require.True(t, IsTimeout(errWrapped))
+	require.True(t, IsTimeout(fmt.Errorf("outer: %w", fmt.Errorf("middle: %w", err))))
 }

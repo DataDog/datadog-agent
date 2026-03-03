@@ -13,10 +13,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
 type baseFlareSuite struct {
@@ -68,6 +68,11 @@ func (v *baseFlareSuite) TestLocalFlareDefaultFiles() {
 }
 
 func (v *baseFlareSuite) TestFlareProfiling() {
+	if runtime.GOOS != "windows" {
+		// wake up the trace-agent
+		v.Env().RemoteHost.NewHTTPClient().Get("http://localhost:8126/services")
+	}
+
 	args := agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send", "--profile", "31",
 		"--profile-blocking", "--profile-blocking-rate", "5000", "--profile-mutex", "--profile-mutex-fraction", "200"})
 	flare, logs := requestAgentFlareAndFetchFromFakeIntake(v, args)

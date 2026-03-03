@@ -139,6 +139,21 @@ def get_gobin(ctx):
     return gobin
 
 
+def link_or_copy(src: Path, dst: Path) -> None:
+    """Create dst from src using the first available strategy: relative symlink, hardlink, absolute symlink, or copy."""
+    dst.unlink(missing_ok=True)
+    for strategy in (
+        lambda: dst.symlink_to(src.relative_to(dst.parent, walk_up=True)),
+        lambda: dst.hardlink_to(src),
+        lambda: dst.symlink_to(src),
+    ):
+        try:
+            return strategy()
+        except (NotImplementedError, OSError, ValueError):
+            pass
+    return shutil.copy2(src, dst)
+
+
 def get_rtloader_paths(embedded_path=None, rtloader_root=None):
     rtloader_lib = []
     rtloader_headers = ""
@@ -214,7 +229,6 @@ def get_build_flags(
     embedded_path=None,
     rtloader_root=None,
     python_home_3=None,
-    major_version='7',
     headless_mode=False,
     arch: Arch | None = None,
 ):
@@ -228,7 +242,7 @@ def get_build_flags(
         arch = Arch.local()
 
     gcflags = ""
-    ldflags = get_version_ldflags(ctx, major_version=major_version, install_path=install_path)
+    ldflags = get_version_ldflags(ctx, install_path=install_path)
     # External linker flags; needs to be handled separately to avoid overrides
     extldflags = ""
     env = {"GO111MODULE": "on"}
@@ -245,7 +259,6 @@ def get_build_flags(
             raise Exit("unable to locate embedded path please check your setup or set --embedded-path")
 
     rtloader_lib, rtloader_headers, rtloader_common_headers = get_rtloader_paths(embedded_path, rtloader_root)
-
     # setting the install path, allowing the agent to be installed in a custom location
     if sys.platform.startswith('linux') and install_path:
         ldflags += f"-X {REPO_PATH}/pkg/config/setup.InstallPath={install_path} "
@@ -253,6 +266,11 @@ def get_build_flags(
     # setting the run path
     if sys.platform.startswith('linux') and run_path:
         ldflags += f"-X {REPO_PATH}/pkg/config/setup.defaultRunPath={run_path} "
+
+    # lock down the agent to only use the symbols in the datadog-agent.map file
+    # required because some go dependencies (such as go-nvml) will automatically include the --export-dynamic flag
+    if sys.platform.startswith('linux'):
+        extldflags += f"-Wl,--version-script={get_repo_root()}/datadog-agent.map "
 
     # setting python homes in the code
     if python_home_3:
@@ -302,10 +320,6 @@ def get_build_flags(
         gcflags = "-N -l"
 
     if sys.platform == "darwin":
-        # On macOS work around https://github.com/golang/go/issues/38824
-        # as done in https://go-review.googlesource.com/c/go/+/372798
-        extldflags += "-Wl,-bind_at_load"
-
         # On macOS when using XCode 15 the -no_warn_duplicate_libraries linker flag is needed to avoid getting ld warnings
         # for duplicate libraries: `ld: warning: ignoring duplicate libraries: '-ldatadog-agent-rtloader', '-ldl'`.
         # Gotestsum sees the ld warnings as errors, breaking the test invoke task, so we have to remove them.
@@ -313,7 +327,7 @@ def get_build_flags(
         try:
             xcode_version = get_xcode_version(ctx)
             if int(xcode_version.split('.')[0]) >= 15:
-                extldflags += ",-no_warn_duplicate_libraries "
+                extldflags += "-Wl,-no_warn_duplicate_libraries "
         except ValueError:
             print(
                 color_message(
@@ -322,6 +336,9 @@ def get_build_flags(
                 ),
                 file=sys.stderr,
             )
+    elif sys.platform.startswith('linux'):
+        # Use lazy symbol resolution to fix NVML issues on distributions with --enable-host-bind-now
+        extldflags += "-Wl,-z,lazy "
 
     if os.getenv("DD_CC"):
         env["CC"] = os.getenv("DD_CC")
@@ -376,7 +393,7 @@ def get_payload_version():
     raise Exception("Could not find valid version for agent-payload in go.mod file")
 
 
-def get_version_ldflags(ctx, major_version='7', install_path=None):
+def get_version_ldflags(ctx, install_path=None):
     """
     Compute the version from the git tags, and set the appropriate compiler
     flags
@@ -384,7 +401,8 @@ def get_version_ldflags(ctx, major_version='7', install_path=None):
 
     payload_v = get_payload_version()
     commit = get_commit_sha(ctx, short=True)
-    version = get_version(ctx, include_git=True, major_version=major_version)
+    version = get_version(ctx, include_git=True)
+    version_url_safe = get_version(ctx, include_git=True, url_safe=True, include_pipeline_id=True)
     package_version = os.getenv('PACKAGE_VERSION', version)
 
     ldflags = f"-X {REPO_PATH}/pkg/version.Commit={commit} "
@@ -396,9 +414,7 @@ def get_version_ldflags(ctx, major_version='7', install_path=None):
             # so, set the package_version tag in order for Fleet Automation to detect
             # upgrade in the health check.
             # https://github.com/DataDog/dd-go/blob/cada5b3c2929473a2bd4a4142011767fe2dcce52/remote-config/apps/rc-api-internal/updater/health_check.go#L219
-            package_version = get_version(
-                ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
-            )
+            package_version = version_url_safe
             # append suffix
             # TODO: what if we want a -2 ? Where does that value even come from in the pipeline?
             #       it's also hardcoded in Generate-OCIPackage.ps1
@@ -408,6 +424,7 @@ def get_version_ldflags(ctx, major_version='7', install_path=None):
             if install_dir != "datadog-agent":
                 package_version = install_dir
     ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
+    ldflags += f"-X {REPO_PATH}/pkg/version.AgentVersionURLSafe={version_url_safe} "
     return ldflags
 
 
@@ -468,7 +485,12 @@ def clean_nested_paths(paths):
 @contextmanager
 def environ(env):
     original_environ = os.environ.copy()
-    os.environ.update(env)
+    # Apply changes: support a special value "DELETE" to remove variables
+    for key, value in env.items():
+        if value == "DELETE":
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
     yield
     for var in env:
         if var in original_environ:

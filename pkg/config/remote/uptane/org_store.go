@@ -11,19 +11,19 @@ import (
 
 // orgStore persists org-specific data
 type orgStore struct {
-	db        *transactionalStore
+	ts        *transactionalStore
 	orgBucket string
 }
 
-func newOrgStore(db *transactionalStore) *orgStore {
+func newOrgStore(ts *transactionalStore) *orgStore {
 	return &orgStore{
-		db:        db,
+		ts:        ts,
 		orgBucket: "org",
 	}
 }
 
 func (s *orgStore) storeOrgUUID(rootVersion uint64, orgUUID string) error {
-	return s.db.update(func(t *transaction) error {
+	return s.ts.update(func(t *transaction) error {
 		t.put(s.orgBucket, fmt.Sprintf("%v-uuid", rootVersion), []byte(orgUUID))
 		return nil
 	})
@@ -32,7 +32,7 @@ func (s *orgStore) storeOrgUUID(rootVersion uint64, orgUUID string) error {
 func (s *orgStore) getOrgUUID(rootVersion uint64) (string, bool, error) {
 	var orgUUID []byte
 	var err error
-	err = s.db.view(func(t *transaction) error {
+	err = s.ts.view(func(t *transaction) error {
 		orgUUID, err = t.get(s.orgBucket, fmt.Sprintf("%v-uuid", rootVersion))
 		return err
 	})

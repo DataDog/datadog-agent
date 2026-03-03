@@ -7,6 +7,7 @@ package httphelpers
 
 import (
 	"crypto/subtle"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -20,7 +21,7 @@ func NewHTTPMiddleware(logger func(format string, params ...interface{}), authto
 			auth := r.Header.Get("Authorization")
 			if auth == "" {
 				w.Header().Set("WWW-Authenticate", `Bearer realm="Datadog Agent"`)
-				err = fmt.Errorf("no session token provided")
+				err = errors.New("no session token provided")
 				http.Error(w, err.Error(), 401)
 				logger("invalid auth token for %s request to %s: %s", r.Method, r.RequestURI, err)
 				return
@@ -38,7 +39,7 @@ func NewHTTPMiddleware(logger func(format string, params ...interface{}), authto
 
 			// The following comparison must be evaluated in constant time
 			if len(tok) < 2 || !constantCompareStrings(tok[1], authtoken) {
-				err = fmt.Errorf("invalid session token")
+				err = errors.New("invalid session token")
 				http.Error(w, err.Error(), 403)
 				logger("invalid auth token for %s request to %s: %s", r.Method, r.RequestURI, err)
 				return

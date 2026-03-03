@@ -7,6 +7,7 @@
 package health
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,7 +33,9 @@ import (
 )
 
 type cliParams struct {
-	timeout int
+	timeout    int
+	JSON       bool
+	PrettyJSON bool
 }
 
 // GlobalParams contains the values of agent-global Cobra flags.
@@ -69,6 +72,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	}
 
 	cmd.Flags().IntVarP(&cliParams.timeout, "timeout", "t", 20, "timeout in second to query the Agent")
+	cmd.Flags().BoolVarP(&cliParams.JSON, "json", "j", false, "print out raw json")
+	cmd.Flags().BoolVarP(&cliParams.PrettyJSON, "pretty-json", "p", false, "pretty print JSON")
 	return cmd
 }
 
@@ -104,6 +109,18 @@ func requestHealth(_ log.Component, config config.Component, cliParams *cliParam
 		return fmt.Errorf("error unmarshalling json: %s", err)
 	}
 
+	// Handle JSON output
+	if cliParams.JSON || cliParams.PrettyJSON {
+		if cliParams.PrettyJSON {
+			var prettyJSON bytes.Buffer
+			json.Indent(&prettyJSON, r, "", "  ") //nolint:errcheck
+			r = prettyJSON.Bytes()
+		}
+		fmt.Print(string(r))
+		return nil
+	}
+
+	// Handle formatted text output
 	sort.Strings(s.Unhealthy)
 	sort.Strings(s.Healthy)
 

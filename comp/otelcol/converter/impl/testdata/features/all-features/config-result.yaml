@@ -5,18 +5,20 @@ exporters:
       site: "datadoghq.eu"
 
 extensions:
-  ddflare/dd-autoconfigured: 
-  health_check/dd-autoconfigured: 
-  pprof/dd-autoconfigured: 
+  datadog/dd-autoconfigured:
+    api:
+      key: "ggggg77777"
+      site: "datadoghq.eu"
+  ddflare/dd-autoconfigured:
+  health_check/dd-autoconfigured:
+  pprof/dd-autoconfigured:
   zpages/dd-autoconfigured:
     endpoint: "localhost:55679"
 
 processors:
-  batch:
-    timeout: "10s"
-  infraattributes/dd-autoconfigured: 
+  infraattributes/dd-autoconfigured:
   filter/drop-prometheus-internal-metrics/dd-autoconfigured:
-    metrics: 
+    metrics:
       exclude:
         match_type: regexp
         metric_names:
@@ -44,12 +46,12 @@ service:
     - zpages/dd-autoconfigured
     - health_check/dd-autoconfigured
     - ddflare/dd-autoconfigured
+    - datadog/dd-autoconfigured
   pipelines:
     logs:
       receivers:
         - "otlp"
       processors:
-        - "batch"
         - "infraattributes/dd-autoconfigured"
       exporters:
         - "datadog"
@@ -58,7 +60,6 @@ service:
         - "otlp"
         - "datadog/connector"
       processors:
-        - "batch"
         - "infraattributes/dd-autoconfigured"
       exporters:
         - "datadog"
@@ -73,7 +74,6 @@ service:
       receivers:
         - "otlp"
       processors:
-        - "batch"
         - "infraattributes/dd-autoconfigured"
       exporters:
         - "datadog/connector"

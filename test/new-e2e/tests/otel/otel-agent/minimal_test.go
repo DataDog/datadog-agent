@@ -10,12 +10,13 @@ import (
 	_ "embed"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
+	scenkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	provkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/otel/utils"
 )
 
@@ -32,12 +33,17 @@ var minimalProvidedConfig string
 //go:embed testdata/minimal-full-config.yml
 var minimalFullConfig string
 
+//go:embed testdata/minimal-full-config-datadogextension.yml
+var minimalFullConfigDatadogExtension string
+
 //go:embed testdata/sources.json
 var sources string
 
 func TestOTelAgentMinimal(t *testing.T) {
 	values := `
 datadog:
+  otelCollector:
+    useStandaloneImage: false
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
@@ -49,7 +55,17 @@ agents:
           value: 'disable_operation_and_resource_name_logic_v2'
 `
 	t.Parallel()
-	e2e.Run(t, &minimalTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(minimalConfig)))))
+	e2e.Run(t, &minimalTestSuite{},
+		e2e.WithProvisioner(provkindvm.Provisioner(
+			provkindvm.WithRunOptions(
+				scenkindvm.WithAgentOptions(
+					kubernetesagentparams.WithHelmValues(values),
+					kubernetesagentparams.WithOTelAgent(),
+					kubernetesagentparams.WithOTelConfig(minimalConfig),
+				),
+			),
+		)),
+	)
 }
 
 var minimalParams = utils.IAParams{
@@ -98,8 +114,8 @@ func (s *minimalTestSuite) TestOTelFlareFiles() {
 	utils.TestOTelFlareFiles(s)
 }
 
-func (s *minimalTestSuite) TestOTelRemoteConfigPayload() {
-	utils.TestOTelRemoteConfigPayload(s, minimalProvidedConfig, minimalFullConfig)
+func (s *minimalTestSuite) TestDatadogExtensionPayload() {
+	utils.TestDatadogExtensionPayload(s, minimalFullConfigDatadogExtension)
 }
 
 func (s *minimalTestSuite) TestCoreAgentStatus() {
@@ -110,6 +126,10 @@ func (s *minimalTestSuite) TestOTelAgentStatus() {
 	utils.TestOTelAgentStatusCmd(s)
 }
 
+func (s *minimalTestSuite) TestOTelAgentFlare() {
+	utils.TestOTelAgentFlareCmd(s)
+}
+
 func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
 	const expectedCfg = `service:
   extensions:
@@ -117,12 +137,12 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
   - zpages/dd-autoconfigured
   - health_check/dd-autoconfigured
   - ddflare/dd-autoconfigured
+  - datadog/dd-autoconfigured
   pipelines:
     logs:
       exporters:
       - datadog
       processors:
-      - batch
       - infraattributes/dd-autoconfigured
       receivers:
       - otlp
@@ -130,7 +150,6 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
       exporters:
       - datadog
       processors:
-      - batch
       - infraattributes/dd-autoconfigured
       receivers:
       - otlp
@@ -146,7 +165,6 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
       exporters:
       - datadog/connector
       processors:
-      - batch
       - infraattributes/dd-autoconfigured
       receivers:
       - otlp
@@ -154,7 +172,6 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
       exporters:
       - datadog
       processors:
-      - batch
       - infraattributes/dd-autoconfigured
       receivers:
       - otlp`

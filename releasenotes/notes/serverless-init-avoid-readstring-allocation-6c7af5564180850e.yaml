@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Avoid ReadString allocation in serverless-init log processing for improved efficiency.

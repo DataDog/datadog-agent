@@ -26,7 +26,7 @@ type deploymentParser struct {
 
 // NewDeploymentParser initialises and returns a deployment parser
 func NewDeploymentParser(annotationsExclude []string) (ObjectParser, error) {
-	filters, err := parseFilters(annotationsExclude)
+	filters, err := ParseFilters(annotationsExclude)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +45,7 @@ func updateContainerLanguage(cl languagemodels.ContainersLanguages, container la
 		cl[container] = make(languagemodels.LanguageSet)
 	}
 
-	for _, lang := range strings.Split(languages, ",") {
+	for lang := range strings.SplitSeq(languages, ",") {
 		cl[container][languagemodels.LanguageName(strings.TrimSpace(lang))] = struct{}{}
 	}
 }
@@ -78,7 +78,7 @@ func (p deploymentParser) Parse(obj interface{}) workloadmeta.Entity {
 			Name:        deployment.Name,
 			Namespace:   deployment.Namespace,
 			Labels:      deployment.Labels,
-			Annotations: filterMapStringKey(deployment.Annotations, p.annotationsFilter),
+			Annotations: FilterMapStringKey(deployment.Annotations, p.annotationsFilter),
 		},
 		Env:                 deployment.Labels[ddkube.EnvTagLabelKey],
 		Service:             deployment.Labels[ddkube.ServiceTagLabelKey],

@@ -11,14 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
 type windowsNetworkPathIntegrationTestSuite struct {
@@ -28,17 +27,17 @@ type windowsNetworkPathIntegrationTestSuite struct {
 //go:embed fixtures/network_path_windows.yaml
 var networkPathIntegrationWindows []byte
 
-var testAgentRunningMetricTagsTCPSocket = []string{"destination_hostname:8.8.8.8", "protocol:TCP", "destination_port:443"}
-
 // TestNetworkPathIntegrationSuiteLinux runs the Network Path Integration e2e suite for linux
 func TestWindowsNetworkPathIntegrationSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &windowsNetworkPathIntegrationTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
-		awshost.WithAgentOptions(
-			agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
-			agentparams.WithIntegration("network_path.d", string(networkPathIntegrationWindows)),
+		awshost.WithRunOptions(
+			ec2.WithAgentOptions(
+				agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
+				agentparams.WithIntegration("network_path.d", string(networkPathIntegrationWindows)),
+			),
+			ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 		),
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 	)))
 }
 
@@ -52,21 +51,18 @@ func (s *windowsNetworkPathIntegrationTestSuite) SetupSuite() {
 }
 
 func (s *windowsNetworkPathIntegrationTestSuite) TestWindowsNetworkPathIntegrationMetrics() {
-	// TODO remove after fixing metrics flake
-	flake.Mark(s.T())
-
 	fakeIntake := s.Env().FakeIntake
 	hostname := s.Env().Agent.Client.Hostname()
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		assertMetrics(fakeIntake, c, [][]string{
 			testAgentRunningMetricTagsTCP,
-			testAgentRunningMetricTagsTCPSocket,
 			testAgentRunningMetricTagsUDP,
 		})
 
 		s.checkDatadogEUTCP(c, hostname)
 		s.checkGoogleTCPSocket(c, hostname)
 		s.checkGoogleDNSUDP(c, hostname)
+		s.checkGoogleTCPDisableWindowsDriver(c, hostname)
 
 	}, 5*time.Minute, 3*time.Second)
 }

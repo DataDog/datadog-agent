@@ -9,7 +9,7 @@ package generic
 import (
 	"time"
 
-	yaml "gopkg.in/yaml.v2"
+	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -68,8 +68,13 @@ func (c *ContainerCheck) Configure(senderManager sender.SenderManager, _ uint64,
 		return err
 	}
 
-	c.processor = NewProcessor(metrics.GetProvider(option.New(c.store)), NewMetadataContainerAccessor(c.store), GenericMetricsAdapter{}, LegacyContainerFilter{FilterStore: c.filterStore, Store: c.store}, c.tagger, c.instance.ExtendedMemoryMetrics)
-	return c.instance.Parse(config)
+	err = c.instance.Parse(config)
+	if err != nil {
+		return err
+	}
+
+	c.processor = NewProcessor(metrics.GetProvider(option.New(c.store)), NewMetadataContainerAccessor(c.store), GenericMetricsAdapter{}, LegacyContainerFilter{ContainerFilter: c.filterStore.GetContainerSharedMetricFilters(), Store: c.store}, c.tagger, c.instance.ExtendedMemoryMetrics)
+	return nil
 }
 
 // Run executes the check

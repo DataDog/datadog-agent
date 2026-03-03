@@ -8,7 +8,6 @@ package run
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
@@ -18,68 +17,89 @@ type serviceInitFunc func() (err error)
 // Servicedef defines a service
 type Servicedef struct {
 	name           string
-	configKeys     map[string]model.Config
+	configKeys     map[string]model.Reader
 	shouldShutdown bool
 
 	serviceName string
 	serviceInit serviceInitFunc
 }
 
-var subservices = []Servicedef{
-	{
-		name: "apm",
-		configKeys: map[string]model.Config{
-			"apm_config.enabled": pkgconfigsetup.Datadog(),
+func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef {
+	return []Servicedef{
+		{
+			name: "apm",
+			configKeys: map[string]model.Reader{
+				"apm_config.enabled": coreConf,
+			},
+			serviceName:    "datadog-trace-agent",
+			serviceInit:    apmInit,
+			shouldShutdown: false,
 		},
-		serviceName:    "datadog-trace-agent",
-		serviceInit:    apmInit,
-		shouldShutdown: false,
-	},
-	{
-		name: "process",
-		configKeys: map[string]model.Config{
-			"process_config.enabled":                      pkgconfigsetup.Datadog(),
-			"process_config.process_collection.enabled":   pkgconfigsetup.Datadog(),
-			"process_config.container_collection.enabled": pkgconfigsetup.Datadog(),
-			"process_config.process_discovery.enabled":    pkgconfigsetup.Datadog(),
-			"network_config.enabled":                      pkgconfigsetup.SystemProbe(),
-			"system_probe_config.enabled":                 pkgconfigsetup.SystemProbe(),
+		{
+			name: "process",
+			configKeys: map[string]model.Reader{
+				"process_config.enabled":                      coreConf,
+				"process_config.process_collection.enabled":   coreConf,
+				"process_config.container_collection.enabled": coreConf,
+				"process_config.process_discovery.enabled":    coreConf,
+				"network_config.enabled":                      sysprobeConf,
+				"system_probe_config.enabled":                 sysprobeConf,
+			},
+			serviceName:    "datadog-process-agent",
+			serviceInit:    processInit,
+			shouldShutdown: false,
 		},
-		serviceName:    "datadog-process-agent",
-		serviceInit:    processInit,
-		shouldShutdown: false,
-	},
-	{
-		name: "sysprobe",
-		configKeys: map[string]model.Config{
-			"network_config.enabled":          pkgconfigsetup.SystemProbe(),
-			"system_probe_config.enabled":     pkgconfigsetup.SystemProbe(),
-			"windows_crash_detection.enabled": pkgconfigsetup.SystemProbe(),
-			"runtime_security_config.enabled": pkgconfigsetup.SystemProbe(),
-			"software_inventory.enabled":      pkgconfigsetup.Datadog(),
+		{
+			name: "sysprobe",
+			configKeys: map[string]model.Reader{
+				"network_config.enabled": sysprobeConf,
+				// NOTE: may be set at runtime if any modules are enabled (e.g. traceroute.enabled)
+				"system_probe_config.enabled":     sysprobeConf,
+				"windows_crash_detection.enabled": sysprobeConf,
+				"runtime_security_config.enabled": sysprobeConf,
+				"software_inventory.enabled":      coreConf,
+			},
+			serviceName:    "datadog-system-probe",
+			serviceInit:    sysprobeInit,
+			shouldShutdown: false,
 		},
-		serviceName:    "datadog-system-probe",
-		serviceInit:    sysprobeInit,
-		shouldShutdown: false,
-	},
-	{
-		name: "cws",
-		configKeys: map[string]model.Config{
-			"runtime_security_config.enabled": pkgconfigsetup.SystemProbe(),
+		{
+			name: "cws",
+			configKeys: map[string]model.Reader{
+				"runtime_security_config.enabled": sysprobeConf,
+			},
+			serviceName:    "datadog-security-agent",
+			serviceInit:    securityInit,
+			shouldShutdown: false,
 		},
-		serviceName:    "datadog-security-agent",
-		serviceInit:    securityInit,
-		shouldShutdown: false,
-	},
-	{
-		name: "datadog-installer",
-		configKeys: map[string]model.Config{
-			"remote_updates": pkgconfigsetup.Datadog(),
+		{
+			name: "datadog-installer",
+			configKeys: map[string]model.Reader{
+				"remote_updates": coreConf,
+			},
+			serviceName:    "Datadog Installer",
+			serviceInit:    installerInit,
+			shouldShutdown: true,
 		},
-		serviceName:    "Datadog Installer",
-		serviceInit:    installerInit,
-		shouldShutdown: true,
-	},
+		{
+			name: "private-action-runner",
+			configKeys: map[string]model.Reader{
+				"private_action_runner.enabled": coreConf,
+			},
+			serviceName:    "datadog-agent-action",
+			serviceInit:    parInit,
+			shouldShutdown: true,
+		},
+		{
+			name: "otel",
+			configKeys: map[string]model.Reader{
+				"otelcollector.enabled": coreConf,
+			},
+			serviceName:    "datadog-otel-agent",
+			serviceInit:    otelInit,
+			shouldShutdown: true, // NOTE: not really ncessary with SCM dependency in place
+		},
+	}
 }
 
 func apmInit() error {
@@ -99,6 +119,14 @@ func securityInit() error {
 }
 
 func installerInit() error {
+	return nil
+}
+
+func otelInit() error {
+	return nil
+}
+
+func parInit() error {
 	return nil
 }
 
@@ -124,4 +152,59 @@ func (s *Servicedef) Stop() error {
 	// it will also wait for the service to stop and return an error if it doesn't stop
 	// the default timeout is 30 seconds
 	return winutil.StopService(s.serviceName)
+}
+
+// start various subservices (apm, logs, process, system-probe) based on the config file settings
+
+// IsEnabled checks to see if a given service should be started
+func (s *Servicedef) IsEnabled() bool {
+	for configKey, cfg := range s.configKeys {
+		if cfg.GetBool(configKey) {
+			return true
+		}
+	}
+	return false
+}
+
+// ShouldStop checks to see if a service should be stopped
+func (s *Servicedef) ShouldStop() bool {
+	// Note: we do not check if the service is enabled as service like DDOT have a could be brought up individually and should still be shutdown
+
+	if !s.shouldShutdown {
+		log.Infof("Service %s is not configured to stop, not stopping", s.name)
+		return false
+	}
+	return true
+}
+
+func startDependentServices(coreConf model.Reader, sysprobeConf model.Reader) {
+	for _, svc := range subservices(coreConf, sysprobeConf) {
+		if svc.IsEnabled() {
+			log.Debugf("Attempting to start service: %s", svc.name)
+			err := svc.Start()
+			if err != nil {
+				log.Warnf("Failed to start services %s: %s", svc.name, err.Error())
+			} else {
+				log.Debugf("Started service %s", svc.name)
+			}
+		} else {
+			log.Infof("Service %s is disabled, not starting", svc.name)
+		}
+	}
+}
+
+func stopDependentServices(coreConf model.Reader, sysprobeConf model.Reader) {
+	for _, svc := range subservices(coreConf, sysprobeConf) {
+		if svc.ShouldStop() {
+			log.Debugf("Attempting to stop service: %s", svc.name)
+			err := svc.Stop()
+			if err != nil {
+				log.Warnf("Failed to stop services %s: %s", svc.name, err.Error())
+			} else {
+				log.Debugf("Stopped service %s", svc.name)
+			}
+		} else {
+			log.Infof("Service %s is not configured to stop, not stopping", svc.name)
+		}
+	}
 }

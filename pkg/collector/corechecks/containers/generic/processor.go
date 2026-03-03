@@ -84,6 +84,10 @@ func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error
 			log.Errorf("Could not collect tags for container %q, err: %v", container.ID[:12], err)
 			continue
 		}
+		if len(tags) == 0 {
+			log.Debugf("No tags detected for container %q, dropping metrics", container.ID)
+			continue
+		}
 		tags = p.metricsAdapter.AdaptTags(tags, container)
 
 		collector := p.metricsProvider.GetCollector(provider.NewRuntimeMetadata(

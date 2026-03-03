@@ -10,15 +10,19 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	azurehost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/azure/host/linux"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	azurehost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/azure/host/linux"
 )
+
+// azureMetadataAPIVersion is the default Azure IMDS API version used by the agent.
+const azureMetadataAPIVersion = "api-version=2021-02-01"
 
 type linuxAzureHostnameSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -43,16 +47,13 @@ func (v *linuxAzureHostnameSuite) TestAgentHostnameStyle() {
 	hostname := v.Env().RemoteHost.MustExecute("hostname")
 	hostname = strings.TrimSpace(hostname)
 
-	metadataStr := v.Env().RemoteHost.MustExecute(`curl -s -H "Metadata: true" http://169.254.169.254/metadata/instance/compute?api-version=2021-02-01`)
+	metadataStr := v.Env().RemoteHost.MustExecute("curl -s -H \"Metadata: true\" http://169.254.169.254/metadata/instance/compute?" + azureMetadataAPIVersion)
 
 	var metadata struct {
 		VMID              string
 		Name              string
 		ResourceGroupName string
 		SubscriptionID    string
-		OsProfile         struct {
-			ComputerName string
-		}
 	}
 
 	err := json.Unmarshal([]byte(metadataStr), &metadata)
@@ -65,7 +66,8 @@ func (v *linuxAzureHostnameSuite) TestAgentHostnameStyle() {
 		"name":                    metadata.Name,
 		"name_and_resource_group": fmt.Sprintf("%s.%s", metadata.Name, metadata.ResourceGroupName),
 		"full":                    fmt.Sprintf("%s.%s.%s", metadata.Name, metadata.ResourceGroupName, metadata.SubscriptionID),
-		"os_computer_name":        strings.ToLower(metadata.OsProfile.ComputerName),
+		// the machine hostname will be used if the style is invalid
+		"some_invalid_value": hostname,
 	}
 
 	for hostnameStyle, expected := range hostnameStyles {
@@ -77,8 +79,13 @@ func (v *linuxAzureHostnameSuite) TestAgentHostnameStyle() {
 
 			v.UpdateEnv(azurehost.ProvisionerNoFakeIntake(azurehost.WithAgentOptions(agentparams.WithAgentConfig(agentConfig))))
 
-			hostname := v.Env().Agent.Client.Hostname()
-			v.Equal(expected, hostname)
+			// Use Eventually to handle transient IMDS availability issues after agent restart.
+			// The agent's cachedfetch.Fetcher may momentarily return a stale/fallback hostname
+			// if IMDS is slow to respond immediately after restart.
+			assert.Eventually(v.T(), func() bool {
+				hostname := v.Env().Agent.Client.Hostname()
+				return hostname == expected
+			}, 30*time.Second, 2*time.Second, "expected hostname %q but got different value", expected)
 		})
 	}
 }

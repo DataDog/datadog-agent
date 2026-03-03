@@ -8,7 +8,6 @@ package secretsimpl
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -16,7 +15,10 @@ import (
 	"strings"
 	"time"
 
+	json "github.com/json-iterator/go"
+
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -49,7 +51,7 @@ func (r *secretResolver) execCommand(inputPayload string) ([]byte, error) {
 	defer done()
 
 	if !r.embeddedBackendPermissiveRights {
-		if err := checkRights(cmd.Path, r.commandAllowGroupExec); err != nil {
+		if err := checkRightsFunc(cmd.Path, r.commandAllowGroupExec); err != nil {
 			return nil, err
 		}
 	}
@@ -104,12 +106,66 @@ func (r *secretResolver) execCommand(inputPayload string) ([]byte, error) {
 	return stdout.buf.Bytes(), nil
 }
 
+func (r *secretResolver) fetchSecretBackendVersion() (string, error) {
+	// hook used only for tests
+	if r.versionHookFunc != nil {
+		return r.versionHookFunc()
+	}
+
+	// Only get version when secret_backend_type is used
+	if r.backendType == "" {
+		return "", errors.New("version only supported when secret_backend_type is configured")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(),
+		min(time.Duration(r.backendTimeout)*time.Second, 1*time.Second))
+	defer cancel()
+
+	// Execute with --version argument
+	cmd, done, err := commandContext(ctx, r.backendCommand, "--version")
+	if err != nil {
+		return "", err
+	}
+	defer done()
+
+	if !r.embeddedBackendPermissiveRights {
+		if err := filesystem.CheckRights(cmd.Path, r.commandAllowGroupExec); err != nil {
+			return "", err
+		}
+	}
+
+	stdout := limitBuffer{
+		buf: &bytes.Buffer{},
+		max: r.responseMaxSize,
+	}
+	stderr := limitBuffer{
+		buf: &bytes.Buffer{},
+		max: r.responseMaxSize,
+	}
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	log.Debugf("calling secret_backend_command --version")
+	err = cmd.Run()
+
+	if err != nil {
+		log.Debugf("secret_backend_command --version stderr: %s", stderr.buf.String())
+		if ctx.Err() == context.DeadlineExceeded {
+			return "", errors.New("version command timeout")
+		}
+		return "", fmt.Errorf("version command failed: %w", err)
+	}
+
+	return strings.TrimSpace(stdout.buf.String()), nil
+}
+
 // fetchSecret receives a list of secrets name to fetch, exec a custom
 // executable to fetch the actual secrets and returns them.
 func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string, error) {
 	payload := map[string]interface{}{
-		"version": secrets.PayloadVersion,
-		"secrets": secretsHandle,
+		"version":                secrets.PayloadVersion,
+		"secrets":                secretsHandle,
+		"secret_backend_timeout": r.backendTimeout,
 	}
 	if r.backendType != "" {
 		payload["type"] = r.backendType

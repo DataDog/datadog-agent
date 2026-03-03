@@ -16,7 +16,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
+)
+
+var (
+	requestStatsPool = ddsync.NewTypedPool[RequestStats](NewRequestStats)
 )
 
 // StatKeeper is responsible for aggregating HTTP stats.
@@ -100,7 +106,7 @@ func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
 		h.mux.Lock()
 		defer h.mux.Unlock()
 
-		for _, tx := range h.incomplete.Flush(time.Now()) {
+		for _, tx := range h.incomplete.Flush() {
 			h.add(tx)
 		}
 
@@ -165,7 +171,7 @@ func (h *StatKeeper) add(tx Transaction) {
 	if latency <= 0 {
 		h.telemetry.invalidLatency.Add(1)
 		if h.oversizedLogLimit.ShouldLog() {
-			log.Warnf("latency should never be equal to 0: %s", tx.String())
+			log.Warnf("latency should never be non positive: %s", tx.String())
 		}
 		return
 	}
@@ -192,11 +198,15 @@ func (h *StatKeeper) add(tx Transaction) {
 			return
 		}
 		h.telemetry.aggregations.Add(1)
-		stats = NewRequestStats()
+		stats = requestStatsPool.Get()
 		h.stats[key] = stats
 	}
 
-	stats.AddRequest(tx.StatusCode(), latency, tx.StaticTags(), tx.DynamicTags())
+	dynamicTagsSet := common.StringSet(nil)
+	if dynamicTags := tx.DynamicTags(); len(dynamicTags) > 0 {
+		dynamicTagsSet = common.NewStringSet(dynamicTags...)
+	}
+	stats.AddRequest(tx.StatusCode(), latency, tx.StaticTags(), dynamicTagsSet)
 }
 
 func pathIsMalformed(fullPath []byte) bool {

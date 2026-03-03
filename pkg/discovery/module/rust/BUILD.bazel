@@ -1,0 +1,231 @@
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_shared_library", "rust_test")
+
+# ============================================================================
+# Library Targets (rlib + cdylib)
+# ============================================================================
+
+# Rust library (rlib) for internal use
+rust_library(
+    name = "dd_discovery",
+    srcs = glob(
+        ["src/**/*.rs"],
+        exclude = [
+            "src/main.rs",
+            "src/bin/**",
+        ],
+    ),
+    crate_name = "dd_discovery",
+    edition = "2024",
+    target_compatible_with = [
+        "@platforms//os:linux",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@crates//:anyhow",
+        "@crates//:cap-std",
+        "@crates//:clap",
+        "@crates//:elf",
+        "@crates//:glob-match",
+        "@crates//:http-body-util",
+        "@crates//:hyper",
+        "@crates//:hyper-util",
+        "@crates//:log",
+        "@crates//:lru",
+        "@crates//:memchr",
+        "@crates//:nom",
+        "@crates//:normalize-path",
+        "@crates//:phf",
+        "@crates//:quick-xml",
+        "@crates//:rmp-serde",
+        "@crates//:serde",
+        "@crates//:serde_json",
+        "@crates//:simple_logger",
+        "@crates//:thiserror",
+        "@crates//:tokio",
+        "@crates//:uzers",
+        "@crates//:walkdir",
+        "@crates//:yaml-rust2",
+        "@crates//:zip",
+    ],
+)
+
+# Shared library (cdylib) for FFI/cgo integration
+rust_shared_library(
+    name = "libdd_discovery",
+    srcs = glob(
+        ["src/**/*.rs"],
+        exclude = [
+            "src/main.rs",
+            "src/bin/**",
+        ],
+    ),
+    crate_name = "dd_discovery",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    target_compatible_with = [
+        "@platforms//os:linux",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@crates//:anyhow",
+        "@crates//:cap-std",
+        "@crates//:clap",
+        "@crates//:elf",
+        "@crates//:glob-match",
+        "@crates//:http-body-util",
+        "@crates//:hyper",
+        "@crates//:hyper-util",
+        "@crates//:log",
+        "@crates//:lru",
+        "@crates//:memchr",
+        "@crates//:nom",
+        "@crates//:normalize-path",
+        "@crates//:phf",
+        "@crates//:quick-xml",
+        "@crates//:rmp-serde",
+        "@crates//:serde",
+        "@crates//:serde_json",
+        "@crates//:simple_logger",
+        "@crates//:thiserror",
+        "@crates//:tokio",
+        "@crates//:uzers",
+        "@crates//:walkdir",
+        "@crates//:yaml-rust2",
+        "@crates//:zip",
+    ],
+)
+
+# ============================================================================
+# Headers
+# ============================================================================
+
+filegroup(
+    name = "dd_discovery_headers",
+    srcs = ["include/dd_discovery.h"],
+    visibility = ["//visibility:public"],
+)
+
+# ============================================================================
+# Binary Targets
+# ============================================================================
+
+# Main sd-agent service binary
+rust_binary(
+    name = "sd-agent",
+    srcs = [
+        "src/cli.rs",
+        "src/config.rs",
+        "src/main.rs",
+    ],
+    edition = "2024",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":dd_discovery",
+        "@crates//:anyhow",
+        "@crates//:http-body-util",
+        "@crates//:hyper",
+        "@crates//:hyper-util",
+        "@crates//:log",
+        "@crates//:phf",
+        "@crates//:serde_json",
+        "@crates//:simple_logger",
+        "@crates//:tokio",
+        "@crates//:uzers",
+        "@crates//:yaml-rust2",
+    ],
+)
+
+pkg_files(
+    name = "sd-agent_pkg",
+    srcs = [":sd-agent"],
+    attributes = pkg_attributes(
+        mode = "0755",
+    ),
+)
+
+pkg_install(
+    name = "install",
+    srcs = [":sd-agent_pkg"],
+)
+
+# Disco CLI tool for service discovery
+rust_binary(
+    name = "disco",
+    srcs = ["src/bin/disco.rs"],
+    edition = "2024",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":dd_discovery",
+        "@crates//:clap",
+        "@crates//:serde_json",
+    ],
+)
+
+# ============================================================================
+# Tests
+# ============================================================================
+
+# Test data files
+filegroup(
+    name = "testdata",
+    srcs = glob(["testdata/**/*"]),
+)
+
+filegroup(
+    name = "mock_system_probe",
+    srcs = ["testdata/fallback/mock-system-probe.sh"],
+)
+
+# Unit tests embedded in source files
+rust_test(
+    name = "dd_discovery_test",
+    crate = ":dd_discovery",
+    # Make test data available to tests
+    data = [":testdata"],
+    edition = "2024",
+    deps = [
+        # Dev dependencies from Cargo.toml
+        "@crates//:dircpy",
+        "@crates//:memmap2",
+        "@crates//:scopeguard",
+        "@crates//:tempfile",
+        "@crates//:temp-env",
+    ],
+)
+
+# Integration tests
+rust_test(
+    name = "fallback_integration_test",
+    srcs = ["tests/fallback_integration_test.rs"],
+    data = [
+        ":mock_system_probe",
+        ":sd-agent",
+    ],
+    edition = "2024",
+    # Set compile-time environment variable pointing to sd-agent binary
+    # This mimics Cargo's CARGO_BIN_EXE_* behavior
+    rustc_env = {
+        "CARGO_BIN_EXE_sd-agent": "$(rootpath :sd-agent)",
+        "MOCK_SYSTEM_PROBE": "$(rootpath :mock_system_probe)",
+    },
+    deps = [
+        "@crates//:nix",
+        "@crates//:tempfile",
+    ],
+)
+
+rust_test(
+    name = "pid_integration_test",
+    srcs = ["tests/pid_integration_test.rs"],
+    data = [":sd-agent"],
+    edition = "2024",
+    rustc_env = {
+        "CARGO_BIN_EXE_sd-agent": "$(rootpath :sd-agent)",
+    },
+    deps = [
+        "@crates//:nix",
+        "@crates//:tempfile",
+    ],
+)

@@ -8,12 +8,27 @@ package jmx
 
 import "sync"
 
+// TODO: jmx should move to a component, instead of staying global state
 var (
 	lastJMXStatus            Status
 	lastJMXStatusMutex       sync.RWMutex
 	lastJMXStartupError      StartupError
 	lastJMXStartupErrorMutex sync.RWMutex
 )
+
+// StartupError holds startup status and errors
+type StartupError struct {
+	LastError string
+	Timestamp int64
+}
+
+// GetStartupError retrieves latest JMX startup error
+func GetStartupError() StartupError {
+	lastJMXStartupErrorMutex.RLock()
+	defer lastJMXStartupErrorMutex.RUnlock()
+	errorCopy := StartupError{lastJMXStartupError.LastError, lastJMXStartupError.Timestamp}
+	return errorCopy
+}
 
 // SetStatus sets the last JMX Status
 func SetStatus(s Status) {
@@ -23,10 +38,17 @@ func SetStatus(s Status) {
 	lastJMXStatus = s
 }
 
-// SetStartupError sets the last JMX startup error
-func SetStartupError(s StartupError) {
+// ClearStatus reinitializes the JMX Status, only used by tests
+func ClearStatus() {
 	lastJMXStatusMutex.Lock()
 	defer lastJMXStatusMutex.Unlock()
+	lastJMXStatus = Status{}
+}
+
+// SetStartupError sets the last JMX startup error
+func SetStartupError(s StartupError) {
+	lastJMXStartupErrorMutex.Lock()
+	defer lastJMXStartupErrorMutex.Unlock()
 
 	lastJMXStartupError = s
 }

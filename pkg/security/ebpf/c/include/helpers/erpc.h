@@ -1,14 +1,14 @@
 #ifndef _HELPERS_ERPC_H
 #define _HELPERS_ERPC_H
 
+#include "helpers/strings.h"
 #include "constants/custom.h"
 #include "constants/enums.h"
 #include "constants/fentry_macro.h"
+#include "dentry_resolver.h"
+#include "discarders.h"
 #include "maps.h"
 #include "perf_ring.h"
-
-#include "discarders.h"
-#include "dentry_resolver.h"
 #include "span.h"
 #include "user_sessions.h"
 
@@ -59,7 +59,7 @@ int __attribute__((always_inline)) handle_get_ringbuf_usage(void *data) {
 #endif
 
 int __attribute__((always_inline)) is_erpc_request(ctx_t *ctx) {
-    u32 cmd = CTX_PARM3(ctx);
+    u32 cmd = CTX_PARM2(ctx);
     if (cmd != RPC_CMD) {
         return 0;
     }
@@ -67,8 +67,25 @@ int __attribute__((always_inline)) is_erpc_request(ctx_t *ctx) {
     return 1;
 }
 
+int __attribute__((always_inline)) handle_nop_event(ctx_t *ctx) {
+    struct nop_event_t nop_event = {};
+    send_event(ctx, EVENT_NOP, nop_event);
+    return 0;
+}
+
+void __attribute__((always_inline)) handle_discard_prctl(void * data) {
+    if (!is_runtime_request()) {
+        return;
+    }
+
+    char discarder[MAX_PRCTL_NAME_LEN];
+    bpf_probe_read_user_str(&discarder, sizeof(discarder), data);
+    clean_str_trailing_zeros(discarder, MAX_PRCTL_NAME_LEN, MAX_PRCTL_NAME_LEN);
+    discard_pr_name(discarder);
+}
+
 int __attribute__((always_inline)) handle_erpc_request(ctx_t *ctx) {
-    void *req = (void *)CTX_PARM4(ctx);
+    void *req = (void *)CTX_PARM3(ctx);
 
     u8 op = 0;
     int ret = bpf_probe_read(&op, sizeof(op), req);
@@ -102,6 +119,11 @@ int __attribute__((always_inline)) handle_erpc_request(ctx_t *ctx) {
         return handle_expire_inode_discarder(data);
     case BUMP_DISCARDERS_REVISION:
         return handle_bump_discarders_revision(data);
+    case PRCTL_DISCARDER:
+        handle_discard_prctl(data);
+        return 0;
+    case NOP_EVENT_OP:
+        return handle_nop_event(ctx);
 #if USE_RING_BUFFER == 1
     case GET_RINGBUF_USAGE:
         return handle_get_ringbuf_usage(data);

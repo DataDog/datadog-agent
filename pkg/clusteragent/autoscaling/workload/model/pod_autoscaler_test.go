@@ -9,7 +9,6 @@ package model
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -18,6 +17,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
@@ -81,6 +82,66 @@ func TestAddHorizontalAction(t *testing.T) {
 		*addedAction1,
 		*addedAction2,
 	}, horizontalLastActions)
+}
+
+func TestAddRecommendationToHistory(t *testing.T) {
+	testTime := time.Now()
+
+	// Test no retention, should move back to keep a single recommendation
+	var horizontalRecommendationsRetention time.Duration
+	horizontalLastRecommendations := []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+		{
+			GeneratedAt: metav1.Time{Time: testTime.Add(-10 * time.Minute)},
+		},
+		{
+			GeneratedAt: metav1.Time{Time: testTime.Add(-8 * time.Minute)},
+		},
+	}
+	addedRecommendation1 := datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+		GeneratedAt: metav1.Time{Time: testTime},
+	}
+	horizontalLastRecommendations = addRecommendationToHistory(testTime, horizontalRecommendationsRetention, horizontalLastRecommendations, addedRecommendation1)
+	assert.Equal(t, []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{addedRecommendation1}, horizontalLastRecommendations)
+
+	// Add another event, should still keep one
+	horizontalLastRecommendations = addRecommendationToHistory(testTime, horizontalRecommendationsRetention, horizontalLastRecommendations, addedRecommendation1)
+	assert.Equal(t, []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{addedRecommendation1}, horizontalLastRecommendations)
+
+	// 15 minutes retention, should keep everything
+	horizontalRecommendationsRetention = 15 * time.Minute
+	horizontalLastRecommendations = []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+		{
+			GeneratedAt: metav1.Time{Time: testTime.Add(-10 * time.Minute)},
+		},
+		{
+			GeneratedAt: metav1.Time{Time: testTime.Add(-8 * time.Minute)},
+		},
+	}
+	// Adding two fake events
+	horizontalLastRecommendations = addRecommendationToHistory(testTime, horizontalRecommendationsRetention, horizontalLastRecommendations, addedRecommendation1)
+	horizontalLastRecommendations = addRecommendationToHistory(testTime, horizontalRecommendationsRetention, horizontalLastRecommendations, addedRecommendation1)
+	assert.Equal(t, []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+		{
+			GeneratedAt: metav1.Time{Time: testTime.Add(-10 * time.Minute)},
+		},
+		{
+			GeneratedAt: metav1.Time{Time: testTime.Add(-8 * time.Minute)},
+		},
+		addedRecommendation1,
+		addedRecommendation1,
+	}, horizontalLastRecommendations)
+
+	// Moving time forward, should keep only the last two events
+	testTime = testTime.Add(10 * time.Minute)
+	addedRecommendation2 := datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+		GeneratedAt: metav1.Time{Time: testTime},
+	}
+	horizontalLastRecommendations = addRecommendationToHistory(testTime, horizontalRecommendationsRetention, horizontalLastRecommendations, addedRecommendation2)
+	assert.Equal(t, []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+		addedRecommendation1,
+		addedRecommendation1,
+		addedRecommendation2,
+	}, horizontalLastRecommendations)
 }
 
 func TestGetHorizontalRetentionValues(t *testing.T) {
@@ -314,7 +375,7 @@ func TestParseCustomConfigurationAnnotation(t *testing.T) {
 				CustomRecommenderAnnotationKey: "{\"endpoint: \"localhost:8080/test\",}",
 			},
 			expected: nil,
-			err:      fmt.Errorf("Failed to parse annotations for custom recommender configuration: invalid character 'l' after object key"),
+			err:      errors.New("Failed to parse annotations for custom recommender configuration: invalid character 'l' after object key"),
 		},
 	}
 
@@ -344,7 +405,7 @@ func TestUpdateFromStatus(t *testing.T) {
 
 	status := &datadoghqcommon.DatadogPodAutoscalerStatus{
 		Horizontal: &datadoghqcommon.DatadogPodAutoscalerHorizontalStatus{
-			Target: &datadoghqcommon.DatadogPodAutoscalerHorizontalTargetStatus{
+			Target: &datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
 				Source:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 				GeneratedAt: metav1.NewTime(now),
 				Replicas:    5,
@@ -353,6 +414,11 @@ func TestUpdateFromStatus(t *testing.T) {
 				{Time: metav1.NewTime(earlierActionTime), FromReplicas: 2, ToReplicas: 3, RecommendedReplicas: &earlierRecommended},
 				{Time: metav1.NewTime(midActionTime), FromReplicas: 3, ToReplicas: 4},
 				{Time: metav1.NewTime(lastRecommendedTime), FromReplicas: 4, ToReplicas: 5, RecommendedReplicas: &lastRecommended, LimitedReason: &limitReason},
+			},
+			LastRecommendations: []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+				{GeneratedAt: metav1.NewTime(earlierActionTime), Replicas: 2},
+				{GeneratedAt: metav1.NewTime(midActionTime), Replicas: 3},
+				{GeneratedAt: metav1.NewTime(lastRecommendedTime), Replicas: 5},
 			},
 		},
 		Vertical: &datadoghqcommon.DatadogPodAutoscalerVerticalStatus{
@@ -380,10 +446,12 @@ func TestUpdateFromStatus(t *testing.T) {
 			{Type: datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, Status: corev1.ConditionTrue, Reason: limitReason},
 			{Type: datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, Status: corev1.ConditionFalse, Reason: "vRecErr"},
 			{Type: datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, Status: corev1.ConditionFalse, Reason: "vApplyErr"},
+			{Type: datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition, Status: corev1.ConditionTrue, Reason: "LimitedByConstraint", Message: "clamped for containers: app"},
 		},
 	}
 
 	var actual PodAutoscalerInternal
+	actual.horizontalRecommendationsRetention = 10 * time.Minute
 	actual.UpdateFromStatus(status)
 
 	expected := FakePodAutoscalerInternal{
@@ -409,14 +477,18 @@ func TestUpdateFromStatus(t *testing.T) {
 			HorizontalError: errors.New("hRecErr"),
 			VerticalError:   errors.New("vRecErr"),
 		},
-		HorizontalLastActions: status.Horizontal.LastActions,
-		HorizontalLastRecommendations: []HorizontalScalingValues{
-			{Timestamp: lastRecommendedTime, Replicas: lastRecommended},
+		HorizontalLastActions:              status.Horizontal.LastActions,
+		HorizontalRecommendationsRetention: 10 * time.Minute,
+		HorizontalLastRecommendations: []datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+			{GeneratedAt: metav1.NewTime(earlierActionTime), Replicas: 2},
+			{GeneratedAt: metav1.NewTime(midActionTime), Replicas: 3},
+			{GeneratedAt: metav1.NewTime(lastRecommendedTime), Replicas: 5},
 		},
 		HorizontalLastLimitReason: limitReason,
 		HorizontalLastActionError: errors.New("hScaleErr"),
 		VerticalLastAction:        status.Vertical.LastAction,
 		VerticalLastActionError:   errors.New("vApplyErr"),
+		VerticalLastLimitReason:   autoscaling.NewConditionError(autoscaling.ConditionReasonLimitedByConstraint, errors.New("clamped for containers: app")),
 		CurrentReplicas:           &currentReplicas,
 		Error:                     errors.New("globalErr"),
 	}

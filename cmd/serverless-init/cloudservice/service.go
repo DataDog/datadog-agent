@@ -6,10 +6,27 @@
 package cloudservice
 
 import (
-	"fmt"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 )
+
+// TraceAgent represents a trace agent that can process trace payloads, be flushed, and stopped.
+// This interface avoids an import cycle with pkg/serverless/trace.
+type TraceAgent interface {
+	Process(*api.Payload)
+	Flush()
+	Stop()
+}
+
+// TracingContext holds tracing dependencies used by cloud services that need them.
+// Only CloudRunJobs currently uses this context for span creation, but it's passed
+// to all services for interface consistency.
+type TracingContext struct {
+	TraceAgent TraceAgent
+	SpanTags   map[string]string
+}
 
 // CloudService implements getting tags from each Cloud Provider.
 type CloudService interface {
@@ -29,16 +46,14 @@ type CloudService interface {
 	GetSource() metrics.MetricSource
 
 	// Init bootstraps the CloudService.
-	Init() error
+	// ctx is optional and only used by CloudRunJobs for span creation
+	Init(ctx *TracingContext) error
 
-	// Shutdown cleans up the CloudService
-	Shutdown(agent serverlessMetrics.ServerlessMetricAgent)
+	// Shutdown cleans up the CloudService and allows emitting shutdown metrics
+	Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, runErr error)
 
 	// GetStartMetricName returns the metric name for start events
 	GetStartMetricName() string
-
-	// GetShutdownMetricName returns the metric name for shutdown events
-	GetShutdownMetricName() string
 
 	// ShouldForceFlushAllOnForceFlushToSerializer is used for the
 	// forceFlushAll parameter on the call to forceFlushToSerializer in the
@@ -75,21 +90,18 @@ func (l *LocalService) GetSource() metrics.MetricSource {
 }
 
 // Init is not necessary for LocalService
-func (l *LocalService) Init() error {
+func (l *LocalService) Init(_ *TracingContext) error {
 	return nil
 }
 
-// Shutdown is not necessary for LocalService
-func (l *LocalService) Shutdown(serverlessMetrics.ServerlessMetricAgent) {}
+// Shutdown emits the shutdown metric for LocalService
+func (l *LocalService) Shutdown(agent serverlessMetrics.ServerlessMetricAgent, _ error) {
+	metric.Add(defaultPrefix+".enhanced.shutdown", 1.0, l.GetSource(), agent)
+}
 
 // GetStartMetricName returns the metric name for container start (coldstart) events
 func (l *LocalService) GetStartMetricName() string {
-	return fmt.Sprintf("%s.enhanced.cold_start", defaultPrefix)
-}
-
-// GetShutdownMetricName returns the metric name for container shutdown events
-func (l *LocalService) GetShutdownMetricName() string {
-	return fmt.Sprintf("%s.enhanced.shutdown", defaultPrefix)
+	return defaultPrefix + ".enhanced.cold_start"
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.

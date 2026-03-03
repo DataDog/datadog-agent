@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Support for custom queries based scaling in Datadog Pod Autoscaler

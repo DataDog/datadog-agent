@@ -1,0 +1,229 @@
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+
+package(default_package_metadata = [":license"])
+
+VERSION = "1.3.7"
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:MIT"],
+    license_text = "Copyright",
+    visibility = ["//visibility:public"],
+)
+
+copy_file(
+    name = "copy_config_h",
+    src = select({
+        "@@//:linux_x86_64": "config-linux-x86_64.h",
+        "@@//:linux_arm64": "config-linux-arm64.h",
+    }),
+    out = "config.h",
+)
+
+cc_library(
+    name = "config_h",
+    hdrs = [
+        ":copy_config_h",
+    ],
+)
+
+PUBLIC_HEADERS = glob([
+    "include/xmlsec/*.h",
+])
+
+PUBLIC_OPENSSL_HEADERS = glob([
+    "include/xmlsec/openssl/*.h",
+])
+
+cc_library(
+    name = "libxmlsec1",
+    srcs = [
+        "src/app.c",
+        "src/base64.c",
+        "src/bn.c",
+        "src/buffer.c",
+        "src/c14n.c",
+        "src/dl.c",
+        "src/enveloped.c",
+        "src/errors.c",
+        "src/io.c",
+        "src/keyinfo.c",
+        "src/keys.c",
+        "src/keysdata.c",
+        "src/keysmngr.c",
+        "src/kw_aes_des.c",
+        "src/list.c",
+        "src/membuf.c",
+        "src/nodeset.c",
+        "src/parser.c",
+        "src/relationship.c",
+        "src/strings.c",
+        "src/templates.c",
+        "src/transforms.c",
+        "src/xmldsig.c",
+        "src/xmlenc.c",
+        "src/xmlsec.c",
+        "src/xmltree.c",
+        "src/xpath.c",
+        "src/xslt.c",
+    ] + glob(["src/*.h"]),
+    hdrs = PUBLIC_HEADERS,
+    strip_include_prefix = "include",
+    copts = ["-O2"],
+    defines = [
+        "XMLSEC_CRYPTO_OPENSSL=1",
+    ],
+    local_defines = [
+        'PACKAGE=\\"xmlsec1\\"',
+        'XMLSEC_DEFAULT_CRYPTO=\\"openssl\\"',
+        "HAVE_CONFIG_H",
+    ],
+    implementation_deps = [
+        ":config_h",
+    ],
+    deps = [
+        "@libxslt//:libxslt",
+        "@libxml2//:libxml2",
+    ],
+    includes = [
+        "src",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_shared_library(
+    name = "xmlsec1",
+    deps = [
+        ":libxmlsec1",
+    ],
+    dynamic_deps = [
+        "@libxslt//:xslt",
+        "@libxml2//:xml2",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "libxmlsec1-openssl",
+    srcs = [
+        "src/openssl/app.c",
+        "src/openssl/ciphers.c",
+        "src/openssl/crypto.c",
+        "src/openssl/digests.c",
+        "src/openssl/evp.c",
+        "src/openssl/kdf.c",
+        "src/openssl/key_agrmnt.c",
+        "src/openssl/keysstore.c",
+        "src/openssl/hmac.c",
+        "src/openssl/kw_aes.c",
+        "src/openssl/kw_des.c",
+        "src/openssl/kt_rsa.c",
+        "src/openssl/signatures.c",
+        "src/openssl/signatures_legacy.c",
+        "src/openssl/symkeys.c",
+        "src/openssl/x509.c",
+        "src/openssl/x509vfy.c",
+        "src/openssl/globals.h",
+        "src/openssl/private.h",
+        "src/openssl/openssl_compat.h",
+    ],
+    hdrs = PUBLIC_OPENSSL_HEADERS,
+    implementation_deps = [
+        ":config_h",
+    ],
+    copts = ["-O2"],
+    deps = [
+        "@libxslt//:libxslt",
+        "@libxml2//:libxml2",
+        "@openssl",
+        ":libxmlsec1",
+    ],
+    defines = [
+        "XMLSEC_NO_FTP=1",
+        "XMLSEC_NO_HTTP=1",
+        "XMLSEC_NO_MD5=1",
+        "XMLSEC_NO_RIPEMD160=1",
+        "XMLSEC_NO_GOST=1",
+        "XMLSEC_NO_GOST2012=1",
+    ],
+    strip_include_prefix = "include",
+    local_defines = [
+        'PACKAGE=\\"xmlsec1\\"',
+        "HAVE_CONFIG_H",
+    ],
+    includes = [
+        "src",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_shared_library(
+    name = "xmlsec1-openssl",
+    deps = [
+        ":libxmlsec1-openssl",
+    ],
+    dynamic_deps = [
+        "@libxslt//:xslt",
+        "@libxml2//:xml2",
+        "@openssl//:openssl_shared",
+        ":xmlsec1",
+    ],
+    user_link_flags = select({
+        "@platforms//os:linux": [
+            "-Wl,-rpath=/opt/datadog-agent/embedded/lib",
+        ],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+)
+
+so_symlink(
+    name = "libxmlsec_files",
+    src = ":xmlsec1",
+    libname = "libxmlsec1",
+    version = VERSION,
+)
+
+so_symlink(
+    name = "libxmlsec_openssl_files",
+    src = ":xmlsec1-openssl",
+    libname = "libxmlsec1-openssl",
+    version = VERSION,
+)
+
+pkg_files(
+    name = "headers_files",
+    srcs = PUBLIC_HEADERS,
+    prefix = "include/xmlsec1/xmlsec",
+)
+
+pkg_files(
+    name = "openssl_headers_files",
+    srcs = PUBLIC_OPENSSL_HEADERS,
+    prefix = "include/xmlsec1/xmlsec/openssl",
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":headers_files",
+        ":openssl_headers_files",
+        ":libxmlsec_files",
+        ":libxmlsec_openssl_files",
+    ],
+    prefix = "embedded",
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
+)

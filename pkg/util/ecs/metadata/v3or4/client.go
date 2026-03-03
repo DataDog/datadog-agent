@@ -19,7 +19,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v5"
 
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/common"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/telemetry"
@@ -35,12 +35,14 @@ const (
 	// Metadata v3 and v4 API paths. They're the same.
 	taskMetadataPath         = "/task"
 	taskMetadataWithTagsPath = "/taskWithTags"
+	containerStatsPath       = "/task/stats"
 )
 
 // Client is an interface for ECS metadata v3 and v4 API clients.
 type Client interface {
 	GetTask(ctx context.Context) (*Task, error)
 	GetContainer(ctx context.Context) (*Container, error)
+	GetContainerStats(ctx context.Context, id string) (*ContainerStatsV4, error)
 	GetTaskWithTags(ctx context.Context) (*Task, error)
 }
 
@@ -90,6 +92,20 @@ func (c *client) GetContainer(ctx context.Context) (*Container, error) {
 		return nil, err
 	}
 	return &ct, nil
+}
+
+// GetContainerStats returns stastics for a container.
+func (c *client) GetContainerStats(ctx context.Context, id string) (*ContainerStatsV4, error) {
+	var stats map[string]*ContainerStatsV4
+	if err := c.get(ctx, containerStatsPath, &stats); err != nil {
+		return nil, err
+	}
+
+	if s, ok := stats[id]; ok && s != nil {
+		return s, nil
+	}
+
+	return nil, fmt.Errorf("Failed to retrieve container stats for id: %s", id)
 }
 
 // GetTask returns the current task.
@@ -149,9 +165,11 @@ func (c *client) get(ctx context.Context, path string, v interface{}) error {
 
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = c.initialInterval
-	expBackoff.MaxElapsedTime = c.maxElapsedTime
 
-	return backoff.Retry(operation, expBackoff)
+	_, err = backoff.Retry(ctx, func() (any, error) {
+		return nil, operation()
+	}, backoff.WithBackOff(expBackoff), backoff.WithMaxElapsedTime(c.maxElapsedTime))
+	return err
 }
 
 func (c *client) getTaskMetadataAtPath(ctx context.Context, path string) (*Task, error) {

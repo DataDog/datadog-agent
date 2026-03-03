@@ -55,8 +55,8 @@ func getCommonStateScopes() map[Scope]VariableProviderFactory {
 		},
 		ScopeContainer: func() VariableProvider {
 			return eval.NewScopedVariables(ScopeContainer, func(ctx *eval.Context) eval.VariableScope {
-				if cc := ctx.Event.(*model.Event).ContainerContext; cc != nil {
-					return cc
+				if ctx.Event.(*model.Event).ProcessContext != nil {
+					return &ctx.Event.(*model.Event).ProcessContext.ContainerContext
 				}
 				return nil
 			})

@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+// Code generated - DO NOT EDIT.
 
 package model
 
@@ -61,9 +62,10 @@ var bpfMapNames = []string{
 	"is_discarded_by",
 	"is_new_kthread",
 	"kill_list",
+	"memfd_tracking",
 	"mmap_flags_appr",
 	"mmap_protection",
-	"mount_ref",
+	"mntns_cache",
 	"mprotect_req_pr",
 	"mprotect_vm_pro",
 	"netdevice_looku",
@@ -72,12 +74,16 @@ var bpfMapNames = []string{
 	"ns_flow_to_netw",
 	"on_demand_event",
 	"open_flags_appr",
+	"open_flags_rdon",
 	"packets",
-	"path_id",
+	"path_id_high",
+	"path_id_low",
 	"pathnames",
 	"pid_cache",
 	"pid_ignored",
 	"pid_rate_limite",
+	"prctl_discarder",
+	"prctl_option_ap",
 	"proc_cache",
 	"process_event_g",
 	"raw_packet_enab",
@@ -88,6 +94,7 @@ var bpfMapNames = []string{
 	"selinux_enforce",
 	"selinux_write_b",
 	"setsockopt_even",
+	"setsockopt_leve",
 	"sk_storage_meta",
 	"sock_cookie_pid",
 	"sock_meta",

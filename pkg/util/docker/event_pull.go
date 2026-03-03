@@ -15,9 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 )
@@ -42,7 +41,7 @@ func (d *DockerUtil) openEventChannel(ctx context.Context, since, until time.Tim
 
 // processContainerEvent formats the events from a channel.
 // It can return nil, nil if the event is filtered out, one should check for nil pointers before using the event.
-func (d *DockerUtil) processContainerEvent(ctx context.Context, msg events.Message, filter *containers.Filter) (*ContainerEvent, error) {
+func (d *DockerUtil) processContainerEvent(ctx context.Context, msg events.Message, filter workloadfilter.FilterBundle) (*ContainerEvent, error) {
 	// Type filtering
 	// Filtering out prune events as well as they don't have a container name
 	if msg.Type != events.ContainerEventType || msg.Action == events.ActionPrune {
@@ -52,14 +51,14 @@ func (d *DockerUtil) processContainerEvent(ctx context.Context, msg events.Messa
 	// Container filtering
 	containerName, found := msg.Actor.Attributes["name"]
 	//nolint:gosimple // TODO(CINT) Fix gosimple linter
-	if found == false {
+	if !found {
 		// TODO: inspect?
 		m, _ := json.Marshal(msg)
 		return nil, fmt.Errorf("missing container name in event %s", string(m))
 	}
 	imageName, found := msg.Actor.Attributes["image"]
 	//nolint:gosimple // TODO(CINT) Fix gosimple linter
-	if found == false {
+	if !found {
 		// TODO: inspect?
 		m, _ := json.Marshal(msg)
 		return nil, fmt.Errorf("missing image name in event %s", string(m))
@@ -71,7 +70,9 @@ func (d *DockerUtil) processContainerEvent(ctx context.Context, msg events.Messa
 			log.Warnf("can't resolve image name %s: %s", imageName, err)
 		}
 	}
-	if filter != nil && filter.IsExcluded(nil, containerName, imageName, "") {
+
+	filterableContainer := workloadfilter.CreateContainer(msg.Actor.ID, containerName, imageName, nil)
+	if filter != nil && filter.IsExcluded(filterableContainer) {
 		log.Tracef("events from %s are skipped as the image is excluded for the event collection", containerName)
 		return nil, nil
 	}
@@ -115,7 +116,7 @@ func (d *DockerUtil) processImageEvent(msg events.Message) *ImageEvent {
 
 // LatestContainerEvents returns events matching the filter that occurred after the time passed.
 // It returns the latest event timestamp in the slice for the user to store and pass again in the next call.
-func (d *DockerUtil) LatestContainerEvents(ctx context.Context, since time.Time, filter *containers.Filter) ([]*ContainerEvent, time.Time, error) {
+func (d *DockerUtil) LatestContainerEvents(ctx context.Context, since time.Time, filter workloadfilter.FilterBundle) ([]*ContainerEvent, time.Time, error) {
 	var containerEvents []*ContainerEvent
 	filters := map[string]string{"type": string(events.ContainerEventType)}
 

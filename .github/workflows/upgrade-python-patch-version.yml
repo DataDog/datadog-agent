@@ -1,0 +1,92 @@
+name: Upgrade Python patch version
+
+on:
+  workflow_dispatch:
+  schedule:
+    # At 4AM on Tuesday (UTC) - runs after dependency updates on Monday
+    - cron: "0 4 * * 2"
+
+permissions: {}
+
+jobs:
+  upgrade_python_version:
+    name: Upgrade Python patch version
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # This is required for getting the required OIDC token from GitHub
+    environment:
+      name: main
+    steps:
+      - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
+        id: octo-sts
+        with:
+          scope: DataDog/datadog-agent
+          policy: self.upgrade-python-version.create-pr
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # credentials are needed to create the PR at the end of the workflow
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: '3.13'
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
+      - name: Update Python version
+        id: update
+        run: |
+          # Get current version before update
+          CURRENT_VERSION=$(dda inv python-version.get)
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          
+          # Run update task (exits cleanly if already up-to-date)
+          dda inv python-version.update
+          
+          # Check if files were modified
+          if git diff --quiet; then
+            echo "updated=false" >> $GITHUB_OUTPUT
+            echo "No Python update available"
+          else
+            NEW_VERSION=$(dda inv python-version.get)
+            NEW_VERSION_NO_DOTS=$(echo "$NEW_VERSION" | tr -d '.')
+            echo "updated=true" >> $GITHUB_OUTPUT
+            echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+            echo "new_version_no_dots=$NEW_VERSION_NO_DOTS" >> $GITHUB_OUTPUT
+            echo "Updated from $CURRENT_VERSION to $NEW_VERSION"
+          fi
+
+      - name: Create pull request
+        if: steps.update.outputs.updated == 'true'
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        with:
+          token: ${{ steps.octo-sts.outputs.token }}
+          sign-commits: true
+          commit-message: "chore(deps): upgrade embedded Python patch version to ${{ steps.update.outputs.new_version }}"
+          branch: bot/upgrade-python-patch-version-${{ steps.update.outputs.new_version }}
+          title: "[automated] Upgrade embedded Python patch version to ${{ steps.update.outputs.new_version }}"
+          body: |
+            ### What does this PR do?
+            Upgrades the Agent's embedded Python interpreter from **${{ steps.update.outputs.current_version }}** to **${{ steps.update.outputs.new_version }}** (patch version update).
+            
+            ### Changes
+            - Updated `omnibus/config/software/python3.rb` with new version and SHA256
+            - Updated `deps/cpython/cpython.MODULE.bazel` with new version and SHA256
+            - Updated `test/new-e2e/tests/agent-platform/common/agent_behaviour.go` with expected version
+            - Created release note documenting the upgrade
+            
+            ### Motivation
+            Keep embedded Python up-to-date with bug fixes and security patches.
+            
+            ### Verification
+            SHA256 hash automatically fetched and verified against the official Python.org SBOM file.
+            
+            See the [official Python release page](https://www.python.org/downloads/release/python-${{ steps.update.outputs.new_version_no_dots }}/) for details.
+            
+            ### Describe how you validated your changes
+            CI is considered enough to validate changes.
+          team-reviewers: agent-integrations
+          labels: team/agent-integrations,changelog/no-changelog,ask-review

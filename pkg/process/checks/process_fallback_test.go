@@ -36,9 +36,8 @@ func TestProcessByPID(t *testing.T) {
 			mockProbe := probemocks.NewProbe(t)
 			mockConstantClock := constantMockClock(time.Now())
 			processCheck := &ProcessCheck{
-				probe:                   mockProbe,
-				useWLMProcessCollection: tc.useWLMCollection,
-				clock:                   mockConstantClock,
+				probe: mockProbe,
+				clock: mockConstantClock,
 			}
 
 			// MOCKING

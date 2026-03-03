@@ -14,6 +14,7 @@ import (
 	"os"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -25,7 +26,6 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -43,7 +43,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
@@ -91,14 +90,15 @@ type Manager struct {
 	activityDumpLoadConfig *model.ActivityDumpLoadConfig
 
 	// ebpf maps
-	tracedPIDsMap              *ebpf.Map
-	tracedCgroupsMap           *ebpf.Map
-	tracedCgroupsDiscardedMap  *ebpf.Map
-	cgroupWaitList             *ebpf.Map
-	activityDumpsConfigMap     *ebpf.Map
-	activityDumpConfigDefaults *ebpf.Map
+	tracedPIDsMap               *ebpf.Map
+	tracedCgroupsMap            *ebpf.Map
+	tracedCgroupsDiscardedMap   *ebpf.Map
+	cgroupWaitList              *ebpf.Map
+	activityDumpsConfigMap      *ebpf.Map
+	activityDumpConfigDefaults  *ebpf.Map
+	activityDumpRateLimitersMap *ebpf.Map
 
-	ignoreFromSnapshot   map[model.PathKey]bool
+	ignoreFromSnapshot   map[uint64]bool
 	dumpLimiter          *lru.Cache[cgroupModel.WorkloadSelector, *atomic.Uint64]
 	workloadDenyList     []cgroupModel.WorkloadSelector
 	workloadDenyListHits *atomic.Uint64
@@ -125,7 +125,8 @@ type Manager struct {
 
 	// fields from SecurityProfileManager
 
-	secProfEventTypes []model.EventType
+	secProfEventTypes       []model.EventType
+	isSyscallAnomalyEnabled bool
 
 	// ebpf maps
 	securityProfileMap         *ebpf.Map
@@ -152,7 +153,7 @@ type Manager struct {
 }
 
 // NewManager returns a new instance of the security profile manager
-func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, newEvent func() *model.Event, dumpHandler backend.ActivityDumpHandler, ipc ipc.Component) (*Manager, error) {
+func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, newEvent func() *model.Event, dumpHandler backend.ActivityDumpHandler, hostname string) (*Manager, error) {
 	tracedPIDs, err := managerhelper.Map(ebpf, "traced_pids")
 	if err != nil {
 		return nil, err
@@ -179,6 +180,11 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 	}
 
 	activityDumpConfigDefaultsMap, err := managerhelper.Map(ebpf, "activity_dump_config_defaults")
+	if err != nil {
+		return nil, err
+	}
+
+	activityDumpRateLimitersMap, err := managerhelper.Map(ebpf, "activity_dump_rate_limiters")
 	if err != nil {
 		return nil, err
 	}
@@ -241,11 +247,6 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		"",
 	))
 
-	hostname, err := hostnameutils.GetHostname(ipc)
-	if err != nil || hostname == "" {
-		hostname = "unknown"
-	}
-
 	contextTags := []string{"host:" + hostname}
 	// merge tags from config
 	for _, tag := range configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), true) {
@@ -256,7 +257,7 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 	}
 	// add source tag
 	if len(utils.GetTagValue("source", contextTags)) == 0 {
-		contextTags = append(contextTags, fmt.Sprintf("source:%s", ActivityDumpSource))
+		contextTags = append(contextTags, "source:"+ActivityDumpSource)
 	}
 
 	containerFilters, err := utils.NewContainerFilter()
@@ -270,9 +271,6 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 	}
 
 	var secProfEventTypes []model.EventType
-	if cfg.RuntimeSecurity.SecurityProfileAutoSuppressionEnabled {
-		secProfEventTypes = append(secProfEventTypes, cfg.RuntimeSecurity.SecurityProfileAutoSuppressionEventTypes...)
-	}
 	if cfg.RuntimeSecurity.AnomalyDetectionEnabled {
 		secProfEventTypes = append(secProfEventTypes, cfg.RuntimeSecurity.AnomalyDetectionEventTypes...)
 	}
@@ -288,14 +286,15 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		newEvent:      newEvent,
 		pathsReducer:  activity_tree.NewPathsReducer(),
 
-		tracedPIDsMap:              tracedPIDs,
-		tracedCgroupsMap:           tracedCgroupsMap,
-		tracedCgroupsDiscardedMap:  tracedCgroupsDiscardedMap,
-		cgroupWaitList:             cgroupWaitList,
-		activityDumpsConfigMap:     activityDumpsConfigMap,
-		activityDumpConfigDefaults: activityDumpConfigDefaultsMap,
+		tracedPIDsMap:               tracedPIDs,
+		tracedCgroupsMap:            tracedCgroupsMap,
+		tracedCgroupsDiscardedMap:   tracedCgroupsDiscardedMap,
+		cgroupWaitList:              cgroupWaitList,
+		activityDumpsConfigMap:      activityDumpsConfigMap,
+		activityDumpConfigDefaults:  activityDumpConfigDefaultsMap,
+		activityDumpRateLimitersMap: activityDumpRateLimitersMap,
 
-		ignoreFromSnapshot:   make(map[model.PathKey]bool),
+		ignoreFromSnapshot:   make(map[uint64]bool),
 		dumpLimiter:          dumpLimiter,
 		workloadDenyList:     workloadDenyList,
 		workloadDenyListHits: atomic.NewUint64(0),
@@ -314,7 +313,8 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		emptyDropped:       atomic.NewUint64(0),
 		dropMaxDumpReached: atomic.NewUint64(0),
 
-		secProfEventTypes: secProfEventTypes,
+		secProfEventTypes:       secProfEventTypes,
+		isSyscallAnomalyEnabled: slices.Contains(cfg.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType),
 
 		securityProfileMap:         securityProfileMap,
 		securityProfileSyscallsMap: securityProfileSyscallsMap,
@@ -363,6 +363,7 @@ func (m *Manager) Start(ctx context.Context) {
 	var adTagsTickerChan <-chan time.Time
 	var adLoadControlTickerChan <-chan time.Time
 	var silentWorkloadsTickerChan <-chan time.Time
+	var nodeEvictionTickerChan <-chan time.Time
 
 	if m.config.RuntimeSecurity.ActivityDumpEnabled {
 		adCleanupTicker := time.NewTicker(m.config.RuntimeSecurity.ActivityDumpCleanupPeriod)
@@ -388,6 +389,14 @@ func (m *Manager) Start(ctx context.Context) {
 		silentWorkloadsTickerChan = silentWorkloadsTicker.C
 	} else {
 		silentWorkloadsTickerChan = make(chan time.Time)
+	}
+
+	if m.config.RuntimeSecurity.SecurityProfileEnabled && m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout > 0 {
+		nodeEvictionTicker := time.NewTicker(m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout)
+		defer nodeEvictionTicker.Stop()
+		nodeEvictionTickerChan = nodeEvictionTicker.C
+	} else {
+		nodeEvictionTickerChan = make(chan time.Time)
 	}
 
 	if m.config.RuntimeSecurity.SecurityProfileEnabled {
@@ -426,6 +435,8 @@ func (m *Manager) Start(ctx context.Context) {
 			}
 		case <-silentWorkloadsTickerChan:
 			m.handleSilentWorkloads()
+		case <-nodeEvictionTickerChan:
+			m.evictUnusedNodes()
 		case newProfile := <-m.newProfiles:
 			m.onNewProfile(newProfile)
 		case workloadEvent := <-m.workloadEvents:
@@ -500,7 +511,7 @@ func (m *Manager) SendStats() error {
 		}
 
 		t := []string{
-			fmt.Sprintf("in_kernel:%v", profilesLoadedInKernel),
+			"in_kernel:" + strconv.FormatInt(int64(profilesLoadedInKernel), 10),
 		}
 		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileProfiles, float64(len(m.profiles)), t, 1.0); err != nil {
 			return fmt.Errorf("couldn't send MetricSecurityProfileProfiles: %w", err)
@@ -525,7 +536,7 @@ func (m *Manager) SendStats() error {
 		}
 
 		for entry, count := range m.eventFiltering {
-			t := []string{fmt.Sprintf("event_type:%s", entry.eventType), entry.state.ToTag(), entry.result.toTag()}
+			t := []string{"event_type:" + entry.eventType.String(), entry.state.ToTag(), entry.result.toTag()}
 			if value := count.Swap(0); value > 0 {
 				if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), t, 1.0); err != nil {
 					return fmt.Errorf("couldn't send MetricSecurityProfileEventFiltering metric: %w", err)
@@ -615,7 +626,11 @@ func (m *Manager) persist(p *profile.Profile, formatsRequests map[config.Storage
 			if err := storage.Persist(request, p, data); err != nil {
 				seclog.Errorf("couldn't persist [%s] to %s storage: %v", p.GetSelectorStr(), request.Type, err)
 			} else {
-				tags := []string{"format:" + request.Format.String(), "storage_type:" + request.Type.String(), fmt.Sprintf("compression:%v", request.Compression)}
+				tags := []string{
+					"format:" + request.Format.String(),
+					"storage_type:" + request.Type.String(),
+					"compression:" + strconv.FormatBool(request.Compression),
+				}
 				if err := m.statsdClient.Count(metrics.MetricActivityDumpSizeInBytes, int64(data.Len()), tags, 1.0); err != nil {
 					seclog.Warnf("couldn't send %s metric: %v", metrics.MetricActivityDumpSizeInBytes, err)
 				}
@@ -635,4 +650,116 @@ func perFormatStorageRequests(requests []config.StorageRequest) map[config.Stora
 		perFormatRequests[request.Format] = append(perFormatRequests[request.Format], request)
 	}
 	return perFormatRequests
+}
+
+// evictUnusedNodes performs periodic eviction of non-touched nodes from all active profiles
+func (m *Manager) evictUnusedNodes() {
+	if m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout <= 0 {
+		return
+	}
+
+	evictionTime := time.Now().Add(-m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout)
+	totalEvicted := 0
+
+	filepathsInProcessCache := m.GetNodesInProcessCache()
+
+	m.profilesLock.Lock()
+	defer m.profilesLock.Unlock()
+
+	for selector, profile := range m.profiles {
+		if profile == nil {
+			continue
+		}
+
+		profile.Lock()
+		if profile.ActivityTree == nil {
+			profile.Unlock()
+			continue
+		}
+		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, selector.Image, selector.Tag)
+		if evicted > 0 {
+			totalEvicted += evicted
+			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, selector.String())
+		}
+		profile.Unlock()
+	}
+
+	if totalEvicted > 0 {
+		seclog.Infof("evicted %d total unused process nodes across all profiles", totalEvicted)
+	}
+}
+
+// GetNodesInProcessCache returns a map with ImageProcessKey as key and bool as value for all filepaths in the process cache
+func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]bool {
+
+	cgr := m.resolvers.CGroupResolver
+	pr := m.resolvers.ProcessResolver
+	tagsResolver := m.resolvers.TagsResolver
+
+	type imageTagKey struct {
+		imageName string
+		imageTag  string
+	}
+
+	pids := make(map[imageTagKey][]uint32)
+
+	result := make(map[activity_tree.ImageProcessKey]bool)
+
+	cgr.IterateCacheEntries(func(cgce *cgroupModel.CacheEntry) bool {
+		var cgceTags []string
+		var err error
+		var imageName, imageTag string
+		if id := cgce.GetContainerID(); id != "" {
+			cgceTags, err = tagsResolver.ResolveWithErr(id)
+			if err != nil {
+				return false
+			}
+			imageName = utils.GetTagValue("image_name", cgceTags)
+			imageTag = utils.GetTagValue("image_tag", cgceTags)
+		} else if cgce.IsCGroupContextResolved() {
+			cgceTags, err = tagsResolver.ResolveWithErr(cgce.GetCGroupID())
+			if err != nil {
+				return false
+			}
+			imageName = utils.GetTagValue("service", cgceTags)
+			imageTag = utils.GetTagValue("version", cgceTags)
+		} else {
+			return false
+		}
+
+		if imageTag == "" {
+			imageTag = "latest"
+		}
+
+		imageTagKey := imageTagKey{
+			imageName: imageName,
+			imageTag:  imageTag,
+		}
+		pids[imageTagKey] = append(pids[imageTagKey], cgce.GetPIDs()...)
+
+		return false
+	})
+
+	// we do the resolution of filepaths here so that we can release the cgroup resolver lock before acquiring the process resolver lock
+	for k, pids := range pids {
+
+		key := activity_tree.ImageProcessKey{
+			ImageName: k.imageName,
+			ImageTag:  k.imageTag,
+			Filepath:  "",
+		}
+
+		for _, pid := range pids {
+			pce := pr.Resolve(pid, pid, 0, true, nil)
+			if pce == nil {
+				seclog.Warnf("couldn't resolve process cache entry for pid %d, this process may have exited", pid)
+				continue
+			}
+
+			key.Filepath = pce.FileEvent.PathnameStr
+			result[key] = true
+		}
+	}
+
+	return result
 }

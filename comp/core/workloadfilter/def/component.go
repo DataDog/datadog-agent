@@ -14,30 +14,42 @@ package workloadfilter
 // If a set of filters produces an Include or Exclude result, then subsequent sets will not be evaluated.
 // Therefore, filters in lower-indexed groups will take precedence over those in higher-indexed groups.
 type Component interface {
-	// IsContainerExcluded returns true if the container is excluded by the selected container filter keys.
-	IsContainerExcluded(container *Container, containerFilters [][]ContainerFilter) bool
-	// IsPodExcluded returns true if the pod is excluded by the selected pod filter keys.
-	IsPodExcluded(pod *Pod, podFilters [][]PodFilter) bool
-	// IsServiceExcluded returns true if the service is excluded by the selected service filter keys.
-	IsServiceExcluded(service *Service, serviceFilters [][]ServiceFilter) bool
-	// IsEndpointExcluded returns true if the endpoint is excluded by the selected endpoint filter keys.
-	IsEndpointExcluded(endpoint *Endpoint, endpointFilters [][]EndpointFilter) bool
+	// GetContainerFilters retrieves the selected container FilterBundle
+	GetContainerFilters(containerFilters [][]ContainerFilter) FilterBundle
+	// GetPodFilters retrieves the selected pod FilterBundle
+	GetPodFilters(podFilters [][]PodFilter) FilterBundle
+	// GetKubeServiceFilters retrieves the selected kube service FilterBundle
+	GetKubeServiceFilters(serviceFilters [][]KubeServiceFilter) FilterBundle
+	// GetKubeEndpointFilters retrieves the selected kube endpoint FilterBundle
+	GetKubeEndpointFilters(endpointFilters [][]KubeEndpointFilter) FilterBundle
+	// GetProcessFilters retrieves the selected process FilterBundle
+	GetProcessFilters(processFilters [][]ProcessFilter) FilterBundle
 
-	// GetContainerFilterInitializationErrors returns a list of errors
-	// encountered during the initialization of the selected container filters.
-	GetContainerFilterInitializationErrors(filters []ContainerFilter) []error
+	// GetContainerAutodiscoveryFilters retrieves the container AD FilterBundle
+	GetContainerAutodiscoveryFilters(filterScope Scope) FilterBundle
+	// GetKubeServiceAutodiscoveryFilters retrieves the kube service AD FilterBundle
+	GetKubeServiceAutodiscoveryFilters(filterScope Scope) FilterBundle
+	// GetKubeEndpointAutodiscoveryFilters retrieves the kube endpoint AD FilterBundle
+	GetKubeEndpointAutodiscoveryFilters(filterScope Scope) FilterBundle
 
-	// Get Autodiscovery filters
-	GetContainerAutodiscoveryFilters(filterScope Scope) [][]ContainerFilter
-	GetPodAutodiscoveryFilters(filterScope Scope) [][]PodFilter
-	GetServiceAutodiscoveryFilters(filterScope Scope) [][]ServiceFilter
-	GetEndpointAutodiscoveryFilters(filterScope Scope) [][]EndpointFilter
+	// GetContainerPausedFilters retrieves the container paused FilterBundle
+	GetContainerPausedFilters() FilterBundle
+	// GetContainerSharedMetricFilters retrieves the container shared metric FilterBundle
+	GetContainerSharedMetricFilters() FilterBundle
+	// GetPodSharedMetricFilters retrieves the pod shared metric FilterBundle
+	GetPodSharedMetricFilters() FilterBundle
 
-	// Get Shared Metric filters
-	GetContainerSharedMetricFilters() [][]ContainerFilter
-	GetPodSharedMetricFilters() [][]PodFilter
+	// GetContainerSBOMFilters retrieves the container SBOM FilterBundle
+	GetContainerSBOMFilters() FilterBundle
+	// GetContainerRuntimeSecurityFilters retrieves the container RuntimeSecurity FilterBundle
+	GetContainerRuntimeSecurityFilters() FilterBundle
+	// GetContainerComplianceFilters retrieves the container Compliance FilterBundle
+	GetContainerComplianceFilters() FilterBundle
 
-	// Get Container Specific filters
-	GetContainerPausedFilters() [][]ContainerFilter
-	GetContainerSBOMFilters() [][]ContainerFilter
+	// String returns a string representation of the workloadfilter configuration
+	// If useColor is true, the output will include ANSI color codes.
+	String(useColor bool) string
+
+	// Evaluate evaluates a program for a given entity
+	Evaluate(programName string, entity Filterable) (Result, error)
 }

@@ -15,9 +15,27 @@ import (
 )
 
 func TestPathID(t *testing.T) {
-	var ctx baloum.StdContext
-	code, err := newVM(t).RunProgram(&ctx, "test/path_id")
-	if err != nil || code != 1 {
-		t.Errorf("unexpected error: %v, %d", err, code)
-	}
+	t.Run("mount-bump", func(t *testing.T) {
+		var ctx baloum.StdContext
+		code, err := newVM(t).RunProgram(&ctx, "test/path_id_mount_and_invalidation")
+		if err != nil || code != 1 {
+			t.Errorf("unexpected error: %v, %d", err, code)
+		}
+	})
+
+	t.Run("link-bump", func(t *testing.T) {
+		var ctx baloum.StdContext
+		code, err := newVM(t).RunProgram(&ctx, "test/path_id_link_and_invalidation")
+		if err != nil || code != 1 {
+			t.Errorf("unexpected error: %v, %d", err, code)
+		}
+	})
+
+	t.Run("rename-bump", func(t *testing.T) {
+		var ctx baloum.StdContext
+		code, err := newVM(t).RunProgram(&ctx, "test/path_id_rename_and_invalidation")
+		if err != nil || code != 1 {
+			t.Errorf("unexpected error: %v, %d", err, code)
+		}
+	})
 }

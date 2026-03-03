@@ -74,13 +74,14 @@ func (c *CRCollector) Informer() cache.SharedInformer {
 	return c.informer.Informer()
 }
 
-func (c *CRCollector) getGRV() schema.GroupVersionResource {
+// GetGRV returns group, version and resource
+func (c *CRCollector) GetGRV() schema.GroupVersionResource {
 	return c.gvr
 }
 
 // Init is used to initialize the collector.
 func (c *CRCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	grv := c.getGRV()
+	grv := c.GetGRV()
 	c.informer = rcfg.OrchestratorInformerFactory.DynamicInformerFactory.ForResource(grv)
 	c.lister = c.informer.Lister()
 }

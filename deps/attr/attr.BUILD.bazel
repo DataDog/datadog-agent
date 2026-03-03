@@ -1,0 +1,131 @@
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+
+package(default_package_metadata = [":package_metadata", ":ship_source_offer"])
+
+_VERSION = "2.5.1"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+        ":ship_source_offer",
+    ],
+    purl = purl_for_generic(
+        package = "attr",
+        version = _VERSION,
+        download_url = "https://download.savannah.nongnu.org/releases/attr/attr-{version}.tar.xz",
+    ),
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:LGPL-2.1"],
+    license_text = "doc/COPYING.LGPL",
+    visibility = ["//visibility:public"],
+)
+
+ship_source_offer(name = "ship_source_offer")
+
+copy_file(
+    name = "copy_config_h",
+    src = select({
+        "@@//:linux_x86_64": "config-linux-x86_64.h",
+        "@@//:linux_arm64": "config-linux-arm64.h",
+    }),
+    out = "config.h",
+)
+
+cc_library(
+    name = "config_h",
+    hdrs = [
+        ":copy_config_h",
+    ],
+)
+
+_PUBLIC_HEADERS = [
+    "include/libattr.h",
+    "include/attributes.h",
+    "include/error_context.h",
+]
+
+cc_library(
+    name = "libattr",
+    srcs = [
+        "libattr/attr_copy_action.c",
+        "libattr/attr_copy_check.c",
+        "libattr/attr_copy_fd.c",
+        "libattr/attr_copy_file.c",
+        "libattr/libattr.c",
+        "libattr/syscalls.c",
+        "libattr/libattr.h",
+        "include/nls.h",
+    ],
+    hdrs = _PUBLIC_HEADERS,
+    includes = [
+        "include",
+    ],
+    include_prefix = "attr",
+    strip_include_prefix = "include",
+    copts = [
+        "-include $(location libattr/libattr.h)",
+        "-O2",
+    ],
+    implementation_deps = [
+        ":config_h",
+    ],
+    local_defines = [
+        "HAVE_CONFIG_H",
+        'SYSCONFDIR=\\"/opt/datadog-agent/embedded/etc\\"',
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_shared_library(
+    name = "attr",
+    deps = [":libattr"],
+    additional_linker_inputs = [
+        "exports",
+    ],
+    user_link_flags = [
+        "-Wl,--version-script=$(location exports)",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+so_symlink(
+    name = "lib_files",
+    src = ":attr",
+    libname = "libattr",
+    version = "1.1.2501",
+    prefix = "embedded",
+)
+
+pkg_files(
+    name = "hdr_files",
+    srcs = _PUBLIC_HEADERS,
+    prefix = "embedded/include/attr/",
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":hdr_files",
+        ":lib_files",
+    ],
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
+)

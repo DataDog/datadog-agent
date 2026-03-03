@@ -8,6 +8,7 @@
 package legacy
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
 
-	yaml "gopkg.in/yaml.v2"
+	yaml "go.yaml.in/yaml/v2"
 )
 
 const (
@@ -67,7 +68,7 @@ func ImportDockerConf(src, dst string, overwrite bool, converter *ConfigConverte
 	fmt.Printf("%s\n", warningNewCheck)
 
 	// read docker_daemon.yaml
-	c, err := providers.GetIntegrationConfigFromFile("docker_daemon", src)
+	c, _, err := providers.GetIntegrationConfigFromFile("docker_daemon", src)
 	if err != nil {
 		return fmt.Errorf("Could not load %s: %s", src, err)
 	}
@@ -114,7 +115,7 @@ func ImportDockerConf(src, dst string, overwrite bool, converter *ConfigConverte
 				return fmt.Errorf("unable to create a backup copy of the destination file: %v", err)
 			}
 		} else {
-			return fmt.Errorf("destination file already exists, run the command again with --force or -f to overwrite it")
+			return errors.New("destination file already exists, run the command again with --force or -f to overwrite it")
 		}
 	}
 	// Create necessary destination dir

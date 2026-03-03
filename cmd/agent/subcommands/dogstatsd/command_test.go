@@ -31,4 +31,10 @@ func TestCommand(t *testing.T) {
 			assert.Equal(t, 1, f.nmetrics)
 			assert.Equal(t, 2, f.ntags)
 		})
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"dogstatsd", "dump-contexts"},
+		dumpContexts,
+		func() {},
+	)
 }

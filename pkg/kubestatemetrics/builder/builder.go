@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -58,12 +59,19 @@ type Builder struct {
 	useWorkloadmetaForPods    bool
 	WorkloadmetaReflector     *workloadmetaReflector
 	workloadmetaStore         workloadmeta.Component
+
+	callbackEnabledResources map[string]bool // resource types that should have callbacks enabled
+
+	eventCallbacks map[string]map[store.StoreEventType]store.StoreEventCallback
+	eventMutex     sync.RWMutex
 }
 
 // New returns new Builder instance
 func New() *Builder {
 	return &Builder{
-		ksmBuilder: ksmbuild.NewBuilder(),
+		ksmBuilder:               ksmbuild.NewBuilder(),
+		callbackEnabledResources: make(map[string]bool),
+		eventCallbacks:           make(map[string]map[store.StoreEventType]store.StoreEventCallback),
 	}
 }
 
@@ -78,6 +86,42 @@ func (b *Builder) WithNamespaces(nss options.NamespaceList) {
 func (b *Builder) WithFamilyGeneratorFilter(l generator.FamilyGeneratorFilter) {
 	b.allowDenyList = l
 	b.ksmBuilder.WithFamilyGeneratorFilter(l)
+}
+
+// WithCallbacksForResources configures which resource types should have event callbacks enabled
+func (b *Builder) WithCallbacksForResources(resourceTypes []string) {
+	for _, resourceType := range resourceTypes {
+		b.callbackEnabledResources[resourceType] = true
+	}
+}
+
+// RegisterStoreEventCallback registers a callback for a specific resource type and event type
+func (b *Builder) RegisterStoreEventCallback(resourceType string, eventType store.StoreEventType, callback store.StoreEventCallback) {
+	b.eventMutex.Lock()
+	defer b.eventMutex.Unlock()
+
+	if b.eventCallbacks[resourceType] == nil {
+		b.eventCallbacks[resourceType] = make(map[store.StoreEventType]store.StoreEventCallback)
+	}
+	b.eventCallbacks[resourceType][eventType] = callback
+}
+
+// NotifyStoreEvent calls the registered callback for a resource type and event type
+func (b *Builder) NotifyStoreEvent(eventType store.StoreEventType, resourceType string, obj interface{}) {
+	b.eventMutex.RLock()
+	resourceCallbacks, resourceExists := b.eventCallbacks[resourceType]
+	if !resourceExists {
+		b.eventMutex.RUnlock()
+		return
+	}
+
+	callback, callbackExists := resourceCallbacks[eventType]
+	b.eventMutex.RUnlock()
+
+	if callbackExists {
+		namespace, name := store.ExtractNamespaceAndName(obj)
+		callback(eventType, resourceType, namespace, name, obj)
+	}
 }
 
 // WithFieldSelectorFilter sets the fieldSelector property of a Builder.
@@ -216,7 +260,7 @@ func GenerateStores[T any](
 	}
 
 	if b.namespaces.IsAllNamespaces() {
-		store := createStoreForType(composedMetricGenFuncs, expectedType)
+		store := b.createStoreForType(composedMetricGenFuncs, expectedType)
 
 		if isPod {
 			// Pods are handled differently because depending on the configuration
@@ -232,7 +276,7 @@ func GenerateStores[T any](
 
 	stores := make([]cache.Store, 0, len(b.namespaces))
 	for _, ns := range b.namespaces {
-		store := createStoreForType(composedMetricGenFuncs, expectedType)
+		store := b.createStoreForType(composedMetricGenFuncs, expectedType)
 		if isPod {
 			// Pods are handled differently because depending on the configuration
 			// they're collected from the API server or the Kubelet.
@@ -297,12 +341,15 @@ func (b *Builder) startReflector(
 }
 
 type cacheEnabledListerWatcher struct {
-	cache.ListerWatcher
+	lw cache.ListerWatcherWithContext
 	rv string
 }
 
-func newCacheEnabledListerWatcher(lw cache.ListerWatcher) *cacheEnabledListerWatcher {
-	return &cacheEnabledListerWatcher{ListerWatcher: lw, rv: "0"}
+func newCacheEnabledListerWatcher(lw cache.ListerWatcher) cache.ListerWatcher {
+	return &cacheEnabledListerWatcher{
+		lw: cache.ToListerWatcherWithContext(lw),
+		rv: "0",
+	}
 }
 
 // List uses `ResourceVersion` and `ResourceVersionMatch=NotOlderThan` to avoid a quorum from ETCD.
@@ -314,7 +361,7 @@ func newCacheEnabledListerWatcher(lw cache.ListerWatcher) *cacheEnabledListerWat
 func (c *cacheEnabledListerWatcher) List(options v1.ListOptions) (runtime.Object, error) {
 	options.ResourceVersion = c.rv
 	options.ResourceVersionMatch = v1.ResourceVersionMatchNotOlderThan
-	res, err := c.ListerWatcher.List(options)
+	res, err := c.lw.ListWithContext(context.TODO(), options)
 	if err == nil {
 		metadataAccessor, err := meta.ListAccessor(res)
 		if err != nil {
@@ -324,6 +371,11 @@ func (c *cacheEnabledListerWatcher) List(options v1.ListOptions) (runtime.Object
 	}
 
 	return res, err
+}
+
+// Watch simply delegates to the wrapped ListerWatcherWithContext
+func (c *cacheEnabledListerWatcher) Watch(options v1.ListOptions) (apiwatch.Interface, error) {
+	return c.lw.WatchWithContext(context.TODO(), options)
 }
 
 func handlePodCollection[T any](b *Builder, store cache.Store, client T, listWatchFunc func(kubeClient T, ns string, fieldSelector string) cache.ListerWatcher, namespace string, useAPIServerCache bool) {
@@ -456,19 +508,14 @@ func createConfigMapListWatch(metadataClient metadata.Interface, gvr schema.Grou
 	}
 }
 
-// Added this because we aren't receiving events for when a deployment or replica set is deleted
-// in the MetricFamilyGenerators.
-func createStoreForType(composedMetricGenFuncs func(interface{}) []metric.FamilyInterface, expectedType interface{}) cache.Store {
+func (b *Builder) createStoreForType(composedMetricGenFuncs func(interface{}) []metric.FamilyInterface, expectedType interface{}) cache.Store {
 	typeName := reflect.TypeOf(expectedType).String()
+	metricsStore := store.NewMetricsStore(composedMetricGenFuncs, typeName)
 
-	// Use rollout-aware stores for deployments and replica sets
-	switch typeName {
-	case "*v1.Deployment":
-		return store.NewRolloutMetricsStore(composedMetricGenFuncs, typeName, "deployments")
-	case "*v1.ReplicaSet":
-		return store.NewRolloutMetricsStore(composedMetricGenFuncs, typeName, "replicasets")
-	default:
-		// Use regular store for other types
-		return store.NewMetricsStore(composedMetricGenFuncs, typeName)
+	// Enable callbacks if this resource type is configured for them
+	if b.callbackEnabledResources[typeName] {
+		metricsStore.EnableCallbacks(b)
 	}
+
+	return metricsStore
 }

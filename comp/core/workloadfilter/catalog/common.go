@@ -9,29 +9,75 @@ package catalog
 // This file contains filter programs that can be shared across different entity types.
 
 import (
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 )
 
-// AutodiscoveryAnnotations creates a CEL program for autodiscovery annotations.
-func AutodiscoveryAnnotations() program.FilterProgram {
-	return program.AnnotationsProgram{
-		Name:          "AutodiscoveryAnnotation",
-		ExcludePrefix: "",
-	}
+// AutodiscoveryAnnotations creates an annotations program for autodiscovery
+func AutodiscoveryAnnotations(b *ProgramBuilder) program.FilterProgram {
+	return b.CreateAnnotationsProgram(workloadfilter.ContainerADAnnotations, "")
 }
 
-// AutodiscoveryMetricsAnnotations creates a CEL program for autodiscovery metrics annotations.
-func AutodiscoveryMetricsAnnotations() program.FilterProgram {
-	return program.AnnotationsProgram{
-		Name:          "AutodiscoveryMetricsAnnotations",
-		ExcludePrefix: "metrics_",
-	}
+// AutodiscoveryMetricsAnnotations creates an annotations program for metrics autodiscovery
+func AutodiscoveryMetricsAnnotations(b *ProgramBuilder) program.FilterProgram {
+	return b.CreateAnnotationsProgram(workloadfilter.ContainerADAnnotationsMetrics, "metrics_")
 }
 
-// AutodiscoveryLogsAnnotations creates a CEL program for autodiscovery logs annotations.
-func AutodiscoveryLogsAnnotations() program.FilterProgram {
-	return program.AnnotationsProgram{
-		Name:          "AutodiscoveryLogsAnnotations",
-		ExcludePrefix: "logs_",
-	}
+// AutodiscoveryLogsAnnotations creates an annotations program for logs autodiscovery
+func AutodiscoveryLogsAnnotations(b *ProgramBuilder) program.FilterProgram {
+	return b.CreateAnnotationsProgram(workloadfilter.ContainerADAnnotationsLogs, "logs_")
+}
+
+// LegacyContainerGlobalProgram creates a legacy filter program for global containerized filtering
+func LegacyContainerGlobalProgram(b *ProgramBuilder) program.FilterProgram {
+	return b.CreateLegacyProgram(
+		workloadfilter.ContainerLegacyGlobal,
+		b.config.ContainerInclude,
+		b.config.ContainerExclude,
+	)
+}
+
+// LegacyContainerMetricsProgram creates a legacy filter program for containerized metrics filtering
+func LegacyContainerMetricsProgram(b *ProgramBuilder) program.FilterProgram {
+	return b.CreateLegacyProgram(
+		workloadfilter.ContainerLegacyMetrics,
+		b.config.ContainerIncludeMetrics,
+		b.config.ContainerExcludeMetrics,
+	)
+}
+
+// LegacyContainerLogsProgram creates a legacy filter program for containerized logs filtering
+func LegacyContainerLogsProgram(b *ProgramBuilder) program.FilterProgram {
+	return b.CreateLegacyProgram(
+		workloadfilter.ContainerLegacyLogs,
+		b.config.ContainerIncludeLogs,
+		b.config.ContainerExcludeLogs,
+	)
+}
+
+// LegacyContainerACExcludeProgram creates a legacy filter program for containerized AC exclusion filtering
+func LegacyContainerACExcludeProgram(b *ProgramBuilder) program.FilterProgram {
+	return b.CreateLegacyProgram(
+		workloadfilter.ContainerLegacyACExclude,
+		nil,
+		b.config.ACExclude,
+	)
+}
+
+// LegacyContainerACIncludeProgram creates a legacy filter program for containerized AC inclusion filtering
+func LegacyContainerACIncludeProgram(b *ProgramBuilder) program.FilterProgram {
+	return b.CreateLegacyProgram(
+		workloadfilter.ContainerLegacyACInclude,
+		b.config.ACInclude,
+		nil,
+	)
+}
+
+// LegacyContainerSBOMProgram creates a legacy filter program for containerized SBOM filtering
+func LegacyContainerSBOMProgram(b *ProgramBuilder) program.FilterProgram {
+	return b.CreateLegacyProgram(
+		workloadfilter.ContainerLegacySBOM,
+		b.config.SBOMContainerInclude,
+		b.config.SBOMContainerExclude,
+	)
 }

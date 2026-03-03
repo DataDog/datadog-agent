@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
-	"github.com/DataDog/datadog-agent/pkg/security/rules/autosuppression"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/filtermodel"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
@@ -45,6 +44,9 @@ import (
 const (
 	// TagMaxResolutionDelay maximum tag resolution delay
 	TagMaxResolutionDelay = 5 * time.Second
+
+	// ContainerMaxTagResolutionDelay maximum container resolution delay
+	ContainerMaxTagResolutionDelay = 1 * time.Minute
 )
 
 // RuleEngine defines a rule engine
@@ -65,10 +67,13 @@ type RuleEngine struct {
 	statsdClient     statsd.ClientInterface
 	eventSender      events.EventSender
 	rulesetListeners []rules.RuleSetListener
-	AutoSuppression  autosuppression.AutoSuppression
 	pid              uint32
 	wg               sync.WaitGroup
 	ipc              ipc.Component
+	hostname         string
+
+	// userspace filtering metrics (avoid statsd calls in event hot path)
+	noMatchCounters []atomic.Uint64
 }
 
 // APIServer defines the API server
@@ -79,7 +84,7 @@ type APIServer interface {
 }
 
 // NewRuleEngine returns a new rule engine
-func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, probe *probe.Probe, rateLimiter *events.RateLimiter, apiServer APIServer, sender events.EventSender, statsdClient statsd.ClientInterface, ipc ipc.Component, rulesetListeners ...rules.RuleSetListener) (*RuleEngine, error) {
+func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, probe *probe.Probe, rateLimiter *events.RateLimiter, apiServer APIServer, sender events.EventSender, statsdClient statsd.ClientInterface, hostname string, ipc ipc.Component, rulesetListeners ...rules.RuleSetListener) (*RuleEngine, error) {
 	engine := &RuleEngine{
 		probe:            probe,
 		config:           config,
@@ -93,16 +98,11 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 		statsdClient:     statsdClient,
 		rulesetListeners: rulesetListeners,
 		pid:              utils.Getpid(),
+		hostname:         hostname,
 		ipc:              ipc,
 	}
 
-	engine.AutoSuppression.Init(autosuppression.Opts{
-		SecurityProfileEnabled:                config.SecurityProfileEnabled,
-		SecurityProfileAutoSuppressionEnabled: config.SecurityProfileAutoSuppressionEnabled,
-		ActivityDumpEnabled:                   config.ActivityDumpEnabled,
-		ActivityDumpAutoSuppressionEnabled:    config.ActivityDumpAutoSuppressionEnabled,
-		EventTypes:                            config.SecurityProfileAutoSuppressionEventTypes,
-	})
+	engine.noMatchCounters = make([]atomic.Uint64, model.MaxAllEventType)
 
 	// register as event handler
 	if err := probe.AddEventHandler(engine); err != nil {
@@ -112,6 +112,27 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 	engine.policyProviders = engine.gatherDefaultPolicyProviders()
 
 	return engine, nil
+}
+
+// SendStats flushes per-event counters as metrics
+func (e *RuleEngine) SendStats() {
+	if e.statsdClient == nil || len(e.noMatchCounters) == 0 {
+		return
+	}
+
+	for i := range e.noMatchCounters {
+		value := e.noMatchCounters[i].Swap(0)
+		if value == 0 {
+			continue
+		}
+
+		eventType := model.EventType(i).String()
+		tags := []string{
+			"event_type:" + eventType,
+			"category:" + model.GetEventTypeCategory(eventType).String(),
+		}
+		_ = e.statsdClient.Count(metrics.MetricRulesNoMatch, int64(value), tags, 1.0)
+	}
 }
 
 // Start the rule engine
@@ -142,7 +163,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 		COREEnabled: e.probe.Config.Probe.EnableCORE,
 		Origin:      e.probe.Origin(),
 	}
-	ruleFilterModel, err := filtermodel.NewRuleFilterModel(rfmCfg, e.ipc)
+	ruleFilterModel, err := filtermodel.NewRuleFilterModel(rfmCfg, e.hostname)
 	if err != nil {
 		return fmt.Errorf("failed to create rule filter: %w", err)
 	}
@@ -261,8 +282,8 @@ func (e *RuleEngine) StartRunningMetrics(ctx context.Context) {
 				return
 			case <-heartbeatTicker.C:
 				tags := []string{
-					fmt.Sprintf("version:%s", version.AgentVersion),
-					fmt.Sprintf("os:%s", runtime.GOOS),
+					"version:" + version.AgentVersion,
+					"os:" + runtime.GOOS,
 					constants.CardinalityTagPrefix + "none",
 				}
 
@@ -291,7 +312,7 @@ func (e *RuleEngine) StartRunningMetrics(ctx context.Context) {
 
 				e.RLock()
 				for _, version := range e.policiesVersions {
-					tags = append(tags, fmt.Sprintf("policies_version:%s", version))
+					tags = append(tags, "policies_version:"+version)
 				}
 				e.RUnlock()
 
@@ -358,7 +379,7 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	ruleIDs = append(ruleIDs, events.AllCustomRuleIDs()...)
 
 	// analyze the ruleset, push probe evaluation rule sets to the kernel and generate the policy report
-	filterReport, err := e.probe.ApplyRuleSet(rs)
+	filterReport, replayEvents, err := e.probe.ApplyRuleSet(rs)
 	if err != nil {
 		return err
 	}
@@ -381,8 +402,9 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	// set the rate limiters on sending events to the backend
 	e.rateLimiter.Apply(rs, events.AllCustomRuleIDs())
 
-	// update the stats of auto-suppression rules
-	e.AutoSuppression.Apply(rs)
+	if replayEvents {
+		e.probe.ReplayEvents()
+	}
 
 	e.notifyAPIServer(ruleIDs, policies)
 
@@ -399,9 +421,32 @@ func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor
 	e.apiServer.ApplyPolicyStates(policies)
 }
 
-func (e *RuleEngine) getCommonSECLVariables(rs *rules.RuleSet) map[string]*api.SECLVariableState {
-	var seclVariables = make(map[string]*api.SECLVariableState)
-	for name, value := range rs.GetVariables() {
+type seclVariableEventPreparator struct {
+	ctxPool *eval.ContextPool
+	event   *model.Event
+}
+
+func (e *RuleEngine) newSECLVariableEventPreparator() *seclVariableEventPreparator {
+	return &seclVariableEventPreparator{
+		ctxPool: eval.NewContextPool(),
+		event:   e.probe.PlatformProbe.NewEvent(),
+	}
+}
+
+var eventZeroer = model.NewEventZeroer()
+
+func (p *seclVariableEventPreparator) get(f func(event *model.Event)) *eval.Context {
+	eventZeroer(p.event)
+	f(p.event)
+	return p.ctxPool.Get(p.event)
+}
+
+func (p *seclVariableEventPreparator) put(ctx *eval.Context) {
+	p.ctxPool.Put(ctx)
+}
+
+func (e *RuleEngine) fillCommonSECLVariables(rsVariables map[string]eval.SECLVariable, seclVariables map[string]*api.SECLVariableState, preparator *seclVariableEventPreparator) {
+	for name, value := range rsVariables {
 		if strings.HasPrefix(name, "process.") {
 			scopedVariable := value.(eval.ScopedVariable)
 			if !scopedVariable.IsMutable() {
@@ -409,18 +454,17 @@ func (e *RuleEngine) getCommonSECLVariables(rs *rules.RuleSet) map[string]*api.S
 			}
 
 			e.probe.Walk(func(entry *model.ProcessCacheEntry) {
-				entry.Retain()
-				defer entry.Release()
+				ctx := preparator.get(func(event *model.Event) {
+					event.ProcessCacheEntry = entry
+				})
+				defer preparator.put(ctx)
 
-				event := e.probe.PlatformProbe.NewEvent()
-				event.ProcessCacheEntry = entry
-				ctx := eval.NewContext(event)
-				scopedName := fmt.Sprintf("%s.%d", name, entry.Pid)
-				value, found := scopedVariable.GetValue(ctx)
+				value, found := scopedVariable.GetValue(ctx, true) // for status, let's not follow inheritance
 				if !found {
 					return
 				}
 
+				scopedName := fmt.Sprintf("%s.%d", name, entry.Pid)
 				scopedValue := fmt.Sprintf("%+v", value)
 				seclVariables[scopedName] = &api.SECLVariableState{
 					Name:  scopedName,
@@ -441,7 +485,6 @@ func (e *RuleEngine) getCommonSECLVariables(rs *rules.RuleSet) map[string]*api.S
 			}
 		}
 	}
-	return seclVariables
 }
 
 func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
@@ -491,13 +534,9 @@ func (e *RuleEngine) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, fi
 func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.Event) bool {
 	ev := event.(*model.Event)
 
-	// add matched rules before any auto suppression check to ensure that this information is available in activity dumps
-	if ev.ContainerContext.ContainerID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
+	// add matched rules to ensure that this information is available in activity dumps
+	if ev.ProcessContext.Process.ContainerContext.ContainerID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
 		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Def.ID, rule.Def.Version, rule.Def.Tags, rule.Policy.Name, rule.Policy.Version))
-	}
-
-	if e.AutoSuppression.Suppresses(rule, ev) {
-		return false
 	}
 
 	e.probe.HandleActions(rule, event)
@@ -507,9 +546,7 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 	}
 
 	// ensure that all the fields are resolved before sending
-	ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext)
-	ev.FieldHandlers.ResolveContainerTags(ev, ev.ContainerContext)
-	ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.ContainerContext)
+	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ProcessContext.Process.ContainerContext)
 
 	// do not send event if a anomaly detection event will be sent
 	if e.config.AnomalyDetectionSilentRuleEventsEnabled && ev.IsAnomalyDetectionEvent() {
@@ -522,12 +559,13 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 
 	var extTagsCb func() ([]string, bool)
 
-	if ev.ContainerContext.ContainerID != "" {
+	if !ev.ProcessContext.Process.ContainerContext.IsNull() {
 		// copy the container ID here to avoid later data race
-		containerID := ev.ContainerContext.ContainerID
+		containerID := ev.ProcessContext.Process.ContainerContext.ContainerID
+		retryable := time.Since(ev.ProcessContext.Process.ContainerContext.UnixCreatedAt()) < ContainerMaxTagResolutionDelay
 
 		extTagsCb = func() ([]string, bool) {
-			return e.probe.GetEventTags(containerID), true
+			return e.probe.GetEventTags(containerID), retryable
 		}
 	}
 
@@ -566,17 +604,19 @@ func (e *RuleEngine) getEventTypeEnabled() map[eval.EventType]bool {
 		}
 	}
 
-	if e.probe.IsNetworkEnabled() {
-		if eventTypes, exists := categories[model.NetworkCategory]; exists {
-			for _, eventType := range eventTypes {
-				switch eventType {
-				case model.RawPacketFilterEventType.String():
-					enabled[eventType] = e.probe.IsNetworkRawPacketEnabled()
-				case model.RawPacketActionEventType.String():
-					enabled[eventType] = e.probe.IsNetworkRawPacketEnabled()
-				case model.NetworkFlowMonitorEventType.String():
-					enabled[eventType] = e.probe.IsNetworkFlowMonitorEnabled()
-				default:
+	if eventTypes, exists := categories[model.NetworkCategory]; exists {
+		for _, eventType := range eventTypes {
+			switch eventType {
+			case model.RawPacketFilterEventType.String():
+				enabled[eventType] = e.probe.IsNetworkRawPacketEnabled()
+			case model.RawPacketActionEventType.String():
+				enabled[eventType] = e.probe.IsNetworkRawPacketEnabled()
+			case model.NetworkFlowMonitorEventType.String():
+				enabled[eventType] = e.probe.IsNetworkFlowMonitorEnabled()
+			default:
+				if model.EventTypeDependsOnInterfaceTracking(eventType) {
+					enabled[eventType] = e.probe.IsNetworkEnabled()
+				} else {
 					enabled[eventType] = true
 				}
 			}
@@ -633,6 +673,10 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 
 	if ruleSet := e.GetRuleSet(); ruleSet != nil {
 		if !ruleSet.Evaluate(event) {
+			evtType := int(event.GetEventType())
+			if evtType >= 0 && evtType < len(e.noMatchCounters) {
+				e.noMatchCounters[evtType].Inc()
+			}
 			ruleSet.EvaluateDiscarders(event)
 		}
 	}

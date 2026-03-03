@@ -12,18 +12,15 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/prometheus/common/model"
-
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	typedef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def/proto"
 	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
 
 var (
@@ -68,7 +65,7 @@ func (p *PodUtils) Reset() {
 }
 
 // PopulateForPod generates the PodUtils entries for a given pod.
-func (p *PodUtils) PopulateForPod(pod *kubelet.Pod) {
+func (p *PodUtils) PopulateForPod(pod *workloadmeta.KubernetesPod) {
 	if pod == nil {
 		return
 	}
@@ -77,11 +74,11 @@ func (p *PodUtils) PopulateForPod(pod *kubelet.Pod) {
 	p.computePodTagsByPVC(pod)
 
 	// populate the pod metadata
-	isHostNetworked := pod.Spec.HostNetwork
-	isStaticPending := pod.Metadata.Annotations != nil &&
-		pod.Metadata.Annotations["kubernetes.io/config.source"] != "api" &&
-		pod.Status.Phase == "Pending" && pod.Status.Containers == nil
-	p.podMetadata[pod.Metadata.UID] = &podMetadata{
+	isHostNetworked := pod.HostNetwork
+	isStaticPending := pod.Annotations != nil &&
+		pod.Annotations["kubernetes.io/config.source"] != "api" &&
+		pod.Phase == "Pending" && len(pod.ContainerStatuses) == 0
+	p.podMetadata[pod.ID] = &podMetadata{
 		isHostNetworked: isHostNetworked,
 		isStaticPending: isStaticPending,
 	}
@@ -89,14 +86,14 @@ func (p *PodUtils) PopulateForPod(pod *kubelet.Pod) {
 
 // computePodTagsByPVC stores the tags for a given pod in a global caching layer, indexed by pod namespace and persistent
 // volume name.
-func (p *PodUtils) computePodTagsByPVC(pod *kubelet.Pod) {
-	podUID := types.NewEntityID(types.KubernetesPodUID, pod.Metadata.UID)
+func (p *PodUtils) computePodTagsByPVC(pod *workloadmeta.KubernetesPod) {
+	podUID := types.NewEntityID(types.KubernetesPodUID, pod.ID)
 	tags, _ := p.tagger.Tag(podUID, types.OrchestratorCardinality)
 	if len(tags) == 0 {
 		return
 	}
 
-	var filteredTags []string
+	filteredTags := make([]string, 0, len(tags))
 	for t := range tags {
 		omitTag := false
 		for i := range volumeTagKeysToExclude {
@@ -110,11 +107,11 @@ func (p *PodUtils) computePodTagsByPVC(pod *kubelet.Pod) {
 		}
 	}
 
-	for _, v := range pod.Spec.Volumes {
+	for _, v := range pod.Volumes {
 		if v.PersistentVolumeClaim != nil {
 			pvcName := v.PersistentVolumeClaim.ClaimName
 			if pvcName != "" {
-				p.podTagsByPVC[fmt.Sprintf("%s/%s", pod.Metadata.Namespace, pvcName)] = filteredTags
+				p.podTagsByPVC[pod.Namespace+"/"+pvcName] = filteredTags
 			}
 		}
 
@@ -122,10 +119,9 @@ func (p *PodUtils) computePodTagsByPVC(pod *kubelet.Pod) {
 		// when a generic ephemeral volume is created, an associated pvc named <pod_name>-<volume_name>
 		// is created (https://docs.openshift.com/container-platform/4.11/storage/generic-ephemeral-vols.html).
 		if v.Ephemeral != nil {
-			ephemeral := v.Ephemeral.VolumeClaimTemplate
 			volumeName := v.Name
-			if ephemeral != nil && volumeName != "" {
-				p.podTagsByPVC[fmt.Sprintf("%s/%s-%s", pod.Metadata.Namespace, pod.Metadata.Name, volumeName)] = filteredTags
+			if volumeName != "" {
+				p.podTagsByPVC[fmt.Sprintf("%s/%s-%s", pod.Namespace, pod.Name, volumeName)] = filteredTags
 			}
 		}
 	}
@@ -133,7 +129,7 @@ func (p *PodUtils) computePodTagsByPVC(pod *kubelet.Pod) {
 
 // GetPodTagsByPVC returns the computed pod tags for a PVC with a given name in a given namespace.
 func (p *PodUtils) GetPodTagsByPVC(namespace, pvcName string) []string {
-	return p.podTagsByPVC[fmt.Sprintf("%s/%s", namespace, pvcName)]
+	return p.podTagsByPVC[namespace+"/"+pvcName]
 }
 
 // IsStaticPendingPod returns whether the pod with the given UID is a static pending pod or not, or returns false
@@ -157,18 +153,18 @@ func (p *PodUtils) IsHostNetworkedPod(podUID string) bool {
 // GetContainerID returns the container ID from the workloadmeta.Component for a given set of metric labels.
 // It should only be called on a container-scoped metric. It returns an empty string if the container could not be
 // found, or if the container should be filtered out.
-func GetContainerID(store workloadmeta.Component, metric model.Metric, filterStore workloadfilter.Component) (string, error) {
-	namespace := string(metric["namespace"])
-	podUID := string(metric["pod_uid"])
+func GetContainerID(store workloadmeta.Component, metric prometheus.Metric, containerFilter workloadfilter.FilterBundle) (string, error) {
+	namespace := metric["namespace"]
+	podUID := metric["pod_uid"]
 	// k8s >= 1.16
-	containerName := string(metric["container"])
-	podName := string(metric["pod"])
+	containerName := metric["container"]
+	podName := metric["pod"]
 	// k8s < 1.16
 	if containerName == "" {
-		containerName = string(metric["container_name"])
+		containerName = metric["container_name"]
 	}
 	if podName == "" {
-		podName = string(metric["pod_name"])
+		podName = metric["pod_name"]
 	}
 
 	pod, err := store.GetKubernetesPod(podUID)
@@ -194,56 +190,11 @@ func GetContainerID(store workloadmeta.Component, metric model.Metric, filterSto
 	}
 
 	filterableContainer := workloadmetafilter.CreateContainerFromOrch(container, workloadmetafilter.CreatePod(pod))
-	selectedFilters := filterStore.GetContainerSharedMetricFilters()
-	if filterStore.IsContainerExcluded(filterableContainer, selectedFilters) {
+	if containerFilter.IsExcluded(filterableContainer) {
 		return "", ErrContainerExcluded
 	}
 
 	return container.ID, nil
-}
-
-// CreateFilterableContainerFromStatus creates a Filterable Container object from a kubelet.ContainerStatus and an owner.
-func CreateFilterableContainerFromStatus(cStatus kubelet.ContainerStatus, owner workloadfilter.Filterable) *workloadfilter.Container {
-	c := &typedef.FilterContainer{
-		Id:    cStatus.ID,
-		Name:  cStatus.Name,
-		Image: cStatus.Image,
-	}
-
-	switch o := owner.(type) {
-	case *workloadfilter.Pod:
-		if o != nil && o.FilterPod != nil {
-			c.Owner = &typedef.FilterContainer_Pod{
-				Pod: o.FilterPod,
-			}
-		}
-	}
-
-	return &workloadfilter.Container{
-		FilterContainer: c,
-		Owner:           owner,
-	}
-}
-
-// CreateFilterablePodFromKubelet creates a Filterable Pod object from a kubelet.Pod.
-func CreateFilterablePodFromKubelet(pod *kubelet.Pod) *workloadfilter.Pod {
-	if pod == nil {
-		return nil
-	}
-
-	p := &typedef.FilterPod{
-		Id:        pod.Metadata.UID,
-		Name:      pod.Metadata.Name,
-		Namespace: pod.Metadata.Namespace,
-	}
-
-	if pod.Metadata.Annotations != nil {
-		p.Annotations = pod.Metadata.Annotations
-	}
-
-	return &workloadfilter.Pod{
-		FilterPod: p,
-	}
 }
 
 // AppendKubeStaticCPUsTag accepts a list of tags and returns

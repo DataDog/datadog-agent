@@ -7,18 +7,5 @@
 
 package module
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
-)
-
-// CheckForUpdates is a test helper that calls the private method
-// checkForUpdates.
-func (c *Controller) CheckForUpdates() {
-	c.checkForUpdates()
-}
-
-// HandleRemovals is a test helper that calls the private method
-// handleRemovals.
-func (c *Controller) HandleRemovals(removals []procmon.ProcessID) {
-	c.handleRemovals(removals)
-}
+// NewUnstartedModule exports newUnstartedModule for testing purposes.
+var NewUnstartedModule = newUnstartedModule

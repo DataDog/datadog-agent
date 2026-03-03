@@ -388,7 +388,7 @@ This indicates an issue with the dynamic test system that may affect CI performa
         for test in current_job_tests:
             if test.name not in indexed_tests:
                 continue
-            if test.status == "failed" and not test.unreliable_status and test.name not in predicted_executed_tests:
+            if test.status == "fail" and not test.unreliable_status and test.name not in predicted_executed_tests:
                 not_executed_failing_tests.add(test.name)
 
         return EvaluationResult(job, actual_executed_tests, predicted_executed_tests, not_executed_failing_tests)
@@ -431,7 +431,7 @@ class DatadogDynTestEvaluator(DynTestEvaluator):
         """
         escaped_job_name = job_name.replace('"', '\\"')
         events = get_ci_test_events(
-            f'@ci.pipeline.name:DataDog/datadog-agent @ci.pipeline.id:{self.pipeline_id} @ci.job.name:"{escaped_job_name}"',
+            f'env:prod @ci.pipeline.name:DataDog/datadog-agent @ci.pipeline.id:{self.pipeline_id} @ci.job.name:"{escaped_job_name}"',
             3,
         )
 
@@ -446,6 +446,7 @@ class DatadogDynTestEvaluator(DynTestEvaluator):
             # Only consider root tests, not sub-tests
             if not test_attrs.get("name") or len(test_attrs.get("name").split("/")) > 1:
                 continue
+
             tests.append(
                 ExecutedTest(
                     name=test_attrs.get("name"),

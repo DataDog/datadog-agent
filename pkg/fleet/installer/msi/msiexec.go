@@ -26,10 +26,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/cenkalti/backoff/v5"
 	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
 // MsiexecError provides the processed log file content and the underlying error.
@@ -130,14 +131,14 @@ func WithMsi(target string) MsiexecOption {
 func WithMsiFromPackagePath(target, product string) MsiexecOption {
 	return func(a *msiexecArgs) error {
 		updaterPath := filepath.Join(paths.PackagesPath, product, target)
-		msis, err := filepath.Glob(filepath.Join(updaterPath, fmt.Sprintf("%s-*-1-x86_64.msi", product)))
+		msis, err := filepath.Glob(filepath.Join(updaterPath, product+"-*-1-x86_64.msi"))
 		if err != nil {
 			return err
 		}
 		if len(msis) > 1 {
-			return fmt.Errorf("too many MSIs in package")
+			return errors.New("too many MSIs in package")
 		} else if len(msis) == 0 {
-			return fmt.Errorf("no MSIs in package")
+			return errors.New("no MSIs in package")
 		}
 		a.target = msis[0]
 		return nil
@@ -434,6 +435,17 @@ func (m *Msiexec) Run(ctx context.Context) error {
 				var msiError *MsiexecError
 				if errors.As(err, &msiError) {
 					span.SetTag("log", msiError.ProcessedLog)
+					// Check if logfile is empty
+					logFileInfo, logFileStatErr := os.Stat(m.args.logFile)
+					var isLogEmpty bool
+					if logFileStatErr != nil {
+						isLogEmpty = true
+					} else {
+						isLogEmpty = logFileInfo.Size() == 0
+					}
+					span.SetTag("is_log_empty", isLogEmpty)
+					// collect product codes and features for the Datadog Agent
+					setProductCodeTags(span)
 				}
 			}
 			span.Finish(err)
@@ -497,7 +509,7 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 		}
 	}
 	if a.msiAction == "" || a.target == "" {
-		return nil, fmt.Errorf("argument error")
+		return nil, errors.New("argument error")
 	}
 	cmd := &Msiexec{
 		args: a,
@@ -584,4 +596,35 @@ func formatPropertyArg(key, value string) string {
 	// https://learn.microsoft.com/en-us/windows/win32/msi/command-line-options
 	escaped := strings.ReplaceAll(value, `"`, `""`)
 	return fmt.Sprintf(`%s="%s"`, key, escaped)
+}
+
+func setProductCodeTags(span *telemetry.Span) {
+	// Get all product codes associated with "Datadog Agent" display name
+	products, err := FindAllProductCodes("Datadog Agent")
+	if err != nil {
+		span.SetTag("installer.msi.product_codes", fmt.Sprintf("error getting product codes: %v", err))
+	} else {
+		productCodes := []string{}
+		features := []string{}
+		for _, product := range products {
+			productCodes = append(productCodes, product.Code)
+			if len(product.Features) > 0 {
+				features = append(features, "{"+strings.Join(product.Features, ",")+"}")
+			} else {
+				features = append(features, "{}")
+			}
+		}
+		span.SetTag("installer.msi.product_codes", strings.Join(productCodes, ";"))
+		span.SetTag("installer.msi.features", strings.Join(features, ";"))
+	}
+	uninstallProducts, err := FindUninstallProductCodes("Datadog Agent")
+	if err != nil {
+		span.SetTag("installer.uninstall_product_codes", fmt.Sprintf("error getting uninstall product codes: %v", err))
+	} else {
+		uninstallProductCodes := []string{}
+		for _, product := range uninstallProducts {
+			uninstallProductCodes = append(uninstallProductCodes, product.Code)
+		}
+		span.SetTag("installer.uninstall_product_codes", strings.Join(uninstallProductCodes, ";"))
+	}
 }

@@ -12,11 +12,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/mohae/deepcopy"
 	"github.com/spf13/cast"
 )
 
-func (c *ntmConfig) leafAtPath(key string) LeafNode {
+func (c *ntmConfig) leafAtPath(key string) *nodeImpl {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		log.Errorf("attempt to read key before config is constructed: %s", key)
 		return missingLeaf
@@ -38,8 +37,8 @@ func (c *ntmConfig) GetKnownKeysLowercased() map[string]interface{} {
 	// GetKnownKeysLowercased returns a fresh map, so the caller may do with it
 	// as they please without holding the lock.
 	ret := make(map[string]interface{})
-	for key, value := range c.knownKeys {
-		ret[key] = value
+	for key := range c.knownKeys {
+		ret[key] = struct{}{}
 	}
 	return ret
 }
@@ -52,6 +51,11 @@ func (c *ntmConfig) GetEnvVars() []string {
 	for _, v := range c.configEnvVars {
 		vars = append(vars, v...)
 	}
+
+	// Removing duplicate as multiple setting can use the same env var.
+	// Example: "site" and "system_probe_config.internal_profiling.site" both use "DD_SITE".
+	slices.Sort(vars)
+	vars = slices.Compact(vars)
 	return vars
 }
 
@@ -81,103 +85,52 @@ func (c *ntmConfig) GetProxies() *model.Proxy {
 	return c.proxies
 }
 
-func (c *ntmConfig) inferTypeFromDefault(key string, value interface{}) (interface{}, error) {
-	// Viper infer the type from the default value for Get. This reproduce the same behavior.
-	// Once all settings have a default value we could move this logic where we load data into the config rather
-	// than out.
-	defaultNode := c.leafAtPathFromNode(key, c.defaults)
-	if defaultNode != missingLeaf {
-		switch defaultNode.Get().(type) {
-		case bool:
-			return cast.ToBoolE(value)
-		case string:
-			return cast.ToStringE(value)
-		case int32, int16, int8, int:
-			return cast.ToIntE(value)
-		case int64:
-			return cast.ToInt64E(value)
-		case float64, float32:
-			return cast.ToFloat64E(value)
-		case time.Time:
-			return cast.ToTimeE(value)
-		case time.Duration:
-			return cast.ToDurationE(value)
-		case []string:
-			return cast.ToStringSliceE(value)
-		}
-	}
-
-	// if we don't have a default and the value is a map[interface{}]interface{} we try to cast is as a
-	// map[string]interface{}. This mimic the behavior from viper that default to that type.
-	//
-	// TODO: once all settings in the config have a default value we can remove this logic
-	if m, ok := value.(map[interface{}]interface{}); ok {
-		res := map[string]interface{}{}
-
-		for k, v := range m {
-			if keyString, ok := k.(string); ok {
-				res[keyString] = deepcopy.Copy(v)
-			} else {
-				goto simplyCopy
-			}
-		}
-		return res, nil
-	}
-
-	// NOTE: should only need to deepcopy for `Get`, because it can be an arbitrary value,
-	// and we shouldn't ever return complex types like maps and slices that could be modified
-	// by callers accidentally or on purpose. By copying, the caller may modify the result safetly
-simplyCopy:
-	return deepcopy.Copy(value), nil
-}
-
 func (c *ntmConfig) getNodeValue(key string) interface{} {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		log.Errorf("attempt to read key before config is constructed: %s", key)
 		return ""
 	}
-	c.maybeRebuild()
 
 	node := c.nodeAtPathFromNode(key, c.root)
 
-	if leaf, ok := node.(LeafNode); ok {
-		return leaf.Get()
+	if node.IsLeafNode() {
+		return node.Get()
 	}
 
 	// When querying an InnerNode we convert it as a map[string]interface{} to mimic Viper's logic
-	var converter func(node InnerNode) map[string]interface{}
-	converter = func(node InnerNode) map[string]interface{} {
+	var converter func(node *nodeImpl) map[string]interface{}
+	converter = func(node *nodeImpl) map[string]interface{} {
 		res := map[string]interface{}{}
 		for _, name := range node.ChildrenKeys() {
 			child, _ := node.GetChild(name)
 
-			if leaf, ok := child.(LeafNode); ok {
-				res[name] = leaf.Get()
+			if child.IsLeafNode() {
+				res[name] = child.Get()
 			} else {
-				res[name] = converter(child.(InnerNode))
+				res[name] = converter(child)
 			}
 		}
 		return res
 	}
 
-	return converter(node.(InnerNode))
+	return converter(node)
 }
 
 // Get returns a copy of the value for the given key
 func (c *ntmConfig) Get(key string) interface{} {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
 
-	val, err := c.inferTypeFromDefault(key, c.getNodeValue(key))
-	if err != nil {
-		log.Warnf("failed to get configuration value for key %q: %s", key, err)
-	}
-	return val
+	return copyIfNeeded(c.getNodeValue(key))
 }
 
 // GetAllSources returns all values for a key for each source in sorted from lower to higher priority
 func (c *ntmConfig) GetAllSources(key string) []model.ValueWithSource {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -196,6 +149,8 @@ func (c *ntmConfig) GetAllSources(key string) []model.ValueWithSource {
 
 // GetString returns a string-typed value for the given key
 func (c *ntmConfig) GetString(key string) string {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -208,6 +163,8 @@ func (c *ntmConfig) GetString(key string) string {
 
 // GetBool returns a bool-typed value for the given key
 func (c *ntmConfig) GetBool(key string) bool {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -220,6 +177,8 @@ func (c *ntmConfig) GetBool(key string) bool {
 
 // GetInt returns an int-typed value for the given key
 func (c *ntmConfig) GetInt(key string) int {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -232,6 +191,8 @@ func (c *ntmConfig) GetInt(key string) int {
 
 // GetInt32 returns an int32-typed value for the given key
 func (c *ntmConfig) GetInt32(key string) int32 {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -244,6 +205,8 @@ func (c *ntmConfig) GetInt32(key string) int32 {
 
 // GetInt64 returns an int64-typed value for the given key
 func (c *ntmConfig) GetInt64(key string) int64 {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -256,6 +219,8 @@ func (c *ntmConfig) GetInt64(key string) int64 {
 
 // GetFloat64 returns a float64-typed value for the given key
 func (c *ntmConfig) GetFloat64(key string) float64 {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -268,6 +233,8 @@ func (c *ntmConfig) GetFloat64(key string) float64 {
 
 // GetFloat64 returns a float64-typed value for the given key
 func (c *ntmConfig) GetFloat64Slice(key string) []float64 {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -291,6 +258,8 @@ func (c *ntmConfig) GetFloat64Slice(key string) []float64 {
 
 // GetDuration returns a duration-typed value for the given key
 func (c *ntmConfig) GetDuration(key string) time.Duration {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -303,6 +272,8 @@ func (c *ntmConfig) GetDuration(key string) time.Duration {
 
 // GetStringSlice returns a string slice value for the given key
 func (c *ntmConfig) GetStringSlice(key string) []string {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -315,6 +286,8 @@ func (c *ntmConfig) GetStringSlice(key string) []string {
 
 // GetStringMap returns a map[string]interface value for the given key
 func (c *ntmConfig) GetStringMap(key string) map[string]interface{} {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -327,6 +300,8 @@ func (c *ntmConfig) GetStringMap(key string) map[string]interface{} {
 
 // GetStringMapString returns a map[string]string value for the given key
 func (c *ntmConfig) GetStringMapString(key string) map[string]string {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -339,6 +314,8 @@ func (c *ntmConfig) GetStringMapString(key string) map[string]string {
 
 // GetStringMapStringSlice returns a map[string][]string value for the given key
 func (c *ntmConfig) GetStringMapStringSlice(key string) map[string][]string {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -361,8 +338,14 @@ func (c *ntmConfig) GetSizeInBytes(key string) uint {
 
 // GetSource returns the source of the given key
 func (c *ntmConfig) GetSource(key string) model.Source {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	return c.leafAtPath(key).Source()
+	leaf := c.leafAtPath(key)
+	if leaf == missingLeaf {
+		return model.SourceUnknown
+	}
+	return leaf.Source()
 }

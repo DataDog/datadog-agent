@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package utils
 
@@ -118,8 +117,8 @@ func NewMemoryMonitor(kind string, containerized bool, pressureLevels map[string
 
 		var memoryMonitor memorymonitor.MemoryMonitor
 		threshold = strings.TrimSpace(threshold)
-		if strings.HasSuffix(threshold, "%") {
-			percentage, err := strconv.Atoi(strings.TrimSuffix(threshold, "%"))
+		if before, ok := strings.CutSuffix(threshold, "%"); ok {
+			percentage, err := strconv.Atoi(before)
 			if err != nil {
 				return nil, fmt.Errorf("invalid memory threshold '%s': %w", threshold, err)
 			}

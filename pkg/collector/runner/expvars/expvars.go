@@ -14,6 +14,7 @@ import (
 	"github.com/mohae/deepcopy"
 
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
@@ -21,7 +22,7 @@ import (
 )
 
 const (
-	// Top-level expvar (the convention for them is that they are lowercase)
+	// runnerExpvarKey - the top-level key for the runner expvars
 	runnerExpvarKey = "runner"
 
 	// Nested keys
@@ -112,6 +113,7 @@ func AddCheckStats(c check.Check,
 	warnings []error,
 	mStats checkstats.SenderStats,
 	haagent haagent.Component,
+	healthPlatform healthplatform.Component,
 ) {
 
 	var s *checkstats.Stats
@@ -130,7 +132,7 @@ func AddCheckStats(c check.Check,
 
 	s, found = stats[c.ID()]
 	if !found {
-		s = checkstats.NewStats(c)
+		s = checkstats.NewStats(c, healthPlatform)
 		stats[c.ID()] = s
 	}
 
@@ -256,4 +258,9 @@ func GetErrorsCount() int64 {
 		return 0
 	}
 	return count.(*expvar.Int).Value()
+}
+
+// GetRunner returns the runner expvar Map
+func GetRunner() *expvar.Map {
+	return expvar.Get(runnerExpvarKey).(*expvar.Map)
 }

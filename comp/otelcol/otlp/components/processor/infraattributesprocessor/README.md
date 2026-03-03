@@ -106,7 +106,7 @@ env:
       deployment.environment=$(OTEL_K8S_NAMESPACE)
 ```
 
-If you are using OTel SDK auto-instrumentation, `container.id` and `process.pid` will be automatically set by your SDK.
+When using OTel SDK auto-instrumentation, some SDKs automatically set `container.id` and `process.pid`, while others may require manual configuration..
 
 ### Collector Configuration
 
@@ -179,10 +179,6 @@ config:
       detectors: [env, eks, ec2, system]
       timeout: 2s
       override: false
-    batch:
-      send_batch_max_size: 1000
-      send_batch_size: 100
-      timeout: 10s
   exporters:
     datadog:
       api:
@@ -190,19 +186,21 @@ config:
         key: ${env:DD_API_KEY}
       traces:
         trace_buffer: 500
+      sending_queue:
+        batch:
   service:
     pipelines:
       metrics:
         receivers: [otlp]
-        processors: [batch, resourcedetection, k8sattributes]
+        processors: [resourcedetection, k8sattributes]
         exporters: [datadog]
       traces:
         receivers: [otlp]
-        processors: [batch, resourcedetection, k8sattributes]
+        processors: [resourcedetection, k8sattributes]
         exporters: [datadog]
       logs:
         receivers: [otlp]
-        processors: [batch, resourcedetection, k8sattributes]
+        processors: [resourcedetection, k8sattributes]
         exporters: [datadog]
 ```
 

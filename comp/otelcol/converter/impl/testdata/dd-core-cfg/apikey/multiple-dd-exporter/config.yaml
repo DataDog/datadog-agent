@@ -15,11 +15,11 @@ processors:
 
 exporters:
   datadog:
-    api: 
+    api:
       key:
       site: datadoghq.com
   datadog/2:
-    api: 
+    api:
       key:
       site: datadoghq.com
 
@@ -29,9 +29,10 @@ extensions:
   zpages/user-defined:
     endpoint: "localhost:55679"
   ddflare/user-defined:
+  datadog/user-defined:
 
 service:
-  extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, ddflare/user-defined]
+  extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, ddflare/user-defined, datadog/user-defined]
   pipelines:
     traces:
       receivers: [otlp]

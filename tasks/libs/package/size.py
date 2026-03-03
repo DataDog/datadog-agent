@@ -128,7 +128,6 @@ def compute_package_size_metrics(
     flavor: str,
     package_os: str,
     package_path: str,
-    major_version: str,
     git_ref: str,
     bucket_branch: str,
     arch: str,
@@ -154,7 +153,7 @@ def compute_package_size_metrics(
         common_tags = [
             f"os:{package_os}",
             f"package:datadog-{flavor}",
-            f"agent:{major_version}",
+            "agent:7",
             f"git_ref:{git_ref}",
             f"bucket_branch:{bucket_branch}",
             f"arch:{arch}",

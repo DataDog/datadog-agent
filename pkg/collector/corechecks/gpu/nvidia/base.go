@@ -9,6 +9,7 @@ package nvidia
 
 import (
 	"fmt"
+
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/hashicorp/go-multierror"
 )

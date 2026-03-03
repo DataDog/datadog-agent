@@ -88,7 +88,7 @@
   =======
   {{- range .Tailers }}
 
-    - ID: {{ .Id }}
+    - ID: {{ .ID }}
       Type: {{ .Type }}
       {{- if .Info }}
       {{- range $key, $value := .Info }} {{ $len := len $value }} {{ if eq $len 1 }}

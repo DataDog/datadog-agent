@@ -13,51 +13,65 @@ import (
 
 func Test_validateClientIP(t *testing.T) {
 	tests := []struct {
-		name    string
-		addr    string
-		want    string
-		wantErr bool
+		name                      string
+		addr                      string
+		advancedDispatchingActive bool
+		want                      string
+		wantErr                   bool
 	}{
 		{
-			name:    "valid ipv4",
-			addr:    "127.0.0.1",
-			want:    "127.0.0.1",
-			wantErr: false,
+			name:                      "valid ipv4",
+			addr:                      "127.0.0.1",
+			advancedDispatchingActive: false,
+			want:                      "127.0.0.1",
+			wantErr:                   false,
 		},
 		{
-			name:    "invalid ipv4",
-			addr:    "127.0.0.1.1",
-			want:    "",
-			wantErr: true,
+			name:                      "invalid ipv4",
+			addr:                      "127.0.0.1.1",
+			advancedDispatchingActive: false,
+			want:                      "",
+			wantErr:                   true,
 		},
 		{
-			name:    "valid ipv6",
-			addr:    "2001:db8:1f70::999:de8:7648:6e8",
-			want:    "2001:db8:1f70::999:de8:7648:6e8",
-			wantErr: false,
+			name:                      "valid ipv6",
+			addr:                      "2001:db8:1f70::999:de8:7648:6e8",
+			advancedDispatchingActive: false,
+			want:                      "2001:db8:1f70::999:de8:7648:6e8",
+			wantErr:                   false,
 		},
 		{
-			name:    "invalid ipv6",
-			addr:    "::1:",
-			want:    "",
-			wantErr: true,
+			name:                      "invalid ipv6",
+			addr:                      "::1:",
+			advancedDispatchingActive: false,
+			want:                      "",
+			wantErr:                   true,
 		},
 		{
-			name:    "invalidate localhost",
-			addr:    "localhost",
-			want:    "",
-			wantErr: true,
+			name:                      "invalidate localhost",
+			addr:                      "localhost",
+			advancedDispatchingActive: false,
+			want:                      "",
+			wantErr:                   true,
 		},
 		{
-			name:    "validate empty",
-			addr:    "",
-			want:    "",
-			wantErr: false,
+			name:                      "validate empty",
+			addr:                      "",
+			advancedDispatchingActive: false,
+			want:                      "",
+			wantErr:                   false,
+		},
+		{
+			name:                      "empty with advanced dispatching",
+			addr:                      "",
+			advancedDispatchingActive: true,
+			want:                      "",
+			wantErr:                   false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := validateClientIP(tt.addr)
+			got, err := validateClientIP(tt.addr, tt.advancedDispatchingActive)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("validateClientIP() error = %v, wantErr %v", err, tt.wantErr)
 				return

@@ -11,11 +11,10 @@ package clusteragentimpl
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -24,7 +23,6 @@ import (
 	clusteragent "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -39,9 +37,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 )
 
-// Payload handles the JSON unmarshalling of the metadata payload
+// Payload handles the JSON unmarshalling of the metadata payloa d
 type Payload struct {
 	Clustername string                 `json:"clustername"`
 	ClusterID   string                 `json:"cluster_id"`
@@ -54,12 +54,6 @@ type Payload struct {
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
 	return json.Marshal((*PayloadAlias)(p))
-}
-
-// SplitPayload implements marshaler.AbstractMarshaler#SplitPayload.
-// In this case, the payload can't be split any further.
-func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("could not split datadog-cluster-agent process payload any more, payload is too big for intake")
 }
 
 // Requires defines the dependencies for the clusteragent metadata component
@@ -214,7 +208,6 @@ func (dca *datadogclusteragent) getMetadata() map[string]interface{} {
 	}
 
 	// Add cluster check runner and node agent counts
-	// Import "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	if clcRunnerCount, nodeAgentCount, err := clusterchecks.GetNodeTypeCounts(); err == nil {
 		dca.metadata["cluster_check_runner_count"] = clcRunnerCount
 		dca.metadata["cluster_check_node_agent_count"] = nodeAgentCount

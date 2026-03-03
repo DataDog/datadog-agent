@@ -9,6 +9,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -17,6 +18,9 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/clock"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
@@ -26,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // StartWorkloadAutoscaling starts the workload autoscaling controller
@@ -37,10 +42,11 @@ func StartWorkloadAutoscaling(
 	apiCl *apiserver.APIClient,
 	rcClient workload.RcClient,
 	wlm workloadmeta.Component,
+	taggerComp tagger.Component,
 	senderManager sender.SenderManager,
 ) (workload.PodPatcher, error) {
 	if apiCl == nil {
-		return nil, fmt.Errorf("Impossible to start workload autoscaling without valid APIClient")
+		return nil, errors.New("Impossible to start workload autoscaling without valid APIClient")
 	}
 
 	eventBroadcaster := record.NewBroadcaster()
@@ -61,15 +67,24 @@ func StartWorkloadAutoscaling(
 
 	// We could consider the sender to be optional, but it's actually required for backend information
 	sender, err := senderManager.GetSender("workload_autoscaling")
-	sender.DisableDefaultHostname(true)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start local telemetry for autoscaling: %w", err)
 	}
+	sender.DisableDefaultHostname(true)
+
+	globalTagsFunc := func() []string {
+		tags, err := taggerComp.GlobalTags(types.LowCardinality)
+		if err != nil {
+			log.Warnf("Unable to get global tags from tagger for workload autoscaling metrics: %v", err)
+			return nil
+		}
+		return tags
+	}
 
 	maxDatadogPodAutoscalerObjects := pkgconfigsetup.Datadog().GetInt("autoscaling.workload.limit")
-	limitHeap := autoscaling.NewHashHeap(maxDatadogPodAutoscalerObjects, store)
+	limitHeap := autoscaling.NewHashHeap(maxDatadogPodAutoscalerObjects, store, (*model.PodAutoscalerInternal).CreationTimestamp)
 
-	controller, err := workload.NewController(clock, clusterID, eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, isLeaderFunc, store, podWatcher, sender, limitHeap)
+	controller, err := workload.NewController(clock, clusterID, eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, isLeaderFunc, store, podWatcher, sender, limitHeap, globalTagsFunc)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start workload autoscaling controller: %w", err)
 	}
@@ -88,8 +103,28 @@ func StartWorkloadAutoscaling(
 		go localRecommender.Run(ctx)
 	}
 
-	externalRecommender := external.NewRecommender(podWatcher, store, clusterName)
+	externalTLSConfig := buildExternalRecommenderTLSConfig(pkgconfigsetup.Datadog())
+	externalRecommender, err := external.NewRecommender(ctx, clock, podWatcher, store, clusterName, externalTLSConfig)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to start workload autoscaling external recommender: %w", err)
+	}
 	go externalRecommender.Run(ctx)
 
 	return podPatcher, nil
+}
+
+func buildExternalRecommenderTLSConfig(cfg config.Component) *external.TLSFilesConfig {
+	caFile := cfg.GetString("autoscaling.workload.external_recommender.tls.ca_file")
+	certFile := cfg.GetString("autoscaling.workload.external_recommender.tls.cert_file")
+	keyFile := cfg.GetString("autoscaling.workload.external_recommender.tls.key_file")
+
+	if caFile == "" && certFile == "" && keyFile == "" {
+		return nil
+	}
+
+	return &external.TLSFilesConfig{
+		CAFile:   caFile,
+		CertFile: certFile,
+		KeyFile:  keyFile,
+	}
 }

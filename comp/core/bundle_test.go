@@ -6,6 +6,7 @@
 package core
 
 import (
+	"fmt"
 	"testing"
 
 	"go.uber.org/fx"
@@ -15,7 +16,18 @@ import (
 )
 
 func TestBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t, Bundle(), fx.Supply(BundleParams{}), fx.Supply(pidimpl.NewParams("")))
+	for resolveSecrets, options := range map[bool][]Option{
+		true:  {WithSecrets()},
+		false: {},
+	} {
+		t.Run(fmt.Sprintf("resolveSecrets=%t", resolveSecrets), func(t *testing.T) {
+			fxutil.TestBundle(t,
+				Bundle(options...),
+				fx.Supply(BundleParams{}),
+				fx.Supply(pidimpl.NewParams("")),
+			)
+		})
+	}
 }
 
 func TestMockBundleDependencies(t *testing.T) {

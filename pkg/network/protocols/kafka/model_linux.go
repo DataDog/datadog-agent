@@ -48,7 +48,10 @@ func (tx *EbpfTx) ErrorCode() int8 {
 
 // RequestLatency returns the latency of the request in nanoseconds
 func (tx *EbpfTx) RequestLatency() float64 {
-	if uint64(tx.Transaction.Request_started) == 0 || uint64(tx.Transaction.Response_last_seen) == 0 {
+	if tx.Transaction.Request_started == 0 || tx.Transaction.Response_last_seen == 0 {
+		return 0
+	}
+	if tx.Transaction.Response_last_seen < tx.Transaction.Request_started {
 		return 0
 	}
 	return protocols.NSTimestampToFloat(tx.Transaction.Response_last_seen - tx.Transaction.Request_started)

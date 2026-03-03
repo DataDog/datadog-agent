@@ -1,0 +1,109 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testSubslices",
+      "version": 0,
+      "thread_id": "[goid]",
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testSubslices",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go",
+            "lineNumber": 73
+          },
+          {
+            "function": "main.executeSliceFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go",
+            "lineNumber": 104
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 31
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testSubslices",
+          "location": {
+            "method": "main.testSubslices"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "as": {
+                "type": "[]uint",
+                "size": "2",
+                "elements": [
+                  {
+                    "type": "uint",
+                    "value": "1"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "2"
+                  }
+                ]
+              },
+              "bs": {
+                "type": "[]uint",
+                "size": "1",
+                "elements": [
+                  {
+                    "type": "uint",
+                    "value": "1"
+                  }
+                ]
+              },
+              "cs": {
+                "type": "[]uint",
+                "size": "3",
+                "elements": [
+                  {
+                    "type": "uint",
+                    "value": "1"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "2"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "3"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
+    },
+    "timestamp": "[ts]",
+    "message": "[1, 2], [1], [1, 2, 3]"
+  }
+]

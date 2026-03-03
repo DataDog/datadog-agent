@@ -8,6 +8,7 @@ package dogstatsdreplay
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -93,7 +94,7 @@ func dogstatsdReplay(_ log.Component, config config.Component, cliParams *cliPar
 	fmt.Printf("Replaying dogstatsd traffic...\n\n")
 
 	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", ipc.GetAuthToken())},
+		"authorization": []string{"Bearer " + ipc.GetAuthToken()},
 	}
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
@@ -121,7 +122,7 @@ func dogstatsdReplay(_ log.Component, config config.Component, cliParams *cliPar
 
 	s := pkgconfigsetup.Datadog().GetString("dogstatsd_socket")
 	if s == "" {
-		return fmt.Errorf("Dogstatsd UNIX socket disabled")
+		return errors.New("Dogstatsd UNIX socket disabled")
 	}
 
 	addr, err := net.ResolveUnixAddr("unixgram", s)
@@ -149,12 +150,12 @@ func dogstatsdReplay(_ log.Component, config config.Component, cliParams *cliPar
 	defer conn.Close()
 
 	// let's read state before proceeding
-	pidmap, state, err := reader.ReadState()
+	taggerState, err := reader.ReadState()
 	if err != nil {
 		fmt.Printf("Unable to load state from file, tag enrichment will be unavailable for this capture: %v\n", err)
 	}
 
-	resp, err := cli.DogstatsdSetTaggerState(ctx, &pb.TaggerState{State: state, PidMap: pidmap})
+	resp, err := cli.DogstatsdSetTaggerState(ctx, taggerState)
 	if err != nil {
 		fmt.Printf("Unable to load state API error, tag enrichment will be unavailable for this capture: %v\n", err)
 	} else if !resp.GetLoaded() {

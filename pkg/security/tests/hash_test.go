@@ -49,7 +49,7 @@ func TestHash(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := exec.Command(testFile)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				t.Logf("cmd.Run() failed with output: %s", string(out))
@@ -58,7 +58,7 @@ func TestHash(t *testing.T) {
 			return nil
 		}, func(_ *model.Event, r *rules.Rule) {
 			assertTriggeredRule(t, r, "test_rule_hash_exec")
-		})
+		}, "test_rule_hash_exec")
 	})
 
 	t.Run("fifo", func(t *testing.T) {
@@ -68,7 +68,7 @@ func TestHash(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if err := syscall.Mknod(testFile, syscall.S_IFIFO|0666, 0); err != nil {
 				return err
 			}
@@ -82,6 +82,6 @@ func TestHash(t *testing.T) {
 			return nil
 		}, func(_ *model.Event, r *rules.Rule) {
 			assertTriggeredRule(t, r, "test_rule_hash_fifo")
-		})
+		}, "test_rule_hash_fifo")
 	})
 }

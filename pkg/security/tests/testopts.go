@@ -25,12 +25,9 @@ type testOpts struct {
 	activityDumpRateLimiter                    int
 	activityDumpTagRules                       bool
 	activityDumpDuration                       time.Duration
-	activityDumpLoadControllerPeriod           time.Duration
 	activityDumpCleanupPeriod                  time.Duration
-	activityDumpLoadControllerTimeout          time.Duration
 	activityDumpTracedCgroupsCount             int
 	activityDumpCgroupDifferentiateArgs        bool
-	activityDumpAutoSuppressionEnabled         bool
 	activityDumpTracedEventTypes               []string
 	activityDumpLocalStorageDirectory          string
 	activityDumpLocalStorageCompression        bool
@@ -40,8 +37,7 @@ type testOpts struct {
 	securityProfileMaxImageTags                int
 	securityProfileDir                         string
 	securityProfileWatchDir                    bool
-	enableAutoSuppression                      bool
-	autoSuppressionEventTypes                  []string
+	securityProfileNodeEvictionTimeout         time.Duration
 	enableAnomalyDetection                     bool
 	anomalyDetectionEventTypes                 []string
 	anomalyDetectionDefaultMinimumStablePeriod time.Duration
@@ -76,6 +72,7 @@ type testOpts struct {
 	enableSelfTests                            bool
 	networkFlowMonitorEnabled                  bool
 	dnsPort                                    uint16
+	traceSystemdCgroups                        bool
 	capabilitiesMonitoringEnabled              bool
 }
 

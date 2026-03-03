@@ -8,6 +8,7 @@ package containerutils
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -32,11 +33,7 @@ func init() {
 func FindContainerID(s CGroupID) ContainerID {
 	matches := containerIDPattern.FindAllIndex([]byte(s), -1)
 
-	var (
-		containerID ContainerID
-	)
-
-	for _, match := range matches {
+	for _, match := range slices.Backward(matches) {
 		// first, check what's before
 		if match[0] != 0 {
 			previousChar := string(s[match[0]-1])
@@ -52,8 +49,8 @@ func FindContainerID(s CGroupID) ContainerID {
 			}
 		}
 
-		containerID = ContainerID(s[match[0]:match[1]])
+		return ContainerID(s[match[0]:match[1]])
 	}
 
-	return containerID
+	return ""
 }

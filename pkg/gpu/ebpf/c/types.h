@@ -13,6 +13,7 @@ typedef enum {
     cuda_sync,
     cuda_set_device,
     cuda_visible_devices_set,
+    cuda_sync_device,
     cuda_event_type_count,
 } cuda_event_type_t;
 
@@ -63,6 +64,10 @@ typedef struct {
 } cuda_set_device_event_t;
 
 typedef struct {
+    cuda_event_header_t header;
+} cuda_sync_device_event_t;
+
+typedef struct {
     __u64 event;
     __u32 pid;
 } cuda_event_key_t;
@@ -76,5 +81,19 @@ typedef struct {
     cuda_event_header_t header;
     char visible_devices[MAX_ENV_VAR_LEN];
 } cuda_visible_devices_set_t;
+
+// CUlaunchConfig struct from CUDA driver API, used by cuLaunchKernelEx.
+typedef struct {
+    void* attrs;
+    unsigned int blockDimX;
+    unsigned int blockDimY;
+    unsigned int blockDimZ;
+    unsigned int gridDimX;
+    unsigned int gridDimY;
+    unsigned int gridDimZ;
+    void* hStream;
+    unsigned int numAttrs;
+    unsigned int sharedMemBytes;
+} cu_launch_config_t;
 
 #endif

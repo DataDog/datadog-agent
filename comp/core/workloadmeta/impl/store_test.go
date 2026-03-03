@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 )
@@ -180,8 +181,9 @@ func TestSubscribe(t *testing.T) {
 				{
 					Events: []wmdef.Event{
 						{
-							Type:   wmdef.EventTypeSet,
-							Entity: fooContainer,
+							Type:       wmdef.EventTypeSet,
+							Entity:     fooContainer,
+							IsComplete: true,
 						},
 					},
 				},
@@ -252,12 +254,14 @@ func TestSubscribe(t *testing.T) {
 				{
 					Events: []wmdef.Event{
 						{
-							Type:   wmdef.EventTypeSet,
-							Entity: barContainer,
+							Type:       wmdef.EventTypeSet,
+							Entity:     barContainer,
+							IsComplete: true,
 						},
 						{
-							Type:   wmdef.EventTypeSet,
-							Entity: fooContainer,
+							Type:       wmdef.EventTypeSet,
+							Entity:     fooContainer,
+							IsComplete: true,
 						},
 					},
 				},
@@ -287,16 +291,18 @@ func TestSubscribe(t *testing.T) {
 				{
 					Events: []wmdef.Event{
 						{
-							Type:   wmdef.EventTypeSet,
-							Entity: fooContainer,
+							Type:       wmdef.EventTypeSet,
+							Entity:     fooContainer,
+							IsComplete: true,
 						},
 					},
 				},
 				{
 					Events: []wmdef.Event{
 						{
-							Type:   wmdef.EventTypeSet,
-							Entity: fooContainerMerged,
+							Type:       wmdef.EventTypeSet,
+							Entity:     fooContainerMerged,
+							IsComplete: true,
 						},
 					},
 				},
@@ -323,8 +329,9 @@ func TestSubscribe(t *testing.T) {
 				{
 					Events: []wmdef.Event{
 						{
-							Type:   wmdef.EventTypeSet,
-							Entity: fooContainerMerged,
+							Type:       wmdef.EventTypeSet,
+							Entity:     fooContainerMerged,
+							IsComplete: true,
 						},
 					},
 				},
@@ -353,16 +360,18 @@ func TestSubscribe(t *testing.T) {
 				{
 					Events: []wmdef.Event{
 						{
-							Type:   wmdef.EventTypeSet,
-							Entity: fooContainer,
+							Type:       wmdef.EventTypeSet,
+							Entity:     fooContainer,
+							IsComplete: true,
 						},
 					},
 				},
 				{
 					Events: []wmdef.Event{
 						{
-							Type:   wmdef.EventTypeUnset,
-							Entity: fooContainer,
+							Type:       wmdef.EventTypeUnset,
+							Entity:     fooContainer,
+							IsComplete: true,
 						},
 					},
 				},
@@ -402,16 +411,18 @@ func TestSubscribe(t *testing.T) {
 				{
 					Events: []wmdef.Event{
 						{
-							Type:   wmdef.EventTypeSet,
-							Entity: fooContainer,
+							Type:       wmdef.EventTypeSet,
+							Entity:     fooContainer,
+							IsComplete: true,
 						},
 					},
 				},
 				{
 					Events: []wmdef.Event{
 						{
-							Type:   wmdef.EventTypeUnset,
-							Entity: fooContainer,
+							Type:       wmdef.EventTypeUnset,
+							Entity:     fooContainer,
+							IsComplete: true,
 						},
 					},
 				},
@@ -451,24 +462,27 @@ func TestSubscribe(t *testing.T) {
 				{
 					Events: []wmdef.Event{
 						{
-							Type:   wmdef.EventTypeSet,
-							Entity: fooContainer,
+							Type:       wmdef.EventTypeSet,
+							Entity:     fooContainer,
+							IsComplete: true,
 						},
 					},
 				},
 				{
 					Events: []wmdef.Event{
 						{
-							Type:   wmdef.EventTypeSet,
-							Entity: fooContainer,
+							Type:       wmdef.EventTypeSet,
+							Entity:     fooContainer,
+							IsComplete: true,
 						},
 					},
 				},
 				{
 					Events: []wmdef.Event{
 						{
-							Type:   wmdef.EventTypeSet,
-							Entity: fooContainer,
+							Type:       wmdef.EventTypeSet,
+							Entity:     fooContainer,
+							IsComplete: true,
 						},
 					},
 				},
@@ -517,8 +531,9 @@ func TestSubscribe(t *testing.T) {
 				{
 					Events: []wmdef.Event{
 						{
-							Type:   wmdef.EventTypeSet,
-							Entity: fooContainer,
+							Type:       wmdef.EventTypeSet,
+							Entity:     fooContainer,
+							IsComplete: true,
 						},
 						{
 							Type: wmdef.EventTypeUnset,
@@ -530,6 +545,7 @@ func TestSubscribe(t *testing.T) {
 								Hostname: fooContainer.Hostname,
 								PID:      fooContainerToMerge.PID,
 							},
+							IsComplete: true,
 						},
 					},
 				},
@@ -559,8 +575,9 @@ func TestSubscribe(t *testing.T) {
 				{
 					Events: []wmdef.Event{
 						{
-							Type:   wmdef.EventTypeUnset,
-							Entity: fooContainer,
+							Type:       wmdef.EventTypeUnset,
+							Entity:     fooContainer,
+							IsComplete: true,
 						},
 					},
 				},
@@ -593,8 +610,9 @@ func TestSubscribe(t *testing.T) {
 				{
 					Events: []wmdef.Event{
 						{
-							Type:   wmdef.EventTypeSet,
-							Entity: fooContainer,
+							Type:       wmdef.EventTypeSet,
+							Entity:     fooContainer,
+							IsComplete: true,
 						},
 					},
 				},
@@ -643,12 +661,14 @@ func TestSubscribe(t *testing.T) {
 				{
 					Events: []wmdef.Event{
 						{
-							Type:   wmdef.EventTypeSet,
-							Entity: &testNodeMetadata,
+							Type:       wmdef.EventTypeSet,
+							Entity:     &testNodeMetadata,
+							IsComplete: true,
 						},
 						{
-							Type:   wmdef.EventTypeUnset,
-							Entity: &testNodeMetadata,
+							Type:       wmdef.EventTypeUnset,
+							Entity:     &testNodeMetadata,
+							IsComplete: true,
 						},
 					},
 				},
@@ -1187,6 +1207,150 @@ func TestGetKubernetesPodByName(t *testing.T) {
 	}
 }
 
+func TestListKubernetesPods(t *testing.T) {
+	pod1 := &wmdef.KubernetesPod{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesPod,
+			ID:   "123",
+		},
+	}
+	pod2 := &wmdef.KubernetesPod{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesPod,
+			ID:   "456",
+		},
+	}
+
+	tests := []struct {
+		name      string
+		preEvents []wmdef.CollectorEvent
+		expected  []*wmdef.KubernetesPod
+	}{
+		{
+			name: "some pods stored",
+			preEvents: []wmdef.CollectorEvent{
+				{
+					Type:   wmdef.EventTypeSet,
+					Source: fooSource,
+					Entity: pod1,
+				},
+				{
+					Type:   wmdef.EventTypeSet,
+					Source: fooSource,
+					Entity: pod2,
+				},
+			},
+			expected: []*wmdef.KubernetesPod{pod1, pod2},
+		},
+		{
+			name:      "no pods stored",
+			preEvents: nil,
+			expected:  []*wmdef.KubernetesPod{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			wmeta := newWorkloadmetaObject(t)
+			wmeta.handleEvents(test.preEvents)
+
+			assert.ElementsMatch(t, test.expected, wmeta.ListKubernetesPods())
+		})
+	}
+}
+
+// TestKubernetesPodMergeOrder confirms that when the same pod is
+// reported by both kubelet (node_orchestrator) and kubemetadata (cluster_orchestrator),
+// the fresher data from the kubemetadata collector should win.
+func TestKubernetesPodMergeOrder(t *testing.T) {
+	podID := "pod-uid-123"
+	podNamespace := "default"
+	podName := "my-pod"
+
+	freshNamespaceLabels := map[string]string{
+		"key": "fresh",
+	}
+	staleNamespaceLabels := map[string]string{
+		"key": "stale",
+	}
+
+	fromKubemetadata := &wmdef.KubernetesPod{
+		EntityID:        wmdef.EntityID{Kind: wmdef.KindKubernetesPod, ID: podID},
+		EntityMeta:      wmdef.EntityMeta{Name: podName, Namespace: podNamespace},
+		NamespaceLabels: freshNamespaceLabels,
+	}
+	fromKubelet := &wmdef.KubernetesPod{
+		EntityID:        wmdef.EntityID{Kind: wmdef.KindKubernetesPod, ID: podID},
+		EntityMeta:      wmdef.EntityMeta{Name: podName, Namespace: podNamespace},
+		NamespaceLabels: staleNamespaceLabels,
+	}
+
+	s := newWorkloadmetaObject(t)
+	// Simulate the kubelet collector reporting the pod with stale namespace labels first
+	s.handleEvents([]wmdef.CollectorEvent{
+		{Type: wmdef.EventTypeSet, Source: wmdef.SourceNodeOrchestrator, Entity: fromKubelet},
+	})
+	// Followed by the kubemetadata collector with fresh labels afterwards
+	s.handleEvents([]wmdef.CollectorEvent{
+		{Type: wmdef.EventTypeSet, Source: wmdef.SourceClusterOrchestrator, Entity: fromKubemetadata},
+	})
+
+	got, err := s.GetKubernetesPodByName(podName, podNamespace)
+	assert.NoError(t, err)
+	assert.Equal(t, freshNamespaceLabels, got.NamespaceLabels,
+		"with alphabetical merge order, cluster_orchestrator (kubemetadata) should win")
+}
+
+func TestGetKubeletMetrics(t *testing.T) {
+	testKubeletMetrics := &wmdef.KubeletMetrics{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubeletMetrics,
+			ID:   wmdef.KubeletMetricsID,
+		},
+		ExpiredPodCount: 10,
+	}
+
+	tests := []struct {
+		name       string
+		preEvents  []wmdef.CollectorEvent
+		expected   *wmdef.KubeletMetrics
+		expectsErr bool
+	}{
+		{
+			name: "kubelet metrics stored",
+			preEvents: []wmdef.CollectorEvent{
+				{
+					Type:   wmdef.EventTypeSet,
+					Source: fooSource,
+					Entity: testKubeletMetrics,
+				},
+			},
+			expected:   testKubeletMetrics,
+			expectsErr: false,
+		},
+		{
+			name:       "no kubelet metrics stored",
+			preEvents:  nil,
+			expectsErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			wmeta := newWorkloadmetaObject(t)
+			wmeta.handleEvents(test.preEvents)
+
+			kubeletMetrics, err := wmeta.GetKubeletMetrics()
+			if test.expectsErr {
+				assert.Error(t, err, errors.NewNotFound(string(wmdef.KindKubeletMetrics)).Error())
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, test.expected, kubeletMetrics)
+			}
+		})
+	}
+}
+
 func TestListImages(t *testing.T) {
 	image := &wmdef.ContainerImageMetadata{
 		EntityID: wmdef.EntityID{
@@ -1498,6 +1662,147 @@ func TestGetKubernetesMetadata(t *testing.T) {
 	assert.True(t, errors.IsNotFound(err))
 }
 
+func TestGetKubernetesNodeByName(t *testing.T) {
+	node1Metadata := &wmdef.KubernetesMetadata{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesMetadata,
+			ID:   string(util.GenerateKubeMetadataEntityID("", "nodes", "", "node1")),
+		},
+		EntityMeta: wmdef.EntityMeta{
+			Name:        "node1",
+			Annotations: map[string]string{"a1": "v1"},
+			Labels:      map[string]string{"l1": "v2"},
+		},
+		GVR: &schema.GroupVersionResource{
+			Version:  "v1",
+			Resource: "nodes",
+		},
+	}
+
+	node2Metadata := &wmdef.KubernetesMetadata{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesMetadata,
+			ID:   string(util.GenerateKubeMetadataEntityID("", "nodes", "", "node2")),
+		},
+		EntityMeta: wmdef.EntityMeta{
+			Name:        "node2",
+			Annotations: map[string]string{"a1": "v1"},
+			Labels:      map[string]string{"l1": "v2"},
+		},
+		GVR: &schema.GroupVersionResource{
+			Version:  "v1",
+			Resource: "nodes",
+		},
+	}
+
+	nonNodeMetadata := &wmdef.KubernetesMetadata{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesMetadata,
+			ID:   "deployments/default/app",
+		},
+		EntityMeta: wmdef.EntityMeta{
+			Name:        "node3",
+			Namespace:   "default",
+			Annotations: map[string]string{"a1": "v1"},
+			Labels:      map[string]string{"l1": "v2"},
+		},
+		GVR: &schema.GroupVersionResource{
+			Group:    "apps",
+			Version:  "v1",
+			Resource: "deployments",
+		},
+	}
+	node3Metadata := &wmdef.KubernetesMetadata{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesMetadata,
+			ID:   string(util.GenerateKubeMetadataEntityID("", "nodes", "", "node3")),
+		},
+		EntityMeta: wmdef.EntityMeta{
+			Name:        "node3",
+			Annotations: map[string]string{"a1": "v1"},
+			Labels:      map[string]string{"l1": "v2"},
+		},
+		GVR: &schema.GroupVersionResource{
+			Version:  "v1",
+			Resource: "nodes",
+		},
+	}
+
+	type want struct {
+		nodeMetadata *wmdef.KubernetesMetadata
+		err          error
+	}
+	type args struct {
+		nodeName string
+	}
+	tests := []struct {
+		name string
+		args args
+		want want
+	}{
+		{
+			name: "test-node returns correct node",
+			args: args{
+				nodeName: "node1",
+			},
+			want: want{
+				nodeMetadata: node1Metadata,
+			},
+		},
+		{
+			name: "test-node/other-node returns correct node",
+			args: args{
+				nodeName: "node2",
+			},
+			want: want{
+				nodeMetadata: node2Metadata,
+			},
+		},
+		{
+			name: "test-node/ignores non-node metadata with same name",
+			args: args{
+				nodeName: "node3",
+			},
+			want: want{
+				nodeMetadata: node3Metadata,
+			},
+		},
+		{
+			name: "test-node/missing node returns error",
+			args: args{
+				nodeName: "node4",
+			},
+			want: want{
+				err: errors.NewNotFound("test-node/node4"),
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			s := newWorkloadmetaObject(t)
+
+			for _, nodeish := range []*wmdef.KubernetesMetadata{node1Metadata, node2Metadata, nonNodeMetadata, node3Metadata} {
+				s.handleEvents([]wmdef.CollectorEvent{
+					{
+						Type:   wmdef.EventTypeSet,
+						Source: fooSource,
+						Entity: nodeish,
+					},
+				})
+			}
+
+			nodeEntityID := util.GenerateKubeMetadataEntityID("", "nodes", "", test.args.nodeName)
+			nodeMetadata, err := s.GetKubernetesMetadata(nodeEntityID)
+
+			assert.Equal(t, test.want.nodeMetadata, nodeMetadata)
+			if test.want.err != nil {
+				assert.Error(t, err, test.want.err.Error())
+			}
+		})
+	}
+}
+
 func TestListKubernetesMetadata(t *testing.T) {
 	wmeta := newWorkloadmetaObject(t)
 
@@ -1613,8 +1918,9 @@ func TestReset(t *testing.T) {
 				{
 					Events: []wmdef.Event{
 						{
-							Type:   wmdef.EventTypeSet,
-							Entity: fooContainer,
+							Type:       wmdef.EventTypeSet,
+							Entity:     fooContainer,
+							IsComplete: true,
 						},
 					},
 				},
@@ -1632,16 +1938,18 @@ func TestReset(t *testing.T) {
 				{
 					Events: []wmdef.Event{
 						{
-							Type:   wmdef.EventTypeSet,
-							Entity: fooContainer,
+							Type:       wmdef.EventTypeSet,
+							Entity:     fooContainer,
+							IsComplete: true,
 						},
 					},
 				},
 				{
 					Events: []wmdef.Event{
 						{
-							Type:   wmdef.EventTypeSet,
-							Entity: updatedFooContainer,
+							Type:       wmdef.EventTypeSet,
+							Entity:     updatedFooContainer,
+							IsComplete: true,
 						},
 					},
 				},
@@ -1660,16 +1968,18 @@ func TestReset(t *testing.T) {
 				{
 					Events: []wmdef.Event{
 						{
-							Type:   wmdef.EventTypeSet,
-							Entity: fooContainer,
+							Type:       wmdef.EventTypeSet,
+							Entity:     fooContainer,
+							IsComplete: true,
 						},
 					},
 				},
 				{
 					Events: []wmdef.Event{
 						{
-							Type:   wmdef.EventTypeSet,
-							Entity: barContainer,
+							Type:       wmdef.EventTypeSet,
+							Entity:     barContainer,
+							IsComplete: true,
 						},
 					},
 				},
@@ -1685,16 +1995,18 @@ func TestReset(t *testing.T) {
 				{
 					Events: []wmdef.Event{
 						{
-							Type:   wmdef.EventTypeSet,
-							Entity: fooContainer,
+							Type:       wmdef.EventTypeSet,
+							Entity:     fooContainer,
+							IsComplete: true,
 						},
 					},
 				},
 				{
 					Events: []wmdef.Event{
 						{
-							Type:   wmdef.EventTypeUnset,
-							Entity: fooContainer,
+							Type:       wmdef.EventTypeUnset,
+							Entity:     fooContainer,
+							IsComplete: true,
 						},
 					},
 				},
@@ -1826,4 +2138,217 @@ func TestPushEvents(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestIsComplete_Kubernetes(t *testing.T) {
+	// Enable Kubernetes and Containerd features to simulate a Kubernetes environment
+	env.SetFeatures(t, env.Kubernetes, env.Containerd)
+
+	s := newWorkloadmetaObject(t)
+
+	container := &wmdef.Container{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindContainer,
+			ID:   "test-container",
+		},
+	}
+
+	pod := &wmdef.KubernetesPod{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesPod,
+			ID:   "test-pod",
+		},
+	}
+
+	ch := s.Subscribe(dummySubscriber, wmdef.NormalPriority, nil)
+	var actual []wmdef.EventBundle
+
+	doneCh := make(chan struct{})
+	go func() {
+		for bundle := range ch {
+			close(bundle.Ch)
+			actual = append(actual, wmdef.EventBundle{Events: bundle.Events})
+		}
+		close(doneCh)
+	}()
+
+	// Container reported by runtime only (incomplete in Kubernetes)
+	s.handleEvents([]wmdef.CollectorEvent{
+		{
+			Type:   wmdef.EventTypeSet,
+			Source: wmdef.SourceRuntime,
+			Entity: container,
+		},
+	})
+
+	// Container also reported by kubelet (now complete)
+	s.handleEvents([]wmdef.CollectorEvent{
+		{
+			Type:   wmdef.EventTypeSet,
+			Source: wmdef.SourceNodeOrchestrator,
+			Entity: container,
+		},
+	})
+
+	// Pod reported by kubelet only (incomplete)
+	s.handleEvents([]wmdef.CollectorEvent{
+		{
+			Type:   wmdef.EventTypeSet,
+			Source: wmdef.SourceNodeOrchestrator,
+			Entity: pod,
+		},
+	})
+
+	// Pod also reported by kubemetadata (now complete)
+	s.handleEvents([]wmdef.CollectorEvent{
+		{
+			Type:   wmdef.EventTypeSet,
+			Source: wmdef.SourceClusterOrchestrator,
+			Entity: pod,
+		},
+	})
+
+	s.Unsubscribe(ch)
+	<-doneCh
+
+	expected := []wmdef.EventBundle{
+		{}, // Initial empty bundle
+		{
+			Events: []wmdef.Event{
+				{
+					Type:       wmdef.EventTypeSet,
+					Entity:     container,
+					IsComplete: false, // Only runtime reported, kubelet not yet
+				},
+			},
+		},
+		{
+			Events: []wmdef.Event{
+				{
+					Type:       wmdef.EventTypeSet,
+					Entity:     container,
+					IsComplete: true, // Both runtime and kubelet reported
+				},
+			},
+		},
+		{
+			Events: []wmdef.Event{
+				{
+					Type:       wmdef.EventTypeSet,
+					Entity:     pod,
+					IsComplete: false, // Only kubelet reported, kubemetadata not yet
+				},
+			},
+		},
+		{
+			Events: []wmdef.Event{
+				{
+					Type:       wmdef.EventTypeSet,
+					Entity:     pod,
+					IsComplete: true, // Both kubelet and kubemetadata reported
+				},
+			},
+		},
+	}
+
+	assert.Equal(t, expected, actual)
+}
+
+// This test checks completeness in Kubernetes environments when the container
+// runtime is not accessible
+func TestIsComplete_KubernetesContainerRuntimeNotAccessible(t *testing.T) {
+	// Set Kubernetes feature, but no container runtime
+	env.SetFeatures(t, env.Kubernetes)
+
+	s := newWorkloadmetaObject(t)
+
+	container := &wmdef.Container{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindContainer,
+			ID:   "test-container",
+		},
+	}
+
+	pod := &wmdef.KubernetesPod{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesPod,
+			ID:   "test-pod",
+		},
+	}
+
+	ch := s.Subscribe(dummySubscriber, wmdef.NormalPriority, nil)
+	var actual []wmdef.EventBundle
+
+	doneCh := make(chan struct{})
+	go func() {
+		for bundle := range ch {
+			close(bundle.Ch)
+			actual = append(actual, wmdef.EventBundle{Events: bundle.Events})
+		}
+		close(doneCh)
+	}()
+
+	// Container reported by kubelet (complete because container runtime not
+	// accessible so will not report)
+	s.handleEvents([]wmdef.CollectorEvent{
+		{
+			Type:   wmdef.EventTypeSet,
+			Source: wmdef.SourceNodeOrchestrator,
+			Entity: container,
+		},
+	})
+
+	// Pod reported by kubelet only (incomplete)
+	s.handleEvents([]wmdef.CollectorEvent{
+		{
+			Type:   wmdef.EventTypeSet,
+			Source: wmdef.SourceNodeOrchestrator,
+			Entity: pod,
+		},
+	})
+
+	// Pod also reported by kubemetadata (now complete)
+	s.handleEvents([]wmdef.CollectorEvent{
+		{
+			Type:   wmdef.EventTypeSet,
+			Source: wmdef.SourceClusterOrchestrator,
+			Entity: pod,
+		},
+	})
+
+	s.Unsubscribe(ch)
+	<-doneCh
+
+	expected := []wmdef.EventBundle{
+		{}, // Initial empty bundle
+		{
+			Events: []wmdef.Event{
+				{
+					Type:       wmdef.EventTypeSet,
+					Entity:     container,
+					IsComplete: true, // Kubelet reported, container runtime not expected to report
+				},
+			},
+		},
+		{
+			Events: []wmdef.Event{
+				{
+					Type:       wmdef.EventTypeSet,
+					Entity:     pod,
+					IsComplete: false, // Only kubelet reported, kubemetadata not yet
+				},
+			},
+		},
+		{
+			Events: []wmdef.Event{
+				{
+					Type:       wmdef.EventTypeSet,
+					Entity:     pod,
+					IsComplete: true, // Both kubelet and kubemetadata reported
+				},
+			},
+		},
+	}
+
+	assert.Equal(t, expected, actual)
 }

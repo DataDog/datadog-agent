@@ -194,6 +194,8 @@ func formatUnixTimeSince(rawUnixTime any) string {
 func parseUnixTime(value any) (time.Time, error) {
 	raw := int64(0)
 	switch v := value.(type) {
+	case time.Time:
+		return v, nil
 	case int64:
 		raw = v
 	case float64:

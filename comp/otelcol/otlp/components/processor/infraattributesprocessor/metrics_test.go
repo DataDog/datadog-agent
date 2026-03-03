@@ -188,7 +188,6 @@ func TestInfraAttributesMetricProcessor(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			next := new(consumertest.MetricsSink)
 			cfg := &Config{
-				Metrics:     MetricInfraAttributes{},
 				Cardinality: types.LowCardinality,
 			}
 			tc := testutil.NewTestTaggerClient()

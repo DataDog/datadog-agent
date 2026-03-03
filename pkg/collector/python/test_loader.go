@@ -9,14 +9,18 @@ package python
 
 import (
 	"runtime"
+	"strings"
 	"testing"
+	"time"
 
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -165,7 +169,7 @@ func testLoadCustomCheck(t *testing.T) {
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
-	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger)
+	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger, nil)
 	assert.Nil(t, err)
 
 	// testing loading custom checks
@@ -204,7 +208,8 @@ func testLoadWheelCheck(t *testing.T) {
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
-	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger)
+	filterStore := workloadfilterfxmock.SetupMockFilter(t)
+	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger, filterStore)
 	assert.Nil(t, err)
 
 	// testing loading dd wheels
@@ -241,7 +246,7 @@ func testLoadHACheck(t *testing.T) {
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
-	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger)
+	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger, nil)
 	assert.Nil(t, err)
 
 	testCases := []struct {
@@ -330,7 +335,7 @@ func testLoadError(t *testing.T) {
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
-	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger)
+	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger, nil)
 	require.NoError(t, err)
 
 	// testing loading dd wheels
@@ -342,4 +347,72 @@ func testLoadError(t *testing.T) {
 	check, err := loader.Load(senderManager, conf, conf.Instances[0], 0)
 	require.Error(t, err)
 	require.Nil(t, check)
+}
+
+// testLoadCustomCheckEmitsCheckReadyMetric verifies that loading a custom check
+// emits the datadog.agent.check_ready metric with the correct check_name tag.
+// This test ensures that the regression from version 7.73 (where check_name was empty)
+// doesn't happen again.
+func testLoadCustomCheckEmitsCheckReadyMetric(t *testing.T) {
+	C.reset_loader_mock()
+
+	// Clear the py3Linted cache and recurrent series to ensure clean state
+	py3LintedLock.Lock()
+	delete(py3Linted, "check_ready_test_check")
+	py3LintedLock.Unlock()
+	aggregator.ClearRecurrentSeries()
+
+	conf := integration.Config{
+		Name:       "check_ready_test_check",
+		Instances:  []integration.Data{integration.Data("{\"value\": 1}")},
+		InitConfig: integration.Data("{}"),
+	}
+
+	mockRtloader(t)
+
+	// Ensure py3 validation is enabled (default)
+	pkgconfigsetup.Datadog().SetWithoutSource("disable_py3_validation", false)
+
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	logReceiver := option.None[integrations.Component]()
+	tagger := nooptagger.NewComponent()
+	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger, nil)
+	require.NoError(t, err)
+
+	// Setup for loading a custom check (not a wheel)
+	C.get_class_return = 1
+	C.get_class_py_module = newMockPyObjectPtr()
+	C.get_class_py_class = newMockPyObjectPtr()
+	C.get_attr_string_return = 0
+	C.get_check_return = 0
+	C.get_check_deprecated_check = newMockPyObjectPtr()
+	C.get_check_deprecated_return = 1
+
+	check, err := loader.Load(senderManager, conf, conf.Instances[0], 0)
+	runtime.SetFinalizer(check, nil)
+	require.NoError(t, err)
+
+	// Wait for the reportPy3Warnings goroutine to complete
+	time.Sleep(100 * time.Millisecond)
+
+	// Verify that the check_ready metric was emitted with the correct check_name tag
+	series := aggregator.GetRecurrentSeries()
+	var foundCheckReadyMetric bool
+	var checkNameTag string
+
+	for _, serie := range series {
+		if serie.Name == "datadog.agent.check_ready" {
+			foundCheckReadyMetric = true
+			serie.Tags.ForEach(func(tag string) {
+				if strings.HasPrefix(tag, "check_name:") {
+					checkNameTag = tag
+				}
+			})
+			break
+		}
+	}
+
+	assert.True(t, foundCheckReadyMetric, "datadog.agent.check_ready metric should be emitted")
+	assert.Equal(t, "check_name:check_ready_test_check", checkNameTag,
+		"check_name tag should contain the check name, not be empty")
 }

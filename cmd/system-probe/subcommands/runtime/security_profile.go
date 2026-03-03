@@ -60,9 +60,8 @@ func securityProfileShowCommands(globalParams *command.GlobalParams) []*cobra.Co
 			return fxutil.OneShot(showSecurityProfile,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(""),
-					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -106,9 +105,8 @@ func listSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 			return fxutil.OneShot(listSecurityProfiles,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(""),
-					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -125,7 +123,7 @@ func listSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 }
 
 func listSecurityProfiles(_ log.Component, _ config.Component, _ secrets.Component, args *securityProfileCliParams) error {
-	client, err := secagent.NewRuntimeSecurityClient()
+	client, err := secagent.NewRuntimeSecurityCmdClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
@@ -195,7 +193,13 @@ func printSecurityProfileMessage(msg *api.SecurityProfileMessage) {
 	if len(msg.GetInstances()) > 0 {
 		fmt.Printf("%s  instances:\n", prefix)
 		for _, inst := range msg.GetInstances() {
-			fmt.Printf("%s    . container_id: %s\n", prefix, inst.GetContainerID())
+			if inst.GetContainerID() != "" {
+				fmt.Printf("%s    . container_id: %s\n", prefix, inst.GetContainerID())
+			} else if inst.GetCGroupID() != "" {
+				fmt.Printf("%s    . cgroup_id: %s\n", prefix, inst.GetCGroupID())
+			} else {
+				fmt.Printf("%s    . workload_id: (unknown)\n", prefix)
+			}
 			fmt.Printf("%s      tags: %v\n", prefix, inst.GetTags())
 		}
 	}
@@ -214,9 +218,8 @@ func saveSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 			return fxutil.OneShot(saveSecurityProfile,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(""),
-					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -241,7 +244,7 @@ func saveSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 }
 
 func saveSecurityProfile(_ log.Component, _ config.Component, _ secrets.Component, args *securityProfileCliParams) error {
-	client, err := secagent.NewRuntimeSecurityClient()
+	client, err := secagent.NewRuntimeSecurityCmdClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}

@@ -33,6 +33,12 @@ const (
 	StatusError   = "error"
 )
 
+// Image resolution capability tags for operational context
+const (
+	DigestResolutionEnabled  = "enabled"  // Digest resolution available (rollout active)
+	DigestResolutionDisabled = "disabled" // Digest resolution unavailable (fallback expected)
+)
+
 // Telemetry metrics
 var (
 	ReconcileSuccess = telemetry.NewGaugeWithOpts("admission_webhooks", "reconcile_success",
@@ -106,4 +112,9 @@ var (
 	PatchErrors = telemetry.NewCounterWithOpts("admission_webhooks", "patcher_errors",
 		[]string{}, "Number of patch errors.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
+
+	// Image resolution tracking for gradual rollout monitoring
+	ImageResolutionAttempts = telemetry.NewCounterWithOpts("admission_webhooks", "image_resolution_attempts",
+		[]string{"repository", "tag", "bucket", "outcome"}, "Number of image resolution attempts by repository, tag, bucket, and resolution outcome",
+		telemetry.Options{})
 )

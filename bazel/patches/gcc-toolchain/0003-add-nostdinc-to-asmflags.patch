@@ -1,0 +1,27 @@
+From 2bc6426c49bee2f6afd0af4bc5ab44779ed49f1e Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
+Date: Mon, 27 Oct 2025 08:12:43 +0100
+Subject: [PATCH 3/3] add "-nostdinc" to asmflags
+
+---
+ toolchain/defs.bzl | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/toolchain/defs.bzl b/toolchain/defs.bzl
+index 2560783..84863bb 100644
+--- a/toolchain/defs.bzl
++++ b/toolchain/defs.bzl
+@@ -161,7 +161,9 @@ def _gcc_toolchain_impl(rctx):
+     ]
+     extra_ldflags.extend(rctx.attr.extra_ldflags)
+ 
+-    extra_asmflags = []
++    extra_asmflags = [
++        "-nostdinc",
++    ]
+     extra_asmflags.extend([
+         "-isystem{}".format(include)
+         for include in c_builtin_includes
+-- 
+2.43.0
+

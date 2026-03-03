@@ -10,3 +10,15 @@
   </div>
 {{end}}
 
+{{- if .intakeOffset}}
+  <div class="stat">
+    <span class="stat_title">Intake Offset</span>
+    <span class="stat_data">
+      <br>{{ humanizeDuration .intakeOffset "s"}}
+      {{- if ntpWarning .intakeOffset}}
+      <br><span class="warning">Intake offset is high. Datadog may drop metrics from this Agent.</span>
+      {{- end}}
+    </span>
+  </div>
+{{end}}
+

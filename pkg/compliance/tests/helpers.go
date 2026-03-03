@@ -113,9 +113,7 @@ func (s *suite) Run() {
 				options.DockerProvider = func(context.Context) (docker.APIClient, error) { return s.dockerClient, nil }
 			}
 			if s.kubeClient != nil {
-				options.KubernetesProvider = func(context.Context) (dynamic.Interface, compliance.KubernetesGroupsAndResourcesProvider, error) {
-					return s.kubeClient, nil, nil
-				}
+				options.KubernetesProvider = providerFromK8sClient(s.kubeClient)
 			}
 			c.run(t, options)
 		})
@@ -327,16 +325,18 @@ scope:
 input:
   %s`
 
-	suite := fmt.Sprintf(suiteTpl, name, "framework_"+name, "42.12")
+	var suiteBuilder strings.Builder
+	suiteBuilder.WriteString(fmt.Sprintf(suiteTpl, name, "framework_"+name, "42.12"))
 	for _, rule := range rules {
 		scope := rule.scope
 		if scope == "" {
 			scope = "none"
 		}
 		ruleData := fmt.Sprintf(ruleTpl, rule.name, scope, indent(1, rule.input))
-		suite += "\n  - " + indent(2, ruleData)
+		suiteBuilder.WriteString("\n  - ")
+		suiteBuilder.WriteString(indent(2, ruleData))
 	}
-	return suite
+	return suiteBuilder.String()
 }
 
 func indent(count int, s string) string {

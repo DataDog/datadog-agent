@@ -10,7 +10,9 @@ package actuator
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -19,7 +21,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
@@ -27,10 +29,12 @@ import (
 // stateUpdate is a struct that represents the changes to the state after an
 // event is processed. It's used to generate the output document.
 type stateUpdate struct {
-	CurrentlyLoading string         `yaml:"currently_loading,omitempty"`
-	QueuedPrograms   string         `yaml:"queued_programs,omitempty"`
-	Processes        map[any]string `yaml:"processes,omitempty"`
-	Programs         map[int]string `yaml:"programs,omitempty"`
+	CurrentlyLoading string            `yaml:"currently_loading,omitempty"`
+	QueuedPrograms   string            `yaml:"queued_programs,omitempty"`
+	Processes        map[any]string    `yaml:"processes,omitempty"`
+	Programs         map[int]string    `yaml:"programs,omitempty"`
+	DiscoveredTypes  map[string]string `yaml:"discovered_types,omitempty"`
+	Stats            map[string]string `yaml:"stats,omitempty"`
 }
 
 func TestSnapshot(t *testing.T) {
@@ -92,8 +96,27 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 		}
 	}()
 
+	// Check if the first event is a config event; if so, extract settings
+	// and remove it from the events list.
+	discoveredTypesLimit := defaultDiscoveredTypesLimit
+	var recompilationRateLimit float64
+	var recompilationRateBurst int
+	if len(events) > 0 {
+		if cfg, ok := events[0].event.(eventConfig); ok {
+			discoveredTypesLimit = cfg.discoveredTypesLimit
+			recompilationRateLimit = cfg.recompilationRateLimit
+			recompilationRateBurst = cfg.recompilationRateBurst
+			events = events[1:]
+			eventNodes = eventNodes[1:]
+		}
+	}
+
 	// Process each event
-	s := newState()
+	s := newState(Config{
+		DiscoveredTypesLimit:   discoveredTypesLimit,
+		RecompilationRateLimit: recompilationRateLimit,
+		RecompilationRateBurst: recompilationRateBurst,
+	})
 	effects := effectRecorder{}
 	for i, ev := range events {
 
@@ -101,7 +124,11 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 		before := deepCopyState(s)
 		// Handle the event
 		effects.effects = effects.effects[:0]
-		err = handleEvent(s, &effects, ev.event)
+		if runtimeStatsEvent, ok := ev.event.(eventRuntimeStatsUpdated); ok {
+			err = handleRuntimeStatsUpdatedForTest(s, runtimeStatsEvent)
+		} else {
+			err = handleEvent(s, &effects, ev.event)
+		}
 		require.NoError(t, err)
 		output[i] = generateEventOutput(t, eventNodes[i], effects, before, s)
 		outputString := string(output[i])
@@ -146,6 +173,31 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 		err = os.Rename(tmpFile.Name(), file)
 		require.NoError(t, err)
 	}
+}
+
+func handleRuntimeStatsUpdatedForTest(
+	sm *state,
+	ev eventRuntimeStatsUpdated,
+) error {
+	prog, ok := sm.programs[ev.programID]
+	if !ok {
+		return fmt.Errorf("program %v not found in programs", ev.programID)
+	}
+	if prog.loaded == nil || prog.loaded.loaded == nil {
+		return fmt.Errorf(
+			"program %v has no loaded program",
+			ev.programID,
+		)
+	}
+	updater, ok := prog.loaded.loaded.(runtimeStatsUpdater)
+	if !ok {
+		return fmt.Errorf(
+			"program %v does not support runtime stats updates",
+			ev.programID,
+		)
+	}
+	updater.setRuntimeStats(ev.runtimeStats)
+	return nil
 }
 
 func generateEventOutput(
@@ -240,7 +292,7 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 	}
 	{
 		before, after := before.processes, after.processes
-		allIDs := make(map[processKey]bool)
+		allIDs := make(map[ProcessID]bool)
 		for id := range before {
 			allIDs[id] = true
 		}
@@ -251,12 +303,7 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 		for id := range allIDs {
 			beforeProc := before[id]
 			afterProc := after[id]
-			var key any
-			if id.tenantID != 0 {
-				key = fmt.Sprintf("t%d:%d", id.tenantID, id.PID)
-			} else {
-				key = int(id.PID)
-			}
+			key := int(id.PID)
 
 			var beforeState, afterState any
 			if beforeProc != nil {
@@ -312,13 +359,13 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 			if beforeProg != nil {
 				beforeState = fmt.Sprintf(
 					"%s (proc %d)",
-					beforeProg.state.String(), beforeProg.PID,
+					beforeProg.state.String(), beforeProg.processID.PID,
 				)
 			}
 			if afterProg != nil {
 				afterState = fmt.Sprintf(
 					"%s (proc %d)",
-					afterProg.state.String(), afterProg.PID,
+					afterProg.state.String(), afterProg.processID.PID,
 				)
 			}
 
@@ -335,6 +382,42 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 			}
 		}
 
+	}
+	{
+		allServices := make(map[string]bool)
+		for svc := range before.discoveredTypes {
+			allServices[svc] = true
+		}
+		for svc := range after.discoveredTypes {
+			allServices[svc] = true
+		}
+		for svc := range allServices {
+			beforeTypes := fmt.Sprintf("%v", before.discoveredTypes[svc])
+			afterTypes := fmt.Sprintf("%v", after.discoveredTypes[svc])
+			if beforeTypes != afterTypes {
+				if update.DiscoveredTypes == nil {
+					update.DiscoveredTypes = make(map[string]string)
+				}
+				update.DiscoveredTypes[svc] = fmt.Sprintf(
+					"%v -> %v", beforeTypes, afterTypes,
+				)
+			}
+		}
+	}
+	{
+		before, after := before.Metrics().AsStats(), after.Metrics().AsStats()
+		keys := slices.Sorted(maps.Keys(before))
+		for _, key := range keys {
+			beforeVal := before[key]
+			afterVal := after[key]
+			if beforeVal == afterVal {
+				continue
+			}
+			if update.Stats == nil {
+				update.Stats = make(map[string]string)
+			}
+			update.Stats[key] = fmt.Sprintf("%v -> %v", beforeVal, afterVal)
+		}
 	}
 
 	return update
@@ -355,14 +438,14 @@ func parseEventsFromNode(
 	eventsNode *yaml.Node,
 ) ([]yamlEvent, []*yaml.Node, error) {
 	if eventsNode.Kind != yaml.DocumentNode || len(eventsNode.Content) != 1 {
-		return nil, nil, fmt.Errorf(
+		return nil, nil, errors.New(
 			"expected document with single content node",
 		)
 	}
 
 	listNode := eventsNode.Content[0]
 	if listNode.Kind != yaml.SequenceNode {
-		return nil, nil, fmt.Errorf("expected sequence node for events list")
+		return nil, nil, errors.New("expected sequence node for events list")
 	}
 
 	events := make([]yamlEvent, len(listNode.Content))

@@ -93,9 +93,12 @@ func secretRefresh(config config.Component, _ log.Component, client ipc.HTTPClie
 		fmt.Println("APM agent refresh:")
 		res, err = traceAgentSecretRefresh(config, client)
 		if err != nil {
-			return err
+			// the trace-agent might not be running
+			// so we handle the error in a non-fatal way
+			fmt.Println(err.Error())
+		} else {
+			fmt.Println(string(res))
 		}
-		fmt.Println(string(res))
 	}
 
 	{

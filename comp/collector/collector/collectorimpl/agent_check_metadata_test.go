@@ -20,6 +20,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -48,6 +49,9 @@ func TestExternalHostTags(t *testing.T) {
 		fx.Provide(func() option.Option[agenttelemetry.Component] {
 			return option.None[agenttelemetry.Component]()
 		}),
+		fx.Provide(func() option.Option[healthplatform.Component] {
+			return option.None[healthplatform.Component]()
+		}),
 		fx.Provide(func() option.Option[serializer.MetricSerializer] {
 			return option.None[serializer.MetricSerializer]()
 		}),
@@ -64,5 +68,62 @@ func TestExternalHostTags(t *testing.T) {
 		} else {
 			assert.Fail(t, "Unexpected value for hostname: %s", elem[0])
 		}
+	}
+}
+
+func TestCollectTags(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		want   []string
+	}{
+		{
+			name: "list of tags",
+			config: `
+max_returned_metrics: 50000
+tags:
+  - foo:bar
+  - baz:qux
+`,
+			want: []string{"foo:bar", "baz:qux"},
+		},
+		{
+			name: "array of tags",
+			config: `
+max_returned_metrics: 50000
+tags: [foo:bar, baz:qux]
+`,
+			want: []string{"foo:bar", "baz:qux"},
+		},
+		{
+			name: "scalar value",
+			config: `
+max_returned_metrics: 50000
+tags: "foo:bar"
+`,
+			want: []string{"foo:bar"},
+		},
+		{
+			name:   "empty",
+			config: ``,
+			want:   []string{},
+		},
+		{
+			name: "below root",
+			config: `
+max_returned_metrics: 50000
+level: 
+  tags: "foo:bar"
+`,
+			want: []string{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := collectTags(test.config)
+			assert.NoError(t, err)
+			assert.Equal(t, test.want, got)
+		})
 	}
 }

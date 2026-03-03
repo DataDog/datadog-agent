@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build cel
+
 package program
 
 import (
@@ -17,7 +19,7 @@ import (
 func TestCELFieldConfigurationErrors(t *testing.T) {
 	env, err := cel.NewEnv(
 		cel.Types(&filterdef.Container{}, &filterdef.Pod{}),
-		cel.Variable("container", cel.ObjectType("datadog.filter.FilterContainer")),
+		cel.Variable("container", cel.ObjectType("datadog.workloadfilter.FilterContainer")),
 	)
 	require.NoError(t, err)
 
@@ -68,7 +70,7 @@ func TestCELFieldConfigurationErrors(t *testing.T) {
 		},
 		{
 			name:        "Valid logical expression",
-			expr:        `container.name == "nginx" || container.image == "nginx:latest"`,
+			expr:        `container.name == "nginx" || container.image.reference == "nginx:latest"`,
 			expectError: false,
 		},
 		{

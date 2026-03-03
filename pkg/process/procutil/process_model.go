@@ -6,12 +6,30 @@
 package procutil
 
 import (
+	"hash/fnv"
+	"slices"
+	"strconv"
+	"strings"
+
+	"github.com/DataDog/gopsutil/cpu"
+
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/DataDog/gopsutil/cpu"
 
 	// using process.FilledProcess
 	"github.com/DataDog/gopsutil/process"
+)
+
+// InjectionState represents the APM injection state of a process
+type InjectionState int
+
+const (
+	// InjectionUnknown means we haven't determined the injection status yet
+	InjectionUnknown InjectionState = 0
+	// InjectionInjected means the process has APM auto-injection enabled
+	InjectionInjected InjectionState = 1
+	// InjectionNotInjected means the process does not have APM auto-injection
+	InjectionNotInjected InjectionState = 2
 )
 
 // Process holds all relevant metadata and metrics for a process
@@ -35,8 +53,9 @@ type Process struct {
 	TCPPorts       []uint16
 	UDPPorts       []uint16
 
-	Stats   *Stats
-	Service *Service
+	Stats          *Stats
+	Service        *Service
+	InjectionState InjectionState // APM auto-injector detection status
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -54,6 +73,48 @@ func (p *Process) GetCmdline() []string {
 	return p.Cmdline
 }
 
+// ProcessIdentity generates a unique identity string for a process based on PID, creation time,
+// and command line hash. This allows detection of exec scenarios where the PID and creation time
+// remain the same but the command line changes.
+//
+// IMPORTANT: This function uses the same identity fields as IsSameProcess (pid, createTime, cmdline).
+// If you modify the identity fields here, update IsSameProcess as well.
+// See TestProcessIdentityAndIsSameProcessInSync for enforcement.
+func ProcessIdentity(pid int32, createTime int64, cmdline []string) string {
+	return "pid:" + strconv.FormatInt(int64(pid), 10) + "|createTime:" + strconv.FormatInt(createTime, 10) + "|cmdHash:" + strconv.FormatUint(hashCmdline(cmdline), 16)
+}
+
+// IsSameProcess returns true if two processes have the same identity (PID, create time, and cmdline).
+//
+// IMPORTANT: This function uses the same identity fields as ProcessIdentity (pid, createTime, cmdline).
+// If you modify the identity fields here, update ProcessIdentity as well.
+// See TestProcessIdentityAndIsSameProcessInSync for enforcement.
+func IsSameProcess(a, b *Process) bool {
+	if a.Pid != b.Pid {
+		return false
+	}
+	// Only check CreateTime if both processes have Stats populated
+	if a.Stats != nil && b.Stats != nil {
+		if a.Stats.CreateTime != b.Stats.CreateTime {
+			return false
+		}
+	}
+	return slices.Equal(a.Cmdline, b.Cmdline)
+}
+
+// hashCmdline computes a fast FNV-1a hash of the command line arguments.
+// Only hashes first 100 args to bound work for processes with huge cmdlines (some have 70K+ args).
+// 100 args covers ~p99.9 of real-world processes
+func hashCmdline(cmdline []string) uint64 {
+	const maxArgs = 100
+	if len(cmdline) > maxArgs {
+		cmdline = cmdline[:maxArgs]
+	}
+	h := fnv.New64a()
+	h.Write([]byte(strings.Join(cmdline, "\x00")))
+	return h.Sum64()
+}
+
 // DeepCopy creates a deep copy of Process
 func (p *Process) DeepCopy() *Process {
 	//nolint:revive // TODO(PROC) Fix revive linter
@@ -64,6 +125,7 @@ func (p *Process) DeepCopy() *Process {
 		Name:           p.Name,
 		Cwd:            p.Cwd,
 		Exe:            p.Exe,
+		Comm:           p.Comm,
 		Username:       p.Username,
 		PortsCollected: p.PortsCollected,
 	}
@@ -137,7 +199,10 @@ type Service struct {
 	DDService string
 
 	// APMInstrumentation indicates the APM instrumentation status
-	APMInstrumentation string
+	APMInstrumentation bool
+
+	// LogFiles contains paths to log files associated with this service
+	LogFiles []string
 }
 
 // DeepCopy creates a deep copy of Stats

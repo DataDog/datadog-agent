@@ -1,0 +1,34 @@
+.bazel:test:
+  rules:
+    - !reference [ .except_mergequeue ]
+    - when: on_success
+  stage: source_test
+
+bazel:test:linux-amd64:
+  extends: [ .bazel:test, .bazel:runner:linux-amd64 ]
+  script:
+    - bazel test //...
+
+bazel:test:linux-arm64:
+  extends: [ .bazel:test, .bazel:runner:linux-arm64 ]
+  script:
+    - bazel test //...
+
+bazel:test:macos-amd64:
+  extends: [ .bazel:test, .bazel:runner:macos-amd64 ]
+  script:
+    - bazel test //bazel/tests/... //rtloader/...
+
+bazel:test:macos-arm64:
+  extends: [ .bazel:test, .bazel:runner:macos-arm64 ]
+  script:
+    - bazel test //bazel/tests/... //rtloader/...
+
+bazel:test:windows-amd64:
+  extends: [ .bazel:test, .bazel:runner:windows-amd64 ]
+  rules:
+    - !reference [.except_skip_windows]
+    - !reference [.bazel:test, rules]
+  variables:
+    POWERSHELL_SCRIPT: |-
+      bazel test //bazel/tests/... //rtloader/...

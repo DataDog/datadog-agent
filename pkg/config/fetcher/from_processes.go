@@ -28,7 +28,7 @@ func SecurityAgentConfig(config config.Reader, client ipc.HTTPClient) (string, e
 
 	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", port)
 
-	settingsClient := settingshttp.NewHTTPSClient(client, apiConfigURL, "security-agent", ipchttp.WithTimeout(timeout))
+	settingsClient := settingshttp.NewSecureClient(client, apiConfigURL, "security-agent", ipchttp.WithTimeout(timeout))
 	return settingsClient.FullConfig()
 }
 
@@ -43,7 +43,7 @@ func SecurityAgentConfigBySource(config config.Reader, client ipc.HTTPClient) (s
 
 	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", port)
 
-	settingsClient := settingshttp.NewHTTPSClient(client, apiConfigURL, "security-agent", ipchttp.WithTimeout(timeout))
+	settingsClient := settingshttp.NewSecureClient(client, apiConfigURL, "security-agent", ipchttp.WithTimeout(timeout))
 	return settingsClient.FullConfigBySource()
 }
 
@@ -58,7 +58,7 @@ func TraceAgentConfig(config config.Reader, client ipc.HTTPClient) (string, erro
 
 	ipcAddressWithPort := fmt.Sprintf("https://127.0.0.1:%d/config", port)
 
-	settingsClient := settingshttp.NewHTTPSClient(client, ipcAddressWithPort, "trace-agent", ipchttp.WithTimeout(timeout))
+	settingsClient := settingshttp.NewSecureClient(client, ipcAddressWithPort, "trace-agent", ipchttp.WithTimeout(timeout))
 	return settingsClient.FullConfig()
 }
 
@@ -81,6 +81,6 @@ func ProcessAgentConfig(config config.Reader, client ipc.HTTPClient, getEntireCo
 
 	timeout := config.GetDuration("server_timeout") * time.Second
 
-	settingsClient := settingshttp.NewHTTPSClient(client, ipcAddressWithPort, "process-agent", ipchttp.WithTimeout(timeout))
+	settingsClient := settingshttp.NewSecureClient(client, ipcAddressWithPort, "process-agent", ipchttp.WithTimeout(timeout))
 	return settingsClient.FullConfig()
 }

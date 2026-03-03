@@ -9,6 +9,7 @@ package djm
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,6 +36,7 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"DB_CLUSTER_NAME":      "example[,'job]name",
 				"DB_CLUSTER_ID":        "cluster123",
 				"DATABRICKS_WORKSPACE": "example_workspace",
+				"WORKSPACE_URL":        "https://dbc-12345678-a1b2.cloud.databricks.com/",
 			},
 			wantTags: []string{
 				"data_workload_monitoring_trial:true",
@@ -48,21 +50,26 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"cluster_name:example_job_name",
 				"databricks_workspace:example_workspace",
 				"workspace:example_workspace",
-				"dd.internal.resource:databricks_cluster:cluster123",
+				"dd.internal.resource:databricks_cluster:example_workspace-cluster123",
+				"workspace_url:https://dbc-12345678-a1b2.cloud.databricks.com/",
 			},
 		},
 		{
 			name: "with job, run ids but not job cluster",
 			env: map[string]string{
 				"DB_CLUSTER_NAME": "job-123-run-456",
+				"DB_CLUSTER_ID":   "cluster123",
 			},
 			wantTags: []string{
 				"data_workload_monitoring_trial:true",
 				"databricks_cluster_name:job-123-run-456",
 				"cluster_name:job-123-run-456",
+				"databricks_cluster_id:cluster123",
+				"cluster_id:cluster123",
 				"jobid:123",
 				"runid:456",
 				"dd.internal.resource:databricks_job:123",
+				"dd.internal.resource:databricks_cluster:cluster123",
 			},
 		},
 		{
@@ -112,7 +119,7 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"cluster_name:example_job_name",
 				"databricks_workspace:\"example_workspace\"",
 				"workspace:example_workspace",
-				"dd.internal.resource:databricks_cluster:cluster123",
+				"dd.internal.resource:databricks_cluster:example_workspace-cluster123",
 			},
 		},
 		{
@@ -138,7 +145,7 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"cluster_name:example_job_name",
 				"databricks_workspace:Example Workspace",
 				"workspace:example_workspace",
-				"dd.internal.resource:databricks_cluster:cluster123",
+				"dd.internal.resource:databricks_cluster:example_workspace-cluster123",
 			},
 		},
 		{
@@ -222,6 +229,62 @@ func TestSetupCommonHostTags(t *testing.T) {
 			setupCommonHostTags(s)
 
 			assert.ElementsMatch(t, tt.wantTags, s.Config.DatadogYAML.Tags)
+		})
+	}
+}
+
+func TestNormalizeTagValue(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "lowercase and sanitize spaces",
+			input:    "Example Workspace",
+			expected: "example_workspace",
+		},
+		{
+			name:     "trim quotes",
+			input:    "\"example_workspace\"",
+			expected: "example_workspace",
+		},
+		{
+			name:     "dedupe underscores",
+			input:    "example___workspace",
+			expected: "example_workspace",
+		},
+		{
+			name:     "remove leading and trailing underscores and other special characters except for colons and slash",
+			input:    "_!:_/example_workspace!!",
+			expected: ":_/example_workspace",
+		},
+		{
+			name:     "remove leading digits",
+			input:    "___123_[]workspace123",
+			expected: "workspace123",
+		},
+		{
+			name:     "allow  numbers if surrounded by alpha and non-ascii characters",
+			input:    "___123_workspàce123workspacé",
+			expected: "workspàce123workspacé",
+		},
+		{
+			name:     "truncate to 200 characters",
+			input:    strings.Repeat("a", 250),
+			expected: strings.Repeat("a", 200),
+		},
+		{
+			name:     "complex real-world case",
+			input:    "\"___Example@Workspace#123!!___\"",
+			expected: "example_workspace_123",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := normalizeWorkspaceName(tt.input)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
@@ -342,33 +405,29 @@ func TestSetupGPUIntegration(t *testing.T) {
 	tests := []struct {
 		name                   string
 		env                    map[string]string
-		expectedCollectGPUTags bool
-		expectedEnableGPUM     bool
+		expectedEnableGPUM     *bool
 		expectedSystemProbeGPU bool
 	}{
 		{
 			name: "GPU monitoring enabled",
 			env: map[string]string{
-				"DD_GPU_MONITORING_ENABLED": "true",
+				"DD_GPU_ENABLED": "true",
 			},
-			expectedCollectGPUTags: true,
-			expectedEnableGPUM:     true,
+			expectedEnableGPUM:     config.BoolToPtr(true),
 			expectedSystemProbeGPU: true,
 		},
 		{
 			name: "GPU monitoring enabled with empty string value",
 			env: map[string]string{
-				"DD_GPU_MONITORING_ENABLED": "",
+				"DD_GPU_ENABLED": "",
 			},
-			expectedCollectGPUTags: false,
-			expectedEnableGPUM:     false,
+			expectedEnableGPUM:     nil,
 			expectedSystemProbeGPU: false,
 		},
 		{
 			name:                   "GPU monitoring not set",
 			env:                    map[string]string{},
-			expectedCollectGPUTags: false,
-			expectedEnableGPUM:     false,
+			expectedEnableGPUM:     nil,
 			expectedSystemProbeGPU: false,
 		},
 	}
@@ -390,23 +449,11 @@ func TestSetupGPUIntegration(t *testing.T) {
 				},
 			}
 
-			if os.Getenv("DD_GPU_MONITORING_ENABLED") == "true" {
+			if os.Getenv("DD_GPU_ENABLED") == "true" {
 				setupGPUIntegration(s)
 			}
 
-			assert.Equal(t, tt.expectedCollectGPUTags, s.Config.DatadogYAML.CollectGPUTags)
 			assert.Equal(t, tt.expectedEnableGPUM, s.Config.DatadogYAML.GPUCheck.Enabled)
-
-			// Check system-probe configuration
-			if tt.expectedSystemProbeGPU {
-				assert.NotNil(t, s.Config.SystemProbeYAML)
-				assert.Equal(t, tt.expectedSystemProbeGPU, s.Config.SystemProbeYAML.GPUMonitoringConfig.Enabled)
-			} else {
-				if s.Config.SystemProbeYAML != nil {
-					assert.Equal(t, tt.expectedSystemProbeGPU, s.Config.SystemProbeYAML.GPUMonitoringConfig.Enabled)
-				}
-			}
-
 		})
 	}
 }

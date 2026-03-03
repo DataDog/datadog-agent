@@ -13,9 +13,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	nooprdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/impl-none"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -25,14 +25,15 @@ type dependencies struct {
 	fx.In
 	Lc          fx.Lifecycle
 	EpForwarder eventplatform.Component
+	Traceroute  traceroute.Component
 	Logger      log.Component
 	AgentConfig config.Component
-	Telemetry   telemetry.Component
 	RDNSQuerier rdnsquerier.Component
 	Statsd      statsd.ClientInterface
 }
 
-type provides struct {
+// Provides defines the output of the npcollector component
+type Provides struct {
 	fx.Out
 
 	Comp npcollector.Component
@@ -45,12 +46,13 @@ func Module() fxutil.Module {
 	)
 }
 
-func newNpCollector(deps dependencies) provides {
+func newNpCollector(deps dependencies) Provides {
 	var collector *npCollectorImpl
 
-	configs := newConfig(deps.AgentConfig)
+	configs := newConfig(deps.AgentConfig, deps.Logger)
+	deps.Logger.Debugf("Network Path Configs: %+v", configs)
 	if configs.networkPathCollectorEnabled() {
-		deps.Logger.Debugf("Network Path Collector enabled")
+		deps.Logger.Debug("Network Path Collector enabled")
 
 		// Note that multiple components can share the same rdnsQuerier instance.  If any of them have
 		// reverse DNS enrichment enabled then the deps.RDNSQuerier component passed here will be an
@@ -68,7 +70,7 @@ func newNpCollector(deps dependencies) provides {
 			deps.Logger.Errorf("Error getting EpForwarder")
 			collector = newNoopNpCollectorImpl()
 		} else {
-			collector = newNpCollectorImpl(epForwarder, configs, deps.Logger, deps.Telemetry, rdnsQuerier, deps.Statsd)
+			collector = newNpCollectorImpl(epForwarder, configs, deps.Traceroute, deps.Logger, rdnsQuerier, deps.Statsd)
 			deps.Lc.Append(fx.Hook{
 				// No need for OnStart hook since NpCollector.Init() will be called by clients when needed.
 				OnStart: func(context.Context) error {
@@ -85,7 +87,7 @@ func newNpCollector(deps dependencies) provides {
 		collector = newNoopNpCollectorImpl()
 	}
 
-	return provides{
+	return Provides{
 		Comp: collector,
 	}
 }

@@ -26,14 +26,16 @@ import (
 )
 
 // NewDeploymentRolloutFactory returns a new Deployment rollout factory that provides rollout duration metrics
-func NewDeploymentRolloutFactory(client *apiserver.APIClient) customresource.RegistryFactory {
+func NewDeploymentRolloutFactory(client *apiserver.APIClient, rolloutTracker RolloutOperations) customresource.RegistryFactory {
 	return &deploymentRolloutFactory{
-		client: client.Cl,
+		client:         client.Cl,
+		rolloutTracker: rolloutTracker,
 	}
 }
 
 type deploymentRolloutFactory struct {
-	client kubernetes.Interface
+	client         kubernetes.Interface
+	rolloutTracker RolloutOperations
 }
 
 func (f *deploymentRolloutFactory) Name() string {
@@ -53,13 +55,40 @@ func (f *deploymentRolloutFactory) MetricFamilyGenerators() []generator.FamilyGe
 			basemetrics.ALPHA,
 			"",
 			wrapDeploymentFunc(func(d *appsv1.Deployment) *metric.Family {
-				// Check if deployment has an ongoing rollout
-				isOngoing := d.Generation != d.Status.ObservedGeneration ||
-					(d.Spec.Replicas != nil && d.Status.ReadyReplicas != *d.Spec.Replicas)
+				// Get the current revision annotation - this changes on actual rollouts/rollbacks
+				// but NOT on scaling, pause, or other non-template changes
+				currentRevision := d.Annotations[RevisionAnnotationKey]
+
+				// Check if this is a generation mismatch (Kubernetes hasn't caught up yet)
+				generationMismatch := d.Generation != d.Status.ObservedGeneration
+
+				// Check if the revision actually changed - this distinguishes real rollouts
+				// from scaling/pause operations which change generation but not revision
+				revisionChanged := f.rolloutTracker.HasRevisionChanged(d.Namespace, d.Name, currentRevision)
+
+				// Check if we're already tracking this deployment
+				isActivelyTracked := f.rolloutTracker.HasActiveRollout(d)
+
+				// Check if Kubernetes reports an active rollout condition
+				hasRolloutCondition := f.rolloutTracker.HasRolloutCondition(d)
+
+				// A rollout is ongoing if:
+				// 1. Revision changed AND (generation mismatch OR rollout condition active)
+				//    - This catches both normal rollouts AND fast reconciliation cases where
+				//      generation catches up quickly but pods are still rolling
+				// 2. OR we're already tracking AND has rollout condition (continuing rollout)
+				//
+				// Note: If a rollout completes entirely between checks (< 15s), we won't report it.
+				// This is acceptable - we only need to report rollouts that are ongoing when checked.
+				isOngoing := (revisionChanged && (generationMismatch || hasRolloutCondition)) ||
+					(isActivelyTracked && hasRolloutCondition)
+
+				// Always update the last seen revision to track state across scrapes
+				// This must be called regardless of isOngoing to maintain accurate revision tracking
+				defer f.rolloutTracker.UpdateLastSeenRevision(d.Namespace, d.Name, currentRevision)
 
 				if isOngoing {
-					// Store deployment for rollout tracking
-					StoreDeployment(d)
+					f.rolloutTracker.StoreDeployment(d)
 
 					// Return dummy metric with value 1 to trigger transformer
 					return &metric.Family{
@@ -73,7 +102,7 @@ func (f *deploymentRolloutFactory) MetricFamilyGenerators() []generator.FamilyGe
 					}
 				}
 				// Rollout complete - cleanup and return 0
-				CleanupDeployment(d.Namespace, d.Name)
+				f.rolloutTracker.CleanupDeployment(d.Namespace, d.Name)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{

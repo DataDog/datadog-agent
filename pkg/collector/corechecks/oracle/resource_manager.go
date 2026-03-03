@@ -58,8 +58,8 @@ func (c *Check) resourceManager() error {
 		if r.PlanName.Valid && r.PlanName.String != "" {
 			tags = append(tags, "plan_name:"+r.PlanName.String)
 		}
-		sendMetric(c, gauge, fmt.Sprintf("%s.resource_manager.cpu_consumed_time", common.IntegrationName), r.CPUConsumedTime, tags)
-		sendMetric(c, gauge, fmt.Sprintf("%s.resource_manager.cpu_wait_time", common.IntegrationName), r.CPUWaitTime, tags)
+		sendMetric(c, gauge, common.IntegrationName+".resource_manager.cpu_consumed_time", r.CPUConsumedTime, tags)
+		sendMetric(c, gauge, common.IntegrationName+".resource_manager.cpu_wait_time", r.CPUWaitTime, tags)
 	}
 	sender.Commit()
 	return nil

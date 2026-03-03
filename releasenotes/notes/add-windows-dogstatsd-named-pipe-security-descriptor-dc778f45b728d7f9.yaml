@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    Dogstatsd named pipe on Windows is now read/writeable for everyone by default. This prevents an ``Access is denied`` error when opening a named pipe for dogstatsd server on a Windows Azure App Service Web app. Security descriptor for the named pipe can be customized via ``dogstatsd_windows_pipe_security_descriptor``.

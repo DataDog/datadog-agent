@@ -42,7 +42,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
@@ -61,15 +60,16 @@ type dependencies struct {
 	Lc         fx.Lifecycle
 	Shutdowner fx.Shutdowner
 
-	Config             config.Component
-	Secrets            option.Option[secrets.Component]
-	Context            context.Context
-	Params             *Params
-	TelemetryCollector telemetry.TelemetryCollector
-	Statsd             statsd.Component
-	Tagger             tagger.Component
-	Compressor         compression.Component
-	IPC                ipc.Component
+	Config                config.Component
+	Secrets               secrets.Component
+	Context               context.Context
+	Params                *Params
+	TelemetryCollector    telemetry.TelemetryCollector
+	Statsd                statsd.Component
+	Tagger                tagger.Component
+	Compressor            compression.Component
+	IPC                   ipc.Component
+	TracerPayloadModifier pkgagent.TracerPayloadModifier
 }
 
 var _ traceagent.Component = (*component)(nil)
@@ -78,7 +78,7 @@ func (c component) SetOTelAttributeTranslator(attrstrans *attributes.Translator)
 	c.Agent.OTLPReceiver.SetOTelAttributeTranslator(attrstrans)
 }
 
-func (c component) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler attributes.HostFromAttributesHandler) source.Source {
+func (c component) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler attributes.HostFromAttributesHandler) (source.Source, error) {
 	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader, hostFromAttributesHandler)
 }
 
@@ -99,7 +99,7 @@ type component struct {
 
 	cancel             context.CancelFunc
 	config             config.Component
-	secrets            option.Option[secrets.Component]
+	secrets            secrets.Component
 	params             *Params
 	tagger             tagger.Component
 	telemetryCollector telemetry.TelemetryCollector
@@ -113,7 +113,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 	tracecfg := deps.Config.Object()
 	if !tracecfg.Enabled {
 		log.Info(messageAgentDisabled)
-		deps.TelemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, fmt.Errorf(""))
+		deps.TelemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, errors.New(""))
 		// Required to signal that the whole app must stop.
 		_ = deps.Shutdowner.Shutdown()
 		return c, nil
@@ -137,13 +137,22 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 
 	prepGoRuntime(tracecfg)
 
+	tracecfg.SecretsRefreshFn = func() (string, error) {
+		if deps.Secrets == nil {
+			log.Error("Secrets component not available, cannot trigger refresh")
+			return "", errors.New("secrets component not available")
+		}
+		return deps.Secrets.Refresh(true)
+	}
+
 	c.Agent = pkgagent.NewAgent(
 		ctx,
-		c.config.Object(),
+		tracecfg,
 		c.telemetryCollector,
 		statsdCl,
 		deps.Compressor,
 	)
+	c.Agent.TracerPayloadModifier = deps.TracerPayloadModifier
 
 	c.config.OnUpdateAPIKey(c.UpdateAPIKey)
 

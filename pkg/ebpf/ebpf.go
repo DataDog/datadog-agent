@@ -14,6 +14,7 @@ import (
 
 	"github.com/cilium/ebpf/rlimit"
 
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -24,12 +25,12 @@ var core struct {
 
 // Setup initializes CO-RE and BTF loaders with the provided config.
 // [Reset] must be called first if you want a different config to take effect
-func Setup(cfg *Config) error {
-	_, err := coreLoader(cfg)
+func Setup(cfg *Config, rcclient rcclient.Component) error {
+	_, err := coreLoader(cfg, rcclient)
 	return err
 }
 
-func coreLoader(cfg *Config) (*coreAssetLoader, error) {
+func coreLoader(cfg *Config, rcclient rcclient.Component) (*coreAssetLoader, error) {
 	core.RLock()
 	loader := core.loader
 	core.RUnlock()
@@ -44,7 +45,7 @@ func coreLoader(cfg *Config) (*coreAssetLoader, error) {
 	}
 	core.loader = &coreAssetLoader{
 		coreDir:   filepath.Join(cfg.BPFDir, "co-re"),
-		btfLoader: initBTFLoader(cfg),
+		btfLoader: initBTFLoader(cfg, rcclient),
 		telemetry: struct {
 			success telemetry.Counter
 			error   telemetry.Counter

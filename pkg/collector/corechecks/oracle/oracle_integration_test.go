@@ -457,3 +457,88 @@ func getOwner(c *Check) string {
 	}
 	return "sys"
 }
+
+func TestBindParameterObfuscation(t *testing.T) {
+	tests := []struct {
+		name               string
+		sql                string
+		replaceBindParam   bool
+		expectedObfuscated string
+	}{
+		{
+			name:               "Oracle bind parameter with ReplaceBindParameter=true",
+			sql:                "select * from person where personid = :SYS_B_0",
+			replaceBindParam:   true,
+			expectedObfuscated: "select * from person where personid = ?",
+		},
+		{
+			name:               "Oracle named bind with ReplaceBindParameter=true",
+			sql:                "SELECT sid FROM v$session WHERE username = :username",
+			replaceBindParam:   true,
+			expectedObfuscated: "SELECT sid FROM v$session WHERE username = ?",
+		},
+		{
+			name:               "Multiple bind parameters",
+			sql:                "select * from person where personid = :SYS_B_0 and name = :SYS_B_1",
+			replaceBindParam:   true,
+			expectedObfuscated: "select * from person where personid = ? and name = ?",
+		},
+		{
+			name:               "Bind parameter NOT replaced when disabled",
+			sql:                "select * from person where personid = :SYS_B_0",
+			replaceBindParam:   false,
+			expectedObfuscated: "select * from person where personid = :SYS_B_0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := config.GetDefaultObfuscatorOptions()
+			opts.ReplaceBindParameter = tt.replaceBindParam
+
+			o := obfuscate.NewObfuscator(obfuscate.Config{SQL: opts})
+			obfuscatedStatement, err := o.ObfuscateSQLString(tt.sql)
+
+			assert.NoError(t, err, "obfuscation should not error")
+			assert.Equal(t, tt.expectedObfuscated, obfuscatedStatement.Query,
+				"obfuscated SQL should match expected")
+		})
+	}
+}
+
+func TestObfuscatorOptionsFromYAML(t *testing.T) {
+	tests := []struct {
+		name                     string
+		yamlConfig               string
+		expectedReplaceBindParam bool
+	}{
+		{
+			name:                     "Default value (not specified in YAML)",
+			yamlConfig:               "",
+			expectedReplaceBindParam: false,
+		},
+		{
+			name: "Explicitly set to false in YAML",
+			yamlConfig: `obfuscator_options:
+  replace_bind_parameter: false`,
+			expectedReplaceBindParam: false,
+		},
+		{
+			name: "Explicitly set to true in YAML",
+			yamlConfig: `obfuscator_options:
+  replace_bind_parameter: true`,
+			expectedReplaceBindParam: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, _ := newDefaultCheck(t, tt.yamlConfig, "")
+			defer c.Teardown()
+
+			assert.Equal(t, tt.expectedReplaceBindParam,
+				c.config.ObfuscatorOptions.ReplaceBindParameter,
+				"ReplaceBindParameter should match expected value")
+		})
+	}
+}

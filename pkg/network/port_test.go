@@ -159,9 +159,11 @@ func testReadListeningPorts(t *testing.T, proto string) {
 	}
 
 	initialPorts, err := ReadListeningPorts("/proc", connType, true)
-	if !assert.NoError(t, err) {
-		return
-	}
+	require.NoError(t, err)
+
+	// we can't check for the absence of ports in the root ns, because another process can always start something in the root ns with an ephemeral port.
+	// I'm leaving this here as a reminder against re-adding this check in the future, and to allow manually enabling the check if debugging
+	const enableFlakyRootNsCheck = false
 
 	// check ports corresponding to proto in root ns
 	for _, p := range ports[:2] {
@@ -171,19 +173,25 @@ func testReadListeningPorts(t *testing.T, proto string) {
 
 	// check ports not corresponding to proto in root ns
 	for _, p := range ports[2:4] {
-		assert.NotContainsf(t, initialPorts, PortMapping{rootNsIno, p}, "PortMapping should not exist for %s port %d in root ns", otherConnType, p)
+		if enableFlakyRootNsCheck {
+			assert.NotContainsf(t, initialPorts, PortMapping{rootNsIno, p}, "PortMapping should not exist for %s port %d in root ns", otherConnType, p)
+		}
 		assert.NotContainsf(t, initialPorts, PortMapping{nsIno, p}, "PortMapping should not exist for %s port %d in test ns", otherConnType, p)
 	}
 
 	// check ports corresponding to proto in test ns
 	for _, p := range ports[4:6] {
 		assert.Containsf(t, initialPorts, PortMapping{nsIno, p}, "PortMapping should exist for %s port %d in test ns", connType, p)
-		assert.NotContainsf(t, initialPorts, PortMapping{rootNsIno, p}, "PortMapping should not exist for %s port %d in root ns", connType, p)
+		if enableFlakyRootNsCheck {
+			assert.NotContainsf(t, initialPorts, PortMapping{rootNsIno, p}, "PortMapping should not exist for %s port %d in root ns", connType, p)
+		}
 	}
 
 	// check ports not corresponding to proto in test ns
 	for _, p := range ports[6:8] {
 		assert.NotContainsf(t, initialPorts, PortMapping{nsIno, p}, "PortMapping should not exist for %s port %d in test ns", otherConnType, p)
-		assert.NotContainsf(t, initialPorts, PortMapping{rootNsIno, p}, "PortMapping should not exist for %s port %d in root ns", otherConnType, p)
+		if enableFlakyRootNsCheck {
+			assert.NotContainsf(t, initialPorts, PortMapping{rootNsIno, p}, "PortMapping should not exist for %s port %d in root ns", otherConnType, p)
+		}
 	}
 }

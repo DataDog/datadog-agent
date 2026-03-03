@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
@@ -17,8 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// usmEncoder represents the interface for a generic connections' encoder.
-type usmEncoder interface {
+// USMEncoder represents the interface for a generic connections' encoder.
+type USMEncoder interface {
 	// Close closes the encoder.
 	Close()
 	// EncodeConnection encodes USM data for a given connection into the given builder. Returns static tags and dynamic tags.
@@ -86,7 +87,7 @@ func GroupByConnection[K comparable, V any](protocol string, data map[K]V, keyGe
 		connectionData, ok := byConnection.data[connectionKey]
 		if !ok {
 			connectionData = new(USMConnectionData[K, V])
-			connectionData.Data = make([]USMKeyValue[K, V], 0, entriesSizeMap[keyGen(key)])
+			connectionData.Data = make([]USMKeyValue[K, V], 0, entriesSizeMap[connectionKey])
 			byConnection.data[connectionKey] = connectionData
 		}
 

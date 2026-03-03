@@ -36,7 +36,7 @@ func (fs *fakeScaler) update(ctx context.Context, gr schema.GroupResource, scale
 }
 
 func (fs *fakeScaler) mockGet(pai model.FakePodAutoscalerInternal, specReplicas, statusReplicas int32, err error) {
-	mockCall := fs.On("get", mock.Anything, pai.Namespace, pai.Name, pai.TargetGVK)
+	mockCall := fs.On("get", mock.Anything, pai.Namespace, pai.Spec.TargetRef.Name, pai.TargetGVK)
 	if err != nil {
 		mockCall.Return(nil, schema.GroupResource{}, err)
 		return

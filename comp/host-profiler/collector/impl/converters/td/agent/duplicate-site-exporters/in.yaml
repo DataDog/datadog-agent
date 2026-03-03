@@ -1,0 +1,6 @@
+service:
+  pipelines:
+    profiles:
+      processors: []
+      receivers: []
+      exporters: []

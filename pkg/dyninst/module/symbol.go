@@ -8,8 +8,10 @@
 package module
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
@@ -50,7 +52,7 @@ func newSymbolicator(executable actuator.Executable) (_ symbol.Symbolicator, c i
 	c = symbolTable
 	symbolicator := symbol.NewGoSymbolicator(&symbolTable.GoSymbolTable)
 	if symbolicator == nil {
-		return nil, nil, fmt.Errorf("error creating go symbolicator")
+		return nil, nil, errors.New("error creating go symbolicator")
 	}
 
 	// TODO: make this configurable
@@ -60,3 +62,44 @@ func newSymbolicator(executable actuator.Executable) (_ symbol.Symbolicator, c i
 	}
 	return cachingSymbolicator, symbolTable, nil
 }
+
+// refCountedSymbolicator wraps a Symbolicator and its backing file with
+// reference counting. The file is closed when the last reference is released.
+// Each call to addRef must be balanced by a call to Close.
+type refCountedSymbolicator struct {
+	inner    symbol.Symbolicator
+	file     io.Closer
+	mu       sync.Mutex
+	refCount int32
+}
+
+func newRefCountedSymbolicator(inner symbol.Symbolicator, file io.Closer) *refCountedSymbolicator {
+	return &refCountedSymbolicator{
+		inner:    inner,
+		file:     file,
+		refCount: 1,
+	}
+}
+
+func (r *refCountedSymbolicator) addRef() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.refCount++
+}
+
+func (r *refCountedSymbolicator) Symbolicate(stack []uint64, stackHash uint64) ([]symbol.StackFrame, error) {
+	return r.inner.Symbolicate(stack, stackHash)
+}
+
+func (r *refCountedSymbolicator) Close() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.refCount--
+	if r.refCount > 0 || r.file == nil {
+		return nil
+	}
+	return r.file.Close()
+}
+
+var _ symbol.Symbolicator = (*refCountedSymbolicator)(nil)
+var _ io.Closer = (*refCountedSymbolicator)(nil)

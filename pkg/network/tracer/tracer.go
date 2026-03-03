@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
+	"github.com/DataDog/datadog-agent/pkg/network/containers"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -36,15 +37,14 @@ import (
 	filter "github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers"
 	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/os"
 )
 
 const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
@@ -98,7 +98,8 @@ type Tracer struct {
 	sysctlUDPConnTimeout       *sysctl.Int
 	sysctlUDPConnStreamTimeout *sysctl.Int
 
-	processCache *processCache
+	processCache   *processCache
+	containerStore *containers.ContainerStore
 
 	timeResolver *ktime.Resolver
 
@@ -200,6 +201,9 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 		}
 	}
 
+	if !cfg.EnableProcessEventMonitoring && cfg.EnableContainerStore {
+		log.Warnf("not starting resolv.conf container store, because it depends on process event monitoring which is disabled")
+	}
 	if cfg.EnableProcessEventMonitoring {
 		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
@@ -215,6 +219,13 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 		}
 
 		events.RegisterHandler(tr.processCache)
+
+		if cfg.EnableContainerStore {
+			if tr.containerStore, err = containers.NewContainerStore(cfg.MaxContainersTracked); err != nil {
+				return nil, fmt.Errorf("could not create container store: %w", err)
+			}
+			events.RegisterHandler(tr.containerStore)
+		}
 	}
 
 	tr.sourceExcludes = filter.ParseConnectionFilters(cfg.ExcludedSourceConnections)
@@ -231,6 +242,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 		cfg.MaxRedisStatsBuffered,
 		cfg.EnableNPMConnectionRollup,
 		cfg.EnableProcessEventMonitoring,
+		cfg.DNSMonitoringPortList,
 	)
 
 	return tr, nil
@@ -417,6 +429,10 @@ func (t *Tracer) Stop() {
 		t.processCache.Stop()
 		telemetry.GetCompatComponent().UnregisterCollector(t.processCache)
 	}
+	if t.containerStore != nil {
+		events.UnregisterHandler(t.containerStore)
+		t.containerStore.Stop()
+	}
 	t.connectionProtocolMapCleaner.Stop()
 }
 
@@ -458,6 +474,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, fu
 	buffer.ConnectionBuffer.Assign(delta.Conns)
 	conns := network.NewConnections(buffer)
 	conns.DNS = t.reverseDNS.Resolve(ips)
+	if t.containerStore != nil {
+		conns.ResolvConfs = t.containerStore.GetResolvConfMap(delta.Conns)
+	}
 	conns.USMData = delta.USMData
 	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
 	conns.CompilationTelemetryByAsset = t.getRuntimeCompilationTelemetry()
@@ -679,7 +698,7 @@ var allStats = []statsComp{
 
 func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 	if t.state == nil {
-		return nil, fmt.Errorf("internal state not yet initialized")
+		return nil, errors.New("internal state not yet initialized")
 	}
 
 	if len(comps) == 0 {
@@ -717,7 +736,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 // DebugNetworkState returns a map with the current tracer's internal state, for debugging
 func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, error) {
 	if t.state == nil {
-		return nil, fmt.Errorf("internal state not yet initialized")
+		return nil, errors.New("internal state not yet initialized")
 	}
 	return t.state.DumpState(clientID), nil
 }
@@ -771,7 +790,7 @@ func (t *Tracer) connectionExpired(conn *network.ConnectionStats, latestTime uin
 	// skip connection check for udp connections or if
 	// the pid for the connection is dead
 	// conn.Pid can be 0 when ebpf-less tracer is running
-	if conn.Type == network.UDP || (conn.Pid > 0 && !procutil.PidExists(int(conn.Pid))) {
+	if conn.Type == network.UDP || (conn.Pid > 0 && !os.PidExists(int(conn.Pid))) {
 		return true
 	}
 
@@ -883,20 +902,6 @@ func newUSMMonitor(c *config.Config, tracer connection.Tracer, statsd statsd.Cli
 	}
 
 	return monitor
-}
-
-// GetNetworkID retrieves the vpc_id (network_id) from IMDS
-func (t *Tracer) GetNetworkID(context context.Context) (string, error) {
-	id := ""
-	err := netnsutil.WithRootNS(kernel.ProcFSRoot(), func() error {
-		var err error
-		id, err = ec2.GetNetworkID(context)
-		return err
-	})
-	if err != nil {
-		return "", err
-	}
-	return id, nil
 }
 
 const connProtoTTL = 3 * time.Minute

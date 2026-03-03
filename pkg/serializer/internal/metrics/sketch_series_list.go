@@ -45,101 +45,76 @@ func init() {
 	expvars.Set("UnexpectedItemDrops", &expvarsUnexpectedItemDrops)
 }
 
-// MarshalSplitCompress uses the stream compressor to marshal and compress sketch series payloads.
-// If a compressed payload is larger than the max, a new payload will be generated. This method returns a slice of
-// compressed protobuf marshaled gogen.SketchPayload objects. gogen.SketchPayload is not directly marshaled - instead
-// it's contents are marshaled individually, packed with the appropriate protobuf metadata, and compressed in stream.
-// The resulting payloads (when decompressed) are binary equal to the result of marshaling the whole object at once.
-func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferContext, config config.Component, strategy compression.Component, logger log.Component) (transaction.BytesPayloads, error) {
-	var err error
-
-	pb := newPayloadsBuilder(bufferContext, config, strategy, logger)
-
-	// start things off
-	err = pb.startPayload()
-	if err != nil {
-		return nil, err
-	}
-
-	for sl.MoveNext() {
-		ss := sl.Current()
-		err = pb.marshal(ss)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	err = pb.finishPayload()
-	if err != nil {
-		logger.Debugf("Failed to finish payload with err %v", err)
-		return nil, err
-	}
-
-	return pb.payloads, nil
+type sketchWriter interface {
+	writeSketch(sketch *metrics.SketchSeries) error
+	startPayload() error
+	finishPayload() error
 }
 
-// MarshalSplitCompressMultiple uses the stream compressor to marshal and
-// compress one sketch list into two sets of payloads.  One set of payloads
-// contains all metrics, and the other contains only those that pass the
-// provided filter function.  This function exists because we need a way to
-// build both payloads in a single pass over the input data, which cannot be
-// iterated over twice.
-func (sl SketchSeriesList) MarshalSplitCompressMultiple(config config.Component, strategy compression.Component, filterFunc func(ss *metrics.SketchSeries) bool, logger log.Component) (transaction.BytesPayloads, transaction.BytesPayloads, error) {
+// MarshalSplitCompressPipelines uses the stream compressor to marshal and
+// compress sketch series payloads across multiple pipelines. Each pipeline
+// defines a filter function and destination, enabling selective routing of
+// sketches to different endpoints.
+func (sl SketchSeriesList) MarshalSplitCompressPipelines(config config.Component, strategy compression.Component, pipelines PipelineSet, logger log.Component) error {
 	var err error
 
-	bufferContext := marshaler.NewBufferContext()
-	bufferContext2 := marshaler.NewBufferContext()
+	// Create payload builders for each pipeline
+	pbs := make([]sketchWriter, 0, len(pipelines))
+	for pipelineConfig, pipelineContext := range pipelines {
+		var pb sketchWriter
+		if !pipelineConfig.V3 {
+			bufferContext := marshaler.NewBufferContext()
+			pb = newPayloadsBuilder(bufferContext, config, strategy, logger, pipelineConfig, pipelineContext)
+		} else {
+			pbv3, err := newPayloadsBuilderV3WithConfig(config, strategy, pipelineConfig, pipelineContext)
+			if err != nil {
+				return err
+			}
+			pb = pbv3
+		}
 
-	pb := newPayloadsBuilder(bufferContext, config, strategy, logger)
-	pb2 := newPayloadsBuilder(bufferContext2, config, strategy, logger)
+		pbs = append(pbs, pb)
 
-	// start things off
-	err = pb.startPayload()
-	if err != nil {
-		return nil, nil, err
-	}
-	err = pb2.startPayload()
-	if err != nil {
-		return nil, nil, err
+		err = pb.startPayload()
+		if err != nil {
+			return err
+		}
 	}
 
 	for sl.MoveNext() {
 		ss := sl.Current()
-		err = pb.marshal(ss)
-		if err != nil {
-			return nil, nil, err
-		}
-		if filterFunc(ss) {
-			err = pb2.marshal(ss)
+		for i := range pbs {
+			err := pbs[i].writeSketch(ss)
 			if err != nil {
-				return nil, nil, err
+				return err
 			}
 		}
 	}
 
-	err = pb.finishPayload()
-	if err != nil {
-		logger.Debugf("Failed to finish payload with err %v", err)
-		return nil, nil, err
+	for i := range pbs {
+		err := pbs[i].finishPayload()
+		if err != nil {
+			return err
+		}
 	}
 
-	err = pb2.finishPayload()
-	if err != nil {
-		logger.Debugf("Failed to finish payload with err %v", err)
-		return nil, nil, err
-	}
-
-	return pb.payloads, pb2.payloads, nil
+	return nil
 }
 
-func newPayloadsBuilder(bufferContext *marshaler.BufferContext, config config.Component, strategy compression.Component, logger log.Component) payloadsBuilder {
+func newPayloadsBuilder(
+	bufferContext *marshaler.BufferContext,
+	config config.Component,
+	strategy compression.Component,
+	logger log.Component,
+	pipelineConfig PipelineConfig,
+	pipelineContext *PipelineContext,
+) *payloadsBuilder {
 	buf := bufferContext.PrecompressionBuf
-	pb := payloadsBuilder{
+	pb := &payloadsBuilder{
 		bufferContext: bufferContext,
 		strategy:      strategy,
 		compressor:    nil,
 		buf:           buf,
-		payloads:      transaction.BytesPayloads{},
 		ps:            molecule.NewProtoStream(buf),
 		// the backend accepts payloads up to specific compressed / uncompressed
 		// sizes, but prefers small uncompressed payloads.
@@ -147,6 +122,9 @@ func newPayloadsBuilder(bufferContext *marshaler.BufferContext, config config.Co
 		maxUncompressedSize: config.GetInt("serializer_max_uncompressed_payload_size"),
 		pointCount:          0,
 		logger:              logger,
+
+		pipelineConfig:  pipelineConfig,
+		pipelineContext: pipelineContext,
 	}
 	return pb
 }
@@ -156,12 +134,14 @@ type payloadsBuilder struct {
 	strategy            compression.Component
 	compressor          *stream.Compressor
 	buf                 *bytes.Buffer
-	payloads            transaction.BytesPayloads
 	ps                  *molecule.ProtoStream
 	maxPayloadSize      int
 	maxUncompressedSize int
 	pointCount          int
 	logger              log.Component
+
+	pipelineConfig  PipelineConfig
+	pipelineContext *PipelineContext
 }
 
 // Prepare to write the next payload
@@ -202,7 +182,7 @@ func (pb *payloadsBuilder) startPayload() error {
 	return nil
 }
 
-func (pb *payloadsBuilder) marshal(ss *metrics.SketchSeries) error {
+func (pb *payloadsBuilder) writeSketch(ss *metrics.SketchSeries) error {
 	// constants for the protobuf data we will be writing, taken from
 	// https://github.com/DataDog/agent-payload/v5/blob/a2cd634bc9c088865b75c6410335270e6d780416/proto/metrics/agent_payload.proto#L47-L81
 	// Unused fields are commented out
@@ -252,6 +232,10 @@ func (pb *payloadsBuilder) marshal(ss *metrics.SketchSeries) error {
 	const sketchMetadataOriginOriginService = 6
 	//                 |----|  'Origin' message
 	//                       |-----------| 'origin_service' field index
+
+	if !pb.pipelineConfig.Filter.Filter(ss) {
+		return nil
+	}
 
 	pb.buf.Reset()
 	err := pb.ps.Embedded(payloadSketches, func(ps *molecule.ProtoStream) error {
@@ -412,7 +396,7 @@ func (pb *payloadsBuilder) finishPayload() error {
 		return err
 	}
 
-	pb.payloads = append(pb.payloads, transaction.NewBytesPayload(payload, pb.pointCount))
+	pb.pipelineContext.addPayload(transaction.NewBytesPayload(payload, pb.pointCount))
 
 	return nil
 }

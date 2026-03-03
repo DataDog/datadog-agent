@@ -34,6 +34,11 @@ func (mf *cachedFunc[T]) Do() (*T, error) {
 	mf.mtx.Lock()
 	defer mf.mtx.Unlock()
 
+	// check again, after acquiring the lock
+	if mf.result != nil {
+		return mf.result, nil
+	}
+
 	var err error
 	res, err = mf.fn()
 	if err != nil {

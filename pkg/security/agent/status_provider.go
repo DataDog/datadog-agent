@@ -9,10 +9,8 @@ package agent
 import (
 	"embed"
 	"io"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 )
 
 //go:embed status_templates
@@ -50,8 +48,8 @@ func (s statusProvider) populateStatus(stats map[string]interface{}) {
 		base["endpoints"] = s.agent.endpoints.GetStatus()
 	}
 
-	if s.agent.client != nil {
-		cfStatus, err := s.agent.client.GetStatus()
+	if s.agent.cmdClient != nil {
+		cfStatus, err := s.agent.cmdClient.GetStatus()
 		if err == nil {
 			if cfStatus.Environment != nil {
 				environment := map[string]interface{}{
@@ -75,34 +73,6 @@ func (s statusProvider) populateStatus(stats map[string]interface{}) {
 				base["selfTests"] = selfTests
 			}
 			base["policiesStatus"] = cfStatus.PoliciesStatus
-
-			var globals []*api.SECLVariableState
-			for _, global := range cfStatus.SECLVariables {
-				if !strings.Contains(global.Name, ".") {
-					globals = append(globals, global)
-				}
-			}
-			base["seclGlobalVariables"] = globals
-
-			scopedVariables := make(map[string]map[string][]*api.SECLVariableState)
-			for _, scoped := range cfStatus.SECLVariables {
-				split := strings.SplitN(scoped.Name, ".", 3)
-				if len(split) < 3 {
-					continue
-				}
-				scope, name, key := split[0], split[1], split[2]
-				if scope != "" {
-					if _, found := scopedVariables[scope]; !found {
-						scopedVariables[scope] = make(map[string][]*api.SECLVariableState)
-					}
-
-					scopedVariables[scope][key] = append(scopedVariables[scope][key], &api.SECLVariableState{
-						Name:  name,
-						Value: scoped.Value,
-					})
-				}
-			}
-			base["seclScopedVariables"] = scopedVariables
 		}
 	}
 

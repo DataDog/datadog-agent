@@ -112,6 +112,10 @@ func FindReturnLocations(elfFile *safeelf.File, sym safeelf.Symbol, functionOffs
 	}
 }
 
+const (
+	executableSectionFlags = safeelf.SHF_ALLOC | safeelf.SHF_EXECINSTR
+)
+
 // SymbolToOffset returns the offset of the given symbol name in the given elf file.
 func SymbolToOffset(f *safeelf.File, symbol safeelf.Symbol) (uint32, error) {
 	if f == nil {
@@ -121,7 +125,7 @@ func SymbolToOffset(f *safeelf.File, symbol safeelf.Symbol) (uint32, error) {
 	var sectionsToSearchForSymbol []*safeelf.Section
 
 	for i := range f.Sections {
-		if f.Sections[i].Flags == safeelf.SHF_ALLOC+safeelf.SHF_EXECINSTR {
+		if f.Sections[i].Flags&executableSectionFlags == executableSectionFlags {
 			sectionsToSearchForSymbol = append(sectionsToSearchForSymbol, f.Sections[i])
 		}
 	}

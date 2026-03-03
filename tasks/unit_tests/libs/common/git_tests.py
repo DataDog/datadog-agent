@@ -1,14 +1,16 @@
 import re
 import unittest
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock, call, patch
 
 from invoke import MockContext, Result
 
 from tasks.libs.common.git import (
     check_local_branch,
     check_uncommitted_changes,
+    get_ancestor_base_branch,
     get_commit_sha,
     get_current_branch,
+    get_full_ref_name,
     get_last_release_tag,
     get_staged_files,
     get_unstaged_files,
@@ -149,6 +151,17 @@ class TestGit(unittest.TestCase):
                 )
                 self.ctx_mock.run.reset_mock()
 
+    def test_full_ref_name(self):
+        self.assertEqual(get_full_ref_name("main"), "origin/main")
+        self.assertEqual(
+            get_full_ref_name("d04e7dd6d5fc0ac2a8fb89bdce6ec97a3f210c7a"), "d04e7dd6d5fc0ac2a8fb89bdce6ec97a3f210c7a"
+        )
+        self.assertEqual(get_full_ref_name("refs/heads/main"), "refs/heads/main")
+        self.assertEqual(get_full_ref_name("my/br4nch"), "origin/my/br4nch")
+        self.assertEqual(get_full_ref_name("origin/main"), "origin/main")
+        self.assertEqual(get_full_ref_name("origin/1234567890"), "origin/1234567890")
+        self.assertEqual(get_full_ref_name("refs/heads/1234567890"), "refs/heads/1234567890")
+
 
 class TestGetLastTag(unittest.TestCase):
     def test_ordered(self):
@@ -275,3 +288,124 @@ class TestGetLastTag(unittest.TestCase):
 
         commit, _ = get_last_release_tag(c, "baubau", "7.61.*")
         self.assertEqual(commit, "45f19a6a26c01dae9fdfce944d3fceae7f4e6498")
+
+
+class TestGetAncestorBaseBranch(unittest.TestCase):
+    """Tests for get_ancestor_base_branch function."""
+
+    @patch.dict('os.environ', {'COMPARE_TO_BRANCH': 'main'})
+    def test_uses_compare_to_branch_when_set(self):
+        """Test that COMPARE_TO_BRANCH is used directly when set."""
+        result = get_ancestor_base_branch('feature/my-branch')
+
+        self.assertEqual(result, 'main')
+
+    @patch.dict('os.environ', {'COMPARE_TO_BRANCH': '7.54.x'})
+    def test_uses_compare_to_branch_release(self):
+        """Test that COMPARE_TO_BRANCH works for release branches."""
+        result = get_ancestor_base_branch('feature/backport-fix')
+
+        self.assertEqual(result, '7.54.x')
+
+    @patch('tasks.libs.ciproviders.github_api.GithubAPI')
+    @patch.dict('os.environ', {'CI_COMMIT_REF_NAME': 'feature/my-branch'}, clear=True)
+    def test_falls_back_to_github_api_when_no_compare_to_branch(self, mock_github_api):
+        """Test that GitHub API is used when COMPARE_TO_BRANCH is not set."""
+        mock_pr = MagicMock()
+        mock_pr.base.ref = 'main'
+        mock_pr.number = 12345
+
+        mock_github_instance = MagicMock()
+        mock_github_instance.get_pr_for_branch.return_value = [mock_pr]
+        mock_github_api.return_value = mock_github_instance
+
+        result = get_ancestor_base_branch('feature/my-branch')
+
+        self.assertEqual(result, 'main')
+        mock_github_instance.get_pr_for_branch.assert_called_once_with('feature/my-branch')
+
+    @patch('tasks.libs.ciproviders.github_api.GithubAPI')
+    @patch.dict('os.environ', {'CI_COMMIT_REF_NAME': 'feature/release-fix'}, clear=True)
+    def test_pr_targeting_release_branch_via_api(self, mock_github_api):
+        """Test that PRs targeting release branches return the release branch via API."""
+        mock_pr = MagicMock()
+        mock_pr.base.ref = '7.54.x'
+        mock_pr.number = 54321
+
+        mock_github_instance = MagicMock()
+        mock_github_instance.get_pr_for_branch.return_value = [mock_pr]
+        mock_github_api.return_value = mock_github_instance
+
+        result = get_ancestor_base_branch('feature/release-fix')
+
+        self.assertEqual(result, '7.54.x')
+        mock_github_instance.get_pr_for_branch.assert_called_once_with('feature/release-fix')
+
+    @patch('tasks.libs.common.git.get_default_branch')
+    @patch('tasks.libs.ciproviders.github_api.GithubAPI')
+    @patch.dict('os.environ', {'CI_COMMIT_REF_NAME': 'feature/no-pr'}, clear=True)
+    def test_no_pr_found_falls_back_to_default(self, mock_github_api, mock_get_default_branch):
+        """Test that when no PR is found, we fall back to default branch."""
+        mock_github_instance = MagicMock()
+        mock_github_instance.get_pr_for_branch.return_value = []
+        mock_github_api.return_value = mock_github_instance
+        mock_get_default_branch.return_value = 'main'
+
+        result = get_ancestor_base_branch('feature/no-pr')
+
+        self.assertEqual(result, 'main')
+        mock_get_default_branch.assert_called_once()
+
+    @patch('tasks.libs.ciproviders.github_api.GithubAPI')
+    @patch.dict('os.environ', {'CI_COMMIT_REF_NAME': 'feature/multi-pr'}, clear=True)
+    def test_multiple_prs_uses_first(self, mock_github_api):
+        """Test that when multiple PRs exist, we use the first one's base."""
+        mock_pr1 = MagicMock()
+        mock_pr1.base.ref = '7.55.x'
+        mock_pr1.number = 11111
+
+        mock_pr2 = MagicMock()
+        mock_pr2.base.ref = 'main'
+        mock_pr2.number = 22222
+
+        mock_github_instance = MagicMock()
+        mock_github_instance.get_pr_for_branch.return_value = [mock_pr1, mock_pr2]
+        mock_github_api.return_value = mock_github_instance
+
+        result = get_ancestor_base_branch('feature/multi-pr')
+
+        self.assertEqual(result, '7.55.x')
+
+    @patch('tasks.libs.common.git.get_default_branch')
+    @patch('tasks.libs.ciproviders.github_api.GithubAPI')
+    @patch.dict('os.environ', {'CI_COMMIT_REF_NAME': 'feature/api-error'}, clear=True)
+    def test_github_api_error_falls_back_to_default(self, mock_github_api, mock_get_default_branch):
+        """Test that GitHub API errors fall back to default branch."""
+        mock_github_api.side_effect = Exception("GitHub API unavailable")
+        mock_get_default_branch.return_value = 'main'
+
+        result = get_ancestor_base_branch('feature/api-error')
+
+        self.assertEqual(result, 'main')
+        mock_get_default_branch.assert_called_once()
+
+    @patch('tasks.libs.common.git.get_current_branch')
+    @patch('tasks.libs.ciproviders.github_api.GithubAPI')
+    @patch.dict('os.environ', {}, clear=True)
+    def test_uses_current_branch_when_no_env_var(self, mock_github_api, mock_get_current_branch):
+        """Test that we use get_current_branch when CI_COMMIT_REF_NAME is not set."""
+        mock_get_current_branch.return_value = 'local-branch'
+
+        mock_pr = MagicMock()
+        mock_pr.base.ref = 'main'
+        mock_pr.number = 99999
+
+        mock_github_instance = MagicMock()
+        mock_github_instance.get_pr_for_branch.return_value = [mock_pr]
+        mock_github_api.return_value = mock_github_instance
+
+        result = get_ancestor_base_branch()
+
+        self.assertEqual(result, 'main')
+        mock_get_current_branch.assert_called_once()
+        mock_github_instance.get_pr_for_branch.assert_called_once_with('local-branch')

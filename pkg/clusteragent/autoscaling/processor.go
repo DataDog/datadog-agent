@@ -22,7 +22,7 @@ type ProcessResult struct {
 	RequeueAfter time.Duration
 }
 
-// ShouldRequeue is small helper to know if we should requeue
+// ShouldRequeue is a small helper to know if we should requeue
 func (p ProcessResult) ShouldRequeue() bool {
 	return p.Requeue || p.RequeueAfter > 0
 }

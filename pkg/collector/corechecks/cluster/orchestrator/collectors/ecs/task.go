@@ -9,7 +9,7 @@
 package ecs
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/benbjohnson/clock"
 
@@ -89,7 +89,7 @@ func (t *TaskCollector) Process(rcfg *collectors.CollectorRunConfig, list interf
 	processResult, listed, processed := t.processor.Process(ctx, list)
 
 	if processed == -1 {
-		return nil, fmt.Errorf("unable to process resources: a panic occurred")
+		return nil, errors.New("unable to process resources: a panic occurred")
 	}
 
 	result := &collectors.CollectorRunResult{

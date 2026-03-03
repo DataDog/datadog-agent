@@ -9,14 +9,20 @@
 package orchestrator
 
 import (
+	"context"
 	"expvar"
 	"strings"
 	"sync"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/discovery"
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -33,9 +39,12 @@ const (
 	defaultMaximumCRDs      = 100
 	datadogAPIGroup         = "datadoghq.com"
 	ArgoAPIGroup            = "argoproj.io"
+	FluxAPIGroup            = "source.toolkit.fluxcd.io"
+	FluxKustomizeAPIGroup   = "kustomize.toolkit.fluxcd.io"
 	KarpenterAPIGroup       = "karpenter.sh"
 	KarpenterAWSAPIGroup    = "karpenter.k8s.aws"
 	KarpenterAzureAPIGroup  = "karpenter.azure.com"
+	EKSAPIGroup             = "eks.amazonaws.com"
 )
 
 var (
@@ -82,6 +91,7 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		Config:       chk.orchestratorConfig,
 		MsgGroupRef:  chk.groupID,
 		AgentVersion: chk.agentVersion,
+		StopCh:       chk.stopCh,
 	}
 	terminatedResourceRunCfg := &collectors.CollectorRunConfig{
 		K8sCollectorRunConfig: runCfg.K8sCollectorRunConfig,
@@ -90,7 +100,10 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		MsgGroupRef:           runCfg.MsgGroupRef,
 		TerminatedResources:   true,
 	}
+
 	manifestBuffer := NewManifestBuffer(chk)
+	terminatedResourceBundle := NewTerminatedResourceBundle(chk, terminatedResourceRunCfg, manifestBuffer)
+	runCfg.TerminatedResourceHandler = terminatedResourceBundle.Add
 
 	bundle := &CollectorBundle{
 		discoverCollectors:       chk.orchestratorConfig.CollectorDiscoveryEnabled,
@@ -101,8 +114,9 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		manifestBuffer:           manifestBuffer,
 		collectorDiscovery:       discovery.NewDiscoveryCollectorForInventory(),
 		activatedCollectors:      map[string]struct{}{},
-		terminatedResourceBundle: NewTerminatedResourceBundle(chk, terminatedResourceRunCfg, manifestBuffer),
+		terminatedResourceBundle: terminatedResourceBundle,
 	}
+
 	bundle.prepare()
 
 	return bundle
@@ -299,7 +313,6 @@ func (cb *CollectorBundle) initialize() {
 	// informerSynced is a helper map which makes sure that we don't initialize the same informer twice.
 	// i.e. the cluster and nodes resources share the same informer and using both can lead to a race condition activating both concurrently.
 	informerSynced := map[cache.SharedInformer]struct{}{}
-	terminatedResourceCollectionEnabled := pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.terminated_resources.enabled")
 
 	for _, collector := range cb.collectors {
 		collectorFullName := collector.Metadata().FullName()
@@ -311,12 +324,18 @@ func (cb *CollectorBundle) initialize() {
 		collector.Init(cb.runCfg)
 		informer := collector.Informer()
 
+		// special case of improved terminated pod collector that is not using an informer
+		// TODO: improve the initialization logic to avoid leaking collector implementation details to the bundle.
+		if informer == nil {
+			continue
+		}
+
 		if _, found := informerSynced[informer]; !found {
 			informersToSync[apiserver.InformerName(collectorFullName)] = informer
 			informerSynced[informer] = struct{}{}
 
 			// add event handlers for terminated resources
-			if terminatedResourceCollectionEnabled && collector.Metadata().SupportsTerminatedResourceCollection {
+			if collector.Metadata().SupportsTerminatedResourceCollection {
 				if _, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 					DeleteFunc: cb.terminatedResourceHandler(collector),
 				}); err != nil {
@@ -357,7 +376,6 @@ func (cb *CollectorBundle) skipCollector(informerName apiserver.InformerName, er
 
 // Run is used to sequentially run all collectors in the bundle.
 func (cb *CollectorBundle) Run(sender sender.Sender) {
-
 	// Start a thread to buffer manifests and kill it when the check is finished.
 	if cb.runCfg.Config.IsManifestCollectionEnabled && cb.manifestBuffer.Cfg.BufferedManifestEnabled {
 		cb.manifestBuffer.Start(sender)
@@ -419,6 +437,13 @@ func (cb *CollectorBundle) GetTerminatedResourceBundle() *TerminatedResourceBund
 	return cb.terminatedResourceBundle
 }
 
+// EnableTerminatedResourceBundle enables the terminated resource bundle if the feature is enabled.
+func (cb *CollectorBundle) EnableTerminatedResourceBundle() {
+	if pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.terminated_resources.enabled") {
+		cb.terminatedResourceBundle.Enable()
+	}
+}
+
 // importBuiltinCollectors imports the builtin collectors into the bundle.
 func (cb *CollectorBundle) importBuiltinCollectors() {
 	// add builtin CR collectors
@@ -445,43 +470,65 @@ func (cb *CollectorBundle) importBuiltinCollectors() {
 
 // builtinCRDConfig represents the configuration for a built-in custom resource definition.
 type builtinCRDConfig struct {
-	group   string
-	version string
-	kind    string
+	// group is the API group name for the custom resource
+	group string
+	// kind is the resource kind name
+	kind string
+	// enabled indicates whether collection of this CRD is enabled
 	enabled bool
+	// preferredVersion is the preferred API version we want to collect for this custom resource
+	preferredVersion string
+	// fallbackVersions is a list of versions that we can fall back to in order when preferredVersion is unavailable
+	fallbackVersions []string
+}
+
+// newBuiltinCRDConfig creates a new builtinCRDConfig.
+func newBuiltinCRDConfig(group, kind string, enabled bool, preferredVersion string, fallbackVersions ...string) builtinCRDConfig {
+	return builtinCRDConfig{
+		group:            group,
+		preferredVersion: preferredVersion,
+		fallbackVersions: fallbackVersions,
+		kind:             kind,
+		enabled:          enabled,
+	}
 }
 
 // newBuiltinCRDConfigs returns the configuration for all built-in CRDs.
 func newBuiltinCRDConfigs() []builtinCRDConfig {
-	isDatadogCRDEnabled := pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.custom_resources.datadog.enabled")
-	isThirdPartyCRDEnabled := pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.custom_resources.third_party.enabled")
+	isOOTBCRDEnabled := pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.custom_resources.ootb.enabled")
 
 	return []builtinCRDConfig{
-		{
-			group:   datadogAPIGroup,
-			enabled: isDatadogCRDEnabled,
-		},
-		{
-			group:   ArgoAPIGroup,
-			version: "v1alpha1",
-			kind:    "rollouts",
-			enabled: isThirdPartyCRDEnabled,
-		},
-		{
-			group:   KarpenterAPIGroup,
-			version: "v1",
-			enabled: isThirdPartyCRDEnabled,
-		},
-		{
-			group:   KarpenterAWSAPIGroup,
-			version: "v1",
-			enabled: isThirdPartyCRDEnabled,
-		},
-		{
-			group:   KarpenterAzureAPIGroup,
-			version: "v1beta1",
-			enabled: isThirdPartyCRDEnabled,
-		},
+		// Datadog resources
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogslos", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogdashboards", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogagentprofiles", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogmonitors", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogmetrics", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogpodautoscalers", isOOTBCRDEnabled, "v1alpha2"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadogagents", isOOTBCRDEnabled, "v2alpha1"),
+
+		// Argo resources
+		newBuiltinCRDConfig(ArgoAPIGroup, "rollouts", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(ArgoAPIGroup, "applications", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(ArgoAPIGroup, "applicationsets", isOOTBCRDEnabled, "v1alpha1"),
+		// appprojects also exists, but unclear if they are need for resource location identification.
+
+		// Flux resources
+		newBuiltinCRDConfig(FluxAPIGroup, "buckets", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(FluxAPIGroup, "helmcharts", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(FluxAPIGroup, "externalartifacts", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(FluxAPIGroup, "gitrepositories", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(FluxAPIGroup, "helmrepositories", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(FluxAPIGroup, "ocirepositories", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(FluxKustomizeAPIGroup, "kustomizations", isOOTBCRDEnabled, "v1"),
+
+		// Karpenter resources (empty kind = all resources in group)
+		newBuiltinCRDConfig(KarpenterAPIGroup, "", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(KarpenterAWSAPIGroup, "", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(KarpenterAzureAPIGroup, "", isOOTBCRDEnabled, "v1beta1"),
+
+		// EKS Auto Mode resources (for now only nodeclasses, but we can easily add more in the future if needed)
+		newBuiltinCRDConfig(EKSAPIGroup, "nodeclasses", isOOTBCRDEnabled, "v1", "v1beta1"),
 	}
 }
 
@@ -497,6 +544,9 @@ func (cb *CollectorBundle) getBuiltinCustomResourceCollectors() []collectors.K8s
 	for _, builtinCustomResource := range newBuiltinCRDConfigs() {
 		crCollectors = append(crCollectors, cb.collectorsForBuiltinCRD(builtinCustomResource)...)
 	}
+
+	crCollectors = filterCRCollectorsByPermission(crCollectors, cb.isForbidden)
+
 	return crCollectors
 }
 
@@ -506,12 +556,19 @@ func (cb *CollectorBundle) collectorsForBuiltinCRD(builtinCustomResource builtin
 		return nil
 	}
 
+	version, ok := cb.collectorDiscovery.OptimalVersion(builtinCustomResource.group, builtinCustomResource.preferredVersion, builtinCustomResource.fallbackVersions)
+	if !ok {
+		log.Infof("Skipping built-in CR collector: no supported version found for %s/%s (preferred: %s, fallback: %s)",
+			builtinCustomResource.group, builtinCustomResource.kind, builtinCustomResource.preferredVersion, builtinCustomResource.fallbackVersions)
+		return nil
+	}
+
 	crCollectors := make([]collectors.K8sCollector, 0, 10)
-	crs := cb.collectorDiscovery.List(builtinCustomResource.group, builtinCustomResource.version, builtinCustomResource.kind)
+	crs := cb.collectorDiscovery.List(builtinCustomResource.group, version, builtinCustomResource.kind)
 	for _, c := range crs {
 		collector, err := cb.collectorDiscovery.VerifyForCRDInventory(c.Kind, c.GroupVersion)
 		if err != nil {
-			_ = cb.check.Warnf("Unsupported collector: %s/%s: %s", c.GroupVersion, c.Kind, err)
+			log.Infof("Unsupported built-in CR collector: %s/%s: %s", c.GroupVersion, c.Kind, err)
 			continue
 		}
 
@@ -555,4 +612,25 @@ func (cb *CollectorBundle) getTerminatedPodCollector() collectors.K8sCollector {
 		}
 	}
 	return nil
+}
+
+// isForbidden runs a single List request to check if cluster agent is forbidden to list the given resource
+func (cb *CollectorBundle) isForbidden(gvr schema.GroupVersionResource) bool {
+	_, err := cb.runCfg.APIClient.DynamicCl.Resource(gvr).List(context.Background(), metav1.ListOptions{})
+	return errors.IsForbidden(err)
+}
+
+// filterCRCollectorsByPermission filters collectors based on permissions, keeping only those with sufficient access.
+func filterCRCollectorsByPermission(crCollectors []collectors.K8sCollector, isForbidden func(gvr schema.GroupVersionResource) bool) []collectors.K8sCollector {
+	filteredCollectors := make([]collectors.K8sCollector, 0, len(crCollectors))
+	for _, c := range crCollectors {
+		if cr, ok := c.(*k8s.CRCollector); ok {
+			if isForbidden(cr.GetGRV()) {
+				log.Infof("Skipping built-in collector due to insufficient permissions: %s", cr.GetGRV().String())
+				continue
+			}
+			filteredCollectors = append(filteredCollectors, c)
+		}
+	}
+	return filteredCollectors
 }

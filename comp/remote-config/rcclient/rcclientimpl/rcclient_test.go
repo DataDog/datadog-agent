@@ -6,7 +6,6 @@
 package rcclientimpl
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -64,39 +63,6 @@ func (m *mockLogLevelRuntimeSettings) Hidden() bool {
 
 func applyEmpty(_ string, _ state.ApplyStatus) {}
 
-type MockComponent interface {
-	settings.Component
-
-	SetRuntimeSetting(setting string, value interface{}, source model.Source) error
-}
-
-type MockComponentImplMrf struct {
-	settings.Component
-
-	logs    *bool
-	metrics *bool
-	apm     *bool
-}
-
-func (m *MockComponentImplMrf) SetRuntimeSetting(setting string, value interface{}, _ model.Source) error {
-	v, ok := value.(bool)
-	if !ok {
-		return fmt.Errorf("unexpected value type %T", value)
-	}
-
-	switch setting {
-	case "multi_region_failover.failover_metrics":
-		m.metrics = &v
-	case "multi_region_failover.failover_logs":
-		m.logs = &v
-	case "multi_region_failover.failover_apm":
-		m.apm = &v
-	default:
-		return &settings.SettingNotFoundError{Name: setting}
-	}
-	return nil
-}
-
 func TestRCClientCreate(t *testing.T) {
 	_, err := newRemoteConfigClient(
 		fxutil.Test[dependencies](
@@ -129,7 +95,7 @@ func TestRCClientCreate(t *testing.T) {
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, client)
-	assert.NotNil(t, client.(rcClient).client)
+	assert.NotNil(t, client.(*rcClient).client)
 }
 
 func TestAgentConfigCallback(t *testing.T) {
@@ -138,7 +104,7 @@ func TestAgentConfigCallback(t *testing.T) {
 
 	var ipcComp ipc.Component
 
-	rc := fxutil.Test[rcclient.Component](t,
+	rcComponent := fxutil.Test[rcclient.Component](t,
 		fx.Options(
 			Module(),
 			fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -168,12 +134,12 @@ func TestAgentConfigCallback(t *testing.T) {
 	layerEndFlare := state.RawConfig{Config: []byte(`{"name": "layer1", "config": {"log_level": ""}}`)}
 	configOrder := state.RawConfig{Config: []byte(`{"internal_order": ["layer1", "layer2"]}`)}
 
-	structRC := rc.(rcClient)
+	rc := rcComponent.(*rcClient)
 
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(cfg)
 	assert.NoError(t, err)
 
-	structRC.client, _ = client.NewUnverifiedGRPCClient(
+	rc.client, _ = client.NewUnverifiedGRPCClient(
 		ipcAddress,
 		pkgconfigsetup.GetIPCPort(),
 		ipcComp.GetAuthToken(),
@@ -188,7 +154,7 @@ func TestAgentConfigCallback(t *testing.T) {
 	assert.Equal(t, model.SourceDefault, cfg.GetSource("log_level"))
 
 	// Set log level to debug
-	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
+	rc.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerStartFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	}, applyEmpty)
@@ -197,7 +163,7 @@ func TestAgentConfigCallback(t *testing.T) {
 
 	// Send an empty log level request, as RC would at the end of the Agent Flare request
 	// Should fallback to the default level
-	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
+	rc.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerEndFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	}, applyEmpty)
@@ -207,7 +173,7 @@ func TestAgentConfigCallback(t *testing.T) {
 	// -----------------
 	// Test scenario #2: log level was changed by the user BEFORE Agent Flare request
 	cfg.Set("log_level", "info", model.SourceCLI)
-	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
+	rc.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerStartFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	}, applyEmpty)
@@ -219,7 +185,7 @@ func TestAgentConfigCallback(t *testing.T) {
 	// -----------------
 	// Test scenario #3: log level is changed by the user DURING the Agent Flare request
 	cfg.UnsetForSource("log_level", model.SourceCLI)
-	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
+	rc.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerStartFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	}, applyEmpty)
@@ -227,7 +193,7 @@ func TestAgentConfigCallback(t *testing.T) {
 	assert.Equal(t, model.SourceRC, cfg.GetSource("log_level"))
 
 	cfg.Set("log_level", "debug", model.SourceCLI)
-	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
+	rc.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerEndFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	}, applyEmpty)
@@ -240,8 +206,9 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 	cfg := configmock.New(t)
 
 	var ipcComp ipc.Component
+	var settingsComp settings.Component
 
-	rc := fxutil.Test[rcclient.Component](t,
+	rcComponent := fxutil.Test[rcclient.Component](t,
 		fx.Options(
 			Module(),
 			fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -253,17 +220,10 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 					AgentVersion: "7.0.0",
 				},
 			),
-			fx.Supply(
-				settings.Params{
-					Settings: map[string]settings.RuntimeSetting{
-						"log_level": &mockLogLevelRuntimeSettings{logLevel: "info"},
-					},
-					Config: cfg,
-				},
-			),
-			settingsimpl.Module(),
+			settingsimpl.MockModule(),
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Populate(&ipcComp),
+			fx.Populate(&settingsComp),
 		),
 	)
 
@@ -271,13 +231,16 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 	noLogs := state.RawConfig{Config: []byte(`{"name": "nologs", "failover_logs": false}`)}
 	activeMetrics := state.RawConfig{Config: []byte(`{"name": "yesmetrics", "failover_metrics": true}`)}
 	activeAPM := state.RawConfig{Config: []byte(`{"name": "yesapm", "failover_apm": true}`)}
+	activeAllowlist := state.RawConfig{Config: []byte(`{"name": "yesallowlist", "metrics_allowlist": ["system.cpu.usage"]}`)}
+	emptyAllowlist := state.RawConfig{Config: []byte(`{"name": "emptyallowlist", "metrics_allowlist": []}`)}
+	nilAllowlist := state.RawConfig{Config: []byte(`{"name": "nilallowlist"}`)}
 
-	structRC := rc.(rcClient)
+	rc := rcComponent.(*rcClient)
 
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(cfg)
 	assert.NoError(t, err)
 
-	structRC.client, _ = client.NewUnverifiedGRPCClient(
+	rc.client, _ = client.NewUnverifiedGRPCClient(
 		ipcAddress,
 		pkgconfigsetup.GetIPCPort(),
 		ipcComp.GetAuthToken(),
@@ -286,18 +249,48 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 		client.WithProducts(state.ProductAgentConfig),
 		client.WithPollInterval(time.Hour),
 	)
-	structRC.settingsComponent = &MockComponentImplMrf{}
 
 	// Should enable metrics failover and disable logs failover
-	structRC.mrfUpdateCallback(map[string]state.RawConfig{
-		"datadog/2/AGENT_FAILOVER/none/configname":       allInactive,
-		"datadog/2/AGENT_FAILOVER/nologs/configname":     noLogs,
-		"datadog/2/AGENT_FAILOVER/yesmetrics/configname": activeMetrics,
-		"datadog/2/AGENT_FAILOVER/yesapm/configname":     activeAPM,
+	// and set the metrics allowlist
+	rc.mrfUpdateCallback(map[string]state.RawConfig{
+		"datadog/2/AGENT_FAILOVER/none/configname":         allInactive,
+		"datadog/2/AGENT_FAILOVER/nologs/configname":       noLogs,
+		"datadog/2/AGENT_FAILOVER/yesmetrics/configname":   activeMetrics,
+		"datadog/2/AGENT_FAILOVER/yesapm/configname":       activeAPM,
+		"datadog/2/AGENT_FAILOVER/yesallowlist/configname": activeAllowlist,
 	}, applyEmpty)
 
-	cmpntSettings := structRC.settingsComponent.(*MockComponentImplMrf)
-	assert.True(t, *cmpntSettings.metrics)
-	assert.False(t, *cmpntSettings.logs)
-	assert.True(t, *cmpntSettings.apm)
+	metricsVal, _ := settingsComp.GetRuntimeSetting("multi_region_failover.failover_metrics")
+	logsVal, _ := settingsComp.GetRuntimeSetting("multi_region_failover.failover_logs")
+	apmVal, _ := settingsComp.GetRuntimeSetting("multi_region_failover.failover_apm")
+	allowlistVal, _ := settingsComp.GetRuntimeSetting("multi_region_failover.metric_allowlist")
+	assert.True(t, metricsVal.(bool))
+	assert.False(t, logsVal.(bool))
+	assert.True(t, apmVal.(bool))
+	assert.ElementsMatch(t, []string{"system.cpu.usage"}, allowlistVal.([]string))
+
+	// Should set an empty allowlist
+	rc.mrfUpdateCallback(map[string]state.RawConfig{
+		"datadog/2/AGENT_FAILOVER/yesallowlist/configname": emptyAllowlist,
+		"datadog/2/AGENT_FAILOVER/yesmetrics/configname":   activeMetrics,
+	}, applyEmpty)
+
+	metricsVal, _ = settingsComp.GetRuntimeSetting("multi_region_failover.failover_metrics")
+	allowlistVal, _ = settingsComp.GetRuntimeSetting("multi_region_failover.metric_allowlist")
+	assert.True(t, metricsVal.(bool))
+	assert.ElementsMatch(t, []string{}, allowlistVal.([]string))
+
+	// Should not set an allowlist (nil means not configured, so we fallback)
+	// First, let's set a new mock to verify allowlist is not set
+	settingsComp2 := fxutil.Test[settings.Component](t, settingsimpl.MockModule())
+	rc.settingsComponent = settingsComp2
+	rc.mrfUpdateCallback(map[string]state.RawConfig{
+		"datadog/2/AGENT_FAILOVER/emptyallowlist/configname": nilAllowlist,
+		"datadog/2/AGENT_FAILOVER/yesmetrics/configname":     activeMetrics,
+	}, applyEmpty)
+
+	metricsVal, _ = settingsComp2.GetRuntimeSetting("multi_region_failover.failover_metrics")
+	allowlistVal, _ = settingsComp2.GetRuntimeSetting("multi_region_failover.metric_allowlist")
+	assert.True(t, metricsVal.(bool))
+	assert.Nil(t, allowlistVal)
 }

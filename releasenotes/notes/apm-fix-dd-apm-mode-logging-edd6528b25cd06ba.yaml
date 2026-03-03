@@ -1,0 +1,3 @@
+fixes:
+  - |
+    APM: Fix a bug where the Agent would log a warning when the `DD_APM_MODE` environment variable was unset.

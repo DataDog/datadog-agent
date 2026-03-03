@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes a panic that occurs when running a manual cli rtprocess check via `datadog-agent processchecks rtprocess`

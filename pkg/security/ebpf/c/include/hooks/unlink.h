@@ -64,10 +64,18 @@ int hook_vfs_unlink(ctx_t *ctx) {
         dentry = (struct dentry *)CTX_PARM3(ctx);
     }
 
+    enum PATH_ID_INVALIDATE_TYPE invalidate_type = syscall->unlink.flags & AT_REMOVEDIR ? PATH_ID_INVALIDATE_TYPE_GLOBAL : PATH_ID_INVALIDATE_TYPE_LOCAL;
+
     // we resolve all the information before the file is actually removed
     syscall->unlink.dentry = dentry;
-    set_file_inode(dentry, &syscall->unlink.file, 1);
+    set_file_inode(dentry, &syscall->unlink.file, invalidate_type);
     fill_file(dentry, &syscall->unlink.file);
+
+    if (invalidate_type == PATH_ID_INVALIDATE_TYPE_GLOBAL) {
+        bump_mount_discarder_revision(syscall->unlink.file.path_key.mount_id);
+    } else {
+        expire_inode_discarders(syscall->unlink.file.path_key.mount_id, syscall->unlink.file.path_key.ino);
+    }
 
     if (approve_syscall(syscall, unlink_approvers) == DISCARDED) {
         // do not pop, we want to invalidate the inode even if the syscall is discarded

@@ -12,8 +12,10 @@ import (
 	"bytes"
 	"debug/dwarf"
 	"encoding/binary"
+	"errors"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/dwarfutil"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
@@ -23,7 +25,7 @@ type Reader struct {
 	dataLocLists []byte
 	debugAddr    []byte
 	ptrSize      uint8
-	unitVersions map[dwarf.Offset]uint8
+	unitHeaders  map[dwarf.Offset]dwarfutil.CompileUnitHeader
 }
 
 // MakeReader creates a new Reader.
@@ -32,27 +34,19 @@ func MakeReader(
 	dataLocLists []byte,
 	debugAddr []byte,
 	ptrSize uint8,
-	unitVersions map[dwarf.Offset]uint8,
+	unitHeaders []dwarfutil.CompileUnitHeader,
 ) Reader {
-	return Reader{
+	r := Reader{
 		dataLoc:      dataLoc,
 		dataLocLists: dataLocLists,
 		debugAddr:    debugAddr,
 		ptrSize:      ptrSize,
-		unitVersions: unitVersions,
+		unitHeaders:  make(map[dwarf.Offset]dwarfutil.CompileUnitHeader),
 	}
-}
-
-// NewReader creates a new Reader.
-func NewReader(
-	dataLoc []byte,
-	dataLocLists []byte,
-	debugAddr []byte,
-	ptrSize uint8,
-	unitVersions map[dwarf.Offset]uint8,
-) *Reader {
-	r := MakeReader(dataLoc, dataLocLists, debugAddr, ptrSize, unitVersions)
-	return &r
+	for _, header := range unitHeaders {
+		r.unitHeaders[header.Offset] = header
+	}
+	return r
 }
 
 // Loclist represents a DWARF loclist.
@@ -62,10 +56,11 @@ type Loclist struct {
 }
 
 func (r *Reader) Read(unit *dwarf.Entry, offset int64, typeByteSize uint32) (Loclist, error) {
-	unitVersion, ok := r.unitVersions[unit.Offset]
+	hdr, ok := r.unitHeaders[unit.Offset]
 	if !ok {
 		return Loclist{}, fmt.Errorf("no unit version found for unit at offset 0x%x", unit.Offset)
 	}
+	unitVersion := hdr.Version
 	if unitVersion < 2 {
 		return Loclist{}, fmt.Errorf("unsupported unit version: %d", unitVersion)
 	}
@@ -99,11 +94,11 @@ func (r *Reader) Read(unit *dwarf.Entry, offset int64, typeByteSize uint32) (Loc
 		loclist, err = readDwarf2(data, r.ptrSize, typeByteSize)
 	} else {
 		if r.debugAddr == nil {
-			return Loclist{}, fmt.Errorf("missing debug_addr section")
+			return Loclist{}, errors.New("missing debug_addr section")
 		}
 		addrBase, ok := unit.Val(dwarf.AttrAddrBase).(int64)
 		if !ok {
-			return Loclist{}, fmt.Errorf("missing addr_base attribute")
+			return Loclist{}, errors.New("missing addr_base attribute")
 		}
 		if addrBase > int64(len(r.debugAddr)) {
 			return Loclist{}, fmt.Errorf("addr base %d out of bounds for section length %d", addrBase, len(r.debugAddr))

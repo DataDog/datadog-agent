@@ -27,8 +27,14 @@ const ErrorSentinel uint64 = ^uint64(0)
 type ConstantFetcher interface {
 	fmt.Stringer
 	AppendSizeofRequest(id, typeName string)
-	AppendOffsetofRequest(id, typeName string, fieldName ...string)
+	AppendOffsetofRequestWithFallbacks(id string, pairs ...TypeFieldPair)
 	FinishAndGetResults() (map[string]uint64, error)
+}
+
+// TypeFieldPair represents a pair of type and field names
+type TypeFieldPair struct {
+	TypeName  string
+	FieldName string
 }
 
 // ComposeConstantFetcher represents a composition of child constant fetchers
@@ -56,8 +62,9 @@ func (f *ComposeConstantFetcher) appendRequest(req *composeRequest) {
 	f.requests = append(f.requests, req)
 	_, _ = io.WriteString(f.hasher, req.id)
 	_, _ = io.WriteString(f.hasher, req.typeName)
-	for _, fn := range req.fieldNames {
-		_, _ = io.WriteString(f.hasher, fn)
+	for _, tfp := range req.typeFieldPairs {
+		_, _ = io.WriteString(f.hasher, tfp.TypeName)
+		_, _ = io.WriteString(f.hasher, tfp.FieldName)
 	}
 }
 
@@ -71,14 +78,13 @@ func (f *ComposeConstantFetcher) AppendSizeofRequest(id, typeName string) {
 	})
 }
 
-// AppendOffsetofRequest appends an offset request
-func (f *ComposeConstantFetcher) AppendOffsetofRequest(id, typeName string, fieldNames ...string) {
+// AppendOffsetofRequestWithFallbacks appends an offset request
+func (f *ComposeConstantFetcher) AppendOffsetofRequestWithFallbacks(id string, pairs ...TypeFieldPair) {
 	f.appendRequest(&composeRequest{
-		id:         id,
-		sizeof:     false,
-		typeName:   typeName,
-		fieldNames: fieldNames,
-		value:      ErrorSentinel,
+		id:             id,
+		sizeof:         false,
+		typeFieldPairs: pairs,
+		value:          ErrorSentinel,
 	})
 }
 
@@ -98,7 +104,7 @@ func (f *ComposeConstantFetcher) fillConstantCacheIfNeeded() {
 				if req.sizeof {
 					fetcher.AppendSizeofRequest(req.id, req.typeName)
 				} else {
-					fetcher.AppendOffsetofRequest(req.id, req.typeName, req.fieldNames...)
+					fetcher.AppendOffsetofRequestWithFallbacks(req.id, req.typeFieldPairs...)
 				}
 			}
 		}
@@ -162,27 +168,34 @@ type ConstantFetcherStatus struct {
 	Values   map[string]ValueAndSource
 }
 
+// IsPresent checks whether a constant with the given id was successfully fetched
+func (s *ConstantFetcherStatus) IsPresent(id string) bool {
+	vs, found := s.Values[id]
+	return found && vs.Value != ErrorSentinel
+}
+
 type composeRequest struct {
-	id          string
-	sizeof      bool
-	typeName    string
-	fieldNames  []string
-	value       uint64
-	fetcherName string
+	id             string
+	sizeof         bool
+	typeName       string
+	typeFieldPairs []TypeFieldPair
+	value          uint64
+	fetcherName    string
 }
 
 // CreateConstantEditors creates constant editors based on the constants fetched
-func CreateConstantEditors(constants map[string]uint64) []manager.ConstantEditor {
-	res := make([]manager.ConstantEditor, 0, len(constants))
-	for name, value := range constants {
-		if value == ErrorSentinel {
+func CreateConstantEditors(constants *ConstantFetcherStatus) []manager.ConstantEditor {
+	res := make([]manager.ConstantEditor, 0, len(constants.Values))
+	for name, value := range constants.Values {
+		pushedValue := value.Value
+		if pushedValue == ErrorSentinel {
 			seclog.Errorf("failed to fetch constant for %s", name)
-			value = 0
+			pushedValue = 0
 		}
 
 		res = append(res, manager.ConstantEditor{
 			Name:  name,
-			Value: value,
+			Value: pushedValue,
 		})
 	}
 	return res

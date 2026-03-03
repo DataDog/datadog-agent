@@ -8,7 +8,9 @@
 package cgroups
 
 import (
+	"errors"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -137,6 +139,28 @@ func (pm *cgroupProcsPidMapper) getPIDsForCgroup(_, relativeCgroupPath string, _
 		return nil
 	}); err != nil {
 		reportError(err)
+	}
+
+	// If no PIDs found and this is a Podman cgroup, check container subdirectory
+	// Podman rootless places PIDs in a "container" subdirectory within libpod-* cgroups
+	if len(pids) == 0 && strings.Contains(relativeCgroupPath, "libpod-") {
+		containerPath := filepath.Join(filepath.Dir(pm.cgroupProcsFilePathBuilder(relativeCgroupPath)), "container", cgroupProcsFile)
+		if err := parseFile(pm.fr, containerPath, func(s string) error {
+			pid, err := strconv.Atoi(s)
+			if err != nil {
+				reportError(newValueError(s, err))
+				return nil
+			}
+
+			pids = append(pids, pid)
+
+			return nil
+		}); err != nil {
+			// Only log if it's not a "file not found" error (expected if container/ doesn't exist)
+			if !errors.Is(err, os.ErrNotExist) {
+				reportError(err)
+			}
+		}
 	}
 
 	return pids

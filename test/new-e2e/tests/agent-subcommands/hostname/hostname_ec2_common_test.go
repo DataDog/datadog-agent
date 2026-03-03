@@ -6,12 +6,13 @@
 package hostname
 
 import (
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
 type baseHostnameSuite struct {
@@ -24,7 +25,7 @@ func (v *baseHostnameSuite) GetOs() awshost.ProvisionerOption {
 }
 
 func (v *baseHostnameSuite) TestAgentConfigHostnameVarOverride() {
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(v.GetOs(), awshost.WithAgentOptions(agentparams.WithAgentConfig("hostname: hostname.from.var"))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(v.GetOs(), awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig("hostname: hostname.from.var")))))
 
 	hostname := v.Env().Agent.Client.Hostname()
 	assert.Equal(v.T(), hostname, "hostname.from.var")
@@ -35,7 +36,7 @@ func (v *baseHostnameSuite) TestAgentConfigHostnameForceAsCanonical() {
 	config := `hostname: ip-172-29-113-35.ec2.internal
 hostname_force_config_as_canonical: true`
 
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(v.GetOs(), awshost.WithAgentOptions(agentparams.WithAgentConfig(config))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(v.GetOs(), awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(config)))))
 
 	hostname := v.Env().Agent.Client.Hostname()
 	assert.Equal(v.T(), hostname, "ip-172-29-113-35.ec2.internal")
@@ -45,7 +46,7 @@ func (v *baseHostnameSuite) TestAgentConfigPrioritizeEC2Id() {
 	// ec2_prioritize_instance_id_as_hostname doesn't override higher priority providers
 	config := `hostname: hostname.from.var
 ec2_prioritize_instance_id_as_hostname: true`
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(v.GetOs(), awshost.WithAgentOptions(agentparams.WithAgentConfig(config))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(v.GetOs(), awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(config)))))
 
 	hostname := v.Env().Agent.Client.Hostname()
 	assert.Equal(v.T(), hostname, "hostname.from.var")
