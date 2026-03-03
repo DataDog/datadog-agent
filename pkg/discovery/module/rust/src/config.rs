@@ -69,71 +69,53 @@ fn get_yaml_string_option(doc: &Yaml, key: &str) -> Option<String> {
     current.as_str().map(|s| s.to_string())
 }
 
-/// Checks if `section[key]` is `Yaml::Boolean(true)`.
-/// Returns `false` for any other value, including missing keys (`BadValue`),
-/// `false`, strings like `"true"`, or non-hash sections.
-/// Safe to call on any `Yaml` variant — indexing a non-hash returns `BadValue`.
-fn is_yaml_bool_true(section: &Yaml, key: &str) -> bool {
-    matches!(section[key], Yaml::Boolean(true))
-}
+/// YAML key paths that trigger non-discovery modules.
+/// Validated against the canonical JSON at
+/// pkg/system-probe/config/testdata/non_discovery_module_config.json
+/// by test_non_discovery_config_matches_canonical.
+static NON_DISCOVERY_YAML_KEYS: phf::Set<&'static str> = phf_set! {
+    "ccm_network_config.enabled",
+    "compliance_config.database_benchmarks.enabled",
+    "compliance_config.enabled",
+    "compliance_config.run_in_system_probe",
+    "dynamic_instrumentation.enabled",
+    "ebpf_check.enabled",
+    "gpu_monitoring.enabled",
+    "network_config.enabled",
+    "noisy_neighbor.enabled",
+    "ping.enabled",
+    "privileged_logs.enabled",
+    "runtime_security_config.enabled",
+    "runtime_security_config.fim_enabled",
+    "service_monitoring_config.enabled",
+    "software_inventory.enabled",
+    "system_probe_config.enable_oom_kill",
+    "system_probe_config.enable_tcp_queue_length",
+    "system_probe_config.language_detection.enabled",
+    "system_probe_config.process_config.enabled",
+    "traceroute.enabled",
+    "windows_crash_detection.enabled",
+};
 
 /// Returns the YAML key that requires system-probe, if any.
 ///
-/// We check the `enabled` value of every system-probe feature, rather than
-/// key presence to avoid unnecessary fallback. This is needed because the Helm
-/// chart generates a system-probe.yaml with all feature sections present, even
-/// disabled ones (e.g. `network_config: { enabled: false }`).
-///
-/// The logic is as follows:
-/// - Always allowed: `discovery`, `log_level`.
-/// - `system_probe_config` and `event_monitoring_config`: checked for specific
-///   sub-feature toggles (they don't have a top-level `enabled`).
-/// - Any other section: fallback unless it has `enabled: false`.
-fn find_non_discovery_yaml_key(yaml_doc: &Option<Yaml>) -> Option<&str> {
-    match yaml_doc {
-        None => None,
-        Some(Yaml::Hash(map)) => {
-            for (key, value) in map {
-                let Yaml::String(s) = key else {
-                    return Some("<non-string key>");
-                };
-                match s.as_str() {
-                    "discovery" | "log_level" => continue,
-                    "event_monitoring_config" => {
-                        if is_yaml_bool_true(&value["process"], "enabled") {
-                            return Some("event_monitoring_config.process.enabled");
-                        }
-                        if is_yaml_bool_true(&value["network_process"], "enabled") {
-                            return Some("event_monitoring_config.network_process.enabled");
-                        }
-                    }
-                    "system_probe_config" => {
-                        if is_yaml_bool_true(value, "enable_tcp_queue_length") {
-                            return Some("system_probe_config.enable_tcp_queue_length");
-                        }
-                        if is_yaml_bool_true(value, "enable_oom_kill") {
-                            return Some("system_probe_config.enable_oom_kill");
-                        }
-                        if is_yaml_bool_true(&value["process_config"], "enabled") {
-                            return Some("system_probe_config.process_config.enabled");
-                        }
-                    }
-                    _ => {
-                        if !matches!(value["enabled"], Yaml::Boolean(false)) {
-                            return Some(s.as_str());
-                        }
-                    }
-                }
-            }
-            None
-        }
-        Some(Yaml::BadValue) => None, // Empty or null document
-        _ => Some("<non-hash YAML>"), // Any non-hash YAML (array, string, etc.) counts as "other config"
+/// Checks every key path in NON_DISCOVERY_YAML_KEYS against the parsed YAML
+/// document. This is data-driven: the set of keys is derived from Go's
+/// enableModules() and kept in sync via the canonical JSON file.
+fn find_non_discovery_yaml_key(yaml_doc: &Option<Yaml>) -> Option<&'static str> {
+    let doc = yaml_doc.as_ref()?;
+    if !matches!(doc, Yaml::Hash(_)) {
+        return Some("<non-hash YAML>");
     }
+    NON_DISCOVERY_YAML_KEYS
+        .iter()
+        .find(|key| get_yaml_bool_option(doc, key) == Some(true))
+        .copied()
 }
 
-/// Validated against the canonical list at ../testdata/non_discovery_env_vars.txt
-/// by test_non_discovery_env_vars_match_canonical_list. See also
+/// Validated against the canonical JSON at
+/// pkg/system-probe/config/testdata/non_discovery_module_config.json
+/// by test_non_discovery_config_matches_canonical. See also
 /// TestEnableModulesVars in pkg/system-probe/config/env_vars_sync_test.go.
 static NON_DISCOVERY_ENV_VARS: phf::Set<&'static str> = phf_set! {
   "DD_CCM_NETWORK_CONFIG_ENABLED",
@@ -558,7 +540,7 @@ network_config:
         let yaml_doc = load_config(Some(config_file.path().to_path_buf())).unwrap();
         assert_eq!(
             find_non_discovery_yaml_key(&yaml_doc),
-            Some("network_config")
+            Some("network_config.enabled")
         );
     }
 
@@ -570,7 +552,11 @@ unknown_key:
 "#;
         let config_file = create_test_config(yaml);
         let yaml_doc = load_config(Some(config_file.path().to_path_buf())).unwrap();
-        assert_eq!(find_non_discovery_yaml_key(&yaml_doc), Some("unknown_key"));
+        assert_eq!(
+            find_non_discovery_yaml_key(&yaml_doc),
+            None,
+            "Unknown sections should not trigger fallback in data-driven approach"
+        );
     }
 
     #[test]
@@ -1288,8 +1274,8 @@ network_config:
             let config = load_config(Some(config_file.path().to_path_buf()));
             assert_eq!(
                 determine_action(&config),
-                FallbackDecision::FallbackToSystemProbe,
-                "Feature section without explicit enabled: false should trigger fallback"
+                FallbackDecision::RunSdAgent,
+                "Feature section without a known key set to true should not trigger fallback"
             );
         });
     }
@@ -1329,100 +1315,78 @@ system_probe_config:
         });
     }
 
-    // event_monitoring_config tests
+    // Sync test: validates NON_DISCOVERY_ENV_VARS and NON_DISCOVERY_YAML_KEYS
+    // match the canonical JSON file.
 
-    #[test]
-    fn test_event_monitoring_config_process_enabled() {
-        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
-            let yaml = r#"
-discovery:
-  enabled: true
-event_monitoring_config:
-  process:
-    enabled: true
-"#;
-            let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(
-                determine_action(&config),
-                FallbackDecision::FallbackToSystemProbe
-            );
-        });
+    #[derive(serde::Deserialize)]
+    struct CanonicalConfig {
+        env_vars: Vec<String>,
+        yaml_keys: Vec<String>,
     }
 
     #[test]
-    fn test_event_monitoring_config_network_process_enabled() {
-        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
-            let yaml = r#"
-discovery:
-  enabled: true
-event_monitoring_config:
-  network_process:
-    enabled: true
-"#;
-            let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(
-                determine_action(&config),
-                FallbackDecision::FallbackToSystemProbe
-            );
-        });
-    }
-
-    #[test]
-    fn test_event_monitoring_config_both_disabled() {
-        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
-            let yaml = r#"
-discovery:
-  enabled: true
-event_monitoring_config:
-  process:
-    enabled: false
-  network_process:
-    enabled: false
-"#;
-            let config_file = create_test_config(yaml);
-            let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(determine_action(&config), FallbackDecision::RunSdAgent);
-        });
-    }
-
-    // Sync test: validates NON_DISCOVERY_ENV_VARS matches canonical JSON
-
-    #[test]
-    fn test_non_discovery_env_vars_match_canonical_list() {
+    fn test_non_discovery_config_matches_canonical() {
         let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
-        let txt_path = std::path::PathBuf::from(manifest_dir)
+        let json_path = std::path::PathBuf::from(manifest_dir)
             .join("..")
             .join("..")
             .join("..")
             .join("system-probe")
             .join("config")
             .join("testdata")
-            .join("non_discovery_env_vars.txt");
+            .join("non_discovery_module_config.json");
 
-        let txt_content = std::fs::read_to_string(&txt_path).unwrap_or_else(|e| {
-            panic!("Cannot read canonical list at {}: {e}", txt_path.display())
+        let json_content = std::fs::read_to_string(&json_path).unwrap_or_else(|e| {
+            panic!("Cannot read canonical JSON at {}: {e}", json_path.display())
         });
 
-        let file_env_vars: std::collections::BTreeSet<&str> =
-            txt_content.lines().filter(|l| !l.is_empty()).collect();
+        let canonical: CanonicalConfig = serde_json::from_str(&json_content).unwrap_or_else(|e| {
+            panic!(
+                "Cannot parse canonical JSON at {}: {e}",
+                json_path.display()
+            )
+        });
 
+        // Validate env vars
+        let file_env_vars: std::collections::BTreeSet<&str> =
+            canonical.env_vars.iter().map(|s| s.as_str()).collect();
         let rust_env_vars: std::collections::BTreeSet<&str> =
             NON_DISCOVERY_ENV_VARS.iter().copied().collect();
 
-        let in_file_not_rust: Vec<&&str> = file_env_vars.difference(&rust_env_vars).collect();
-        let in_rust_not_file: Vec<&&str> = rust_env_vars.difference(&file_env_vars).collect();
+        let env_in_file_not_rust: Vec<&&str> = file_env_vars.difference(&rust_env_vars).collect();
+        let env_in_rust_not_file: Vec<&&str> = rust_env_vars.difference(&file_env_vars).collect();
 
         assert!(
-            in_file_not_rust.is_empty() && in_rust_not_file.is_empty(),
-            "NON_DISCOVERY_ENV_VARS does not match canonical list at {}.\n\
-             In file but not in Rust: {:?}\n\
-             In Rust but not in file: {:?}\n\
+            env_in_file_not_rust.is_empty() && env_in_rust_not_file.is_empty(),
+            "NON_DISCOVERY_ENV_VARS does not match canonical JSON at {}.\n\
+             In JSON but not in Rust: {:?}\n\
+             In Rust but not in JSON: {:?}\n\
              Update NON_DISCOVERY_ENV_VARS to match the file.",
-            txt_path.display(),
-            in_file_not_rust,
-            in_rust_not_file
+            json_path.display(),
+            env_in_file_not_rust,
+            env_in_rust_not_file
+        );
+
+        // Validate YAML keys
+        let file_yaml_keys: std::collections::BTreeSet<&str> =
+            canonical.yaml_keys.iter().map(|s| s.as_str()).collect();
+        let rust_yaml_keys: std::collections::BTreeSet<&str> =
+            NON_DISCOVERY_YAML_KEYS.iter().copied().collect();
+
+        let yaml_in_file_not_rust: Vec<&&str> =
+            file_yaml_keys.difference(&rust_yaml_keys).collect();
+        let yaml_in_rust_not_file: Vec<&&str> =
+            rust_yaml_keys.difference(&file_yaml_keys).collect();
+
+        assert!(
+            yaml_in_file_not_rust.is_empty() && yaml_in_rust_not_file.is_empty(),
+            "NON_DISCOVERY_YAML_KEYS does not match canonical JSON at {}.\n\
+             In JSON but not in Rust: {:?}\n\
+             In Rust but not in JSON: {:?}\n\
+             Update NON_DISCOVERY_YAML_KEYS to match the file.",
+            json_path.display(),
+            yaml_in_file_not_rust,
+            yaml_in_rust_not_file
         );
     }
 }

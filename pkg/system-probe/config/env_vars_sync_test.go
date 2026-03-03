@@ -8,6 +8,7 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"sort"
@@ -21,6 +22,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
+
+type canonicalConfig struct {
+	EnvVars  []string `json:"env_vars"`
+	YAMLKeys []string `json:"yaml_keys"`
+}
 
 type testConfig struct {
 	model.Config
@@ -50,6 +56,15 @@ func (c *testConfig) GetBool(key string) bool {
 }
 
 func (c *testConfig) Set(_ string, _ interface{}, _ model.Source) {
+}
+
+func (c *testConfig) sortedKeys() []string {
+	keys := make([]string, 0, len(c.keys))
+	for k := range c.keys {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func (c *testConfig) resolveEnvVars() []string {
@@ -86,8 +101,8 @@ func resolveEnvVar(key string, cfg model.Reader) string {
 	return ""
 }
 
-// TestEnableModuleVars collects all the env vars that trigger non-discovery modules
-// and verifies that they match the canonical list.
+// TestEnableModulesVars collects all the env vars and YAML keys that trigger
+// non-discovery modules and verifies that they match the canonical JSON file.
 func TestEnableModulesVars(t *testing.T) {
 	var c types.Config
 
@@ -99,29 +114,48 @@ func TestEnableModulesVars(t *testing.T) {
 
 	enableModules(&c, coreCfgCollector, spCfgCollector)
 
+	// Collect YAML keys from both config collectors.
+	var yamlKeys []string
+	yamlKeys = append(yamlKeys, coreCfgCollector.sortedKeys()...)
+	yamlKeys = append(yamlKeys, spCfgCollector.sortedKeys()...)
+	sort.Strings(yamlKeys)
+
+	// Collect env vars from both config collectors.
 	var envVars []string
 	envVars = append(envVars, coreCfgCollector.resolveEnvVars()...)
 	envVars = append(envVars, spCfgCollector.resolveEnvVars()...)
 	sort.Strings(envVars)
 
-	t.Logf("Discovered %d env vars that trigger non-discovery modules:", len(envVars))
+	t.Logf("Discovered %d env vars:", len(envVars))
 	for _, v := range envVars {
 		t.Logf("  %s", v)
 	}
+	t.Logf("Discovered %d YAML keys:", len(yamlKeys))
+	for _, v := range yamlKeys {
+		t.Logf("  %s", v)
+	}
 
-	txtPath := filepath.Join("testdata", "non_discovery_env_vars.txt")
-	txtBytes, err := os.ReadFile(txtPath)
+	jsonPath := filepath.Join("testdata", "non_discovery_module_config.json")
+	jsonBytes, err := os.ReadFile(jsonPath)
 	require.NoErrorf(t, err,
-		"Cannot read canonical list at %s.\n"+
-			"Create it with the discovered env vars listed above.", txtPath)
+		"Cannot read canonical JSON at %s.\n"+
+			"Create it with the discovered env vars and YAML keys listed above.", jsonPath)
 
-	canonical := strings.Split(strings.TrimSpace(string(txtBytes)), "\n")
+	var canonical canonicalConfig
+	require.NoError(t, json.Unmarshal(jsonBytes, &canonical),
+		"Failed to parse canonical JSON at %s", jsonPath)
 
-	assert.Equal(t, canonical, envVars,
+	assert.Equal(t, canonical.EnvVars, envVars,
 		"Mismatch between discovered env vars and canonical list at %s.\n"+
-			"Update the file with the discovered list shown above.\n"+
+			"Update the env_vars array with the discovered list shown above.\n"+
 			"Then update NON_DISCOVERY_ENV_VARS in pkg/discovery/module/rust/src/config.rs.",
-		txtPath)
+		jsonPath)
+
+	assert.Equal(t, canonical.YAMLKeys, yamlKeys,
+		"Mismatch between discovered YAML keys and canonical list at %s.\n"+
+			"Update the yaml_keys array with the discovered list shown above.\n"+
+			"Then update NON_DISCOVERY_YAML_KEYS in pkg/discovery/module/rust/src/config.rs.",
+		jsonPath)
 }
 
 // TestNonDiscoveryEnvVarsDiscoveryOnly verifies that setting only the

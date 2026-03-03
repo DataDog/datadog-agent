@@ -1,4 +1,4 @@
 exports_files(
-    ["testdata/non_discovery_env_vars.txt"],
+    ["testdata/non_discovery_module_config.json"],
     visibility = ["//pkg/discovery/module/rust:__pkg__"],
 )
