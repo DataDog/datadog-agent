@@ -56,7 +56,7 @@ import (
 // MockModule defines the fx options for the mock component for use in tests within this package.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(NewMock),
+		fxutil.ProvideComponentConstructor(NewMock),
 		fx.Supply(traceconfigdef.Params{
 			FailIfAPIKeyMissing: true,
 		}),
