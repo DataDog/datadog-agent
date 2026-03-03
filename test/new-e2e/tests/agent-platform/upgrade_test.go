@@ -2,10 +2,9 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-package upgrade
+package agentplatform
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"testing"
@@ -28,13 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	osDescriptors    = flag.String("osdescriptors", "", "platform/arch/os version (debian/x86_64/11)")
-	flavorName       = flag.String("flavor", "datadog-agent", "package flavor to install")
-	srcAgentVersion  = flag.String("src-agent-version", "5", "start agent version")
-	destAgentVersion = flag.String("dest-agent-version", "7", "destination agent version to upgrade to")
-)
-
 type upgradeSuite struct {
 	e2e.BaseSuite[environments.Host]
 	osDesc         e2eos.Descriptor
@@ -44,11 +36,11 @@ type upgradeSuite struct {
 }
 
 func TestUpgradeScript(t *testing.T) {
-	osDescriptors, err := platforms.ParseOSDescriptors(*osDescriptors)
+	osDescriptorsList, err := platforms.ParseOSDescriptors(*osDescriptors)
 	if err != nil {
 		t.Fatalf("failed to parse os descriptors: %v", err)
 	}
-	if len(osDescriptors) == 0 {
+	if len(osDescriptorsList) == 0 {
 		t.Fatal("expecting some value to be passed for --osdescriptors on test invocation, got none")
 	}
 
@@ -57,7 +49,7 @@ func TestUpgradeScript(t *testing.T) {
 		vmOpts = append(vmOpts, ec2.WithInstanceType(instanceType))
 	}
 
-	for _, osDesc := range osDescriptors {
+	for _, osDesc := range osDescriptorsList {
 		osDesc := osDesc
 
 		t.Run("test upgrade on "+platforms.PrettifyOsDescriptor(osDesc), func(tt *testing.T) {

@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package macos implements tests for the agent install script on MacOS.
-package macos
+package agentplatform
 
 import (
 	"strings"

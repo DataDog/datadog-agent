@@ -2,10 +2,9 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-package stepbystep
+package agentplatform
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"strconv"
@@ -28,13 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	osDescriptors             = flag.String("osdescriptors", "", "platform/arch/os version (debian/x86_64/11)")
-	cwsSupportedOsDescriptors = flag.String("cws-supported-osdescriptors", "", "list of os where CWS is supported")
-	flavorName                = flag.String("flavor", "datadog-agent", "package flavor to install")
-	majorVersion              = flag.String("major-version", "7", "major version to test (6, 7)")
-)
-
 type stepByStepSuite struct {
 	e2e.BaseSuite[environments.Host]
 
@@ -43,22 +35,12 @@ type stepByStepSuite struct {
 	cwsSupported bool
 }
 
-func ExecuteWithoutError(_ *testing.T, client *common.TestClient, cmd string, args ...any) {
-	var finalCmd string
-	if len(args) > 0 {
-		finalCmd = fmt.Sprintf(cmd, args...)
-	} else {
-		finalCmd = cmd
-	}
-	client.Host.MustExecute(finalCmd)
-}
-
 func TestStepByStepScript(t *testing.T) {
-	osDescriptors, err := platforms.ParseOSDescriptors(*osDescriptors)
+	osDescriptorsList, err := platforms.ParseOSDescriptors(*osDescriptors)
 	if err != nil {
 		t.Fatalf("failed to parse os descriptors: %v", err)
 	}
-	if len(osDescriptors) == 0 {
+	if len(osDescriptorsList) == 0 {
 		t.Fatal("expecting some value to be passed for --osdescriptors on test invocation, got none")
 	}
 	cwsSupportedOsDescriptorsList, err := platforms.ParseOSDescriptors(*cwsSupportedOsDescriptors)
@@ -69,7 +51,7 @@ func TestStepByStepScript(t *testing.T) {
 		t.Fatal("expecting some value to be passed for --cws-supported-osdescriptors on test invocation, got none")
 	}
 
-	for _, osDesc := range osDescriptors {
+	for _, osDesc := range osDescriptorsList {
 		osDesc := osDesc
 
 		cwsSupported := false

@@ -2,10 +2,9 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-package installscript
+package agentplatform
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"strings"
@@ -30,13 +29,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	osDescriptors             = flag.String("osdescriptors", "", "os versions to test")
-	cwsSupportedOsDescriptors = flag.String("cws-supported-osdescriptors", "", "list of os descriptors where CWS is supported")
-	flavor                    = flag.String("flavor", "datadog-agent", "flavor to test (datadog-agent, datadog-iot-agent, datadog-dogstatsd, datadog-fips-agent, datadog-fips-proxy, datadog-heroku-agent)")
-	majorVersion              = flag.String("major-version", "7", "major version to test (6, 7)")
-)
-
 type installScriptSuite struct {
 	e2e.BaseSuite[environments.Host]
 	cwsSupported   bool
@@ -50,11 +42,11 @@ func TestInstallScript(t *testing.T) {
 		return
 	}
 
-	osDescriptors, err := platforms.ParseOSDescriptors(*osDescriptors)
+	osDescriptorsList, err := platforms.ParseOSDescriptors(*osDescriptors)
 	if err != nil {
 		t.Fatalf("failed to parse os descriptors: %v", err)
 	}
-	if len(osDescriptors) == 0 {
+	if len(osDescriptorsList) == 0 {
 		t.Fatal("expecting some value to be passed for --osdescriptors on test invocation, got none")
 	}
 
@@ -62,7 +54,7 @@ func TestInstallScript(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to parse cws supported os version: %v", err)
 	}
-	for _, osDesc := range osDescriptors {
+	for _, osDesc := range osDescriptorsList {
 		osDesc := osDesc
 
 		cwsSupported := false
@@ -77,7 +69,7 @@ func TestInstallScript(t *testing.T) {
 			vmOpts = append(vmOpts, ec2.WithInstanceType(instanceType))
 		}
 
-		t.Run(fmt.Sprintf("test install script on %s %s agent %s", platforms.PrettifyOsDescriptor(osDesc), *flavor, *majorVersion), func(tt *testing.T) {
+		t.Run(fmt.Sprintf("test install script on %s %s agent %s", platforms.PrettifyOsDescriptor(osDesc), *flavorName, *majorVersion), func(tt *testing.T) {
 			tt.Parallel()
 			tt.Logf("Testing %s", platforms.PrettifyOsDescriptor(osDesc))
 			vmOpts = append(vmOpts, ec2.WithOS(osDesc))
@@ -92,7 +84,7 @@ func TestInstallScript(t *testing.T) {
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
 					awshost.WithRunOptions(ec2.WithEC2InstanceOptions(vmOpts...)),
 				)),
-				e2e.WithStackName(fmt.Sprintf("install-script-test-%v-%s-%v", platforms.PrettifyOsDescriptor(osDesc), *flavor, *majorVersion)),
+				e2e.WithStackName(fmt.Sprintf("install-script-test-%v-%s-%v", platforms.PrettifyOsDescriptor(osDesc), *flavorName, *majorVersion)),
 			)
 		})
 	}
@@ -122,7 +114,7 @@ func DockerTest(t *testing.T) {
 }
 
 func (is *installScriptSuite) TestInstallAgent() {
-	switch *flavor {
+	switch *flavorName {
 	case "datadog-agent":
 		is.AgentTest("datadog-agent")
 	case "datadog-heroku-agent":
@@ -209,7 +201,7 @@ func (is *installScriptSuite) IotAgentTest() {
 
 	installOptions := []installparams.Option{
 		installparams.WithArch(string(is.osDesc.Architecture)),
-		installparams.WithFlavor(*flavor),
+		installparams.WithFlavor(*flavorName),
 	}
 
 	if is.testingKeysURL != "" {
@@ -238,7 +230,7 @@ func (is *installScriptSuite) DogstatsdAgentTest() {
 
 	installOptions := []installparams.Option{
 		installparams.WithArch(string(is.osDesc.Architecture)),
-		installparams.WithFlavor(*flavor),
+		installparams.WithFlavor(*flavorName),
 	}
 
 	if is.testingKeysURL != "" {
@@ -277,7 +269,7 @@ func (is *installScriptSuiteSysVInit) TestInstallAgent() {
 
 	installOptions := []installparams.Option{
 		installparams.WithArch(string(is.arch)),
-		installparams.WithFlavor(*flavor),
+		installparams.WithFlavor(*flavorName),
 	}
 
 	if is.testingKeysURL != "" {

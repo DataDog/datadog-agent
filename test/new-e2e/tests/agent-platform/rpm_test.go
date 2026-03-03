@@ -2,10 +2,9 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-package rpm_test
+package agentplatform
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"strconv"
@@ -28,11 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
 )
 
-var (
-	osDescriptors = flag.String("osdescriptors", "", "platform/arch/os version (debian/x86_64/11)")
-	majorVersion  = flag.String("major-version", "7", "major version to test (6, 7)")
-)
-
 type rpmTestSuite struct {
 	e2e.BaseSuite[environments.Host]
 
@@ -41,15 +35,15 @@ type rpmTestSuite struct {
 }
 
 func TestRpmScript(t *testing.T) {
-	osDescriptors, err := platforms.ParseOSDescriptors(*osDescriptors)
+	osDescriptorsList, err := platforms.ParseOSDescriptors(*osDescriptors)
 	if err != nil {
 		t.Fatalf("failed to parse os descriptors: %v", err)
 	}
-	if len(osDescriptors) == 0 {
+	if len(osDescriptorsList) == 0 {
 		t.Fatal("expecting some value to be passed for --osdescriptors on test invocation, got none")
 	}
 
-	for _, osDesc := range osDescriptors {
+	for _, osDesc := range osDescriptorsList {
 		osDesc := osDesc
 
 		vmOpts := []ec2.VMOption{}
