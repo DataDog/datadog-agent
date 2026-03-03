@@ -1,0 +1,3 @@
+fixes:
+  - |
+    The API server now logs errors from ``srv.Serve`` that were previously silently discarded.
