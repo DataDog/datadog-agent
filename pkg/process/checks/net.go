@@ -190,8 +190,9 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	getProcessTagsCB := c.getProcessTagsCallback()
 	iisTags := fetchIISTagsCache(c.sysprobeClient)
 	procCacheTags := fetchProcessCacheTags(c.sysprobeClient)
+	portToPID := getListeningPortToPIDMap()
 	groupID := nextGroupID()
-	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor, conns.ResolvConfs, iisTags, procCacheTags)
+	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor, conns.ResolvConfs, iisTags, procCacheTags, portToPID)
 	return StandardRunResult(messages), nil
 }
 
@@ -458,23 +459,12 @@ func batchConnections(
 	resolvConfs []string,
 	iisTags map[string][]string,
 	procCacheTags map[uint32][]string,
+	portToPID map[int32]int32,
 ) []model.MessageBody {
 	groupSize := groupSize(len(cxs), maxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
 
 	dnsEncoder := model.NewV2DNSEncoder()
-
-	// Build listening port -> PID map for fallback remote service resolution
-	// when IIS tags are not available for same-host connections.
-	portToPID := getListeningPortToPIDMap()
-	if portToPID == nil {
-		portToPID = make(map[int32]int32)
-		for _, c := range cxs {
-			if c.Pid > 0 {
-				portToPID[c.Laddr.Port] = c.Pid
-			}
-		}
-	}
 
 	if len(cxs) > maxConnsPerMessage {
 		// Sort connections by remote IP/PID for more efficient resolution
