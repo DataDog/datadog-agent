@@ -5,12 +5,12 @@ requirements:
     short: Flare archive contains config, environment, and extension data
     long: |
       A DDOT flare archive shall include, at minimum:
-        - otel-response.json: serialized responses from all enabled debug extensions
-        - build-info.txt: DDOT version and build metadata
+        - `otel-response.json`: serialized responses from all enabled debug extensions
+        - `build-info.txt`: DDOT version and build metadata
         - The OTel configuration as provided by the user
         - The effective runtime configuration after all merges and overrides
-        - environment.json: relevant environment variable values
-        - debug-sources.json: discovery information for debug extensions
+        - `environment.json`: relevant environment variable values
+        - `debug-sources.json`: discovery information for debug extensions
           (names, types, URLs)
       This completeness requirement ensures that a flare contains sufficient information
       for Datadog support to diagnose configuration and runtime issues without requiring
@@ -22,7 +22,7 @@ requirements:
     short: Integrate Datadog continuous profiling via the ddprofiling extension
     long: |
       DDOT shall provide built-in integration with Datadog continuous profiling via the
-      ddprofiling OTel extension.
+      `ddprofiling` OTel extension.
       When enabled, the extension starts a Go profiler that collects CPU, heap, and
       goroutine profiles from the DDOT process and submits them to the Datadog profiling
       intake.
@@ -35,7 +35,7 @@ requirements:
     short: Flare HTTP endpoint requires bearer token authentication
     long: |
       The ddflare OTel extension's HTTP endpoint, which exposes runtime configuration and
-      debug data, shall require a valid bearer token in the Authorization header.
+      debug data, shall require a valid bearer token in the `Authorization` header.
       Requests without a valid token shall be rejected with an HTTP 401 Unauthorized
       response.
       This prevents unauthorized access to potentially sensitive configuration data from
