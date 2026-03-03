@@ -25,7 +25,9 @@ func (server *apiServer) startIPCServer(ipcServerAddr string, tmf observability.
 	if err != nil {
 		return err
 	}
-	server.ipcAddr = ipcListener.Addr().(*net.TCPAddr)
+	if tcpAddr, ok := ipcListener.Addr().(*net.TCPAddr); ok {
+		server.ipcAddr = tcpAddr
+	}
 
 	configEndpointMux := configendpoint.GetConfigEndpointMuxCore(server.cfg)
 
