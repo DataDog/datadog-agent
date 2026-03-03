@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
@@ -50,7 +49,7 @@ func (c *testConfig) GetBool(key string) bool {
 	return false
 }
 
-func (c *testConfig) Set(key string, value interface{}, source model.Source) {
+func (c *testConfig) Set(_ string, _ interface{}, _ model.Source) {
 }
 
 func (c *testConfig) resolveEnvVars() []string {
@@ -63,7 +62,7 @@ func (c *testConfig) resolveEnvVars() []string {
 	return envVars
 }
 
-func resolveEnvVar(key string, cfg pkgconfigmodel.Reader) string {
+func resolveEnvVar(key string, cfg model.Reader) string {
 	// Try the auto-generated name: DD_ + UPPER(key with . replaced by _)
 	auto := "DD_" + strings.ToUpper(strings.NewReplacer(".", "_").Replace(key))
 	os.Setenv(auto, "resolution_sentinel")

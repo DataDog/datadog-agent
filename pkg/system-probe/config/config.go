@@ -14,7 +14,6 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
@@ -127,7 +126,7 @@ func load() (*types.Config, error) {
 	return enableModules(c, coreCfg, cfg)
 }
 
-func enableModules(c *types.Config, coreCfg model.Config, cfg model.Config) (*types.Config, error) {
+func enableModules(c *types.Config, coreCfg pkgconfigmodel.Config, cfg pkgconfigmodel.Config) (*types.Config, error) {
 	npmEnabled := cfg.GetBool(netNS("enabled"))
 	usmEnabled := cfg.GetBool(smNS("enabled"))
 	ccmEnabled := cfg.GetBool(ccmNS("enabled"))
