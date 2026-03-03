@@ -7,7 +7,7 @@ package lite
 
 import "strings"
 
-// cleanValue strips surrounding quotes and carriage returns from a value
+// cleanValue strips surrounding quotes and carriage returns from a value.
 func cleanValue(s string) string {
 	s = strings.TrimRight(s, "\r")
 	if len(s) >= 2 {
@@ -18,7 +18,7 @@ func cleanValue(s string) string {
 	return s
 }
 
-// stripSeparators removes underscores and hyphens from a string
+// stripSeparators removes underscores and hyphens from a string.
 func stripSeparators(s string) string {
 	var b strings.Builder
 	b.Grow(len(s))
@@ -28,4 +28,27 @@ func stripSeparators(s string) string {
 		}
 	}
 	return b.String()
+}
+
+// parseLine extracts a key-value pair from a config line
+func parseLine(line string) (key, value string, ok bool) {
+	line = strings.TrimRight(line, "\r")
+	if len(line) == 0 || line[0] == '#' || line[0] == ' ' || line[0] == '\t' {
+		return "", "", false
+	}
+
+	sepIdx := strings.IndexAny(line, ":;=")
+	if sepIdx <= 0 {
+		return "", "", false
+	}
+
+	key = strings.TrimSpace(line[:sepIdx])
+	value = strings.TrimSpace(line[sepIdx+1:])
+	if idx := strings.Index(value, " #"); idx >= 0 {
+		value = strings.TrimSpace(value[:idx])
+	}
+	if value == "" {
+		return "", "", false
+	}
+	return key, value, true
 }
