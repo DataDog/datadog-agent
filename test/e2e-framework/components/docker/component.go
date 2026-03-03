@@ -203,8 +203,10 @@ func (d *Manager) install(e config.Env) (command.Command, error) {
 		return nil, err
 	}
 
-	// When a private registry is configured (e.g. pull-through cache), run docker login for both
-	// the SSH user (docker-compose) and root so pulls work regardless of which user runs Docker.
+	// When a private registry is configured (e.g. pull-through cache), add credentials so
+	// docker-compose and build can pull. The ECR credsStore helper does not implement "store",
+	// so plain "docker login" would fail. Use a temp DOCKER_CONFIG so login writes auths to a
+	// file without the helper, then merge that auths block into the real config.
 	if e.ImagePullRegistry() != "" {
 		registries := strings.Split(e.ImagePullRegistry(), ",")
 		usernames := strings.Split(e.ImagePullUsername(), ",")
@@ -222,10 +224,16 @@ func (d *Manager) install(e config.Env) (command.Command, error) {
 			"REGISTRY_USERNAME": pulumi.String(username),
 			"REGISTRY_PASSWORD": password,
 		}
-		loginCreate := pulumi.String("echo \"$REGISTRY_PASSWORD\" | docker login --username \"$REGISTRY_USERNAME\" --password-stdin \"$REGISTRY\"")
+		// Login to a temp config (no credsStore), then merge auths into ~/.docker/config.json.
+		loginAndMerge := pulumi.String(
+			"mkdir -p ~/.docker && TMP=$(mktemp -d) && export TMP && export DOCKER_CONFIG=$TMP && " +
+				"echo \"$REGISTRY_PASSWORD\" | docker login --username \"$REGISTRY_USERNAME\" --password-stdin \"$REGISTRY\" && " +
+				"python3 -c \"import json,os; p=os.path.expanduser('~/.docker/config.json'); c=json.load(open(p)) if os.path.exists(p) else {}; c.setdefault('auths',{}).update(json.load(open(os.environ['TMP']+'/config.json')).get('auths',{})); json.dump(c,open(p,'w'),indent=2)\" && " +
+				"rm -rf $TMP",
+		)
 		userLogin, err := d.Host.OS.Runner().Command(
 			d.namer.ResourceName("registry-login"),
-			&command.Args{Create: loginCreate, Sudo: false, Environment: env},
+			&command.Args{Create: loginAndMerge, Sudo: false, Environment: env},
 			utils.MergeOptions(opts, utils.PulumiDependsOn(groupCmd))...,
 		)
 		if err != nil {
@@ -233,7 +241,7 @@ func (d *Manager) install(e config.Env) (command.Command, error) {
 		}
 		sudoLogin, err := d.Host.OS.Runner().Command(
 			d.namer.ResourceName("registry-login-sudo"),
-			&command.Args{Create: loginCreate, Sudo: true, Environment: env},
+			&command.Args{Create: loginAndMerge, Sudo: true, Environment: env},
 			utils.MergeOptions(opts, utils.PulumiDependsOn(userLogin))...,
 		)
 		if err != nil {
