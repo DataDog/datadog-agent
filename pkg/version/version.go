@@ -63,22 +63,25 @@ func New(version, commit string) (Version, error) {
 }
 
 func (v *Version) String() string {
-	ver := v.GetNumber()
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d.%d.%d", v.Major, v.Minor, v.Patch)
 	if v.Pre != "" {
-		ver = fmt.Sprintf("%s-%s", ver, v.Pre)
+		b.WriteByte('-')
+		b.WriteString(v.Pre)
 	}
 	if v.Meta != "" {
-		ver = fmt.Sprintf("%s+%s", ver, v.Meta)
+		b.WriteByte('+')
+		b.WriteString(v.Meta)
 	}
 	if v.Commit != "" {
 		if v.Meta != "" {
-			ver = fmt.Sprintf("%s.commit.%s", ver, v.Commit)
+			b.WriteString(".commit.")
 		} else {
-			ver = fmt.Sprintf("%s+commit.%s", ver, v.Commit)
+			b.WriteString("+commit.")
 		}
+		b.WriteString(v.Commit)
 	}
-
-	return ver
+	return b.String()
 }
 
 // GetNumber returns a string containing version numbers only, e.g. `0.0.0`
