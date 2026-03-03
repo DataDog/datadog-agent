@@ -1,16 +1,13 @@
 """
 CI Visibility helpers for creating custom spans in Datadog CI Visibility.
 
-Uses `datadog-ci span` to create custom spans that appear in CI Visibility flamegraphs.
+Uses `datadog-ci trace span` to create custom spans that appear in CI Visibility flamegraphs.
 All helpers are no-ops outside of CI to avoid breaking local development.
 """
 
 from __future__ import annotations
 
-import json
-import os
 import subprocess
-import tempfile
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -51,9 +48,9 @@ class CIVisibilitySection:
         _SECTIONS.append(section)
 
     def send(self) -> bool:
-        """Send a single span via datadog-ci span."""
+        """Send a single span via datadog-ci trace span."""
         tag_args = " ".join(f"--tags {k}:{v}" for k, v in self.tags.items())
-        cmd = f"datadog-ci span --name {_shell_quote(self.name)} --start-time {self.start_time_ms} --end-time {self.end_time_ms} {tag_args}"
+        cmd = f"datadog-ci trace span --name {_shell_quote(self.name)} --start-time {self.start_time_ms} --end-time {self.end_time_ms} {tag_args}"
 
         try:
             subprocess.run(cmd, shell=True, check=True, capture_output=True, timeout=30)
@@ -64,17 +61,11 @@ class CIVisibilitySection:
 
     @classmethod
     def send_all(cls) -> None:
-        """Batch-send all accumulated sections. Tries --payload-file first, falls back to individual sends."""
+        """Send all accumulated sections individually via datadog-ci trace span."""
         if not _SECTIONS or not running_in_ci():
             _SECTIONS.clear()
             return
 
-        # Try batch send via payload file
-        if _send_batch_payload(list(_SECTIONS)):
-            _SECTIONS.clear()
-            return
-
-        # Fall back to individual sends
         for section in _SECTIONS:
             section.send()
 
@@ -83,44 +74,6 @@ class CIVisibilitySection:
 
 # Module-level list, declared after class to avoid forward reference issues
 _SECTIONS: list[CIVisibilitySection] = []
-
-
-def _send_batch_payload(sections: list[CIVisibilitySection]) -> bool:
-    """Try to send all sections via a single datadog-ci span --payload-file call."""
-    payload = []
-    for section in sections:
-        entry = {
-            "name": section.name,
-            "start_time": section.start_time_ms,
-            "end_time": section.end_time_ms,
-            "tags": dict(section.tags),
-        }
-        payload.append(entry)
-
-    try:
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-            json.dump(payload, f)
-            payload_file = f.name
-
-        result = subprocess.run(
-            f"datadog-ci span --payload-file {payload_file}",
-            shell=True,
-            capture_output=True,
-            timeout=30,
-        )
-
-        if result.returncode == 0:
-            return True
-
-        # --payload-file might not be supported in this version
-        return False
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
-        return False
-    finally:
-        try:
-            os.unlink(payload_file)
-        except (OSError, UnboundLocalError):
-            pass
 
 
 @contextmanager
