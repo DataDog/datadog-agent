@@ -537,6 +537,26 @@ func (tb *TestBench) GetStatus() StatusResponse {
 	}
 
 	scenarioStart, scenarioEnd, hasBounds := tb.storage.TimeBounds()
+
+	// Extend bounds to include log timestamps (parquet logs can fall outside the metrics range)
+	for _, l := range tb.rawLogs {
+		if l.Timestamp == 0 {
+			continue
+		}
+		if !hasBounds {
+			scenarioStart = l.Timestamp
+			scenarioEnd = l.Timestamp
+			hasBounds = true
+		} else {
+			if l.Timestamp < scenarioStart {
+				scenarioStart = l.Timestamp
+			}
+			if l.Timestamp > scenarioEnd {
+				scenarioEnd = l.Timestamp
+			}
+		}
+	}
+
 	var scenarioStartPtr *int64
 	var scenarioEndPtr *int64
 	if hasBounds {

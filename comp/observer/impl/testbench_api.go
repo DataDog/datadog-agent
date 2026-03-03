@@ -477,7 +477,13 @@ func (api *TestBenchAPI) handleLogs(w http.ResponseWriter, r *http.Request) {
 			tags = []string{}
 		}
 		// Add host / status tags
-		tags = append(tags, "host:"+l.Hostname, "status:"+l.Status)
+		if l.Hostname != "" {
+			tags = append(tags, "host:"+l.Hostname)
+		}
+		// TODO(celian): Refactor status / hostname to be only tags
+		// if l.Status != "" {
+		// 	tags = append(tags, "status:"+l.Status)
+		// }
 		response = append(response, logEntryResponse{
 			Timestamp: l.Timestamp,
 			Status:    l.Status,
