@@ -185,7 +185,7 @@ func (suite *CollectorDemuxTestSuite) TestCancelledCheckDestroysSender() {
 	suite.c.RunCheck(ch)
 	<-flip
 	flop <- struct{}{}
-	suite.c.checks[ch.ID()].Wait()
+	suite.c.checks.checks[ch.ID()].Wait()
 	err := suite.c.StopCheck(ch.ID())
 	assert.NoError(suite.T(), err)
 

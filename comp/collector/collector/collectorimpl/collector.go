@@ -62,6 +62,19 @@ type dependencies struct {
 	AgentTelemetry   option.Option[agenttelemetry.Component]
 }
 
+// checkState groups fields related to tracking running checks.
+type checkState struct {
+	checks         map[checkid.ID]*middleware.CheckWrapper
+	eventReceivers []collector.EventReceiver
+	checkInstances int64
+}
+
+// schedulingState groups fields related to the scheduler and runner.
+type schedulingState struct {
+	scheduler *scheduler.Scheduler
+	runner    *runner.Runner
+}
+
 type collectorImpl struct {
 	log            log.Component
 	config         config.Component
@@ -72,15 +85,12 @@ type collectorImpl struct {
 	senderManager    sender.SenderManager
 	metricSerializer option.Option[serializer.MetricSerializer]
 	agentTelemetry   option.Option[agenttelemetry.Component]
-	checkInstances   int64
 
 	// state is 'started' or 'stopped'
 	state *atomic.Uint32
 
-	scheduler      *scheduler.Scheduler
-	runner         *runner.Runner
-	checks         map[checkid.ID]*middleware.CheckWrapper
-	eventReceivers []collector.EventReceiver
+	scheduling schedulingState
+	checks     checkState
 
 	cancelCheckTimeout     time.Duration
 	watchdogWarningTimeout time.Duration
@@ -126,17 +136,19 @@ func newProvides(deps dependencies) provides {
 
 func newCollector(deps dependencies) *collectorImpl {
 	c := &collectorImpl{
-		log:                    deps.Log,
-		config:                 deps.Config,
-		haAgent:                deps.HaAgent,
-		healthPlatform:         deps.HealthPlatform,
-		hostname:               deps.Hostname,
-		senderManager:          deps.SenderManager,
-		metricSerializer:       deps.MetricSerializer,
-		agentTelemetry:         deps.AgentTelemetry,
-		checks:                 make(map[checkid.ID]*middleware.CheckWrapper),
-		state:                  atomic.NewUint32(stopped),
-		checkInstances:         int64(0),
+		log:              deps.Log,
+		config:           deps.Config,
+		haAgent:          deps.HaAgent,
+		healthPlatform:   deps.HealthPlatform,
+		hostname:         deps.Hostname,
+		senderManager:    deps.SenderManager,
+		metricSerializer: deps.MetricSerializer,
+		agentTelemetry:   deps.AgentTelemetry,
+		state:            atomic.NewUint32(stopped),
+		checks: checkState{
+			checks:         make(map[checkid.ID]*middleware.CheckWrapper),
+			checkInstances: int64(0),
+		},
 		cancelCheckTimeout:     deps.Config.GetDuration("check_cancel_timeout"),
 		watchdogWarningTimeout: deps.Config.GetDuration("check_watchdog_warning_timeout"),
 		createdAt:              time.Now(),
@@ -163,11 +175,11 @@ func (c *collectorImpl) AddEventReceiver(cb collector.EventReceiver) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	c.eventReceivers = append(c.eventReceivers, cb)
+	c.checks.eventReceivers = append(c.checks.eventReceivers, cb)
 }
 
 func (c *collectorImpl) notify(cid checkid.ID, e collector.EventType) {
-	for _, cb := range c.eventReceivers {
+	for _, cb := range c.checks.eventReceivers {
 		cb(cid, e)
 	}
 }
@@ -190,8 +202,8 @@ func (c *collectorImpl) start(_ context.Context) error {
 	run.SetScheduler(sched)
 	sched.Run()
 
-	c.scheduler = sched
-	c.runner = run
+	c.scheduling.scheduler = sched
+	c.scheduling.runner = run
 	c.state.Store(started)
 
 	c.log.Debug("Collector up and running!")
@@ -204,13 +216,13 @@ func (c *collectorImpl) stop(_ context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	if c.scheduler != nil {
-		_ = c.scheduler.Stop()
-		c.scheduler = nil
+	if c.scheduling.scheduler != nil {
+		_ = c.scheduling.scheduler.Stop()
+		c.scheduling.scheduler = nil
 	}
-	if c.runner != nil {
-		c.runner.Stop()
-		c.runner = nil
+	if c.scheduling.runner != nil {
+		c.scheduling.runner.Stop()
+		c.scheduling.runner = nil
 	}
 	c.state.Store(stopped)
 	return nil
@@ -229,27 +241,27 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 		return emptyID, errors.New("the collector is not running")
 	}
 
-	if _, found := c.checks[ch.ID()]; found {
+	if _, found := c.checks.checks[ch.ID()]; found {
 		return emptyID, fmt.Errorf("a check with ID %s is already running", ch.ID())
 	}
 
-	if err := c.scheduler.Enter(ch); err != nil {
+	if err := c.scheduling.scheduler.Enter(ch); err != nil {
 		return emptyID, fmt.Errorf("unable to schedule the check: %s", err)
 	}
 
 	// Track the total number of checks running in order to have an appropriate number of workers
-	c.checkInstances++
+	c.checks.checkInstances++
 	if ch.Interval() == 0 {
 		// Adding a temporary runner for long running check in case the
 		// number of runners is lower than the number of long running
 		// checks.
 		c.log.Infof("Adding an extra runner for the '%s' long running check", ch)
-		c.runner.AddWorker()
+		c.scheduling.runner.AddWorker()
 	} else {
-		c.runner.UpdateNumWorkers(c.checkInstances)
+		c.scheduling.runner.UpdateNumWorkers(c.checks.checkInstances)
 	}
 
-	c.checks[ch.ID()] = ch
+	c.checks.checks[ch.ID()] = ch
 	c.notify(ch.ID(), collector.CheckRun)
 	return ch.ID(), nil
 }
@@ -261,22 +273,22 @@ func (c *collectorImpl) StopCheck(id checkid.ID) error {
 	var collectorRunner *runner.Runner
 
 	// This lock is needed because stop() can be called concurrently and sets
-	// c.runner and c.scheduler to nil
+	// c.scheduling.runner and c.scheduling.scheduler to nil
 	c.m.RLock()
 	if !c.started() {
 		c.m.RUnlock()
 		return errors.New("the collector is not running")
 	}
 
-	ch, found := c.checks[id]
+	ch, found := c.checks.checks[id]
 	if !found {
 		c.m.RUnlock()
 		return fmt.Errorf("cannot find a check with ID %s", id)
 	}
 
 	// These two are not nil because we checked that the collector is started
-	collectorScheduler = c.scheduler
-	collectorRunner = c.runner
+	collectorScheduler = c.scheduling.scheduler
+	collectorRunner = c.scheduling.runner
 	c.m.RUnlock()
 
 	// unschedule the instance
@@ -329,7 +341,7 @@ func (c *collectorImpl) get(id checkid.ID) (check.Check, bool) {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
-	ch, found := c.checks[id]
+	ch, found := c.checks.checks[id]
 	return ch, found
 }
 
@@ -338,7 +350,7 @@ func (c *collectorImpl) delete(id checkid.ID) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	delete(c.checks, id)
+	delete(c.checks.checks, id)
 	c.notify(id, collector.CheckStop)
 }
 
@@ -352,8 +364,8 @@ func (c *collectorImpl) MapOverChecks(cb func([]check.Info)) {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
-	cInfo := make([]check.Info, 0, len(c.checks))
-	for _, c := range c.checks {
+	cInfo := make([]check.Info, 0, len(c.checks.checks))
+	for _, c := range c.checks.checks {
 		cInfo = append(cInfo, c)
 	}
 	cb(cInfo)
@@ -364,8 +376,8 @@ func (c *collectorImpl) GetChecks() []check.Check {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
-	chks := make([]check.Check, 0, len(c.checks))
-	for _, chck := range c.checks {
+	chks := make([]check.Check, 0, len(c.checks.checks))
+	for _, chck := range c.checks.checks {
 		chks = append(chks, chck)
 	}
 
@@ -403,7 +415,7 @@ func (c *collectorImpl) getAllInstanceIDs(checkName string) []checkid.ID {
 	defer c.m.RUnlock()
 
 	instances := []checkid.ID{}
-	for id, check := range c.checks {
+	for id, check := range c.checks.checks {
 		if check.String() == checkName {
 			instances = append(instances, id)
 		}
