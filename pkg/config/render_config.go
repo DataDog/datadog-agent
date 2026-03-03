@@ -17,7 +17,7 @@ import (
 	"strings"
 
 	"github.com/pmezard/go-difflib/difflib"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // context contains the context used to render the config file template
@@ -61,8 +61,8 @@ func mkContext(buildType string, osName string) context {
 			ECS:                 true,
 			TraceAgent:          true,
 			Kubelet:             true,
-			KubeApiServer:       true,  // TODO: remove when phasing out from node-agent
-			PrivateActionRunner: false, // NOTE: hidden until v7.77.0
+			KubeApiServer:       true, // TODO: remove when phasing out from node-agent
+			PrivateActionRunner: true,
 		}
 	case "iot-agent":
 		return context{

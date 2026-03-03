@@ -141,6 +141,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "accept.addr.hostname.root_domain":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return eval.GetPublicTLDs(ev.FieldHandlers.ResolveAcceptHostnames(ev, &ev.Accept))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "accept.addr.ip":
 		return &eval.CIDREvaluator{
 			EvalFnc: func(ctx *eval.Context) net.IPNet {
@@ -411,6 +422,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "cgroup_write.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -723,6 +735,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chdir.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1068,6 +1081,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chmod.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1446,6 +1460,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "chown.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -1795,6 +1810,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveConnectHostnames(ev, &ev.Connect)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "connect.addr.hostname.root_domain":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return eval.GetPublicTLDs(ev.FieldHandlers.ResolveConnectHostnames(ev, &ev.Connect))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -2372,6 +2398,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exec.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -2902,6 +2929,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exec.interpreter.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -3861,6 +3889,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exit.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -4303,6 +4332,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "exit.interpreter.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5028,6 +5058,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "link.file.destination.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5318,6 +5349,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "link.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -5685,6 +5717,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "load_module.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -6041,6 +6074,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "mkdir.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -6375,6 +6409,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "mmap.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -7519,6 +7554,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "open.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -8836,6 +8872,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.ancestors.file.extension":
 		return &eval.StringArrayEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -9881,6 +9918,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.ancestors.interpreter.file.extension":
 		return &eval.StringArrayEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -11674,6 +11712,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -12116,6 +12155,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.interpreter.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -12928,6 +12968,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.parent.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -13463,6 +13504,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "process.parent.interpreter.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -15201,6 +15243,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.ancestors.file.extension":
 		return &eval.StringArrayEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -16246,6 +16289,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.extension":
 		return &eval.StringArrayEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -18039,6 +18083,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -18481,6 +18526,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.interpreter.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -19293,6 +19339,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.parent.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -19828,6 +19875,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -20815,6 +20863,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "removexattr.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -21138,6 +21187,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rename.file.destination.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -21428,6 +21478,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rename.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -21762,6 +21813,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "rmdir.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -22990,6 +23042,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.ancestors.file.extension":
 		return &eval.StringArrayEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -24035,6 +24088,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.ancestors.interpreter.file.extension":
 		return &eval.StringArrayEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -25828,6 +25882,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -26270,6 +26325,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.interpreter.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -27082,6 +27138,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.parent.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -27617,6 +27674,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setrlimit.target.parent.interpreter.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -28791,6 +28849,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "setxattr.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -29876,6 +29935,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.ancestors.file.extension":
 		return &eval.StringArrayEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -30921,6 +30981,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.ancestors.interpreter.file.extension":
 		return &eval.StringArrayEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -32714,6 +32775,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -33156,6 +33218,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.interpreter.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -33968,6 +34031,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.parent.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -34503,6 +34567,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "signal.target.parent.interpreter.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -35479,6 +35544,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "splice.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -35901,6 +35967,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "unlink.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -36279,6 +36346,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 		}, nil
 	case "utimes.file.extension":
 		return &eval.StringEvaluator{
+			OpOverrides: []*eval.OpOverrides{eval.ExtensionCmp},
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
@@ -36596,6 +36664,7 @@ func (ev *Event) GetFields() []eval.Field {
 	fields := []eval.Field{
 		"accept.addr.family",
 		"accept.addr.hostname",
+		"accept.addr.hostname.root_domain",
 		"accept.addr.ip",
 		"accept.addr.is_public",
 		"accept.addr.port",
@@ -36745,6 +36814,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"chown.syscall.uid",
 		"connect.addr.family",
 		"connect.addr.hostname",
+		"connect.addr.hostname.root_domain",
 		"connect.addr.ip",
 		"connect.addr.is_public",
 		"connect.addr.port",
@@ -38893,6 +38963,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "accept", reflect.Int, "int", false, nil
 	case "accept.addr.hostname":
 		return "accept", reflect.String, "string", true, nil
+	case "accept.addr.hostname.root_domain":
+		return "accept", reflect.String, "string", true, nil
 	case "accept.addr.ip":
 		return "accept", reflect.Struct, "net.IPNet", false, nil
 	case "accept.addr.is_public":
@@ -39190,6 +39262,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "connect.addr.family":
 		return "connect", reflect.Int, "int", false, nil
 	case "connect.addr.hostname":
+		return "connect", reflect.String, "string", true, nil
+	case "connect.addr.hostname.root_domain":
 		return "connect", reflect.String, "string", true, nil
 	case "connect.addr.ip":
 		return "connect", reflect.Struct, "net.IPNet", false, nil
@@ -43462,6 +43536,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("accept.addr.family", &ev.Accept.AddrFamily, value)
 	case "accept.addr.hostname":
 		return ev.setStringArrayFieldValue("accept.addr.hostname", &ev.Accept.Hostnames, value)
+	case "accept.addr.hostname.root_domain":
+		return &eval.ErrFieldReadOnly{Field: "accept.addr.hostname.root_domain"}
 	case "accept.addr.ip":
 		rv, ok := value.(net.IPNet)
 		if !ok {
@@ -43780,6 +43856,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("connect.addr.family", &ev.Connect.AddrFamily, value)
 	case "connect.addr.hostname":
 		return ev.setStringArrayFieldValue("connect.addr.hostname", &ev.Connect.Hostnames, value)
+	case "connect.addr.hostname.root_domain":
+		return &eval.ErrFieldReadOnly{Field: "connect.addr.hostname.root_domain"}
 	case "connect.addr.ip":
 		rv, ok := value.(net.IPNet)
 		if !ok {
@@ -44963,9 +45041,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		return ev.setUint16FieldValue("network_flow_monitor.flows.l4_protocol", &ev.NetworkFlowMonitor.Flows[0].L4Protocol, value)
 	case "network_flow_monitor.flows.length":
-		if len(ev.NetworkFlowMonitor.Flows) == 0 {
-			ev.NetworkFlowMonitor.Flows = append(ev.NetworkFlowMonitor.Flows, Flow{})
-		}
 		return &eval.ErrFieldReadOnly{Field: "network_flow_monitor.flows.length"}
 	case "network_flow_monitor.flows.source.ip":
 		if len(ev.NetworkFlowMonitor.Flows) == 0 {
