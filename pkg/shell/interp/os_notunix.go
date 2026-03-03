@@ -8,14 +8,9 @@ package interp
 import (
 	"context"
 	"fmt"
-	"io/fs"
 
 	"mvdan.cc/sh/v3/syntax"
 )
-
-func mkfifo(path string, mode uint32) error {
-	return fmt.Errorf("unsupported")
-}
 
 // access attempts to emulate [unix.Access] on Windows.
 // Windows seems to have a different system of permissions than Unix,
@@ -56,11 +51,3 @@ type waitStatus struct{}
 
 func (waitStatus) Signaled() bool { return false }
 func (waitStatus) Signal() int    { return 0 }
-
-// lsFileOwnership returns stub ownership info on non-Unix platforms.
-func lsFileOwnership(info fs.FileInfo, numeric bool) (owner, group string, nlink uint64, inode uint64) {
-	return "0", "0", 1, 0
-}
-
-// lsFileBlocks returns 0 on non-Unix platforms.
-func lsFileBlocks(info fs.FileInfo) int64 { return 0 }

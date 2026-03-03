@@ -219,11 +219,6 @@ func findExecutable(dir, file string, exts []string) (string, error) {
 	return "", fmt.Errorf("not found")
 }
 
-// findFile returns the path to an existing file.
-func findFile(dir, file string, _ []string) (string, error) {
-	return checkStat(dir, file, false)
-}
-
 // LookPath is deprecated; see [LookPathDir].
 func LookPath(env expand.Environ, file string) (string, error) {
 	return LookPathDir(env.Get("PWD").String(), env, file)
@@ -272,12 +267,6 @@ func lookPathDir(cwd string, env expand.Environ, file string, find findAny) (str
 		}
 	}
 	return "", fmt.Errorf("%q: executable file not found in $PATH", file)
-}
-
-// scriptFromPathDir is similar to [LookPathDir], with the difference that it looks
-// for both executable and non-executable files.
-func scriptFromPathDir(cwd string, env expand.Environ, file string) (string, error) {
-	return lookPathDir(cwd, env, file, findFile)
 }
 
 func pathExts(env expand.Environ) []string {

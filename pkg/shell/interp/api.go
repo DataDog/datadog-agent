@@ -66,15 +66,9 @@ type Runner struct {
 	// It can only be set via [Params].
 	Params []string
 
-	// Separate maps - note that bash allows a name to be both a var and a
-	// func simultaneously.
 	// Vars is mostly superseded by Env at this point.
 	// TODO(v4): remove these
-
-	Vars  map[string]expand.Variable
-	Funcs map[string]*syntax.Stmt
-
-	alias map[string]alias
+	Vars map[string]expand.Variable
 
 	// callHandler is a function allowing to replace a simple command's
 	// arguments. It may be nil.
@@ -117,13 +111,7 @@ type Runner struct {
 	// >0 to break or continue out of N enclosing loops
 	breakEnclosing, contnEnclosing int
 
-	inLoop       bool
-	inFunc       bool
-	inSource     bool
-	handlingTrap bool // whether we're currently in a trap callback
-
-	// track if a sourced script set positional parameters
-	sourceSetParams bool
+	inLoop bool
 
 	// noErrExit prevents failing commands from triggering [optErrExit],
 	// such as the condition in a [syntax.IfClause].
@@ -155,25 +143,14 @@ type Runner struct {
 	origStdout io.Writer
 	origStderr io.Writer
 
-	// Most scripts don't use pushd/popd, so make space for the initial PWD
-	// without requiring an extra allocation.
-	dirStack     []string
-	dirBootstrap [1]string
-
-	optState getopts
-
 	// keepRedirs is used so that "exec" can make any redirections
 	// apply to the current shell, and not just the command.
 	keepRedirs bool
 
 	// allowedCommands is a set of external command names permitted to run.
 	// When non-nil, only commands in this set may be executed via exec;
-	// builtins and shell functions are always allowed.
+	// builtins are always allowed.
 	allowedCommands map[string]bool
-
-	// Fake signal callbacks
-	callbackErr  string
-	callbackExit string
 }
 
 // exitStatus holds the state of the shell after running one command.
@@ -245,11 +222,6 @@ type bgProc struct {
 	exit *exitStatus
 }
 
-type alias struct {
-	args  []*syntax.Word
-	blank bool
-}
-
 func (r *Runner) optByFlag(flag byte) *bool {
 	for i, opt := range &shellOptsTable {
 		if opt.flag == flag {
@@ -272,7 +244,6 @@ func New(opts ...RunnerOption) (*Runner, error) {
 		readDirHandler: DefaultReadDirHandler2(),
 		statHandler:    DefaultStatHandler(),
 	}
-	r.dirStack = r.dirBootstrap[:0]
 	// turn "on" the default Bash options
 	for i, opt := range bashOptsTable {
 		r.opts[len(shellOptsTable)+i] = opt.defaultState
@@ -347,16 +318,6 @@ func Dir(path string) RunnerOption {
 	}
 }
 
-// Interactive configures the interpreter to behave like an interactive shell,
-// akin to Bash. Currently, this only enables the expansion of aliases,
-// but later on it should also change other behavior.
-func Interactive(enabled bool) RunnerOption {
-	return func(r *Runner) error {
-		r.opts[optExpandAliases] = enabled
-		return nil
-	}
-}
-
 // Params populates the shell options and parameters. For example, Params("-e",
 // "--", "foo") will set the "-e" option and the parameters ["foo"], and
 // Params("+e") will unset the "-e" option and leave the parameters untouched.
@@ -386,7 +347,11 @@ func Params(args ...string) RunnerOption {
 			value := fp.value()
 			if value == "" && enable {
 				for i, opt := range &shellOptsTable {
-					r.printOptLine(opt.name, r.opts[i], true)
+					state := "off"
+					if r.opts[i] {
+						state = "on"
+					}
+					r.outf("%s\t%s\n", opt.name, state)
 				}
 				continue
 			}
@@ -410,11 +375,6 @@ func Params(args ...string) RunnerOption {
 			// If "--" wasn't given and there were zero arguments,
 			// we don't want to override the current parameters.
 			r.Params = args
-
-			// Record whether a sourced script sets the parameters.
-			if r.inSource {
-				r.sourceSetParams = true
-			}
 		}
 		return nil
 	}
@@ -822,8 +782,7 @@ func (r *Runner) Reset() {
 		// emptied below, to reuse the space
 		Vars: r.Vars,
 
-		dirStack: r.dirStack[:0],
-		usedNew:  r.usedNew,
+		usedNew: r.usedNew,
 	}
 	// Ensure we stop referencing any pointers before we reuse bgProcs.
 	clear(r.bgProcs)
@@ -867,8 +826,6 @@ func (r *Runner) Reset() {
 	r.setVarString("PWD", r.Dir)
 	r.setVarString("IFS", " \t\n")
 	r.setVarString("OPTIND", "1")
-
-	r.dirStack = append(r.dirStack, r.Dir)
 
 	r.didReset = true
 }
@@ -928,7 +885,6 @@ func (r *Runner) Run(ctx context.Context, node syntax.Node) error {
 	default:
 		return fmt.Errorf("node can only be File, Stmt, or Command: %T", node)
 	}
-	r.trapCallback(ctx, r.callbackExit, "exit")
 	maps.Insert(r.Vars, r.writeEnv.Each)
 	// Return the first of: a fatal error, a non-fatal handler error, or the exit code.
 	if err := r.exit.err; err != nil {
@@ -994,12 +950,7 @@ func (r *Runner) subshell(background bool) *Runner {
 		origStdout: r.origStdout, // used for process substitutions
 	}
 	r2.writeEnv = newOverlayEnviron(r.writeEnv, background)
-	// Funcs are copied, since they might be modified.
-	r2.Funcs = maps.Clone(r.Funcs)
 	r2.Vars = make(map[string]expand.Variable)
-	r2.alias = maps.Clone(r.alias)
-
-	r2.dirStack = append(r2.dirBootstrap[:0], r.dirStack...)
 	r2.fillExpandConfig(r.ectx)
 	r2.didReset = true
 	return r2

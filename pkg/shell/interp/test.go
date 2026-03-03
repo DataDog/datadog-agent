@@ -12,8 +12,18 @@ import (
 	"golang.org/x/term"
 
 	"mvdan.cc/sh/v3/expand"
+	"mvdan.cc/sh/v3/pattern"
 	"mvdan.cc/sh/v3/syntax"
 )
+
+func match(pat, name string) bool {
+	expr, err := pattern.Regexp(pat, pattern.EntireString)
+	if err != nil {
+		return false
+	}
+	rx := regexp.MustCompile(expr)
+	return rx.MatchString(name)
+}
 
 // non-empty string is true, empty string is false
 func (r *Runner) bashTest(ctx context.Context, expr syntax.TestExpr, classic bool) string {

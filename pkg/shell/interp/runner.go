@@ -10,34 +10,16 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"iter"
-	"math"
-	mathrand "math/rand/v2"
 	"os"
 	"path/filepath"
-	"regexp"
-	"runtime"
-	"slices"
-	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"mvdan.cc/sh/v3/expand"
-	"mvdan.cc/sh/v3/pattern"
 	"mvdan.cc/sh/v3/syntax"
 )
 
 const (
-	// shellReplyPS3Var, or PS3, is a special variable in Bash used by the select command,
-	// while the shell is awaiting for input. the default value is [shellDefaultPS3]
-	shellReplyPS3Var = "PS3"
-	// shellDefaultPS3, or #?, is PS3's default value
-	shellDefaultPS3 = "#? "
-	// shellReplyVar, or REPLY, is a special variable in Bash that is used to store the result of
-	// the select command or of the read command, when no variable name is specified
-	shellReplyVar = "REPLY"
-
 	fifoNamePrefix = "sh-interp-"
 )
 
@@ -72,81 +54,6 @@ func (r *Runner) fillExpandConfig(ctx context.Context) {
 				return r2.exit.err // surface fatal errors immediately
 			}
 			return nil
-		},
-		ProcSubst: func(ps *syntax.ProcSubst) (string, error) {
-			if runtime.GOOS == "windows" {
-				return "", fmt.Errorf("TODO: support process substitution on Windows")
-			}
-			if len(ps.Stmts) == 0 { // nothing to do
-				return os.DevNull, nil
-			}
-
-			// We can't atomically create a random unused temporary FIFO.
-			// Similar to [os.CreateTemp],
-			// keep trying new random paths until one does not exist.
-			// We use a uint64 because a uint32 easily runs into retries.
-			var path string
-			try := 0
-			for {
-				path = filepath.Join(r.tempDir, fifoNamePrefix+strconv.FormatUint(mathrand.Uint64(), 16))
-				err := mkfifo(path, 0o666)
-				if err == nil {
-					break
-				}
-				if !os.IsExist(err) {
-					return "", fmt.Errorf("cannot create fifo: %v", err)
-				}
-				if try++; try > 100 {
-					return "", fmt.Errorf("giving up at creating fifo: %v", err)
-				}
-			}
-
-			r2 := r.subshell(true)
-			stdout := r.origStdout
-			// TODO: note that `man bash` mentions that `wait` only waits for the last
-			// process substitution as long as it is $!; the logic here would mean we wait for all of them.
-			bg := bgProc{
-				done: make(chan struct{}),
-				exit: new(exitStatus),
-			}
-			r.bgProcs = append(r.bgProcs, bg)
-			go func() {
-				defer func() {
-					*bg.exit = r2.exit
-					close(bg.done)
-				}()
-				switch ps.Op {
-				case syntax.CmdIn:
-					f, err := os.OpenFile(path, os.O_WRONLY, 0)
-					if err != nil {
-						r.errf("cannot open fifo for stdout: %v\n", err)
-						return
-					}
-					r2.stdout = f
-					defer func() {
-						if err := f.Close(); err != nil {
-							r.errf("closing stdout fifo: %v\n", err)
-						}
-						os.Remove(path)
-					}()
-				default: // syntax.CmdOut
-					f, err := os.OpenFile(path, os.O_RDONLY, 0)
-					if err != nil {
-						r.errf("cannot open fifo for stdin: %v\n", err)
-						return
-					}
-					r2.stdin = f
-					r2.stdout = stdout
-
-					defer func() {
-						f.Close()
-						os.Remove(path)
-					}()
-				}
-				r2.stmts(ctx, ps.Stmts)
-				r2.exit.exiting = false // subshells don't exit the parent shell
-			}()
-			return path, nil
 		},
 	}
 	r.updateExpandOpts()
@@ -284,8 +191,7 @@ func (r *Runner) errf(format string, a ...any) {
 }
 
 func (r *Runner) stop(ctx context.Context) bool {
-	// Some traps trigger on exit, so we do want those to run.
-	if !r.handlingTrap && (r.exit.returning || r.exit.exiting) {
+	if r.exit.returning || r.exit.exiting {
 		return true
 	}
 	if err := ctx.Err(); err != nil {
@@ -344,12 +250,7 @@ func (r *Runner) stmtSync(ctx context.Context, st *syntax.Stmt) {
 		r.exit.oneIf(r.exit.ok())
 	} else if b, ok := st.Cmd.(*syntax.BinaryCmd); ok && (b.Op == syntax.AndStmt || b.Op == syntax.OrStmt) {
 	} else if !r.exit.ok() && !r.noErrExit {
-		r.trapCallback(ctx, r.callbackErr, "error")
-		// If the "errexit" option is set and a command failed, exit the shell. Exceptions:
-		//
-		//   conditions (if <cond>, while <cond>, etc)
-		//   part of && or || lists; excluded via "else" above
-		//   preceded by !; excluded via "else" above
+		// If the "errexit" option is set and a command failed, exit the shell.
 		if r.opts[optErrExit] {
 			r.exit.exiting = true
 		}
@@ -370,37 +271,13 @@ func (r *Runner) cmd(ctx context.Context, cm syntax.Command) {
 	switch cm := cm.(type) {
 	case *syntax.Block:
 		r.stmts(ctx, cm.Stmts)
-	case *syntax.Subshell:
-		r2 := r.subshell(false)
-		r2.stmts(ctx, cm.Stmts)
-		r2.exit.exiting = false // subshells don't exit the parent shell
-		r.exit = r2.exit
 	case *syntax.CallExpr:
-		// Use a new slice, to not modify the slice in the alias map.
 		args := cm.Args
-		for i := 0; i < len(args); {
-			if !r.opts[optExpandAliases] {
-				break
-			}
-			als, ok := r.alias[args[i].Lit()]
-			if !ok {
-				break
-			}
-			args = slices.Replace(args, i, i+1, als.args...)
-			if !als.blank {
-				break
-			}
-			i += len(als.args)
-		}
 		r.lastExpandExit = exitStatus{}
 		fields := r.fields(args...)
 		if len(fields) == 0 {
 			for _, as := range cm.Assigns {
 				prev := r.lookupVar(as.Name.Value)
-				// Here we have a naked "foo=bar", so if we inherited a local var from a parent
-				// function we want to signal that we are modifying the parent var rather than
-				// creating a new local var via "local foo=bar".
-				// TODO: there is likely a better way to do this.
 				prev.Local = false
 
 				vr := r.assignVal(prev, as, "")
@@ -410,9 +287,6 @@ func (r *Runner) cmd(ctx context.Context, cm syntax.Command) {
 					continue
 				}
 
-				// Strangely enough, it seems like Bash prints original
-				// source for arrays, but the expanded value otherwise.
-				// TODO: add test cases for x[i]=y and x+=y.
 				if as.Array != nil {
 					trace.expr(as)
 				} else if as.Value != nil {
@@ -501,33 +375,6 @@ func (r *Runner) cmd(ctx context.Context, cm syntax.Command) {
 				r.exit.fatal(r2.exit.err) // surface fatal errors immediately
 			}
 		}
-	case *syntax.IfClause:
-		oldNoErrExit := r.noErrExit
-		r.noErrExit = true
-		r.stmts(ctx, cm.Cond)
-		r.noErrExit = oldNoErrExit
-
-		if r.exit.ok() {
-			r.stmts(ctx, cm.Then)
-			break
-		}
-		r.exit.code = 0
-		if cm.Else != nil {
-			r.cmd(ctx, cm.Else)
-		}
-	case *syntax.WhileClause:
-		for !r.stop(ctx) {
-			oldNoErrExit := r.noErrExit
-			r.noErrExit = true
-			r.stmts(ctx, cm.Cond)
-			r.noErrExit = oldNoErrExit
-
-			stop := r.exit.ok() == cm.Until
-			r.exit.code = 0
-			if stop || r.loopStmtsBroken(ctx, cm.Do) {
-				break
-			}
-		}
 	case *syntax.ForClause:
 		switch y := cm.Loop.(type) {
 		case *syntax.WordIter:
@@ -537,47 +384,6 @@ func (r *Runner) cmd(ctx context.Context, cm syntax.Command) {
 			inToken := y.InPos.IsValid()
 			if inToken {
 				items = r.fields(y.Items...) // for i in ...; do ...
-			}
-
-			if cm.Select {
-				ps3 := shellDefaultPS3
-				if e := r.envGet(shellReplyPS3Var); e != "" {
-					ps3 = e
-				}
-
-				prompt := func() []byte {
-					// display menu
-					for i, word := range items {
-						r.errf("%d) %v\n", i+1, word)
-					}
-					r.errf("%s", ps3)
-
-					line, err := r.readLine(ctx, true)
-					if err != nil {
-						r.exit.code = 1
-						return nil
-					}
-					return line
-				}
-
-			retry:
-				choice := prompt()
-				if len(choice) == 0 {
-					goto retry // no reply; try again
-				}
-
-				reply := string(choice)
-				r.setVarString(shellReplyVar, reply)
-
-				c, _ := strconv.Atoi(reply)
-				if c > 0 && c <= len(items) {
-					r.setVarString(name, items[c-1])
-				}
-
-				// execute commands until break or return is encountered
-				if r.loopStmtsBroken(ctx, cm.Do) {
-					break
-				}
 			}
 
 			for _, field := range items {
@@ -596,232 +402,12 @@ func (r *Runner) cmd(ctx context.Context, cm syntax.Command) {
 					break
 				}
 			}
-		case *syntax.CStyleLoop:
-			if y.Init != nil {
-				r.arithm(y.Init)
-			}
-			for y.Cond == nil || r.arithm(y.Cond) != 0 {
-				if !r.exit.ok() || r.loopStmtsBroken(ctx, cm.Do) {
-					break
-				}
-				if y.Post != nil {
-					r.arithm(y.Post)
-				}
-			}
+		default:
+			panic(fmt.Sprintf("unsupported loop type: %T", cm.Loop))
 		}
-	case *syntax.FuncDecl:
-		r.setFunc(cm.Name.Value, cm.Body)
-	case *syntax.ArithmCmd:
-		r.exit.oneIf(r.arithm(cm.X) == 0)
-	case *syntax.LetClause:
-		var val int
-		for _, expr := range cm.Exprs {
-			val = r.arithm(expr)
-
-			if !tracingEnabled {
-				continue
-			}
-
-			switch expr := expr.(type) {
-			case *syntax.Word:
-				qs, err := syntax.Quote(r.literal(expr), syntax.LangBash)
-				if err != nil {
-					return
-				}
-				trace.stringf("let %v", qs)
-			case *syntax.BinaryArithm, *syntax.UnaryArithm:
-				trace.expr(cm)
-			case *syntax.ParenArithm:
-				// TODO
-			}
-		}
-
-		trace.newLineFlush()
-		r.exit.oneIf(val == 0)
-	case *syntax.CaseClause:
-		trace.string("case ")
-		trace.expr(cm.Word)
-		trace.string(" in")
-		trace.newLineFlush()
-		str := r.literal(cm.Word)
-		for _, ci := range cm.Items {
-			for _, word := range ci.Patterns {
-				pattern := r.pattern(word)
-				if match(pattern, str) {
-					r.stmts(ctx, ci.Stmts)
-					return
-				}
-			}
-		}
-	case *syntax.TestClause:
-		if r.bashTest(ctx, cm.X, false) == "" && r.exit.ok() {
-			// to preserve exit status code 2 for regex errors, etc
-			r.exit.code = 1
-		}
-	case *syntax.DeclClause:
-		local, global := false, false
-		var modes []string
-		valType := ""
-		switch cm.Variant.Value {
-		case "declare":
-			// When used in a function, "declare" acts as "local"
-			// unless the "-g" option is used.
-			local = r.inFunc
-		case "local":
-			if !r.inFunc {
-				r.errf("local: can only be used in a function\n")
-				r.exit.code = 1
-				return
-			}
-			local = true
-		case "export":
-			modes = append(modes, "-x")
-		case "readonly":
-			modes = append(modes, "-r")
-		case "nameref":
-			valType = "-n"
-		}
-	assignLoop:
-		for as := range r.flattenAssigns(cm.Args) {
-			fp := flagParser{remaining: []string{as.Name.Value}}
-			for fp.more() {
-				switch flag := fp.flag(); flag {
-				case "-x", "-r":
-					modes = append(modes, flag)
-				case "-a", "-A", "-n":
-					valType = flag
-				case "-g":
-					global = true
-				default:
-					r.errf("declare: invalid option %q\n", flag)
-					r.exit.code = 2
-					return
-				}
-				continue assignLoop
-			}
-			name := as.Name.Value
-			if !syntax.ValidName(name) {
-				r.errf("declare: invalid name %q\n", name)
-				r.exit.code = 1
-				return
-			}
-			vr := r.lookupVar(as.Name.Value)
-			if as.Naked {
-				if valType == "-A" {
-					vr.Kind = expand.Associative
-				} else {
-					vr.Kind = expand.KeepValue
-				}
-			} else {
-				vr = r.assignVal(vr, as, valType)
-			}
-			if global {
-				vr.Local = false
-			} else if local {
-				vr.Local = true
-			}
-			for _, mode := range modes {
-				switch mode {
-				case "-x":
-					vr.Exported = true
-				case "-r":
-					vr.ReadOnly = true
-				}
-			}
-			r.setVar(name, vr)
-		}
-	case *syntax.TimeClause:
-		start := time.Now()
-		if cm.Stmt != nil {
-			r.stmt(ctx, cm.Stmt)
-		}
-		format := "%s\t%s\n"
-		if cm.PosixFormat {
-			format = "%s %s\n"
-		} else {
-			r.outf("\n")
-		}
-		real := time.Since(start)
-		r.outf(format, "real", elapsedString(real, cm.PosixFormat))
-		// TODO: can we do these?
-		r.outf(format, "user", elapsedString(0, cm.PosixFormat))
-		r.outf(format, "sys", elapsedString(0, cm.PosixFormat))
 	default:
-		panic(fmt.Sprintf("unhandled command node: %T", cm))
+		panic(fmt.Sprintf("unsupported command node: %T", cm))
 	}
-}
-
-func (r *Runner) trapCallback(ctx context.Context, callback, name string) {
-	if callback == "" {
-		return // nothing to do
-	}
-	if r.handlingTrap {
-		return // don't recurse, as that could lead to cycles
-	}
-	r.handlingTrap = true
-
-	p := syntax.NewParser()
-	// TODO: do this parsing when "trap" is called?
-	file, err := p.Parse(strings.NewReader(callback), name+" trap")
-	if err != nil {
-		r.errf(name+"trap: %v\n", err)
-		// ignore errors in the callback
-		return
-	}
-	oldExit := r.exit
-	r.stmts(ctx, file.Stmts)
-	r.exit = oldExit // traps on EXIT or ERR should not modify the result
-
-	r.handlingTrap = false
-}
-
-func (r *Runner) flattenAssigns(args []*syntax.Assign) iter.Seq[*syntax.Assign] {
-	return func(yield func(*syntax.Assign) bool) {
-		for _, as := range args {
-			// Convert "declare $x" into "declare value".
-			// Don't use syntax.Parser here, as we only want the basic
-			// splitting by '='.
-			if as.Name != nil {
-				if !yield(as) {
-					return
-				}
-				continue
-			}
-			for _, field := range r.fields(as.Value) {
-				as := &syntax.Assign{}
-				name, val, ok := strings.Cut(field, "=")
-				as.Name = &syntax.Lit{Value: name}
-				if !ok {
-					as.Naked = true
-				} else {
-					as.Value = &syntax.Word{Parts: []syntax.WordPart{
-						&syntax.Lit{Value: val},
-					}}
-				}
-				if !yield(as) {
-					return
-				}
-			}
-		}
-	}
-}
-
-func match(pat, name string) bool {
-	expr, err := pattern.Regexp(pat, pattern.EntireString)
-	if err != nil {
-		return false
-	}
-	rx := regexp.MustCompile(expr)
-	return rx.MatchString(name)
-}
-
-func elapsedString(d time.Duration, posix bool) string {
-	if posix {
-		return fmt.Sprintf("%.2f", d.Seconds())
-	}
-	min := int(d.Minutes())
-	sec := math.Mod(d.Seconds(), 60.0)
-	return fmt.Sprintf("%dm%.3fs", min, sec)
 }
 
 func (r *Runner) stmts(ctx context.Context, stmts []*syntax.Stmt) {
@@ -1006,27 +592,6 @@ func (r *Runner) call(ctx context.Context, pos syntax.Pos, args []string) {
 		}
 	}
 	name := args[0]
-	if body := r.Funcs[name]; body != nil {
-		// stack them to support nested func calls
-		oldParams := r.Params
-		r.Params = args[1:]
-		oldInFunc := r.inFunc
-		r.inFunc = true
-
-		// Functions run in a nested scope.
-		// Note that [Runner.exec] below does something similar.
-		origEnv := r.writeEnv
-		r.writeEnv = &overlayEnviron{parent: r.writeEnv, funcScope: true}
-
-		r.stmt(ctx, body)
-
-		r.writeEnv = origEnv
-
-		r.Params = oldParams
-		r.inFunc = oldInFunc
-		r.exit.returning = false
-		return
-	}
 	if IsBuiltin(name) {
 		r.exit = r.builtin(ctx, pos, name, args[1:])
 		return

@@ -158,8 +158,6 @@ func (r *Runner) lookupVar(name string) expand.Variable {
 		cryptorand.Read(p[:])
 		n := binary.NativeEndian.Uint32(p[:])
 		vr.Kind, vr.Str = expand.String, strconv.FormatUint(uint64(n), 10)
-	case "DIRSTACK":
-		vr.Kind, vr.List = expand.Indexed, r.dirStack
 	case "0":
 		vr.Kind = expand.String
 		if r.filename != "" {
@@ -191,14 +189,6 @@ func (r *Runner) lookupVar(name string) expand.Variable {
 
 func (r *Runner) envGet(name string) string {
 	return r.lookupVar(name).String()
-}
-
-func (r *Runner) delVar(name string) {
-	if err := r.writeEnv.Set(name, expand.Variable{}); err != nil {
-		r.errf("%s: %v\n", name, err)
-		r.exit.code = 1
-		return
-	}
 }
 
 func (r *Runner) setVarString(name, value string) {
@@ -279,13 +269,6 @@ func (r *Runner) setVarWithIndex(prev expand.Variable, name string, index syntax
 	prev.Kind = expand.Indexed
 	prev.List = list
 	r.setVar(name, prev)
-}
-
-func (r *Runner) setFunc(name string, body *syntax.Stmt) {
-	if r.Funcs == nil {
-		r.Funcs = make(map[string]*syntax.Stmt, 4)
-	}
-	r.Funcs[name] = body
 }
 
 func stringIndex(index syntax.ArithmExpr) bool {
