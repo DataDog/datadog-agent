@@ -16,7 +16,7 @@ code_sign_jar_macos(
     output = "signed/jmxfetch.jar",
     # For testing signing on a developer machine, you can set the
     # identity to "-", to get a mock signing. Then build with
-    #    SIGN_MAC=true bazel build //:hatever
+    #    SIGN_MAC=true bazel build //:whatever
     # signing_identity = "-",
 )
 
