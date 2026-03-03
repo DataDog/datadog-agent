@@ -16,8 +16,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 )
+
+type mockLifecycle struct{}
+
+func (m *mockLifecycle) Append(_ compdef.Hook) {}
 
 func TestJMXLog(t *testing.T) {
 	dir := t.TempDir()
@@ -27,6 +33,7 @@ func TestJMXLog(t *testing.T) {
 	defer f.Close()
 
 	reqs := Requires{
+		Lc:     &mockLifecycle{},
 		Config: config.NewMock(t),
 		Params: NewCliParams(filePath),
 	}
