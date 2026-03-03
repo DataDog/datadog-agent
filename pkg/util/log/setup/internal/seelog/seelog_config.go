@@ -43,14 +43,14 @@ type Config struct {
 	commonFormatter func(ctx context.Context, r stdslog.Record) string
 }
 
-// SlogLogger returns a slog logger
-func (c *Config) SlogLogger() (types.LoggerInterface, error) {
+// SlogLogger returns a slog logger and a level variable that can be used to change the log level dynamically
+func (c *Config) SlogLogger() (types.LoggerInterface, *stdslog.LevelVar, error) {
 	c.Lock()
 	defer c.Unlock()
 
 	if !c.consoleLoggingEnabled && c.logfile == "" && c.syslogURI == "" {
 		// seelog requires at least one output to be configured, we do the same
-		return nil, errors.New("no logging configuration provided")
+		return nil, nil, errors.New("no logging configuration provided")
 	}
 
 	// the logger:
@@ -70,7 +70,7 @@ func (c *Config) SlogLogger() (types.LoggerInterface, error) {
 	if c.logfile != "" {
 		fw, err := filewriter.NewRollingFileWriterSize(c.logfile, int64(c.maxsize), int(c.maxrolls), filewriter.RollingNameModePostfix)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		writers = append(writers, fw)
 		closeFuncs = append(closeFuncs, func() { fw.Close() })
@@ -90,7 +90,7 @@ func (c *Config) SlogLogger() (types.LoggerInterface, error) {
 	if c.syslogURI != "" {
 		syslogReceiver, err := syslog.NewReceiver(c.syslogURI)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		syslogFormatter := c.commonSyslogFormatter
 		if c.format == "json" {
@@ -107,9 +107,11 @@ func (c *Config) SlogLogger() (types.LoggerInterface, error) {
 
 	lvl, err := log.ValidateLogLevel(c.logLevel)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	levelHandler := handlers.NewLevel(types.ToSlogLevel(lvl), asyncHandler)
+	levelVar := new(stdslog.LevelVar)
+	levelVar.Set(types.ToSlogLevel(lvl))
+	levelHandler := handlers.NewLevel(levelVar, asyncHandler)
 
 	closeFunc := func() {
 		for _, closeFunc := range closeFuncs {
@@ -119,7 +121,7 @@ func (c *Config) SlogLogger() (types.LoggerInterface, error) {
 
 	logger := slog.NewWrapperWithCloseAndFlush(levelHandler, asyncHandler.Flush, closeFunc)
 
-	return logger, nil
+	return logger, levelVar, nil
 }
 
 // commonSyslogFormatter formats the syslog message in the common format
