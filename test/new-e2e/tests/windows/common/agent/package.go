@@ -223,7 +223,7 @@ func GetPipelineMSIURL(pipelineID string, majorVersion string, arch string, flav
 // other purposes, such as logging, stack name, instance options, test assertions, etc.
 //
 // Package fields are configured via CURRENT_AGENT_* environment variables.
-// See [WithDevEnvOverrides] for the full list. Set CURRENT_AGENT_PIPELINE or
+// See [WithArtifactOverrides] for the full list. Set CURRENT_AGENT_PIPELINE or
 // CURRENT_AGENT_SOURCE_VERSION to select the package source.
 //
 // Optional [PackageOption] arguments are applied as defaults before the
@@ -233,7 +233,7 @@ func GetPipelineMSIURL(pipelineID string, majorVersion string, arch string, flav
 func GetPackageFromEnv(defaults ...PackageOption) (*Package, error) {
 	var opts []PackageOption
 	opts = append(opts, defaults...)
-	opts = append(opts, WithDevEnvOverrides("CURRENT_AGENT"))
+	opts = append(opts, WithArtifactOverrides("CURRENT_AGENT"))
 	pkg, err := NewPackage(opts...)
 	if err != nil {
 		return nil, err
@@ -256,17 +256,17 @@ func GetPackageFromEnv(defaults ...PackageOption) (*Package, error) {
 
 // GetLastStablePackageFromEnv returns the latest stable agent MSI package.
 //
-// It delegates to NewPackage with WithDevEnvOverrides("STABLE_AGENT"), which reads
+// It delegates to NewPackage with WithArtifactOverrides("STABLE_AGENT"), which reads
 // the STABLE_AGENT_* environment variables to determine the MSI URL.
 //
 // In CI, these variables are set by the pipeline script from release.json or
-// LAST_STABLE_PIPELINE_ID. See [WithDevEnvOverrides] for the full list of
+// LAST_STABLE_PIPELINE_ID. See [WithArtifactOverrides] for the full list of
 // supported environment variables.
 //
 // Optional [PackageOption] arguments are applied as defaults before the
 // STABLE_AGENT_* overrides, so environment variables always take priority.
 func GetLastStablePackageFromEnv(defaults ...PackageOption) (*Package, error) {
-	opts := append(defaults, WithDevEnvOverrides("STABLE_AGENT"))
+	opts := append(defaults, WithArtifactOverrides("STABLE_AGENT"))
 	pkg, err := NewPackage(opts...)
 	if err != nil {
 		return nil, err
@@ -286,14 +286,14 @@ func GetLastStablePackageFromEnv(defaults ...PackageOption) (*Package, error) {
 //  1. CURRENT_AGENT_MSI_URL (or UPGRADE_AGENT_MSI_URL) -- direct URL
 //  2. CURRENT_AGENT_PIPELINE (or CURRENT_AGENT_MSI_PIPELINE) -- pipeline lookup with "-upgrade-test" suffix
 //
-// Arch and flavor are read from the CURRENT_AGENT_MSI_* overrides (see [WithDevEnvOverrides]).
+// Arch and flavor are read from the CURRENT_AGENT_MSI_* overrides (see [WithArtifactOverrides]).
 func GetUpgradeTestPackageFromEnv() (*Package, error) {
 	// Build a base package from CURRENT_AGENT_* to pick up arch, flavor, version, pipeline, etc.
 	base := &Package{
 		Product: "datadog-agent",
 		Arch:    defaultArch,
 	}
-	if err := WithDevEnvOverrides("CURRENT_AGENT")(base); err != nil {
+	if err := WithArtifactOverrides("CURRENT_AGENT")(base); err != nil {
 		return nil, err
 	}
 
@@ -470,7 +470,65 @@ func WithPipelineID(pipelineID string) PackageOption {
 	}
 }
 
-// WithDevEnvOverrides applies environment variable overrides to the Package.
+// applyEnvOverrides reads environment variables with the given prefix and applies
+// them to the Package struct. This is the shared implementation used by both
+// [WithArtifactOverrides] and [WithDevEnvOverrides].
+func applyEnvOverrides(prefix string, p *Package) error {
+	// Assertion metadata (never affects resolution)
+	if v, ok := os.LookupEnv(prefix + "_ASSERT_VERSION"); ok {
+		p.AssertAgentVersion = v
+	}
+	if v, ok := os.LookupEnv(prefix + "_ASSERT_PACKAGE_VERSION"); ok {
+		p.AssertPackageVersion = v
+	}
+
+	// Resolution: _SOURCE_VERSION and _PIPELINE are mutually exclusive
+	_, hasSourceVersion := os.LookupEnv(prefix + "_SOURCE_VERSION")
+	_, hasPipeline := os.LookupEnv(prefix + "_PIPELINE")
+	if hasSourceVersion && hasPipeline {
+		return fmt.Errorf("%s_SOURCE_VERSION and %s_PIPELINE are mutually exclusive", prefix, prefix)
+	}
+	if hasSourceVersion {
+		v := os.Getenv(prefix + "_SOURCE_VERSION")
+		p.Version = v
+		p.PipelineID = ""
+	}
+	if hasPipeline {
+		p.PipelineID = os.Getenv(prefix + "_PIPELINE")
+	}
+
+	// MSI-specific overrides (highest priority)
+	if flavor, ok := os.LookupEnv(prefix + "_MSI_FLAVOR"); ok {
+		p.Flavor = flavor
+	}
+	if product, ok := os.LookupEnv(prefix + "_MSI_PRODUCT"); ok {
+		p.Product = product
+	}
+	if arch, ok := os.LookupEnv(prefix + "_MSI_ARCH"); ok {
+		p.Arch = arch
+	}
+	if channel, ok := os.LookupEnv(prefix + "_MSI_CHANNEL"); ok {
+		p.Channel = channel
+	}
+	if version, ok := os.LookupEnv(prefix + "_MSI_VERSION"); ok {
+		p.Version = version
+	}
+	if url, ok := os.LookupEnv(prefix + "_MSI_URL"); ok {
+		p.URL = url
+	}
+	if pipelineID, ok := os.LookupEnv(prefix + "_MSI_PIPELINE"); ok {
+		p.PipelineID = pipelineID
+	}
+
+	return nil
+}
+
+// WithArtifactOverrides applies environment variable overrides to the Package.
+// Overrides are always applied, regardless of whether the code is running in CI.
+//
+// Use this for default/CI flows where the pipeline controls the version, e.g.
+// [GetPackageFromEnv], [GetLastStablePackageFromEnv], and the default
+// createStableAgent/createCurrentAgent in base_suite.go.
 //
 // This is a pure field-setter: it reads environment variables and sets struct fields,
 // but does not perform any I/O. URL resolution is deferred to [Package.Resolve],
@@ -501,55 +559,25 @@ func WithPipelineID(pipelineID string) PackageOption {
 //	export STABLE_AGENT_SOURCE_VERSION="7.75.0-1"
 //	export STABLE_AGENT_PIPELINE="123456"
 //	export CURRENT_AGENT_MSI_URL="file:///path/to/msi/package.msi"
-func WithDevEnvOverrides(devenvPrefix string) PackageOption {
+func WithArtifactOverrides(prefix string) PackageOption {
 	return func(p *Package) error {
-		// Assertion metadata (never affects resolution)
-		if v, ok := os.LookupEnv(devenvPrefix + "_ASSERT_VERSION"); ok {
-			p.AssertAgentVersion = v
-		}
-		if v, ok := os.LookupEnv(devenvPrefix + "_ASSERT_PACKAGE_VERSION"); ok {
-			p.AssertPackageVersion = v
-		}
+		return applyEnvOverrides(prefix, p)
+	}
+}
 
-		// Resolution: _SOURCE_VERSION and _PIPELINE are mutually exclusive
-		_, hasSourceVersion := os.LookupEnv(devenvPrefix + "_SOURCE_VERSION")
-		_, hasPipeline := os.LookupEnv(devenvPrefix + "_PIPELINE")
-		if hasSourceVersion && hasPipeline {
-			return fmt.Errorf("%s_SOURCE_VERSION and %s_PIPELINE are mutually exclusive", devenvPrefix, devenvPrefix)
+// WithDevEnvOverrides applies environment variable overrides to the Package,
+// but only when not running in CI (i.e. when the CI environment variable is unset).
+//
+// Use this for tests that pin a specific version and only want local-dev overrides.
+// In CI, the test's hardcoded version is always used; locally, the developer can
+// override anything via environment variables.
+//
+// The supported environment variables are the same as [WithArtifactOverrides].
+func WithDevEnvOverrides(prefix string) PackageOption {
+	return func(p *Package) error {
+		if os.Getenv("CI") != "" {
+			return nil
 		}
-		if hasSourceVersion {
-			v := os.Getenv(devenvPrefix + "_SOURCE_VERSION")
-			p.Version = v
-			// clear the pipeline ID so it doesn't affect the resolution
-			p.PipelineID = ""
-		}
-		if hasPipeline {
-			p.PipelineID = os.Getenv(devenvPrefix + "_PIPELINE")
-		}
-
-		// MSI-specific overrides (highest priority)
-		if flavor, ok := os.LookupEnv(devenvPrefix + "_MSI_FLAVOR"); ok {
-			p.Flavor = flavor
-		}
-		if product, ok := os.LookupEnv(devenvPrefix + "_MSI_PRODUCT"); ok {
-			p.Product = product
-		}
-		if arch, ok := os.LookupEnv(devenvPrefix + "_MSI_ARCH"); ok {
-			p.Arch = arch
-		}
-		if channel, ok := os.LookupEnv(devenvPrefix + "_MSI_CHANNEL"); ok {
-			p.Channel = channel
-		}
-		if version, ok := os.LookupEnv(devenvPrefix + "_MSI_VERSION"); ok {
-			p.Version = version
-		}
-		if url, ok := os.LookupEnv(devenvPrefix + "_MSI_URL"); ok {
-			p.URL = url
-		}
-		if pipelineID, ok := os.LookupEnv(devenvPrefix + "_MSI_PIPELINE"); ok {
-			p.PipelineID = pipelineID
-		}
-
-		return nil
+		return applyEnvOverrides(prefix, p)
 	}
 }
