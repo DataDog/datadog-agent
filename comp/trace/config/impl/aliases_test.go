@@ -5,8 +5,8 @@
 
 //go:build test
 
-// Package traceconfigimpl implements the trace-agent config component.
-package traceconfigimpl
+// Package configimpl implements the trace-agent config component.
+package configimpl
 
 import (
 	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config/def"

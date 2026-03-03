@@ -5,7 +5,7 @@
 
 //go:build test
 
-package traceconfigimpl
+package configimpl
 
 import (
 	"go.uber.org/fx"

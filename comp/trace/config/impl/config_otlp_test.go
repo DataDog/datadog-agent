@@ -5,7 +5,7 @@
 
 //go:build otlp
 
-package traceconfigimpl
+package configimpl
 
 // team: agent-apm
 
