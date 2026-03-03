@@ -4,7 +4,7 @@
 # - architectures.<architecture_name>:
 #   - capabilities.gpm: bool  (whether the architecture supports GPU Performance Metrics or not)
 #   - capabilities.unsupported_fields_by_device_mode (list of conditional exclusions for the GetFields API)
-#       - device_modes: [physical|mig|vgpu, ...]  (in which modes the fields are unsupported, for example some fields are not supported in vGPU mode)
+#       - device_modes: [physical|mig|vgpu, ...]  (in which modes the fields are unsupported, for example some fields are not supported in vGPU mode. If not included, the fields are unsupported in all modes.)
 #       - fields: [<field_id>, ...] (the list of field IDs that are unsupported in the given modes. Check nvmlFieldNameToFieldID in spec_test.go for the mapping.)
 #   - unsupported_device_modes: [mig|physical|vgpu, ...] (the list of device modes that are unsupported on the architecture. For example, MIG is not supported on the Pascal architecture.)
 architectures:
