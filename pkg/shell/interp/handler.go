@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -219,11 +218,6 @@ func findExecutable(dir, file string, exts []string) (string, error) {
 	return "", fmt.Errorf("not found")
 }
 
-// LookPath is deprecated; see [LookPathDir].
-func LookPath(env expand.Environ, file string) (string, error) {
-	return LookPathDir(env.Get("PWD").String(), env, file)
-}
-
 // LookPathDir is similar to [os/exec.LookPath], with the difference that it uses the
 // provided environment. env is used to fetch relevant environment variables
 // such as PWD and PATH.
@@ -328,25 +322,9 @@ func DefaultOpenHandler() OpenHandlerFunc {
 	}
 }
 
-// TODO(v4): if this is kept in v4, it most likely needs to use [io/fs.DirEntry] for efficiency
-
-// ReadDirHandlerFunc is a handler which reads directories. It is called during
-// shell globbing, if enabled.
-//
-// Deprecated: use [ReadDirHandlerFunc2], which uses [fs.DirEntry].
-type ReadDirHandlerFunc func(ctx context.Context, path string) ([]fs.FileInfo, error)
-
 // ReadDirHandlerFunc2 is a handler which reads directories. It is called during
 // shell globbing, if enabled.
 type ReadDirHandlerFunc2 func(ctx context.Context, path string) ([]fs.DirEntry, error)
-
-// DefaultReadDirHandler returns the [ReadDirHandlerFunc] used by default.
-// It makes use of [ioutil.ReadDir].
-func DefaultReadDirHandler() ReadDirHandlerFunc {
-	return func(ctx context.Context, path string) ([]fs.FileInfo, error) {
-		return ioutil.ReadDir(path)
-	}
-}
 
 // DefaultReadDirHandler2 returns the [ReadDirHandlerFunc2] used by default.
 // It uses [os.ReadDir].

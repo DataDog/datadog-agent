@@ -18,8 +18,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
-	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -65,10 +63,6 @@ type Runner struct {
 	// file or calling a function. Accessible via the $@/$* family of vars.
 	// It can only be set via [Params].
 	Params []string
-
-	// Vars is mostly superseded by Env at this point.
-	// TODO(v4): remove these
-	Vars map[string]expand.Variable
 
 	// callHandler is a function allowing to replace a simple command's
 	// arguments. It may be nil.
@@ -140,9 +134,6 @@ type Runner struct {
 	origStdout io.Writer
 	origStderr io.Writer
 
-	// keepRedirs is used so that "exec" can make any redirections
-	// apply to the current shell, and not just the command.
-	keepRedirs bool
 }
 
 // exitStatus holds the state of the shell after running one command.
@@ -157,8 +148,7 @@ type exitStatus struct {
 	code uint8
 
 	// TODO: consider an enum, as only one of these should be set at a time
-	returning bool // whether the current function `return`ed
-	exiting   bool // whether the current shell is exiting
+	exiting bool // whether the current shell is exiting
 	fatalExit bool // whether the current shell is exiting due to a fatal error; err below must not be nil
 
 	// err is a fatal error if fatal is true, or a non-fatal custom error from a handler.
@@ -320,7 +310,6 @@ func Params(args ...string) RunnerOption {
 		for fp.more() {
 			flag := fp.flag()
 			if flag == "-" {
-				// TODO: implement "The -x and -v options are turned off."
 				if args := fp.args(); len(args) > 0 {
 					r.Params = args
 				}
@@ -379,18 +368,6 @@ func CallHandler(f CallHandlerFunc) RunnerOption {
 	}
 }
 
-// ExecHandler sets one command execution handler,
-// which replaces [DefaultExecHandler](2 * time.Second).
-//
-// Deprecated: use [ExecHandlers] instead, which allows chaining handlers more easily
-// like middleware functions.
-func ExecHandler(f ExecHandlerFunc) RunnerOption {
-	return func(r *Runner) error {
-		r.execHandler = f
-		return nil
-	}
-}
-
 // ExecHandlers appends middlewares to handle command execution.
 // The middlewares are chained from first to last, and the first is called by the runner.
 // Each middleware is expected to call the "next" middleware at most once.
@@ -412,38 +389,10 @@ func ExecHandlers(middlewares ...func(next ExecHandlerFunc) ExecHandlerFunc) Run
 	}
 }
 
-// TODO: consider porting the middleware API in [ExecHandlers] to [OpenHandler]
-// and [ReadDirHandler2].
-
-// TODO(v4): now that [ExecHandlers] allows calling a next handler with changed
-// arguments, one of the two advantages of [CallHandler] is gone. The other is the
-// ability to work with builtins; if we make [ExecHandlers] work with builtins, we
-// could join both APIs.
-
 // OpenHandler sets file open handler. See [OpenHandlerFunc] for more info.
 func OpenHandler(f OpenHandlerFunc) RunnerOption {
 	return func(r *Runner) error {
 		r.openHandler = f
-		return nil
-	}
-}
-
-// ReadDirHandler sets the read directory handler. See [ReadDirHandlerFunc] for more info.
-//
-// Deprecated: use [ReadDirHandler2].
-func ReadDirHandler(f ReadDirHandlerFunc) RunnerOption {
-	return func(r *Runner) error {
-		r.readDirHandler = func(ctx context.Context, path string) ([]fs.DirEntry, error) {
-			infos, err := f(ctx, path)
-			if err != nil {
-				return nil, err
-			}
-			entries := make([]fs.DirEntry, len(infos))
-			for i, info := range infos {
-				entries[i] = fs.FileInfoToDirEntry(info)
-			}
-			return entries, nil
-		}
 		return nil
 	}
 }
@@ -547,17 +496,11 @@ var shellOptsTable = [...]shellOpt{
 	{'n', "noexec"},
 	{'f', "noglob"},
 	{'u', "nounset"},
-	{'x', "xtrace"},
 	{' ', "pipefail"},
 }
 
 var bashOptsTable = [...]bashOpt{
 	// supported options, sorted alphabetically by name
-	{
-		name:         "expand_aliases",
-		defaultState: false,
-		supported:    true,
-	},
 	{
 		name:         "globstar",
 		defaultState: false,
@@ -573,90 +516,6 @@ var bashOptsTable = [...]bashOpt{
 		defaultState: false,
 		supported:    true,
 	},
-	// unsupported options, sorted alphabetically by name
-	{name: "assoc_expand_once"},
-	{name: "autocd"},
-	{name: "cdable_vars"},
-	{name: "cdspell"},
-	{name: "checkhash"},
-	{name: "checkjobs"},
-	{
-		name:         "checkwinsize",
-		defaultState: true,
-	},
-	{
-		name:         "cmdhist",
-		defaultState: true,
-	},
-	{name: "compat31"},
-	{name: "compat32"},
-	{name: "compat40"},
-	{name: "compat41"},
-	{name: "compat42"},
-	{name: "compat44"},
-	{name: "compat43"},
-	{name: "compat44"},
-	{
-		name:         "complete_fullquote",
-		defaultState: true,
-	},
-	{name: "direxpand"},
-	{name: "dirspell"},
-	{name: "dotglob"},
-	{name: "execfail"},
-	{name: "extdebug"},
-	{name: "extglob"},
-	{
-		name:         "extquote",
-		defaultState: true,
-	},
-	{name: "failglob"},
-	{
-		name:         "force_fignore",
-		defaultState: true,
-	},
-	{name: "globasciiranges"},
-	{name: "gnu_errfmt"},
-	{name: "histappend"},
-	{name: "histreedit"},
-	{name: "histverify"},
-	{
-		name:         "hostcomplete",
-		defaultState: true,
-	},
-	{name: "huponexit"},
-	{
-		name:         "inherit_errexit",
-		defaultState: true,
-	},
-	{
-		name:         "interactive_comments",
-		defaultState: true,
-	},
-	{name: "lastpipe"},
-	{name: "lithist"},
-	{name: "localvar_inherit"},
-	{name: "localvar_unset"},
-	{name: "login_shell"},
-	{name: "mailwarn"},
-	{name: "no_empty_cmd_completion"},
-	{name: "nocasematch"},
-	{
-		name:         "progcomp",
-		defaultState: true,
-	},
-	{name: "progcomp_alias"},
-	{
-		name:         "promptvars",
-		defaultState: true,
-	},
-	{name: "restricted_shell"},
-	{name: "shift_verbose"},
-	{
-		name:         "sourcepath",
-		defaultState: true,
-	},
-	{name: "xpg_echo"},
 }
 
 // To access the shell options arrays without a linear search when we
@@ -669,12 +528,10 @@ const (
 	optNoExec
 	optNoGlob
 	optNoUnset
-	_ // was optXTrace, removed
 	optPipeFail
 
-	// These correspond to indexes (offset by the above seven items) of
+	// These correspond to indexes (offset by the above six items) of
 	// supported options in [bashOptsTable]
-	optExpandAliases
 	optGlobStar
 	optNoCaseGlob
 	optNullGlob
@@ -745,20 +602,12 @@ func (r *Runner) Reset() {
 		origStdout: r.origStdout,
 		origStderr: r.origStderr,
 
-		// emptied below, to reuse the space
-		Vars: r.Vars,
-
 		usedNew: r.usedNew,
 	}
 	// Ensure we stop referencing any pointers before we reuse bgProcs.
 	clear(r.bgProcs)
 	r.bgProcs = r.bgProcs[:0]
 
-	if r.Vars == nil {
-		r.Vars = make(map[string]expand.Variable)
-	} else {
-		clear(r.Vars)
-	}
 	// TODO(v4): Use the supplied Env directly if it implements enough methods.
 	r.writeEnv = &overlayEnviron{parent: r.Env}
 	if !r.writeEnv.Get("HOME").IsSet() {
@@ -801,28 +650,6 @@ type ExitStatus uint8
 
 func (s ExitStatus) Error() string { return fmt.Sprintf("exit status %d", s) }
 
-// NewExitStatus creates an error which contains the specified exit status code.
-//
-// Deprecated: use [ExitStatus] directly.
-//
-//go:fix inline
-func NewExitStatus(status uint8) error {
-	return ExitStatus(status)
-}
-
-// IsExitStatus checks whether error contains an exit status and returns it.
-//
-// Deprecated: use [errors.As] with [ExitStatus] directly.
-//
-//go:fix inline
-func IsExitStatus(err error) (status uint8, ok bool) {
-	var es ExitStatus
-	if errors.As(err, &es) {
-		return uint8(es), true
-	}
-	return 0, false
-}
-
 // Run interprets a node, which can be a [*File], [*Stmt], or [Command]. If a non-nil
 // error is returned, it will typically contain a command's exit status, which
 // can be retrieved with [IsExitStatus].
@@ -851,7 +678,6 @@ func (r *Runner) Run(ctx context.Context, node syntax.Node) error {
 	default:
 		return fmt.Errorf("node can only be File, Stmt, or Command: %T", node)
 	}
-	maps.Insert(r.Vars, r.writeEnv.Each)
 	// Return the first of: a fatal error, a non-fatal handler error, or the exit code.
 	if err := r.exit.err; err != nil {
 		return err
@@ -912,10 +738,8 @@ func (r *Runner) subshell(background bool) *Runner {
 		exit:           r.exit,
 		lastExit:       r.lastExit,
 
-		origStdout: r.origStdout, // used for process substitutions
 	}
 	r2.writeEnv = newOverlayEnviron(r.writeEnv, background)
-	r2.Vars = make(map[string]expand.Variable)
 	r2.fillExpandConfig(r.ectx)
 	r2.didReset = true
 	return r2

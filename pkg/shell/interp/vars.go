@@ -39,10 +39,6 @@ type overlayEnviron struct {
 	// or function calls.
 	parent expand.Environ
 	values map[string]expand.Variable
-
-	// We need to know if the current scope is a function's scope, because
-	// functions can modify global variables. When true, [parent] must not be nil.
-	funcScope bool
 }
 
 func (o *overlayEnviron) Get(name string) expand.Variable {
@@ -57,11 +53,6 @@ func (o *overlayEnviron) Get(name string) expand.Variable {
 
 func (o *overlayEnviron) Set(name string, vr expand.Variable) error {
 	prev, inOverlay := o.values[name]
-	// Manipulation of a global var inside a function.
-	if o.funcScope && !vr.Local && !prev.Local {
-		// In a function, the parent environment is ours, so it's always read-write.
-		return o.parent.(expand.WriteEnviron).Set(name, vr)
-	}
 	if !inOverlay && o.parent != nil {
 		prev = o.parent.Get(name)
 	}

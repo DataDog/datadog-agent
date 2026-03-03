@@ -11,16 +11,11 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 
 	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/syntax"
-)
-
-const (
-	fifoNamePrefix = "sh-interp-"
 )
 
 func (r *Runner) fillExpandConfig(ctx context.Context) {
@@ -185,7 +180,7 @@ func (r *Runner) errf(format string, a ...any) {
 }
 
 func (r *Runner) stop(ctx context.Context) bool {
-	if r.exit.returning || r.exit.exiting {
+	if r.exit.exiting {
 		return true
 	}
 	if err := ctx.Err(); err != nil {
@@ -249,9 +244,7 @@ func (r *Runner) stmtSync(ctx context.Context, st *syntax.Stmt) {
 			r.exit.exiting = true
 		}
 	}
-	if !r.keepRedirs {
-		r.stdin, r.stdout, r.stderr = oldIn, oldOut, oldErr
-	}
+	r.stdin, r.stdout, r.stderr = oldIn, oldOut, oldErr
 }
 
 func (r *Runner) cmd(ctx context.Context, cm syntax.Command) {
@@ -567,19 +560,6 @@ func (r *Runner) exec(ctx context.Context, pos syntax.Pos, args []string) {
 }
 
 func (r *Runner) open(ctx context.Context, path string, flags int, mode os.FileMode, print bool) (io.ReadWriteCloser, error) {
-	// If we are opening a FIFO temporary file created by the interpreter itself,
-	// don't pass this along to the open handler as it will not work at all
-	// unless [os.OpenFile] is used directly with it.
-	// Matching by directory and basename prefix isn't perfect, but works.
-	//
-	// If we want FIFOs to use a handler in the future, they probably
-	// need their own separate handler API matching Unix-like semantics.
-	dir, name := filepath.Split(path)
-	dir = strings.TrimSuffix(dir, "/")
-	if dir == r.tempDir && strings.HasPrefix(name, fifoNamePrefix) {
-		return os.OpenFile(path, flags, mode)
-	}
-
 	f, err := r.openHandler(r.handlerCtx(ctx, handlerKindOpen, todoPos), path, flags, mode)
 	// TODO: support wrapped PathError returned from openHandler.
 	switch err.(type) {
