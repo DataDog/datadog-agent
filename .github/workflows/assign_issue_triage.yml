@@ -150,7 +150,7 @@ jobs:
           if [ -f claude.txt ]; then
             CANARY_FAILED=false
             # Check for shell commands that Claude should never output
-            if grep -qiE '(curl|wget|nc|bash|sh -c|eval|exec)\s+' claude.txt; then
+            if grep -qiE '(curl|wget|\bnc\b|bash|sh -c|eval|exec)\s+' claude.txt; then
               echo "⚠️ WARNING: Potential prompt injection detected (shell commands in output)"
               CANARY_FAILED=true
             fi
