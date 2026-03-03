@@ -61,8 +61,8 @@
 
         # Ensure we don't corrupt our `main` measurements with a child pipeline.
         # The report would override the one generated post-merge
-        if [[ -n "$CI_UPSTREAM_PIPELINE_ID" ]]; then
-          echo "This pipeline is a child pipeline, we will not upload the files inventory"
+        if [[ "$CI_PIPELINE_SOURCE" != "push" ]]; then
+          echo "This pipeline wasn't created by a push event, skipping report upload"
           continue
         fi
 
