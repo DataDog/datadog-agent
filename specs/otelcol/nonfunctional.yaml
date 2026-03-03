@@ -11,6 +11,9 @@ requirements:
       memory).
       The verbosity level of emitted metrics (none, basic, normal, detailed) shall be
       configurable under service.telemetry.metrics.
+    client_statement: >-
+      Internal metrics are exposed using a Prometheus interface which defaults to
+      port 8888.
     tags: [observability]
 
   - id: OTELCOL020
@@ -31,6 +34,9 @@ requirements:
       pprof extension) on port 1777 by default.
       This endpoint allows operators to collect CPU profiles, heap profiles, and goroutine
       dumps from a running Collector for performance analysis and troubleshooting.
+    client_statement: >-
+      The pprof extension, which is available locally on port 1777, allows you to profile
+      the Collector as it runs.
     tags: [observability, debug]
     ref: [OTELCOL007]
 
@@ -41,6 +47,9 @@ requirements:
       port 55679 by default.
       zPages expose live trace and RPC statistics useful for diagnosing latency issues,
       deadlocks, and instrumentation problems without requiring an external backend.
+    client_statement: >-
+      The zPages extension, which is exposed locally on port 55679, can be used to
+      inspect live data from the Collector's receivers and exporters.
     tags: [observability, debug]
     ref: [OTELCOL007]
 
