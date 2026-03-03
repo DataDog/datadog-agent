@@ -151,8 +151,8 @@ func NewComponent(deps Requires) Provides {
 		reporters: []observerdef.Reporter{
 			reporter,
 		},
-		storage:   newTimeSeriesStorage(),
-		obsCh:     make(chan observation, 1000),
+		storage: newTimeSeriesStorage(),
+		obsCh:   make(chan observation, 1000),
 	}
 
 	// Set up handle function with optional recorder wrapping.
@@ -279,12 +279,12 @@ func samplePass(rate float64, n uint64) bool {
 // observerImpl is the implementation of the observer component.
 type observerImpl struct {
 	logDetectors     []observerdef.LogDetector
-	metricsDetectors        []observerdef.MetricsDetector
-	correlators []observerdef.Correlator
-	reporters         []observerdef.Reporter
-	storage           *timeSeriesStorage
-	obsCh             chan observation
-	handleFunc        observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
+	metricsDetectors []observerdef.MetricsDetector
+	correlators      []observerdef.Correlator
+	reporters        []observerdef.Reporter
+	storage          *timeSeriesStorage
+	obsCh            chan observation
+	handleFunc       observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
 
 	// Deduplication layer (optional) - filters anomalies before correlation
 	deduplicator *AnomalyDeduplicator

@@ -417,8 +417,8 @@ func TestCorrelator_DedupesBySourceKeepingMostRecent(t *testing.T) {
 	})
 	correlator.Process(observer.Anomaly{
 		Source:      "network.retransmits:avg",
-		Description: "newest retransmits",                       // should be kept
-		Timestamp:   1025, // latest timestamp
+		Description: "newest retransmits", // should be kept
+		Timestamp:   1025,                 // latest timestamp
 	})
 	correlator.Process(observer.Anomaly{
 		Source:      "network.retransmits:avg",

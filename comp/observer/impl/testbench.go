@@ -61,7 +61,7 @@ type TestBench struct {
 
 	// Results (computed eagerly on scenario load)
 	metricsAnomalies  []observerdef.Anomaly                          // all anomalies from metrics detectors
-	correlations      []observerdef.ActiveCorrelation                      // from correlators
+	correlations      []observerdef.ActiveCorrelation                // from correlators
 	metricsByDetector map[string][]observerdef.Anomaly               // metric anomalies grouped by detector
 	metricsBySeriesID map[observerdef.SeriesID][]observerdef.Anomaly // metric anomalies grouped by source series id
 
@@ -69,7 +69,7 @@ type TestBench struct {
 	rawLogs []storedLogEntry
 
 	// Log anomalies (collected during log loading, independent of metrics detection reruns)
-	logAnomalies            []observerdef.Anomaly            // all anomalies from log detectors
+	logAnomalies           []observerdef.Anomaly            // all anomalies from log detectors
 	logAnomaliesByDetector map[string][]observerdef.Anomaly // anomalies grouped by detector name
 
 	// Async correlator processing
@@ -147,11 +147,11 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 			&ConnectionErrorExtractor{},
 		},
 
-		components:              make(map[string]*registeredComponent),
-		metricsAnomalies:        []observerdef.Anomaly{},
-		metricsByDetector:       make(map[string][]observerdef.Anomaly),
-		metricsBySeriesID:       make(map[observerdef.SeriesID][]observerdef.Anomaly),
-		logAnomalies:            []observerdef.Anomaly{},
+		components:             make(map[string]*registeredComponent),
+		metricsAnomalies:       []observerdef.Anomaly{},
+		metricsByDetector:      make(map[string][]observerdef.Anomaly),
+		metricsBySeriesID:      make(map[observerdef.SeriesID][]observerdef.Anomaly),
+		logAnomalies:           []observerdef.Anomaly{},
 		logAnomaliesByDetector: make(map[string][]observerdef.Anomaly),
 	}
 
