@@ -443,11 +443,11 @@ func (api *TestBenchAPI) handleLogAnomalies(w http.ResponseWriter, r *http.Reque
 		response = append(response, logAnomalyResponse{
 			Source:       string(a.Source),
 			DetectorName: a.DetectorName,
-			Title:         a.Title,
-			Description:   a.Description,
-			Tags:          a.Tags,
-			Timestamp:     a.Timestamp,
-			Score:         a.Score,
+			Title:        a.Title,
+			Description:  a.Description,
+			Tags:         a.Tags,
+			Timestamp:    a.Timestamp,
+			Score:        a.Score,
 		})
 	}
 

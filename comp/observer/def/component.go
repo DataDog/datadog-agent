@@ -123,8 +123,8 @@ type Anomaly struct {
 	Title        string
 	Description  string
 	Tags         []string
-	Timestamp    int64     // when the anomaly was detected (unix seconds)
-	Score        *float64  // confidence/severity score (nil if not available)
+	Timestamp    int64    // when the anomaly was detected (unix seconds)
+	Score        *float64 // confidence/severity score (nil if not available)
 	// DebugInfo contains detector-specific debug information explaining the detection.
 	DebugInfo *AnomalyDebugInfo
 }
@@ -229,10 +229,10 @@ type ActiveCorrelation struct {
 	// MemberSeriesIDs are the concrete series identities participating in this correlation.
 	MemberSeriesIDs []SeriesID
 	// MetricNames are display-oriented metric names participating in this correlation.
-	MetricNames  []MetricName
-	Anomalies    []Anomaly // the actual anomalies that triggered this correlation
-	FirstSeen    int64           // when pattern first matched (unix seconds, from data)
-	LastUpdated  int64           // most recent contributing signal (unix seconds, from data)
+	MetricNames []MetricName
+	Anomalies   []Anomaly // the actual anomalies that triggered this correlation
+	FirstSeen   int64     // when pattern first matched (unix seconds, from data)
+	LastUpdated int64     // most recent contributing signal (unix seconds, from data)
 }
 
 // RawAnomalyState provides read access to raw anomalies before correlation processing.
