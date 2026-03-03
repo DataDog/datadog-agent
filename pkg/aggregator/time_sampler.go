@@ -17,7 +17,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
@@ -80,14 +82,14 @@ func (s *TimeSampler) isBucketStillOpen(bucketStartTimestamp, timestamp int64) b
 	return bucketStartTimestamp+s.interval > timestamp
 }
 
-func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float64, filterList filterlist.TagMatcher) {
+func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float64) {
 	// use the timestamp provided in the sample if any
 	if metricSample.Timestamp > 0 {
 		timestamp = metricSample.Timestamp
 	}
 
 	// Keep track of the context
-	contextKey := s.contextResolver.trackContext(metricSample, int64(timestamp), filterList)
+	contextKey := s.contextResolver.trackContext(metricSample, int64(timestamp))
 	bucketStart := s.calculateBucketStart(timestamp)
 
 	switch metricSample.Mtype {
@@ -105,26 +107,6 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 			log.Debugf("TimeSampler #%d Ignoring sample '%s' on host '%s' and tags '%s': %s", s.id, metricSample.Name, metricSample.Host, metricSample.Tags, err)
 		}
 	}
-}
-
-func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) *metrics.SketchSeries {
-	ctx, ok := s.contextResolver.get(ck)
-	if !ok {
-		return nil
-	}
-
-	ss := &metrics.SketchSeries{
-		Name:       ctx.Name,
-		Tags:       ctx.Tags(),
-		Host:       ctx.Host,
-		Interval:   s.interval,
-		Points:     points,
-		ContextKey: ck,
-		Source:     ctx.source,
-		NoIndex:    ctx.noIndex,
-	}
-
-	return ss
 }
 
 func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, filterList *utilstrings.Matcher, forceFlushAll bool) {
@@ -210,7 +192,7 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 	}
 }
 
-func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.SketchesSink, forceFlushAll bool) {
+func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.SketchesSink, forceFlushAll bool, tagFilter filterlist.TagMatcher) {
 	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
 
 	flushAllBefore := cutoffTime
@@ -224,22 +206,90 @@ func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.Sketc
 		}
 		pointsByCtx[ck] = append(pointsByCtx[ck], p)
 	})
+
+	// pointsByStrippedCtx: stripped context key -> (timestamp -> merged sketch)
+	pointsByStrippedCtx := make(map[ckey.ContextKey]map[int64]*quantile.Sketch, len(pointsByCtx))
+	// firstCtxByStrippedKey: stripped key -> first original context seen (for metadata)
+	firstCtxByStrippedKey := make(map[ckey.ContextKey]*Context, len(pointsByCtx))
+	// tagsForStrippedKey: stripped key -> composite tags after filtering
+	tagsForStrippedKey := make(map[ckey.ContextKey]tagset.CompositeTags, len(pointsByCtx))
+
 	for ck, points := range pointsByCtx {
-		ss := s.newSketchSeries(ck, points)
-		if ss == nil {
+		ctx, ok := s.contextResolver.get(ck)
+		if !ok {
 			log.Errorf("TimeSampler #%d Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", s.id, ck)
 			continue
+		}
+
+		strippedKey := ck
+		ctxTags := ctx.Tags()
+		if keepTag, strip := tagFilter.ShouldStripTags(ctx.Name); strip {
+			strippedKey, ctxTags = s.computeStrippedKey(ctx, keepTag)
+		}
+
+		if _, exists := firstCtxByStrippedKey[strippedKey]; !exists {
+			firstCtxByStrippedKey[strippedKey] = ctx
+			tagsForStrippedKey[strippedKey] = ctxTags
+			pointsByStrippedCtx[strippedKey] = make(map[int64]*quantile.Sketch, len(points))
+		}
+
+		for _, p := range points {
+			if existing := pointsByStrippedCtx[strippedKey][p.Ts]; existing != nil {
+				existing.Merge(quantile.Default(), p.Sketch)
+			} else {
+				pointsByStrippedCtx[strippedKey][p.Ts] = p.Sketch
+			}
+		}
+	}
+
+	for strippedCk, pointsByTs := range pointsByStrippedCtx {
+		ctx := firstCtxByStrippedKey[strippedCk]
+		points := make([]metrics.SketchPoint, 0, len(pointsByTs))
+		for ts, sketch := range pointsByTs {
+			points = append(points, metrics.SketchPoint{Sketch: sketch, Ts: ts})
+		}
+		ss := &metrics.SketchSeries{
+			Name:       ctx.Name,
+			Tags:       tagsForStrippedKey[strippedCk],
+			Host:       ctx.Host,
+			Interval:   s.interval,
+			Points:     points,
+			ContextKey: strippedCk,
+			Source:     ctx.source,
+			NoIndex:    ctx.noIndex,
 		}
 		sketchesSink.Append(ss)
 	}
 }
 
-func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketches metrics.SketchesSink, filterList *utilstrings.Matcher, forceFlushAll bool) {
+// computeStrippedKey generates a context key and filtered tags for the given context,
+// applying the keepTag filter to both tagger and metric tags.
+// Reuses the contextResolver's shared buffers and key generator (same pattern as trackContext).
+func (s *TimeSampler) computeStrippedKey(ctx *Context, keepTag func(string) bool) (ckey.ContextKey, tagset.CompositeTags) {
+	cr := s.contextResolver.resolver
+	cr.taggerBuffer.IncludeAll = false
+	cr.taggerBuffer.IncludeTag = keepTag
+	cr.metricBuffer.IncludeAll = false
+	cr.metricBuffer.IncludeTag = keepTag
+	cr.taggerBuffer.Append(ctx.taggerTags.Tags()...)
+	cr.metricBuffer.Append(ctx.metricTags.Tags()...)
+	key, _, _ := cr.keyGenerator.GenerateWithTags2(ctx.Name, ctx.Host, cr.taggerBuffer, cr.metricBuffer)
+	// Capture tags after GenerateWithTags2 deduplication
+	filteredTags := tagset.NewCompositeTags(
+		append([]string(nil), cr.taggerBuffer.Get()...),
+		append([]string(nil), cr.metricBuffer.Get()...),
+	)
+	cr.taggerBuffer.Reset()
+	cr.metricBuffer.Reset()
+	return key, filteredTags
+}
+
+func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketches metrics.SketchesSink, filterList *utilstrings.Matcher, forceFlushAll bool, tagFilter filterlist.TagMatcher) {
 	// Compute a limit timestamp
 	cutoffTime := s.calculateBucketStart(timestamp)
 
 	s.flushSeries(cutoffTime, series, filterList, forceFlushAll)
-	s.flushSketches(cutoffTime, sketches, forceFlushAll)
+	s.flushSketches(cutoffTime, sketches, forceFlushAll, tagFilter)
 	// expiring contexts
 	s.contextResolver.expireContexts(int64(timestamp))
 	s.lastCutOffTime = cutoffTime

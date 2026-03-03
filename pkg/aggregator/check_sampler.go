@@ -64,7 +64,7 @@ func newCheckSampler(
 }
 
 func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList filterlist.TagMatcher) {
-	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
+	contextKey := cs.contextResolver.trackContext(metricSample)
 	if metricSample.Mtype == metrics.DistributionType {
 		cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)
 		return
@@ -112,7 +112,7 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, filterList fi
 		return
 	}
 
-	contextKey := cs.contextResolver.trackContext(bucket, filterList)
+	contextKey := cs.contextResolver.trackContext(bucket)
 
 	// if the bucket is monotonic and we have already seen the bucket we only send the delta
 	if bucket.Monotonic {
