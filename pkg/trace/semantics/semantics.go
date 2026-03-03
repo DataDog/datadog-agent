@@ -39,7 +39,7 @@ type Concept int
 // slice — do not reorder without also updating conceptNames below.
 const (
 	// Peer Tags (used for stats aggregation)
-	ConceptPeerService             Concept = iota
+	ConceptPeerService Concept = iota
 	ConceptPeerHostname
 	ConceptPeerDBName
 	ConceptPeerDBSystem
