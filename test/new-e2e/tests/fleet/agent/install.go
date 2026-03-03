@@ -162,7 +162,7 @@ func (a *Agent) installWindowsInstallScript(params *installParams) error {
 	} else if params.stagingPackages != "" {
 		env["DD_SITE"] = "datad0g.com"
 		env["DD_INSTALLER_URL"] = fmt.Sprintf("https://install.datad0g.com/builds/beta/datadog-installer-%s-1-x86_64.exe", strings.ReplaceAll(params.stagingPackages, "~", "-"))
-		env["DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT"] = strings.ReplaceAll(params.stagingPackages, "~", "-")+"-1"
+		env["DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT"] = strings.ReplaceAll(params.stagingPackages, "~", "-") + "-1"
 		env["DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE"] = "install.datad0g.com.internal.dda-testing.com"
 		scriptURL = fmt.Sprintf("https://install.datad0g.com/builds/beta/Install-Datadog-%s-1.ps1", strings.ReplaceAll(params.stagingPackages, "~", "-"))
 	}
