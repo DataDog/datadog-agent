@@ -110,6 +110,17 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 		return nil, err
 	}
 
+	var imagePullSecrets corev1.LocalObjectReferenceArray
+	if e.ImagePullRegistry() != "" {
+		imgPullSecret, err := utils.NewImagePullSecret(e, Namespace, opts...)
+		if err != nil {
+			return nil, err
+		}
+		imagePullSecrets = append(imagePullSecrets, corev1.LocalObjectReferenceArgs{
+			Name: imgPullSecret.Metadata.Name(),
+		})
+	}
+
 	_, err = appsv1.NewDeployment(e.Ctx(), "etcd", &appsv1.DeploymentArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String("etcd"),
@@ -133,9 +144,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 				},
 				Spec: &corev1.PodSpecArgs{
 					ServiceAccountName: sa.Metadata.Name().Elem(),
-					ImagePullSecrets: &corev1.LocalObjectReferenceArray{
-						corev1.LocalObjectReferenceArgs{Name: e.ImagePullPassword()},
-					},
+					ImagePullSecrets:   imagePullSecrets,
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name: pulumi.String("etcd"),
