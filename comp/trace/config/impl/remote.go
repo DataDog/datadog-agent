@@ -5,7 +5,7 @@
 
 //go:build !serverless
 
-package traceconfigimpl
+package configimpl
 
 import (
 	"time"
