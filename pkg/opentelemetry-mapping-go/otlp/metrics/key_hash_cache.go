@@ -49,13 +49,17 @@ func (m *keyHashCache) set(s keyHashCacheKey, v interface{}, expiration time.Dur
 	m.cache.Set(string(s), v, expiration)
 }
 
+// ascii85EncodedLen16 is the ascii85 encoded length for a 16-byte input:
+// ascii85.MaxEncodedLen(16) = (16+3)/4*5 = 20
+const ascii85EncodedLen16 = 20
+
 func (m *keyHashCache) computeKey(s string) keyHashCacheKey {
 	h1, h2 := murmur3.StringSum128(s)
-	var bytes [16]byte
-	binary.LittleEndian.PutUint64(bytes[0:], h1)
-	binary.LittleEndian.PutUint64(bytes[8:], h2)
+	var hashBytes [16]byte
+	binary.LittleEndian.PutUint64(hashBytes[0:], h1)
+	binary.LittleEndian.PutUint64(hashBytes[8:], h2)
 
-	buf := make([]byte, ascii85.MaxEncodedLen(len(bytes)))
-	n := ascii85.Encode(buf, bytes[:])
+	var buf [ascii85EncodedLen16]byte
+	n := ascii85.Encode(buf[:], hashBytes[:])
 	return keyHashCacheKey(buf[:n])
 }

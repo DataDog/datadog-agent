@@ -15,17 +15,12 @@
 package metrics
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/internal/utils"
-)
-
-const (
-	dimensionSeparator = string(byte(0))
 )
 
 // Dimensions of a metric that identify a timeseries uniquely.
@@ -77,17 +72,6 @@ func (d *Dimensions) OriginProductDetail() OriginProductDetail {
 	return d.originProductDetail
 }
 
-// getTags maps an attributeMap into a slice of Datadog tags
-func getTags(labels pcommon.Map) []string {
-	tags := make([]string, 0, labels.Len())
-	labels.Range(func(key string, value pcommon.Value) bool {
-		v := value.AsString()
-		tags = append(tags, utils.FormatKeyValueTag(key, v))
-		return true
-	})
-	return tags
-}
-
 // AddTags to metrics dimensions.
 func (d *Dimensions) AddTags(tags ...string) *Dimensions {
 	// defensively copy the tags
@@ -107,13 +91,32 @@ func (d *Dimensions) AddTags(tags ...string) *Dimensions {
 
 // WithAttributeMap creates a new metricDimensions struct with additional tags from attributes.
 func (d *Dimensions) WithAttributeMap(labels pcommon.Map) *Dimensions {
-	return d.AddTags(getTags(labels)...)
+	n := labels.Len()
+	if n == 0 {
+		return d
+	}
+	newTags := make([]string, 0, n+len(d.tags))
+	labels.Range(func(key string, value pcommon.Value) bool {
+		newTags = append(newTags, utils.FormatKeyValueTag(key, value.AsString()))
+		return true
+	})
+	newTags = append(newTags, d.tags...)
+	return &Dimensions{
+		name:                d.name,
+		tags:                newTags,
+		host:                d.host,
+		originID:            d.originID,
+		originProduct:       d.originProduct,
+		originSubProduct:    d.originSubProduct,
+		originProductDetail: d.originProductDetail,
+	}
 }
 
 // WithSuffix creates a new dimensions struct with an extra name suffix.
 func (d *Dimensions) WithSuffix(suffix string) *Dimensions {
+	name := d.name + "." + suffix
 	return &Dimensions{
-		name:                fmt.Sprintf("%s.%s", d.name, suffix),
+		name:                name,
 		host:                d.host,
 		tags:                d.tags,
 		originID:            d.originID,
@@ -123,29 +126,28 @@ func (d *Dimensions) WithSuffix(suffix string) *Dimensions {
 	}
 }
 
-// Uses a logic similar to what is done in the span processor to build metric keys:
-// https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/b2327211df976e0a57ef0425493448988772a16b/processor/spanmetricsprocessor/processor.go#L353-L387
-// TODO: make this a public util function?
-func concatDimensionValue(metricKeyBuilder *strings.Builder, value string) {
-	metricKeyBuilder.WriteString(value)
-	metricKeyBuilder.WriteString(dimensionSeparator)
-}
-
 // String maps dimensions to a string to use as an identifier.
 // The tags order does not matter.
 func (d *Dimensions) String() string {
-	var metricKeyBuilder strings.Builder
-
-	dimensions := make([]string, len(d.tags))
+	// Pre-compute fixed suffixes: "name:<n>\x00host:<h>\x00originID:<o>\x00"
+	// and sort tags in place on a temporary copy.
+	dimensions := make([]string, len(d.tags), len(d.tags)+3)
 	copy(dimensions, d.tags)
-
 	dimensions = append(dimensions, "name:"+d.name)
 	dimensions = append(dimensions, "host:"+d.host)
 	dimensions = append(dimensions, "originID:"+d.originID)
 	sort.Strings(dimensions)
 
+	// Compute total capacity to avoid Builder re-allocations.
+	total := 0
 	for _, dim := range dimensions {
-		concatDimensionValue(&metricKeyBuilder, dim)
+		total += len(dim) + 1 // +1 for dimensionSeparator (single byte 0)
+	}
+	var metricKeyBuilder strings.Builder
+	metricKeyBuilder.Grow(total)
+	for _, dim := range dimensions {
+		metricKeyBuilder.WriteString(dim)
+		metricKeyBuilder.WriteByte(0)
 	}
 	return metricKeyBuilder.String()
 }
