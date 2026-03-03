@@ -108,7 +108,11 @@ func (s *upgradeSuite) TestODBCConfigPreservedOnUpgrade() {
 	if s.Env().RemoteHost.OSFamily != e2eos.LinuxFamily {
 		s.T().Skip("ODBC config preservation is only relevant on Linux")
 	}
-	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
+	// TODO: This test uses a DEB→OCI upgrade (testing pipeline DEB as stable, testing
+	// pipeline OCI as experiment) because the ODBC save/restore code is new and not yet
+	// in a released stable binary. Once this fix ships as a stable release, rewrite this
+	// test to use WithStablePackages() + BranchTesting experiment, like other upgrade tests.
+	s.Agent.MustInstall(agent.WithRemoteUpdates())
 	defer s.Agent.MustUninstall()
 	_, err := s.Env().RemoteHost.Execute(`sudo sh -c 'printf "[ODBC]\nTrace=no\n" > /opt/datadog-agent/embedded/etc/odbc.ini'`)
 	s.Require().NoError(err)
