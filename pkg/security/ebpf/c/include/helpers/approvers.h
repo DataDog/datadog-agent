@@ -85,13 +85,16 @@ int __attribute__((always_inline)) approve_bind_sample(u32 pid, u16 family, u16 
 
     u8 value = 0;
     if (bpf_map_update_elem(&bind_samples, &key, &value, BPF_NOEXIST) < 0) {
+        bpf_printk("bind_sample dedup: pid=%d port=%d proto=%d", pid, port, protocol);
         return 0;
     }
 
     if (!global_limiter_allow(BIND_SAMPLE_LIMITER, 500, 1)) {
+        bpf_printk("bind_sample rate_limited: pid=%d port=%d", pid, port);
         return 0;
     }
 
+    bpf_printk("bind_sample sampled: pid=%d port=%d proto=%d", pid, port, protocol);
     monitor_ad_sample_sampled(EVENT_BIND);
     return 1;
 }
@@ -123,13 +126,16 @@ int __attribute__((always_inline)) approve_connect_sample(u32 pid, u16 family, u
 
     u8 value = 0;
     if (bpf_map_update_elem(&connect_samples, &key, &value, BPF_NOEXIST) < 0) {
+        bpf_printk("connect_sample dedup: pid=%d port=%d proto=%d", pid, port, protocol);
         return 0;
     }
 
     if (!global_limiter_allow(CONNECT_SAMPLE_LIMITER, 500, 1)) {
+        bpf_printk("connect_sample rate_limited: pid=%d port=%d", pid, port);
         return 0;
     }
 
+    bpf_printk("connect_sample sampled: pid=%d port=%d proto=%d", pid, port, protocol);
     monitor_ad_sample_sampled(EVENT_CONNECT);
     return 1;
 }
