@@ -12,19 +12,7 @@ package logonduration
 #cgo LDFLAGS: -framework Foundation -framework OSLog
 
 #include <stdlib.h>
-
-// Returns Unix timestamp (seconds since epoch) or 0 on error
-// fileVaultEnabled: 1 = FileVault enabled, 0 = FileVault disabled
-double queryLoginWindowTimestamp(int fileVaultEnabled);
-
-// Returns Unix timestamp (seconds since epoch) or 0 on error
-double queryLoginTimestamp(void);
-
-// Returns Unix timestamp (seconds since epoch) or 0 on error
-double queryDesktopReadyTimestamp(void);
-
-// Returns 1 if FileVault is enabled, 0 if disabled, -1 on error
-int checkFileVaultEnabled(void);
+#include "timestamps_darwin.h"
 */
 import "C"
 

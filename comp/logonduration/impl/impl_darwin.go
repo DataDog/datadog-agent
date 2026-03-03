@@ -195,34 +195,31 @@ func (c *logonDurationComponent) getLoginTimestampsFromSystemProbe(ctx context.C
 		sysprobeclient.WithSocketPath(c.sysprobeConfig.GetString("system_probe_config.sysprobe_socket")),
 	)
 
-	// Retry loop for system-probe startup
-	var timestamps logonduration.LoginTimestamps
-	var err error
-	for i := 0; i < 30; i++ {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		default:
-		}
-
-		timestamps, err = sysprobeclient.GetCheck[logonduration.LoginTimestamps](client, sysconfig.LogonDurationModule)
+	// Wait for system-probe to be ready with simple retry loop
+	for {
+		timestamps, err := sysprobeclient.GetCheck[logonduration.LoginTimestamps](client, sysconfig.LogonDurationModule)
 		if err == nil {
 			return &timestamps, nil
 		}
 
+		// Only retry if system-probe hasn't started yet.
+		// This error is returned for the first 5min after the Agent startup (configurable with check_system_probe_startup_time).
 		if !errors.Is(err, sysprobeclient.ErrNotStartedYet) {
 			return nil, fmt.Errorf("failed to get login timestamps from system-probe: %w", err)
 		}
 
-		log.Debugf("Logon duration: system-probe not ready yet, retrying in 2s")
+		log.Debugf("Logon duration: system-probe not ready yet, retrying in 10s: %v", err)
+
+		// Use a timer that can be cancelled by context
+		timer := time.NewTimer(10 * time.Second)
 		select {
+		case <-timer.C:
+			continue
 		case <-ctx.Done():
+			timer.Stop()
 			return nil, ctx.Err()
-		case <-time.After(2 * time.Second):
 		}
 	}
-
-	return nil, fmt.Errorf("system-probe did not become ready in time: %w", err)
 }
 
 // Milestone represents a single event in the boot/logon timeline.

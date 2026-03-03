@@ -5,6 +5,7 @@
 
 #import <Foundation/Foundation.h>
 #import <OSLog/OSLog.h>
+#import "timestamps_darwin.h"
 
 // queryLogTimestamp is a helper that queries the unified log for the first entry matching the predicate.
 // Searches from the start of the current boot (equivalent to `log show --last boot`).

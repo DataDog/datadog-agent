@@ -21,6 +21,4 @@ type LoginTimestamps struct {
 	DesktopReadyTime *time.Time `json:"desktop_ready_time,omitempty"`
 	// FileVaultEnabled indicates whether FileVault is enabled on the system
 	FileVaultEnabled *bool `json:"filevault_enabled,omitempty"`
-	// Error contains any error message if collection failed
-	Error string `json:"error,omitempty"`
 }
