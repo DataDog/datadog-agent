@@ -277,10 +277,6 @@ type BufferedAggregator struct {
 	// observerHandle is an optional handle used to mirror check metric samples into the observer.
 	// It is set by the demultiplexer at startup and then copied into newly created CheckSamplers.
 	observerHandle observer.Handle
-	// observerEventSink is an optional callback invoked for every event received by the aggregator.
-	// It is intended for best-effort local observability (e.g., forwarding container lifecycle
-	// events into the observer for correlation) without changing the canonical event pipeline.
-	observerEventSink func(event.Event)
 
 	// use this chan to trigger a filterList reconfiguration
 	filterListChan  chan utilstrings.Matcher
@@ -527,17 +523,8 @@ func (agg *BufferedAggregator) addEvent(e event.Event) {
 
 	agg.events = append(agg.events, &e)
 
-	// Best-effort: also forward events to an optional local sink (e.g., observer).
-	if agg.observerEventSink != nil {
-		agg.observerEventSink(e)
-	}
 }
 
-// SetObserverEventSink registers a best-effort callback invoked for each event received by the aggregator.
-// Passing nil disables forwarding.
-func (agg *BufferedAggregator) SetObserverEventSink(sink func(event.Event)) {
-	agg.observerEventSink = sink
-}
 
 // SetObserverHandle sets the observer handle for mirroring check metrics.
 // The handle will be passed to newly created CheckSamplers.

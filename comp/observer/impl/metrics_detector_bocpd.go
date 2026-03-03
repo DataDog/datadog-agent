@@ -71,15 +71,15 @@ func NewBOCPDDetector() *BOCPDDetector {
 	}
 }
 
-// Name returns the analyzer name.
+// Name returns the detector name.
 func (b *BOCPDDetector) Name() string {
 	return "bocpd_detector"
 }
 
 // Analyze runs BOCPD and emits the first changepoint crossing CPThreshold.
-func (b *BOCPDDetector) Analyze(series observer.Series) observer.TimeSeriesAnalysisResult {
+func (b *BOCPDDetector) Detect(series observer.Series) observer.MetricsDetectionResult {
 	if b.SkipCountMetrics && strings.HasSuffix(series.Name, ":count") {
-		return observer.TimeSeriesAnalysisResult{}
+		return observer.MetricsDetectionResult{}
 	}
 
 	minPoints := b.MinPoints
@@ -117,7 +117,7 @@ func (b *BOCPDDetector) Analyze(series observer.Series) observer.TimeSeriesAnaly
 
 	n := len(series.Points)
 	if n < minPoints {
-		return observer.TimeSeriesAnalysisResult{}
+		return observer.MetricsDetectionResult{}
 	}
 
 	baselineEnd := int(float64(n) * baselineFrac)
@@ -136,7 +136,7 @@ func (b *BOCPDDetector) Analyze(series observer.Series) observer.TimeSeriesAnaly
 		if math.Abs(baselineMean) > epsilon {
 			baselineStddev = math.Abs(baselineMean) * 0.1
 		} else {
-			return observer.TimeSeriesAnalysisResult{}
+			return observer.MetricsDetectionResult{}
 		}
 	}
 
@@ -175,7 +175,7 @@ func (b *BOCPDDetector) Analyze(series observer.Series) observer.TimeSeriesAnaly
 				triggerValue = cpProb
 				triggerThreshold = threshold
 			}
-			anomaly := observer.AnomalyOutput{
+			anomaly := observer.Anomaly{
 				Source: observer.MetricName(series.Name),
 				Title:  fmt.Sprintf("BOCPD changepoint detected: %s", series.Name),
 				Description: fmt.Sprintf("%s %s %.2f exceeded threshold %.2f (cp=%.2f, short-run<=%d mass=%.2f)",
@@ -192,7 +192,7 @@ func (b *BOCPDDetector) Analyze(series observer.Series) observer.TimeSeriesAnaly
 					DeviationSigma: deviation,
 				},
 			}
-			return observer.TimeSeriesAnalysisResult{Anomalies: []observer.AnomalyOutput{anomaly}}
+			return observer.MetricsDetectionResult{Anomalies: []observer.Anomaly{anomaly}}
 		}
 
 		newMeans := make([]float64, len(newRunProbs))
@@ -217,7 +217,7 @@ func (b *BOCPDDetector) Analyze(series observer.Series) observer.TimeSeriesAnaly
 		precisions = newPrecisions
 	}
 
-	return observer.TimeSeriesAnalysisResult{}
+	return observer.MetricsDetectionResult{}
 }
 
 func shortRunLengthMass(runProbs []float64, shortRunLength int) float64 {

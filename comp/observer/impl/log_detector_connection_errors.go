@@ -21,23 +21,23 @@ var connectionErrorPatterns = []string{
 	"etimedout",
 }
 
-// ConnectionErrorExtractor is a log processor that detects connection errors
+// ConnectionErrorExtractor is a log detector that detects connection errors
 // and converts them into a connection.errors metric.
 type ConnectionErrorExtractor struct{}
 
-// Name returns the processor name.
+// Name returns the detector name.
 func (c *ConnectionErrorExtractor) Name() string {
 	return "connection_error_extractor"
 }
 
 // Process checks if a log contains connection error patterns and returns a metric if so.
-// Anomaly detection is handled by TS analysis on the count aggregation of the emitted metric.
-func (c *ConnectionErrorExtractor) Process(log observer.LogView) observer.LogProcessorResult {
+// Anomaly detection is handled by metrics detection on the count aggregation of the emitted metric.
+func (c *ConnectionErrorExtractor) Process(log observer.LogView) observer.LogDetectionResult {
 	content := strings.ToLower(string(log.GetContent()))
 
 	for _, pattern := range connectionErrorPatterns {
 		if strings.Contains(content, pattern) {
-			return observer.LogProcessorResult{
+			return observer.LogDetectionResult{
 				Metrics: []observer.MetricOutput{{
 					Name:  "connection.errors",
 					Value: 1.0,
@@ -47,5 +47,5 @@ func (c *ConnectionErrorExtractor) Process(log observer.LogView) observer.LogPro
 		}
 	}
 
-	return observer.LogProcessorResult{}
+	return observer.LogDetectionResult{}
 }

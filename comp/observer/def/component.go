@@ -58,22 +58,22 @@ type LogView interface {
 	GetHostname() string
 }
 
-// LogProcessor transforms observed logs into metrics and anomaly events.
+// LogDetector transforms observed logs into metrics and anomaly events.
 // Implementations should be stateless and fast since they run synchronously
 // on every observed log.
-type LogProcessor interface {
-	// Name returns the processor name for debugging and logging.
+type LogDetector interface {
+	// Name returns the detector name for debugging and logging.
 	Name() string
 	// Process examines a log and returns any detected signals.
-	Process(log LogView) LogProcessorResult
+	Process(log LogView) LogDetectionResult
 }
 
-// LogProcessorResult contains outputs from processing a log.
-type LogProcessorResult struct {
+// LogDetectionResult contains outputs from processing a log.
+type LogDetectionResult struct {
 	// Metrics are timeseries values derived from the log.
 	Metrics []MetricOutput
-	// Anomalies are directly detected anomalies (bypassing the metrics→TSAnalysis path).
-	Anomalies []AnomalyOutput
+	// Anomalies are directly detected anomalies (bypassing the metrics→MetricsDetector path).
+	Anomalies []Anomaly
 	// Used to debug anomaly detectors
 	Telemetry []ObserverTelemetry
 }
@@ -94,32 +94,20 @@ type MetricName string
 // SeriesID uniquely identifies a time series (namespace + name + tags).
 type SeriesID string
 
-// SignalSource identifies a signal stream source (metric or event-style source name).
-type SignalSource string
-
-// EventSource identifies a discrete event source.
-type EventSource string
-
-// TimeRange represents a time period covered by an analysis.
-type TimeRange struct {
-	Start int64 // earliest timestamp in analyzed data (unix seconds)
-	End   int64 // latest timestamp in analyzed data (unix seconds)
-}
-
 // AnomalyType distinguishes the source type of an anomaly.
 type AnomalyType string
 
 const (
-	// AnomalyTypeMetric is a metric-based anomaly detected by time series analysis.
+	// AnomalyTypeMetric is a metric-based anomaly detected by a MetricsDetector.
 	AnomalyTypeMetric AnomalyType = "metric"
-	// AnomalyTypeLog is a log-based anomaly emitted directly by a log processor,
-	// bypassing the metrics→TSAnalysis pipeline.
+	// AnomalyTypeLog is a log-based anomaly emitted directly by a log detector,
+	// bypassing the metrics→MetricsDetector pipeline.
 	AnomalyTypeLog AnomalyType = "log"
 )
 
-// AnomalyOutput is a detected anomaly event.
+// Anomaly is a detected anomaly event.
 // Anomalies represent a point in time where something anomalous was detected.
-type AnomalyOutput struct {
+type Anomaly struct {
 	// Type distinguishes log-based anomalies from metric-based ones.
 	// Defaults to AnomalyTypeMetric if not set.
 	Type AnomalyType
@@ -130,15 +118,14 @@ type AnomalyOutput struct {
 	// SourceSeriesID uniquely identifies the source series (namespace + name + tags).
 	// Empty for log anomalies.
 	SourceSeriesID SeriesID
-	// AnalyzerName identifies which TimeSeriesAnalysis or LogProcessor produced this anomaly.
-	AnalyzerName string
+	// DetectorName identifies which MetricsDetector or LogDetector produced this anomaly.
+	DetectorName string
 	Title        string
 	Description  string
 	Tags         []string
 	Timestamp    int64     // when the anomaly was detected (unix seconds)
 	Score        *float64  // confidence/severity score (nil if not available)
-	TimeRange    TimeRange // period covered by the analysis that produced this anomaly
-	// DebugInfo contains analyzer-specific debug information explaining the detection.
+	// DebugInfo contains detector-specific debug information explaining the detection.
 	DebugInfo *AnomalyDebugInfo
 }
 
@@ -162,7 +149,7 @@ type AnomalyDebugInfo struct {
 	CUSUMValues []float64 // S[t] values (may be truncated to last N points)
 }
 
-// ReportOutput is a processed summary from anomaly processors.
+// ReportOutput is a processed summary from correlators.
 // It represents clustered, filtered, or summarized anomaly information ready for display.
 type ReportOutput struct {
 	Title    string
@@ -171,7 +158,7 @@ type ReportOutput struct {
 }
 
 // Series is a time series with simple timestamp/value points.
-// This is the simplified view passed to TimeSeriesAnalysis.
+// This is the simplified view passed to MetricsDetector.
 type Series struct {
 	Namespace string
 	Name      string
@@ -188,77 +175,36 @@ type Point struct {
 // Describes a telemetry event that is emitted by the observer.
 // This could be a metric or a log for instance.
 type ObserverTelemetry struct {
-	AnalyzerName string
+	DetectorName string
 	Metric       MetricView
 	Log          LogView
 }
 
-// TimeSeriesAnalysis analyzes a time series for anomalies.
+// MetricsDetector analyzes a time series for anomalies.
 // Implementations should be stateless and just do math on the points.
-type TimeSeriesAnalysis interface {
+type MetricsDetector interface {
 	// Name returns the analysis name for debugging.
 	Name() string
-	// Analyze examines a series and returns any detected anomalies.
-	Analyze(series Series) TimeSeriesAnalysisResult
+	// Detect examines a series and returns any detected anomalies.
+	Detect(series Series) MetricsDetectionResult
 }
 
-// TimeSeriesAnalysisResult contains outputs from time series analysis.
-type TimeSeriesAnalysisResult struct {
-	Anomalies []AnomalyOutput
+// MetricsDetectionResult contains outputs from metrics detection.
+type MetricsDetectionResult struct {
+	Anomalies []Anomaly
 	// Used to debug anomaly detectors
 	Telemetry []ObserverTelemetry
 }
 
-// AnomalyProcessor accumulates anomaly events and produces reports.
-// Unlike analyses, processors are stateful and cluster/filter/summarize anomaly streams.
-type AnomalyProcessor interface {
-	// Name returns the processor name for debugging.
+// Correlator accumulates anomaly events and produces reports.
+// Correlators are stateful and cluster/filter/summarize anomaly streams.
+type Correlator interface {
+	// Name returns the correlator name for debugging.
 	Name() string
 	// Process receives an anomaly event for accumulation.
-	Process(anomaly AnomalyOutput)
+	Process(anomaly Anomaly)
 	// Flush processes accumulated anomalies and returns reports.
 	Flush() []ReportOutput
-}
-
-// SignalEmitter produces point signals from time series data.
-// This replaces TimeSeriesAnalysis with a simpler point-based output model.
-// Layer 1: Emitters detect anomalous conditions and emit signals immediately.
-type SignalEmitter interface {
-	// Name returns the emitter name for debugging.
-	Name() string
-	// Emit analyzes a series and returns point signals for anomalous conditions.
-	Emit(series Series) []Signal
-}
-
-// SignalProcessor processes signal streams and maintains internal state.
-// This replaces AnomalyProcessor, using a pull-based model where reporters
-// query state via typed interfaces (e.g., CorrelationState, ClusterState).
-// Layer 2: Processors correlate, cluster, or filter signals.
-type SignalProcessor interface {
-	// Name returns the processor name for debugging.
-	Name() string
-	// Process receives a signal for accumulation/correlation.
-	Process(signal Signal)
-	// Flush updates internal state. Reporters pull state via typed interfaces.
-	Flush()
-}
-
-// EventSignalReceiver is an optional interface for processors that accept discrete event signals.
-// Events like container OOMs, restarts, and lifecycle transitions are routed here
-// instead of being processed as logs (no metric derivation).
-type EventSignalReceiver interface {
-	// AddEventSignal adds a discrete event signal for correlation context.
-	AddEventSignal(signal EventSignal)
-}
-
-// EventSignal represents a discrete event used as correlation evidence or annotation.
-// Unlike anomalies (which are detected from time series analysis), event signals are
-// explicit events such as container OOMs, restarts, or lifecycle transitions.
-type EventSignal struct {
-	Source    EventSource
-	Timestamp int64    // when the event occurred (unix seconds)
-	Tags      []string // event tags for filtering/grouping
-	Message   string   // optional human-readable description
 }
 
 // Reporter receives reports and displays or delivers them.
@@ -284,43 +230,14 @@ type ActiveCorrelation struct {
 	MemberSeriesIDs []SeriesID
 	// MetricNames are display-oriented metric names participating in this correlation.
 	MetricNames  []MetricName
-	Anomalies    []AnomalyOutput // the actual anomalies that triggered this correlation
-	EventSignals []EventSignal   // discrete events (EventSignal-based, for processors using AddEventSignal)
+	Anomalies    []Anomaly // the actual anomalies that triggered this correlation
 	FirstSeen    int64           // when pattern first matched (unix seconds, from data)
 	LastUpdated  int64           // most recent contributing signal (unix seconds, from data)
 }
 
-// ClusterState provides read access to clustered signal regions.
-// TimeClusterer implements this interface to expose grouped signals.
-type ClusterState interface {
-	// ActiveRegions returns currently active signal regions.
-	ActiveRegions() []SignalRegion
-}
-
-// SignalRegion represents a time region with grouped point signals.
-// Created by TimeClusterer from point signals that occur close together in time.
-type SignalRegion struct {
-	Source    SignalSource
-	TimeRange TimeRange // start and end of the region
-	Signals   []Signal  // contributing point signals
-}
-
-// Signal represents a point-in-time observation of interest.
-// Signals unify metric anomalies and discrete events into a common type.
-type Signal struct {
-	Source    SignalSource
-	Timestamp int64    // unix timestamp (seconds)
-	Tags      []string // metadata tags
-	Message   string   // optional human-readable description (for events)
-
-	// Optional fields (algorithm-dependent)
-	Value float64  // current metric value (if applicable)
-	Score *float64 // confidence/severity (nil if algorithm doesn't provide)
-}
-
 // RawAnomalyState provides read access to raw anomalies before correlation processing.
-// Used by test bench reporters to display individual analyzer outputs.
+// Used by test bench reporters to display individual detector outputs.
 type RawAnomalyState interface {
-	// RawAnomalies returns all anomalies detected by TimeSeriesAnalysis implementations.
-	RawAnomalies() []AnomalyOutput
+	// RawAnomalies returns all anomalies detected by MetricsDetector implementations.
+	RawAnomalies() []Anomaly
 }

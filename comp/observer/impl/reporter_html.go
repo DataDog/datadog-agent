@@ -402,25 +402,25 @@ func (r *HTMLReporter) handleDashboard(w http.ResponseWriter, req *http.Request)
         const anomalyCharts = {};  // charts for anomalous metrics
         const allCharts = {};      // charts for all metrics
         const chartColors = ['#8b5cf6', '#06b6d4', '#f59e0b', '#ef4444', '#22c55e'];
-        let anomalyRanges = {}; // chartKey -> [{start, end, analyzerName}, ...]
+        let anomalyRanges = {}; // chartKey -> [{start, end, detectorName}, ...]
         let correlationData = []; // list of correlations for timeline
-        let rawAnomalyData = []; // raw anomalies from all analyzers
+        let rawAnomalyData = []; // raw anomalies from all detectors
 
         // Track last timestamp per chart for incremental fetching
         const lastTimestamps = {};  // chartKey -> last timestamp received
         // Store accumulated data per chart (timestamps and values)
         const chartData = {};  // chartKey -> { timestamps: [], values: [], labels: [] }
 
-        // Analyzer colors for distinguishing different detection algorithms
-        const analyzerColors = {
+        // Detector colors for distinguishing different detection algorithms
+        const detectorColors = {
             'cusum_detector': { bg: 'rgba(239, 68, 68, 0.15)', border: '#ef4444' },  // red
             'arima_detector': { bg: 'rgba(59, 130, 246, 0.15)', border: '#3b82f6' }, // blue
             'mad_detector':   { bg: 'rgba(34, 197, 94, 0.15)', border: '#22c55e' },  // green
             'default':        { bg: 'rgba(168, 85, 247, 0.15)', border: '#a855f7' }  // purple
         };
 
-        function getAnalyzerColor(analyzerName) {
-            return analyzerColors[analyzerName] || analyzerColors['default'];
+        function getDetectorColor(detectorName) {
+            return detectorColors[detectorName] || detectorColors['default'];
         }
 
         // Build a map of chart key -> anomaly timestamps from raw anomalies
@@ -432,7 +432,7 @@ func (r *HTMLReporter) handleDashboard(w http.ResponseWriter, req *http.Request)
                 if (a.timestamp) {
                     ranges[key].push({
                         timestamp: a.timestamp,
-                        analyzerName: a.analyzerName || 'unknown'
+                        detectorName: a.detectorName || 'unknown'
                     });
                 }
             }
@@ -497,12 +497,12 @@ func (r *HTMLReporter) handleDashboard(w http.ResponseWriter, req *http.Request)
         }
 
         function renderRawAnomalySummary(rawAnomalies) {
-            // Group anomalies by analyzer
-            const byAnalyzer = {};
+            // Group anomalies by detector
+            const byDetector = {};
             for (const a of rawAnomalies || []) {
-                const name = a.analyzerName || 'unknown';
-                if (!byAnalyzer[name]) byAnalyzer[name] = [];
-                byAnalyzer[name].push(a);
+                const name = a.detectorName || 'unknown';
+                if (!byDetector[name]) byDetector[name] = [];
+                byDetector[name].push(a);
             }
 
             // Find or create summary container
@@ -511,22 +511,22 @@ func (r *HTMLReporter) handleDashboard(w http.ResponseWriter, req *http.Request)
                 const timelinePanel = document.querySelector('.timeline-panel');
                 summaryDiv = document.createElement('div');
                 summaryDiv.id = 'raw-anomaly-summary';
-                summaryDiv.innerHTML = '<h3 style="margin: 16px 0 8px 0; color: #a1a1aa;">Raw Anomalies by Analyzer</h3>';
+                summaryDiv.innerHTML = '<h3 style="margin: 16px 0 8px 0; color: #a1a1aa;">Raw Anomalies by Detector</h3>';
                 timelinePanel.insertBefore(summaryDiv, timelinePanel.querySelector('#timeline'));
             }
 
-            if (Object.keys(byAnalyzer).length === 0) {
-                summaryDiv.innerHTML = '<h3 style="margin: 16px 0 8px 0; color: #a1a1aa;">Raw Anomalies by Analyzer</h3><div class="no-anomalies">No anomalies detected yet</div>';
+            if (Object.keys(byDetector).length === 0) {
+                summaryDiv.innerHTML = '<h3 style="margin: 16px 0 8px 0; color: #a1a1aa;">Raw Anomalies by Detector</h3><div class="no-anomalies">No anomalies detected yet</div>';
                 return;
             }
 
-            let html = '<h3 style="margin: 16px 0 8px 0; color: #a1a1aa;">Raw Anomalies by Analyzer</h3>';
+            let html = '<h3 style="margin: 16px 0 8px 0; color: #a1a1aa;">Raw Anomalies by Detector</h3>';
             html += '<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;">';
-            for (const [analyzer, anomalies] of Object.entries(byAnalyzer)) {
-                const color = getAnalyzerColor(analyzer);
+            for (const [detector, anomalies] of Object.entries(byDetector)) {
+                const color = getDetectorColor(detector);
                 const sources = [...new Set(anomalies.map(a => a.source))];
                 html += '<div style="background: ' + color.bg + '; border-left: 3px solid ' + color.border + '; padding: 8px 12px; border-radius: 4px; min-width: 140px;">';
-                html += '<div style="font-weight: 500; color: ' + color.border + ';">' + escapeHtml(analyzer) + '</div>';
+                html += '<div style="font-weight: 500; color: ' + color.border + ';">' + escapeHtml(detector) + '</div>';
                 html += '<div style="color: #d4d4d8; font-size: 0.875rem;">' + anomalies.length + ' anomalies</div>';
                 html += '<div style="color: #71717a; font-size: 0.75rem;">' + sources.length + ' metrics</div>';
                 html += '</div>';
@@ -568,7 +568,7 @@ func (r *HTMLReporter) handleDashboard(w http.ResponseWriter, req *http.Request)
         const analysisAggregations = ['avg', 'count'];
 
         // Build Chart.js annotations from anomaly timestamps for a given chart key
-        // Uses analyzer-specific colors when analyzerName is present
+        // Uses detector-specific colors when detectorName is present
         function buildAnnotations(timestamps, anomalies) {
             if (!anomalies || anomalies.length === 0 || !timestamps || timestamps.length === 0) {
                 return {};
@@ -592,7 +592,7 @@ func (r *HTMLReporter) handleDashboard(w http.ResponseWriter, req *http.Request)
                 }
 
                 if (pointIdx !== -1) {
-                    const color = getAnalyzerColor(anomaly.analyzerName);
+                    const color = getDetectorColor(anomaly.detectorName);
                     // Draw a vertical line at the anomaly detection point
                     annotations['line' + idx] = {
                         type: 'line',
@@ -1103,7 +1103,7 @@ type anomalyOutput struct {
 // rawAnomalyOutput is the JSON structure for raw anomaly API responses.
 type rawAnomalyOutput struct {
 	Source       string   `json:"source"`
-	AnalyzerName string   `json:"analyzerName"`
+	DetectorName string   `json:"detectorName"`
 	Title        string   `json:"title"`
 	Description  string   `json:"description"`
 	Tags         []string `json:"tags"`
@@ -1161,7 +1161,7 @@ func seriesIDsToStringSlice(ids []observer.SeriesID) []string {
 	return out
 }
 
-// handleAPIRawAnomalies returns all raw anomalies from TimeSeriesAnalysis implementations.
+// handleAPIRawAnomalies returns all raw anomalies from MetricsDetector implementations.
 func (r *HTMLReporter) handleAPIRawAnomalies(w http.ResponseWriter, req *http.Request) {
 	r.mu.RLock()
 	rawState := r.rawAnomalyState
@@ -1174,7 +1174,7 @@ func (r *HTMLReporter) handleAPIRawAnomalies(w http.ResponseWriter, req *http.Re
 		for i, a := range raw {
 			anomalies[i] = rawAnomalyOutput{
 				Source:       string(a.Source),
-				AnalyzerName: a.AnalyzerName,
+				DetectorName: a.DetectorName,
 				Title:        a.Title,
 				Description:  a.Description,
 				Tags:         a.Tags,

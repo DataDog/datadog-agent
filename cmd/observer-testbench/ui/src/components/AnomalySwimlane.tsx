@@ -3,8 +3,8 @@ import * as d3 from 'd3';
 import type { Anomaly, CompressedGroup, Correlation, SeriesID } from '../api/client';
 import type { TimeRange } from './ChartWithAnomalyDetails';
 
-// Reuse the analyzer palette from TimeSeriesChart
-const ANALYZER_PALETTE = [
+// Reuse the detector palette from MetricsChart
+const DETECTOR_PALETTE = [
   '#ef4444', // red
   '#3b82f6', // blue
   '#22c55e', // green
@@ -13,18 +13,18 @@ const ANALYZER_PALETTE = [
   '#06b6d4', // cyan
 ];
 
-const analyzerColorCache = new Map<string, string>();
+const detectorColorCache = new Map<string, string>();
 let nextIndex = 0;
 
-function getAnalyzerColor(name: string): string {
-  if (!analyzerColorCache.has(name)) {
-    analyzerColorCache.set(name, ANALYZER_PALETTE[nextIndex % ANALYZER_PALETTE.length]);
+function getDetectorColor(name: string): string {
+  if (!detectorColorCache.has(name)) {
+    detectorColorCache.set(name, DETECTOR_PALETTE[nextIndex % DETECTOR_PALETTE.length]);
     nextIndex++;
   }
-  return analyzerColorCache.get(name)!;
+  return detectorColorCache.get(name)!;
 }
 
-// Palette for group annotation bars (distinct from analyzer colors)
+// Palette for group annotation bars (distinct from detector colors)
 const GROUP_PALETTE = [
   '#8b5cf6', // violet
   '#06b6d4', // cyan
@@ -97,7 +97,7 @@ export function AnomalySwimlane({
   const totalInnerHeight = denseHeight
     + (annotationHeight > 0 ? ANNOTATION_SECTION_GAP + annotationHeight : 0);
 
-  // Match TimeSeriesChart horizontal plot margins so x-axis widths align across tabs.
+  // Match MetricsChart horizontal plot margins so x-axis widths align across tabs.
   const margin = { top: 10, right: 20, bottom: 30, left: 50 };
 
   useEffect(() => {
@@ -163,7 +163,7 @@ export function AnomalySwimlane({
       const y = rowY.get(anomaly.source);
       if (y == null) continue;
       const x = xScale(anomaly.timestamp * 1000);
-      const color = getAnalyzerColor(anomaly.analyzerName);
+      const color = getDetectorColor(anomaly.detectorName);
       const covered = isCovered(anomaly.sourceSeriesId, anomaly.timestamp);
 
       const baseOpacity = covered ? 0.3 : 0.9;
@@ -341,8 +341,8 @@ export function AnomalySwimlane({
     );
   }
 
-  // Analyzer legend
-  const analyzerNames = Array.from(new Set(anomalies.map((a) => a.analyzerName)));
+  // Detector legend
+  const detectorNames = Array.from(new Set(anomalies.map((a) => a.detectorName)));
 
   return (
     <div className="bg-slate-800 rounded-lg overflow-hidden">
@@ -351,13 +351,13 @@ export function AnomalySwimlane({
           Anomaly Swimlane ({anomalies.length} anomalies across {sources.length} sources)
         </h2>
         <div className="flex gap-2">
-          {analyzerNames.map((name) => (
+          {detectorNames.map((name) => (
             <span
               key={name}
               className="text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1"
-              style={{ backgroundColor: getAnalyzerColor(name) + '33', color: getAnalyzerColor(name) }}
+              style={{ backgroundColor: getDetectorColor(name) + '33', color: getDetectorColor(name) }}
             >
-              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: getAnalyzerColor(name) }} />
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: getDetectorColor(name) }} />
               {name}
             </span>
           ))}

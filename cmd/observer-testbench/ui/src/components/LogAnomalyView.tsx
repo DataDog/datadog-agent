@@ -31,8 +31,8 @@ function scoreColor(score: number): string {
   return 'text-slate-400 bg-slate-700/40';
 }
 
-function processorBadgeColor(name: string): string {
-  // Simple deterministic color from processor name
+function detectorBadgeColor(name: string): string {
+  // Simple deterministic color from detector name
   const colors = [
     'text-purple-400 bg-purple-900/40',
     'text-blue-400 bg-blue-900/40',
@@ -67,8 +67,8 @@ function LogAnomalyCard({ anomaly, isExpanded, onToggle }: LogAnomalyCardProps) 
           {/* Content */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
-              <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${processorBadgeColor(anomaly.processorName)}`}>
-                {anomaly.processorName}
+              <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${detectorBadgeColor(anomaly.detectorName)}`}>
+                {anomaly.detectorName}
               </span>
               {anomaly.score !== undefined && (
                 <span className={`text-xs px-1.5 py-0.5 rounded font-mono ${scoreColor(anomaly.score)}`}>
@@ -183,49 +183,49 @@ export function LogAnomalyView({ state, actions, sidebarWidth }: LogAnomalyViewP
   const scenarios = state.scenarios ?? [];
   const allLogAnomalies = state.logAnomalies ?? [];
 
-  const [enabledProcessors, setEnabledProcessors] = useState<Set<string>>(new Set());
+  const [enabledDetectors, setEnabledDetectors] = useState<Set<string>>(new Set());
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const initializedScenarioRef = useRef<string | null>(null);
 
-  // Derive all unique processor names from the anomalies
-  const processorNames = useMemo(() => {
+  // Derive all unique detector names from the anomalies
+  const detectorNames = useMemo(() => {
     const names = new Set<string>();
-    for (const a of allLogAnomalies) names.add(a.processorName);
+    for (const a of allLogAnomalies) names.add(a.detectorName);
     return Array.from(names).sort();
   }, [allLogAnomalies]);
 
-  // Auto-enable all processors when a new scenario is loaded
+  // Auto-enable all detectors when a new scenario is loaded
   useEffect(() => {
-    if (processorNames.length > 0 && state.activeScenario && initializedScenarioRef.current !== state.activeScenario) {
+    if (detectorNames.length > 0 && state.activeScenario && initializedScenarioRef.current !== state.activeScenario) {
       initializedScenarioRef.current = state.activeScenario;
-      setEnabledProcessors(new Set(processorNames));
+      setEnabledDetectors(new Set(detectorNames));
       setExpandedIndex(null);
     }
-  }, [processorNames, state.activeScenario]);
+  }, [detectorNames, state.activeScenario]);
 
-  // Filter anomalies by enabled processors, sorted by timestamp
+  // Filter anomalies by enabled detectors, sorted by timestamp
   const filteredAnomalies = useMemo(() => {
     return allLogAnomalies
-      .filter((a) => enabledProcessors.has(a.processorName))
+      .filter((a) => enabledDetectors.has(a.detectorName))
       .sort((a, b) => a.timestamp - b.timestamp);
-  }, [allLogAnomalies, enabledProcessors]);
+  }, [allLogAnomalies, enabledDetectors]);
 
-  const countByProcessor = useMemo(() => {
+  const countByDetector = useMemo(() => {
     const counts = new Map<string, number>();
     for (const a of allLogAnomalies) {
-      counts.set(a.processorName, (counts.get(a.processorName) ?? 0) + 1);
+      counts.set(a.detectorName, (counts.get(a.detectorName) ?? 0) + 1);
     }
     return counts;
   }, [allLogAnomalies]);
 
-  const toggleProcessor = (name: string) => {
-    const next = new Set(enabledProcessors);
+  const toggleDetector = (name: string) => {
+    const next = new Set(enabledDetectors);
     if (next.has(name)) {
       next.delete(name);
     } else {
       next.add(name);
     }
-    setEnabledProcessors(next);
+    setEnabledDetectors(next);
     setExpandedIndex(null);
   };
 
@@ -265,17 +265,17 @@ export function LogAnomalyView({ state, actions, sidebarWidth }: LogAnomalyViewP
           onLoadScenario={actions.loadScenario}
         />
 
-        {/* Processor filter */}
+        {/* Detector filter */}
         <div className="p-4 border-b border-slate-700">
           <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-            Log Processors
+            Log Detectors
           </h2>
-          {processorNames.length === 0 ? (
+          {detectorNames.length === 0 ? (
             <div className="text-sm text-slate-500">No log anomalies detected</div>
           ) : (
             <div className="space-y-1">
-              {processorNames.map((name) => {
-                const count = countByProcessor.get(name) ?? 0;
+              {detectorNames.map((name) => {
+                const count = countByDetector.get(name) ?? 0;
                 return (
                   <label
                     key={name}
@@ -283,8 +283,8 @@ export function LogAnomalyView({ state, actions, sidebarWidth }: LogAnomalyViewP
                   >
                     <input
                       type="checkbox"
-                      checked={enabledProcessors.has(name)}
-                      onChange={() => toggleProcessor(name)}
+                      checked={enabledDetectors.has(name)}
+                      onChange={() => toggleDetector(name)}
                       className="rounded border-slate-600 bg-slate-700 text-orange-500 focus:ring-orange-500"
                     />
                     <span className="text-sm text-slate-300 flex-1 truncate">{name}</span>
@@ -373,7 +373,7 @@ export function LogAnomalyView({ state, actions, sidebarWidth }: LogAnomalyViewP
               <div className="text-center py-20">
                 <div className="text-slate-400 text-lg">No log anomalies detected</div>
                 <div className="text-slate-500 mt-2 text-sm">
-                  Log anomalies are emitted directly by log processors when critical patterns are detected.
+                  Log anomalies are emitted directly by log detectors when critical patterns are detected.
                   Load a scenario with log files to see results.
                 </div>
               </div>
@@ -389,7 +389,7 @@ export function LogAnomalyView({ state, actions, sidebarWidth }: LogAnomalyViewP
                 {/* Event list */}
                 {filteredAnomalies.length === 0 ? (
                   <div className="text-center py-10 text-slate-500">
-                    No anomalies match the selected processors
+                    No anomalies match the selected detectors
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -403,7 +403,7 @@ export function LogAnomalyView({ state, actions, sidebarWidth }: LogAnomalyViewP
                         <div className="space-y-1.5">
                           {group.anomalies.map(({ anomaly, idx }) => (
                             <LogAnomalyCard
-                              key={`${anomaly.processorName}-${anomaly.timestamp}-${idx}`}
+                              key={`${anomaly.detectorName}-${anomaly.timestamp}-${idx}`}
                               anomaly={anomaly}
                               isExpanded={expandedIndex === idx}
                               onToggle={() => setExpandedIndex(expandedIndex === idx ? null : idx)}

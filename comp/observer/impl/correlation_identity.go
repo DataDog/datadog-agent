@@ -11,7 +11,7 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
-func sortedUniqueMetricNames(anomalies []observer.AnomalyOutput) []observer.MetricName {
+func sortedUniqueMetricNames(anomalies []observer.Anomaly) []observer.MetricName {
 	seen := make(map[observer.MetricName]struct{})
 	for _, a := range anomalies {
 		if a.Source == "" {
@@ -27,7 +27,7 @@ func sortedUniqueMetricNames(anomalies []observer.AnomalyOutput) []observer.Metr
 	return names
 }
 
-func sortedUniqueSeriesIDs(anomalies []observer.AnomalyOutput) []observer.SeriesID {
+func sortedUniqueSeriesIDs(anomalies []observer.Anomaly) []observer.SeriesID {
 	seen := make(map[observer.SeriesID]struct{})
 	for _, a := range anomalies {
 		if a.SourceSeriesID == "" {

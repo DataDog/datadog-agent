@@ -43,7 +43,7 @@ function scoreColor(score: number): string {
   return 'text-slate-400 bg-slate-700/40';
 }
 
-function processorBadgeColor(name: string): string {
+function detectorBadgeColor(name: string): string {
   const colors = [
     'text-purple-400 bg-purple-900/40',
     'text-blue-400 bg-blue-900/40',
@@ -56,7 +56,7 @@ function processorBadgeColor(name: string): string {
   return colors[Math.abs(hash) % colors.length];
 }
 
-function processorLineColor(name: string): string {
+function detectorLineColor(name: string): string {
   const colors = ['#c084fc', '#60a5fa', '#22d3ee', '#2dd4bf', '#4ade80'];
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) & 0xffffffff;
@@ -90,17 +90,17 @@ function LogRateChart({
 
   const maxLog = Math.max(1, ...logBuckets);
 
-  // Derive unique processors for the legend
-  const processors = Array.from(new Set(anomalies.map((a) => a.processorName)));
+  // Derive unique detectors for the legend
+  const detectors = Array.from(new Set(anomalies.map((a) => a.detectorName)));
 
   return (
     <div className="bg-slate-800/60 rounded p-3 mb-4">
       <div className="flex items-center gap-4 text-xs text-slate-400 mb-1.5">
         <span>Log rate ({logs.length} log{logs.length !== 1 ? 's' : ''} total)</span>
-        {processors.map((name) => (
+        {detectors.map((name) => (
           <span key={name} className="flex items-center gap-1">
-            <span className="inline-block w-2 h-2 rounded-sm" style={{ backgroundColor: processorLineColor(name) }} />
-            <span style={{ color: processorLineColor(name) }}>{name}</span>
+            <span className="inline-block w-2 h-2 rounded-sm" style={{ backgroundColor: detectorLineColor(name) }} />
+            <span style={{ color: detectorLineColor(name) }}>{name}</span>
           </span>
         ))}
       </div>
@@ -116,17 +116,17 @@ function LogRateChart({
             />
           ))}
         </div>
-        {/* Anomaly lines — one vertical line per anomaly, colored by processor */}
+        {/* Anomaly lines — one vertical line per anomaly, colored by detector */}
         {anomalies.map((a, i) => {
           const pct = ((a.timestamp - scenarioStart) / (scenarioEnd - scenarioStart)) * 100;
           if (pct < 0 || pct > 100) return null;
-          const color = processorLineColor(a.processorName);
+          const color = detectorLineColor(a.detectorName);
           return (
             <div
               key={i}
               className="absolute top-0 bottom-0"
               style={{ left: `${pct}%` }}
-              title={`${a.processorName}: ${a.title}`}
+              title={`${a.detectorName}: ${a.title}`}
             >
               {/* Downward triangle at the top of the line */}
               <div style={{
@@ -241,8 +241,8 @@ function LogAnomalyCard({ anomaly, isExpanded, onToggle }: LogAnomalyCardProps) 
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
-              <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${processorBadgeColor(anomaly.processorName)}`}>
-                {anomaly.processorName}
+              <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${detectorBadgeColor(anomaly.detectorName)}`}>
+                {anomaly.detectorName}
               </span>
               {anomaly.score !== undefined && (
                 <span className={`text-xs px-1.5 py-0.5 rounded font-mono ${scoreColor(anomaly.score)}`}>
@@ -536,7 +536,7 @@ export function LogView({ state, actions, sidebarWidth }: LogViewProps) {
                   <div className="space-y-1.5">
                     {sortedAnomalies.map((anomaly, idx) => (
                       <LogAnomalyCard
-                        key={`${anomaly.processorName}-${anomaly.timestamp}-${idx}`}
+                        key={`${anomaly.detectorName}-${anomaly.timestamp}-${idx}`}
                         anomaly={anomaly}
                         isExpanded={expandedAnomalyIndex === idx}
                         onToggle={() =>

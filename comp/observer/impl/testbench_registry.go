@@ -11,7 +11,7 @@ import observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 type ComponentRegistration struct {
 	Name           string // unique identifier (e.g. "cusum", "lead_lag")
 	DisplayName    string // human-readable name (e.g. "CUSUM", "Lead-Lag")
-	Category       string // "analyzer", "correlator", or "processing"
+	Category       string // "detector", "correlator", or "processing"
 	DefaultEnabled bool
 	Factory        func(tb *TestBench) interface{}
 }
@@ -24,18 +24,18 @@ type registeredComponent struct {
 }
 
 // CorrelatorDataProvider is implemented by correlators that expose extra data
-// beyond what the AnomalyProcessor interface provides (e.g. edges, clusters).
+// beyond what the Correlator interface provides (e.g. edges, clusters).
 type CorrelatorDataProvider interface {
 	GetExtraData() interface{}
 }
 
 // defaultRegistry defines all available testbench components.
 var defaultRegistry = []ComponentRegistration{
-	// Analyzers
+	// Detectors
 	{
 		Name:           "cusum",
 		DisplayName:    "CUSUM",
-		Category:       "analyzer",
+		Category:       "detector",
 		DefaultEnabled: true,
 		Factory: func(tb *TestBench) interface{} {
 			cusum := NewCUSUMDetector()
@@ -46,7 +46,7 @@ var defaultRegistry = []ComponentRegistration{
 	{
 		Name:           "bocpd",
 		DisplayName:    "BOCPD",
-		Category:       "analyzer",
+		Category:       "detector",
 		DefaultEnabled: true,
 		Factory: func(tb *TestBench) interface{} {
 			return NewBOCPDDetector()
@@ -107,12 +107,12 @@ var defaultRegistry = []ComponentRegistration{
 	},
 }
 
-// enabledAnalyzers returns all enabled TimeSeriesAnalysis instances.
-func (tb *TestBench) enabledAnalyzers() []observerdef.TimeSeriesAnalysis {
-	var result []observerdef.TimeSeriesAnalysis
+// enabledDetectors returns all enabled MetricsDetector instances.
+func (tb *TestBench) enabledDetectors() []observerdef.MetricsDetector {
+	var result []observerdef.MetricsDetector
 	for _, comp := range tb.components {
-		if comp.Enabled && comp.Registration.Category == "analyzer" {
-			if a, ok := comp.Instance.(observerdef.TimeSeriesAnalysis); ok {
+		if comp.Enabled && comp.Registration.Category == "detector" {
+			if a, ok := comp.Instance.(observerdef.MetricsDetector); ok {
 				result = append(result, a)
 			}
 		}
@@ -120,12 +120,12 @@ func (tb *TestBench) enabledAnalyzers() []observerdef.TimeSeriesAnalysis {
 	return result
 }
 
-// enabledCorrelators returns all enabled AnomalyProcessor instances.
-func (tb *TestBench) enabledCorrelators() []observerdef.AnomalyProcessor {
-	var result []observerdef.AnomalyProcessor
+// enabledCorrelators returns all enabled Correlator instances.
+func (tb *TestBench) enabledCorrelators() []observerdef.Correlator {
+	var result []observerdef.Correlator
 	for _, comp := range tb.components {
 		if comp.Enabled && comp.Registration.Category == "correlator" {
-			if p, ok := comp.Instance.(observerdef.AnomalyProcessor); ok {
+			if p, ok := comp.Instance.(observerdef.Correlator); ok {
 				result = append(result, p)
 			}
 		}
@@ -133,12 +133,12 @@ func (tb *TestBench) enabledCorrelators() []observerdef.AnomalyProcessor {
 	return result
 }
 
-// allCorrelators returns all AnomalyProcessor instances (enabled or not), for reset.
-func (tb *TestBench) allCorrelators() []observerdef.AnomalyProcessor {
-	var result []observerdef.AnomalyProcessor
+// allCorrelators returns all Correlator instances (enabled or not), for reset.
+func (tb *TestBench) allCorrelators() []observerdef.Correlator {
+	var result []observerdef.Correlator
 	for _, comp := range tb.components {
 		if comp.Registration.Category == "correlator" {
-			if p, ok := comp.Instance.(observerdef.AnomalyProcessor); ok {
+			if p, ok := comp.Instance.(observerdef.Correlator); ok {
 				result = append(result, p)
 			}
 		}

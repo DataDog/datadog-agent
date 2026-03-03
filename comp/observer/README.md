@@ -8,51 +8,51 @@ Observes data flowing through the agent for sampling and analysis.
 
 **Handle** is the lightweight interface passed to data pipelines. It has two methods:
 
-- `ObserveMetric(MetricView)` — adds the metric to storage, then runs time series analyses on the updated series.
-- `ObserveLog(LogView)` — runs all log analyses. Any metrics they produce are added to storage and trigger time series analysis.
+- `ObserveMetric(MetricView)` — adds the metric to storage, then runs metrics detection on the updated series.
+- `ObserveLog(LogView)` — runs all log detectors. Any metrics they produce are added to storage and trigger metrics detection.
 
 **MetricView / LogView** are read-only interfaces to avoid data races. The underlying data may be reused after the call returns, so copy any values you need synchronously.
 
 **Storage** accumulates metrics into per-second buckets, tracking sum/count/min/max for each series. When retrieved, you specify an aggregation (average, sum, count, min, max) to collapse each bucket to a single value.
 
-**LogAnalysis** transforms logs into metrics and anomaly events:
+**LogDetector** transforms logs into metrics and anomaly events:
 ```
-Analyze(LogView) → LogAnalysisResult{Metrics[], Anomalies[]}
+Process(log LogView) → LogDetectionResult{Metrics[], Anomalies[]}
 ```
 Implementations should be stateless and fast since they run synchronously on every log.
 
-**TimeSeriesAnalysis** detects anomalies from accumulated time series:
+**MetricsDetector** detects anomalies from accumulated time series:
 ```
-Analyze(Series) → TimeSeriesAnalysisResult{Anomalies[]}
+Detect(Series) → MetricsDetectionResult{Anomalies[]}
 ```
 Receives a series of aggregated points. Implementations should be stateless and just do math on the points.
 
-**AnomalyConsumer** receives and accumulates anomaly events from all analyses:
+**Correlator** receives and accumulates anomaly events from all analyses:
 ```
-Consume(AnomalyOutput)
-Report()
+Process(anomaly Anomaly)
+Flush() []ReportOutput
 ```
-Unlike analyses, consumers are stateful. They accumulate events and process them when `Report()` is called.
+Unlike analyses, correlators are stateful. They accumulate events and produce reports when `Flush()` is called.
 
 ## Threading Model
 
 Handles are the only concurrent part. They copy data and send it over a channel. Everything else (storage, analyses, consumers) runs in a single dispatch goroutine, so no locks are needed in component implementations.
 
-## Writing a New Analysis
+## Writing a New Log Detector
 
-Implement `LogAnalysis` or `TimeSeriesAnalysis`:
+Implement `LogDetector` or `MetricsDetector`:
 
 ```go
-type MyLogAnalysis struct{}
+type MyLogDetector struct{}
 
-func (m *MyLogAnalysis) Name() string { return "my_analysis" }
+func (m *MyLogDetector) Name() string { return "my_detector" }
 
-func (m *MyLogAnalysis) Analyze(log observer.LogView) observer.LogAnalysisResult {
+func (m *MyLogDetector) Process(log observer.LogView) observer.LogDetectionResult {
     // Extract what you need synchronously - don't store the view
     content := string(log.GetContent())
 
     // Return metrics and/or anomalies
-    return observer.LogAnalysisResult{
+    return observer.LogDetectionResult{
         Metrics: []observer.MetricOutput{{
             Name:  "my.metric",
             Value: 1,
@@ -66,35 +66,36 @@ Register in `observer.go`:
 
 ```go
 obs := &observerImpl{
-    logProcessors: []observerdef.LogProcessor{
-        &LogTimeSeriesAnalysis{},
-        &MyLogProcessor{},  // add here
+    logDetectors: []observerdef.LogDetector{
+        &MyLogDetector{},  // add here
     },
     // ...
 }
 ```
 
-## Writing a New Consumer
+## Writing a New Correlator
 
-Implement `AnomalyConsumer`:
+Implement `Correlator`:
 
 ```go
-type MyConsumer struct {
-    events []observer.AnomalyOutput
+type MyCorrelator struct {
+    events []observer.Anomaly
 }
 
-func (c *MyConsumer) Name() string { return "my_consumer" }
+func (c *MyCorrelator) Name() string { return "my_correlator" }
 
-func (c *MyConsumer) Consume(anomaly observer.AnomalyOutput) {
+func (c *MyCorrelator) Process(anomaly observer.Anomaly) {
     c.events = append(c.events, anomaly)
 }
 
-func (c *MyConsumer) Report() {
+func (c *MyCorrelator) Flush() []observer.ReportOutput {
     // Do something with accumulated events
+    var reports []observer.ReportOutput
     for _, e := range c.events {
-        fmt.Printf("Anomaly: %s\n", e.Title)
+        reports = append(reports, observer.ReportOutput{Title: e.Title})
     }
     c.events = nil
+    return reports
 }
 ```
 
@@ -102,9 +103,9 @@ Register in `observer.go`:
 
 ```go
 obs := &observerImpl{
-    consumers: []observerdef.AnomalyConsumer{
-        &MemoryConsumer{},
-        &MyConsumer{},  // add here
+    correlators: []observerdef.Correlator{
+        &MemoryCorrelator{},
+        &MyCorrelator{},  // add here
     },
     // ...
 }

@@ -263,24 +263,24 @@ func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namesp
 
 	type anomalyMarker struct {
 		Timestamp         int64  `json:"timestamp"`
-		AnalyzerName      string `json:"analyzerName"`
-		AnalyzerComponent string `json:"analyzerComponent"`
+		DetectorName      string `json:"detectorName"`
+		DetectorComponent string `json:"detectorComponent"`
 		SourceSeriesID    string `json:"sourceSeriesId"`
 		Title             string `json:"title"`
 	}
 
 	var markers []anomalyMarker
-	analyzerComponentMap := api.tb.GetAnalyzerComponentMap()
+	detectorComponentMap := api.tb.GetDetectorComponentMap()
 	for _, a := range anomalies {
-		if a.AnalyzerName == "" || a.Timestamp == 0 {
-			log.Printf("skipping malformed anomaly marker for series %q: analyzer=%q ts=%d",
-				string(seriesID), a.AnalyzerName, a.Timestamp)
+		if a.DetectorName == "" || a.Timestamp == 0 {
+			log.Printf("skipping malformed anomaly marker for series %q: detector=%q ts=%d",
+				string(seriesID), a.DetectorName, a.Timestamp)
 			continue
 		}
 		markers = append(markers, anomalyMarker{
 			Timestamp:         a.Timestamp,
-			AnalyzerName:      a.AnalyzerName,
-			AnalyzerComponent: analyzerComponentMap[a.AnalyzerName],
+			DetectorName:      a.DetectorName,
+			DetectorComponent: detectorComponentMap[a.DetectorName],
 			SourceSeriesID:    string(seriesID),
 			Title:             a.Title,
 		})
@@ -325,8 +325,8 @@ func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namesp
 
 // handleAnomalies returns all detected anomalies.
 func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
-	// Check for analyzer filter
-	analyzerFilter := r.URL.Query().Get("analyzer")
+	// Check for detector filter
+	detectorFilter := r.URL.Query().Get("detector")
 
 	type debugInfoResponse struct {
 		BaselineStart  int64     `json:"baselineStart"`
@@ -345,8 +345,8 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 	type anomalyResponse struct {
 		Source            string             `json:"source"`
 		SourceSeriesID    string             `json:"sourceSeriesId"`
-		AnalyzerName      string             `json:"analyzerName"`
-		AnalyzerComponent string             `json:"analyzerComponent"`
+		DetectorName      string             `json:"detectorName"`
+		DetectorComponent string             `json:"detectorComponent"`
 		Title             string             `json:"title"`
 		Description       string             `json:"description"`
 		Tags              []string           `json:"tags"`
@@ -354,14 +354,14 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 		DebugInfo         *debugInfoResponse `json:"debugInfo,omitempty"`
 	}
 
-	analyzerComponentMap := api.tb.GetAnalyzerComponentMap()
+	detectorComponentMap := api.tb.GetDetectorComponentMap()
 
-	toResponse := func(a observerdef.AnomalyOutput) anomalyResponse {
+	toResponse := func(a observerdef.Anomaly) anomalyResponse {
 		resp := anomalyResponse{
 			Source:            string(a.Source),
 			SourceSeriesID:    string(a.SourceSeriesID),
-			AnalyzerName:      a.AnalyzerName,
-			AnalyzerComponent: analyzerComponentMap[a.AnalyzerName],
+			DetectorName:      a.DetectorName,
+			DetectorComponent: detectorComponentMap[a.DetectorName],
 			Title:             a.Title,
 			Description:       a.Description,
 			Tags:              a.Tags,
@@ -387,14 +387,14 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 
 	var response []anomalyResponse
 
-	if analyzerFilter != "" {
-		// Return only anomalies from specified analyzer
-		byAnalyzer := api.tb.GetMetricsAnomaliesByAnalyzer()
-		if anomalies, ok := byAnalyzer[analyzerFilter]; ok {
+	if detectorFilter != "" {
+		// Return only anomalies from specified detector
+		byDetector := api.tb.GetMetricsAnomaliesByDetector()
+		if anomalies, ok := byDetector[detectorFilter]; ok {
 			for _, a := range anomalies {
-				if a.AnalyzerName == "" || a.Timestamp == 0 {
-					log.Printf("skipping malformed anomaly response: analyzer=%q source=%q ts=%d",
-						a.AnalyzerName, a.Source, a.Timestamp)
+				if a.DetectorName == "" || a.Timestamp == 0 {
+					log.Printf("skipping malformed anomaly response: detector=%q source=%q ts=%d",
+						a.DetectorName, a.Source, a.Timestamp)
 					continue
 				}
 				response = append(response, toResponse(a))
@@ -404,9 +404,9 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 		// Return all anomalies
 		anomalies := api.tb.GetMetricsAnomalies()
 		for _, a := range anomalies {
-			if a.AnalyzerName == "" || a.Timestamp == 0 {
-				log.Printf("skipping malformed anomaly response: analyzer=%q source=%q ts=%d",
-					a.AnalyzerName, a.Source, a.Timestamp)
+			if a.DetectorName == "" || a.Timestamp == 0 {
+				log.Printf("skipping malformed anomaly response: detector=%q source=%q ts=%d",
+					a.DetectorName, a.Source, a.Timestamp)
 				continue
 			}
 			response = append(response, toResponse(a))
@@ -416,24 +416,24 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 	api.writeJSON(w, response)
 }
 
-// handleLogAnomalies returns anomalies emitted directly by log processors.
+// handleLogAnomalies returns anomalies emitted directly by log detectors.
 func (api *TestBenchAPI) handleLogAnomalies(w http.ResponseWriter, r *http.Request) {
-	processorFilter := r.URL.Query().Get("processor")
+	detectorFilter := r.URL.Query().Get("detector")
 
 	type logAnomalyResponse struct {
-		Source        string   `json:"source"`
-		ProcessorName string   `json:"processorName"`
-		Title         string   `json:"title"`
-		Description   string   `json:"description"`
-		Tags          []string `json:"tags"`
-		Timestamp     int64    `json:"timestamp"`
-		Score         *float64 `json:"score,omitempty"`
+		Source       string   `json:"source"`
+		DetectorName string   `json:"detectorName"`
+		Title        string   `json:"title"`
+		Description  string   `json:"description"`
+		Tags         []string `json:"tags"`
+		Timestamp    int64    `json:"timestamp"`
+		Score        *float64 `json:"score,omitempty"`
 	}
 
-	var anomalies []observerdef.AnomalyOutput
-	if processorFilter != "" {
-		byProcessor := api.tb.GetLogAnomaliesByProcessor()
-		anomalies = byProcessor[processorFilter]
+	var anomalies []observerdef.Anomaly
+	if detectorFilter != "" {
+		byDetector := api.tb.GetLogAnomaliesByDetector()
+		anomalies = byDetector[detectorFilter]
 	} else {
 		anomalies = api.tb.GetLogAnomalies()
 	}
@@ -441,8 +441,8 @@ func (api *TestBenchAPI) handleLogAnomalies(w http.ResponseWriter, r *http.Reque
 	response := make([]logAnomalyResponse, 0, len(anomalies))
 	for _, a := range anomalies {
 		response = append(response, logAnomalyResponse{
-			Source:        string(a.Source),
-			ProcessorName: a.AnalyzerName,
+			Source:       string(a.Source),
+			DetectorName: a.DetectorName,
 			Title:         a.Title,
 			Description:   a.Description,
 			Tags:          a.Tags,

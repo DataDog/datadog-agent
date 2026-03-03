@@ -3,8 +3,8 @@ import * as d3 from 'd3';
 import type { Point, AnomalyMarker, SeriesID } from '../api/client';
 import type { CorrelationRange, TimeRange } from './ChartWithAnomalyDetails';
 
-// Analyzer color palette - colors are assigned by stable index
-const ANALYZER_PALETTE: { fill: string; stroke: string }[] = [
+// Detector color palette - colors are assigned by stable index
+const DETECTOR_PALETTE: { fill: string; stroke: string }[] = [
   { fill: 'rgba(239, 68, 68, 0.2)', stroke: '#ef4444' },    // red
   { fill: 'rgba(59, 130, 246, 0.2)', stroke: '#3b82f6' },    // blue
   { fill: 'rgba(34, 197, 94, 0.2)', stroke: '#22c55e' },     // green
@@ -14,18 +14,18 @@ const ANALYZER_PALETTE: { fill: string; stroke: string }[] = [
 ];
 
 // Build a stable name-to-color mapping from palette
-const analyzerColorCache = new Map<string, { fill: string; stroke: string }>();
-let nextAnalyzerColorIndex = 0;
+const detectorColorCache = new Map<string, { fill: string; stroke: string }>();
+let nextDetectorColorIndex = 0;
 
-export function getAnalyzerColorStable(analyzerName: string) {
-  if (!analyzerColorCache.has(analyzerName)) {
-    analyzerColorCache.set(analyzerName, ANALYZER_PALETTE[nextAnalyzerColorIndex % ANALYZER_PALETTE.length]);
-    nextAnalyzerColorIndex++;
+export function getDetectorColorStable(detectorName: string) {
+  if (!detectorColorCache.has(detectorName)) {
+    detectorColorCache.set(detectorName, DETECTOR_PALETTE[nextDetectorColorIndex % DETECTOR_PALETTE.length]);
+    nextDetectorColorIndex++;
   }
-  return analyzerColorCache.get(analyzerName)!;
+  return detectorColorCache.get(detectorName)!;
 }
 
-// Correlation range colors - distinct from analyzer colors
+// Correlation range colors - distinct from detector colors
 const CORRELATION_COLORS = [
   { fill: 'rgba(16, 185, 129, 0.15)', stroke: '#10b981' },   // emerald
   { fill: 'rgba(245, 158, 11, 0.15)', stroke: '#f59e0b' },   // amber
@@ -58,8 +58,8 @@ export function getSeriesVariantColor(index: number) {
 }
 
 function getAnomalyMarkerId(anomaly: AnomalyMarker): string {
-  const analyzerId = anomaly.analyzerComponent ?? anomaly.analyzerName;
-  return `${analyzerId}:${anomaly.sourceSeriesId ?? 'unknown'}:${anomaly.timestamp}:${anomaly.title}`;
+  const detectorId = anomaly.detectorComponent ?? anomaly.detectorName;
+  return `${detectorId}:${anomaly.sourceSeriesId ?? 'unknown'}:${anomaly.timestamp}:${anomaly.title}`;
 }
 
 // Represents one concrete tagged series variant drawn as a separate line.
@@ -69,12 +69,12 @@ export interface SeriesVariant {
   seriesId?: SeriesID;
 }
 
-interface TimeSeriesChartProps {
+interface MetricsChartProps {
   name: string;
   points: Point[];
   anomalies: AnomalyMarker[];
   correlationRanges?: CorrelationRange[];
-  enabledAnalyzers: Set<string>;
+  enabledDetectors: Set<string>;
   timeRange?: TimeRange | null;
   onTimeRangeChange?: (range: TimeRange | null) => void;
   height?: number;
@@ -89,12 +89,12 @@ interface TimeSeriesChartProps {
   isTelemetry?: boolean;
 }
 
-export function TimeSeriesChart({
+export function MetricsChart({
   name,
   points,
   anomalies,
   correlationRanges = [],
-  enabledAnalyzers,
+  enabledDetectors,
   timeRange,
   onTimeRangeChange,
   height = 200,
@@ -107,7 +107,7 @@ export function TimeSeriesChart({
   onMarkerHover,
   onMarkerClick,
   isTelemetry = false,
-}: TimeSeriesChartProps) {
+}: MetricsChartProps) {
   const [showCorrelationLegend, setShowCorrelationLegend] = useState(false);
   const [showSeriesLegend, setShowSeriesLegend] = useState(false);
   const [hoveredLegendSeriesId, setHoveredLegendSeriesId] = useState<SeriesID | null>(null);
@@ -127,15 +127,15 @@ export function TimeSeriesChart({
     return visibleSeriesIds.has(seriesId);
   };
 
-  // Filter anomalies by enabled analyzers (and visible series variants when present)
+  // Filter anomalies by enabled detectors (and visible series variants when present)
   const filteredAnomalies = useMemo(
     () =>
       (anomalies ?? []).filter((a): a is AnomalyMarker => {
         if (!a) return false;
-        const analyzerID = a.analyzerComponent ?? a.analyzerName;
-        return !!analyzerID && enabledAnalyzers.has(analyzerID) && isSeriesVisible(a.sourceSeriesId);
+        const detectorID = a.detectorComponent ?? a.detectorName;
+        return !!detectorID && enabledDetectors.has(detectorID) && isSeriesVisible(a.sourceSeriesId);
       }),
-    [anomalies, enabledAnalyzers, visibleSeriesIds]
+    [anomalies, enabledDetectors, visibleSeriesIds]
   );
 
   // Filter points by time range
@@ -311,7 +311,7 @@ export function TimeSeriesChart({
         if (!dataPoint) return;
 
         const baseY = yScale(dataPoint.value);
-        const color = getAnalyzerColorStable(anomaly.analyzerName);
+        const color = getDetectorColorStable(anomaly.detectorName);
         const xOffset = numAnomalies > 1 ? (idx - (numAnomalies - 1) / 2) * 8 : 0;
         const markerId = getAnomalyMarkerId(anomaly);
         markerData.push({
@@ -610,12 +610,12 @@ export function TimeSeriesChart({
         </div>
         <div className="flex gap-2 items-center flex-shrink-0">
           {/* Detector legend - only show if there are anomalies */}
-          {filteredAnomalies.length > 0 && Array.from(new Set(filteredAnomalies.map((a) => a.analyzerName))).map((analyzer) => {
-            const color = getAnalyzerColorStable(analyzer);
-            const displayName = analyzer;
+          {filteredAnomalies.length > 0 && Array.from(new Set(filteredAnomalies.map((a) => a.detectorName))).map((detector) => {
+            const color = getDetectorColorStable(detector);
+            const displayName = detector;
             return (
               <span
-                key={analyzer}
+                key={detector}
                 className="text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1"
                 style={{ backgroundColor: color.fill, color: color.stroke }}
               >

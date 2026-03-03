@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useObserver } from './hooks/useObserver';
-import { TSAnalysisView } from './components/TSAnalysisView';
+import { MetricsView } from './components/MetricsView';
 import { CorrelatorView } from './components/CorrelatorView';
 import { LogView } from './components/LogView';
 
@@ -202,7 +202,7 @@ function App() {
 
         {/* Tab content - both tabs stay mounted to preserve state */}
         <div className={`flex-1 flex ${activeTab !== 'timeseries' ? 'hidden' : ''}`}>
-          <TSAnalysisView
+          <MetricsView
             state={state}
             actions={actions}
             sidebarWidth={sidebarWidth}

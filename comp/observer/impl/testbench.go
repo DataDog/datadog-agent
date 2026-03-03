@@ -53,24 +53,24 @@ type TestBench struct {
 	loadedScenario string
 	ready          bool
 
-	// Components (log processors are not registry-managed)
-	logProcessors []observerdef.LogProcessor
+	// Components (log detectors are not registry-managed)
+	logDetectors []observerdef.LogDetector
 
 	// Registry-managed components
 	components map[string]*registeredComponent
 
 	// Results (computed eagerly on scenario load)
-	metricsAnomalies  []observerdef.AnomalyOutput                          // all anomalies from TS analyses
-	correlations      []observerdef.ActiveCorrelation                      // from anomaly processors
-	metricsByAnalyzer map[string][]observerdef.AnomalyOutput               // metric anomalies grouped by analyzer
-	metricsBySeriesID map[observerdef.SeriesID][]observerdef.AnomalyOutput // metric anomalies grouped by source series id
+	metricsAnomalies  []observerdef.Anomaly                          // all anomalies from metrics detectors
+	correlations      []observerdef.ActiveCorrelation                      // from correlators
+	metricsByDetector map[string][]observerdef.Anomaly               // metric anomalies grouped by detector
+	metricsBySeriesID map[observerdef.SeriesID][]observerdef.Anomaly // metric anomalies grouped by source series id
 
 	// Raw log entries (collected during log loading)
 	rawLogs []storedLogEntry
 
-	// Log anomalies (collected during log loading, independent of TS analysis reruns)
-	logAnomalies            []observerdef.AnomalyOutput            // all anomalies from log processors
-	logAnomaliesByProcessor map[string][]observerdef.AnomalyOutput // anomalies grouped by processor name
+	// Log anomalies (collected during log loading, independent of metrics detection reruns)
+	logAnomalies            []observerdef.Anomaly            // all anomalies from log detectors
+	logAnomaliesByDetector map[string][]observerdef.Anomaly // anomalies grouped by detector name
 
 	// Async correlator processing
 	correlatorsProcessing bool  // true while background correlator goroutine is running
@@ -93,7 +93,7 @@ type ScenarioInfo struct {
 type ComponentInfo struct {
 	Name        string `json:"name"`
 	DisplayName string `json:"displayName"`
-	Category    string `json:"category"` // "analyzer", "correlator", "processing"
+	Category    string `json:"category"` // "detector", "correlator", "processing"
 	Enabled     bool   `json:"enabled"`
 }
 
@@ -135,9 +135,9 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 		config:  config,
 		storage: newTimeSeriesStorage(),
 
-		// Log processors are not registry-managed
-		logProcessors: []observerdef.LogProcessor{
-			&LogTimeSeriesAnalysis{
+		// Log detectors are not registry-managed
+		logDetectors: []observerdef.LogDetector{
+			&LogMetricsExtractor{
 				MaxEvalBytes: 4096,
 				ExcludeFields: map[string]struct{}{
 					"timestamp": {}, "ts": {}, "time": {},
@@ -148,11 +148,11 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 		},
 
 		components:              make(map[string]*registeredComponent),
-		metricsAnomalies:        []observerdef.AnomalyOutput{},
-		metricsByAnalyzer:       make(map[string][]observerdef.AnomalyOutput),
-		metricsBySeriesID:       make(map[observerdef.SeriesID][]observerdef.AnomalyOutput),
-		logAnomalies:            []observerdef.AnomalyOutput{},
-		logAnomaliesByProcessor: make(map[string][]observerdef.AnomalyOutput),
+		metricsAnomalies:        []observerdef.Anomaly{},
+		metricsByDetector:       make(map[string][]observerdef.Anomaly),
+		metricsBySeriesID:       make(map[observerdef.SeriesID][]observerdef.Anomaly),
+		logAnomalies:            []observerdef.Anomaly{},
+		logAnomaliesByDetector: make(map[string][]observerdef.Anomaly),
 	}
 
 	// Instantiate all registry components
@@ -250,18 +250,18 @@ func (tb *TestBench) LoadScenario(name string) error {
 
 	// Clear existing data
 	tb.storage = newTimeSeriesStorage()
-	tb.metricsAnomalies = []observerdef.AnomalyOutput{}
+	tb.metricsAnomalies = []observerdef.Anomaly{}
 	tb.correlations = []observerdef.ActiveCorrelation{}
-	tb.metricsByAnalyzer = make(map[string][]observerdef.AnomalyOutput)
-	tb.metricsBySeriesID = make(map[observerdef.SeriesID][]observerdef.AnomalyOutput)
+	tb.metricsByDetector = make(map[string][]observerdef.Anomaly)
+	tb.metricsBySeriesID = make(map[observerdef.SeriesID][]observerdef.Anomaly)
 	tb.rawLogs = nil
-	tb.logAnomalies = []observerdef.AnomalyOutput{}
-	tb.logAnomaliesByProcessor = make(map[string][]observerdef.AnomalyOutput)
+	tb.logAnomalies = []observerdef.Anomaly{}
+	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
 	tb.ready = false
 	tb.loadedScenario = name
 
 	// Reset ALL correlators (not just enabled) so disabled ones clear stale state
-	tb.resetAllProcessors()
+	tb.resetAllState()
 
 	// Load data from scenario
 	scenarioStart := time.Now()
@@ -294,20 +294,10 @@ func (tb *TestBench) LoadScenario(name string) error {
 	}
 	fmt.Printf("  Log loading took %s\n", time.Since(logsStart))
 
-	// Load event files
-	eventsDir := filepath.Join(scenarioPath, "events")
-	eventsStart := time.Now()
-	if _, err := os.Stat(eventsDir); err == nil {
-		if err := tb.loadEventsDir(eventsDir); err != nil {
-			return fmt.Errorf("failed to load events: %w", err)
-		}
-	}
-	fmt.Printf("  Event loading took %s\n", time.Since(eventsStart))
-
-	// Run analyses on all loaded data (analyzers sync, correlators async)
+	// Run analyses on all loaded data (detectors sync, correlators async)
 	analysisStart := time.Now()
-	tb.rerunAnalysesLocked()
-	fmt.Printf("  Analyzer phase took %s\n", time.Since(analysisStart))
+	tb.rerunDetectorsLocked()
+	fmt.Printf("  Detector phase took %s\n", time.Since(analysisStart))
 	fmt.Printf("  Total scenario load took %s (correlators running in background)\n", time.Since(scenarioStart))
 	fmt.Printf("Scenario loaded: %d series, %d metric anomalies, %d log entries, %d log anomalies\n", tb.seriesCount(), len(tb.metricsAnomalies), len(tb.rawLogs), len(tb.logAnomalies))
 
@@ -391,17 +381,17 @@ func (tb *TestBench) loadLogsDir(dir string) error {
 				Tags:      tags,
 			})
 
-			// Process through log processors
-			for _, processor := range tb.logProcessors {
-				result := processor.Process(log)
+			// Process through log detectors
+			for _, detector := range tb.logDetectors {
+				result := detector.Process(log)
 				for _, m := range result.Metrics {
 					tb.storage.Add("logs", m.Name, m.Value, timestamp, m.Tags)
 				}
 				for _, anomaly := range result.Anomalies {
-					// Fill in fields the processor may not have set
+					// Fill in fields the detector may not have set
 					anomaly.Type = observerdef.AnomalyTypeLog
-					if anomaly.AnalyzerName == "" {
-						anomaly.AnalyzerName = processor.Name()
+					if anomaly.DetectorName == "" {
+						anomaly.DetectorName = detector.Name()
 					}
 					if anomaly.Timestamp == 0 {
 						anomaly.Timestamp = timestamp
@@ -414,10 +404,10 @@ func (tb *TestBench) loadLogsDir(dir string) error {
 						anomaly.Source = "logs"
 					}
 					tb.logAnomalies = append(tb.logAnomalies, anomaly)
-					tb.logAnomaliesByProcessor[anomaly.AnalyzerName] = append(
-						tb.logAnomaliesByProcessor[anomaly.AnalyzerName], anomaly)
+					tb.logAnomaliesByDetector[anomaly.DetectorName] = append(
+						tb.logAnomaliesByDetector[anomaly.DetectorName], anomaly)
 				}
-				tb.handleTelemetry(result.Telemetry, processor.Name(), timestamp)
+				tb.handleTelemetry(result.Telemetry, detector.Name(), timestamp)
 			}
 		}
 		totalLogs += len(logs)
@@ -429,42 +419,8 @@ func (tb *TestBench) loadLogsDir(dir string) error {
 	return nil
 }
 
-// loadEventsDir loads all event files from a directory.
-func (tb *TestBench) loadEventsDir(dir string) error {
-	files, err := filepath.Glob(filepath.Join(dir, "*.json"))
-	if err != nil {
-		return err
-	}
-
-	enabledProcs := tb.enabledCorrelators()
-
-	totalEvents := 0
-	for _, file := range files {
-		events, err := LoadEventFile(file)
-		if err != nil {
-			fmt.Printf("  Warning: failed to load event file %s: %v\n", filepath.Base(file), err)
-			continue
-		}
-
-		// Send events to enabled anomaly processors that support them
-		for _, event := range events {
-			for _, proc := range enabledProcs {
-				if receiver, ok := proc.(observerdef.EventSignalReceiver); ok {
-					receiver.AddEventSignal(event)
-				}
-			}
-		}
-		totalEvents += len(events)
-	}
-
-	if totalEvents > 0 {
-		fmt.Printf("  Loaded %d events\n", totalEvents)
-	}
-	return nil
-}
-
-// resetAllProcessors resets all correlators and the deduplicator.
-func (tb *TestBench) resetAllProcessors() {
+// resetAllState resets all correlators and the deduplicator.
+func (tb *TestBench) resetAllState() {
 	for _, proc := range tb.allCorrelators() {
 		if resetter, ok := proc.(interface{ Reset() }); ok {
 			resetter.Reset()
@@ -501,7 +457,7 @@ func (tb *TestBench) GetStatus() StatusResponse {
 		SeriesCount:           tb.seriesCount(),
 		AnomalyCount:          len(tb.metricsAnomalies),
 		LogAnomalyCount:       len(tb.logAnomalies),
-		ComponentCount:        len(tb.logProcessors) + len(tb.components),
+		ComponentCount:        len(tb.logDetectors) + len(tb.components),
 		CorrelatorsProcessing: tb.correlatorsProcessing,
 		ScenarioStart:         scenarioStartPtr,
 		ScenarioEnd:           scenarioEndPtr,
@@ -558,33 +514,33 @@ func (tb *TestBench) UpdateConfigAndReanalyze(req ConfigUpdateRequest) error {
 
 	// Re-run analyses if config changed and scenario is loaded
 	if configChanged && tb.ready && tb.storage != nil {
-		tb.rerunAnalysesLocked()
+		tb.rerunDetectorsLocked()
 	}
 
 	return nil
 }
 
-// rerunAnalysesLocked re-runs all analyses on current data. Caller must hold lock.
-// Analyzers run synchronously (fast), then correlators run asynchronously in a
+// rerunDetectorsLocked re-runs all detectors on current data. Caller must hold lock.
+// Detectors run synchronously (fast), then correlators run asynchronously in a
 // background goroutine so the UI is not blocked by slow correlators.
-func (tb *TestBench) rerunAnalysesLocked() {
+func (tb *TestBench) rerunDetectorsLocked() {
 	// Clear existing results
 	tb.metricsAnomalies = tb.metricsAnomalies[:0]
 	tb.correlations = tb.correlations[:0]
-	for k := range tb.metricsByAnalyzer {
-		delete(tb.metricsByAnalyzer, k)
+	for k := range tb.metricsByDetector {
+		delete(tb.metricsByDetector, k)
 	}
 	for k := range tb.metricsBySeriesID {
 		delete(tb.metricsBySeriesID, k)
 	}
 
 	// Reset ALL correlators (not just enabled) so disabled ones clear stale state
-	tb.resetAllProcessors()
+	tb.resetAllState()
 
-	analyzers := tb.enabledAnalyzers()
+	detectors := tb.enabledDetectors()
 	dedup := tb.getDeduplicator()
 
-	// Phase 1 (sync): Run time series analyzers to collect anomalies
+	// Phase 1 (sync): Run time series detectors to collect anomalies
 	for _, ns := range tb.storage.Namespaces() {
 		for _, agg := range []Aggregate{AggregateAverage, AggregateCount} {
 			allSeries := tb.storage.AllSeries(ns, agg)
@@ -592,16 +548,16 @@ func (tb *TestBench) rerunAnalysesLocked() {
 				seriesCopy := series
 				seriesCopy.Name = series.Name + ":" + aggSuffix(agg)
 
-				for _, analyzer := range analyzers {
-					result := analyzer.Analyze(seriesCopy)
+				for _, detector := range detectors {
+					result := detector.Detect(seriesCopy)
 					for _, anomaly := range result.Anomalies {
 						anomaly.Type = observerdef.AnomalyTypeMetric
-						anomaly.AnalyzerName = analyzer.Name()
+						anomaly.DetectorName = detector.Name()
 						anomaly.Source = observerdef.MetricName(seriesCopy.Name)
 						anomaly.SourceSeriesID = observerdef.SeriesID(seriesKey(seriesCopy.Namespace, seriesCopy.Name, seriesCopy.Tags))
-						if anomaly.AnalyzerName == "" || anomaly.Source == "" || anomaly.Timestamp == 0 {
-							fmt.Printf("  Warning: dropping invalid anomaly (analyzer=%q source=%q ts=%d)\n",
-								anomaly.AnalyzerName, anomaly.Source, anomaly.Timestamp)
+						if anomaly.DetectorName == "" || anomaly.Source == "" || anomaly.Timestamp == 0 {
+							fmt.Printf("  Warning: dropping invalid anomaly (detector=%q source=%q ts=%d)\n",
+								anomaly.DetectorName, anomaly.Source, anomaly.Timestamp)
 							continue
 						}
 
@@ -613,7 +569,7 @@ func (tb *TestBench) rerunAnalysesLocked() {
 						}
 
 						tb.metricsAnomalies = append(tb.metricsAnomalies, anomaly)
-						tb.metricsByAnalyzer[anomaly.AnalyzerName] = append(tb.metricsByAnalyzer[anomaly.AnalyzerName], anomaly)
+						tb.metricsByDetector[anomaly.DetectorName] = append(tb.metricsByDetector[anomaly.DetectorName], anomaly)
 						if anomaly.SourceSeriesID != "" {
 							tb.metricsBySeriesID[anomaly.SourceSeriesID] = append(tb.metricsBySeriesID[anomaly.SourceSeriesID], anomaly)
 						}
@@ -623,20 +579,20 @@ func (tb *TestBench) rerunAnalysesLocked() {
 					if len(seriesCopy.Points) > 0 {
 						baseTimestamp = seriesCopy.Points[0].Timestamp
 					}
-					tb.handleTelemetry(result.Telemetry, analyzer.Name(), baseTimestamp)
+					tb.handleTelemetry(result.Telemetry, detector.Name(), baseTimestamp)
 				}
 			}
 		}
 	}
 
-	// Mark scenario ready now that analyzers are done — anomalies are available
+	// Mark scenario ready now that detectors are done — anomalies are available
 	tb.ready = true
 
 	// Snapshot anomalies sorted by time for the background goroutine.
 	// Anomalies are collected per-series, not in time order. Sorting ensures
 	// correlators see events chronologically, matching the live observer's
 	// behavior and preventing premature eviction of early clusters.
-	anomalySnapshot := make([]observerdef.AnomalyOutput, len(tb.metricsAnomalies))
+	anomalySnapshot := make([]observerdef.Anomaly, len(tb.metricsAnomalies))
 	copy(anomalySnapshot, tb.metricsAnomalies)
 	sort.Slice(anomalySnapshot, func(i, j int) bool {
 		return anomalySnapshot[i].Timestamp < anomalySnapshot[j].Timestamp
@@ -714,7 +670,7 @@ func (tb *TestBench) rerunAnalysesLocked() {
 
 // This will handle custom telemetry created by the anomaly detectors.
 // It includes metrics and logs.
-func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, analyzerName string, baseTimestamp int64) {
+func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, detectorName string, baseTimestamp int64) {
 	for _, telemetryEvent := range telemetry {
 		// Generate missing fields if needed
 		if telemetryEvent.Metric != nil {
@@ -727,11 +683,11 @@ func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, 
 			if metric.timestamp == 0 {
 				metric.timestamp = baseTimestamp
 			}
-			if telemetryEvent.AnalyzerName == "" {
-				telemetryEvent.AnalyzerName = analyzerName
+			if telemetryEvent.DetectorName == "" {
+				telemetryEvent.DetectorName = detectorName
 			}
 			// Save this for UI
-			tb.storage.Add("telemetry", "telemetry."+telemetryEvent.AnalyzerName+"."+metric.name, metric.value, metric.timestamp, metric.tags)
+			tb.storage.Add("telemetry", "telemetry."+telemetryEvent.DetectorName+"."+metric.name, metric.value, metric.timestamp, metric.tags)
 		}
 
 		if telemetryEvent.Log != nil {
@@ -745,7 +701,7 @@ func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, 
 			logTags := telemetryEvent.Log.GetTags()
 			tagsCopy := make([]string, 0, len(logTags)+2)
 			copy(tagsCopy, logTags)
-			tagsCopy = append(tagsCopy, "analyzer:"+analyzerName)
+			tagsCopy = append(tagsCopy, "detector:"+detectorName)
 			tagsCopy = append(tagsCopy, "telemetry:true")
 			log := storedLogEntry{
 				Content:   string(telemetryEvent.Log.GetContent()),
@@ -756,8 +712,8 @@ func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, 
 			if log.Status == "" {
 				log.Status = "info"
 			}
-			if telemetryEvent.AnalyzerName == "" {
-				telemetryEvent.AnalyzerName = analyzerName
+			if telemetryEvent.DetectorName == "" {
+				telemetryEvent.DetectorName = detectorName
 			}
 			// Save this for UI
 			tb.rawLogs = append(tb.rawLogs, log)
@@ -796,24 +752,24 @@ func (tb *TestBench) GetStorage() *timeSeriesStorage {
 	return tb.storage
 }
 
-// GetMetricsAnomalies returns all metric anomalies detected by TS analyzers.
-func (tb *TestBench) GetMetricsAnomalies() []observerdef.AnomalyOutput {
+// GetMetricsAnomalies returns all metric anomalies detected by TS detectors.
+func (tb *TestBench) GetMetricsAnomalies() []observerdef.Anomaly {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
-	result := make([]observerdef.AnomalyOutput, len(tb.metricsAnomalies))
+	result := make([]observerdef.Anomaly, len(tb.metricsAnomalies))
 	copy(result, tb.metricsAnomalies)
 	return result
 }
 
-// GetMetricsAnomaliesByAnalyzer returns metric anomalies grouped by analyzer name.
-func (tb *TestBench) GetMetricsAnomaliesByAnalyzer() map[string][]observerdef.AnomalyOutput {
+// GetMetricsAnomaliesByDetector returns metric anomalies grouped by detector name.
+func (tb *TestBench) GetMetricsAnomaliesByDetector() map[string][]observerdef.Anomaly {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
-	result := make(map[string][]observerdef.AnomalyOutput)
-	for k, v := range tb.metricsByAnalyzer {
-		copied := make([]observerdef.AnomalyOutput, len(v))
+	result := make(map[string][]observerdef.Anomaly)
+	for k, v := range tb.metricsByDetector {
+		copied := make([]observerdef.Anomaly, len(v))
 		copy(copied, v)
 		result[k] = copied
 	}
@@ -821,56 +777,56 @@ func (tb *TestBench) GetMetricsAnomaliesByAnalyzer() map[string][]observerdef.An
 }
 
 // GetMetricsAnomaliesForSeries returns metric anomalies associated with a specific series id.
-func (tb *TestBench) GetMetricsAnomaliesForSeries(seriesID observerdef.SeriesID) []observerdef.AnomalyOutput {
+func (tb *TestBench) GetMetricsAnomaliesForSeries(seriesID observerdef.SeriesID) []observerdef.Anomaly {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
 	anomalies := tb.metricsBySeriesID[seriesID]
-	result := make([]observerdef.AnomalyOutput, len(anomalies))
+	result := make([]observerdef.Anomaly, len(anomalies))
 	copy(result, anomalies)
 	return result
 }
 
-// GetLogAnomalies returns all anomalies emitted directly by log processors.
-func (tb *TestBench) GetLogAnomalies() []observerdef.AnomalyOutput {
+// GetLogAnomalies returns all anomalies emitted directly by log detectors.
+func (tb *TestBench) GetLogAnomalies() []observerdef.Anomaly {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
-	result := make([]observerdef.AnomalyOutput, len(tb.logAnomalies))
+	result := make([]observerdef.Anomaly, len(tb.logAnomalies))
 	copy(result, tb.logAnomalies)
 	return result
 }
 
-// GetLogAnomaliesByProcessor returns log anomalies grouped by processor name.
-func (tb *TestBench) GetLogAnomaliesByProcessor() map[string][]observerdef.AnomalyOutput {
+// GetLogAnomaliesByDetector returns log anomalies grouped by detector name.
+func (tb *TestBench) GetLogAnomaliesByDetector() map[string][]observerdef.Anomaly {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
-	result := make(map[string][]observerdef.AnomalyOutput)
-	for k, v := range tb.logAnomaliesByProcessor {
-		copied := make([]observerdef.AnomalyOutput, len(v))
+	result := make(map[string][]observerdef.Anomaly)
+	for k, v := range tb.logAnomaliesByDetector {
+		copied := make([]observerdef.Anomaly, len(v))
 		copy(copied, v)
 		result[k] = copied
 	}
 	return result
 }
 
-// GetAnalyzerComponentMap returns a mapping from analyzer implementation name
+// GetDetectorComponentMap returns a mapping from detector implementation name
 // (e.g. "cusum_detector") to component registry name (e.g. "cusum").
-func (tb *TestBench) GetAnalyzerComponentMap() map[string]string {
+func (tb *TestBench) GetDetectorComponentMap() map[string]string {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
 	result := make(map[string]string)
 	for componentName, comp := range tb.components {
-		if comp.Registration.Category != "analyzer" {
+		if comp.Registration.Category != "detector" {
 			continue
 		}
-		analyzer, ok := comp.Instance.(observerdef.TimeSeriesAnalysis)
+		detector, ok := comp.Instance.(observerdef.MetricsDetector)
 		if !ok {
 			continue
 		}
-		result[analyzer.Name()] = componentName
+		result[detector.Name()] = componentName
 	}
 	return result
 }
@@ -1010,7 +966,7 @@ func (tb *TestBench) ToggleComponent(name string) error {
 
 	// Re-run analyses if a scenario is loaded
 	if tb.ready && tb.storage != nil {
-		tb.rerunAnalysesLocked()
+		tb.rerunDetectorsLocked()
 	}
 
 	return nil
@@ -1023,18 +979,18 @@ func (tb *TestBench) loadDemoScenario() error {
 
 	// Clear existing data
 	tb.storage = newTimeSeriesStorage()
-	tb.metricsAnomalies = []observerdef.AnomalyOutput{}
+	tb.metricsAnomalies = []observerdef.Anomaly{}
 	tb.correlations = []observerdef.ActiveCorrelation{}
-	tb.metricsByAnalyzer = make(map[string][]observerdef.AnomalyOutput)
-	tb.metricsBySeriesID = make(map[observerdef.SeriesID][]observerdef.AnomalyOutput)
+	tb.metricsByDetector = make(map[string][]observerdef.Anomaly)
+	tb.metricsBySeriesID = make(map[observerdef.SeriesID][]observerdef.Anomaly)
 	tb.rawLogs = nil
-	tb.logAnomalies = []observerdef.AnomalyOutput{}
-	tb.logAnomaliesByProcessor = make(map[string][]observerdef.AnomalyOutput)
+	tb.logAnomalies = []observerdef.Anomaly{}
+	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
 	tb.ready = false
 	tb.loadedScenario = "demo"
 
-	// Reset all processors
-	tb.resetAllProcessors()
+	// Reset all state
+	tb.resetAllState()
 
 	fmt.Println("Generating demo scenario data...")
 
@@ -1132,11 +1088,11 @@ func (tb *TestBench) loadDemoScenario() error {
 	}
 	fmt.Printf("  Generated %d demo log entries\n", len(tb.rawLogs))
 
-	// Add hardcoded log anomalies from two analyzers (incident peak: t=30-45s)
+	// Add hardcoded log anomalies from two detectors (incident peak: t=30-45s)
 	score := func(v float64) *float64 { return &v }
 	type demoAnomaly struct {
 		ts           int64
-		analyzerName string
+		detectorName string
 		title        string
 		description  string
 		score        *float64
@@ -1148,16 +1104,16 @@ func (tb *TestBench) loadDemoScenario() error {
 		{baseTimestamp + 35, "connection_error_extractor", "Circuit breaker opened", "circuit breaker open: too many recent failures", score(0.95), "service_a"},
 		{baseTimestamp + 40, "connection_error_extractor", "Retry storm detected", "retry limit exceeded after 3 attempts", score(0.88), "service_a"},
 		{baseTimestamp + 45, "connection_error_extractor", "Memory pressure rejecting requests", "memory pressure: request rejected", score(0.82), "service_b"},
-		// log_timeseries: fires at ramp-up and peak
-		{baseTimestamp + 26, "log_timeseries", "Log rate ramp-up detected", "Log emission rate increased 2.5x above baseline (5s → 2s interval)", score(0.74), "service_a"},
-		{baseTimestamp + 32, "log_timeseries", "Log rate spike at incident peak", "Log emission rate spiked 10x above baseline (5s → 500ms interval)", score(0.97), "service_a"},
-		{baseTimestamp + 38, "log_timeseries", "Sustained high log rate", "Log rate remains elevated: 1 log/s vs baseline 1 log/5s", score(0.85), "service_b"},
+		// log_metrics_extractor: fires at ramp-up and peak
+		{baseTimestamp + 26, "log_metrics_extractor", "Log rate ramp-up detected", "Log emission rate increased 2.5x above baseline (5s → 2s interval)", score(0.74), "service_a"},
+		{baseTimestamp + 32, "log_metrics_extractor", "Log rate spike at incident peak", "Log emission rate spiked 10x above baseline (5s → 500ms interval)", score(0.97), "service_a"},
+		{baseTimestamp + 38, "log_metrics_extractor", "Sustained high log rate", "Log rate remains elevated: 1 log/s vs baseline 1 log/5s", score(0.85), "service_b"},
 	}
 	for _, a := range demoAnomalies {
-		anomaly := observerdef.AnomalyOutput{
+		anomaly := observerdef.Anomaly{
 			Type:         observerdef.AnomalyTypeLog,
 			Source:       "logs",
-			AnalyzerName: a.analyzerName,
+			DetectorName: a.detectorName,
 			Title:        a.title,
 			Description:  a.description,
 			Timestamp:    a.ts,
@@ -1165,11 +1121,11 @@ func (tb *TestBench) loadDemoScenario() error {
 			Tags:         []string{"service:" + a.service},
 		}
 		tb.logAnomalies = append(tb.logAnomalies, anomaly)
-		tb.logAnomaliesByProcessor[a.analyzerName] = append(tb.logAnomaliesByProcessor[a.analyzerName], anomaly)
+		tb.logAnomaliesByDetector[a.detectorName] = append(tb.logAnomaliesByDetector[a.detectorName], anomaly)
 	}
 
-	// Run analyses on all loaded data (analyzers sync, correlators async)
-	tb.rerunAnalysesLocked()
+	// Run analyses on all loaded data (detectors sync, correlators async)
+	tb.rerunDetectorsLocked()
 	fmt.Printf("Demo scenario loaded: %d series, %d metric anomalies, %d log entries, %d log anomalies (correlators running in background)\n", tb.seriesCount(), len(tb.metricsAnomalies), len(tb.rawLogs), len(tb.logAnomalies))
 
 	return nil
@@ -1183,6 +1139,16 @@ func (tb *TestBench) GetRawLogs() []storedLogEntry {
 	result := make([]storedLogEntry, len(tb.rawLogs))
 	copy(result, tb.rawLogs)
 	return result
+}
+
+// errorLogMessages contains realistic error messages for the demo scenario.
+var errorLogMessages = []string{
+	"request timeout: upstream service did not respond within 30s",
+	"connection pool exhausted: max connections reached",
+	"circuit breaker open: too many recent failures",
+	"retry limit exceeded after 3 attempts",
+	"memory pressure: request rejected",
+	"GC overhead limit exceeded",
 }
 
 // Helper functions for demo data generation
