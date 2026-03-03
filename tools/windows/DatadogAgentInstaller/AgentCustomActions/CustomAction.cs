@@ -226,5 +226,17 @@ namespace Datadog.AgentCustomActions
         {
             return Datadog.CustomActions.InstallOciPackages.PurgePackages(session);
         }
+
+        [CustomAction]
+        public static ActionResult RunPreRemoveHook(Session session)
+        {
+            return Datadog.CustomActions.InstallerHooksCustomAction.RunPreRemoveHook(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RunPostInstallHook(Session session)
+        {
+            return Datadog.CustomActions.InstallerHooksCustomAction.RunPostInstallHook(session);
+        }
     }
 }
