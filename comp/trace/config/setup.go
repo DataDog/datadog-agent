@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	dsdconfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
+	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -687,7 +689,77 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
 	c.ContainerTagsBuffer = core.GetBool("apm_config.enable_container_tags_buffer")
 	c.AdditionalProfileTags = core.GetStringMapString("apm_config.additional_profile_tags")
+	c.ConsumedLogFiles = loadConsumedLogFiles(core)
 	return nil
+}
+
+// loadConsumedLogFiles scans the agent's log configuration in conf.d/ integration
+// files and returns the list of file path patterns already being tailed by the
+// log agent. Patterns may be exact paths or glob patterns (e.g. /var/log/*.log).
+// It follows the same directory layout as the autodiscovery config reader:
+// only *.d/ subdirectories are scanned, and only .yaml/.yml files are read.
+func loadConsumedLogFiles(core corecompcfg.Component) []string {
+	confdPath := core.GetString("confd_path")
+	if confdPath == "" {
+		return nil
+	}
+	entries, err := os.ReadDir(confdPath)
+	if err != nil {
+		log.Debugf("Could not read confd_path %q: %v", confdPath, err)
+		return nil
+	}
+	seen := make(map[string]struct{})
+	var consumed []string
+	for _, entry := range entries {
+		if !entry.IsDir() || filepath.Ext(entry.Name()) != ".d" {
+			continue
+		}
+		paths := collectLogFilePaths(filepath.Join(confdPath, entry.Name()))
+		for _, p := range paths {
+			if _, ok := seen[p]; ok {
+				continue
+			}
+			seen[p] = struct{}{}
+			consumed = append(consumed, p)
+		}
+	}
+	return consumed
+}
+
+// collectLogFilePaths reads all .yaml/.yml files in dir, parses their logs
+// sections, and returns the file paths for any file-type log source.
+func collectLogFilePaths(dir string) []string {
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		log.Debugf("Could not read directory %q: %v", dir, err)
+		return nil
+	}
+	var paths []string
+	for _, f := range files {
+		if f.IsDir() {
+			continue
+		}
+		ext := filepath.Ext(f.Name())
+		if ext != ".yaml" && ext != ".yml" {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, f.Name()))
+		if err != nil {
+			continue
+		}
+		configs, err := logsconfig.ParseYAML(data)
+		if err != nil {
+			log.Debugf("Could not parse logs config from %s: %v", filepath.Join(dir, f.Name()), err)
+			continue
+		}
+		for _, cfg := range configs {
+			if cfg.Type != logsconfig.FileType || cfg.Path == "" {
+				continue
+			}
+			paths = append(paths, filepath.Clean(cfg.Path))
+		}
+	}
+	return paths
 }
 
 // loadDeprecatedValues loads a set of deprecated values which are kept for

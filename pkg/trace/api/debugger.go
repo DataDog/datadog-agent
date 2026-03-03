@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -30,12 +31,72 @@ const (
 	// This limit is not imposed by the event platform intake, it's a safeguard we've added to guarantee an upper
 	// bound for the tags.
 	ddTagsQueryStringMaxLen = 4001
+
+	// logFilesHeader is the HTTP header containing file paths sent by the debugger.
+	logFilesHeader = "LOG_FILES"
+
+	// logFilesSeparator is the separator used between file paths in the LOG_FILES header.
+	logFilesSeparator = "\x1F"
 )
 
 // debuggerLogsProxyHandler returns an http.Handler proxying Dynamic Instrumentation dynamic logs
-// to the logs intake.
+// to the logs intake. It wraps the proxy with a conflict check that rejects requests for files
+// already being consumed by log integrations.
 func (r *HTTPReceiver) debuggerLogsProxyHandler() http.Handler {
-	return r.debuggerProxyHandler(logsIntakeURLTemplate, r.conf.DebuggerProxy)
+	proxy := r.debuggerProxyHandler(logsIntakeURLTemplate, r.conf.DebuggerProxy)
+	return r.withLogFileConflictCheck(proxy)
+}
+
+// withLogFileConflictCheck wraps an http.Handler with a check that rejects requests
+// containing log file paths already consumed by log integrations.
+func (r *HTTPReceiver) withLogFileConflictCheck(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if header := req.Header.Get(logFilesHeader); header != "" {
+			files := strings.Split(header, logFilesSeparator)
+			var conflicts []string
+			for _, f := range files {
+				f = filepath.Clean(strings.TrimSpace(f))
+				if f == "" || f == "." {
+					continue
+				}
+				if matchesConsumedLogFile(f, r.conf.ConsumedLogFiles) {
+					conflicts = append(conflicts, f)
+				}
+			}
+			if len(conflicts) > 0 {
+				http.Error(w, fmt.Sprintf("log files already consumed: %s", strings.Join(conflicts, ", ")), http.StatusConflict)
+				return
+			}
+		}
+		next.ServeHTTP(w, req)
+	})
+}
+
+// matchesConsumedLogFile checks whether file matches any of the consumed log
+// file patterns. This follows the same matching approach as the log agent's
+// FileProvider: exact path comparison for non-wildcard patterns and filepath.Match
+// for glob patterns.
+func matchesConsumedLogFile(file string, patterns []string) bool {
+	for _, pattern := range patterns {
+		if !containsWildcard(pattern) {
+			// Exact match (same as FileProvider.CollectFiles for non-wildcard paths)
+			if file == pattern {
+				return true
+			}
+			continue
+		}
+		// Glob pattern matching (same as FileProvider.filesMatchingSource)
+		if matched, _ := filepath.Match(pattern, file); matched {
+			return true
+		}
+	}
+	return false
+}
+
+// containsWildcard returns true if the path contains any wildcard character.
+// This mirrors logsconfig.ContainsWildcard.
+func containsWildcard(path string) bool {
+	return strings.ContainsAny(path, "*?[")
 }
 
 // debuggerDiagnosticsProxyHandler returns an http.Handler proxying Dynamic Instrumentation diagnostic messages

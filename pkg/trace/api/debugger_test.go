@@ -300,3 +300,193 @@ func getConf() *traceconfig.AgentConfig {
 	conf.AgentVersion = "v1"
 	return conf
 }
+
+func TestDebuggerLogsProxyLogFileConflict(t *testing.T) {
+	t.Run("no_header", func(t *testing.T) {
+		var called bool
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+			called = true
+		}))
+		defer srv.Close()
+		conf := getConf()
+		conf.DebuggerProxy.DDURL = srv.URL
+		conf.ConsumedLogFiles = []string{"/var/log/app.log"}
+		receiver := newTestReceiverFromConfig(conf)
+		req, err := http.NewRequest("POST", "/some/path", nil)
+		assert.NoError(t, err)
+		rec := httptest.NewRecorder()
+		receiver.debuggerLogsProxyHandler().ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusOK, rec.Result().StatusCode)
+		assert.True(t, called, "request should be proxied when no LOG_FILES header")
+	})
+
+	t.Run("empty_header", func(t *testing.T) {
+		var called bool
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+			called = true
+		}))
+		defer srv.Close()
+		conf := getConf()
+		conf.DebuggerProxy.DDURL = srv.URL
+		conf.ConsumedLogFiles = []string{"/var/log/app.log"}
+		receiver := newTestReceiverFromConfig(conf)
+		req, err := http.NewRequest("POST", "/some/path", nil)
+		assert.NoError(t, err)
+		req.Header.Set("LOG_FILES", "")
+		rec := httptest.NewRecorder()
+		receiver.debuggerLogsProxyHandler().ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusOK, rec.Result().StatusCode)
+		assert.True(t, called, "request should be proxied when LOG_FILES header is empty")
+	})
+
+	t.Run("no_conflict", func(t *testing.T) {
+		var called bool
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+			called = true
+		}))
+		defer srv.Close()
+		conf := getConf()
+		conf.DebuggerProxy.DDURL = srv.URL
+		conf.ConsumedLogFiles = []string{"/var/log/app.log"}
+		receiver := newTestReceiverFromConfig(conf)
+		req, err := http.NewRequest("POST", "/some/path", nil)
+		assert.NoError(t, err)
+		req.Header.Set("LOG_FILES", "/var/log/other.log")
+		rec := httptest.NewRecorder()
+		receiver.debuggerLogsProxyHandler().ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusOK, rec.Result().StatusCode)
+		assert.True(t, called, "request should be proxied when no conflict")
+	})
+
+	t.Run("conflict_exact", func(t *testing.T) {
+		var called bool
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+			called = true
+		}))
+		defer srv.Close()
+		conf := getConf()
+		conf.DebuggerProxy.DDURL = srv.URL
+		conf.ConsumedLogFiles = []string{"/var/log/app.log"}
+		receiver := newTestReceiverFromConfig(conf)
+		req, err := http.NewRequest("POST", "/some/path", nil)
+		assert.NoError(t, err)
+		req.Header.Set("LOG_FILES", "/var/log/app.log")
+		rec := httptest.NewRecorder()
+		receiver.debuggerLogsProxyHandler().ServeHTTP(rec, req)
+		res := rec.Result()
+		assert.Equal(t, http.StatusConflict, res.StatusCode)
+		slurp, err := io.ReadAll(res.Body)
+		res.Body.Close()
+		assert.NoError(t, err)
+		assert.Contains(t, string(slurp), "/var/log/app.log")
+		assert.False(t, called, "backend should NOT be called on conflict")
+	})
+
+	t.Run("conflict_glob", func(t *testing.T) {
+		var called bool
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+			called = true
+		}))
+		defer srv.Close()
+		conf := getConf()
+		conf.DebuggerProxy.DDURL = srv.URL
+		conf.ConsumedLogFiles = []string{"/var/log/*.log"}
+		receiver := newTestReceiverFromConfig(conf)
+		req, err := http.NewRequest("POST", "/some/path", nil)
+		assert.NoError(t, err)
+		req.Header.Set("LOG_FILES", "/var/log/app.log")
+		rec := httptest.NewRecorder()
+		receiver.debuggerLogsProxyHandler().ServeHTTP(rec, req)
+		res := rec.Result()
+		assert.Equal(t, http.StatusConflict, res.StatusCode)
+		assert.False(t, called, "backend should NOT be called on glob conflict")
+	})
+
+	t.Run("no_conflict_glob_no_match", func(t *testing.T) {
+		var called bool
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+			called = true
+		}))
+		defer srv.Close()
+		conf := getConf()
+		conf.DebuggerProxy.DDURL = srv.URL
+		conf.ConsumedLogFiles = []string{"/var/log/*.log"}
+		receiver := newTestReceiverFromConfig(conf)
+		req, err := http.NewRequest("POST", "/some/path", nil)
+		assert.NoError(t, err)
+		req.Header.Set("LOG_FILES", "/var/log/sub/app.log")
+		rec := httptest.NewRecorder()
+		receiver.debuggerLogsProxyHandler().ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusOK, rec.Result().StatusCode)
+		assert.True(t, called, "glob *.log should not match files in subdirectories")
+	})
+
+	t.Run("partial_conflict", func(t *testing.T) {
+		var called bool
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+			called = true
+		}))
+		defer srv.Close()
+		conf := getConf()
+		conf.DebuggerProxy.DDURL = srv.URL
+		conf.ConsumedLogFiles = []string{"/var/log/app.log"}
+		receiver := newTestReceiverFromConfig(conf)
+		req, err := http.NewRequest("POST", "/some/path", nil)
+		assert.NoError(t, err)
+		req.Header.Set("LOG_FILES", "/var/log/other.log\x1F/var/log/app.log")
+		rec := httptest.NewRecorder()
+		receiver.debuggerLogsProxyHandler().ServeHTTP(rec, req)
+		res := rec.Result()
+		assert.Equal(t, http.StatusConflict, res.StatusCode)
+		slurp, err := io.ReadAll(res.Body)
+		res.Body.Close()
+		assert.NoError(t, err)
+		assert.Contains(t, string(slurp), "/var/log/app.log")
+		assert.NotContains(t, string(slurp), "/var/log/other.log")
+		assert.False(t, called, "backend should NOT be called on conflict")
+	})
+
+	t.Run("diagnostics_not_affected", func(t *testing.T) {
+		var called bool
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+			called = true
+		}))
+		defer srv.Close()
+		conf := getConf()
+		conf.DebuggerIntakeProxy.DDURL = srv.URL
+		conf.ConsumedLogFiles = []string{"/var/log/app.log"}
+		receiver := newTestReceiverFromConfig(conf)
+		req, err := http.NewRequest("POST", "/some/path", nil)
+		assert.NoError(t, err)
+		req.Header.Set("LOG_FILES", "/var/log/app.log")
+		rec := httptest.NewRecorder()
+		receiver.debuggerDiagnosticsProxyHandler().ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusOK, rec.Result().StatusCode)
+		assert.True(t, called, "diagnostics endpoint should not have conflict check")
+	})
+}
+
+func TestMatchesConsumedLogFile(t *testing.T) {
+	tests := []struct {
+		name     string
+		file     string
+		patterns []string
+		expected bool
+	}{
+		{"exact_match", "/var/log/app.log", []string{"/var/log/app.log"}, true},
+		{"no_match", "/var/log/other.log", []string{"/var/log/app.log"}, false},
+		{"glob_star_match", "/var/log/app.log", []string{"/var/log/*.log"}, true},
+		{"glob_star_no_subdir", "/var/log/sub/app.log", []string{"/var/log/*.log"}, false},
+		{"glob_question_match", "/var/log/app1.log", []string{"/var/log/app?.log"}, true},
+		{"glob_question_no_match", "/var/log/app12.log", []string{"/var/log/app?.log"}, false},
+		{"glob_no_cross_dir", "/var/log/sub/app.log", []string{"/var/log/*.log"}, false},
+		{"glob_bracket_match", "/var/log/app1.log", []string{"/var/log/app[0-9].log"}, true},
+		{"empty_patterns", "/var/log/app.log", nil, false},
+		{"multiple_patterns_match_second", "/var/log/app.log", []string{"/tmp/*.log", "/var/log/app.log"}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, matchesConsumedLogFile(tt.file, tt.patterns))
+		})
+	}
+}
