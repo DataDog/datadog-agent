@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/shirou/gopsutil/v4/host"
+
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -127,18 +129,19 @@ func (c *logonDurationComponent) run(ctx context.Context) {
 	}
 
 	if !rebooted {
-		// log.Debug("Logon duration: no reboot detected since last run, skipping")
-		// return
+		log.Debug("Logon duration: no reboot detected since last run, skipping")
+		return
 	}
 
 	log.Info("Logon duration: reboot detected, collecting boot/logon duration data")
 
-	// Get boot time (doesn't require root)
-	bootTime, err := logonduration.GetBootTime()
+	// Get boot time using gopsutil (doesn't require root)
+	bootTimeSec, err := host.BootTime()
 	if err != nil {
 		log.Warnf("Logon duration: failed to get boot time: %v", err)
 		return
 	}
+	bootTime := time.Unix(int64(bootTimeSec), 0)
 
 	// Get login timestamps from system-probe (requires root)
 	// This includes login window time, login time, and desktop ready time
@@ -166,12 +169,12 @@ func (c *logonDurationComponent) run(ctx context.Context) {
 
 // detectReboot checks whether the system has rebooted since the last agent run
 func (c *logonDurationComponent) detectReboot() (bool, string, error) {
-	bootTime, err := logonduration.GetBootTime()
+	bootTimeSec, err := host.BootTime()
 	if err != nil {
 		return false, "", fmt.Errorf("getting current boot time: %w", err)
 	}
 
-	currentBootTime := bootTime.UTC().Format(time.RFC3339)
+	currentBootTime := time.Unix(int64(bootTimeSec), 0).UTC().Format(time.RFC3339)
 
 	previousBootTime, err := persistentcache.Read(persistentCacheKey)
 	if err != nil {

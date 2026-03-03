@@ -12,23 +12,18 @@ import (
 	"time"
 )
 
-// GetBootTime is not implemented on this platform
-func GetBootTime() (time.Time, error) {
-	return time.Time{}, errors.New("logonduration: not implemented on this platform")
-}
-
 // GetLoginWindowTime is not implemented on this platform
-func GetLoginWindowTime(_ time.Time) (time.Time, error) {
+func GetLoginWindowTime(_ bool) (time.Time, error) {
 	return time.Time{}, errors.New("logonduration: not implemented on this platform")
 }
 
 // GetLoginTime is not implemented on this platform
-func GetLoginTime(_ time.Time) (time.Time, error) {
+func GetLoginTime() (time.Time, error) {
 	return time.Time{}, errors.New("logonduration: not implemented on this platform")
 }
 
 // GetDesktopReadyTime is not implemented on this platform
-func GetDesktopReadyTime(_ time.Time) (time.Time, error) {
+func GetDesktopReadyTime() (time.Time, error) {
 	return time.Time{}, errors.New("logonduration: not implemented on this platform")
 }
 
