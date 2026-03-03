@@ -9,7 +9,7 @@ package hosttags
 import (
 	"context"
 	"slices"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
@@ -21,8 +21,7 @@ import (
 
 // HostTagProvider is a struct that provides host tags for metrics.
 type HostTagProvider struct {
-	hostTags []string
-	sync.RWMutex
+	hostTags atomic.Pointer[[]string]
 }
 
 // NewHostTagProvider creates a new HostTagProvider with the default expected tags duration from the configuration.
@@ -36,18 +35,15 @@ func NewHostTagProviderWithDuration(duration time.Duration) *HostTagProvider {
 }
 
 func newHostTagProviderWithClock(clock clock.Clock, duration time.Duration) *HostTagProvider {
-	p := &HostTagProvider{
-		hostTags: nil,
-	}
+	p := &HostTagProvider{}
 
 	log.Debugf("Adding host tags to metrics for %v", duration)
 	if duration > 0 {
-		p.hostTags = slices.Clone(hostMetadataUtils.Get(context.TODO(), false, pkgconfigsetup.Datadog()).System)
+		tags := slices.Clone(hostMetadataUtils.Get(context.TODO(), false, pkgconfigsetup.Datadog()).System)
+		p.hostTags.Store(&tags)
 		expectedTagsDeadline := pkgconfigsetup.StartTime.Add(duration)
 		clock.AfterFunc(expectedTagsDeadline.Sub(clock.Now()), func() {
-			p.Lock()
-			defer p.Unlock()
-			p.hostTags = nil
+			p.hostTags.Store(nil)
 			log.Debugf("host tags for metrics have expired")
 		})
 	}
@@ -55,10 +51,10 @@ func newHostTagProviderWithClock(clock clock.Clock, duration time.Duration) *Hos
 	return p
 }
 
-// GetHostTags returns the current host tags. If the tags have expired, it returns an empty slice.
+// GetHostTags returns the current host tags. If the tags have expired, it returns nil.
 func (p *HostTagProvider) GetHostTags() []string {
-	p.RLock()
-	defer p.RUnlock()
-
-	return p.hostTags
+	if ptr := p.hostTags.Load(); ptr != nil {
+		return *ptr
+	}
+	return nil
 }
