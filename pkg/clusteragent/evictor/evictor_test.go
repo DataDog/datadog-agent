@@ -15,44 +15,25 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	dynamicfake "k8s.io/client-go/dynamic/fake"
+	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
 )
 
-func newFakeClient(objects ...*unstructured.Unstructured) *dynamicfake.FakeDynamicClient {
-	scheme := runtime.NewScheme()
-	var runtimeObjects []runtime.Object
-	for _, o := range objects {
-		runtimeObjects = append(runtimeObjects, o)
-	}
-	return dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme,
-		map[schema.GroupVersionResource]string{
-			podGVR: "PodList",
-		},
-		runtimeObjects...,
-	)
-}
-
-func newFakePod(namespace, name string) *unstructured.Unstructured {
-	return &unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"apiVersion": "v1",
-			"kind":       "Pod",
-			"metadata": map[string]interface{}{
-				"name":      name,
-				"namespace": namespace,
-			},
+func newFakePod(namespace, name string) *corev1.Pod {
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
 		},
 	}
 }
 
 func TestEvictSuccess(t *testing.T) {
-	client := newFakeClient(newFakePod("default", "my-pod"))
+	client := fake.NewSimpleClientset(newFakePod("default", "my-pod"))
 	c := NewClient(client, nil)
 
 	result, err := c.Evict(context.Background(), "default", "my-pod")
@@ -62,7 +43,7 @@ func TestEvictSuccess(t *testing.T) {
 }
 
 func TestEvictPDBBlocked(t *testing.T) {
-	client := newFakeClient(newFakePod("default", "my-pod"))
+	client := fake.NewSimpleClientset(newFakePod("default", "my-pod"))
 	client.PrependReactor("create", "pods", func(_ k8stesting.Action) (bool, runtime.Object, error) {
 		return true, nil, &k8serrors.StatusError{
 			ErrStatus: metav1.Status{Code: http.StatusTooManyRequests},
@@ -77,7 +58,7 @@ func TestEvictPDBBlocked(t *testing.T) {
 }
 
 func TestEvictError(t *testing.T) {
-	client := newFakeClient(newFakePod("default", "my-pod"))
+	client := fake.NewSimpleClientset(newFakePod("default", "my-pod"))
 	client.PrependReactor("create", "pods", func(_ k8stesting.Action) (bool, runtime.Object, error) {
 		return true, nil, errors.New("connection refused")
 	})
@@ -90,7 +71,7 @@ func TestEvictError(t *testing.T) {
 }
 
 func TestEvictNotLeader(t *testing.T) {
-	client := newFakeClient()
+	client := fake.NewSimpleClientset()
 	c := NewClient(client, func() bool { return false })
 
 	result, err := c.Evict(context.Background(), "default", "my-pod")
@@ -101,7 +82,7 @@ func TestEvictNotLeader(t *testing.T) {
 }
 
 func TestEvictLeadershipChange(t *testing.T) {
-	client := newFakeClient(newFakePod("default", "my-pod"))
+	client := fake.NewSimpleClientset(newFakePod("default", "my-pod"))
 	isLeader := false
 	c := NewClient(client, func() bool { return isLeader })
 

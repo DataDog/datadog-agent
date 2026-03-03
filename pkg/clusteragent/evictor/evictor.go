@@ -14,16 +14,13 @@ import (
 	"context"
 	"fmt"
 
+	policyv1 "k8s.io/api/policy/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-var podGVR = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
 
 // EvictResult is the outcome of an Evict call.
 type EvictResult int
@@ -39,18 +36,18 @@ const (
 	Error
 )
 
-// Client issues policy/v1 Evictions against pods via the dynamic client.
+// Client issues policy/v1 Evictions against pods via the typed k8s client.
 // It optionally enforces leader election so evictions are only issued by the
 // cluster agent leader.
 type Client struct {
-	client   dynamic.Interface
+	client   kubernetes.Interface
 	isLeader func() bool
 }
 
-// NewClient creates a Client with the given dynamic client and an optional
+// NewClient creates a Client with the given kubernetes client and an optional
 // leader check function. If isLeader is non-nil, Evict returns Skipped
 // when the current instance is not the leader.
-func NewClient(client dynamic.Interface, isLeader func() bool) *Client {
+func NewClient(client kubernetes.Interface, isLeader func() bool) *Client {
 	return &Client{client: client, isLeader: isLeader}
 }
 
@@ -66,31 +63,24 @@ func (c *Client) Evict(ctx context.Context, namespace, name string) (EvictResult
 		return Skipped, nil
 	}
 
-	eviction := &unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"apiVersion": "policy/v1",
-			"kind":       "Eviction",
-			"metadata": map[string]interface{}{
-				"name":      name,
-				"namespace": namespace,
-			},
+	eviction := &policyv1.Eviction{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
 		},
 	}
 
-	_, createErr := c.client.
-		Resource(podGVR).
-		Namespace(namespace).
-		Create(ctx, eviction, metav1.CreateOptions{}, "eviction")
+	evictErr := c.client.PolicyV1().Evictions(namespace).Evict(ctx, eviction)
 
-	if createErr == nil {
+	if evictErr == nil {
 		log.Debugf("[evictor] successfully evicted pod %s/%s", namespace, name)
 		return Evicted, nil
 	}
 
-	if k8serrors.IsTooManyRequests(createErr) {
+	if k8serrors.IsTooManyRequests(evictErr) {
 		log.Debugf("[evictor] eviction of pod %s/%s blocked by PodDisruptionBudget", namespace, name)
 		return PDBBlocked, nil
 	}
 
-	return Error, fmt.Errorf("failed to evict pod %s/%s: %w", namespace, name, createErr)
+	return Error, fmt.Errorf("failed to evict pod %s/%s: %w", namespace, name, evictErr)
 }
