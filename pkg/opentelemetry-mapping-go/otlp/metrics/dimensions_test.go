@@ -36,6 +36,17 @@ func TestWithAttributeMap(t *testing.T) {
 	)
 }
 
+func TestWithAttributeMapEmptyReturnsOriginal(t *testing.T) {
+	dims := &Dimensions{
+		name: "metric.name",
+		tags: []string{"key:val"},
+		host: "host",
+	}
+	result := dims.WithAttributeMap(pcommon.NewMap())
+	// Empty map must return the same pointer (no unnecessary allocation).
+	assert.Same(t, dims, result)
+}
+
 func TestMetricDimensionsString(t *testing.T) {
 	getKey := func(name string, tags []string, host string) string {
 		dims := Dimensions{name: name, tags: tags, host: host}

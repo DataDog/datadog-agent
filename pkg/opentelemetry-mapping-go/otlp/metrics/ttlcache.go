@@ -86,7 +86,7 @@ func (t *ttlCache) putAndGetMonotonic(
 	// assume it's first point before cache check.
 	firstPoint = true
 
-	key := t.cache.computeKey(dimensions.String())
+	key := t.cache.computeKeyFromDimensions(dimensions)
 	if c, found := t.cache.get(key); found {
 		cnt := c.(numberCounter)
 		if cnt.ts >= ts {
@@ -121,7 +121,7 @@ func (t *ttlCache) putAndGetDiff(
 	startTs, ts uint64,
 	val float64,
 ) (dx float64, ok bool) {
-	key := t.cache.computeKey(dimensions.String())
+	key := t.cache.computeKeyFromDimensions(dimensions)
 	if c, found := t.cache.get(key); found {
 		cnt := c.(numberCounter)
 		if cnt.ts > ts {
@@ -159,7 +159,7 @@ func (t *ttlCache) putAndCheckExtrema(
 	curExtrema float64,
 	min bool,
 ) (assumeFromLastWindow bool) {
-	key := t.cache.computeKey(dimensions.String())
+	key := t.cache.computeKeyFromDimensions(dimensions)
 	if c, found := t.cache.get(key); found {
 		cnt := c.(extrema)
 		if cnt.ts > ts {

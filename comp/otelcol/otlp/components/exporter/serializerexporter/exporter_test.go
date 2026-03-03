@@ -94,8 +94,8 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 				return newMetrics(histogramMetricName, h, numberMetricName, n)
 			},
 			extraTags:      []string{},
-			wantSketchTags: tagset.NewCompositeTags([]string{}, nil),
-			wantSerieTags:  tagset.NewCompositeTags([]string{}, nil),
+			wantSketchTags: tagset.NewCompositeTags(nil, []string{}),
+			wantSerieTags:  tagset.NewCompositeTags(nil, []string{}),
 		},
 		{
 			name: "metric tags and extra tags",
@@ -119,18 +119,12 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			},
 			extraTags: []string{"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3"},
 			wantSketchTags: tagset.NewCompositeTags(
-				[]string{
-					"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3",
-					"histogram_1_id:value1", "histogram_2_id:value2", "histogram_3_id:value3",
-				},
-				nil,
+				[]string{"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3"},
+				[]string{"histogram_1_id:value1", "histogram_2_id:value2", "histogram_3_id:value3"},
 			),
 			wantSerieTags: tagset.NewCompositeTags(
-				[]string{
-					"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3",
-					"gauge_1_id:value1", "gauge_2_id:value2", "gauge_3_id:value3",
-				},
-				nil,
+				[]string{"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3"},
+				[]string{"gauge_1_id:value1", "gauge_2_id:value2", "gauge_3_id:value3"},
 			),
 		},
 		{
@@ -145,8 +139,8 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 				n.SetIntValue(777)
 				return newMetrics(histogramMetricName, h, numberMetricName, n)
 			},
-			wantSketchTags: tagset.NewCompositeTags([]string{}, nil),
-			wantSerieTags:  tagset.NewCompositeTags([]string{}, nil),
+			wantSketchTags: tagset.NewCompositeTags(nil, []string{}),
+			wantSerieTags:  tagset.NewCompositeTags(nil, []string{}),
 		},
 		{
 			name: "runtime metrics, metric tags and extra tags",
@@ -170,18 +164,12 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			},
 			extraTags: []string{"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3"},
 			wantSketchTags: tagset.NewCompositeTags(
-				[]string{
-					"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3",
-					"histogram_1_id:value1", "histogram_2_id:value2", "histogram_3_id:value3",
-				},
-				nil,
+				[]string{"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3"},
+				[]string{"histogram_1_id:value1", "histogram_2_id:value2", "histogram_3_id:value3"},
 			),
 			wantSerieTags: tagset.NewCompositeTags(
-				[]string{
-					"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3",
-					"gauge_1_id:value1", "gauge_2_id:value2", "gauge_3_id:value3",
-				},
-				nil,
+				[]string{"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3"},
+				[]string{"gauge_1_id:value1", "gauge_2_id:value2", "gauge_3_id:value3"},
 			),
 		},
 		{
@@ -201,12 +189,12 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 				return md
 			},
 			extraTags: []string{},
-			wantSketchTags: tagset.NewCompositeTags([]string{
+			wantSketchTags: tagset.NewCompositeTags(nil, []string{
 				"instrumentation_scope:my_library", "instrumentation_scope_version:v1.0.0",
-			}, nil),
-			wantSerieTags: tagset.NewCompositeTags([]string{
+			}),
+			wantSerieTags: tagset.NewCompositeTags(nil, []string{
 				"instrumentation_scope:my_library", "instrumentation_scope_version:v1.0.0",
-			}, nil),
+			}),
 			instrumentationScopeMetadataAsTags: true,
 		},
 	}
@@ -233,7 +221,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			if tt.wantSketchTags.Len() > 0 {
 				assert.Equal(t, tt.wantSketchTags, rec.sketchSeriesList[0].Tags)
 			} else {
-				assert.Equal(t, tagset.NewCompositeTags([]string{}, nil), rec.sketchSeriesList[0].Tags)
+				assert.Equal(t, tagset.NewCompositeTags(nil, []string{}), rec.sketchSeriesList[0].Tags)
 			}
 			assert.True(t, len(rec.series) > 0)
 			for _, s := range rec.series {
@@ -249,7 +237,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 					if tt.wantSerieTags.Len() > 0 {
 						assert.Equal(t, tt.wantSerieTags, s.Tags)
 					} else {
-						assert.Equal(t, tagset.NewCompositeTags([]string{}, nil), s.Tags)
+						assert.Equal(t, tagset.NewCompositeTags(nil, []string{}), s.Tags)
 					}
 				}
 			}

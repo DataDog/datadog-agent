@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
@@ -26,6 +27,31 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
 )
+
+func TestEnrichTags(t *testing.T) {
+	extraTags := []string{"extra1:v1", "extra2:v2"}
+	dims := (&otlpmetrics.Dimensions{}).AddTags("dim1:a", "dim2:b")
+
+	ct := enrichTags(extraTags, dims)
+
+	// Flatten the CompositeTags to verify all tags are present.
+	var got []string
+	ct.ForEach(func(tag string) {
+		got = append(got, tag)
+	})
+	assert.ElementsMatch(t, []string{"extra1:v1", "extra2:v2", "dim1:a", "dim2:b"}, got)
+}
+
+func TestEnrichTagsNoExtra(t *testing.T) {
+	dims := (&otlpmetrics.Dimensions{}).AddTags("k:v")
+	ct := enrichTags(nil, dims)
+
+	var got []string
+	ct.ForEach(func(tag string) {
+		got = append(got, tag)
+	})
+	assert.Equal(t, []string{"k:v"}, got)
+}
 
 var statsPayloads = []*pb.ClientStatsPayload{
 	{

@@ -76,17 +76,6 @@ func (d *Dimensions) OriginProductDetail() OriginProductDetail {
 	return d.originProductDetail
 }
 
-// getTags maps an attributeMap into a slice of Datadog tags
-func getTags(labels pcommon.Map) []string {
-	tags := make([]string, 0, labels.Len())
-	labels.Range(func(key string, value pcommon.Value) bool {
-		v := value.AsString()
-		tags = append(tags, utils.FormatKeyValueTag(key, v))
-		return true
-	})
-	return tags
-}
-
 // AddTags to metrics dimensions.
 func (d *Dimensions) AddTags(tags ...string) *Dimensions {
 	// defensively copy the tags
@@ -104,9 +93,30 @@ func (d *Dimensions) AddTags(tags ...string) *Dimensions {
 	}
 }
 
-// WithAttributeMap creates a new metricDimensions struct with additional tags from attributes.
+// WithAttributeMap creates a new Dimensions struct with additional tags from attributes.
+// It avoids the intermediate []string allocation that AddTags(getTags(labels)...) would produce.
 func (d *Dimensions) WithAttributeMap(labels pcommon.Map) *Dimensions {
-	return d.AddTags(getTags(labels)...)
+	n := labels.Len()
+	if n == 0 {
+		return d
+	}
+	// Allocate a single slice for both the new attribute tags and the existing tags,
+	// avoiding the separate getTags allocation.
+	newTags := make([]string, 0, n+len(d.tags))
+	labels.Range(func(key string, value pcommon.Value) bool {
+		newTags = append(newTags, utils.FormatKeyValueTag(key, value.AsString()))
+		return true
+	})
+	newTags = append(newTags, d.tags...)
+	return &Dimensions{
+		name:                d.name,
+		tags:                newTags,
+		host:                d.host,
+		originID:            d.originID,
+		originProduct:       d.originProduct,
+		originSubProduct:    d.originSubProduct,
+		originProductDetail: d.originProductDetail,
+	}
 }
 
 // WithSuffix creates a new dimensions struct with an extra name suffix.
