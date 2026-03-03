@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package traceconfigimpl implements the trace-agent config component.
-package traceconfigimpl
+// Package configimpl implements the trace-agent config component.
+package configimpl
 
 import (
 	"encoding/json"
