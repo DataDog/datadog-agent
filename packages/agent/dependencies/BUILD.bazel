@@ -22,27 +22,20 @@ pkg_filegroup(
     ] + select({
         "@platforms//os:linux": [
             # dependency curl
-            # dependency "systemd"
+            "@systemd//:all_files",
         ],
         "//conditions:default": [],
     }) + select({
         # if linux_target? and !heroku_target?
         "//packages/agent:linux_default": [
+            "//deps/compile_policy:all_files",
             # dependency datadog_agent_data_plane
             # This is really part of system-probe
             "@libpcap//:all_files",
         ],
         "//packages/agent:linux_fips": [
+            "//deps/compile_policy:all_files",
             "@libpcap//:all_files",
-        ],
-        "//packages/agent:linux_heroku": [],
-        "//conditions:default": [],
-    }) + select({
-        "//packages/agent:linux_default": [
-            "//deps/compile_policy:all_files",
-        ],
-        "//packages/agent:linux_fips": [
-            "//deps/compile_policy:all_files",
         ],
         "//packages/agent:linux_heroku": [],
         "@platforms//os:windows": [

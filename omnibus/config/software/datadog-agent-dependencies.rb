@@ -24,8 +24,6 @@ dependency 'jmxfetch'
 # Used for memory profiling with the `status py` agent subcommand
 dependency 'pympler'
 
-dependency "systemd" if linux_target?
-
 dependency 'datadog-agent-integrations-py3'
 
 build do
