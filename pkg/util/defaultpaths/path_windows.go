@@ -8,6 +8,7 @@ package defaultpaths
 import (
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
@@ -99,4 +100,12 @@ func GetDistPath() string {
 		distPath = filepath.Join(s, `bin/agent/dist`)
 	}
 	return distPath
+}
+
+// GetEmbeddedBinPath returns the path of the embedded binary for the given flavor.
+func GetEmbeddedBinPath() string {
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		return GetInstallPath()
+	}
+	return filepath.Join(GetInstallPath(), "..", "..", "embedded", "bin")
 }
