@@ -10,6 +10,7 @@ package logondurationimpl
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -25,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	logondurationdef "github.com/DataDog/datadog-agent/comp/logonduration/def"
 	"github.com/DataDog/datadog-agent/pkg/logonduration"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -277,19 +279,26 @@ func buildCustomPayload(bootTime time.Time, loginTimestamps *logonduration.Login
 
 	durations := make(map[string]interface{})
 
+	var bootMs, logonMs int64
+	var haveBoot, haveLogon bool
+
 	// Boot Duration: bootTime -> loginWindowTime
 	if loginTimestamps != nil && loginTimestamps.LoginWindowTime != nil {
-		durations["Boot Duration (ms)"] = loginTimestamps.LoginWindowTime.Sub(bootTime).Milliseconds()
+		bootMs = loginTimestamps.LoginWindowTime.Sub(bootTime).Milliseconds()
+		durations["Boot Duration (ms)"] = bootMs
+		haveBoot = true
 	}
 
 	// Logon Duration: loginTime -> desktopReadyTime
 	if loginTimestamps != nil && loginTimestamps.LoginTime != nil && loginTimestamps.DesktopReadyTime != nil {
-		durations["Logon Duration (ms)"] = loginTimestamps.DesktopReadyTime.Sub(*loginTimestamps.LoginTime).Milliseconds()
+		logonMs = loginTimestamps.DesktopReadyTime.Sub(*loginTimestamps.LoginTime).Milliseconds()
+		durations["Logon Duration (ms)"] = logonMs
+		haveLogon = true
 	}
 
-	// Total Boot Duration: bootTime -> desktopReadyTime
-	if loginTimestamps != nil && loginTimestamps.DesktopReadyTime != nil {
-		durations["Total Boot Duration (ms)"] = loginTimestamps.DesktopReadyTime.Sub(bootTime).Milliseconds()
+	// Total Boot Duration: Boot Duration + Logon Duration
+	if haveBoot && haveLogon {
+		durations["Total Boot Duration (ms)"] = bootMs + logonMs
 	}
 
 	if len(durations) > 0 {
@@ -304,13 +313,12 @@ func buildCustomPayload(bootTime time.Time, loginTimestamps *logonduration.Login
 	return custom
 }
 
-// submitEvent logs the boot/logon duration data in a readable format
+// submitEvent builds an Event Management v2 payload from the analysis result
+// and sends it through the event platform forwarder.
 func (c *logonDurationComponent) submitEvent(bootTime time.Time, loginTimestamps *logonduration.LoginTimestamps) error {
+	// Debug logging (to be removed later)
 	log.Info("Logon duration: ========== Boot/Logon Duration Data ==========")
-
-	// Log timestamps
 	log.Infof("Logon duration: boot_time=%s", bootTime.Format(time.RFC3339))
-
 	if loginTimestamps != nil {
 		if loginTimestamps.LoginWindowTime != nil {
 			log.Infof("Logon duration: login_window_time=%s", loginTimestamps.LoginWindowTime.Format(time.RFC3339))
@@ -325,25 +333,69 @@ func (c *logonDurationComponent) submitEvent(bootTime time.Time, loginTimestamps
 			log.Infof("Logon duration: filevault_enabled=%v", *loginTimestamps.FileVaultEnabled)
 		}
 	}
-
-	// Log durations in seconds
 	log.Info("Logon duration: ---------- Durations ----------")
-
 	if loginTimestamps != nil && loginTimestamps.LoginWindowTime != nil {
 		bootDuration := loginTimestamps.LoginWindowTime.Sub(bootTime).Seconds()
 		log.Infof("Logon duration: boot_duration=%.2fs (login_window - boot)", bootDuration)
 	}
-
 	if loginTimestamps != nil && loginTimestamps.LoginTime != nil && loginTimestamps.DesktopReadyTime != nil {
 		logonDuration := loginTimestamps.DesktopReadyTime.Sub(*loginTimestamps.LoginTime).Seconds()
 		log.Infof("Logon duration: logon_duration=%.2fs (desktop_ready - login)", logonDuration)
 	}
-
 	if loginTimestamps != nil && loginTimestamps.DesktopReadyTime != nil {
 		totalDuration := loginTimestamps.DesktopReadyTime.Sub(bootTime).Seconds()
 		log.Infof("Logon duration: total_duration=%.2fs (desktop_ready - boot)", totalDuration)
 	}
-
 	log.Info("Logon duration: ================================================")
+
+	// Build and submit the event
+	hostnameValue := c.hostname.GetSafe(context.TODO())
+	custom := buildCustomPayload(bootTime, loginTimestamps)
+
+	timestamp := bootTime.In(time.UTC).Format("2006-01-02T15:04:05.000000Z")
+
+	msg := "macOS logon duration analysis after reboot"
+	if durations, ok := custom["durations"].(map[string]interface{}); ok {
+		if logonMs, ok := durations["Logon Duration (ms)"]; ok {
+			msg = fmt.Sprintf("macOS logon took %d ms", logonMs)
+		}
+	}
+
+	eventData := map[string]interface{}{
+		"data": map[string]interface{}{
+			"type": "event",
+			"attributes": map[string]interface{}{
+				"host":           hostnameValue,
+				"title":          "Logon duration",
+				"category":       "alert",
+				"integration_id": "system-notable-events",
+				"system-notable-events": map[string]interface{}{
+					"event_type": "Logon duration",
+				},
+				"attributes": map[string]interface{}{
+					"status":   "ok",
+					"priority": "3",
+					"custom":   custom,
+				},
+				"message":   msg,
+				"timestamp": timestamp,
+			},
+		},
+	}
+
+	jsonData, err := json.Marshal(eventData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal event payload: %w", err)
+	}
+
+	log.Debugf("Logon duration event payload: %s", string(jsonData))
+	log.Debugf("Submitting logon duration event for host %s", hostnameValue)
+
+	m := message.NewMessage(jsonData, nil, "", time.Now().UnixNano())
+	if err := c.eventPlatformForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeEventManagement); err != nil {
+		return fmt.Errorf("failed to send event to platform: %w", err)
+	}
+
+	log.Debugf("Successfully submitted logon duration event")
 	return nil
 }
