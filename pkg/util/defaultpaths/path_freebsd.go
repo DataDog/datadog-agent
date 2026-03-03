@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
-		"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 const (
