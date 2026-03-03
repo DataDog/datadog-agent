@@ -34,6 +34,7 @@ func NewComponent(req Requires) (Provides, error) {
 	// Check if recording is enabled
 	if !req.Config.GetBool("observer.recording.enabled") {
 		pkglog.Debug("Recorder disabled (observer.recording.enabled=false)")
+		r.recordingDisabled = true
 		return Provides{Comp: r}, nil
 	}
 
@@ -55,54 +56,50 @@ func NewComponent(req Requires) (Provides, error) {
 	// Initialize metrics writer (always enabled when recording is on)
 	writer, err := NewParquetWriter(parquetDir, flushInterval, retentionDuration)
 	if err != nil {
-		pkglog.Errorf("Failed to create metrics parquet writer: %v", err)
-	} else {
-		r.parquetWriter = writer
-		pkglog.Infof("Recorder metrics writer started: dir=%s", parquetDir)
+		return Provides{Comp: r}, pkglog.Errorf("Failed to create metrics parquet writer: %v", err)
 	}
+	r.metricParquetWriter = writer
+	pkglog.Infof("Recorder metrics writer started: dir=%s", parquetDir)
 
 	// Initialize traces writer (always enabled when recording is on)
 	traceWriter, err := NewTraceParquetWriter(parquetDir, flushInterval, retentionDuration)
 	if err != nil {
-		pkglog.Errorf("Failed to create trace parquet writer: %v", err)
-	} else {
-		r.traceParquetWriter = traceWriter
-		pkglog.Infof("Recorder trace writer started: dir=%s", parquetDir)
+		return Provides{Comp: r}, pkglog.Errorf("Failed to create trace parquet writer: %v", err)
 	}
+	r.traceParquetWriter = traceWriter
+	pkglog.Infof("Recorder trace writer started: dir=%s", parquetDir)
 
 	// Initialize profiles writer (always enabled when recording is on)
 	profileWriter, err := NewProfileParquetWriter(parquetDir, flushInterval, retentionDuration)
 	if err != nil {
-		pkglog.Errorf("Failed to create profile parquet writer: %v", err)
-	} else {
-		r.profileParquetWriter = profileWriter
-		pkglog.Infof("Recorder profile writer started: dir=%s", parquetDir)
+		return Provides{Comp: r}, pkglog.Errorf("Failed to create profile parquet writer: %v", err)
 	}
+	r.profileParquetWriter = profileWriter
+	pkglog.Infof("Recorder profile writer started: dir=%s", parquetDir)
 
 	// Initialize logs writer (always enabled when recording is on)
 	logWriter, err := NewLogParquetWriter(parquetDir, flushInterval, retentionDuration)
 	if err != nil {
-		pkglog.Errorf("Failed to create log parquet writer: %v", err)
-	} else {
-		r.logParquetWriter = logWriter
-		pkglog.Infof("Recorder log writer started: dir=%s", parquetDir)
+		return Provides{Comp: r}, pkglog.Errorf("Failed to create log parquet writer: %v", err)
 	}
+	r.logParquetWriter = logWriter
+	pkglog.Infof("Recorder log writer started: dir=%s", parquetDir)
 
 	// Initialize trace stats writer (always enabled when recording is on)
 	traceStatsWriter, err := NewTraceStatsParquetWriter(parquetDir, flushInterval, retentionDuration)
 	if err != nil {
-		pkglog.Errorf("Failed to create trace stats parquet writer: %v", err)
-	} else {
-		r.traceStatsParquetWriter = traceStatsWriter
-		pkglog.Infof("Recorder trace stats writer started: dir=%s", parquetDir)
+		return Provides{Comp: r}, pkglog.Errorf("Failed to create trace stats parquet writer: %v", err)
 	}
+	r.traceStatsParquetWriter = traceStatsWriter
+	pkglog.Infof("Recorder trace stats writer started: dir=%s", parquetDir)
 
 	return Provides{Comp: r}, nil
 }
 
 // recorderImpl implements the recorder component
 type recorderImpl struct {
-	parquetWriter           *ParquetWriter
+	recordingDisabled       bool
+	metricParquetWriter     *MetricParquetWriter
 	traceParquetWriter      *TraceParquetWriter
 	profileParquetWriter    *ProfileParquetWriter
 	logParquetWriter        *LogParquetWriter
@@ -114,17 +111,16 @@ func (r *recorderImpl) GetHandle(handleFunc observer.HandleFunc) observer.Handle
 	return func(name string) observer.Handle {
 		innerHandle := handleFunc(name)
 
-		// If any recording is enabled, wrap with recording handle
-		if r.parquetWriter != nil || r.traceParquetWriter != nil || r.profileParquetWriter != nil || r.logParquetWriter != nil || r.traceStatsParquetWriter != nil {
-			return &recordingHandle{
-				inner:    innerHandle,
-				recorder: r,
-				name:     name,
-			}
+		if r.recordingDisabled {
+			return innerHandle
 		}
+		pkglog.Infof("recorder: getting handle for %s", name)
 
-		// No recording, pass through
-		return innerHandle
+		return &recordingHandle{
+			inner:    innerHandle,
+			recorder: r,
+			name:     name,
+		}
 	}
 }
 
@@ -256,50 +252,41 @@ func (h *recordingHandle) ObserveMetric(sample observer.MetricView) {
 	h.inner.ObserveMetric(sample)
 
 	// Record to parquet if writer is available
-	if h.recorder.parquetWriter != nil {
-		timestamp := int64(sample.GetTimestamp())
-		if timestamp == 0 {
-			timestamp = time.Now().Unix()
-		}
-		h.recorder.parquetWriter.WriteMetric(
-			h.name,
-			sample.GetName(),
-			sample.GetValue(),
-			sample.GetRawTags(),
-			timestamp,
-		)
+	timestamp := int64(sample.GetTimestamp())
+	if timestamp == 0 {
+		timestamp = time.Now().Unix()
 	}
+	h.recorder.metricParquetWriter.WriteMetric(
+		h.name,
+		sample.GetName(),
+		sample.GetValue(),
+		sample.GetRawTags(),
+		timestamp,
+	)
 }
 
 // ObserveLog forwards the log to the inner handle and records it.
 func (h *recordingHandle) ObserveLog(msg observer.LogView) {
 	h.inner.ObserveLog(msg)
 
-	// Record to parquet if writer is available
-	if h.recorder.logParquetWriter != nil {
-		content := msg.GetContent()
-		contentCopy := make([]byte, len(content))
-		copy(contentCopy, content)
+	content := msg.GetContent()
+	contentCopy := make([]byte, len(content))
+	copy(contentCopy, content)
 
-		h.recorder.logParquetWriter.WriteLog(
-			h.name,
-			contentCopy,
-			msg.GetStatus(),
-			msg.GetHostname(),
-			msg.GetTags(),
-			time.Now().UnixMilli(),
-		)
-	}
+	h.recorder.logParquetWriter.WriteLog(
+		h.name,
+		contentCopy,
+		msg.GetStatus(),
+		msg.GetHostname(),
+		msg.GetTags(),
+		time.Now().UnixMilli(),
+	)
 }
 
 // ObserveTraceStats forwards stats to the inner handle and records them to the
 // dedicated trace-stats parquet file (not to the metrics parquet file).
 func (h *recordingHandle) ObserveTraceStats(stats observer.TraceStatsView) {
 	h.inner.ObserveTraceStats(stats)
-
-	if h.recorder.traceStatsParquetWriter == nil {
-		return
-	}
 
 	agentHostname := stats.GetAgentHostname()
 	agentEnv := stats.GetAgentEnv()
@@ -324,28 +311,25 @@ func (h *recordingHandle) ObserveTraceStats(stats observer.TraceStatsView) {
 func (h *recordingHandle) ObserveTrace(trace observer.TraceView) {
 	h.inner.ObserveTrace(trace)
 
-	// Record to parquet if writer is available
-	if h.recorder.traceParquetWriter != nil {
-		traceIDHigh, traceIDLow := trace.GetTraceID()
-		traceService := trace.GetService()
-		traceTags := mapToTagSlice(trace.GetTags())
+	traceIDHigh, traceIDLow := trace.GetTraceID()
+	traceService := trace.GetService()
+	traceTags := mapToTagSlice(trace.GetTags())
 
-		// Iterate over all spans and write each one with trace context
-		iter := trace.GetSpans()
-		for iter.Next() {
-			span := iter.Span()
-			h.recorder.traceParquetWriter.WriteSpan(
-				h.name,
-				traceIDHigh, traceIDLow,
-				trace.GetEnv(), traceService, trace.GetHostname(), trace.GetContainerID(),
-				trace.GetTimestamp(), trace.GetDuration(),
-				trace.GetPriority(), trace.IsError(), traceTags,
-				span.GetSpanID(), span.GetParentID(),
-				span.GetService(), span.GetName(), span.GetResource(), span.GetType(),
-				span.GetStart(), span.GetDuration(), span.GetError(),
-				mapToTagSlice(span.GetMeta()), mapToMetricSlice(span.GetMetrics()),
-			)
-		}
+	// Iterate over all spans and write each one with trace context
+	iter := trace.GetSpans()
+	for iter.Next() {
+		span := iter.Span()
+		h.recorder.traceParquetWriter.WriteSpan(
+			h.name,
+			traceIDHigh, traceIDLow,
+			trace.GetEnv(), traceService, trace.GetHostname(), trace.GetContainerID(),
+			trace.GetTimestamp(), trace.GetDuration(),
+			trace.GetPriority(), trace.IsError(), traceTags,
+			span.GetSpanID(), span.GetParentID(),
+			span.GetService(), span.GetName(), span.GetResource(), span.GetType(),
+			span.GetStart(), span.GetDuration(), span.GetError(),
+			mapToTagSlice(span.GetMeta()), mapToMetricSlice(span.GetMetrics()),
+		)
 	}
 }
 
@@ -353,19 +337,16 @@ func (h *recordingHandle) ObserveTrace(trace observer.TraceView) {
 func (h *recordingHandle) ObserveProfile(profile observer.ProfileView) {
 	h.inner.ObserveProfile(profile)
 
-	// Record to parquet if writer is available
-	if h.recorder.profileParquetWriter != nil {
-		h.recorder.profileParquetWriter.WriteProfile(
-			h.name,
-			profile.GetProfileID(), profile.GetProfileType(),
-			profile.GetService(), profile.GetEnv(), profile.GetVersion(),
-			profile.GetHostname(), profile.GetContainerID(),
-			profile.GetTimestamp(), profile.GetDuration(),
-			profile.GetContentType(),
-			profile.GetRawData(),
-			mapToTagSlice(profile.GetTags()),
-		)
-	}
+	h.recorder.profileParquetWriter.WriteProfile(
+		h.name,
+		profile.GetProfileID(), profile.GetProfileType(),
+		profile.GetService(), profile.GetEnv(), profile.GetVersion(),
+		profile.GetHostname(), profile.GetContainerID(),
+		profile.GetTimestamp(), profile.GetDuration(),
+		profile.GetContentType(),
+		profile.GetRawData(),
+		mapToTagSlice(profile.GetTags()),
+	)
 }
 
 // mapToTagSlice converts a map to a slice of "key:value" strings.

@@ -241,7 +241,6 @@ func initAgentDemultiplexer(log log.Component,
 	return demux
 }
 
-
 // Options returns options used during the demux initialization.
 func (d *AgentDemultiplexer) Options() AgentDemultiplexerOptions {
 	return d.options
@@ -282,7 +281,7 @@ func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
 	}
 
 	// Only wire if capture_metrics.enabled is enabled
-	if !pkgconfigsetup.Datadog().GetBool("observer.analysis.enabled") || !pkgconfigsetup.Datadog().GetBool("observer.recording.enabled") {
+	if !(pkgconfigsetup.Datadog().GetBool("observer.analysis.enabled") || pkgconfigsetup.Datadog().GetBool("observer.recording.enabled")) {
 		d.log.Debug("Observer metric capture disabled by configuration")
 		return
 	}

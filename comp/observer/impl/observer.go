@@ -208,8 +208,8 @@ func NewComponent(deps Requires) Provides {
 		reporters: []observerdef.Reporter{
 			reporter,
 		},
-		storage:   newTimeSeriesStorage(),
-		obsCh:     make(chan observation, 1000),
+		storage: newTimeSeriesStorage(),
+		obsCh:   make(chan observation, 1000),
 	}
 
 	cfg := pkgconfigsetup.Datadog()
@@ -351,12 +351,12 @@ func samplePass(rate float64, n uint64) bool {
 // observerImpl is the implementation of the observer component.
 type observerImpl struct {
 	logDetectors     []observerdef.LogDetector
-	metricsDetectors        []observerdef.MetricsDetector
-	correlators []observerdef.Correlator
-	reporters         []observerdef.Reporter
-	storage           *timeSeriesStorage
-	obsCh             chan observation
-	handleFunc        observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
+	metricsDetectors []observerdef.MetricsDetector
+	correlators      []observerdef.Correlator
+	reporters        []observerdef.Reporter
+	storage          *timeSeriesStorage
+	obsCh            chan observation
+	handleFunc       observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
 
 	// Deduplication layer (optional) - filters anomalies before correlation
 	deduplicator *AnomalyDeduplicator
@@ -618,6 +618,7 @@ func (o *observerImpl) processProfile(source string, p *profileObs) {
 // GetHandle returns a lightweight handle for a named source.
 // If a recorder is configured, the handle will be wrapped to record metrics.
 func (o *observerImpl) GetHandle(name string) observerdef.Handle {
+	pkglog.Infof("[observer] getting handle for %s", name)
 	return o.handleFunc(name)
 }
 

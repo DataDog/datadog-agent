@@ -19,10 +19,10 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ParquetWriter writes observer metrics to parquet files created on each flush.
+// MetricParquetWriter writes observer metrics to parquet files created on each flush.
 // Files are only created when there is data to write; empty files are never produced.
 // Schema is compatible with FGM (Flare Graph Metrics) format for consistency.
-type ParquetWriter struct {
+type MetricParquetWriter struct {
 	parquetWriterBase
 	typedBuilder *metricBatchBuilder
 }
@@ -31,7 +31,7 @@ type ParquetWriter struct {
 // outputDir: directory where parquet files will be written
 // flushInterval: how often to rotate files (e.g., 60s creates a new file every minute)
 // retentionDuration: how long to keep old files (0 = no cleanup)
-func NewParquetWriter(outputDir string, flushInterval, retentionDuration time.Duration) (*ParquetWriter, error) {
+func NewParquetWriter(outputDir string, flushInterval, retentionDuration time.Duration) (*MetricParquetWriter, error) {
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return nil, fmt.Errorf("creating output directory: %w", err)
 	}
@@ -62,7 +62,7 @@ func NewParquetWriter(outputDir string, flushInterval, retentionDuration time.Du
 	)
 
 	builder := newMetricBatchBuilder(schema)
-	pw := &ParquetWriter{
+	pw := &MetricParquetWriter{
 		parquetWriterBase: parquetWriterBase{
 			outputDir:         outputDir,
 			filePrefix:        "observer-metrics",
@@ -82,7 +82,7 @@ func NewParquetWriter(outputDir string, flushInterval, retentionDuration time.Du
 }
 
 // WriteMetric adds a metric to the batch (will be flushed on interval).
-func (pw *ParquetWriter) WriteMetric(source, name string, value float64, tags []string, timestamp int64) {
+func (pw *MetricParquetWriter) WriteMetric(source, name string, value float64, tags []string, timestamp int64) {
 	pw.mu.Lock()
 	defer pw.mu.Unlock()
 
