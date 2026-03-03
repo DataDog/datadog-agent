@@ -68,8 +68,9 @@ func (s *epSliceConfig) shouldCollect() bool {
 // KubeEndpointSlicesFileConfigProvider generates endpoints checks from check configurations defined in files.
 type KubeEndpointSlicesFileConfigProvider struct {
 	sync.RWMutex
-	upToDate bool
-	store    *endpointSliceStore
+	upToDate     bool
+	store        *endpointSliceStore
+	configErrors map[string]types.ErrorMsgSet
 }
 
 // NewKubeEndpointSlicesFileConfigProvider returns a new KubeEndpointSlicesFileConfigProvider
@@ -128,9 +129,17 @@ func (p *KubeEndpointSlicesFileConfigProvider) String() string {
 	return names.KubeEndpointSlicesFile
 }
 
-// GetConfigErrors is not implemented for the KubeEndpointSlicesFileConfigProvider.
+// GetConfigErrors returns a map of errors that occurred when building the config store,
+// indexed by the integration name that generated the error.
 func (p *KubeEndpointSlicesFileConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
-	return make(map[string]types.ErrorMsgSet)
+	p.RLock()
+	defer p.RUnlock()
+
+	errors := make(map[string]types.ErrorMsgSet, len(p.configErrors))
+	for k, v := range p.configErrors {
+		errors[k] = v
+	}
+	return errors
 }
 
 func (p *KubeEndpointSlicesFileConfigProvider) setUpToDate(v bool) {
@@ -196,6 +205,7 @@ func (p *KubeEndpointSlicesFileConfigProvider) deleteHandler(obj interface{}) {
 // buildConfigStore initializes the config templates store.
 func (p *KubeEndpointSlicesFileConfigProvider) buildConfigStore(templates []integration.Config) {
 	p.store = newEndpointSliceStore()
+	p.configErrors = make(map[string]types.ErrorMsgSet)
 	for _, tpl := range templates {
 		for _, advancedAD := range tpl.AdvancedADIdentifiers {
 			if advancedAD.KubeEndpoints.IsEmpty() {
@@ -215,15 +225,21 @@ func (p *KubeEndpointSlicesFileConfigProvider) buildConfigStore(templates []inte
 			// Create matching program from CEL rules
 			matchingProg, celADID, compileErr, recError := integration.CreateMatchingProgram(tpl.CELSelector)
 			if celADID != adtypes.CelEndpointIdentifier {
-				log.Errorf("CEL selector for template %s is not targeting endpoints", tpl.Name)
+				errMsg := fmt.Sprintf("CEL selector for template %s is not targeting endpoints", tpl.Name)
+				log.Error(errMsg)
+				p.configErrors[tpl.Name] = types.ErrorMsgSet{errMsg: struct{}{}}
 				continue
 			}
 			if compileErr != nil {
-				log.Errorf("Failed to compile CEL selector for template %s: %v", tpl.Name, compileErr)
+				errMsg := fmt.Sprintf("Failed to compile CEL selector for template %s: %v", tpl.Name, compileErr)
+				log.Error(errMsg)
+				p.configErrors[tpl.Name] = types.ErrorMsgSet{errMsg: struct{}{}}
 				continue
 			}
 			if recError != nil {
-				log.Errorf("Failed to check rule recommendations for CEL selector for template %s: %v", tpl.Name, recError)
+				errMsg := fmt.Sprintf("Failed to check rule recommendations for CEL selector for template %s: %v", tpl.Name, recError)
+				log.Error(errMsg)
+				p.configErrors[tpl.Name] = types.ErrorMsgSet{errMsg: struct{}{}}
 				continue
 			}
 			tpl.SetMatchingProgram(matchingProg)
