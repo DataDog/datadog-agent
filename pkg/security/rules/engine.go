@@ -753,9 +753,11 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 			if evtType >= 0 && evtType < len(e.noMatchCounters) {
 				e.noMatchCounters[evtType].Inc()
 			}
-			event.RecordCheckpoint("rule_evaluate_discarders_start")
-			ruleSet.EvaluateDiscarders(event)
-			event.RecordCheckpoint("rule_evaluate_discarders_done")
+			if e.probe.ShouldEvaluateDiscarders(event) {
+				event.RecordCheckpoint("rule_evaluate_discarders_start")
+				ruleSet.EvaluateDiscarders(event)
+				event.RecordCheckpoint("rule_evaluate_discarders_done")
+			}
 		}
 	}
 
