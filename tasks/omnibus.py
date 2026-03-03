@@ -128,8 +128,6 @@ def get_omnibus_env(
 
         if not skip_sign:
             env['SIGN_MAC'] = 'true'
-        if hardened_runtime:
-            env['HARDENED_RUNTIME_MAC'] = 'true'
 
     env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, include_pipeline_id=True)
 
