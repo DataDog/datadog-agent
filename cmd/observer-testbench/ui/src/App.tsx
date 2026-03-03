@@ -34,15 +34,68 @@ interface TimeRange {
   end: number;
 }
 
-function formatTimeRange(range: TimeRange): string {
-  const formatTime = (ts: number) =>
-    new Date(ts * 1000).toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    });
-  return `${formatTime(range.start)} - ${formatTime(range.end)}`;
+function formatTimestamp(ts: number): string {
+  const d = new Date(ts * 1000);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function toDatetimeLocal(ts: number): string {
+  const d = new Date(ts * 1000);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function fromDatetimeLocal(value: string): number {
+  return new Date(value).getTime() / 1000;
+}
+
+function EditableTimestamp({ value, onChange }: { value: number; onChange: (ts: number) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [inputValue, setInputValue] = useState('');
+
+  const startEditing = () => {
+    setInputValue(toDatetimeLocal(value));
+    setEditing(true);
+  };
+
+  const commit = () => {
+    if (inputValue) {
+      const ts = fromDatetimeLocal(inputValue);
+      if (!isNaN(ts)) onChange(ts);
+    }
+    setEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') commit();
+    if (e.key === 'Escape') setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <input
+        type="datetime-local"
+        step="1"
+        value={inputValue}
+        onChange={e => setInputValue(e.target.value)}
+        onBlur={commit}
+        onKeyDown={handleKeyDown}
+        autoFocus
+        className="text-sm font-mono bg-slate-800 border border-purple-500 rounded px-1 py-0.5 text-slate-200 focus:outline-none"
+      />
+    );
+  }
+
+  return (
+    <button
+      onClick={startEditing}
+      title="Click to edit"
+      className="text-sm text-slate-200 font-mono hover:text-purple-300 hover:underline cursor-pointer"
+    >
+      {formatTimestamp(value)}
+    </button>
+  );
 }
 
 function App() {
@@ -141,9 +194,15 @@ function App() {
             {activeTimeRange && (
               <div className="flex items-center gap-2 bg-slate-700/50 rounded px-3 py-1.5">
                 <span className="text-xs text-slate-400">Time Span:</span>
-                <span className="text-sm text-slate-200 font-mono">
-                  {formatTimeRange(activeTimeRange)}
-                </span>
+                <EditableTimestamp
+                  value={activeTimeRange.start}
+                  onChange={start => setTimeRange({ start, end: activeTimeRange.end })}
+                />
+                <span className="text-xs text-slate-500">–</span>
+                <EditableTimestamp
+                  value={activeTimeRange.end}
+                  onChange={end => setTimeRange({ start: activeTimeRange.start, end })}
+                />
                 <span className="text-xs text-slate-500 ml-1">
                   (middle-drag or cmd+drag to pan)
                 </span>
