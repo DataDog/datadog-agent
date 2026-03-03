@@ -35,6 +35,10 @@ func (h *HashMapNoPreallocModifier) BeforeInit(mgr *manager.Manager, _ names.Mod
 		return err
 	}
 
+	if options.MapSpecEditors == nil {
+		options.MapSpecEditors = make(map[string]manager.MapSpecEditor)
+	}
+
 	for mapName, spec := range specs {
 		if spec.Type != ebpf.Hash && spec.Type != ebpf.PerCPUHash {
 			continue
