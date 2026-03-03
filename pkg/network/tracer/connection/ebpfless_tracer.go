@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build (linux && linux_bpf) || darwin
+//go:build linux || darwin
 
 package connection
 
@@ -20,7 +20,6 @@ import (
 	"github.com/google/gopacket/layers"
 	"github.com/prometheus/client_golang/prometheus"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
@@ -204,20 +203,17 @@ func (t *ebpfLessTracer) processConnection(
 		}
 	}
 
-	var ts int64
-	var err error
-	if ts, err = ddebpf.NowNanoseconds(); err != nil {
-		return fmt.Errorf("error getting last updated timestamp for connection: %w", err)
-	}
-	conn.LastUpdateEpoch = uint64(ts)
+	ts := uint64(time.Now().UnixNano())
+	conn.LastUpdateEpoch = ts
 
+	var err error
 	var result ebpfless.ProcessResult
 	switch conn.Type {
 	case network.UDP:
 		result = ebpfless.ProcessResultStoreConn
 		err = t.udp.process(conn, pktType, udp)
 	case network.TCP:
-		result, err = t.tcp.Process(conn, uint64(ts), pktType, ip4, ip6, tcp)
+		result, err = t.tcp.Process(conn, ts, pktType, ip4, ip6, tcp)
 	default:
 		err = fmt.Errorf("unsupported connection type %d", conn.Type)
 	}
@@ -389,11 +385,8 @@ func (t *ebpfLessTracer) GetConnections(buffer *network.ConnectionBuffer, filter
 // cleanupPendingConns removes pending connections from the TCP tracer.
 // For more information, refer to CleanupExpiredPendingConns
 func (t *ebpfLessTracer) cleanupPendingConns() error {
-	ts, err := ddebpf.NowNanoseconds()
-	if err != nil {
-		return fmt.Errorf("error getting last updated timestamp for connection: %w", err)
-	}
-	t.tcp.CleanupExpiredPendingConns(uint64(ts))
+	ts := uint64(time.Now().UnixNano())
+	t.tcp.CleanupExpiredPendingConns(ts)
 	return nil
 }
 

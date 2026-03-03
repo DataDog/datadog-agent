@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build (linux && linux_bpf) || darwin
+//go:build linux || darwin
 
 package ebpfless
 
@@ -90,15 +90,6 @@ const (
 	connStatEstablished
 )
 
-// connStatusLabels is used by labelForState in tests (tcp_processor_test.go).
-//
-//nolint:unused
-var connStatusLabels = []string{
-	"Closed",
-	"Attempted",
-	"Established",
-}
-
 type synState uint8
 
 const (
@@ -136,17 +127,6 @@ func (ss *synState) update(synFlag, ackFlag bool) {
 }
 func (ss *synState) isSynAcked() bool {
 	return *ss == synStateAcked || *ss == synStateMissed
-}
-
-// labelForState is used in tcp_processor_test.go.
-//
-//nolint:unused
-func labelForState(tcpState connStatus) string {
-	idx := int(tcpState)
-	if idx < len(connStatusLabels) {
-		return connStatusLabels[idx]
-	}
-	return "BadState-" + strconv.Itoa(idx)
 }
 
 func isSeqBefore(prev, cur uint32) bool {

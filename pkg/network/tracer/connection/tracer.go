@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package connection provides network connection tracking functionality.
 package connection
 
 import (
@@ -30,12 +31,6 @@ const (
 	TracerTypeEbpfless
 	// TracerTypeDarwin is the TracerType for the Darwin tracer (uses ebpfless implementation)
 	TracerTypeDarwin
-)
-
-const (
-	// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
-	// This value should be enough for typical workloads (e.g. some amount of processes blocked on the `accept` syscall).
-	maxActive = 512 //nolint:unused // used by Linux eBPF tracer
 )
 
 // Tracer is the common interface implemented by all connection tracers.

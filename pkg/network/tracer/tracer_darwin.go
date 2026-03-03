@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
-	networkfilter "github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -31,7 +31,6 @@ type Tracer struct {
 	connTracer     connection.Tracer
 	state          network.State
 	reverseDNS     dns.ReverseDNS
-	staticTableSet bool //nolint:unused // reserved for interface compatibility with Linux tracer
 	sourceExcludes []*networkfilter.ConnectionFilter
 	destExcludes   []*networkfilter.ConnectionFilter
 }

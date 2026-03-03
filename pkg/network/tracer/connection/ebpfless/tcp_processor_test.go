@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux
 
 package ebpfless
 
 import (
 	"net"
+	"strconv"
 	"syscall"
 	"testing"
 	"time"
@@ -40,6 +41,20 @@ const (
 	RST = 0x04
 	ACK = 0x10
 )
+
+var connStatusLabels = []string{
+	"Closed",
+	"Attempted",
+	"Established",
+}
+
+func labelForState(tcpState connStatus) string {
+	idx := int(tcpState)
+	if idx < len(connStatusLabels) {
+		return connStatusLabels[idx]
+	}
+	return "BadState-" + strconv.Itoa(idx)
+}
 
 func ipv4Packet(src, dst net.IP, length uint16) layers.IPv4 {
 	return layers.IPv4{

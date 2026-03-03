@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build darwin
+//go:build darwin || (linux && !linux_bpf)
 
 package connection
 
@@ -12,8 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
-// NewTracer returns a new Tracer for Darwin
-// Darwin always uses the ebpfless (libpcap-based) tracer since eBPF is not available
+// NewTracer returns a new Tracer for platforms that do not support eBPF.
+// It always uses the ebpfless (libpcap-based) tracer since eBPF is not available
 func NewTracer(cfg *config.Config, _ telemetry.Component) (Tracer, error) {
 	return newEbpfLessTracer(cfg)
 }
