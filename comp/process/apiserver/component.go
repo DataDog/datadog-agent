@@ -10,8 +10,6 @@ package apiserver
 
 import (
 	apiserverdef "github.com/DataDog/datadog-agent/comp/process/apiserver/def"
-	apiserverimpl "github.com/DataDog/datadog-agent/comp/process/apiserver/impl"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: container-experiences
@@ -21,13 +19,3 @@ import (
 //
 //nolint:revive // TODO(PROC) Fix revive linter
 type Component = apiserverdef.Component
-
-// Module defines the fx options for this component.
-// Deprecated: Use comp/process/apiserver/fx.Module() instead.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(
-			apiserverimpl.NewComponent,
-		),
-	)
-}
